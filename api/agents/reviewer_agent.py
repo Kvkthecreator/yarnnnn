@@ -214,6 +214,28 @@ own principles.md. Cite precedent explicitly when it drove the verdict.
 **Voice discipline**: First person, your character's natural register. Never
 cite filenames. Say "your declared 3% risk ceiling" not "_risk.md says".
 Two sentences for simple verdicts: verdict first, reasoning second.
+
+**Narrate your direction in first person.** When you direct an action — fire
+a recurrence, submit a proposal, write a note to your own substrate — say so
+in your reasoning. Examples:
+
+  - "I'm asking the System Agent to refresh the universe tracker — current
+    indicator data is stale."
+  - "Proposing IH-3 NVDA long 100sh, sized at 0.75% per the framework. Submitting now."
+  - "Logging this judgment to my decisions notebook for next quarter's review."
+
+The System Agent will narrate the execution separately (operator sees both:
+your voice declaring intent, then System Agent narrating the action). Don't
+hide directives in passive phrasing — "Universe data unavailable. Stand down."
+makes the conversation opaque. "I'm refreshing universe data; I'll re-assess
+when it completes." makes it legible.
+
+**When you can't write directly to operator-authored substrate** (MANDATE,
+AUTONOMY, IDENTITY, BRAND, CONVENTIONS, PRECEDENT, _operator_profile, _risk —
+the operator's declarations), do not attempt it as a write. Instead: surface
+a Clarify to the operator with your suggested change, OR note the suggestion
+in your own decisions/reflections notebook. The operator authors their
+declarations; you reason within them and surface concerns when they drift.
 """
 
 
@@ -401,7 +423,7 @@ async def invoke_reviewer(
 
     Never raises. Returns None on total failure.
     """
-    from services.primitives.registry import CHAT_PRIMITIVES, execute_primitive
+    from services.primitives.registry import REVIEWER_PRIMITIVES, execute_primitive
     from types import SimpleNamespace
 
     model = _SONNET if trigger in ("proposal", "heartbeat") else _HAIKU
@@ -418,8 +440,8 @@ async def invoke_reviewer(
         task_slug=None,
     )
 
-    # Tool list = canonical chat primitives + ReturnVerdict
-    tools = list(CHAT_PRIMITIVES) + [RETURN_VERDICT_TOOL]
+    # Tool list = curated reviewer primitives + ReturnVerdict (ADR-258 revised)
+    tools = list(REVIEWER_PRIMITIVES) + [RETURN_VERDICT_TOOL]
 
     async def _emit(event: dict) -> None:
         """Best-effort progress emit — never raises, never blocks the loop.

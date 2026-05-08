@@ -113,3 +113,34 @@ REVIEW_FILES = (
     REVIEW_HANDOFFS_PATH,
     REVIEW_CALIBRATION_PATH,
 )
+
+# ADR-258 (revised 2026-05-08): default lock set for Reviewer writes.
+# Encodes the Reviewer / Operator authorship boundary — like a human
+# supervisor who reads but doesn't rewrite the operator's foundational
+# declarations (mandate, autonomy ceiling, identity, brand, conventions,
+# durable interpretations, declared strategy + risk floors).
+#
+# Operator can extend this set via /workspace/_shared/_locks.yaml
+# (locked_paths: [...]) — adds more locked paths.
+# Operator can override defaults via /workspace/_shared/_locks.yaml
+# (unlocked_paths: [...]) — explicitly permits Reviewer writes to paths
+# in this default set when they want a more permissive Reviewer.
+#
+# When the Reviewer's WriteFile is rejected, the Reviewer can:
+#   - Surface a Clarify to the operator ("I'd like to update X — approve?")
+#   - Note the suggestion in its own decisions.md / reflections.md
+#   - Continue reasoning and let the operator act
+DEFAULT_REVIEWER_WRITE_LOCKS = (
+    SHARED_MANDATE_PATH,
+    SHARED_AUTONOMY_PATH,
+    SHARED_AUTONOMY_YAML_PATH,
+    SHARED_IDENTITY_PATH,
+    SHARED_BRAND_PATH,
+    SHARED_CONVENTIONS_PATH,
+    SHARED_PRECEDENT_PATH,
+    "context/trading/_operator_profile.md",
+    "context/trading/_risk.md",
+    "context/commerce/_operator_profile.md",
+    "context/commerce/_risk.md",
+    "context/_shared/_locks.yaml",  # operator-authored lock policy itself
+)

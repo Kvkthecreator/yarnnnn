@@ -299,6 +299,55 @@ PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.
 
 
 # =============================================================================
+# ADR-258 (revised 2026-05-08): REVIEWER_PRIMITIVES — curated subset
+# =============================================================================
+# The Reviewer is the operator's installed judgment character — personified
+# to act on the operator's behalf. Like a human supervisor, the Reviewer:
+#   - Reads any report directly (observation is unmediated)
+#   - Writes its own notebook (decisions, reflections, notes within /workspace/review/)
+#   - Directs subordinates to fire recurrences or submit proposals (FireInvocation, ProposeAction)
+#   - Asks the operator when in doubt (Clarify)
+#
+# What the Reviewer does NOT do directly (operator-authorship territory —
+# requested via Clarify, surfaced as concern in reasoning, or escalated):
+#   - Restructure the operation: ManageDomains, ManageAgent, ManageRecurrence
+#     (create/update/archive), InferContext, InferWorkspace
+#   - Run asset renders or repurpose deliverables: RuntimeDispatch, RepurposeOutput
+#   - Bind execution downstream of someone else's verdict: ExecuteProposal, RejectProposal
+#     (the dispatcher executes ExecuteProposal/RejectProposal on Reviewer's verdict —
+#      Reviewer doesn't call them itself)
+#   - Mutate entity-layer rows: EditEntity (Reviewer reasons against files, not rows)
+#
+# This is NOT access control — it's *role discipline*. The mechanism is
+# explicit allowlist instead of broad chat-mode access. Operator can extend
+# via _locks.yaml unlocked_paths if they want a more permissive Reviewer.
+
+REVIEWER_PRIMITIVES = [
+    # All read primitives — observation is unmediated (supervisor reads any report)
+    READ_FILE_TOOL,
+    LIST_FILES_TOOL,
+    SEARCH_FILES_TOOL,
+    LIST_REVISIONS_TOOL,
+    READ_REVISION_TOOL,
+    DIFF_REVISIONS_TOOL,
+    GET_SYSTEM_STATE_TOOL,
+    SEARCH_ENTITIES_TOOL,
+    LOOKUP_ENTITY_TOOL,
+    LIST_ENTITIES_TOOL,
+    LIST_INTEGRATIONS_TOOL,
+    WEB_SEARCH_PRIMITIVE,
+    QUERY_KNOWLEDGE_TOOL,
+    # Self-substrate writes — own notebook (lock check enforces /workspace/review/ + non-locked paths)
+    WRITE_FILE_TOOL,
+    # Direction primitives — Reviewer says, System Agent executes
+    FIRE_INVOCATION_TOOL,
+    PROPOSE_ACTION_TOOL,
+    # Conversation
+    CLARIFY_TOOL,
+]  # 16 tools — curated subset of CHAT_PRIMITIVES per human-supervisor analogue
+
+
+# =============================================================================
 # Handler mapping — all unique handlers
 # =============================================================================
 

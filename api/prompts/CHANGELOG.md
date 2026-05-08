@@ -6,6 +6,63 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.08.4] - ADR-258 revised: curated REVIEWER_PRIMITIVES + per-action narration + first-person voice discipline
+
+### Changed
+- Reviewer tool surface curated to `REVIEWER_PRIMITIVES` (16 tools, subset
+  of CHAT_PRIMITIVES). Excludes operator-authorship primitives (InferContext,
+  InferWorkspace, ManageDomains, ManageAgent, ManageRecurrence, RuntimeDispatch,
+  RepurposeOutput, EditEntity, ExecuteProposal, RejectProposal). Maps to
+  human-supervisor analogue: reads anything, writes own notebook, directs
+  subordinates, asks the operator.
+
+- `DEFAULT_REVIEWER_WRITE_LOCKS` (services/workspace_paths.py) — platform
+  default lock set covers operator-authored substrate (MANDATE, AUTONOMY,
+  IDENTITY, BRAND, CONVENTIONS, PRECEDENT, _operator_profile, _risk).
+  Operator extends via _locks.yaml::locked_paths or overrides via
+  _locks.yaml::unlocked_paths. Encodes the Reviewer/Operator authorship
+  boundary as a default rather than an opt-in.
+
+- `cockpit_awareness.py` now composes from REVIEWER_PRIMITIVES (not
+  CHAT_PRIMITIVES). Includes explicit "not in your tool surface" callout
+  so the Reviewer knows operator-authorship territory and asks via Clarify
+  instead.
+
+- Reviewer system prompt voice discipline tightened: "narrate your
+  direction in first person." When Reviewer fires a recurrence or submits
+  a proposal, it says so in its reasoning ("I'm asking the System Agent
+  to refresh the universe tracker"). Matched by System Agent narration:
+  "Firing recurrence on Reviewer's direction. ..."
+
+- chat.py per-action System Agent narration replaces post-hoc lump bubble.
+  When a Reviewer's consequential action (FireInvocation/ProposeAction/
+  WriteFile) succeeds during the loop, a System Agent bubble is written
+  in-the-moment via append_message. Cognition tools stay as transient
+  streaming-status. Failed actions stay silent.
+
+- Cross-trigger narration consistency: heartbeat (invocation_dispatcher),
+  proposal (review_proposal_dispatch), and reflection (back_office/
+  reviewer_reflection) all use new shared helper
+  `surface_reviewer_actions` from reviewer_chat_surfacing. Same shape:
+  Reviewer bubble + per-action System Agent narration entries.
+
+### Expected behavior
+- Operator types: "what's your read?"
+- See: thinking indicator → "Reviewer is reading substrate..." (transient)
+        → Reviewer bubble (persona voice, narrates intent in first person)
+        → System Agent bubble per consequential action ("Firing recurrence
+          on Reviewer's direction. ...")
+
+- Heartbeat fires after signal-evaluation:
+- See: Reviewer bubble (persona voice) + System Agent narration entries
+        for any FireInvocation/ProposeAction/WriteFile the Reviewer directed.
+        Same shape as addressed turn — chat reads as conversation regardless
+        of which trigger fired.
+
+- Reviewer attempts WriteFile to /workspace/context/_shared/MANDATE.md:
+- See: handler returns operator_locked error. Reviewer surfaces Clarify
+        or notes the suggestion in its own decisions/reflections instead.
+
 ## [2026.05.08.3] - ADR-258: Reviewer as personified chat-mode operator — full primitive scope, generated cockpit awareness
 
 ### Changed

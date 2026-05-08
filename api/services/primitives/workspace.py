@@ -1277,19 +1277,31 @@ async def handle_read_agent_file(auth: Any, input: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 async def _is_path_locked_for_reviewer(auth: Any, path: str) -> bool:
-    """Check /workspace/_shared/_locks.yaml for Reviewer-write enforcement.
+    """Check Reviewer-write lock policy for the given path.
 
-    Default-empty, opt-in. Returns True when the target path matches an
-    entry in the `locked_paths` list. Failure-mode is fail-open (no locks
-    apply) — the substrate-level safety story is attribution + revision
-    chain, not access control. Locks are a thin operator-controlled belt.
+    ADR-258 (revised 2026-05-08): the lock policy combines
+      defaults (DEFAULT_REVIEWER_WRITE_LOCKS — operator-authored substrate
+        the Reviewer should not directly modify; encodes the
+        Reviewer/Operator authorship boundary as a default)
+      + operator additions (locked_paths in _locks.yaml)
+      − operator overrides (unlocked_paths in _locks.yaml — explicitly
+        permits Reviewer writes to default-locked paths when the
+        operator wants a more permissive Reviewer).
 
-    Cached per request via auth-scoped memo to avoid re-fetching when
-    multiple writes happen in the same primitive batch (e.g. tool-use loop).
+    Result is cached per-request via auth-scoped memo to avoid re-fetching
+    when multiple writes happen in the same primitive batch.
+
+    Returns True when path is locked. Fail-open on parse error.
     """
-    # In-memo on the auth namespace
     cache = getattr(auth, "_reviewer_locks_cache", None)
     if cache is None:
+        # 1. Start with platform defaults
+        from services.workspace_paths import DEFAULT_REVIEWER_WRITE_LOCKS
+        defaults = {p.strip().lstrip("/") for p in DEFAULT_REVIEWER_WRITE_LOCKS}
+        added: set[str] = set()
+        unlocked: set[str] = set()
+
+        # 2. Layer operator-authored _locks.yaml on top
         try:
             res = (
                 auth.client.table("workspace_files")
@@ -1303,17 +1315,21 @@ async def _is_path_locked_for_reviewer(auth: Any, path: str) -> bool:
         except Exception:
             content = ""
 
-        locked: list[str] = []
         if content:
             try:
                 import yaml  # type: ignore
                 parsed = yaml.safe_load(content) or {}
-                raw = parsed.get("locked_paths") or []
-                if isinstance(raw, list):
-                    locked = [str(p).strip().lstrip("/") for p in raw if p]
+                raw_locked = parsed.get("locked_paths") or []
+                if isinstance(raw_locked, list):
+                    added = {str(p).strip().lstrip("/") for p in raw_locked if p}
+                raw_unlocked = parsed.get("unlocked_paths") or []
+                if isinstance(raw_unlocked, list):
+                    unlocked = {str(p).strip().lstrip("/") for p in raw_unlocked if p}
             except Exception:
-                locked = []
-        cache = locked
+                pass
+
+        effective = (defaults | added) - unlocked
+        cache = effective
         try:
             setattr(auth, "_reviewer_locks_cache", cache)
         except Exception:
@@ -1322,9 +1338,8 @@ async def _is_path_locked_for_reviewer(auth: Any, path: str) -> bool:
     if not cache:
         return False
 
-    # Normalise the candidate to workspace-relative form for comparison.
     candidate = path.strip().lstrip("/")
     if candidate.startswith("workspace/"):
         candidate = candidate[len("workspace/"):]
 
-    return any(candidate == locked_path for locked_path in cache)
+    return candidate in cache

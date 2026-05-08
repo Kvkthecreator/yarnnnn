@@ -365,6 +365,21 @@ async def _run_ai_reviewer(
             "proposal_row": proposal_row,
         },
     )
+    # ADR-258 (revised): surface any consequential actions the Reviewer took
+    # during its loop as System Agent narration entries — matches addressed
+    # + heartbeat triggers so operator sees consistent conversational shape
+    # regardless of which trigger fired.
+    if output and (output.get("actions_taken") or []):
+        from services.reviewer_chat_surfacing import surface_reviewer_actions
+        try:
+            await surface_reviewer_actions(
+                client, user_id,
+                actions_taken=output.get("actions_taken") or [],
+            )
+        except Exception as exc:
+            logger.warning(
+                "[REVIEW_DISPATCH] action narration failed: %s", exc,
+            )
     decision = output_to_review_decision(output)
 
     if decision is None:

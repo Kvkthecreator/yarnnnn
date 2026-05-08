@@ -73,7 +73,7 @@ The approval loop primitives express the structural independence of the three pa
 | Party | Primitives available | Safety story |
 |-------|---------------------|---------------|
 | **YARNNN** (chat) | Full `CHAT_PRIMITIVES` set | Operator-present chat session; attribution `authored_by="yarnnn:chat"`; AUTONOMY gates capital actions |
-| **Reviewer** (chat) | Full `CHAT_PRIMITIVES` + `ReturnVerdict` (Reviewer-specific verdict closer) | Attribution `authored_by="reviewer:{occupant}"` + revision chain + AUTONOMY gating + operator-authored `_locks.yaml` opt-in path locks |
+| **Reviewer** (chat) | Curated `REVIEWER_PRIMITIVES` subset (16 tools — all reads + `WriteFile` lock-gated + `FireInvocation` + `ProposeAction` + `Clarify`) + `ReturnVerdict` | Attribution `authored_by="reviewer:{occupant}"` + revision chain + AUTONOMY gating + `DEFAULT_REVIEWER_WRITE_LOCKS` (operator-authored substrate locked-by-default) + operator-authored `_locks.yaml` extensions/overrides |
 | **Headless agents** (production) | `HEADLESS_PRIMITIVES` (curated subset) + dynamic `platform_*` per capability bundle | `ProposeAction` only for external-write actions — cannot bind decisions; attribution `authored_by="agent:{slug}"` |
 
 **ADR-258 retired the "Reviewer has no primitives" claim.** The Reviewer is a chat-mode caller of the canonical primitive registry — same dispatch path as YARNNN. Independence (THESIS Commitment 2) means the Reviewer's judgment is evaluated against ground truth (money-truth in `_performance.md`), not against producer agreement. Independence is preserved by *what the Reviewer reasons against*, not by *which primitives it can call*.

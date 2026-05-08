@@ -197,6 +197,22 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
                 "performance_md": performance_md_summary,
             },
         )
+        # ADR-258 (revised): surface any consequential actions the Reviewer
+        # took during reflection (rare — reflection is mostly cognition + own
+        # substrate writes, but if the Reviewer did fire something or write
+        # outside its substrate during reflection, narrate it).
+        if output and (output.get("actions_taken") or []):
+            from services.reviewer_chat_surfacing import surface_reviewer_actions
+            try:
+                await surface_reviewer_actions(
+                    client, user_id,
+                    actions_taken=output.get("actions_taken") or [],
+                )
+            except Exception as _surface_exc:
+                logger.warning(
+                    "[REFLECTION] action narration failed: %s", _surface_exc,
+                )
+
         # Adapt ReviewerOutput to the ReflectionVerdict shape this function's
         # downstream code (structured dict + reflection_writer) expects.
         verdict = None

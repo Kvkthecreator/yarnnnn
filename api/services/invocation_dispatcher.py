@@ -1520,6 +1520,15 @@ async def _maybe_fire_reviewer_heartbeat(
                 verdict="heartbeat",
                 occupant=REVIEWER_MODEL_IDENTITY,
             )
+            # ADR-258 (revised): per-action System Agent narration for each
+            # consequential Reviewer action. Same shape as addressed trigger
+            # in chat.py — operator sees Reviewer voice + System Agent
+            # execution narration, regardless of which trigger fired.
+            from services.reviewer_chat_surfacing import surface_reviewer_actions
+            await surface_reviewer_actions(
+                client, user_id,
+                actions_taken=output.get("actions_taken") or [],
+            )
             logger.info(
                 "[HEARTBEAT] Reviewer heartbeat response surfaced for user=%s trigger=%s",
                 user_id[:8], completed_slug,

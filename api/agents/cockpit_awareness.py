@@ -79,17 +79,17 @@ def build_filesystem_block() -> str:
     ])
 
 
-def build_tools_block(allowed_tool_names: set[str]) -> str:
-    """Tool block — composed from CHAT_PRIMITIVES registry at call time.
+def build_tools_block(allowed_tool_names: set[str] | None = None) -> str:
+    """Tool block — composed from REVIEWER_PRIMITIVES registry at call time.
 
-    Imported lazily to avoid circular imports between primitives and agents.
-    Filters the registry to the tools available to this caller and emits
-    one line per tool: `- ToolName — one-line description`.
+    ADR-258 (revised 2026-05-08): Reviewer uses the curated REVIEWER_PRIMITIVES
+    subset (16 tools matching the human-supervisor analogue), not the full
+    CHAT_PRIMITIVES set. Imported lazily to avoid circular imports.
     """
-    from services.primitives.registry import CHAT_PRIMITIVES
+    from services.primitives.registry import REVIEWER_PRIMITIVES
 
-    lines = ["### Your tool surface (canonical chat-mode primitives)", ""]
-    for tool in CHAT_PRIMITIVES:
+    lines = ["### Your tool surface (Reviewer-curated primitives)", ""]
+    for tool in REVIEWER_PRIMITIVES:
         name = tool.get("name", "")
         if not name:
             continue
@@ -98,10 +98,19 @@ def build_tools_block(allowed_tool_names: set[str]) -> str:
         desc = _one_line(tool.get("description") or "")
         lines.append(f"- `{name}` — {desc}")
 
-    # ReturnVerdict is Reviewer-specific (not in CHAT_PRIMITIVES).
+    # ReturnVerdict is Reviewer-specific (not in REVIEWER_PRIMITIVES).
     lines.append(
         "- `ReturnVerdict` — close the turn with verdict + reasoning + confidence. "
         "Always last."
+    )
+
+    lines.append("")
+    lines.append(
+        "**Not in your tool surface (operator-authorship territory):** "
+        "ManageDomains, ManageAgent, ManageRecurrence, InferContext, InferWorkspace, "
+        "RuntimeDispatch, RepurposeOutput, EditEntity, ExecuteProposal, RejectProposal. "
+        "These shape the operation; the operator authors them. If you want changes here, "
+        "surface a Clarify or note the suggestion in your reasoning — the operator decides."
     )
     return "\n".join(lines)
 

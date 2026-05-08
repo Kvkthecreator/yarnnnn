@@ -1,6 +1,28 @@
-# ADR-258: Reviewer as Personified Chat-Mode Operator — Full Primitive Scope, Attribution-Anchored Safety
+# ADR-258: Reviewer as Personified Chat-Mode Operator — Curated Primitive Scope, Attribution-Anchored Safety, Per-Action Narration
 
-**Status**: Implemented 2026-05-08
+**Status**: Implemented 2026-05-08 (revised same day after first deploy — see Revision below)
+
+---
+
+## Revision (2026-05-08, post-deploy refinement)
+
+The first version of D1 gave the Reviewer the full `CHAT_PRIMITIVES` set (26 tools). That was over-broad — it conflated the Reviewer (operator personified, judgment seat) with YARNNN-the-orchestration-surface (executor of operator intent).
+
+The right structural split, by physical-world analogy: the operator (human OR personified) does not directly call operator-authorship primitives that shape the operation (creating recurrences, restructuring domains, re-inferring identity). A human Simons-style supervisor reads reports, writes their own notebook, directs subordinates to fire procedures or submit proposals, asks the operator when in doubt — but doesn't restructure the operation themselves.
+
+**Three changes locked in:**
+
+1. **Curated `REVIEWER_PRIMITIVES` registry** (16 tools, subset of `CHAT_PRIMITIVES`). All read primitives + `WriteFile` (lock-gated) + `FireInvocation` + `ProposeAction` + `Clarify` + `ReturnVerdict`. Excludes operator-authorship primitives (`InferContext`, `InferWorkspace`, `ManageDomains`, `ManageAgent`, `ManageRecurrence`, `RuntimeDispatch`, `RepurposeOutput`, `EditEntity`, `ExecuteProposal`, `RejectProposal`).
+
+2. **`DEFAULT_REVIEWER_WRITE_LOCKS` constant** (in `services/workspace_paths.py`). Encodes the operator-authorship boundary as a default lock set for Reviewer writes: MANDATE, AUTONOMY (md + yaml), IDENTITY, BRAND, CONVENTIONS, PRECEDENT, `_operator_profile.md`, `_risk.md`. Operator can extend via `_locks.yaml::locked_paths` or override defaults via `_locks.yaml::unlocked_paths`. The lock check `_is_path_locked_for_reviewer` reads defaults + adds + subtracts unlocks. Reviewer attempting a locked write gets a clear error suggesting Clarify or substrate-note instead.
+
+3. **Per-action System Agent narration during the loop, not post-hoc lump.** The chat reads as a conversation between two participants: Reviewer narrates intent in first-person persona voice; System Agent narrates each consequential successful action when it fires. New shared helper `services/reviewer_chat_surfacing.py::narrate_reviewer_action` + `surface_reviewer_actions`. Wired into all four trigger paths (addressed via in-event handler in `chat.py`; heartbeat/proposal/reflection via `surface_reviewer_actions` post-invocation).
+
+The *spirit* of the original ADR-258 is preserved: Reviewer is a chat-mode autonomous operator, attribution + revision-chain + AUTONOMY gating are the safety story (not access control), `_locks.yaml` is operator-authored access policy. What changed is the *scope* of primitives (curated subset, not full chat) and the *narrative shape* (per-action conversation, not post-hoc lump).
+
+---
+
+**Status (original)**: Implemented 2026-05-08
 **Supersedes**: Portions of ADR-247 D4 (the "Reviewer has no primitives" / "no LLM tool surface" framing — both are now retired). Folds in ADR-253 D2 (directives become tool calls during a defer turn — same shape, no parallel mechanism). Amends ADR-256 (preserves trigger taxonomy + unified entry point; replaces hand-rolled tool dispatch with canonical registry calls; replaces curated tool subset with full chat-mode scope).
 **Preserves**: ADR-209 (Authored Substrate — attribution + revision chain are load-bearing here), ADR-194 v2 (Reviewer seat + occupant model), ADR-229 D1 (judgment-first ordering), ADR-248 (periodic pulse, AUTONOMY pause writes), ADR-253 D1 + D3 + D5 (execution authority, lifecycle posture, heartbeat triggers), ADR-256 D1 (unified entry point + four trigger shapes).
 

@@ -152,3 +152,96 @@ async def write_reviewer_message(
 # Active-session resolver moved to services.narrative.find_active_workspace_session
 # (ADR-219 Commit 3 — promoted as the canonical helper for autonomous
 # narrative entries; reviewer_chat_surfacing was its only caller).
+
+
+# ---------------------------------------------------------------------------
+# ADR-258 (revised 2026-05-08): Per-action System Agent narration helper
+# ---------------------------------------------------------------------------
+# Shared between chat.py (addressed trigger), invocation_dispatcher.py
+# (heartbeat trigger), review_proposal_dispatch.py (proposal trigger), and
+# back_office/reviewer_reflection.py (reflection trigger). All four trigger
+# paths emit the same shape: Reviewer bubble + zero-or-more System Agent
+# narration bubbles, one per consequential successful action.
+
+REVIEWER_COGNITION_TOOLS = frozenset({
+    "ReadFile", "ListFiles", "SearchFiles", "ListRevisions",
+    "ReadRevision", "DiffRevisions", "GetSystemState", "SearchEntities",
+    "LookupEntity", "list_integrations", "WebSearch", "QueryKnowledge",
+    "DiscoverAgents", "ReadAgentFile", "ListEntities", "Clarify",
+})
+
+
+def narrate_reviewer_action(tool: str, summary: str = "") -> str:
+    """Compose a System Agent narration line for a Reviewer-directed action.
+
+    The narration is honest: it names the tool, attributes the direction to
+    the Reviewer, and includes the action summary if available. Used by all
+    four trigger paths so the chat conversation reads consistently regardless
+    of which trigger fired the Reviewer.
+    """
+    summary_part = f" {summary}" if summary else ""
+    if tool == "FireInvocation":
+        return f"Firing recurrence on Reviewer's direction.{summary_part}"
+    if tool == "ProposeAction":
+        return f"Proposal submitted on Reviewer's direction.{summary_part}"
+    if tool == "WriteFile":
+        return f"Wrote to Reviewer substrate on its direction.{summary_part}"
+    return f"Executed `{tool}` on Reviewer's direction.{summary_part}"
+
+
+async def surface_reviewer_actions(
+    client: Any,
+    user_id: str,
+    *,
+    actions_taken: list,
+) -> int:
+    """Best-effort: surface each consequential successful Reviewer action as
+    a System Agent narrative entry to the operator's active workspace session.
+
+    Used by triggers that don't have a live SSE stream (heartbeat, proposal,
+    reflection). The addressed trigger uses chat.py's per-event narration
+    instead so the operator sees actions in real time.
+
+    Returns the number of narration entries written. Never raises.
+    """
+    if not user_id or not actions_taken:
+        return 0
+
+    from services.narrative import find_active_workspace_session, write_narrative_entry
+
+    session_id = find_active_workspace_session(client, user_id)
+    if not session_id:
+        return 0
+
+    written = 0
+    for action in actions_taken:
+        if not isinstance(action, dict):
+            continue
+        if not action.get("success", True):
+            continue
+        tool = action.get("tool", "?")
+        if tool in REVIEWER_COGNITION_TOOLS:
+            continue
+        summary = action.get("summary", "")
+        body = narrate_reviewer_action(tool, summary)
+        try:
+            write_narrative_entry(
+                client,
+                session_id,
+                role="system_agent",
+                summary=body[:200],
+                body=body,
+                pulse="reactive",
+                weight="routine",
+                extra_metadata={
+                    "tools_used": [tool],
+                    "reviewer_directed": True,
+                },
+            )
+            written += 1
+        except Exception as exc:
+            logger.warning(
+                "[REVIEWER_CHAT] action narration failed for tool=%s: %s",
+                tool, exc,
+            )
+    return written

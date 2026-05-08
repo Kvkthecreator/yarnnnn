@@ -1277,26 +1277,74 @@ async def global_chat(
         ))
 
         # Drain progress events while invoke_task runs. As tools fire, surface
-        # them to the operator so the UI doesn't go silent during the loop.
+        # cognition tools as transient streaming-status, and consequential
+        # tools as in-the-moment system_agent narration bubbles.
+        # ADR-258 (revised): the chat reads as a conversation between two
+        # participants — Reviewer (persona voice) and System Agent (executes
+        # on Reviewer's direction). Per-action, in-the-moment, not post-hoc lump.
+        _COGNITION_ONLY = {
+            "ReadFile", "ListFiles", "SearchFiles", "ListRevisions",
+            "ReadRevision", "DiffRevisions", "GetSystemState", "SearchEntities",
+            "LookupEntity", "list_integrations", "WebSearch", "QueryKnowledge",
+            "DiscoverAgents", "ReadAgentFile", "ListEntities", "Clarify",
+        }
+
+        def _narrate_consequential_action(tool: str, summary: str) -> str:
+            """Compose a System Agent narration line for a consequential action."""
+            if tool == "FireInvocation":
+                return f"Firing recurrence on Reviewer's direction. {summary}"
+            if tool == "ProposeAction":
+                return f"Proposal submitted on Reviewer's direction. {summary}"
+            if tool == "WriteFile":
+                return f"Wrote to Reviewer substrate on its direction. {summary}"
+            return f"Executed `{tool}` on Reviewer's direction. {summary}"
+
         while not invoke_task.done():
             try:
                 event = await _asyncio.wait_for(progress_queue.get(), timeout=0.5)
             except _asyncio.TimeoutError:
                 continue
-            if event.get("phase") == "tool_start":
-                tool_name = event.get("tool", "?")
+
+            phase = event.get("phase")
+            tool_name = event.get("tool", "?")
+
+            if phase == "tool_start":
                 yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_start', 'tool': tool_name})}\n\n"
-            elif event.get("phase") == "tool_end":
-                tool_name = event.get("tool", "?")
+            elif phase == "tool_end":
                 summary = event.get("summary", "")
-                yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_end', 'tool': tool_name, 'summary': summary, 'success': event.get('success', True)})}\n\n"
+                success = event.get("success", True)
+                yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_end', 'tool': tool_name, 'summary': summary, 'success': success})}\n\n"
+
+                # In-the-moment per-action System Agent narration: only for
+                # CONSEQUENTIAL successful actions. Cognition tools stay as
+                # transient status; failed actions surface in Reviewer's
+                # reasoning, not as a misleading System Agent bubble.
+                if success and tool_name not in _COGNITION_ONLY:
+                    narration = _narrate_consequential_action(tool_name, summary)
+                    await append_message(auth.client, session_id, "system_agent", narration, {
+                        "tools_used": [tool_name], "tool_history": [],
+                        "pulse": "addressed", "weight": "routine", "reviewer_directed": True,
+                    })
+                    yield f"data: {json.dumps({'content': narration})}\n\n"
 
         # Drain any remaining queued events (round_end after task completion)
         while not progress_queue.empty():
             try:
-                _ = progress_queue.get_nowait()
+                event = progress_queue.get_nowait()
             except Exception:
                 break
+            phase = event.get("phase")
+            tool_name = event.get("tool", "?")
+            if phase == "tool_end":
+                summary = event.get("summary", "")
+                success = event.get("success", True)
+                if success and tool_name not in _COGNITION_ONLY:
+                    narration = _narrate_consequential_action(tool_name, summary)
+                    await append_message(auth.client, session_id, "system_agent", narration, {
+                        "tools_used": [tool_name], "tool_history": [],
+                        "pulse": "addressed", "weight": "routine", "reviewer_directed": True,
+                    })
+                    yield f"data: {json.dumps({'content': narration})}\n\n"
 
         output = await invoke_task
 
@@ -1317,38 +1365,12 @@ async def global_chat(
             auth.user_id[:8], len(output.get("actions_taken") or []),
         )
 
-        # Surface only SUCCESSFUL CONSEQUENTIAL actions as system_agent
-        # narration — actions that change state outside the Reviewer's own
-        # substrate. Pure cognition (ReadFile, ListFiles, SearchFiles,
-        # ListRevisions, ReadRevision, DiffRevisions, GetSystemState,
-        # SearchEntities, LookupEntity, list_integrations, WebSearch) is the
-        # Reviewer thinking — not narrative-worthy as a separate bubble.
-        # Failed consequential actions also stay silent — they appear in the
-        # Reviewer's reasoning if relevant; surfacing them as a system_agent
-        # bubble would falsely imply they succeeded.
-        _COGNITION_ONLY = {
-            "ReadFile", "ListFiles", "SearchFiles", "ListRevisions",
-            "ReadRevision", "DiffRevisions", "GetSystemState", "SearchEntities",
-            "LookupEntity", "list_integrations", "WebSearch", "QueryKnowledge",
-            "DiscoverAgents", "ReadAgentFile", "ListEntities", "Clarify",
-        }
+        # Per-action System Agent narration already happened in-the-moment
+        # above (during the progress-queue drain). No post-hoc lump bubble.
+        # The chat now reads as a conversation: Reviewer narrates intent in
+        # first person; System Agent narrates each consequential action when
+        # it fires. ADR-258 (revised 2026-05-08).
         actions = output.get("actions_taken") or []
-        consequential = [
-            a for a in actions
-            if a.get("tool") not in _COGNITION_ONLY and a.get("success", True)
-        ]
-        if consequential:
-            action_names = [a.get("tool", "?") for a in consequential]
-            narration = "Executed: " + ", ".join(
-                f"`{a.get('tool','?')}`"
-                + (f" ({a.get('summary','')})" if a.get("summary") else "")
-                for a in consequential
-            )
-            await append_message(auth.client, session_id, "system_agent", narration, {
-                "tools_used": action_names, "tool_history": [],
-                "pulse": "addressed", "weight": "routine", "reviewer_directed": True,
-            })
-            yield f"data: {json.dumps({'content': narration})}\n\n"
 
         yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': [a.get('tool','') for a in actions]})}\n\n"
 
