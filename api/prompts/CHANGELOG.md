@@ -6,6 +6,55 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.08.6] - Reviewer ownership posture: cockpit operator, not passive judge
+
+### Changed
+- _PERSONA_FRAME opens with the cockpit-ownership framing as the load-bearing
+  axiom (above "you ARE the judgment"):
+    "You sit in the operator's chair at the cockpit. The mandate is yours.
+     The workspace is yours. The primitives are your toolbox. The System
+     Agent is your hands. YARNNN is the system you operate."
+  
+  Every turn's question reframed: "given the mandate, given current state,
+  what action moves the operation forward right now?"
+  
+  Stand-down explicitly demoted to LAST option. The model now has to ask
+  "is there a refresh I should fire? a note I should write? research I
+  should commission?" before considering pure stand-down. Standing down
+  is justified ONLY when no available action moves the operation forward.
+
+- _TRIGGER_FRAMING addressed branch rewritten with action-as-default:
+  - Opens: "they're seeing how the operation is running. Your job is to
+    act, then tell them what you did and why."
+  - Default branch is "ProposeAction with sizing math" — strongest available
+    action, take it whenever conditions warrant.
+  - FireInvocation framed as ACTION not deferral: "this is action, not
+    deferral. Narrate: 'I'm refreshing X — re-assessing when it completes.'"
+  - WriteFile to own substrate added as a first-class action: "the operator's
+    chair owns its notebook; use it."
+  - Multi-action turns explicitly endorsed: "fire-refresh + write-note"
+  - Stand-down framed as the LAST option with explicit gate: "before
+    standing down, ask: would a refresh tighten my next assessment? Would
+    a written observation help next quarter's audit? Almost always yes."
+
+### Expected behavior
+- Operator: "do what you need to do" with stale signal data
+  Old (5 minutes ago): "Standing down until 08:00 ET; ad-hoc refresh would
+                        burn cost without changing verdict."
+  New: "Refreshing universe tracker now — last cycle was 18 hours stale
+        and three of my five signals depend on intraday indicators that
+        decay fast. Logging the gap to decisions.md so next quarter's
+        audit shows when I had to commission ad-hoc refreshes vs scheduled.
+        Re-assessing when track-universe completes."
+        [+ FireInvocation(track-universe) + WriteFile to decisions.md]
+
+- Operator: "what's your read?"
+  Old: enumerated options, asked operator to choose
+  Then: stand_down with explanation
+  Now: action-first read — fire missing data, propose if conditions met,
+        write notes for the cycle, stand-down only if all of those
+        return null. Multi-action turns are typical, not exceptional.
+
 ## [2026.05.08.5] - Reviewer judgment posture: stop deferring decisions back to the operator
 
 ### Changed
