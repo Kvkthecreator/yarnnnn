@@ -1216,12 +1216,27 @@ async def global_chat(
                 return ""
 
         import asyncio as _asyncio
-        identity_md, principles_md, precedent_md, mandate_md = await _asyncio.gather(
+        # Pre-load all substrate the Reviewer commonly needs.
+        # If we don't pre-load, the Reviewer wastes tool-loop rounds reading
+        # files (and frequently guesses wrong paths). Better to pay one
+        # parallel-fetch round-trip and feed everything in upfront.
+        (
+            identity_md, principles_md, precedent_md, mandate_md,
+            operator_profile_md, risk_md, performance_md,
+        ) = await _asyncio.gather(
             _read(REVIEW_IDENTITY_PATH),
             _read(REVIEW_PRINCIPLES_PATH),
             _read(SHARED_PRECEDENT_PATH),
             _read(SHARED_MANDATE_PATH),
+            _read("context/trading/_operator_profile.md"),
+            _read("context/trading/_risk.md"),
+            _read("context/trading/_performance.md"),
         )
+
+        # Pre-load signal state files (compact summary) so the Reviewer
+        # doesn't have to ReadFile each one individually.
+        from agents.reviewer_agent import read_signal_files
+        signal_files_summary = await read_signal_files(auth.client, auth.user_id)
 
         output = await invoke_reviewer(
             auth.client, auth.user_id,
@@ -1231,6 +1246,10 @@ async def global_chat(
                 "principles_md": principles_md,
                 "precedent_md": precedent_md,
                 "mandate_md": mandate_md,
+                "operator_profile_md": operator_profile_md,
+                "risk_md": risk_md,
+                "performance_md": performance_md,
+                "signal_files": signal_files_summary,
                 "user_message": request.content,
                 "conversation_window": "\n".join(conv_lines) if conv_lines else "",
                 "workspace_state": workspace_state_text or "",

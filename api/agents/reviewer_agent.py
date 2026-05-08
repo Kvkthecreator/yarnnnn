@@ -383,6 +383,14 @@ def _build_user_message(
         ]
 
     elif trigger == "addressed":
+        if ctx.get("signal_files"):
+            parts += [
+                "## Current signal state",
+                "(Pre-loaded from /workspace/context/trading/signals/*.yaml)",
+                "",
+                ctx["signal_files"],
+                "",
+            ]
         if ctx.get("workspace_state"):
             parts += [
                 "## Workspace state (what the system has done recently)",
@@ -400,11 +408,15 @@ def _build_user_message(
             msg.strip(),
             "",
             "## Your task",
-            "Read the workspace state. Know what's been done and what's pending. "
-            "Apply your framework. If signal data is missing and the operator wants "
-            "action, call FireInvocation to commission it — do not ask the operator to do it. "
-            "If conditions are met, call ProposeAction. If purely informational, "
-            "call ReturnVerdict(stand_down) with your answer as the reasoning.",
+            "All substrate above is ALREADY LOADED — do not call ReadFile to fetch it again.",
+            "Use ReadFile only for files NOT shown above (e.g. recent decisions, specific reports).",
+            "",
+            "Decide and act:",
+            "- If signal conditions are met per principles.md → call ProposeAction with full sizing math",
+            "- If signal data needs refresh → call FireInvocation('signal-evaluation' or 'track-universe')",
+            "- If informational only → call ReturnVerdict(stand_down) with your answer as reasoning",
+            "",
+            "Always call ReturnVerdict last to close the turn. Do not exit without ReturnVerdict.",
         ]
 
     return "\n".join(parts)
@@ -669,11 +681,35 @@ async def invoke_reviewer(
         )
 
         if verdict_raw is None:
+            # Loop exhausted without ReturnVerdict. Construct a fallback from
+            # the last assistant text response so the operator still gets a
+            # message rather than a blank failure.
+            last_text = ""
+            for m in reversed(messages):
+                if m.get("role") != "assistant":
+                    continue
+                content = m.get("content")
+                if isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            last_text = block.get("text", "")
+                            if last_text:
+                                break
+                if last_text:
+                    break
             logger.warning(
-                "[REVIEWER] no ReturnVerdict after %d rounds trigger=%s user=%s",
-                max_rounds, trigger, user_id[:8],
+                "[REVIEWER] no ReturnVerdict after %d rounds trigger=%s user=%s — "
+                "constructing stand_down fallback (last_text_len=%d)",
+                max_rounds, trigger, user_id[:8], len(last_text),
             )
-            return None
+            verdict_raw = {
+                "verdict": "stand_down",
+                "reasoning": last_text or (
+                    "I exhausted my read budget without reaching a conclusion. "
+                    "Substrate may need refresh — try firing track-universe or signal-evaluation."
+                ),
+                "confidence": "low",
+            }
 
         verdict = verdict_raw.get("verdict", "")
         reasoning = (verdict_raw.get("reasoning") or "").strip()
