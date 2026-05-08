@@ -6,6 +6,8 @@
 > **Supersedes**: ADR-241 D1 (roster deletion — reversed with justification; see below)
 > **Amends**: ADR-241 D2 (YARNNN detail view → System Agent detail view), ADR-247 D1 (YARNNN as system name preserved; "System Agent" is the entity name within the cockpit surface, not the brand), LAYER-MAPPING.md, GLOSSARY.md, FOUNDATIONS.md Axiom 2 Identity table
 > **Dimensional classification**: **Identity** (Axiom 2) primary — names the two systemic entities correctly; **Channel** (Axiom 6) secondary — reinstates roster as the canonical entry point for the Agents surface
+>
+> **2026-05-08 amendment** — D5's `ReviewerCadencePanel` (reviewer-scoped, in `web/components/agents/`) generalised to library-grade `HeartbeatPanel` at `web/components/library/HeartbeatPanel.tsx`. Reviewer-only endpoint `/api/reviewer/cadence` replaced by generic `/api/agents/{slug}/heartbeats` keyed on the `back-office-{agent_slug}-*` slug-prefix convention. Same Reviewer surfacing on the Autonomy tab; additionally surfaced on the chat context overlay's Review section beside `PrinciplesCard` (the panel was previously absent from chat). Per Singular Implementation: legacy panel + endpoint deleted, no shim. Heartbeat is a generic Trigger sub-shape (FOUNDATIONS Axiom 4) — the Reviewer is the first consumer, not the only future one.
 
 ---
 

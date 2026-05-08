@@ -455,12 +455,21 @@ export const api = {
       return request<Agent[]>(`/api/agents${params}`);
     },
 
-    // ADR-251 D5: Reviewer heartbeat cadence — schedule + last-run data
-    reviewerCadence: () =>
+    // Periodic-trigger (heartbeat) state for any heartbeating agent.
+    // Generic over agents whose back-office jobs follow the convention
+    // `back-office-{agent_slug}-*`. Today: reviewer (reflection, calibration).
+    heartbeats: (agentSlug: string) =>
       request<{
-        reflection: { schedule: string | null; last_ran_at: string | null; last_verdict: string | null };
-        calibration: { schedule: string | null; last_ran_at: string | null };
-      }>("/api/agents/reviewer/cadence"),
+        agent_slug: string;
+        triggers: Array<{
+          slug: string;
+          display_name: string;
+          schedule: string | null;
+          paused: boolean;
+          last_ran_at: string | null;
+          last_outcome: string | null;
+        }>;
+      }>(`/api/agents/${agentSlug}/heartbeats`),
 
     // Create a new agent
     create: (data: AgentCreate) =>

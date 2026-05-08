@@ -35,6 +35,7 @@ import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
 import { MandateCard } from '@/components/workspace-concepts/MandateCard';
 import { PrinciplesCard } from '@/components/workspace-concepts/PrinciplesCard';
+import { HeartbeatPanel } from '@/components/library/HeartbeatPanel';
 import { formatActionType, formatRelativeTimestamp } from '@/lib/content-shapes/decisions';
 import type { Recurrence } from '@/types';
 import type { SnapshotLead } from '@/lib/content-shapes/snapshot';
@@ -134,9 +135,10 @@ export function WorkspaceContextOverlay({
               <MandateCard variant="compact" onEdit={editAndClose} />
             </div>
 
-            {/* Principles — compact variant */}
-            <div ref={reviewRef} className="px-5 py-5">
+            {/* Principles + Reviewer heartbeats */}
+            <div ref={reviewRef} className="px-5 py-5 space-y-4">
               <PrinciplesCard variant="compact" onEdit={editAndClose} />
+              <HeartbeatPanel agentSlug="reviewer" agentLabel="my Reviewer" />
             </div>
 
             {/* Recent — proposals + runs + awareness note */}

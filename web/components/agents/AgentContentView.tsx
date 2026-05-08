@@ -32,7 +32,7 @@ import { CONTEXT_ROUTE, WORK_ROUTE } from '@/lib/routes';
 import { SubstrateTab } from './SubstrateTab';
 import { DelegationCard } from '@/components/workspace-concepts/DelegationCard';
 import { PrinciplesCard } from '@/components/workspace-concepts/PrinciplesCard';
-import { ReviewerCadencePanel } from './ReviewerCadencePanel';
+import { HeartbeatPanel } from '@/components/library/HeartbeatPanel';
 import {
   agentClassDescription,
   agentClassLabel,
@@ -830,7 +830,7 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
         {activeTab === 'autonomy' && (
           <div className="px-6 py-5 space-y-4">
             <DelegationCard variant="full" />
-            <ReviewerCadencePanel />
+            <HeartbeatPanel agentSlug="reviewer" agentLabel="my Reviewer" />
           </div>
         )}
       </div>
