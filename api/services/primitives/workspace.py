@@ -532,6 +532,14 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
         if not path:
             return {"success": False, "error": "missing_path", "message": "path is required"}
 
+        # Normalize path: strip absolute /workspace/ prefix if model passed
+        # the absolute form (cockpit-awareness shows absolute paths so the
+        # model echoes them). UserMemory.write() prepends /workspace/ itself.
+        if path.startswith("/workspace/"):
+            path = path[len("/workspace/"):]
+        elif path.startswith("workspace/"):
+            path = path[len("workspace/"):]
+
         # ADR-258 D3 + D9: when caller is Reviewer, enforce operator-authored
         # access policy from /workspace/_shared/_locks.yaml. Default-empty,
         # opt-in. The substrate-level safety story is attribution + revision
@@ -869,12 +877,18 @@ async def handle_list_files(auth: Any, input: dict) -> dict:
 
     if scope == "workspace":
         # Direct DB query — list under /workspace/{path or ''}
+        # Tolerate callers passing absolute paths (e.g. '/workspace/context/').
+        # Normalise to workspace-relative before prepending /workspace/.
         prefix = "/workspace/"
         if path:
-            sub = path.lstrip("/")
-            if not sub.endswith("/"):
+            sub = path.strip().lstrip("/")
+            # If caller passed absolute path including leading 'workspace/',
+            # strip that — otherwise we'd query /workspace/workspace/...
+            if sub.startswith("workspace/"):
+                sub = sub[len("workspace/"):]
+            if sub and not sub.endswith("/"):
                 sub += "/"
-            prefix = f"/workspace/{sub}"
+            prefix = f"/workspace/{sub}" if sub else "/workspace/"
 
         try:
             q = (

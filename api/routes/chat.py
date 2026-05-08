@@ -1317,14 +1317,15 @@ async def global_chat(
             auth.user_id[:8], len(output.get("actions_taken") or []),
         )
 
-        # Surface only CONSEQUENTIAL actions as system_agent narration —
-        # actions that change state outside the Reviewer's own substrate.
-        # Pure cognition (ReadFile, ListFiles, SearchFiles, ListRevisions,
-        # ReadRevision, DiffRevisions, GetSystemState, SearchEntities,
-        # LookupEntity, list_integrations, WebSearch) is the Reviewer
-        # thinking — not narrative-worthy as a separate system_agent bubble.
-        # Same as a human Reviewer reading documents before deciding: the
-        # operator doesn't need a log of every page-turn.
+        # Surface only SUCCESSFUL CONSEQUENTIAL actions as system_agent
+        # narration — actions that change state outside the Reviewer's own
+        # substrate. Pure cognition (ReadFile, ListFiles, SearchFiles,
+        # ListRevisions, ReadRevision, DiffRevisions, GetSystemState,
+        # SearchEntities, LookupEntity, list_integrations, WebSearch) is the
+        # Reviewer thinking — not narrative-worthy as a separate bubble.
+        # Failed consequential actions also stay silent — they appear in the
+        # Reviewer's reasoning if relevant; surfacing them as a system_agent
+        # bubble would falsely imply they succeeded.
         _COGNITION_ONLY = {
             "ReadFile", "ListFiles", "SearchFiles", "ListRevisions",
             "ReadRevision", "DiffRevisions", "GetSystemState", "SearchEntities",
@@ -1332,7 +1333,10 @@ async def global_chat(
             "DiscoverAgents", "ReadAgentFile", "ListEntities", "Clarify",
         }
         actions = output.get("actions_taken") or []
-        consequential = [a for a in actions if a.get("tool") not in _COGNITION_ONLY]
+        consequential = [
+            a for a in actions
+            if a.get("tool") not in _COGNITION_ONLY and a.get("success", True)
+        ]
         if consequential:
             action_names = [a.get("tool", "?") for a in consequential]
             narration = "Executed: " + ", ".join(
