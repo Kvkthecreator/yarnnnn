@@ -92,23 +92,35 @@ All recurrences for a workspace live in `/workspace/_recurrences.yaml`, a flat l
 
 The path `/workspace/_recurrences.yaml` is canonical. (Implementation detail — could be `_shared/_recurrences.yaml` if path semantics demand; the load-bearing fact is *one canonical file*, not multiple registries.)
 
-### D3 — One scheduler, one job
+### D3 — One scheduler, one job, parallel concurrent Reviewer sessions
 
-`unified_scheduler.py` (currently a Render Cron Job firing every 5 minutes) is reshaped from "dispatch pipelines by output_kind" to "walk recurrence list and wake the Reviewer for each due entry." Pseudocode:
+The scheduler's only responsibility is: walk due recurrences and invoke the Reviewer for each. Pseudocode:
 
 ```
-for each recurrence in /workspace/_recurrences.yaml:
-  if recurrence.due_at_or_before(now) and not recurrence.paused:
-    invoke_reviewer(
-      trigger="scheduled",
-      context={"prompt": recurrence.prompt, "slug": recurrence.slug, ...}
-    )
-    record next_run_at
+for each recurrence in /workspace/_recurrences.yaml that is due and not paused:
+  spawn invoke_reviewer(
+    trigger="scheduled",
+    context={"prompt": recurrence.prompt, "slug": recurrence.slug, ...}
+  )  # concurrent, not awaited serially
 ```
 
 No dispatch by output_kind. No path resolution. No template-string expansion. The recurrence's `prompt` is what reaches the Reviewer.
 
-The 5-minute cron heartbeat is a deployment detail (we use a Render Cron Job because it's cheap; could move to `pg_cron` or event-driven in the future). The semantic guarantee is: due recurrences fire within the cron's resolution window. Sub-minute precision is not required and is not committed.
+**Architectural guarantees (committed by this ADR):**
+
+1. **Parallel concurrent Reviewer sessions.** When multiple recurrences are simultaneously due (e.g., a workspace has 8 recurrences all firing at 7am UTC), all of them invoke a Reviewer session concurrently. There is no serial back-pressure that delays later recurrences while an earlier one's session is running. Each Reviewer session is independent; they share workspace substrate but not session state.
+2. **Sub-minute scheduling precision is supported.** Recurrences scheduled at `0 7 * * *` fire at 07:00:00, not "sometime in the 07:00–07:05 window." The architecture does not commit operators to coarse cadences as a side-effect of polling-cron implementation.
+3. **No head-of-line blocking from slow sessions.** A 90-second-long Reviewer session for one recurrence does not delay other recurrences' fires. Concurrency model + scheduling mechanism are responsible for this.
+
+**Implementation shape (chosen at code-PR time per first-principles, not legacy):**
+
+The current 5-minute Render Cron Job is wrong-shaped under the parallelism + precision guarantees above — a 5-minute polling interval blocks sub-minute precision, and serial within-cycle dispatch creates head-of-line blocking. Three implementation candidates resolve all three guarantees; one is chosen at implementation time:
+
+- **(α) Per-recurrence Render Cron Jobs.** Each recurrence's `schedule` becomes its own Render cron entry firing the Reviewer with that prompt. Concurrent by default (Render fires each cron independently). Sub-minute precision native (Render cron honors arbitrary cron expressions). Cost: one Render cron per recurrence (Render's pricing on cron count would need verification).
+- **(β) `pg_cron`.** Postgres-native cron. Each recurrence is a row in a `cron.job` table; `pg_cron` fires them at scheduled times. Concurrent because each fire is its own session. Sub-minute precision native. Avoids Render cron count concerns.
+- **(γ) Single long-running scheduler service.** A persistent process that maintains an in-memory due-list and fires recurrences at exact times via async dispatch. Concurrent by spawning sessions, not awaiting them. Sub-minute precision native. Adds operational overhead (persistent process vs cron jobs).
+
+Each candidate satisfies the three architectural guarantees. The implementation PR picks one; the choice is a deployment-shape decision, not an architectural one. What this ADR commits is the guarantees, not the mechanism.
 
 ### D4 — `Schedule` primitive (renames `ManageRecurrence`)
 
@@ -180,16 +192,27 @@ pause_reason: null
 
 ADR-176's six specialist roles + thinking_partner + 3 platform-bots survive. Their identity (role, scope, capabilities, persona) is preserved.
 
-What changes is **how they're invoked**: the headless task pipeline (ADR-141 Layer 2) is deleted. There is no separate execution path for "headless agents producing sections that compose into deliverables." Instead:
+What changes is **how they're invoked**: the headless task pipeline (ADR-141 Layer 2) is deleted. There is no separate execution path for "headless agents producing sections that compose into deliverables." Instead, specialists run as Claude-Code-sub-agent-shaped sub-LLM-calls.
 
-- The Reviewer's real-time loop directs specialist invocations as **tool calls**.
-- A specialist invocation is a `headless`-mode LLM call (per ADR-080's runtime characteristic — non-streaming, curated tool surface, no live operator) made by the System Agent on the Reviewer's direction.
-- The specialist's prompt is composed from: the recurrence prompt (or operator instruction) + the specialist's role-specific prompt fragment + the substrate context the Reviewer has already loaded.
-- The specialist's output (markdown text) is returned to the Reviewer's loop, which decides what to do with it (write to substrate, compose, propose, etc.).
+**Roles in specialist execution** (preserves ADR-257's deterministic System Agent):
 
-**This makes specialist execution identical in shape to Claude Code sub-agents.** Whether invoked from a human operator's chat turn or from a scheduled recurrence's cron fire, the specialist runs the same way. Only the prompt at that runtime moment differs.
+| Actor | Role | Why |
+|---|---|---|
+| **Reviewer** | Judges + sequences specialists at high level. Names specialist invocations as discrete steps in its real-time loop ("fire researcher with this brief; then writer with the researcher's output"). | Judgment + high-level sequencing live with the principles-grounded Reviewer. |
+| **System Agent** | Deterministic dispatcher. Receives the Reviewer's named-step direction and dispatches a focused-prompt specialist sub-LLM-call. Narrates the dispatch in the feed. Returns specialist's output to the Reviewer's loop. | Per ADR-257, System Agent is deterministic — no LLM judgment in execution path. Dispatch is mechanical: take the Reviewer's structured direction, invoke the specialist's `headless` LLM call, return the output. |
+| **Specialist** (researcher / analyst / writer / tracker / designer / reporting) | Sub-LLM-call with **focused prompt**, narrow tool surface (`headless` mode, ADR-080 runtime characteristic), and the Reviewer-supplied brief as input. Produces markdown output. | Focused prompt = no prompt-pressure dilution. Specialists run with their own context window — same shape as Claude Code sub-agents. |
 
-`headless` permission mode survives as the LLM-runtime characteristic. The mode does not denote a separate execution path; it denotes a kind of LLM call.
+**Why this preserves separation of concerns** (the third-opinion concern, 2026-05-08): the Reviewer's context window is not polluted with specialist tool-use loops. The Reviewer's prompt-pressure stays focused on judgment. Specialists operate in their own contexts with their own tools. The deterministic System Agent is the boundary between them — it dispatches one specialist sub-call per Reviewer-named step, returns output, awaits the Reviewer's next direction.
+
+**The specialist sub-LLM-call shape:**
+- Triggered by the Reviewer's loop calling a primitive like `DispatchSpecialist(role="researcher", brief="...")` or by the recurrence prompt naming a specialist sequence as named steps.
+- The System Agent (deterministic) receives the call, composes the specialist's prompt from: the Reviewer-supplied brief + the specialist's role-specific prompt fragment + relevant substrate refs.
+- The sub-LLM-call runs in `headless` mode — non-streaming, curated tool surface, no operator-presence assumption.
+- The specialist's output (markdown text) returns to the Reviewer's loop as the result of the dispatch primitive. The Reviewer reads the result and decides next.
+
+**This makes specialist execution identical in shape to Claude Code sub-agents.** Whether triggered from a human operator's feed turn or from a scheduled recurrence's cron fire, the specialist runs the same way. Only the prompt at that runtime moment differs.
+
+`headless` permission mode survives as the LLM-runtime characteristic for specialist sub-calls. The mode does not denote a separate execution path; it denotes a kind of LLM call.
 
 ### D8 — `task_types.py` registry dissolves
 

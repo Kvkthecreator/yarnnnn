@@ -88,6 +88,19 @@ These are **conventions, not enforced rules.** The Reviewer reads them at sessio
 
 **What this dissolves**: `directory_registry.py::WORKSPACE_DIRECTORIES` — the registry that previously declared per-directory structure. Survives only as a thin metadata helper if needed for FE rendering (e.g., what icon to show next to a directory in the file tree). Runtime dispatch by directory shape: gone.
 
+#### D1 sub-clause: conventional paths are slug-templated structurally; non-conventional paths are operator intent
+
+Conventional paths in CONVENTIONS topology contain only slug + runtime variables (date, entity name, domain) — no free-text. Examples:
+
+- `/workspace/reports/{slug}/{YYYY-MM-DD}/output.md` — `{slug}` is the recurrence's slug field; `{YYYY-MM-DD}` is the runtime date. Both substrate-level data; no free-form authorship.
+- `/workspace/context/{domain}/{entity}.md` — `{domain}` is recurrence-declared (or CONVENTIONS-declared per program bundle); `{entity}` is workspace-substrate-derived (the entity exists; the path follows the entity's slug).
+
+For conventional outputs, **the Reviewer interpolates the convention against substrate-level data — it does not free-form-author the path.** This is structural correctness without a registry: the convention is markdown, the substrate-data is real, and the path is determined by the join of the two. Typo-resistance comes from the fact that the slug, the date, and the entity are not strings the Reviewer types — they're structured fields.
+
+For non-conventional paths, the recurrence prompt explicitly names the path. This is the operator's intent — they wanted writes somewhere outside the conventional topology, and they say so. The framework does not validate; the prompt is the authority. If the prompt typos a path, the operator catches it during review (the audit log shows the wrong-path write attributed to whoever directed it).
+
+The honest split: **conventional = slug-templated structurally; non-conventional = operator intent in the prompt.** Both shapes are valid; their correctness mechanisms are different and named here so future ADRs don't conflate them.
+
 ### D2 — Layer B: semantic shape (lives in prompts and operator-authored specs)
 
 The semantic shape of a recurrence's output — its sections, its tone, its required fields, its quality bar — lives in the **prompt** or in **operator-authored spec docs that the prompt cites**. There are three patterns the prompt can use, in increasing structure:
@@ -163,21 +176,39 @@ There is **no schema for specs.** A spec is whatever markdown the operator write
 
 **There is no `specs.py` registry, no schema validator, no enum of spec types.** Operators can author specs of arbitrarily different shapes for different recurrences. The framework's role is zero — recurrences cite specs by path; the Reviewer reads them; output conforms.
 
-### D4 — Compose is a primitive, not a pipeline phase
+### D4 — Compose is a primitive AND an opt-out structural default
 
-`compose` survives as a callable primitive (`api/services/primitives/compose.py` — the implementation lives there or in an existing module). It takes section partials + manifest data and produces composed HTML via the existing `render/compose.py` engine (preserving ADR-148, ADR-170, ADR-177, ADR-213 mechanical pipeline).
+`Compose` survives as a callable primitive that takes section partials + manifest data and produces composed HTML via the existing `render/compose.py` engine (preserving ADR-148, ADR-170, ADR-177, ADR-213 mechanical pipeline).
 
-What changes from ADR-213: **compose is no longer auto-dispatched as a task-pipeline post-step.** There is no task pipeline. The Reviewer's recurrence prompt explicitly directs composition as a step:
+**Compose is opt-out by default**, triggered structurally — not by free-text prompt content. The trigger is mechanical (no LLM judgment): when a Reviewer session writes section partials matching the deliverable convention (presence of `sections/*.md` files in `/workspace/reports/{slug}/{date}/`) and the session is closing, the framework auto-runs Compose unless the recurrence prompt explicitly opts out.
 
+```yaml
+# Default: compose runs automatically when section partials are detected.
+- slug: weekly-market-conditions
+  schedule: "0 8 * * 1"
+  prompt: |
+    Produce the weekly market-conditions report per the spec at
+    /workspace/specs/market-conditions.md. Write each section to
+    /workspace/reports/weekly-market-conditions/{YYYY-MM-DD}/sections/*.md.
+  # No explicit compose step needed — auto-detected from section partials.
+
+# Opt-out: prompt explicitly disables auto-compose.
+- slug: raw-research-log
+  schedule: "0 17 * * 1-5"
+  prompt: |
+    Append today's research notes to /workspace/notes/research.md.
+    Skip composition — this is a running log, not a deliverable.
+  options:
+    skip_compose: true
 ```
-prompt: |
-  ... write section partials to outputs/{date}/sections/*.md ...
-  Then compose into output.html via the compose primitive.
-```
 
-The Reviewer's loop reads the prompt, writes partials, calls `Compose(...)` as a tool call, the System Agent narrates the composition, the engine produces HTML, the Reviewer continues.
+The opt-out mechanism is one machine-parsed field on the recurrence record (`options.skip_compose: true`). When unset (the default), Compose runs as a post-write structural hook if section partials exist. When set, Compose does not run regardless of substrate shape.
 
-**The compose engine's mechanical innards (section kind dispatch, structured-data renderers, content-addressed cache per ADR-213) are unchanged.** What this ADR changes is the *trigger* — compose is invoked by the Reviewer's prompt naming it as a step, not by post-step auto-dispatch.
+**Why opt-out, not opt-in**: prompts drift. Operators who edit a recurrence prompt will forget to re-add a "compose at end" step; bundle-shipped prompts will get diverged-from over time. Auto-compose triggered by substrate shape (rather than by prompt text) means the operator gets HTML when section partials exist, period. Failure mode is now "operator gets too much HTML" (recoverable — they add `skip_compose`) rather than "operator gets raw markdown when they expected HTML" (silent, harder to spot).
+
+**Compose is also callable as an explicit primitive** (`Compose(sections=[...], manifest={...}, output_path="...")`) for cases where the Reviewer needs to compose mid-session (e.g., compose an interim version, then continue working). The primitive surface and the structural auto-trigger share the same engine — there is no separate code path.
+
+**The compose engine's mechanical innards (section kind dispatch, structured-data renderers, content-addressed cache per ADR-213) are unchanged.** What this ADR changes is the *trigger surface*: structural auto-trigger by default + explicit primitive when needed, replacing ADR-213's task-pipeline-post-step coupling.
 
 ### D5 — Authored Substrate as the continuity backbone
 
