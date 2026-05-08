@@ -6,6 +6,41 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.08.8] - ADRs 260/261/262: real-time Reviewer loop + recurrences as prompts + output topology (DOCS PR)
+
+### Documentation only — no prompt content changes in this commit
+
+This entry tracks the documentation PR `feat/adr-260-261-262-real-time-rewrite`. Three new ADRs (260/261/262) ratify a major architectural collapse; canon docs (FOUNDATIONS Axioms 4+5, GLOSSARY, SERVICE-MODEL Execution Flow, primitives-matrix header, CLAUDE.md) updated; supersession banners added to 18 legacy ADRs. **No code changes, no prompt content changes in this PR.** Code cutover follows in a second PR atomic with all three ADRs.
+
+### What the code-PR will change (preview, for visibility)
+
+When the code PR lands, expect prompt-content changes:
+
+- **`_TRIGGER_FRAMING` collapses to three keys** (`addressed | reactive | scheduled`) per ADR-260 D2. The `heartbeat` and `reflection` branches are deleted; reflection is now a particular cron-poke (Scheduled) whose prompt asks the Reviewer to reflect.
+- **Reviewer system prompt** gains explicit framing: mid-loop continuation is the natural shape of a real-time tool-use loop (not a "fourth trigger"); Authored Substrate (ADR-209) revision messages are the cross-session continuity record.
+- **`Schedule` primitive** (renamed from `ManageRecurrence`) added to Reviewer's tool definitions; `DispatchSpecialist` and `Compose` primitives added per ADR-261 D7 + ADR-262 D4.
+- **Specialist sub-LLM-call prompts** become focused per ADR-261 D7 — researcher / analyst / writer / tracker / designer / reporting each get their own role-specific prompt fragment composed at dispatch time, no longer a shared task-pipeline-driven prompt.
+- **Cockpit awareness section** in Reviewer system prompt regenerates from updated `REVIEWER_PRIMITIVES` (per ADR-258 revised's drift-resistance pattern).
+- **AUTONOMY parsing** simplifies to the rederived shape (delegation enum + ceiling_cents + paused_until/pause_reason); legacy fields (`heartbeat_triggers`, `auto_approve_below_cents`, `never_auto`) parsing deleted.
+
+### Why a docs-only PR first
+
+The architectural collapse is large (output_kind enum dissolved, task pipeline as separate path dissolved, three-tier frontmatter dissolved, etc.). Per CLAUDE.md singular-implementation rule, the code cutover will be hard (delete legacy + add new in one commit per file). Ratifying the architecture in writing first lets the code PR be reviewed against the ADRs' decisions rather than against speculative reasoning.
+
+### Files in this docs PR
+
+- `docs/adr/ADR-260-real-time-reviewer-loop.md` (new)
+- `docs/adr/ADR-261-recurrences-as-prompts.md` (new)
+- `docs/adr/ADR-262-output-topology-and-specs.md` (new)
+- `docs/architecture/FOUNDATIONS.md` (Axioms 4 + 5)
+- `docs/architecture/GLOSSARY.md` (Recurrence + Schedule entries new; Pulse + Production-role + Task entries amended)
+- `docs/architecture/SERVICE-MODEL.md` (Execution Flow rewrite)
+- `docs/architecture/primitives-matrix.md` (header note for rename + new primitives)
+- `CLAUDE.md` (orientation summary)
+- 18 legacy ADRs receive supersession banners
+
+---
+
 ## [2026.05.08.7] - ADR-259: Chat surface → Feed surface (atomic rename, pre-users)
 
 ### Changed
