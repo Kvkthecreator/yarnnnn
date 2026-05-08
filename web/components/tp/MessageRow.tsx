@@ -34,7 +34,7 @@
  */
 
 import { useState, type ReactNode } from 'react';
-import { CornerDownRight, Zap, Repeat, X } from 'lucide-react';
+import { CornerDownRight, Zap, Repeat } from 'lucide-react';
 import type { TPMessage } from '@/types/desk';
 import { cn } from '@/lib/utils';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
@@ -42,6 +42,7 @@ import { stripSnapshotMeta, stripOnboardingMeta } from '@/lib/content-shapes/sna
 import { MessageRenderer } from './MessageDispatch';
 import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
 import { useReviewerPersona } from '@/lib/reviewer-persona';
+import { InteractiveModal } from './InteractiveModal';
 import { useNarrative } from '@/contexts/NarrativeContext';
 
 // ---------------------------------------------------------------------------
@@ -159,9 +160,7 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
       {chip}
       <MessageRenderer msg={msg} isLoading={isLoading} />
 
-      {/* Workspace file path chips — rendered below the bubble for any message
-          that references /workspace/... file paths. Each chip opens the file
-          in an inline overlay. No navigation, no redirect. ADR-249 fix. */}
+      {/* Workspace file path chips — ADR-258: chip opens centered modal (not inline overlay) */}
       {workspacePaths.length > 0 && msg.role !== 'user' && (
         <div className="flex flex-wrap gap-1 mt-1.5 -mb-0.5">
           {workspacePaths.map((p) => (
@@ -169,12 +168,7 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
               key={p}
               type="button"
               onClick={() => setOpenFilePath(current => current === p ? null : p)}
-              className={cn(
-                'inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border transition-colors',
-                openFilePath === p
-                  ? 'border-primary/30 bg-primary/5 text-primary'
-                  : 'border-border/60 text-muted-foreground/60 hover:text-foreground hover:border-border hover:bg-muted/30',
-              )}
+              className="inline-flex items-center gap-1 text-[10px] font-mono px-1.5 py-0.5 rounded border border-border/60 text-muted-foreground/60 hover:text-foreground hover:border-border hover:bg-muted/30 transition-colors"
               title={p}
             >
               {shortPathLabel(p)}
@@ -183,26 +177,22 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
         </div>
       )}
 
-      {/* Inline file overlay — opens for whichever path chip was clicked */}
-      {openFilePath && (
-        <div className="mt-2 rounded-lg border border-border bg-background p-3 relative max-w-[92%] shadow-sm">
-          <button
-            type="button"
-            onClick={() => setOpenFilePath(null)}
-            className="absolute top-2 right-2 p-1 text-muted-foreground/40 hover:text-muted-foreground rounded"
-            aria-label="Close"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+      {/* File modal — centered, same InteractiveModal pattern as proposals */}
+      <InteractiveModal
+        isOpen={!!openFilePath}
+        onClose={() => setOpenFilePath(null)}
+        title={openFilePath ? shortPathLabel(openFilePath) : ''}
+        subtitle={openFilePath ?? undefined}
+        widthClass="max-w-lg"
+      >
+        {openFilePath && (
           <WorkspaceFileView
             path={openFilePath}
-            title={shortPathLabel(openFilePath)}
-            tagline={openFilePath}
             editPrompt={`I want to discuss the file at ${openFilePath}`}
             onEdit={(prompt) => { setOpenFilePath(null); sendMessage(prompt); }}
           />
-        </div>
-      )}
+        )}
+      </InteractiveModal>
 
       {showMakeRecurring && (
         <div className="mt-1.5 -mb-0.5">

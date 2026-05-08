@@ -1,47 +1,49 @@
 'use client';
 
 /**
- * ProposalCard — inline proposal + Reviewer verdict card.
+ * ProposalCard — stream entry chip + modal detail for action proposals.
+ *
+ * ADR-258: interactive items in the stream use one pattern:
+ *   1. ProposalChip  — compact stream entry, triggers modal on click
+ *   2. ProposalDetail — full detail rendered inside InteractiveModal
+ *   3. ProposalCard   — wires chip + modal together (the export ToolResultCard uses)
  *
  * ADR-249 D3 framing: the Reviewer IS the operator's judgment function.
- * The card shows what the Reviewer decided, then asks the user to ratify
- * or override that judgment — not to independently approve a system action.
- *
- * Three postures based on Reviewer state:
- *   approve_advisory — Reviewer approved; autonomy gate requires your
- *                      real-time confirmation. Action: "Confirm · Execute"
- *   defer            — Reviewer needs more evidence or deferred judgment.
- *                      Action: "Proceed anyway" (explicit override)
- *   no_reviewer      — No reviewable substrate; judgment seat inactive.
- *                      Action: "Approve" (plain, no Reviewer context)
- *   rejected         — Reviewer rejected. No approve affordance — user must
- *                      update mandate/risk and re-propose.
+ * The modal shows what the Reviewer decided, then asks the operator to
+ * ratify or override — not to independently approve a system action.
  */
 
-import { useState, useMemo, useEffect } from 'react';
-import { CheckCircle2, XCircle, Clock, ShieldAlert, Loader2, AlertCircle, ShieldCheck, ShieldX, ShieldQuestion } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import {
+  CheckCircle2, XCircle, Clock, ShieldAlert, Loader2,
+  AlertCircle, ShieldCheck, ShieldX, ShieldQuestion, Hexagon,
+} from 'lucide-react';
 import api from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useReviewerPersona } from '@/lib/reviewer-persona';
+import { InteractiveModal } from './InteractiveModal';
 
-// ADR-258: ReviewerBanner (colored panel) deleted. Reviewer verdict is a
-// compact status chip inside the card — no colored borders or backgrounds.
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+interface ProposalData {
+  id: string;
+  action_type: string;
+  rationale: string;
+  expected_effect: string;
+  reversibility: 'reversible' | 'soft-reversible' | 'irreversible';
+  risk_warnings: string[];
+  expires_at: string;
+  status: string;
+  reviewer_identity?: string;
+  reviewer_reasoning?: string;
+}
 
 interface ProposalResult {
   success: boolean;
   proposal_id?: string;
-  proposal?: {
-    id: string;
-    action_type: string;
-    rationale: string;
-    expected_effect: string;
-    reversibility: 'reversible' | 'soft-reversible' | 'irreversible';
-    risk_warnings: string[];
-    expires_at: string;
-    status: string;
-    reviewer_identity?: string;
-    reviewer_reasoning?: string;
-  };
+  proposal?: ProposalData;
   error?: string;
   message?: string;
 }
@@ -51,9 +53,11 @@ interface ProposalCardProps {
 }
 
 type LocalStatus = 'pending' | 'approving' | 'approved' | 'rejecting' | 'rejected' | 'error';
-
-// Reviewer verdict posture derived from proposal state
 type ReviewerPosture = 'approve_advisory' | 'defer' | 'rejected' | 'none';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function formatActionType(action: string): string {
   const [provider, ...rest] = action.split('.');
@@ -72,17 +76,11 @@ function formatExpiresAt(iso: string): string {
   return `in ${mins}m`;
 }
 
-function reversibilityTone(r: string): { label: string; className: string } {
-  switch (r) {
-    case 'reversible':
-      return { label: 'Reversible', className: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20' };
-    case 'soft-reversible':
-      return { label: 'Soft-reversible', className: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20' };
-    case 'irreversible':
-      return { label: 'Irreversible', className: 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20' };
-    default:
-      return { label: r, className: 'bg-muted text-muted-foreground' };
-  }
+function reversibilityLabel(r: string): string {
+  if (r === 'reversible') return 'Reversible';
+  if (r === 'soft-reversible') return 'Soft-reversible';
+  if (r === 'irreversible') return 'Irreversible';
+  return r;
 }
 
 function deriveReviewerPosture(
@@ -91,115 +89,106 @@ function deriveReviewerPosture(
   proposalStatus?: string,
 ): ReviewerPosture {
   if (!reviewerIdentity || !reviewerReasoning) return 'none';
-  // AI occupant already rejected at proposal level
   if (proposalStatus === 'rejected') return 'rejected';
-  // Advisory approve: Reviewer approved but autonomy gate requires user confirmation
   if (reviewerIdentity.startsWith('ai:') && proposalStatus === 'pending') return 'approve_advisory';
-  // Defer: Reviewer deferred, proposal still pending
   if (proposalStatus === 'pending') return 'defer';
   return 'none';
 }
 
-// Compact reviewer status chip — replaces the colored ReviewerBanner panels.
-// ADR-258: semantic state uses text + icon, not colored background panels.
-interface ReviewerStatusChipProps {
-  posture: ReviewerPosture;
-  reasoning: string;
-  personaName: string | null;
-}
-
-function ReviewerStatusChip({ posture, reasoning, personaName }: ReviewerStatusChipProps) {
-  const name = personaName ?? 'Reviewer';
-
-  // Strip trailing boilerplate lines before displaying reasoning
+// Strip trailing boilerplate from Reviewer reasoning for display
+function cleanReasoning(reasoning: string): string {
   const confirmIdx = reasoning.indexOf('\n\n**Your confirmation required**');
   const decidedIdx = reasoning.indexOf('\n\n— ');
   const cutAt = Math.min(
     confirmIdx >= 0 ? confirmIdx : reasoning.length,
     decidedIdx >= 0 ? decidedIdx : reasoning.length,
   );
-  const displayReasoning = reasoning.slice(0, cutAt).trim();
-
-  if (posture === 'approve_advisory') {
-    return (
-      <div className="space-y-1 py-1">
-        <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
-          <ShieldCheck className="w-3 h-3 shrink-0" />
-          <span className="font-medium">{name} approved</span>
-        </div>
-        {displayReasoning && (
-          <div className="text-xs text-muted-foreground leading-relaxed line-clamp-3 pl-4">
-            {displayReasoning}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (posture === 'defer') {
-    return (
-      <div className="space-y-1 py-1">
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <ShieldQuestion className="w-3 h-3 shrink-0" />
-          <span className="font-medium">{name} deferred — your judgment needed</span>
-        </div>
-        {displayReasoning && (
-          <div className="text-xs text-muted-foreground leading-relaxed line-clamp-3 pl-4">
-            {displayReasoning}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (posture === 'rejected') {
-    return (
-      <div className="space-y-1 py-1">
-        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-          <ShieldX className="w-3 h-3 shrink-0" />
-          <span className="font-medium">{name} rejected</span>
-        </div>
-        {displayReasoning && (
-          <div className="text-xs text-muted-foreground leading-relaxed line-clamp-3 pl-4">
-            {displayReasoning}
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return null;
+  return reasoning.slice(0, cutAt).trim();
 }
 
-export function ProposalCard({ result }: ProposalCardProps) {
-  const personaName = useReviewerPersona();
+// ---------------------------------------------------------------------------
+// ProposalChip — compact stream entry
+// ---------------------------------------------------------------------------
 
-  if (!result.success || !result.proposal) {
-    return (
-      <div className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm">
-        <div className="flex items-center gap-2 text-destructive">
-          <AlertCircle className="w-4 h-4" />
-          <span className="font-medium">Proposal couldn't be created</span>
-        </div>
-        {result.message && <div className="mt-1 text-xs text-muted-foreground">{result.message}</div>}
+interface ProposalChipProps {
+  proposal: ProposalData;
+  reviewerPosture: ReviewerPosture;
+  personaName: string | null;
+  terminalStatus: LocalStatus | null;
+  onClick: () => void;
+}
+
+function ProposalChip({ proposal, reviewerPosture, personaName, terminalStatus, onClick }: ProposalChipProps) {
+  const name = personaName ?? 'Reviewer';
+
+  const reviewerLine =
+    reviewerPosture === 'approve_advisory' ? `${name} approved` :
+    reviewerPosture === 'defer' ? `${name} deferred` :
+    reviewerPosture === 'rejected' ? `${name} rejected` :
+    null;
+
+  const isTerminal = terminalStatus === 'approved' || terminalStatus === 'rejected';
+  const terminalLine =
+    terminalStatus === 'approved' ? 'Executed' :
+    terminalStatus === 'rejected' ? 'Rejected' :
+    null;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={isTerminal}
+      className={cn(
+        'w-full text-left rounded-lg border px-3 py-2.5 transition-colors',
+        isTerminal
+          ? 'border-border/40 bg-muted/20 cursor-default opacity-60'
+          : 'border-border bg-muted/10 hover:bg-muted/30 cursor-pointer',
+      )}
+    >
+      <div className="flex items-center gap-2">
+        <Hexagon className="w-3.5 h-3.5 shrink-0 text-muted-foreground/50" />
+        <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          Proposal
+        </span>
+        <span className="text-xs text-muted-foreground/70 truncate flex-1">
+          {formatActionType(proposal.action_type)}
+        </span>
+        <span className="text-[10px] text-muted-foreground/40 shrink-0">
+          {reversibilityLabel(proposal.reversibility)}
+        </span>
       </div>
-    );
-  }
+      {(reviewerLine || terminalLine) && (
+        <div className="mt-1 pl-5 text-[11px] text-muted-foreground/60">
+          {terminalLine ?? reviewerLine}
+          {!isTerminal && (
+            <span className="ml-1 text-muted-foreground/40">· tap to review</span>
+          )}
+        </div>
+      )}
+    </button>
+  );
+}
 
-  const proposal = result.proposal;
+// ---------------------------------------------------------------------------
+// ProposalDetail — modal body
+// ---------------------------------------------------------------------------
+
+interface ProposalDetailProps {
+  proposal: ProposalData;
+  onClose: () => void;
+}
+
+function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
+  const personaName = useReviewerPersona();
   const [status, setStatus] = useState<LocalStatus>(
     proposal.status === 'executed' ? 'approved' :
     proposal.status === 'rejected' ? 'rejected' :
-    'pending'
+    'pending',
   );
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  // Live proposal state — fetched on mount to pick up reviewer_reasoning
-  // written after ProposeAction returned (Reviewer runs async).
   const [liveProposal, setLiveProposal] = useState(proposal);
 
   useEffect(() => {
-    // Re-fetch the proposal to get reviewer_reasoning/reviewer_identity
-    // which are written after the tool result was serialised.
     let cancelled = false;
     api.proposals.get(proposal.id).then((res) => {
       if (!cancelled && res?.proposal) {
@@ -214,9 +203,6 @@ export function ProposalCard({ result }: ProposalCardProps) {
     return () => { cancelled = true; };
   }, [proposal.id]);
 
-  const revTone = useMemo(() => reversibilityTone(liveProposal.reversibility), [liveProposal.reversibility]);
-  const expiresLabel = formatExpiresAt(liveProposal.expires_at);
-
   const reviewerPosture = deriveReviewerPosture(
     liveProposal.reviewer_identity,
     liveProposal.reviewer_reasoning,
@@ -228,12 +214,8 @@ export function ProposalCard({ result }: ProposalCardProps) {
     setErrorMsg(null);
     try {
       const res = await api.proposals.approve(liveProposal.id);
-      if (res.success) {
-        setStatus('approved');
-      } else {
-        setStatus('error');
-        setErrorMsg(res.error || 'Execution failed');
-      }
+      if (res.success) { setStatus('approved'); onClose(); }
+      else { setStatus('error'); setErrorMsg(res.error || 'Execution failed'); }
     } catch (err) {
       setStatus('error');
       setErrorMsg(err instanceof Error ? err.message : 'Network error');
@@ -245,12 +227,8 @@ export function ProposalCard({ result }: ProposalCardProps) {
     setErrorMsg(null);
     try {
       const res = await api.proposals.reject(liveProposal.id);
-      if (res.success) {
-        setStatus('rejected');
-      } else {
-        setStatus('error');
-        setErrorMsg('Rejection failed');
-      }
+      if (res.success) { setStatus('rejected'); onClose(); }
+      else { setStatus('error'); setErrorMsg('Rejection failed'); }
     } catch (err) {
       setStatus('error');
       setErrorMsg(err instanceof Error ? err.message : 'Network error');
@@ -259,145 +237,156 @@ export function ProposalCard({ result }: ProposalCardProps) {
 
   const isTerminal = status === 'approved' || status === 'rejected';
   const isLoading = status === 'approving' || status === 'rejecting';
-
-  // Contextual approve label per ADR-249 D3 framing
   const approveLabel =
     reviewerPosture === 'approve_advisory' ? 'Confirm · Execute' :
     reviewerPosture === 'defer' ? 'Proceed anyway' :
     'Approve';
 
   return (
-    <div
-      className={cn(
-        'rounded-lg border overflow-hidden',
-        status === 'approved' ? 'border-emerald-500/40 bg-emerald-500/5' :
-        status === 'rejected' ? 'border-muted bg-muted/20' :
-        status === 'error' ? 'border-destructive/40 bg-destructive/5' :
-        'border-border bg-muted/10',
+    <div className="space-y-3">
+      {/* Rationale */}
+      {liveProposal.rationale && (
+        <p className="text-sm">{liveProposal.rationale}</p>
       )}
-    >
-      {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/40 bg-muted/20">
-        <span className="text-xs font-medium tracking-wider text-muted-foreground uppercase">
-          Proposal
-        </span>
-        <span className="text-xs text-muted-foreground/70 truncate">
-          {formatActionType(liveProposal.action_type)}
-        </span>
-        <span
-          className={cn(
-            'ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] font-medium',
-            revTone.className,
+      {liveProposal.expected_effect && (
+        <p className="text-xs text-muted-foreground border-l-2 border-border pl-2">
+          {liveProposal.expected_effect}
+        </p>
+      )}
+
+      {/* Reviewer verdict */}
+      {liveProposal.reviewer_reasoning && (
+        <div className="space-y-1 pt-1">
+          {reviewerPosture === 'approve_advisory' && (
+            <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
+              <ShieldCheck className="w-3 h-3 shrink-0" />
+              <span className="font-medium">{personaName ?? 'Reviewer'} approved</span>
+            </div>
           )}
-        >
-          {revTone.label}
-        </span>
-      </div>
-
-      {/* Body */}
-      <div className="px-3 py-2.5 space-y-2">
-        {liveProposal.rationale && (
-          <div className="text-sm">{liveProposal.rationale}</div>
-        )}
-        {liveProposal.expected_effect && (
-          <div className="text-xs text-muted-foreground border-l-2 border-border pl-2">
-            {liveProposal.expected_effect}
-          </div>
-        )}
-
-        {/* Reviewer status chip — compact, no colored panel */}
-        {liveProposal.reviewer_reasoning && (
-          <ReviewerStatusChip
-            posture={reviewerPosture}
-            reasoning={liveProposal.reviewer_reasoning}
-            personaName={personaName}
-          />
-        )}
-
-        {liveProposal.risk_warnings && liveProposal.risk_warnings.length > 0 && (
-          <div className="flex items-start gap-1.5 rounded border border-amber-500/30 bg-amber-500/5 px-2 py-1.5">
-            <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-            <div className="text-xs text-amber-900 dark:text-amber-100 space-y-0.5">
-              {liveProposal.risk_warnings.map((w, i) => (
-                <div key={i}>{w}</div>
-              ))}
+          {reviewerPosture === 'defer' && (
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <ShieldQuestion className="w-3 h-3 shrink-0" />
+              <span className="font-medium">{personaName ?? 'Reviewer'} deferred — your judgment needed</span>
             </div>
-          </div>
-        )}
-
-        {/* Action area */}
-        {status === 'pending' && reviewerPosture !== 'rejected' && (
-          <div className="flex items-center gap-2 pt-1">
-            <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              <Clock className="w-3 h-3" />
-              <span>expires {expiresLabel}</span>
+          )}
+          {reviewerPosture === 'rejected' && (
+            <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+              <ShieldX className="w-3 h-3 shrink-0" />
+              <span className="font-medium">{personaName ?? 'Reviewer'} rejected</span>
             </div>
-            <div className="flex-1" />
-            <button
-              type="button"
-              onClick={handleReject}
-              disabled={isLoading}
-              className="px-2.5 py-1 text-xs rounded border border-border hover:bg-muted transition-colors disabled:opacity-50"
-            >
-              Reject
-            </button>
-            <button
-              type="button"
-              onClick={handleApprove}
-              disabled={isLoading}
-              className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
-            >
-              {approveLabel}
-            </button>
-          </div>
-        )}
+          )}
+          <p className="text-xs text-muted-foreground leading-relaxed pl-4">
+            {cleanReasoning(liveProposal.reviewer_reasoning)}
+          </p>
+        </div>
+      )}
 
-        {/* Reviewer rejected — no approve affordance */}
-        {status === 'pending' && reviewerPosture === 'rejected' && (
-          <div className="flex items-center gap-2 pt-1 text-[11px] text-muted-foreground">
+      {/* Risk warnings */}
+      {liveProposal.risk_warnings && liveProposal.risk_warnings.length > 0 && (
+        <div className="flex items-start gap-1.5 rounded border border-border/60 bg-muted/30 px-2.5 py-2">
+          <ShieldAlert className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
+          <div className="text-xs text-muted-foreground space-y-0.5">
+            {liveProposal.risk_warnings.map((w, i) => <div key={i}>{w}</div>)}
+          </div>
+        </div>
+      )}
+
+      {/* Action area */}
+      {!isTerminal && reviewerPosture !== 'rejected' && (
+        <div className="flex items-center gap-2 pt-1 border-t border-border/40">
+          <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
             <Clock className="w-3 h-3" />
-            <span>expires {expiresLabel} · update risk rules and re-propose to proceed</span>
+            <span>expires {formatExpiresAt(liveProposal.expires_at)}</span>
           </div>
-        )}
+          <div className="flex-1" />
+          <button
+            type="button"
+            onClick={handleReject}
+            disabled={isLoading}
+            className="px-2.5 py-1 text-xs rounded border border-border hover:bg-muted transition-colors disabled:opacity-50"
+          >
+            Reject
+          </button>
+          <button
+            type="button"
+            onClick={handleApprove}
+            disabled={isLoading}
+            className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded bg-foreground text-background hover:bg-foreground/90 transition-colors disabled:opacity-50"
+          >
+            {isLoading && <Loader2 className="w-3 h-3 animate-spin" />}
+            {approveLabel}
+          </button>
+        </div>
+      )}
 
-        {status === 'approving' && (
-          <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            <span>Executing…</span>
-          </div>
-        )}
+      {reviewerPosture === 'rejected' && !isTerminal && (
+        <div className="flex items-center gap-1.5 pt-1 border-t border-border/40 text-[11px] text-muted-foreground">
+          <Clock className="w-3 h-3" />
+          <span>expires {formatExpiresAt(liveProposal.expires_at)} · update risk rules and re-propose to proceed</span>
+        </div>
+      )}
 
-        {status === 'rejecting' && (
-          <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
-            <Loader2 className="w-3 h-3 animate-spin" />
-            <span>Rejecting…</span>
-          </div>
-        )}
-
-        {status === 'approved' && (
-          <div className="flex items-center gap-2 pt-1 text-xs text-emerald-700 dark:text-emerald-400">
-            <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Executed</span>
-          </div>
-        )}
-
-        {status === 'rejected' && (
-          <div className="flex items-center gap-2 pt-1 text-xs text-muted-foreground">
-            <XCircle className="w-3.5 h-3.5" />
-            <span>Rejected</span>
-          </div>
-        )}
-
-        {status === 'error' && (
-          <div className="flex items-start gap-2 pt-1 text-xs text-destructive">
-            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-            <div className="space-y-0.5">
-              <div>Something went wrong</div>
-              {errorMsg && <div className="text-muted-foreground">{errorMsg}</div>}
-            </div>
-          </div>
-        )}
-      </div>
+      {status === 'error' && errorMsg && (
+        <div className="flex items-start gap-2 text-xs text-destructive pt-1">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+          <span>{errorMsg}</span>
+        </div>
+      )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ProposalCard — chip + modal wired together (the exported interface)
+// ---------------------------------------------------------------------------
+
+export function ProposalCard({ result }: ProposalCardProps) {
+  const [open, setOpen] = useState(false);
+  const personaName = useReviewerPersona();
+
+  if (!result.success || !result.proposal) {
+    return (
+      <div className="rounded-lg border border-border/60 bg-muted/10 px-3 py-2 text-sm">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <AlertCircle className="w-4 h-4" />
+          <span>Proposal couldn&apos;t be created</span>
+        </div>
+        {result.message && <div className="mt-1 text-xs text-muted-foreground/70">{result.message}</div>}
+      </div>
+    );
+  }
+
+  const proposal = result.proposal;
+
+  // Derive posture from initial result for chip display (modal re-fetches live state)
+  const initialPosture = deriveReviewerPosture(
+    proposal.reviewer_identity,
+    proposal.reviewer_reasoning,
+    proposal.status,
+  );
+
+  const terminalStatus: LocalStatus | null =
+    proposal.status === 'executed' ? 'approved' :
+    proposal.status === 'rejected' ? 'rejected' :
+    null;
+
+  return (
+    <>
+      <ProposalChip
+        proposal={proposal}
+        reviewerPosture={initialPosture}
+        personaName={personaName}
+        terminalStatus={terminalStatus}
+        onClick={() => setOpen(true)}
+      />
+      <InteractiveModal
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        title="Proposal"
+        subtitle={formatActionType(proposal.action_type)}
+      >
+        <ProposalDetail proposal={proposal} onClose={() => setOpen(false)} />
+      </InteractiveModal>
+    </>
   );
 }

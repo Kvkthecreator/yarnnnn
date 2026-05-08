@@ -41,16 +41,18 @@ All three use the same bubble shape: `rounded-2xl px-3 py-2 bg-muted`. No partic
 
 System events (`role='system'`) and external events (`role='external'`) are not participants — they're ambient log entries. They keep their dim one-liner treatment at reduced opacity.
 
-### D2 — Proposals are inline cards, not participant bubbles
+### D2 — Proposals and documents use one modal pattern
 
-Proposals are actionable objects in the stream — they are not a participant speaking. They render as a self-contained card distinct from any bubble:
+Proposals and workspace file references are interactive objects, not participant speech. Both use the same pattern:
 
-- Uniform border, muted background, no color-coding on the card frame
-- Reviewer verdict (approved/deferred/rejected) shown as a compact status chip inside the card
-- Approve/Reject buttons inline
-- No separate `ReviewerBanner` colored component — status is text + icon chip only
+1. **Stream entry** — compact chip (one or two lines): label (`PROPOSAL` / filename), summary (action type / file path), status hint (`Simon approved · tap to review`)
+2. **Centered modal** — opens on click via `InteractiveModal`. Contains full detail and action affordances. Closes on Escape or backdrop click.
 
-This is the "alert → action" pattern: the card is the notification that an action is staged; the inline buttons are the response affordance. No modal needed — the card is already compact and self-contained. A modal would be appropriate only if the operator needs to drill into full substrate context (decisions trail, performance history) — that links out to `/work?tab=decisions`.
+This is the alert → modal pattern: the stream chip is the notification; the modal is the focused action surface. The stream stays scannable; the operator opens the modal only when they need to act or read.
+
+`InteractiveModal` is the single shared modal component (`web/components/tp/InteractiveModal.tsx`). One style, one implementation. ProposalCard splits into `ProposalChip` (stream) + `ProposalDetail` (modal body). File chips in message rows open `InteractiveModal` wrapping `WorkspaceFileView`.
+
+**What this does NOT change**: the proposal still lives in the stream as a historical entry. The chip is append-only. Approve/reject actions execute in the modal and close it; the chip updates to reflect terminal state.
 
 ### D3 — Participant status chrome lives inside the bubble
 
@@ -82,9 +84,10 @@ Reviewer bubbles de-emphasize the label slightly more than System Agent bubbles 
 | Component | Change |
 |---|---|
 | `ReviewerCard.tsx` | Remove all rose tinting. Uniform `bg-muted` bubble. Status chip (approved/deferred/rejected) as inline element, not banner. Confidence chip below content. |
-| `MessageDispatch.tsx` | `renderReviewerBubble` replaces `ReviewerVerdictRenderer` — no longer delegates to ReviewerCard for addressed mode; ReviewerCard retained only for proposal verdicts. Actually simplify: one reviewer renderer, always same bubble shape. |
-| `MessageRow.tsx` | Delete all Reviewer section divider logic. Reviewer entries are just `MaterialRow` with no special casing beyond skipping the authorship chip. |
-| `ProposalCard.tsx` | Remove `ReviewerBanner` component (colored). Replace with compact status chip: `{personaName} · Approved` in emerald text, `{personaName} · Deferred` in muted text, `{personaName} · Rejected` in muted-red text. No colored border panels. |
+| `MessageDispatch.tsx` | `ReviewerBubbleRenderer` replaces `ReviewerVerdictRenderer` — simplified, no separate addressed/verdict branches. |
+| `MessageRow.tsx` | Delete all Reviewer section divider logic. File path chips now open `InteractiveModal` (not inline overlay). `X` import removed. |
+| `ProposalCard.tsx` | Split into `ProposalChip` (stream) + `ProposalDetail` (modal body) + `ProposalCard` (wires together via `InteractiveModal`). `ReviewerBanner` deleted. |
+| `InteractiveModal.tsx` | New shared modal component. One style for all interactive stream entries. |
 
 ---
 
