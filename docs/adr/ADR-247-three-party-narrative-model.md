@@ -137,11 +137,14 @@ This ADR resolves the "who does what" question for primitives:
 | `Clarify` | Ask operator for input |
 | `ListRevisions`, `ReadRevision`, `DiffRevisions` | Revision-aware substrate reads |
 
-**The Reviewer** — ⚠ **ADR-253 correction (2026-05-07): the paragraph below is superseded. See ADR-253 §"Correction to ADR-247 D4" for the authoritative statement.**
+**The Reviewer** — ⚠ **ADR-258 correction (2026-05-08): both the original D4 paragraph AND the ADR-253 correction are superseded.** See ADR-258 §D1 for the authoritative statement.
 
-~~The Reviewer uses NO primitives directly. It is a pure judgment entity...~~ [Struck through — statement was incorrect. See ADR-253.]
+~~The Reviewer uses NO primitives directly~~ — incorrect (original ADR-247 D4).
+~~The Reviewer has no LLM tool surface~~ — incorrect (ADR-253 partial correction).
 
-**Correct statement (ADR-253 D1)**: The Reviewer has **no LLM tool surface** — its reasoning produces a verdict via `return_review_decision`, not by calling platform tools directly. However, the Reviewer's verdict **does bind execution** through `review_proposal_dispatch.py`: approve + AUTONOMY permits → `handle_execute_proposal()` fires; reject → `handle_reject_proposal()` fires. The Reviewer's independence (THESIS Commitment 2) means its judgment is evaluated against ground truth (money-truth), not against producer agreement — this independence is not compromised by execution authority following from verdict. A judge whose rulings cause no action is toothless, not independent.
+**Correct statement (ADR-258 D1)**: The Reviewer is a **`chat`-mode caller of the canonical primitive registry** — same `CHAT_PRIMITIVES` set as YARNNN, same `execute_primitive()` dispatch path. No separate permission mode, no parallel handlers. The Reviewer's safety story is **attribution + revision chain + AUTONOMY gating**, not access control: every write carries `authored_by="reviewer:{occupant}"`, every prior state retained per ADR-209, capital actions gated by `should_auto_execute_verdict()`, operator-authored `/workspace/_shared/_locks.yaml` provides opt-in path locks if desired.
+
+Independence (THESIS Commitment 2) means the Reviewer's judgment is evaluated against ground truth (money-truth in `_performance.md`), not against producer agreement. This independence is preserved by *what the Reviewer reasons against*, not by *which primitives it can call*. ADR-247 D4 originally tried to encode independence as primitive absence; that was a category error.
 
 **Headless agents (production roles)** — use the headless primitive set (21 static + dynamic platform tools). Notably they have `ProposeAction` but NOT `ExecuteProposal` or `RejectProposal` — production agents can propose, they cannot bind.
 

@@ -6,6 +6,59 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.08.3] - ADR-258: Reviewer as personified chat-mode operator — full primitive scope, generated cockpit awareness
+
+### Changed
+- `api/agents/reviewer_agent.py`: rewritten. Parallel `_TOOLS` array (5 hand-rolled
+  tools) and `_dispatch_tool_call()` dispatch table DELETED (~270 lines).
+  invoke_reviewer() now calls `execute_primitive()` from canonical CHAT_PRIMITIVES
+  registry. Tool surface = full chat primitives (26 tools) + Reviewer-specific
+  ReturnVerdict. Tool-use loop bounded at 8 rounds (raised from 3 — full primitive
+  scope needs more rounds for legitimate exploration).
+
+- `api/agents/cockpit_awareness.py`: NEW. Generates the Reviewer's "operating
+  environment" prompt section from canonical sources: workspace_paths constants
+  (path block) + CHAT_PRIMITIVES registry (tool block). Pure function, composed
+  once per process. Drift-resistant by construction — when a path constant
+  changes or a primitive is renamed, the prompt regenerates automatically.
+
+- `api/services/primitives/workspace.py::handle_write_file`: gains lock-aware
+  enforcement when caller is Reviewer. Reads /workspace/_shared/_locks.yaml,
+  rejects writes targeting locked paths. Default-empty (no locks); operator
+  opts in by authoring _locks.yaml.
+
+- `api/agents/reviewer_agent.py` system prompt structure: _PERSONA_FRAME (stable
+  prose) + build_cockpit_section() (generated) + _TRIGGER_FRAMING (per-trigger
+  framing block). Three pieces, two generated, one stable prose.
+
+### Expected behavior
+- Reviewer addressed turn ("what's your read?") now succeeds where it was failing:
+  the Reviewer can ListFiles to discover paths, ReadFile via the canonical handler
+  (which has correct path normalization), DiffRevisions to see operator changes,
+  WriteFile to its own substrate, FireInvocation to commission missing data,
+  ProposeAction to submit trades. All actions are attributed and revertible.
+
+- "Wrong path" failure class disappears: the Reviewer no longer guesses paths
+  because cockpit-awareness section in its system prompt enumerates the canonical
+  filesystem layout from workspace_paths constants.
+
+- ADR-247 D4 "Reviewer has no primitives" claim retired with superseded note.
+  ADR-253 D2 directives mechanism reframed: directives are the Reviewer's tool
+  calls during a defer turn, not a parallel structured field.
+
+### Deleted
+- _TOOLS array in reviewer_agent.py (5 hand-rolled tool definitions)
+- _dispatch_tool_call() function
+- Parallel handlers for ReadFile/FireInvocation/ProposeAction/WriteFile inside
+  reviewer_agent.py
+
+### Documentation impact
+- docs/adr/ADR-258-reviewer-as-personified-chat-mode-operator.md (new)
+- docs/architecture/primitives-matrix.md (Reviewer row rewritten)
+- docs/adr/ADR-247-three-party-narrative-model.md (D4 paragraph superseded note)
+- docs/adr/ADR-253-reviewer-substrate-native-agent.md (D2 mechanism superseded note)
+- CLAUDE.md (ADR-258 entry added to ADR list)
+
 ## [2026.05.08.2] - ADR-256: unified invoke_reviewer() — one function, tool-use loop, four triggers
 
 ### Changed

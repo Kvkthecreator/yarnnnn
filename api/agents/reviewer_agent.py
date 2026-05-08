@@ -108,226 +108,207 @@ class ReviewerContext(TypedDict, total=False):
 
 
 # ---------------------------------------------------------------------------
-# Unified tool set (ADR-256 D3) — Reviewer has hands
+# ReturnVerdict tool — Reviewer-specific (not in CHAT_PRIMITIVES)
 # ---------------------------------------------------------------------------
-# The Reviewer runs a bounded tool-use loop (≤3 rounds). It reads what it
-# needs, acts on what it decides, then calls ReturnVerdict to end the loop.
-# No more action_instruction string — actions are structured tool calls.
+# This is the only Reviewer-specific tool. All other tools come from the
+# canonical CHAT_PRIMITIVES registry (ADR-258 D1). ReturnVerdict closes the
+# tool-use loop and emits the structured verdict.
 
-_TOOLS = [
-    {
-        "name": "ReadFile",
-        "description": (
-            "Read a workspace file. Use to fetch signal state, performance data, "
-            "or any substrate you need before deciding. Path must start with /workspace/."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Full workspace path, e.g. /workspace/context/trading/signals/nvda.yaml"},
+RETURN_VERDICT_TOOL = {
+    "name": "ReturnVerdict",
+    "description": (
+        "Close the loop with your structured verdict. Call exactly once, last. "
+        "After any reads/actions/writes, call this to end the turn. "
+        "Required fields: verdict, reasoning, confidence. "
+        "Reflection-only fields: proposals, evidence_summary."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "verdict": {
+                "type": "string",
+                "enum": [
+                    "approve", "reject", "defer",
+                    "no_change", "narrow", "relax", "character_note", "pause_autonomy",
+                    "stand_down",
+                ],
+                "description": (
+                    "approve|reject|defer for proposal/heartbeat; "
+                    "no_change|narrow|relax|character_note|pause_autonomy for reflection; "
+                    "stand_down for heartbeat/addressed when no action warranted."
+                ),
             },
-            "required": ["path"],
-        },
-    },
-    {
-        "name": "FireInvocation",
-        "description": (
-            "Fire an existing recurrence by slug. Use when substrate is missing or stale "
-            "and you need it before you can assess. The recurrence must already be declared."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "slug": {"type": "string", "description": "Recurrence slug, e.g. signal-evaluation"},
-                "reason": {"type": "string", "description": "Why you are firing this now"},
+            "reasoning": {
+                "type": "string",
+                "description": (
+                    "2-5 sentences in your persona's voice. Written verbatim "
+                    "to /workspace/review/decisions.md. First sentence is the "
+                    "verdict; second is why."
+                ),
             },
-            "required": ["slug", "reason"],
-        },
-    },
-    {
-        "name": "ProposeAction",
-        "description": (
-            "Submit a structured action proposal for execution. Use when signal conditions "
-            "are clearly met per principles.md and the action is within your declared edge. "
-            "The proposal routes through the AUTONOMY gate — auto-execute if within ceiling, "
-            "queue for operator click if above."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "action_type": {"type": "string", "description": "e.g. trading.submit_order_paper"},
-                "ticker": {"type": "string"},
-                "direction": {"type": "string", "enum": ["long", "short"]},
-                "quantity": {"type": "integer"},
-                "signal": {"type": "string", "description": "Signal that triggered this, e.g. IH-3"},
-                "rationale": {"type": "string", "description": "Your reasoning in persona voice"},
+            "confidence": {
+                "type": "string",
+                "enum": ["low", "medium", "high"],
             },
-            "required": ["action_type", "rationale"],
-        },
-    },
-    {
-        "name": "WriteFile",
-        "description": (
-            "Write a file within /workspace/review/ only. Use for writing notes to "
-            "decisions.md or updating your own substrate. Scope ceiling: /workspace/review/."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "path": {"type": "string", "description": "Must be under /workspace/review/"},
-                "content": {"type": "string"},
-                "mode": {"type": "string", "enum": ["overwrite", "append"], "default": "append"},
-            },
-            "required": ["path", "content"],
-        },
-    },
-    {
-        "name": "ReturnVerdict",
-        "description": (
-            "End the loop and return your structured verdict. Call exactly once, last. "
-            "After any ReadFile/FireInvocation/ProposeAction calls, call this to close the turn."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "verdict": {
-                    "type": "string",
-                    "enum": [
-                        "approve", "reject", "defer",          # proposal / heartbeat / addressed
-                        "no_change", "narrow", "relax",        # reflection
-                        "character_note", "pause_autonomy",    # reflection
-                        "stand_down",                          # heartbeat / addressed: no action
-                    ],
-                },
-                "reasoning": {
-                    "type": "string",
-                    "description": "2-5 sentences in persona voice. Written to decisions.md verbatim.",
-                },
-                "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
-                # reflection-only
-                "proposals": {
-                    "type": "array",
-                    "description": "Framework change proposals (reflection trigger only).",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "change_type": {"type": "string"},
-                            "target_file": {"type": "string"},
-                            "reasoning": {"type": "string"},
-                            "evidence": {"type": "string"},
-                            "new_content": {"type": "string"},
-                            "duration_hours": {"type": "integer"},
-                            "reason": {"type": "string"},
-                            "action_type": {"type": "string"},
-                            "proposal_inputs": {"type": "string"},
-                        },
-                        "required": ["change_type", "target_file", "reasoning", "evidence", "new_content"],
+            "proposals": {
+                "type": "array",
+                "description": "Reflection trigger only — framework change proposals.",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "change_type": {"type": "string"},
+                        "target_file": {"type": "string"},
+                        "reasoning": {"type": "string"},
+                        "evidence": {"type": "string"},
+                        "new_content": {"type": "string"},
+                        "duration_hours": {"type": "integer"},
+                        "reason": {"type": "string"},
+                        "action_type": {"type": "string"},
+                        "proposal_inputs": {"type": "string"},
                     },
-                },
-                "evidence_summary": {
-                    "type": "string",
-                    "description": "Substrate citations (reflection trigger only).",
+                    "required": ["change_type", "target_file", "reasoning", "evidence", "new_content"],
                 },
             },
-            "required": ["verdict", "reasoning", "confidence"],
+            "evidence_summary": {
+                "type": "string",
+                "description": "Reflection trigger only — substrate citations.",
+            },
         },
+        "required": ["verdict", "reasoning", "confidence"],
     },
-]
+}
 
 
 # ---------------------------------------------------------------------------
-# System prompt — one base, trigger framing in user message (ADR-256 D2)
+# System prompt — persona frame + generated cockpit awareness + trigger framing
 # ---------------------------------------------------------------------------
 
-_SYSTEM_PROMPT = """\
-You are the operator's judgment character — personified via IDENTITY.md.
-You are not a system, not a filter, not a policy engine. You are a person:
-the specific judgment character the operator installed to act on their behalf.
-Your IDENTITY.md tells you who that is. Embody it fully.
+_PERSONA_FRAME = """\
+You are the operator's installed judgment character — personified via IDENTITY.md.
+You are not a system, not a filter, not a policy engine. You are the persona
+the operator chose to act on their behalf within their declared autonomy.
 
-You have a tool-use loop (≤3 rounds). Use it:
-1. ReadFile — fetch any substrate you need before deciding (signal files,
-   performance data, etc.). Do this first if data is missing.
-2. FireInvocation / ProposeAction / WriteFile — act on your decision.
-3. ReturnVerdict — always last. Closes the loop.
+Read your IDENTITY.md first. Embody it fully. You speak in first person as that
+character. Your voice, your priorities, your thresholds come from there. If
+IDENTITY.md is empty, reason as a skeptical, independent-minded judge.
 
 You reason in capital-EV terms:
 - What is the upside if this action works?
 - What is the downside if it doesn't?
-- Is the ratio asymmetric in your favor?
-- Does the track record support this edge, or is it untested?
+- Is the upside/downside ratio asymmetric?
+- Does the track record support this edge, or is this untested?
 
-**Autonomy delegation (ADR-217 + ADR-229 D1):**
-You run BEFORE the autonomy filter. Render a verdict on merits regardless
-of whether AUTONOMY would auto-execute. Your framework (principles +
-precedent) can narrow delegation but never widen it.
+**Independence (THESIS Commitment 2)**: your judgment is evaluated against
+ground truth (money-truth in _performance.md), not against producer agreement.
+You are not captured by whoever proposed an action — you can reject it,
+defer, or rewrite the framework if patterns warrant.
 
-**Precedent hierarchy:**
-PRECEDENT.md overrides conflicting clauses in principles.md. Cite precedent
-explicitly when it drove the verdict.
+**Autonomy (ADR-217 + ADR-229 D1)**: you reason BEFORE the autonomy filter.
+Render verdicts on merits regardless of whether AUTONOMY would auto-execute.
+The dispatcher applies AUTONOMY post-verdict. Your framework can narrow
+delegation but never widen it.
 
-**Voice discipline:**
-First person, your declared character's register. Never cite filenames.
-Say "your declared 3% risk ceiling" not "_risk.md says".
-Two sentences: verdict first, reasoning second.
+**Precedent hierarchy**: PRECEDENT.md overrides conflicting clauses in your
+own principles.md. Cite precedent explicitly when it drove the verdict.
 
-Call ReturnVerdict exactly once — always last.
+**Voice discipline**: First person, your character's natural register. Never
+cite filenames. Say "your declared 3% risk ceiling" not "_risk.md says".
+Two sentences for simple verdicts: verdict first, reasoning second.
 """
 
 
+_TRIGGER_FRAMING = {
+    "proposal": (
+        "## This invocation\n\n"
+        "A proposal has been submitted for your judgment. The proposal is "
+        "below. Apply your framework. Call ReturnVerdict with approve | reject "
+        "| defer + reasoning. Use ReadFile/ListFiles to fetch missing substrate "
+        "before deciding if needed."
+    ),
+    "heartbeat": (
+        "## This invocation\n\n"
+        "A recurrence you watch just completed. The fresh signal output is "
+        "below. Read it. Apply your principles. Decide:\n"
+        "- Conditions met → ProposeAction with full sizing math\n"
+        "- Substrate missing → FireInvocation('signal-evaluation' / 'track-universe')\n"
+        "- No actionable condition → ReturnVerdict(stand_down)"
+    ),
+    "reflection": (
+        "## This invocation\n\n"
+        "Reflect on your recent decisions against your framework. Read your "
+        "decisions trail and per-domain performance. `no_change` is the "
+        "common and expected outcome. If patterns warrant adjustment, include "
+        "proposals with full revised file content."
+    ),
+    "addressed": (
+        "## This invocation\n\n"
+        "The operator has addressed you directly. Substrate has been "
+        "pre-loaded below. Read what's pre-loaded — do not re-fetch what's "
+        "shown. Then act:\n"
+        "- Signal conditions met → ProposeAction\n"
+        "- Substrate missing → FireInvocation to commission it (do not ask the operator)\n"
+        "- Informational only → ReturnVerdict(stand_down) with the answer as reasoning"
+    ),
+}
+
+
+# Composed once at module import; refreshes on deploy when canonical sources change.
+def _build_system_prompt() -> str:
+    """Compose the Reviewer system prompt from canonical sources.
+    ADR-258 D5: cockpit awareness is generated from path constants and the
+    chat-mode primitive registry — drift-resistant by construction."""
+    from agents.cockpit_awareness import build_cockpit_section
+    return "\n\n".join([_PERSONA_FRAME, build_cockpit_section()])
+
+
+_SYSTEM_PROMPT_CACHE: str | None = None
+
+
+def _system_prompt() -> str:
+    """Lazy-cached system prompt (composed once per process)."""
+    global _SYSTEM_PROMPT_CACHE
+    if _SYSTEM_PROMPT_CACHE is None:
+        _SYSTEM_PROMPT_CACHE = _build_system_prompt()
+    return _SYSTEM_PROMPT_CACHE
+
+
 # ---------------------------------------------------------------------------
-# User message builder — trigger-specific framing (ADR-256 D2)
+# User message builder — trigger-specific pre-loaded substrate
 # ---------------------------------------------------------------------------
 
-def _build_user_message(
-    trigger: str,
-    ctx: "ReviewerContext",
-) -> str:
-    """Assemble the user-message envelope. Load order: persona → framework
-    → mandate/autonomy → domain substrate → trigger-specific context."""
+def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
+    """Compose the user message envelope for an invocation.
+    Pre-loads governance + persona + framework + domain substrate based on
+    what the caller provided. Trigger-specific framing is appended last."""
     import json as _json
     parts: list[str] = []
 
-    # --- Persona (always first — who you are before you see anything else) ---
+    # Persona — always first
     parts += [
         "## IDENTITY.md — Your persona",
         "",
-        ctx.get("identity_md") or "_(empty — reason as neutral skeptical judgment seat)_",
+        ctx.get("identity_md") or "_(empty — reason as a neutral skeptical judgment seat)_",
         "",
     ]
-
     parts += [
         "## principles.md — Your framework",
         "",
         ctx.get("principles_md") or "_(empty — no declared framework)_",
         "",
     ]
-
     if ctx.get("precedent_md"):
         parts += [
-            "## PRECEDENT.md — Operator-declared durable interpretations (overrides principles)",
+            "## PRECEDENT.md — Operator's durable interpretations (overrides principles)",
             "",
             ctx["precedent_md"],
             "",
         ]
-
     if ctx.get("mandate_md"):
-        parts += [
-            "## MANDATE.md — Operation's primary intent",
-            "",
-            ctx["mandate_md"],
-            "",
-        ]
-
+        parts += ["## MANDATE.md — Operation's primary intent", "", ctx["mandate_md"], ""]
     if ctx.get("autonomy_md"):
-        parts += [
-            "## AUTONOMY.md — Delegation ceiling",
-            "",
-            ctx["autonomy_md"],
-            "",
-        ]
+        parts += ["## AUTONOMY.md — Delegation ceiling", "", ctx["autonomy_md"], ""]
 
-    # --- Domain substrate ---
+    # Domain substrate
     if ctx.get("operator_profile_md"):
         parts += ["## _operator_profile.md — Declared strategy", "", ctx["operator_profile_md"], ""]
     if ctx.get("risk_md"):
@@ -335,7 +316,7 @@ def _build_user_message(
     if ctx.get("performance_md"):
         parts += ["## _performance.md — Track record", "", ctx["performance_md"], ""]
 
-    # --- Trigger-specific context ---
+    # Trigger-specific
     if trigger == "proposal":
         row = ctx.get("proposal_row") or {}
         parts += [
@@ -350,12 +331,6 @@ def _build_user_message(
             parts.append(f"**expected_effect:** {row['expected_effect']}")
         inputs = row.get("inputs") or {}
         parts += ["**inputs:**", "```json", _json.dumps(inputs, indent=2, default=str), "```", ""]
-        parts += [
-            "## Your task",
-            "Evaluate this proposal. Apply your framework. Call ReturnVerdict with "
-            "approve / reject / defer + reasoning. Use ReadFile to fetch missing substrate "
-            "before deciding if needed.",
-        ]
 
     elif trigger == "heartbeat":
         slug = ctx.get("trigger_slug", "unknown")
@@ -363,173 +338,28 @@ def _build_user_message(
         if ctx.get("signal_files"):
             parts += ["## Fresh signal state", "", ctx["signal_files"], ""]
         if ctx.get("workspace_state"):
-            parts += ["## Workspace state (what the system has done)", "", ctx["workspace_state"], ""]
-        parts += [
-            "## Your task",
-            f"`{slug}` just completed. Read the fresh signal output above. Apply your "
-            "principles. Decide: ProposeAction if conditions are met, FireInvocation if "
-            "substrate is missing, or ReturnVerdict(stand_down) if no actionable condition exists.",
-        ]
+            parts += ["## Workspace state", "", ctx["workspace_state"], ""]
 
     elif trigger == "reflection":
         if ctx.get("recent_decisions_md"):
-            parts += ["## Recent decisions (your verdict trail)", "", ctx["recent_decisions_md"], ""]
-        parts += [
-            "## Your task",
-            "Reflect on your recent decisions against your framework. `no_change` is the "
-            "expected and common outcome. If you notice patterns warranting adjustment, "
-            "include proposals with full revised file content. Call ReturnVerdict with "
-            "no_change | narrow | relax | character_note | pause_autonomy.",
-        ]
+            parts += ["## Recent decisions", "", ctx["recent_decisions_md"], ""]
 
     elif trigger == "addressed":
         if ctx.get("signal_files"):
-            parts += [
-                "## Current signal state",
-                "(Pre-loaded from /workspace/context/trading/signals/*.yaml)",
-                "",
-                ctx["signal_files"],
-                "",
-            ]
+            parts += ["## Current signal state (pre-loaded)", "", ctx["signal_files"], ""]
         if ctx.get("workspace_state"):
-            parts += [
-                "## Workspace state (what the system has done recently)",
-                "(Signal runs, positions, cadence, pending proposals)",
-                "",
-                ctx["workspace_state"],
-                "",
-            ]
+            parts += ["## Workspace state", "", ctx["workspace_state"], ""]
         if ctx.get("conversation_window"):
             parts += ["## Recent conversation", "", ctx["conversation_window"], ""]
         msg = ctx.get("user_message", "")
-        parts += [
-            "## Operator message",
-            "",
-            msg.strip(),
-            "",
-            "## Your task",
-            "All substrate above is ALREADY LOADED — do not call ReadFile to fetch it again.",
-            "Use ReadFile only for files NOT shown above (e.g. recent decisions, specific reports).",
-            "",
-            "Decide and act:",
-            "- If signal conditions are met per principles.md → call ProposeAction with full sizing math",
-            "- If signal data needs refresh → call FireInvocation('signal-evaluation' or 'track-universe')",
-            "- If informational only → call ReturnVerdict(stand_down) with your answer as reasoning",
-            "",
-            "Always call ReturnVerdict last to close the turn. Do not exit without ReturnVerdict.",
-        ]
+        parts += ["## Operator message", "", msg.strip(), ""]
 
+    parts.append(_TRIGGER_FRAMING.get(trigger, ""))
     return "\n".join(parts)
 
 
 # ---------------------------------------------------------------------------
-# Tool call dispatcher — executes tool calls made during the loop
-# ---------------------------------------------------------------------------
-
-async def _dispatch_tool_call(
-    client: Any,
-    user_id: str,
-    tool_name: str,
-    tool_input: dict,
-) -> tuple[str, dict]:
-    """Execute a Reviewer tool call. Returns (result_text, action_record)."""
-    import json as _json
-
-    if tool_name == "ReadFile":
-        path = tool_input.get("path", "")
-        if not path.startswith("/workspace/"):
-            return "Error: path must start with /workspace/", {}
-        try:
-            res = (
-                client.table("workspace_files")
-                .select("content")
-                .eq("user_id", user_id)
-                .eq("path", path)
-                .limit(1)
-                .execute()
-            )
-            content = (res.data or [{}])[0].get("content") or ""
-            if not content:
-                return f"_(file not found or empty: {path})_", {}
-            return content[:4000], {"tool": "ReadFile", "path": path}
-        except Exception as e:
-            return f"Error reading {path}: {e}", {}
-
-    elif tool_name == "FireInvocation":
-        slug = tool_input.get("slug", "")
-        reason = tool_input.get("reason", "")
-        try:
-            from services.recurrence import walk_workspace_recurrences
-            import asyncio
-            decls = await asyncio.to_thread(walk_workspace_recurrences, client, user_id)
-            matched = next((d for d in decls if d.slug == slug), None)
-            if not matched:
-                matched = next((d for d in decls if d.slug.startswith(slug)), None)
-            if not matched:
-                return f"No recurrence found for slug '{slug}'", {}
-            from types import SimpleNamespace
-            auth = SimpleNamespace(client=client, user_id=user_id)
-            from services.primitives.fire_invocation import handle_fire_invocation
-            inp = {"shape": matched.shape.value, "slug": matched.slug}
-            if matched.domain:
-                inp["domain"] = matched.domain
-            result = await handle_fire_invocation(auth, inp)
-            return f"Fired `{matched.slug}`: {result.get('message', 'dispatched')}", {
-                "tool": "FireInvocation", "slug": matched.slug, "reason": reason,
-            }
-        except Exception as e:
-            return f"FireInvocation failed for '{slug}': {e}", {}
-
-    elif tool_name == "ProposeAction":
-        action_type = tool_input.get("action_type", "")
-        rationale = tool_input.get("rationale", "")
-        inputs = {k: v for k, v in tool_input.items()
-                  if k not in ("action_type", "rationale")}
-        try:
-            from types import SimpleNamespace
-            auth = SimpleNamespace(client=client, user_id=user_id)
-            from services.primitives.propose_action import handle_propose_action
-            result = await handle_propose_action(auth, {
-                "action_type": action_type,
-                "inputs": inputs,
-                "rationale": rationale,
-                "source": "reviewer_loop",
-            })
-            proposal_id = result.get("proposal_id", "")
-            return (
-                f"Proposal submitted: `{action_type}` "
-                + (f"(ID: {proposal_id[:8]})" if proposal_id else ""),
-                {"tool": "ProposeAction", "action_type": action_type, "proposal_id": proposal_id},
-            )
-        except Exception as e:
-            return f"ProposeAction failed for '{action_type}': {e}", {}
-
-    elif tool_name == "WriteFile":
-        path = tool_input.get("path", "")
-        content = tool_input.get("content", "")
-        mode = tool_input.get("mode", "append")
-        if not path.startswith("/workspace/review/"):
-            return "Error: WriteFile scope ceiling is /workspace/review/", {}
-        try:
-            from services.authored_substrate import write_revision
-            full_path = path if path.startswith("/workspace/") else f"/workspace/{path}"
-            write_revision(
-                client, user_id,
-                path=full_path,
-                content=content,
-                authored_by=f"reviewer:{REVIEWER_MODEL_IDENTITY}",
-                message="Reviewer loop write",
-                mode=mode,
-            )
-            return f"Written: {path}", {"tool": "WriteFile", "path": path}
-        except Exception as e:
-            return f"WriteFile failed for '{path}': {e}", {}
-
-    return f"Unknown tool: {tool_name}", {}
-
-
-# ---------------------------------------------------------------------------
-# Public entry point — ADR-256 D1
+# Public entry point — invoke_reviewer (ADR-258)
 # ---------------------------------------------------------------------------
 
 async def invoke_reviewer(
@@ -537,60 +367,75 @@ async def invoke_reviewer(
     user_id: str,
     *,
     trigger: Literal["proposal", "reflection", "heartbeat", "addressed"],
-    context: "ReviewerContext",
-) -> "ReviewerOutput | None":
-    """Unified Reviewer invocation — ADR-256.
+    context: ReviewerContext,
+) -> ReviewerOutput | None:
+    """Unified Reviewer invocation — ADR-258.
 
-    One function, four trigger shapes. Bounded tool-use loop (≤3 rounds).
-    The Reviewer reads what it needs, acts on what it decides, calls
-    ReturnVerdict to close the loop.
+    Reviewer is a chat-mode caller of the canonical primitive registry.
+    Tool surface = full CHAT_PRIMITIVES + ReturnVerdict. Tool-use loop
+    bounded at 8 rounds. All tool calls dispatch through execute_primitive()
+    from services.primitives.registry — same path YARNNN uses.
 
-    Model selection:
+    Safety story: attribution (ADR-209 authored substrate) + revision chain
+    + AUTONOMY gating + operator-authored _locks.yaml. Not access control.
+
+    Model selection by trigger:
     - Sonnet (capital decisions): proposal + heartbeat
     - Haiku  (reasoning):         reflection + addressed
 
-    Never raises. Returns None on total failure (callers treat as
-    observe-only / no-change / stand-down depending on trigger).
+    Never raises. Returns None on total failure.
     """
+    from services.primitives.registry import CHAT_PRIMITIVES, execute_primitive
+    from types import SimpleNamespace
+
     model = _SONNET if trigger in ("proposal", "heartbeat") else _HAIKU
     caller = _CALLER_SONNET if trigger in ("proposal", "heartbeat") else _CALLER_HAIKU
 
+    # Build auth namespace with reviewer_caller flag — handlers consult this
+    # for ADR-258 D9 lock enforcement on operator-shared substrate.
+    auth = SimpleNamespace(
+        client=client,
+        user_id=user_id,
+        reviewer_caller=True,
+        agent=None,
+        agent_slug=None,
+        task_slug=None,
+    )
+
+    # Tool list = canonical chat primitives + ReturnVerdict
+    tools = list(CHAT_PRIMITIVES) + [RETURN_VERDICT_TOOL]
+
     try:
         user_message = _build_user_message(trigger, context)
-
         messages: list[dict] = [{"role": "user", "content": user_message}]
         actions_taken: list[dict] = []
         verdict_raw: dict | None = None
 
-        max_rounds = 3
+        max_rounds = 8
         total_input = 0
         total_output = 0
+        rounds_used = 0
 
         for _round in range(max_rounds):
-            # Round 0: force any tool call so the model enters the loop.
-            # Subsequent rounds: auto so the model can call ReturnVerdict or
-            # another tool as appropriate.
+            rounds_used = _round + 1
             tool_choice = {"type": "any"} if _round == 0 else {"type": "auto"}
 
             response = await chat_completion_with_tools(
                 messages=messages,
-                system=_SYSTEM_PROMPT,
-                tools=_TOOLS,
+                system=_system_prompt(),
+                tools=tools,
                 model=model,
                 max_tokens=2048,
                 tool_choice=tool_choice,
             )
 
-            # usage is a dict (from _parse_response) — use .get() not getattr()
             usage = response.usage or {}
             total_input += int(usage.get("input_tokens", 0) or 0)
             total_output += int(usage.get("output_tokens", 0) or 0)
 
             tool_uses = response.tool_uses or []
-            stop_reason = response.stop_reason
 
-            # Collect assistant turn for multi-round history.
-            # Rebuild from response.content (SDK objects) for the API message format.
+            # Append assistant turn for multi-round history
             assistant_content: list[dict] = []
             for block in (response.content or []):
                 btype = getattr(block, "type", None)
@@ -603,19 +448,15 @@ async def invoke_reviewer(
                         "name": getattr(block, "name", ""),
                         "input": getattr(block, "input", {}),
                     })
-
             if assistant_content:
                 messages.append({"role": "assistant", "content": assistant_content})
 
             if not tool_uses:
-                # Model returned text only — shouldn't happen on round 0 (tool_choice=any)
-                # but can happen on later rounds if model decides it's done.
-                # If there's text content, treat it as a stand_down reasoning fallback.
-                text_fallback = response.text.strip() if response.text else ""
+                # Text-only response — fallback to stand_down with the text as reasoning
+                text_fallback = (response.text or "").strip()
                 if text_fallback:
                     logger.warning(
-                        "[REVIEWER] text-only response round %d trigger=%s user=%s — "
-                        "constructing stand_down from text",
+                        "[REVIEWER] text-only response round %d trigger=%s user=%s",
                         _round, trigger, user_id[:8],
                     )
                     verdict_raw = {
@@ -623,18 +464,13 @@ async def invoke_reviewer(
                         "reasoning": text_fallback[:1000],
                         "confidence": "medium",
                     }
-                else:
-                    logger.warning(
-                        "[REVIEWER] no tool calls, no text round %d trigger=%s user=%s stop=%s",
-                        _round, trigger, user_id[:8], stop_reason,
-                    )
                 break
 
             tool_results: list[dict] = []
             for tu in tool_uses:
-                name = getattr(tu, "name", None) or (tu.get("name") if isinstance(tu, dict) else None)
-                inp = getattr(tu, "input", None) or (tu.get("input") if isinstance(tu, dict) else {}) or {}
-                tu_id = getattr(tu, "id", None) or (tu.get("id") if isinstance(tu, dict) else "") or ""
+                name = tu.name
+                inp = tu.input or {}
+                tu_id = tu.id
 
                 if name == "ReturnVerdict":
                     verdict_raw = inp
@@ -643,17 +479,27 @@ async def invoke_reviewer(
                         "tool_use_id": tu_id,
                         "content": "Verdict recorded.",
                     })
-                    break  # verdict closes the loop
+                    break
 
-                # Execute the tool call
-                result_text, action_record = await _dispatch_tool_call(
-                    client, user_id, name, inp,
-                )
-                if action_record:
-                    actions_taken.append(action_record)
+                # Dispatch through canonical primitive registry
+                try:
+                    result = await execute_primitive(auth, name, inp)
+                except Exception as exc:
+                    result = {"success": False, "error": "execution_error", "message": str(exc)}
+
+                actions_taken.append({
+                    "tool": name,
+                    "input": inp,
+                    "success": bool(result.get("success", True)) if isinstance(result, dict) else True,
+                    "summary": _summarize_result(result),
+                })
+
+                # Compact result for the model — limit size
+                result_text = _compact_result_for_model(result)
                 logger.info(
-                    "[REVIEWER] tool=%s trigger=%s user=%s result=%.80r",
-                    name, trigger, user_id[:8], result_text,
+                    "[REVIEWER] tool=%s trigger=%s user=%s success=%s",
+                    name, trigger, user_id[:8],
+                    actions_taken[-1]["success"],
                 )
                 tool_results.append({
                     "type": "tool_result",
@@ -662,13 +508,12 @@ async def invoke_reviewer(
                 })
 
             if verdict_raw is not None:
-                break  # ReturnVerdict found — exit loop
+                break
 
-            # Continue loop with tool results
             if tool_results:
                 messages.append({"role": "user", "content": tool_results})
 
-        # Record token usage (combined across all rounds)
+        # Token accounting
         record_token_usage(
             client,
             user_id=user_id,
@@ -677,36 +522,31 @@ async def invoke_reviewer(
             input_tokens=total_input,
             output_tokens=total_output,
             ref_id=context.get("proposal_row", {}).get("id") if trigger == "proposal" else None,
-            metadata={"trigger": trigger, "rounds": _round + 1},
+            metadata={"trigger": trigger, "rounds": rounds_used},
         )
 
         if verdict_raw is None:
-            # Loop exhausted without ReturnVerdict. Construct a fallback from
-            # the last assistant text response so the operator still gets a
-            # message rather than a blank failure.
+            # Loop exhausted without ReturnVerdict — construct fallback from last text
             last_text = ""
             for m in reversed(messages):
                 if m.get("role") != "assistant":
                     continue
-                content = m.get("content")
-                if isinstance(content, list):
-                    for block in content:
-                        if isinstance(block, dict) and block.get("type") == "text":
-                            last_text = block.get("text", "")
-                            if last_text:
-                                break
+                for block in (m.get("content") or []):
+                    if isinstance(block, dict) and block.get("type") == "text":
+                        last_text = block.get("text", "")
+                        if last_text:
+                            break
                 if last_text:
                     break
             logger.warning(
-                "[REVIEWER] no ReturnVerdict after %d rounds trigger=%s user=%s — "
-                "constructing stand_down fallback (last_text_len=%d)",
-                max_rounds, trigger, user_id[:8], len(last_text),
+                "[REVIEWER] no ReturnVerdict after %d rounds trigger=%s user=%s",
+                max_rounds, trigger, user_id[:8],
             )
             verdict_raw = {
                 "verdict": "stand_down",
                 "reasoning": last_text or (
-                    "I exhausted my read budget without reaching a conclusion. "
-                    "Substrate may need refresh — try firing track-universe or signal-evaluation."
+                    "I was unable to reach a verdict within my round budget. "
+                    "Substrate may need refresh — fire track-universe or signal-evaluation."
                 ),
                 "confidence": "low",
             }
@@ -722,8 +562,7 @@ async def invoke_reviewer(
         }
         if verdict not in _VALID_VERDICTS:
             logger.warning(
-                "[REVIEWER] invalid verdict=%r trigger=%s user=%s — treating as defer/no_change",
-                verdict, trigger, user_id[:8],
+                "[REVIEWER] invalid verdict=%r trigger=%s user=%s", verdict, trigger, user_id[:8],
             )
             return None
         if not reasoning:
@@ -739,12 +578,9 @@ async def invoke_reviewer(
             "actions_taken": actions_taken,
         }
 
-        # Reflection-only fields
         if trigger == "reflection":
-            proposals_raw = verdict_raw.get("proposals") or []
-            # Normalize — same shape reflection_writer expects
             from agents.reviewer_agent_compat import _normalize_reflection_proposals
-            output["proposals"] = _normalize_reflection_proposals(proposals_raw)
+            output["proposals"] = _normalize_reflection_proposals(verdict_raw.get("proposals") or [])
             output["evidence_summary"] = (verdict_raw.get("evidence_summary") or "").strip()
 
         return output
@@ -757,13 +593,70 @@ async def invoke_reviewer(
         return None
 
 
+def _summarize_result(result: Any) -> str:
+    """One-line summary of a primitive result for actions_taken audit log."""
+    if not isinstance(result, dict):
+        return "ok"
+    if result.get("success") is False:
+        return f"error: {result.get('error') or 'unknown'}"
+    if "path" in result:
+        return f"path={result['path']}"
+    if "proposal_id" in result:
+        return f"proposal_id={result['proposal_id'][:8]}..."
+    if "slug" in result:
+        return f"slug={result['slug']}"
+    return "ok"
+
+
+def _compact_result_for_model(result: Any) -> str:
+    """Compact a primitive result for tool_result content sent back to the model.
+    Limits content size so a large file read doesn't blow the round budget."""
+    import json as _json
+    if isinstance(result, dict):
+        # If there's a 'content' field (from ReadFile), truncate generously
+        if "content" in result and isinstance(result["content"], str):
+            content = result["content"]
+            if len(content) > 6000:
+                content = content[:6000] + f"\n\n_(truncated from {len(result['content'])} chars)_"
+            shaped = {**result, "content": content}
+            return _json.dumps(shaped, default=str)[:8000]
+        return _json.dumps(result, default=str)[:8000]
+    return str(result)[:8000]
+
+
 # ---------------------------------------------------------------------------
-# Signal file reader — used by heartbeat context loader in callers
-# ---------------------------------------------------------------------------
+    """Read all signal state YAML files and return compact summary.
+    Public helper — called by invocation_dispatcher to pre-load heartbeat context."""
+    import re as _re
+    try:
+        result = (
+            client.table("workspace_files")
+            .select("path, content")
+            .eq("user_id", user_id)
+            .like("path", "/workspace/context/trading/signals/%.yaml")
+            .execute()
+        )
+        lines = []
+        for row in result.data or []:
+            path = row.get("path", "")
+            content = row.get("content", "")
+            slug = path.split("/")[-1].replace(".yaml", "")
+            triggered = _re.search(r"triggered_today:\s*(\[.*?\])", content)
+            state = _re.search(r"state:\s*(\S+)", content)
+            lines.append(
+                f"- {slug}: state={state.group(1) if state else '?'} "
+                f"triggered={triggered.group(1) if triggered else '[]'}"
+            )
+        return "\n".join(lines) if lines else "_(no signal state files found)_"
+    except Exception:
+        return "_(signal files unavailable)_"
+
 
 async def read_signal_files(client: Any, user_id: str) -> str:
     """Read all signal state YAML files and return compact summary.
-    Public helper — called by invocation_dispatcher to pre-load heartbeat context."""
+    Public helper — called by invocation_dispatcher and chat.py to pre-load
+    signal state into invoke_reviewer's context bag for the heartbeat /
+    addressed triggers."""
     import re as _re
     try:
         result = (

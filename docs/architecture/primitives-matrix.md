@@ -66,17 +66,21 @@ The primitive set is runtime-neutral, but the *operator surface* convention per 
 
 **Rule of thumb:** direct surface action for *high-precision actions on a known artifact*; chat for *judgment-shaped or context-rich actions*. YARNNN observes all of them regardless — the operator never leaves YARNNN's awareness, but YARNNN is not a mandatory mediator for every click.
 
-### Three-party primitive ownership (ADR-247 D4)
+### Three-party primitive ownership (ADR-258 — supersedes ADR-247 D4)
 
 The approval loop primitives express the structural independence of the three parties:
 
-| Party | Primitives available | What they cannot do |
-|-------|---------------------|---------------------|
-| **YARNNN** (chat) | `ProposeAction`, `ExecuteProposal`, `RejectProposal` | Cannot act without the operator present (chat-only) |
-| **Reviewer** | None — pure judgment entity | Cannot scaffold, compose, or route; reads substrate + writes `decisions.md` via `reviewer_audit.py` outside the primitive surface |
-| **Headless agents** (production) | `ProposeAction` only | Cannot bind decisions — `ExecuteProposal` / `RejectProposal` are chat-only |
+| Party | Primitives available | Safety story |
+|-------|---------------------|---------------|
+| **YARNNN** (chat) | Full `CHAT_PRIMITIVES` set | Operator-present chat session; attribution `authored_by="yarnnn:chat"`; AUTONOMY gates capital actions |
+| **Reviewer** (chat) | Full `CHAT_PRIMITIVES` + `ReturnVerdict` (Reviewer-specific verdict closer) | Attribution `authored_by="reviewer:{occupant}"` + revision chain + AUTONOMY gating + operator-authored `_locks.yaml` opt-in path locks |
+| **Headless agents** (production) | `HEADLESS_PRIMITIVES` (curated subset) + dynamic `platform_*` per capability bundle | `ProposeAction` only for external-write actions — cannot bind decisions; attribution `authored_by="agent:{slug}"` |
 
-This is the structural expression of THESIS Commitment 2 (independent judgment): the Reviewer's independence is enforced because it has no primitive surface — it cannot produce or scaffold, only judge. YARNNN can bind operator intent; production agents can only propose.
+**ADR-258 retired the "Reviewer has no primitives" claim.** The Reviewer is a chat-mode caller of the canonical primitive registry — same dispatch path as YARNNN. Independence (THESIS Commitment 2) means the Reviewer's judgment is evaluated against ground truth (money-truth in `_performance.md`), not against producer agreement. Independence is preserved by *what the Reviewer reasons against*, not by *which primitives it can call*.
+
+Operator-authored access policy lives in `/workspace/_shared/_locks.yaml` (default-empty, opt-in). When the Reviewer calls `WriteFile`, the handler reads the locks file and rejects writes targeting locked paths. The operator decides their own access policy; the platform does not.
+
+The Reviewer's system prompt cockpit-awareness section is **generated** from `CHAT_PRIMITIVES` and `workspace_paths` constants at module load time (see `api/agents/cockpit_awareness.py`) — the prompt cannot drift from runtime behavior.
 
 ---
 

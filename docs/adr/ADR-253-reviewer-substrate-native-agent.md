@@ -99,6 +99,8 @@ Both gates must permit. AUTONOMY is the operator's delegation ceiling. `auto_app
 
 ### D2: Directive output — Reviewer instructs System Agent directly
 
+> **⚠ Superseded mechanism (ADR-258 D1, D7, 2026-05-08):** The dedicated `directives` array on the verdict is replaced by the Reviewer's tool calls during a defer turn. Same shape, same scope ceilings, no parallel mechanism — `fire_invocation` becomes a `FireInvocation` primitive call inside the loop; `write_file` becomes a `WriteFile(scope="workspace")` primitive call inside the loop; `clarify` becomes a `Clarify` primitive call inside the loop. The Reviewer's `actions_taken[]` audit trail captures these, and the dispatcher routes them through canonical handlers. ADR-253 D1 (execution authority), D3 (CLAUDE.md-equivalent substrate), D4 (deterministic upstream pipeline), D5 (heartbeat trigger) are all preserved.
+
 The `propose_followup` field (ADR-229 D2) is **deleted** and replaced by `directives` — a list of System Agent instructions that execute immediately without going through `action_proposals`.
 
 **Directive shape:**

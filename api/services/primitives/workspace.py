@@ -532,6 +532,23 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
         if not path:
             return {"success": False, "error": "missing_path", "message": "path is required"}
 
+        # ADR-258 D3 + D9: when caller is Reviewer, enforce operator-authored
+        # access policy from /workspace/_shared/_locks.yaml. Default-empty,
+        # opt-in. The substrate-level safety story is attribution + revision
+        # chain + AUTONOMY; this is a thin operator-controlled belt on top.
+        if getattr(auth, "reviewer_caller", False):
+            blocked = await _is_path_locked_for_reviewer(auth, path)
+            if blocked:
+                return {
+                    "success": False,
+                    "error": "operator_locked",
+                    "message": (
+                        f"Path /{path} is operator-locked via /workspace/_shared/_locks.yaml. "
+                        "Surface a Clarify or include a directive in your verdict reasoning instead."
+                    ),
+                    "path": f"/workspace/{path}",
+                }
+
         um = UserMemory(auth.client, auth.user_id)
 
         if mode == "append":
@@ -1239,3 +1256,61 @@ async def handle_read_agent_file(auth: Any, input: dict) -> dict:
 # home feedback.md). The activity-log emission previously inside the
 # UpdateContext handlers is now a path-prefix recognition step inside the
 # WriteFile dispatch (ADR-235 D1.b).
+
+
+# ---------------------------------------------------------------------------
+# ADR-258 D3 + D9: operator-authored access policy enforcement
+# ---------------------------------------------------------------------------
+
+async def _is_path_locked_for_reviewer(auth: Any, path: str) -> bool:
+    """Check /workspace/_shared/_locks.yaml for Reviewer-write enforcement.
+
+    Default-empty, opt-in. Returns True when the target path matches an
+    entry in the `locked_paths` list. Failure-mode is fail-open (no locks
+    apply) — the substrate-level safety story is attribution + revision
+    chain, not access control. Locks are a thin operator-controlled belt.
+
+    Cached per request via auth-scoped memo to avoid re-fetching when
+    multiple writes happen in the same primitive batch (e.g. tool-use loop).
+    """
+    # In-memo on the auth namespace
+    cache = getattr(auth, "_reviewer_locks_cache", None)
+    if cache is None:
+        try:
+            res = (
+                auth.client.table("workspace_files")
+                .select("content")
+                .eq("user_id", auth.user_id)
+                .eq("path", "/workspace/_shared/_locks.yaml")
+                .limit(1)
+                .execute()
+            )
+            content = (res.data or [{}])[0].get("content") or ""
+        except Exception:
+            content = ""
+
+        locked: list[str] = []
+        if content:
+            try:
+                import yaml  # type: ignore
+                parsed = yaml.safe_load(content) or {}
+                raw = parsed.get("locked_paths") or []
+                if isinstance(raw, list):
+                    locked = [str(p).strip().lstrip("/") for p in raw if p]
+            except Exception:
+                locked = []
+        cache = locked
+        try:
+            setattr(auth, "_reviewer_locks_cache", cache)
+        except Exception:
+            pass
+
+    if not cache:
+        return False
+
+    # Normalise the candidate to workspace-relative form for comparison.
+    candidate = path.strip().lstrip("/")
+    if candidate.startswith("workspace/"):
+        candidate = candidate[len("workspace/"):]
+
+    return any(candidate == locked_path for locked_path in cache)
