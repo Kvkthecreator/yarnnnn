@@ -15,6 +15,9 @@ default:
     - cancel_other_orders
 
 heartbeat_triggers:
-  - after: signal_evaluation      # Reviewer wakes when signal-evaluation executor completes
-  - after: outcome_reconciliation # Reviewer wakes after daily reconciliation
+  - after: signal-evaluation      # Reviewer wakes when signal-evaluation executor completes
+  - after: track-universe         # Reviewer wakes when fresh universe data lands — re-assess signals
+  - after: outcome-reconciliation # Reviewer wakes after daily reconciliation
   - cron: "10 8 * * 1-5"         # Morning review 08:10 ET (after 08:05 signal-evaluation)
+# Naming: `after:` values matched kebab-case-agnostic against completed slug
+# (signal_evaluation == signal-evaluation), but kebab is preferred for readability.

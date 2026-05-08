@@ -1445,12 +1445,24 @@ async def _maybe_fire_reviewer_heartbeat(
             return
 
         # Check if completed_slug matches any trigger
-        # Match on full slug or slug prefix (e.g. "signal-evaluation" matches "signal-evaluation-2")
+        # Match on full slug or slug prefix, kebab/snake-case agnostic.
+        # AUTONOMY config commonly uses underscores ("signal_evaluation"); the
+        # actual recurrence slug uses hyphens ("signal-evaluation"). Normalise
+        # both sides to the same shape before comparing.
+        def _norm(s: str) -> str:
+            return s.replace("_", "-").lower().strip()
+
+        completed_norm = _norm(completed_slug)
+        triggers_norm = [_norm(t) for t in triggers]
         matched = any(
-            completed_slug == t or completed_slug.startswith(t) or t.startswith(completed_slug)
-            for t in triggers
+            completed_norm == t or completed_norm.startswith(t) or t.startswith(completed_norm)
+            for t in triggers_norm
         )
         if not matched:
+            logger.debug(
+                "[HEARTBEAT] no match — completed=%r triggers=%r",
+                completed_norm, triggers_norm,
+            )
             return
 
         logger.info(
