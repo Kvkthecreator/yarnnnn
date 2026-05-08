@@ -264,6 +264,13 @@ export function ChatPanel({
           </div>
         )}
 
+        {status.type === 'streaming' && status.content && (
+          <div className="flex items-center gap-1.5 pl-0.5 py-0.5 opacity-60">
+            <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+            <span className="text-[11px] text-muted-foreground">{status.content}</span>
+          </div>
+        )}
+
         {status.type === 'clarify' && pendingClarification && (
           <div className="space-y-2 bg-muted/50 rounded-lg p-3 border border-border">
             <p className="text-xs font-medium">{pendingClarification.question}</p>

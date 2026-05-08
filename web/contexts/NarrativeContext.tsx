@@ -475,6 +475,11 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
           throw new Error('No response body');
         }
 
+        // Surface a "thinking" indicator immediately so the operator sees the
+        // turn is in progress while the backend pre-loads substrate and starts
+        // the loop. Cleared on first content/progress event or stream_start.
+        setStatus({ type: 'thinking' });
+
         // Track state during streaming
         let assistantContent = '';
         const toolResults: TPToolResult[] = [];
@@ -698,6 +703,30 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                   outputTokens: event.usage.output_tokens,
                   totalTokens: event.usage.total_tokens,
                 });
+              } else if (event.reviewer_progress) {
+                // ADR-258: Reviewer is mid-loop — surface tool-call progress
+                // so the UI doesn't go silent during the up-to-8-round loop.
+                // Render as a transient streaming-status update; cleared when
+                // reviewer_response arrives.
+                if (streamingMessageId && event.phase === 'tool_start') {
+                  setStatus({
+                    type: 'streaming',
+                    content: `Reviewer is reading ${event.tool}...`,
+                  });
+                } else if (streamingMessageId && event.phase === 'tool_end') {
+                  const verb = event.success ? 'read' : 'tried';
+                  setStatus({
+                    type: 'streaming',
+                    content: `Reviewer ${verb} ${event.tool} (${event.summary || 'ok'})`,
+                  });
+                } else if (!streamingMessageId) {
+                  // First progress event before stream_start handler fired —
+                  // ensure a status is visible.
+                  setStatus({
+                    type: 'streaming',
+                    content: `Reviewer is ${event.phase === 'tool_start' ? 'reading' : 'working on'} ${event.tool}...`,
+                  });
+                }
               } else if (event.reviewer_response) {
                 // Reviewer spoke — reload history immediately so ReviewerCard renders.
                 // Set flag so we reload again at stream end to clear any placeholder state.

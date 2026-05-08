@@ -378,6 +378,7 @@ async def invoke_reviewer(
     *,
     trigger: Literal["proposal", "reflection", "heartbeat", "addressed"],
     context: ReviewerContext,
+    event_callback: Any = None,
 ) -> ReviewerOutput | None:
     """Unified Reviewer invocation — ADR-258.
 
@@ -392,6 +393,11 @@ async def invoke_reviewer(
     Model selection by trigger:
     - Sonnet (capital decisions): proposal + heartbeat
     - Haiku  (reasoning):         reflection + addressed
+
+    Optional `event_callback`: an async callable `(event_dict) -> None` that
+    fires progressively as the loop advances — once per round_start, once
+    per tool_call, once per round_end. Used by chat.py to stream live
+    progress to the operator (so the UI doesn't go silent during the loop).
 
     Never raises. Returns None on total failure.
     """
@@ -415,6 +421,17 @@ async def invoke_reviewer(
     # Tool list = canonical chat primitives + ReturnVerdict
     tools = list(CHAT_PRIMITIVES) + [RETURN_VERDICT_TOOL]
 
+    async def _emit(event: dict) -> None:
+        """Best-effort progress emit — never raises, never blocks the loop.
+        Callers can inspect events to surface progress in the UI without
+        blocking the LLM cycle."""
+        if event_callback is None:
+            return
+        try:
+            await event_callback(event)
+        except Exception as cb_exc:
+            logger.debug("[REVIEWER] event_callback raised: %s", cb_exc)
+
     try:
         user_message = _build_user_message(trigger, context)
         messages: list[dict] = [{"role": "user", "content": user_message}]
@@ -429,6 +446,7 @@ async def invoke_reviewer(
         for _round in range(max_rounds):
             rounds_used = _round + 1
             tool_choice = {"type": "any"} if _round == 0 else {"type": "auto"}
+            await _emit({"phase": "round_start", "round": rounds_used, "trigger": trigger})
 
             response = await chat_completion_with_tools(
                 messages=messages,
@@ -492,6 +510,14 @@ async def invoke_reviewer(
                     })
                     break
 
+                # Emit tool_start for UI progress before dispatch
+                await _emit({
+                    "phase": "tool_start",
+                    "round": rounds_used,
+                    "tool": name,
+                    "input": inp,
+                })
+
                 # Dispatch through canonical primitive registry
                 try:
                     result = await execute_primitive(auth, name, inp)
@@ -503,6 +529,14 @@ async def invoke_reviewer(
                     "input": inp,
                     "success": bool(result.get("success", True)) if isinstance(result, dict) else True,
                     "summary": _summarize_result(result),
+                })
+
+                await _emit({
+                    "phase": "tool_end",
+                    "round": rounds_used,
+                    "tool": name,
+                    "success": actions_taken[-1]["success"],
+                    "summary": actions_taken[-1]["summary"],
                 })
 
                 # Compact result for the model — limit size

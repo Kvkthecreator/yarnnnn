@@ -1238,7 +1238,23 @@ async def global_chat(
         from agents.reviewer_agent import read_signal_files
         signal_files_summary = await read_signal_files(auth.client, auth.user_id)
 
-        output = await invoke_reviewer(
+        # Stream a stream_start event immediately so the FE can insert a
+        # "Reviewer is thinking..." placeholder bubble (ADR-258 progress UX).
+        yield (
+            f"data: {json.dumps({'stream_start': True, 'author_role': 'reviewer', 'author_name': 'Reviewer'})}\n\n"
+        )
+
+        # Progress-event queue — invoke_reviewer fills it via event_callback;
+        # this generator drains it in parallel with the LLM loop.
+        import asyncio as _asyncio
+        progress_queue: _asyncio.Queue = _asyncio.Queue()
+
+        async def _emit_progress(event: dict) -> None:
+            await progress_queue.put(event)
+
+        # Run invoke_reviewer concurrently so we can yield progress events
+        # to the operator while the LLM loop runs in the background.
+        invoke_task = _asyncio.create_task(invoke_reviewer(
             auth.client, auth.user_id,
             trigger="addressed",
             context={
@@ -1254,7 +1270,32 @@ async def global_chat(
                 "conversation_window": "\n".join(conv_lines) if conv_lines else "",
                 "workspace_state": workspace_state_text or "",
             },
-        )
+            event_callback=_emit_progress,
+        ))
+
+        # Drain progress events while invoke_task runs. As tools fire, surface
+        # them to the operator so the UI doesn't go silent during the loop.
+        while not invoke_task.done():
+            try:
+                event = await _asyncio.wait_for(progress_queue.get(), timeout=0.5)
+            except _asyncio.TimeoutError:
+                continue
+            if event.get("phase") == "tool_start":
+                tool_name = event.get("tool", "?")
+                yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_start', 'tool': tool_name})}\n\n"
+            elif event.get("phase") == "tool_end":
+                tool_name = event.get("tool", "?")
+                summary = event.get("summary", "")
+                yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_end', 'tool': tool_name, 'summary': summary, 'success': event.get('success', True)})}\n\n"
+
+        # Drain any remaining queued events (round_end after task completion)
+        while not progress_queue.empty():
+            try:
+                _ = progress_queue.get_nowait()
+            except Exception:
+                break
+
+        output = await invoke_task
 
         if not output or not output.get("reasoning"):
             raise RuntimeError("Reviewer returned no response")
