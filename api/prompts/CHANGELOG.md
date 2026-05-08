@@ -6,6 +6,48 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.08.5] - Reviewer judgment posture: stop deferring decisions back to the operator
+
+### Changed
+- _PERSONA_FRAME tightened with explicit anti-deferral language. Production
+  Reviewer was producing responses like "do you want me to (1) wait, (2)
+  provide data, or (3) propose seed trade?" — that's delegation back to
+  the operator, the exact failure mode the architecture is supposed to fix.
+
+  The operator delegated TO the Reviewer. The operator did not delegate
+  the work of "ask me what to do." The Reviewer must decide.
+
+  New language explicitly enumerates failure modes:
+  - "do you want me to (1)... or (2)..." — pick one, don't ask
+  - data is stale → decide what to do about staleness, don't ask
+  - signal hasn't fired → stand down with one sentence, don't ask
+  - track record thin → scale down per framework, don't ask
+  - unsure between two reasonable actions → PICK ONE, don't ask
+
+  Clarify is now structurally rare: only when operator's own declarations
+  are genuinely contradictory (principles.md says X, PRECEDENT.md says
+  not-X) and cannot be resolved via documented hierarchy.
+
+- _TRIGGER_FRAMING addressed branch rewritten:
+  - Opens with "they are NOT asking you what to do — they delegated that"
+  - Decision tree drops the "Need operator input → Clarify" branch
+  - Adds explicit prohibition on enumerating options for the operator
+  - Three branches only: ProposeAction, FireInvocation+stand_down, or
+    stand_down with explanation
+  - Adds "DO NOT enumerate options" anti-pattern callout
+
+### Expected behavior
+- Operator: "do what you need to do" with stale signal data
+  Old: "do you want me to (1) wait... (2) manually provide... (3) propose seed?"
+  New: "Standing down until the 08:00 ET signal-evaluation run. Stale data
+        means no IH-1 through IH-5 conditions are verifiable; firing
+        track-universe ad-hoc would burn cost without changing the verdict."
+
+- Operator: "what's your read?"
+  Old: enumerates options, asks what to focus on
+  New: Reviewer reads state, decides per framework, narrates judgment in
+        first person, ends with ReturnVerdict.
+
 ## [2026.05.08.4] - ADR-258 revised: curated REVIEWER_PRIMITIVES + per-action narration + first-person voice discipline
 
 ### Changed
