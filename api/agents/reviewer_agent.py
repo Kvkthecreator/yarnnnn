@@ -242,12 +242,22 @@ _TRIGGER_FRAMING = {
     ),
     "addressed": (
         "## This invocation\n\n"
-        "The operator has addressed you directly. Substrate has been "
-        "pre-loaded below. Read what's pre-loaded — do not re-fetch what's "
-        "shown. Then act:\n"
-        "- Signal conditions met → ProposeAction\n"
-        "- Substrate missing → FireInvocation to commission it (do not ask the operator)\n"
-        "- Informational only → ReturnVerdict(stand_down) with the answer as reasoning"
+        "The operator has addressed you directly. **All persona + framework + "
+        "domain substrate is ALREADY PRE-LOADED in the message above** "
+        "(IDENTITY, principles, MANDATE, _operator_profile, _risk, _performance, "
+        "signal_files, workspace_state). Do NOT call ReadFile on these — read "
+        "them from the message you are reading right now.\n\n"
+        "Use ReadFile only for files NOT shown above (e.g. specific reports, "
+        "decisions.md history, recent recurrence outputs).\n\n"
+        "Decide and act:\n"
+        "- Signal conditions met per principles.md → ProposeAction with sizing math\n"
+        "- Substrate missing → FireInvocation to commission it (do not ask the operator to fire it)\n"
+        "- Need operator input → Clarify ONCE then immediately ReturnVerdict(stand_down) "
+        "with reasoning: 'asked the operator X, awaiting answer'\n"
+        "- Informational only → ReturnVerdict(stand_down) with the answer as reasoning\n\n"
+        "**Hard rule: call ReturnVerdict last to close the turn.** A Clarify is "
+        "your message to the operator; ReturnVerdict closes the turn. After 1-2 "
+        "rounds of action, you MUST call ReturnVerdict — do not keep exploring."
     ),
 }
 
@@ -467,6 +477,7 @@ async def invoke_reviewer(
                 break
 
             tool_results: list[dict] = []
+            clarify_called_this_round = False
             for tu in tool_uses:
                 name = tu.name
                 inp = tu.input or {}
@@ -507,11 +518,42 @@ async def invoke_reviewer(
                     "content": result_text,
                 })
 
+                if name == "Clarify":
+                    clarify_called_this_round = True
+
             if verdict_raw is not None:
                 break
 
+            # Loop-shape nudges to prevent runaway tool use:
+            # - After Clarify: the operator's question is logged; the turn must close
+            # - After round 4: hard nudge to close the turn before round budget exhausts
+            nudge: str | None = None
+            if clarify_called_this_round:
+                nudge = (
+                    "Your Clarify question has been surfaced to the operator. "
+                    "Now call ReturnVerdict(verdict='stand_down', reasoning='[your "
+                    "persona-voice summary including the question you asked]', "
+                    "confidence='medium') to close this turn. The operator will "
+                    "respond on a subsequent turn."
+                )
+            elif _round >= 4:
+                nudge = (
+                    f"You are on round {_round + 1} of {max_rounds}. You must call "
+                    "ReturnVerdict next to close this turn. Synthesize what you've "
+                    "learned from substrate above into a verdict + reasoning. Even "
+                    "if conditions are unclear, ReturnVerdict(stand_down) with your "
+                    "honest assessment is correct."
+                )
+
             if tool_results:
-                messages.append({"role": "user", "content": tool_results})
+                # Append nudge as a text block alongside tool_result blocks so the
+                # model sees it as part of the user turn. tool_use_id cannot be
+                # synthesized — must reference a real tool_use block — so the
+                # nudge rides as a separate text block in the same user message.
+                content_blocks: list[dict] = list(tool_results)
+                if nudge:
+                    content_blocks.append({"type": "text", "text": nudge})
+                messages.append({"role": "user", "content": content_blocks})
 
         # Token accounting
         record_token_usage(
