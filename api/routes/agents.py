@@ -587,47 +587,105 @@ async def list_agents(
     return responses
 
 
-@router.get("/{agent_slug}/heartbeats")
-async def get_agent_heartbeats(agent_slug: str, auth: UserClient) -> dict:
-    """Periodic-trigger (heartbeat) state for any heartbeating agent.
+@router.get("/reviewer/activity")
+async def get_reviewer_activity(auth: UserClient) -> dict:
+    """Reviewer activity surface — answers the operator's three supervision
+    questions: is it alive, what did it do, when next?
 
-    Generic over all agents whose back-office jobs follow the convention
-    `back-office-{agent_slug}-*`. Today: reviewer (reflection, calibration).
-    Future: any agent with declared periodic triggers.
+    Joins three substrate sources, all per ADR-251 D5 + ADR-194 v2:
+    1. execution_events: recent runs of `back-office-reviewer-*` slugs (last
+       7 days). The liveness signal — empty = scheduler dead.
+    2. action_proposals: recent autonomous actions sourced from the Reviewer
+       (auto-approved, OR Reviewer-originated regardless of status). The
+       "what did it do for me" trail.
+    3. back-office.yaml: schedule cron strings for `back-office-reviewer-*`
+       jobs. Used to compute next-fire windows so the operator can see
+       when autonomy will next get a chance to act.
 
-    Reads two sources:
-    1. /workspace/_shared/back-office.yaml — schedule cron strings, display
-       names, paused state, filtered to slugs prefixed `back-office-{slug}-`.
-    2. execution_events — last successful run timestamp + summary per matched
-       slug. Verdict is the raw summary (FE humanises if needed).
-
-    Returns:
-        {
-          "agent_slug": "reviewer",
-          "triggers": [
-            {
-              "slug": "back-office-reviewer-reflection",
-              "display_name": "Reviewer Reflection",
-              "schedule": "0 7 * * *",
-              "paused": false,
-              "last_ran_at": "2026-05-08T07:00:00Z" | null,
-              "last_outcome": "stand_down" | "Reflection stand_down" | null
-            },
-            ...
-          ]
-        }
-
-    Never raises — returns `{"agent_slug": ..., "triggers": []}` on any read
-    failure. The panel hides itself when the list is empty.
+    Returns the structured shape the FE Activity panel renders directly.
+    Never raises — returns empty arrays on any read failure so the panel
+    can degrade gracefully.
     """
     import yaml as _yaml
+    from datetime import datetime as _dt, timezone as _tz, timedelta as _td
 
     BACK_OFFICE_PATH = "/workspace/_shared/back-office.yaml"
-    SLUG_PREFIX = f"back-office-{agent_slug}-"
+    REVIEWER_SLUG_PREFIX = "back-office-reviewer-"
+    REVIEWER_PROPOSAL_SOURCES = [
+        "reviewer_periodic", "reviewer_heartbeat", "reviewer_addressed",
+    ]
+    LOOKBACK = _dt.now(_tz.utc) - _td(days=7)
 
-    # --- 1. Read back-office.yaml, filter to entries owned by this agent ---
-    declared: dict[str, dict] = {}
+    # --- 1. Recent reviewer-* execution events (last 7 days) ---
+    runs: list[dict] = []
     try:
+        events_result = (
+            auth.client.table("execution_events")
+            .select("slug, status, created_at, error_reason, duration_ms")
+            .eq("user_id", auth.user_id)
+            .like("slug", f"{REVIEWER_SLUG_PREFIX}%")
+            .gte("created_at", LOOKBACK.isoformat())
+            .order("created_at", desc=True)
+            .limit(40)
+            .execute()
+        )
+        runs = events_result.data or []
+    except Exception as e:
+        logger.warning("[REVIEWER_ACTIVITY] execution_events read failed: %s", e)
+
+    # --- 2. Recent autonomous actions (last 7 days) ---
+    # Two sources: auto-approved proposals (any source), or Reviewer-originated
+    # proposals (any status). Union covers both "Reviewer did something" cases.
+    actions: list[dict] = []
+    try:
+        # Auto-approved proposals
+        auto_result = (
+            auth.client.table("action_proposals")
+            .select(
+                "id, action_type, status, expected_effect, "
+                "approved_at, executed_at, approved_by, source, created_at"
+            )
+            .eq("user_id", auth.user_id)
+            .eq("approved_by", "auto_reversible")
+            .gte("created_at", LOOKBACK.isoformat())
+            .order("created_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+        seen_ids: set[str] = set()
+        for row in auto_result.data or []:
+            seen_ids.add(row.get("id"))
+            actions.append(row)
+
+        # Reviewer-originated proposals (regardless of approval)
+        reviewer_result = (
+            auth.client.table("action_proposals")
+            .select(
+                "id, action_type, status, expected_effect, "
+                "approved_at, executed_at, approved_by, source, created_at"
+            )
+            .eq("user_id", auth.user_id)
+            .in_("source", REVIEWER_PROPOSAL_SOURCES)
+            .gte("created_at", LOOKBACK.isoformat())
+            .order("created_at", desc=True)
+            .limit(20)
+            .execute()
+        )
+        for row in reviewer_result.data or []:
+            if row.get("id") in seen_ids:
+                continue
+            actions.append(row)
+
+        actions.sort(key=lambda a: a.get("created_at") or "", reverse=True)
+        actions = actions[:20]
+    except Exception as e:
+        logger.warning("[REVIEWER_ACTIVITY] action_proposals read failed: %s", e)
+
+    # --- 3. Schedules + computed next-fire ---
+    schedules: list[dict] = []
+    try:
+        from services.schedule_utils import calculate_next_run_at
+
         yaml_result = (
             auth.client.table("workspace_files")
             .select("content")
@@ -638,50 +696,39 @@ async def get_agent_heartbeats(agent_slug: str, auth: UserClient) -> dict:
         )
         if yaml_result.data:
             raw = _yaml.safe_load(yaml_result.data[0].get("content") or "") or {}
+            now_utc = _dt.now(_tz.utc)
             for entry in raw.get("back_office_jobs") or []:
-                slug = entry.get("slug", "")
-                if not slug.startswith(SLUG_PREFIX):
+                slug = entry.get("slug") or ""
+                if not slug.startswith(REVIEWER_SLUG_PREFIX):
                     continue
-                declared[slug] = {
+                cron = entry.get("schedule")
+                next_at = None
+                if cron and not entry.get("paused", False):
+                    try:
+                        nxt = calculate_next_run_at(
+                            schedule=cron,
+                            last_run_at=now_utc,
+                        )
+                        next_at = nxt.isoformat() if nxt else None
+                    except Exception:
+                        next_at = None
+                schedules.append({
                     "slug": slug,
                     "display_name": entry.get("display_name") or slug,
-                    "schedule": entry.get("schedule"),
+                    "schedule": cron,
                     "paused": bool(entry.get("paused", False)),
-                    "last_ran_at": None,
-                    "last_outcome": None,
-                }
+                    "next_fires_at": next_at,
+                })
+            schedules.sort(key=lambda s: s["next_fires_at"] or "9999")
     except Exception as e:
-        logger.warning("[HEARTBEATS] back-office YAML read failed: %s", e)
+        logger.warning("[REVIEWER_ACTIVITY] schedule computation failed: %s", e)
 
-    if not declared:
-        return {"agent_slug": agent_slug, "triggers": []}
-
-    # --- 2. Last successful run per slug ---
-    try:
-        events_result = (
-            auth.client.table("execution_events")
-            .select("slug, status, created_at, summary")
-            .eq("user_id", auth.user_id)
-            .in_("slug", list(declared.keys()))
-            .eq("status", "success")
-            .order("created_at", desc=True)
-            .limit(50)
-            .execute()
-        )
-        seen: set[str] = set()
-        for row in events_result.data or []:
-            slug = row.get("slug", "")
-            if slug in seen or slug not in declared:
-                continue
-            seen.add(slug)
-            declared[slug]["last_ran_at"] = row.get("created_at")
-            declared[slug]["last_outcome"] = row.get("summary") or None
-    except Exception as e:
-        logger.warning("[HEARTBEATS] execution_events read failed: %s", e)
-
-    # Stable order: by slug for deterministic FE rendering
-    triggers = sorted(declared.values(), key=lambda t: t["slug"])
-    return {"agent_slug": agent_slug, "triggers": triggers}
+    return {
+        "runs": runs,
+        "actions": actions,
+        "schedules": schedules,
+        "window_days": 7,
+    }
 
 
 @router.get("/{agent_id}")

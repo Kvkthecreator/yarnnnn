@@ -455,21 +455,38 @@ export const api = {
       return request<Agent[]>(`/api/agents${params}`);
     },
 
-    // Periodic-trigger (heartbeat) state for any heartbeating agent.
-    // Generic over agents whose back-office jobs follow the convention
-    // `back-office-{agent_slug}-*`. Today: reviewer (reflection, calibration).
-    heartbeats: (agentSlug: string) =>
+    // ADR-251 D5 (reframed 2026-05-08): Reviewer supervision surface —
+    // recent runs (liveness), recent autonomous actions (history), and
+    // upcoming scheduled fires. Reviewer-specific by intent.
+    reviewerActivity: () =>
       request<{
-        agent_slug: string;
-        triggers: Array<{
+        runs: Array<{
+          slug: string;
+          status: string;
+          created_at: string;
+          error_reason: string | null;
+          duration_ms: number | null;
+        }>;
+        actions: Array<{
+          id: string;
+          action_type: string;
+          status: string;
+          expected_effect: string | null;
+          approved_at: string | null;
+          executed_at: string | null;
+          approved_by: string | null;
+          source: string | null;
+          created_at: string;
+        }>;
+        schedules: Array<{
           slug: string;
           display_name: string;
           schedule: string | null;
           paused: boolean;
-          last_ran_at: string | null;
-          last_outcome: string | null;
+          next_fires_at: string | null;
         }>;
-      }>(`/api/agents/${agentSlug}/heartbeats`),
+        window_days: number;
+      }>("/api/agents/reviewer/activity"),
 
     // Create a new agent
     create: (data: AgentCreate) =>
