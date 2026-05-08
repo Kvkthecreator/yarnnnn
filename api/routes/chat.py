@@ -1238,11 +1238,14 @@ async def global_chat(
         from agents.reviewer_agent import read_signal_files
         signal_files_summary = await read_signal_files(auth.client, auth.user_id)
 
-        # Stream a stream_start event immediately so the FE can insert a
-        # "Reviewer is thinking..." placeholder bubble (ADR-258 progress UX).
-        yield (
-            f"data: {json.dumps({'stream_start': True, 'author_role': 'reviewer', 'author_name': 'Reviewer'})}\n\n"
-        )
+        # NOTE: do NOT yield stream_start here. stream_start makes the FE insert
+        # a role='assistant' placeholder bubble (NarrativeContext line ~533)
+        # which would render as a phantom "System Agent" bubble during the
+        # Reviewer's internal cognition loop — misattributing the Reviewer's
+        # reads as System Agent execution. The Reviewer's response arrives via
+        # `reviewer_response` event which triggers loadScopedHistory() and
+        # renders a proper Reviewer bubble. Progress is surfaced via the
+        # streaming-status indicator (set via `reviewer_progress` events).
 
         # Progress-event queue — invoke_reviewer fills it via event_callback;
         # this generator drains it in parallel with the LLM loop.
@@ -1314,15 +1317,28 @@ async def global_chat(
             auth.user_id[:8], len(output.get("actions_taken") or []),
         )
 
-        # Narrate any actions the Reviewer took during its loop
+        # Surface only CONSEQUENTIAL actions as system_agent narration —
+        # actions that change state outside the Reviewer's own substrate.
+        # Pure cognition (ReadFile, ListFiles, SearchFiles, ListRevisions,
+        # ReadRevision, DiffRevisions, GetSystemState, SearchEntities,
+        # LookupEntity, list_integrations, WebSearch) is the Reviewer
+        # thinking — not narrative-worthy as a separate system_agent bubble.
+        # Same as a human Reviewer reading documents before deciding: the
+        # operator doesn't need a log of every page-turn.
+        _COGNITION_ONLY = {
+            "ReadFile", "ListFiles", "SearchFiles", "ListRevisions",
+            "ReadRevision", "DiffRevisions", "GetSystemState", "SearchEntities",
+            "LookupEntity", "list_integrations", "WebSearch", "QueryKnowledge",
+            "DiscoverAgents", "ReadAgentFile", "ListEntities", "Clarify",
+        }
         actions = output.get("actions_taken") or []
-        if actions:
-            action_names = [a.get("tool", "?") for a in actions]
+        consequential = [a for a in actions if a.get("tool") not in _COGNITION_ONLY]
+        if consequential:
+            action_names = [a.get("tool", "?") for a in consequential]
             narration = "Executed: " + ", ".join(
                 f"`{a.get('tool','?')}`"
-                + (f"({a.get('slug','')})" if a.get("slug") else "")
-                + (f"({a.get('action_type','')})" if a.get("action_type") else "")
-                for a in actions
+                + (f" ({a.get('summary','')})" if a.get("summary") else "")
+                for a in consequential
             )
             await append_message(auth.client, session_id, "system_agent", narration, {
                 "tools_used": action_names, "tool_history": [],

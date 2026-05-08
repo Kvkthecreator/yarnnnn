@@ -705,28 +705,34 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                 });
               } else if (event.reviewer_progress) {
                 // ADR-258: Reviewer is mid-loop — surface tool-call progress
-                // so the UI doesn't go silent during the up-to-8-round loop.
-                // Render as a transient streaming-status update; cleared when
-                // reviewer_response arrives.
-                if (streamingMessageId && event.phase === 'tool_start') {
-                  setStatus({
-                    type: 'streaming',
-                    content: `Reviewer is reading ${event.tool}...`,
-                  });
-                } else if (streamingMessageId && event.phase === 'tool_end') {
-                  const verb = event.success ? 'read' : 'tried';
-                  setStatus({
-                    type: 'streaming',
-                    content: `Reviewer ${verb} ${event.tool} (${event.summary || 'ok'})`,
-                  });
-                } else if (!streamingMessageId) {
-                  // First progress event before stream_start handler fired —
-                  // ensure a status is visible.
-                  setStatus({
-                    type: 'streaming',
-                    content: `Reviewer is ${event.phase === 'tool_start' ? 'reading' : 'working on'} ${event.tool}...`,
-                  });
+                // as a transient streaming-status indicator. Cleared when
+                // reviewer_response arrives. NOT a chat bubble; the bubble
+                // arrives only when the Reviewer actually responds.
+                const tool = event.tool ?? '?';
+                const phase = event.phase;
+                let label: string;
+                // Map tool to a human verb so the operator sees what the
+                // Reviewer is *doing*, not the primitive name.
+                if (tool === 'ReadFile' || tool === 'ListFiles' || tool === 'SearchFiles') {
+                  label = phase === 'tool_start' ? 'Reviewer is reading substrate...' : 'Reviewer read substrate';
+                } else if (tool === 'ListRevisions' || tool === 'ReadRevision' || tool === 'DiffRevisions') {
+                  label = phase === 'tool_start' ? 'Reviewer is checking history...' : 'Reviewer checked history';
+                } else if (tool === 'GetSystemState' || tool === 'SearchEntities' || tool === 'LookupEntity' || tool === 'list_integrations') {
+                  label = phase === 'tool_start' ? 'Reviewer is checking system state...' : 'Reviewer checked system state';
+                } else if (tool === 'FireInvocation') {
+                  label = phase === 'tool_start' ? 'Reviewer is commissioning a recurrence...' : 'Reviewer fired a recurrence';
+                } else if (tool === 'ProposeAction') {
+                  label = phase === 'tool_start' ? 'Reviewer is preparing a proposal...' : 'Reviewer submitted a proposal';
+                } else if (tool === 'WriteFile') {
+                  label = phase === 'tool_start' ? 'Reviewer is writing notes...' : 'Reviewer wrote notes';
+                } else if (tool === 'Clarify') {
+                  label = phase === 'tool_start' ? 'Reviewer is preparing a question...' : 'Reviewer prepared a question';
+                } else if (tool === 'WebSearch') {
+                  label = phase === 'tool_start' ? 'Reviewer is searching the web...' : 'Reviewer searched the web';
+                } else {
+                  label = phase === 'tool_start' ? `Reviewer is using ${tool}...` : `Reviewer used ${tool}`;
                 }
+                setStatus({ type: 'streaming', content: label });
               } else if (event.reviewer_response) {
                 // Reviewer spoke — reload history immediately so ReviewerCard renders.
                 // Set flag so we reload again at stream end to clear any placeholder state.
