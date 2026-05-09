@@ -6,6 +6,88 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.09.1] - ADRs 260/261/262 — Phase A code cutover + Compose primitive (CODE PR — partial)
+
+### Code changes (LLM-facing)
+
+This entry tracks the first code PR for ADRs 260/261/262, branch `feat/adr-260-261-262-code`. Phase A is shipped + validated; Phase B (recurrence schema collapse) and Phase D (bundle reshape + workspace_init simplify) are deferred to follow-up commits as documented below.
+
+**Phase A.1 — Heartbeat trigger deletion (ADR-260 D4):**
+- `_maybe_fire_reviewer_heartbeat` deleted from `services/invocation_dispatcher.py`
+- Post-dispatch heartbeat hook deleted from `dispatch()`
+- `_fire_cron_heartbeats` deleted from `jobs/unified_scheduler.py`
+- `heartbeat_triggers` parsing removed from `services/review_policy.py`
+
+**Phase A.2 — Trigger taxonomy collapsed 4→3 (ADR-260 D2):**
+- `_TRIGGER_FRAMING` keys: `proposal | heartbeat | reflection | addressed` → `addressed | reactive | scheduled`
+- `proposal` → `reactive` (canonical reactive trigger; `review_proposal_dispatch.py` updated)
+- `heartbeat` → DELETED (mid-loop continuation is the natural shape, not a separate trigger)
+- `reflection` → `scheduled` (reflection is a particular cron-poke shape; `back_office/reviewer_reflection.py` updated)
+- Reviewer model selection: Sonnet for `reactive` (capital judgment), Haiku for `addressed`+`scheduled`
+- Round bound: 3 for `reactive` (discrete decision), 12 for `addressed`/`scheduled` (real-time loops)
+
+**Phase A.3 — `ManageRecurrence` → `Schedule` rename (ADR-261 §3 + D4):**
+- Pure file rename: `services/primitives/manage_recurrence.py` → `schedule.py` (git rename)
+- Symbol rename: `MANAGE_RECURRENCE_TOOL` → `SCHEDULE_TOOL`, `handle_manage_recurrence` → `handle_schedule`
+- Tool name: `"ManageRecurrence"` → `"Schedule"` in primitive registry + tool definitions
+- All callers updated atomically (registry, execution_router, back_office, task_deliverable_inference, routes/recurrences, tests)
+- Prompt files updated per primitive-rename protocol (CLAUDE.md item 7b): `agents/prompts/{base,platforms,tools_core}.py` + `agents/prompts/chat/{onboarding,workspace,entity,behaviors,task_scope}.py` + `agents/cockpit_awareness.py`
+- Active doc references renamed: CLAUDE.md, primitives-matrix.md, GLOSSARY.md
+- ADR file references (docs/adr/) preserved verbatim as historical artifact
+- **Schedule added to REVIEWER_PRIMITIVES (ADR-261 D4)**: a recurrence is a self-scheduled future Reviewer session; authoring one is the Reviewer's own job. Reviewer surface: 17 → 18 tools.
+
+**Phase A.4 — AUTONOMY rederived (ADR-261 D5):**
+- Field rename: `level` → `delegation`
+- Value collapse: `manual | assisted | bounded_autonomous | autonomous` → `manual | bounded | autonomous`
+- Schema reshape: per-domain blocks now under `domains:` sub-key (was flat top-level)
+- DELETED: `never_auto` (folded into `manual` delegation), `heartbeat_triggers` (gone with ADR-260 D4), `auto_approve_below_cents` (folded into `ceiling_cents` under `bounded`)
+- `paused_until` + `pause_reason` survive (per ADR-248 D3+D4); mixed in by `autonomy_for_domain` so callers see full effective policy
+- `should_auto_execute_verdict` simplified: single AUTONOMY ceiling gate (was two gates)
+- Working memory's autonomy signal updated to read `delegation` not `level`
+
+**Phase C.1 — Compose primitive added (ADR-262 D4):**
+- New `services/primitives/compose.py` with `COMPOSE_TOOL` + `handle_compose`
+- Wraps existing `services.compose.task_html.compose_task_output_html` (ADR-148/170/177/213 mechanical pipeline preserved)
+- Registered in CHAT/HEADLESS/REVIEWER + HANDLERS
+- Reviewer surface: 18 → 19 tools (Schedule from D4 + Compose from D4)
+
+### Validation Gates
+
+**Validation Gate 1** (after Phase A): syntax check on 22 files + behavior tests for AUTONOMY (6 cases) + trigger taxonomy + Schedule registration + heartbeat absence — ALL PASS.
+
+**Validation Gate 2** (after Phase C.1): same battery + Compose primitive registration + manage_recurrence.py file absence (singular implementation honored) — ALL PASS.
+
+### Deferred to follow-up commits
+
+Per CLAUDE.md singular-implementation discipline (no parallel paths), the following structural changes are deferred to atomic follow-up commits rather than half-shipped:
+
+- **Phase B (recurrence schema collapse, ADR-261 D1+D2+D3):** the Schedule primitive currently preserves the per-shape declaration model (`shape` + `domain` + per-shape file paths from the prior `manage_recurrence.py` body). ADR-261 D1 collapses to `{slug, schedule, prompt}` in a single `_recurrences.yaml`. This requires coordinated changes to: scheduler walker, `invocation_dispatcher.py` dispatch logic (which currently branches on `RecurrenceShape`), `recurrence_paths.py` deletion, and migration of existing alpha-trader recurrences. Atomic phase; deferred.
+- **Phase B.3 (FireInvocation α/β/γ):** the open question from ADR-261 §6 (inline execution vs nested invocation). Resolved at the implementation moment with the dispatcher rewrite.
+- **Phase C.1b (Compose opt-out structural auto-trigger, ADR-262 D4):** the session-close hook that auto-runs Compose when section partials match the deliverable convention unless `options.skip_compose: true` on the recurrence record. Hook lives at the session-close boundary; deferred until the recurrence schema collapse lands.
+- **Phase C.2 (DispatchSpecialist primitive, ADR-261 D7):** Reviewer-loop-callable specialist sub-LLM-call primitive. Genuine new infrastructure (context routing + headless-mode invocation from chat loop). Deferred per singular-implementation rather than half-shipped.
+- **Phase D (bundle reshape + workspace_init simplify + alpha-trader re-author, ADR-261 D6 + ADR-262 D6):** depends on Phase B's substrate model. Deferred.
+- **Migration of kvk's existing alpha-trader-2 workspace:** the `_autonomy.yaml` shape changes (level→delegation enum collapse) require kvk's live workspace to be re-forked from the bundle reference workspace. Operational follow-up.
+
+### Files touched in this PR
+
+- `api/agents/cockpit_awareness.py`
+- `api/agents/prompts/{base,platforms,tools_core}.py` + `api/agents/prompts/chat/{onboarding,workspace,entity,behaviors,task_scope}.py`
+- `api/agents/reviewer_agent.py`
+- `api/jobs/unified_scheduler.py`
+- `api/routes/recurrences.py`
+- `api/services/back_office/{__init__,reviewer_reflection}.py`
+- `api/services/execution_router.py`
+- `api/services/invocation_dispatcher.py`
+- `api/services/primitives/{registry,schedule,compose}.py` (schedule renamed from manage_recurrence; compose new)
+- `api/services/review_policy.py`
+- `api/services/review_proposal_dispatch.py`
+- `api/services/task_deliverable_inference.py`
+- `api/services/working_memory.py`
+- `api/test_{adr235_update_context_dissolution,recent_commits}.py`
+- `CLAUDE.md`, `docs/architecture/{primitives-matrix,GLOSSARY}.md`
+
+---
+
 ## [2026.05.08.8] - ADRs 260/261/262: real-time Reviewer loop + recurrences as prompts + output topology (DOCS PR)
 
 ### Documentation only — no prompt content changes in this commit
