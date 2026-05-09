@@ -125,8 +125,8 @@ def test_manage_recurrence_in_both_modes():
 
 
 def test_manage_recurrence_action_enum():
-    from services.primitives.manage_recurrence import MANAGE_RECURRENCE_TOOL
-    actions = MANAGE_RECURRENCE_TOOL["input_schema"]["properties"]["action"]["enum"]
+    from services.primitives.schedule import SCHEDULE_TOOL
+    actions = SCHEDULE_TOOL["input_schema"]["properties"]["action"]["enum"]
     expected = {"create", "update", "pause", "resume", "archive"}
     record(
         "test_manage_recurrence_action_enum",

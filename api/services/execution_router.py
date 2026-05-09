@@ -116,7 +116,7 @@ async def _handle_fire(auth: Any, match: re.Match, _msg: str) -> Optional[dict]:
 )
 async def _handle_pause(auth: Any, match: re.Match, _msg: str) -> Optional[dict]:
     """ManageRecurrence pause: "pause signal-evaluation", "stop trading-signal"."""
-    from services.primitives.manage_recurrence import handle_manage_recurrence
+    from services.primitives.schedule import handle_schedule
     from services.recurrence import walk_workspace_recurrences
 
     slug = _extract_slug(_msg, match)
@@ -142,7 +142,7 @@ async def _handle_pause(auth: Any, match: re.Match, _msg: str) -> Optional[dict]
     if domain:
         inp["domain"] = domain
 
-    result = await handle_manage_recurrence(auth, inp)
+    result = await handle_schedule(auth, inp)
     narration = f"Paused `{resolved_slug}`."
     return {"narration": narration, "result": result, "tools_used": ["ManageRecurrence"]}
 
@@ -152,7 +152,7 @@ async def _handle_pause(auth: Any, match: re.Match, _msg: str) -> Optional[dict]
 )
 async def _handle_resume(auth: Any, match: re.Match, _msg: str) -> Optional[dict]:
     """ManageRecurrence resume: "resume signal-evaluation"."""
-    from services.primitives.manage_recurrence import handle_manage_recurrence
+    from services.primitives.schedule import handle_schedule
     from services.recurrence import walk_workspace_recurrences
 
     slug = _extract_slug(_msg, match)
@@ -178,7 +178,7 @@ async def _handle_resume(auth: Any, match: re.Match, _msg: str) -> Optional[dict
     if domain:
         inp["domain"] = domain
 
-    result = await handle_manage_recurrence(auth, inp)
+    result = await handle_schedule(auth, inp)
     narration = f"Resumed `{resolved_slug}`."
     return {"narration": narration, "result": result, "tools_used": ["ManageRecurrence"]}
 

@@ -37,7 +37,7 @@ from .fire_invocation import FIRE_INVOCATION_TOOL, handle_fire_invocation
 #   - Lifecycle action          → ManageRecurrence
 from .infer_context import INFER_CONTEXT_TOOL, handle_infer_context
 from .infer_workspace import INFER_WORKSPACE_TOOL, handle_infer_workspace
-from .manage_recurrence import MANAGE_RECURRENCE_TOOL, handle_manage_recurrence
+from .schedule import SCHEDULE_TOOL, handle_schedule  # ADR-261 §3 — renamed from ManageRecurrence
 from .scaffold import MANAGE_DOMAINS_TOOL, handle_manage_domains
 from .workspace import (
     READ_FILE_TOOL, handle_read_file,
@@ -231,7 +231,7 @@ CHAT_PRIMITIVES = [
     MANAGE_AGENT_TOOL,
     # ADR-235 D1.c: ManageRecurrence — recurrence-declaration lifecycle.
     # Mirrors ManageAgent / ManageDomains shape.
-    MANAGE_RECURRENCE_TOOL,
+    SCHEDULE_TOOL,
     # ADR-231 D5: FireInvocation — manual fire of a recurrence declaration.
     # Replaces ManageTask(action="trigger"). All other lifecycle actions
     # (create/update/pause/resume/archive) flow through ManageRecurrence.
@@ -276,7 +276,7 @@ HEADLESS_PRIMITIVES = [
     MANAGE_AGENT_TOOL,
     # ADR-235 D1.c: ManageRecurrence — agents may pause/resume/update their
     # own declarations on outcome signals. Chat parity.
-    MANAGE_RECURRENCE_TOOL,
+    SCHEDULE_TOOL,
     # ADR-231 D5: FireInvocation — recurrence-aware dispatch.
     FIRE_INVOCATION_TOOL,
     MANAGE_DOMAINS_TOOL,
@@ -310,13 +310,19 @@ PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.
 #
 # What the Reviewer does NOT do directly (operator-authorship territory —
 # requested via Clarify, surfaced as concern in reasoning, or escalated):
-#   - Restructure the operation: ManageDomains, ManageAgent, ManageRecurrence
-#     (create/update/archive), InferContext, InferWorkspace
+#   - Restructure the operation: ManageDomains, ManageAgent (create/update/archive),
+#     InferContext, InferWorkspace
 #   - Run asset renders or repurpose deliverables: RuntimeDispatch, RepurposeOutput
 #   - Bind execution downstream of someone else's verdict: ExecuteProposal, RejectProposal
 #     (the dispatcher executes ExecuteProposal/RejectProposal on Reviewer's verdict —
 #      Reviewer doesn't call them itself)
 #   - Mutate entity-layer rows: EditEntity (Reviewer reasons against files, not rows)
+#
+# What the Reviewer DOES do that is structurally Reviewer-territory (ADR-261 D4):
+#   - Schedule its own future wake-ups via Schedule (renamed from ManageRecurrence).
+#     A recurrence is a self-scheduled future Reviewer session, so authoring one
+#     is the Reviewer's own tool. Structurally safe because every wake-up runs
+#     another bounded session that itself passes through AUTONOMY for capital gates.
 #
 # This is NOT access control — it's *role discipline*. The mechanism is
 # explicit allowlist instead of broad chat-mode access. Operator can extend
@@ -342,9 +348,11 @@ REVIEWER_PRIMITIVES = [
     # Direction primitives — Reviewer says, System Agent executes
     FIRE_INVOCATION_TOOL,
     PROPOSE_ACTION_TOOL,
+    # Self-scheduling (ADR-261 D4) — Reviewer authors its own future wake-ups
+    SCHEDULE_TOOL,
     # Conversation
     CLARIFY_TOOL,
-]  # 16 tools — curated subset of CHAT_PRIMITIVES per human-supervisor analogue
+]  # 18 tools (ADR-261 D4 added Schedule to the prior 17) — curated subset of CHAT_PRIMITIVES per human-supervisor analogue
 
 
 # =============================================================================
@@ -373,7 +381,7 @@ HANDLERS: dict[str, Callable] = {
     "InferContext": handle_infer_context,
     "InferWorkspace": handle_infer_workspace,
     # ADR-235 D1.c: Lifecycle management for recurrence declarations
-    "ManageRecurrence": handle_manage_recurrence,
+    "Schedule": handle_schedule,
     "ManageDomains": handle_manage_domains,
     # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
     "ReadFile": handle_read_file,

@@ -57,7 +57,7 @@ async def materialize_back_office_task(
     Idempotent — no-op if the task already exists for this user.
     """
     from services.schedule_utils import get_user_timezone as _get_user_timezone
-    from services.primitives.manage_recurrence import handle_manage_recurrence
+    from services.primitives.schedule import handle_schedule
 
     if user_timezone is None:
         user_timezone = _get_user_timezone(client, user_id)
@@ -86,7 +86,7 @@ async def materialize_back_office_task(
             self.client = c
             self.user_id = u
     _auth = _Auth(client, user_id)
-    result = await handle_manage_recurrence(_auth, {
+    result = await handle_schedule(_auth, {
         "action": "create",
         "shape": "maintenance",
         "slug": slug,

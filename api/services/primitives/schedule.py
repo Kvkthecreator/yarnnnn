@@ -1,5 +1,5 @@
 """
-ManageRecurrence Primitive — ADR-235 D1.c
+Schedule Primitive — ADR-235 D1.c
 
 Recurrence-declaration lifecycle manager. Spun out of UpdateContext as part
 of the UpdateContext dissolution (ADR-235). Mirrors the shape of ManageAgent
@@ -26,9 +26,9 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
-MANAGE_RECURRENCE_TOOL = {
-    "name": "ManageRecurrence",
-    "description": """Manage a recurrence declaration (ADR-231 D5).
+SCHEDULE_TOOL = {
+    "name": "Schedule",
+    "description": """Manage a recurrence declaration (ADR-261 §3 — renamed from ManageRecurrence).
 
 A recurrence declaration is a YAML file at the natural-home substrate
 location. ONE primitive, FIVE actions:
@@ -48,21 +48,21 @@ Path is derived from shape + slug (+ domain for accumulation):
   shape='maintenance':   /workspace/_shared/back-office.yaml          (multi-decl)
 
 Examples:
-  ManageRecurrence(action="create", shape="deliverable", slug="market-weekly",
+  Schedule(action="create", shape="deliverable", slug="market-weekly",
       body={schedule: "0 9 * * 1", display_name: "Weekly Market Report",
             output_path: "/workspace/reports/market-weekly/{date}/output.md",
             agents: ["analyst", "writer"]})
 
-  ManageRecurrence(action="create", shape="accumulation",
+  Schedule(action="create", shape="accumulation",
       slug="competitors-weekly-scan", domain="competitors",
       body={schedule: "0 9 * * 1", agent: "researcher",
             objective: "Weekly competitive moves"})
 
-  ManageRecurrence(action="pause", shape="deliverable", slug="market-weekly")
-  ManageRecurrence(action="resume", shape="deliverable", slug="market-weekly")
-  ManageRecurrence(action="update", shape="deliverable", slug="market-weekly",
+  Schedule(action="pause", shape="deliverable", slug="market-weekly")
+  Schedule(action="resume", shape="deliverable", slug="market-weekly")
+  Schedule(action="update", shape="deliverable", slug="market-weekly",
       changes={schedule: "0 9 * * *"})  # change cadence to daily
-  ManageRecurrence(action="archive", shape="deliverable", slug="market-weekly")""",
+  Schedule(action="archive", shape="deliverable", slug="market-weekly")""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -132,7 +132,7 @@ def _resolve_recurrence_path(shape: str, slug: str, domain: Optional[str]) -> st
     raise ValueError(f"unknown shape: {shape}")
 
 
-async def handle_manage_recurrence(auth: Any, input: dict) -> dict:
+async def handle_schedule(auth: Any, input: dict) -> dict:
     """Recurrence declaration lifecycle (extracted from UpdateContext._handle_recurrence).
 
     Routes by shape to single-decl or multi-decl handler. Each successful

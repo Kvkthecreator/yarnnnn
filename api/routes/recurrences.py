@@ -333,22 +333,22 @@ async def update_task(
     decls = walk_workspace_recurrences(auth.client, auth.user_id)
     decl = _decl_for_slug(decls, slug)
     if decl is not None:
-        from services.primitives.manage_recurrence import handle_manage_recurrence
+        from services.primitives.schedule import handle_schedule
 
         if request.status == "paused":
-            await handle_manage_recurrence(auth, {
+            await handle_schedule(auth, {
                 "action": "pause",
                 "shape": decl.shape.value, "slug": slug,
                 "domain": decl.domain,
             })
         elif request.status in ("active",) and row.get("paused"):
-            await handle_manage_recurrence(auth, {
+            await handle_schedule(auth, {
                 "action": "resume",
                 "shape": decl.shape.value, "slug": slug,
                 "domain": decl.domain,
             })
         if request.schedule is not None:
-            await handle_manage_recurrence(auth, {
+            await handle_schedule(auth, {
                 "action": "update",
                 "shape": decl.shape.value, "slug": slug,
                 "domain": decl.domain,
@@ -381,8 +381,8 @@ async def archive_task(slug: str, auth: UserClient) -> dict:
     decls = walk_workspace_recurrences(auth.client, auth.user_id)
     decl = _decl_for_slug(decls, slug)
     if decl is not None:
-        from services.primitives.manage_recurrence import handle_manage_recurrence
-        await handle_manage_recurrence(auth, {
+        from services.primitives.schedule import handle_schedule
+        await handle_schedule(auth, {
             "action": "archive",
             "shape": decl.shape.value, "slug": slug,
             "domain": decl.domain,
@@ -403,8 +403,8 @@ async def update_task_sources(
     if decl is None:
         raise HTTPException(status_code=404, detail="Task not found")
 
-    from services.primitives.manage_recurrence import handle_manage_recurrence
-    await handle_manage_recurrence(auth, {
+    from services.primitives.schedule import handle_schedule
+    await handle_schedule(auth, {
         "action": "update",
         "shape": decl.shape.value, "slug": slug,
         "domain": decl.domain,

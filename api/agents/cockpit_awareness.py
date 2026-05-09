@@ -107,10 +107,19 @@ def build_tools_block(allowed_tool_names: set[str] | None = None) -> str:
     lines.append("")
     lines.append(
         "**Not in your tool surface (operator-authorship territory):** "
-        "ManageDomains, ManageAgent, ManageRecurrence, InferContext, InferWorkspace, "
+        "ManageDomains, ManageAgent, InferContext, InferWorkspace, "
         "RuntimeDispatch, RepurposeOutput, EditEntity, ExecuteProposal, RejectProposal. "
         "These shape the operation; the operator authors them. If you want changes here, "
         "surface a Clarify or note the suggestion in your reasoning — the operator decides."
+    )
+    lines.append("")
+    lines.append(
+        "**Schedule is in your tool surface (ADR-261 D4):** a recurrence is a "
+        "self-scheduled future Reviewer session. Authoring one is your own job, "
+        "not the operator's — when the operation needs a recurring check or "
+        "reflection, schedule it. Every wake-up runs another bounded session "
+        "that itself passes through AUTONOMY for capital gates, so self-scheduling "
+        "is structurally safe."
     )
     return "\n".join(lines)
 

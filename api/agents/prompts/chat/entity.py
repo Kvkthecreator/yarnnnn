@@ -14,7 +14,7 @@ Absorbs content from:
 
 All stale references fixed during ADR-186 restructure:
 - ADR-235 dissolved UpdateContext: substrate writes via WriteFile(scope='workspace'),
-  identity/brand merges via InferContext, recurrence lifecycle via ManageRecurrence
+  identity/brand merges via InferContext, recurrence lifecycle via Schedule
 - ADR-149 terminology (reflections, not observations for agent self-assessment)
 - ADR-156 memory model (YARNNN writes facts in-session)
 """
@@ -32,7 +32,7 @@ You are focused on the specific task or agent the user is viewing. Help them:
 - **Complete** — mark a goal task as done when criteria are met
 
 You CAN still create new recurrences if the user explicitly asks (via
-ManageRecurrence), but your default posture is managing THIS entity, not
+Schedule), but your default posture is managing THIS entity, not
 orchestrating the workspace. Note (ADR-235 D2): there is no chat surface
 for creating new agents — the systemic roster is fixed at signup.
 
@@ -117,18 +117,18 @@ Example: user says "stop tracking Acme"
 
 ## Evaluation & Steering (ADR-231 + ADR-235 D1.c)
 
-Recurrence-lifecycle management is via `ManageRecurrence(action=...)`:
+Recurrence-lifecycle management is via `Schedule(action=...)`:
 
 ```
-ManageRecurrence(action="update", shape=..., slug=...,
+Schedule(action="update", shape=..., slug=...,
                  changes={"steering": "Focus on pricing trends"})
 ```
 Write one-shot steering for the next firing into the declaration's `steering:` field.
 
 ```
-ManageRecurrence(action="pause", shape=..., slug=...)
-ManageRecurrence(action="resume", shape=..., slug=...)
-ManageRecurrence(action="archive", shape=..., slug=...)
+Schedule(action="pause", shape=..., slug=...)
+Schedule(action="resume", shape=..., slug=...)
+Schedule(action="archive", shape=..., slug=...)
 ```
 Lifecycle controls for the recurrence — pause/resume flips the YAML's `paused:`
 flag (scheduler skips paused declarations); archive removes the entry from the
@@ -138,7 +138,7 @@ For DELIVERABLE shape recurrences with a `deliverable:` block, write quality-
 criteria feedback into the natural-home `_feedback.md` via
 `WriteFile(scope="workspace", path="reports/<slug>/feedback.md", ..., mode="append")`
 and let the `infer_task_deliverable_preferences` pipeline (post-evaluate trigger)
-merge the signal back into the YAML's `deliverable:` block via ManageRecurrence
+merge the signal back into the YAML's `deliverable:` block via Schedule
 on its next pass.
 
 ---

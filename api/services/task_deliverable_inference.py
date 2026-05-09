@@ -164,15 +164,15 @@ async def infer_task_deliverable_preferences(
             logger.warning(f"[DELIVERABLE_INFERENCE] Inferred YAML parse failed for {task_slug}: {_exc}")
             return None
 
-        from services.primitives.manage_recurrence import handle_manage_recurrence
+        from services.primitives.schedule import handle_schedule
 
-        # Synthesize a minimal auth-shape so handle_manage_recurrence works.
+        # Synthesize a minimal auth-shape so handle_schedule works.
         class _Auth:
             def __init__(self, c, u):
                 self.client = c
                 self.user_id = u
         _auth = _Auth(client, user_id)
-        await handle_manage_recurrence(_auth, {
+        await handle_schedule(_auth, {
             "action": "update",
             "shape": decl.shape.value,
             "slug": task_slug,
