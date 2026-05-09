@@ -186,7 +186,7 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
 
         output = await invoke_reviewer(
             client, user_id,
-            trigger="reflection",
+            trigger="scheduled",  # ADR-260 D2: reflection is a particular scheduled cron-poke shape
             context={
                 "identity_md": identity_md,
                 "principles_md": principles_md,
@@ -195,6 +195,8 @@ async def run(client: Any, user_id: str, task_slug: str) -> dict:
                 "autonomy_md": autonomy_md,
                 "recent_decisions_md": recent_decisions_md,
                 "performance_md": performance_md_summary,
+                "recurrence_slug": "back-office-reviewer-reflection",
+                "recurrence_prompt": "Reflect on your recent decisions against your framework. Read your decisions trail and per-domain performance. `no_change` is the common and expected outcome. If patterns warrant adjustment, include proposals with full revised file content.",
             },
         )
         # ADR-258 (revised): surface any consequential actions the Reviewer

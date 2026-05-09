@@ -1,24 +1,52 @@
-"""Review policy — ADR-211 Phase 4 D2 + D5 + ADR-217 + ADR-254.
+"""Review policy — ADR-261 D5 rederived shape.
 
-ADR-254: machine-parsed config migrated from .md frontmatter to .yaml files.
-- `_principles.yaml` — machine-parsed thresholds (high_impact_threshold_cents,
-  auto_approve_below_cents). Read by load_principles() via yaml.safe_load.
-- `_autonomy.yaml` — machine-parsed delegation config (level, ceiling_cents,
-  never_auto, paused_until, pause_reason, heartbeat_triggers).
-  Read by load_autonomy() via yaml.safe_load.
+ADR-261 D5: AUTONOMY rederived from first principles. AUTONOMY's only job
+is to gate **consequential actions** the Reviewer takes within a session.
+Consequential = capital-moving + irreversible-external-write. Everything else
+(reads, scheduling self-wakeups via Schedule, writing to own substrate,
+ProposeAction queueing for operator review) is unrestricted because it's all
+observable + reversible via the revision chain (ADR-209).
 
-The prose files (principles.md, AUTONOMY.md) are preserved for LLM reading
-and human documentation. They are not machine-parsed.
+The new `_autonomy.yaml` schema:
 
-Type validation: `_validate_autonomy_block` and `_validate_principles_block`
-coerce and validate every block at read time. Type mismatches are logged as
-warnings and replaced with safe defaults (manual/0/empty). This prevents silent
-failures in `should_auto_execute_verdict` when YAML values are mis-typed (e.g.
-ceiling_cents written as "20000" string instead of 20000 int).
+    default:
+      delegation: bounded   # manual | bounded | autonomous
+      ceiling_cents: 20000   # used when bounded; ignored for manual/autonomous
 
-Public API (unchanged signatures, new backing files):
+    domains:
+      trading:
+        delegation: bounded
+        ceiling_cents: 20000
+      commerce:
+        delegation: manual
+
+    paused_until: null
+    pause_reason: null
+
+Delegation enum:
+- `manual`     — every consequential action queues for operator approval.
+- `bounded`    — auto-approve up to `ceiling_cents`, queue above.
+- `autonomous` — auto-approve every consequential action (operator opt-in
+                  for full autonomy).
+
+Deleted fields (per ADR-261 D5):
+- `level` field (renamed to `delegation`)
+- `assisted` value (folded into `manual` — same effective behavior)
+- `bounded_autonomous` value (renamed to `bounded`)
+- `auto_approve_below_cents` — folded into `ceiling_cents` under `bounded`
+- `never_auto` — folded into `manual` delegation
+- `heartbeat_triggers` — gone with ADR-260 D4 (heartbeat trigger deleted)
+
+`paused_until` + `pause_reason` survive (per ADR-248 D3+D4) — when non-null,
+AUTONOMY is effectively `manual` regardless of declared `delegation`.
+
+The prose files (`AUTONOMY.md`, `principles.md`) are preserved for LLM
+reading and human documentation. They are not machine-parsed.
+
+Public API:
 - `load_principles(client, user_id)` → dict keyed by domain
-- `load_autonomy(client, user_id)` → dict keyed by domain + default fallback
+- `load_autonomy(client, user_id)` → {"default": {...}, "domains": {<name>: {...}},
+                                       "paused_until": ..., "pause_reason": ...}
 - `autonomy_for_domain(autonomy, context_domain)` → resolved policy dict
 - `principles_for_domain(principles, context_domain)` → resolved principles dict
 - `should_auto_execute_verdict(...)` → (bool, reason_str)
@@ -39,33 +67,30 @@ from services.workspace_paths import (
 
 logger = logging.getLogger(__name__)
 
-# Path constants — now pointing at .yaml files (ADR-254)
+# Path constants
 PRINCIPLES_YAML_PATH = f"/workspace/{REVIEW_PRINCIPLES_YAML_PATH}"
 AUTONOMY_YAML_PATH = f"/workspace/{SHARED_AUTONOMY_YAML_PATH}"
 
 _DEFAULT_DOMAIN_KEY = "default"
-_VALID_AUTONOMY_LEVELS = {"manual", "assisted", "bounded_autonomous", "autonomous"}
 
-# Frontmatter pattern: leading ---\n...\n--- block (tier:, note:, prompt: metadata)
+# ADR-261 D5: 3-value delegation enum (was 4 under ADR-211).
+_VALID_DELEGATION_LEVELS = {"manual", "bounded", "autonomous"}
+
+# Frontmatter pattern: leading ---\n...\n--- block
 _FM_RE = _re.compile(r"^---\n.*?\n---\n", _re.DOTALL)
 
 
 def load_workspace_yaml(content: str) -> dict:
     """Parse workspace yaml content, stripping --- frontmatter header if present.
 
-    Workspace yaml files seeded from reference bundles carry a frontmatter block:
-        ---
-        tier: canon
-        note: "..."
-        ---
-    yaml.safe_load raises ComposerError on multi-document streams. This helper
-    strips the frontmatter before parsing so the body document loads cleanly.
+    Workspace yaml files seeded from reference bundles carry a frontmatter block
+    (`tier:`, `note:`, `prompt:`). yaml.safe_load raises on multi-document
+    streams; this helper strips the frontmatter before parsing.
     Never raises — returns {} on any parse failure.
     """
     if not content:
         return {}
     cleaned = _FM_RE.sub("", content, count=1)
-    # Also strip leading comment lines (# ...)
     lines = [l for l in cleaned.splitlines() if not l.startswith("#")]
     cleaned = "\n".join(lines)
     try:
@@ -82,21 +107,21 @@ def _validate_autonomy_block(block: dict, domain: str) -> dict:
     """Coerce and validate one autonomy domain block.
 
     Catches the common YAML mis-typing: ceiling_cents written as string
-    "20000" instead of int 20000.  A bad ceiling would cause a TypeError
-    crash in `should_auto_execute_verdict`.  Log and return safe defaults.
+    "20000" instead of int 20000.  Log and return safe defaults on mismatch.
     """
     if not isinstance(block, dict):
         return {}
 
     result = dict(block)
 
-    # --- level ---
-    level = result.get("level", "manual")
-    if level not in _VALID_AUTONOMY_LEVELS:
+    # --- delegation ---
+    delegation = result.get("delegation", "manual")
+    if delegation not in _VALID_DELEGATION_LEVELS:
         logger.warning(
-            "[REVIEW_POLICY] _autonomy.yaml %s.level=%r not valid — defaulting to manual", domain, level
+            "[REVIEW_POLICY] _autonomy.yaml %s.delegation=%r not valid — defaulting to manual",
+            domain, delegation,
         )
-        result["level"] = "manual"
+        result["delegation"] = "manual"
 
     # --- ceiling_cents ---
     ceiling_raw = result.get("ceiling_cents")
@@ -105,17 +130,10 @@ def _validate_autonomy_block(block: dict, domain: str) -> dict:
             result["ceiling_cents"] = int(ceiling_raw)
         except (TypeError, ValueError):
             logger.warning(
-                "[REVIEW_POLICY] _autonomy.yaml %s.ceiling_cents=%r not int — removing", domain, ceiling_raw
+                "[REVIEW_POLICY] _autonomy.yaml %s.ceiling_cents=%r not int — removing",
+                domain, ceiling_raw,
             )
             del result["ceiling_cents"]
-
-    # --- never_auto ---
-    never_auto = result.get("never_auto")
-    if never_auto is not None and not isinstance(never_auto, list):
-        logger.warning(
-            "[REVIEW_POLICY] _autonomy.yaml %s.never_auto expected list — defaulting to []", domain
-        )
-        result["never_auto"] = []
 
     return result
 
@@ -123,41 +141,39 @@ def _validate_autonomy_block(block: dict, domain: str) -> dict:
 def _validate_principles_block(block: dict, domain: str) -> dict:
     """Coerce and validate one principles domain block.
 
-    Catches string-typed threshold values (e.g. auto_approve_below_cents: "20000")
-    that would otherwise cause a TypeError crash at comparison time.
+    ADR-261 D5: `auto_approve_below_cents` deleted — folded into `ceiling_cents`
+    under `bounded` delegation. `high_impact_threshold_cents` survives for
+    ADR-181 routing of high-impact outcomes to feedback substrate.
     """
     if not isinstance(block, dict):
         return {}
 
-    result = {}
-    for key in ("high_impact_threshold_cents", "auto_approve_below_cents"):
-        raw = block.get(key)
-        if raw is None:
-            continue
-        try:
-            result[key] = int(raw)
-        except (TypeError, ValueError):
-            logger.warning(
-                "[REVIEW_POLICY] _principles.yaml %s.%s=%r not int — ignoring", domain, key, raw
-            )
-
+    result = dict(block)
+    for key in ("high_impact_threshold_cents",):
+        raw = result.get(key)
+        if raw is not None:
+            try:
+                result[key] = int(raw)
+            except (TypeError, ValueError):
+                logger.warning(
+                    "[REVIEW_POLICY] _principles.yaml %s.%s=%r not int — removing",
+                    domain, key, raw,
+                )
+                del result[key]
     return result
 
 
 # =============================================================================
-# Public API
+# Loaders
 # =============================================================================
 
 def load_principles(client: Any, user_id: str) -> dict:
-    """Load machine-parsed review thresholds from _principles.yaml (ADR-254).
+    """Load Reviewer principles from `_principles.yaml`.
 
-    Returns a dict keyed by domain:
-        {"trading": {"high_impact_threshold_cents": int,
-                     "auto_approve_below_cents": int}, ...}
+    Returns a dict keyed by domain (including the synthetic `default` fallback):
+        {"default": {"high_impact_threshold_cents": int}, ...}
 
-    Values are type-validated via _validate_principles_block — integer fields
-    are coerced and mismatches are logged. Empty dict on missing file or parse
-    failure. Never raises.
+    Empty dict on missing file or parse failure. Never raises.
     """
     content = _read_file(client, user_id, PRINCIPLES_YAML_PATH)
     if not content:
@@ -171,140 +187,157 @@ def load_principles(client: Any, user_id: str) -> dict:
 
 
 def load_autonomy(client: Any, user_id: str) -> dict:
-    """Load delegation declaration from _autonomy.yaml (ADR-254).
+    """Load delegation declaration from `_autonomy.yaml` (ADR-261 D5 shape).
 
-    Returns a dict keyed by domain (including the synthetic `default` fallback):
-        {"default": {"level": str, "ceiling_cents": int, "never_auto": list,
-                     "paused_until": str|None, "pause_reason": str|None,
-                     "heartbeat_triggers": list},
-         "<domain>": {...per-domain override...}, ...}
+    Returns:
+        {
+          "default": {"delegation": str, "ceiling_cents": int|None},
+          "domains": {"<domain>": {"delegation": str, "ceiling_cents": int|None}},
+          "paused_until": str|None,
+          "pause_reason": str|None,
+        }
 
-    Values are type-validated via _validate_autonomy_block — integer and enum
-    fields are coerced and mismatches are logged. Empty dict on missing file or
-    parse failure. Never raises.
+    Empty dict on missing file or parse failure. Never raises.
     """
     content = _read_file(client, user_id, AUTONOMY_YAML_PATH)
     if not content:
         return {}
     parsed = load_workspace_yaml(content)
-    return {
-        k: _validate_autonomy_block(v, k)
-        for k, v in parsed.items()
-        if isinstance(v, dict) and k not in ("tier", "note")
+
+    out: dict = {
+        "default": {},
+        "domains": {},
+        "paused_until": parsed.get("paused_until"),
+        "pause_reason": parsed.get("pause_reason"),
     }
+
+    default_block = parsed.get("default")
+    if isinstance(default_block, dict):
+        out["default"] = _validate_autonomy_block(default_block, "default")
+
+    raw_domains = parsed.get("domains") or {}
+    if isinstance(raw_domains, dict):
+        for k, v in raw_domains.items():
+            if isinstance(v, dict):
+                out["domains"][k] = _validate_autonomy_block(v, k)
+
+    return out
 
 
 def autonomy_for_domain(autonomy: dict, context_domain: str) -> dict:
     """Return the delegation policy for a domain.
 
-    Resolution order:
-      1. Per-domain block under `<context_domain>:` if present.
-      2. `default:` fallback block if present.
-      3. Empty dict (= manual-by-default).
+    Resolution order: `domains.<context_domain>` → `default` → `{}`.
+    Mixes in workspace-wide `paused_until` + `pause_reason` so callers see
+    the full effective policy in one resolved block.
     """
-    domain_policy = autonomy.get(context_domain)
-    if domain_policy and isinstance(domain_policy, dict):
-        return domain_policy
-    return autonomy.get(_DEFAULT_DOMAIN_KEY) or {}
+    if not autonomy:
+        return {}
+    domains = autonomy.get("domains") or {}
+    if context_domain and context_domain in domains:
+        block = dict(domains[context_domain])
+    else:
+        block = dict(autonomy.get("default") or {})
+    # Mix in workspace-wide pause fields so should_auto_execute_verdict sees them.
+    if autonomy.get("paused_until") is not None:
+        block.setdefault("paused_until", autonomy.get("paused_until"))
+    if autonomy.get("pause_reason") is not None:
+        block.setdefault("pause_reason", autonomy.get("pause_reason"))
+    return block
 
 
 def principles_for_domain(principles: dict, context_domain: str) -> dict:
-    """Return the principles for a domain, or empty dict."""
-    return principles.get(context_domain) or {}
+    """Return Reviewer principles for a domain.
 
+    Resolution order: `<context_domain>` → `default` → `{}`.
+    """
+    if not principles:
+        return {}
+    if context_domain and context_domain in principles:
+        return principles[context_domain]
+    return principles.get(_DEFAULT_DOMAIN_KEY) or {}
+
+
+# =============================================================================
+# Decision gate — single AUTONOMY ceiling check (ADR-261 D5 collapse)
+# =============================================================================
 
 def should_auto_execute_verdict(
     autonomy_policy: dict,
-    verdict: str,
-    action_type: str,
-    estimated_cents: int | None,
-    reversibility: str,
+    verdict: str = "approve",
     *,
-    principles_policy: dict | None = None,
+    action_type: str = "",
+    estimated_cents: int | None = None,
+    reversibility: str = "reversible",
+    principles_policy: dict | None = None,  # accepted for legacy callsites; unused post-ADR-261 D5
+    paused_until: str | None = None,
+    pause_reason: str | None = None,
 ) -> tuple[bool, str]:
-    """Post-judgment binding gate (ADR-229 D1 + ADR-253 D1 + ADR-254 D3).
+    """Decide whether a Reviewer verdict auto-executes (per ADR-261 D5).
 
-    Given the Reviewer's verdict and the operator's declared autonomy
-    delegation, decide whether the verdict auto-executes (binding) or
-    routes to the Queue as advisory (operator clicks).
+    One gate: operator's delegation level + ceiling. The Reviewer's verdict
+    must be `approve` (`reject`/`defer` always route through operator); the
+    delegation policy then permits or denies execution.
 
-    Two gates must both pass:
-    1. AUTONOMY gate: operator's delegation ceiling (level + ceiling_cents)
-    2. PRINCIPLES gate: Reviewer's own auto_approve threshold (principles_policy)
-
-    The stricter of the two wins. Reviewer can be more conservative than
-    operator permits; never more permissive.
-
-    Returns (should_execute, reason). `verdict` MUST be one of
-    "approve" | "reject" | "defer". Non-approve verdicts always return False.
+    Returns (should_execute, reason).
     """
-    # ADR-248 D3: Reviewer-written pause marker — checked before any other gate.
-    paused_until_raw = autonomy_policy.get("paused_until")
-    if paused_until_raw:
+    # --- pause check (ADR-248 D3 mechanism preserved) ---
+    # paused_until / pause_reason may come either as explicit kwargs (newer
+    # callers) or be mixed into autonomy_policy by autonomy_for_domain.
+    pu = paused_until or autonomy_policy.get("paused_until")
+    pr = pause_reason or autonomy_policy.get("pause_reason")
+    if pu:
         try:
             from datetime import timezone as _tz, datetime as _dt
-            ts_str = str(paused_until_raw)
+            ts_str = str(pu)
             if ts_str.endswith("Z"):
                 ts_str = ts_str[:-1] + "+00:00"
-            paused_until = _dt.fromisoformat(ts_str)
-            if paused_until.tzinfo is None:
-                paused_until = paused_until.replace(tzinfo=_tz.utc)
-            if paused_until > _dt.now(_tz.utc):
-                pause_reason = autonomy_policy.get("pause_reason", "Reviewer-initiated pause")
-                return (False, f"autonomy_paused until {paused_until.isoformat()} — {pause_reason}")
+            paused_dt = _dt.fromisoformat(ts_str)
+            if paused_dt.tzinfo is None:
+                paused_dt = paused_dt.replace(tzinfo=_tz.utc)
+            if paused_dt > _dt.now(_tz.utc):
+                reason_msg = pr or "Reviewer-initiated pause"
+                return (False, f"autonomy_paused until {paused_dt.isoformat()} — {reason_msg}")
         except (ValueError, TypeError):
-            pass  # Malformed timestamp — ignore
+            pass  # malformed timestamp — ignore
 
+    # --- verdict gate ---
     if verdict == "reject":
         return False, "verdict=reject — Reviewer's own narrowing, never auto-executes"
     if verdict == "defer":
         return False, "verdict=defer — Reviewer surfaced to operator"
-    if verdict not in ("approve", "heartbeat"):
+    if verdict != "approve":
         return False, f"verdict={verdict!r} unrecognized — defaulting to non-binding"
 
-    # --- AUTONOMY gate ---
-    level = autonomy_policy.get("level", "manual")
-    if level == "manual":
-        return False, "autonomy.level=manual — operator retains every binding decision"
-    if level not in _VALID_AUTONOMY_LEVELS:
-        return False, f"autonomy.level={level} unrecognized — defaulting to manual"
-    if level == "assisted":
-        return False, "autonomy.level=assisted — AI recommends, human binds"
-
-    ceiling = autonomy_policy.get("ceiling_cents")
-    if level == "bounded_autonomous" and (ceiling is None or ceiling <= 0):
-        return False, "autonomy.level=bounded_autonomous but no ceiling_cents set"
-
-    blocked = autonomy_policy.get("never_auto") or []
-    for blocked_fragment in blocked:
-        if blocked_fragment and blocked_fragment in action_type:
-            return False, f"action_type matches autonomy.never_auto entry '{blocked_fragment}'"
+    # --- delegation gate ---
+    delegation = autonomy_policy.get("delegation", "manual")
+    if delegation == "manual":
+        return False, "autonomy.delegation=manual — operator retains every binding decision"
+    if delegation not in _VALID_DELEGATION_LEVELS:
+        return False, f"autonomy.delegation={delegation!r} unrecognized — defaulting to manual"
 
     if reversibility == "irreversible":
         return False, "reversibility=irreversible — irreversible writes always route to operator"
 
-    if level == "bounded_autonomous":
-        if estimated_cents is None:
-            return False, "proposal has no estimated value — cannot compare against ceiling"
-        if abs(estimated_cents) > ceiling:
-            return (False, f"estimated ${abs(estimated_cents)/100:.2f} exceeds autonomy ceiling ${ceiling/100:.2f}")
+    if delegation == "autonomous":
+        return True, "verdict=approve, autonomy.delegation=autonomous — auto-execute"
 
-    # --- PRINCIPLES gate (ADR-254 D3) ---
-    if principles_policy:
-        threshold = principles_policy.get("auto_approve_below_cents")
-        if threshold is not None:
-            if estimated_cents is None:
-                return False, "principles.auto_approve_below_cents set but proposal has no estimated value"
-            if abs(estimated_cents) > threshold:
-                return (False, f"estimated ${abs(estimated_cents)/100:.2f} exceeds principles threshold ${threshold/100:.2f}")
+    # delegation == "bounded"
+    ceiling = autonomy_policy.get("ceiling_cents")
+    if ceiling is None or ceiling <= 0:
+        return False, "autonomy.delegation=bounded but no ceiling_cents set"
+    if estimated_cents is None:
+        return False, "proposal has no estimated value — cannot compare against ceiling"
+    if abs(estimated_cents) > ceiling:
+        return (
+            False,
+            f"estimated ${abs(estimated_cents)/100:.2f} exceeds autonomy ceiling ${ceiling/100:.2f}",
+        )
 
-    # Both gates passed
-    reason = (
-        f"verdict=approve, autonomy.level={level}"
-        + (f" ceiling=${ceiling/100:.2f}" if level == "bounded_autonomous" else "")
-        + ", principles gate passed"
+    return (
+        True,
+        f"verdict=approve, autonomy.delegation=bounded ceiling=${ceiling/100:.2f} — within ceiling",
     )
-    return (True, reason)
 
 
 # =============================================================================

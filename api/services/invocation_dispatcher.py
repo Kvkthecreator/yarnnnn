@@ -216,14 +216,10 @@ async def dispatch(
                 started_at=started_at, context=context,
             )
 
-        # ADR-253 D5: after any successful dispatch, check AUTONOMY.md heartbeat_triggers.
-        # If the completed recurrence slug matches a declared trigger, fire the Reviewer's
-        # heartbeat_turn() asynchronously (non-blocking — dispatch result is returned first).
-        import asyncio as _asyncio
-        _asyncio.create_task(
-            _maybe_fire_reviewer_heartbeat(client, user_id, decl.slug)
-        )
-
+        # ADR-260 D4: heartbeat trigger deleted. Mid-loop continuation is the natural
+        # shape of a real-time tool-use loop, not a separate trigger. Cron wake-ups are
+        # the `scheduled` trigger in `_TRIGGER_FRAMING`. Authored Substrate (ADR-209) is
+        # the cross-session continuity record.
         return result
     except Exception as exc:
         logger.exception(
@@ -1395,159 +1391,15 @@ __all__ = ["dispatch", "find_declaration_for_agent"]
 
 
 # ---------------------------------------------------------------------------
-# ADR-253 D5: Reviewer heartbeat — fires after substrate-change triggers
+# ADR-260 D4: heartbeat trigger DELETED.
+#
+# Previously: `_maybe_fire_reviewer_heartbeat` fired the Reviewer's
+# `heartbeat_turn()` after any recurrence completion that matched a slug in
+# `_autonomy.yaml::heartbeat_triggers`.
+#
+# This conflated mid-loop continuation (the natural shape of a real-time
+# tool-use loop) with cron wake-up (genuinely a Trigger per FOUNDATIONS
+# Axiom 4 Scheduled). Three triggers now: `addressed | reactive | scheduled`.
+# Mid-loop continuation is not a trigger — the Reviewer reads substrate
+# (per ADR-209 Authored Substrate revision chain) and acts within its loop.
 # ---------------------------------------------------------------------------
-
-async def _maybe_fire_reviewer_heartbeat(
-    client: Any,
-    user_id: str,
-    completed_slug: str,
-) -> None:
-    """Check _autonomy.yaml heartbeat_triggers after a recurrence completes.
-
-    ADR-254 fix: reads _autonomy.yaml (machine-parsed) not AUTONOMY.md (prose doc).
-    If the completed slug matches an `after:` trigger, fires heartbeat_turn().
-    Never raises — non-blocking, best-effort.
-
-    ADR-253 D5: the Reviewer wakes when substrate it cares about changes.
-    Signal-evaluation completes → Reviewer reads fresh output → decides:
-    propose/directive/stand-down.
-    """
-    try:
-        # ADR-254 fix: read _autonomy.yaml (machine-parsed) not AUTONOMY.md (prose doc).
-        # AUTONOMY.md has no heartbeat_triggers — it's prose-only post-ADR-254.
-        from services.review_policy import load_workspace_yaml
-        result = (
-            client.table("workspace_files")
-            .select("content")
-            .eq("user_id", user_id)
-            .eq("path", "/workspace/context/_shared/_autonomy.yaml")
-            .limit(1)
-            .execute()
-        )
-        if not result.data:
-            return
-        content = result.data[0].get("content") or ""
-        parsed = load_workspace_yaml(content)
-
-        # Extract after: triggers from heartbeat_triggers list
-        triggers: list[str] = []
-        raw_triggers = parsed.get("heartbeat_triggers") or []
-        for t in raw_triggers:
-            if isinstance(t, dict):
-                after = t.get("after")
-                if after:
-                    triggers.append(str(after))
-            elif isinstance(t, str) and t.startswith("after:"):
-                triggers.append(t.split("after:", 1)[1].strip())
-
-        if not triggers:
-            return
-
-        # Check if completed_slug matches any trigger
-        # Match on full slug or slug prefix, kebab/snake-case agnostic.
-        # AUTONOMY config commonly uses underscores ("signal_evaluation"); the
-        # actual recurrence slug uses hyphens ("signal-evaluation"). Normalise
-        # both sides to the same shape before comparing.
-        def _norm(s: str) -> str:
-            return s.replace("_", "-").lower().strip()
-
-        completed_norm = _norm(completed_slug)
-        triggers_norm = [_norm(t) for t in triggers]
-        matched = any(
-            completed_norm == t or completed_norm.startswith(t) or t.startswith(completed_norm)
-            for t in triggers_norm
-        )
-        if not matched:
-            logger.debug(
-                "[HEARTBEAT] no match — completed=%r triggers=%r",
-                completed_norm, triggers_norm,
-            )
-            return
-
-        logger.info(
-            "[HEARTBEAT] %s matches trigger → firing Reviewer heartbeat for user=%s",
-            completed_slug, user_id[:8],
-        )
-
-        from agents.reviewer_agent import invoke_reviewer, read_signal_files, REVIEWER_MODEL_IDENTITY
-        from services.reviewer_chat_surfacing import write_reviewer_message
-
-        # Pre-load heartbeat context: signal files + workspace state
-        signal_files = await read_signal_files(client, user_id)
-        workspace_state_text: str | None = None
-        try:
-            from services.working_memory import build_working_memory, format_compact_index
-            import asyncio
-            wm = await build_working_memory(user_id, client)
-            workspace_state_text = format_compact_index(wm)
-        except Exception:
-            pass
-
-        from services.workspace_paths import (
-            REVIEW_IDENTITY_PATH, REVIEW_PRINCIPLES_PATH,
-            SHARED_MANDATE_PATH, SHARED_AUTONOMY_PATH,
-        )
-
-        async def _read(path: str) -> str:
-            full = f"/workspace/{path}"
-            try:
-                res = (
-                    client.table("workspace_files")
-                    .select("content")
-                    .eq("user_id", user_id)
-                    .eq("path", full)
-                    .limit(1)
-                    .execute()
-                )
-                return (res.data or [{}])[0].get("content") or ""
-            except Exception:
-                return ""
-
-        import asyncio as _asyncio
-        identity_md, principles_md, mandate_md, autonomy_md = await _asyncio.gather(
-            _read(REVIEW_IDENTITY_PATH),
-            _read(REVIEW_PRINCIPLES_PATH),
-            _read(SHARED_MANDATE_PATH),
-            _read(SHARED_AUTONOMY_PATH),
-        )
-
-        output = await invoke_reviewer(
-            client, user_id,
-            trigger="heartbeat",
-            context={
-                "identity_md": identity_md,
-                "principles_md": principles_md,
-                "mandate_md": mandate_md,
-                "autonomy_md": autonomy_md,
-                "trigger_slug": completed_slug,
-                "signal_files": signal_files,
-                "workspace_state": workspace_state_text or "",
-            },
-        )
-        if output and output.get("reasoning"):
-            await write_reviewer_message(
-                client, user_id,
-                content=output["reasoning"],
-                verdict="heartbeat",
-                occupant=REVIEWER_MODEL_IDENTITY,
-            )
-            # ADR-258 (revised): per-action System Agent narration for each
-            # consequential Reviewer action. Same shape as addressed trigger
-            # in chat.py — operator sees Reviewer voice + System Agent
-            # execution narration, regardless of which trigger fired.
-            from services.reviewer_chat_surfacing import surface_reviewer_actions
-            await surface_reviewer_actions(
-                client, user_id,
-                actions_taken=output.get("actions_taken") or [],
-            )
-            logger.info(
-                "[HEARTBEAT] Reviewer heartbeat response surfaced for user=%s trigger=%s",
-                user_id[:8], completed_slug,
-            )
-
-    except Exception as exc:
-        logger.warning(
-            "[HEARTBEAT] _maybe_fire_reviewer_heartbeat failed user=%s slug=%s: %s",
-            user_id[:8], completed_slug, exc,
-        )

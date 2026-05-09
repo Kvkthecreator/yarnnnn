@@ -438,10 +438,10 @@ def _extract_autonomy_pause(autonomy_content: Optional[str]) -> dict:
 
 
 def _extract_autonomy_signal(autonomy_content: Optional[str]) -> Optional[str]:
-    """Extract one actionable line from _autonomy.yaml content (ADR-254).
+    """Extract one actionable line from _autonomy.yaml content (ADR-261 D5).
 
-    Returns a display string like "bounded_autonomous · $200 ceiling" or
-    "autonomous". None if absent or unparseable.
+    Returns a display string like "bounded · $200 ceiling" or "autonomous".
+    None if absent or unparseable.
     """
     if not autonomy_content or len(autonomy_content.strip()) < 10:
         return None
@@ -451,13 +451,13 @@ def _extract_autonomy_signal(autonomy_content: Optional[str]) -> Optional[str]:
         default = parsed.get("default") or {}
         if not isinstance(default, dict):
             return None
-        level = default.get("level")
-        if not level:
+        delegation = default.get("delegation")
+        if not delegation:
             return None
         ceiling = default.get("ceiling_cents")
-        if ceiling and level == "bounded_autonomous":
-            return f"{level} · ${int(ceiling) // 100:,} ceiling"
-        return level
+        if ceiling and delegation == "bounded":
+            return f"{delegation} · ${int(ceiling) // 100:,} ceiling"
+        return delegation
     except Exception:
         return None
 
@@ -1524,7 +1524,7 @@ def format_compact_index(
     # recent.md file itself is preserved as readable substrate for on-demand detail.
     loop_events = working_memory.get("loop_events") or []
     if loop_events:
-        autonomy_level = ws.get("autonomy_level")  # e.g. "autonomous", "bounded_autonomous · $2K ceiling"
+        autonomy_level = ws.get("autonomy_level")  # e.g. "autonomous", "bounded · $2K ceiling" (ADR-261 D5)
         role_labels = {
             "reviewer": "Reviewer",
             "agent": "Agent",
