@@ -38,6 +38,7 @@ from .fire_invocation import FIRE_INVOCATION_TOOL, handle_fire_invocation
 from .infer_context import INFER_CONTEXT_TOOL, handle_infer_context
 from .infer_workspace import INFER_WORKSPACE_TOOL, handle_infer_workspace
 from .schedule import SCHEDULE_TOOL, handle_schedule  # ADR-261 §3 — renamed from ManageRecurrence
+from .compose import COMPOSE_TOOL, handle_compose  # ADR-262 D4 — callable primitive wrapping render engine
 from .scaffold import MANAGE_DOMAINS_TOOL, handle_manage_domains
 from .workspace import (
     READ_FILE_TOOL, handle_read_file,
@@ -234,8 +235,12 @@ CHAT_PRIMITIVES = [
     SCHEDULE_TOOL,
     # ADR-231 D5: FireInvocation — manual fire of a recurrence declaration.
     # Replaces ManageTask(action="trigger"). All other lifecycle actions
-    # (create/update/pause/resume/archive) flow through ManageRecurrence.
+    # (create/update/pause/resume/archive) flow through Schedule.
     FIRE_INVOCATION_TOOL,
+    # ADR-262 D4: Compose — callable primitive wrapping render engine.
+    # Operator/Reviewer/specialist may direct mid-session composition.
+    # Also runs as opt-out structural default at session-close (separate hook).
+    COMPOSE_TOOL,
     # Repurpose (ADR-148 Phase 4)
     REPURPOSE_OUTPUT_TOOL,
     # Asset rendering (1) — Gemini image gen, charts, mermaid diagrams
@@ -279,6 +284,8 @@ HEADLESS_PRIMITIVES = [
     SCHEDULE_TOOL,
     # ADR-231 D5: FireInvocation — recurrence-aware dispatch.
     FIRE_INVOCATION_TOOL,
+    # ADR-262 D4: Compose — specialists may compose mid-session for handoff.
+    COMPOSE_TOOL,
     MANAGE_DOMAINS_TOOL,
     # Asset rendering — writes to task output folder when task_slug set on auth
     RUNTIME_DISPATCH_TOOL,
@@ -350,9 +357,11 @@ REVIEWER_PRIMITIVES = [
     PROPOSE_ACTION_TOOL,
     # Self-scheduling (ADR-261 D4) — Reviewer authors its own future wake-ups
     SCHEDULE_TOOL,
+    # Composition (ADR-262 D4) — Reviewer may direct mid-session composition
+    COMPOSE_TOOL,
     # Conversation
     CLARIFY_TOOL,
-]  # 18 tools (ADR-261 D4 added Schedule to the prior 17) — curated subset of CHAT_PRIMITIVES per human-supervisor analogue
+]  # 19 tools (ADR-261 D4 added Schedule + ADR-262 D4 added Compose to the prior 17) — curated subset of CHAT_PRIMITIVES per human-supervisor analogue
 
 
 # =============================================================================
@@ -382,6 +391,8 @@ HANDLERS: dict[str, Callable] = {
     "InferWorkspace": handle_infer_workspace,
     # ADR-235 D1.c: Lifecycle management for recurrence declarations
     "Schedule": handle_schedule,
+    # ADR-262 D4: Compose — callable primitive wrapping render engine
+    "Compose": handle_compose,
     "ManageDomains": handle_manage_domains,
     # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
     "ReadFile": handle_read_file,
