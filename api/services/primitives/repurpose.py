@@ -109,21 +109,12 @@ async def handle_repurpose_output(auth: Any, input: dict) -> dict:
     user_id = auth.user_id
     client = auth.client
 
-    # ADR-231 Phase 3.6.b: read output substrate from natural-home path.
-    # DELIVERABLE-shape outputs land at /workspace/reports/{slug}/{date}/output.md.
-    from services.recurrence_paths import resolve_paths_for_slug
+    # ADR-262 D1: report outputs land at slug-templated path
+    # /workspace/reports/{slug}/{date}/output.md.
+    from services.conventions import report_root
     from services.workspace import UserMemory
 
-    paths = resolve_paths_for_slug(client, user_id, task_slug)
-    if paths is None or paths.output_folder is None:
-        return {
-            "success": False,
-            "error": "no_declaration",
-            "message": f"No DELIVERABLE declaration for slug '{task_slug}'",
-        }
-
-    # The output_folder template carries {date}; substrate root is its parent
-    substrate_root = paths.substrate_root  # e.g., /workspace/reports/{slug}
+    substrate_root = report_root(task_slug)
 
     if not output_date:
         # Find the latest dated subdir under substrate_root

@@ -40,10 +40,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-# Default window for the "counts" buckets. Spec D7 doesn't pin a
-# value — this matches the digest task's window (services.back_office.
-# narrative_digest.DIGEST_WINDOW_HOURS) so the cockpit headlines and
-# the daily digest agree on what "recent" means. Frontend can override
+# Default window for the "counts" buckets. Spec D7 doesn't pin a value —
+# 24h matches the natural cockpit-headline cadence. Frontend can override
 # via ?window_hours=N if a future surface needs a different scope.
 DEFAULT_WINDOW_HOURS = 24
 

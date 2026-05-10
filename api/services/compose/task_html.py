@@ -44,21 +44,13 @@ async def compose_task_output_html(
     Returns None if no substrate exists (task never ran) or compose failed.
     Caller decides how to handle None (404, fallback, etc.).
     """
-    # ADR-231 Phase 3.6.b: read natural-home substrate via UserMemory.
-    # DELIVERABLE shape outputs land at /workspace/reports/{slug}/{date}/.
-    # Resolve the substrate-root via the declaration walker, then read
-    # output.md / sys_manifest.json / sections/ from there.
+    # ADR-262 D1: report outputs land at the slug-templated path
+    # /workspace/reports/{slug}/{date}/. We do not validate that a recurrence
+    # exists for the slug — composition reads what's actually on disk.
+    from services.conventions import report_root
     from services.workspace import UserMemory
-    from services.recurrence_paths import resolve_paths_for_slug
 
-    paths = resolve_paths_for_slug(client, user_id, task_slug)
-    if paths is None:
-        return None  # No declaration for this slug
-    # output_folder template carries {date} placeholder; substitute the
-    # date_folder argument so we read the specific dated firing.
-    if not paths.output_folder:
-        return None  # Non-deliverable shapes have no output folder
-    folder_abs = paths.output_folder.replace("{date}", date_folder)
+    folder_abs = f"{report_root(task_slug)}/{date_folder}"
 
     um = UserMemory(client, user_id)
 

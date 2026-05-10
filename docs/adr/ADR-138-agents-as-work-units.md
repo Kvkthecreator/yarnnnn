@@ -1,5 +1,7 @@
 # ADR-138: Workspace → Agents → Tasks — Project Layer Collapse
 
+> **⚠ Further superseded by [ADR-261](ADR-261-recurrences-as-prompts.md) (2026-05-08).** Recurrence-declaration shape itself collapses — recurrences are now `{slug, schedule, prompt}` with one execution path. The "tasks-as-work-units" framing finishes its dissolution; the legibility-wrapper concept survives, attached to recurrences in `/workspace/_recurrences.yaml`.
+
 > **⚠ Superseded by [ADR-231](ADR-231-task-abstraction-sunset.md) (2026-04-29).** Tasks-as-work-units framing dissolves. Agents survive as Identity layer per FOUNDATIONS Axiom 2 + Axiom 9; work units dissolve into invocations. The Workspace → Agents → Tasks hierarchy collapses to Workspace → Agents → Recurrence Declarations (YAML legibility wrappers at natural-home paths) → Invocations. The `tasks` DB table survives as a thin scheduling index per ADR-231 D4 Path B; the `/tasks/{slug}/` filesystem tree, `task_pipeline.py` dispatch path, and `ManageTask` primitive are all DELETED in ADR-231 Phase 3.7.
 >
 > **Status**: Proposed (v3.1 — filesystem-first, no join tables)

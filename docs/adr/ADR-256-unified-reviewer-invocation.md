@@ -1,5 +1,7 @@
 # ADR-256: Unified Reviewer Invocation
 
+> **⚠ Four-trigger taxonomy superseded by [ADR-260](ADR-260-real-time-reviewer-loop.md) (2026-05-08).** ADR-256 unified four functions into one `invoke_reviewer(trigger, context)` entry point, but kept the four-trigger taxonomy (`proposal | reflection | heartbeat | addressed`) as context-shape selectors. ADR-260 collapses this to three triggers (`addressed | reactive | scheduled`): `proposal` becomes `reactive`; `reflection` collapses into `scheduled` (it's a particular cron-poke shape whose prompt asks the Reviewer to reflect); `heartbeat` is deleted entirely (it conflated mid-loop continuation — the natural shape of a real-time tool-use loop, not a trigger — with cron wake-up). The single `invoke_reviewer` entry point survives. The bounded tool-use loop survives (round bound updated per ADR-260 D8). The `ReviewerOutput` verdict enum surface is unchanged.
+
 **Status**: Implemented 2026-05-08  
 **Supersedes**: ADR-218 (reflection mode), ADR-252 (addressed mode / action_instruction), ADR-253 D2 (directives-as-string)  
 **Amends**: ADR-229 (verdict routing — callers updated), ADR-248 (heartbeat — caller updated), ADR-253 D1/D3/D5 (execution authority, lifecycle, heartbeat — preserved, caller unified)

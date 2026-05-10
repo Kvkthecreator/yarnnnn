@@ -116,29 +116,31 @@ async def should_send_email(supabase_client, user_id: str, notification_type: st
 
 
 async def dispatch_due_invocations(supabase_client) -> tuple[int, int, int]:
-    """Find due recurrence declarations and dispatch each one.
+    """Find due recurrences and dispatch each one.
 
-    Per ADR-231 Phase 3.3, this replaces the old slug-keyed `tasks` table
-    delegation to `task_pipeline.execute_task`. The new flow:
+    Per ADR-261 D3, this walks ``/workspace/_recurrences.yaml`` for each
+    user with due rows and dispatches via ``invocation_dispatcher.dispatch``.
 
-      1. `get_due_declarations` queries the thin `tasks` index for due rows
-         AND re-parses the YAML at declaration_path for each.
-      2. For each due (user_id, decl) pair: CAS claim against the index,
-         then `invocation_dispatcher.dispatch(decl)` does the work.
-      3. Post-dispatch, `record_task_run` writes last_run_at + recomputed
-         next_run_at into the index.
+      1. ``get_due_recurrences`` queries the thin `tasks` index for due
+         rows AND re-reads each user's _recurrences.yaml.
+      2. For each due (user_id, recurrence) pair: CAS claim against the
+         index, then ``dispatch(supabase, user_id, recurrence,
+         trigger="scheduled")`` invokes the Reviewer with the recurrence's
+         prompt as the addressed-equivalent envelope (per ADR-260 D1).
+      3. Post-dispatch, ``record_task_run`` writes last_run_at +
+         recomputed next_run_at into the index.
 
     Returns (found, succeeded, failed).
     """
     from services.scheduling import (
         claim_task_run,
-        get_due_declarations,
+        get_due_recurrences,
         record_task_run,
     )
     from services.invocation_dispatcher import dispatch
 
     now = datetime.now(timezone.utc)
-    pairs = await get_due_declarations(supabase_client, now=now)
+    pairs = await get_due_recurrences(supabase_client, now=now)
     found = len(pairs)
     if found == 0:
         return 0, 0, 0
@@ -146,146 +148,93 @@ async def dispatch_due_invocations(supabase_client) -> tuple[int, int, int]:
     succeeded = 0
     failed = 0
 
-    for user_id, decl in pairs:
-        # CAS claim — read the row's current next_run_at, atomically bump it
-        # to a sentinel +2h. Concurrent scheduler instances see the bumped
-        # row and skip.
+    for user_id, recurrence in pairs:
+        # CAS claim — read current next_run_at, atomically bump to +2h
+        # sentinel. Concurrent scheduler instances skip the bumped row.
         try:
             row = (
                 supabase_client.table("tasks")
                 .select("next_run_at")
                 .eq("user_id", user_id)
-                .eq("slug", decl.slug)
+                .eq("slug", recurrence.slug)
                 .limit(1)
                 .execute()
             )
             original_next_run = (
-                row.data[0]["next_run_at"]
-                if row.data
-                else None
+                row.data[0]["next_run_at"] if row.data else None
             )
         except Exception as e:
             logger.warning(
                 "[SCHED] could not read baseline next_run_at for %s/%s: %s",
-                user_id[:8], decl.slug, e,
+                user_id[:8], recurrence.slug, e,
             )
             failed += 1
             continue
 
-        if not claim_task_run(supabase_client, user_id, decl.slug, original_next_run):
+        if not claim_task_run(
+            supabase_client, user_id, recurrence.slug, original_next_run
+        ):
             logger.info(
                 "[SCHED] %s/%s already claimed by another instance; skipping",
-                user_id[:8], decl.slug,
+                user_id[:8], recurrence.slug,
             )
             continue
 
-        # Dispatch
         try:
-            result = await dispatch(supabase_client, user_id, decl)
+            result = await dispatch(
+                supabase_client, user_id, recurrence, trigger="scheduled"
+            )
             if result.get("success"):
                 succeeded += 1
-                logger.info("[SCHED] ✓ %s/%s: %s", user_id[:8], decl.slug, result.get("message", "ok"))
+                logger.info(
+                    "[SCHED] ✓ %s/%s: %s",
+                    user_id[:8], recurrence.slug,
+                    result.get("message", "ok"),
+                )
             else:
                 failed += 1
-                logger.warning("[SCHED] ✗ %s/%s: %s", user_id[:8], decl.slug, result.get("message", "?"))
+                logger.warning(
+                    "[SCHED] ✗ %s/%s: %s",
+                    user_id[:8], recurrence.slug,
+                    result.get("message", "?"),
+                )
         except Exception as e:
             failed += 1
-            logger.exception("[SCHED] dispatch raised for %s/%s: %s", user_id[:8], decl.slug, e)
+            logger.exception(
+                "[SCHED] dispatch raised for %s/%s: %s",
+                user_id[:8], recurrence.slug, e,
+            )
         finally:
-            # Always advance next_run_at — clears the +2h sentinel even on failure,
-            # so on-demand/reactive declarations don't get stuck.
+            # Always advance next_run_at — clears the sentinel even on
+            # failure so reactive recurrences don't get stuck.
             try:
                 record_task_run(
-                    supabase_client, user_id, decl,
+                    supabase_client, user_id, recurrence,
                     last_run_at=datetime.now(timezone.utc),
                 )
             except Exception as e:
                 logger.warning(
                     "[SCHED] record_task_run failed for %s/%s: %s",
-                    user_id[:8], decl.slug, e,
+                    user_id[:8], recurrence.slug, e,
                 )
 
     return found, succeeded, failed
 
 
 # ---------------------------------------------------------------------------
+# ADR-260 D4: cron-heartbeat walker DELETED.
+#
+# Previously: `_fire_cron_heartbeats` walked active users' `_autonomy.yaml`
+# `heartbeat_triggers::cron:` entries and fired the Reviewer's heartbeat_turn
+# asynchronously when due. This was the second leg of ADR-253 D5 (cron-fired
+# heartbeats; the first leg fired heartbeats after substrate-change events
+# via `_maybe_fire_reviewer_heartbeat`).
+#
+# Both legs collapse under ADR-260 D2's three-trigger model: cron wake-ups
+# now fire the `scheduled` trigger via the recurrence walker
+# (`dispatch_due_invocations`); substrate-change continuation is the natural
+# shape of the Reviewer's real-time tool-use loop, not a separate trigger.
 # ---------------------------------------------------------------------------
-# ADR-255 D1: cron-based Reviewer heartbeat
-# ---------------------------------------------------------------------------
-
-async def _fire_cron_heartbeats(supabase_client, active_user_ids: list, now) -> None:
-    """Check _autonomy.yaml heartbeat_triggers for cron: entries that are due.
-
-    ADR-255 D1: implements the cron: trigger type declared in _autonomy.yaml.
-    Previously only `after:` triggers were evaluated (ADR-253 D5).
-
-    For each active user, reads /workspace/context/_shared/_autonomy.yaml,
-    extracts `cron:` entries from heartbeat_triggers, checks if due since the
-    last scheduler run (5 min ago), and fires heartbeat_turn() if matched.
-
-    Uses croniter for cron expression evaluation (same library as scheduling.py).
-    """
-    from datetime import timedelta
-    try:
-        import yaml as _yaml
-        from croniter import croniter
-    except ImportError:
-        logger.warning("[CRON_HB] croniter not available — skipping cron heartbeats")
-        return
-
-    five_min_ago = now - timedelta(minutes=6)  # small buffer for scheduler jitter
-
-    for user_id in active_user_ids:
-        try:
-            result = (
-                supabase_client.table("workspace_files")
-                .select("content")
-                .eq("user_id", user_id)
-                .eq("path", "/workspace/context/_shared/_autonomy.yaml")
-                .limit(1)
-                .execute()
-            )
-            if not result.data:
-                continue
-            content = result.data[0].get("content") or ""
-
-            # Strip frontmatter and parse
-            import re as _re
-            cleaned = _re.sub(r"^---\n.*?\n---\n", "", content, flags=_re.DOTALL)
-            parsed = _yaml.safe_load(cleaned) or {}
-
-            triggers = parsed.get("heartbeat_triggers") or []
-            for trigger in triggers:
-                if not isinstance(trigger, dict):
-                    continue
-                cron_expr = trigger.get("cron")
-                if not cron_expr:
-                    continue
-
-                try:
-                    cron = croniter(cron_expr, five_min_ago)
-                    next_fire = cron.get_next(type(now))
-                    if next_fire <= now:
-                        logger.info(
-                            "[CRON_HB] cron trigger due for user=%s expr=%r",
-                            user_id[:8], cron_expr,
-                        )
-                        # Fire asynchronously — non-blocking, best-effort
-                        import asyncio as _asyncio
-                        from services.invocation_dispatcher import _maybe_fire_reviewer_heartbeat
-                        _asyncio.create_task(
-                            _maybe_fire_reviewer_heartbeat(
-                                supabase_client, user_id, f"cron:{cron_expr}"
-                            )
-                        )
-                except Exception as _cron_exc:
-                    logger.warning(
-                        "[CRON_HB] cron expr %r failed for user=%s: %s",
-                        cron_expr, user_id[:8], _cron_exc,
-                    )
-
-        except Exception as _user_exc:
-            logger.warning("[CRON_HB] user=%s failed: %s", user_id[:8], _user_exc)
 
 
 # Main entry point
@@ -352,15 +301,9 @@ async def run_unified_scheduler():
         logger.info("[SCHED] no due declarations")
 
     # -------------------------------------------------------------------------
-    # ADR-255 D1: cron-based Reviewer heartbeat triggers
-    # Evaluates `cron:` entries in _autonomy.yaml heartbeat_triggers for each
-    # active user. Fires heartbeat_turn() asynchronously when due.
-    # -------------------------------------------------------------------------
-    try:
-        await _fire_cron_heartbeats(supabase, active_user_ids, now)
-    except Exception as _cron_hb_exc:
-        logger.warning("[SCHED] cron heartbeat check failed: %s", _cron_hb_exc)
-
+    # ADR-260 D4: cron-heartbeat walker deleted. Cron wake-ups fire the
+    # `scheduled` trigger via the recurrence walker above
+    # (`dispatch_due_invocations`). No second cron use.
     # -------------------------------------------------------------------------
     # Hourly: scheduler_heartbeat (ADR-072)
     # -------------------------------------------------------------------------

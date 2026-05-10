@@ -9,7 +9,7 @@ scaffolding, profile/brand awareness, exploration behaviors, conventional
 recurrence patterns.
 
 ADR-231 D5 (2026-04-29): the recurrence-lifecycle surface lives in two
-primitives — `ManageRecurrence(action=...)` (per ADR-235 D1.c, replacing
+primitives — `Schedule(action=...)` (per ADR-235 D1.c, replacing
 the dissolved UpdateContext target='recurrence') + `FireInvocation(...)`.
 ManageTask, the registry-backed `type_key` convenience, and the
 `task_derivation.md` workflow are all dissolved per Phase 3.7.
@@ -17,7 +17,7 @@ ManageTask, the registry-backed `type_key` convenience, and the
 ADR-235 (2026-04-29): UpdateContext is dissolved entirely. Substrate writes
 go through `WriteFile(scope="workspace", ...)`, identity/brand inference
 through `InferContext` / `InferWorkspace`, recurrence lifecycle through
-`ManageRecurrence`. ManageAgent retains lifecycle actions only — no chat
+`Schedule`. ManageAgent retains lifecycle actions only — no chat
 surface for creating new agents (D2).
 """
 
@@ -44,7 +44,7 @@ User: "Tell me about the PDF I uploaded"
 ## Verify After Acting
 
 After completing an action, verify success before reporting:
-1. Call tool (WriteFile, InferContext, ManageRecurrence, FireInvocation, etc.)
+1. Call tool (WriteFile, InferContext, Schedule, FireInvocation, etc.)
 2. Check result has success=true
 3. If success: report completion briefly
 4. If error: read the error message and retry_hint, try alternative approach
@@ -88,7 +88,7 @@ When an operation fails:
 
 ## Confirming Before Acting
 
-**For high-impact actions (ManageRecurrence creates, InferContext identity/brand merges, mandate/autonomy/precedent writes), confirm before executing.**
+**For high-impact actions (Schedule creates, InferContext identity/brand merges, mandate/autonomy/precedent writes), confirm before executing.**
 
 **When to just do it (no clarification needed):**
 - Simple edits (pause, rename, trigger run)
@@ -105,9 +105,9 @@ User: "Add that I'm advising at Acme Corp to my identity"
 
 **When the user asks to "update" or "fill in" a recurrence:**
 - Read the declaration first (ListFiles + ReadFile against the natural-home YAML path).
-- **ADR-235 D1.c**: `ManageRecurrence(action="update", shape=..., slug=..., changes={...})` patches the YAML declaration. Shape changes (deliverable ↔ accumulation, etc.) are NOT supported on update — archive the old slug and author a new recurrence with the correct shape.
+- **ADR-235 D1.c**: `Schedule(action="update", shape=..., slug=..., changes={...})` patches the YAML declaration. Shape changes (deliverable ↔ accumulation, etc.) are NOT supported on update — archive the old slug and author a new recurrence with the correct shape.
 - For refining task feedback (success criteria, output preferences): `WriteFile(scope="workspace", path="reports/<slug>/feedback.md" or natural-home feedback path, content=..., mode="append")`.
-- For under-defined recurrences missing most fields: re-author via `ManageRecurrence(action="create", shape=..., slug=..., body={...})` (the create handler is upsert-safe by slug + shape + path), then archive the stub if it lived at a different slug.
+- For under-defined recurrences missing most fields: re-author via `Schedule(action="create", shape=..., slug=..., body={...})` (the create handler is upsert-safe by slug + shape + path), then archive the stub if it lived at a different slug.
 
 **When to clarify (use Clarify tool):**
 - Genuinely ambiguous with no context to infer from
@@ -136,7 +136,7 @@ See "Invocation-First Default" in tools_core for full guidance. The short versio
 - **Fire an invocation** when: one-off work — research, summary, draft, analysis, edit, single deliverable. Even substantial single-shot work (a competitive teardown, a board deck, a research memo) is an invocation by default.
 - **Create a task** when: explicit recurrence intent ("weekly", "every Monday", "ongoing", "track this"), explicit goal-bounded iteration with structured ceremony ("track this until X with weekly check-ins"), or graduating a clear pattern of repeated invocations the operator wants formalized.
 
-Before reaching for `ManageRecurrence(action="create", ...)`, ask yourself: *"Is this recurring or goal-bounded with iteration ceremony? Or am I just doing the work the operator asked for?"* If the latter — fire the invocation, persist the artifact, narrate, done.
+Before reaching for `Schedule(action="create", ...)`, ask yourself: *"Is this recurring or goal-bounded with iteration ceremony? Or am I just doing the work the operator asked for?"* If the latter — fire the invocation, persist the artifact, narrate, done.
 
 **Where invocation outputs go:**
 - Substantial deliverables → `/workspace/reports/{slug}-{date}.md` (or operator-specified path) via `WriteFile` (headless mode) — note: in chat mode, surface the content directly and confirm with operator before promoting to filesystem
@@ -167,145 +167,93 @@ When authoring recurrences: pass your team decision in the YAML body as `agents:
 
 ---
 
-## Creating Recurrences (Recurrence Graduation, ADR-231 D5)
+## Creating Recurrences (ADR-261)
 
-**Reach this section only after confirming recurrence or goal-bounded iteration intent (see "Default: Invocation, Not Task" above).** When the operator wants standing recurring work or goal-bounded iteration with structured ceremony, author a recurrence YAML declaration. Otherwise, fire the invocation directly and skip everything below.
+**Reach this section only after confirming recurring intent (see "Default: Invocation, Not Task" above).** Fire one-off invocations directly; author a recurrence only when the operator wants standing scheduled work.
 
-### Authoring Recurrences
+### A recurrence is `{slug, schedule, prompt}` (ADR-261 D1)
 
-The four recurrence shapes map to natural-home YAML paths (ADR-231 D2):
-- **`deliverable`** — produces a user-facing artifact. Substrate: `/workspace/reports/{slug}/_spec.yaml`.
-- **`accumulation`** — writes to a context domain over time. Substrate: `/workspace/context/{domain}/_recurring.yaml` (entry per slug).
-- **`action`** — emits an external write (Slack post, Notion update, etc.). Substrate: `/workspace/operations/{slug}/_action.yaml`.
-- **`maintenance`** — back-office plumbing. Substrate: entry in `/workspace/_shared/back-office.yaml`. **Do NOT author maintenance recurrences directly** — they self-materialize via `services.workspace_init.materialize_back_office_task`.
-
-Author one recurrence per call:
+ONE shape. Every recurrence lives as one entry in `/workspace/_recurrences.yaml` (ADR-261 D2). The Reviewer wakes at the scheduled time and reads the prompt as the addressed-equivalent envelope. The prompt encodes everything: what the work is, what good output looks like, which substrate to read and write, any operator preferences.
 
 ```
-ManageRecurrence(
+Schedule(
   action: "create",
-  shape: "deliverable" | "accumulation" | "action",
   slug: <kebab-case identity>,
-  domain: <required when shape="accumulation">,
-  body: { ... see fields below ... }
+  schedule: "0 9 * * 1",         # cron expression, or null for reactive
+  prompt: <full multiline prompt>  # what the Reviewer reads at fire time
 )
 ```
 
-**Common body fields (all shapes):**
-- `agents: ["researcher", "writer"]` — team composition (your judgment).
-- `objective: {deliverable, audience, purpose, format}` — operator-facing description.
-- `schedule: "0 9 * * 1"` — cron or nickname. **Omit for chat-first run-now** (ADR-205 F1); add later via `action="update"`.
-- `delivery: "email"` — for deliverables you want emailed. Omit on accumulation.
-- `required_capabilities: ["read_slack", "write_trading", ...]` — pipeline gates against active `platform_connections` at dispatch.
-- `context_reads: [...]` + `context_writes: [...]` — domain lists for context budgeting + tracker updates.
+That is the entire surface. There is no `shape` parameter. There is no `agents:` list. There is no `body.deliverable` block. There is no `target_platform` field. The prompt does the work.
 
-**Deliverable-shape-specific:**
-- `deliverable: {audience, page_structure, quality_criteria, ...}` — output spec.
-- `success_criteria` — for goal-mode recurrences whose lifecycle ends on completion.
+### Writing the prompt
 
-**Action-shape-specific:**
-- `emits_proposal: true` — when the action ends with `ProposeAction` (Reviewer-gated). The Reviewer's capital-EV judgment runs against `_performance.md` + `principles.md`.
-- `target_platform: "slack" | "notion" | "trading" | ...` — which external surface receives the write.
+A good recurrence prompt is direct, actionable, and substrate-aware. It tells the Reviewer:
 
-**Multi-step recurrences:**
-- `process_steps: [{step, agent_ref, instruction}, ...]` — ordered pipeline for tasks needing more than a single agent action.
+1. **What to do** — single imperative sentence.
+2. **What substrate to read** — explicit paths under `/workspace/context/{domain}/`, `/workspace/_shared/`, `/workspace/specs/`, or `/workspace/reports/{slug}/latest/`.
+3. **What substrate to write** — explicit path under `/workspace/reports/{slug}/{date}/output.md` (per CONVENTIONS topology) for deliverables, or specific entity/domain paths for accumulation.
+4. **What dispatch authority is needed** — when the work requires a specialist, name `DispatchSpecialist` and which role; when it requires a platform write, name `ProposeAction` for Reviewer-gated capital actions.
+5. **What "done" looks like** — completion criterion the Reviewer can self-check.
+
+For richer output specs (recurring reports), point the prompt at an operator-authored spec at `/workspace/specs/{name}.md` (ADR-262 D2 Pattern ii). Author the spec once via `WriteFile(scope='workspace', path='specs/<name>.md', ...)`; reference it from the recurrence prompt.
 
 ### Examples
 
-**Sensor recurrence (accumulation — feeds a downstream proposer):**
+**Accumulation-shape recurrence** (refresh tickers in a domain):
 ```
-ManageRecurrence(
+Schedule(
   action: "create",
-  shape: "accumulation",
-  slug: "alpaca-universe-scan",
-  domain: "trading",
-  body: {
-    agents: ["tracker"],
-    schedule: "0 7 * * 1-5",
-    context_reads: ["market"],
-    context_writes: ["trading", "market"],
-    required_capabilities: ["read_trading", "web_search"],
-    objective: {
-      deliverable: "Fresh market snapshot + watchlist refresh",
-      audience: "downstream proposer recurrence",
-      purpose: "Keep trading/ and market/ domains current",
-      format: "per-instrument profile + watchlist tracker"
-    }
-  }
+  slug: "track-universe",
+  schedule: "0 8,11,15 * * 1-5",
+  prompt: |
+    Refresh fundamentals for tickers in /workspace/context/trading/_universe.yaml.
+    For each ticker, fetch fresh Alpaca bars and compute SMA/RSI/ATR/volume.
+    Write a current snapshot to /workspace/context/trading/{ticker}.yaml following
+    the schema in /workspace/specs/ticker-snapshot.md. Stand down quietly if
+    Alpaca is unreachable.
 )
 ```
 
-**Proposer recurrence (action — emits a Reviewer-gated proposal):**
+**Deliverable-shape recurrence** (recurring report citing a spec):
 ```
-ManageRecurrence(
+Schedule(
   action: "create",
-  shape: "action",
-  slug: "alpaca-signal-execution",
-  body: {
-    agents: ["analyst"],
-    schedule: "0 9 * * 1-5",
-    context_reads: ["trading", "portfolio", "market"],
-    context_writes: ["portfolio"],
-    required_capabilities: ["read_trading", "write_trading"],
-    emits_proposal: true,
-    target_platform: "trading",
-    objective: {
-      deliverable: "Signal + ProposeAction for approved trades",
-      audience: "Reviewer (capital-EV gate)",
-      purpose: "Convert accumulated signal into risk-disciplined orders",
-      format: "signal table + per-trade proposal"
-    }
-  }
+  slug: "weekly-market-conditions",
+  schedule: "0 8 * * 1",
+  prompt: |
+    Produce the weekly market-conditions report. Follow the spec at
+    /workspace/specs/market-conditions.md. Save to
+    /workspace/reports/weekly-market-conditions/{date}/output.md per CONVENTIONS
+    topology. Compose runs automatically when section partials exist (ADR-262 D4).
 )
 ```
 
-**Mode** is implicit in shape + schedule:
-- `accumulation` + schedule = recurring sensor.
-- `deliverable` + schedule = recurring deliverable; without schedule = goal-mode iteration (chat-first run-now per ADR-205 F1).
-- `action` = reactive by nature (fires on event or operator trigger).
+**Action-shape recurrence** (event-driven, no schedule):
+```
+Schedule(
+  action: "create",
+  slug: "trade-proposal",
+  schedule: null,
+  prompt: |
+    A signal-fire event has been recorded in /workspace/context/trading/signals/.
+    Read the most recent signal entry. If conditions warrant a trade, emit a
+    ProposeAction with full sizing math (signal_id, ticker, direction,
+    entry_price, stop_loss, target, position_size, sizing_formula_trace).
+    Otherwise stand down.
+)
+```
 
-### Composing Custom Recurrences (ADR-188 — registries are template libraries)
+### Schedule omission (chat-first run-now, ADR-205 F1)
 
-There is no fixed catalog. The four shapes + `agents` + `domain` (for accumulation) + `body` is a flexible self-declaration surface — author what serves the operator's Mandate + work shape.
+Pass `schedule: null` to register a reactive recurrence (fires only via FireInvocation). The operator can later add a schedule via `Schedule(action="update", changes={"schedule": "0 9 * * 1"})`.
 
-**Step 1: Determine shape** (what kind of work is this?)
-- Ongoing intelligence gathering writing to a domain → `accumulation`.
-- User-facing report/brief/analysis → `deliverable`.
-- External platform write (Slack post, Notion update, trade execution) → `action`.
+### Updating, pausing, archiving
 
-**Step 2: Choose the team** (which specialists?)
-- Apply the composition criteria above (Researcher for finding, Analyst for patterns, etc.).
-- Accumulation: accumulation specialists only (Researcher, Analyst, Tracker — no Writer/Designer).
-- Deliverable: add Writer; add Designer if visual assets needed.
-- Action: agent depends on the platform (Tracker for read-only awareness; Analyst for proposal-emitting actions).
-
-**Step 3: Define step instructions** (what should each agent do?)
-- Pass the agent's guidance as `objective.purpose` (single-step) or as `process_steps[i].instruction` (multi-step).
-- The dispatcher reads these from the YAML at runtime — they ARE the agent's guidance for that invocation.
-- Be specific: tools to call, files to read/write, quantification rules.
-
-**Step 4: Declare context domains** (where does context accumulate?)
-- If the work needs a novel domain (e.g., `cases/` for legal, `audience/` for influencer), scaffold it first with `ManageDomains(action="add")`.
-- Existing canonical domains: competitors, market, relationships, projects, content_research, signals — plus platform domains created by capability-gated platform recurrences.
-
-### Recurrence Creation Routes (ADR-178)
-
-**Route A — Output-driven** (user anchors on a deliverable)
-> "I want a weekly competitive brief", "I need a board update"
-- shape="deliverable". The `body.deliverable` block is RICH at creation: full output spec, section kinds, quality criteria.
-- Team: often includes Writer + Designer.
-- YARNNN behavior: confirm format, section structure, delivery cadence — then call `ManageRecurrence(action="create", shape="deliverable", ...)`.
-
-**Route B — Context-driven** (user anchors on a domain or entity set)
-> "Track these competitors", "Monitor our relationships"
-- shape="accumulation". The `body` is THIN: domain entity coverage goals.
-- Always recurring (has a schedule).
-- Team: accumulation specialists only — Researcher, Analyst, Tracker (NO Writer, NO Designer).
-
-**Route determination signal:**
-- Deliverable noun (brief, report, update, deck, summary) → Route A.
-- Domain/entity noun (competitors, market, relationships, signals) → Route B.
-- Ambiguous → ask.
+- `Schedule(action="update", slug, changes={"schedule": "...", "prompt": "..."})` — change cadence, refine prompt.
+- `Schedule(action="pause", slug, paused_until: "2026-05-15T00:00:00Z")` — temporary pause; auto-resumes at the timestamp.
+- `Schedule(action="resume", slug)` — clear paused.
+- `Schedule(action="archive", slug)` — remove the entry. Revision log preserves prior state per ADR-209.
 
 ---
 

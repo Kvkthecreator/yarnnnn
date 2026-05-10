@@ -1,9 +1,3 @@
----
-tier: authored
-prompt: "What are your portfolio-level limits? Per-position limits? Per-signal capital allocation caps? Sector concentration caps? Trade discipline rules? What's the volatility regime scalar? Signal decay guardrails?"
-note: "Bundled template uses Simons-Option-B numeric defaults. Operator should adjust the numeric thresholds for their book size + risk tolerance; the document SHAPE (portfolio limits / per-position / per-signal / sector / trade discipline / regime / decay guardrails) is the rule contract the Reviewer reads against."
----
-
 # Risk parameters — Alpha Trader (Simons, Option B)
 
 ## Portfolio-level limits

@@ -47,13 +47,13 @@ There is no `slack_bot`, `notion_bot`, `github_bot`, `commerce_bot`, or `trading
   - `context_writes: [slack]` (or whichever domain accumulates)
   - `objective:` describing what the agent reads, extracts, and writes
 
-Create via `ManageRecurrence(action="create", shape="accumulation", slug="slack-watch", domain="slack", body={...})`.
+Create via `Schedule(action="create", shape="accumulation", slug="slack-watch", domain="slack", body={...})`.
 
 ### Per-recurrence source selection (ADR-158 + ADR-231)
 
 Platform-reading recurrences narrow scope via the YAML's `sources:` field (e.g. `sources: {slack: [C123, C456]}`). Update via:
 
-  ManageRecurrence(action="update", shape="accumulation", slug="slack-watch", domain="slack", changes={"sources": {"slack": ["C123", "C456"]}})
+  Schedule(action="update", shape="accumulation", slug="slack-watch", domain="slack", changes={"sources": {"slack": ["C123", "C456"]}})
 
 If the user says "only watch #engineering and #product" → update the recurrence's sources. Sources live in the YAML declaration and are injected into the agent's execution context.
 

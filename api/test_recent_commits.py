@@ -269,9 +269,9 @@ def test_primitive_consolidation_imports():
     record("InferWorkspace handler imports", callable(handle_infer_workspace))
 
     # ADR-231 + ADR-235 successor of ManageTask
-    from services.primitives.manage_recurrence import MANAGE_RECURRENCE_TOOL, handle_manage_recurrence
-    record("ManageRecurrence tool imports", MANAGE_RECURRENCE_TOOL["name"] == "ManageRecurrence")
-    record("ManageRecurrence handler imports", callable(handle_manage_recurrence))
+    from services.primitives.schedule import SCHEDULE_TOOL, handle_schedule
+    record("ManageRecurrence tool imports", SCHEDULE_TOOL["name"] == "ManageRecurrence")
+    record("ManageRecurrence handler imports", callable(handle_schedule))
 
     # ADR-231 D5
     from services.primitives.fire_invocation import FIRE_INVOCATION_TOOL, handle_fire_invocation
@@ -429,9 +429,9 @@ def test_shared_context_cluster_constants():
 
 def test_manage_recurrence_tool_schema():
     """ADR-235 D1.c: ManageRecurrence schema has 5 actions + 4 shapes."""
-    from services.primitives.manage_recurrence import MANAGE_RECURRENCE_TOOL
+    from services.primitives.schedule import SCHEDULE_TOOL
 
-    schema = MANAGE_RECURRENCE_TOOL["input_schema"]
+    schema = SCHEDULE_TOOL["input_schema"]
     props = schema["properties"]
     required = schema["required"]
 
@@ -464,32 +464,32 @@ def test_manage_agent_action_enum_no_create():
 
 def test_manage_recurrence_routing():
     """ADR-235 D1.c: ManageRecurrence routes correctly and validates inputs."""
-    from services.primitives.manage_recurrence import handle_manage_recurrence
+    from services.primitives.schedule import handle_schedule
 
     async def _test():
         # Invalid action
-        result = await handle_manage_recurrence(None, {
+        result = await handle_schedule(None, {
             "action": "destroy", "shape": "deliverable", "slug": "test"
         })
         record("ManageRecurrence rejects invalid action",
                not result["success"] and result.get("error") == "invalid_action")
 
         # Missing slug
-        result = await handle_manage_recurrence(None, {
+        result = await handle_schedule(None, {
             "action": "pause", "shape": "deliverable"
         })
         record("ManageRecurrence rejects missing slug",
                not result["success"] and result.get("error") == "missing_slug")
 
         # Invalid shape
-        result = await handle_manage_recurrence(None, {
+        result = await handle_schedule(None, {
             "action": "pause", "shape": "fake-shape", "slug": "test"
         })
         record("ManageRecurrence rejects invalid shape",
                not result["success"] and result.get("error") == "invalid_shape")
 
         # Accumulation requires domain
-        result = await handle_manage_recurrence(None, {
+        result = await handle_schedule(None, {
             "action": "create", "shape": "accumulation", "slug": "test"
         })
         record("ManageRecurrence(accumulation) requires domain",

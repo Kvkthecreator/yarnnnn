@@ -1,5 +1,7 @@
 # ADR-253: Reviewer as Substrate-Native Agent — Execution Authority, Heartbeat Triggers, Deterministic Pipeline
 
+> **⚠ D5 (heartbeat triggers — `_autonomy.yaml::heartbeat_triggers` + `heartbeat_turn()` as fourth Reviewer mode + reactive substrate-change wake-ups) superseded by [ADR-260](ADR-260-real-time-reviewer-loop.md) (2026-05-08).** Heartbeat as a trigger is dissolved. What was carried as heartbeat conflated mid-loop continuation (within a Reviewer session — natural shape of a real-time tool-use loop, not a trigger) with Scheduled wake-ups (cron-fired, now first-class per ADR-260 D2). `_autonomy.yaml::heartbeat_triggers`, `_maybe_fire_reviewer_heartbeat`, and the `trigger="heartbeat"` branch in `_TRIGGER_FRAMING` are deleted entirely. **D1 (execution authority)**, **D3 (IDENTITY/principles/AUTONOMY structure)**, and **D4 (deterministic universe-tracker + signal-evaluator)** are preserved.
+
 > **Status**: **Implemented** (2026-05-07 — Commits 1–5; all decisions landed)
 > **Date**: 2026-05-07
 > **Authors**: KVK, Claude

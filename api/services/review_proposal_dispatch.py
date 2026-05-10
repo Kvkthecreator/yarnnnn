@@ -354,7 +354,7 @@ async def _run_ai_reviewer(
 
     output = await invoke_reviewer(
         client, user_id,
-        trigger="proposal",
+        trigger="reactive",  # ADR-260 D2: proposal arrival is the canonical reactive trigger
         context={
             "identity_md": identity_md,
             "principles_md": principles_md,

@@ -137,7 +137,7 @@ and reconciled money-truth. Not reports. Not dashboards. **An operation.**
 workspace's CLAUDE.md equivalent. It declares the **Primary Action** (the external
 write that moves value — submit order, list product, send campaign, publish post),
 the operation-level success criteria, and boundary conditions. Without a Mandate,
-**recurrence creation is hard-gated at the primitive layer — `ManageRecurrence(action="create")`
+**recurrence creation is hard-gated at the primitive layer — `Schedule(action="create")`
 returns `error="mandate_required"` and refuses to proceed.**
 
 1. **Empty workspace or empty Mandate** — elicit the Mandate:
@@ -225,7 +225,7 @@ The response includes:
 SAME TURN via a follow-up tool call. Note (ADR-235 D2): there is no chat surface
 for creating new agents — the systemic roster is fixed at signup. Compose
 recurrences from the existing roster.
-1. `ManageRecurrence(action="create", shape=<deliverable|accumulation|action>,
+1. `Schedule(action="create", shape=<deliverable|accumulation|action>,
    slug=<derived-from-title>, body={agents: [...from systemic roster...],
    schedule: <from work_intent.cadence>, objective: ..., context_reads: [...],
    context_writes: [...], required_capabilities: [...]})`
@@ -338,7 +338,7 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
 
    **Work-first recurrence creation** (ADR-176 + ADR-231: author recurrences by self-declaration; type_key registry retired):
 
-   Recurrences are created via `ManageRecurrence(action="create", shape=..., slug=..., body={...})` per ADR-235 D1.c. Shape determines substrate location:
+   Recurrences are created via `Schedule(action="create", shape=..., slug=..., body={...})` per ADR-235 D1.c. Shape determines substrate location:
    - `accumulation` → `/workspace/context/{domain}/_recurring.yaml` (entry per slug)
    - `deliverable` → `/workspace/reports/{slug}/_spec.yaml`
    - `action` → `/workspace/operations/{slug}/_action.yaml`
@@ -353,7 +353,7 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    - Slack awareness → shape="accumulation", body={agents: ["tracker"], required_capabilities: ["read_slack"], context_writes: ["slack"]}
    - Notion awareness → similar with required_capabilities: ["read_notion"], context_writes: ["notion"]
    - GitHub awareness → required_capabilities: ["read_github"], context_writes: ["github"]
-   Propose the recurrence in conversation; the operator confirms; then call ManageRecurrence(action="create", ...).
+   Propose the recurrence in conversation; the operator confirms; then call Schedule(action="create", ...).
 
    **Only create recurrences based on stated work intent or populated domains.**
    Don't create recurrences the user hasn't expressed intent for.
@@ -364,7 +364,7 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
 
    **ADR-205 chat-first triggering preserved (ADR-231):** When you create a recurrence
    without `schedule:` in the body, it runs only on FireInvocation — no cadence.
-   Add a schedule later via `ManageRecurrence(action="update", shape=..., slug=...,
+   Add a schedule later via `Schedule(action="update", shape=..., slug=...,
    changes={"recurring": {"schedule": "0 9 * * 1"}})`.
 
    **Tell the user what's happening:**
@@ -373,21 +373,23 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    - Slack Awareness (Tracker + read_slack capability) — firing now
    First invocation is running — you'll see results in the workspace within a few minutes."
 
-   **Daily update is opt-in (ADR-206 + ADR-231).** `daily-update` is NOT scaffolded
+   **Daily update is opt-in (ADR-206 + ADR-261).** `daily-update` is NOT scaffolded
    at signup. Create it only when the user explicitly asks for a morning digest or
    daily summary. Do not offer it unprompted.
-   `ManageRecurrence(action="create", shape="deliverable",
-   slug="daily-update", body={agents: [...], schedule: "0 7 * * *", delivery: "email", ...})`
+   `Schedule(action="create", slug="daily-update", schedule="0 7 * * *",
+   prompt="Produce a daily morning summary covering yesterday's activity ...")`
 
-   **Back-office plumbing auto-materializes (ADR-206 + ADR-231 D2/D6).** You do NOT
-   create `back-office-*` recurrences directly. They self-create on trigger via
-   `services.workspace_init.materialize_back_office_task` which routes through
-   ManageRecurrence(action="create", shape="maintenance"). They land as entries
-   in `/workspace/_shared/back-office.yaml`.
+   **Back-office work is bundle-seeded (ADR-261 D6 §4).** Lazy materialization
+   via `services.back_office` is deleted. Recurrences like `outcome-reconciliation`,
+   `morning-reflection`, `proposal-cleanup` arrive in `/workspace/_recurrences.yaml`
+   when the operator activates a program bundle (e.g. alpha-trader). For workspaces
+   without a bundle, you may author them directly via `Schedule(action="create", ...)`
+   when the operator's mandate calls for them.
 
-   **Synthesis roll-up:** If 2+ accumulation recurrences were created, also create
-   a stakeholder summary deliverable: `ManageRecurrence(action="create", shape="deliverable",
-   slug="stakeholder-summary", body={agents: ["writer"], delivery: "email", ...})`.
+   **Synthesis roll-up:** If 2+ accumulation-shaped recurrences were created, also
+   create a stakeholder summary deliverable:
+   `Schedule(action="create", slug="stakeholder-summary", schedule="0 17 * * 5",
+   prompt="...synthesis prompt citing the accumulation domains...")`.
    Don't fire immediately — wait until accumulation recurrences have completed at
    least their first run.
 
@@ -549,8 +551,8 @@ via SearchEntities, and do NOT LookupEntity on the slug.
 
 - **User names a recurrence you see in the index** (e.g., "update my pre-market-brief") (ADR-231):
   → Declaration body: `ReadFile(path="/workspace/reports/pre-market-brief/_spec.yaml")` (DELIVERABLE shape)
-  → Update schedule/delivery/sources/steering: `ManageRecurrence(action="update", shape="deliverable", slug="pre-market-brief", changes={...})`
-  → Pause/resume/archive: `ManageRecurrence(action="pause" | "resume" | "archive", shape=..., slug=...)`
+  → Update schedule/delivery/sources/steering: `Schedule(action="update", shape="deliverable", slug="pre-market-brief", changes={...})`
+  → Pause/resume/archive: `Schedule(action="pause" | "resume" | "archive", shape=..., slug=...)`
   → Manual fire: `FireInvocation(shape=..., slug=...)`
 
 - **User names an agent you see in the index** (e.g., "what does my writer know"):
@@ -577,7 +579,7 @@ existence checks. Trust it, then go directly to the right primitive.
 
 ## Recurrence Patterns (ADR-231)
 
-Create recurrences with `ManageRecurrence(action="create", shape=..., slug=..., body={...})`. Shape determines substrate location and the body shape. Your compact index shows current agents, recurrences, and context domains — use it for routing decisions.
+Create recurrences with `Schedule(action="create", shape=..., slug=..., body={...})`. Shape determines substrate location and the body shape. Your compact index shows current agents, recurrences, and context domains — use it for routing decisions.
 
 **Accumulation patterns** (Researcher / Analyst / Tracker — `shape="accumulation"`):
 - Competitive intelligence → slug="competitors-weekly-scan", domain="competitors", schedule="0 9 * * 1"
@@ -596,7 +598,7 @@ shape="accumulation" with body={agents: ["tracker"], required_capabilities: ["re
 For write-back ("post to Slack", "update that Notion page"): shape="action" with target_capability + writer agent.
 
 **Deliverable patterns** (Writer / Analyst — `shape="deliverable"`, body carries `deliverable:` block + `page_structure`):
-- `daily-update` — **operator-opt-in (ADR-206 + ADR-231 D6)**, NOT scaffolded at signup. To adjust, use ManageRecurrence(action="update").
+- `daily-update` — **operator-opt-in (ADR-206 + ADR-231 D6)**, NOT scaffolded at signup. To adjust, use Schedule(action="update").
 - `competitive-brief` (weekly) — competitive landscape with charts
 - `market-report` (monthly) — market intelligence + GTM signals + competitive moves (one report)
 - `meeting-prep` (on-demand) — context and talking points for meetings

@@ -1,5 +1,7 @@
 # ADR-167: List/Detail Surfaces with Kind-Aware Detail
 
+> **⚠ KindMiddle dispatch reshapes (2026-05-08, [ADR-262](ADR-262-output-topology-and-specs.md) §6.1).** With `output_kind` dissolved per ADR-261, the FE detail-mode dispatch axis changes — the four `KindMiddle` switches that previously keyed on `output_kind` now infer detail shape from filesystem topology (presence of `/workspace/reports/{slug}/` for deliverable-shaped, writes scattered across `/workspace/context/{domain}/` for accumulation-shaped, etc.) or from an optional operator-authored hint. Implementation-time choice; structural list/detail pattern in this ADR unchanged.
+
 > **⚠ Vocabulary update (2026-05-08, [ADR-259](ADR-259-feed-surface.md))**: this ADR predates the Chat → Feed rename. References to "chat surface" / "the chat" / `/chat` URL below are preserved as period vocabulary. Operator-facing surface is now "the Feed"; URL `/chat` is now `/feed`. Structural decisions in this ADR unchanged.
 
 > **⚠ Amended by [ADR-231](ADR-231-task-abstraction-sunset.md) (2026-04-29).** `/work` data source is the recurrence-declaration walker + thin `tasks` scheduling index, not the legacy task-table query against `mode` / `essential` / `output_kind` columns (those columns dropped in migration 164). `routes/tasks.py` renamed → `routes/recurrences.py` and rewritten (1,580 → 480 LOC); URL surface flipped from `/api/tasks/*` to `/api/recurrences/*` per Phase 3.8. The kind-aware middle dispatch is preserved — `RecurrenceShape` (deliverable / accumulation / action / maintenance) remains the routing key.

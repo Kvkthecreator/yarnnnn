@@ -1,33 +1,23 @@
 """
-FireInvocation Primitive — ADR-231 D5
+FireInvocation Primitive — ADR-261 unified shape.
 
-Manual fire of a recurrence declaration. Replaces `ManageTask(action="trigger")`
-under the invocation-first canon: invocations are the atom, recurrence
-declarations are the legibility wrapper, and FireInvocation is the operator's
-"run this once now" affordance.
+Manual fire of a recurrence — "run this once now." The operator (via
+chat) or the Reviewer (mid-loop) calls FireInvocation with a slug; the
+dispatcher invokes the Reviewer with that recurrence's prompt as the
+addressed-equivalent envelope (per ADR-260 D1 + ADR-261 D3).
 
-Phase 2 implementation (this commit): thin adapter. Reads the recurrence
-declaration via the new YAML schema, then routes through the existing
-`task_pipeline.execute_task` by looking up the corresponding `tasks` row by
-slug. This works for any declaration whose slug matches an existing task —
-which is the migration state during Phase 2.
+Per ADR-261 D1 there is no shape parameter — every recurrence has the
+same shape. Per ADR-261 D2 there is one canonical file
+(``/workspace/_recurrences.yaml``); the slug looks up the entry there.
 
-Phase 3 atomic cutover: this primitive's body is replaced with a direct
-call to `invocation_dispatcher.execute_invocation(decl)`, the `tasks` row
-lookup disappears, and FireInvocation becomes the singular dispatch primitive.
+Tool surface (chat + headless, both modes can fire invocations):
 
-Tool surface (chat + headless parity, both modes can fire invocations):
+    FireInvocation(slug="signal-evaluation")
+    FireInvocation(slug="weekly-brief", context="Focus on pricing changes only")
 
-    FireInvocation(shape="deliverable", slug="market-weekly")
-    FireInvocation(shape="accumulation", slug="competitors-weekly-scan",
-                   domain="competitors")
-    FireInvocation(shape="action", slug="slack-standup")
-    FireInvocation(shape="maintenance", slug="back-office-narrative-digest")
-    FireInvocation(shape="deliverable", slug="weekly-brief",
-                   context="Focus on pricing changes only")
-
-The optional `context` field carries one-shot steering for this firing —
-parallel to the existing `ManageTask(action="trigger", context=...)` shape.
+The optional ``context`` field carries one-shot steering for this
+firing only — appended to the recurrence's prompt; does not mutate the
+recurrence record.
 """
 
 from __future__ import annotations
@@ -40,146 +30,89 @@ logger = logging.getLogger(__name__)
 
 FIRE_INVOCATION_TOOL = {
     "name": "FireInvocation",
-    "description": """Fire an invocation against a recurrence declaration — run it once now (ADR-231 D5).
+    "description": """Fire a recurrence — run it once now (ADR-261).
 
-Use when the operator wants to manually trigger a recurring task / report / action / maintenance job. Replaces the older `ManageTask(action="trigger")` shape.
+Use when the operator wants to manually trigger a recurring task immediately. The recurrence's prompt becomes the addressed-equivalent envelope handed to the Reviewer.
 
-Identifies the declaration via shape + slug (+ domain for accumulation):
-  - shape="deliverable": runs a recurring report (e.g., weekly market brief)
-  - shape="accumulation": runs a domain-tracking entry (e.g., competitor scan)
-  - shape="action": runs an external-action declaration (e.g., scheduled Slack post)
-  - shape="maintenance": runs a back-office job (e.g., workspace-cleanup)
-
-Optional `context` carries one-shot steering for this firing only — does not modify the declaration. Useful when the operator wants the next run to focus on something specific without amending the recurrence config.
+Optional `context` carries one-shot steering for this firing only — does not modify the recurrence. Useful when the operator wants the next run to focus on something specific without amending the prompt.
 
 Examples:
-  FireInvocation(shape="deliverable", slug="market-weekly")
-  FireInvocation(shape="accumulation", slug="competitors-weekly-scan", domain="competitors")
-  FireInvocation(shape="deliverable", slug="weekly-brief", context="Lead with pricing changes")
+  FireInvocation(slug="signal-evaluation")
+  FireInvocation(slug="weekly-brief", context="Lead with pricing changes")
 
-For chat-first operator-immediate work (where no recurrence exists yet), do NOT use FireInvocation — fire an invocation directly via the regular tool surface (gather context, produce output, write to filesystem). FireInvocation is for graduated recurrences only.""",
+For chat-first operator-immediate work (where no recurrence exists yet), do NOT use FireInvocation — author the recurrence first via Schedule(action="create", ...), or do the work directly via the regular tool surface.""",
     "input_schema": {
         "type": "object",
         "properties": {
-            "shape": {
-                "type": "string",
-                "enum": ["deliverable", "accumulation", "action", "maintenance"],
-                "description": "The recurrence shape — drives natural-home path resolution to find the declaration.",
-            },
             "slug": {
                 "type": "string",
-                "description": "The operator-legible nameplate of the recurrence to fire.",
-            },
-            "domain": {
-                "type": "string",
-                "description": "Required when shape='accumulation' (the context domain — e.g., 'competitors'). Multi-decl files are per-domain.",
+                "description": "Operator-legible nameplate of the recurrence in /workspace/_recurrences.yaml.",
             },
             "context": {
                 "type": "string",
-                "description": "Optional one-shot steering for this firing (does not modify the declaration). Used when the operator wants the run to focus on something specific.",
+                "description": "Optional one-shot steering for this firing (does not modify the recurrence).",
             },
         },
-        "required": ["shape", "slug"],
+        "required": ["slug"],
     },
 }
 
 
 async def handle_fire_invocation(auth: Any, input: dict) -> dict:
-    """Fire an invocation against a recurrence declaration.
+    """Fire an invocation against the named recurrence.
 
-    Phase 2 implementation: locates the declaration via the recurrence YAML
-    parser, then routes through `task_pipeline.execute_task` using the slug
-    as the corresponding `tasks` row identifier.
+    Per ADR-261 D3 + ADR-260 D1: walks ``/workspace/_recurrences.yaml``,
+    finds the entry, and dispatches via ``invocation_dispatcher.dispatch``
+    with ``trigger="addressed"`` (operator-initiated) plus optional
+    one-shot ``context`` steering.
 
-    The Phase 3 atomic cutover replaces this body with a direct call to
-    `invocation_dispatcher.execute_invocation(decl)` and drops the
-    `tasks` row lookup entirely.
-
-    Returns the same shape as `ManageTask(action="trigger")` for caller
-    parity: `{success, message, agent_run_id?, run_at?, error?}`.
+    Returns ``{success, slug, trigger, message, ...}`` from the dispatcher.
     """
-    from services.recurrence import (
-        RecurrenceShape,
-        derive_declaration_path,
-        parse_recurrence_yaml,
-    )
-    from services.workspace import UserMemory
+    from services.invocation_dispatcher import dispatch
+    from services.recurrence import walk_workspace_recurrences
 
-    shape = input.get("shape")
-    slug = input.get("slug")
-    domain = input.get("domain")
+    user_id = getattr(auth, "user_id", None)
+    db_client = getattr(auth, "client", None)
+    if not user_id:
+        return {"success": False, "error": "auth_required", "message": "user_id required"}
+
+    input = input or {}
+    slug = input.get("slug") or ""
     context = input.get("context")
 
-    # ---- Validate inputs ----
-    if shape not in {"deliverable", "accumulation", "action", "maintenance"}:
-        return {
-            "success": False,
-            "error": "invalid_shape",
-            "message": "shape must be one of: deliverable, accumulation, action, maintenance",
-        }
-    if not slug:
+    if not slug or not isinstance(slug, str):
         return {"success": False, "error": "missing_slug", "message": "slug is required"}
-    if shape == "accumulation" and not domain:
+
+    recurrences = walk_workspace_recurrences(db_client, user_id)
+    rec = next((r for r in recurrences if r.slug == slug), None)
+    if rec is None:
         return {
             "success": False,
-            "error": "missing_domain",
-            "message": "domain is required when shape='accumulation'",
-        }
-
-    # ---- Locate the declaration ----
-    try:
-        abs_path = derive_declaration_path(
-            RecurrenceShape(shape), slug, domain=domain
-        )
-    except ValueError as e:
-        return {"success": False, "error": "invalid_path", "message": str(e)}
-
-    rel_path = abs_path[len("/workspace/"):] if abs_path.startswith("/workspace/") else abs_path
-    um = UserMemory(auth.client, auth.user_id)
-    content = await um.read(rel_path)
-    if not content:
-        return {
-            "success": False,
-            "error": "declaration_not_found",
-            "message": f"no recurrence declaration at {abs_path}",
+            "error": "not_found",
+            "message": f"no recurrence with slug='{slug}' in /workspace/_recurrences.yaml",
             "retry_hint": (
-                "Verify the shape/slug/domain combination. For deliverables, "
-                "the declaration lives at /workspace/reports/{slug}/_spec.yaml. "
-                "For accumulation, /workspace/context/{domain}/_recurring.yaml "
-                "with an entry slug. For actions, /workspace/operations/{slug}/_action.yaml. "
-                "For maintenance, /workspace/_shared/back-office.yaml."
+                "Check the slug spelling. Use Schedule(action='create', ...) "
+                "if you want to author a new recurrence."
             ),
         }
 
-    decls = parse_recurrence_yaml(content, abs_path, user_id=auth.user_id)
-    target_decl = next((d for d in decls if d.slug == slug), None)
-    if target_decl is None:
-        return {
-            "success": False,
-            "error": "slug_not_found",
-            "message": f"no entry with slug='{slug}' in {abs_path}",
-        }
-
-    if target_decl.paused:
+    if rec.paused:
         return {
             "success": False,
             "error": "paused",
             "message": (
-                f"declaration {slug} is paused. Use ManageRecurrence("
-                f"action='resume', shape='{shape}', slug='{slug}') to resume before firing."
+                f"recurrence {slug} is paused. Use "
+                f"Schedule(action='resume', slug='{slug}') before firing."
             ),
         }
 
-    # ---- Route through invocation_dispatcher ----
-    # The dispatcher is the canonical Phase 2+ entry point for firing
-    # recurrences. It currently adapts to task_pipeline.execute_task internally;
-    # the Phase 3 atomic cutover replaces its body without touching this call
-    # site. Singular Implementation discipline: one dispatch surface.
-    from services.invocation_dispatcher import dispatch as _dispatch
-
-    return await _dispatch(
-        client=auth.client,
-        user_id=auth.user_id,
-        decl=target_decl,
+    return await dispatch(
+        client=db_client,
+        user_id=user_id,
+        recurrence=rec,
+        trigger="addressed",
         context=context,
     )
+
+
+__all__ = ["FIRE_INVOCATION_TOOL", "handle_fire_invocation"]

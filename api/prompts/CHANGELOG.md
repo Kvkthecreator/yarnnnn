@@ -6,6 +6,310 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.10.2] - ADRs 261/262 — Phase C + D atomic commit (DispatchSpecialist + Compose auto-trigger + bundle spec library + 3-tier dissolution + live re-fork)
+
+### Architectural completion of ADR-261 D7 + ADR-262 D2/D4/D6
+
+Phase C + D landed in this commit, atomic. Closes the remaining work for
+ADRs 260/261/262. Net delta vs Phase B's tip: ~1,400 LOC of new
+infrastructure, ~150 LOC deleted (the `_strip_tier_frontmatter` parser
+and tier-aware fork branches).
+
+**ADDED:**
+- `api/services/primitives/dispatch_specialist.py` (~370 LOC) — ADR-261 D7
+  DispatchSpecialist primitive. The Reviewer's chat-mode loop calls this
+  to dispatch a focused-prompt specialist sub-LLM-call (researcher /
+  analyst / writer / tracker / designer / reporting). The deterministic
+  System Agent composes the specialist's prompt from
+  (role-default-instructions + Reviewer-supplied brief + headless tool
+  surface). Specialists run in `headless` mode (ADR-080 runtime
+  characteristic). Sub-call output returns to the Reviewer as the
+  primitive's return value. Bounded at 5 tool-use rounds per call.
+  Sonnet by default; operator may override to Haiku for cost discipline.
+  Token usage recorded per ADR-171.
+- `api/services/invocation_dispatcher._maybe_auto_compose()` (~140 LOC)
+  — ADR-262 D4 opt-out structural auto-compose. Triggered at session-
+  close when section partials match the deliverable convention
+  (`/workspace/reports/{slug}/{date}/sections/*.md`) AND the recurrence's
+  `options.skip_compose` is not `true`. Idempotent (skips when
+  `output.html` already newer than the latest partial). Failure non-fatal
+  (Reviewer's session result preserved; operator can re-trigger compose
+  manually via the Compose primitive). Calls
+  `services.compose.task_html.compose_task_output_html` and persists the
+  HTML via `authored_substrate.write_revision` with
+  `authored_by="system:auto-compose"`.
+- 5 specs in alpha-trader bundle (`docs/programs/alpha-trader/reference-
+  workspace/specs/`): ticker-snapshot.md, performance-rollup.md,
+  pre-market-brief.md, weekly-performance-review.md,
+  quarterly-signal-audit.md. ADR-262 D2 Pattern (ii) operator-authored
+  output specs cited by recurrence prompts. The recurrences in
+  `_recurrences.yaml` reference these by path.
+- `api/scripts/oneshot/phaseD_refork_alpha_trader.py` (~100 LOC)
+  re-fork script for the new bundle.
+
+**DELETED:**
+- `api/services/programs.py::_strip_tier_frontmatter` (-46 LOC) — the
+  ADR-226 three-tier YAML frontmatter parser. Per ADR-261 D6 + ADR-262
+  D6, the tier system dissolves; bundle .md files are operator-owned
+  markdown and ADR-209 attribution captures bundle-fork vs operator-edit
+  distinction.
+- `api/test_adr226_activation.py` (-141 LOC) — stale tests for the
+  deleted frontmatter parser + skeleton-detector edge cases superseded
+  by the new fork rule.
+
+**REWRITTEN:**
+- `api/services/programs.py::fork_reference_workspace` — single-decision
+  rule replaces three-tier branches: file missing OR skeleton → write
+  bundle copy; operator-customized → skip. Bundle files copied verbatim
+  (no frontmatter stripping; bundle source files have no frontmatter
+  post-Phase D).
+- 10 alpha-trader bundle .md files (MANDATE / IDENTITY / BRAND /
+  AUTONOMY / CONVENTIONS in `_shared/`, IDENTITY + principles in
+  `review/`, `_operator_profile` + `_risk` in `context/trading/`,
+  `awareness.md` in `memory/`) — tier frontmatter stripped. Operator-
+  visible content unchanged.
+- `api/services/primitives/schedule.py` + `fire_invocation.py` +
+  `dispatch_specialist.py` — handler signatures repaired to the
+  `(auth: Any, input: dict)` convention required by
+  `services.primitives.registry.execute_primitive()`. Phase B
+  introduced a kwargs-style signature mismatch; this commit corrects
+  it. `routes/recurrences.py` callers updated accordingly.
+
+**REGISTRY WIRING:**
+- `DispatchSpecialist` added to CHAT_PRIMITIVES (Reviewer's chat-mode
+  loop has access), HEADLESS_PRIMITIVES (multi-step recurrence prompts
+  may chain sub-calls), REVIEWER_PRIMITIVES (curated subset; Reviewer
+  has direction authority over Compose + DispatchSpecialist + Schedule
+  + FireInvocation + ProposeAction), and HANDLERS dispatch table.
+  REVIEWER_PRIMITIVES count: 19 → 20.
+
+**LIVE RE-FORK (run 2026-05-10):**
+- alpha-trader-2 workspace: 8 files written (5 specs + 3 system files
+  that were skeleton: CONVENTIONS.md, _universe.yaml, _principles.yaml),
+  11 files skipped (operator-customized, including
+  `_recurrences.yaml` from Phase B.2 migration — preserved).
+- kvkthecreator@gmail.com workspace: 10 files written (5 specs + 5
+  skeleton system files), 9 skipped.
+- Both workspaces now have full spec library at `/workspace/specs/`.
+
+**PROMPT CHANGES (LLM-facing):**
+- DispatchSpecialist tool description specifies the six universal
+  specialist roles + the role-routing semantics. The specialist sub-call
+  system prompt frames the role as "you are a {display_name} specialist
+  dispatched by the Reviewer" — focused-prompt discipline per ADR-261 D7
+  ("specialists operate in their own contexts; the Reviewer's context
+  window is not polluted with specialist tool-use loops").
+- Schedule + FireInvocation tool descriptions unchanged from Phase B.
+
+**VALIDATION GATE EXTENDED:**
+- `api/test_adr261_phaseB.py` Section 8 added — asserts
+  `_maybe_auto_compose` present, DispatchSpecialist registered in
+  CHAT/HEADLESS/REVIEWER + HANDLERS, REVIEWER_PRIMITIVES has full
+  direction authority, all four key handlers conform to (auth, input)
+  signature. **62/62 PASS** (was 52/52 in Phase B).
+
+**ADR STATUS:**
+- ADR-260: Implemented (no change from Phase B)
+- ADR-261: Implemented → **Fully Implemented** (D7 closed)
+- ADR-262: Phase B Implemented → **Fully Implemented**
+  (D2 + D4 + D6 closed)
+
+**Path X complete on PR #9.** Next: PR merge to main + post-merge live
+validation (Render auto-deploy + scheduler tick + Reviewer round-trip).
+
+---
+
+## [2026.05.10.1] - ADRs 260/261/262 — Phase B atomic commit (recurrence schema collapse + back-office deletion + live data migration)
+
+### Architectural collapse (atomic commit)
+
+Phase B per the ADR-261 implementation plan, shipped as one atomic commit alongside the live data migration. Net delta vs Phase A's tip: **~3,500 LOC deleted**, ~1,400 LOC of new lean code, two live workspaces migrated from per-shape declarations to canonical `_recurrences.yaml`.
+
+**Modules DELETED:**
+- `api/services/recurrence_paths.py` (-405 LOC) — per-shape natural-home path resolution superseded by slug-templated conventions
+- `api/services/dispatch_helpers.py` (-1,641 LOC) — shape-keyed substrate writers, headless prompts, path resolvers all dissolve
+- `api/services/reflection_writer.py` (-768 LOC) — reflection executor logic moves into Reviewer's prompt-driven loop
+- `api/services/back_office/` package (-3,142 LOC across 8 files) — all deterministic Python executors (narrative_digest, outcome_reconciliation, reviewer_calibration, reviewer_reflection, proposal_cleanup, trading_universe_tracker, trading_signal_evaluator, materialize_back_office_task helper). Per ADR-261 D6 §4: back-office work is now Reviewer-driven recurrence prompts in `_recurrences.yaml`.
+- `docs/programs/alpha-trader/reference-workspace/_shared/back-office.yaml`, `context/trading/_recurring.yaml`, `operations/trade-proposal/_action.yaml`, `reports/{pre-market-brief,quarterly-signal-audit,weekly-performance-review}/_spec.yaml` — six per-shape declaration files in the bundle replaced by a single canonical `_recurrences.yaml`.
+
+**Modules REWRITTEN:**
+- `api/services/recurrence.py` (582 → 331 LOC) — `Recurrence` dataclass replaces `RecurrenceDeclaration`. `RecurrenceShape` enum + per-shape parsers + `derive_declaration_path` deleted. `parse_recurrences_yaml` is the single parser. `walk_workspace_recurrences` reads `/workspace/_recurrences.yaml` only.
+- `api/services/invocation_dispatcher.py` (1,553 → 319 LOC) — single dispatch path. `dispatch(client, user_id, recurrence, *, trigger='scheduled', context=None)` invokes the Reviewer with `recurrence.prompt` as the addressed-equivalent envelope per ADR-260 D1. The three-shape branch (`_dispatch_generative`, `_dispatch_action`, `_dispatch_maintenance`) collapses. `find_declaration_for_agent` and `_resolve_agent` deleted.
+- `api/services/scheduling.py` (~minor) — `get_due_declarations` → `get_due_recurrences`. Walker reads canonical file only.
+- `api/services/primitives/schedule.py` (476 → 247 LOC) — single-file `_recurrences.yaml` mutation. `shape` and `domain` parameters dropped. Five actions: create, update, pause, resume, archive.
+- `api/services/primitives/fire_invocation.py` (185 → 113 LOC) — `shape` and `domain` parameters dropped; only `slug` and optional `context`.
+- `api/routes/recurrences.py` (660 → 491 LOC) — single-file substrate reads. `output_kind` and `shape` fields preserved on `TaskResponse` at safe constants (`"produces_deliverable"` + `"deliverable"`) so the FE compositor layer (ADR-167 KindMiddle, ADR-225 MiddleResolver) keeps rendering. Reshaping the FE off output_kind dispatch is deferred to a separate FE-coherence pass.
+- `api/services/task_deliverable_inference.py` → renamed to `recurrence_prompt_inference.py`. `infer_task_deliverable_preferences` → `infer_recurrence_prompt`. Inference now refines the recurrence's `prompt` field (the spec) rather than merging into a `deliverable:` block.
+
+**Modules ADDED:**
+- `api/services/conventions.py` (+307 LOC) — slug-templated path interpolation per ADR-262 D1. `report_root`, `report_dated_folder`, `report_output_path`, `report_sections_dir`, `report_manifest_path`, `report_latest_dir`, `report_feedback_path`, `report_run_log_path`, `report_working_dir`, `domain_root`, `domain_entity_path`, `domain_synthesis_path`, `domain_feedback_path`, `domain_performance_path`, `domain_run_log_path`, `operation_root`, `operation_run_log_path`, `operation_working_dir`, plus constants for Reviewer substrate, operator-authored shared substrate, memory paths, and specs.
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml` (+10 entries) — canonical recurrences file. Entries: track-universe, signal-evaluation, trade-proposal, pre-market-brief, weekly-performance-review, quarterly-signal-audit, outcome-reconciliation, morning-calibration, morning-reflection, proposal-cleanup, narrative-digest. Each entry is `{slug, schedule, prompt}` with the prompt encoding everything the Reviewer needs.
+- `api/scripts/oneshot/phaseB_unify_recurrences.py` (+450 LOC) — one-shot data migration script. Projects legacy per-shape files in workspace_files into the canonical `_recurrences.yaml` via `write_revision()` with `authored_by="system:phaseB-migration"`, then deletes the legacy files. Tolerant parser handles operator-edited YAML with mixed indentation.
+- `api/test_adr261_phaseB.py` (+185 LOC) — regression gate. 52 assertions across 7 sections: deleted modules not importable, deleted symbols not present, unified surface present, Recurrence dataclass shape, SCHEDULE_TOOL + FIRE_INVOCATION_TOOL surface, dispatcher signature, bundle reference workspace cleaned. ALL PASS.
+
+**Live data migration (run 2026-05-10):**
+- alpha-trader-2 workspace (user 29a74c63-…): 9 entries projected from 6 legacy files; written to `/workspace/_recurrences.yaml`; 6 legacy files deleted.
+- kvkthecreator@gmail.com workspace (user 2abf3f96-…): 11 entries projected from 6 legacy files; written; 6 legacy files deleted.
+- Both workspaces verified end-state via psql: exactly one canonical file, zero legacy per-shape files.
+- Per ADR-209: every write attributed (`authored_by="system:phaseB-migration"`); legacy file content retained in `workspace_file_versions` revision history as the parent of the deletion.
+
+**Caller migrations (production code surgery):**
+- `api/routes/feed.py` — `_load_task_context` rewritten: reads canonical recurrence; uses `report_root` + `report_run_log_path`. Deleted: `decl.shape`, `decl.agents`, `decl.objective`, `decl.display_name`, `decl.data.get('page_structure')` references.
+- `api/routes/recurrences.py` — full rewrite. URL still `/api/recurrences/*`. Frontend contract preserved (TaskResponse field set unchanged for FE compatibility).
+- `api/routes/admin.py` — admin trigger uses unified Recurrence + `dispatch(trigger='addressed')`.
+- `api/routes/agents.py::trigger_run` — "operator clicked Run on agent X" expressed as a synthetic addressed Recurrence whose prompt asks the Reviewer to dispatch the specialist via DispatchSpecialist (Phase C.2).
+- `api/routes/integrations.py` — `materialize_back_office_task` calls deleted from commerce + trading connect paths. Back-office work is now bundle-seeded.
+- `api/routes/narrative.py` — comment-only update referencing the deleted back_office package.
+- `api/services/trigger_dispatch.py::_dispatch_high` — synthetic reactive Recurrence pattern.
+- `api/services/feedback_formatters.py` — uses `report_feedback_path(slug)` directly.
+- `api/services/feedback_distillation.py` — same.
+- `api/services/outcomes/high_impact.py` — same.
+- `api/services/compose/task_html.py` — uses `report_root(slug)`.
+- `api/services/primitives/repurpose.py` — uses `report_root(slug)`.
+- `api/services/primitives/propose_action.py` — `materialize_back_office_task` call deleted.
+- `api/services/workspace_init.py` — comment-only updates referencing deleted helper.
+
+**Prompt changes (LLM-facing):**
+- `api/agents/prompts/chat/workspace.py` — entire "Creating Recurrences" section rewritten. Documents the unified `{slug, schedule, prompt}` shape with example accumulation + deliverable + action recurrences. References the operator-authored spec library at `/workspace/specs/` per ADR-262 D2 Pattern (ii). Drops `shape` parameter, `agents:` field, `body.deliverable` block, `target_platform`, `process_steps`, four-shape mapping table, Route A/B framing.
+- `api/agents/prompts/chat/onboarding.py` — daily-update + back-office paragraphs rewritten to reflect ADR-261 D6 §4: lazy materialization deleted, recurrences are bundle-seeded or operator-authored.
+
+**Frontend impact (Phase B-deferred):**
+- The FE compositor layer (`web/components/library/`, `web/components/work/details/`, `web/lib/compositor/`) still dispatches on `task.output_kind` and `task.shape`. Phase B preserves these fields on the API response at constant values (`output_kind: "produces_deliverable"`, `shape: "deliverable"`) so the FE keeps rendering — every recurrence's substrate now lives at `/workspace/reports/{slug}/{date}/output.md`, which IS the deliverable shape. Reshaping the FE off output_kind dispatch is a separate FE-coherence pass; not blocked by Phase B.
+
+**Stale tests deleted (-11 files):**
+- test_adr231_recurrence.py, test_adr231_runtime_invariants.py
+- test_adr233_phase1_shape_prompts.py, test_adr233_phase2_natural_home_preread.py
+- test_back_office_contract.py, test_adr248_periodic_reviewer_pulse.py
+- test_adr219_commit3_narrative_digest.py, test_adr219_commit4_narrative_by_task.py, test_adr219_narrative_write_path.py
+- test_adr221_layered_context.py
+- tests/test_dispatch_helpers_context_selection.py
+
+**ADR status flips:**
+- ADR-260: Proposed → Implemented (D1 + D2 + D4 + D5 all in PR #9)
+- ADR-261: Proposed → Implemented (D1, D2, D3, D4, D5, D6, D8, D9 all in PR #9; D7 specialists-as-tools deferred to C.2)
+- ADR-262: Proposed → Phase B Implemented (D1 + D5 in PR #9; D4 auto-trigger deferred to C.1b; D6 bundle simplification deferred to D)
+
+**Next:** Phase C.1b (Compose opt-out auto-trigger), Phase C.2 (DispatchSpecialist primitive), Phase D (bundle spec library + workspace_init collapse + live re-fork).
+
+---
+
+## [2026.05.09.1] - ADRs 260/261/262 — Phase A code cutover + Compose primitive (CODE PR — partial)
+
+### Code changes (LLM-facing)
+
+This entry tracks the first code PR for ADRs 260/261/262, branch `feat/adr-260-261-262-code`. Phase A is shipped + validated; Phase B (recurrence schema collapse) and Phase D (bundle reshape + workspace_init simplify) are deferred to follow-up commits as documented below.
+
+**Phase A.1 — Heartbeat trigger deletion (ADR-260 D4):**
+- `_maybe_fire_reviewer_heartbeat` deleted from `services/invocation_dispatcher.py`
+- Post-dispatch heartbeat hook deleted from `dispatch()`
+- `_fire_cron_heartbeats` deleted from `jobs/unified_scheduler.py`
+- `heartbeat_triggers` parsing removed from `services/review_policy.py`
+
+**Phase A.2 — Trigger taxonomy collapsed 4→3 (ADR-260 D2):**
+- `_TRIGGER_FRAMING` keys: `proposal | heartbeat | reflection | addressed` → `addressed | reactive | scheduled`
+- `proposal` → `reactive` (canonical reactive trigger; `review_proposal_dispatch.py` updated)
+- `heartbeat` → DELETED (mid-loop continuation is the natural shape, not a separate trigger)
+- `reflection` → `scheduled` (reflection is a particular cron-poke shape; `back_office/reviewer_reflection.py` updated)
+- Reviewer model selection: Sonnet for `reactive` (capital judgment), Haiku for `addressed`+`scheduled`
+- Round bound: 3 for `reactive` (discrete decision), 12 for `addressed`/`scheduled` (real-time loops)
+
+**Phase A.3 — `ManageRecurrence` → `Schedule` rename (ADR-261 §3 + D4):**
+- Pure file rename: `services/primitives/manage_recurrence.py` → `schedule.py` (git rename)
+- Symbol rename: `MANAGE_RECURRENCE_TOOL` → `SCHEDULE_TOOL`, `handle_manage_recurrence` → `handle_schedule`
+- Tool name: `"ManageRecurrence"` → `"Schedule"` in primitive registry + tool definitions
+- All callers updated atomically (registry, execution_router, back_office, task_deliverable_inference, routes/recurrences, tests)
+- Prompt files updated per primitive-rename protocol (CLAUDE.md item 7b): `agents/prompts/{base,platforms,tools_core}.py` + `agents/prompts/chat/{onboarding,workspace,entity,behaviors,task_scope}.py` + `agents/cockpit_awareness.py`
+- Active doc references renamed: CLAUDE.md, primitives-matrix.md, GLOSSARY.md
+- ADR file references (docs/adr/) preserved verbatim as historical artifact
+- **Schedule added to REVIEWER_PRIMITIVES (ADR-261 D4)**: a recurrence is a self-scheduled future Reviewer session; authoring one is the Reviewer's own job. Reviewer surface: 17 → 18 tools.
+
+**Phase A.4 — AUTONOMY rederived (ADR-261 D5):**
+- Field rename: `level` → `delegation`
+- Value collapse: `manual | assisted | bounded_autonomous | autonomous` → `manual | bounded | autonomous`
+- Schema reshape: per-domain blocks now under `domains:` sub-key (was flat top-level)
+- DELETED: `never_auto` (folded into `manual` delegation), `heartbeat_triggers` (gone with ADR-260 D4), `auto_approve_below_cents` (folded into `ceiling_cents` under `bounded`)
+- `paused_until` + `pause_reason` survive (per ADR-248 D3+D4); mixed in by `autonomy_for_domain` so callers see full effective policy
+- `should_auto_execute_verdict` simplified: single AUTONOMY ceiling gate (was two gates)
+- Working memory's autonomy signal updated to read `delegation` not `level`
+
+**Phase C.1 — Compose primitive added (ADR-262 D4):**
+- New `services/primitives/compose.py` with `COMPOSE_TOOL` + `handle_compose`
+- Wraps existing `services.compose.task_html.compose_task_output_html` (ADR-148/170/177/213 mechanical pipeline preserved)
+- Registered in CHAT/HEADLESS/REVIEWER + HANDLERS
+- Reviewer surface: 18 → 19 tools (Schedule from D4 + Compose from D4)
+
+### Validation Gates
+
+**Validation Gate 1** (after Phase A): syntax check on 22 files + behavior tests for AUTONOMY (6 cases) + trigger taxonomy + Schedule registration + heartbeat absence — ALL PASS.
+
+**Validation Gate 2** (after Phase C.1): same battery + Compose primitive registration + manage_recurrence.py file absence (singular implementation honored) — ALL PASS.
+
+### Deferred to follow-up commits
+
+Per CLAUDE.md singular-implementation discipline (no parallel paths), the following structural changes are deferred to atomic follow-up commits rather than half-shipped:
+
+- **Phase B (recurrence schema collapse, ADR-261 D1+D2+D3):** the Schedule primitive currently preserves the per-shape declaration model (`shape` + `domain` + per-shape file paths from the prior `manage_recurrence.py` body). ADR-261 D1 collapses to `{slug, schedule, prompt}` in a single `_recurrences.yaml`. This requires coordinated changes to: scheduler walker, `invocation_dispatcher.py` dispatch logic (which currently branches on `RecurrenceShape`), `recurrence_paths.py` deletion, and migration of existing alpha-trader recurrences. Atomic phase; deferred.
+- **Phase B.3 (FireInvocation α/β/γ):** the open question from ADR-261 §6 (inline execution vs nested invocation). Resolved at the implementation moment with the dispatcher rewrite.
+- **Phase C.1b (Compose opt-out structural auto-trigger, ADR-262 D4):** the session-close hook that auto-runs Compose when section partials match the deliverable convention unless `options.skip_compose: true` on the recurrence record. Hook lives at the session-close boundary; deferred until the recurrence schema collapse lands.
+- **Phase C.2 (DispatchSpecialist primitive, ADR-261 D7):** Reviewer-loop-callable specialist sub-LLM-call primitive. Genuine new infrastructure (context routing + headless-mode invocation from chat loop). Deferred per singular-implementation rather than half-shipped.
+- **Phase D (bundle reshape + workspace_init simplify + alpha-trader re-author, ADR-261 D6 + ADR-262 D6):** depends on Phase B's substrate model. Deferred.
+- **Migration of kvk's existing alpha-trader-2 workspace:** the `_autonomy.yaml` shape changes (level→delegation enum collapse) require kvk's live workspace to be re-forked from the bundle reference workspace. Operational follow-up.
+
+### Files touched in this PR
+
+- `api/agents/cockpit_awareness.py`
+- `api/agents/prompts/{base,platforms,tools_core}.py` + `api/agents/prompts/chat/{onboarding,workspace,entity,behaviors,task_scope}.py`
+- `api/agents/reviewer_agent.py`
+- `api/jobs/unified_scheduler.py`
+- `api/routes/recurrences.py`
+- `api/services/back_office/{__init__,reviewer_reflection}.py`
+- `api/services/execution_router.py`
+- `api/services/invocation_dispatcher.py`
+- `api/services/primitives/{registry,schedule,compose}.py` (schedule renamed from manage_recurrence; compose new)
+- `api/services/review_policy.py`
+- `api/services/review_proposal_dispatch.py`
+- `api/services/task_deliverable_inference.py`
+- `api/services/working_memory.py`
+- `api/test_{adr235_update_context_dissolution,recent_commits}.py`
+- `CLAUDE.md`, `docs/architecture/{primitives-matrix,GLOSSARY}.md`
+
+---
+
+## [2026.05.08.8] - ADRs 260/261/262: real-time Reviewer loop + recurrences as prompts + output topology (DOCS PR)
+
+### Documentation only — no prompt content changes in this commit
+
+This entry tracks the documentation PR `feat/adr-260-261-262-real-time-rewrite`. Three new ADRs (260/261/262) ratify a major architectural collapse; canon docs (FOUNDATIONS Axioms 4+5, GLOSSARY, SERVICE-MODEL Execution Flow, primitives-matrix header, CLAUDE.md) updated; supersession banners added to 18 legacy ADRs. **No code changes, no prompt content changes in this PR.** Code cutover follows in a second PR atomic with all three ADRs.
+
+### What the code-PR will change (preview, for visibility)
+
+When the code PR lands, expect prompt-content changes:
+
+- **`_TRIGGER_FRAMING` collapses to three keys** (`addressed | reactive | scheduled`) per ADR-260 D2. The `heartbeat` and `reflection` branches are deleted; reflection is now a particular cron-poke (Scheduled) whose prompt asks the Reviewer to reflect.
+- **Reviewer system prompt** gains explicit framing: mid-loop continuation is the natural shape of a real-time tool-use loop (not a "fourth trigger"); Authored Substrate (ADR-209) revision messages are the cross-session continuity record.
+- **`Schedule` primitive** (renamed from `ManageRecurrence`) added to Reviewer's tool definitions; `DispatchSpecialist` and `Compose` primitives added per ADR-261 D7 + ADR-262 D4.
+- **Specialist sub-LLM-call prompts** become focused per ADR-261 D7 — researcher / analyst / writer / tracker / designer / reporting each get their own role-specific prompt fragment composed at dispatch time, no longer a shared task-pipeline-driven prompt.
+- **Cockpit awareness section** in Reviewer system prompt regenerates from updated `REVIEWER_PRIMITIVES` (per ADR-258 revised's drift-resistance pattern).
+- **AUTONOMY parsing** simplifies to the rederived shape (delegation enum + ceiling_cents + paused_until/pause_reason); legacy fields (`heartbeat_triggers`, `auto_approve_below_cents`, `never_auto`) parsing deleted.
+
+### Why a docs-only PR first
+
+The architectural collapse is large (output_kind enum dissolved, task pipeline as separate path dissolved, three-tier frontmatter dissolved, etc.). Per CLAUDE.md singular-implementation rule, the code cutover will be hard (delete legacy + add new in one commit per file). Ratifying the architecture in writing first lets the code PR be reviewed against the ADRs' decisions rather than against speculative reasoning.
+
+### Files in this docs PR
+
+- `docs/adr/ADR-260-real-time-reviewer-loop.md` (new)
+- `docs/adr/ADR-261-recurrences-as-prompts.md` (new)
+- `docs/adr/ADR-262-output-topology-and-specs.md` (new)
+- `docs/architecture/FOUNDATIONS.md` (Axioms 4 + 5)
+- `docs/architecture/GLOSSARY.md` (Recurrence + Schedule entries new; Pulse + Production-role + Task entries amended)
+- `docs/architecture/SERVICE-MODEL.md` (Execution Flow rewrite)
+- `docs/architecture/primitives-matrix.md` (header note for rename + new primitives)
+- `CLAUDE.md` (orientation summary)
+- 18 legacy ADRs receive supersession banners
+
+---
+
 ## [2026.05.08.7] - ADR-259: Chat surface → Feed surface (atomic rename, pre-users)
 
 ### Changed

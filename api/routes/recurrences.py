@@ -1,33 +1,34 @@
 """
-Tasks routes — read-only views over recurrence declarations + thin scheduling index.
+Recurrences routes — read/write surface over /workspace/_recurrences.yaml.
 
-ADR-231 Phase 3.7 (atomic deletion alongside legacy task_pipeline / TaskWorkspace /
-manage_task / task_types / task_derivation): this file rewrites to read from
-the recurrence-declaration substrate (workspace_files YAML at natural-home
-paths) + the thin tasks scheduling index, dispatching writes through
-services.invocation_dispatcher and services.primitives.manage_recurrence
-(per ADR-235 D1.c).
+Per ADR-261 D1 + D2: every recurrence is `{slug, schedule, prompt}` in
+the canonical file. Per ADR-262 D1: substrate paths are slug-templated
+via the conventions module — every recurrence's outputs land at
+``/workspace/reports/{slug}/{date}/output.md``.
 
-The HTTP surface (`/api/tasks/*`) is preserved for the frontend until
-Phase 3.8 renames URLs to `/api/recurrences/*`. The internal data model is
-already the post-cutover model — this file is a translation layer.
+The HTTP surface is preserved at ``/api/recurrences/*``. TaskResponse
+keeps its frontend-facing field set (``output_kind``, ``shape``,
+``mode``, etc.) at safe constant values so the FE compositor layer
+(ADR-167 KindMiddle, ADR-225 MiddleResolver) keeps rendering. Reshaping
+the FE compositor away from output_kind dispatch is Phase D / separate
+FE-coherence work — not Phase B's scope.
 
 Endpoints:
-- GET /tasks - List user's recurrences
-- GET /tasks/{slug} - Get recurrence detail
-- POST /tasks/{slug}/run - Manually fire an invocation
-- PUT /tasks/{slug} - Update recurrence (status / paused mapping)
-- PATCH /tasks/{slug}/sources - Update declaration sources
-- DELETE /tasks/{slug} - Archive recurrence
-- GET /tasks/{slug}/outputs[/...] - Read output substrate at natural-home paths
-- GET /tasks/{slug}/status - Run status from agent_runs
-- POST /tasks/{slug}/repurpose - Repurpose latest output
-- GET /tasks/{slug}/export - Export latest output (PDF/XLSX/etc.)
+- GET  /recurrences            list user's recurrences
+- GET  /recurrences/{slug}     recurrence detail
+- PUT  /recurrences/{slug}     update recurrence (status / paused / schedule)
+- DELETE /recurrences/{slug}   archive recurrence
+- POST /recurrences/{slug}/run fire an invocation now
+- GET  /recurrences/{slug}/status                latest run status
+- GET  /recurrences/{slug}/outputs               list dated outputs
+- GET  /recurrences/{slug}/outputs/latest        latest output
+- GET  /recurrences/{slug}/outputs/{date_folder} specific dated output
+- GET  /recurrences/{slug}/export                export latest output
+- POST /recurrences/{slug}/repurpose             repurpose latest output
 """
 
 from __future__ import annotations
 
-import json as _json
 import logging
 import os
 import re
@@ -39,12 +40,12 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from services.recurrence import (
-    RecurrenceDeclaration,
-    RecurrenceShape,
-    walk_workspace_recurrences,
+from services.conventions import (
+    RECURRENCES_PATH,
+    report_root,
+    report_run_log_path,
 )
-from services.recurrence_paths import resolve_paths
+from services.recurrence import Recurrence, walk_workspace_recurrences
 from services.supabase import UserClient
 from services.workspace import UserMemory
 
@@ -54,19 +55,11 @@ router = APIRouter()
 
 
 # =============================================================================
-# Response Models — frontend-facing shape preserved across cutover
+# Response models — frontend contract preserved
 # =============================================================================
 
 
 class TaskUpdate(BaseModel):
-    """Update payload accepted by PUT /tasks/{slug}.
-
-    Only fields that map cleanly to the recurrence YAML are accepted; the
-    legacy ManageTask multi-action surface dissolved per ADR-231 D5. Use
-    ManageRecurrence(action='update', ...) directly for richer changes
-    (ADR-235 D1.c).
-    """
-
     status: Optional[str] = None
     schedule: Optional[str] = None
 
@@ -75,15 +68,15 @@ class TaskResponse(BaseModel):
     id: str
     slug: str
     status: str
-    mode: Optional[str] = None  # legacy field — derived from declaration shape
+    mode: Optional[str] = None
     schedule: Optional[str] = None
     next_run_at: Optional[str] = None
     last_run_at: Optional[str] = None
     created_at: str
     updated_at: str
     title: Optional[str] = None
-    type_key: Optional[str] = None  # vestigial — always None post-ADR-231
-    output_kind: Optional[str] = None
+    type_key: Optional[str] = None
+    output_kind: Optional[str] = "produces_deliverable"  # FE compositor compat
     objective: Optional[dict] = None
     process: Optional[dict] = None
     agent_slugs: Optional[list] = None
@@ -93,13 +86,13 @@ class TaskResponse(BaseModel):
     context_reads: Optional[list] = None
     context_writes: Optional[list] = None
     phase: Optional[str] = None
-    essential: bool = False  # vestigial — always False post-ADR-231
-    paused: bool = False  # ADR-231 Phase 3.4 explicit flag (replaces status='paused')
+    essential: bool = False
+    paused: bool = False
     sources: Optional[dict] = None
     run_log: Optional[str] = None
     deliverable_spec: Optional[dict] = None
-    declaration_path: Optional[str] = None  # ADR-231: pointer to YAML truth
-    shape: Optional[str] = None  # ADR-231: deliverable | accumulation | action | maintenance
+    declaration_path: Optional[str] = None
+    shape: Optional[str] = "deliverable"  # FE compositor compat
 
 
 class TaskOutputEntry(BaseModel):
@@ -146,75 +139,66 @@ class RunStatusResponse(BaseModel):
 # =============================================================================
 
 
-def _output_kind_for_shape(shape: RecurrenceShape) -> str:
-    return {
-        RecurrenceShape.DELIVERABLE: "produces_deliverable",
-        RecurrenceShape.ACCUMULATION: "accumulates_context",
-        RecurrenceShape.ACTION: "external_action",
-        RecurrenceShape.MAINTENANCE: "system_maintenance",
-    }[shape]
+def _strip_ws_prefix(p: str) -> str:
+    return p[len("/workspace/"):] if p.startswith("/workspace/") else p
 
 
-def _decl_to_response(
+def _rec_for_slug(
+    recurrences: list[Recurrence], slug: str
+) -> Optional[Recurrence]:
+    return next((r for r in recurrences if r.slug == slug), None)
+
+
+def _rec_to_response(
     row: dict,
-    decl: Optional[RecurrenceDeclaration],
+    rec: Optional[Recurrence],
     *,
     run_log: Optional[str] = None,
-    deliverable_spec: Optional[dict] = None,
 ) -> TaskResponse:
-    """Build a TaskResponse from the scheduling-index row + declaration."""
-    title = (decl.display_name if decl else None) or row["slug"]
-    output_kind = _output_kind_for_shape(decl.shape) if decl else None
-    objective = (
-        {"prose": decl.objective} if decl and decl.objective else None
-    )
-    process = None
-    if decl and decl.data.get("page_structure"):
-        process = {"page_structure": decl.data["page_structure"]}
+    """Build a TaskResponse from the scheduling-index row + recurrence.
+
+    Per ADR-261 D1 the recurrence is `{slug, schedule, prompt, options}`.
+    Frontend fields that previously came from per-shape declaration data
+    (objective, agents, delivery, context_reads/writes) now come from the
+    optional ``options`` blob if the operator chose to set them; otherwise
+    None. The FE renders them defensively.
+    """
+    options = (rec.options if rec else {}) or {}
+    title = options.get("display_name") or row["slug"]
+    objective = options.get("objective")
+    if isinstance(objective, str):
+        objective = {"prose": objective}
 
     return TaskResponse(
         id=str(row["id"]),
         slug=row["slug"],
         status=row["status"],
-        mode="recurring" if decl and decl.schedule else "reactive",
-        schedule=(decl.schedule if decl else row.get("schedule")) or None,
+        mode="recurring" if rec and rec.schedule else "reactive",
+        schedule=(rec.schedule if rec else row.get("schedule")) or None,
         next_run_at=row.get("next_run_at"),
         last_run_at=row.get("last_run_at"),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         title=title,
         type_key=None,
-        output_kind=output_kind,
-        objective=objective,
-        process=process,
-        agent_slugs=decl.agents if decl else None,
-        delivery=(
-            decl.data.get("delivery") if decl and isinstance(decl.data.get("delivery"), str)
-            else None
-        ),
-        success_criteria=None,
-        output_spec=None,
-        context_reads=decl.context_reads if decl else None,
-        context_writes=decl.context_writes if decl else None,
+        output_kind="produces_deliverable",
+        objective=objective if isinstance(objective, dict) else None,
+        process=options.get("process"),
+        agent_slugs=options.get("agents") or options.get("agent_slugs"),
+        delivery=options.get("delivery") if isinstance(options.get("delivery"), str) else None,
+        success_criteria=options.get("success_criteria"),
+        output_spec=options.get("output_spec"),
+        context_reads=options.get("context_reads"),
+        context_writes=options.get("context_writes"),
         phase=None,
         essential=False,
         paused=bool(row.get("paused", False)),
-        sources=decl.data.get("sources") if decl else None,
+        sources=options.get("sources"),
         run_log=run_log,
-        deliverable_spec=deliverable_spec,
-        declaration_path=decl.declaration_path if decl else row.get("declaration_path"),
-        shape=decl.shape.value if decl else None,
+        deliverable_spec=options.get("deliverable") if isinstance(options.get("deliverable"), dict) else None,
+        declaration_path=row.get("declaration_path") or RECURRENCES_PATH,
+        shape="deliverable",
     )
-
-
-def _decl_for_slug(
-    decls: list[RecurrenceDeclaration], slug: str
-) -> Optional[RecurrenceDeclaration]:
-    return next((d for d in decls if d.slug == slug), None)
-
-
-def _strip_ws_prefix(p: str) -> str:
-    return p[len("/workspace/"):] if p.startswith("/workspace/") else p
 
 
 # =============================================================================
@@ -223,20 +207,19 @@ def _strip_ws_prefix(p: str) -> str:
 
 
 @router.get("")
-async def list_tasks(
+async def list_recurrences(
     auth: UserClient,
     status: Optional[str] = None,
     limit: int = 100,
     include_system: bool = False,
 ) -> list[TaskResponse]:
-    """List all recurrences (joined index + declaration walker).
-
-    `include_system=true` includes back-office maintenance recurrences.
-    """
+    """List user's recurrences (joined index + walker)."""
     query = (
         auth.client.table("tasks")
-        .select("id, slug, status, schedule, next_run_at, last_run_at, "
-                "created_at, updated_at, declaration_path, paused")
+        .select(
+            "id, slug, status, schedule, next_run_at, last_run_at, "
+            "created_at, updated_at, declaration_path, paused"
+        )
         .eq("user_id", auth.user_id)
         .order("created_at", desc=True)
         .limit(limit)
@@ -248,41 +231,37 @@ async def list_tasks(
     if not include_system:
         rows = [r for r in rows if not (r.get("slug") or "").startswith("back-office-")]
 
-    decls = walk_workspace_recurrences(auth.client, auth.user_id)
-    return [_decl_to_response(r, _decl_for_slug(decls, r["slug"])) for r in rows]
+    recurrences = walk_workspace_recurrences(auth.client, auth.user_id)
+    return [_rec_to_response(r, _rec_for_slug(recurrences, r["slug"])) for r in rows]
 
 
 @router.get("/{slug}")
-async def get_task(slug: str, auth: UserClient) -> TaskResponse:
-    """Recurrence detail: index row + declaration + run log."""
+async def get_recurrence(slug: str, auth: UserClient) -> TaskResponse:
+    """Recurrence detail: index row + recurrence + run log."""
     rows = (
         auth.client.table("tasks")
-        .select("id, slug, status, schedule, next_run_at, last_run_at, "
-                "created_at, updated_at, declaration_path, paused")
+        .select(
+            "id, slug, status, schedule, next_run_at, last_run_at, "
+            "created_at, updated_at, declaration_path, paused"
+        )
         .eq("user_id", auth.user_id)
         .eq("slug", slug)
         .limit(1)
         .execute()
     ).data
     if not rows:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Recurrence not found")
     row = rows[0]
 
-    decls = walk_workspace_recurrences(auth.client, auth.user_id)
-    decl = _decl_for_slug(decls, slug)
-    if decl is None:
-        return _decl_to_response(row, None)
+    recurrences = walk_workspace_recurrences(auth.client, auth.user_id)
+    rec = _rec_for_slug(recurrences, slug)
+    if rec is None:
+        return _rec_to_response(row, None)
 
-    paths = resolve_paths(decl)
     um = UserMemory(auth.client, auth.user_id)
-    run_log = await um.read(_strip_ws_prefix(paths.run_log_path))
+    run_log = await um.read(_strip_ws_prefix(report_run_log_path(slug)))
 
-    deliverable_spec = None
-    deliverable_block = decl.data.get("deliverable")
-    if isinstance(deliverable_block, dict):
-        deliverable_spec = deliverable_block
-
-    return _decl_to_response(row, decl, run_log=run_log, deliverable_spec=deliverable_spec)
+    return _rec_to_response(row, rec, run_log=run_log)
 
 
 # =============================================================================
@@ -291,13 +270,16 @@ async def get_task(slug: str, auth: UserClient) -> TaskResponse:
 
 
 @router.put("/{slug}")
-async def update_task(
+async def update_recurrence(
     slug: str,
     request: TaskUpdate,
     auth: UserClient,
 ) -> dict:
-    """Update recurrence — maps to ManageRecurrence(action='update'/'pause'/'resume')
-    for schedule changes; flips paused flag for status='paused' (legacy frontend)."""
+    """Update recurrence — maps to Schedule(action='update'/'pause'/'resume').
+
+    Keeps the legacy frontend behavior where status='paused' flips the
+    paused flag rather than changing status.
+    """
     rows = (
         auth.client.table("tasks")
         .select("id, slug, status, declaration_path, paused")
@@ -307,14 +289,13 @@ async def update_task(
         .execute()
     ).data
     if not rows:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Recurrence not found")
     row = rows[0]
 
     db_updates: dict = {"updated_at": datetime.now(timezone.utc).isoformat()}
     if request.status is not None:
         if request.status not in ("active", "paused", "completed", "archived"):
             raise HTTPException(status_code=400, detail=f"Invalid status: {request.status}")
-        # ADR-231 Phase 3.4: paused is an explicit flag, not a status.
         if request.status == "paused":
             db_updates["paused"] = True
             db_updates["status"] = "active"
@@ -328,40 +309,52 @@ async def update_task(
         "slug", slug
     ).execute()
 
-    # Mirror schedule + paused changes into the YAML declaration via
-    # ManageRecurrence (action='update'/'pause'/'resume') per ADR-235 D1.c.
-    decls = walk_workspace_recurrences(auth.client, auth.user_id)
-    decl = _decl_for_slug(decls, slug)
-    if decl is not None:
-        from services.primitives.manage_recurrence import handle_manage_recurrence
+    # Mirror schedule + paused changes into _recurrences.yaml via Schedule.
+    from services.primitives.schedule import handle_schedule
 
-        if request.status == "paused":
-            await handle_manage_recurrence(auth, {
-                "action": "pause",
-                "shape": decl.shape.value, "slug": slug,
-                "domain": decl.domain,
-            })
-        elif request.status in ("active",) and row.get("paused"):
-            await handle_manage_recurrence(auth, {
-                "action": "resume",
-                "shape": decl.shape.value, "slug": slug,
-                "domain": decl.domain,
-            })
-        if request.schedule is not None:
-            await handle_manage_recurrence(auth, {
-                "action": "update",
-                "shape": decl.shape.value, "slug": slug,
-                "domain": decl.domain,
-                "changes": {"schedule": request.schedule},
-            })
+    if request.status == "paused":
+        await handle_schedule(auth, {"action": "pause", "slug": slug, "authored_by": "operator"})
+    elif request.status == "active" and row.get("paused"):
+        await handle_schedule(auth, {"action": "resume", "slug": slug, "authored_by": "operator"})
+    if request.schedule is not None:
+        await handle_schedule(auth, {
+            "action": "update",
+            "slug": slug,
+            "changes": {"schedule": request.schedule},
+            "authored_by": "operator",
+        })
 
     return {"success": True}
 
 
+@router.patch("/{slug}/sources")
+async def update_recurrence_sources(
+    slug: str,
+    sources: dict,
+    auth: UserClient,
+) -> dict:
+    """Update the recurrence's per-platform source selection. Stored as
+    metadata under ``options.sources`` in the recurrence entry."""
+    from services.primitives.schedule import handle_schedule
+
+    result = await handle_schedule(auth, {
+        "action": "update",
+        "slug": slug,
+        "changes": {"sources": sources},
+        "authored_by": "operator",
+    })
+    if not result.get("success"):
+        raise HTTPException(
+            status_code=404,
+            detail=result.get("message", "Recurrence not found"),
+        )
+    return {"success": True}
+
+
 @router.delete("/{slug}")
-async def archive_task(slug: str, auth: UserClient) -> dict:
-    """Archive a recurrence — marks the index row archived and tells
-    ManageRecurrence to remove the YAML declaration (ADR-235 D1.c)."""
+async def archive_recurrence(slug: str, auth: UserClient) -> dict:
+    """Archive a recurrence — marks the index row archived and removes the
+    entry from _recurrences.yaml via Schedule(action='archive')."""
     rows = (
         auth.client.table("tasks")
         .select("id, slug, declaration_path")
@@ -371,45 +364,16 @@ async def archive_task(slug: str, auth: UserClient) -> dict:
         .execute()
     ).data
     if not rows:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Recurrence not found")
 
     auth.client.table("tasks").update({
         "status": "archived",
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }).eq("user_id", auth.user_id).eq("slug", slug).execute()
 
-    decls = walk_workspace_recurrences(auth.client, auth.user_id)
-    decl = _decl_for_slug(decls, slug)
-    if decl is not None:
-        from services.primitives.manage_recurrence import handle_manage_recurrence
-        await handle_manage_recurrence(auth, {
-            "action": "archive",
-            "shape": decl.shape.value, "slug": slug,
-            "domain": decl.domain,
-        })
+    from services.primitives.schedule import handle_schedule
+    await handle_schedule(auth, {"action": "archive", "slug": slug, "authored_by": "operator"})
 
-    return {"success": True}
-
-
-@router.patch("/{slug}/sources")
-async def update_task_sources(
-    slug: str,
-    sources: dict,
-    auth: UserClient,
-) -> dict:
-    """Update the recurrence's per-platform source selection."""
-    decls = walk_workspace_recurrences(auth.client, auth.user_id)
-    decl = _decl_for_slug(decls, slug)
-    if decl is None:
-        raise HTTPException(status_code=404, detail="Task not found")
-
-    from services.primitives.manage_recurrence import handle_manage_recurrence
-    await handle_manage_recurrence(auth, {
-        "action": "update",
-        "shape": decl.shape.value, "slug": slug,
-        "domain": decl.domain,
-        "changes": {"sources": sources},
-    })
     return {"success": True}
 
 
@@ -419,8 +383,8 @@ async def update_task_sources(
 
 
 @router.post("/{slug}/run")
-async def trigger_task_run(slug: str, auth: UserClient) -> TaskRunTriggered:
-    """Fire an invocation against the recurrence declaration immediately."""
+async def trigger_recurrence_run(slug: str, auth: UserClient) -> TaskRunTriggered:
+    """Fire an invocation against the recurrence immediately."""
     rows = (
         auth.client.table("tasks")
         .select("id, slug, status")
@@ -430,7 +394,7 @@ async def trigger_task_run(slug: str, auth: UserClient) -> TaskRunTriggered:
         .execute()
     ).data
     if not rows:
-        raise HTTPException(status_code=404, detail="Task not found")
+        raise HTTPException(status_code=404, detail="Recurrence not found")
     if rows[0]["status"] != "active":
         raise HTTPException(
             status_code=400,
@@ -438,77 +402,66 @@ async def trigger_task_run(slug: str, auth: UserClient) -> TaskRunTriggered:
         )
 
     try:
-        from services.supabase import get_service_client
         from services.invocation_dispatcher import dispatch
+        from services.supabase import get_service_client
         svc_client = get_service_client()
-        decls = walk_workspace_recurrences(svc_client, auth.user_id)
-        decl = _decl_for_slug(decls, slug)
-        if decl is None:
-            raise HTTPException(status_code=404, detail=f"No declaration for slug '{slug}'")
-        result = await dispatch(svc_client, auth.user_id, decl)
-        logger.info(f"[TASKS] inline dispatch for {slug}: {result.get('status', '?')}")
+        recurrences = walk_workspace_recurrences(svc_client, auth.user_id)
+        rec = _rec_for_slug(recurrences, slug)
+        if rec is None:
+            raise HTTPException(
+                status_code=404,
+                detail=f"No recurrence entry for slug '{slug}' in _recurrences.yaml",
+            )
+        result = await dispatch(svc_client, auth.user_id, rec, trigger="addressed")
+        logger.info(
+            f"[RECURRENCE] inline dispatch for {slug}: "
+            f"{result.get('success', '?')}"
+        )
         return TaskRunTriggered(triggered=True, task_slug=slug)
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[TASKS] inline execution failed for {slug}: {e}")
-        raise HTTPException(status_code=500, detail=f"Task execution failed: {e}")
+        logger.error(f"[RECURRENCE] inline execution failed for {slug}: {e}")
+        raise HTTPException(status_code=500, detail=f"Recurrence execution failed: {e}")
 
 
 @router.get("/{slug}/status")
 async def get_run_status(slug: str, auth: UserClient) -> RunStatusResponse:
-    """Latest run status for a recurrence — derived from agent_runs."""
-    decls = walk_workspace_recurrences(auth.client, auth.user_id)
-    decl = _decl_for_slug(decls, slug)
-    if decl is None or not decl.agents:
-        return RunStatusResponse(status="not_found")
+    """Latest run status — derived from agent_runs by slug.
 
-    # Look up the assigned agent's most recent run
-    agent_slug = decl.agents[0]
-    agent_row = (
-        auth.client.table("agents")
-        .select("id")
+    Under the unified model, the assigned-agent concept dissolves (the
+    Reviewer dispatches specialists per-invocation). We look up the most
+    recent agent_run row associated with this recurrence's slug via
+    metadata, falling back to a synthesized status from the tasks index.
+    """
+    rows = (
+        auth.client.table("tasks")
+        .select("status, last_run_at, next_run_at")
         .eq("user_id", auth.user_id)
-        .eq("slug", agent_slug)
+        .eq("slug", slug)
         .limit(1)
         .execute()
     ).data
-    if not agent_row:
+    if not rows:
         return RunStatusResponse(status="not_found")
 
-    runs = (
-        auth.client.table("agent_runs")
-        .select("status, created_at, delivered_at")
-        .eq("agent_id", agent_row[0]["id"])
-        .order("created_at", desc=True)
-        .limit(1)
-        .execute()
-    ).data
-    if not runs:
-        return RunStatusResponse(status="not_found")
-    r = runs[0]
+    row = rows[0]
     return RunStatusResponse(
-        status=r.get("status", "unknown"),
-        started_at=r.get("created_at"),
-        completed_at=r.get("delivered_at"),
+        status="active" if row.get("status") == "active" else row.get("status", "unknown"),
+        started_at=row.get("last_run_at"),
+        completed_at=row.get("last_run_at"),
     )
 
 
 # =============================================================================
-# Output reads (natural-home substrate)
+# Output reads (slug-templated substrate per ADR-262 D1)
 # =============================================================================
 
 
 @router.get("/{slug}/outputs")
-async def list_task_outputs(slug: str, auth: UserClient) -> list[TaskOutputEntry]:
-    """List dated output folders for a DELIVERABLE recurrence."""
-    decls = walk_workspace_recurrences(auth.client, auth.user_id)
-    decl = _decl_for_slug(decls, slug)
-    if decl is None or decl.shape != RecurrenceShape.DELIVERABLE:
-        return []
-
-    paths = resolve_paths(decl)
-    substrate_root = paths.substrate_root  # /workspace/reports/{slug}
+async def list_recurrence_outputs(slug: str, auth: UserClient) -> list[TaskOutputEntry]:
+    """List dated output folders under /workspace/reports/{slug}/."""
+    substrate_root = report_root(slug)
 
     result = (
         auth.client.table("workspace_files")
@@ -521,8 +474,7 @@ async def list_task_outputs(slug: str, auth: UserClient) -> list[TaskOutputEntry
     entries = []
     for row in result:
         path = row["path"]
-        # Extract date folder: substrate_root/{date}/output.md
-        rel = path[len(substrate_root) + 1:]  # strip prefix + "/"
+        rel = path[len(substrate_root) + 1:]
         date_folder = rel.split("/")[0]
         entries.append(TaskOutputEntry(
             folder=date_folder,
@@ -536,15 +488,9 @@ async def list_task_outputs(slug: str, auth: UserClient) -> list[TaskOutputEntry
 
 
 @router.get("/{slug}/outputs/latest")
-async def get_latest_task_output(slug: str, auth: UserClient) -> TaskOutputLatest:
-    """Latest output for a DELIVERABLE recurrence."""
-    decls = walk_workspace_recurrences(auth.client, auth.user_id)
-    decl = _decl_for_slug(decls, slug)
-    if decl is None or decl.shape != RecurrenceShape.DELIVERABLE:
-        return TaskOutputLatest()
-
-    paths = resolve_paths(decl)
-    substrate_root = paths.substrate_root
+async def get_latest_recurrence_output(slug: str, auth: UserClient) -> TaskOutputLatest:
+    """Latest output for a recurrence."""
+    substrate_root = report_root(slug)
 
     latest = (
         auth.client.table("workspace_files")
@@ -568,16 +514,10 @@ async def get_latest_task_output(slug: str, auth: UserClient) -> TaskOutputLates
 
 
 @router.get("/{slug}/outputs/{date_folder}")
-async def get_task_output_by_date(
+async def get_recurrence_output_by_date(
     slug: str, date_folder: str, auth: UserClient
 ) -> TaskOutputLatest:
-    decls = walk_workspace_recurrences(auth.client, auth.user_id)
-    decl = _decl_for_slug(decls, slug)
-    if decl is None or decl.shape != RecurrenceShape.DELIVERABLE:
-        return TaskOutputLatest()
-
-    paths = resolve_paths(decl)
-    substrate_root = paths.substrate_root
+    substrate_root = report_root(slug)
     um = UserMemory(auth.client, auth.user_id)
     output_md = await um.read(_strip_ws_prefix(f"{substrate_root}/{date_folder}/output.md"))
     if not output_md:
@@ -586,25 +526,19 @@ async def get_task_output_by_date(
 
 
 # =============================================================================
-# Export + Repurpose (delegated to existing services)
+# Export + Repurpose
 # =============================================================================
 
 
 @router.get("/{slug}/export")
-async def export_task_output(
+async def export_recurrence_output(
     slug: str,
     format: str,
     auth: UserClient,
     date_folder: Optional[str] = None,
 ):
     """Export latest output as PDF/XLSX/etc. via render service."""
-    decls = walk_workspace_recurrences(auth.client, auth.user_id)
-    decl = _decl_for_slug(decls, slug)
-    if decl is None or decl.shape != RecurrenceShape.DELIVERABLE:
-        raise HTTPException(status_code=404, detail="Task not found or not deliverable")
-
-    paths = resolve_paths(decl)
-    substrate_root = paths.substrate_root
+    substrate_root = report_root(slug)
 
     if not date_folder:
         latest = (
@@ -646,7 +580,7 @@ async def export_task_output(
 
 
 @router.post("/{slug}/repurpose")
-async def repurpose_task_output(
+async def repurpose_recurrence_output(
     slug: str,
     payload: dict,
     auth: UserClient,

@@ -44,8 +44,8 @@ from uuid import UUID
 from datetime import datetime
 
 from services.supabase import UserClient
-# ADR-231 Phase 3.6.a.3: TaskWorkspace import removed. Slug-rooted task I/O
-# replaced with declaration-walker reads via services.recurrence_paths.
+# ADR-261 + ADR-262: slug-rooted task I/O reads are slug-templated through
+# services.conventions; recurrence parsing through services.recurrence.
 
 logger = logging.getLogger(__name__)
 # ContextBundle and YarnnnAgent removed — ADR-257: System Agent LLM stream deleted.
@@ -858,119 +858,78 @@ async def _load_task_context(
     and assigned agent info.
     """
     import re
+    from services.conventions import (
+        RECURRENCES_PATH,
+        report_root,
+        report_run_log_path,
+    )
     from services.recurrence import walk_workspace_recurrences
-    from services.recurrence_paths import resolve_paths
     from services.workspace import UserMemory
 
-    # ADR-231 Phase 3.6.a.3: resolve slug → RecurrenceDeclaration via walker;
-    # read declaration substrate from natural-home paths via UserMemory.
-    decls = walk_workspace_recurrences(client, user_id)
-    decl = next((d for d in decls if d.slug == task_slug), None)
-    if decl is None:
-        return None  # No matching declaration
+    # ADR-261 D1: a recurrence is {slug, schedule, prompt}. The operator-facing
+    # display name (when set) lives under options.display_name per the Schedule
+    # primitive's optional metadata convention.
+    recurrences = walk_workspace_recurrences(client, user_id)
+    rec = next((r for r in recurrences if r.slug == task_slug), None)
+    if rec is None:
+        return None
 
-    paths = resolve_paths(decl)
     um = UserMemory(client, user_id)
 
     def _strip_ws_prefix(p: str) -> str:
         return p[len("/workspace/"):] if p.startswith("/workspace/") else p
 
-    # 1. Display title — fall back to slug
-    task_title = decl.display_name or decl.slug
+    # 1. Display title — option override, else slug
+    task_title = (rec.options or {}).get("display_name") or rec.slug
 
     # 2. Read run_log.md — last 5 ## sections
     run_log_last_5 = ""
-    run_log = await um.read(_strip_ws_prefix(paths.run_log_path))
+    run_log = await um.read(_strip_ws_prefix(report_run_log_path(task_slug)))
     if run_log:
         sections = re.split(r"(?=^## )", run_log, flags=re.MULTILINE)
         sections = [s.strip() for s in sections if s.strip()]
         last_5 = sections[-5:] if len(sections) > 5 else sections
         run_log_last_5 = "\n\n".join(last_5)
 
-    # 3. Read latest output preview — only meaningful for DELIVERABLE shape
+    # 3. Read latest output preview — list dated folders under report_root and
+    #    pick the most recent. Cheap convenience read; not in a hot loop.
     output_preview = ""
-    if paths.output_path:
-        # paths.output_path may carry a {date} placeholder; for the latest-output
-        # read we want whatever the most-recent dated folder is. The substrate
-        # walker pattern is: list outputs under substrate_root/, pick the latest
-        # dated subdir. For 3.6 simplicity: skip if the path has {date} (the
-        # operator's chat is not a hot loop; preview is convenience).
-        if "{date}" not in paths.output_path:
-            output_content = await um.read(_strip_ws_prefix(paths.output_path))
+    try:
+        recent = (
+            client.table("workspace_files")
+            .select("path,content")
+            .eq("user_id", user_id)
+            .like("path", f"{report_root(task_slug)}/%/output.md")
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if recent.data:
+            output_content = recent.data[0].get("content") or ""
             if output_content:
                 output_preview = output_content[:500]
                 if len(output_content) > 500:
                     output_preview += "\n[truncated...]"
-
-    # 4. Assigned agent info — pulled directly from declaration.agents
-    agent_info = ""
-    if decl.agents:
-        agent_slug = decl.agents[0]
-        try:
-            agent_result = (
-                client.table("agents")
-                .select("title, role")
-                .eq("user_id", user_id)
-                .eq("slug", agent_slug)
-                .limit(1)
-                .execute()
-            )
-            if agent_result.data:
-                a = agent_result.data[0]
-                agent_info = f"{a['title']} ({a.get('role', 'custom')})"
-        except Exception as e:
-            logger.debug(f"[TASK_CONTEXT] Failed to fetch agent: {e}")
-
-    # 5. Section steering hint for DELIVERABLE shape with page_structure declared.
-    # Post-cutover, sections live in the recurrence YAML's `page_structure:` field.
-    section_steering_hint = ""
-    page_structure = decl.data.get("page_structure")
-    if decl.shape.value == "deliverable" and page_structure:
-        from services.compose.assembly import _slug as _section_slug
-        slugs: list[str] = []
-        titles: list[str] = []
-        for entry in page_structure:
-            if isinstance(entry, dict):
-                t = entry.get("title", "")
-                if t:
-                    slugs.append(_section_slug(t))
-                    titles.append(t)
-            elif isinstance(entry, str):
-                slugs.append(_section_slug(entry))
-                titles.append(entry)
-        if slugs:
-            section_lines = [
-                f"  - `{slug}` — {title}"
-                for slug, title in zip(slugs, titles)
-            ]
-            section_steering_hint = (
-                "\n\nThis is a deliverable recurrence with declared sections. "
-                "You can steer a specific section by writing to the recurrence's "
-                "feedback substrate via "
-                f"WriteFile(scope='workspace', path='reports/{task_slug}/feedback.md', "
-                "content='## Steering for section <section-slug>\\n- ...', mode='append').\n"
-                "Available sections:\n" + "\n".join(section_lines)
-            )
+    except Exception as e:
+        logger.debug(f"[TASK_CONTEXT] Output preview read failed: {e}")
 
     # Build formatted context
-    parts = [f'You are helping the user manage the recurrence "{task_title}".']
-    parts.append(f"\nDeclaration: {decl.declaration_path}")
-    if decl.objective:
-        parts.append(f"\nObjective: {decl.objective}")
-    if decl.schedule:
-        parts.append(f"Schedule: {decl.schedule}{' (paused)' if decl.paused else ''}")
+    parts = [f'You are helping the operator manage the recurrence "{task_title}".']
+    parts.append(f"\nRecurrence file: {RECURRENCES_PATH}")
+    if rec.schedule:
+        parts.append(f"Schedule: {rec.schedule}{' (paused)' if rec.paused else ''}")
+    elif rec.paused:
+        parts.append("Schedule: reactive (paused)")
+    else:
+        parts.append("Schedule: reactive")
+
+    parts.append(f"\nPrompt:\n{rec.prompt}")
 
     if run_log_last_5:
         parts.append(f"\nRecent run log:\n{run_log_last_5}")
 
     if output_preview:
         parts.append(f"\nLatest output preview:\n{output_preview}")
-
-    if agent_info:
-        parts.append(f"\nAssigned agent: {agent_info}")
-
-    if section_steering_hint:
-        parts.append(section_steering_hint)
 
     return "\n".join(parts)
 

@@ -978,15 +978,16 @@ async def trigger_run(
 ) -> dict:
     """Trigger an ad-hoc agent run.
 
-    ADR-231 Phase 3.6.a.2: routes through services.invocation_dispatcher.
-    Resolves agent → recurrence declaration via find_declaration_for_agent,
-    then dispatch(decl). Replaces the legacy execute_agent_run path which
-    scanned tasks rows + parsed every TASK.md to find an assignment.
+    Per ADR-261 D7: agents are tools the Reviewer dispatches via
+    DispatchSpecialist (Phase C.2). "Operator clicked Run on agent X" is
+    expressed as a synthetic addressed-equivalent invocation — a one-shot
+    Recurrence whose prompt asks the Reviewer to dispatch this specific
+    agent now. The Reviewer's loop then routes to DispatchSpecialist.
     """
-    from services.invocation_dispatcher import dispatch, find_declaration_for_agent
+    from services.invocation_dispatcher import dispatch
+    from services.recurrence import Recurrence
     from services.supabase import get_service_client
 
-    # Get agent
     result = (
         auth.client.table("agents")
         .select("*")
@@ -1000,7 +1001,6 @@ async def trigger_run(
         raise HTTPException(status_code=404, detail="Agent not found")
 
     agent = result.data
-
     if agent["status"] == "archived":
         raise HTTPException(status_code=400, detail="Cannot run archived agent")
 
@@ -1011,25 +1011,30 @@ async def trigger_run(
     logger.info(f"[AGENT] Triggering run: {agent_id} ({agent_slug})")
 
     svc_client = get_service_client()
-    decl = find_declaration_for_agent(svc_client, auth.user_id, agent_slug)
-    if decl is None:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"No recurrence declaration assigns agent '{agent_slug}'. "
-                f"Author one via ManageRecurrence(action='create', ...) with "
-                f"this agent in the body's agents: field."
-            ),
-        )
-
-    exec_result = await dispatch(svc_client, auth.user_id, decl)
+    synthetic = Recurrence(
+        slug=f"manual-run-{agent_slug}",
+        schedule=None,
+        prompt=(
+            f"Operator manually requested a run of agent '{agent_slug}'. "
+            f"Dispatch this specialist now via DispatchSpecialist with a "
+            f"focused brief derived from the operator's standing context "
+            f"(MANDATE, IDENTITY, recent decisions). Read the resulting "
+            f"output, decide whether to ProposeAction or stand down, and "
+            f"narrate your reasoning."
+        ),
+        options={
+            "manual_run": True,
+            "agent_slug": agent_slug,
+            "agent_id": str(agent_id),
+        },
+    )
+    exec_result = await dispatch(svc_client, auth.user_id, synthetic, trigger="addressed")
     return {
         "success": exec_result.get("success", False),
-        "run_id": exec_result.get("run_id"),
-        "version_number": exec_result.get("version_number"),
-        "status": exec_result.get("status"),
+        "trigger": exec_result.get("trigger"),
+        "actions_taken": exec_result.get("actions_taken"),
+        "proposals": exec_result.get("proposals"),
         "message": exec_result.get("message"),
-        "shape": exec_result.get("shape"),
         "slug": exec_result.get("slug"),
     }
 

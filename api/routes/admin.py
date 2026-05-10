@@ -835,13 +835,13 @@ async def admin_trigger_task(
     task_slug: str,
     x_service_key: Optional[str] = Header(None),
 ) -> dict:
-    """Trigger a recurrence declaration for testing.
+    """Trigger a recurrence for testing.
 
-    ADR-231 Phase 3.6.a.3: routes through services.invocation_dispatcher.
-    Resolves slug → RecurrenceDeclaration via walk_workspace_recurrences.
+    Per ADR-261 D3: walks /workspace/_recurrences.yaml for the user that
+    owns the slug and dispatches via services.invocation_dispatcher.
     """
-    from services.recurrence import walk_workspace_recurrences
     from services.invocation_dispatcher import dispatch
+    from services.recurrence import walk_workspace_recurrences
 
     supabase_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
     if not x_service_key or x_service_key != supabase_key:
@@ -854,28 +854,27 @@ async def admin_trigger_task(
     from supabase import create_client
     client = create_client(supabase_url, supabase_key)
 
-    # Find task index row to learn user_id (the index is the lookup table for slug→user)
     task_result = client.table("tasks").select("user_id, slug").eq("slug", task_slug).limit(1).execute()
     if not task_result.data:
         raise HTTPException(status_code=404, detail=f"No task index row for slug: {task_slug}")
 
     user_id = task_result.data[0]["user_id"]
-    decls = walk_workspace_recurrences(client, user_id)
-    decl = next((d for d in decls if d.slug == task_slug), None)
-    if decl is None:
+    recurrences = walk_workspace_recurrences(client, user_id)
+    rec = next((r for r in recurrences if r.slug == task_slug), None)
+    if rec is None:
         raise HTTPException(
             status_code=404,
-            detail=f"No recurrence declaration found for slug '{task_slug}' (user {user_id[:8]}).",
+            detail=f"No recurrence entry for slug '{task_slug}' (user {user_id[:8]}).",
         )
 
     try:
-        result = await dispatch(client, user_id, decl)
+        result = await dispatch(client, user_id, rec, trigger="addressed")
         return {
             "task_slug": task_slug,
             "success": result.get("success", False),
             "message": result.get("message"),
-            "status": result.get("status"),
-            "shape": result.get("shape"),
+            "trigger": result.get("trigger"),
+            "actions_taken": result.get("actions_taken"),
         }
     except Exception as e:
         import traceback

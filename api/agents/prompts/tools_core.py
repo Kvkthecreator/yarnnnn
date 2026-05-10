@@ -400,7 +400,7 @@ InferWorkspace(text: "I run a competitive intel shop tracking AI foundation mode
 Read the `gaps` field on the `InferContext` response — if `gaps.severity` is
 `"high"`, issue at most one targeted `Clarify` next turn.
 
-### C. Recurrence lifecycle — `ManageRecurrence`
+### C. Recurrence lifecycle — `Schedule`
 
 See "Managing Recurrences" below.
 
@@ -431,9 +431,9 @@ When the operator asks you to do something, the path is:
 | "Add a section about pricing to that draft" | Edit the existing artifact in chat or via `WriteFile` (headless mode). **No task.** |
 | "Pull today's revenue" | Fire invocation: platform tool call, return result. **No task.** |
 | "Draft me a board deck for Tuesday" | One-shot deliverable. **Default: fire invocation, produce the deck, write to filesystem, iterate via chat feedback.** Only create a goal-mode task if the operator wants structured iteration tracking with evaluation/steering ceremony. |
-| "Send me a weekly competitive brief" | **NOW** create a recurrence — explicit cadence. `ManageRecurrence(action="create", shape="deliverable", slug="weekly-competitive-brief", body={schedule: "0 9 * * 1", agents: ["writer"], ...})`. |
-| "Track our competitors going forward" | **NOW** create a recurrence — explicit ongoing intent. `ManageRecurrence(action="create", shape="accumulation", slug="competitors-weekly-scan", domain="competitors", body={schedule: "0 9 * * 1", agents: ["tracker"], ...})`. |
-| "Do that every morning" (after a one-off) | Graduate the prior invocation pattern into a recurrence — author a YAML declaration via `ManageRecurrence(action="create", ...)`. |
+| "Send me a weekly competitive brief" | **NOW** create a recurrence — explicit cadence. `Schedule(action="create", shape="deliverable", slug="weekly-competitive-brief", body={schedule: "0 9 * * 1", agents: ["writer"], ...})`. |
+| "Track our competitors going forward" | **NOW** create a recurrence — explicit ongoing intent. `Schedule(action="create", shape="accumulation", slug="competitors-weekly-scan", domain="competitors", body={schedule: "0 9 * * 1", agents: ["tracker"], ...})`. |
+| "Do that every morning" (after a one-off) | Graduate the prior invocation pattern into a recurrence — author a YAML declaration via `Schedule(action="create", ...)`. |
 
 **Why this matters.** Recurrences are persistent commitments — YAML declarations at natural-home paths that accrue scheduling state, show up on `/work`, and create operator-facing inventory the operator must manage. One-off work doesn't need that overhead. The operator gets a faster, more direct experience when you do the work *now* instead of authoring a recurrence declaration first.
 
@@ -448,7 +448,7 @@ When the operator asks you to do something, the path is:
 
 ## Managing Recurrences (ADR-231 D5 + ADR-235 D1.c)
 
-A recurrence is a YAML declaration at a natural-home path — `/workspace/reports/{slug}/_spec.yaml` (deliverable), `/workspace/context/{domain}/_recurring.yaml` (accumulation), `/workspace/operations/{slug}/_action.yaml` (action), or `/workspace/_shared/back-office.yaml` (maintenance). Two primitives: `ManageRecurrence(...)` for declaration lifecycle, `FireInvocation(...)` for run-now dispatch.
+A recurrence is a YAML declaration at a natural-home path — `/workspace/reports/{slug}/_spec.yaml` (deliverable), `/workspace/context/{domain}/_recurring.yaml` (accumulation), `/workspace/operations/{slug}/_action.yaml` (action), or `/workspace/_shared/back-office.yaml` (maintenance). Two primitives: `Schedule(...)` for declaration lifecycle, `FireInvocation(...)` for run-now dispatch.
 
 **`FireInvocation(shape, slug, context?)`** — Dispatch a recurrence to its declared headless executor immediately.
 
@@ -462,23 +462,23 @@ FireInvocation(shape: "action", slug: "trade-proposal")
 
 `context` is optional — when provided, it's a one-time focus override for this run only (does not mutate the YAML).
 
-**`ManageRecurrence(action, shape, slug, ...)`** — Mutate a recurrence declaration.
+**`Schedule(action, shape, slug, ...)`** — Mutate a recurrence declaration.
 
 ```
 # Update — change schedule, delivery, agents, etc.
-ManageRecurrence(action: "update", shape: "deliverable", slug: "weekly-briefing",
+Schedule(action: "update", shape: "deliverable", slug: "weekly-briefing",
   changes: {recurring: {schedule: "0 9 * * *"}, delivery: "user@example.com"})
 
 # Pause — stop future runs (optional `paused_until` for time-bound pause)
-ManageRecurrence(action: "pause", shape: "deliverable", slug: "weekly-briefing")
-ManageRecurrence(action: "pause", shape: "deliverable", slug: "weekly-briefing",
+Schedule(action: "pause", shape: "deliverable", slug: "weekly-briefing")
+Schedule(action: "pause", shape: "deliverable", slug: "weekly-briefing",
   paused_until: "2026-05-15T00:00:00Z")
 
 # Resume — restore scheduled runs
-ManageRecurrence(action: "resume", shape: "deliverable", slug: "weekly-briefing")
+Schedule(action: "resume", shape: "deliverable", slug: "weekly-briefing")
 
 # Archive — retire the recurrence (used for completed goal-mode work and operator-driven removal)
-ManageRecurrence(action: "archive", shape: "deliverable", slug: "weekly-briefing")
+Schedule(action: "archive", shape: "deliverable", slug: "weekly-briefing")
 ```
 
 **Five actions:** `create`, `update`, `pause`, `resume`, `archive`. Substrate location is determined by `shape`; for `accumulation`, `domain` is also required.
@@ -486,7 +486,7 @@ ManageRecurrence(action: "archive", shape: "deliverable", slug: "weekly-briefing
 **Evaluation + steering** are feedback writes (not declaration mutations):
 - **Evaluate** an output → `WriteFile(scope="workspace", path="reports/<slug>/feedback.md", content="## Evaluation ...", mode="append")`.
 - **Steer** the next run → `WriteFile(scope="workspace", path="reports/<slug>/feedback.md", content="## Steering ...", mode="append")`.
-- **Complete** a goal-mode recurrence → `ManageRecurrence(action="archive", ...)` once the operator confirms the goal is met.
+- **Complete** a goal-mode recurrence → `Schedule(action="archive", ...)` once the operator confirms the goal is met.
 
 ---
 

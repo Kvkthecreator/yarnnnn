@@ -224,31 +224,37 @@ Axiom 3's "Purpose can also be carried by Identity" rule maps directly here: sub
 
 ## Axiom 4: Trigger — Three Sub-Shapes of Invocation
 
-**Every invocation has a When. Invocation is periodic, reactive, or addressed.**
+**Every invocation has a When. Invocation is scheduled, reactive, or addressed.**
 
-Trigger is what invokes Mechanism. One dimension; three sub-shapes:
+Trigger is what begins a Reviewer session. One dimension; three sub-shapes (per ADR-260):
 
-1. **Periodic** — invoked by schedule (cron). Examples: daily-update (9am UTC), back-office-agent-hygiene (daily), back-office-outcome-reconciliation (daily), workspace cleanup (daily).
-2. **Reactive** — invoked by event. Examples: OAuth webhook fires → platform sync; proposal created → `review-proposal` task fires; upload POST → working memory refresh; user feedback submitted → feedback actuation.
-3. **Addressed** — invoked by user (or foreign LLM via MCP). Examples: user sends chat message → YARNNN turn; user clicks Approve → `ExecuteProposal`; MCP `pull_context` call → primitive dispatch.
+1. **Scheduled** — invoked by cron (per ADR-260 + ADR-261). Cron's only job is to wake the Reviewer with a recurrence's prompt. Examples: morning-reflection (7am daily), signal-evaluation (hourly during market hours), track-universe (every 4 hours), outcome-reconciliation (5am daily). What earlier framing called "Periodic" is renamed to "Scheduled" to reflect the concrete shape: every cron entry is a recurrence whose `prompt` field is handed to the Reviewer at the scheduled time.
+2. **Reactive** — invoked by event. Examples: action_proposal created → Reviewer judgment turn; OAuth webhook fires → working memory refresh; high-impact outcome reconciled → feedback actuation.
+3. **Addressed** — invoked by user (or foreign LLM via MCP). Examples: user sends feed message → Reviewer addressed turn; user clicks Approve → `ExecuteProposal`; MCP `pull_context` call → primitive dispatch.
 
 All three sub-shapes resolve to the same Mechanism layer — they only differ in what begins the invocation.
 
+**Mid-loop continuation is not a trigger.** It is the natural shape of a real-time tool-use loop: every tool call returns, the Reviewer reads the result, decides next, calls another tool. Per ADR-260 D1 + ADR-256 supersession, the previous "heartbeat" trigger conflated two structurally-different things — mid-loop continuation (within a session) vs. cron wake-up (starts a session). Heartbeat as a trigger is deleted; what was carried as heartbeat is now either Scheduled (cron-fired) or invisible-as-loop-iteration (mid-loop).
+
+### One execution shape under Scheduled trigger
+
+Per ADR-261, every Scheduled invocation has one shape: cron wakes the Reviewer with a recurrence's `prompt`. There is no shape-dispatch by `output_kind` or recurrence type. The Reviewer's real-time loop runs whatever the prompt directs. Recurrences that direct accumulation, reports, external actions, or maintenance all flow through this single shape — what differs is the prompt content, not the execution path.
+
 ### No parallel dispatch systems
 
-Per Axiom 0's anti-conflation rule, there should be exactly one dispatcher per Trigger sub-shape, not separate systems per mechanic type:
+Per Axiom 0's anti-conflation rule, there is exactly one dispatcher per Trigger sub-shape:
 
-- **Periodic** → unified scheduler (`api/jobs/unified_scheduler.py`). All cron-invoked work flows through one dispatcher. ADR-141 + ADR-164 ratified this by dissolving `agent_pulse.py`, `proactive_review.py`, `platform_sync_scheduler.py` into unified cron + task pipeline.
-- **Reactive** → event handlers in `api/routes/` (webhook endpoints, action-proposal triggers). Fan out to the task pipeline or direct primitives.
-- **Addressed** → user-facing routes (`/chat`, `/api/proposals/*`) + MCP server (`api/mcp_server/`). All converge on `execute_primitive()`.
+- **Scheduled** → recurrence walker (per ADR-261 D3). Walks `/workspace/_recurrences.yaml`; invokes `Reviewer(trigger="scheduled", prompt=...)` for each due entry. Concurrent across recurrences; sub-minute precision; no head-of-line blocking. Implementation shape (per-recurrence Render Crons, `pg_cron`, or persistent scheduler service) chosen at code-PR time per first-principles, not by carrying forward the legacy 5-minute polling cron.
+- **Reactive** → event handlers in `api/routes/` (webhook endpoints, action-proposal triggers). Fan out to `Reviewer(trigger="reactive", ...)` or direct primitives.
+- **Addressed** → user-facing routes (`/feed`, `/api/proposals/*`) + MCP server (`api/mcp_server/`). All converge on `execute_primitive()` or `Reviewer(trigger="addressed", ...)`.
 
 If a new mechanic appears to need a new dispatcher, check first whether an existing sub-shape covers it. Usually yes.
 
-### Corollary: Run-now is the default trigger; schedule is an annotation (ADR-205)
+### Corollary: Run-now is the default trigger; schedule is an annotation (ADR-205, refined by ADR-261)
 
-For user-created tasks, immediate execution is the default invocation; scheduling is an optional annotation that converts a one-off task into a recurring one. Users validate work by seeing output; they decide cadence after they have something to judge. A task without a schedule is legitimate — it simply has no Periodic invocation. Modes (`recurring` / `goal` / `reactive`, per ADR-149) describe the management posture over the lifetime of the task; they do not dictate whether the first invocation is immediate or deferred.
+A user request to "do this" is Addressed (invoked by user action at request time). If the user wants the same work to recur, they (or YARNNN on their behalf) call `Schedule` to author a recurrence in `/workspace/_recurrences.yaml`; the cron walker then fires it at scheduled times as Scheduled invocations.
 
-This corollary does not introduce a fourth Trigger sub-shape. Run-now is Addressed (invoked by user action at creation time). Schedule, when added, layers Periodic on top. Axiom 4's three sub-shapes remain the complete set.
+This corollary does not introduce a fourth Trigger sub-shape. Axiom 4's three sub-shapes remain the complete set.
 
 ---
 
@@ -260,11 +266,17 @@ Mechanism is the means by which work happens. One dimension with a spectrum:
 
 | Position on spectrum | Character | Examples |
 |---|---|---|
-| **Fully deterministic** | Pure Python, zero LLM. Output is a function of input. | Daily-update empty-state template, `_performance.md` frontmatter folding, workspace cleanup, section-kind renderers, risk-gate rule checks, PostgREST queries |
-| **Mixed** | LLM with tight structural contract. Output shape is declared; content is judged. | Inference (IDENTITY.md, BRAND.md, context domains), `review-proposal` task with capital-EV prompt, compose substrate's section generation |
-| **Fully judgment** | LLM orchestrating with broad latitude. Output is the model's call. | YARNNN chat-mode turns, Agent task-pipeline runs, YARNNN's autonomous workforce composition |
+| **Fully deterministic** | Pure Python, zero LLM. Output is a function of input. | Daily-update empty-state template, `_performance.md` frontmatter folding, workspace cleanup, section-kind renderers, risk-gate rule checks, PostgREST queries, the deterministic System Agent's directive dispatch (per ADR-257), the recurrence walker (per ADR-261 D3), structurally-triggered Compose (per ADR-262 D4) |
+| **Mixed** | LLM with tight structural contract. Output shape is declared; content is judged. | Inference (IDENTITY.md, BRAND.md, context domains), specialist sub-LLM-calls (researcher, analyst, writer, etc. — `headless` runtime characteristic with focused prompts per ADR-261 D7) |
+| **Fully judgment** | LLM orchestrating with broad latitude. Output is the model's call. | The Reviewer's real-time tool-use loop (per ADR-260 D1) — judging proposals, sequencing specialist sub-calls at high level via discrete named steps, deciding session close. |
 
-These map cleanly to ADR-141's three-layer execution model (Mechanical / Generation / Orchestration) — which is revealed by Axiom 0 not as three separate dimensions, but as **three points on the Mechanism spectrum within one dimension.** ADR-141 stands; its framing is clarified.
+The three points on the spectrum map cleanly to **roles in the unified execution model** (per ADRs 257 / 260 / 261):
+
+- **Reviewer** sits at fully-judgment. Real-time loop. Judges and high-level-sequences. Independent persona-bearing seat (Axiom 2).
+- **Specialists** sit at mixed. Focused-prompt sub-LLM-calls invoked through `headless` runtime mode. Researcher / analyst / writer / tracker / designer / reporting per ADR-176. They run with their own contexts — same shape as Claude Code sub-agents.
+- **System Agent** sits at fully-deterministic (per ADR-257). Dispatches the Reviewer's structured directives, narrates execution in the feed, runs Compose when triggered, walks the recurrence list. No LLM judgment in the execution path.
+
+What was previously framed as ADR-141's "three execution layers" (Mechanical / Generation / Orchestration) is reshaped under ADR-261: the legacy headless task pipeline is dissolved; specialists run as sub-LLM-calls within the Reviewer's loop, not as a separate execution path. The spectrum stands; the mapping to roles is now Reviewer / Specialist / System-Agent.
 
 ### Primitives are the vocabulary of Mechanism
 

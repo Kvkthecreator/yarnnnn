@@ -382,8 +382,10 @@ async def initialize_workspace(
             f"— narrative coverage may be degraded until /chat is opened"
         )
 
-    # No operational tasks at signup (ADR-206): daily-update + back-office tasks
-    # materialize on trigger. See services.back_office.materialize_back_office_task.
+    # No operational tasks at signup (ADR-206 + ADR-261 D6): daily-update +
+    # back-office work are bundle-seeded entries in
+    # /workspace/_recurrences.yaml when the operator activates a program;
+    # operators without a bundle author them via Schedule(action='create', ...).
 
     # =========================================================================
     # Phase 4: Signup balance audit trail (ADR-172)
@@ -485,17 +487,17 @@ async def initialize_workspace(
     return result
 
 
-# materialize_back_office_task RELOCATED to services.back_office (2026-05-03).
-# Import it from there. workspace_init.py is for workspace initialization only.
-# from services.back_office import materialize_back_office_task  # ← new location
+# materialize_back_office_task DELETED (ADR-261 D6 §4, Phase B.5). Lazy
+# back-office task materialization is gone; back-office work lives as
+# bundle-seeded entries in /workspace/_recurrences.yaml.
 
 
 # =============================================================================
-# Fork helpers RELOCATED (2026-05-03)
+# Fork helper location reference
 # =============================================================================
-# _strip_tier_frontmatter, _bundle_root_dir, _fork_reference_workspace, and
-# _is_skeleton_content all moved to services.programs (fork logic) and
-# services.workspace_utils (skeleton detection). workspace_init.py is for
-# workspace initialization only.
-#
-# The Phase 5 call below imports fork_reference_workspace from services.programs.
+# fork_reference_workspace lives in services.programs.
+# is_skeleton_content lives in services.workspace_utils.
+# _strip_tier_frontmatter DELETED (ADR-261 D6 + ADR-262 D6, Phase D.2):
+#   the three-tier frontmatter system dissolved; bundle files are
+#   markdown the operator owns; ADR-209 attribution captures
+#   bundle-fork vs operator-edit distinction.

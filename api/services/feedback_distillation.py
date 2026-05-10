@@ -219,28 +219,18 @@ async def _append_feedback_for_slug(
     slug: str,
     new_entry: str,
 ) -> None:
-    """Append a feedback entry to the natural-home _feedback.md for a slug.
+    """Append a feedback entry to the recurrence's _feedback.md.
 
-    ADR-231 Phase 3.6.b: writes to the recurrence's feedback path (DELIVERABLE
-    → /workspace/reports/{slug}/_feedback.md, ACCUMULATION → /workspace/context/
-    {domain}/_feedback.md per ADR-181). Resolves the path via the declaration
-    walker; logs + skips silently when the slug has no declaration or the
-    shape has no canonical feedback substrate (ACTION + MAINTENANCE).
+    ADR-262 D1: every recurrence's feedback lives at the slug-templated
+    path ``/workspace/reports/{slug}/_feedback.md``.
 
-    Newest entry first, capped at _MAX_FEEDBACK_ENTRIES.
+    Newest entry first, capped at ``_MAX_FEEDBACK_ENTRIES``.
     """
-    from services.recurrence_paths import resolve_paths_for_slug
+    from services.conventions import report_feedback_path
     from services.workspace import UserMemory
 
-    paths = resolve_paths_for_slug(client, user_id, slug)
-    if paths is None or paths.feedback_path is None:
-        logger.warning(
-            f"[FEEDBACK] no feedback path for slug={slug} (no decl or shape "
-            f"has no feedback substrate); entry dropped"
-        )
-        return
-
-    relative = paths.feedback_path[len("/workspace/"):] if paths.feedback_path.startswith("/workspace/") else paths.feedback_path
+    abs_path = report_feedback_path(slug)
+    relative = abs_path[len("/workspace/"):]
     um = UserMemory(client, user_id)
     existing = await um.read(relative) or ""
 

@@ -1,248 +1,91 @@
 """
-Recurrence Declarations — ADR-231 Phase 2 infrastructure.
+Recurrence — ADR-261 unified schema.
 
-YAML-based recurrence declarations replace TASK.md as the canonical descriptor
-for recurring or goal-bounded work. One declaration = one nameplate + pulse +
-contract per FOUNDATIONS Axiom 9. Files live at natural-home substrate
-locations (per ADR-231 D2):
+A recurrence is a record with three load-bearing fields per ADR-261 D1:
 
-    /workspace/context/{domain}/_recurring.yaml   # domain accumulation
-    /workspace/reports/{slug}/_spec.yaml          # recurring deliverables
-    /workspace/operations/{slug}/_action.yaml     # external actions
-    /workspace/_shared/back-office.yaml           # back-office cron index
+    slug:     stable identifier (used in audit trails, feed entries,
+              operator chat references)
+    schedule: cron expression (or null for reactive)
+    prompt:   the message handed to the Reviewer at the scheduled time
+              as the addressed-equivalent envelope
+
+There is one execution shape. Output_kind is deleted as a recurrence-level
+discriminator. Per-shape declaration files (`_spec.yaml`, `_recurring.yaml`,
+`_action.yaml`, `back-office.yaml`) are deleted. RecurrenceShape enum is
+deleted. Per-shape natural-home path resolution (recurrence_paths.py) is
+deleted — paths are slug-templated by the conventions module.
+
+Every recurrence for a workspace lives in **/workspace/_recurrences.yaml**
+(per ADR-261 D2; constant ``conventions.RECURRENCES_PATH``). It is a flat
+list. The operator can read the entire scheduled-work surface in 30
+seconds.
 
 This module provides:
-  - `RecurrenceShape` enum (the four work shapes)
-  - `RecurrenceDeclaration` dataclass (parsed YAML wrapped with provenance)
-  - `parse_recurrence_yaml(content, path)` — single declaration parsing
-  - `parse_back_office_index(content, path)` — multi-entry parsing for back-office
+  - `Recurrence` dataclass (the parsed entry)
+  - `parse_recurrences_yaml(content, user_id)` — single canonical parser
   - `walk_workspace_recurrences(client, user_id)` — filesystem scanner
-  - `compute_next_run_at(decl, now)` — scheduler-facing timing helper
-  - YAML schema constants + validation helpers
+  - `compute_next_run_at(rec, now)` — scheduler-facing timing helper
 
-The dispatcher (`api/services/invocation_dispatcher.py`, forthcoming) consumes
-RecurrenceDeclaration objects and routes by shape. The scheduler queries the
-walker for due declarations.
-
-ADR-231 §D3 ratifies format-by-shape:
-  - `.yaml` for machine config (this module's domain)
-  - `.md` for operator prose (e.g., adjacent `_intent.md` for narrative intent)
-  - `.json` for structured machine state (manifests)
-  - audit logs in `.md` (append-only)
+The dispatcher (`api/services/invocation_dispatcher.py`) consumes
+``Recurrence`` objects and invokes the Reviewer with each entry's
+``prompt`` per ADR-260 D1 + ADR-261 D3. There is one dispatch path.
 """
 
 from __future__ import annotations
 
 import logging
-import re
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
-from enum import Enum
-from pathlib import PurePosixPath
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 import yaml
+
+from services.conventions import RECURRENCES_PATH
 
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Recurrence shapes
-# ---------------------------------------------------------------------------
-
-
-class RecurrenceShape(str, Enum):
-    """The four work shapes per ADR-166 (preserved as operator vocabulary
-    per ADR-231 D8) — but here serving as the dispatcher's routing key,
-    not a classification enum on the `tasks` table.
-
-    Implied by substrate location:
-      - `deliverable`     ← /workspace/reports/{slug}/_spec.yaml
-      - `accumulation`    ← /workspace/context/{domain}/_recurring.yaml
-      - `action`          ← /workspace/operations/{slug}/_action.yaml
-      - `maintenance`     ← /workspace/_shared/back-office.yaml
-    """
-
-    DELIVERABLE = "deliverable"
-    ACCUMULATION = "accumulation"
-    ACTION = "action"
-    MAINTENANCE = "maintenance"
-
-
-# ---------------------------------------------------------------------------
-# Path conventions
-# ---------------------------------------------------------------------------
-
-
-_DOMAIN_RECURRING_PATTERN = re.compile(
-    r"^/workspace/context/(?P<domain>[a-z0-9_-]+)/_recurring\.yaml$"
-)
-_REPORT_SPEC_PATTERN = re.compile(
-    r"^/workspace/reports/(?P<slug>[a-z0-9_-]+)/_spec\.yaml$"
-)
-_OPERATION_ACTION_PATTERN = re.compile(
-    r"^/workspace/operations/(?P<slug>[a-z0-9_-]+)/_action\.yaml$"
-)
-_BACK_OFFICE_PATH = "/workspace/_shared/back-office.yaml"
-
-
-def shape_for_path(path: str) -> Optional[RecurrenceShape]:
-    """Identify the recurrence shape from a workspace file path.
-
-    Returns None if the path doesn't match any recurrence-declaration convention.
-    """
-    if path == _BACK_OFFICE_PATH:
-        return RecurrenceShape.MAINTENANCE
-    if _DOMAIN_RECURRING_PATTERN.match(path):
-        return RecurrenceShape.ACCUMULATION
-    if _REPORT_SPEC_PATTERN.match(path):
-        return RecurrenceShape.DELIVERABLE
-    if _OPERATION_ACTION_PATTERN.match(path):
-        return RecurrenceShape.ACTION
-    return None
-
-
-# ---------------------------------------------------------------------------
-# RecurrenceDeclaration
+# Recurrence dataclass
 # ---------------------------------------------------------------------------
 
 
 @dataclass
-class RecurrenceDeclaration:
-    """One parsed recurrence declaration with provenance.
+class Recurrence:
+    """One parsed recurrence entry per ADR-261 D1.
 
-    Shape determines the dispatcher route. `slug` is the operator-legible
-    nameplate (Axiom 9). `schedule` is the cron expression that becomes the
-    pulse. `paused` allows operator-level pause/resume without schema changes.
-
-    Shape-specific fields live in `data` (the raw YAML content) — the
-    dispatcher reads them per-shape. Common fields are surfaced as
-    properties for convenience.
+    The three load-bearing fields are ``slug``, ``schedule``, ``prompt``.
+    Optional ``options`` carries operator-legibility metadata
+    (``display_name``, ``description``, etc.) that does not affect
+    execution shape per ADR-261 D1.
     """
 
-    shape: RecurrenceShape
-    slug: str  # operator-legible nameplate
-    declaration_path: str  # absolute workspace path of the source YAML
-    data: dict  # the parsed YAML body for this declaration
+    slug: str  # operator-legible identifier
+    schedule: Optional[str]  # cron expression; null for reactive
+    prompt: str  # what the Reviewer reads at fire time
+
+    # Optional metadata
+    paused: bool = False
+    paused_until: Optional[datetime] = None
+    options: dict = field(default_factory=dict)
 
     # Provenance (set by walker)
     user_id: Optional[str] = None
     last_modified: Optional[datetime] = None
 
-    # ---- common fields surfaced as properties ----
-
-    @property
-    def schedule(self) -> Optional[str]:
-        """Cron expression or named cadence ('daily', 'weekly', etc.)."""
-        return _coerce_str(self.data.get("schedule"))
-
-    @property
-    def paused(self) -> bool:
-        return bool(self.data.get("paused", False))
-
-    @property
-    def paused_until(self) -> Optional[datetime]:
-        v = self.data.get("paused_until")
-        if not v:
-            return None
-        if isinstance(v, datetime):
-            return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
-        if isinstance(v, str):
-            try:
-                # accept ISO-8601 with or without timezone
-                d = datetime.fromisoformat(v.replace("Z", "+00:00"))
-                return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
-            except ValueError:
-                logger.warning("[RECURRENCE] invalid paused_until value: %r", v)
-                return None
-        return None
-
-    @property
-    def objective(self) -> Optional[str]:
-        return _coerce_str(self.data.get("objective"))
-
-    @property
-    def display_name(self) -> Optional[str]:
-        return _coerce_str(self.data.get("display_name"))
-
-    @property
-    def agents(self) -> list[str]:
-        """List of agent slugs (production roles or user-authored Agent slugs)."""
-        v = self.data.get("agents")
-        if isinstance(v, list):
-            return [str(x) for x in v if x]
-        v = self.data.get("agent")
-        if isinstance(v, str):
-            return [v]
-        return []
-
-    @property
-    def context_reads(self) -> list[str]:
-        v = self.data.get("context_reads") or self.data.get("context_read") or []
-        return [str(x) for x in v if x] if isinstance(v, list) else []
-
-    @property
-    def context_writes(self) -> list[str]:
-        v = self.data.get("context_writes") or self.data.get("context_write") or []
-        return [str(x) for x in v if x] if isinstance(v, list) else []
-
-    @property
-    def required_capabilities(self) -> list[str]:
-        v = self.data.get("required_capabilities") or []
-        return [str(x) for x in v if x] if isinstance(v, list) else []
-
-    @property
-    def output_path(self) -> Optional[str]:
-        """For DELIVERABLE shape — natural-home path with optional `{date}` placeholder."""
-        return _coerce_str(self.data.get("output_path"))
-
-    @property
-    def executor(self) -> Optional[str]:
-        """For MAINTENANCE shape — dotted Python path of the executor function."""
-        return _coerce_str(self.data.get("executor"))
-
-    @property
-    def domain(self) -> Optional[str]:
-        """For ACCUMULATION shape — the context domain slug. Derived from the path."""
-        match = _DOMAIN_RECURRING_PATTERN.match(self.declaration_path)
-        return match.group("domain") if match else None
-
-    def is_due(self, now: datetime, last_run_at: Optional[datetime] = None) -> bool:
-        """Cheap deterministic gate. Returns True if this declaration should
-        fire at `now`. Honors paused / paused_until. Does NOT parse the cron
-        expression — that's the scheduler's job; this is a coarse filter.
-
-        For exact next-run computation, the scheduler uses `croniter` against
-        `self.schedule`. This method is for invocation-side gating only.
-        """
+    def is_due(self, now: datetime) -> bool:
+        """Cheap deterministic gate. Returns True if this recurrence should
+        fire at ``now``. Honors paused / paused_until. Does NOT parse the
+        cron expression — that's the scheduler's job; this is a coarse
+        filter for invocation-side gating."""
         if self.paused:
             return False
-        until = self.paused_until
-        if until and now < until:
+        if self.paused_until and now < self.paused_until:
             return False
-        # Coarse: if no schedule, never auto-due
         if not self.schedule:
+            # Reactive recurrences are never auto-due; they fire on event.
             return False
         return True
-
-    @classmethod
-    def from_yaml_block(
-        cls,
-        shape: RecurrenceShape,
-        slug: str,
-        declaration_path: str,
-        data: dict,
-        user_id: Optional[str] = None,
-        last_modified: Optional[datetime] = None,
-    ) -> "RecurrenceDeclaration":
-        return cls(
-            shape=shape,
-            slug=slug,
-            declaration_path=declaration_path,
-            data=dict(data) if data else {},
-            user_id=user_id,
-            last_modified=last_modified,
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -250,200 +93,117 @@ class RecurrenceDeclaration:
 # ---------------------------------------------------------------------------
 
 
-def parse_recurrence_yaml(
+def parse_recurrences_yaml(
     content: str,
-    declaration_path: str,
     user_id: Optional[str] = None,
     last_modified: Optional[datetime] = None,
-) -> list[RecurrenceDeclaration]:
-    """Parse a single recurrence YAML file into one or more declarations.
+) -> list[Recurrence]:
+    """Parse the canonical ``/workspace/_recurrences.yaml`` body.
 
-    Supports two file shapes:
+    The schema is a YAML list (or a dict with ``recurrences:`` key holding
+    a list — both shapes accepted for operator legibility). Each entry is
+    a dict with at minimum ``slug`` + ``schedule`` + ``prompt``.
 
-    1. Single-declaration files (`_spec.yaml`, `_action.yaml`) — one
-       top-level dict with shape-specific keys plus optional `recurring:`
-       sub-block. Slug derived from the path.
-
-    2. Multi-declaration files (`_recurring.yaml`, `back-office.yaml`) —
-       a list of declarations under a top-level key (`recurrences:` for
-       domain-recurring, `back_office_jobs:` for the back-office index).
-       Each entry has its own slug.
-
-    Returns an empty list if the file is malformed or unrecognized.
+    Returns an empty list on parse error or empty content. Logs a warning
+    for malformed entries; one bad entry doesn't abort the whole parse.
     """
-    shape = shape_for_path(declaration_path)
-    if shape is None:
-        logger.warning(
-            "[RECURRENCE] unrecognized declaration path: %s", declaration_path
-        )
+    if not content or not content.strip():
         return []
 
     try:
-        parsed = yaml.safe_load(content) if content else None
+        parsed = yaml.safe_load(content)
     except yaml.YAMLError as e:
-        logger.error("[RECURRENCE] YAML parse error in %s: %s", declaration_path, e)
+        logger.error("[RECURRENCE] YAML parse error: %s", e)
         return []
 
-    if not isinstance(parsed, dict):
+    if parsed is None:
+        return []
+
+    # Accept either a top-level list or a dict with a ``recurrences:`` key.
+    if isinstance(parsed, dict):
+        entries = parsed.get("recurrences") or parsed.get("entries")
+        if entries is None:
+            logger.warning(
+                "[RECURRENCE] expected list at top-level or under 'recurrences:' key"
+            )
+            return []
+    elif isinstance(parsed, list):
+        entries = parsed
+    else:
         logger.warning(
-            "[RECURRENCE] expected dict at top level of %s, got %s",
-            declaration_path,
+            "[RECURRENCE] expected list or dict at top level, got %s",
             type(parsed).__name__,
         )
         return []
 
-    # Multi-declaration files
-    if shape == RecurrenceShape.MAINTENANCE:
-        return _parse_back_office_block(parsed, declaration_path, user_id, last_modified)
-    if shape == RecurrenceShape.ACCUMULATION:
-        return _parse_domain_recurring_block(
-            parsed, declaration_path, user_id, last_modified
-        )
-
-    # Single-declaration files (DELIVERABLE, ACTION)
-    return _parse_single_declaration(
-        parsed, shape, declaration_path, user_id, last_modified
-    )
-
-
-def _parse_single_declaration(
-    parsed: dict,
-    shape: RecurrenceShape,
-    declaration_path: str,
-    user_id: Optional[str],
-    last_modified: Optional[datetime],
-) -> list[RecurrenceDeclaration]:
-    # DELIVERABLE: top-level may be {"report": {...}} or flat
-    # ACTION: top-level may be {"action": {...}} or flat
-    wrapper_keys = {
-        RecurrenceShape.DELIVERABLE: "report",
-        RecurrenceShape.ACTION: "action",
-    }
-    wrapper_key = wrapper_keys.get(shape)
-    body = parsed.get(wrapper_key) if wrapper_key and wrapper_key in parsed else parsed
-    if not isinstance(body, dict):
-        return []
-
-    # Slug priority: explicit `slug:` field, then derive from path
-    slug = body.get("slug")
-    if not slug:
-        if shape == RecurrenceShape.DELIVERABLE:
-            m = _REPORT_SPEC_PATTERN.match(declaration_path)
-            slug = m.group("slug") if m else None
-        elif shape == RecurrenceShape.ACTION:
-            m = _OPERATION_ACTION_PATTERN.match(declaration_path)
-            slug = m.group("slug") if m else None
-    if not slug:
-        logger.warning("[RECURRENCE] could not resolve slug for %s", declaration_path)
-        return []
-
-    # Flatten nested `recurring:` block onto the body so common properties
-    # (schedule, paused) can be accessed uniformly via RecurrenceDeclaration props.
-    flat = dict(body)
-    nested = flat.pop("recurring", None)
-    if isinstance(nested, dict):
-        for k, v in nested.items():
-            flat.setdefault(k, v)
-
-    return [
-        RecurrenceDeclaration.from_yaml_block(
-            shape=shape,
-            slug=str(slug),
-            declaration_path=declaration_path,
-            data=flat,
-            user_id=user_id,
-            last_modified=last_modified,
-        )
-    ]
-
-
-def _parse_domain_recurring_block(
-    parsed: dict,
-    declaration_path: str,
-    user_id: Optional[str],
-    last_modified: Optional[datetime],
-) -> list[RecurrenceDeclaration]:
-    entries = parsed.get("recurrences")
     if not isinstance(entries, list):
-        logger.warning(
-            "[RECURRENCE] expected list under 'recurrences:' in %s",
-            declaration_path,
-        )
+        logger.warning("[RECURRENCE] entries must be a list, got %s", type(entries).__name__)
         return []
-    out: list[RecurrenceDeclaration] = []
-    for raw in entries:
-        if not isinstance(raw, dict):
-            continue
-        slug = raw.get("slug")
-        if not slug:
-            logger.warning(
-                "[RECURRENCE] missing slug in domain entry under %s",
-                declaration_path,
-            )
-            continue
-        out.append(
-            RecurrenceDeclaration.from_yaml_block(
-                shape=RecurrenceShape.ACCUMULATION,
-                slug=str(slug),
-                declaration_path=declaration_path,
-                data=dict(raw),
-                user_id=user_id,
-                last_modified=last_modified,
-            )
-        )
-    return out
 
-
-def _parse_back_office_block(
-    parsed: dict,
-    declaration_path: str,
-    user_id: Optional[str],
-    last_modified: Optional[datetime],
-) -> list[RecurrenceDeclaration]:
-    entries = parsed.get("back_office_jobs")
-    if not isinstance(entries, list):
-        logger.warning(
-            "[RECURRENCE] expected list under 'back_office_jobs:' in %s",
-            declaration_path,
-        )
-        return []
-    out: list[RecurrenceDeclaration] = []
+    out: list[Recurrence] = []
     for idx, raw in enumerate(entries):
         if not isinstance(raw, dict):
+            logger.warning("[RECURRENCE] entry #%d is not a dict, skipping", idx)
             continue
-        executor = raw.get("executor")
-        if not executor:
+
+        slug = raw.get("slug")
+        if not slug:
+            logger.warning("[RECURRENCE] entry #%d missing slug, skipping", idx)
+            continue
+
+        prompt = raw.get("prompt")
+        if not prompt or not str(prompt).strip():
             logger.warning(
-                "[RECURRENCE] back-office entry #%d missing executor in %s",
-                idx,
-                declaration_path,
+                "[RECURRENCE] entry '%s' missing prompt, skipping", slug
             )
             continue
-        # Slug priority: explicit slug, else derive from executor dotted-path
-        slug = raw.get("slug") or _slug_from_executor(str(executor))
+
+        # ``schedule`` may be null (reactive); accept None or empty string.
+        schedule_raw = raw.get("schedule")
+        schedule = (
+            str(schedule_raw).strip() if schedule_raw and str(schedule_raw).strip() else None
+        )
+
+        # ``paused_until``: ISO-8601 string or datetime
+        paused_until = _coerce_datetime(raw.get("paused_until"))
+
+        # ``options`` is everything else the operator put in the entry
+        # (display_name, description, etc.) — optional metadata only.
+        options = {
+            k: v
+            for k, v in raw.items()
+            if k not in {"slug", "schedule", "prompt", "paused", "paused_until"}
+        }
+
         out.append(
-            RecurrenceDeclaration.from_yaml_block(
-                shape=RecurrenceShape.MAINTENANCE,
-                slug=slug,
-                declaration_path=declaration_path,
-                data=dict(raw),
+            Recurrence(
+                slug=str(slug),
+                schedule=schedule,
+                prompt=str(prompt).strip(),
+                paused=bool(raw.get("paused", False)),
+                paused_until=paused_until,
+                options=options,
                 user_id=user_id,
                 last_modified=last_modified,
             )
         )
+
     return out
 
 
-def _slug_from_executor(executor: str) -> str:
-    """Derive a slug from a dotted executor path.
-
-    `services.back_office.narrative_digest` → `back-office-narrative-digest`
-    """
-    last = executor.rsplit(".", 1)[-1]
-    last = last.replace("_", "-")
-    if "back-office" not in last:
-        last = f"back-office-{last}"
-    return last
+def _coerce_datetime(v: Any) -> Optional[datetime]:
+    if v is None:
+        return None
+    if isinstance(v, datetime):
+        return v if v.tzinfo else v.replace(tzinfo=timezone.utc)
+    if isinstance(v, str):
+        try:
+            d = datetime.fromisoformat(v.replace("Z", "+00:00"))
+            return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+        except ValueError:
+            logger.warning("[RECURRENCE] invalid datetime value: %r", v)
+            return None
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -451,132 +211,121 @@ def _slug_from_executor(executor: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-_RECURRENCE_FILE_NAMES = {
-    "_recurring.yaml",
-    "_spec.yaml",
-    "_action.yaml",
-    "back-office.yaml",
-}
+def walk_workspace_recurrences(client, user_id: str) -> list[Recurrence]:
+    """Read ``/workspace/_recurrences.yaml`` for a user and return the
+    parsed entries.
 
-
-def walk_workspace_recurrences(
-    client, user_id: str
-) -> list[RecurrenceDeclaration]:
-    """Scan the workspace_files table for recurrence declarations and parse them.
-
-    Performs ONE Postgres query against `workspace_files` filtering on path
-    suffix (LIKE patterns). Each matching row is parsed; any single bad file
-    yields a logged warning but doesn't abort the scan.
-
-    Returns a flat list of declarations, ordered by declaration_path then slug.
+    Per ADR-261 D2 there is one canonical file per workspace. Returns an
+    empty list if the file doesn't exist or is empty.
     """
     if client is None:
         return []
 
     try:
-        # Pull all candidate files in one query. The path patterns map to the
-        # four shapes defined in shape_for_path; we filter precisely after.
         result = (
             client.table("workspace_files")
-            .select("path,content,updated_at")
+            .select("content,updated_at")
             .eq("user_id", user_id)
-            .or_(
-                "path.like./workspace/context/%/_recurring.yaml,"
-                "path.like./workspace/reports/%/_spec.yaml,"
-                "path.like./workspace/operations/%/_action.yaml,"
-                "path.eq./workspace/_shared/back-office.yaml"
-            )
+            .eq("path", RECURRENCES_PATH)
+            .limit(1)
             .execute()
         )
     except Exception as e:
-        logger.error("[RECURRENCE] workspace scan failed: %s", e)
+        logger.error(
+            "[RECURRENCE] read failed for user=%s: %s", user_id[:8], e
+        )
         return []
 
     rows = result.data or []
-    out: list[RecurrenceDeclaration] = []
-    for row in rows:
-        path = row.get("path")
-        content = row.get("content") or ""
-        updated_at_raw = row.get("updated_at")
-        last_modified = None
-        if isinstance(updated_at_raw, str):
-            try:
-                last_modified = datetime.fromisoformat(
-                    updated_at_raw.replace("Z", "+00:00")
-                )
-            except ValueError:
-                pass
-        if not path:
-            continue
-        decls = parse_recurrence_yaml(
-            content=content,
-            declaration_path=path,
-            user_id=user_id,
-            last_modified=last_modified,
-        )
-        out.extend(decls)
+    if not rows:
+        return []
 
-    out.sort(key=lambda d: (d.declaration_path, d.slug))
-    return out
+    content = rows[0].get("content") or ""
+    last_modified = _coerce_datetime(rows[0].get("updated_at"))
+    return parse_recurrences_yaml(
+        content, user_id=user_id, last_modified=last_modified
+    )
 
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Scheduling — next-run computation
 # ---------------------------------------------------------------------------
 
 
-def _coerce_str(v: Any) -> Optional[str]:
-    if v is None:
+def compute_next_run_at(
+    rec: Recurrence, now: Optional[datetime] = None
+) -> Optional[datetime]:
+    """Compute the next firing time after ``now`` for this recurrence.
+
+    Returns None for reactive recurrences (no schedule) or paused
+    recurrences. Uses ``croniter`` for cron expression parsing — same
+    library the scheduler uses.
+    """
+    if rec.paused or not rec.schedule:
         return None
-    if isinstance(v, str):
-        return v.strip() or None
-    return str(v).strip() or None
+
+    try:
+        from croniter import croniter
+    except ImportError:
+        logger.warning("[RECURRENCE] croniter not available — cannot compute next_run_at")
+        return None
+
+    base = now or datetime.now(timezone.utc)
+    if base.tzinfo is None:
+        base = base.replace(tzinfo=timezone.utc)
+
+    try:
+        cron = croniter(rec.schedule, base)
+        return cron.get_next(datetime)
+    except Exception as e:
+        logger.warning(
+            "[RECURRENCE] invalid schedule %r for %s: %s",
+            rec.schedule, rec.slug, e,
+        )
+        return None
 
 
-def derive_declaration_path(shape: RecurrenceShape, slug: str, *, domain: Optional[str] = None) -> str:
-    """Compute the canonical declaration path for a (shape, slug) pair.
+# ---------------------------------------------------------------------------
+# Serialization
+# ---------------------------------------------------------------------------
 
-    For ACCUMULATION, requires a `domain` argument (the path is per-domain
-    and shared by multiple recurrence entries).
+
+def serialize_recurrences_yaml(recurrences: list[Recurrence]) -> str:
+    """Serialize a list of recurrences back to ``_recurrences.yaml`` body.
+
+    Output is a flat YAML list (top-level), preserving operator-legibility
+    field order: slug, schedule, prompt, paused, paused_until, then any
+    options keys.
     """
-    if shape == RecurrenceShape.MAINTENANCE:
-        return _BACK_OFFICE_PATH
-    if shape == RecurrenceShape.ACCUMULATION:
-        if not domain:
-            raise ValueError("domain required for ACCUMULATION declaration path")
-        return f"/workspace/context/{domain}/_recurring.yaml"
-    if shape == RecurrenceShape.DELIVERABLE:
-        return f"/workspace/reports/{slug}/_spec.yaml"
-    if shape == RecurrenceShape.ACTION:
-        return f"/workspace/operations/{slug}/_action.yaml"
-    raise ValueError(f"unknown shape: {shape}")
+    if not recurrences:
+        return "[]\n"
 
+    out = []
+    for rec in recurrences:
+        entry = {"slug": rec.slug, "schedule": rec.schedule, "prompt": rec.prompt}
+        if rec.paused:
+            entry["paused"] = True
+        if rec.paused_until:
+            entry["paused_until"] = rec.paused_until.isoformat()
+        # Append options keys in insertion order
+        for k, v in rec.options.items():
+            entry[k] = v
+        out.append(entry)
 
-def serialize_declaration_yaml(decl: RecurrenceDeclaration) -> str:
-    """Serialize a single declaration back to YAML.
-
-    For multi-declaration files (ACCUMULATION, MAINTENANCE), this is the
-    UNDERLYING entry shape — the caller is responsible for wrapping it in
-    `recurrences:` / `back_office_jobs:` when writing.
-
-    For single-declaration files (DELIVERABLE, ACTION), this returns a
-    full file body wrapped in `report:` / `action:` accordingly.
-    """
-    body = dict(decl.data)
-    if decl.shape == RecurrenceShape.DELIVERABLE:
-        return yaml.safe_dump({"report": body}, sort_keys=False, default_flow_style=False)
-    if decl.shape == RecurrenceShape.ACTION:
-        return yaml.safe_dump({"action": body}, sort_keys=False, default_flow_style=False)
-    # Multi-declaration entries: return entry body only
-    return yaml.safe_dump(body, sort_keys=False, default_flow_style=False)
+    return yaml.safe_dump(
+        out,
+        sort_keys=False,
+        default_flow_style=False,
+        allow_unicode=True,
+        width=80,
+    )
 
 
 __all__ = [
-    "RecurrenceShape",
-    "RecurrenceDeclaration",
-    "shape_for_path",
-    "parse_recurrence_yaml",
+    "Recurrence",
+    "parse_recurrences_yaml",
     "walk_workspace_recurrences",
-    "derive_declaration_path",
-    "serialize_declaration_yaml",
+    "compute_next_run_at",
+    "serialize_recurrences_yaml",
+    "RECURRENCES_PATH",  # re-exported for caller convenience
 ]

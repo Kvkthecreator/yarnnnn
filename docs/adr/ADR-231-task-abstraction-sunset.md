@@ -1,5 +1,7 @@
 # ADR-231: Task Abstraction Sunset — Mandate-Driven Invocations as the Sole Work Model
 
+> **⚠ Per-shape natural-home paths + RecurrenceShape enum superseded by [ADR-261](ADR-261-recurrences-as-prompts.md) (2026-05-08).** ADR-231 D2/D3 ratified per-shape natural-home paths (DELIVERABLE → `/workspace/reports/{slug}/...`, ACCUMULATION → `/workspace/context/{domain}/_recurring.yaml`, ACTION → `/workspace/operations/{slug}/_action.yaml`, MAINTENANCE → `/workspace/_shared/back-office.yaml`) and the RecurrenceShape enum as the dispatch key. Both dissolve under ADR-261: there is one canonical recurrence file (`/workspace/_recurrences.yaml`), one execution shape (`{slug, schedule, prompt}`), no shape enum. The legacy multi-file declaration scheme (per-domain `_recurring.yaml`, `_spec.yaml`, `_action.yaml`, `back-office.yaml`) is replaced with the single canonical file. Authored Substrate (ADR-209) provides the cross-session continuity record. The `tasks` DB scheduling-index survives unchanged.
+
 > **Status**: **Proposed** (2026-04-28). Architecture-only ratification; phased implementation deferred to Phase commits 1–N (see §Implementation Phases).
 > **Date**: 2026-04-28
 > **Authors**: KVK, Claude
