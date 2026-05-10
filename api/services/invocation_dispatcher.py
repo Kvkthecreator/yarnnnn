@@ -13,18 +13,23 @@ loop directs work via tool calls — including specialist sub-LLM-calls
 through DispatchSpecialist (per ADR-261 D7, landing in Phase C.2) and
 self-scheduling through Schedule (per ADR-261 §3 / Phase A.3).
 
-Per ADR-260 D2 there are three triggers:
+Per ADR-260 D2 amended by ADR-263 D2 there are two Reviewer triggers:
   - "addressed"  operator addressed the Reviewer (chat path, not the
-                  scheduler — the scheduler always uses "scheduled")
-  - "reactive"   external event requires Reviewer judgment (proposal
-                  arrived; outcome reconciliation produced a high-impact
-                  event). Caller passes ``trigger="reactive"``.
-  - "scheduled"  cron poked the Reviewer with a recurrence's prompt
-                  (default for scheduler-driven dispatch)
+                  scheduler).
+  - "reactive"   substrate event requires Reviewer judgment. Two sub-shapes
+                  internally to invoke_reviewer (differentiated by context-bag
+                  contents): proposal arrival (proposal_row in context) and
+                  judgment-mode recurrence fire (recurrence_prompt in context).
+                  Cron-fired Reviewer wakes use "reactive" — the recurrence
+                  is the substrate event.
 
-Per ADR-260 D3 cron has one use: wake the Reviewer with a prompt. The
-recurrence's ``prompt`` is what reaches the Reviewer; the dispatcher
-adds no template, no per-shape envelope, no path injection.
+Per ADR-263, the recurrence's `mode` field declares whether a fire wakes the
+Reviewer. Mechanical-mode recurrences are dispatched via `_dispatch_mechanical`
+(no Reviewer, no LLM, deterministic Python primitive execution); judgment-mode
+recurrences flow through the Reviewer-invocation path with trigger="reactive".
+
+Per ADR-260 D3 cron has one use: fire recurrences. The recurrence's `mode`
+determines whether the fire involves the Reviewer at all.
 
 Cost gating:
   - Balance check (ADR-172) at dispatch entry; exit early on exhaustion.
@@ -69,23 +74,27 @@ async def dispatch(
     user_id: str,
     recurrence: Recurrence,
     *,
-    trigger: str = "scheduled",
+    trigger: str = "reactive",
     context: Optional[str] = None,
 ) -> dict:
-    """Fire one Reviewer invocation against a recurrence.
+    """Fire one recurrence (mode=judgment → Reviewer; mode=mechanical → primitive).
 
-    Per ADR-260 D1 + ADR-261 D3: invoke the Reviewer with
-    ``recurrence.prompt`` as the addressed-equivalent envelope. The
-    Reviewer's real-time loop runs synchronously to completion.
+    Per ADR-260 D1 + ADR-261 D3 + ADR-263:
+    - Judgment-mode recurrences invoke the Reviewer with ``recurrence.prompt``
+      as the addressed-equivalent envelope. The Reviewer's real-time loop runs
+      synchronously to completion.
+    - Mechanical-mode recurrences route to `_dispatch_mechanical` which parses
+      the prompt's `@primitive: ...` directive and executes deterministically.
+      No Reviewer, no LLM.
 
     Args:
         client: Supabase service client
         user_id: Workspace owner UUID
         recurrence: parsed Recurrence to fire
-        trigger: per ADR-260 D2 — one of "scheduled" (default; cron poke),
-                 "reactive" (external event), or "addressed" (operator
-                 addressed the Reviewer; rarely used here — chat surfaces
-                 invoke the Reviewer directly).
+        trigger: per ADR-260 D2 amended by ADR-263 D2 — one of "reactive"
+                 (default; substrate event including cron-fired recurrences)
+                 or "addressed" (operator addressed the Reviewer; rarely used
+                 here — chat surfaces invoke the Reviewer directly).
         context: optional one-shot steering for this firing (appended to
                  the prompt). Does not mutate the recurrence record.
 
@@ -105,8 +114,24 @@ async def dispatch(
             scope.set_user({"id": user_id})
             scope.set_tag("recurrence_slug", recurrence.slug)
             scope.set_tag("trigger", trigger)
+            scope.set_tag("recurrence_mode", recurrence.mode)
 
-    logger.info("[DISPATCH] %s/%s start (trigger=%s)", user_id[:8], recurrence.slug, trigger)
+    logger.info(
+        "[DISPATCH] %s/%s start (trigger=%s, mode=%s)",
+        user_id[:8], recurrence.slug, trigger, recurrence.mode,
+    )
+
+    # ADR-263 D5 + ADR-264 D2: mechanical-mode recurrences run as deterministic
+    # Python primitive invocations. The recurrence's prompt is expected to name
+    # a primitive call via the @primitive: <Name>(<args>) convention. The
+    # dispatcher parses the directive, looks up the handler, and executes it.
+    # NO Reviewer invocation, NO LLM session, NO balance gate (mechanical work
+    # has zero LLM cost so the balance check would be theatre).
+    if recurrence.mode == "mechanical":
+        return await _dispatch_mechanical(
+            client, user_id, recurrence, trigger=trigger, context=context,
+            started_at=started_at,
+        )
 
     # ---- Balance gate (ADR-172) ----
     try:
@@ -142,7 +167,11 @@ async def dispatch(
             f"${DAILY_SPEND_CEILING_USD:.2f}). {recurrence.slug} skipped."
         )
         logger.warning("[DISPATCH] %s", warning)
-        if trigger == "scheduled":
+        # ADR-263: cron-fired recurrences (the prior `scheduled` trigger value)
+        # now flow as `reactive`. Both reactive sub-shapes get the silent-skip
+        # treatment when the ceiling is reached; only true `addressed` (operator
+        # at the keyboard) gets the warn-but-proceed override.
+        if trigger == "reactive":
             await _emit_system_narrative(
                 client, user_id, recurrence,
                 summary=f"Spend ceiling reached — {recurrence.slug} skipped",
@@ -258,6 +287,181 @@ async def dispatch(
         "composed_html_path": composed_path,
         "summary": verdict_summary or f"{recurrence.slug} completed",
         "message": verdict_summary or f"{recurrence.slug} completed",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Mechanical recurrence dispatch (ADR-263 D5 + ADR-264 D2)
+# ---------------------------------------------------------------------------
+
+import re as _re
+
+# Match: @primitive: <Name>(<args>) — args parsed as a Python literal-ish
+# kwarg expression (yaml.safe_load on the args body for type fidelity).
+# Example match: @primitive: SyncPlatformState(
+#     tool="platform_trading_get_positions",
+#     write_to="context/portfolio/positions/{symbol}.yaml"
+# )
+_PRIMITIVE_DIRECTIVE_RE = _re.compile(
+    r"@primitive:\s*(\w+)\s*\((.*?)\)\s*$",
+    _re.DOTALL,
+)
+
+
+def _parse_primitive_directive(prompt: str) -> Optional[tuple[str, dict]]:
+    """Parse a `@primitive: <Name>(<args>)` directive from a mechanical
+    recurrence's prompt body. Returns (primitive_name, kwargs_dict) or None
+    if the prompt doesn't contain a parseable directive.
+
+    Args body is parsed by wrapping the kwarg expression in YAML mapping
+    syntax — operators write Python-flavored kwargs (`tool="...", write_to="..."`),
+    which we coerce to YAML by replacing `=` with `:` at top level. This
+    keeps the operator syntax close to LLM tool-call vocabulary while
+    sidestepping a custom parser.
+    """
+    if not prompt:
+        return None
+    text = prompt.strip()
+    m = _PRIMITIVE_DIRECTIVE_RE.search(text)
+    if not m:
+        return None
+    primitive_name = m.group(1)
+    args_body = m.group(2).strip()
+    if not args_body:
+        return (primitive_name, {})
+
+    # Coerce Python-style kwargs to YAML mapping body. Naive transform:
+    # `key="value"` → `key: "value"`. Conservative — only operates on
+    # top-level `=` adjacent to identifier characters.
+    yaml_body = _re.sub(r"(\b\w+)\s*=\s*", r"\1: ", args_body)
+    try:
+        import yaml as _yaml
+        # Wrap in braces to ensure flow-style mapping parse
+        parsed = _yaml.safe_load("{" + yaml_body + "}")
+    except Exception as e:
+        logger.warning(
+            "[DISPATCH:mechanical] failed to parse @primitive args: %s | body=%r",
+            e, args_body,
+        )
+        return None
+    if not isinstance(parsed, dict):
+        logger.warning(
+            "[DISPATCH:mechanical] @primitive args did not parse to a dict: %r", parsed,
+        )
+        return None
+    return (primitive_name, parsed)
+
+
+async def _dispatch_mechanical(
+    client,
+    user_id: str,
+    recurrence: Recurrence,
+    *,
+    trigger: str,
+    context: Optional[str],
+    started_at: datetime,
+) -> dict:
+    """Execute a mechanical-mode recurrence (ADR-263 + ADR-264).
+
+    The recurrence's `prompt` is expected to name a primitive invocation
+    via `@primitive: <Name>(<args>)`. The dispatcher parses, looks up the
+    handler in HANDLERS, and executes it.
+
+    No Reviewer involvement. No LLM session. Substrate writes happen via
+    the primitive's normal write path with the primitive's authoring
+    attribution (e.g., `system:sync-platform-state`).
+    """
+    parsed = _parse_primitive_directive(recurrence.prompt)
+    if parsed is None:
+        msg = (
+            f"mechanical recurrence {recurrence.slug!r} has no parseable "
+            f"@primitive: directive in its prompt"
+        )
+        logger.warning("[DISPATCH:mechanical] %s", msg)
+        record_execution_event(
+            client, user_id=user_id, slug=recurrence.slug,
+            shape="recurrence", trigger_type=trigger,
+            status="failed", error_reason="no_primitive_directive",
+            error_detail=msg,
+        )
+        return _result_failed(recurrence, msg, trigger=trigger)
+
+    primitive_name, primitive_args = parsed
+
+    # Look up the handler in the central HANDLERS dict.
+    try:
+        from services.primitives.registry import HANDLERS
+    except ImportError as e:
+        logger.exception("[DISPATCH:mechanical] HANDLERS import failed: %s", e)
+        return _result_failed(recurrence, f"registry import failed: {e}", trigger=trigger)
+
+    handler = HANDLERS.get(primitive_name)
+    if handler is None:
+        msg = (
+            f"mechanical recurrence {recurrence.slug!r} names unknown primitive "
+            f"{primitive_name!r}"
+        )
+        logger.warning("[DISPATCH:mechanical] %s", msg)
+        record_execution_event(
+            client, user_id=user_id, slug=recurrence.slug,
+            shape="recurrence", trigger_type=trigger,
+            status="failed", error_reason="unknown_primitive",
+            error_detail=msg,
+        )
+        return _result_failed(recurrence, msg, trigger=trigger)
+
+    # Build a minimal auth-shaped object for the primitive handler.
+    # Mechanical dispatch runs as the system actor under the workspace owner's
+    # user_id; the handler's writes will be attributed by the primitive itself
+    # (e.g., SyncPlatformState writes `authored_by="system:sync-platform-state"`).
+    class _MechanicalAuth:
+        def __init__(self, user_id: str, client):
+            self.user_id = user_id
+            self.client = client
+    auth = _MechanicalAuth(user_id=user_id, client=client)
+
+    try:
+        result = await handler(auth, primitive_args)
+    except Exception as e:
+        logger.exception(
+            "[DISPATCH:mechanical] %s/%s primitive %s raised: %s",
+            user_id[:8], recurrence.slug, primitive_name, e,
+        )
+        if _SENTRY_AVAILABLE:
+            _sentry.capture_exception(e)
+        duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+        record_execution_event(
+            client, user_id=user_id, slug=recurrence.slug,
+            shape="recurrence", trigger_type=trigger,
+            status="failed", error_reason="primitive_raised",
+            error_detail=str(e), duration_ms=duration_ms,
+        )
+        return _result_failed(recurrence, str(e), trigger=trigger)
+
+    duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+    success = bool(result.get("success", False)) if isinstance(result, dict) else False
+    status = "success" if success else "failed"
+
+    record_execution_event(
+        client, user_id=user_id, slug=recurrence.slug,
+        shape="recurrence", trigger_type=trigger,
+        status=status, duration_ms=duration_ms,
+        error_reason=None if success else (result.get("error") if isinstance(result, dict) else None),
+    )
+
+    logger.info(
+        "[DISPATCH:mechanical] %s/%s done (status=%s duration_ms=%d primitive=%s)",
+        user_id[:8], recurrence.slug, status, duration_ms, primitive_name,
+    )
+
+    return {
+        "success": success,
+        "slug": recurrence.slug,
+        "trigger": trigger,
+        "mode": "mechanical",
+        "primitive": primitive_name,
+        "result": result,
+        "duration_ms": duration_ms,
     }
 
 

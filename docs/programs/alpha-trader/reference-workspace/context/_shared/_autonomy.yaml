@@ -9,15 +9,13 @@ note: "Machine-parsed delegation declaration (ADR-254). Forked to /workspace/con
 
 default:
   level: bounded_autonomous     # manual | assisted | bounded_autonomous | autonomous
-  ceiling_cents: 20000          # $200 — paper mode default
+  ceiling_cents: 20000          # $200 — paper-seed default; see AUTONOMY.md "Phase progression" for tuning
   never_auto:
     - close_position_market     # always requires operator click
     - cancel_other_orders
 
-heartbeat_triggers:
-  - after: signal-evaluation      # Reviewer wakes when signal-evaluation executor completes
-  - after: track-universe         # Reviewer wakes when fresh universe data lands — re-assess signals
-  - after: outcome-reconciliation # Reviewer wakes after daily reconciliation
-  - cron: "10 8 * * 1-5"         # Morning review 08:10 ET (after 08:05 signal-evaluation)
-# Naming: `after:` values matched kebab-case-agnostic against completed slug
-# (signal_evaluation == signal-evaluation), but kebab is preferred for readability.
+# NOTE: heartbeat_triggers field deleted by ADR-260 D4 + ADR-263.
+# Rationale: cron is part of the environment that fires recurrences; the
+# recurrence's own `mode` field (judgment | mechanical) per ADR-263 declares
+# whether a fire wakes the Reviewer. There is no separate registry coupling
+# substrate-change events to Reviewer wakes.

@@ -18,7 +18,10 @@ is gone:
   - walk_workspace_recurrences reads /workspace/_recurrences.yaml only
     (RECURRENCES_PATH constant)
   - dispatch(client, user_id, recurrence) reads recurrence.prompt and
-    invokes Reviewer with trigger='scheduled' by default
+    invokes Reviewer with trigger='reactive' by default
+    (Updated by ADR-263 D2: 'scheduled' trigger collapsed into 'reactive';
+    cron is part of the environment that fires recurrences, not a separate
+    trigger sub-shape.)
 
   - services.conventions provides slug-templated paths (report_root,
     report_output_path, domain_root, etc.) replacing per-shape resolution
@@ -216,12 +219,15 @@ def main() -> None:
         _fail(f"dispatch signature wrong: {params}")
     if "trigger" not in sig.parameters:
         _fail("dispatch should accept 'trigger' kwarg per ADR-260 D2")
-    if sig.parameters["trigger"].default != "scheduled":
+    # ADR-263 D2 amendment: 'scheduled' trigger collapsed into 'reactive'
+    # — cron is part of the environment that fires recurrences, not a
+    # separate trigger sub-shape. The dispatcher's default is now 'reactive'.
+    if sig.parameters["trigger"].default != "reactive":
         _fail(
-            f"dispatch trigger default should be 'scheduled', got "
+            f"dispatch trigger default should be 'reactive' (per ADR-263 D2), got "
             f"{sig.parameters['trigger'].default!r}"
         )
-    _ok("dispatch(client, user_id, recurrence, *, trigger='scheduled', context=None)")
+    _ok("dispatch(client, user_id, recurrence, *, trigger='reactive', context=None) — ADR-263 D2")
     print()
 
     # --- Section 7: legacy bundle artifacts gone ---

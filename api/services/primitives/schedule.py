@@ -42,27 +42,42 @@ logger = logging.getLogger(__name__)
 
 SCHEDULE_TOOL = {
     "name": "Schedule",
-    "description": """Manage a recurrence in /workspace/_recurrences.yaml (ADR-261 §3).
+    "description": """Manage a recurrence in /workspace/_recurrences.yaml (ADR-261 §3, extended by ADR-263).
 
-A recurrence is a record with three load-bearing fields:
+A recurrence is a record with four load-bearing fields:
   slug:     stable identifier
   schedule: cron expression (or null for reactive)
-  prompt:   what the Reviewer reads at fire time
+  mode:     judgment | mechanical (ADR-263 — declares wake intent at authoring time)
+  prompt:   what the Reviewer reads at fire time (judgment) OR a `@primitive: ...` directive (mechanical)
 
 ONE primitive, FIVE actions:
-  - "create"   append a new entry. Requires slug, schedule, prompt.
+  - "create"   append a new entry. Requires slug, schedule, prompt; mode optional (default 'judgment').
   - "update"   merge fields into existing entry. Requires slug.
   - "pause"    set paused: true. Optional paused_until ISO timestamp.
   - "resume"   set paused: false, clear paused_until.
   - "archive"  remove the entry from _recurrences.yaml. Slug must exist.
 
+Mode discipline (ADR-263):
+  - 'judgment' (default) — recurrence's prompt invokes the Reviewer. Today's behavior for all existing recurrences.
+  - 'mechanical' — recurrence's prompt names a primitive invocation (`@primitive: SyncPlatformState(...)`).
+                   Dispatcher parses and executes deterministically; no Reviewer wake; no LLM cost.
+                   Use for substrate-mirroring work (per ADR-264 SyncPlatformState).
+
 Examples:
   Schedule(action="create",
       slug="signal-evaluation",
       schedule="0 * 9-16 * 1-5",
+      mode="judgment",
       prompt="Evaluate the universe against signals IH-1 through IH-5 on fresh 1Hour bars. Write findings to /workspace/context/trading/signals/.")
 
+  Schedule(action="create",
+      slug="track-positions",
+      schedule="* * 9-16 * 1-5",
+      mode="mechanical",
+      prompt='@primitive: SyncPlatformState(tool="platform_trading_get_positions", write_to="context/portfolio/positions/{symbol}.yaml", iterate_field="positions", item_key="symbol")')
+
   Schedule(action="update", slug="signal-evaluation", changes={"schedule": "*/30 9-16 * * 1-5"})
+  Schedule(action="update", slug="track-positions", changes={"mode": "judgment"})  # flip mode
 
   Schedule(action="pause", slug="signal-evaluation", paused_until="2026-05-15T00:00:00Z")
   Schedule(action="resume", slug="signal-evaluation")
@@ -83,13 +98,18 @@ Examples:
                 "type": "string",
                 "description": "For action='create': cron expression (e.g. '0 7 * * *') or null for reactive recurrences.",
             },
+            "mode": {
+                "type": "string",
+                "enum": ["judgment", "mechanical"],
+                "description": "For action='create': wake intent (ADR-263). 'judgment' (default) wakes the Reviewer with the prompt; 'mechanical' executes the prompt's @primitive: directive deterministically (no Reviewer wake, no LLM cost).",
+            },
             "prompt": {
                 "type": "string",
-                "description": "For action='create': the message the Reviewer reads at fire time.",
+                "description": "For action='create': the message the Reviewer reads at fire time (mode=judgment) OR a @primitive: directive (mode=mechanical).",
             },
             "changes": {
                 "type": "object",
-                "description": "For action='update': partial dict of fields to merge. e.g. {schedule: '0 9 * * *', prompt: 'updated wording'}.",
+                "description": "For action='update': partial dict of fields to merge. e.g. {schedule: '0 9 * * *', prompt: 'updated wording', mode: 'mechanical'}.",
             },
             "paused_until": {
                 "type": "string",
@@ -122,6 +142,7 @@ async def handle_schedule(auth: Any, input: dict) -> dict:
     slug = input.get("slug") or ""
     schedule = input.get("schedule")
     prompt = input.get("prompt")
+    mode = input.get("mode")  # ADR-263: judgment | mechanical
     changes = input.get("changes") or {}
     paused_until = input.get("paused_until")
     authored_by = input.get("authored_by") or "operator"
@@ -160,13 +181,28 @@ async def handle_schedule(auth: Any, input: dict) -> dict:
                 "error": "missing_prompt",
                 "message": "prompt is required for create",
             }
+        # ADR-263: validate mode at create-time. Default to judgment when absent.
+        from services.recurrence import (
+            DEFAULT_RECURRENCE_MODE, RECURRENCE_MODES,
+        )
+        resolved_mode = (
+            str(mode).strip().lower() if isinstance(mode, str) and mode.strip()
+            else DEFAULT_RECURRENCE_MODE
+        )
+        if resolved_mode not in RECURRENCE_MODES:
+            return {
+                "success": False,
+                "error": "invalid_mode",
+                "message": f"mode={mode!r} must be one of {list(RECURRENCE_MODES)}",
+            }
         new_rec = Recurrence(
             slug=slug,
             schedule=(schedule.strip() if isinstance(schedule, str) and schedule.strip() else None),
             prompt=str(prompt).strip(),
+            mode=resolved_mode,
         )
         recurrences.append(new_rec)
-        msg = f"created recurrence {slug}"
+        msg = f"created recurrence {slug} (mode={resolved_mode})"
 
     elif action == "archive":
         if idx < 0:
@@ -212,6 +248,18 @@ async def handle_schedule(auth: Any, input: dict) -> dict:
                     if v and str(v).strip():
                         rec.prompt = str(v).strip()
                         applied.append(k)
+                elif k == "mode":
+                    # ADR-263: mode is mutable post-create. Validate.
+                    from services.recurrence import RECURRENCE_MODES, is_valid_mode
+                    new_mode = str(v).strip().lower() if isinstance(v, str) else ""
+                    if not is_valid_mode(new_mode):
+                        return {
+                            "success": False,
+                            "error": "invalid_mode",
+                            "message": f"mode={v!r} must be one of {list(RECURRENCE_MODES)}",
+                        }
+                    rec.mode = new_mode
+                    applied.append(k)
                 elif k == "paused":
                     rec.paused = bool(v)
                     applied.append(k)

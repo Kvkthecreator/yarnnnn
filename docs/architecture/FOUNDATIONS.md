@@ -23,7 +23,7 @@ Every mechanic in YARNNN — every table, every file, every service, every promp
 | **What** | **Substrate** | What persists; what is true between invocations |
 | **Who** | **Identity** | Which cognitive layer acts; which identity authors or consumes |
 | **Why** | **Purpose** | What intent drives the work; what the objective is |
-| **When** | **Trigger** | What invokes execution — periodic, reactive, or addressed |
+| **When** | **Trigger** | What invokes execution — reactive (substrate-driven) or addressed |
 | **How** | **Mechanism** | By what means the work happens — a spectrum from deterministic code to LLM judgment |
 | **Where** | **Channel** | To what location or surface output is addressed |
 
@@ -52,7 +52,7 @@ Before adding a mechanic, answer the six:
 1. **What** does it read/write? (Substrate cell)
 2. **Who** authors/consumes it? (Identity cell)
 3. **Why** does it exist — what intent is served? (Purpose cell)
-4. **When** does it fire — periodic, reactive, or addressed? (Trigger cell)
+4. **When** does it fire — reactive (substrate-driven) or addressed? (Trigger cell)
 5. **How** does it work — code, LLM, or a blend? (Mechanism cell)
 6. **Where** does its output go? (Channel cell)
 
@@ -115,6 +115,18 @@ This is the substrate-level enforcement of Axiom 2 (Identity). Axiom 2 says *"ev
 The architecture is canonically named **Authored Substrate**. The naming deliberately avoids "git" — YARNNN adopts three of git's five core capabilities (content-addressed immutability, parent-pointer history, authored attribution) without inheriting the other two (branching, distributed replication) or git's implementation. See [authored-substrate.md](authored-substrate.md) for the full design, the git-inspiration framing, and what is deliberately deferred.
 
 This clause supersedes the `/history/` subfolder convention that ADR-119 Phase 3 introduced as an interim versioning approach. Filename-encoded versioning (`thesis-v2.md`, `-archive` suffixes, per-file `/history/v{N}.md` subfolders) is also retired — versioning lives in a separate metadata plane, never in the namespace. See ADR-209 for the full deprecation manifest.
+
+### External-system state lives in substrate too (ADR-264)
+
+Axiom 1's first clause says *where* state lives (the filesystem). The Authored Substrate clause says *how* state evolves (every revision attributed and retained). This third clause says **what kinds of state belong**: every piece of state the Reviewer reasons about lives in the substrate, regardless of whether it originates internally or externally.
+
+External-system state — broker positions, order fills, account balances, commerce revenue, customer churn signals, news arrivals, GitHub release shipments, Slack channel activity — is mediated into the substrate by deterministic Python primitives invoked through `mechanical`-mode recurrences (per ADR-263). The canonical primitive is `SyncPlatformState` (per ADR-264), which wraps `(platform-tool call → substrate write → diff-awareness)` as one atomic operation. Mechanical recurrences run on operator-declared cadences and write substrate at known paths; the Reviewer reads those paths.
+
+The principle: **the workspace's substrate is the workspace's complete model of the world, including state that originates in external systems.** Judgment reads substrate. It does not call external APIs as primary perception. The pre-ADR-264 pattern, where the LLM Reviewer compensated for missing external-state mediation by calling platform tools mid-session, is the same Axiom 1 violation that ADR-153 (`platform_content` sunset) and ADR-195 (money-truth substrate) corrected for other parallel substrates — external data was *de facto* allowed to live in LLM context windows because no mechanism existed to mirror it into substrate. ADR-264 supplies the mechanism.
+
+Platform tools (`api/services/platform_tools.py`) survive as judgment-time conveniences for ad-hoc lookups not yet mirrored. They are the dual surface to `SyncPlatformState`: same underlying API client, different consumption pattern (LLM-context return vs substrate write). When a piece of external state is referenced often by the Reviewer, the operator authors a `SyncPlatformState` recurrence and the Reviewer reads the mirrored substrate thereafter.
+
+This clause closes the substrate-as-canonical-model loop: with this in place, the Reviewer's perception is uniformly substrate-driven. Internal declarations + external mirrored state + accumulated narrative + outcome reconciliation are all substrate; the Reviewer reads files and reasons against them; no parallel perception layer exists.
 
 ---
 
@@ -222,39 +234,49 @@ Axiom 3's "Purpose can also be carried by Identity" rule maps directly here: sub
 
 ---
 
-## Axiom 4: Trigger — Three Sub-Shapes of Invocation
+## Axiom 4: Trigger — Two Sub-Shapes of Invocation, Authoring-Intent Encoded
 
-**Every invocation has a When. Invocation is scheduled, reactive, or addressed.**
+**Every invocation has a When. Invocation is reactive (to a recurrence fire or specialized event handler) or addressed (by an intent-bearing identity).**
 
-Trigger is what begins a Reviewer session. One dimension; three sub-shapes (per ADR-260):
+Trigger is what begins a Reviewer session. One dimension; two sub-shapes (per ADR-260 as amended by ADR-263):
 
-1. **Scheduled** — invoked by cron (per ADR-260 + ADR-261). Cron's only job is to wake the Reviewer with a recurrence's prompt. Examples: morning-reflection (7am daily), signal-evaluation (hourly during market hours), track-universe (every 4 hours), outcome-reconciliation (5am daily). What earlier framing called "Periodic" is renamed to "Scheduled" to reflect the concrete shape: every cron entry is a recurrence whose `prompt` field is handed to the Reviewer at the scheduled time.
-2. **Reactive** — invoked by event. Examples: action_proposal created → Reviewer judgment turn; OAuth webhook fires → working memory refresh; high-impact outcome reconciled → feedback actuation.
-3. **Addressed** — invoked by user (or foreign LLM via MCP). Examples: user sends feed message → Reviewer addressed turn; user clicks Approve → `ExecuteProposal`; MCP `pull_context` call → primitive dispatch.
+1. **Reactive** — invoked when an event occurs that the recurrence's author or a specialized handler declared as judgment-needing. Examples: a `judgment`-mode recurrence fires its scheduled time (e.g., `morning-reflection` at 7am); a proposal arrives via `on_proposal_created`; a future webhook handler fires.
+2. **Addressed** — invoked when an intent-bearing identity (operator or external MCP caller) writes to the feed surface. Always wakes the Reviewer; the operator's act of addressing is itself the wake signal. Examples: user sends feed message; MCP `remember_this` call from ChatGPT.
 
-All three sub-shapes resolve to the same Mechanism layer — they only differ in what begins the invocation.
+The wake decision lives at the *authoring site* of each trigger source — not derived after the fact from substrate writes. Three concrete authoring sites:
 
-**Mid-loop continuation is not a trigger.** It is the natural shape of a real-time tool-use loop: every tool call returns, the Reviewer reads the result, decides next, calls another tool. Per ADR-260 D1 + ADR-256 supersession, the previous "heartbeat" trigger conflated two structurally-different things — mid-loop continuation (within a session) vs. cron wake-up (starts a session). Heartbeat as a trigger is deleted; what was carried as heartbeat is now either Scheduled (cron-fired) or invisible-as-loop-iteration (mid-loop).
+| Source | Wake decision | Authored at |
+|---|---|---|
+| **Recurrence fires** | The recurrence's `mode` field (`judgment` wakes; `mechanical` doesn't). | Authoring time (operator-via-YARNNN, Reviewer-mid-loop, or system-bundle-fork). |
+| **Operator addresses** | Always wakes (operator's feed message is itself the wake signal). | Operator types into the feed surface. |
+| **Reactive event handler** | Specialized handler logic (e.g., `on_proposal_created` resolves context_domain + observe-only fallback). | Handler source code. |
 
-### One execution shape under Scheduled trigger
+**Mid-loop continuation is not a trigger.** It is the natural shape of a real-time tool-use loop: every tool call returns, the Reviewer reads the result, decides next, calls another tool. Per ADR-260 D1 + ADR-256 supersession, the previous "heartbeat" trigger conflated two structurally-different things — mid-loop continuation (within a session) vs. cron wake-up (starts a session). Heartbeat is deleted as a trigger; mid-loop continuation is invisible-as-loop-iteration.
 
-Per ADR-261, every Scheduled invocation has one shape: cron wakes the Reviewer with a recurrence's `prompt`. There is no shape-dispatch by `output_kind` or recurrence type. The Reviewer's real-time loop runs whatever the prompt directs. Recurrences that direct accumulation, reports, external actions, or maintenance all flow through this single shape — what differs is the prompt content, not the execution path.
+### Cron is part of the environment, not part of the trigger taxonomy (ADR-263 amendment)
+
+The previous three-trigger model (`addressed | reactive | scheduled`) treated cron as a distinct trigger. Under ADR-263, cron is part of the *environment that fires recurrences on schedule*. Whether a recurrence fire wakes the Reviewer is a property of the recurrence's `mode` field, not a separate trigger sub-shape:
+
+- **`judgment`-mode recurrences** invoke the Reviewer with their `prompt` as the message envelope (today's behavior; the path the Reviewer experiences as `reactive`).
+- **`mechanical`-mode recurrences** are dispatched to deterministic Python execution. The `prompt` names a primitive invocation (`@primitive: ...`); the dispatcher parses it, executes the primitive, writes substrate via the primitive's normal write path. No LLM session.
+
+Cron's role is upstream of the wake decision — it fires recurrences; the recurrence's mode determines whether the fire wakes the Reviewer.
+
+### One execution shape under Reactive trigger; mode encodes wake intent
+
+Per ADR-261 (extended by ADR-263), recurrences carry one shape `{slug, schedule, mode, prompt}`. The `mode` field (`judgment | mechanical`) is the explicit author-time declaration of whether the recurrence wakes the Reviewer.
 
 ### No parallel dispatch systems
 
-Per Axiom 0's anti-conflation rule, there is exactly one dispatcher per Trigger sub-shape:
+Per Axiom 0's anti-conflation rule, there is exactly one Reviewer-wake mechanism per authoring source. The recurrence walker in `invocation_dispatcher.py` walks `/workspace/_recurrences.yaml` and fires recurrences on schedule — branching on `recurrence.mode` to either (a) invoke the Reviewer (judgment) or (b) execute the mechanical primitive directly. Specialized reactive handlers (`on_proposal_created`, future webhook handlers) carry their own policy gates and dispatch directly. Operator addressing routes through the feed surface and wakes the Reviewer immediately.
 
-- **Scheduled** → recurrence walker (per ADR-261 D3). Walks `/workspace/_recurrences.yaml`; invokes `Reviewer(trigger="scheduled", prompt=...)` for each due entry. Concurrent across recurrences; sub-minute precision; no head-of-line blocking. Implementation shape (per-recurrence Render Crons, `pg_cron`, or persistent scheduler service) chosen at code-PR time per first-principles, not by carrying forward the legacy 5-minute polling cron.
-- **Reactive** → event handlers in `api/routes/` (webhook endpoints, action-proposal triggers). Fan out to `Reviewer(trigger="reactive", ...)` or direct primitives.
-- **Addressed** → user-facing routes (`/feed`, `/api/proposals/*`) + MCP server (`api/mcp_server/`). All converge on `execute_primitive()` or `Reviewer(trigger="addressed", ...)`.
+If a new mechanic appears to need a new dispatcher, check first whether one of these three sources covers it. Usually yes.
 
-If a new mechanic appears to need a new dispatcher, check first whether an existing sub-shape covers it. Usually yes.
+### Corollary: Run-now is the default trigger; schedule is an annotation (ADR-205, refined by ADR-261/263)
 
-### Corollary: Run-now is the default trigger; schedule is an annotation (ADR-205, refined by ADR-261)
+A user request to "do this" is Addressed (operator wrote a feed message). If the user wants the same work to recur, they (or YARNNN on their behalf) call `Schedule` to author a recurrence in `/workspace/_recurrences.yaml`, declaring its `mode`; the recurrence walker then fires it at scheduled times, branching on mode at each fire.
 
-A user request to "do this" is Addressed (invoked by user action at request time). If the user wants the same work to recur, they (or YARNNN on their behalf) call `Schedule` to author a recurrence in `/workspace/_recurrences.yaml`; the cron walker then fires it at scheduled times as Scheduled invocations.
-
-This corollary does not introduce a fourth Trigger sub-shape. Axiom 4's three sub-shapes remain the complete set.
+This corollary does not introduce a third Trigger sub-shape. Axiom 4's two sub-shapes remain the complete set.
 
 ---
 
@@ -588,4 +610,6 @@ Carried forward from v5.1, updated for v6.0:
 | 2026-05-03 | v7.0 — **Three-party narrative model + YARNNN-as-system-name (ADR-247).** Ratifies that the chat narrative has three primary parties: operator (`user`), YARNNN system surface (`assistant`), and operator-named Reviewer delegate (`reviewer`). "Thinking Partner" retired as a user-facing name — the chat surface is YARNNN, the brand and the shell. The Reviewer seat surfaces the operator-authored persona name from `/workspace/review/IDENTITY.md` in narrative verdict rendering rather than the generic "Reviewer" label. Primitive ownership formally documented: YARNNN has `ExecuteProposal`/`RejectProposal` (binds operator intent); Reviewer has no primitives (pure judgment, independence structurally enforced); headless agents have `ProposeAction` only (propose, cannot bind). Periodic Reviewer pulse for autonomy-loop closure scoped to ADR-248. |
 | 2026-05-08 | v8.1 — **Feed surface vocabulary canonized ([ADR-259](../adr/ADR-259-feed-surface.md)).** "Chat surface" retired as the operator-facing concept name; replaced by "feed surface" — the multi-actor, asynchronous, continuously-updating timeline that the architecture has been building since ADR-205, ADR-219, ADR-247. Composed atomically: ADR-259 ratified the rename; route `/chat` → `/feed`; component renames (`ChatPanel` → `FeedPanel`, `ChatSurface` → `FeedSurface`, etc.); operator-facing labels migrated; backend `routes/chat.py` → `routes/feed.py` + URL prefix `/api/chat/*` → `/api/feed/*`; historical ADRs (167, 214, 215, 219, 251, 258) retain inline "chat" vocabulary as period artifact with banner pointing to ADR-259. NOT changed: `chat_sessions` DB table (schema-rename out of scope, low operator-facing value), `chat` permission mode in `CHAT_PRIMITIVES` registry (runtime characteristic, not surface), `chat_completion_with_tools` Anthropic-API wrapper. The `chat` mode survives as runtime characteristic; the surface where its output lands is the feed. |
 | 2026-05-04 | v8.0 — **Operator as primary runtime entity + autonomy as user approval degree (ADR-249).** The primary runtime conversation is Operator ↔ System (YARNNN), not User ↔ System. The operator (user in their principal role) is always present through substrate — MANDATE.md, principles.md, IDENTITY.md, `_operator_profile.md` — and acts on the user's behalf even when the user is absent. YARNNN is executor and narrator only: it reads declared substrate and acts on it; it does not reason about what the operation should do. The Reviewer is the operator's judgment function — the operator in judging posture — not a separate entity. Autonomy mode redefined: not "how much the AI can do" but **"how much user explicit approval is required before operator-initiated actions execute."** Manual = user must approve each consequence. Bounded = user approval required above declared ceiling. Autonomous = operator acts within pre-declared framework; user sees outcomes in narrative. The user can always cut into the conversation at any point regardless of mode. Cadence of the operator ↔ system loop = operational heartbeat; directly determines cost. New Derived Principle 17 added. |
+| 2026-05-10 | v8.3 — **Axiom 1 amended: substrate is canonical for internal AND external state ([ADR-264](../adr/ADR-264-substrate-canonical-world-and-syncplatformstate.md)).** New Axiom 1 sub-section: "External-system state lives in substrate too." Closes the substrate-as-canonical-model loop — every piece of state the Reviewer reasons about lives in the workspace's substrate, regardless of internal-vs-external origin. External-system state (broker positions, fills, account state, commerce revenue, news, etc.) is mediated by deterministic Python primitives invoked through `mechanical`-mode recurrences (per ADR-263). Canonical mediation primitive: `SyncPlatformState` — wraps `(platform-tool call → substrate write → diff-awareness)` atomically. Platform tools survive as judgment-time conveniences (dual surface), but the primary mediation layer is `SyncPlatformState`. Same Axiom 1 violation pattern that ADR-153 (`platform_content` sunset) and ADR-195 (money-truth substrate) corrected for other parallel substrates — external data was previously *de facto* allowed to live in LLM context windows because no mechanism existed to mirror it into substrate. ADR-264 supplies the mechanism. Composes atomically with ADR-263 (the `mechanical`-mode recurrence is the dispatch layer that invokes `SyncPlatformState`). |
+| 2026-05-10 | v8.2 — **Axiom 4 amended: trigger taxonomy collapses to two; recurrence-mode field added at authoring time ([ADR-263](../adr/ADR-263-recurrence-mode-mechanical-vs-judgment.md)).** The previous three-trigger model (`addressed | reactive | scheduled`) collapses to two (`addressed | reactive`). `scheduled` dissolves: cron is part of the environment that fires recurrences; whether a recurrence fire wakes the Reviewer is a property of the recurrence's `mode` field (`judgment | mechanical`), not a separate trigger sub-shape. The wake decision lives at the *authoring site* (recurrence record, operator addressing, specialized reactive handler) — not derived after the fact from substrate writes. New schema field on recurrences: `mode: judgment | mechanical` (default `judgment` for backward compatibility on legacy entries). Three authoring sites for recurrences (operator-via-YARNNN, Reviewer-mid-loop, system-bundle-fork) each declare `mode` at their own intent. The `Schedule` primitive accepts `mode` as a parameter. Mechanical-mode recurrences expect `prompt` to name a primitive invocation (`@primitive: ...`); the dispatcher parses and executes deterministically. Deletes `Literal[..., "scheduled"]` from `invoke_reviewer`. The first concrete primitive designed for mechanical-recurrence use (`SyncPlatformState`) and the substrate-canonical-world axiom amendment to Axiom 1 are scoped to the companion ADR-264. **Design history**: an earlier ADR-263 draft proposed deriving wake-worthiness from substrate writes via a five-verb significance vocabulary + post-write hook; stress-test discourse revealed that the wake question has a simpler authoring-time answer. The earlier draft was set aside; see ADR-263 §10 "Why this rewrite" for the trace. |
 | 2026-04-25 | v6.8 — **Axiom 9 — Invocation and Narrative.** Added as a new axiom (slotted after money-truth, orthogonal to the six dimensions the same way Recursion and Money-Truth are). Three clauses: (A) invocation is one cycle of the six dimensions, actor-class-agnostic — persona-bearing Agents, orchestration chat surface, orchestration capability bundles, and external MCP callers all emit invocations of the same shape; "pulse" named as the actor-scoped vocabulary wrapper around Trigger sub-shapes (periodic / reactive / addressed). (B) Narrative is the single chat-shaped operator-facing log — every invocation emits one entry, weighted material/routine/housekeeping for rendering but always logged. (C) Tasks are legibility wrappers (nameplate + pulse + contract), not parallel substrates — `/work` is the narrative filtered by task slug, not a separate `agent_runs` log. Refines ADR-138 without schema change. Inline-to-task transition made gradient and reversible. Added Derived Principle 14 ("Chat is the source of truth for work; tasks are legibility wrappers"); existing Principle 14 ("Agent seats persist; occupants rotate") renumbered to 15. Deep dive: [invocation-and-narrative.md](invocation-and-narrative.md). ADR-219 (proposed) will scope the implementation of the narrative-storage and /work-as-filter commitments. |

@@ -125,8 +125,9 @@ async def dispatch_due_invocations(supabase_client) -> tuple[int, int, int]:
          rows AND re-reads each user's _recurrences.yaml.
       2. For each due (user_id, recurrence) pair: CAS claim against the
          index, then ``dispatch(supabase, user_id, recurrence,
-         trigger="scheduled")`` invokes the Reviewer with the recurrence's
-         prompt as the addressed-equivalent envelope (per ADR-260 D1).
+         trigger="reactive")`` either invokes the Reviewer (judgment-mode
+         per ADR-263) or executes the prompt's `@primitive: ...` directive
+         deterministically (mechanical-mode per ADR-263 + ADR-264).
       3. Post-dispatch, ``record_task_run`` writes last_run_at +
          recomputed next_run_at into the index.
 
@@ -181,8 +182,13 @@ async def dispatch_due_invocations(supabase_client) -> tuple[int, int, int]:
             continue
 
         try:
+            # ADR-263 D2: cron-fired recurrences are dispatched as `reactive`
+            # — they are substrate events from the Reviewer's perspective. The
+            # recurrence's `mode` field (judgment | mechanical) determines
+            # whether the dispatcher invokes the Reviewer or executes a
+            # mechanical primitive.
             result = await dispatch(
-                supabase_client, user_id, recurrence, trigger="scheduled"
+                supabase_client, user_id, recurrence, trigger="reactive"
             )
             if result.get("success"):
                 succeeded += 1

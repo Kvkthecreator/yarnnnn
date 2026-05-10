@@ -293,25 +293,25 @@ constantly verify them.
 
 
 _TRIGGER_FRAMING = {
-    # ADR-260 D2: three triggers — addressed | reactive | scheduled.
-    # Old `proposal` → `reactive`. Old `heartbeat` deleted (was conflating
-    # mid-loop continuation with cron wake-up). Old `reflection` → a
-    # particular `scheduled` cron-poke whose prompt asks the Reviewer to
-    # reflect.
+    # ADR-260 D2 amended by ADR-263: two triggers — addressed | reactive.
+    # `scheduled` collapsed into `reactive` — cron is part of the environment
+    # that fires recurrences; whether a fire wakes the Reviewer is a property
+    # of the recurrence's `mode` field (judgment | mechanical), not a separate
+    # trigger sub-shape. `reactive` covers both proposal arrival and
+    # judgment-mode recurrence fires; `_build_user_message` differentiates by
+    # context-bag inspection.
     "reactive": (
         "## This invocation\n\n"
-        "An external event requires your judgment. Typically: a proposal has "
-        "been submitted for review. The proposal is below. Apply your "
-        "framework. Call ReturnVerdict with approve | reject | defer + "
-        "reasoning. Use ReadFile/ListFiles to fetch missing substrate before "
-        "deciding if needed."
-    ),
-    "scheduled": (
-        "## This invocation\n\n"
-        "A scheduled recurrence woke you. The recurrence's prompt is the "
-        "operator's instruction below. Read it. Read substrate it cites. "
-        "Apply your framework. Take the action it directs.\n\n"
-        "Common shapes:\n"
+        "Something requires your judgment.\n\n"
+        "If a Recurrence prompt is shown above, a judgment-mode recurrence "
+        "fired — the recurrence's prompt is the operator's instruction. Read "
+        "it. Read substrate it cites. Apply your framework. Take the action "
+        "it directs.\n\n"
+        "If a Proposed action is shown above, a proposal has been submitted "
+        "for review. Apply your framework. Call ReturnVerdict with "
+        "approve | reject | defer + reasoning. Use ReadFile/ListFiles to "
+        "fetch missing substrate before deciding if needed.\n\n"
+        "Common shapes for recurrence fires:\n"
         "- Reflection prompt → `no_change` is the common and expected "
         "outcome; if patterns warrant adjustment, include proposals with "
         "full revised file content.\n"
@@ -434,39 +434,47 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
     if ctx.get("performance_md"):
         parts += ["## _performance.md — Track record", "", ctx["performance_md"], ""]
 
-    # Trigger-specific (ADR-260 D2: addressed | reactive | scheduled)
+    # Trigger-specific (ADR-260 D2 amended by ADR-263: addressed | reactive)
+    # `reactive` covers two sub-shapes — proposal arrival (specialized
+    # reactive handler per ADR-247) and judgment-mode recurrence fire
+    # (cron-driven per ADR-263). The sub-shape is detected by which keys
+    # are present in the context bag, not by a separate trigger value.
     if trigger == "reactive":
-        row = ctx.get("proposal_row") or {}
-        if row:
-            parts += [
-                "## Proposed action",
-                "",
-                f"**action_type:** `{row.get('action_type', '?')}`",
-                f"**reversibility:** {row.get('reversibility', '?')}",
-            ]
-            if row.get("rationale"):
-                parts.append(f"**rationale:** {row['rationale']}")
-            if row.get("expected_effect"):
-                parts.append(f"**expected_effect:** {row['expected_effect']}")
-            inputs = row.get("inputs") or {}
-            parts += ["**inputs:**", "```json", _json.dumps(inputs, indent=2, default=str), "```", ""]
-
-    elif trigger == "scheduled":
-        # The recurrence's prompt is the operator's instruction handed to the
-        # Reviewer at scheduled time (ADR-261 D1). It is the addressed-equivalent
-        # message — narrate intent, then act.
-        prompt_text = ctx.get("recurrence_prompt") or ctx.get("user_message") or ""
-        slug = ctx.get("recurrence_slug") or ctx.get("trigger_slug")
-        if slug:
-            parts += [f"## Recurrence: `{slug}`", ""]
-        if prompt_text:
-            parts += ["## Recurrence prompt (operator's instruction)", "", prompt_text.strip(), ""]
-        if ctx.get("signal_files"):
-            parts += ["## Current signal state (pre-loaded)", "", ctx["signal_files"], ""]
-        if ctx.get("workspace_state"):
-            parts += ["## Workspace state", "", ctx["workspace_state"], ""]
-        if ctx.get("recent_decisions_md"):
-            parts += ["## Recent decisions", "", ctx["recent_decisions_md"], ""]
+        # Sub-shape detection: recurrence_prompt key present → judgment-mode
+        # recurrence fire; otherwise → proposal arrival.
+        if ctx.get("recurrence_prompt") or ctx.get("recurrence_slug"):
+            # Judgment-recurrence fire: the recurrence's prompt is the
+            # operator's instruction handed to the Reviewer at scheduled time
+            # (ADR-261 D1). It is the addressed-equivalent message — narrate
+            # intent, then act.
+            prompt_text = ctx.get("recurrence_prompt") or ctx.get("user_message") or ""
+            slug = ctx.get("recurrence_slug") or ctx.get("trigger_slug")
+            if slug:
+                parts += [f"## Recurrence: `{slug}`", ""]
+            if prompt_text:
+                parts += ["## Recurrence prompt (operator's instruction)", "", prompt_text.strip(), ""]
+            if ctx.get("signal_files"):
+                parts += ["## Current signal state (pre-loaded)", "", ctx["signal_files"], ""]
+            if ctx.get("workspace_state"):
+                parts += ["## Workspace state", "", ctx["workspace_state"], ""]
+            if ctx.get("recent_decisions_md"):
+                parts += ["## Recent decisions", "", ctx["recent_decisions_md"], ""]
+        else:
+            # Proposal arrival: the proposal row is the event being judged.
+            row = ctx.get("proposal_row") or {}
+            if row:
+                parts += [
+                    "## Proposed action",
+                    "",
+                    f"**action_type:** `{row.get('action_type', '?')}`",
+                    f"**reversibility:** {row.get('reversibility', '?')}",
+                ]
+                if row.get("rationale"):
+                    parts.append(f"**rationale:** {row['rationale']}")
+                if row.get("expected_effect"):
+                    parts.append(f"**expected_effect:** {row['expected_effect']}")
+                inputs = row.get("inputs") or {}
+                parts += ["**inputs:**", "```json", _json.dumps(inputs, indent=2, default=str), "```", ""]
 
     elif trigger == "addressed":
         if ctx.get("signal_files"):
@@ -490,27 +498,37 @@ async def invoke_reviewer(
     client: Any,
     user_id: str,
     *,
-    trigger: Literal["addressed", "reactive", "scheduled"],
+    trigger: Literal["addressed", "reactive"],
     context: ReviewerContext,
     event_callback: Any = None,
 ) -> ReviewerOutput | None:
-    """Unified Reviewer invocation — ADR-258 (revised) + ADR-260 D2.
+    """Unified Reviewer invocation — ADR-258 (revised) + ADR-260 D2 + ADR-263.
 
     Reviewer is a chat-mode caller of the canonical primitive registry.
     Tool surface = curated REVIEWER_PRIMITIVES + ReturnVerdict. Tool-use loop
-    bounded at 12 rounds for addressed/scheduled, 3 for reactive (ADR-260 D8).
+    bounded at 12 rounds for addressed, 3 for reactive (ADR-260 D8).
 
     Safety story: attribution (ADR-209 authored substrate) + revision chain
     + AUTONOMY gating + operator-authored _locks.yaml. Not access control.
 
-    Three triggers (ADR-260 D2):
+    Two triggers (ADR-260 D2 amended by ADR-263 D2):
     - `addressed` — operator addressed the Reviewer (chat turn).
-    - `reactive`  — external event requires judgment (proposal arrives).
-    - `scheduled` — cron poked the Reviewer with a recurrence's prompt.
+    - `reactive`  — substrate event requires judgment. Two sub-shapes,
+                    differentiated by context-bag contents:
+                      • Proposal arrival (proposal_row in context).
+                      • Judgment-mode recurrence fire (recurrence_prompt in context;
+                        per ADR-263, mechanical-mode recurrences do NOT invoke
+                        the Reviewer — they execute deterministic primitives).
+
+    Cron is part of the environment that fires recurrences; the recurrence's
+    `mode` field declares whether the fire wakes the Reviewer (judgment) or
+    runs as deterministic Python (mechanical). The Reviewer never sees the
+    `scheduled` trigger value because cron-fired Reviewer wakes are now
+    `reactive` (ADR-263 D2 amendment).
 
     Model selection by trigger:
-    - Sonnet (capital decisions): reactive
-    - Haiku  (reasoning):         addressed + scheduled
+    - Sonnet (capital decisions): reactive proposals
+    - Haiku  (reasoning):         addressed + reactive recurrences
 
     Optional `event_callback`: an async callable `(event_dict) -> None` that
     fires progressively as the loop advances — once per round_start, once
@@ -522,10 +540,23 @@ async def invoke_reviewer(
     from services.primitives.registry import REVIEWER_PRIMITIVES, execute_primitive
     from types import SimpleNamespace
 
-    # ADR-260 D2 + D8: Sonnet for reactive (capital judgment); Haiku for
-    # addressed + scheduled (longer real-time loops + reflection).
-    model = _SONNET if trigger == "reactive" else _HAIKU
-    caller = _CALLER_SONNET if trigger == "reactive" else _CALLER_HAIKU
+    # ADR-260 D2 + D8 + ADR-263 D2: model + round-bound selection.
+    #
+    # `reactive` covers two sub-shapes (per `_build_user_message` differentiation):
+    #   - proposal arrival → Sonnet (capital judgment, discrete decision call)
+    #   - judgment-recurrence fire → Haiku (longer real-time loop, similar
+    #     to the previous `scheduled` trigger that ADR-263 D2 collapsed in)
+    # `addressed` always uses Haiku (operator chat turn).
+    #
+    # Sub-shape detection mirrors the pattern in `_build_user_message`:
+    # presence of `recurrence_prompt`/`recurrence_slug` keys = recurrence fire.
+    is_recurrence_fire = bool(
+        context.get("recurrence_prompt") or context.get("recurrence_slug")
+    ) if isinstance(context, dict) else False
+
+    use_sonnet = (trigger == "reactive") and not is_recurrence_fire
+    model = _SONNET if use_sonnet else _HAIKU
+    caller = _CALLER_SONNET if use_sonnet else _CALLER_HAIKU
 
     # Build auth namespace with reviewer_caller flag — handlers consult this
     # for ADR-258 D9 lock enforcement on operator-shared substrate.
@@ -558,10 +589,12 @@ async def invoke_reviewer(
         actions_taken: list[dict] = []
         verdict_raw: dict | None = None
 
-        # ADR-260 D8: round bound varies by trigger. addressed/scheduled
-        # need room for full real-time tool-use loops; reactive (proposal
-        # judgment) is a discrete decision call and stays tight.
-        max_rounds = 3 if trigger == "reactive" else 12
+        # ADR-260 D8 + ADR-263: round bound varies by sub-shape.
+        # - Proposal-arrival reactive (Sonnet) is a discrete decision call → 3 rounds.
+        # - Recurrence-fire reactive (Haiku) needs room for the recurrence's full
+        #   real-time tool-use loop → 12 rounds (same as old `scheduled`).
+        # - Addressed (Haiku) is a chat turn with full tool budget → 12 rounds.
+        max_rounds = 3 if use_sonnet else 12
         total_input = 0
         total_output = 0
         rounds_used = 0

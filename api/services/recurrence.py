@@ -50,19 +50,41 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+# ADR-263: recurrence mode declares at authoring time whether a recurrence
+# wakes the Reviewer (judgment) or runs as deterministic Python (mechanical).
+# Default is "judgment" — preserves backward compatibility for legacy entries
+# in existing _recurrences.yaml files. Mechanical recurrences expect their
+# `prompt` field to name a primitive invocation (`@primitive: ...`); the
+# dispatcher parses and executes deterministically with no LLM session.
+RECURRENCE_MODES = ("judgment", "mechanical")
+DEFAULT_RECURRENCE_MODE = "judgment"
+
+
+def is_valid_mode(mode: str) -> bool:
+    """Soft check for caller-side validation. The parser coerces invalid
+    values to the default and logs a warning."""
+    return mode in RECURRENCE_MODES
+
+
 @dataclass
 class Recurrence:
-    """One parsed recurrence entry per ADR-261 D1.
+    """One parsed recurrence entry per ADR-261 D1, extended by ADR-263.
 
-    The three load-bearing fields are ``slug``, ``schedule``, ``prompt``.
+    The four load-bearing fields are ``slug``, ``schedule``, ``mode``, ``prompt``.
     Optional ``options`` carries operator-legibility metadata
     (``display_name``, ``description``, etc.) that does not affect
     execution shape per ADR-261 D1.
+
+    ADR-263: ``mode`` declares whether the recurrence wakes the Reviewer
+    (``judgment``) or runs as deterministic Python (``mechanical``). Authored
+    at create-time by operator-via-YARNNN, Reviewer-mid-loop, or
+    system-bundle-fork; editable thereafter via Schedule(action="update").
     """
 
     slug: str  # operator-legible identifier
     schedule: Optional[str]  # cron expression; null for reactive
-    prompt: str  # what the Reviewer reads at fire time
+    prompt: str  # what the Reviewer reads at fire time (judgment) OR a `@primitive: ...` directive (mechanical)
+    mode: str = DEFAULT_RECURRENCE_MODE  # ADR-263: judgment | mechanical
 
     # Optional metadata
     paused: bool = False
@@ -167,12 +189,24 @@ def parse_recurrences_yaml(
         # ``paused_until``: ISO-8601 string or datetime
         paused_until = _coerce_datetime(raw.get("paused_until"))
 
+        # ADR-263: ``mode`` declares wake intent at authoring time.
+        # Default to "judgment" when absent (legacy entries) for backward
+        # compatibility. Coerce invalid values to default + log warning.
+        mode_raw = raw.get("mode") or DEFAULT_RECURRENCE_MODE
+        mode = str(mode_raw).strip().lower()
+        if mode not in RECURRENCE_MODES:
+            logger.warning(
+                "[RECURRENCE] entry '%s' has invalid mode=%r — coercing to %r",
+                slug, mode_raw, DEFAULT_RECURRENCE_MODE,
+            )
+            mode = DEFAULT_RECURRENCE_MODE
+
         # ``options`` is everything else the operator put in the entry
         # (display_name, description, etc.) — optional metadata only.
         options = {
             k: v
             for k, v in raw.items()
-            if k not in {"slug", "schedule", "prompt", "paused", "paused_until"}
+            if k not in {"slug", "schedule", "prompt", "mode", "paused", "paused_until"}
         }
 
         out.append(
@@ -180,6 +214,7 @@ def parse_recurrences_yaml(
                 slug=str(slug),
                 schedule=schedule,
                 prompt=str(prompt).strip(),
+                mode=mode,
                 paused=bool(raw.get("paused", False)),
                 paused_until=paused_until,
                 options=options,
@@ -302,7 +337,12 @@ def serialize_recurrences_yaml(recurrences: list[Recurrence]) -> str:
 
     out = []
     for rec in recurrences:
-        entry = {"slug": rec.slug, "schedule": rec.schedule, "prompt": rec.prompt}
+        entry = {"slug": rec.slug, "schedule": rec.schedule}
+        # ADR-263: emit `mode` only when non-default to keep legacy YAML clean.
+        # Operator-edited files that don't carry `mode` re-serialize without it.
+        if rec.mode != DEFAULT_RECURRENCE_MODE:
+            entry["mode"] = rec.mode
+        entry["prompt"] = rec.prompt
         if rec.paused:
             entry["paused"] = True
         if rec.paused_until:
@@ -328,4 +368,7 @@ __all__ = [
     "compute_next_run_at",
     "serialize_recurrences_yaml",
     "RECURRENCES_PATH",  # re-exported for caller convenience
+    "RECURRENCE_MODES",  # ADR-263
+    "DEFAULT_RECURRENCE_MODE",  # ADR-263
+    "is_valid_mode",  # ADR-263
 ]

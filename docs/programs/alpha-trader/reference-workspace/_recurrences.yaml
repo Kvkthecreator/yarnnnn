@@ -1,23 +1,80 @@
-# /workspace/_recurrences.yaml — alpha-trader bundle (ADR-261 D2)
+# /workspace/_recurrences.yaml — alpha-trader bundle (ADR-261 D2 + ADR-263 D1)
 #
 # Single canonical recurrences file. The operator can read the entire
 # scheduled-work surface in 30 seconds. Per ADR-261 D1 each entry is
-# {slug, schedule, prompt}; the prompt is what reaches the Reviewer at
-# the scheduled time.
+# {slug, schedule, mode, prompt} where:
+#   - slug:     stable identifier
+#   - schedule: cron expression (or null for reactive-only)
+#   - mode:     judgment (wakes Reviewer with prompt) | mechanical (executes
+#               @primitive: ... directive deterministically; no Reviewer wake)
+#               Default at parse time when absent: 'judgment' (legacy compat).
+#   - prompt:   Reviewer message (judgment mode) OR @primitive: ... (mechanical mode)
 #
-# Per ADR-261 D6 §4: back-office work that previously lived as
-# `executor:` directives in back-office.yaml now lives here as ordinary
-# Reviewer-driven recurrences. The cost shift (Haiku-driven instead of
-# zero-LLM Python) is the price of one execution shape.
+# Per ADR-263 D2: cron is part of the environment that fires recurrences;
+# the recurrence's `mode` field declares whether the fire wakes the Reviewer.
+#
+# Per ADR-264: SyncPlatformState is the canonical mechanical primitive that
+# mirrors external state into substrate. Mechanical-mode recurrences invoke
+# it via @primitive: SyncPlatformState(...) directives.
 #
 # Per ADR-262 D1: every output path is slug-templated by CONVENTIONS.md;
 # every spec referenced by a prompt lives under /workspace/specs/.
 
 recurrences:
 
-  # ── track-universe — refresh ticker fundamentals ──────────────────────────
+  # ── MECHANICAL MIRRORS (ADR-264) — keep substrate fresh, no LLM cost ─────
+  # These recurrences run as deterministic Python via SyncPlatformState.
+  # They write to substrate at known paths; the Reviewer reads substrate,
+  # never broker APIs as primary perception (ADR-264 substrate-canonical
+  # world axiom). Diff-aware writes skip when content unchanged — quiet
+  # markets produce zero revision noise.
+
+  - slug: track-positions
+    schedule: "* * 9-16 * 1-5"   # every minute during US market hours
+    mode: mechanical
+    prompt: |
+      @primitive: SyncPlatformState(
+        tool="platform_trading_get_positions",
+        write_to="context/portfolio/positions/{symbol}.yaml",
+        iterate_field="positions",
+        item_key="symbol",
+        diff_aware=true
+      )
+    display_name: "Position State Mirror"
+
+  - slug: track-account
+    schedule: "*/5 * 9-16 * 1-5"   # every 5 min during market hours
+    mode: mechanical
+    prompt: |
+      @primitive: SyncPlatformState(
+        tool="platform_trading_get_account",
+        write_to="context/portfolio/_account.yaml",
+        diff_aware=true
+      )
+    display_name: "Account State Mirror"
+
+  - slug: track-orders
+    schedule: "* * 9-16 * 1-5"   # every minute during market hours
+    mode: mechanical
+    prompt: |
+      @primitive: SyncPlatformState(
+        tool="platform_trading_get_orders",
+        tool_args={"status": "open"},
+        write_to="context/portfolio/_orders.yaml",
+        diff_aware=true
+      )
+    display_name: "Open Orders Mirror"
+
+  # ── JUDGMENT RECURRENCES — wake the Reviewer with a prompt ──────────────
+
+  # ── track-universe — refresh ticker fundamentals ─────────────────────────
+  # NOTE: this stays judgment-mode for now because it does compute work
+  # (SMA/RSI/ATR derivation) beyond what SyncPlatformState handles in a
+  # single primitive call. A future ADR-264 follow-on may introduce a
+  # dedicated mirror+compute primitive that lets this go mechanical.
   - slug: track-universe
     schedule: "0 8,11,15 * * 1-5"
+    mode: judgment
     prompt: |
       Refresh fundamentals for every ticker listed in
       /workspace/context/trading/_universe.yaml.
@@ -32,35 +89,45 @@ recurrences:
       /workspace/context/trading/_run_log.md and try again next cycle.
     display_name: "Universe Tracker"
 
-  # ── signal-evaluation — evaluate signals against current bars ─────────────
+  # ── signal-evaluation — evaluate signals against current bars ────────────
   - slug: signal-evaluation
     schedule: "5 8 * * 1-5"
+    mode: judgment
     prompt: |
-      Evaluate the universe against signals IH-1 through IH-5 on the fresh
-      1Hour bars track-universe just wrote. For each ticker in
+      Evaluate the universe against signals declared in
+      /workspace/context/_shared/_operator_profile.md on the fresh 1Hour bars
+      track-universe just wrote. For each ticker in
       /workspace/context/trading/_universe.yaml:
         - Read the latest snapshot at /workspace/context/trading/{ticker}.yaml.
-        - Apply each signal's boolean rule (declared in
-          /workspace/context/_shared/_operator_profile.md).
+        - Apply each signal's boolean rule.
         - When a signal fires, append a signal entry to
           /workspace/context/trading/signals/{signal_id}.yaml with timestamp,
           ticker, conditions snapshot, and sizing inputs.
 
-      When any signal fires, immediately FireInvocation(slug="trade-proposal")
+      Also check open positions (read /workspace/context/portfolio/positions/)
+      for exit triggers per principles.md "Hard exit triggers" section —
+      stop hit, target reached, max-hold reached. When an exit triggers,
+      immediately FireInvocation(slug="trade-proposal") with context noting
+      the exit shape so the Reviewer proposes close.
+
+      When any entry signal fires, immediately FireInvocation(slug="trade-proposal")
       to hand the signal to the Reviewer for capital judgment. Otherwise
       stand down.
     display_name: "Signal Evaluator"
 
-  # ── trade-proposal — emit Reviewer-gated proposal on signal fire ──────────
+  # ── trade-proposal — emit Reviewer-gated proposal on signal fire or exit ──
   - slug: trade-proposal
     schedule: null  # reactive — fires on signal trigger via FireInvocation
+    mode: judgment
     prompt: |
-      A signal fire was just recorded. Read the most recent signal entry in
-      /workspace/context/trading/signals/. Decide whether the signal warrants
-      a trade against your principles in /workspace/review/principles.md and
-      the operator's risk envelope in /workspace/context/_shared/_risk.md.
+      A signal fire or exit trigger was just recorded. Read the most recent
+      entry in /workspace/context/trading/signals/ (entry path) OR the
+      relevant /workspace/context/portfolio/positions/{ticker}.yaml (exit
+      path). Decide whether the situation warrants a trade against your
+      principles in /workspace/review/principles.md and the operator's risk
+      envelope in /workspace/context/_shared/_risk.md.
 
-      If yes, emit ProposeAction(action_type="trading.submit_order_paper",
+      Entry path (signal fired): emit ProposeAction(action_type="trading.submit_order_paper",
       ...) with full sizing math:
         - signal_id (must match the fired signal)
         - ticker
@@ -72,14 +139,26 @@ recurrences:
         - sizing_formula_trace (numbers + formula explanation)
         - entry_rule_trace (which signal conditions matched)
 
-      Check 1 (signal attribution) must pass by construction — every proposal
-      is tied to a named signal. If conditions don't warrant, stand down
-      with reasoning written to /workspace/review/decisions.md.
+      Exit path (stop hit / target reached / max-hold reached): close-proposal
+      is mandatory per principles.md "Hard exit triggers". Emit
+      ProposeAction(action_type="trading.close_position", ...) with:
+        - ticker
+        - exit_reason (stop_hit | target_reached | max_hold_reached)
+        - position_state_trace (the substrate snapshot that triggered the close)
+
+      Check 1 (signal attribution) must pass by construction for entries —
+      every entry proposal is tied to a named signal. For exits, attribution
+      is the original signal_id of the position being closed.
+
+      If conditions don't warrant on the entry path, stand down with reasoning
+      written to /workspace/review/decisions.md. **Silent stand-down on an
+      exit trigger is forbidden** (per principles.md).
     display_name: "Trade Proposal"
 
   # ── pre-market-brief — daily pre-market deliverable ──────────────────────
   - slug: pre-market-brief
     schedule: "15 8 * * 1-5"
+    mode: judgment
     prompt: |
       Produce the pre-market brief. Follow the spec at
       /workspace/specs/pre-market-brief.md. Save to
@@ -89,7 +168,8 @@ recurrences:
 
       Sections required:
         - Signal State Summary (which signals may fire today)
-        - Portfolio Exposure (current positions vs VaR budget)
+        - Portfolio Exposure (current positions vs VaR budget — read
+          /workspace/context/portfolio/positions/ + /workspace/context/portfolio/_account.yaml)
         - Decay Flags (signals with degrading expectancy)
         - Regime State (VIX bucket + trend regime)
         - Pending Proposals (anything in the Queue)
@@ -101,6 +181,7 @@ recurrences:
   # ── weekly-performance-review — Sunday performance synthesis ─────────────
   - slug: weekly-performance-review
     schedule: "0 18 * * 0"
+    mode: judgment
     prompt: |
       Produce the weekly performance review. Follow the spec at
       /workspace/specs/weekly-performance-review.md. Save to
@@ -110,7 +191,7 @@ recurrences:
       Read /workspace/context/trading/_performance.md (money-truth substrate
       from outcome-reconciliation). Compute per-signal P&L, win rate,
       expectancy-20, expectancy-40, Sharpe-lifetime. Flag any signal whose
-      decay guardrail (declared in /workspace/context/_shared/_risk.md) was
+      decay guardrail (declared in /workspace/context/trading/_risk.md) was
       crossed.
 
       Sections required:
@@ -124,6 +205,7 @@ recurrences:
   # ── quarterly-signal-audit — quarter-end signal-discipline ritual ─────────
   - slug: quarterly-signal-audit
     schedule: "0 18 31 3,6,9,12 *"
+    mode: judgment
     prompt: |
       Produce the quarterly signal audit. Follow the spec at
       /workspace/specs/quarterly-signal-audit.md. Save to
@@ -149,8 +231,14 @@ recurrences:
     display_name: "Quarterly signal audit"
 
   # ── outcome-reconciliation — daily money-truth reconcile ─────────────────
+  # NOTE: stays judgment-mode for now because the reconciliation work
+  # (compute realized P&L vs proposal projection, fold into rolling-window
+  # frontmatter on _performance.md) goes beyond a single SyncPlatformState
+  # call. A future ADR-264 follow-on may introduce a dedicated reconciler
+  # primitive that lets the mirror half go mechanical.
   - slug: outcome-reconciliation
     schedule: "0 5 * * *"
+    mode: judgment
     prompt: |
       Reconcile yesterday's executed proposals against platform events.
       Read the trading platform_connections; pull executed orders + fills
@@ -172,6 +260,7 @@ recurrences:
   # ── morning-calibration — daily Reviewer calibration check ───────────────
   - slug: morning-calibration
     schedule: "0 6 * * *"
+    mode: judgment
     prompt: |
       Calibrate against money-truth. Read
       /workspace/context/trading/_performance.md for the last 7d / 30d /
@@ -193,6 +282,7 @@ recurrences:
   # ── morning-reflection — daily Reviewer self-reflection ──────────────────
   - slug: morning-reflection
     schedule: "0 7 * * *"
+    mode: judgment
     prompt: |
       Reflect on yesterday's decisions against your principles. Read:
         - /workspace/review/decisions.md (last 7 days of verdicts)
@@ -217,6 +307,7 @@ recurrences:
   # ── proposal-cleanup — archive stale proposals ───────────────────────────
   - slug: proposal-cleanup
     schedule: "0 4 * * *"
+    mode: judgment
     prompt: |
       Archive action_proposals rows that have been pending review for
       more than 7 days without operator action. Use UpdateContext with
@@ -234,6 +325,7 @@ recurrences:
   # ── narrative-digest — daily activity rollup for compact index ───────────
   - slug: narrative-digest
     schedule: "0 3 * * *"
+    mode: judgment
     prompt: |
       Roll up non-conversation narrative events from the last 24h
       (reviewer verdicts, agent runs, system events) into

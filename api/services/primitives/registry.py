@@ -60,6 +60,10 @@ from .revisions import (
     DIFF_REVISIONS_TOOL, handle_diff_revisions,
 )
 from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
+# ADR-264: substrate-canonical-world primitive — mirrors external state into substrate
+# via deterministic Python (no LLM). Dispatched by mechanical-mode recurrences
+# per ADR-263 D5 + ADR-264 D2 via the @primitive: ... convention.
+from .sync_platform_state import SYNC_PLATFORM_STATE_TOOL, handle_sync_platform_state
 from .repurpose import REPURPOSE_OUTPUT_TOOL, handle_repurpose_output
 from .propose_action import (
     PROPOSE_ACTION_TOOL, handle_propose_action,
@@ -276,6 +280,11 @@ HEADLESS_PRIMITIVES = [
     GET_SYSTEM_STATE_TOOL,
     # External (ADR-153: RefreshPlatformContent removed)
     WEB_SEARCH_PRIMITIVE,
+    # ADR-264: substrate-canonical-world primitive — mirrors external state
+    # into substrate via deterministic Python. Primary surface for use in
+    # mechanical-mode recurrences (ADR-263); also LLM-callable for the rare
+    # case a specialist needs to refresh substrate before reasoning.
+    SYNC_PLATFORM_STATE_TOOL,
     # File layer (5)
     READ_FILE_TOOL,
     WRITE_FILE_TOOL,
@@ -310,7 +319,7 @@ HEADLESS_PRIMITIVES = [
     LIST_REVISIONS_TOOL,
     READ_REVISION_TOOL,
     DIFF_REVISIONS_TOOL,
-]  # 21 static tools + dynamic platform_* — ADR-235 added ManageRecurrence
+]  # 22 static tools + dynamic platform_* — ADR-264 added SyncPlatformState
 
 # Combined list — for handler registration and backwards compatibility
 PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.values())
@@ -374,9 +383,14 @@ REVIEWER_PRIMITIVES = [
     # researcher / analyst / writer / tracker / designer / reporting roles
     # for production work the Reviewer's context shouldn't carry.
     DISPATCH_SPECIALIST_TOOL,
+    # Substrate refresh (ADR-264) — rare mid-loop case where the Reviewer
+    # needs to refresh external state into substrate before judging.
+    # Primary use is dispatched by mechanical-mode recurrences; LLM-callable
+    # surface here is for the override case.
+    SYNC_PLATFORM_STATE_TOOL,
     # Conversation
     CLARIFY_TOOL,
-]  # 20 tools (ADR-261 D7 added DispatchSpecialist to the prior 19) — curated subset of CHAT_PRIMITIVES per human-supervisor analogue
+]  # 21 tools — ADR-264 added SyncPlatformState (Reviewer mid-loop substrate refresh)
 
 
 # =============================================================================
@@ -410,6 +424,10 @@ HANDLERS: dict[str, Callable] = {
     "Compose": handle_compose,
     # ADR-261 D7: DispatchSpecialist — Reviewer-loop sub-LLM-call
     "DispatchSpecialist": handle_dispatch_specialist,
+    # ADR-264: SyncPlatformState — substrate-canonical-world primitive
+    # (mirrors external state into substrate; primary surface for use in
+    # mechanical-mode recurrences per ADR-263).
+    "SyncPlatformState": handle_sync_platform_state,
     "ManageDomains": handle_manage_domains,
     # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
     "ReadFile": handle_read_file,
