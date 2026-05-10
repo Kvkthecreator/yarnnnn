@@ -58,14 +58,7 @@ For chat-first operator-immediate work (where no recurrence exists yet), do NOT 
 }
 
 
-async def handle_fire_invocation(
-    user_id: str,
-    *,
-    slug: str,
-    context: Optional[str] = None,
-    db_client: Any = None,
-    **_extra: Any,
-) -> dict:
+async def handle_fire_invocation(auth: Any, input: dict) -> dict:
     """Fire an invocation against the named recurrence.
 
     Per ADR-261 D3 + ADR-260 D1: walks ``/workspace/_recurrences.yaml``,
@@ -77,6 +70,15 @@ async def handle_fire_invocation(
     """
     from services.invocation_dispatcher import dispatch
     from services.recurrence import walk_workspace_recurrences
+
+    user_id = getattr(auth, "user_id", None)
+    db_client = getattr(auth, "client", None)
+    if not user_id:
+        return {"success": False, "error": "auth_required", "message": "user_id required"}
+
+    input = input or {}
+    slug = input.get("slug") or ""
+    context = input.get("context")
 
     if not slug or not isinstance(slug, str):
         return {"success": False, "error": "missing_slug", "message": "slug is required"}

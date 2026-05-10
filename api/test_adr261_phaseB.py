@@ -246,8 +246,73 @@ def main() -> None:
     _ok("bundle ships /workspace/_recurrences.yaml at root of reference-workspace")
     print()
 
+    # --- Section 8: Phase C wiring (Compose auto-trigger + DispatchSpecialist) ---
+    print()
+    print("Section 8 — Phase C wiring")
+    assert_attr_present("services.invocation_dispatcher", "_maybe_auto_compose")
+    assert_attr_present("services.primitives.dispatch_specialist", "handle_dispatch_specialist")
+    assert_attr_present("services.primitives.dispatch_specialist", "DISPATCH_SPECIALIST_TOOL")
+    assert_attr_present("services.primitives.dispatch_specialist", "VALID_SPECIALIST_ROLES")
+
+    # DispatchSpecialist registered in CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, REVIEWER_PRIMITIVES, HANDLERS
+    from services.primitives.registry import (
+        CHAT_PRIMITIVES,
+        HEADLESS_PRIMITIVES,
+        REVIEWER_PRIMITIVES,
+        HANDLERS,
+    )
+    chat_names = {t["name"] for t in CHAT_PRIMITIVES}
+    headless_names = {t["name"] for t in HEADLESS_PRIMITIVES}
+    reviewer_names = {t["name"] for t in REVIEWER_PRIMITIVES}
+
+    if "DispatchSpecialist" not in chat_names:
+        _fail("DispatchSpecialist missing from CHAT_PRIMITIVES")
+    _ok("DispatchSpecialist registered in CHAT_PRIMITIVES")
+    if "DispatchSpecialist" not in headless_names:
+        _fail("DispatchSpecialist missing from HEADLESS_PRIMITIVES")
+    _ok("DispatchSpecialist registered in HEADLESS_PRIMITIVES")
+    if "DispatchSpecialist" not in reviewer_names:
+        _fail("DispatchSpecialist missing from REVIEWER_PRIMITIVES (ADR-261 D7)")
+    _ok("DispatchSpecialist registered in REVIEWER_PRIMITIVES")
+    if "DispatchSpecialist" not in HANDLERS:
+        _fail("DispatchSpecialist handler not registered")
+    _ok("DispatchSpecialist handler registered in HANDLERS")
+
+    # Reviewer roster has Schedule + Compose + DispatchSpecialist + FireInvocation
+    expected_reviewer_authority = {"Schedule", "Compose", "DispatchSpecialist", "FireInvocation", "ProposeAction"}
+    missing = expected_reviewer_authority - reviewer_names
+    if missing:
+        _fail(f"REVIEWER_PRIMITIVES missing authority tools: {missing}")
+    _ok(f"REVIEWER_PRIMITIVES has full direction authority: {sorted(expected_reviewer_authority)}")
+
+    # All three primitive handlers conform to the (auth, input) contract
+    import inspect
+    for handler_name in ["handle_schedule", "handle_fire_invocation", "handle_dispatch_specialist", "handle_compose"]:
+        for module_name in [
+            "services.primitives.schedule",
+            "services.primitives.fire_invocation",
+            "services.primitives.dispatch_specialist",
+            "services.primitives.compose",
+        ]:
+            try:
+                mod = importlib.import_module(module_name)
+                if hasattr(mod, handler_name):
+                    handler = getattr(mod, handler_name)
+                    sig = inspect.signature(handler)
+                    params = list(sig.parameters.keys())
+                    if params[:2] != ["auth", "input"]:
+                        _fail(
+                            f"{module_name}.{handler_name} signature must be "
+                            f"(auth, input), got {params}"
+                        )
+                    break
+            except ImportError:
+                continue
+    _ok("Schedule + FireInvocation + DispatchSpecialist + Compose handlers conform to (auth, input)")
+    print()
+
     print("=" * 70)
-    print("ADR-261 Phase B regression gate: ALL PASS")
+    print("ADR-261 Phase B + Phase C regression gate: ALL PASS")
     print("=" * 70)
 
 

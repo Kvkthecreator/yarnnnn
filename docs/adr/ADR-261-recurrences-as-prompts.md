@@ -1,6 +1,6 @@
 # ADR-261: Recurrences as Prompts — Single Execution Shape
 
-**Status**: Implemented 2026-05-10 (Phase B atomic commit; D1 unified `{slug, schedule, prompt}` schema + D2 single canonical file + D3 walker-based scheduler + D4 Schedule primitive + D5 AUTONOMY rederive + D6 workspace_init simplification (back-office package deleted) + D8 task_types registry not used + D9 Authored Substrate continuity all landed in PR #9. D7 specialists-as-tools deferred to Phase C.2 DispatchSpecialist.)
+**Status**: Fully Implemented 2026-05-10 (Phases B + C + D atomic on PR #9). D1 unified `{slug, schedule, prompt}` schema + D2 single canonical file + D3 walker-based scheduler + D4 Schedule primitive + D5 AUTONOMY rederive + D6 workspace_init simplification (back-office package deleted) + D7 specialists-as-tools (DispatchSpecialist primitive in REVIEWER_PRIMITIVES + CHAT/HEADLESS) + D8 task_types registry dissolved + D9 Authored Substrate continuity all landed.
 **Companion ADRs (atomic together)**:
 - ADR-260 — Real-Time Reviewer Loop: Cron is a Nudge, Continuation is Not a Trigger
 - ADR-262 — Output Topology and Specs: Filesystem-Native Output Without Registries

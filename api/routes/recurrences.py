@@ -313,21 +313,16 @@ async def update_recurrence(
     from services.primitives.schedule import handle_schedule
 
     if request.status == "paused":
-        await handle_schedule(
-            auth.user_id, action="pause", slug=slug,
-            db_client=auth.client, authored_by="operator",
-        )
+        await handle_schedule(auth, {"action": "pause", "slug": slug, "authored_by": "operator"})
     elif request.status == "active" and row.get("paused"):
-        await handle_schedule(
-            auth.user_id, action="resume", slug=slug,
-            db_client=auth.client, authored_by="operator",
-        )
+        await handle_schedule(auth, {"action": "resume", "slug": slug, "authored_by": "operator"})
     if request.schedule is not None:
-        await handle_schedule(
-            auth.user_id, action="update", slug=slug,
-            changes={"schedule": request.schedule},
-            db_client=auth.client, authored_by="operator",
-        )
+        await handle_schedule(auth, {
+            "action": "update",
+            "slug": slug,
+            "changes": {"schedule": request.schedule},
+            "authored_by": "operator",
+        })
 
     return {"success": True}
 
@@ -342,14 +337,12 @@ async def update_recurrence_sources(
     metadata under ``options.sources`` in the recurrence entry."""
     from services.primitives.schedule import handle_schedule
 
-    result = await handle_schedule(
-        auth.user_id,
-        action="update",
-        slug=slug,
-        changes={"sources": sources},
-        db_client=auth.client,
-        authored_by="operator",
-    )
+    result = await handle_schedule(auth, {
+        "action": "update",
+        "slug": slug,
+        "changes": {"sources": sources},
+        "authored_by": "operator",
+    })
     if not result.get("success"):
         raise HTTPException(
             status_code=404,
@@ -379,10 +372,7 @@ async def archive_recurrence(slug: str, auth: UserClient) -> dict:
     }).eq("user_id", auth.user_id).eq("slug", slug).execute()
 
     from services.primitives.schedule import handle_schedule
-    await handle_schedule(
-        auth.user_id, action="archive", slug=slug,
-        db_client=auth.client, authored_by="operator",
-    )
+    await handle_schedule(auth, {"action": "archive", "slug": slug, "authored_by": "operator"})
 
     return {"success": True}
 

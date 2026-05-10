@@ -101,19 +101,7 @@ Examples:
 }
 
 
-async def handle_schedule(
-    user_id: str,
-    *,
-    action: str,
-    slug: str,
-    schedule: Optional[str] = None,
-    prompt: Optional[str] = None,
-    changes: Optional[dict] = None,
-    paused_until: Optional[str] = None,
-    authored_by: str = "operator",
-    db_client: Any = None,
-    **_extra: Any,
-) -> dict:
+async def handle_schedule(auth: Any, input: dict) -> dict:
     """Execute a Schedule action against ``/workspace/_recurrences.yaml``.
 
     Returns a dict with ``success`` plus action-specific fields.
@@ -123,6 +111,20 @@ async def handle_schedule(
     and a descriptive message).
     """
     from services.memory import UserMemory  # local import: avoid cycle at module load
+
+    user_id = getattr(auth, "user_id", None)
+    db_client = getattr(auth, "client", None)
+    if not user_id:
+        return {"success": False, "error": "auth_required", "message": "user_id required"}
+
+    input = input or {}
+    action = input.get("action") or ""
+    slug = input.get("slug") or ""
+    schedule = input.get("schedule")
+    prompt = input.get("prompt")
+    changes = input.get("changes") or {}
+    paused_until = input.get("paused_until")
+    authored_by = input.get("authored_by") or "operator"
 
     if not slug or not isinstance(slug, str):
         return {"success": False, "error": "missing_slug", "message": "slug is required"}

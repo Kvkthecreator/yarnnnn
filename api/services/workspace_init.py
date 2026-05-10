@@ -493,11 +493,11 @@ async def initialize_workspace(
 
 
 # =============================================================================
-# Fork helpers RELOCATED (2026-05-03)
+# Fork helper location reference
 # =============================================================================
-# _strip_tier_frontmatter, _bundle_root_dir, _fork_reference_workspace, and
-# _is_skeleton_content all moved to services.programs (fork logic) and
-# services.workspace_utils (skeleton detection). workspace_init.py is for
-# workspace initialization only.
-#
-# The Phase 5 call below imports fork_reference_workspace from services.programs.
+# fork_reference_workspace lives in services.programs.
+# is_skeleton_content lives in services.workspace_utils.
+# _strip_tier_frontmatter DELETED (ADR-261 D6 + ADR-262 D6, Phase D.2):
+#   the three-tier frontmatter system dissolved; bundle files are
+#   markdown the operator owns; ADR-209 attribution captures
+#   bundle-fork vs operator-edit distinction.

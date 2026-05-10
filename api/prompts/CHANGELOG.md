@@ -6,6 +6,119 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.10.2] - ADRs 261/262 — Phase C + D atomic commit (DispatchSpecialist + Compose auto-trigger + bundle spec library + 3-tier dissolution + live re-fork)
+
+### Architectural completion of ADR-261 D7 + ADR-262 D2/D4/D6
+
+Phase C + D landed in this commit, atomic. Closes the remaining work for
+ADRs 260/261/262. Net delta vs Phase B's tip: ~1,400 LOC of new
+infrastructure, ~150 LOC deleted (the `_strip_tier_frontmatter` parser
+and tier-aware fork branches).
+
+**ADDED:**
+- `api/services/primitives/dispatch_specialist.py` (~370 LOC) — ADR-261 D7
+  DispatchSpecialist primitive. The Reviewer's chat-mode loop calls this
+  to dispatch a focused-prompt specialist sub-LLM-call (researcher /
+  analyst / writer / tracker / designer / reporting). The deterministic
+  System Agent composes the specialist's prompt from
+  (role-default-instructions + Reviewer-supplied brief + headless tool
+  surface). Specialists run in `headless` mode (ADR-080 runtime
+  characteristic). Sub-call output returns to the Reviewer as the
+  primitive's return value. Bounded at 5 tool-use rounds per call.
+  Sonnet by default; operator may override to Haiku for cost discipline.
+  Token usage recorded per ADR-171.
+- `api/services/invocation_dispatcher._maybe_auto_compose()` (~140 LOC)
+  — ADR-262 D4 opt-out structural auto-compose. Triggered at session-
+  close when section partials match the deliverable convention
+  (`/workspace/reports/{slug}/{date}/sections/*.md`) AND the recurrence's
+  `options.skip_compose` is not `true`. Idempotent (skips when
+  `output.html` already newer than the latest partial). Failure non-fatal
+  (Reviewer's session result preserved; operator can re-trigger compose
+  manually via the Compose primitive). Calls
+  `services.compose.task_html.compose_task_output_html` and persists the
+  HTML via `authored_substrate.write_revision` with
+  `authored_by="system:auto-compose"`.
+- 5 specs in alpha-trader bundle (`docs/programs/alpha-trader/reference-
+  workspace/specs/`): ticker-snapshot.md, performance-rollup.md,
+  pre-market-brief.md, weekly-performance-review.md,
+  quarterly-signal-audit.md. ADR-262 D2 Pattern (ii) operator-authored
+  output specs cited by recurrence prompts. The recurrences in
+  `_recurrences.yaml` reference these by path.
+- `api/scripts/oneshot/phaseD_refork_alpha_trader.py` (~100 LOC)
+  re-fork script for the new bundle.
+
+**DELETED:**
+- `api/services/programs.py::_strip_tier_frontmatter` (-46 LOC) — the
+  ADR-226 three-tier YAML frontmatter parser. Per ADR-261 D6 + ADR-262
+  D6, the tier system dissolves; bundle .md files are operator-owned
+  markdown and ADR-209 attribution captures bundle-fork vs operator-edit
+  distinction.
+- `api/test_adr226_activation.py` (-141 LOC) — stale tests for the
+  deleted frontmatter parser + skeleton-detector edge cases superseded
+  by the new fork rule.
+
+**REWRITTEN:**
+- `api/services/programs.py::fork_reference_workspace` — single-decision
+  rule replaces three-tier branches: file missing OR skeleton → write
+  bundle copy; operator-customized → skip. Bundle files copied verbatim
+  (no frontmatter stripping; bundle source files have no frontmatter
+  post-Phase D).
+- 10 alpha-trader bundle .md files (MANDATE / IDENTITY / BRAND /
+  AUTONOMY / CONVENTIONS in `_shared/`, IDENTITY + principles in
+  `review/`, `_operator_profile` + `_risk` in `context/trading/`,
+  `awareness.md` in `memory/`) — tier frontmatter stripped. Operator-
+  visible content unchanged.
+- `api/services/primitives/schedule.py` + `fire_invocation.py` +
+  `dispatch_specialist.py` — handler signatures repaired to the
+  `(auth: Any, input: dict)` convention required by
+  `services.primitives.registry.execute_primitive()`. Phase B
+  introduced a kwargs-style signature mismatch; this commit corrects
+  it. `routes/recurrences.py` callers updated accordingly.
+
+**REGISTRY WIRING:**
+- `DispatchSpecialist` added to CHAT_PRIMITIVES (Reviewer's chat-mode
+  loop has access), HEADLESS_PRIMITIVES (multi-step recurrence prompts
+  may chain sub-calls), REVIEWER_PRIMITIVES (curated subset; Reviewer
+  has direction authority over Compose + DispatchSpecialist + Schedule
+  + FireInvocation + ProposeAction), and HANDLERS dispatch table.
+  REVIEWER_PRIMITIVES count: 19 → 20.
+
+**LIVE RE-FORK (run 2026-05-10):**
+- alpha-trader-2 workspace: 8 files written (5 specs + 3 system files
+  that were skeleton: CONVENTIONS.md, _universe.yaml, _principles.yaml),
+  11 files skipped (operator-customized, including
+  `_recurrences.yaml` from Phase B.2 migration — preserved).
+- kvkthecreator@gmail.com workspace: 10 files written (5 specs + 5
+  skeleton system files), 9 skipped.
+- Both workspaces now have full spec library at `/workspace/specs/`.
+
+**PROMPT CHANGES (LLM-facing):**
+- DispatchSpecialist tool description specifies the six universal
+  specialist roles + the role-routing semantics. The specialist sub-call
+  system prompt frames the role as "you are a {display_name} specialist
+  dispatched by the Reviewer" — focused-prompt discipline per ADR-261 D7
+  ("specialists operate in their own contexts; the Reviewer's context
+  window is not polluted with specialist tool-use loops").
+- Schedule + FireInvocation tool descriptions unchanged from Phase B.
+
+**VALIDATION GATE EXTENDED:**
+- `api/test_adr261_phaseB.py` Section 8 added — asserts
+  `_maybe_auto_compose` present, DispatchSpecialist registered in
+  CHAT/HEADLESS/REVIEWER + HANDLERS, REVIEWER_PRIMITIVES has full
+  direction authority, all four key handlers conform to (auth, input)
+  signature. **62/62 PASS** (was 52/52 in Phase B).
+
+**ADR STATUS:**
+- ADR-260: Implemented (no change from Phase B)
+- ADR-261: Implemented → **Fully Implemented** (D7 closed)
+- ADR-262: Phase B Implemented → **Fully Implemented**
+  (D2 + D4 + D6 closed)
+
+**Path X complete on PR #9.** Next: PR merge to main + post-merge live
+validation (Render auto-deploy + scheduler tick + Reviewer round-trip).
+
+---
+
 ## [2026.05.10.1] - ADRs 260/261/262 — Phase B atomic commit (recurrence schema collapse + back-office deletion + live data migration)
 
 ### Architectural collapse (atomic commit)

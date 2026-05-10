@@ -1,9 +1,3 @@
----
-tier: authored
-prompt: "What strategy do you operate? Which instruments? Which signals — with full rule + sizing + stop + target spec each? What's your declared edge?"
-note: "Bundled template uses Simons-Option-B systematic-discipline model. Operator should overwrite signals + universe + edge with their own; the document SHAPE (declared strategy / declared universe / declared signals / declared edge / success criteria / what I'm NOT trying to do) is the contract the Reviewer reads against."
----
-
 # Operator profile — Alpha Trader (Simons, Option B)
 
 ## Declared strategy

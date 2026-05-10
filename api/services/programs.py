@@ -122,51 +122,40 @@ def _bundle_root_dir(program_slug: str) -> Path:
     )
 
 
-def _strip_tier_frontmatter(text: str) -> tuple[str, dict[str, Any]]:
-    """Parse YAML frontmatter (if present) from a reference-workspace file.
-
-    Per ADR-223 §5: tier metadata (tier:, prompt:, note:, optional:) is
-    bundle-only — stripped before the file is written to operator's /workspace/.
-    Returns (body_without_frontmatter, metadata_dict).
-    """
-    if not text.startswith("---\n"):
-        return text, {}
-    end_marker = text.find("\n---\n", 4)
-    if end_marker < 0:
-        return text, {}
-    fm_text = text[4:end_marker]
-    body = text[end_marker + 5:]
-    metadata: dict[str, Any] = {}
-    try:
-        import yaml as _yaml
-        parsed = _yaml.safe_load(fm_text)
-        if isinstance(parsed, dict):
-            metadata = parsed
-    except Exception:
-        pass
-    if body.startswith("\n"):
-        body = body[1:]
-    return body, metadata
-
-
 async def fork_reference_workspace(
     client: Any, user_id: str, program_slug: str
 ) -> dict[str, Any]:
     """Copy bundle's reference-workspace/ into operator's /workspace/.
 
-    Per ADR-226: honors ADR-223 §5 three-tier file categorization:
-      - canon: re-applied on every fork (operator edits preserved as prior
-        revisions per ADR-209; no-op when content already matches).
-      - authored: only applied if operator's file is still skeleton.
-      - placeholder: only written on first fork; never overwritten.
+    Per ADR-261 D6 + ADR-262 D6: the three-tier ``canon | authored |
+    placeholder`` system from ADR-226/ADR-223 §5 is dissolved. Bundle
+    files are markdown the operator owns; attribution captures the
+    distinction between bundle-forked vs operator-edited content
+    (per ADR-209: ``authored_by="system:bundle-fork"`` vs
+    ``authored_by="operator"``).
+
+    The fork rule is one decision per file:
+
+      - File doesn't exist in operator's workspace → write the bundle copy.
+      - File exists but is still skeleton (per workspace_utils.is_skeleton_content,
+        which compares against the bundle copy) → write the bundle copy
+        (operator hasn't customized yet — refresh from bundle).
+      - File exists and operator has customized → skip (preserve operator
+        content; the bundle update is available in the bundle's git
+        history if the operator wants to merge manually).
+
+    Bundle files are copied verbatim. They contain no tier frontmatter
+    (stripped from bundle source files in Phase D.2). Operator's view
+    of the file is exactly what's in the bundle.
 
     Written through UserMemory.write → authored_substrate.write_revision
     with authored_by="system:bundle-fork".
 
-    Returns {"files_written": [...], "files_skipped": [...], "program_slug": slug}.
+    Returns ``{"files_written": [...], "files_skipped": [...],
+    "program_slug": slug}``.
     """
-    from services.workspace import UserMemory
     from services.bundle_reader import _load_manifest
+    from services.workspace import UserMemory
     from services.workspace_utils import is_skeleton_content
 
     bundle_root = _bundle_root_dir(program_slug)
@@ -201,52 +190,36 @@ async def fork_reference_workspace(
         target_path = relative
 
         try:
-            raw = src_path.read_text(encoding="utf-8")
+            body = src_path.read_text(encoding="utf-8")
         except Exception as exc:
             logger.warning(f"[FORK] Failed to read {src_path}: {exc}")
             continue
 
-        if src_path.suffix == ".yaml":
-            body = raw
-            tier = "canon"
-        else:
-            body, meta = _strip_tier_frontmatter(raw)
-            tier = (meta.get("tier") or "placeholder").lower()
-            if tier not in ("canon", "authored", "placeholder"):
-                logger.warning(f"[FORK] Unknown tier '{tier}' for {src_path}; defaulting to placeholder")
-                tier = "placeholder"
-
         existing = await um.read(target_path)
-        should_write = False
         if existing is None:
             should_write = True
-        elif tier == "canon":
-            should_write = existing.strip() != body.strip()
-        elif tier == "authored":
-            should_write = (
-                is_skeleton_content(existing, bundle_body=body)
-                and existing.strip() != body.strip()
-            )
-        elif tier == "placeholder":
+        elif is_skeleton_content(existing, bundle_body=body):
+            should_write = True
+        else:
             should_write = False
 
         if should_write:
             await um.write(
                 target_path,
                 body,
-                summary=f"Forked from {program_slug} bundle (tier={tier})",
+                summary=f"Forked from {program_slug} bundle",
                 authored_by="system:bundle-fork",
                 message=(
-                    f"ADR-226: forked {src_path.name} from "
+                    f"forked {src_path.name} from "
                     f"docs/programs/{program_slug}/reference-workspace/ "
-                    f"(tier={tier})"
+                    f"(per ADR-261 D6 + ADR-262 D6)"
                 ),
             )
             files_written.append(target_path)
-            logger.info(f"[FORK] {target_path} (tier={tier}) ← {program_slug}/reference-workspace/{relative}")
+            logger.info(f"[FORK] {target_path} ← {program_slug}/reference-workspace/{relative}")
         else:
             files_skipped.append(target_path)
-            logger.info(f"[FORK] {target_path} (tier={tier}) — skipped (operator-authored or no-op)")
+            logger.info(f"[FORK] {target_path} — skipped (operator-customized)")
 
     return {
         "files_written": files_written,

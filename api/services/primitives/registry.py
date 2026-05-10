@@ -39,6 +39,10 @@ from .infer_context import INFER_CONTEXT_TOOL, handle_infer_context
 from .infer_workspace import INFER_WORKSPACE_TOOL, handle_infer_workspace
 from .schedule import SCHEDULE_TOOL, handle_schedule  # ADR-261 §3 — renamed from ManageRecurrence
 from .compose import COMPOSE_TOOL, handle_compose  # ADR-262 D4 — callable primitive wrapping render engine
+from .dispatch_specialist import (  # ADR-261 D7 — Reviewer-loop specialist sub-call
+    DISPATCH_SPECIALIST_TOOL,
+    handle_dispatch_specialist,
+)
 from .scaffold import MANAGE_DOMAINS_TOOL, handle_manage_domains
 from .workspace import (
     READ_FILE_TOOL, handle_read_file,
@@ -241,6 +245,10 @@ CHAT_PRIMITIVES = [
     # Operator/Reviewer/specialist may direct mid-session composition.
     # Also runs as opt-out structural default at session-close (separate hook).
     COMPOSE_TOOL,
+    # ADR-261 D7: DispatchSpecialist — Reviewer's chat-mode loop dispatches
+    # focused-prompt specialist sub-LLM-calls (researcher, analyst, writer,
+    # tracker, designer, reporting). Identical shape to Claude Code sub-agents.
+    DISPATCH_SPECIALIST_TOOL,
     # Repurpose (ADR-148 Phase 4)
     REPURPOSE_OUTPUT_TOOL,
     # Asset rendering (1) — Gemini image gen, charts, mermaid diagrams
@@ -286,6 +294,9 @@ HEADLESS_PRIMITIVES = [
     FIRE_INVOCATION_TOOL,
     # ADR-262 D4: Compose — specialists may compose mid-session for handoff.
     COMPOSE_TOOL,
+    # ADR-261 D7: DispatchSpecialist — recurrence prompts that orchestrate
+    # multi-step specialist sequences may chain sub-calls.
+    DISPATCH_SPECIALIST_TOOL,
     MANAGE_DOMAINS_TOOL,
     # Asset rendering — writes to task output folder when task_slug set on auth
     RUNTIME_DISPATCH_TOOL,
@@ -359,9 +370,13 @@ REVIEWER_PRIMITIVES = [
     SCHEDULE_TOOL,
     # Composition (ADR-262 D4) — Reviewer may direct mid-session composition
     COMPOSE_TOOL,
+    # Specialist dispatch (ADR-261 D7) — Reviewer hands focused briefs to
+    # researcher / analyst / writer / tracker / designer / reporting roles
+    # for production work the Reviewer's context shouldn't carry.
+    DISPATCH_SPECIALIST_TOOL,
     # Conversation
     CLARIFY_TOOL,
-]  # 19 tools (ADR-261 D4 added Schedule + ADR-262 D4 added Compose to the prior 17) — curated subset of CHAT_PRIMITIVES per human-supervisor analogue
+]  # 20 tools (ADR-261 D7 added DispatchSpecialist to the prior 19) — curated subset of CHAT_PRIMITIVES per human-supervisor analogue
 
 
 # =============================================================================
@@ -393,6 +408,8 @@ HANDLERS: dict[str, Callable] = {
     "Schedule": handle_schedule,
     # ADR-262 D4: Compose — callable primitive wrapping render engine
     "Compose": handle_compose,
+    # ADR-261 D7: DispatchSpecialist — Reviewer-loop sub-LLM-call
+    "DispatchSpecialist": handle_dispatch_specialist,
     "ManageDomains": handle_manage_domains,
     # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
     "ReadFile": handle_read_file,

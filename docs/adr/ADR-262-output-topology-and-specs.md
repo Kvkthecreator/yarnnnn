@@ -1,6 +1,6 @@
 # ADR-262: Output Topology and Specs — Filesystem-Native Output Without Registries
 
-**Status**: Phase B Implemented 2026-05-10 (D1 conventions module replacing recurrence_paths.py + D5 Authored Substrate continuity backbone landed in PR #9; D4 Compose primitive landed earlier in this PR (Phase C.1). D4 opt-out auto-trigger deferred to Phase C.1b. D6 bundle activation simplification deferred to Phase D.)
+**Status**: Fully Implemented 2026-05-10 (Phases B + C + D atomic on PR #9). D1 conventions module replacing recurrence_paths.py + D2 spec library at `/workspace/specs/` (alpha-trader bundle ships 5: ticker-snapshot, performance-rollup, pre-market-brief, weekly-performance-review, quarterly-signal-audit) + D4 Compose callable primitive AND opt-out structural auto-trigger at session-close (`invocation_dispatcher._maybe_auto_compose`) + D5 Authored Substrate continuity backbone + D6 bundle activation simplified (3-tier `canon | authored | placeholder` system dissolved; `_strip_tier_frontmatter` deleted; bundle .md files stripped of tier frontmatter; `fork_reference_workspace` collapsed to one-decision rule).
 **Companion ADRs (atomic together)**:
 - ADR-260 — Real-Time Reviewer Loop: Cron is a Nudge, Continuation is Not a Trigger
 - ADR-261 — Recurrences as Prompts: Single Execution Shape

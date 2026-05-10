@@ -1,8 +1,3 @@
----
-tier: authored
-prompt: "How autonomous should the Reviewer be? Default is bounded_autonomous at $200 for paper trading. Tune as you accumulate calibration data."
----
-
 # Autonomy — alpha-trader
 
 > Per ADR-254: **machine-parsed delegation config lives in `_autonomy.yaml` (sibling file)**. This file is prose documentation for human and LLM reading. Edit `_autonomy.yaml` to change delegation ceilings.
