@@ -6,6 +6,93 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.10.4] - HOT FIX: `Schedule` primitive 3-bug repair + alpha-trader-2 orphan-recurrence cleanup
+
+### Production bugs in `services/primitives/schedule.py` (shipped in `42725c6`)
+
+The `Schedule` primitive — the canonical surface operators + the Reviewer use to author/modify recurrences in `/workspace/_recurrences.yaml` (per ADR-261 §3) — was production-broken since the Phase B merge ~14h ago. Three bugs surfaced when I ran the Phase I orphan-cleanup script that exercises `handle_schedule(action="archive")` end-to-end:
+
+1. **Wrong import path** — `from services.memory import UserMemory` raised `ImportError: cannot import name 'UserMemory' from 'services.memory'`. `UserMemory` lives in `services.workspace`, not `services.memory`.
+2. **Wrong constructor args** — `UserMemory(user_id, db_client=db_client)` doesn't match the actual signature `UserMemory(db_client, user_id)`.
+3. **Path doubling** — `RECURRENCES_PATH.lstrip("/")` produced `workspace/_recurrences.yaml`, which `UserMemory._full_path()` then prefixed again with `/workspace/` to give `/workspace/workspace/_recurrences.yaml`. The path needed to be stripped of the `/workspace/` prefix entirely (since `UserMemory._base = "/workspace"` is prepended in `_full_path`).
+
+All three fixed in this commit. The fix is ~5 lines. **The bugs were undetected by the Phase B + Phase C validation gates** because both gates assert structural surface (handler signatures, import-shape, registration in primitive lists) but did not exercise the runtime path. Smoke test added: full `create → update → pause → resume → archive` cycle against a temporary `_phaseI-test-canary` slug in alpha-trader-2's live workspace, all 5 actions returned `{success: True}`.
+
+**Operator-visible impact during the broken window**: any chat-driven `Schedule(action=...)` call (operator authoring a new recurrence; operator pausing/resuming/archiving an existing one) would have failed with an `ImportError`-shaped exception. Operators who didn't try to author/modify recurrences during the window would have seen nothing wrong (scheduled cron firing was unaffected — the scheduler doesn't go through the Schedule primitive).
+
+### Alpha-trader-2 persona reconciliation (Phase I post-merge follow-up)
+
+After Phase H.3a deleted 2 stale `tasks` index rows for alpha-trader-2 (`signal-evaluation-2`, `track-universe-2` — the operator persona's `-2`-suffixed slugs), 2 canonical-slug entries (`signal-evaluation`, `track-universe`) remained in `/workspace/_recurrences.yaml` as YAML-only orphans with no scheduling. They were created by Phase B.2's executor-name-derivation when the operator-edited YAML was unparseable; they never reflected operator intent. **Migration debris.**
+
+This commit archives both via `Schedule(action="archive", authored_by="system:phaseI-cleanup")`. alpha-trader-2's `/workspace/_recurrences.yaml` ends at exactly **7 entries**, all with matching scheduling-index rows: `trade-proposal-2`, `pre-market-brief-2`, `weekly-performance-review-2`, `back-office-reviewer-reflection`, `back-office-outcome-reconciliation`, `back-office-reviewer-calibration`, `quarterly-signal-audit-2`. The 3 back-office recurrences fired their natural 09:00 UTC cron earlier today (09:00:42Z, 09:01:58Z, 09:02:23Z) — confirms end-to-end Reviewer round-trip works in production against the canonical `_recurrences.yaml`.
+
+### Files
+
+- `api/services/primitives/schedule.py` — three-line fix
+- `api/scripts/oneshot/cleanup_orphan_recurrences.py` — new one-shot
+- `api/prompts/CHANGELOG.md` — this entry
+
+### Validation gate
+
+Live smoke test (5/5 actions PASS against alpha-trader-2 production substrate):
+```
+--- create ---  {'success': True, 'action': 'create', 'slug': '_phaseI-test-canary', ...}
+--- update ---  {'success': True, 'action': 'update', 'slug': '_phaseI-test-canary', ...}
+--- pause  ---  {'success': True, 'action': 'pause',  'slug': '_phaseI-test-canary', ...}
+--- resume ---  {'success': True, 'action': 'resume', 'slug': '_phaseI-test-canary', ...}
+--- archive --- {'success': True, 'action': 'archive', 'slug': '_phaseI-test-canary', ...}
+```
+
+Canary fully cleaned up; alpha-trader-2 ends back at the same 7-entry steady state.
+
+---
+
+## [2026.05.10.3] - ADR-263 (Phase 1 docs) — `SIGNIFICANCE_POSTURES` block scoped for `api/agents/prompts/base.py`
+
+### Significance vocabulary as kernel grammar
+
+Phase 1 of ADR-263 documentation work — this entry reserves the prompt
+slot the Phase 2 implementation will write to. **No prompt code changed
+in this docs-phase commit.** Recorded here so the Phase 2 implementation
+PR can land the block as a single coherent change with a chained
+CHANGELOG entry pointing back to this reservation.
+
+**SCOPED (Phase 2 implementation will land):**
+- `api/agents/prompts/base.py` — new `SIGNIFICANCE_POSTURES` block.
+  Locked five-verb posture mapping (`occurred | crossed | flagged |
+  cued | addressed`) per [significance-vocabulary.md](../../docs/architecture/significance-vocabulary.md).
+  Verbatim block content defined in ADR-263 D5 + significance-vocabulary.md §4.
+  Same change-discipline as `_PERSONA_FRAME` and `_TRIGGER_FRAMING` in
+  the Reviewer prompt — additions/edits require a CHANGELOG entry +
+  prompt-version increment.
+- Reviewer system prompt assembly (`_build_system_prompt`) gains
+  `SIGNIFICANCE_POSTURES` after `_PERSONA_FRAME`, before
+  `build_cockpit_section()`.
+- `_TRIGGER_FRAMING` dict narrows from three keys to two
+  (`addressed | reactive`); `scheduled` key removed per ADR-260 D2 amendment.
+
+**Expected behavior (Phase 2):**
+- Reviewer's response to a substrate-revision-driven wake is
+  deterministic per the verb that woke it. Same verb → same cognitive
+  posture → same response shape.
+- The `crossed` posture forbids silent stand-down — Reviewer must
+  either propose action OR write reasoning to `decisions.md`.
+- The `cued` posture engages prescribed introspection without
+  necessarily producing a proposal.
+- The `addressed` posture is conversational, persona-rendered.
+- The `occurred` posture responds to irreversible past events without
+  relitigating whether they should have happened.
+- The `flagged` posture investigates with soft latency tolerance.
+
+**Companion docs (this commit set):**
+- ADR-263 (significance vocabulary as kernel grammar — proposed)
+- `docs/architecture/significance-vocabulary.md` (canonical doc)
+- FOUNDATIONS Axiom 4 amendment (collapse `scheduled` into `reactive`)
+- GLOSSARY entries: Significance verb / Wake rule / Significance posture
+- (Phase 2 will follow-up here with the implementation entry)
+
+---
+
 ## [2026.05.10.2] - ADRs 261/262 — Phase C + D atomic commit (DispatchSpecialist + Compose auto-trigger + bundle spec library + 3-tier dissolution + live re-fork)
 
 ### Architectural completion of ADR-261 D7 + ADR-262 D2/D4/D6

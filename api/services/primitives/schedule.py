@@ -110,7 +110,7 @@ async def handle_schedule(auth: Any, input: dict) -> dict:
     (which routes to ``write_revision`` with the supplied ``authored_by``
     and a descriptive message).
     """
-    from services.memory import UserMemory  # local import: avoid cycle at module load
+    from services.workspace import UserMemory  # local import: avoid cycle at module load
 
     user_id = getattr(auth, "user_id", None)
     db_client = getattr(auth, "client", None)
@@ -136,8 +136,12 @@ async def handle_schedule(auth: Any, input: dict) -> dict:
             "message": f"unknown action {action!r}",
         }
 
-    um = UserMemory(user_id, db_client=db_client)
-    rel_path = RECURRENCES_PATH.lstrip("/")  # UserMemory writes are relative
+    um = UserMemory(db_client, user_id)
+    # RECURRENCES_PATH is "/workspace/_recurrences.yaml"; UserMemory._base
+    # is "/workspace" and prepends it via _full_path, so we strip the
+    # "/workspace/" prefix to give it the bare workspace-relative path.
+    rel_path = RECURRENCES_PATH[len("/workspace/"):]
+    current = await um.read(rel_path)
     current = await um.read(rel_path)
 
     recurrences = parse_recurrences_yaml(current or "", user_id=user_id)
