@@ -339,10 +339,14 @@ export default function ContextPage() {
       const navDomains = Array.isArray(nav?.domains) ? nav.domains : [];
       const domainTitles = Object.fromEntries(navDomains.map((domain: any) => [domain.key, domain.display_name]));
 
-      // Only show tasks that produce deliverables and have run at least once
+      // Phase I: per ADR-261 D1, every recurrence is report-shaped on disk
+      // (writes to /workspace/reports/{slug}/{date}/output.md). Show every
+      // operator-facing recurrence that has run at least once; back-office
+      // recurrences (slug prefix `back-office-`) are not surfaced in the
+      // context tree.
       const allTasks = Array.isArray(tasksData) ? tasksData : [];
       const outputTasks = allTasks
-        .filter((t: any) => t.output_kind === 'produces_deliverable' && t.last_run_at)
+        .filter((t: any) => t.last_run_at && !t.slug?.startsWith('back-office-'))
         .map((t: any) => ({ slug: t.slug, title: t.title, last_run_at: t.last_run_at }));
 
       const nodes = buildContextNodes({

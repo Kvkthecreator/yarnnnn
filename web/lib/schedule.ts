@@ -1,27 +1,30 @@
 /**
- * Schedule cadence classification — ADR-243.
+ * Schedule cadence classification — ADR-243 + Phase I post-merge sweep
+ * (2026-05-10).
  *
- * Extends the binary `recurrenceLabel(schedule)` helper (which returns
- * `'Recurring' | 'One-time'` for the badge on /work) into the three-way
- * temporal taxonomy used by /schedule's list sections.
+ * Phase I: per ADR-261 D1 there is no `shape` field on a recurrence —
+ * a recurrence is `{slug, schedule, prompt}`. The legacy 3-way taxonomy
+ * (recurring / reactive / one-time) which distinguished reactive from
+ * one-time via the now-deleted `shape === 'action'` axis collapses to
+ * a 2-way split:
  *
- *   recurring — recurrence has a non-empty schedule (anything other than
- *               null/empty/'on-demand'). Cadence-driven.
- *   reactive  — no schedule AND shape === 'action'. Fires on platform
- *               events; not a cadence.
- *   one-time  — no schedule AND shape !== 'action'. Goal-mode; runs
- *               once and completes.
+ *   recurring — recurrence has a non-empty schedule. Cadence-driven.
+ *   reactive  — recurrence has no schedule. Fires on event (operator
+ *               via FireInvocation, proposal arrival, etc.).
+ *
+ * The `one-time` category is folded into `reactive` — operator-facing,
+ * both shapes "fire when triggered, not on a clock," and the prompt
+ * itself encodes whether the work is repeatable.
  */
 
 import type { Recurrence } from '@/types';
 
-export type CadenceCategory = 'recurring' | 'reactive' | 'one-time';
+export type CadenceCategory = 'recurring' | 'reactive';
 
 /** Section render order on /schedule. */
 export const CADENCE_ORDER: readonly CadenceCategory[] = [
   'recurring',
   'reactive',
-  'one-time',
 ] as const;
 
 export const CADENCE_LABELS: Record<CadenceCategory, { title: string; description: string }> = {
@@ -31,11 +34,7 @@ export const CADENCE_LABELS: Record<CadenceCategory, { title: string; descriptio
   },
   reactive: {
     title: 'Reactive',
-    description: 'Fires on platform events — no fixed cadence.',
-  },
-  'one-time': {
-    title: 'One-time',
-    description: 'Runs once and completes.',
+    description: 'Fires on event — operator trigger, proposal arrival, or named via the recurrence prompt.',
   },
 };
 
@@ -47,15 +46,14 @@ export const CADENCE_LABELS: Record<CadenceCategory, { title: string; descriptio
 export function cadenceCategory(recurrence: Recurrence): CadenceCategory {
   const schedule = recurrence.schedule?.trim().toLowerCase();
   if (schedule && schedule !== 'on-demand') return 'recurring';
-  if (recurrence.shape === 'action') return 'reactive';
-  return 'one-time';
+  return 'reactive';
 }
 
 /**
  * Humanize a schedule string for display in list rows.
  * Cron expressions are recognized loosely; everything else is title-cased.
- * Reactive and one-time recurrences pass an empty/undefined schedule and
- * get rendered with their cadence-category label by the caller, not here.
+ * Reactive recurrences pass an empty/undefined schedule and get rendered
+ * with their cadence-category label by the caller, not here.
  */
 export function humanizeSchedule(schedule: string | undefined | null): string {
   if (!schedule) return '';

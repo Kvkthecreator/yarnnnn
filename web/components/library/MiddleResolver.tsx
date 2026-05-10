@@ -3,26 +3,24 @@
 /**
  * MiddleResolver — ADR-225 dispatch component for WorkDetail content area.
  *
- * Phase 2 (shipped): replaced the hardcoded KindMiddle switch in
- * WorkDetail.tsx. Phase 3 (this commit): the LIBRARY_COMPONENTS registry
- * lifted to `registry.tsx` so MiddleResolver and ChromeRenderer share
- * one dispatch table. Bundle components and kernel-default chrome
- * register side-by-side; the resolver doesn't distinguish them.
+ * Phase I (post-merge sweep, 2026-05-10): output_kind dispatch DELETED
+ * per ADR-261 D1's "one execution shape" principle and ADR-262 §6.1
+ * resolution. Every recurrence's substrate lives at the slug-templated
+ * path `/workspace/reports/{slug}/{date}/output.md` (per CONVENTIONS
+ * topology); `DeliverableMiddle` is the universal viewer that reads
+ * those dated outputs and degrades gracefully ("No past outputs yet")
+ * for reactive recurrences and recurrences that haven't fired yet.
  *
  * Resolution flow:
- *   1. Consult bundle SURFACES.yaml via composition (4-tier match).
- *   2. If bundle middle matches, render its components through the
- *      shared registry.
- *   3. Otherwise, fall through to the kernel-default kind-middles
- *      (DeliverableMiddle / TrackingEntityGrid / ActionMiddle /
- *      MaintenanceMiddle) — these stay at web/components/work/details/
- *      per Phase 2 implementation refinement (ADR-225 §5).
+ *   1. Consult bundle SURFACES.yaml via composition. If a bundle middle
+ *      matches by `task_slug` (Tier 1 — the only surviving match axis
+ *      post-Phase I), render its components through the shared registry.
+ *   2. Otherwise, render `DeliverableMiddle` universally.
  *
- * The kernel-default middles for output_kind dispatch have NOT moved
- * into LIBRARY_COMPONENTS — they take task-specific props (taskSlug,
- * deliverableSpec, refreshKey, onSourcesUpdated) the registry doesn't
- * thread. They remain as the local fallback path here. See
- * docs/architecture/compositor.md for the full rationale.
+ * The legacy per-shape middles (TrackingEntityGrid, ActionMiddle,
+ * MaintenanceMiddle, TrackingMiddle) are DELETED per ADR-261's
+ * unified-execution-shape framing — there is one substrate convention,
+ * one viewer.
  *
  * Singular Implementation discipline: ONE dispatch path lives here.
  */
@@ -33,10 +31,7 @@ import { resolveMiddle, getDetailMiddles, useComposition } from '@/lib/composito
 
 import { dispatchComponent } from './registry';
 
-import { ActionMiddle } from '@/components/work/details/ActionMiddle';
 import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
-import { MaintenanceMiddle } from '@/components/work/details/MaintenanceMiddle';
-import { TrackingEntityGrid } from '@/components/work/details/TrackingEntityGrid';
 
 interface MiddleResolverProps {
   task: Recurrence | RecurrenceDetail;
@@ -44,17 +39,14 @@ interface MiddleResolverProps {
   onSourcesUpdated?: () => void;
 }
 
-export function MiddleResolver({ task, refreshKey, onSourcesUpdated }: MiddleResolverProps) {
+export function MiddleResolver({ task, refreshKey }: MiddleResolverProps) {
   const { data: composition } = useComposition();
 
-  // Try bundle-supplied middles first (4-tier match resolution)
+  // Try bundle-supplied middles first (task_slug match — Tier 1)
   const bundleMiddles = getDetailMiddles(composition.composition, 'work');
   const resolvedMiddle = resolveMiddle(
     {
-      task: {
-        slug: task.slug,
-        output_kind: task.output_kind ?? null,
-      },
+      task: { slug: task.slug },
     },
     bundleMiddles,
   );
@@ -72,30 +64,15 @@ export function MiddleResolver({ task, refreshKey, onSourcesUpdated }: MiddleRes
     );
   }
 
-  // Fall through to kernel-default kind-middles per ADR-225 §5
-  switch (task.output_kind) {
-    case 'accumulates_context':
-      return <TrackingEntityGrid task={task} onSourcesUpdated={onSourcesUpdated} />;
-    case 'external_action':
-      return (
-        <ActionMiddle
-          task={task}
-          refreshKey={refreshKey}
-          onSourcesUpdated={onSourcesUpdated}
-        />
-      );
-    case 'system_maintenance':
-      return <MaintenanceMiddle task={task} refreshKey={refreshKey} />;
-    case 'produces_deliverable':
-    default: {
-      const taskDetail = task as RecurrenceDetail;
-      return (
-        <DeliverableMiddle
-          taskSlug={task.slug}
-          refreshKey={refreshKey}
-          deliverableSpec={taskDetail.deliverable_spec}
-        />
-      );
-    }
-  }
+  // Universal fallback: every recurrence renders as a deliverable view.
+  // Per ADR-261 D1 + ADR-262 D1: one substrate convention
+  // (/workspace/reports/{slug}/{date}/output.md), one viewer.
+  const taskDetail = task as RecurrenceDetail;
+  return (
+    <DeliverableMiddle
+      taskSlug={task.slug}
+      refreshKey={refreshKey}
+      deliverableSpec={taskDetail.deliverable_spec}
+    />
+  );
 }

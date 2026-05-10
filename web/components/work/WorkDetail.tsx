@@ -8,19 +8,20 @@
  * Work does NOT show: output documents, accumulated files, domain knowledge.
  * Those live in Context.
  *
- * ADR-225 Phase 3 — Unified compositor seam:
+ * ADR-225 + Phase I (post-merge sweep, 2026-05-10) — Unified compositor seam:
  *   - Chrome (metadata strip + actions row) flows through
  *     `<ChromeRenderer>` consulting `resolveChrome()`. Bundle middles
  *     may declare `chrome` to override the kernel-default chrome for
- *     their matched task; missing parts inherit from the per-output_kind
- *     kernel default in `kernel-defaults.ts`.
+ *     their matched task; missing parts inherit from the kernel default
+ *     in `kernel-defaults.ts` (unified post-Phase-I — no per-output_kind
+ *     branching).
  *   - Middle (content area) flows through `<MiddleResolver>` consulting
- *     `resolveMiddle()`.
- *   - Singular Implementation: the per-kind metadata + actions switches
- *     that lived in this file (DeliverableMetadata / TrackingMetadata /
- *     ActionMetadata / MaintenanceMetadata + their action clusters) are
- *     DELETED. Their replacements are kernel-chrome library components
- *     dispatched through the same registry as bundle components.
+ *     `resolveMiddle()`. Universal `DeliverableMiddle` fallback per
+ *     ADR-261 D1 + ADR-262 D1 — one substrate convention, one viewer.
+ *   - Singular Implementation: the per-output_kind metadata + actions
+ *     switches that lived in this file are DELETED. Their replacements
+ *     are kernel-chrome library components dispatched through the same
+ *     registry as bundle components.
  *
  * Action handler threading: the `<WorkDetailActionsProvider>` carries
  * task + agents + lifecycle handlers + per-task surface state through
@@ -98,16 +99,13 @@ export function WorkDetail({
   const assignedAgent = findAssignedAgent(task, agents);
   const editPrompt = `Help me edit the task "${task.title}". Ask me what I want to change before making any updates.`;
 
-  // Resolve chrome through the compositor seam (ADR-225 Phase 3).
+  // Resolve chrome through the compositor seam (ADR-225 + Phase I).
+  // Post-Phase-I: only `task_slug` is the live match axis; output_kind
+  // is no longer threaded through the compositor.
   const { data: composition } = useComposition();
   const middles = getDetailMiddles(composition.composition, 'work');
   const chrome = resolveChrome(
-    {
-      task: {
-        slug: task.slug,
-        output_kind: task.output_kind ?? null,
-      },
-    },
+    { task: { slug: task.slug } },
     middles,
   );
 
@@ -150,7 +148,10 @@ export function WorkDetail({
             }
             actions={<ChromeRenderer decls={chrome.actions} />}
           />
-          {task.output_kind !== 'system_maintenance' && <ObjectiveBlock task={task} />}
+          <ObjectiveBlock task={task} />
+          {/* Phase I: ObjectiveBlock self-guards on missing fields, so it
+              renders as null for recurrences without an objective (e.g.
+              former system_maintenance shape). No output_kind branch needed. */}
         </div>
 
         {/* Scrollable output region */}

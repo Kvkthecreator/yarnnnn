@@ -1,14 +1,19 @@
 'use client';
 
 /**
- * FeedbackStrip — ADR-181 Phase 4a.
+ * FeedbackStrip — ADR-181 Phase 4a, simplified Phase I (post-merge sweep
+ * 2026-05-10).
  *
  * Thin feedback bar below MiddleResolver in WorkDetail. Single "Ask TP"
- * button that opens a chat prompt scoped to the task. Kept minimal —
- * users express feedback in conversation, not through evaluative buttons.
+ * button that opens a chat prompt scoped to the recurrence. Kept minimal
+ * — operators express feedback in conversation, not through evaluative
+ * buttons.
  *
- * Only rendered when the task has at least one run (last_run_at is set).
- * system_maintenance tasks: no strip (TP-owned, no user feedback loop).
+ * Rendered when the recurrence has at least one run (last_run_at is set).
+ * Per ADR-261 D1's "one execution shape" principle: the prompt itself is
+ * universal — no per-output_kind branching. The Reviewer reads context
+ * (the recurrence's prompt + recent runs + operator's question) and
+ * decides how to help.
  */
 
 import { MessageSquare } from 'lucide-react';
@@ -19,28 +24,11 @@ interface FeedbackStripProps {
   onOpenChat: (prompt: string) => void;
 }
 
-function getPrompt(task: Recurrence): string | null {
-  const title = task.title || task.slug;
-  const kind = task.output_kind ?? 'produces_deliverable';
-
-  switch (kind) {
-    case 'produces_deliverable':
-      return `I want to make changes to "${title}": `;
-    case 'accumulates_context':
-      return `Adjust what "${title}" tracks: `;
-    case 'external_action':
-      return `Change how "${title}" works: `;
-    case 'system_maintenance':
-    default:
-      return null;
-  }
-}
-
 export function FeedbackStrip({ task, onOpenChat }: FeedbackStripProps) {
   if (!task.last_run_at) return null;
 
-  const prompt = getPrompt(task);
-  if (!prompt) return null;
+  const title = task.title || task.slug;
+  const prompt = `I want to make changes to "${title}": `;
 
   return (
     <div className="px-6 py-3 border-t border-border/30 flex items-center gap-2">

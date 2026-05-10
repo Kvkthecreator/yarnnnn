@@ -1,7 +1,18 @@
 'use client';
 
 /**
- * DeliverableMiddle — Detail middle band for `output_kind: produces_deliverable`.
+ * DeliverableMiddle — Universal detail middle band for every recurrence
+ * (Phase I post-merge sweep, 2026-05-10).
+ *
+ * Per ADR-261 D1's "one execution shape" + ADR-262 D1's slug-templated
+ * convention, every recurrence's substrate lives at the canonical path
+ * `/workspace/reports/{slug}/{date}/output.md` (and `output.html` when
+ * Compose has run). DeliverableMiddle is the universal viewer: it reads
+ * the dated outputs, renders the latest, and degrades gracefully ("No
+ * past outputs yet") for reactive recurrences that haven't fired yet.
+ *
+ * The legacy per-output_kind variants (TrackingMiddle, ActionMiddle,
+ * MaintenanceMiddle, TrackingEntityGrid) were DELETED in Phase I.
  *
  * ADR-167 v5: the output (iframe or rendered markdown) is wrapped in a
  * bordered, visually inset card. This is the "nested document" pattern —

@@ -6,6 +6,50 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.10.5] - FE compositor reshape: collapse to one execution shape (post-Phase-I sweep)
+
+### FE follow-up to ADRs 260/261/262 (post-merge code coherence)
+
+Post-merge sweep of `42725c6` + hot fix `b4a840c`. The backend was unified to ADR-261 D1's "one execution shape," but the FE compositor still dispatched on `task.output_kind` and `task.shape` constants the API emitted as compatibility shims. This entry collapses the FE to match.
+
+**FE deletions** (~600 LOC):
+- `web/components/work/details/TrackingMiddle.tsx`
+- `web/components/work/details/ActionMiddle.tsx`
+- `web/components/work/details/MaintenanceMiddle.tsx`
+- `web/components/work/details/TrackingEntityGrid.tsx`
+- `web/components/work/details/PlatformSourcesSection.tsx`
+- `web/components/library/kernel-chrome/Kernel{Tracking,Action,Maintenance}{Metadata,Actions}.tsx` (6 files)
+
+**FE rewrites:**
+- `MiddleResolver.tsx` — output_kind switch DELETED. Universal `DeliverableMiddle` fallback when no bundle SURFACES.yaml middle matches by slug. `DeliverableMiddle` is now the universal viewer for every recurrence's `/workspace/reports/{slug}/{date}/output.md` substrate.
+- `WorkDetail.tsx` — output_kind != system_maintenance guard on ObjectiveBlock DELETED (ObjectiveBlock self-guards on missing fields).
+- `WorkListSurface.tsx` — KIND_ICON map collapsed to `iconForRecurrence(slug)` (FileText for operator recurrences, Settings2 for `back-office-` prefix). `output_kind === 'system_maintenance'` filter replaced with `slug.startsWith('back-office-')`. `task.shape` dropped from search text.
+- `AgentContentView.tsx` — `TaskKindCounts` collapsed from per-kind buckets to `{active, total}`. All 4 per-class highlight generators collapsed to one universal `describeActiveRecurrences` helper. `task.shape === 'action'` trigger inference simplified to schedule-presence-only.
+- `FeedbackStrip.tsx` — kind-based prompt switch collapsed to one universal "Ask TP for changes" prompt.
+- `web/lib/compositor/{resolver,kernel-defaults,types}.ts` — 4-tier match (task_slug → output_kind+condition → output_kind → agent_role/class) collapsed to 1-tier (task_slug). `KERNEL_DEFAULT_CHROME` collapsed from per-output_kind map to single universal entry.
+- `web/lib/schedule.ts` — `CadenceCategory` collapsed `recurring | reactive | one-time` → `recurring | reactive`; `task.shape === 'action'` distinction dropped.
+- `web/types/index.ts` — `RecurrenceShape` enum DELETED; `output_kind` + `shape` removed from `Recurrence` interface; both fields gone from API response shape.
+- `web/app/(authenticated)/context/page.tsx` — `t.output_kind === 'produces_deliverable'` filter switched to back-office-prefix exclusion (every operator recurrence is now report-shaped on disk).
+
+**Backend cleanup** (small):
+- `api/routes/recurrences.py` — `output_kind: Optional[str] = "produces_deliverable"` and `shape: Optional[str] = "deliverable"` Phase-B compatibility constants DELETED from `TaskResponse` model + `_rec_to_response` builder. The FE no longer reads them.
+
+**Behavior preservation:**
+- Bundle SURFACES.yaml entries that target by `task_slug` (Tier 1 of the legacy resolver) continue to work unchanged — `MiddleResolver` still resolves slug matches first.
+- Every recurrence renders through `DeliverableMiddle`, which gracefully handles "no past outputs yet" for reactive recurrences and recurrences that haven't fired.
+
+**Validation:**
+- `tsc --noEmit` clean (zero errors)
+- `next build` clean (all routes prerendered, including `/work` 20.2 kB)
+- `api/test_adr261_phaseB.py` 62/62 PASS (no behavior change to backend tests)
+
+**Operator persona reconciliation** (alpha-trader-2):
+- 2 YAML-only orphan entries (`signal-evaluation`, `track-universe`) archived via `Schedule(action="archive")` per the hot fix in `[2026.05.10.4]`. `/workspace/_recurrences.yaml` ends at exactly 7 entries, all with matching scheduling-index rows. Production scheduler confirmed clean — zero warning spam since 07:06Z.
+
+**ADRs unchanged:** no architectural decisions in this commit; this is FE coherence work catching up with ADR-261 D1's "one execution shape" principle that landed in `42725c6`.
+
+---
+
 ## [2026.05.10.4] - HOT FIX: `Schedule` primitive 3-bug repair + alpha-trader-2 orphan-recurrence cleanup
 
 ### Production bugs in `services/primitives/schedule.py` (shipped in `42725c6`)
@@ -47,48 +91,68 @@ Canary fully cleaned up; alpha-trader-2 ends back at the same 7-entry steady sta
 
 ---
 
-## [2026.05.10.3] - ADR-263 (Phase 1 docs) — `SIGNIFICANCE_POSTURES` block scoped for `api/agents/prompts/base.py`
+## [2026.05.10.3] - ADR-263 (Phase 1 docs) — Recurrence mode + Reviewer trigger Literal narrowing scoped for Phase 2
 
-### Significance vocabulary as kernel grammar
+### Recurrence mode (`judgment | mechanical`) as authoring-time wake declaration
 
 Phase 1 of ADR-263 documentation work — this entry reserves the prompt
-slot the Phase 2 implementation will write to. **No prompt code changed
+changes the Phase 2 implementation will land. **No prompt code changed
 in this docs-phase commit.** Recorded here so the Phase 2 implementation
-PR can land the block as a single coherent change with a chained
+PR can land the changes as a single coherent set with a chained
 CHANGELOG entry pointing back to this reservation.
 
+**Design history**: an earlier draft of this entry reserved a
+`SIGNIFICANCE_POSTURES` prompt block as part of a five-verb canonical
+significance vocabulary (`occurred | crossed | flagged | cued | addressed`)
+that would have lived in `api/agents/prompts/base.py`. Stress-test
+discourse revealed the wake question has a simpler authoring-time
+answer — the recurrence's author already knows whether its work warrants
+judgment, so the dispatcher honors a declared `mode` field rather than
+deriving wake-worthiness from substrate writes after the fact via
+canonical verb vocabulary. The earlier `SIGNIFICANCE_POSTURES` reservation
+is **withdrawn**; see ADR-263 §10 "Why this rewrite" for the trace. This
+entry replaces it with the simpler architecture's prompt-side scope.
+
 **SCOPED (Phase 2 implementation will land):**
-- `api/agents/prompts/base.py` — new `SIGNIFICANCE_POSTURES` block.
-  Locked five-verb posture mapping (`occurred | crossed | flagged |
-  cued | addressed`) per [significance-vocabulary.md](../../docs/architecture/significance-vocabulary.md).
-  Verbatim block content defined in ADR-263 D5 + significance-vocabulary.md §4.
-  Same change-discipline as `_PERSONA_FRAME` and `_TRIGGER_FRAMING` in
-  the Reviewer prompt — additions/edits require a CHANGELOG entry +
-  prompt-version increment.
-- Reviewer system prompt assembly (`_build_system_prompt`) gains
-  `SIGNIFICANCE_POSTURES` after `_PERSONA_FRAME`, before
-  `build_cockpit_section()`.
-- `_TRIGGER_FRAMING` dict narrows from three keys to two
-  (`addressed | reactive`); `scheduled` key removed per ADR-260 D2 amendment.
+- `api/agents/reviewer_agent.py` — `_TRIGGER_FRAMING` dict narrows from
+  three keys to two (`addressed | reactive`); `scheduled` key removed.
+  `Literal[..., "scheduled"]` collapsed to `Literal["addressed", "reactive"]`
+  in `invoke_reviewer` signature. Per ADR-260 D2 amendment in ADR-263.
+- YARNNN prompts — recurrence-authoring guidance updated to surface the
+  `mode` field per ADR-263 D6: when YARNNN drafts a Schedule call on
+  operator's behalf, it infers the appropriate mode from the prompt's
+  shape and surfaces the inference in confirmation language ("I'll
+  schedule X as a mechanical recurrence — Python sync, no Reviewer
+  wake. Sound right?" vs "I'll schedule X as a judgment recurrence —
+  wakes the Reviewer to look at Y. Sound right?").
+- `Schedule` primitive's tool-definition — `mode: judgment | mechanical`
+  parameter added (required for new recurrences; default at parse time
+  for legacy entries is `judgment`).
 
 **Expected behavior (Phase 2):**
-- Reviewer's response to a substrate-revision-driven wake is
-  deterministic per the verb that woke it. Same verb → same cognitive
-  posture → same response shape.
-- The `crossed` posture forbids silent stand-down — Reviewer must
-  either propose action OR write reasoning to `decisions.md`.
-- The `cued` posture engages prescribed introspection without
-  necessarily producing a proposal.
-- The `addressed` posture is conversational, persona-rendered.
-- The `occurred` posture responds to irreversible past events without
-  relitigating whether they should have happened.
-- The `flagged` posture investigates with soft latency tolerance.
+- Recurrences with `mode: judgment` invoke the Reviewer (today's
+  behavior for all existing recurrences in `_recurrences.yaml`).
+- Recurrences with `mode: mechanical` are dispatched to deterministic
+  Python execution. The `prompt` field names a primitive invocation
+  (`@primitive: ...`); the dispatcher parses, looks up the handler,
+  and executes. No LLM session.
+- The Reviewer's `trigger` parameter accepts only `addressed` and
+  `reactive`; `scheduled` is rejected (per ADR-260 D2 amendment).
+- Operator authoring a recurrence in chat sees YARNNN's mode inference
+  surfaced in the confirmation; can override.
+
+**NOT in this ADR's scope** (deferred to ADR-264):
+- The first concrete primitive designed for mechanical recurrences
+  (`SyncPlatformState`) and the substrate-canonical-world axiom
+  amendment to FOUNDATIONS Axiom 1.
+- Migration of alpha-trader's mechanizable recurrences (`track-universe`,
+  signal-evaluation's data-fetching half, `outcome-reconciliation`'s
+  reconciliation half) from `judgment` to `mechanical` mode.
 
 **Companion docs (this commit set):**
-- ADR-263 (significance vocabulary as kernel grammar — proposed)
-- `docs/architecture/significance-vocabulary.md` (canonical doc)
-- FOUNDATIONS Axiom 4 amendment (collapse `scheduled` into `reactive`)
-- GLOSSARY entries: Significance verb / Wake rule / Significance posture
+- ADR-263 — Recurrence Mode: Mechanical vs Judgment, Authoring-Intent as the Wake Signal (proposed)
+- FOUNDATIONS Axiom 4 re-amendment (collapse `scheduled` into `reactive`; recurrence-mode authoring decides wake)
+- GLOSSARY: drop earlier draft's Significance verb / Wake rule / Significance posture entries; add Recurrence mode entry; update Pulse entry
 - (Phase 2 will follow-up here with the implementation entry)
 
 ---

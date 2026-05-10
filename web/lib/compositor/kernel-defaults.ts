@@ -1,43 +1,26 @@
 /**
- * Kernel-default declarations — chrome only (ADR-228).
+ * Kernel-default declarations — chrome only (ADR-228 + Phase I post-merge
+ * sweep, 2026-05-10).
  *
- * Per ADR-228, the cockpit is no longer a flat pane registry — it is
- * four faces rendered directly by `CockpitRenderer`. The
- * `KERNEL_DEFAULT_COCKPIT_PANES` array and `resolveCockpitPanes` resolver
- * are deleted. The compositor seam survives unchanged for /work detail
- * chrome composition (`KERNEL_DEFAULT_CHROME` below + `resolveChrome`).
+ * Phase I: per ADR-261 D1's "one execution shape" + ADR-262 D1's slug-
+ * templated convention, the per-output_kind chrome variant map collapses
+ * to a single universal chrome. Bundle middles that target a specific
+ * recurrence by slug may still override `metadata` and/or `actions` via
+ * the `chrome` field on `MiddleDecl`.
  *
- * Singular Implementation discipline: this file IS the kernel default
- * chrome shape. Don't redefine kernel chrome anywhere else; consult and
- * register here.
+ * Singular Implementation discipline: this file IS the universal kernel
+ * default chrome. Don't redefine kernel chrome anywhere else; consult
+ * and register here.
  */
 
 import type { ChromeDecl } from './types';
 
 /**
- * Kernel-default chrome per output_kind. When `resolveChrome` finds no
- * bundle middle (or a bundle middle without a `chrome` field) for a
- * task, it falls back to this registry.
- *
- * Bundle middles that declare `chrome` may provide a partial override
- * (only `metadata`, only `actions`, or both); missing parts inherit
- * from this registry.
+ * Universal kernel-default chrome. Resolved by `resolveChrome` whenever
+ * no bundle middle matches the task's slug, or when the matched middle
+ * provides a partial chrome override.
  */
-export const KERNEL_DEFAULT_CHROME: Record<string, ChromeDecl> = {
-  produces_deliverable: {
-    metadata: { kind: 'KernelDeliverableMetadata' },
-    actions: [{ kind: 'KernelDeliverableActions' }],
-  },
-  accumulates_context: {
-    metadata: { kind: 'KernelTrackingMetadata' },
-    actions: [{ kind: 'KernelTrackingActions' }],
-  },
-  external_action: {
-    metadata: { kind: 'KernelActionMetadata' },
-    actions: [{ kind: 'KernelActionActions' }],
-  },
-  system_maintenance: {
-    metadata: { kind: 'KernelMaintenanceMetadata' },
-    actions: [{ kind: 'KernelMaintenanceActions' }],
-  },
+export const KERNEL_DEFAULT_CHROME: ChromeDecl = {
+  metadata: { kind: 'KernelDeliverableMetadata' },
+  actions: [{ kind: 'KernelDeliverableActions' }],
 };

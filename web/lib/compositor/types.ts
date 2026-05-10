@@ -40,17 +40,25 @@ export interface ComponentDecl {
 }
 
 // ---------------------------------------------------------------------------
-// Middle declarations — ADR-225 §4 4-tier match resolution
+// Middle declarations — ADR-225 §4 + Phase I (slug-only match resolution)
 // ---------------------------------------------------------------------------
 
 export type Archetype = 'document' | 'dashboard' | 'queue' | 'briefing' | 'stream';
 
+/**
+ * Phase I (post-merge sweep, 2026-05-10): the legacy 4-tier match
+ * resolution (task_slug → output_kind+condition → output_kind →
+ * agent_role/class) collapses to one tier — task_slug. Per ADR-261 D1's
+ * "one execution shape" + ADR-262 D1's slug-templated convention, every
+ * recurrence renders through the universal middle (`DeliverableMiddle`)
+ * unless a bundle SURFACES.yaml names the recurrence's slug to override.
+ *
+ * `output_kind`, `condition`, `agent_role`, `agent_class` fields are
+ * removed from `MiddleMatch`. Existing bundle SURFACES.yaml entries
+ * that target by `task_slug` continue to work unchanged.
+ */
 export interface MiddleMatch {
   task_slug?: string;
-  output_kind?: string;
-  condition?: Record<string, unknown>;
-  agent_role?: string;
-  agent_class?: string;
 }
 
 export interface MiddleDecl {
@@ -59,19 +67,19 @@ export interface MiddleDecl {
   bindings?: Record<string, Binding>;
   components: ComponentDecl[];
   /**
-   * Optional chrome override per ADR-225 Phase 3. When present, replaces
-   * the kernel-default chrome (per output_kind) for the matched task.
-   * Both metadata and actions are independently optional — a bundle may
-   * override only one and inherit the kernel default for the other.
+   * Optional chrome override. When present, replaces the universal
+   * kernel-default chrome for the matched task. Both metadata and
+   * actions are independently optional — a bundle may override only
+   * one and inherit the kernel default for the other.
    */
   chrome?: ChromeDecl;
 }
 
 /**
  * Chrome declaration — metadata strip + actions row in WorkDetail's
- * SurfaceIdentityHeader. Per ADR-225 Phase 3, chrome flows through the
- * compositor seam alongside the middle. Kernel defaults live in
- * `kernel-defaults.ts` keyed by output_kind.
+ * SurfaceIdentityHeader. Per ADR-225 Phase 3 + Phase I, chrome flows
+ * through the compositor seam alongside the middle. The universal
+ * kernel default lives in `kernel-defaults.ts`.
  */
 export interface ChromeDecl {
   metadata?: ComponentDecl;

@@ -23,15 +23,14 @@
 
 import type { Binding } from '@/lib/compositor';
 
-// Kernel-default chrome
+// Kernel-default chrome (Phase I post-merge sweep, 2026-05-10):
+// per-output_kind variants (Tracking/Action/Maintenance) collapsed into
+// the universal Deliverable variants per ADR-261 D1's "one execution
+// shape." Kept registered under their original names as no-op aliases
+// so any bundle SURFACES.yaml that still references them by string
+// keeps rendering against the universal chrome.
 import { KernelDeliverableMetadata } from './kernel-chrome/KernelDeliverableMetadata';
-import { KernelTrackingMetadata } from './kernel-chrome/KernelTrackingMetadata';
-import { KernelActionMetadata } from './kernel-chrome/KernelActionMetadata';
-import { KernelMaintenanceMetadata } from './kernel-chrome/KernelMaintenanceMetadata';
 import { KernelDeliverableActions } from './kernel-chrome/KernelDeliverableActions';
-import { KernelTrackingActions } from './kernel-chrome/KernelTrackingActions';
-import { KernelActionActions } from './kernel-chrome/KernelActionActions';
-import { KernelMaintenanceActions } from './kernel-chrome/KernelMaintenanceActions';
 
 // alpha-trader bundle components (ADR-242 Phase 2 + ADR-243 Phase C)
 import { TraderMoneyTruth } from './TraderMoneyTruth';
@@ -55,15 +54,19 @@ export type LibraryComponent = (props: LibraryComponentProps) => JSX.Element | n
 
 export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   // Kernel-default chrome — register here so the resolver can dispatch
-  // them through the same path as bundle components.
+  // them through the same path as bundle components. Phase I: a single
+  // universal chrome surface (the legacy KernelDeliverable* variants)
+  // serves every recurrence. The Tracking/Action/Maintenance aliases
+  // are kept registered to preserve any in-flight bundle SURFACES.yaml
+  // references; they all render the same universal chrome.
   KernelDeliverableMetadata: () => <KernelDeliverableMetadata />,
-  KernelTrackingMetadata: () => <KernelTrackingMetadata />,
-  KernelActionMetadata: () => <KernelActionMetadata />,
-  KernelMaintenanceMetadata: () => <KernelMaintenanceMetadata />,
   KernelDeliverableActions: () => <KernelDeliverableActions />,
-  KernelTrackingActions: () => <KernelTrackingActions />,
-  KernelActionActions: () => <KernelActionActions />,
-  KernelMaintenanceActions: () => <KernelMaintenanceActions />,
+  KernelTrackingMetadata: () => <KernelDeliverableMetadata />,
+  KernelTrackingActions: () => <KernelDeliverableActions />,
+  KernelActionMetadata: () => <KernelDeliverableMetadata />,
+  KernelActionActions: () => <KernelDeliverableActions />,
+  KernelMaintenanceMetadata: () => <KernelDeliverableMetadata />,
+  KernelMaintenanceActions: () => <KernelDeliverableActions />,
 
   // alpha-trader bundle components (ADR-242 Phase 2). Declared in
   // docs/programs/alpha-trader/SURFACES.yaml under cockpit.{money_truth,

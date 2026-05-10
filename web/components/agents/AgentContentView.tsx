@@ -3,10 +3,12 @@
 /**
  * AgentContentView — Canonical agent detail surface content.
  *
- * Rendering model:
+ * Rendering model (Phase I post-merge sweep, 2026-05-10):
  * - agent_class decides the top-level shell/context block
- * - task.output_kind decides the assigned-work card shape
- * - task.type_key can lightly specialize labels without forking the page
+ * - assigned-work cards are universal — per ADR-261 D1's "one execution
+ *   shape" + ADR-262 D1's slug-templated convention, every recurrence is
+ *   report-shaped on disk. Highlights collapse to {active, total} counts;
+ *   the legacy per-output_kind branching is gone.
  *
  * This mirrors WorkDetail's registry-driven approach instead of branching on
  * individual agent pages or legacy role names.
@@ -53,7 +55,10 @@ type AgentClass = NonNullable<Agent['agent_class']>;
 // returns Reviewer's data path through `/agents?agent=reviewer` only as a
 // legacy URL — handled by the redirect-effect in AgentContentView.
 type RegistryAgentClass = Exclude<AgentClass, 'reviewer'>;
-type RecurrenceOutputKind = NonNullable<Recurrence['output_kind']>;
+// Phase I (post-merge sweep, 2026-05-10): `RecurrenceOutputKind` removed
+// per ADR-261 D1's "one execution shape" — recurrences are no longer
+// kind-classified. The agent shells highlight active task count instead
+// of per-kind breakdowns.
 
 interface AgentShellDescriptor {
   label: string;
@@ -76,30 +81,26 @@ interface AgentEmptyStateDescriptor {
 
 
 
-type TaskKindCounts = Record<RecurrenceOutputKind, number>;
+type TaskKindCounts = { active: number; total: number };
 
-const EMPTY_TASK_COUNTS: TaskKindCounts = {
-  accumulates_context: 0,
-  produces_deliverable: 0,
-  external_action: 0,
-  system_maintenance: 0,
-};
+const EMPTY_TASK_COUNTS: TaskKindCounts = { active: 0, total: 0 };
 
+
+// Phase I: per ADR-261 D1, recurrences are not kind-classified. Highlights
+// collapse to "N active recurrences" (or "N recurrences" when none active).
+function describeActiveRecurrences(counts: TaskKindCounts): string[] {
+  if (counts.total === 0) return [];
+  if (counts.active > 0) {
+    return [`${counts.active} active ${counts.active === 1 ? 'recurrence' : 'recurrences'}`];
+  }
+  return [`${counts.total} ${counts.total === 1 ? 'recurrence' : 'recurrences'} (none active)`];
+}
 
 const _SPECIALIST_SHELL: AgentShellDescriptor = {
   label: 'Role',
   title: (agent) => roleTagline(agent.role) || roleDisplayName(agent.role),
   description: (agent) => agentClassDescription(agent.agent_class),
-  highlights: (_, counts) => {
-    const highlights: string[] = [];
-    if (counts.accumulates_context > 0) {
-      highlights.push(`${counts.accumulates_context} tracking ${counts.accumulates_context === 1 ? 'task' : 'tasks'}`);
-    }
-    if (counts.produces_deliverable > 0) {
-      highlights.push(`${counts.produces_deliverable} deliverable ${counts.produces_deliverable === 1 ? 'task' : 'tasks'}`);
-    }
-    return highlights;
-  },
+  highlights: (_, counts) => describeActiveRecurrences(counts),
 };
 
 const AGENT_SHELL_REGISTRY: Record<RegistryAgentClass, AgentShellDescriptor> = {
@@ -109,16 +110,7 @@ const AGENT_SHELL_REGISTRY: Record<RegistryAgentClass, AgentShellDescriptor> = {
     label: 'Role',
     title: () => 'Assembles cross-domain updates',
     description: () => 'Reads what each specialist has learned and turns it into a report, brief, or executive update.',
-    highlights: (_, counts) => {
-      const highlights: string[] = [];
-      if (counts.produces_deliverable > 0) {
-        highlights.push(`${counts.produces_deliverable} deliverable ${counts.produces_deliverable === 1 ? 'task' : 'tasks'}`);
-      }
-      if (counts.accumulates_context > 0) {
-        highlights.push(`${counts.accumulates_context} tracking ${counts.accumulates_context === 1 ? 'input' : 'inputs'}`);
-      }
-      return highlights;
-    },
+    highlights: (_, counts) => describeActiveRecurrences(counts),
   },
   'platform-bot': {
     label: 'Role',
@@ -128,18 +120,9 @@ const AGENT_SHELL_REGISTRY: Record<RegistryAgentClass, AgentShellDescriptor> = {
     },
     description: (agent) => {
       const platform = roleDisplayName(agent.role).replace(' Bot', '');
-      return `Manages your ${platform} connection and source selection. Add a digest task to start pulling information in.`;
+      return `Manages your ${platform} connection and source selection. Add a digest recurrence to start pulling information in.`;
     },
-    highlights: (_, counts) => {
-      const highlights: string[] = [];
-      if (counts.accumulates_context > 0) {
-        highlights.push(`${counts.accumulates_context} observation ${counts.accumulates_context === 1 ? 'task' : 'tasks'}`);
-      }
-      if (counts.external_action > 0) {
-        highlights.push(`${counts.external_action} write-back ${counts.external_action === 1 ? 'task' : 'tasks'}`);
-      }
-      return highlights;
-    },
+    highlights: (_, counts) => describeActiveRecurrences(counts),
   },
   'meta-cognitive': {
     label: 'Role',
@@ -295,9 +278,13 @@ function formatKeyLabel(value?: string | null, capitalize = true): string {
 }
 
 function getTaskKindCounts(tasks: Recurrence[]): TaskKindCounts {
+  // Phase I: collapsed from per-output_kind buckets to {active, total}
+  // per ADR-261 D1's "one execution shape". Active = recurrence is
+  // running (status='active' AND not paused).
   return tasks.reduce<TaskKindCounts>((counts, task) => {
-    const kind = task.output_kind;
-    if (kind && kind in counts) counts[kind as RecurrenceOutputKind] += 1;
+    const live = task.status !== 'archived';
+    if (live) counts.total += 1;
+    if (live && task.status === 'active' && task.paused !== true) counts.active += 1;
     return counts;
   }, { ...EMPTY_TASK_COUNTS });
 }
@@ -340,15 +327,12 @@ function summarizeRoleContract(agent: Agent, tasks: Recurrence[]) {
       : 'Assigned context domain';
   })();
 
-  const outputKindLabels: Record<string, string> = {
-    accumulates_context: 'Context updates',
-    produces_deliverable: 'Reports and briefs',
-    external_action: 'Platform actions',
-    system_maintenance: 'Operational signals',
-  };
+  // Phase I: per ADR-261/262, every recurrence's output substrate lives at
+  // /workspace/reports/{slug}/{date}/output.md. Per-class label fallbacks
+  // remain to provide useful agent-card guidance when no recurrences are
+  // assigned yet.
   const outputs = (() => {
-    const kinds = Array.from(new Set(liveTasks.map((task) => task.output_kind).filter(Boolean)));
-    if (kinds.length > 0) return kinds.map((kind) => outputKindLabels[kind as string] || formatKeyLabel(kind as string)).join(', ');
+    if (liveTasks.length > 0) return 'Reports under /workspace/reports/{slug}/';
     if (cls === 'platform-bot') return 'Platform digest and action outputs';
     if (cls === 'meta-cognitive') return 'Workforce and maintenance status outputs';
     if (cls === 'synthesizer') return 'Cross-domain reports';
@@ -356,14 +340,14 @@ function summarizeRoleContract(agent: Agent, tasks: Recurrence[]) {
   })();
 
   const triggers = (() => {
-    // ADR-231: trigger inference from RecurrenceShape + schedule presence,
-    // since `mode` (recurring/goal/reactive) was dropped per migration 164.
-    // Action shape → events; deliverable/accumulation with schedule → Schedule;
-    // anything without schedule → On demand.
+    // Phase I: trigger inference from schedule presence alone (per ADR-260
+    // D2 three-trigger model; per ADR-261 D1 there is no `shape` field on
+    // recurrences). Recurrence with schedule → Schedule; recurrence without
+    // schedule → On demand (reactive / addressed). meta-cognitive class
+    // → also accessible via Chat.
     const triggerSet = new Set<string>();
     if (cls === 'meta-cognitive') triggerSet.add('Chat');
-    if (activeTasks.some((task) => task.shape === 'action')) triggerSet.add('Events');
-    if (activeTasks.some((task) => task.schedule && task.shape !== 'action')) triggerSet.add('Schedule');
+    if (activeTasks.some((task) => task.schedule)) triggerSet.add('Schedule');
     if (activeTasks.some((task) => !task.schedule)) triggerSet.add('On demand');
     if (triggerSet.size === 0) triggerSet.add('On demand');
     return Array.from(triggerSet).join(', ');
@@ -545,7 +529,11 @@ function SpecialistFolderBlock({ agent, tasks }: { agent: Agent; tasks: Recurren
   const isSpecialist = agent.agent_class === 'specialist' || agent.agent_class === 'domain-steward';
   if (!isSpecialist || !agent.context_domain) return null;
 
-  const activeTrackingTasks = tasks.filter((task) => task.status === 'active' && task.output_kind === 'accumulates_context');
+  // Phase I: per ADR-261 D1, recurrences are not kind-classified. Counting
+  // active recurrences assigned to this specialist's domain (any active
+  // recurrence — they all write to the domain via the universal substrate
+  // shape).
+  const activeTrackingTasks = tasks.filter((task) => task.status === 'active');
   const domainLabel = formatKeyLabel(agent.context_domain);
   const helperText = activeTrackingTasks.length > 0
     ? `${activeTrackingTasks.length} active ${activeTrackingTasks.length === 1 ? 'task is' : 'tasks are'} currently working in this folder.`

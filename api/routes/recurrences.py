@@ -6,12 +6,12 @@ the canonical file. Per ADR-262 D1: substrate paths are slug-templated
 via the conventions module — every recurrence's outputs land at
 ``/workspace/reports/{slug}/{date}/output.md``.
 
-The HTTP surface is preserved at ``/api/recurrences/*``. TaskResponse
-keeps its frontend-facing field set (``output_kind``, ``shape``,
-``mode``, etc.) at safe constant values so the FE compositor layer
-(ADR-167 KindMiddle, ADR-225 MiddleResolver) keeps rendering. Reshaping
-the FE compositor away from output_kind dispatch is Phase D / separate
-FE-coherence work — not Phase B's scope.
+The HTTP surface lives at ``/api/recurrences/*``. The TaskResponse model
+matches the FE Recurrence type post-Phase-I (post-merge sweep, 2026-05-10):
+the legacy ``output_kind`` and ``shape`` fields have been DELETED — the
+FE compositor (`MiddleResolver`, `WorkListSurface`) no longer dispatches
+on those axes per ADR-261 D1's "one execution shape." Bundles can still
+override `MiddleResolver` per-recurrence via slug-match in SURFACES.yaml.
 
 Endpoints:
 - GET  /recurrences            list user's recurrences
@@ -76,7 +76,7 @@ class TaskResponse(BaseModel):
     updated_at: str
     title: Optional[str] = None
     type_key: Optional[str] = None
-    output_kind: Optional[str] = "produces_deliverable"  # FE compositor compat
+    # output_kind + shape DELETED post-Phase I (2026-05-10) per ADR-261 D1.
     objective: Optional[dict] = None
     process: Optional[dict] = None
     agent_slugs: Optional[list] = None
@@ -92,7 +92,6 @@ class TaskResponse(BaseModel):
     run_log: Optional[str] = None
     deliverable_spec: Optional[dict] = None
     declaration_path: Optional[str] = None
-    shape: Optional[str] = "deliverable"  # FE compositor compat
 
 
 class TaskOutputEntry(BaseModel):
@@ -181,7 +180,6 @@ def _rec_to_response(
         updated_at=row["updated_at"],
         title=title,
         type_key=None,
-        output_kind="produces_deliverable",
         objective=objective if isinstance(objective, dict) else None,
         process=options.get("process"),
         agent_slugs=options.get("agents") or options.get("agent_slugs"),
@@ -197,7 +195,6 @@ def _rec_to_response(
         run_log=run_log,
         deliverable_spec=options.get("deliverable") if isinstance(options.get("deliverable"), dict) else None,
         declaration_path=row.get("declaration_path") or RECURRENCES_PATH,
-        shape="deliverable",
     )
 
 

@@ -313,14 +313,11 @@ export interface AgentMemory {
   reflections?: string;        // memory/reflections.md content (rolling 5 entries, ADR-149 rename)
 }
 
-// ADR-231: RecurrenceShape — implied by substrate location per D2/D3.
-// Replaces the dissolved output_kind 4-value enum (per ADR-166 supersession).
-export type RecurrenceShape = 'deliverable' | 'accumulation' | 'action' | 'maintenance';
-
-// ADR-163 + ADR-231: User-facing label derived from schedule.
-// A recurrence with any schedule (daily/weekly/cron) is "Recurring"; one with
-// no schedule is "One-time". Internal RecurrenceShape drives execution
-// semantics only — users see this label.
+// Phase I (post-merge sweep, 2026-05-10): the legacy RecurrenceShape enum
+// is DELETED per ADR-261 D1's "one execution shape" — there is no
+// classification axis on a recurrence. The user-facing label still
+// distinguishes scheduled (Recurring) from on-event (One-time) based on
+// whether `schedule` is set.
 export type RecurrenceLabel = 'Recurring' | 'One-time';
 
 export function recurrenceLabel(schedule: string | undefined | null): RecurrenceLabel {
@@ -709,15 +706,17 @@ export interface Recurrence {
   slug: string;
   title: string;
   status: RecurrenceStatus;
-  shape?: RecurrenceShape;     // ADR-231 D8: deliverable | accumulation | action | maintenance
-  schedule?: string;           // cron or human-readable cadence
+  schedule?: string;           // cron or human-readable cadence (null = reactive)
   next_run_at?: string;
   last_run_at?: string;
-  paused?: boolean;            // ADR-231 Phase 3.4: explicit flag (replaces status='paused')
-  declaration_path?: string;   // ADR-231 Phase 3.4: pointer to authoritative YAML
+  paused?: boolean;            // explicit flag (ADR-231 Phase 3.4)
+  declaration_path?: string;   // pointer to authoritative YAML
   created_at: string;
   updated_at: string;
-  // Derived from declaration YAML (populated by API)
+  // Optional metadata surfaced from the recurrence's `options` blob in
+  // /workspace/_recurrences.yaml. Populated by API per the Phase I FE
+  // contract (one execution shape; these fields are optional hints, not
+  // dispatch axes).
   objective?: {
     deliverable?: string;
     audience?: string;
@@ -725,14 +724,8 @@ export interface Recurrence {
     format?: string;
     prose?: string;
   };
-  agent_slugs?: string[];      // assigned agents (from declaration's `agents:` field)
-  delivery?: string;           // delivery channel summary
-  // ADR-231: legacy field preserved as compat alias — derived from shape:
-  //   deliverable → produces_deliverable
-  //   accumulation → accumulates_context
-  //   action → external_action
-  //   maintenance → system_maintenance
-  output_kind?: string;
+  agent_slugs?: string[];
+  delivery?: string;
   context_reads?: string[];
   context_writes?: string[];
   sources?: Record<string, string[]>;

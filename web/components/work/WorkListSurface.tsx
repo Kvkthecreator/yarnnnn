@@ -17,12 +17,10 @@
 import { useRef, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   CalendarClock,
-  Database,
   FileText,
   LayoutDashboard,
   MoreHorizontal,
   Search,
-  Send,
   Settings2,
   Sparkles,
   X,
@@ -58,13 +56,15 @@ interface WorkListSurfaceProps {
   onSelect: (slug: string) => void;
 }
 
-// output_kind → icon
-const KIND_ICON: Record<string, React.ElementType> = {
-  produces_deliverable: FileText,
-  accumulates_context: Database,
-  external_action: Send,
-  system_maintenance: Settings2,
-};
+// Phase I (post-merge sweep, 2026-05-10): per ADR-261 D1's "one execution
+// shape" + ADR-262 D1's slug-templated convention, every recurrence is
+// effectively report-shaped on disk (/workspace/reports/{slug}/{date}/...).
+// The legacy per-output_kind icon switch is collapsed: FileText for
+// operator recurrences, Settings2 for back-office plumbing
+// (recognized by `back-office-` slug prefix).
+function iconForRecurrence(slug: string): React.ElementType {
+  return slug.startsWith('back-office-') ? Settings2 : FileText;
+}
 
 // ─── Sorting ──────────────────────────────────────────────────────────────────
 
@@ -108,7 +108,6 @@ function buildSearchText(task: Recurrence, agents: Agent[]): string {
     task.title,
     ...agentNamesFor(task, agents),
     task.slug,
-    task.shape,
     task.delivery,
     task.schedule,
     ...(task.context_reads ?? []),
@@ -198,10 +197,13 @@ export function WorkListSurface({
   const [includeHistorical, setIncludeHistorical] = useState(false);
 
   // Base filter: status + system
+  // Phase I: 'system' = back-office plumbing, identified by slug prefix
+  // (post ADR-261 D1 there is no output_kind to dispatch on; back-office
+  // recurrences carry the convention 'back-office-{slug}').
   const base = useMemo(() => {
     let result = tasks;
     if (!includeHistorical) result = result.filter(t => t.status !== 'archived' && t.status !== 'completed');
-    if (!includeSystem) result = result.filter(t => t.output_kind !== 'system_maintenance');
+    if (!includeSystem) result = result.filter(t => !t.slug.startsWith('back-office-'));
     return result;
   }, [tasks, includeHistorical, includeSystem]);
 
@@ -231,7 +233,7 @@ export function WorkListSurface({
 
   // Cadence-group the filtered list for the Schedule tab
   const cadenceGroups = useMemo(() => {
-    const buckets: Record<CadenceCategory, Recurrence[]> = { recurring: [], reactive: [], 'one-time': [] };
+    const buckets: Record<CadenceCategory, Recurrence[]> = { recurring: [], reactive: [] };
     for (const r of filtered) buckets[cadenceCategory(r)].push(r);
 
     for (const key of Object.keys(buckets) as CadenceCategory[]) {
@@ -399,9 +401,9 @@ function ScheduleRow({
 }) {
   const isActive = task.status === 'active';
   const isPaused = task.paused === true;
-  const isSystem = task.output_kind === 'system_maintenance';
+  const isSystem = task.slug.startsWith('back-office-');
 
-  const KindIcon = KIND_ICON[task.output_kind ?? ''] ?? FileText;
+  const KindIcon = iconForRecurrence(task.slug);
 
   const dotColor = isSystem
     ? 'bg-muted-foreground/20'
@@ -414,9 +416,7 @@ function ScheduleRow({
   const cadenceText =
     category === 'recurring'
       ? humanizeSchedule(task.schedule)
-      : category === 'reactive'
-        ? 'On event'
-        : 'One-time';
+      : 'On event';
 
   const assignedAgents = agentNamesFor(task, agents);
 
