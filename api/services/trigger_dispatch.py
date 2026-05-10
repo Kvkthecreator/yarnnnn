@@ -73,14 +73,13 @@ async def _dispatch_high(
     trigger_type: str,
     trigger_context: dict,
 ) -> dict:
-    """ADR-231 Phase 3.6.a.2: route through invocation_dispatcher.
-
-    Resolves agent → recurrence declaration, then dispatch(decl). When no
-    declaration assigns this agent, returns success=False with an
-    explanatory message — the operator should author one via
-    ManageRecurrence(action='create', ...).
+    """Per ADR-261 D7: agents are tools the Reviewer dispatches via
+    DispatchSpecialist. A "high" trigger fires the Reviewer with a
+    synthetic addressed-equivalent prompt that asks the Reviewer to
+    dispatch this specialist now.
     """
-    from services.invocation_dispatcher import dispatch, find_declaration_for_agent
+    from services.invocation_dispatcher import dispatch
+    from services.recurrence import Recurrence
     from services.workspace import get_agent_slug
 
     agent_id = agent.get("id")
@@ -88,19 +87,28 @@ async def _dispatch_high(
     title = agent.get("title", "Untitled")
     agent_slug = get_agent_slug(agent)
 
-    logger.info(f"[DISPATCH] high → generate: {title} ({agent_id}), trigger={trigger_type}")
+    logger.info(
+        f"[DISPATCH] high → reviewer: {title} ({agent_id}), trigger={trigger_type}"
+    )
 
-    decl = find_declaration_for_agent(client, user_id, agent_slug)
-    if decl is None:
-        msg = (
-            f"no recurrence declaration assigns agent '{agent_slug}'; "
-            f"trigger ignored"
-        )
-        logger.warning(f"[DISPATCH] high skipped for {title}: {msg}")
-        return {"action": "generated", "success": False, "error": msg}
-
+    synthetic = Recurrence(
+        slug=f"trigger-{trigger_type}-{agent_slug}",
+        schedule=None,
+        prompt=(
+            f"Trigger '{trigger_type}' fired for agent '{agent_slug}' "
+            f"({title}). Dispatch this specialist now via "
+            f"DispatchSpecialist with a focused brief. Read its output "
+            f"and decide next."
+        ),
+        options={
+            "trigger_type": trigger_type,
+            "agent_slug": agent_slug,
+            "agent_id": agent_id,
+            "trigger_context": trigger_context,
+        },
+    )
     try:
-        result = await dispatch(client, user_id, decl)
+        result = await dispatch(client, user_id, synthetic, trigger="reactive")
         return {"action": "generated", **result}
     except Exception as e:
         logger.error(f"[DISPATCH] high failed for {title}: {e}")

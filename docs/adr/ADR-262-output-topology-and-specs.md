@@ -1,6 +1,6 @@
 # ADR-262: Output Topology and Specs — Filesystem-Native Output Without Registries
 
-**Status**: Proposed 2026-05-08
+**Status**: Phase B Implemented 2026-05-10 (D1 conventions module replacing recurrence_paths.py + D5 Authored Substrate continuity backbone landed in PR #9; D4 Compose primitive landed earlier in this PR (Phase C.1). D4 opt-out auto-trigger deferred to Phase C.1b. D6 bundle activation simplification deferred to Phase D.)
 **Companion ADRs (atomic together)**:
 - ADR-260 — Real-Time Reviewer Loop: Cron is a Nudge, Continuation is Not a Trigger
 - ADR-261 — Recurrences as Prompts: Single Execution Shape

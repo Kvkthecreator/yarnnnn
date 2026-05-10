@@ -1,0 +1,249 @@
+# /workspace/_recurrences.yaml — alpha-trader bundle (ADR-261 D2)
+#
+# Single canonical recurrences file. The operator can read the entire
+# scheduled-work surface in 30 seconds. Per ADR-261 D1 each entry is
+# {slug, schedule, prompt}; the prompt is what reaches the Reviewer at
+# the scheduled time.
+#
+# Per ADR-261 D6 §4: back-office work that previously lived as
+# `executor:` directives in back-office.yaml now lives here as ordinary
+# Reviewer-driven recurrences. The cost shift (Haiku-driven instead of
+# zero-LLM Python) is the price of one execution shape.
+#
+# Per ADR-262 D1: every output path is slug-templated by CONVENTIONS.md;
+# every spec referenced by a prompt lives under /workspace/specs/.
+
+recurrences:
+
+  # ── track-universe — refresh ticker fundamentals ──────────────────────────
+  - slug: track-universe
+    schedule: "0 8,11,15 * * 1-5"
+    prompt: |
+      Refresh fundamentals for every ticker listed in
+      /workspace/context/trading/_universe.yaml.
+
+      For each ticker:
+        1. Fetch fresh 1Hour bars via the Alpaca platform tool.
+        2. Compute SMA(20), SMA(50), RSI(14), ATR(14), volume vs 30d average.
+        3. Write the snapshot to /workspace/context/trading/{ticker}.yaml
+           following the schema in /workspace/specs/ticker-snapshot.md.
+
+      If Alpaca is unreachable, stand down quietly — log the failure to
+      /workspace/context/trading/_run_log.md and try again next cycle.
+    display_name: "Universe Tracker"
+
+  # ── signal-evaluation — evaluate signals against current bars ─────────────
+  - slug: signal-evaluation
+    schedule: "5 8 * * 1-5"
+    prompt: |
+      Evaluate the universe against signals IH-1 through IH-5 on the fresh
+      1Hour bars track-universe just wrote. For each ticker in
+      /workspace/context/trading/_universe.yaml:
+        - Read the latest snapshot at /workspace/context/trading/{ticker}.yaml.
+        - Apply each signal's boolean rule (declared in
+          /workspace/context/_shared/_operator_profile.md).
+        - When a signal fires, append a signal entry to
+          /workspace/context/trading/signals/{signal_id}.yaml with timestamp,
+          ticker, conditions snapshot, and sizing inputs.
+
+      When any signal fires, immediately FireInvocation(slug="trade-proposal")
+      to hand the signal to the Reviewer for capital judgment. Otherwise
+      stand down.
+    display_name: "Signal Evaluator"
+
+  # ── trade-proposal — emit Reviewer-gated proposal on signal fire ──────────
+  - slug: trade-proposal
+    schedule: null  # reactive — fires on signal trigger via FireInvocation
+    prompt: |
+      A signal fire was just recorded. Read the most recent signal entry in
+      /workspace/context/trading/signals/. Decide whether the signal warrants
+      a trade against your principles in /workspace/review/principles.md and
+      the operator's risk envelope in /workspace/context/_shared/_risk.md.
+
+      If yes, emit ProposeAction(action_type="trading.submit_order_paper",
+      ...) with full sizing math:
+        - signal_id (must match the fired signal)
+        - ticker
+        - direction (long | short)
+        - entry_price
+        - stop_loss
+        - target
+        - position_size
+        - sizing_formula_trace (numbers + formula explanation)
+        - entry_rule_trace (which signal conditions matched)
+
+      Check 1 (signal attribution) must pass by construction — every proposal
+      is tied to a named signal. If conditions don't warrant, stand down
+      with reasoning written to /workspace/review/decisions.md.
+    display_name: "Trade Proposal"
+
+  # ── pre-market-brief — daily pre-market deliverable ──────────────────────
+  - slug: pre-market-brief
+    schedule: "15 8 * * 1-5"
+    prompt: |
+      Produce the pre-market brief. Follow the spec at
+      /workspace/specs/pre-market-brief.md. Save to
+      /workspace/reports/pre-market-brief/{date}/output.md per CONVENTIONS
+      topology. Compose to HTML automatically when section partials exist
+      (ADR-262 D4).
+
+      Sections required:
+        - Signal State Summary (which signals may fire today)
+        - Portfolio Exposure (current positions vs VaR budget)
+        - Decay Flags (signals with degrading expectancy)
+        - Regime State (VIX bucket + trend regime)
+        - Pending Proposals (anything in the Queue)
+
+      Quantitative frame only — numbers, thresholds, named signals. No
+      narrative beyond declared signals + declared risk metrics.
+    display_name: "Pre-market brief"
+
+  # ── weekly-performance-review — Sunday performance synthesis ─────────────
+  - slug: weekly-performance-review
+    schedule: "0 18 * * 0"
+    prompt: |
+      Produce the weekly performance review. Follow the spec at
+      /workspace/specs/weekly-performance-review.md. Save to
+      /workspace/reports/weekly-performance-review/{date}/output.md per
+      CONVENTIONS topology.
+
+      Read /workspace/context/trading/_performance.md (money-truth substrate
+      from outcome-reconciliation). Compute per-signal P&L, win rate,
+      expectancy-20, expectancy-40, Sharpe-lifetime. Flag any signal whose
+      decay guardrail (declared in /workspace/context/_shared/_risk.md) was
+      crossed.
+
+      Sections required:
+        - Portfolio Totals
+        - Per-Signal Attribution (with expectancy + Sharpe)
+        - Decay Flags (signals approaching or past guardrail)
+        - Regime History (week's regime changes)
+        - Quarterly-Audit Flags (signals candidate for retirement)
+    display_name: "Weekly performance review"
+
+  # ── quarterly-signal-audit — quarter-end signal-discipline ritual ─────────
+  - slug: quarterly-signal-audit
+    schedule: "0 18 31 3,6,9,12 *"
+    prompt: |
+      Produce the quarterly signal audit. Follow the spec at
+      /workspace/specs/quarterly-signal-audit.md. Save to
+      /workspace/reports/quarterly-signal-audit/{date}/output.md per
+      CONVENTIONS topology.
+
+      For every signal:
+        - Surface last-40-trade Sharpe + expectancy.
+        - Compare to declared baseline in
+          /workspace/context/_shared/_operator_profile.md.
+        - If a signal crossed a retirement guardrail (from _risk.md), list
+          it in Retirement Candidates with quantitative reasoning.
+
+      Sections required:
+        - Signal Performance Summary
+        - Retirement Candidates (with evidence)
+        - Retune Proposals
+        - New Signal Research Candidates
+        - Operator Decision Block (LEAVE EMPTY — operator fills in)
+
+      You do NOT mutate /workspace/context/_shared/_operator_profile.md
+      autonomously. The operator ratifies all signal-roster changes.
+    display_name: "Quarterly signal audit"
+
+  # ── outcome-reconciliation — daily money-truth reconcile ─────────────────
+  - slug: outcome-reconciliation
+    schedule: "0 5 * * *"
+    prompt: |
+      Reconcile yesterday's executed proposals against platform events.
+      Read the trading platform_connections; pull executed orders + fills
+      since the last reconciliation timestamp.
+
+      For every fill, compute realized P&L vs the proposal's projection
+      (read original ProposeAction inputs from the proposal record), then
+      append rolling-window updates (7d / 30d / 90d) to
+      /workspace/context/trading/_performance.md following the schema in
+      /workspace/specs/performance-rollup.md.
+
+      Cross-domain summary: regenerate
+      /workspace/context/_performance_summary.md so the daily-update
+      briefing has fresh aggregate numbers.
+
+      Stand down silently if there were no fills in the window.
+    display_name: "Outcome Reconciliation"
+
+  # ── morning-calibration — daily Reviewer calibration check ───────────────
+  - slug: morning-calibration
+    schedule: "0 6 * * *"
+    prompt: |
+      Calibrate against money-truth. Read
+      /workspace/context/trading/_performance.md for the last 7d / 30d /
+      90d windows. Compare realized expectancy to your declared edge in
+      /workspace/review/principles.md.
+
+      If realized P&L diverges materially from your declared edge (e.g.
+      realized expectancy negative when declared positive, or Sharpe
+      drops below half of declared baseline), append a calibration concern
+      entry to /workspace/review/decisions.md with:
+        - The metric that diverged
+        - The numerical gap
+        - Whether you're proposing a posture change or just flagging
+
+      If no material divergence, stand down silently. This recurrence is
+      a guardrail — most days it produces no entry.
+    display_name: "Morning Calibration"
+
+  # ── morning-reflection — daily Reviewer self-reflection ──────────────────
+  - slug: morning-reflection
+    schedule: "0 7 * * *"
+    prompt: |
+      Reflect on yesterday's decisions against your principles. Read:
+        - /workspace/review/decisions.md (last 7 days of verdicts)
+        - /workspace/review/principles.md (your judgment framework)
+        - /workspace/context/trading/_performance.md (money-truth)
+
+      Identify patterns:
+        - Repeated approve-then-loss patterns by signal or condition
+        - Repeated reject-then-would-have-won patterns (false negatives)
+        - Drift between stated principles and actual approval thresholds
+
+      If a pattern warrants a principles adjustment, ProposeAction with
+      change_type="update_principles", target_file="principles.md",
+      new_content=<full revised principles.md>. Operator approves before
+      it lands.
+
+      Append a reflections.md entry summarizing what you saw today —
+      even if no proposal. The reflection log is your developmental
+      record over time.
+    display_name: "Morning Reflection"
+
+  # ── proposal-cleanup — archive stale proposals ───────────────────────────
+  - slug: proposal-cleanup
+    schedule: "0 4 * * *"
+    prompt: |
+      Archive action_proposals rows that have been pending review for
+      more than 7 days without operator action. Use UpdateContext with
+      target="proposal" to mark them archived (revision log preserves
+      history per ADR-209).
+
+      For each archived proposal, append one line to
+      /workspace/review/decisions.md noting the auto-archive with the
+      proposal's original action_type and rationale.
+
+      This is housekeeping — runs silently most days. Stand down if zero
+      proposals are stale.
+    display_name: "Proposal Cleanup"
+
+  # ── narrative-digest — daily activity rollup for compact index ───────────
+  - slug: narrative-digest
+    schedule: "0 3 * * *"
+    prompt: |
+      Roll up non-conversation narrative events from the last 24h
+      (reviewer verdicts, agent runs, system events) into
+      /workspace/memory/recent.md.
+
+      Group by Identity (reviewer / agent / external / system) and
+      summarize material entries first. The output feeds the compact
+      index per ADR-159 + ADR-221, so the operator's chat session reads
+      see fresh activity context with low token cost.
+
+      Use ListFiles + ReadFile on the narrative substrate; do NOT call
+      DispatchSpecialist (this is an in-loop summarization task).
+    display_name: "Narrative Digest"

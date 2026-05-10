@@ -300,24 +300,12 @@ async def _append_entries_to_task_feedback(
     Returns True on success. Never raises.
     """
     try:
-        # ADR-231 Phase 3.6.b: route through natural-home feedback path via
-        # services.recurrence_paths.
-        from services.recurrence_paths import resolve_paths_for_slug
-        from services.workspace import UserMemory
+        # ADR-262 D1: feedback lives at /workspace/reports/{slug}/_feedback.md.
+        from services.conventions import report_feedback_path
         from services.feedback_distillation import _MAX_FEEDBACK_ENTRIES
+        from services.workspace import UserMemory
 
-        paths = resolve_paths_for_slug(client, user_id, task_slug)
-        if paths is None or paths.feedback_path is None:
-            logger.warning(
-                "[HIGH_IMPACT] no feedback path for slug=%s; system-outcome entries dropped",
-                task_slug,
-            )
-            return False
-
-        relative = (
-            paths.feedback_path[len("/workspace/"):]
-            if paths.feedback_path.startswith("/workspace/") else paths.feedback_path
-        )
+        relative = report_feedback_path(task_slug)[len("/workspace/"):]
         um = UserMemory(client, user_id)
         existing = await um.read(relative) or ""
 

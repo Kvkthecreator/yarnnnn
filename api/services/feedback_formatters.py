@@ -134,40 +134,29 @@ async def resolve_task_feedback_path(
     user_id: str,
     task_slug: str,
 ) -> Tuple[Optional[str], Optional[dict]]:
-    """Resolve task feedback path via the recurrence walker.
+    """Resolve task feedback path for a recurrence slug.
+
+    Per ADR-261 every recurrence shares one shape; per ADR-262 D1 the
+    convention is ``/workspace/reports/{slug}/_feedback.md`` (the
+    canonical home from CONVENTIONS.md topology).
 
     Returns (relative_path, error_payload). On success, error_payload is None.
     On failure, relative_path is None and error_payload describes the issue.
     """
+    from services.conventions import report_feedback_path
     from services.recurrence import walk_workspace_recurrences
-    from services.recurrence_paths import resolve_paths
 
-    decls = walk_workspace_recurrences(db_client, user_id)
-    decl = next((d for d in decls if d.slug == task_slug), None)
-    if decl is None:
+    recurrences = walk_workspace_recurrences(db_client, user_id)
+    if not any(r.slug == task_slug for r in recurrences):
         return (
             None,
             {
                 "success": False,
-                "error": "no_declaration",
-                "message": f"No recurrence declaration for slug '{task_slug}'",
+                "error": "no_recurrence",
+                "message": f"No recurrence for slug '{task_slug}'",
             },
         )
 
-    paths = resolve_paths(decl)
-    if paths.feedback_path is None:
-        return (
-            None,
-            {
-                "success": False,
-                "error": "no_feedback_substrate",
-                "message": f"Recurrence shape '{decl.shape.value}' has no feedback substrate",
-            },
-        )
-
-    relative = (
-        paths.feedback_path[len("/workspace/"):]
-        if paths.feedback_path.startswith("/workspace/")
-        else paths.feedback_path
-    )
+    abs_path = report_feedback_path(task_slug)
+    relative = abs_path[len("/workspace/"):] if abs_path.startswith("/workspace/") else abs_path
     return (relative, None)

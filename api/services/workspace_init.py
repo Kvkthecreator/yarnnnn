@@ -382,8 +382,10 @@ async def initialize_workspace(
             f"— narrative coverage may be degraded until /chat is opened"
         )
 
-    # No operational tasks at signup (ADR-206): daily-update + back-office tasks
-    # materialize on trigger. See services.back_office.materialize_back_office_task.
+    # No operational tasks at signup (ADR-206 + ADR-261 D6): daily-update +
+    # back-office work are bundle-seeded entries in
+    # /workspace/_recurrences.yaml when the operator activates a program;
+    # operators without a bundle author them via Schedule(action='create', ...).
 
     # =========================================================================
     # Phase 4: Signup balance audit trail (ADR-172)
@@ -485,9 +487,9 @@ async def initialize_workspace(
     return result
 
 
-# materialize_back_office_task RELOCATED to services.back_office (2026-05-03).
-# Import it from there. workspace_init.py is for workspace initialization only.
-# from services.back_office import materialize_back_office_task  # ← new location
+# materialize_back_office_task DELETED (ADR-261 D6 §4, Phase B.5). Lazy
+# back-office task materialization is gone; back-office work lives as
+# bundle-seeded entries in /workspace/_recurrences.yaml.
 
 
 # =============================================================================

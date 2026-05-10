@@ -1,6 +1,6 @@
 # ADR-260: Real-Time Reviewer Loop — Cron is a Nudge, Continuation is Not a Trigger
 
-**Status**: Proposed 2026-05-08
+**Status**: Implemented 2026-05-10 (Phase B atomic commit; D4 heartbeat deletion + D2 trigger collapse + D5 Schedule primitive landed in PR #9)
 **Companion ADRs (atomic together)**:
 - ADR-261 — Recurrences as Prompts: Single Execution Shape
 - ADR-262 — Output Topology and Specs: Filesystem-Native Output Without Registries

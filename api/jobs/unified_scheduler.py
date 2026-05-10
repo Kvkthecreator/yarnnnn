@@ -116,29 +116,31 @@ async def should_send_email(supabase_client, user_id: str, notification_type: st
 
 
 async def dispatch_due_invocations(supabase_client) -> tuple[int, int, int]:
-    """Find due recurrence declarations and dispatch each one.
+    """Find due recurrences and dispatch each one.
 
-    Per ADR-231 Phase 3.3, this replaces the old slug-keyed `tasks` table
-    delegation to `task_pipeline.execute_task`. The new flow:
+    Per ADR-261 D3, this walks ``/workspace/_recurrences.yaml`` for each
+    user with due rows and dispatches via ``invocation_dispatcher.dispatch``.
 
-      1. `get_due_declarations` queries the thin `tasks` index for due rows
-         AND re-parses the YAML at declaration_path for each.
-      2. For each due (user_id, decl) pair: CAS claim against the index,
-         then `invocation_dispatcher.dispatch(decl)` does the work.
-      3. Post-dispatch, `record_task_run` writes last_run_at + recomputed
-         next_run_at into the index.
+      1. ``get_due_recurrences`` queries the thin `tasks` index for due
+         rows AND re-reads each user's _recurrences.yaml.
+      2. For each due (user_id, recurrence) pair: CAS claim against the
+         index, then ``dispatch(supabase, user_id, recurrence,
+         trigger="scheduled")`` invokes the Reviewer with the recurrence's
+         prompt as the addressed-equivalent envelope (per ADR-260 D1).
+      3. Post-dispatch, ``record_task_run`` writes last_run_at +
+         recomputed next_run_at into the index.
 
     Returns (found, succeeded, failed).
     """
     from services.scheduling import (
         claim_task_run,
-        get_due_declarations,
+        get_due_recurrences,
         record_task_run,
     )
     from services.invocation_dispatcher import dispatch
 
     now = datetime.now(timezone.utc)
-    pairs = await get_due_declarations(supabase_client, now=now)
+    pairs = await get_due_recurrences(supabase_client, now=now)
     found = len(pairs)
     if found == 0:
         return 0, 0, 0
@@ -146,63 +148,74 @@ async def dispatch_due_invocations(supabase_client) -> tuple[int, int, int]:
     succeeded = 0
     failed = 0
 
-    for user_id, decl in pairs:
-        # CAS claim — read the row's current next_run_at, atomically bump it
-        # to a sentinel +2h. Concurrent scheduler instances see the bumped
-        # row and skip.
+    for user_id, recurrence in pairs:
+        # CAS claim — read current next_run_at, atomically bump to +2h
+        # sentinel. Concurrent scheduler instances skip the bumped row.
         try:
             row = (
                 supabase_client.table("tasks")
                 .select("next_run_at")
                 .eq("user_id", user_id)
-                .eq("slug", decl.slug)
+                .eq("slug", recurrence.slug)
                 .limit(1)
                 .execute()
             )
             original_next_run = (
-                row.data[0]["next_run_at"]
-                if row.data
-                else None
+                row.data[0]["next_run_at"] if row.data else None
             )
         except Exception as e:
             logger.warning(
                 "[SCHED] could not read baseline next_run_at for %s/%s: %s",
-                user_id[:8], decl.slug, e,
+                user_id[:8], recurrence.slug, e,
             )
             failed += 1
             continue
 
-        if not claim_task_run(supabase_client, user_id, decl.slug, original_next_run):
+        if not claim_task_run(
+            supabase_client, user_id, recurrence.slug, original_next_run
+        ):
             logger.info(
                 "[SCHED] %s/%s already claimed by another instance; skipping",
-                user_id[:8], decl.slug,
+                user_id[:8], recurrence.slug,
             )
             continue
 
-        # Dispatch
         try:
-            result = await dispatch(supabase_client, user_id, decl)
+            result = await dispatch(
+                supabase_client, user_id, recurrence, trigger="scheduled"
+            )
             if result.get("success"):
                 succeeded += 1
-                logger.info("[SCHED] ✓ %s/%s: %s", user_id[:8], decl.slug, result.get("message", "ok"))
+                logger.info(
+                    "[SCHED] ✓ %s/%s: %s",
+                    user_id[:8], recurrence.slug,
+                    result.get("message", "ok"),
+                )
             else:
                 failed += 1
-                logger.warning("[SCHED] ✗ %s/%s: %s", user_id[:8], decl.slug, result.get("message", "?"))
+                logger.warning(
+                    "[SCHED] ✗ %s/%s: %s",
+                    user_id[:8], recurrence.slug,
+                    result.get("message", "?"),
+                )
         except Exception as e:
             failed += 1
-            logger.exception("[SCHED] dispatch raised for %s/%s: %s", user_id[:8], decl.slug, e)
+            logger.exception(
+                "[SCHED] dispatch raised for %s/%s: %s",
+                user_id[:8], recurrence.slug, e,
+            )
         finally:
-            # Always advance next_run_at — clears the +2h sentinel even on failure,
-            # so on-demand/reactive declarations don't get stuck.
+            # Always advance next_run_at — clears the sentinel even on
+            # failure so reactive recurrences don't get stuck.
             try:
                 record_task_run(
-                    supabase_client, user_id, decl,
+                    supabase_client, user_id, recurrence,
                     last_run_at=datetime.now(timezone.utc),
                 )
             except Exception as e:
                 logger.warning(
                     "[SCHED] record_task_run failed for %s/%s: %s",
-                    user_id[:8], decl.slug, e,
+                    user_id[:8], recurrence.slug, e,
                 )
 
     return found, succeeded, failed

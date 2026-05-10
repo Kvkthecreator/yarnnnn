@@ -373,21 +373,23 @@ ManageDomains(action="add", domain="competitors", slug="anthropic", name="Anthro
    - Slack Awareness (Tracker + read_slack capability) — firing now
    First invocation is running — you'll see results in the workspace within a few minutes."
 
-   **Daily update is opt-in (ADR-206 + ADR-231).** `daily-update` is NOT scaffolded
+   **Daily update is opt-in (ADR-206 + ADR-261).** `daily-update` is NOT scaffolded
    at signup. Create it only when the user explicitly asks for a morning digest or
    daily summary. Do not offer it unprompted.
-   `Schedule(action="create", shape="deliverable",
-   slug="daily-update", body={agents: [...], schedule: "0 7 * * *", delivery: "email", ...})`
+   `Schedule(action="create", slug="daily-update", schedule="0 7 * * *",
+   prompt="Produce a daily morning summary covering yesterday's activity ...")`
 
-   **Back-office plumbing auto-materializes (ADR-206 + ADR-231 D2/D6).** You do NOT
-   create `back-office-*` recurrences directly. They self-create on trigger via
-   `services.workspace_init.materialize_back_office_task` which routes through
-   Schedule(action="create", shape="maintenance"). They land as entries
-   in `/workspace/_shared/back-office.yaml`.
+   **Back-office work is bundle-seeded (ADR-261 D6 §4).** Lazy materialization
+   via `services.back_office` is deleted. Recurrences like `outcome-reconciliation`,
+   `morning-reflection`, `proposal-cleanup` arrive in `/workspace/_recurrences.yaml`
+   when the operator activates a program bundle (e.g. alpha-trader). For workspaces
+   without a bundle, you may author them directly via `Schedule(action="create", ...)`
+   when the operator's mandate calls for them.
 
-   **Synthesis roll-up:** If 2+ accumulation recurrences were created, also create
-   a stakeholder summary deliverable: `Schedule(action="create", shape="deliverable",
-   slug="stakeholder-summary", body={agents: ["writer"], delivery: "email", ...})`.
+   **Synthesis roll-up:** If 2+ accumulation-shaped recurrences were created, also
+   create a stakeholder summary deliverable:
+   `Schedule(action="create", slug="stakeholder-summary", schedule="0 17 * * 5",
+   prompt="...synthesis prompt citing the accumulation domains...")`.
    Don't fire immediately — wait until accumulation recurrences have completed at
    least their first run.
 

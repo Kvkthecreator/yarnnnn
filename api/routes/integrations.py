@@ -2182,33 +2182,11 @@ async def connect_commerce(
     # ADR-207 P4a: Commerce Bot dissolved. read_commerce / write_commerce
     # capabilities unlock the moment the connection is active.
 
-    # 3b. ADR-206: first platform-with-money-truth materializes outcome-reconciliation.
-    # ADR-211 D6: reviewer-calibration rides the same trigger (same substrate —
-    # calibration consumes _performance.md which reconciliation produces).
-    # ADR-218: reviewer-reflection rides alongside — outcomes-producing
-    # platforms give the persona substrate to reflect on.
-    try:
-        from services.back_office import materialize_back_office_task
-        await materialize_back_office_task(
-            service_client, user_id,
-            type_key="back-office-outcome-reconciliation",
-            slug="back-office-outcome-reconciliation",
-            title="Outcome Reconciliation",
-        )
-        await materialize_back_office_task(
-            service_client, user_id,
-            type_key="back-office-reviewer-calibration",
-            slug="back-office-reviewer-calibration",
-            title="Reviewer Calibration",
-        )
-        await materialize_back_office_task(
-            service_client, user_id,
-            type_key="back-office-reviewer-reflection",
-            slug="back-office-reviewer-reflection",
-            title="Reviewer Reflection",
-        )
-    except Exception as materialize_err:
-        logger.warning(f"[INTEGRATIONS] outcome-reconciliation/calibration/reflection materialize failed: {materialize_err}")
+    # ADR-261 D6 §4: lazy back-office materialization on platform connect
+    # is deleted. Outcome-reconciliation, reviewer-calibration, and
+    # reviewer-reflection are operator-authored (or bundle-seeded) entries
+    # in /workspace/_recurrences.yaml — the operator opts in by activating
+    # a program bundle that ships them, or authors them via Schedule().
 
     # 4. Scaffold commerce context domains (idempotent)
     await scaffold_context_domain(service_client, user_id, "customers")
@@ -2493,33 +2471,12 @@ async def connect_trading(
     # ADR-207 P4a: Trading Bot dissolved. read_trading / write_trading
     # capabilities unlock the moment the connection is active.
 
-    # 3b. ADR-206: first platform-with-money-truth materializes outcome-reconciliation.
-    # ADR-211 D6: reviewer-calibration rides the same trigger (same substrate —
-    # calibration consumes _performance.md which reconciliation produces).
-    # ADR-218: reviewer-reflection rides alongside — persona reflects on
-    # its own track record against real outcomes.
-    try:
-        from services.back_office import materialize_back_office_task
-        await materialize_back_office_task(
-            service_client, user_id,
-            type_key="back-office-outcome-reconciliation",
-            slug="back-office-outcome-reconciliation",
-            title="Outcome Reconciliation",
-        )
-        await materialize_back_office_task(
-            service_client, user_id,
-            type_key="back-office-reviewer-calibration",
-            slug="back-office-reviewer-calibration",
-            title="Reviewer Calibration",
-        )
-        await materialize_back_office_task(
-            service_client, user_id,
-            type_key="back-office-reviewer-reflection",
-            slug="back-office-reviewer-reflection",
-            title="Reviewer Reflection",
-        )
-    except Exception as materialize_err:
-        logger.warning(f"[INTEGRATIONS] outcome-reconciliation/calibration/reflection materialize failed: {materialize_err}")
+    # ADR-261 D6 §4: lazy back-office materialization on platform connect
+    # is deleted. Outcome-reconciliation, reviewer-calibration, and
+    # reviewer-reflection are bundle-seeded entries in
+    # /workspace/_recurrences.yaml when the operator activates a program
+    # (e.g. alpha-trader); operators without a bundle author them via
+    # Schedule(action='create', ...) on demand.
 
     # 4. Scaffold trading context domains (idempotent)
     await scaffold_context_domain(service_client, user_id, "trading")

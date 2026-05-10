@@ -8,8 +8,15 @@ from typing import Any
 
 
 def _normalize_reflection_proposals(proposals_raw: list) -> list:
-    """Normalize raw ReturnVerdict proposals list into the shape
-    reflection_writer.apply_reflection_writes() expects."""
+    """Normalize raw ReturnVerdict proposals list into the canonical
+    proposal shape (change_type, target_file, reasoning, evidence,
+    new_content, plus optional fields).
+
+    Per ADR-261 D6 the reflection executor is no longer a deterministic
+    Python service (back_office.reviewer_reflection deleted) — the
+    morning-reflection recurrence's prompt now directs the Reviewer to
+    produce these proposals directly via WriteFile + ProposeAction.
+    The normalizer is preserved as a typing helper."""
     normalized = []
     for p in proposals_raw:
         if not isinstance(p, dict):

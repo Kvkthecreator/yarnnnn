@@ -6,6 +6,80 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.10.1] - ADRs 260/261/262 — Phase B atomic commit (recurrence schema collapse + back-office deletion + live data migration)
+
+### Architectural collapse (atomic commit)
+
+Phase B per the ADR-261 implementation plan, shipped as one atomic commit alongside the live data migration. Net delta vs Phase A's tip: **~3,500 LOC deleted**, ~1,400 LOC of new lean code, two live workspaces migrated from per-shape declarations to canonical `_recurrences.yaml`.
+
+**Modules DELETED:**
+- `api/services/recurrence_paths.py` (-405 LOC) — per-shape natural-home path resolution superseded by slug-templated conventions
+- `api/services/dispatch_helpers.py` (-1,641 LOC) — shape-keyed substrate writers, headless prompts, path resolvers all dissolve
+- `api/services/reflection_writer.py` (-768 LOC) — reflection executor logic moves into Reviewer's prompt-driven loop
+- `api/services/back_office/` package (-3,142 LOC across 8 files) — all deterministic Python executors (narrative_digest, outcome_reconciliation, reviewer_calibration, reviewer_reflection, proposal_cleanup, trading_universe_tracker, trading_signal_evaluator, materialize_back_office_task helper). Per ADR-261 D6 §4: back-office work is now Reviewer-driven recurrence prompts in `_recurrences.yaml`.
+- `docs/programs/alpha-trader/reference-workspace/_shared/back-office.yaml`, `context/trading/_recurring.yaml`, `operations/trade-proposal/_action.yaml`, `reports/{pre-market-brief,quarterly-signal-audit,weekly-performance-review}/_spec.yaml` — six per-shape declaration files in the bundle replaced by a single canonical `_recurrences.yaml`.
+
+**Modules REWRITTEN:**
+- `api/services/recurrence.py` (582 → 331 LOC) — `Recurrence` dataclass replaces `RecurrenceDeclaration`. `RecurrenceShape` enum + per-shape parsers + `derive_declaration_path` deleted. `parse_recurrences_yaml` is the single parser. `walk_workspace_recurrences` reads `/workspace/_recurrences.yaml` only.
+- `api/services/invocation_dispatcher.py` (1,553 → 319 LOC) — single dispatch path. `dispatch(client, user_id, recurrence, *, trigger='scheduled', context=None)` invokes the Reviewer with `recurrence.prompt` as the addressed-equivalent envelope per ADR-260 D1. The three-shape branch (`_dispatch_generative`, `_dispatch_action`, `_dispatch_maintenance`) collapses. `find_declaration_for_agent` and `_resolve_agent` deleted.
+- `api/services/scheduling.py` (~minor) — `get_due_declarations` → `get_due_recurrences`. Walker reads canonical file only.
+- `api/services/primitives/schedule.py` (476 → 247 LOC) — single-file `_recurrences.yaml` mutation. `shape` and `domain` parameters dropped. Five actions: create, update, pause, resume, archive.
+- `api/services/primitives/fire_invocation.py` (185 → 113 LOC) — `shape` and `domain` parameters dropped; only `slug` and optional `context`.
+- `api/routes/recurrences.py` (660 → 491 LOC) — single-file substrate reads. `output_kind` and `shape` fields preserved on `TaskResponse` at safe constants (`"produces_deliverable"` + `"deliverable"`) so the FE compositor layer (ADR-167 KindMiddle, ADR-225 MiddleResolver) keeps rendering. Reshaping the FE off output_kind dispatch is deferred to a separate FE-coherence pass.
+- `api/services/task_deliverable_inference.py` → renamed to `recurrence_prompt_inference.py`. `infer_task_deliverable_preferences` → `infer_recurrence_prompt`. Inference now refines the recurrence's `prompt` field (the spec) rather than merging into a `deliverable:` block.
+
+**Modules ADDED:**
+- `api/services/conventions.py` (+307 LOC) — slug-templated path interpolation per ADR-262 D1. `report_root`, `report_dated_folder`, `report_output_path`, `report_sections_dir`, `report_manifest_path`, `report_latest_dir`, `report_feedback_path`, `report_run_log_path`, `report_working_dir`, `domain_root`, `domain_entity_path`, `domain_synthesis_path`, `domain_feedback_path`, `domain_performance_path`, `domain_run_log_path`, `operation_root`, `operation_run_log_path`, `operation_working_dir`, plus constants for Reviewer substrate, operator-authored shared substrate, memory paths, and specs.
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml` (+10 entries) — canonical recurrences file. Entries: track-universe, signal-evaluation, trade-proposal, pre-market-brief, weekly-performance-review, quarterly-signal-audit, outcome-reconciliation, morning-calibration, morning-reflection, proposal-cleanup, narrative-digest. Each entry is `{slug, schedule, prompt}` with the prompt encoding everything the Reviewer needs.
+- `api/scripts/oneshot/phaseB_unify_recurrences.py` (+450 LOC) — one-shot data migration script. Projects legacy per-shape files in workspace_files into the canonical `_recurrences.yaml` via `write_revision()` with `authored_by="system:phaseB-migration"`, then deletes the legacy files. Tolerant parser handles operator-edited YAML with mixed indentation.
+- `api/test_adr261_phaseB.py` (+185 LOC) — regression gate. 52 assertions across 7 sections: deleted modules not importable, deleted symbols not present, unified surface present, Recurrence dataclass shape, SCHEDULE_TOOL + FIRE_INVOCATION_TOOL surface, dispatcher signature, bundle reference workspace cleaned. ALL PASS.
+
+**Live data migration (run 2026-05-10):**
+- alpha-trader-2 workspace (user 29a74c63-…): 9 entries projected from 6 legacy files; written to `/workspace/_recurrences.yaml`; 6 legacy files deleted.
+- kvkthecreator@gmail.com workspace (user 2abf3f96-…): 11 entries projected from 6 legacy files; written; 6 legacy files deleted.
+- Both workspaces verified end-state via psql: exactly one canonical file, zero legacy per-shape files.
+- Per ADR-209: every write attributed (`authored_by="system:phaseB-migration"`); legacy file content retained in `workspace_file_versions` revision history as the parent of the deletion.
+
+**Caller migrations (production code surgery):**
+- `api/routes/feed.py` — `_load_task_context` rewritten: reads canonical recurrence; uses `report_root` + `report_run_log_path`. Deleted: `decl.shape`, `decl.agents`, `decl.objective`, `decl.display_name`, `decl.data.get('page_structure')` references.
+- `api/routes/recurrences.py` — full rewrite. URL still `/api/recurrences/*`. Frontend contract preserved (TaskResponse field set unchanged for FE compatibility).
+- `api/routes/admin.py` — admin trigger uses unified Recurrence + `dispatch(trigger='addressed')`.
+- `api/routes/agents.py::trigger_run` — "operator clicked Run on agent X" expressed as a synthetic addressed Recurrence whose prompt asks the Reviewer to dispatch the specialist via DispatchSpecialist (Phase C.2).
+- `api/routes/integrations.py` — `materialize_back_office_task` calls deleted from commerce + trading connect paths. Back-office work is now bundle-seeded.
+- `api/routes/narrative.py` — comment-only update referencing the deleted back_office package.
+- `api/services/trigger_dispatch.py::_dispatch_high` — synthetic reactive Recurrence pattern.
+- `api/services/feedback_formatters.py` — uses `report_feedback_path(slug)` directly.
+- `api/services/feedback_distillation.py` — same.
+- `api/services/outcomes/high_impact.py` — same.
+- `api/services/compose/task_html.py` — uses `report_root(slug)`.
+- `api/services/primitives/repurpose.py` — uses `report_root(slug)`.
+- `api/services/primitives/propose_action.py` — `materialize_back_office_task` call deleted.
+- `api/services/workspace_init.py` — comment-only updates referencing deleted helper.
+
+**Prompt changes (LLM-facing):**
+- `api/agents/prompts/chat/workspace.py` — entire "Creating Recurrences" section rewritten. Documents the unified `{slug, schedule, prompt}` shape with example accumulation + deliverable + action recurrences. References the operator-authored spec library at `/workspace/specs/` per ADR-262 D2 Pattern (ii). Drops `shape` parameter, `agents:` field, `body.deliverable` block, `target_platform`, `process_steps`, four-shape mapping table, Route A/B framing.
+- `api/agents/prompts/chat/onboarding.py` — daily-update + back-office paragraphs rewritten to reflect ADR-261 D6 §4: lazy materialization deleted, recurrences are bundle-seeded or operator-authored.
+
+**Frontend impact (Phase B-deferred):**
+- The FE compositor layer (`web/components/library/`, `web/components/work/details/`, `web/lib/compositor/`) still dispatches on `task.output_kind` and `task.shape`. Phase B preserves these fields on the API response at constant values (`output_kind: "produces_deliverable"`, `shape: "deliverable"`) so the FE keeps rendering — every recurrence's substrate now lives at `/workspace/reports/{slug}/{date}/output.md`, which IS the deliverable shape. Reshaping the FE off output_kind dispatch is a separate FE-coherence pass; not blocked by Phase B.
+
+**Stale tests deleted (-11 files):**
+- test_adr231_recurrence.py, test_adr231_runtime_invariants.py
+- test_adr233_phase1_shape_prompts.py, test_adr233_phase2_natural_home_preread.py
+- test_back_office_contract.py, test_adr248_periodic_reviewer_pulse.py
+- test_adr219_commit3_narrative_digest.py, test_adr219_commit4_narrative_by_task.py, test_adr219_narrative_write_path.py
+- test_adr221_layered_context.py
+- tests/test_dispatch_helpers_context_selection.py
+
+**ADR status flips:**
+- ADR-260: Proposed → Implemented (D1 + D2 + D4 + D5 all in PR #9)
+- ADR-261: Proposed → Implemented (D1, D2, D3, D4, D5, D6, D8, D9 all in PR #9; D7 specialists-as-tools deferred to C.2)
+- ADR-262: Proposed → Phase B Implemented (D1 + D5 in PR #9; D4 auto-trigger deferred to C.1b; D6 bundle simplification deferred to D)
+
+**Next:** Phase C.1b (Compose opt-out auto-trigger), Phase C.2 (DispatchSpecialist primitive), Phase D (bundle spec library + workspace_init collapse + live re-fork).
+
+---
+
 ## [2026.05.09.1] - ADRs 260/261/262 — Phase A code cutover + Compose primitive (CODE PR — partial)
 
 ### Code changes (LLM-facing)

@@ -1,76 +1,46 @@
 """
-Invocation Dispatcher — ADR-231 Phase 3.2.b YAML-native pipeline.
+Invocation Dispatcher — ADR-260 + ADR-261 unified path.
 
-The canonical execution path for one invocation against a recurrence
-declaration. Replaces the Phase 2 thin adapter that delegated to
-`task_pipeline.execute_task` by slug.
+ONE dispatch path. Per ADR-261 D3, the scheduler walks recurrences in
+``/workspace/_recurrences.yaml`` and for each due (and not paused) entry
+calls ``dispatch(client, user_id, recurrence)``. Per ADR-260 D1, this
+function invokes the Reviewer with the recurrence's ``prompt`` as the
+addressed-equivalent envelope; the Reviewer's real-time loop then runs.
 
-Architectural posture (chat-as-layer per FOUNDATIONS Axiom 9):
+There is no shape branching. There is no agent resolution at the
+dispatcher level. There is no per-shape substrate writer. The Reviewer's
+loop directs work via tool calls — including specialist sub-LLM-calls
+through DispatchSpecialist (per ADR-261 D7, landing in Phase C.2) and
+self-scheduling through Schedule (per ADR-261 §3 / Phase A.3).
 
-  Every invocation emits a narrative entry first. Substrate writes are
-  a property of the work, not the legibility surface. The chat scroll
-  is the workspace's stream of consciousness — system outputs land with
-  `authored_by: system:dispatcher`, agent work with `authored_by:
-  agent:<slug>` / `reviewer:<identity>`. Filtering by Identity works
-  uniformly for systemic + custom Agents (per ADR-231 D11).
+Per ADR-260 D2 there are three triggers:
+  - "addressed"  operator addressed the Reviewer (chat path, not the
+                  scheduler — the scheduler always uses "scheduled")
+  - "reactive"   external event requires Reviewer judgment (proposal
+                  arrived; outcome reconciliation produced a high-impact
+                  event). Caller passes ``trigger="reactive"``.
+  - "scheduled"  cron poked the Reviewer with a recurrence's prompt
+                  (default for scheduler-driven dispatch)
 
-Four shape branches:
-
-  DELIVERABLE  ─┐
-                ├── _dispatch_generative  (Sonnet generation; output to
-  ACCUMULATION ─┘                          natural-home substrate;
-                                           agent writes entity files via tools)
-
-  ACTION       ─── _dispatch_action       (platform side-effect via
-                                           target_capability tool;
-                                           narrative is the surface)
-
-  MAINTENANCE  ─── _dispatch_maintenance  (dotted-path executor; appends
-                                           to /workspace/_shared/back-
-                                           office-audit.md per ADR-231 D2)
-
-Substrate writes:
-
-  All paths resolved via services.recurrence_paths.resolve_paths(decl).
-  No slug-rooted I/O. No /tasks/{slug}/ filesystem touched.
-
-  Output substrate per shape:
-    DELIVERABLE   → /workspace/reports/{slug}/{date}/output.md (+ manifest.json)
-    ACCUMULATION  → agent writes entity files inside /workspace/context/{domain}/
-                    via tool rounds; dispatcher does NOT write a per-firing
-                    output file — there isn't one.
-    ACTION        → no filesystem output (platform write IS the work);
-                    outcome reconciliation per ADR-195 writes to domain
-                    _performance.md asynchronously.
-    MAINTENANCE   → append entry to /workspace/_shared/back-office-audit.md.
-
-Run-log discipline (per ADR-231 D10):
-  - DELIVERABLE → /workspace/reports/{slug}/_run_log.md (per-decl)
-  - ACCUMULATION → /workspace/context/{domain}/_run_log.md (per-domain shared)
-  - ACTION → /workspace/operations/{slug}/_run_log.md (per-decl)
-  - MAINTENANCE → audit log doubles as run log.
-
-Failure discipline:
-
-  Returns `{success: bool, ...}` always — the contract from Phase 2 is
-  preserved. On failure: narrative entry still emits (with weight=routine,
-  failure summary), substrate is left clean, scheduler index is updated
-  to reflect last_run_at.
+Per ADR-260 D3 cron has one use: wake the Reviewer with a prompt. The
+recurrence's ``prompt`` is what reaches the Reviewer; the dispatcher
+adds no template, no per-shape envelope, no path injection.
 
 Cost gating:
+  - Balance check (ADR-172) at dispatch entry; exit early on exhaustion.
+  - Daily spend ceiling (ADR-250 Phase 3); exit early on scheduled
+    triggers when ceiling reached, warn-but-proceed on manual triggers.
 
-  Balance check (ADR-172) at dispatch entry — exits early on exhaustion.
-  Capability gate (ADR-207 P3) at dispatch entry — exits early on missing
-  required capabilities. Both emit narrative entries explaining the skip
-  so the operator sees them in chat.
+Failure discipline:
+  Returns ``{success: bool, ...}`` always. On failure: narrative entry
+  emits with a system-role bubble describing the failure; the scheduler
+  index advances next_run_at so on-demand recurrences don't get stuck.
 """
 
 from __future__ import annotations
 
-import importlib
-import json as _json
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 try:
@@ -79,9 +49,12 @@ try:
 except ImportError:
     _SENTRY_AVAILABLE = False
 
-from services.recurrence import RecurrenceDeclaration, RecurrenceShape
-from services.recurrence_paths import resolve_paths, ResolvedPaths
-from services.telemetry import record_execution_event, get_daily_spend, DAILY_SPEND_CEILING_USD
+from services.recurrence import Recurrence
+from services.telemetry import (
+    record_execution_event,
+    get_daily_spend,
+    DAILY_SPEND_CEILING_USD,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -94,1312 +67,253 @@ logger = logging.getLogger(__name__)
 async def dispatch(
     client,
     user_id: str,
-    decl: RecurrenceDeclaration,
+    recurrence: Recurrence,
     *,
+    trigger: str = "scheduled",
     context: Optional[str] = None,
 ) -> dict:
-    """Fire one invocation against a recurrence declaration.
+    """Fire one Reviewer invocation against a recurrence.
+
+    Per ADR-260 D1 + ADR-261 D3: invoke the Reviewer with
+    ``recurrence.prompt`` as the addressed-equivalent envelope. The
+    Reviewer's real-time loop runs synchronously to completion.
 
     Args:
         client: Supabase service client
-        user_id: User UUID
-        decl: parsed RecurrenceDeclaration to fire
-        context: optional one-shot steering for this firing (does NOT
-                 mutate the declaration; informs only this invocation)
+        user_id: Workspace owner UUID
+        recurrence: parsed Recurrence to fire
+        trigger: per ADR-260 D2 — one of "scheduled" (default; cron poke),
+                 "reactive" (external event), or "addressed" (operator
+                 addressed the Reviewer; rarely used here — chat surfaces
+                 invoke the Reviewer directly).
+        context: optional one-shot steering for this firing (appended to
+                 the prompt). Does not mutate the recurrence record.
 
     Returns:
-        Result dict with at minimum `{success: bool, shape, slug,
-        declaration_path, ...}`.
+        ``{success: bool, slug, trigger, message, ...}`` — at minimum.
+        ``actions_taken`` and ``proposals`` populated when the Reviewer's
+        loop produced them.
     """
-    if decl.paused:
-        return _result_paused(decl)
+    if recurrence.paused:
+        return _result_paused(recurrence, trigger)
 
     started_at = datetime.now(timezone.utc)
-    paths = resolve_paths(decl, started_at=started_at)
 
-    # ADR-250: tag Sentry scope so any exception from this invocation carries context
+    # ADR-250: tag Sentry scope so any exception carries context
     if _SENTRY_AVAILABLE:
         with _sentry.configure_scope() as scope:
             scope.set_user({"id": user_id})
-            scope.set_tag("task_slug", decl.slug)
-            scope.set_tag("shape", decl.shape.value)
+            scope.set_tag("recurrence_slug", recurrence.slug)
+            scope.set_tag("trigger", trigger)
 
-    logger.info(
-        "[DISPATCH] %s/%s start (decl=%s)",
-        decl.shape.value,
-        decl.slug,
-        decl.declaration_path,
-    )
+    logger.info("[DISPATCH] %s/%s start (trigger=%s)", user_id[:8], recurrence.slug, trigger)
 
-    # Capability gate (ADR-207 P3) — applies to every shape.
-    capability_check = _check_capabilities(client, user_id, decl)
-    if capability_check is not None:
-        await _emit_narrative(
-            client,
-            user_id,
-            decl,
-            role="system",
-            summary=f"{decl.slug} skipped: capability unavailable",
-            body=capability_check,
-            pulse=_pulse_for_decl(decl),
-            weight="routine",
-            paths=paths,
+    # ---- Balance gate (ADR-172) ----
+    try:
+        from services.platform_limits import check_balance
+        balance_ok, _balance = check_balance(client, user_id)
+    except Exception as e:
+        logger.warning("[DISPATCH] balance check failed (proceeding): %s", e)
+        balance_ok = True
+
+    if not balance_ok:
+        await _emit_system_narrative(
+            client, user_id, recurrence,
+            summary=f"{recurrence.slug} skipped: balance exhausted",
+            trigger=trigger,
         )
         record_execution_event(
-            client, user_id=user_id, slug=decl.slug,
-            shape=decl.shape.value,
-            trigger_type="scheduled" if decl.schedule else "manual",
-            status="failed", error_reason="capability_unavailable",
-            error_detail=capability_check[:2000],
+            client, user_id=user_id, slug=recurrence.slug,
+            shape="recurrence",  # ADR-261: shape is no longer a discriminator
+            trigger_type=trigger,
+            status="failed", error_reason="balance_exhausted",
         )
-        return _result_failed(decl, capability_check, paths=paths)
+        return _result_failed(recurrence, "balance exhausted", trigger=trigger)
 
-    # ADR-250 Phase 3: daily spend guard — generative shapes only, scheduled triggers.
-    # Maintenance is always exempt (zero LLM cost). Manual triggers warn but don't block.
-    if decl.shape not in (RecurrenceShape.MAINTENANCE,):
-        trigger_type = "scheduled" if decl.schedule else "manual"
+    # ---- Daily spend ceiling (ADR-250 Phase 3) ----
+    try:
         daily_spend = get_daily_spend(client, user_id)
-        if daily_spend >= DAILY_SPEND_CEILING_USD:
-            warning = (
-                f"Daily spend ceiling reached (${daily_spend:.2f} / "
-                f"${DAILY_SPEND_CEILING_USD:.2f}). {decl.slug} skipped."
+    except Exception:
+        daily_spend = 0.0
+
+    if daily_spend >= DAILY_SPEND_CEILING_USD:
+        warning = (
+            f"Daily spend ceiling reached (${daily_spend:.2f} / "
+            f"${DAILY_SPEND_CEILING_USD:.2f}). {recurrence.slug} skipped."
+        )
+        logger.warning("[DISPATCH] %s", warning)
+        if trigger == "scheduled":
+            await _emit_system_narrative(
+                client, user_id, recurrence,
+                summary=f"Spend ceiling reached — {recurrence.slug} skipped",
+                body=(
+                    f"{recurrence.slug} was due but today's spend "
+                    f"(${daily_spend:.2f}) has reached the daily ceiling "
+                    f"(${DAILY_SPEND_CEILING_USD:.2f}). Run skipped. "
+                    f"Resets at midnight UTC."
+                ),
+                trigger=trigger,
             )
-            logger.warning("[DISPATCH] %s", warning)
-            if trigger_type == "scheduled":
-                await _emit_narrative(
-                    client, user_id, decl,
-                    role="system",
-                    summary=f"Spend ceiling reached — {decl.slug} skipped",
-                    body=(
-                        f"{decl.slug} was due but today's spend "
-                        f"(${daily_spend:.2f}) has reached the daily ceiling "
-                        f"(${DAILY_SPEND_CEILING_USD:.2f}). Run skipped. "
-                        f"Resets at midnight UTC. Adjust DAILY_SPEND_CEILING_USD to change the limit."
-                    ),
-                    pulse=_pulse_for_decl(decl),
-                    weight="routine",
-                    paths=paths,
-                )
-                record_execution_event(
-                    client, user_id=user_id, slug=decl.slug,
-                    shape=decl.shape.value, trigger_type=trigger_type,
-                    status="skipped", error_reason="spend_ceiling",
-                    error_detail=warning,
-                )
-                return _result_failed(decl, warning, paths=paths)
-            else:
-                # Manual trigger: warn but proceed
-                await _emit_narrative(
-                    client, user_id, decl,
-                    role="system",
-                    summary=f"Spend ceiling warning — {decl.slug} running (manual)",
-                    body=f"Daily ceiling ${DAILY_SPEND_CEILING_USD:.2f} reached, but running anyway (manual trigger). Today: ${daily_spend:.2f}.",
-                    pulse=_pulse_for_decl(decl),
-                    weight="routine",
-                    paths=paths,
-                )
+            record_execution_event(
+                client, user_id=user_id, slug=recurrence.slug,
+                shape="recurrence", trigger_type=trigger,
+                status="skipped", error_reason="spend_ceiling",
+                error_detail=warning,
+            )
+            return _result_failed(recurrence, warning, trigger=trigger)
+        else:
+            # Manual trigger: warn but proceed
+            await _emit_system_narrative(
+                client, user_id, recurrence,
+                summary=f"Spend ceiling warning — {recurrence.slug} running (manual)",
+                body=f"Daily ceiling ${DAILY_SPEND_CEILING_USD:.2f} reached, but running anyway (manual trigger). Today: ${daily_spend:.2f}.",
+                trigger=trigger,
+            )
+
+    # ---- Build the Reviewer prompt envelope ----
+    # Per ADR-261 D1: the recurrence's prompt IS what reaches the Reviewer.
+    # We add only optional one-shot context (FireInvocation steering).
+    prompt = recurrence.prompt
+    if context and context.strip():
+        prompt = (
+            f"{prompt}\n\n"
+            f"## One-shot steering (this firing only)\n{context.strip()}"
+        )
+
+    # ---- Invoke the Reviewer ----
+    # Per ADR-260 D1: synchronous real-time tool-use loop. The Reviewer's
+    # loop blocks until ReturnVerdict (or round bound).
+    try:
+        from agents.reviewer_agent import invoke_reviewer
+    except ImportError as e:
+        logger.exception("[DISPATCH] reviewer_agent not importable: %s", e)
+        return _result_failed(recurrence, f"reviewer_agent unavailable: {e}", trigger=trigger)
 
     try:
-        if decl.shape == RecurrenceShape.MAINTENANCE:
-            result = await _dispatch_maintenance(
-                client, user_id, decl, paths, started_at=started_at
-            )
-        elif decl.shape == RecurrenceShape.ACTION:
-            result = await _dispatch_action(
-                client, user_id, decl, paths,
-                started_at=started_at, context=context,
-            )
-        else:
-            # DELIVERABLE + ACCUMULATION share the same generation path
-            result = await _dispatch_generative(
-                client, user_id, decl, paths,
-                started_at=started_at, context=context,
-            )
-
-        # ADR-260 D4: heartbeat trigger deleted. Mid-loop continuation is the natural
-        # shape of a real-time tool-use loop, not a separate trigger. Cron wake-ups are
-        # the `scheduled` trigger in `_TRIGGER_FRAMING`. Authored Substrate (ADR-209) is
-        # the cross-session continuity record.
-        return result
-    except Exception as exc:
-        logger.exception(
-            "[DISPATCH] %s/%s failed: %s", decl.shape.value, decl.slug, exc
+        reviewer_output = await invoke_reviewer(
+            client=client,
+            user_id=user_id,
+            trigger=trigger,
+            context={
+                "prompt": prompt,
+                "slug": recurrence.slug,
+                "options": dict(recurrence.options) if recurrence.options else {},
+            },
         )
+    except Exception as exc:
+        logger.exception("[DISPATCH] %s/%s reviewer raised: %s", user_id[:8], recurrence.slug, exc)
         if _SENTRY_AVAILABLE:
             _sentry.capture_exception(exc)
         duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
         record_execution_event(
-            client, user_id=user_id, slug=decl.slug,
-            shape=decl.shape.value,
-            trigger_type="scheduled" if decl.schedule else "manual",
+            client, user_id=user_id, slug=recurrence.slug,
+            shape="recurrence", trigger_type=trigger,
             status="failed", error_reason="exception",
-            error_detail=str(exc),
-            duration_ms=duration_ms,
+            error_detail=str(exc), duration_ms=duration_ms,
         )
-        await _emit_narrative(
-            client,
-            user_id,
-            decl,
-            role="system",
-            summary=f"{decl.slug} failed",
-            body=f"Unhandled dispatcher error: {exc}",
-            pulse=_pulse_for_decl(decl),
-            weight="routine",
-            paths=paths,
+        await _emit_system_narrative(
+            client, user_id, recurrence,
+            summary=f"{recurrence.slug} failed",
+            body=f"Reviewer invocation raised: {exc}",
+            trigger=trigger,
         )
-        return _result_failed(decl, str(exc), paths=paths)
+        return _result_failed(recurrence, str(exc), trigger=trigger)
 
-
-# ---------------------------------------------------------------------------
-# Branch: generative (DELIVERABLE + ACCUMULATION)
-# ---------------------------------------------------------------------------
-
-
-async def _dispatch_generative(
-    client,
-    user_id: str,
-    decl: RecurrenceDeclaration,
-    paths: ResolvedPaths,
-    *,
-    started_at: datetime,
-    context: Optional[str],
-) -> dict:
-    """Run Sonnet generation against the declaration.
-
-    DELIVERABLE: writes one cohesive output.md to /workspace/reports/{slug}/{date}/.
-    ACCUMULATION: agent writes entity files inside the domain via tool rounds;
-                  no per-firing output file (the entities ARE the output).
-
-    Both shapes share:
-      - context gathering from declaration's context_reads
-      - mandate gate
-      - balance gate
-      - Sonnet generation via existing _generate
-      - narrative emission
-      - run log append
-    """
-    from services.platform_limits import check_balance, record_token_usage
-    from services.dispatch_helpers import (
-        _load_user_context,
-        _generate,
-        build_task_execution_prompt,
-        gather_task_context,
-    )
-    from services.schedule_utils import get_user_timezone
-    from services.agent_creation import (
-        ensure_infrastructure_agent,
-        resolve_infra_role_from_ref,
-    )
-    from services.agent_execution import (
-        SONNET_MODEL,
-        _extract_agent_reflection,
-        create_version_record,
-        get_next_run_number,
-        update_version_for_delivery,
-    )
-    from services.workspace import AgentWorkspace, UserMemory
-
-    # ---- Empty-state special cases (ADR-161 / ADR-204) ----
-    # daily-update + maintain-overview short-circuit when the workspace has
-    # no other accumulated substrate. Operator gets a deterministic artifact;
-    # zero LLM cost.
-    if decl.slug in ("daily-update", "maintain-overview"):
-        empty_result = await _maybe_empty_state(
-            client, user_id, decl, paths, started_at=started_at
-        )
-        if empty_result is not None:
-            return empty_result
-
-    # ---- Balance gate (ADR-172) ----
-    try:
-        balance_ok, balance = check_balance(client, user_id)
-    except Exception as e:
-        logger.warning("[DISPATCH] balance check failed (proceeding): %s", e)
-        balance_ok = True
-    if not balance_ok:
-        await _emit_narrative(
-            client, user_id, decl,
-            role="system",
-            summary=f"{decl.slug} skipped: balance exhausted",
-            pulse=_pulse_for_decl(decl),
-            weight="routine",
-            paths=paths,
-        )
-        record_execution_event(
-            client, user_id=user_id, slug=decl.slug,
-            shape=decl.shape.value,
-            trigger_type="scheduled" if decl.schedule else "manual",
-            status="failed", error_reason="balance_exhausted",
-        )
-        return _result_failed(decl, "balance exhausted", paths=paths)
-
-    # ---- Resolve agent ----
-    # Declaration's `agents:` is the assignment list. First entry is the
-    # generation lead. Universal-role agents lazy-create on first dispatch.
-    agent_ref = decl.agents[0] if decl.agents else None
-    if not agent_ref:
-        msg = f"declaration {decl.slug} has no agent assigned"
-        await _emit_narrative(
-            client, user_id, decl,
-            role="system", summary=msg,
-            pulse=_pulse_for_decl(decl), weight="routine", paths=paths,
-        )
-        record_execution_event(
-            client, user_id=user_id, slug=decl.slug,
-            shape=decl.shape.value,
-            trigger_type="scheduled" if decl.schedule else "manual",
-            status="failed", error_reason="exception", error_detail=msg,
-        )
-        return _result_failed(decl, msg, paths=paths)
-
-    agent = await _resolve_agent(client, user_id, agent_ref)
-    if agent is None:
-        msg = f"agent '{agent_ref}' not found and could not be ensured"
-        await _emit_narrative(
-            client, user_id, decl,
-            role="system", summary=f"{decl.slug} failed: {msg}",
-            pulse=_pulse_for_decl(decl), weight="routine", paths=paths,
-        )
-        record_execution_event(
-            client, user_id=user_id, slug=decl.slug,
-            shape=decl.shape.value,
-            trigger_type="scheduled" if decl.schedule else "manual",
-            status="failed", error_reason="exception", error_detail=msg,
-        )
-        return _result_failed(decl, msg, paths=paths)
-
-    agent_id = agent["id"]
-    agent_slug = agent["slug"]
-    role = agent.get("role", "custom")
-    scope = agent.get("scope", "cross_platform")
-
-    # ---- Maintenance early-out: TP-class agents route through dotted executor.
-    # In the generative branch we should never see thinking_partner. If we do,
-    # the declaration is mis-classified — surface and fail.
-    if role == "thinking_partner":
-        msg = (
-            f"{decl.slug}: TP-class agent assigned to non-MAINTENANCE shape "
-            f"({decl.shape.value}); declaration is mis-classified"
-        )
-        await _emit_narrative(
-            client, user_id, decl,
-            role="system", summary=msg,
-            pulse=_pulse_for_decl(decl), weight="routine", paths=paths,
-        )
-        record_execution_event(
-            client, user_id=user_id, slug=decl.slug,
-            shape=decl.shape.value,
-            trigger_type="scheduled" if decl.schedule else "manual",
-            status="failed", error_reason="exception", error_detail=msg,
-        )
-        return _result_failed(decl, msg, paths=paths)
-
-    user_timezone = get_user_timezone(client, user_id)
-
-    # ---- Build task_info shape from declaration ----
-    # Existing helpers (gather_task_context, build_task_execution_prompt,
-    # _generate) take a `task_info` dict. We synthesize that dict from the
-    # declaration's data + paths so we can reuse the helpers without
-    # rewriting them. This is the bridge between YAML-native declarations
-    # and the survivor pipeline functions, which dies with task_pipeline.py
-    # in 3.7 — at which point those helpers live in this dispatcher and the
-    # bridge becomes inline.
-    task_info = _decl_to_task_info(decl)
-
-    # ---- Read declaration substrate (feedback, steering, intent) ----
-    um = UserMemory(client, user_id)
-
-    deliverable_spec = ""  # ADR-231 D5: deliverable spec for produces_deliverable
-    # comes from the decl YAML's `deliverable:` block, surfaced through task_info
-    if decl.shape == RecurrenceShape.DELIVERABLE:
-        deliverable = decl.data.get("deliverable") or {}
-        if deliverable:
-            deliverable_spec = _format_deliverable_spec(deliverable)
-
-    steering_notes = ""
-    if paths.steering_path:
-        steering_notes = await _read_workspace_path(um, paths.steering_path) or ""
-
-    feedback_raw = ""
-    if paths.feedback_path:
-        feedback_raw = await _read_workspace_path(um, paths.feedback_path) or ""
-    task_feedback = _extract_recent_feedback(feedback_raw, max_entries=3)
-
-    # ADR-231 D2: optional operator-prose context
-    intent_prose = ""
-    if paths.intent_path:
-        intent_prose = await _read_workspace_path(um, paths.intent_path) or ""
-
-    # Optional: one-shot steering passed in this firing (FireInvocation
-    # context= argument). Layered on top of authored steering.
-    if context:
-        steering_notes = (
-            (steering_notes + "\n\n" if steering_notes else "")
-            + f"## One-shot steering (this firing only)\n{context.strip()}"
-        )
-
-    # ---- Mandate gate (ADR-207) — non-fatal but surfaced ----
-    # Reading the mandate is part of every invocation so the operator-
-    # authored standing intent is in scope. Empty mandate is allowed
-    # post-ADR-205; missing mandate is a system smell but doesn't block.
-
-    # ---- Gather context ----
-    try:
-        context_text, _context_meta = await gather_task_context(
-            client, user_id, agent, agent_slug,
-            task_info=task_info,
-            task_slug=decl.slug,  # label only — gather_task_context uses it for awareness reads
-        )
-    except Exception as e:
-        logger.warning("[DISPATCH] gather_task_context failed (continuing with empty): %s", e)
-        context_text = "(No context available)"
-
-    user_context = _load_user_context(client, user_id)
-
-    # Agent workspace identity (AGENT.md)
-    ws = AgentWorkspace(client, user_id, agent_slug)
-    await ws.ensure_seeded(agent)
-    ws_instructions = await ws.read("AGENT.md") or ""
-
-    # ---- Audit: create agent_runs row (run number + reservation) ----
-    next_version = await get_next_run_number(client, agent_id)
-    version = await create_version_record(client, agent_id, next_version)
-    version_id = version["id"]
-
-    # ---- Natural-home pre-read (ADR-233 Phase 2) ----
-    # Every generative shape pre-reads its natural-home folder before writing.
-    # DELIVERABLE → latest output.md from /workspace/reports/{slug}/{date}/
-    # ACCUMULATION → entity inventory + landscape.md from /workspace/context/{domain}/
-    # ACTION → pending operation state from /workspace/operations/{slug}/
-    # Returns None on first runs / empty folders; the posture frames the absence.
-    from services.dispatch_helpers import _load_natural_home_brief
-    natural_home_brief = await _load_natural_home_brief(client, user_id, decl) or ""
-
-    # ---- Build prompt ----
-    # ADR-233 Phase 1: cognitive posture is shape-keyed, not mode-keyed. The
-    # `shape` parameter selects the headless profile posture (DELIVERABLE /
-    # ACCUMULATION / ACTION). MAINTENANCE never reaches this code path
-    # (dotted-executor branch routes around _dispatch_generative).
-    # ADR-233 Phase 2: `natural_home_brief` carries the shape-keyed pre-read.
-    system_prompt, user_message = build_task_execution_prompt(
-        task_info=task_info,
-        agent=agent,
-        agent_instructions=ws_instructions,
-        context=context_text,
-        user_context=user_context,
-        deliverable_spec=deliverable_spec,
-        steering_notes=steering_notes,
-        task_feedback=task_feedback,
-        shape=decl.shape.value,
-        natural_home_brief=natural_home_brief,
-        prior_state_brief=intent_prose,  # operator prose stands in for prior-state for 3.2.b
-        task_phase="steady",
-        generation_brief="",
-    )
-
-    # ---- Tool surface (ADR-182) ----
-    tool_overrides = None
-    max_rounds_override = None
-    output_kind = task_info.get("output_kind", "")
-    if output_kind == "produces_deliverable":
-        from services.primitives.workspace import WRITE_FILE_TOOL
-        from services.primitives.runtime_dispatch import RUNTIME_DISPATCH_TOOL
-        tool_overrides = [WRITE_FILE_TOOL, RUNTIME_DISPATCH_TOOL]
-        max_rounds_override = 2
-
-    # ---- Generate ----
-    required_caps = decl.required_capabilities or []
-    draft, usage, pending_renders, tools_used, tool_rounds = await _generate(
-        client, user_id, agent, system_prompt, user_message, scope,
-        task_phase="steady",
-        task_slug=decl.slug,  # telemetry label
-        output_kind=output_kind,
-        tool_overrides=tool_overrides,
-        max_rounds_override=max_rounds_override,
-        task_required_capabilities=required_caps,
-    )
-
-    # Strip agent reflection (ADR-128/149)
-    draft, agent_reflection = _extract_agent_reflection(draft)
-
-    # ---- Render inline assets (ADR-148) ----
-    rendered_assets = []
-    try:
-        from services.render_assets import render_inline_assets
-        draft, rendered_assets = await render_inline_assets(draft, user_id)
-    except Exception as e:
-        logger.warning("[DISPATCH] inline asset rendering failed (non-fatal): %s", e)
-
-    # ---- Update agent_runs ----
-    version_metadata = {
-        "input_tokens": _total_input_tokens(usage),
-        "output_tokens": usage.get("output_tokens", 0),
-        "cache_read_input_tokens": usage.get("cache_read_input_tokens", 0),
-        "cache_creation_input_tokens": usage.get("cache_creation_input_tokens", 0),
-        "model": SONNET_MODEL,
-        "task_slug": decl.slug,  # label
-        "trigger_type": "scheduled" if decl.schedule else "manual",
-        "tool_rounds": tool_rounds,
-        "tools_used": tools_used,
-    }
-    await update_version_for_delivery(client, version_id, draft, metadata=version_metadata)
-
-    # ---- Write output to natural-home substrate ----
-    # DELIVERABLE: write output.md + manifest.json to natural-home folder.
-    # ACCUMULATION: do not write — agent already wrote entity files via tool rounds.
-    if decl.shape == RecurrenceShape.DELIVERABLE and paths.output_path and paths.output_folder:
-        await _write_deliverable_output(
-            um=um,
-            decl=decl,
-            paths=paths,
-            draft=draft,
-            agent_slug=agent_slug,
-            version_id=str(version_id),
-            version_number=next_version,
-            usage=usage,
-            started_at=started_at,
-        )
-
-    # ---- Run log ----
-    run_log_msg = f"v{next_version} delivered ({tool_rounds} tool rounds)"
-    if agent_reflection:
-        confidence = (agent_reflection.get("output_confidence") or "")
-        level = confidence.split("—")[0].split("–")[0].strip().lower() if confidence else ""
-        if level:
-            run_log_msg += f" | confidence={level}"
-    await _append_run_log(
-        um=um, paths=paths,
-        slug=decl.slug,
-        author=f"agent:{agent_slug}",
-        message=run_log_msg,
-    )
-
-    # ---- Token accounting (ADR-171) ----
-    try:
-        record_token_usage(
-            client, user_id,
-            caller="invocation_dispatcher",
-            model=SONNET_MODEL,
-            input_tokens=version_metadata["input_tokens"],
-            output_tokens=version_metadata["output_tokens"],
-            ref_id=str(version_id),
-            metadata={"slug": decl.slug, "shape": decl.shape.value},
-        )
-    except Exception as e:
-        logger.warning("[DISPATCH] token accounting failed (non-fatal): %s", e)
-
-    # ---- Mark agent_runs delivered ----
-    try:
-        client.table("agent_runs").update({
-            "status": "delivered",
-            "delivered_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", version_id).execute()
-    except Exception as e:
-        logger.warning("[DISPATCH] agent_runs delivered-mark failed: %s", e)
-
-    # ---- Execution telemetry (ADR-250 Phase 2) ----
-    duration_ms_telem = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
-    record_execution_event(
-        client, user_id=user_id, slug=decl.slug,
-        shape=decl.shape.value,
-        trigger_type="scheduled" if decl.schedule else "manual",
-        status="success",
-        tool_rounds=tool_rounds,
-        input_tokens=version_metadata.get("input_tokens"),
-        output_tokens=version_metadata.get("output_tokens"),
-        cache_read_tokens=version_metadata.get("cache_read_input_tokens"),
-        cache_create_tokens=version_metadata.get("cache_creation_input_tokens"),
-        model=version_metadata.get("model", "claude-sonnet-4-6"),
-        duration_ms=duration_ms_telem,
-        agent_run_id=str(version_id),
-    )
-
-    # ---- Narrative emission (ADR-219) ----
     duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
-    output_pointer = paths.output_path or paths.substrate_root
-    summary = _generative_summary(decl, agent, version=next_version)
-
-    # ADR-249 D3: when the agent emitted a proposal, make that the headline
-    # of the narrative entry so the operator sees "proposal pending" paired
-    # with the subsequent Reviewer verdict card — not a generic output pointer.
-    has_proposal = "ProposeAction" in (tools_used or [])
-    if has_proposal:
-        body = (
-            f"Proposal submitted — pending Reviewer judgment.\n"
-            f"Run log at {paths.run_log_path}.\n"
-            f"Duration: {duration_ms}ms · Tool rounds: {tool_rounds}."
-        )
-    else:
-        body = (
-            f"Output at {output_pointer}.\n"
-            f"Run log at {paths.run_log_path}.\n"
-            f"Duration: {duration_ms}ms · Tool rounds: {tool_rounds}."
-        )
-
-    await _emit_narrative(
-        client, user_id, decl,
-        role="agent",
-        summary=summary,
-        body=body,
-        pulse=_pulse_for_decl(decl),
-        weight="material",
-        paths=paths,
-        invocation_id=str(version_id),
-        extra_metadata={
-            "agent_slug": agent_slug,
-            "agent_role": role,
-            "tool_rounds": tool_rounds,
-            "tools_used": tools_used,
-            "has_proposal": has_proposal,
-            "duration_ms": duration_ms,
-            "input_tokens": version_metadata["input_tokens"],
-            "output_tokens": version_metadata["output_tokens"],
-        },
+    record_execution_event(
+        client, user_id=user_id, slug=recurrence.slug,
+        shape="recurrence", trigger_type=trigger,
+        status="success", duration_ms=duration_ms,
     )
+
+    actions_taken = []
+    proposals = []
+    verdict_summary = ""
+    if isinstance(reviewer_output, dict):
+        actions_taken = reviewer_output.get("actions_taken", []) or []
+        proposals = reviewer_output.get("proposals", []) or []
+        verdict_summary = reviewer_output.get("evidence_summary") or reviewer_output.get("verdict") or ""
 
     logger.info(
-        "[DISPATCH] %s/%s complete v%d (%dms)",
-        decl.shape.value, decl.slug, next_version, duration_ms,
+        "[DISPATCH] %s/%s done (%dms) — actions=%d proposals=%d",
+        user_id[:8], recurrence.slug, duration_ms,
+        len(actions_taken), len(proposals),
     )
 
     return {
         "success": True,
-        "shape": decl.shape.value,
-        "slug": decl.slug,
-        "declaration_path": decl.declaration_path,
-        "agent_slug": agent_slug,
-        "run_id": version_id,
-        "version_number": next_version,
-        "status": "delivered",
+        "slug": recurrence.slug,
+        "trigger": trigger,
         "duration_ms": duration_ms,
-        "output_path": paths.output_path,
-        "message": f"v{next_version} delivered",
-    }
-
-
-# ---------------------------------------------------------------------------
-# Branch: action (external_action)
-# ---------------------------------------------------------------------------
-
-
-async def _dispatch_action(
-    client,
-    user_id: str,
-    decl: RecurrenceDeclaration,
-    paths: ResolvedPaths,
-    *,
-    started_at: datetime,
-    context: Optional[str],
-) -> dict:
-    """Fire an external-action declaration.
-
-    Routes through the generative branch (Sonnet plans the action message
-    + emits the platform write tool call). The platform side-effect IS
-    the work; outcome reconciliation per ADR-195 writes to the relevant
-    domain's `_performance.md` asynchronously via the back-office
-    outcome reconciliation job.
-
-    For 3.2.b, this delegates to _dispatch_generative because the agent
-    needs Sonnet to compose the message + invoke the platform tool. The
-    distinguishing characteristic of ACTION at the dispatch layer is
-    substrate semantics (no filesystem output), which the generative
-    branch already honors via paths.output_path is None.
-    """
-    return await _dispatch_generative(
-        client, user_id, decl, paths,
-        started_at=started_at, context=context,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Branch: maintenance (back-office)
-# ---------------------------------------------------------------------------
-
-
-async def _dispatch_maintenance(
-    client,
-    user_id: str,
-    decl: RecurrenceDeclaration,
-    paths: ResolvedPaths,
-    *,
-    started_at: datetime,
-) -> dict:
-    """Fire a back-office maintenance declaration.
-
-    The declaration's `executor:` field names a dotted Python module path.
-    The module's `run(client, user_id, slug)` async function is invoked;
-    its returned dict is appended as one entry to the shared audit log
-    `/workspace/_shared/back-office-audit.md` per ADR-231 D2.
-
-    Back-office work does NOT consume balance, does NOT create agent_runs
-    rows, and does NOT go through Sonnet generation. It's deterministic
-    Python.
-    """
-    from services.workspace import UserMemory
-
-    executor_path = decl.executor
-    if not executor_path:
-        msg = f"maintenance declaration {decl.slug} missing executor:"
-        await _emit_narrative(
-            client, user_id, decl,
-            role="system", summary=msg,
-            pulse=_pulse_for_decl(decl), weight="routine", paths=paths,
-        )
-        return _result_failed(decl, msg, paths=paths)
-
-    try:
-        module = importlib.import_module(executor_path)
-    except ImportError as e:
-        msg = f"executor module not importable: {executor_path} ({e})"
-        await _emit_narrative(
-            client, user_id, decl,
-            role="system", summary=f"{decl.slug} failed: {msg}",
-            pulse=_pulse_for_decl(decl), weight="routine", paths=paths,
-        )
-        return _result_failed(decl, msg, paths=paths)
-
-    if not hasattr(module, "run") or not callable(module.run):
-        msg = f"executor {executor_path} missing async run(client, user_id, slug)"
-        await _emit_narrative(
-            client, user_id, decl,
-            role="system", summary=f"{decl.slug} failed: {msg}",
-            pulse=_pulse_for_decl(decl), weight="routine", paths=paths,
-        )
-        return _result_failed(decl, msg, paths=paths)
-
-    logger.info("[DISPATCH:MAINT] %s → %s", decl.slug, executor_path)
-
-    try:
-        result = await module.run(client, user_id, decl.slug)
-    except Exception as e:
-        msg = f"executor {executor_path} raised: {e}"
-        logger.exception("[DISPATCH:MAINT] executor raised")
-        await _emit_narrative(
-            client, user_id, decl,
-            role="system", summary=f"{decl.slug} failed",
-            body=msg,
-            pulse=_pulse_for_decl(decl), weight="routine", paths=paths,
-        )
-        return _result_failed(decl, msg, paths=paths)
-
-    if not isinstance(result, dict) or "output_markdown" not in result:
-        msg = (
-            f"executor {executor_path} returned invalid shape "
-            "(expected dict with 'output_markdown')"
-        )
-        await _emit_narrative(
-            client, user_id, decl,
-            role="system", summary=f"{decl.slug} failed: invalid result",
-            body=msg,
-            pulse=_pulse_for_decl(decl), weight="routine", paths=paths,
-        )
-        return _result_failed(decl, msg, paths=paths)
-
-    summary = result.get("summary", "Back office task completed")
-    output_markdown = result["output_markdown"]
-    actions_taken = result.get("actions_taken", []) or []
-
-    # Append to shared audit log (the audit log doubles as run log per D10)
-    um = UserMemory(client, user_id)
-    audit_entry = _format_audit_entry(
-        slug=decl.slug,
-        executor=executor_path,
-        summary=summary,
-        actions_taken=actions_taken,
-        output_markdown=output_markdown,
-        started_at=started_at,
-    )
-    await _append_audit_log(um, paths.run_log_path, audit_entry)
-
-    duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
-
-    # Narrative — routine weight (back-office is housekeeping)
-    await _emit_narrative(
-        client, user_id, decl,
-        role="system",
-        summary=f"back-office: {summary}",
-        body=(
-            f"Executor: {executor_path}\n"
-            f"Actions: {len(actions_taken)}\n"
-            f"Audit log: {paths.run_log_path}"
-        ),
-        pulse=_pulse_for_decl(decl),
-        weight="housekeeping",
-        paths=paths,
-        extra_metadata={
-            "executor": executor_path,
-            "actions_taken_count": len(actions_taken),
-            "duration_ms": duration_ms,
-        },
-    )
-
-    logger.info("[DISPATCH:MAINT] %s done (%dms) — %s", decl.slug, duration_ms, summary)
-
-    return {
-        "success": True,
-        "shape": decl.shape.value,
-        "slug": decl.slug,
-        "declaration_path": decl.declaration_path,
-        "executor": executor_path,
-        "summary": summary,
         "actions_taken": actions_taken,
-        "duration_ms": duration_ms,
-        "message": summary,
+        "proposals": proposals,
+        "summary": verdict_summary or f"{recurrence.slug} completed",
+        "message": verdict_summary or f"{recurrence.slug} completed",
     }
 
 
 # ---------------------------------------------------------------------------
-# Empty-state special cases (ADR-161 / ADR-204)
+# Narrative emission — shared system-role surface
 # ---------------------------------------------------------------------------
 
 
-async def _maybe_empty_state(
+async def _emit_system_narrative(
     client,
     user_id: str,
-    decl: RecurrenceDeclaration,
-    paths: ResolvedPaths,
+    recurrence: Recurrence,
     *,
-    started_at: datetime,
-) -> Optional[dict]:
-    """If the workspace is empty, short-circuit with a deterministic template.
-
-    Only daily-update + maintain-overview have empty-state branches. Returns
-    None for all other slugs (caller proceeds with normal generation) or
-    when the workspace has accumulated substrate.
-    """
-    if decl.slug not in ("daily-update", "maintain-overview"):
-        return None
+    summary: str,
+    body: str = "",
+    trigger: str,
+) -> None:
+    """Emit a system-role narrative entry for dispatcher-level events
+    (skip / failure / spend-ceiling). Reviewer-bubble narration of the
+    actual work happens inside the Reviewer's loop, not here."""
+    try:
+        from services.narrative import write_narrative_entry
+    except ImportError:
+        logger.warning("[DISPATCH] narrative module unavailable; skipping entry")
+        return
 
     try:
-        from services.dispatch_helpers import _is_workspace_empty_for_daily_update
-        is_empty = await _is_workspace_empty_for_daily_update(client, user_id)
+        await write_narrative_entry(
+            client,
+            user_id=user_id,
+            role="system",
+            summary=summary,
+            body=body or summary,
+            authored_by="system:dispatcher",
+            metadata={
+                "recurrence_slug": recurrence.slug,
+                "trigger": trigger,
+            },
+        )
     except Exception as e:
-        logger.warning("[DISPATCH] empty-state check failed (proceeding): %s", e)
-        return None
+        logger.warning("[DISPATCH] narrative emit failed: %s", e)
 
-    if not is_empty:
-        return None
 
-    from services.dispatch_helpers import (
-        _execute_daily_update_empty_state,
-        _execute_maintain_overview_empty_state,
-    )
-    from services.schedule_utils import get_user_timezone
+# ---------------------------------------------------------------------------
+# Result helpers
+# ---------------------------------------------------------------------------
 
-    user_timezone = get_user_timezone(client, user_id)
-    if decl.slug == "daily-update":
-        legacy_result = await _execute_daily_update_empty_state(
-            client, user_id, started_at, user_timezone=user_timezone
-        )
-    else:  # maintain-overview
-        legacy_result = await _execute_maintain_overview_empty_state(
-            client, user_id, started_at
-        )
 
-    # Empty-state writers append their own narrative entry; do not double-emit.
+def _result_paused(recurrence: Recurrence, trigger: str) -> dict:
     return {
         "success": True,
-        "shape": decl.shape.value,
-        "slug": decl.slug,
-        "declaration_path": decl.declaration_path,
-        "status": "delivered_empty_state",
-        "message": legacy_result.get("message", "empty-state template delivered"),
+        "slug": recurrence.slug,
+        "trigger": trigger,
+        "skipped": True,
+        "message": f"recurrence {recurrence.slug} is paused",
     }
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _decl_to_task_info(decl: RecurrenceDeclaration) -> dict:
-    """Synthesize the legacy task_info dict shape from a RecurrenceDeclaration.
-
-    Bridge for survivor helpers (gather_task_context, build_task_execution_prompt,
-    _generate) that take a `task_info` dict. Dies in 3.7 when those helpers
-    are absorbed inline.
-    """
-    output_kind = _output_kind_for_shape(decl.shape)
-    return {
-        "title": decl.display_name or decl.slug,
-        "slug": decl.slug,
-        "objective": {"prose": decl.objective or ""},
-        "agent_slug": decl.agents[0] if decl.agents else "",
-        "context_reads": decl.context_reads,
-        "context_writes": decl.context_writes,
-        "required_capabilities": decl.required_capabilities,
-        "schedule": decl.schedule or "",
-        "mode": decl.data.get("mode") or _default_mode_for_shape(decl.shape),
-        "output_kind": output_kind,
-        "page_structure": decl.data.get("page_structure"),
-        "surface_type": decl.data.get("surface_type"),
-        "delivery": decl.data.get("delivery", ""),
-        "sources": decl.data.get("sources") or {},
-        "process_steps": [
-            {
-                "agent_ref": decl.agents[0] if decl.agents else "",
-                "instruction": decl.data.get("instruction") or decl.objective or "",
-            }
-        ],
-        "commerce": decl.data.get("commerce") or {},
-    }
-
-
-def _output_kind_for_shape(shape: RecurrenceShape) -> str:
-    """Map RecurrenceShape → legacy output_kind enum value."""
-    return {
-        RecurrenceShape.DELIVERABLE: "produces_deliverable",
-        RecurrenceShape.ACCUMULATION: "accumulates_context",
-        RecurrenceShape.ACTION: "external_action",
-        RecurrenceShape.MAINTENANCE: "system_maintenance",
-    }[shape]
-
-
-def _default_mode_for_shape(shape: RecurrenceShape) -> str:
-    """Default mode when declaration doesn't specify."""
-    if shape == RecurrenceShape.ACTION:
-        return "reactive"
-    return "recurring"
-
-
-def _pulse_for_decl(decl: RecurrenceDeclaration) -> str:
-    """Map declaration to narrative pulse type per Axiom 4 / ADR-219."""
-    if decl.shape == RecurrenceShape.ACTION:
-        return "reactive"
-    if decl.schedule:
-        return "periodic"
-    return "addressed"
-
-
-def _format_deliverable_spec(deliverable: dict) -> str:
-    """Render the YAML deliverable: block as prompt-friendly markdown."""
-    lines = ["## Deliverable Specification"]
-    if deliverable.get("audience"):
-        lines.append(f"**Audience**: {deliverable['audience']}")
-    if deliverable.get("page_structure"):
-        ps = deliverable["page_structure"]
-        if isinstance(ps, list):
-            lines.append("**Page structure**: " + ", ".join(str(s) for s in ps))
-    if deliverable.get("quality_criteria"):
-        qc = deliverable["quality_criteria"]
-        if isinstance(qc, list):
-            lines.append("**Quality criteria**:")
-            for c in qc:
-                lines.append(f"- {c}")
-    return "\n".join(lines)
-
-
-def _check_capabilities(client, user_id: str, decl: RecurrenceDeclaration) -> Optional[str]:
-    """Return None if all required capabilities are available, else a
-    human-readable error message."""
-    required = decl.required_capabilities
-    if not required:
-        return None
-    try:
-        from services.orchestration import unavailable_capabilities
-        missing = unavailable_capabilities(user_id, required, client)
-    except Exception as e:
-        logger.warning("[DISPATCH] capability check raised (proceeding): %s", e)
-        return None
-    if not missing:
-        return None
-    parts = []
-    for m in missing:
-        if m["reason"] == "unknown_capability":
-            parts.append(f"'{m['capability']}' (unknown)")
-        else:
-            parts.append(
-                f"'{m['capability']}' (connect {m['required_platform']} first)"
-            )
-    return "Required capability unavailable: " + "; ".join(parts)
-
-
-def find_declaration_for_agent(
-    client, user_id: str, agent_slug: str
-) -> Optional[RecurrenceDeclaration]:
-    """Find the recurrence declaration that assigns this agent.
-
-    Walks all of the user's recurrence declarations and returns the first
-    one whose `agents:` list (or `agent:` singular) contains the given
-    slug. Returns None when no declaration assigns this agent.
-
-    Used by routes/agents.py POST /agents/{id}/run and
-    services.trigger_dispatch._dispatch_high to map agent → declaration
-    before dispatching. Replaces the legacy task_pipeline.execute_agent_run
-    which scanned `tasks` rows + parsed every TASK.md to find the
-    agent-task assignment.
-    """
-    from services.recurrence import walk_workspace_recurrences
-
-    decls = walk_workspace_recurrences(client, user_id)
-    for d in decls:
-        # Match against either 'agents' (list) or 'agent' (singular)
-        agents_list = d.agents
-        if agent_slug in agents_list:
-            return d
-    return None
-
-
-async def _resolve_agent(client, user_id: str, agent_ref: str) -> Optional[dict]:
-    """Resolve an agent_ref (slug or role) to an agents row.
-
-    Mirrors the resolution shape from `task_pipeline.execute_task` step 2:
-    1. If ref names an infrastructure role, ensure_infrastructure_agent.
-    2. Otherwise, look up by slug or role in the user's roster.
-    """
-    from services.agent_creation import (
-        ensure_infrastructure_agent,
-        resolve_infra_role_from_ref,
-    )
-
-    infra_role = resolve_infra_role_from_ref(agent_ref)
-    if infra_role:
-        ensured = await ensure_infrastructure_agent(client, user_id, infra_role)
-        if ensured:
-            return ensured
-
-    try:
-        roster = (
-            client.table("agents")
-            .select("*")
-            .eq("user_id", user_id)
-            .execute()
-        )
-    except Exception as e:
-        logger.warning("[DISPATCH] agent roster query failed: %s", e)
-        return None
-    for a in (roster.data or []):
-        if a.get("slug") == agent_ref or a.get("role") == agent_ref:
-            return a
-    return None
-
-
-async def _read_workspace_path(um, absolute_path: str) -> Optional[str]:
-    """Read a workspace_files entry given an absolute /workspace/-prefixed path
-    via the UserMemory abstraction. Returns None on miss or error."""
-    if not absolute_path or not absolute_path.startswith("/workspace/"):
-        return None
-    relative = absolute_path[len("/workspace/"):]
-    try:
-        return await um.read(relative)
-    except Exception:
-        return None
-
-
-async def _write_workspace_path(
-    um,
-    absolute_path: str,
-    content: str,
-    *,
-    authored_by: str,
-    message: str,
-    summary: Optional[str] = None,
-) -> bool:
-    """Write a workspace_files entry given an absolute /workspace/-prefixed path
-    via the UserMemory abstraction (which routes through ADR-209 write_revision)."""
-    if not absolute_path or not absolute_path.startswith("/workspace/"):
-        logger.warning("[DISPATCH] refusing to write non-/workspace/ path: %s", absolute_path)
-        return False
-    relative = absolute_path[len("/workspace/"):]
-    try:
-        return await um.write(
-            relative,
-            content,
-            summary=summary,
-            authored_by=authored_by,
-            message=message,
-        )
-    except Exception as e:
-        logger.error("[DISPATCH] write failed %s: %s", absolute_path, e)
-        return False
-
-
-async def _write_deliverable_output(
-    *,
-    um,
-    decl: RecurrenceDeclaration,
-    paths: ResolvedPaths,
-    draft: str,
-    agent_slug: str,
-    version_id: str,
-    version_number: int,
-    usage: dict,
-    started_at: datetime,
-) -> None:
-    """Write output.md + manifest.json to the natural-home output folder."""
-    if not paths.output_path or not paths.output_folder:
-        return
-
-    # output.md
-    await _write_workspace_path(
-        um,
-        paths.output_path,
-        draft,
-        authored_by=f"agent:{agent_slug}",
-        message=f"produce v{version_number} for {decl.slug}",
-        summary=f"{decl.slug} v{version_number}",
-    )
-
-    # manifest.json — natural-home substrate's per-firing metadata
-    manifest = {
-        "shape": decl.shape.value,
-        "slug": decl.slug,
-        "agent_slug": agent_slug,
-        "version_id": version_id,
-        "version_number": version_number,
-        "created_at": started_at.isoformat(),
-        "declaration_path": decl.declaration_path,
-        "tokens": usage,
-        "files": [
-            {"path": "output.md", "type": "text/markdown", "role": "primary"},
-        ],
-    }
-    manifest_path = f"{paths.output_folder}/manifest.json"
-    await _write_workspace_path(
-        um,
-        manifest_path,
-        _json.dumps(manifest, indent=2),
-        authored_by="system:dispatcher",
-        message=f"manifest for {decl.slug} v{version_number}",
-        summary=f"manifest {decl.slug} v{version_number}",
-    )
-
-
-async def _append_run_log(
-    *,
-    um,
-    paths: ResolvedPaths,
-    slug: str,
-    author: str,
-    message: str,
-) -> None:
-    """Append a single line to the declaration's run log per ADR-231 D10."""
-    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    line = f"- [{timestamp}] [{slug}] {message}"
-    existing = await _read_workspace_path(um, paths.run_log_path) or ""
-    if existing:
-        new_content = existing.rstrip() + "\n" + line + "\n"
-    else:
-        new_content = f"# Run Log\n\n{line}\n"
-    await _write_workspace_path(
-        um, paths.run_log_path, new_content,
-        authored_by=author,
-        message="append run log entry",
-        summary="run log",
-    )
-
-
-async def _append_audit_log(um, audit_path: str, entry: str) -> None:
-    """Append one entry to the shared back-office audit log per ADR-231 D2."""
-    existing = await _read_workspace_path(um, audit_path) or ""
-    if existing:
-        new_content = existing.rstrip() + "\n\n" + entry + "\n"
-    else:
-        new_content = f"# Back Office Audit Log\n\n{entry}\n"
-    await _write_workspace_path(
-        um, audit_path, new_content,
-        authored_by="system:dispatcher",
-        message="back-office audit entry",
-        summary="back-office audit",
-    )
-
-
-def _format_audit_entry(
-    *,
-    slug: str,
-    executor: str,
-    summary: str,
-    actions_taken: list,
-    output_markdown: str,
-    started_at: datetime,
-) -> str:
-    """Render one back-office firing as an audit-log entry."""
-    timestamp = started_at.strftime("%Y-%m-%d %H:%M UTC")
-    lines = [
-        f"## [{timestamp}] {slug}",
-        f"- Executor: `{executor}`",
-        f"- Summary: {summary}",
-    ]
-    if actions_taken:
-        lines.append(f"- Actions: {len(actions_taken)}")
-        for a in actions_taken[:5]:
-            lines.append(f"  - {a}")
-        if len(actions_taken) > 5:
-            lines.append(f"  - ... and {len(actions_taken) - 5} more")
-    if output_markdown:
-        # Inline body trimmed to keep audit log readable; full output discarded
-        # for back-office (the audit log IS the canonical surface per D10).
-        excerpt = output_markdown.strip()
-        if len(excerpt) > 1000:
-            excerpt = excerpt[:1000] + "\n... [truncated]"
-        lines.append("")
-        lines.append(excerpt)
-    return "\n".join(lines)
-
-
-async def _emit_narrative(
-    client,
-    user_id: str,
-    decl: RecurrenceDeclaration,
-    *,
-    role: str,
-    summary: str,
-    body: Optional[str] = None,
-    pulse: str,
-    weight: str,
-    paths: ResolvedPaths,
-    invocation_id: Optional[str] = None,
-    extra_metadata: Optional[dict] = None,
-) -> None:
-    """Emit one narrative entry per ADR-219.
-
-    Identity rules per ADR-231 D11:
-      - role='system' for dispatcher / scheduler / cost-gate messages
-      - role='agent' for persona-bearing agent generation
-      - role='reviewer' for Reviewer judgments
-      - role='external' for MCP-driven invocations
-
-    Provenance entries link operator-clickable substrate paths.
-    """
-    from services.narrative import write_narrative_entry, find_active_workspace_session
-
-    session_id = find_active_workspace_session(client, user_id)
-    if not session_id:
-        logger.warning(
-            "[DISPATCH] no active workspace session for user %s — narrative skipped",
-            user_id[:8] if user_id else "?",
-        )
-        return
-
-    provenance = []
-    if paths.output_path:
-        provenance.append({"path": paths.output_path, "kind": "output"})
-    elif paths.substrate_root:
-        provenance.append({"path": paths.substrate_root, "kind": "substrate_root"})
-    if paths.run_log_path:
-        provenance.append({"path": paths.run_log_path, "kind": "run_log"})
-    if paths.feedback_path:
-        provenance.append({"path": paths.feedback_path, "kind": "feedback"})
-    provenance.append({"path": decl.declaration_path, "kind": "declaration"})
-
-    extra = {"shape": decl.shape.value, "declaration_path": decl.declaration_path}
-    if extra_metadata:
-        extra.update(extra_metadata)
-
-    try:
-        write_narrative_entry(
-            client,
-            session_id,
-            role=role,
-            summary=summary,
-            body=body,
-            pulse=pulse,
-            weight=weight,
-            invocation_id=invocation_id,
-            task_slug=decl.slug,  # ADR-219 D4: declaration slug serves as task_slug label
-            provenance=provenance,
-            extra_metadata=extra,
-        )
-    except Exception as e:
-        logger.warning("[DISPATCH] narrative emission failed (non-fatal): %s", e)
-
-
-def _generative_summary(decl: RecurrenceDeclaration, agent: dict, *, version: int) -> str:
-    """One-line narrative summary for a generative invocation."""
-    title = decl.display_name or decl.slug
-    agent_slug = agent.get("slug", "agent")
-    if decl.shape == RecurrenceShape.DELIVERABLE:
-        return f"{title} delivered v{version} (by {agent_slug})"
-    if decl.shape == RecurrenceShape.ACCUMULATION:
-        return f"{title} accumulated v{version} (by {agent_slug})"
-    if decl.shape == RecurrenceShape.ACTION:
-        return f"{title} fired v{version} (by {agent_slug})"
-    return f"{title} v{version}"
-
-
-def _extract_recent_feedback(feedback_md: str, max_entries: int = 3) -> str:
-    """Extract the last N feedback entries from feedback.md.
-
-    Mirrors task_pipeline._extract_recent_feedback shape; ports here so
-    the dispatcher is self-contained when task_pipeline.py dies in 3.7.
-    """
-    if not feedback_md:
-        return ""
-    blocks = []
-    current: list[str] = []
-    for line in feedback_md.splitlines():
-        if line.startswith("## "):
-            if current:
-                blocks.append("\n".join(current))
-            current = [line]
-        else:
-            if current:
-                current.append(line)
-    if current:
-        blocks.append("\n".join(current))
-    if not blocks:
-        return feedback_md.strip()
-    return "\n\n".join(blocks[-max_entries:])
-
-
-def _total_input_tokens(usage: dict) -> int:
-    """Sum input + cache tokens for accounting parity with task_pipeline."""
-    return (
-        usage.get("input_tokens", 0)
-        + usage.get("cache_read_input_tokens", 0)
-        + usage.get("cache_creation_input_tokens", 0)
-    )
-
-
-# ---------------------------------------------------------------------------
-# Result shapes
-# ---------------------------------------------------------------------------
-
-
-def _result_paused(decl: RecurrenceDeclaration) -> dict:
+def _result_failed(recurrence: Recurrence, message: str, *, trigger: str) -> dict:
     return {
         "success": False,
-        "error": "paused",
-        "message": (
-            f"declaration '{decl.slug}' is paused; cannot dispatch. "
-            f"Use ManageRecurrence(action='resume', ...) to resume."
-        ),
-        "shape": decl.shape.value,
-        "slug": decl.slug,
-        "declaration_path": decl.declaration_path,
-    }
-
-
-def _result_failed(
-    decl: RecurrenceDeclaration,
-    message: str,
-    *,
-    paths: Optional[ResolvedPaths] = None,
-) -> dict:
-    return {
-        "success": False,
-        "error": "dispatch_failed",
+        "slug": recurrence.slug,
+        "trigger": trigger,
         "message": message,
-        "shape": decl.shape.value,
-        "slug": decl.slug,
-        "declaration_path": decl.declaration_path,
-        "output_path": paths.output_path if paths else None,
     }
 
 
-__all__ = ["dispatch", "find_declaration_for_agent"]
-
-
-# ---------------------------------------------------------------------------
-# ADR-260 D4: heartbeat trigger DELETED.
-#
-# Previously: `_maybe_fire_reviewer_heartbeat` fired the Reviewer's
-# `heartbeat_turn()` after any recurrence completion that matched a slug in
-# `_autonomy.yaml::heartbeat_triggers`.
-#
-# This conflated mid-loop continuation (the natural shape of a real-time
-# tool-use loop) with cron wake-up (genuinely a Trigger per FOUNDATIONS
-# Axiom 4 Scheduled). Three triggers now: `addressed | reactive | scheduled`.
-# Mid-loop continuation is not a trigger — the Reviewer reads substrate
-# (per ADR-209 Authored Substrate revision chain) and acts within its loop.
-# ---------------------------------------------------------------------------
+__all__ = ["dispatch"]
