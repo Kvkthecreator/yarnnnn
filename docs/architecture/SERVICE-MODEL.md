@@ -298,7 +298,7 @@ Agents produce structured markdown with inline data tables and mermaid diagrams.
 | Service | Type | What It Does |
 |---------|------|-------------|
 | **yarnnn-api** | Web (FastAPI) | API endpoints, YARNNN chat, OAuth, all user-facing operations |
-| **yarnnn-unified-scheduler** | Cron (*/5 min) | Task execution, workspace cleanup, back-office task dispatch, outcome reconciliation |
+| **yarnnn-unified-scheduler** | Cron (*/5 min) | Walks `/workspace/_recurrences.yaml` per ADR-261 D3; for each due entry, invokes the Reviewer with the recurrence's prompt as the addressed-equivalent envelope (per ADR-260 D1). Hourly: `scheduler_heartbeat` activity_log writes; orphan agent_run watchdog. **No more back-office task dispatch** — that work is now Reviewer-driven recurrence prompts post-ADR-261 D6. |
 | **yarnnn-mcp-server** | Web (FastAPI) | MCP protocol for Claude Desktop/Code/foreign LLMs (ADR-169) |
 | **yarnnn-render** | Web (Docker) | Output gateway — PDF, chart, mermaid, xlsx, image rendering (ADR-118) |
 

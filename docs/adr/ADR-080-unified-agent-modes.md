@@ -1,5 +1,7 @@
 # ADR-080: Unified Agent with Chat and Headless Modes
 
+> **⚠ Amended by [ADR-261](ADR-261-recurrences-as-prompts.md) D7 (2026-05-10, merged on `main` as `42725c6`)**: `headless` survives as the **runtime characteristic** of the LLM-call shape (non-streaming, curated tool surface, no operator-presence assumption) — but it no longer denotes a separate execution path. The legacy headless task pipeline (ADR-141 Layer 2) dissolved; specialists run as focused-prompt sub-LLM-calls within the Reviewer's chat-mode loop via `DispatchSpecialist` (ADR-261 D7). Two registries (`CHAT_PRIMITIVES` + `HEADLESS_PRIMITIVES`) remain in `services.primitives.registry`; ADR-080's structural intent is preserved.
+
 **Status:** Implemented
 **Date:** 2026-02-26
 **Implemented:** 2026-02-26 (Phases 0-3 complete). Extended by ADR-124 (agent_chat — third mode).

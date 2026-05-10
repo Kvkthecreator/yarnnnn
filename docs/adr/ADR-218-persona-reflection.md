@@ -1,6 +1,6 @@
 # ADR-218: Persona Reflection — Reviewer Self-Evolution
 
-> **⚠ SUPERSEDED by ADR-256** (2026-05-08). `run_reflection()` deleted; reflection trigger now runs via `invoke_reviewer(trigger="reflection")` with a unified tool-use loop. The back-office cadence logic (reviewer_reflection.py) and reflection_writer.py are unchanged. This ADR's architectural intent is preserved; only the invocation implementation changed.
+> **⚠ SUPERSEDED by ADR-256** (2026-05-08), then further reshaped by **[ADR-260](ADR-260-real-time-reviewer-loop.md) + [ADR-261](ADR-261-recurrences-as-prompts.md)** (2026-05-10, merged on `main` as `42725c6`). `run_reflection()` deleted by ADR-256; the `reflection` trigger then collapsed into `scheduled` per ADR-260 D2 (three triggers, not four). The `back_office.reviewer_reflection.py` deterministic Python executor and `reflection_writer.py` are also DELETED per ADR-261 D6 §4 — reflection is now a Reviewer-driven recurrence prompt in `/workspace/_recurrences.yaml` (e.g. `morning-reflection`) whose prompt asks the Reviewer to read its own substrate and produce a reflection verdict via the unified tool-use loop. This ADR's architectural intent (Reviewer self-evolution through periodic reflection on its own substrate against money-truth) is preserved; the implementation mechanism is now the unified recurrence shape.
 
 > **Status**: Proposed — staged implementation across five commits (this ADR, back-office task, reflection-mode invocation, write-back + visibility, E2E validation).
 > **Date**: 2026-04-24
