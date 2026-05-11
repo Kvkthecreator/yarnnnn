@@ -13,10 +13,11 @@ Endpoint:
   in this user's `session_messages.metadata.task_slug`.
 
 `agent_runs` is unchanged. It remains the audit ledger and continues to
-back the per-task run-history view in WorkDetail (read by routes/tasks.py
-GET /api/tasks/{slug}). This module is purely about the operator-facing
-list-view headline source — replacing today's `task.last_run_at`
-timestamp with "what actually shipped" headlines from the narrative.
+back the per-recurrence run-history view in WorkDetail (read by
+`routes/recurrences.py` GET /api/recurrences/{slug} per ADR-231 Phase 3.8).
+This module is purely about the operator-facing list-view headline source
+— replacing today's `task.last_run_at` timestamp with "what actually
+shipped" headlines from the narrative.
 
 Scoping note: session_messages doesn't carry user_id directly; we
 resolve via chat_sessions.user_id. The user JWT's RLS gates this

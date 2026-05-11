@@ -73,19 +73,19 @@ async def get_workspace_nav(auth: UserClient) -> dict:
 
     ADR-236 Item 6 (2026-04-29): the columns selected here were aligned
     with the post-ADR-231 thin scheduling index. `mode` and `essential`
-    were dropped in migration 164 — selecting them surfaced a 500 to
-    the Files explorer. The wider question — "is this Tasks section
-    still the right shape post-ADR-231 (recurrence shape vs task mode)
-    and does the legacy tree+nav duality survive?" — is Tier 1
-    territory and an escalation candidate for ADR-236 follow-up. This
-    fix restores the surface; it does not redesign the nav contract.
+    were dropped in migration 164.
+
+    Post-ADR-231 cleanup (2026-05-11): the previous "enrich with title from
+    TASK.md" loop read `/tasks/{slug}/TASK.md` which no longer exists in
+    substrate (ADR-231 D2 deleted the entire `/tasks/` filesystem tree).
+    Every iteration silently fell through the exception path to `title=slug`,
+    making the read loop a dead RPC. Replaced with deterministic slug → title
+    derivation that produces operator-readable strings without a DB hit.
     """
     try:
-        # ── Tasks (from DB; thin scheduling index per ADR-231 D4) ──
-        # Columns selected match the post-migration-164 shape: id, slug,
-        # status, schedule, next_run_at, last_run_at. `mode` + `essential`
-        # were dropped by ADR-231; the operator-facing recurrence label
-        # (Recurring vs One-time) is derived from `schedule` per ADR-163.
+        # ── Recurrences (from `tasks` thin scheduling index per ADR-231 D4) ──
+        # Columns match the post-migration-164 shape. The operator-facing
+        # label (Recurring vs One-time) is derived from `schedule` per ADR-163.
         tasks_result = (
             auth.client.table("tasks")
             .select("id, slug, status, schedule, next_run_at, last_run_at")
@@ -95,30 +95,13 @@ async def get_workspace_nav(auth: UserClient) -> dict:
         )
         tasks_rows = tasks_result.data or []
 
-        # Enrich with titles from TASK.md
+        # Derive operator-readable title from slug. Post-ADR-231 recurrences
+        # have no `title` field — the slug IS the operator-facing handle —
+        # so we humanize it (hyphens → spaces, title-case) for nav display.
         tasks = []
         for row in tasks_rows:
             slug = row["slug"]
-            # Read title from TASK.md
-            title = slug  # fallback
-            try:
-                task_md_result = (
-                    auth.client.table("workspace_files")
-                    .select("content")
-                    .eq("user_id", auth.user_id)
-                    .eq("path", f"/tasks/{slug}/TASK.md")
-                    .limit(1)
-                    .execute()
-                )
-                if task_md_result.data:
-                    content = task_md_result.data[0].get("content", "")
-                    for line in content.split("\n"):
-                        if line.startswith("# "):
-                            title = line[2:].strip()
-                            break
-            except Exception:
-                pass
-
+            title = slug.replace("-", " ").replace("_", " ").title()
             tasks.append({
                 "slug": slug,
                 "title": title,
@@ -409,7 +392,9 @@ async def get_workspace_tree(
     Returns the workspace file tree for the explorer panel.
 
     Queries workspace_files for all paths under the root, then builds
-    a folder/file tree structure. Supports /workspace/, /agents/, /tasks/.
+    a folder/file tree structure. Supports /workspace/ (the canonical
+    substrate root post-ADR-231; subfolders include reports/, context/,
+    review/, memory/, uploads/) and /agents/.
 
     ADR-209 authored substrate enrichment: includes head-revision
     authored_by via the head_version_id FK → workspace_file_versions.
@@ -577,12 +562,13 @@ async def edit_workspace_file(
         "/workspace/review/principles.md",  # ADR-215 Phase 3 (Reviewer principles)
         "/workspace/memory/",     # awareness.md, notes.md, style.md
         "/workspace/uploads/",
-        "/tasks/",                # TASK.md, DELIVERABLE.md within task folders
+        "/workspace/reports/",    # per-recurrence outputs + _feedback.md + _run_log.md (ADR-231 D2)
+        "/workspace/context/",    # accumulated context domains (entities, _tracker.md, _feedback.md)
     ]
     if not any(path.startswith(p) or path == p for p in editable_prefixes):
         raise HTTPException(
             status_code=403,
-            detail=f"File not editable via API: {path}. Only workspace config and task files are editable.",
+            detail=f"File not editable via API: {path}. Only workspace config and recurrence files are editable.",
         )
 
     try:

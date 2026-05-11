@@ -50,7 +50,7 @@ async def build_generation_brief(
         client: Supabase client
         user_id: User ID
         task_slug: Task slug
-        task_info: Parsed TASK.md dict (from parse_task_md)
+        task_info: Parsed recurrence YAML dict (per ADR-231; previously parse_task_md output)
         prior_manifest: SysManifest from previous run, or None for first run
 
     Returns:
@@ -624,7 +624,7 @@ def build_post_generation_manifest(
         surface_type: Surface type (report | deck | dashboard | digest | workbook)
         sections_parsed: Output of parse_draft_into_sections()
         domain_state: Output of _query_domain_state() (same as brief build)
-        task_info: Parsed TASK.md dict
+        task_info: Parsed recurrence YAML dict (per ADR-231)
         run_started_at: ISO timestamp of run start (defaults to now)
         prior_manifest: SysManifest from previous run (for gap classification)
         revision_scope: RevisionScope from classify_revision_scope() (for gap reasons)

@@ -155,8 +155,10 @@ class DeliveryService:
                     error_message="Agent not found"
                 )
 
-            # 3. Delivery is now per-task (ADR-138) — this legacy path is unused
-            # Delivery flows through deliver_from_output_folder() which reads TASK.md
+            # 3. Delivery is now per-recurrence (ADR-138 / ADR-231) — this
+            # legacy path is unused. Live delivery flows through
+            # `deliver_from_output_folder()` which reads substrate from
+            # `/workspace/reports/{slug}/...` (canonical per ADR-231 D2).
             return ExportResult(
                 status=ExportStatus.FAILED,
                 error_message="Legacy deliver_version path — use deliver_from_output_folder() instead"
@@ -714,12 +716,12 @@ async def deliver_from_output_folder(
         )
 
     # ADR-202 §3: delivery_requires_approval gate.
-    # Compose writes the output + manifest to /tasks/{slug}/outputs/{date}/
-    # regardless. Distribution fires only after operator clicks Ship Now
-    # in the cockpit Work surface (Phase 3 frontend UX). Until that
-    # timestamp is set, this function returns a skipped-for-approval
-    # status and writes `pending_distribution: true` to the manifest so
-    # the cockpit can surface the pending badge.
+    # Compose writes the output + manifest to /workspace/reports/{slug}/{date}/
+    # (canonical path per ADR-231 D2 / ADR-262 D1) regardless. Distribution
+    # fires only after operator clicks Ship Now in the cockpit Work surface
+    # (Phase 3 frontend UX). Until that timestamp is set, this function
+    # returns a skipped-for-approval status and writes `pending_distribution:
+    # true` to the manifest so the cockpit can surface the pending badge.
     if task_slug:
         # ADR-231 Phase 3.6.b: type_key + TASK.md registry lookup retired.
         # Recurrence declarations carry an explicit `requires_approval:` field
@@ -1004,8 +1006,9 @@ async def _deliver_email_from_manifest(
 
     # ADR-202 §1: daily-update email is an expository pointer, not a
     # full-content digest. The agent-generated content lives at
-    # /tasks/daily-update/outputs/{date}/ and the Overview surface
-    # (ADR-199) renders it. The email is just the invitation.
+    # /workspace/reports/daily-update/{date}/ (canonical per ADR-231 D2
+    # / ADR-262 D1) and the Overview surface (ADR-199) renders it. The
+    # email is just the invitation.
     # Compute deterministic headline counts + swap the body for the
     # pointer template. Empty workspace is already handled by
     # _execute_daily_update_empty_state earlier in the pipeline.
@@ -1050,13 +1053,19 @@ async def _deliver_email_from_manifest(
             )
 
     # Append email footer (feedback link + yarnnn branding)
-    app_url = os.environ.get("APP_URL", "https://yarnnn.com")
-    # ADR-201: agent routes moved from /agents/ → /team?agent=. Task routes
-    # remain /tasks/ for backend-canonical deep-links (frontend may redirect).
+    # Post-ADR-231 + ADR-214: canonical operator URLs are /work?task={slug}
+    # and /agents?agent={id}. The previous /tasks/{slug} target was a dead
+    # route (the /tasks/ filesystem tree was deleted by ADR-231 D2; there is
+    # no FE route by that name). /team was reverted to /agents by ADR-214.
+    from services.deep_links import app_url as _app_url, work_url, team_url
+    app_url = _app_url()
     if task_slug:
-        view_url = f"{app_url}/tasks/{task_slug}"
+        view_url = work_url(task=task_slug)
     elif agent_id:
-        view_url = f"{app_url}/team?agent={agent_id}"
+        # team_url currently builds /team which is itself a redirect stub to
+        # /agents per ADR-214. Routing through the helper keeps a single edge
+        # for when team_url is itself updated.
+        view_url = team_url(agent=agent_id)
     else:
         view_url = app_url
 
@@ -1228,7 +1237,9 @@ async def _deliver_to_subscribers(
     No cached subscriber list — commerce provider is the source of truth.
     Sends individually via the existing email path.
     """
-    # Resolve product_id from destination metadata (set from TASK.md **Commerce:** field)
+    # Resolve product_id from destination metadata (declared on the recurrence's
+    # delivery block per ADR-231 / ADR-261; loaded into destination via the
+    # dispatcher).
     product_id = destination.get("product_id")
 
     try:

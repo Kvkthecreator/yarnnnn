@@ -216,7 +216,7 @@ async def create_agent_record(
 # specialist can invoke a platform capability if the connection is active.
 # The `platform_bot` classification is removed; `delete_platform_bot`
 # deleted; `ensure_infrastructure_agents_for_type` deleted (callers derive
-# ensure list from TASK.md process steps).
+# ensure list from the recurrence YAML body's process / agent_ref fields).
 
 PRODUCTION_ROLE_SLUGS: frozenset[str] = frozenset({
     # ADR-176 universal specialists
@@ -247,7 +247,8 @@ def resolve_infra_role_from_ref(agent_ref: str) -> Optional[str]:
     """Return the infrastructure role for a ref that may be a role or a slug.
 
     ADR-205: dispatch sites may see either a slug (e.g. "reporting") or a role
-    (e.g. "executive") in TASK.md's agent_ref. This returns the canonical role
+    (e.g. "executive") in the recurrence's `agent_ref` (declared on the YAML
+    recurrence body per ADR-231 / ADR-261). This returns the canonical role
     for lazy-ensure if the ref is an infrastructure identifier, else None.
     """
     if classify_role(agent_ref) != "user_authored":

@@ -1034,9 +1034,10 @@ async def get_platform_tools_for_agent(
     ADR-227: Capabilities resolve from two sources, deduplicated:
       1. The agent's role-level capability list (universal — Tracker, Analyst,
          etc. declare what THEY are, ICP-agnostic per ADR-176).
-      2. The task's `**Required Capabilities:**` (declared in TASK.md, ICP-
-         specific — `read_trading`, `write_commerce`, etc., supplied by the
-         active program bundle per ADR-224).
+      2. The recurrence's `required_capabilities:` block (declared on the
+         YAML recurrence body per ADR-231 / ADR-261, ICP-specific —
+         `read_trading`, `write_commerce`, etc., supplied by the active
+         program bundle per ADR-224).
 
     Without (2), program-specific platform tools never reach agents on
     universal roles, even when the user has the platform connected and the

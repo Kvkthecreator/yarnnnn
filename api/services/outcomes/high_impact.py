@@ -284,7 +284,8 @@ def _format_cents(cents: int | None, currency: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Filesystem writes to /tasks/{slug}/feedback.md
+# Filesystem writes to the recurrence's natural-home _feedback.md
+# (canonical path via `conventions.report_feedback_path`)
 # ---------------------------------------------------------------------------
 
 

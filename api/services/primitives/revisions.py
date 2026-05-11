@@ -61,7 +61,7 @@ reconciled?"
 Path is absolute within the workspace filesystem, e.g.:
   /workspace/context/_shared/MANDATE.md
   /agents/alpha-research/AGENT.md
-  /tasks/weekly-brief/feedback.md
+  /workspace/reports/weekly-brief/_feedback.md
   /workspace/review/decisions.md
 
 Read-only. Use ReadRevision(path, revision_id=...) to fetch a specific

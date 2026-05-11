@@ -1,14 +1,17 @@
 """
-Task HTML Composition — ADR-213.
+Recurrence HTML Composition — ADR-213.
 
-Single path for composing a task's output folder into HTML on demand.
+Single path for composing a recurrence's output folder into HTML on demand.
 Reads substrate (section partials + sys_manifest.json + manifest.json) from
-the task workspace, POSTs to the render service `/compose`, returns HTML.
+`/workspace/reports/{slug}/{date}/` (canonical path per ADR-231 D2 + ADR-262
+D1; resolved via the conventions module), POSTs to the render service
+`/compose`, returns HTML.
 
 Callers:
-  - api/routes/tasks.py: GET /tasks/{slug}/outputs/{date}/render
+  - api/routes/recurrences.py: GET /recurrences/{slug}/outputs/{date}/render
   - api/services/delivery.py: email body composition
   - api/services/primitives/repurpose.py: format conversion
+  - api/services/invocation_dispatcher.py: post-fire auto-compose
 
 The render service is responsible for content-addressed caching (ADR-213),
 so repeated calls with unchanged substrate cost ~10ms (storage fetch) vs.
@@ -35,14 +38,15 @@ async def compose_task_output_html(
     surface_type: Optional[str] = None,
     title: Optional[str] = None,
 ) -> Optional[str]:
-    """Compose a task output folder into HTML on demand.
+    """Compose a recurrence output folder into HTML on demand.
 
     Reads section partials and manifest from
-    `/tasks/{task_slug}/outputs/{date_folder}/`, posts to render service
-    `/compose`, returns the composed HTML string.
+    `/workspace/reports/{task_slug}/{date_folder}/` (canonical per
+    ADR-231 D2 / ADR-262 D1, resolved via the conventions module),
+    posts to render service `/compose`, returns the composed HTML string.
 
-    Returns None if no substrate exists (task never ran) or compose failed.
-    Caller decides how to handle None (404, fallback, etc.).
+    Returns None if no substrate exists (recurrence never fired) or compose
+    failed. Caller decides how to handle None (404, fallback, etc.).
     """
     # ADR-262 D1: report outputs land at the slug-templated path
     # /workspace/reports/{slug}/{date}/. We do not validate that a recurrence

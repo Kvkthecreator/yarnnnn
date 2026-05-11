@@ -10,7 +10,7 @@ invariants per layer, what gets touched at each layer).
                                  only. Tasks, agents, identity, accumulated
                                  context, chat sessions all preserved. The
                                  lightest possible "fresh slate" reset.
-  L2. Clear workspace        — purges agents/tasks/workspace_files/activity/chat,
+  L2. Clear workspace        — purges agents/recurrences/workspace_files/activity/chat,
                                  then re-scaffolds via initialize_workspace().
                                  Keeps platform connections.
   L3. Disconnect platforms   — purges sync state + per ADR-158 deletes the three
@@ -24,13 +24,12 @@ invariants per layer, what gets touched at each layer).
                                  cascades all data).
 
 Layer invariants — what is NEVER touched by L1:
-  * `tasks` table rows (essential or otherwise)
+  * `tasks` table rows (the thin scheduling index per ADR-231 D4)
   * `agents` table rows
   * `chat_sessions` (the user's relationship with TP)
-  * `workspace_files` outside `/tasks/{slug}/outputs/` and
-    `/tasks/{slug}/memory/_run_log.md` (so TASK.md, DELIVERABLE.md,
-    feedback.md, memory/steering.md, memory/reflections.md, and the
-    entire `/workspace/context/` substrate are all preserved)
+  * `workspace_files` outside per-recurrence report outputs and run logs —
+    so `/workspace/_recurrences.yaml`, `/workspace/context/`, `_feedback.md`
+    accumulations, and all operator-authored substrate are preserved
   * `activity_log` (ADR-164 already removed task-lifecycle events from this
     table; nothing in there is "work history" anymore)
   * `platform_connections`
@@ -168,7 +167,7 @@ def _count_workspace_pattern(client, user_id: str, like_pattern: str) -> int:
     """Count workspace_files rows matching an arbitrary SQL LIKE pattern.
 
     Caller is responsible for the trailing `%` (and any internal `%` for
-    cross-segment patterns like `/tasks/%/outputs/%`).
+    cross-segment patterns like `/workspace/reports/%/2026-%`).
     """
     try:
         result = (

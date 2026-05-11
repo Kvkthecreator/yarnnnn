@@ -149,8 +149,12 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
         title = filename or skill_input.get("title") or skill_type
         safe_title = "".join(c if c.isalnum() or c in "-_ " else "" for c in title).strip().replace(" ", "-")[:50]
         if task_slug:
-            # Headless task execution — write into task output folder alongside section partials
-            ws_path = f"/tasks/{task_slug}/outputs/latest/{safe_title}.{output_format}"
+            # Headless recurrence execution — write into the recurrence's latest
+            # output folder alongside section partials. ADR-231 D2 + ADR-262 D1:
+            # canonical path is /workspace/reports/{slug}/latest/ via conventions
+            # module (not the deleted /tasks/{slug}/ tree).
+            from services.conventions import report_latest_dir
+            ws_path = f"{report_latest_dir(task_slug)}/{safe_title}.{output_format}"
         else:
             # TP chat — write to agent workspace outputs
             ws_path = f"/agents/{agent_slug}/outputs/{safe_title}.{output_format}"

@@ -1,18 +1,23 @@
 """
-Feedback Distillation — ADR-143 Phase 2, updated ADR-154, ADR-181.
+Feedback Distillation — ADR-143 Phase 2, updated ADR-154, ADR-181, ADR-231.
 
-Routes user feedback signals to the appropriate task's feedback.md.
-ADR-154: Feedback is per-task (HOW), not per-agent (WHO).
-ADR-181: feedback.md promoted to task root (peer of TASK.md, DELIVERABLE.md).
+Routes user feedback signals to the appropriate recurrence's _feedback.md.
+ADR-154: Feedback is per-recurrence (HOW), not per-agent (WHO).
+ADR-181: feedback.md promoted to recurrence root (peer of recurrence YAML
+declaration and output substrate).
+ADR-231 D2: canonical path is `/workspace/reports/{slug}/_feedback.md`
+(resolved via `conventions.report_feedback_path`); the deleted /tasks/
+filesystem tree is gone.
 
 Two write paths:
   1. Edit-based — called from agents.py PATCH run endpoint. Resolves task_slug
-     from the run's metadata, writes to /tasks/{slug}/feedback.md.
+     from the run's metadata, writes to /workspace/reports/{slug}/_feedback.md
+     via `conventions.report_feedback_path()`.
   2. Conversational — called by TP via WriteFile(scope="workspace") to the
-     agent's `agents/{slug}/memory/feedback.md` or the task's natural-home
-     `feedback.md` (ADR-235 D1.b).
+     agent's `agents/{slug}/memory/feedback.md` or the recurrence's
+     natural-home `_feedback.md` (ADR-235 D1.b).
 
-The task pipeline reads feedback.md on every run via build_task_execution_prompt().
+The dispatcher reads _feedback.md on every fire via gather_task_context().
 """
 
 from __future__ import annotations

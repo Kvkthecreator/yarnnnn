@@ -550,14 +550,15 @@ async def get_headless_tools_for_agent(
 
     Headless execution always gets the base primitive registry. Platform tools
     are added dynamically when, and only when:
-    1. the agent's role bundle grants them, OR (per ADR-227) the task's
-       **Required Capabilities:** TASK.md field declares them, AND
+    1. the agent's role bundle grants them, OR (per ADR-227) the recurrence's
+       `required_capabilities:` block declares them (YAML recurrence body per
+        ADR-231 / ADR-261), AND
     2. the user has the provider connected.
 
-    The two sources merge: roles declare universal identity (ADR-176), tasks
-    declare ICP-specific needs (ADR-188 + ADR-207 P4b). Without the merge,
-    universal-role agents on program-specific tasks never receive
-    program-specific platform tools.
+    The two sources merge: roles declare universal identity (ADR-176),
+    recurrences declare ICP-specific needs (ADR-188 + ADR-207 P4b). Without
+    the merge, universal-role agents on program-specific recurrences never
+    receive program-specific platform tools.
     """
     tools = list(HEADLESS_PRIMITIVES)
     if not client or not user_id or not agent:

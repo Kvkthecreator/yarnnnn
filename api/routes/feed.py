@@ -852,10 +852,11 @@ async def _load_task_context(
     task_slug: str,
 ) -> Optional[str]:
     """
-    Load task context for TP when user is on a task-detail surface.
+    Load recurrence context for TP when user is on a work-detail surface.
 
-    Reads TASK.md, last 5 run log entries, latest output preview,
-    and assigned agent info.
+    Reads the recurrence YAML declaration, last 5 run-log entries, latest
+    output preview, and assigned agent info. All substrate paths resolve
+    via the conventions module (ADR-231 D2 / ADR-262 D1).
     """
     import re
     from services.conventions import (

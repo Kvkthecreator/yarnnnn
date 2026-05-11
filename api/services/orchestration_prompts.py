@@ -116,7 +116,7 @@ Write specific marching orders for your next execution — like a journalist's n
 
 Be specific and actionable. This directive becomes your primary instruction next cycle."""
 
-# Injected when success criteria exist in TASK.md
+# Injected when success criteria are declared on the recurrence (YAML body per ADR-231)
 _CRITERIA_EVAL_SECTION = """- **Criteria Met**: For each success criterion below, state MET or MISSED with a brief reason.
 {criteria_list}"""
 

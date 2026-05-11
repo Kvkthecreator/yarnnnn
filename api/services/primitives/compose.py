@@ -34,8 +34,9 @@ COMPOSE_TOOL = {
     "name": "Compose",
     "description": """Compose section partials + manifest into final HTML output (ADR-262 D4).
 
-Wraps the deterministic render-engine pipeline. Reads from the task's
-output folder (`/tasks/{task_slug}/outputs/{date_folder}/`):
+Wraps the deterministic render-engine pipeline. Reads from the recurrence's
+output folder (`/workspace/reports/{task_slug}/{date_folder}/`, canonical per
+ADR-231 D2 / ADR-262 D1):
   - sys_manifest.json (composition manifest with section-kind metadata)
   - sections/*.md (section partials)
   - assets/* (charts, images, mermaid diagrams)
@@ -122,9 +123,9 @@ async def handle_compose(auth: Any, input: dict) -> dict:
         return {
             "ok": False,
             "error": (
-                f"no substrate at /tasks/{task_slug}/outputs/{date_folder}/ — "
-                "task may not have run yet, or the substrate's natural-home path "
-                "is non-conventional and falls outside the auto-resolver."
+                f"no substrate at /workspace/reports/{task_slug}/{date_folder}/ — "
+                "recurrence may not have fired yet, or the substrate's natural-home "
+                "path is non-conventional and falls outside the auto-resolver."
             ),
         }
 

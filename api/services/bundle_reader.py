@@ -6,10 +6,10 @@ This module is the helper used by the directory_registry, task_types,
 and orchestration helpers when their kernel-only lookup misses — at which
 point they consult active program bundles for the same key.
 
-The runtime dispatch path (task_pipeline, agent_pipeline, etc.) does not
-consult bundles. Per Axiom 1 + ADR-188 + ADR-207, runtime reads TASK.md
-and _domain.md from the operator's workspace. Bundles inform composition
-and scaffolding moments only.
+The runtime dispatch path (invocation_dispatcher, agent_pipeline, etc.) does
+not consult bundles. Per Axiom 1 + ADR-188 + ADR-207 + ADR-231, runtime reads
+the recurrence YAML (`_recurrences.yaml`) and `_domain.md` from the operator's
+workspace. Bundles inform composition and scaffolding moments only.
 
 Caching: lru_cache on `_load_manifest`. Bundles are repo-tracked, change
 at deploy time, not runtime. Process-lifetime cache is correct for now;
