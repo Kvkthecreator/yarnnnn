@@ -121,10 +121,14 @@ export function ReviewerCard({ data, content, personaName, confidence, directive
         </div>
       )}
 
-      {/* Audit trail link for proposal verdicts */}
+      {/* Audit trail link for proposal verdicts. Routes to the raw
+          decisions.md substrate file via the Context surface (the L1
+          Universal Raw View per ADR-245). The previously-promised
+          /work?tab=decisions surface (ADR-241 D3) was never built;
+          retargeted to the working substrate read 2026-05-11. */}
       {proposalId && isProposalVerdict && (
         <Link
-          href="/work?tab=decisions"
+          href={`/context?path=${encodeURIComponent('/workspace/review/decisions.md')}`}
           className="text-[10px] text-muted-foreground/40 hover:text-foreground transition-colors mt-1 block"
         >
           Audit trail →

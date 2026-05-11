@@ -699,12 +699,25 @@ async def invoke_reviewer(
                 except Exception as exc:
                     result = {"success": False, "error": "execution_error", "message": str(exc)}
 
-                actions_taken.append({
+                # Capture proposal_id from ProposeAction results so the
+                # downstream narration emit (surface_reviewer_actions) can
+                # render an inline ProposalCard chip per Audit-pass-2 DD-4.
+                # Pre-2026-05-11, narration was plain-text and operators had
+                # to mentally stitch from the feed entry to the cockpit Queue
+                # to find the proposal — mental-thread broken.
+                action_record: dict = {
                     "tool": name,
                     "input": inp,
                     "success": bool(result.get("success", True)) if isinstance(result, dict) else True,
                     "summary": _summarize_result(result),
-                })
+                }
+                if name == "ProposeAction" and isinstance(result, dict):
+                    pid = result.get("proposal_id") or (
+                        result.get("proposal", {}) or {}
+                    ).get("id")
+                    if pid:
+                        action_record["proposal_id"] = pid
+                actions_taken.append(action_record)
 
                 await _emit({
                     "phase": "tool_end",

@@ -37,6 +37,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { ReviewerCard } from './ReviewerCard';
 import { MessageBlocks } from './InlineToolCall';
 import { ToolResultList } from './ToolResultCard';
+import { InlineProposalChipById } from './ProposalCard';
 import { useReviewerPersona } from '@/lib/reviewer-persona';
 
 // ---------------------------------------------------------------------------
@@ -128,6 +129,10 @@ function renderSystemAgentBubble({ msg, isLoading }: RendererProps): JSX.Element
   // full chat-bubble visual weight, matching Reviewer/Operator. Same shape
   // as the system bubble (bg-muted, rounded-2xl, persona label) so the
   // operator reads three participants exchanging messages, not background log.
+  // Audit-pass-2 DD-4: when the narration carries a proposalId (System
+  // Agent fired ProposeAction on Reviewer's direction during a heartbeat
+  // / cron-fired wake), render the proposal as an inline chip+modal so
+  // the operator can tap-to-inspect-and-act directly from the feed.
   return (
     <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md">
       <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1 uppercase">
@@ -146,6 +151,9 @@ function renderSystemAgentBubble({ msg, isLoading }: RendererProps): JSX.Element
           />
           {msg.toolResults && msg.toolResults.length > 0 && (
             <ToolResultList results={msg.toolResults} compact />
+          )}
+          {msg.narrative?.proposalId && (
+            <InlineProposalChipById proposalId={msg.narrative.proposalId} />
           )}
         </>
       )}

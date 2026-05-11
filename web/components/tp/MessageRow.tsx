@@ -222,8 +222,13 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
 function roleDisplayLabel(role: TPMessage['role'], reviewerPersona?: string | null): string {
   switch (role) {
     case 'user': return 'You';
-    case 'assistant': return 'system';      // YARNNN orchestration shell (legacy)
-    case 'system_agent': return 'System Agent';  // ADR-247 three-party narrative
+    // ADR-247 three-party narrative: legacy `assistant` rows render with
+    // the same "System Agent" label as `system_agent` rows in the bubble
+    // (MessageDispatch.tsx renderSystemBubble + renderSystemAgentBubble
+    // both use "System Agent"). Same DB row should not read as two
+    // different participants depending on weight (Audit-pass-2 DD-5).
+    case 'assistant': return 'System Agent';
+    case 'system_agent': return 'System Agent';
     case 'reviewer': return reviewerPersona ?? 'Reviewer';
     case 'agent': return 'agent';
     case 'system': return 'background';     // scheduler / back-office events

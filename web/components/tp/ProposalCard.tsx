@@ -38,6 +38,11 @@ export interface ProposalData {
   status: string;
   reviewer_identity?: string;
   reviewer_reasoning?: string;
+  /** Audit-pass-2 DD-6: structured action inputs (ticker/qty/limit-price
+   * for trading.submit_order; product/discount params for commerce.*;
+   * page_id/properties for notion.write_page). Shape varies by
+   * action_type. Rendered by `ProposalInputs` component below. */
+  inputs?: Record<string, unknown>;
 }
 
 interface ProposalResult {
@@ -93,6 +98,84 @@ function deriveReviewerPosture(
   if (reviewerIdentity.startsWith('ai:') && proposalStatus === 'pending') return 'approve_advisory';
   if (proposalStatus === 'pending') return 'defer';
   return 'none';
+}
+
+// ---------------------------------------------------------------------------
+// ProposalInputs — type-keyed renderer for proposal.inputs (Audit-pass-2 DD-6)
+// ---------------------------------------------------------------------------
+//
+// Pre-2026-05-11 the modal showed rationale + expected_effect (operator-
+// facing prose) but never displayed the structured `inputs` dict. Operator
+// approving a trading.submit_order saw "Long NVDA breakout signal" but
+// not the actual ticker/qty/limit_price they were binding to execution.
+// This renderer surfaces the structured payload at the moment of decision.
+//
+// Shape: action_type-keyed switch with a generic key/value fallback for
+// unknown types. The known cases prioritize the operator-facing fields
+// (ticker/qty/price for trading; product/discount params for commerce);
+// the fallback shows all keys formatted so unknown types are never silent.
+
+function ProposalInputs({ actionType, inputs }: { actionType: string; inputs?: Record<string, unknown> }) {
+  if (!inputs || Object.keys(inputs).length === 0) return null;
+
+  // Trading actions: surface the order ticket fields prominently
+  if (actionType.startsWith('trading.')) {
+    const symbol = inputs.symbol ?? inputs.ticker;
+    const qty = inputs.qty ?? inputs.quantity;
+    const side = inputs.side;
+    const orderType = inputs.type ?? inputs.order_type;
+    const limit = inputs.limit_price;
+    const stop = inputs.stop_price;
+    const tif = inputs.time_in_force ?? inputs.tif;
+    const fields: Array<[string, unknown]> = [];
+    if (symbol) fields.push(['Symbol', symbol]);
+    if (side) fields.push(['Side', side]);
+    if (qty !== undefined) fields.push(['Quantity', qty]);
+    if (orderType) fields.push(['Type', orderType]);
+    if (limit !== undefined) fields.push(['Limit', limit]);
+    if (stop !== undefined) fields.push(['Stop', stop]);
+    if (tif) fields.push(['TIF', tif]);
+    if (fields.length === 0) return <GenericInputsTable inputs={inputs} />;
+    return (
+      <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 mb-1">
+          Order ticket
+        </div>
+        <dl className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs">
+          {fields.map(([label, value]) => (
+            <div key={label} className="contents">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="font-mono text-foreground">{String(value)}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+    );
+  }
+
+  // All other action types — generic key/value display so the operator
+  // always sees the structured payload they're approving.
+  return <GenericInputsTable inputs={inputs} />;
+}
+
+function GenericInputsTable({ inputs }: { inputs: Record<string, unknown> }) {
+  return (
+    <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 mb-1">
+        Inputs
+      </div>
+      <dl className="grid grid-cols-[max-content,1fr] gap-x-3 gap-y-0.5 text-xs">
+        {Object.entries(inputs).map(([key, value]) => (
+          <div key={key} className="contents">
+            <dt className="text-muted-foreground">{key}</dt>
+            <dd className="font-mono text-foreground break-all">
+              {typeof value === 'object' ? JSON.stringify(value) : String(value)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
 }
 
 // Strip trailing boilerplate from Reviewer reasoning for display.
@@ -260,6 +343,12 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
           {liveProposal.expected_effect}
         </p>
       )}
+
+      {/* Audit-pass-2 DD-6: structured inputs (the actual payload being
+          approved — ticker/qty/limit-price for trading; product params
+          for commerce; etc). Operator sees what they're binding before
+          confirming, not just the prose summary. */}
+      <ProposalInputs actionType={liveProposal.action_type} inputs={liveProposal.inputs} />
 
       {/* Reviewer verdict */}
       {liveProposal.reviewer_reasoning && (
@@ -438,6 +527,68 @@ export interface UseProposalModalReturn {
   modalElement: React.ReactElement | null;
   /** True while the modal is open. Useful for caller UX (e.g., dim row). */
   isOpen: boolean;
+}
+
+/**
+ * InlineProposalChipById — fetch-by-id wrapper around ProposalCard for
+ * surfaces that only have a proposal_id (e.g., system_agent narration
+ * entries on the feed where metadata.proposal_id is the only handle).
+ *
+ * Audit-pass-2 DD-4: heartbeat / reflection / cron-fired ProposeAction
+ * narrations land as plain-text System Agent bubbles; embedding this
+ * chip inline restores the click-to-modal affordance the addressed-
+ * trigger path already has via ToolResultCard.
+ *
+ * Renders nothing while fetching; on fetch failure renders an inert
+ * "proposal unavailable" chip so the operator sees that the proposal
+ * existed but couldn't be loaded (e.g., expired + cleaned up).
+ */
+export function InlineProposalChipById({ proposalId }: { proposalId: string }) {
+  const [proposal, setProposal] = useState<ProposalData | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.proposals.get(proposalId).then((res) => {
+      if (cancelled) return;
+      if (res?.proposal) {
+        setProposal({
+          id: res.proposal.id,
+          action_type: res.proposal.action_type,
+          rationale: res.proposal.rationale ?? '',
+          expected_effect: res.proposal.expected_effect ?? '',
+          reversibility: res.proposal.reversibility,
+          risk_warnings: res.proposal.risk_warnings ?? [],
+          expires_at: res.proposal.expires_at,
+          status: res.proposal.status,
+          reviewer_identity: res.proposal.reviewer_identity ?? undefined,
+          reviewer_reasoning: res.proposal.reviewer_reasoning ?? undefined,
+          inputs: res.proposal.inputs,  // DD-6: pass through structured payload
+        });
+      } else {
+        setFailed(true);
+      }
+    }).catch(() => {
+      if (!cancelled) setFailed(true);
+    });
+    return () => { cancelled = true; };
+  }, [proposalId]);
+
+  if (failed) {
+    return (
+      <div className="mt-2 rounded-lg border border-border/40 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+        Proposal {proposalId.slice(0, 8)} unavailable (expired or removed)
+      </div>
+    );
+  }
+
+  if (!proposal) return null;
+
+  return (
+    <div className="mt-2">
+      <ProposalCard result={{ success: true, proposal_id: proposalId, proposal }} />
+    </div>
+  );
 }
 
 export function useProposalModal(opts: UseProposalModalOpts = {}): UseProposalModalReturn {

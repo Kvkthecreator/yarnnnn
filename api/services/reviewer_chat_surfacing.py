@@ -224,6 +224,20 @@ async def surface_reviewer_actions(
             continue
         summary = action.get("summary", "")
         body = narrate_reviewer_action(tool, summary)
+        # Audit-pass-2 DD-4: when the action is ProposeAction, embed
+        # the proposal_id in extra_metadata so the FE renders an inline
+        # ProposalCard chip on this narration entry instead of plain
+        # text. Closes the supervisory mental-thread gap (heartbeat /
+        # reflection / cron-fired proposals previously had no clickable
+        # affordance on the feed; operator had to navigate to cockpit
+        # to find them).
+        meta: dict = {
+            "tools_used": [tool],
+            "reviewer_directed": True,
+        }
+        proposal_id = action.get("proposal_id")
+        if tool == "ProposeAction" and proposal_id:
+            meta["proposal_id"] = proposal_id
         try:
             # weight=material — System Agent is a participant in the
             # conversation, full chat-bubble visual weight.
@@ -235,10 +249,7 @@ async def surface_reviewer_actions(
                 body=body,
                 pulse="reactive",
                 weight="material",
-                extra_metadata={
-                    "tools_used": [tool],
-                    "reviewer_directed": True,
-                },
+                extra_metadata=meta,
             )
             written += 1
         except Exception as exc:

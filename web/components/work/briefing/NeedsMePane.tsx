@@ -179,6 +179,7 @@ function adaptProposalForModal(p: Proposal): import('@/components/tp/ProposalCar
     risk_warnings: p.risk_warnings ?? [],
     expires_at: p.expires_at,
     status: p.status,
+    inputs: p.inputs,  // DD-6: pass through structured payload
   };
 }
 

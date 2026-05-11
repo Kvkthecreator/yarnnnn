@@ -326,6 +326,10 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
             // ADR-219 Commit 2: narrative envelope — present on every
             // post-Commit-2 row; older rows surface with only the
             // fields that were set when they were written.
+            // Audit-pass-2 DD-4: surface metadata.proposal_id on
+            // system_agent narration entries so the FE can render an
+            // inline ProposalCard chip (closes the supervisory mental-
+            // thread gap on heartbeat/cron-fired ProposeAction calls).
             const narrative = m.metadata
               ? {
                   ...(m.metadata.summary && { summary: m.metadata.summary }),
@@ -333,6 +337,9 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                   ...(m.metadata.weight && { weight: m.metadata.weight }),
                   ...(m.metadata.task_slug && { taskSlug: m.metadata.task_slug }),
                   ...(m.metadata.invocation_id && { invocationId: m.metadata.invocation_id }),
+                  ...(m.role === 'system_agent' && m.metadata.proposal_id && {
+                    proposalId: m.metadata.proposal_id,
+                  }),
                 }
               : undefined;
             const narrativeHasAny =

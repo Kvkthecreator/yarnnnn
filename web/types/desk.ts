@@ -84,6 +84,13 @@ export interface NarrativeEnvelope {
   taskSlug?: string;
   /** agent_runs row id when this invocation produced one. */
   invocationId?: string;
+  /** Audit-pass-2 DD-4: when this narration entry corresponds to a
+   * ProposeAction tool call (System Agent on Reviewer's direction),
+   * the resulting action_proposal id. The FE renders an inline
+   * ProposalCard chip on these entries so the operator can tap-to-
+   * inspect-and-act directly from the feed without navigating to the
+   * cockpit Queue. */
+  proposalId?: string;
 }
 
 export type MessageBlock =

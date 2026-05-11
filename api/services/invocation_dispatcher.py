@@ -149,7 +149,7 @@ async def dispatch(
         )
         record_execution_event(
             client, user_id=user_id, slug=recurrence.slug,
-            shape="recurrence",  # ADR-261: shape is no longer a discriminator
+            mode="judgment",  # ADR-265: mode replaces dead shape discriminator
             trigger_type=trigger,
             status="failed", error_reason="balance_exhausted",
         )
@@ -185,7 +185,7 @@ async def dispatch(
             )
             record_execution_event(
                 client, user_id=user_id, slug=recurrence.slug,
-                shape="recurrence", trigger_type=trigger,
+                mode="judgment", trigger_type=trigger,
                 status="skipped", error_reason="spend_ceiling",
                 error_detail=warning,
             )
@@ -236,7 +236,7 @@ async def dispatch(
         duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
         record_execution_event(
             client, user_id=user_id, slug=recurrence.slug,
-            shape="recurrence", trigger_type=trigger,
+            mode="judgment", trigger_type=trigger,
             status="failed", error_reason="exception",
             error_detail=str(exc), duration_ms=duration_ms,
         )
@@ -251,7 +251,7 @@ async def dispatch(
     duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
     record_execution_event(
         client, user_id=user_id, slug=recurrence.slug,
-        shape="recurrence", trigger_type=trigger,
+        mode="judgment", trigger_type=trigger,
         status="success", duration_ms=duration_ms,
     )
 
@@ -423,7 +423,7 @@ async def _dispatch_mechanical(
         logger.warning("[DISPATCH:mechanical] %s", msg)
         record_execution_event(
             client, user_id=user_id, slug=recurrence.slug,
-            shape="recurrence", trigger_type=trigger,
+            mode="mechanical", trigger_type=trigger,
             status="failed", error_reason="no_primitive_directive",
             error_detail=msg,
         )
@@ -447,7 +447,7 @@ async def _dispatch_mechanical(
         logger.warning("[DISPATCH:mechanical] %s", msg)
         record_execution_event(
             client, user_id=user_id, slug=recurrence.slug,
-            shape="recurrence", trigger_type=trigger,
+            mode="mechanical", trigger_type=trigger,
             status="failed", error_reason="unknown_primitive",
             error_detail=msg,
         )
@@ -475,7 +475,7 @@ async def _dispatch_mechanical(
         duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
         record_execution_event(
             client, user_id=user_id, slug=recurrence.slug,
-            shape="recurrence", trigger_type=trigger,
+            mode="mechanical", trigger_type=trigger,
             status="failed", error_reason="primitive_raised",
             error_detail=str(e), duration_ms=duration_ms,
         )
@@ -487,9 +487,25 @@ async def _dispatch_mechanical(
 
     record_execution_event(
         client, user_id=user_id, slug=recurrence.slug,
-        shape="recurrence", trigger_type=trigger,
+        mode="mechanical", trigger_type=trigger,
         status=status, duration_ms=duration_ms,
         error_reason=None if success else (result.get("error") if isinstance(result, dict) else None),
+    )
+
+    # FOUNDATIONS Axiom 9: every invocation emits a narrative entry. Mechanical
+    # recurrences ARE invocations (Axiom 9 + ADR-263) — their silence pre-
+    # 2026-05-11 violated the axiom. Emit ONE housekeeping-weight entry per
+    # mechanical fire summarizing what happened. The narrative_digest rolls
+    # these up into daily roll-ups; per-fire entries stay weight-gated out
+    # of material/routine FE rendering by default. On failure the entry
+    # already lands via the exception path above (record_execution_event +
+    # _result_failed); this branch covers success.
+    summary = _summarize_mechanical_result(primitive_name, result)
+    await _emit_system_narrative(
+        client, user_id, recurrence,
+        summary=summary,
+        trigger=trigger,
+        weight="housekeeping",
     )
 
     logger.info(
@@ -508,6 +524,31 @@ async def _dispatch_mechanical(
     }
 
 
+def _summarize_mechanical_result(primitive_name: str, result) -> str:
+    """One-line summary of a mechanical-fire result for the housekeeping
+    narrative entry. Falls back to a generic summary when the primitive's
+    result shape isn't recognized.
+    """
+    if not isinstance(result, dict):
+        return f"{primitive_name} completed"
+    success = bool(result.get("success", False))
+    if not success:
+        err = result.get("error") or "unknown error"
+        return f"{primitive_name} failed: {err}"
+    # SyncPlatformState returns paths_written + paths_skipped + items_processed
+    paths_written = result.get("paths_written")
+    paths_skipped = result.get("paths_skipped")
+    if isinstance(paths_written, list) and isinstance(paths_skipped, list):
+        return (
+            f"{primitive_name}: {len(paths_written)} written, "
+            f"{len(paths_skipped)} unchanged"
+        )
+    items = result.get("items_processed")
+    if isinstance(items, int):
+        return f"{primitive_name}: {items} items processed"
+    return f"{primitive_name} completed"
+
+
 # ---------------------------------------------------------------------------
 # Narrative emission — shared system-role surface
 # ---------------------------------------------------------------------------
@@ -521,25 +562,49 @@ async def _emit_system_narrative(
     summary: str,
     body: str = "",
     trigger: str,
+    weight: Optional[str] = None,
 ) -> None:
     """Emit a system-role narrative entry for dispatcher-level events
-    (skip / failure / spend-ceiling). Reviewer-bubble narration of the
-    actual work happens inside the Reviewer's loop, not here."""
+    (skip / failure / spend-ceiling / mechanical-fire). Reviewer-bubble
+    narration of judgment-mode work happens inside surface_reviewer_actions,
+    not here.
+
+    2026-05-11 audit-pass-2 fix: the prior implementation called
+    write_narrative_entry with kwargs that didn't match the signature
+    (user_id, authored_by, metadata vs the real session_id, extra_metadata,
+    weight). Every call silently failed under the broad except — including
+    skip/failure events the audit assumed were emitting. Fixed: resolve
+    session_id via find_active_workspace_session and call with correct
+    kwargs.
+    """
     try:
-        from services.narrative import write_narrative_entry
+        from services.narrative import (
+            find_active_workspace_session,
+            write_narrative_entry,
+        )
     except ImportError:
         logger.warning("[DISPATCH] narrative module unavailable; skipping entry")
         return
 
     try:
-        await write_narrative_entry(
+        session_id = find_active_workspace_session(client, user_id)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("[DISPATCH] session lookup failed: %s", e)
+        return
+    if not session_id:
+        # No active session — no operator-facing surface to write to.
+        return
+
+    try:
+        write_narrative_entry(
             client,
-            user_id=user_id,
+            session_id,
             role="system",
             summary=summary,
             body=body or summary,
-            authored_by="system:dispatcher",
-            metadata={
+            pulse="reactive" if trigger == "reactive" else "addressed",
+            weight=weight,  # type: ignore[arg-type]
+            extra_metadata={
                 "recurrence_slug": recurrence.slug,
                 "trigger": trigger,
             },
