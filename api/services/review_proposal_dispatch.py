@@ -630,7 +630,12 @@ async def _execute_reviewer_directives(
                     results.append(f"fire_invocation({slug}): recurrence not found — skipped")
                     continue
                 from services.invocation_dispatcher import dispatch
-                await dispatch(target)
+                # ADR-258 revised D-directives: dispatch signature requires
+                # (client, user_id, recurrence). The earlier `dispatch(target)`
+                # call site silently failed (caught by the broad except below)
+                # so Reviewer-mid-loop scheduling directives never fired in
+                # production. Fixed 2026-05-11 audit pass.
+                await dispatch(client, user_id, target)
                 results.append(f"fire_invocation({slug}): dispatched")
                 logger.info(
                     "[REVIEWER_DIRECTIVE] fire_invocation slug=%s proposal=%s user=%s",

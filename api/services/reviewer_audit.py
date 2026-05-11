@@ -32,6 +32,25 @@ Entry format:
   outcome: executed | rejected_at_execution | expired
   ---
   <free-form reasoning from the Reviewer, markdown-allowed>
+
+Recurrence-fire entry (added 2026-05-11 per FOUNDATIONS v8.4 Axiom 1
+fourth sub-clause — substrate is the bus the Loop runs over). When a
+`judgment`-mode recurrence fires (cron or nested FireInvocation),
+the resulting Reviewer output is persisted here so a later Reviewer
+read-from-substrate can recover what was decided. Without this,
+nested-Reviewer reasoning would live only in the dispatcher's tool-
+result dict (substrate-as-bus violation):
+
+  --- recurrence-fire ---
+  timestamp: 2026-05-11T07:00:00+00:00
+  slug: morning-reflection
+  trigger: reactive
+  reviewer_identity: ai:reviewer-haiku-v1  |  reviewer:simons  |  ...
+  duration_ms: 4321
+  actions_count: 2
+  proposals_count: 1
+  ---
+  <free-form Reviewer verdict + evidence_summary, markdown-allowed>
 """
 
 from __future__ import annotations
@@ -114,6 +133,77 @@ async def append_decision(
         return False
 
 
+async def append_recurrence_fire(
+    client: Any,
+    user_id: str,
+    *,
+    slug: str,
+    trigger: str,
+    reviewer_identity: str,
+    reasoning: str = "",
+    duration_ms: int | None = None,
+    actions_count: int = 0,
+    proposals_count: int = 0,
+) -> bool:
+    """Append a recurrence-fire entry to /workspace/review/decisions.md.
+
+    Per FOUNDATIONS v8.4 Axiom 1 fourth sub-clause (substrate is the bus
+    the runtime Loop runs over): when a `judgment`-mode recurrence fires
+    via the dispatcher (whether cron-triggered or nested via FireInvocation
+    from another Reviewer turn), the resulting Reviewer output must land
+    on substrate. Otherwise the Reviewer's reasoning lives only in the
+    dispatcher's tool-result dict — a parallel control-flow channel that
+    violates the substrate-as-bus invariant.
+
+    Same substrate file as proposal-arrival decisions (singular implementation
+    — one decisions.md, two entry kinds). Distinct entry header
+    (`--- recurrence-fire ---`) preserves parser-level differentiation.
+
+    Never raises — audit trail failures must not block the dispatcher.
+    Returns True on successful substrate write.
+    """
+    try:
+        block = _render_recurrence_fire_entry(
+            slug=slug,
+            trigger=trigger,
+            reviewer_identity=reviewer_identity,
+            reasoning=reasoning,
+            duration_ms=duration_ms,
+            actions_count=actions_count,
+            proposals_count=proposals_count,
+        )
+
+        existing = _read_sync(client, user_id)
+        if existing is None:
+            content = _HEADER + "\n\n" + block
+        else:
+            content = existing.rstrip() + "\n\n" + block
+
+        ok = _write_recurrence_fire_sync(
+            client,
+            user_id,
+            content,
+            reviewer_identity=reviewer_identity,
+            slug=slug,
+            trigger=trigger,
+        )
+        if not ok:
+            logger.warning(
+                "[REVIEWER_AUDIT] recurrence-fire upsert failed for user=%s slug=%s",
+                user_id[:8],
+                slug,
+            )
+        return ok
+    except Exception as exc:  # noqa: BLE001 — audit trail must never break flow
+        logger.warning(
+            "[REVIEWER_AUDIT] append_recurrence_fire failed for user=%s slug=%s: %s",
+            user_id[:8],
+            slug,
+            exc,
+        )
+        return False
+
+
 # ---------------------------------------------------------------------------
 # rendering
 # ---------------------------------------------------------------------------
@@ -161,6 +251,37 @@ def _render_entry(
         lines.append(reasoning.strip())
     else:
         lines.append("_(no reasoning supplied)_")
+    return "\n".join(lines)
+
+
+def _render_recurrence_fire_entry(
+    *,
+    slug: str,
+    trigger: str,
+    reviewer_identity: str,
+    reasoning: str,
+    duration_ms: int | None,
+    actions_count: int,
+    proposals_count: int,
+) -> str:
+    """Render a single recurrence-fire block."""
+    ts = datetime.now(timezone.utc).isoformat()
+    lines = [
+        "--- recurrence-fire ---",
+        f"timestamp: {ts}",
+        f"slug: {slug}",
+        f"trigger: {trigger}",
+        f"reviewer_identity: {reviewer_identity}",
+    ]
+    if duration_ms is not None:
+        lines.append(f"duration_ms: {duration_ms}")
+    lines.append(f"actions_count: {actions_count}")
+    lines.append(f"proposals_count: {proposals_count}")
+    lines.append("---")
+    if reasoning.strip():
+        lines.append(reasoning.strip())
+    else:
+        lines.append("_(no verdict reasoning supplied)_")
     return "\n".join(lines)
 
 
@@ -228,5 +349,43 @@ def _write_sync(
     except Exception as exc:  # noqa: BLE001
         logger.warning(
             "[REVIEWER_AUDIT] write failed for user=%s: %s", user_id[:8], exc,
+        )
+        return False
+
+
+def _write_recurrence_fire_sync(
+    client: Any,
+    user_id: str,
+    content: str,
+    *,
+    reviewer_identity: str,
+    slug: str,
+    trigger: str,
+) -> bool:
+    """Write decisions.md through the Authored Substrate (ADR-209) for a
+    recurrence-fire entry. Same substrate path as decisions, distinct
+    revision message identifying the entry kind.
+    """
+    try:
+        from services.authored_substrate import write_revision
+
+        write_revision(
+            client,
+            user_id=user_id,
+            path=DECISIONS_PATH,
+            content=content,
+            authored_by=f"reviewer:{reviewer_identity}",
+            message=f"recurrence-fire {slug} ({trigger})",
+            summary="Reviewer decisions log",
+            tags=["_decisions", "review", "audit", "recurrence-fire"],
+            lifecycle="active",
+            content_type="text/markdown",
+        )
+        return True
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[REVIEWER_AUDIT] recurrence-fire write failed for user=%s: %s",
+            user_id[:8],
+            exc,
         )
         return False

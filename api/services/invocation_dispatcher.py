@@ -255,20 +255,63 @@ async def dispatch(
         status="success", duration_ms=duration_ms,
     )
 
+    actions_taken = []
+    proposals = []
+    verdict_summary = ""
+    reviewer_identity = "ai:reviewer"
+    if isinstance(reviewer_output, dict):
+        actions_taken = reviewer_output.get("actions_taken", []) or []
+        proposals = reviewer_output.get("proposals", []) or []
+        verdict_summary = reviewer_output.get("evidence_summary") or reviewer_output.get("verdict") or ""
+        reviewer_identity = reviewer_output.get("reviewer_identity") or reviewer_identity
+
+    # FOUNDATIONS v8.4 Axiom 1 (substrate-as-bus): persist Reviewer's verdict +
+    # reasoning to /workspace/review/decisions.md so a later Reviewer
+    # read-from-substrate (the next Loop wake) can recover what was decided.
+    # Without this, the Reviewer's reasoning lives only in the tool-result
+    # dict returned to the caller — a parallel control-flow channel that
+    # violates the substrate-as-bus invariant. Best-effort; never raises.
+    try:
+        from services.reviewer_audit import append_recurrence_fire
+        await append_recurrence_fire(
+            client, user_id,
+            slug=recurrence.slug,
+            trigger=trigger,
+            reviewer_identity=reviewer_identity,
+            reasoning=verdict_summary,
+            duration_ms=duration_ms,
+            actions_count=len(actions_taken),
+            proposals_count=len(proposals),
+        )
+    except Exception as exc:  # noqa: BLE001 — substrate audit must not break dispatch
+        logger.warning(
+            "[DISPATCH] %s/%s recurrence-fire substrate write failed: %s",
+            user_id[:8], recurrence.slug, exc,
+        )
+
+    # FOUNDATIONS Axiom 9 + Derived Principle 12 (channel legibility gates
+    # autonomy): emit one narrative entry per System Agent invocation the
+    # Reviewer fired during the Loop wake-up. Same per-action narration the
+    # proposal-arrival path uses (review_proposal_dispatch.py:373); cron-
+    # fired reactive wakes were silent prior to FOUNDATIONS v8.4. Best-effort.
+    try:
+        from services.reviewer_chat_surfacing import surface_reviewer_actions
+        await surface_reviewer_actions(
+            client, user_id,
+            actions_taken=actions_taken,
+        )
+    except Exception as exc:  # noqa: BLE001 — narration is legibility, not control-flow
+        logger.warning(
+            "[DISPATCH] %s/%s narration emission failed: %s",
+            user_id[:8], recurrence.slug, exc,
+        )
+
     # ADR-262 D4: opt-out structural auto-compose at session-close.
     # When the Reviewer wrote section partials matching the deliverable
     # convention, auto-run Compose unless the recurrence opted out via
     # options.skip_compose: true. Failure is logged + non-fatal — the
     # session result is preserved.
     composed_path = await _maybe_auto_compose(client, user_id, recurrence)
-
-    actions_taken = []
-    proposals = []
-    verdict_summary = ""
-    if isinstance(reviewer_output, dict):
-        actions_taken = reviewer_output.get("actions_taken", []) or []
-        proposals = reviewer_output.get("proposals", []) or []
-        verdict_summary = reviewer_output.get("evidence_summary") or reviewer_output.get("verdict") or ""
 
     logger.info(
         "[DISPATCH] %s/%s done (%dms) — actions=%d proposals=%d compose=%s",
