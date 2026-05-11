@@ -23,6 +23,11 @@ build/
 *.swp
 *.swo
 
+# Claude Code worktrees (Agent tool isolation: "worktree" leaves these
+# behind when subagents make changes; durable cleanup is `git worktree
+# remove` + branch delete; this entry prevents accidental re-tracking)
+.claude/worktrees/
+
 # OS
 .DS_Store
 Thumbs.db
