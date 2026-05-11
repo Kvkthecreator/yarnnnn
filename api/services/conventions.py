@@ -47,19 +47,21 @@ The convention shapes (per ADR-262 D1):
       decisions:     /workspace/review/decisions.md (append-only)
       reflections:   /workspace/review/reflections.md (append-only)
 
-    Operator authored shared substrate:
-      mandate:       /workspace/_shared/MANDATE.md
-      identity:      /workspace/_shared/IDENTITY.md
-      brand:         /workspace/_shared/BRAND.md
-      autonomy:      /workspace/_shared/AUTONOMY.md (prose)
-      autonomy:      /workspace/_shared/_autonomy.yaml (machine-parsed)
-      conventions:   /workspace/_shared/CONVENTIONS.md
-      precedent:     /workspace/_shared/PRECEDENT.md
+    Operator authored shared substrate (ADR-206 + ADR-217 relocated
+    `_shared/` from `/workspace/_shared/` to `/workspace/context/_shared/`;
+    runtime constants in workspace_paths.py are the source of truth):
+      mandate:       /workspace/context/_shared/MANDATE.md
+      identity:      /workspace/context/_shared/IDENTITY.md
+      brand:         /workspace/context/_shared/BRAND.md
+      autonomy:      /workspace/context/_shared/AUTONOMY.md (prose)
+      autonomy:      /workspace/context/_shared/_autonomy.yaml (machine-parsed)
+      conventions:   /workspace/context/_shared/CONVENTIONS.md
+      precedent:     /workspace/context/_shared/PRECEDENT.md
 
     Memory (YARNNN-authored, in-session, ADR-156):
       notes:         /workspace/memory/notes.md
       conversation:  /workspace/memory/conversation.md
-      recent:        /workspace/memory/recent.md  (back-office narrative digest)
+      recent:        /workspace/memory/recent.md  (narrative-digest recurrence output)
 
     Specs (operator-authored output specs cited by recurrence prompts,
     ADR-262 D2 Pattern (ii)):

@@ -1,30 +1,42 @@
-"""AI occupant of the Reviewer seat — ADR-256 unified invocation.
+"""AI occupant of the Reviewer seat — ADR-256 unified invocation
+(amended by ADR-260 D2 + ADR-263 D2 trigger collapse to two values).
 
-One function: `invoke_reviewer()`. Four trigger shapes: proposal,
-reflection, heartbeat, addressed. One tool-use loop (≤3 rounds). One
-output type: ReviewerOutput.
+One function: `invoke_reviewer()`. Two trigger shapes: `addressed`
+(operator messaged the feed) and `reactive` (substrate event requires
+judgment — proposal arrival OR judgment-mode recurrence fire). One
+bounded tool-use loop (12 rounds for addressed, 3 for proposal-arrival
+reactive — see ADR-260 D8). One output type: ReviewerOutput.
 
-ADR-256 supersedes the four-function design (review_proposal,
+ADR-256 superseded the four-function design (review_proposal,
 run_reflection, address_turn, heartbeat_turn) that accumulated
-trigger-by-trigger across ADRs 218, 252, 253. Those functions made
-the same agent look like four mini-agents and prevented the Reviewer
-from having a tool-use loop on the chat (addressed) path.
+trigger-by-trigger across ADRs 218, 252, 253. ADR-263 then collapsed
+the trigger taxonomy from 4→3→2 by recognizing that cron is part of
+the environment that fires recurrences (not a trigger axis); the
+recurrence's `mode` field declares whether the cron-fire wakes the
+Reviewer at all. Reflection and heartbeat dissolved into `reactive`.
 
-Per FOUNDATIONS v6.0:
-- Axiom 2 (Identity): occupant tagged `ai:reviewer-sonnet-v8`.
-  Seat persists; occupant is swappable (Principle 14).
+Per FOUNDATIONS v8.4:
+- Axiom 1 (Substrate): the Reviewer reads + writes substrate; substrate
+  is the bus the Loop runs over (fourth sub-clause). Cross-Reviewer
+  reasoning persists via reviewer_audit.append_recurrence_fire().
+- Axiom 2 (Identity): occupant tagged `ai:reviewer-sonnet-v8`. The
+  Reviewer is the operator's judgment function rendered as an
+  autonomous agent — operator in judging posture, not a separate
+  principal (Axiom 2 two-embodiments sub-section).
 - Axiom 3 (Purpose): independent judgment — fiduciary, not production.
-- Axiom 4 (Trigger): four sub-shapes (proposal | heartbeat | reflection
-  | addressed). Trigger varies; cognitive act is the same.
+- Axiom 4 (Trigger): two sub-shapes (addressed | reactive). Cognitive
+  act is the same regardless of which woke the Loop.
 - Axiom 5 (Mechanism): bounded tool-use loop. Reviewer reads what it
   needs, acts on what it decides, returns verdict.
 - Axiom 6 (Channel): decisions.md + reviewer_chat_surfacing narration.
+  Per-action narration is legibility, not control-flow.
 - Axiom 8 (Money-Truth): reasons against _performance.md rolling
   windows (ADR-195 Phase 3).
 
-Model selection by trigger (cost-conscious):
-- Sonnet: proposal + heartbeat (capital decisions)
-- Haiku:  reflection + addressed (framework reasoning + conversation)
+Model selection by trigger sub-shape (cost-conscious):
+- Sonnet: proposal-arrival reactive (capital decisions, discrete)
+- Haiku:  addressed + recurrence-fire reactive (conversation +
+          framework reasoning, real-time loop)
 """
 
 from __future__ import annotations
@@ -59,15 +71,22 @@ _CALLER_HAIKU = "reviewer-reflection"
 # ---------------------------------------------------------------------------
 
 class ReviewerOutput(TypedDict, total=False):
-    """Unified output of invoke_reviewer() across all four trigger shapes.
+    """Unified output of invoke_reviewer() across both trigger shapes
+    (addressed + reactive). Trigger taxonomy collapsed from four to two
+    by ADR-263 D2 — the historical reflection/heartbeat-specific verdicts
+    survive as substrate-write directives the Reviewer can emit on any
+    trigger; the trigger axis no longer gates which verdicts are valid.
 
     `verdict`, `reasoning`, `confidence` always present on success.
-    `proposals` + `evidence_summary` only on trigger="reflection".
+    `proposals` + `evidence_summary` may appear on any reactive
+    invocation that includes recurrence-fire prompts directing the
+    Reviewer to author proposals or summarize evidence.
     `actions_taken` records tool calls made during the loop (audit trail).
     """
-    verdict: str          # approve|reject|defer (proposal/heartbeat/addressed)
-                          # no_change|narrow|relax|character_note|pause_autonomy (reflection)
-                          # stand_down (heartbeat/addressed: no action warranted)
+    verdict: str          # approve|reject|defer (proposal-arrival reactive)
+                          # no_change|narrow|relax|character_note|pause_autonomy
+                          #   (reflection-shaped recurrence prompts)
+                          # stand_down (no action warranted)
     reasoning: str
     confidence: str       # low | medium | high
     actions_taken: list   # tool calls executed during the loop
@@ -810,10 +829,19 @@ async def invoke_reviewer(
             "actions_taken": actions_taken,
         }
 
-        if trigger == "reflection":
+        # Under ADR-263's two-trigger model, reflection-shaped output fields
+        # (`proposals`, `evidence_summary`) may appear on any reactive
+        # invocation whose recurrence prompt directs the Reviewer to author
+        # proposals or summarize evidence. The gate is "model returned the
+        # field," not "trigger == reflection" (which is a dead enum value
+        # post-collapse). Older callers relying on field-presence to detect
+        # reflection-shaped output continue to work.
+        if verdict_raw.get("proposals") or verdict_raw.get("evidence_summary"):
             from agents.reviewer_agent_compat import _normalize_reflection_proposals
-            output["proposals"] = _normalize_reflection_proposals(verdict_raw.get("proposals") or [])
-            output["evidence_summary"] = (verdict_raw.get("evidence_summary") or "").strip()
+            if verdict_raw.get("proposals"):
+                output["proposals"] = _normalize_reflection_proposals(verdict_raw.get("proposals") or [])
+            if verdict_raw.get("evidence_summary"):
+                output["evidence_summary"] = (verdict_raw.get("evidence_summary") or "").strip()
 
         return output
 

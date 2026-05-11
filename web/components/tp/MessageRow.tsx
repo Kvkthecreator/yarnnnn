@@ -222,7 +222,8 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
 function roleDisplayLabel(role: TPMessage['role'], reviewerPersona?: string | null): string {
   switch (role) {
     case 'user': return 'You';
-    case 'assistant': return 'system';      // YARNNN orchestration shell
+    case 'assistant': return 'system';      // YARNNN orchestration shell (legacy)
+    case 'system_agent': return 'System Agent';  // ADR-247 three-party narrative
     case 'reviewer': return reviewerPersona ?? 'Reviewer';
     case 'agent': return 'agent';
     case 'system': return 'background';     // scheduler / back-office events

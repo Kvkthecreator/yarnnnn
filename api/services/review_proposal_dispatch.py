@@ -233,7 +233,9 @@ async def _write_observation(
     proposal_row: dict,
     gate_reason: str,
 ) -> None:
-    """Write the observe-only decisions.md entry. Seat defers to human."""
+    """Write the observe-only decisions.md entry. Seat awaits operator-in-real-time occupant
+    (per FOUNDATIONS v8.4 Axiom 2 two-embodiments — neither embodiment is a separate party,
+    the seat is simply waiting for the human embodiment to render judgment)."""
     action_type = proposal_row.get("action_type") or "unknown"
     reversibility = proposal_row.get("reversibility")
     expires_at = proposal_row.get("expires_at")
@@ -264,7 +266,7 @@ async def _write_observation(
         reviewer_identity=_REVIEWER_OBSERVATION_IDENTITY,
         reasoning=reasoning_text,
         reversibility=reversibility,
-        outcome="pending_human",
+        outcome="pending_operator",
     )
     if ok:
         logger.info(
@@ -276,7 +278,8 @@ async def _write_observation(
         )
 
     # Unified chat thread — surface observation to operator's active session.
-    # Observe-only means "Reviewer layer saw this, seat defers to human."
+    # Observe-only means "Reviewer layer saw this, seat awaits operator-in-real-time
+    # occupant" — per FOUNDATIONS v8.4 Axiom 2 two-embodiments framing.
     await write_reviewer_message(
         client, user_id,
         content=reasoning_text,
@@ -460,11 +463,16 @@ async def _run_ai_reviewer(
         # function. "Advisory" means autonomy mode requires the user's
         # real-time confirmation before execution — not that a separate
         # party needs to ratify. The gate reason explains why.
+        # Per FOUNDATIONS v8.4 Axiom 2 (operator is one principal with two
+        # runtime embodiments): the Reviewer-as-personified embodiment
+        # rendered approve; AUTONOMY requires the operator-in-real-time
+        # embodiment to confirm before binding. Phrasing reflects the
+        # two-embodiments framing — neither embodiment is a separate party.
         advisory_reasoning = (
             f"{ai_reasoning}\n\n"
             f"— {REVIEWER_MODEL_IDENTITY} (confidence: {confidence})\n\n"
-            f"**Your confirmation required** ({gate_reason}). "
-            f"Approve to execute."
+            f"**Operator-in-real-time confirmation required** ({gate_reason}). "
+            f"Approve to bind this judgment to execution."
         )
         await append_decision(
             client, user_id,
@@ -540,7 +548,7 @@ async def _run_ai_reviewer(
         reviewer_identity=REVIEWER_MODEL_IDENTITY,
         reasoning=full_reasoning_with_directives,
         reversibility=reversibility,
-        outcome="pending_human",
+        outcome="pending_operator",
     )
     # Unified chat thread — AI reviewed, chose to defer.
     await write_reviewer_message(

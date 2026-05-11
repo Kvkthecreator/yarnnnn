@@ -88,7 +88,9 @@ The frontend Files page surfaces a small lock-toggle icon next to each operator-
 
 `_locks.yaml` applies only to Reviewer writes (`authored_by` starts with `reviewer:`). Operator writes are never blocked by it. Other agents' writes are out of scope for this ADR — handled by their existing scope conventions.
 
-### D4 — Tool-use loop: 8 rounds, calls `execute_primitive()` from canonical registry
+### D4 — Tool-use loop: bounded, calls `execute_primitive()` from canonical registry
+
+> **Round bound amended by ADR-260 D8 (2026-05-08).** This ADR originally specified 8 rounds. ADR-260 D8 raised the addressed-trigger bound to **12 rounds** to accommodate the real-time Reviewer loop (recurrence-fire judgment + nested DispatchSpecialist + multi-step exploration). The proposal-arrival reactive trigger remains at **3 rounds** (discrete approve/reject/defer decision). Code at `api/agents/reviewer_agent.py:592-597` reflects the amended bounds; this ADR text is preserved as historical context. The "8" figures in §D4 + §D6 below should be read as superseded.
 
 `invoke_reviewer()` runs a bounded tool-use loop with up to **8 rounds** (raised from the 3-round bound in ADR-256's first implementation — full primitive scope needs more rounds for legitimate exploration: discover → read → read-revisions → act → close).
 

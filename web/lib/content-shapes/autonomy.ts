@@ -254,7 +254,7 @@ export interface UseAutonomyResult {
   loading: boolean;
   effectiveLevel: AutonomyLevel | null;
   summary: string;
-  /** Direct DB write via PATCH /api/workspace/file — zero LLM. */
+  /** Substrate write via writeShape (ADR-245 D5 contract enforcement). */
   setLevel: (level: AutonomyLevel, ceilingCents?: number) => Promise<void>;
 }
 
@@ -302,13 +302,15 @@ export function useAutonomy(): UseAutonomyResult {
     const content = serialize(next, rawBody, tierBlock);
     // Optimistic update — UI reflects immediately, API confirms in background
     setMeta(next);
-    // ADR-254: write to _autonomy.yaml, not AUTONOMY.md
-    await api.workspace.editFile(
-      'context/_shared/_autonomy.yaml',
-      content,
-      `autonomy level → ${level}`,
-      `set autonomy level to ${level}`,
-    );
+    // Singular Implementation (ADR-245 D5): all autonomy-shape mutations
+    // route through writeShape so the WRITE_CONTRACT guard runs. Same
+    // backend primitive as before (api.workspace.editFile internally).
+    // The duplicate write path that bypassed the guard was retired
+    // 2026-05-11 (post-FOUNDATIONS-v8.4 audit pass).
+    const { writeShape } = await import('./write');
+    await writeShape('autonomy', 'context/_shared/_autonomy.yaml', content, {
+      message: `autonomy level → ${level}`,
+    });
   };
 
   const effectiveLevel = resolveEffectiveLevel(meta);

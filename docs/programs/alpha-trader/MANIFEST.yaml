@@ -65,8 +65,11 @@ context_domains:
     # task prompt that includes this domain. Order is presentation order.
     # ADR-230 D2: each path here MUST have a matching template file in
     # this bundle's reference-workspace/. Accumulated substrate (e.g.
-    # _performance.md, _tracker.md) is written by back-office tasks at
-    # runtime — not authored at activation — so it does NOT belong here.
+    # _performance.md, _tracker.md) is written by judgment-mode recurrences
+    # (e.g. outcome-reconciliation, calibration) at runtime — not authored
+    # at activation — so it does NOT belong here. (Post-ADR-260 collapse:
+    # what were "back-office tasks" are now ordinary recurrences declared
+    # in _recurrences.yaml; the back_office/ Python package is deleted.)
     authored_substrate:
       - _operator_profile.md
       - _risk.md
@@ -96,10 +99,12 @@ context_domains:
       ## Performance & Attribution
     tracker_file: _tracker.md
     # ADR-230 D2: portfolio money-truth (_performance.md) is accumulated
-    # substrate — written by back-office-outcome-reconciliation per
+    # substrate — written by the outcome-reconciliation recurrence per
     # ADR-195 v2 + ADR-228 substrate-stub fix. NOT authored at activation,
     # so it does not appear in authored_substrate. The first run of the
     # reconciler creates an empty stub; from there it accumulates.
+    # (Post-ADR-260 collapse: the reconciler is an ordinary judgment-mode
+    # recurrence in _recurrences.yaml, not a back-office task.)
     authored_substrate: []
 
 # task_types: DELETED by ADR-263 + ADR-264 cleanup pass.
