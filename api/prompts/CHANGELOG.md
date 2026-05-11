@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.11.1] - ADR-266: MANDATE.md schema discipline in workspace profile prompt
+
+### Workspace prompt update + bundle template rewrite
+
+ADR-266 D3 ratifies a one-sentence schema for `## Primary Action` in MANDATE.md. The cockpit's MandateCard renders a structured callout when the schema is met (one-sentence Primary Action + ≤3 Success Criteria + Boundary count) and degrades gracefully when absent (first-sentence excerpt + "View full mandate"). Without this prompt update, YARNNN would continue writing multi-sentence Primary Actions and the schema-met path would never fire — the new card UI would be a prettier version of the same problem.
+
+**Changed:**
+- `api/agents/prompts/chat/workspace.py` — added "MANDATE.md schema (ADR-266 D3)" subsection under "Who writes what — primitive ownership rule." Names the three schema sections (`## Primary Action` = one declarative sentence; `## Success Criteria` = terse bullets; `## Boundary Conditions` = terse bullets), explicitly forbids packing the Primary Action with lifecycle/rules/rationale, preserves operator-authored sections (`## Edge hypothesis`, `## Rules of operation`, etc.) as valid prose substrate the LLM still reads.
+- `docs/programs/alpha-trader/reference-workspace/context/_shared/MANDATE.md` — Primary Action rewritten to one declarative sentence ("Submit equity and option orders to the broker, sized per the declared risk rule, attributed to a named signal."). Added `## Success Criteria` (5 terse bullets, synthesized from prior `## Outcome Signal`) and `## Boundary Conditions` (5 terse bullets, synthesized from prior `## What is OUT of scope`). Existing rich sections (Edge hypothesis, Rules of operation, Position lifecycle, Daily Discipline, What this operation is) preserved verbatim — they're operator intellectual substrate, not schema.
+
+**Expected behavior change:**
+- New mandate writes by YARNNN follow the schema. MandateCard renders the structured callout instead of dumping prose.
+- Operators activating alpha-trader fresh see the new template immediately (bundle fork).
+- Operators with already-customized MANDATE.md keep their content; if their `## Primary Action` is already one sentence, schema-met path engages on next page mount. If multi-sentence, graceful degradation engages with a hint to refine.
+- Old `## Outcome Signal` and `## What is OUT of scope` sections in operator-customized files continue to be readable by the LLM (operator-authored content preserved per ADR-209 attribution).
+
+**Cross-refs:** ADR-266 D3, ADR-244 D7, ADR-209 (operator content preserved as revisions).
+
+---
+
 ## [2026.05.10.5] - FE compositor reshape: collapse to one execution shape (post-Phase-I sweep)
 
 ### FE follow-up to ADRs 260/261/262 (post-merge code coherence)

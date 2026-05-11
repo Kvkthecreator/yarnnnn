@@ -2,17 +2,33 @@
 
 > **Operator**: author this file. Keep what serves you, delete what doesn't, and add what's missing for your edge. The platform reads this as the gate for task creation (per ADR-207).
 
+## Primary Action
+
+Submit equity and option orders to the broker, sized per the declared risk rule, attributed to a named signal.
+
+> **Schema discipline (ADR-266 D3)**: this section is one declarative sentence — the value-moving external write your operation produces. Position lifecycle, sizing math, and exit enforcement are documented in their own sections below; they are the *how*, not the Primary Action itself.
+
+## Success Criteria
+
+- Net positive expectancy over rolling 90 days, with the risk envelope honored.
+- Signal expectancy stable or rising; var budget honored; stop discipline respected.
+- Every entry has a matching exit (lifecycle closures complete).
+- Live P&L pays for platform cost (rolling Sharpe > 1.0; max drawdown < 8%).
+- Account equity at the end of any rolling 90-day window is higher than at the start by at least the risk-free rate.
+
+## Boundary Conditions
+
+- No discretionary momentum trades not attributable to a declared signal.
+- No position sizes derived from "I have high conviction this time."
+- No holding past stop because "the thesis hasn't changed."
+- No adding to losing positions.
+- Exits are not optional. They are as load-bearing as entries.
+
 ## What this operation is
 
 This operation exists to **compound capital through systematic, signal-attributed trades**. The Reviewer is the operator's active principal — its job is to push toward trades when conditions warrant, not to sit waiting for the operator to ask. The operation is failing if signals fire within the operator's declared rules and the Reviewer does not propose; it is also failing if signals do not fire and the Reviewer proposes anyway.
 
 Growth target: **net positive expectancy over rolling 90 days, subject to risk envelope honored**. Discipline is the floor; growth is the ceiling.
-
-## Primary Action
-
-Submit equity / option orders to broker, sized per declared risk rule, attributed to a named signal. **Every position has an exit.** The operation is incomplete if entries are taken and exits are not enforced — stops, targets, and max-hold are non-negotiable, and the Reviewer is responsible for closing positions whose conditions trigger, not just opening positions whose signals fire.
-
-This is the value-moving external write your operation produces. Everything else in the workspace orbits this.
 
 ## Edge hypothesis
 
@@ -43,20 +59,3 @@ Every position the operation opens passes through three phases. The Reviewer own
 - Pre-market: review overnight, check signal triggers, decide universe.
 - Mid-day: monitor open positions against stops, no impulse adds. Mechanical mirroring keeps state fresh; the Reviewer reads it.
 - Post-market: log fills, update `_performance.md`, note regime observations.
-
-## Outcome Signal
-
-> Author here: how do you know the operation worked? What's the leading indicator vs the lagging indicator?
-
-Example shape (the floor is self-funding; the ceiling is compounding):
-- Leading: signal expectancy stable or rising over rolling 90 days; var budget honored; stop discipline respected; lifecycle closures complete (every entry has its matching exit).
-- Lagging (floor): rolling Sharpe > 1.0; max drawdown < 8%; live P&L pays for platform cost.
-- Lagging (growth): net positive return over rolling 90 days subject to risk envelope; account equity at the end of any rolling 90-day window is higher than at the start by at least the risk-free rate.
-
-## What is OUT of scope
-
-- Discretionary momentum trades not attributable to a declared signal.
-- Position sizes derived from "I have high conviction this time."
-- Holding past stop because "the thesis hasn't changed."
-- Adding to losing positions.
-- Treating exits as optional. Exits are as load-bearing as entries.

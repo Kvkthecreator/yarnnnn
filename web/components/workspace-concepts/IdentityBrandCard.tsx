@@ -17,25 +17,61 @@ import { User, ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { parse as parseIdentity, type IdentityData } from '@/lib/content-shapes/identity';
 import { parse as parseBrand, type BrandData } from '@/lib/content-shapes/brand';
+import { cleanProse } from '@/lib/content-shapes/_render';
 import { cn } from '@/lib/utils';
+import type { WorkspaceRevisionSummary } from '@/types';
+import { RevisionFootnote } from './RevisionFootnote';
 
 export type IdentityBrandVariant = 'full' | 'compact';
 
 interface IdentityBrandCardProps {
   variant?: IdentityBrandVariant;
   onEdit?: (prompt: string) => void;
+  /** ADR-266 D8: pre-fetched data path. When supplied, the card does not
+   *  self-fetch. Identity + Brand are independent files; pass each. */
+  identityData?: IdentityData;
+  brandData?: BrandData;
+  /** ADR-266 D7: per-file revision metadata. We surface whichever is
+   *  more recent in the merged card footnote. */
+  identityRevision?: WorkspaceRevisionSummary | null;
+  brandRevision?: WorkspaceRevisionSummary | null;
   className?: string;
+}
+
+/** Pick the more-recent of two revisions for the merged card footnote. */
+function pickMostRecent(
+  a: WorkspaceRevisionSummary | null | undefined,
+  b: WorkspaceRevisionSummary | null | undefined,
+): WorkspaceRevisionSummary | null {
+  if (!a) return b ?? null;
+  if (!b) return a ?? null;
+  return new Date(a.created_at) >= new Date(b.created_at) ? a : b;
 }
 
 const IDENTITY_PROMPT = "Help me author my identity file — who I am as an operator, my domain, and how agents should represent me.";
 const BRAND_PROMPT = "Help me define my brand voice — the tone, style, and conventions I want all produced content to follow.";
 
-export function IdentityBrandCard({ variant = 'full', onEdit, className }: IdentityBrandCardProps) {
-  const [identity, setIdentity] = useState<IdentityData | null>(null);
-  const [brand, setBrand] = useState<BrandData | null>(null);
-  const [loading, setLoading] = useState(true);
+export function IdentityBrandCard({
+  variant = 'full',
+  onEdit,
+  identityData,
+  brandData,
+  identityRevision,
+  brandRevision,
+  className,
+}: IdentityBrandCardProps) {
+  const hasPropData = identityData !== undefined || brandData !== undefined;
+  const [identity, setIdentity] = useState<IdentityData | null>(identityData ?? null);
+  const [brand, setBrand] = useState<BrandData | null>(brandData ?? null);
+  const [loading, setLoading] = useState(!hasPropData);
 
   useEffect(() => {
+    if (hasPropData) {
+      setIdentity(identityData ?? { excerpt: null, isEmpty: true });
+      setBrand(brandData ?? { excerpt: null, isEmpty: true });
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       const [id, br] = await Promise.allSettled([
@@ -48,7 +84,9 @@ export function IdentityBrandCard({ variant = 'full', onEdit, className }: Ident
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [hasPropData, identityData, brandData]);
+
+  const mostRecentRevision = pickMostRecent(identityRevision, brandRevision);
 
   const bothEmpty = identity?.isEmpty && brand?.isEmpty;
 
@@ -81,9 +119,12 @@ export function IdentityBrandCard({ variant = 'full', onEdit, className }: Ident
   // full
   return (
     <div className={cn('space-y-3', className)}>
-      <div>
-        <p className="text-sm font-semibold">Identity & Brand</p>
-        <p className="text-xs text-muted-foreground mt-0.5">How the system understands you and how output should sound.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">Identity & Brand</p>
+          <p className="text-xs text-muted-foreground mt-0.5">How the system understands you and how output should sound.</p>
+        </div>
+        <RevisionFootnote revision={mostRecentRevision} className="shrink-0 pt-1" />
       </div>
 
       {loading ? (
@@ -118,7 +159,7 @@ export function IdentityBrandCard({ variant = 'full', onEdit, className }: Ident
               </div>
             ) : (
               <div className="flex items-start justify-between gap-3">
-                <p className="text-xs text-muted-foreground line-clamp-2">{identity?.excerpt}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">{identity?.excerpt ? cleanProse(identity.excerpt) : ''}</p>
                 {onEdit && (
                   <button type="button" onClick={() => onEdit(IDENTITY_PROMPT)}
                     className="shrink-0 text-xs text-primary hover:text-primary/80 transition-colors">
@@ -144,7 +185,7 @@ export function IdentityBrandCard({ variant = 'full', onEdit, className }: Ident
               </div>
             ) : (
               <div className="flex items-start justify-between gap-3">
-                <p className="text-xs text-muted-foreground line-clamp-2">{brand?.excerpt}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">{brand?.excerpt ? cleanProse(brand.excerpt) : ''}</p>
                 {onEdit && (
                   <button type="button" onClick={() => onEdit(BRAND_PROMPT)}
                     className="shrink-0 text-xs text-primary hover:text-primary/80 transition-colors">

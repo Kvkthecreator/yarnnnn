@@ -900,6 +900,10 @@ class ProgramItem(BaseModel):
     deferred: bool
     oracle: dict = {}
     current_phase: Optional[str] = None
+    # ADR-266 D5/D6: human label for the current phase, derived from the
+    # bundle MANIFEST's `phases[].label` field. The FE renders this instead
+    # of the raw enum slug (no more bare "OBSERVATION" tokens).
+    current_phase_label: Optional[str] = None
 
 
 class SubstrateFileStatus(BaseModel):
@@ -1063,6 +1067,15 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
             status = manifest.get("status")
             if status not in ("active", "deferred"):
                 continue
+            # ADR-266 D5/D6: derive current_phase_label from MANIFEST.phases.
+            # Same shape as services.composition_resolver._bundle_metadata —
+            # bundle MANIFEST is the singular source of truth for phase labels.
+            current_phase = manifest.get("current_phase")
+            phases = manifest.get("phases") or []
+            current_phase_label = next(
+                (p.get("label") for p in phases if p.get("key") == current_phase),
+                None,
+            )
             available_programs.append(ProgramItem(
                 slug=manifest.get("slug"),
                 title=manifest.get("title"),
@@ -1070,7 +1083,8 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
                 status=status,
                 deferred=(status == "deferred"),
                 oracle=manifest.get("oracle") or {},
-                current_phase=manifest.get("current_phase"),
+                current_phase=current_phase,
+                current_phase_label=current_phase_label,
             ))
     except Exception as exc:
         logger.warning(f"[WORKSPACE_STATE] available_programs read failed: {exc}")
@@ -1154,4 +1168,162 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
         available_programs=available_programs,
         substrate_status=substrate_status,
         capability_gaps=capability_gaps,
+    )
+
+
+# =============================================================================
+# GET /workspace/setup-bundle — Single bundled read for /workspace page (ADR-266)
+# =============================================================================
+# Collapses 7 round-trips (state + 6 file reads) into 1. The /workspace surface
+# (WorkspaceConfigSection) calls this once on mount and on activation refresh.
+# Cards keep their self-fetch fallback path for the /agents reuse surface
+# (singular implementation: one card, two data-source modes selected by prop
+# presence per ADR-266 D8).
+#
+# Each FileWithRevision returns:
+#   - content: workspace_files.content (None if missing)
+#   - last_revision: most recent workspace_file_versions row (ADR-209 Phase 4)
+#                    used by cards to render "Updated 3 days ago by you" line.
+#
+# All paths absolute (/workspace/...) for symmetry with workspace_files storage.
+
+class FileWithRevision(BaseModel):
+    """One file's content + most recent revision metadata.
+
+    `content` is None when the file does not exist (rare — substrate seeding
+    failed). `last_revision` is None when no revision rows exist yet (also
+    rare — every write goes through write_revision per ADR-209 Phase 2).
+    """
+    path: str
+    content: Optional[str] = None
+    last_revision: Optional[RevisionSummary] = None
+
+
+class WorkspaceSetupBundleResponse(BaseModel):
+    """ADR-266 D8: bundled response for /workspace page mount.
+
+    `state` mirrors the existing /workspace/state shape verbatim — no
+    duplication of derivation logic, single source of truth.
+
+    The 6 file fields cover every substrate file the four concept cards
+    (Mandate, Autonomy, Principles, Identity/Brand) consume.
+    """
+    state: WorkspaceStateResponse
+    mandate: FileWithRevision
+    autonomy_yaml: FileWithRevision
+    principles_prose: FileWithRevision
+    principles_yaml: FileWithRevision
+    identity: FileWithRevision
+    brand: FileWithRevision
+
+
+@router.get("/workspace/setup-bundle", response_model=WorkspaceSetupBundleResponse)
+async def get_workspace_setup_bundle(
+    request: Request,
+    auth: UserClient,
+) -> WorkspaceSetupBundleResponse:
+    """ADR-266: bundled read for the /workspace page.
+
+    Single endpoint replaces the 7 fan-out reads (1 state + 6 file fetches)
+    that WorkspaceConfigSection + 4 cards used to issue independently. The
+    cards still accept self-fetch fallback when no data prop is supplied
+    (preserves /agents reuse surface).
+
+    All file reads issued in parallel via asyncio.gather. Revision lookups
+    use existing list_revisions() with limit=1.
+    """
+    import asyncio
+    from services.workspace import UserMemory
+    from services.workspace_paths import (
+        SHARED_MANDATE_PATH,
+        SHARED_IDENTITY_PATH,
+        SHARED_BRAND_PATH,
+        SHARED_AUTONOMY_YAML_PATH,
+        REVIEW_PRINCIPLES_PATH,
+        REVIEW_PRINCIPLES_YAML_PATH,
+    )
+    from services.authored_substrate import list_revisions
+
+    # ─── Step 1: state derivation (delegate to existing endpoint logic) ──
+    # Calling get_workspace_state directly would re-trigger the lazy
+    # scaffolding side-effect; that's correct here too — first mount of
+    # /workspace deserves the same scaffolding gate as auth/callback.
+    state = await get_workspace_state(request, auth)
+
+    # ─── Step 2: file reads (parallel, absolute paths) ──────────────────
+    # UserMemory.read takes workspace-relative paths and prefixes
+    # /workspace/ internally. The path constants are relative; the
+    # absolute form is what we return to the caller (matches what cards
+    # currently pass to api.workspace.getFile).
+    um = UserMemory(auth.client, auth.user_id)
+
+    async def _read(rel_path: str) -> Optional[str]:
+        try:
+            return await um.read(rel_path)
+        except Exception:
+            return None
+
+    (
+        mandate_content,
+        autonomy_yaml_content,
+        principles_prose_content,
+        principles_yaml_content,
+        identity_content,
+        brand_content,
+    ) = await asyncio.gather(
+        _read(SHARED_MANDATE_PATH),
+        _read(SHARED_AUTONOMY_YAML_PATH),
+        _read(REVIEW_PRINCIPLES_PATH),
+        _read(REVIEW_PRINCIPLES_YAML_PATH),
+        _read(SHARED_IDENTITY_PATH),
+        _read(SHARED_BRAND_PATH),
+    )
+
+    # ─── Step 3: revision metadata (parallel, absolute paths) ───────────
+    # workspace_file_versions.path is stored absolute (matches workspace_files).
+    abs_paths = {
+        "mandate": f"/workspace/{SHARED_MANDATE_PATH}",
+        "autonomy_yaml": f"/workspace/{SHARED_AUTONOMY_YAML_PATH}",
+        "principles_prose": f"/workspace/{REVIEW_PRINCIPLES_PATH}",
+        "principles_yaml": f"/workspace/{REVIEW_PRINCIPLES_YAML_PATH}",
+        "identity": f"/workspace/{SHARED_IDENTITY_PATH}",
+        "brand": f"/workspace/{SHARED_BRAND_PATH}",
+    }
+
+    def _last_rev_sync(abs_path: str) -> Optional[dict]:
+        try:
+            rows = list_revisions(
+                auth.client,
+                user_id=auth.user_id,
+                path=abs_path,
+                limit=1,
+            )
+            return rows[0] if rows else None
+        except Exception as exc:
+            logger.warning(f"[SETUP_BUNDLE] revision lookup failed for {abs_path}: {exc}")
+            return None
+
+    # list_revisions is sync (Supabase Python client); run in threadpool
+    # to keep the gather parallel without blocking the event loop.
+    rev_results = await asyncio.gather(
+        *(asyncio.to_thread(_last_rev_sync, abs_paths[k]) for k in abs_paths)
+    )
+    rev_map = dict(zip(abs_paths.keys(), rev_results))
+
+    def _build(key: str, content: Optional[str]) -> FileWithRevision:
+        rev = rev_map.get(key)
+        return FileWithRevision(
+            path=abs_paths[key],
+            content=content,
+            last_revision=RevisionSummary(**rev) if rev else None,
+        )
+
+    return WorkspaceSetupBundleResponse(
+        state=state,
+        mandate=_build("mandate", mandate_content),
+        autonomy_yaml=_build("autonomy_yaml", autonomy_yaml_content),
+        principles_prose=_build("principles_prose", principles_prose_content),
+        principles_yaml=_build("principles_yaml", principles_yaml_content),
+        identity=_build("identity", identity_content),
+        brand=_build("brand", brand_content),
     )

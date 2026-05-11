@@ -100,6 +100,16 @@ async def list_activatable_programs(auth: UserClient) -> dict:
         status = manifest.get("status")
         if status not in ("active", "deferred"):
             continue
+        # ADR-266 D5/D6: surface current_phase_label so the FE never renders
+        # the bare enum slug (e.g. "OBSERVATION"). Bundle MANIFEST is the
+        # source of truth — no FE-side phase registry. Derivation mirrors
+        # services.composition_resolver._bundle_metadata.
+        current_phase = manifest.get("current_phase")
+        phases = manifest.get("phases") or []
+        current_phase_label = next(
+            (p.get("label") for p in phases if p.get("key") == current_phase),
+            None,
+        )
         items.append({
             "slug": manifest.get("slug"),
             "title": manifest.get("title"),
@@ -107,7 +117,8 @@ async def list_activatable_programs(auth: UserClient) -> dict:
             "status": status,
             "deferred": status == "deferred",
             "oracle": manifest.get("oracle") or {},
-            "current_phase": manifest.get("current_phase"),
+            "current_phase": current_phase,
+            "current_phase_label": current_phase_label,
         })
     return {"schema_version": 1, "programs": items}
 

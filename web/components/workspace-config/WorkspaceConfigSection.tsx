@@ -3,38 +3,39 @@
 /**
  * WorkspaceConfigSection — body of /workspace.
  *
- * Assembles four L3 concept components (MandateCard, DelegationCard,
- * PrinciplesCard, IdentityBrandCard) at `full` variant, plus the
- * program lifecycle section (active program, capability gaps, available programs).
+ * ADR-266 reshape:
+ *   D1: program lifecycle collapses into ProgramLifecycleDrawer at bottom
+ *       (default-collapsed, single-line summary). Daily-relevant content
+ *       (the four concept cards) gets full page weight.
+ *   D2: WorkspacePostureLine under the page title resets operator
+ *       expectation — chat is the edit surface.
+ *   D8: single getSetupBundle() call replaces 7 round-trips. Cards
+ *       receive parsed data + lastRevision via props (singular implementation
+ *       discipline — prop presence is the only signal that selects between
+ *       data-prop and self-fetch paths).
  *
- * No file paths, no raw markdown, no state badges from file format.
- * Each section renders meaning extracted from the substrate file.
- * Edits route through the chat panel on the right (ThreePanelLayout).
+ * No content is editable inline; chat is the edit surface (ADR-244 D7).
  *
- * See docs/design/WORKSPACE-COMPONENTS.md for the component catalog.
+ * See docs/design/WORKSPACE-COMPONENTS.md (v1.1) for the component catalog.
  */
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import {
-  Loader2,
-  Check,
-  AlertCircle,
-  Sparkles,
-  ArrowRight,
-  Power,
-  Link2,
-} from 'lucide-react';
+import { Loader2, AlertCircle, Sparkles, ArrowRight } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { useNarrative } from '@/contexts/NarrativeContext';
-import { cn } from '@/lib/utils';
 import { MandateCard } from '@/components/workspace-concepts/MandateCard';
 import { DelegationCard } from '@/components/workspace-concepts/DelegationCard';
 import { PrinciplesCard } from '@/components/workspace-concepts/PrinciplesCard';
 import { IdentityBrandCard } from '@/components/workspace-concepts/IdentityBrandCard';
+import { parse as parseMandate } from '@/lib/content-shapes/mandate';
+import { parse as parsePrinciples, parseYaml as parsePrinciplesYaml, mergeThresholds } from '@/lib/content-shapes/principles';
+import { parse as parseIdentity } from '@/lib/content-shapes/identity';
+import { parse as parseBrand } from '@/lib/content-shapes/brand';
+import { WorkspacePostureLine } from './WorkspacePostureLine';
+import { ProgramLifecycleDrawer } from './ProgramLifecycleDrawer';
 
-type WorkspaceState = Awaited<ReturnType<typeof api.workspace.getState>>;
-type ProgramItem = WorkspaceState['available_programs'][number];
+type SetupBundle = Awaited<ReturnType<typeof api.workspace.getSetupBundle>>;
 
 export function WorkspaceConfigSection() {
   const { sendMessage } = useNarrative();
@@ -42,16 +43,13 @@ export function WorkspaceConfigSection() {
   const searchParams = useSearchParams();
   const isFirstRun = searchParams.get('first_run') === '1';
 
-  const [state, setState] = useState<WorkspaceState | null>(null);
+  const [bundle, setBundle] = useState<SetupBundle | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [isMutating, setIsMutating] = useState<string | null>(null);
-  const [opError, setOpError] = useState<string | null>(null);
-  const [opSuccess, setOpSuccess] = useState<string | null>(null);
 
   const refresh = async () => {
     try {
-      const next = await api.workspace.getState();
-      setState(next);
+      const next = await api.workspace.getSetupBundle();
+      setBundle(next);
       setLoadError(null);
     } catch (err) {
       setLoadError(err instanceof APIError ? err.message : 'Failed to load workspace state');
@@ -59,35 +57,6 @@ export function WorkspaceConfigSection() {
   };
 
   useEffect(() => { refresh(); }, []);
-
-  useEffect(() => {
-    if (opSuccess) {
-      const t = setTimeout(() => setOpSuccess(null), 4000);
-      return () => clearTimeout(t);
-    }
-  }, [opSuccess]);
-
-  const handleActivate = async (slug: string) => {
-    setIsMutating(slug); setOpError(null);
-    try {
-      await api.programs.activate(slug);
-      setOpSuccess(`Activated ${slug}`);
-      await refresh();
-    } catch (err) {
-      setOpError(err instanceof APIError ? err.message : 'Activation failed');
-    } finally { setIsMutating(null); }
-  };
-
-  const handleDeactivate = async () => {
-    setIsMutating('deactivate'); setOpError(null);
-    try {
-      const res = await api.programs.deactivate();
-      if (res.deactivated) setOpSuccess(`Deactivated ${res.prior_program_slug}`);
-      await refresh();
-    } catch (err) {
-      setOpError(err instanceof APIError ? err.message : 'Deactivation failed');
-    } finally { setIsMutating(null); }
-  };
 
   // Chat edit handler — fires the prompt into the right panel
   const handleEdit = (prompt: string) => sendMessage(prompt);
@@ -101,7 +70,7 @@ export function WorkspaceConfigSection() {
     );
   }
 
-  if (!state) {
+  if (!bundle) {
     return (
       <div className="flex items-center justify-center py-10">
         <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
@@ -109,12 +78,31 @@ export function WorkspaceConfigSection() {
     );
   }
 
-  const activeProgram = state.active_program_slug
-    ? state.available_programs.find(p => p.slug === state.active_program_slug) ?? null
-    : null;
+  // Parse each content via L2 parsers (singular implementation: bundle
+  // delivers raw content, parsers run client-side, cards receive parsed data).
+  const mandateData = parseMandate(bundle.mandate.content ?? '');
+  const principlesProse = parsePrinciples(bundle.principles_prose.content ?? '');
+  const principlesYaml = parsePrinciplesYaml(bundle.principles_yaml.content ?? '');
+  const principlesData = mergeThresholds(principlesProse, principlesYaml);
+  const identityData = parseIdentity(bundle.identity.content ?? '');
+  const brandData = parseBrand(bundle.brand.content ?? '');
+
+  // Most-recent revision across the two principles files — surfaces the
+  // freshest of prose-edits and yaml-edits in PrinciplesCard's footnote.
+  const principlesRevision =
+    bundle.principles_prose.last_revision &&
+    bundle.principles_yaml.last_revision
+      ? new Date(bundle.principles_prose.last_revision.created_at) >=
+        new Date(bundle.principles_yaml.last_revision.created_at)
+        ? bundle.principles_prose.last_revision
+        : bundle.principles_yaml.last_revision
+      : bundle.principles_prose.last_revision ?? bundle.principles_yaml.last_revision;
 
   return (
-    <div className="space-y-8 max-w-2xl">
+    <div className="space-y-6 max-w-2xl">
+
+      {/* Posture line (ADR-266 D2) */}
+      <WorkspacePostureLine />
 
       {/* First-run banner */}
       {isFirstRun && (
@@ -133,169 +121,40 @@ export function WorkspaceConfigSection() {
         </div>
       )}
 
-      {/* ── Program lifecycle ─────────────────────────────────────────── */}
+      {/* ── Concept components — workspace setup (ADR-266 D1: top of page) ── */}
 
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold">Active program</h2>
-        {activeProgram ? (
-          <div className="rounded-lg border border-primary/40 bg-primary/5 p-4 flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-sm font-medium">{activeProgram.title}</span>
-                {activeProgram.current_phase && (
-                  <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">
-                    {activeProgram.current_phase}
-                  </span>
-                )}
-              </div>
-              {activeProgram.tagline && (
-                <p className="text-xs text-muted-foreground mt-1">{activeProgram.tagline}</p>
-              )}
-            </div>
-            <button type="button" onClick={handleDeactivate} disabled={isMutating !== null}
-              className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-muted/20 disabled:opacity-40 flex items-center gap-1.5 shrink-0">
-              {isMutating === 'deactivate'
-                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                : <Power className="w-3.5 h-3.5" />}
-              Deactivate
-            </button>
-          </div>
-        ) : (
-          <div className="rounded-lg border border-dashed border-border bg-muted/10 px-4 py-3">
-            <p className="text-sm text-muted-foreground">
-              No program activated. Pick one below or continue running as-is.
-            </p>
-          </div>
-        )}
-      </section>
-
-      {/* Capability gaps */}
-      {state.capability_gaps.length > 0 && (
-        <section className="space-y-3">
-          <h2 className="text-sm font-semibold">Platform connections needed</h2>
-          <p className="text-xs text-muted-foreground">
-            Your active program needs these platforms connected before it can execute autonomously.
-          </p>
-          <div className="space-y-2">
-            {state.capability_gaps.map(gap => (
-              <div key={`${gap.capability}-${gap.requires_platform}`}
-                className="rounded-md border border-border bg-card px-3 py-2 flex items-center justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">{gap.capability}</div>
-                  <div className="text-xs text-muted-foreground">
-                    requires <code className="text-xs">{gap.requires_platform}</code>
-                  </div>
-                </div>
-                {gap.connected ? (
-                  <span className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1 shrink-0">
-                    <Check className="w-3.5 h-3.5" /> Connected
-                  </span>
-                ) : (
-                  <a href="/connectors"
-                    className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1 shrink-0">
-                    <Link2 className="w-3.5 h-3.5" /> Connect
-                  </a>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Available programs */}
-      <section className="space-y-3">
-        <h2 className="text-sm font-semibold">
-          {activeProgram ? 'Switch program' : 'Available programs'}
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          {activeProgram
-            ? 'Switching forks the new program on top — your authored content is preserved.'
-            : 'Activating a program forks its starting configuration into your workspace.'}
-        </p>
-        <div className="space-y-2">
-          {state.available_programs.map(p => (
-            <ProgramRow key={p.slug} program={p}
-              isActive={p.slug === state.active_program_slug}
-              isMutating={isMutating === p.slug}
-              disabled={isMutating !== null && isMutating !== p.slug}
-              onActivate={() => handleActivate(p.slug)} />
-          ))}
-        </div>
-      </section>
-
-      {/* ── Concept components — workspace setup ─────────────────────── */}
-
-      <div className="border-t border-border/40 pt-8 space-y-8">
-        <div>
-          <h2 className="text-sm font-semibold">Workspace setup</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            These govern how YARNNN and your agents behave. Edit via chat on the right.
-          </p>
-        </div>
-
-        <MandateCard variant="full" onEdit={handleEdit} />
-        <DelegationCard variant="full" />
-        <PrinciplesCard variant="full" onEdit={handleEdit} />
-        <IdentityBrandCard variant="full" onEdit={handleEdit} />
+      <div className="space-y-8">
+        <MandateCard
+          variant="full"
+          onEdit={handleEdit}
+          data={mandateData}
+          rawContent={bundle.mandate.content}
+          lastRevision={bundle.mandate.last_revision}
+        />
+        <DelegationCard
+          variant="full"
+          initialContent={bundle.autonomy_yaml.content}
+          lastRevision={bundle.autonomy_yaml.last_revision}
+        />
+        <PrinciplesCard
+          variant="full"
+          onEdit={handleEdit}
+          data={principlesData}
+          lastRevision={principlesRevision ?? null}
+        />
+        <IdentityBrandCard
+          variant="full"
+          onEdit={handleEdit}
+          identityData={identityData}
+          brandData={brandData}
+          identityRevision={bundle.identity.last_revision}
+          brandRevision={bundle.brand.last_revision}
+        />
       </div>
 
-      {/* Op feedback */}
-      {opError && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive flex items-center gap-2">
-          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-          <span>{opError}</span>
-        </div>
-      )}
-      {opSuccess && (
-        <div className="rounded-md border border-green-500/30 bg-green-500/5 px-3 py-2 text-xs text-green-700 dark:text-green-400 flex items-center gap-2">
-          <Check className="w-3.5 h-3.5 shrink-0" />
-          <span>{opSuccess}</span>
-        </div>
-      )}
-    </div>
-  );
-}
+      {/* ── Program lifecycle (ADR-266 D1: collapsed at bottom) ───────── */}
 
-// ─── Program row ──────────────────────────────────────────────────────────────
-
-function ProgramRow({
-  program, isActive, isMutating, disabled, onActivate,
-}: {
-  program: ProgramItem;
-  isActive: boolean;
-  isMutating: boolean;
-  disabled: boolean;
-  onActivate: () => void;
-}) {
-  const interactive = !program.deferred && !isActive;
-  return (
-    <div className={cn('rounded-lg border px-4 py-3', isActive ? 'border-primary/50 bg-primary/5' : 'border-border bg-card')}>
-      <div className="flex items-start gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium">{program.title}</span>
-            {isActive && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary/15 text-primary">Active</span>
-            )}
-            {program.deferred && (
-              <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-muted text-muted-foreground/70">Coming soon</span>
-            )}
-            {program.current_phase && !program.deferred && !isActive && (
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/60">{program.current_phase}</span>
-            )}
-          </div>
-          {program.tagline && (
-            <p className="text-xs text-muted-foreground mt-0.5">{program.tagline}</p>
-          )}
-        </div>
-        {interactive && (
-          <button type="button" onClick={onActivate} disabled={disabled}
-            className="px-3 py-1.5 text-xs font-medium border border-border rounded-md hover:bg-muted/20 disabled:opacity-40 flex items-center gap-1.5 shrink-0">
-            {isMutating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-            Activate
-          </button>
-        )}
-      </div>
+      <ProgramLifecycleDrawer state={bundle.state} onMutation={refresh} />
     </div>
   );
 }

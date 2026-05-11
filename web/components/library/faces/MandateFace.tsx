@@ -39,6 +39,7 @@ import {
   type AutonomyMeta,
 } from '@/lib/content-shapes/autonomy';
 import { writeShape } from '@/lib/content-shapes/write';
+import { cleanProse } from '@/lib/content-shapes/_render';
 import { useCockpit } from '../CockpitContext';
 
 const MANDATE_PATH = '/workspace/context/_shared/MANDATE.md';
@@ -295,12 +296,14 @@ export function MandateFace() {
       >
         {meta.primary_action ? (
           <p className="text-base font-medium leading-snug text-foreground hover:underline">
-            {meta.primary_action}
+            {/* ADR-266 D5: render contract — strip markdown leakage and
+                workspace path references from parser output before render. */}
+            {cleanProse(meta.primary_action)}
           </p>
         ) : intent.length > 0 ? (
           <div className="space-y-1 text-sm leading-relaxed text-foreground hover:underline">
             {intent.slice(0, 4).map((line, idx) => (
-              <p key={idx}>{line}</p>
+              <p key={idx}>{cleanProse(line)}</p>
             ))}
           </div>
         ) : (

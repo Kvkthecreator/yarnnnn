@@ -15,6 +15,9 @@ import { useEffect, useState } from 'react';
 import { Scale, ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { parse, parseYaml, mergeThresholds, type PrinciplesData } from '@/lib/content-shapes/principles';
+import { cleanProse } from '@/lib/content-shapes/_render';
+import type { WorkspaceRevisionSummary } from '@/types';
+import { RevisionFootnote } from './RevisionFootnote';
 
 const PRINCIPLES_YAML_PATH = '/workspace/review/_principles.yaml';
 import { cn } from '@/lib/utils';
@@ -24,17 +27,35 @@ export type PrinciplesVariant = 'full' | 'compact' | 'headline';
 interface PrinciplesCardProps {
   variant?: PrinciplesVariant;
   onEdit?: (prompt: string) => void;
+  /** ADR-266 D8: pre-fetched data path. When provided, the card does not
+   *  self-fetch. */
+  data?: PrinciplesData;
+  /** ADR-266 D7: most-recent revision metadata for the prose file
+   *  (yaml-only edits also valid; we surface whichever is more recent
+   *  via the bundled endpoint). */
+  lastRevision?: WorkspaceRevisionSummary | null;
   className?: string;
 }
 
 const EDIT_PROMPT = "I want to evolve my Reviewer principles. Show me the current declaration and help me decide what to change — thresholds, reject conditions, domain coverage.";
 const SETUP_PROMPT = "Help me author my Reviewer principles — the rules that govern what proposals get approved, rejected, or deferred.";
 
-export function PrinciplesCard({ variant = 'full', onEdit, className }: PrinciplesCardProps) {
-  const [data, setData] = useState<PrinciplesData | null>(null);
-  const [loading, setLoading] = useState(true);
+export function PrinciplesCard({
+  variant = 'full',
+  onEdit,
+  data: dataProp,
+  lastRevision: lastRevisionProp,
+  className,
+}: PrinciplesCardProps) {
+  const [data, setData] = useState<PrinciplesData | null>(dataProp ?? null);
+  const [loading, setLoading] = useState(dataProp === undefined);
 
   useEffect(() => {
+    if (dataProp !== undefined) {
+      setData(dataProp);
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     void (async () => {
       try {
@@ -54,7 +75,7 @@ export function PrinciplesCard({ variant = 'full', onEdit, className }: Principl
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [dataProp]);
 
   if (variant === 'headline') {
     if (loading || !data?.hasPrinciples) return null;
@@ -104,9 +125,12 @@ export function PrinciplesCard({ variant = 'full', onEdit, className }: Principl
   // full
   return (
     <div className={cn('space-y-3', className)}>
-      <div>
-        <p className="text-sm font-semibold">Reviewer principles</p>
-        <p className="text-xs text-muted-foreground mt-0.5">The judgment framework applied to every proposal.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">Reviewer principles</p>
+          <p className="text-xs text-muted-foreground mt-0.5">The judgment framework applied to every proposal.</p>
+        </div>
+        <RevisionFootnote revision={lastRevisionProp ?? null} className="shrink-0 pt-1" />
       </div>
 
       {loading ? (
@@ -138,7 +162,7 @@ export function PrinciplesCard({ variant = 'full', onEdit, className }: Principl
                 <div className="space-y-0.5">
                   <p className="text-[10px] text-muted-foreground/60 uppercase tracking-wide">Always reject</p>
                   {d.rejectConditions.slice(0, 3).map((c, i) => (
-                    <p key={i} className="text-[11px] text-muted-foreground truncate">· {c}</p>
+                    <p key={i} className="text-[11px] text-muted-foreground truncate">· {cleanProse(c)}</p>
                   ))}
                   {d.rejectConditions.length > 3 && (
                     <p className="text-[11px] text-muted-foreground/50">· and {d.rejectConditions.length - 3} more</p>

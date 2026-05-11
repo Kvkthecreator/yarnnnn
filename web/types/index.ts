@@ -624,6 +624,26 @@ export interface WorkspaceFile {
   metadata?: Record<string, any>;
 }
 
+/** ADR-209 Phase 4 + ADR-266 D7: minimal revision metadata surfaced in
+ *  the /workspace setup-bundle and the per-card "Updated X by Y" line.
+ *  Mirrors api/routes/workspace.py::RevisionSummary. */
+export interface WorkspaceRevisionSummary {
+  id: string;
+  authored_by: string;
+  author_identity_uuid: string | null;
+  message: string;
+  created_at: string;
+  parent_version_id: string | null;
+}
+
+/** ADR-266 D8: one entry in the bundled /workspace setup response —
+ *  file content plus most-recent revision metadata. */
+export interface WorkspaceFileWithRevision {
+  path: string;
+  content: string | null;
+  last_revision: WorkspaceRevisionSummary | null;
+}
+
 // =============================================================================
 // Context Pages: Shared Platform Types
 // =============================================================================

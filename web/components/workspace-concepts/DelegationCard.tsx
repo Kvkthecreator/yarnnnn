@@ -18,6 +18,8 @@
 import { ShieldCheck, ArrowRight } from 'lucide-react';
 import { useAutonomy, type AutonomyLevel } from '@/lib/content-shapes/autonomy';
 import { cn } from '@/lib/utils';
+import type { WorkspaceRevisionSummary } from '@/types';
+import { RevisionFootnote } from './RevisionFootnote';
 
 export type DelegationVariant = 'full' | 'compact' | 'chip';
 
@@ -25,6 +27,11 @@ interface DelegationCardProps {
   variant?: DelegationVariant;
   /** For chip variant: click opens /workspace */
   onOpen?: () => void;
+  /** ADR-266 D8: pre-fetched _autonomy.yaml content (from setup-bundle).
+   *  When supplied, useAutonomy primes from this and skips its self-fetch. */
+  initialContent?: string | null;
+  /** ADR-266 D7: most-recent revision metadata for the footnote line. */
+  lastRevision?: WorkspaceRevisionSummary | null;
   className?: string;
 }
 
@@ -51,8 +58,14 @@ const LEVELS: { value: AutonomyLevel; label: string; description: string }[] = [
   },
 ];
 
-export function DelegationCard({ variant = 'full', onOpen, className }: DelegationCardProps) {
-  const { meta, loading, effectiveLevel, summary, setLevel } = useAutonomy();
+export function DelegationCard({
+  variant = 'full',
+  onOpen,
+  initialContent,
+  lastRevision,
+  className,
+}: DelegationCardProps) {
+  const { meta, loading, effectiveLevel, summary, setLevel } = useAutonomy({ initialContent });
 
   if (variant === 'chip') {
     if (loading || !effectiveLevel) return null;
@@ -109,9 +122,12 @@ export function DelegationCard({ variant = 'full', onOpen, className }: Delegati
 
   return (
     <div className={cn('space-y-3', className)}>
-      <div>
-        <p className="text-sm font-semibold">Autonomy mode</p>
-        <p className="text-xs text-muted-foreground mt-0.5">How much YARNNN decides without asking first.</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">Autonomy mode</p>
+          <p className="text-xs text-muted-foreground mt-0.5">How much YARNNN decides without asking first.</p>
+        </div>
+        <RevisionFootnote revision={lastRevision ?? null} className="shrink-0 pt-1" />
       </div>
 
       {loading ? (
