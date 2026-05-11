@@ -112,6 +112,17 @@ It is read by `dispatch_helpers.gather_task_context()` and injected into every h
 
 ---
 
+## Scheduling index — materialized at fork time
+
+The `tasks` table is a thin scheduling index over `/workspace/_recurrences.yaml` per ADR-261 D3. The YAML is truth; the table holds `next_run_at` + `last_run_at` per `(user_id, slug)` so the scheduler can do fast due-time queries with CAS atomic claims. The two writers of the canonical YAML each call `services.scheduling.materialize_scheduling_index()` immediately after the write:
+
+- `services.programs.fork_reference_workspace` — bundle activation (signup, `/api/programs/activate`, L2/L4 reset reinit). When the fork touches `_recurrences.yaml`, the index is built before the function returns.
+- `services.primitives.schedule.handle_schedule` — operator-driven mutations via `Schedule(action=create|update|pause|resume|archive)`. The post-write materialize syncs schedule changes, applies `paused` flips, and drops index rows whose recurrence was archived.
+
+The materialize call is idempotent and safe to invoke from either site. A freshly-activated workspace has a coherent scheduling index the moment the activation HTTP call returns — no scheduler-tick wait, no manual reconciliation step.
+
+---
+
 ## Back-office tasks — trigger-materialized, not signup-scaffolded
 
 Per ADR-206, zero operational tasks are scaffolded at signup. Back-office tasks materialize via `services.back_office.materialize_back_office_task()` on trigger:
@@ -176,7 +187,9 @@ Three callers previously had diverging skeleton-detection heuristics. As of 2026
 | `api/services/workspace_init.py` | `initialize_workspace()` — the 5-phase init function |
 | `api/services/workspace_paths.py` | Canonical path constants; `SHARED_CONTEXT_FILES` (kernel-seeded set) |
 | `api/services/workspace_utils.py` | `is_skeleton_content()` + `classify_file_state()` — shared heuristics |
-| `api/services/programs.py` | `fork_reference_workspace()`, `_strip_tier_frontmatter()`, `parse_active_program_slug()` |
+| `api/services/programs.py` | `fork_reference_workspace()` — copies bundle + calls `materialize_scheduling_index` when fork touched `_recurrences.yaml`; also `_strip_tier_frontmatter()`, `parse_active_program_slug()` |
+| `api/services/scheduling.py` | `materialize_scheduling_index()` — idempotent recurrences-YAML → `tasks`-index sync; called by both writers of the canonical YAML |
+| `api/services/primitives/schedule.py` | `handle_schedule()` — operator-driven mutations; post-write hook syncs scheduling index |
 | `api/services/back_office/__init__.py` | `materialize_back_office_task()` — trigger-based back-office lifecycle |
 | `api/routes/workspace.py` | `GET /api/workspace/state` — lazy scaffold + activation state surface |
 | `api/routes/account.py` | `DELETE /account/workspace` (L2) and `DELETE /account/reset` (L4) — purge + reinit |

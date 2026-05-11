@@ -289,12 +289,28 @@ async def handle_schedule(auth: Any, input: dict) -> dict:
             "message": f"failed to write {RECURRENCES_PATH}",
         }
 
+    # Sync the thin `tasks` scheduling index with the just-mutated YAML
+    # (ADR-261 D3 — YAML is truth, table is the index). Idempotent; drops
+    # rows whose recurrence was archived, upserts schedule changes. Failure
+    # is non-fatal — the next scheduler tick will reconcile — but log so
+    # the gap is visible.
+    from services.scheduling import materialize_scheduling_index
+    scheduling_index_rows = 0
+    try:
+        scheduling_index_rows = await materialize_scheduling_index(db_client, user_id)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning(
+            f"[SCHEDULE] materialize_scheduling_index failed for {user_id[:8]}: {exc}"
+        )
+
     return {
         "success": True,
         "action": action,
         "slug": slug,
         "path": RECURRENCES_PATH,
         "message": msg,
+        "scheduling_index_rows": scheduling_index_rows,
     }
 
 

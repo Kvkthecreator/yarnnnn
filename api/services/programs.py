@@ -151,10 +151,20 @@ async def fork_reference_workspace(
     Written through UserMemory.write → authored_substrate.write_revision
     with authored_by="system:bundle-fork".
 
+    Post-fork: if the bundle contained ``/workspace/_recurrences.yaml``,
+    ``materialize_scheduling_index`` is called once to populate the thin
+    `tasks` scheduling index. Without this, the scheduler can't see any
+    of the just-forked recurrences until a manual materialize step
+    (operator harness, scheduler tick, etc.). Per ADR-261 D3 the YAML is
+    truth and the table is the index — the index has to be built before
+    the scheduler can query it.
+
     Returns ``{"files_written": [...], "files_skipped": [...],
-    "program_slug": slug}``.
+    "program_slug": slug, "scheduling_index_rows": N}``.
     """
     from services.bundle_reader import _load_manifest
+    from services.conventions import RECURRENCES_PATH
+    from services.scheduling import materialize_scheduling_index
     from services.workspace import UserMemory
     from services.workspace_utils import is_skeleton_content
 
@@ -221,8 +231,35 @@ async def fork_reference_workspace(
             files_skipped.append(target_path)
             logger.info(f"[FORK] {target_path} — skipped (operator-customized)")
 
+    # Materialize the scheduling index when the fork touched the canonical
+    # recurrences YAML. The YAML is truth (ADR-261 D3); the `tasks` table is
+    # the index the scheduler queries. Without this, the freshly-forked
+    # workspace has live recurrence declarations on disk but zero rows in
+    # the index — the scheduler can't see them. Idempotent on no-op writes;
+    # safe to call even if no recurrences were written this fork (returns 0).
+    recurrences_relative = RECURRENCES_PATH.lstrip("/").removeprefix("workspace/")
+    fork_touched_recurrences = (
+        recurrences_relative in files_written
+        or recurrences_relative in files_skipped
+    )
+    scheduling_index_rows = 0
+    if fork_touched_recurrences:
+        try:
+            scheduling_index_rows = await materialize_scheduling_index(client, user_id)
+            logger.info(
+                f"[FORK] materialized scheduling index for {user_id[:8]}: "
+                f"{scheduling_index_rows} rows"
+            )
+        except Exception as exc:
+            # Materialization failure is not fatal — the scheduler's next
+            # tick will recover. But log loudly so the gap is visible.
+            logger.warning(
+                f"[FORK] materialize_scheduling_index failed for {user_id[:8]}: {exc}"
+            )
+
     return {
         "files_written": files_written,
         "files_skipped": files_skipped,
         "program_slug": program_slug,
+        "scheduling_index_rows": scheduling_index_rows,
     }

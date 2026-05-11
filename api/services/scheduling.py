@@ -19,8 +19,17 @@ Module ownership (per discipline rule 10):
 - Owner: scheduling concerns. Sibling to `services.recurrence`
   (YAML schema + walker) and `services.invocation_dispatcher` (firing).
 - Consumer: `jobs.unified_scheduler.run_unified_scheduler()`.
-- Producer: `services.primitives.schedule` post-write hook (when
-  recurrences YAML changes, materialize_scheduling_index re-syncs).
+- Producers (both call materialize_scheduling_index when the canonical
+  recurrences YAML changes):
+    * `services.primitives.schedule.handle_schedule` — operator-driven
+      mutations via Schedule(action=create|update|pause|resume|archive).
+    * `services.programs.fork_reference_workspace` — initial bundle fork
+      at activation time (signup, /api/programs/activate, L2/L4 reset
+      reinit when prior_program_slug is preserved per ADR-244 D4).
+  These are the only two writers to `/workspace/_recurrences.yaml`;
+  every write site syncs the index in the same call, so the scheduler's
+  next tick always sees a coherent index without waiting for a separate
+  reconciliation pass.
 
 Public surface:
 

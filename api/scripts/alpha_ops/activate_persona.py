@@ -335,7 +335,11 @@ def main() -> int:
     # ----- Step 6 DELETED (ADR-231 cutover) -----
     # The previous step posted each tasks.yaml entry to /api/tasks.
     # Post-cutover, recurrence declarations are scaffolded as YAML files
-    # via the Step 3 fork. The scheduler walks them on next tick.
+    # via the Step 3 fork. Per ADR-261 D3 the fork itself calls
+    # materialize_scheduling_index after writing /workspace/_recurrences.yaml,
+    # so the thin `tasks` index is populated immediately — verify.py and
+    # the scheduler both see the recurrences on the next read with no
+    # manual reconciliation step.
 
     # ----- Step 7: Platform connect (now Step 6 of 6 in display) -----
     print(f"[6/6] Platform connect")
