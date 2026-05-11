@@ -1456,11 +1456,12 @@ export const api = {
         timestamps: Record<string, string>;
       }>("/api/system/sync-timestamps"),
 
-    // Per-invocation execution log — powers /backend page (ADR-250)
-    executionEvents: (opts: { slug?: string; status?: string; limit?: number } = {}) => {
+    // Per-invocation execution log — powers /activity page (ADR-250 + ADR-265)
+    executionEvents: (opts: { slug?: string; status?: string; mode?: string; limit?: number } = {}) => {
       const parts: string[] = [];
       if (opts.slug) parts.push(`slug=${encodeURIComponent(opts.slug)}`);
       if (opts.status) parts.push(`status=${encodeURIComponent(opts.status)}`);
+      if (opts.mode) parts.push(`mode=${encodeURIComponent(opts.mode)}`);
       if (opts.limit) parts.push(`limit=${opts.limit}`);
       const qs = parts.length ? `?${parts.join("&")}` : "";
       return request<ExecutionEvent[]>(`/api/system/execution-events${qs}`);

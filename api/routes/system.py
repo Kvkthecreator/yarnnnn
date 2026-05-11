@@ -281,13 +281,13 @@ async def get_sync_timestamps(auth: UserClient):
 
 
 # =============================================================================
-# Execution Events — user-scoped invocation log (ADR-250)
+# Execution Events — user-scoped invocation log (ADR-250 + ADR-265)
 # =============================================================================
 
 class ExecutionEventRow(BaseModel):
     id: Optional[str] = None
     slug: str
-    shape: str
+    mode: str  # judgment | mechanical (ADR-263 / ADR-265)
     trigger_type: str
     status: str
     error_reason: Optional[str] = None
@@ -307,19 +307,21 @@ async def get_execution_events(
     auth: UserClient,
     slug: Optional[str] = None,
     status: Optional[str] = None,
+    mode: Optional[str] = None,
     limit: int = 100,
 ) -> list[ExecutionEventRow]:
     """
     User-scoped execution event log.
 
     Returns one row per invocation attempt, newest first.
-    Optionally filtered by slug (single job) or status (success/failed/skipped).
-    Powers the /backend page job activity log.
+    Optionally filtered by slug (single job), status (success/failed/skipped),
+    or mode (judgment/mechanical, ADR-263 cost discriminator).
+    Powers the /activity page job activity log (ADR-265).
     """
     query = (
         auth.client.table("execution_events")
         .select(
-            "id, slug, shape, trigger_type, status, error_reason, error_detail, "
+            "id, slug, mode, trigger_type, status, error_reason, error_detail, "
             "tool_rounds, input_tokens, output_tokens, cache_read_tokens, "
             "cache_create_tokens, cost_usd, duration_ms, created_at"
         )
@@ -331,6 +333,8 @@ async def get_execution_events(
         query = query.eq("slug", slug)
     if status:
         query = query.eq("status", status)
+    if mode:
+        query = query.eq("mode", mode)
 
     rows = (query.execute()).data or []
     return [ExecutionEventRow(**r) for r in rows]

@@ -21,7 +21,7 @@ const PROTECTED_PREFIXES = [
   "/agents",
   "/context",
   "/workspace",
-  "/backend",
+  "/activity",
   "/connectors",
   "/operation", // redirect stub → /workspace
   "/memory",
@@ -31,6 +31,7 @@ const PROTECTED_PREFIXES = [
   "/docs",
   // Legacy routes still protected for redirect stubs
   "/chat",       // ADR-259 — redirect stub → /feed
+  "/backend",    // ADR-265 — redirect stub → /activity
   "/schedule",
   "/overview",
   "/team",

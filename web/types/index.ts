@@ -867,11 +867,11 @@ export interface RunStatus {
   completed_at?: string;
 }
 
-// ADR-250: Per-invocation execution event row (powers /backend page)
+// ADR-250 + ADR-265: Per-invocation execution event row (powers /activity page)
 export interface ExecutionEvent {
   id: string | null;
   slug: string;
-  shape: string;
+  mode: string; // judgment | mechanical (ADR-263 / ADR-265 — cost discriminator)
   trigger_type: string;
   status: "success" | "failed" | "skipped";
   error_reason: string | null;

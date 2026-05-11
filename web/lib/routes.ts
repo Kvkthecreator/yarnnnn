@@ -34,7 +34,7 @@
 //      external links to the route are known. Until both hold, the stub
 //      stays.
 //
-// Active stubs (verified 2026-05-08):
+// Active stubs (verified 2026-05-11):
 //   /chat          → /feed                             (ADR-259 — surface rename)
 //   /orchestrator  → /feed                             (ADR-163, ADR-205 F1)
 //   /team          → /agents                           (ADR-214 — reverses ADR-201)
@@ -44,6 +44,7 @@
 //   /system        → /settings                         (system tab removed 2026-05-02)
 //   /schedule      → /work                             (ADR-243 folded into Work tabs)
 //   /operation     → /workspace                         (renamed before launch)
+//   /backend       → /activity                         (ADR-265 — operator-readable rename)
 //
 // =============================================================================
 export const HOME_ROUTE = "/feed";
@@ -53,7 +54,7 @@ export const WORK_ROUTE = "/work";
 export const AGENTS_ROUTE = "/agents"; // ADR-214 — canonical (reverses ADR-201 /team rename).
 export const CONTEXT_ROUTE = "/context";
 export const WORKSPACE_CONFIG_ROUTE = "/workspace"; // Workspace-level config (mandate, autonomy, principles, programs).
-export const BACKEND_ROUTE = "/backend";             // Per-job execution log (execution_events, ADR-250).
+export const ACTIVITY_ROUTE = "/activity";           // Workspace-wide activity ledger (execution_events, ADR-250 + ADR-265).
 export const CONNECTORS_ROUTE = "/connectors"; // Platform connections — Slack, Notion, GitHub, Lemon Squeezy, Alpaca.
 // ADR-251: System Agent + Reviewer as first-class surfaces. Roster reinstated.
 // ?agent=system = System Agent detail. ?agent=reviewer = Reviewer detail.

@@ -103,7 +103,7 @@ def record_execution_event(
     *,
     user_id: str,
     slug: str,
-    shape: str,
+    mode: str,
     trigger_type: str,
     status: str,
     error_reason: Optional[str] = None,
@@ -123,7 +123,7 @@ def record_execution_event(
         client:             Supabase service client
         user_id:            User UUID
         slug:               Recurrence slug
-        shape:              deliverable | accumulation | action | maintenance
+        mode:               judgment | mechanical (ADR-263 — wakes Reviewer or runs deterministic Python)
         trigger_type:       scheduled | manual | back_office
         status:             success | failed | skipped
         error_reason:       taxonomy key (see observability.md Error Reason Taxonomy)
@@ -151,7 +151,7 @@ def record_execution_event(
         row: dict[str, Any] = {
             "user_id": user_id,
             "slug": slug,
-            "shape": shape,
+            "mode": mode,
             "trigger_type": trigger_type,
             "status": status,
         }
@@ -180,7 +180,7 @@ def record_execution_event(
 
         logger.info(
             "[TELEMETRY] %s/%s %s%s",
-            shape, slug, status,
+            mode, slug, status,
             f" cost=${cost_usd:.4f}" if cost_usd else "",
         )
     except Exception as e:
