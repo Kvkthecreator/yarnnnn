@@ -79,6 +79,8 @@ Every invocation surfaces in one **narrative** — the chat-shaped operator-faci
 
 **Tasks are legibility wrappers, not parallel substrates.** A task is a nameplate + pulse + contract attached to a category of recurring invocations. `/work` is the narrative filtered by task slug — the data substrate is unchanged from ADR-138; the mental model sharpens. Inline actions are invocations without a nameplate; the inline-to-task transition (attach a nameplate + pulse) is gradient and reversible.
 
+**Invocations compose into the Loop.** Per FOUNDATIONS v8.4, the runtime construct in which most invocations occur is **the Loop** (glossary-defined) — the synchronous Reviewer session per [ADR-260](../adr/ADR-260-real-time-reviewer-loop.md). One Loop wake-up is composed of one Reviewer invocation plus zero-or-more System Agent invocations (the tool calls the Reviewer makes, dispatched deterministically per ADR-257) plus zero-or-more nested specialist invocations (`DispatchSpecialist` calls). Mechanical recurrences (`mode: mechanical` per ADR-263 D5) are the deterministic end of the same architecture — they emit single System Agent invocations between Loop wake-ups, keeping substrate fresh so the Loop has truth to read from when it next wakes. The Loop is the runtime construct in which the operator-as-Reviewer (the personified embodiment per FOUNDATIONS Axiom 2) does its work; substrate is the bus the Loop runs over (Axiom 1's fourth sub-clause).
+
 Deep dive: [invocation-and-narrative.md](invocation-and-narrative.md). ADR-219 (proposed) scopes implementation of the narrative-storage and /work-as-filter commitments.
 
 ### Frame 5 — Agent-Native Operating System Architecture (FOUNDATIONS Principle 16, ADR-222)

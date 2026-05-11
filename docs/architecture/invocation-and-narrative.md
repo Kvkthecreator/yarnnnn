@@ -53,6 +53,22 @@ Not every function call is an invocation. The boundary is: **an invocation is a 
 
 One firing of one actor. One atom.
 
+### Invocations compose into the Loop (hardening, 2026-05-11)
+
+Per FOUNDATIONS v8.4 (Axiom 1 fourth sub-clause + Axiom 2 two-embodiments sub-section), invocations are the atom *of* a runtime construct named **the Loop** — the synchronous Reviewer session canonized by [ADR-260](../adr/ADR-260-real-time-reviewer-loop.md).
+
+A single Loop wake-up is composed of multiple invocations:
+
+- **One Reviewer invocation** — the LLM session with `trigger="addressed"` (operator messaged the feed) or `trigger="reactive"` (a `judgment`-mode recurrence fired, or a proposal arrived). Identity = `reviewer:{occupant}`.
+- **Zero or more System Agent invocations** — each tool call the Reviewer makes (`FireInvocation`, `Schedule`, `WriteFile`, `ProposeAction`) dispatches as a separate invocation by the System Agent acting on the Reviewer's behalf. Identity = `system:agent`.
+- **Zero or more nested specialist invocations** — `DispatchSpecialist` calls produce `headless`-mode specialist invocations whose substrate writes are read by the Reviewer in the same Loop cycle. Identity = `specialist:{role}`.
+
+All these invocations land in the universal narrative (§3 below), each as its own entry. The narrative is the operator-legible surface of the Loop; the substrate writes are the Loop's medium of action. There is no parallel control-flow channel between Reviewer and System Agent — the channel *is* substrate revisions (per ADR-209 attribution), with per-action narration on the feed (per ADR-258 revised) as a Channel-axis legibility affordance.
+
+**Mechanical recurrences are not part of the Loop.** A `mechanical`-mode recurrence fire (per ADR-263 D5) emits one System Agent invocation that executes a primitive deterministically and writes substrate. It does not wake the Reviewer; it does not enter the Loop. Mechanical recurrences are the deterministic end of the same operating architecture — they keep substrate fresh between Loop wake-ups so the Loop has truth to read from when it next wakes. Same operator (operator-as-standing-intent → mandate authoring → cron schedule), different runtime composition.
+
+**Tasks are not the same as the Loop, either.** Tasks are legibility wrappers (§4 below) over categories of invocations; the Loop is the runtime construct that produces invocations. A single Loop wake-up may produce invocations attributed to multiple tasks (Reviewer reads several recurrences' outputs, fires one, ProposeActions another) or no tasks at all (operator addresses with an inline question).
+
 ---
 
 ## 2. Pulse — the actor-scoped shape of Trigger
