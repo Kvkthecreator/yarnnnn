@@ -17,6 +17,7 @@
 import { useRef, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   CalendarClock,
+  Cpu,
   FileText,
   LayoutDashboard,
   MoreHorizontal,
@@ -56,14 +57,19 @@ interface WorkListSurfaceProps {
   onSelect: (slug: string) => void;
 }
 
-// Phase I (post-merge sweep, 2026-05-10): per ADR-261 D1's "one execution
-// shape" + ADR-262 D1's slug-templated convention, every recurrence is
-// effectively report-shaped on disk (/workspace/reports/{slug}/{date}/...).
-// The legacy per-output_kind icon switch is collapsed: FileText for
-// operator recurrences, Settings2 for back-office plumbing
-// (recognized by `back-office-` slug prefix).
-function iconForRecurrence(slug: string): React.ElementType {
-  return slug.startsWith('back-office-') ? Settings2 : FileText;
+// Per ADR-263, a recurrence's `mode` declares its wake intent:
+//   mechanical → deterministic Python, no LLM, zero cost (Cpu icon)
+//   judgment   → wakes the Reviewer with the prompt (FileText icon)
+// Back-office recurrences (`back-office-` slug prefix) retain Settings2
+// regardless of mode — they're plumbing housekeeping, conceptually distinct
+// from operator-facing work and always visually muted.
+//
+// The icon shift is the cost-shape lever ADR-263 §6.3 promised: operators
+// see at a glance which scheduled work fires LLM and which runs free.
+function iconForRecurrence(rec: Recurrence): React.ElementType {
+  if (rec.slug.startsWith('back-office-')) return Settings2;
+  if (rec.mode === 'mechanical') return Cpu;
+  return FileText;
 }
 
 // ─── Sorting ──────────────────────────────────────────────────────────────────
@@ -403,7 +409,7 @@ function ScheduleRow({
   const isPaused = task.paused === true;
   const isSystem = task.slug.startsWith('back-office-');
 
-  const KindIcon = iconForRecurrence(task.slug);
+  const KindIcon = iconForRecurrence(task);
 
   const dotColor = isSystem
     ? 'bg-muted-foreground/20'
@@ -452,6 +458,21 @@ function ScheduleRow({
         </p>
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           <span className="text-[11px] text-muted-foreground/50">{cadenceText}</span>
+          {/* ADR-263 cost-shape signal: surface mechanical mode explicitly so
+              operators see at a glance which scheduled work fires LLM (default,
+              unlabeled) vs which runs as deterministic Python (labeled).
+              Judgment mode is implicit — labeling every row would be noise. */}
+          {task.mode === 'mechanical' && !isSystem && (
+            <>
+              <span className="text-[11px] text-muted-foreground/30">·</span>
+              <span
+                className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60 px-1 py-0.5 rounded bg-muted/60"
+                title="Mechanical recurrence — runs as deterministic Python; no LLM cost (ADR-263)"
+              >
+                Mech
+              </span>
+            </>
+          )}
           {assignedAgents.length > 0 && (
             <>
               <span className="text-[11px] text-muted-foreground/30">·</span>
