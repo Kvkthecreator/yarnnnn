@@ -620,6 +620,26 @@ async def invoke_reviewer(
 
         for _round in range(max_rounds):
             rounds_used = _round + 1
+            # Commit H (2026-05-11): cooperative cancellation check between
+            # rounds. When the operator clicks Stop in the feed composer,
+            # the FE POSTs /api/feed/cancel which sets
+            # chat_sessions.cancellation_requested=true on the workspace's
+            # active session. We check it here at the top of every round
+            # (not inside a single LLM call — that's not interruptible).
+            # On cancel: exit early with stand_down verdict; the caller
+            # then resets the flag for the next session.
+            if _check_session_cancellation(client, user_id):
+                logger.info(
+                    "[REVIEWER] cancellation_requested honored at round %d/%d trigger=%s user=%s",
+                    rounds_used, max_rounds, trigger, user_id[:8],
+                )
+                _clear_session_cancellation(client, user_id)
+                return ReviewerOutput(
+                    verdict="stand_down",
+                    reasoning="Operator interrupted the in-flight Loop via the Stop affordance. No further actions taken in this session.",
+                    confidence="high",
+                    actions_taken=actions_taken,
+                )
             tool_choice = {"type": "any"} if _round == 0 else {"type": "auto"}
             await _emit({"phase": "round_start", "round": rounds_used, "trigger": trigger})
 
@@ -923,6 +943,67 @@ def _compact_result_for_model(result: Any) -> str:
         return "\n".join(lines) if lines else "_(no signal state files found)_"
     except Exception:
         return "_(signal files unavailable)_"
+
+
+# ---------------------------------------------------------------------------
+# Cooperative cancellation (Commit H.1, 2026-05-11)
+# ---------------------------------------------------------------------------
+#
+# Two helpers used by invoke_reviewer's per-round cancellation check (Mode 1
+# of the interruption surface). The flag lives on chat_sessions
+# (migration 173); operator's POST /api/feed/cancel sets it; the Reviewer
+# checks + clears it.
+#
+# Design choice: we look up the operator's *active workspace session* (same
+# function reviewer_chat_surfacing uses) rather than threading a session_id
+# parameter through every Reviewer call site. The Reviewer doesn't know
+# which session it's running on behalf of — that's the orchestration
+# context. Looking up the active session at check time matches how
+# narration emits work too.
+#
+# Failure discipline: any exception (Supabase blip, no active session, etc.)
+# → returns False (no cancellation). Cancellation is best-effort safety,
+# never blocks the Loop on errors.
+
+def _check_session_cancellation(client: Any, user_id: str) -> bool:
+    """Return True iff the operator's active session has cancellation_requested=true."""
+    if not user_id:
+        return False
+    try:
+        from services.narrative import find_active_workspace_session
+        session_id = find_active_workspace_session(client, user_id)
+        if not session_id:
+            return False
+        result = (
+            client.table("chat_sessions")
+            .select("cancellation_requested")
+            .eq("id", session_id)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        if not rows:
+            return False
+        return bool(rows[0].get("cancellation_requested", False))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[REVIEWER] cancellation check failed: %s", exc)
+        return False
+
+
+def _clear_session_cancellation(client: Any, user_id: str) -> None:
+    """Reset the cancellation flag after honoring it. Best-effort; never raises."""
+    if not user_id:
+        return
+    try:
+        from services.narrative import find_active_workspace_session
+        session_id = find_active_workspace_session(client, user_id)
+        if not session_id:
+            return
+        client.table("chat_sessions").update(
+            {"cancellation_requested": False}
+        ).eq("id", session_id).execute()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[REVIEWER] cancellation clear failed: %s", exc)
 
 
 async def read_signal_files(client: Any, user_id: str) -> str:

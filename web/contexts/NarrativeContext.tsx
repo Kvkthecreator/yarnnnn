@@ -150,6 +150,17 @@ interface NarrativeContextValue {
   pendingNotifications: TPNotification[];
   flushNotifications: () => void;
 
+  // Commit H (2026-05-11) — interruption surface (Mode 1):
+  /** True iff a Reviewer Loop is in flight: either the operator's own
+   *  sendMessage is mid-stream OR a recent autonomous wake (cron-fired)
+   *  has emitted realtime activity in the last ~30s. */
+  loopActive: boolean;
+  /** Stop the in-flight Loop. Aborts the operator's local stream (if
+   *  any) AND POSTs /api/feed/cancel so server-side cooperative
+   *  cancellation kicks in for autonomous wakes. Best-effort; safe to
+   *  call when no Loop is running. */
+  stopActiveLoop: () => Promise<void>;
+
   // Actions
   sendMessage: (
     content: string,
@@ -206,6 +217,13 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
   // wake fires 5 System Agent narrations in quick succession) into one
   // re-fetch, avoiding 5 concurrent globalHistory roundtrips.
   const realtimeRefetchTimerRef = useRef<NodeJS.Timeout | null>(null);
+  // Commit H (2026-05-11): track last realtime-insert timestamp for
+  // loop-active detection. Cron-fired Loops produce realtime System
+  // Agent narrations without changing `status` (which only tracks
+  // operator-initiated sendMessage flow). When realtime activity is
+  // recent (last ~30s), we treat the Loop as in-flight and surface the
+  // Stop affordance.
+  const [lastRealtimeActivity, setLastRealtimeActivity] = useState<number | null>(null);
 
   // ---------------------------------------------------------------------------
   // Status timeout safety - reset to idle if stuck in loading state.
@@ -407,6 +425,10 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
   useSessionMessagesRealtime({
     sessionId,
     onInsert: () => {
+      // Commit H (2026-05-11): track every realtime arrival for loop-active
+      // detection. The Stop affordance surfaces when realtime activity is
+      // recent (~30s), regardless of operator's own status.
+      setLastRealtimeActivity(Date.now());
       // Skip realtime echoes during active sendMessage — the streaming
       // path's reducer mutations already populated optimistic UI state,
       // and a re-fetch would race against in-flight stream events.
@@ -421,6 +443,60 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
       }, 250);
     },
   });
+
+  // Commit H (2026-05-11): loop-active derivation drives the Stop affordance.
+  // Two signals:
+  //   (a) operator's own sendMessage is mid-flight (status != idle/complete)
+  //   (b) recent realtime arrival from an autonomous Loop wake (~30s window)
+  // We re-evaluate per render; for (b) we use a 30s sliding window because
+  // there's no clean "loop ended" event from the backend — a quiet pause
+  // means the Loop wrapped up. The window length matches typical Reviewer
+  // session duration (a few rounds × few seconds each).
+  const REALTIME_ACTIVE_WINDOW_MS = 30_000;
+  const operatorStreamActive = status.type !== 'idle' && status.type !== 'complete';
+  const realtimeRecent =
+    lastRealtimeActivity !== null &&
+    Date.now() - lastRealtimeActivity < REALTIME_ACTIVE_WINDOW_MS;
+  const loopActive = operatorStreamActive || realtimeRecent;
+
+  // Tick state every 5s while a recent realtime arrival exists, so the
+  // Stop affordance disappears when the window elapses without any new
+  // events. Tied to lastRealtimeActivity so we only spin a timer when
+  // there's something to expire.
+  useEffect(() => {
+    if (lastRealtimeActivity === null) return;
+    const elapsed = Date.now() - lastRealtimeActivity;
+    if (elapsed >= REALTIME_ACTIVE_WINDOW_MS) return;
+    const timer = setTimeout(() => {
+      // Force re-render by re-setting state to the same value; React
+      // will see no diff but the next render's loopActive computation
+      // will use the now-elapsed window.
+      setLastRealtimeActivity((prev) => prev);
+    }, REALTIME_ACTIVE_WINDOW_MS - elapsed + 100);
+    return () => clearTimeout(timer);
+  }, [lastRealtimeActivity]);
+
+  const stopActiveLoop = useCallback(async () => {
+    // (1) Abort the operator's own sendMessage stream if mid-flight.
+    if (abortControllerRef.current) {
+      try {
+        abortControllerRef.current.abort();
+      } catch {/* best-effort */}
+      abortControllerRef.current = null;
+    }
+    // (2) POST the server-side cancel for autonomous Loop wakes (and as
+    // a belt-and-suspenders signal even on operator-stream cancels).
+    try {
+      await api.chat.cancel();
+    } catch (err) {
+      console.warn('[NarrativeContext] /api/feed/cancel failed:', err);
+    }
+    // (3) Reset local UI state so the composer returns to send mode.
+    setStatus({ type: 'idle' });
+    dispatch({ type: 'SET_LOADING', isLoading: false });
+    // Clear realtime-recent so the Stop affordance disappears.
+    setLastRealtimeActivity(null);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Send message to TP
@@ -979,6 +1055,9 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
     // ADR-155: Notification channel
     pendingNotifications: state.pendingNotifications,
     flushNotifications,
+    // Commit H (2026-05-11): interruption surface (Mode 1)
+    loopActive,
+    stopActiveLoop,
     // Actions
     sendMessage,
     clearMessages,

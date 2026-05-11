@@ -19,6 +19,7 @@ import {
   MessageCircle,
   Send,
   Paperclip,
+  Square,
 } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -123,6 +124,8 @@ export function FeedPanel({
     status,
     pendingClarification,
     respondToClarification,
+    loopActive,
+    stopActiveLoop,
   } = useNarrative();
   const { surface: deskSurface } = useDesk();
   const surface = surfaceOverride || deskSurface;
@@ -351,21 +354,38 @@ export function FeedPanel({
               className="w-full px-3 pt-2.5 pb-1 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
             />
 
-            {/* Bottom toolbar row — mirrors Claude Code: + / … [send].
+            {/* Bottom toolbar row — mirrors Claude Code: + / … [send|stop].
                 Commit G (2026-05-11): autonomy chip relocated to feed
-                header (AutonomyHeaderChip in FeedSurface.tsx). The
-                workspace-level posture belongs at the workspace frame,
-                not the operator-input frame. Singular Implementation. */}
+                header (AutonomyHeaderChip in FeedSurface.tsx).
+                Commit H (2026-05-11): send button toggles to stop button
+                while a Reviewer Loop is in flight (operator's own stream
+                OR autonomous wake within ~30s realtime window). */}
             <div className="flex items-center gap-1 px-1.5 pb-1.5">
               <PlusMenu actions={allPlusMenuActions} disabled={isLoading} />
               <div className="flex-1" />
-              <button
-                type="submit"
-                disabled={isLoading || (!input.trim() && attachments.length === 0)}
-                className="shrink-0 p-1.5 text-primary disabled:text-muted-foreground disabled:opacity-50 transition-colors"
-              >
-                <Send className="w-4 h-4" />
-              </button>
+              {loopActive ? (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    void stopActiveLoop();
+                  }}
+                  aria-label="Stop in-flight Loop"
+                  title="Stop the Reviewer's in-flight Loop"
+                  className="shrink-0 p-1.5 rounded text-foreground hover:bg-muted transition-colors"
+                >
+                  <Square className="w-4 h-4 fill-current" />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!input.trim() && attachments.length === 0}
+                  className="shrink-0 p-1.5 text-primary disabled:text-muted-foreground disabled:opacity-50 transition-colors"
+                  aria-label="Send message"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              )}
             </div>
           </div>
         </form>

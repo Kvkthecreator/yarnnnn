@@ -42,6 +42,7 @@ import type {
   // ADR-152: Workspace Explorer
   WorkspaceTreeNode,
   WorkspaceFile,
+  WorkspaceFileWithRevision,
   // ADR-219 Commit 4: narrative filter-over-substrate
   NarrativeByTaskResponse,
   // ADR-250: per-invocation execution log
@@ -292,6 +293,17 @@ export const api = {
 
   // Chat endpoints (streaming handled separately in useChat hook)
   chat: {
+    // Commit H (2026-05-11): cooperative cancellation of an in-flight
+    // Reviewer Loop. Sets chat_sessions.cancellation_requested=true on
+    // the operator's active workspace session; the Reviewer's tool-use
+    // loop checks the flag at the top of every round and exits early
+    // with stand_down on true.
+    cancel: () =>
+      request<{ ok: boolean; applied: boolean; session_id?: string; reason?: string }>(
+        "/api/feed/cancel",
+        { method: "POST" },
+      ),
+
     // Ephemeral file attach — ADR-249. Returns {type, file_id?, filename, mime_type?}
     // or {type: "text_block", filename, content} for DOCX.
     attach: async (file: File): Promise<{
@@ -832,6 +844,10 @@ export const api = {
           deferred: boolean;
           oracle: Record<string, unknown>;
           current_phase: string | null;
+          // ADR-266 D5/D6: human label for the phase, derived from the
+          // bundle MANIFEST's phases[].label. FE renders this — never the
+          // bare enum slug.
+          current_phase_label: string | null;
         }>;
         substrate_status: {
           mandate: { path: string; state: 'skeleton' | 'authored' | 'missing'; last_revised_at: string | null };
@@ -846,6 +862,21 @@ export const api = {
           connected: boolean;
         }>;
       }>("/api/workspace/state"),
+
+    // ADR-266 D8: bundled read for /workspace page mount.
+    // Replaces 7 round-trips (state + 6 file reads) with 1. The four
+    // concept cards still self-fetch as a fallback for /agents reuse —
+    // when WorkspaceConfigSection passes data props, cards skip self-fetch.
+    getSetupBundle: () =>
+      request<{
+        state: Awaited<ReturnType<typeof api.workspace.getState>>;
+        mandate: WorkspaceFileWithRevision;
+        autonomy_yaml: WorkspaceFileWithRevision;
+        principles_prose: WorkspaceFileWithRevision;
+        principles_yaml: WorkspaceFileWithRevision;
+        identity: WorkspaceFileWithRevision;
+        brand: WorkspaceFileWithRevision;
+      }>("/api/workspace/setup-bundle"),
 
     // ADR-154: Structured navigation for Agent OS workfloor.
     // ADR-236 Item 6 (2026-04-29): `mode` and `essential` removed from

@@ -1489,6 +1489,45 @@ async def list_global_sessions(
 
 
 # =============================================================================
+# Cooperative cancellation (Commit H, 2026-05-11) — interruption surface Mode 1
+# =============================================================================
+
+@router.post("/feed/cancel")
+async def cancel_active_loop(auth: UserClient):
+    """Set cancellation_requested=true on the operator's active workspace
+    chat session.
+
+    The Reviewer's invoke_reviewer() loop (api/agents/reviewer_agent.py)
+    polls this flag at the top of every tool round; on true it exits the
+    loop with a stand_down verdict and clears the flag. This is the
+    server-side cooperative cancellation path used when:
+
+      (a) the operator's own sendMessage stream isn't directly abortable
+          (e.g., they navigated away mid-stream);
+      (b) an autonomous cron-fired Loop wake is in flight and the
+          operator wants to stop it without an HTTP stream of their own
+          to abort.
+
+    Best-effort. Returns 204 with a one-line status payload regardless of
+    whether a session was found — the FE doesn't need to disambiguate;
+    the realtime channel will surface the next state transition.
+    """
+    from services.narrative import find_active_workspace_session
+
+    session_id = find_active_workspace_session(auth.client, auth.user_id)
+    if not session_id:
+        return {"ok": True, "applied": False, "reason": "no active session"}
+
+    try:
+        auth.client.table("chat_sessions").update(
+            {"cancellation_requested": True}
+        ).eq("id", session_id).execute()
+        return {"ok": True, "applied": True, "session_id": session_id}
+    except Exception as exc:
+        return {"ok": False, "applied": False, "reason": f"db error: {exc}"}
+
+
+# =============================================================================
 # Slash Commands (ADR-025 Claude Code Agentic Alignment)
 # =============================================================================
 
