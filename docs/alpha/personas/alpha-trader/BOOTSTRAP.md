@@ -135,7 +135,7 @@ The activate harness forks the bundle template (Step 3 of D5) and applies the ov
 
 Either way the workspace ends up with the right MANDATE.md content. Option A is the single-canonical-path per ADR-230; Option B is the operator-driven equivalent for ad-hoc edits after activation.
 
-**Verification:** `MANDATE.md` no longer contains the bundle's "operator-author-here" prompts; instead contains the canonical alpha-trader mandate (Primary Action, Success Criteria, Daily Discipline, Outcome Signal sections). The `ManageRecurrence(action="create")` hard gate per ADR-207 P2 now passes.
+**Verification:** `MANDATE.md` no longer contains the bundle's "operator-author-here" prompts; instead contains the canonical alpha-trader mandate (Primary Action, Success Criteria, Daily Discipline, Outcome Signal sections). The `Schedule(action="create")` hard gate per ADR-207 P2 now passes. (Primitive renamed from `ManageRecurrence` per ADR-261 D5.)
 
 ### Step 3 — Author `_operator_profile.md` (5-8 declared signals)
 
@@ -201,7 +201,7 @@ With Mandate + Profile + Risk + Principles authored, kvk asks YARNNN to scaffold
 @yarnnn — scaffold a trading-signal recurrence. Daily cadence. Reads trading + portfolio domains. Writes signal proposals to action_proposals.
 ```
 
-YARNNN consults the bundle's task_types (per ADR-224 fallback path: `get_task_type('trading-signal')` returns the alpha-trader-bundled definition); applies the bundle's `default_objective` + `default_deliverable` + `instruction` from MANIFEST.yaml; calls `ManageRecurrence(action="create", type_key="trading-signal")`. Hard gate per ADR-207 P2 passes (MANDATE.md is authored). Recurrence materializes at `/workspace/context/trading/_recurring.yaml` (post-ADR-231 D2 natural-home for accumulates_context shape).
+YARNNN calls `Schedule(action="create", slug="trading-signal", ...)` (primitive renamed from `ManageRecurrence` per ADR-261 D5). Hard gate per ADR-207 P2 passes (MANDATE.md is authored). _Note: this step's surrounding narrative (task_types fallback, `type_key=`, `_recurring.yaml` natural-home path) is stale against ADR-261/262 substrate canon — the bundle now ships `signal-evaluation` directly in `/workspace/_recurrences.yaml` at fork time, so no scaffolding step is needed. Rewriting this step is tracked as Bucket C in the alpha-doc audit._
 
 **Verification:** recurrence exists. `/work` list-mode renders it.
 

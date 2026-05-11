@@ -25,7 +25,21 @@
 #                        platform capability now binds to platform_connections,
 #                        not an agent row)
 #
-# Last confirmed against DB: 2026-04-29
+# ADR-261/262 (2026-05-10): all per-shape declaration files dissolved
+# into single canonical /workspace/_recurrences.yaml. The bundle's
+# _recurrences.yaml ships universal slugs (no -2 suffix). Per-operator
+# disambiguation happens at the user_id row in the `tasks` index, not
+# at the slug level. Back-office-* prefix retired:
+#   back-office-narrative-digest        → narrative-digest
+#   back-office-outcome-reconciliation  → outcome-reconciliation
+#   back-office-proposal-cleanup        → proposal-cleanup
+#   back-office-reviewer-calibration    → morning-calibration
+#   back-office-reviewer-reflection     → morning-reflection
+# Three new mechanical mirrors added (track-account, track-orders,
+# track-positions per ADR-264). /workspace/_shared/back-office.yaml
+# file deleted by ADR-261 D2 — substrate is one flat file now.
+#
+# Last confirmed against DB: 2026-05-11
 
 version: 1
 
@@ -51,9 +65,14 @@ personas:
       mode: paper           # paper | live — alpha stays paper through Phase 2
       account_suffix: X4DJ  # last 4 of Alpaca account number, for sanity-check
     context_domains:
+      # Activation-time invariant only — verify.py checks at least one
+      # file exists under /workspace/context/{domain}/. The bundle ships
+      # `trading/` populated; `portfolio/` and `signals/` are
+      # accumulation domains that fill from work (track-account /
+      # track-orders / track-positions / signal-evaluation recurrences
+      # once Alpaca is connected). They are not asserted as scaffolded
+      # invariants; they emerge.
       - trading
-      - portfolio
-      - signals
     # Exact cred env-var names the connect script reads.
     # Not the values — those are in 1Password > YARNNN Alpha-1 > alpha-trader.alpaca-paper
     credentials_env:
@@ -62,25 +81,30 @@ personas:
     vault_entry: "1Password > YARNNN Alpha-1 > alpha-trader.alpaca-paper"
     # Invariants that verify.py checks on this persona.
     expected:
-      agent_count: 4   # YARNNN + lazy-created tracker/analyst/writer
-      active_roles: [thinking_partner, tracker, analyst, writer]
-      # Post-ADR-231: declaration substrate at the path shown after each slug.
-      # Recurrences with `-2` suffix on alpha-trader-2 follow the same shape.
+      agent_count: 1   # YARNNN only at activation (specialists lazy-create on dispatch per ADR-205)
+      active_roles: [thinking_partner]
+      # Post-ADR-261: every recurrence is one entry in the single
+      # canonical /workspace/_recurrences.yaml file. Slugs are universal
+      # (no persona suffix) — per-operator scoping is via user_id in the
+      # `tasks` scheduling index.
       scaffolded_recurrences:
-        - track-universe                 # /workspace/context/trading/_recurring.yaml
-        - signal-evaluation              # /workspace/context/trading/_recurring.yaml
-        - pre-market-brief               # /workspace/reports/pre-market-brief/_spec.yaml
-        - trade-proposal                 # /workspace/operations/trade-proposal/_action.yaml
-        - weekly-performance-review      # /workspace/reports/weekly-performance-review/_spec.yaml
-        - quarterly-signal-audit         # /workspace/reports/quarterly-signal-audit/_spec.yaml
-        - back-office-narrative-digest         # /workspace/_shared/back-office.yaml (ADR-248)
-        - back-office-outcome-reconciliation  # /workspace/_shared/back-office.yaml
-        - back-office-proposal-cleanup        # /workspace/_shared/back-office.yaml
-        - back-office-reviewer-calibration    # /workspace/_shared/back-office.yaml
-        - back-office-reviewer-reflection     # /workspace/_shared/back-office.yaml
+        - narrative-digest               # judgment, daily 03:00 UTC
+        - outcome-reconciliation         # judgment, daily 05:00 UTC
+        - proposal-cleanup               # judgment, daily 04:00 UTC
+        - morning-calibration            # judgment, daily 06:00 UTC
+        - morning-reflection             # judgment, daily 07:00 UTC
+        - pre-market-brief               # judgment, 15 8 * * 1-5
+        - signal-evaluation              # judgment, 5 8 * * 1-5
+        - track-universe                 # judgment, 0 8,11,15 * * 1-5
+        - track-account                  # mechanical (ADR-264), */5 * 9-16 * 1-5
+        - track-orders                   # mechanical (ADR-264), * * 9-16 * 1-5
+        - track-positions                # mechanical (ADR-264), * * 9-16 * 1-5
+        - trade-proposal                 # reactive (no schedule)
+        - weekly-performance-review      # judgment, 0 18 * * 0
+        - quarterly-signal-audit         # judgment, 0 18 31 3,6,9,12 *
       platform_connections: 1
       core_files:
-        - /workspace/_shared/back-office.yaml   # ADR-248: forked from bundle at activation
+        - /workspace/_recurrences.yaml   # ADR-261 D2: single canonical recurrence declaration substrate
         - /workspace/context/_shared/IDENTITY.md
         - /workspace/context/_shared/MANDATE.md
         - /workspace/context/_shared/AUTONOMY.md
@@ -104,35 +128,39 @@ personas:
       mode: paper
       account_suffix: 5D28
     context_domains:
+      # See alpha-trader for rationale: activation-time invariant only;
+      # portfolio + signals accumulate from work, not from scaffolding.
       - trading
-      - portfolio
-      - signals
     credentials_env:
       api_key:    ALPHA_TRADER_2_ALPACA_KEY
       api_secret: ALPHA_TRADER_2_ALPACA_SECRET
     vault_entry: "kvk personal — see Phase B parallel-loop session log"
     expected:
-      agent_count: 4   # YARNNN + lazy-created tracker/analyst/writer
-      active_roles: [thinking_partner, tracker, analyst, writer]
-      # Post-ADR-231: alpha-trader-2 recurrences carry the `-2` suffix to
-      # disambiguate from alpha-trader's recurrences (both run program=alpha-
-      # trader but in different workspaces). Note: back-office-proposal-cleanup
-      # is absent on alpha-trader-2 — likely materialized only after first
-      # proposal fires; tracked as Pass-3 observation candidate.
+      agent_count: 1   # YARNNN only at activation (specialists lazy-create on dispatch per ADR-205)
+      active_roles: [thinking_partner]
+      # Post-ADR-261: slugs are universal across all alpha-trader-program
+      # workspaces. The legacy `-2` suffix to disambiguate was dropped
+      # when per-shape declaration files dissolved into a single canonical
+      # _recurrences.yaml — disambiguation is per user_id in the `tasks`
+      # index, not at the slug level.
       scaffolded_recurrences:
-        - track-universe-2                # /workspace/context/trading/_recurring.yaml
-        - signal-evaluation-2             # /workspace/context/trading/_recurring.yaml
-        - pre-market-brief-2              # /workspace/reports/pre-market-brief-2/_spec.yaml
-        - trade-proposal-2                # /workspace/operations/trade-proposal-2/_action.yaml
-        - weekly-performance-review-2     # /workspace/reports/weekly-performance-review-2/_spec.yaml
-        - quarterly-signal-audit-2        # /workspace/reports/quarterly-signal-audit-2/_spec.yaml
-        - back-office-narrative-digest         # /workspace/_shared/back-office.yaml (ADR-248)
-        - back-office-outcome-reconciliation
-        - back-office-reviewer-calibration
-        - back-office-reviewer-reflection
+        - narrative-digest               # judgment, daily 03:00 UTC
+        - outcome-reconciliation         # judgment, daily 05:00 UTC
+        - proposal-cleanup               # judgment, daily 04:00 UTC
+        - morning-calibration            # judgment, daily 06:00 UTC
+        - morning-reflection             # judgment, daily 07:00 UTC
+        - pre-market-brief               # judgment, 15 8 * * 1-5
+        - signal-evaluation              # judgment, 5 8 * * 1-5
+        - track-universe                 # judgment, 0 8,11,15 * * 1-5
+        - track-account                  # mechanical (ADR-264), */5 * 9-16 * 1-5
+        - track-orders                   # mechanical (ADR-264), * * 9-16 * 1-5
+        - track-positions                # mechanical (ADR-264), * * 9-16 * 1-5
+        - trade-proposal                 # reactive (no schedule)
+        - weekly-performance-review      # judgment, 0 18 * * 0
+        - quarterly-signal-audit         # judgment, 0 18 31 3,6,9,12 *
       platform_connections: 1
       core_files:
-        - /workspace/_shared/back-office.yaml   # ADR-248: forked from bundle at activation
+        - /workspace/_recurrences.yaml   # ADR-261 D2: single canonical recurrence declaration substrate
         - /workspace/context/_shared/IDENTITY.md
         - /workspace/context/_shared/MANDATE.md
         - /workspace/context/_shared/AUTONOMY.md
@@ -156,32 +184,37 @@ personas:
       mode: paper
       account_suffix: EE8K
     context_domains:
+      # See alpha-trader for rationale: activation-time invariant only;
+      # portfolio + signals accumulate from work, not from scaffolding.
       - trading
-      - portfolio
-      - signals
     credentials_env:
       api_key:    KVK_ALPACA_KEY
       api_secret: KVK_ALPACA_SECRET
     vault_entry: "1Password > YARNNN Alpha-1 > kvk.alpaca-paper"
     expected:
-      # activate_persona.py ensures specialist rows; agent_count=4 post-activation.
-      agent_count: 4
-      active_roles: [thinking_partner, tracker, analyst, writer]
+      # Per ADR-205, signup scaffolds exactly one agent (YARNNN). Specialists
+      # (tracker/analyst/writer/etc.) lazy-create on first dispatch; not
+      # asserted at activation time.
+      agent_count: 1
+      active_roles: [thinking_partner]
       scaffolded_recurrences:
-        - track-universe
-        - signal-evaluation
-        - pre-market-brief
-        - trade-proposal
-        - weekly-performance-review
-        - quarterly-signal-audit
-        - back-office-narrative-digest
-        - back-office-outcome-reconciliation
-        - back-office-proposal-cleanup
-        - back-office-reviewer-calibration
-        - back-office-reviewer-reflection
+        - narrative-digest               # judgment, daily 03:00 UTC
+        - outcome-reconciliation         # judgment, daily 05:00 UTC
+        - proposal-cleanup               # judgment, daily 04:00 UTC
+        - morning-calibration            # judgment, daily 06:00 UTC
+        - morning-reflection             # judgment, daily 07:00 UTC
+        - pre-market-brief               # judgment, 15 8 * * 1-5
+        - signal-evaluation              # judgment, 5 8 * * 1-5
+        - track-universe                 # judgment, 0 8,11,15 * * 1-5
+        - track-account                  # mechanical (ADR-264), */5 * 9-16 * 1-5
+        - track-orders                   # mechanical (ADR-264), * * 9-16 * 1-5
+        - track-positions                # mechanical (ADR-264), * * 9-16 * 1-5
+        - trade-proposal                 # reactive (no schedule)
+        - weekly-performance-review      # judgment, 0 18 * * 0
+        - quarterly-signal-audit         # judgment, 0 18 31 3,6,9,12 *
       platform_connections: 1
       core_files:
-        - /workspace/_shared/back-office.yaml
+        - /workspace/_recurrences.yaml   # ADR-261 D2: single canonical recurrence declaration substrate
         - /workspace/context/_shared/IDENTITY.md
         - /workspace/context/_shared/MANDATE.md
         - /workspace/context/_shared/AUTONOMY.md

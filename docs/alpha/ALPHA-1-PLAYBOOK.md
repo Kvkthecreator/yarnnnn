@@ -458,7 +458,7 @@ The operator makes the call.
 
 ### 3A.5 Recurrence scaffolding target
 
-Post-ADR-231, "tasks" are now **recurrence declarations** at natural-home YAML substrate, not rows in a `tasks` registry table. YARNNN composes the set via conversation during Phase 1 onboarding through `ManageRecurrence(action="create", ...)` per ADR-235 D1.c. The thin `tasks` SQL table is a scheduling index only — the YAML at `declaration_path` is the authoritative substrate (ADR-231 D2 + Path B).
+Post-ADR-231, "tasks" are **recurrence declarations** at natural-home YAML substrate, not rows in a `tasks` registry table. YARNNN composes the set via conversation during Phase 1 onboarding through `Schedule(action="create", ...)` per ADR-235 D1.c (primitive renamed from `ManageRecurrence` per ADR-261 D5). The thin `tasks` SQL table is a scheduling index only — the YAML at `declaration_path` is the authoritative substrate (ADR-231 D2 + Path B). _Note: the table below still uses the pre-ADR-261 per-shape natural-home path model. Post-ADR-261 the substrate is a single canonical `/workspace/_recurrences.yaml`. Rewriting this section is tracked as Bucket C in the alpha-doc audit._
 
 Target set (iterate if YARNNN proposes a better fit for the persona):
 

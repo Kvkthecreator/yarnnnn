@@ -276,7 +276,7 @@ These remain default-deny regardless of standing grants in the active-grants tab
 
 - Editing operator substrate (`_operator_profile.md`, `_risk.md`, `principles.md`, `IDENTITY.md`, `MANDATE.md`, `AUTONOMY.md`). Authoring belongs to KVK. Period.
 - Phase transitions (paper → live, observation → paper-discipline, etc.).
-- Modifying recurrence declarations (`ManageRecurrence(create|update|pause|archive)`).
+- Modifying recurrence declarations (`Schedule(action=create|update|pause|resume|archive)` — renamed from `ManageRecurrence` per ADR-261 D5; same action enum, with `resume` complementing `pause`).
 - Connecting/disconnecting platforms (`connect.py`, `reset.py --confirm`, integration disconnect).
 - Live-account approvals — alpha-1 stays paper per SCOPE.md; if a live account ever appears the existing grant explicitly does not extend.
 - Committing code or docs to git.
