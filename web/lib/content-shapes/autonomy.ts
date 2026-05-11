@@ -80,6 +80,11 @@ export interface AutonomyMeta {
   default_delegation?: AutonomyDelegation | string;
   default_ceiling_cents?: number;
   domains?: Record<string, AutonomyDomain>;
+  /** ADR-248 D3: ISO-8601 UTC timestamp. While non-expired, every
+   *  proposal defers regardless of delegation. */
+  paused_until?: string;
+  /** Operator-readable note that surfaces on the cockpit while paused. */
+  pause_reason?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,11 +130,15 @@ export function parse(content: string): AutonomyMeta {
       currentDomain = null;
       continue;
     }
-    // Top-level keys that are not `default` or `domains` (e.g.
-    // never_auto, paused_until) — reset section context so we don't mis-attribute
-    if (/^[a-z_]+:\s/.test(line) || /^[a-z_]+:\s*$/.test(line)) {
-      const key = line.match(/^([a-z_]+):/)?.[1];
-      if (key && key !== 'default' && key !== 'domains') {
+    // Top-level keys that are not `default` or `domains` — reset section
+    // context so we don't mis-attribute. Capture pause fields (ADR-248 D3).
+    const topLevelMatch = line.match(/^([a-z_]+):\s*(.*)$/);
+    if (topLevelMatch && !line.startsWith(' ')) {
+      const key = topLevelMatch[1];
+      const value = topLevelMatch[2].trim().replace(/^['"]|['"]$/g, '').replace(/\s*#.*$/, '').trim();
+      if (key !== 'default' && key !== 'domains') {
+        if (key === 'paused_until' && value) meta.paused_until = value;
+        if (key === 'pause_reason' && value) meta.pause_reason = value;
         inDefault = false;
         inDomains = false;
         currentDomain = null;
@@ -215,6 +224,8 @@ export function parseRoundTrip(content: string): ParsedAutonomy {
 export function serialize(meta: AutonomyMeta, body: string = '', tierBlock: string = ''): string {
   // Rebuild only the structured keys we own; preserve comment lines in body.
   // Commit F (2026-05-11): canonical field name is `delegation`.
+  // Commit G (2026-05-11): paused_until + pause_reason emitted as top-level
+  // keys (ADR-248 D3); reads + writes round-trip cleanly.
   const lines: string[] = [];
   if (meta.default_delegation !== undefined || meta.default_ceiling_cents !== undefined) {
     lines.push('default:');
@@ -233,13 +244,23 @@ export function serialize(meta: AutonomyMeta, body: string = '', tierBlock: stri
       if (dom.ceiling_cents !== undefined) lines.push(`    ceiling_cents: ${dom.ceiling_cents}`);
     }
   }
+  if (meta.paused_until) {
+    lines.push(`paused_until: ${meta.paused_until}`);
+  }
+  if (meta.pause_reason) {
+    // Quote the reason in case it contains colons or special yaml chars.
+    const escaped = meta.pause_reason.replace(/"/g, '\\"');
+    lines.push(`pause_reason: "${escaped}"`);
+  }
   const yamlSection = lines.join('\n') + (lines.length > 0 ? '\n' : '');
-  // Patch the `default:` block inside the existing body to replace only
-  // the structured keys, keeping comment lines (never_auto, paused_until, …).
-  // Strategy: strip existing `default:` + `domains:` blocks from body, prepend new ones.
+  // Patch the existing body to replace only the structured keys, keeping
+  // comment lines (never_auto, etc.). Strip default/domains/paused_until/
+  // pause_reason from body, prepend the new ones.
   const bodyWithoutStructured = body
     .replace(/^default:\s*\n(\s+\S[^\n]*\n)*/m, '')
-    .replace(/^domains:\s*\n(\s+\S[^\n]*\n)*/m, '');
+    .replace(/^domains:\s*\n(\s+\S[^\n]*\n)*/m, '')
+    .replace(/^paused_until:\s.*\n/m, '')
+    .replace(/^pause_reason:\s.*\n/m, '');
   let out = tierBlock + yamlSection + bodyWithoutStructured;
   if (!out.endsWith('\n')) out += '\n';
   return out;
@@ -283,6 +304,15 @@ export function resolveEffectiveLevel(
 // React hook — substrate read for FE consumers
 // ---------------------------------------------------------------------------
 
+export interface PauseInfo {
+  /** True iff paused_until is set AND in the future. */
+  active: boolean;
+  /** ISO-8601 timestamp the pause expires. Null when not paused. */
+  until: string | null;
+  /** Human-readable note that surfaces on the cockpit. */
+  reason: string | null;
+}
+
 export interface UseAutonomyResult {
   meta: AutonomyMeta | null;
   loading: boolean;
@@ -290,21 +320,54 @@ export interface UseAutonomyResult {
   effectiveDelegation: AutonomyDelegation | null;
   /** @deprecated post-Commit-F use effectiveDelegation. */
   effectiveLevel: AutonomyDelegation | null;
+  /** Workspace-wide pause state (ADR-248 D3). When active, every proposal
+   *  defers regardless of delegation. */
+  pause: PauseInfo;
   summary: string;
   /** Substrate write via writeShape (ADR-245 D5 contract enforcement). */
   setDelegation: (delegation: AutonomyDelegation, ceilingCents?: number) => Promise<void>;
   /** @deprecated post-Commit-F use setDelegation. */
   setLevel: (delegation: AutonomyDelegation, ceilingCents?: number) => Promise<void>;
+  /** Pause the entire autonomy gate until the given ISO timestamp.
+   *  Pass null to "indefinite" (sets a far-future timestamp the operator
+   *  must lift manually). The Reviewer's auto-execute gate respects this
+   *  via review_policy.should_auto_execute_verdict. */
+  setPause: (untilIso: string | null, reason: string) => Promise<void>;
+  /** Lift the pause immediately. */
+  clearPause: () => Promise<void>;
 }
 
-export function useAutonomy(): UseAutonomyResult {
-  const [meta, setMeta] = useState<AutonomyMeta | null>(null);
-  const [loading, setLoading] = useState(true);
-  // Preserved for round-trip: tier block + body lines (comments, other keys)
-  const [tierBlock, setTierBlock] = useState('');
-  const [rawBody, setRawBody] = useState('');
+export function useAutonomy(opts?: { initialContent?: string | null }): UseAutonomyResult {
+  // ADR-266 D8: when the parent has already fetched _autonomy.yaml (via the
+  // bundled /workspace/setup-bundle endpoint), prime the round-trip state
+  // synchronously and skip the self-fetch. Falls back to the original
+  // self-fetch path when initialContent is not supplied (e.g. /agents reuse).
+  const initial = opts?.initialContent;
+  const initialParsed =
+    initial != null && initial !== ''
+      ? parseRoundTrip(initial)
+      : null;
+  const [meta, setMeta] = useState<AutonomyMeta | null>(initialParsed?.meta ?? null);
+  const [loading, setLoading] = useState(initialParsed === null);
+  const [tierBlock, setTierBlock] = useState(initialParsed?.tierBlock ?? '');
+  const [rawBody, setRawBody] = useState(initialParsed?.body ?? '');
 
   useEffect(() => {
+    // Pre-primed path: parent supplied initialContent, nothing to fetch.
+    if (initial !== undefined) {
+      if (initial != null && initial !== '') {
+        const parsed = parseRoundTrip(initial);
+        setMeta(parsed.meta);
+        setTierBlock(parsed.tierBlock);
+        setRawBody(parsed.body);
+      } else {
+        setMeta(null);
+        setTierBlock('');
+        setRawBody('');
+      }
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -327,7 +390,7 @@ export function useAutonomy(): UseAutonomyResult {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [initial]);
 
   const setDelegation = async (delegation: AutonomyDelegation, ceilingCents?: number) => {
     const next: AutonomyMeta = {
@@ -352,16 +415,59 @@ export function useAutonomy(): UseAutonomyResult {
     });
   };
 
+  const setPause = async (untilIso: string | null, reason: string) => {
+    // null = "indefinite" → set to far-future (year 2099); operator must lift manually.
+    const ts = untilIso ?? '2099-12-31T23:59:59Z';
+    const next: AutonomyMeta = {
+      ...(meta ?? {}),
+      paused_until: ts,
+      pause_reason: reason || 'paused by operator',
+    };
+    const content = serialize(next, rawBody, tierBlock);
+    setMeta(next);
+    const { writeShape } = await import('./write');
+    await writeShape('autonomy', 'context/_shared/_autonomy.yaml', content, {
+      message: `autonomy paused until ${ts}: ${reason || 'operator-initiated'}`,
+    });
+  };
+
+  const clearPause = async () => {
+    const next: AutonomyMeta = { ...(meta ?? {}) };
+    delete next.paused_until;
+    delete next.pause_reason;
+    const content = serialize(next, rawBody, tierBlock);
+    setMeta(next);
+    const { writeShape } = await import('./write');
+    await writeShape('autonomy', 'context/_shared/_autonomy.yaml', content, {
+      message: 'autonomy pause lifted by operator',
+    });
+  };
+
   const effectiveDelegation = resolveEffectiveLevel(meta);
   const summary = formatAutonomySummary(meta ?? {});
+
+  // Pause is "active" iff paused_until exists AND is in the future.
+  const pause: PauseInfo = (() => {
+    const until = meta?.paused_until ?? null;
+    const reason = meta?.pause_reason ?? null;
+    if (!until) return { active: false, until: null, reason };
+    const expiry = Date.parse(until);
+    if (isNaN(expiry) || expiry <= Date.now()) {
+      return { active: false, until, reason };
+    }
+    return { active: true, until, reason };
+  })();
 
   return {
     meta,
     loading,
     effectiveDelegation,
     effectiveLevel: effectiveDelegation,  // back-compat alias
+    pause,
     summary,
     setDelegation,
     setLevel: setDelegation,  // back-compat alias
+    setPause,
+    clearPause,
   };
 }

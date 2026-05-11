@@ -25,6 +25,7 @@ import {
   type SnapshotLead,
 } from '@/lib/content-shapes/snapshot';
 import { WorkspaceContextOverlay } from './WorkspaceContextOverlay';
+import { AutonomyHeaderChip } from './AutonomyHeaderChip';
 // RecurrenceSetupModal removed — "Start new work" seeds the composer.
 import { FeedEmptyState } from './FeedEmptyState';
 import { FeedFilterBar, parseChatFilterFromSearch } from './FeedFilterBar';
@@ -171,6 +172,11 @@ export function FeedSurface({
 
   const headerActions = (
     <div className="flex items-center gap-1.5">
+      {/* Commit G (2026-05-11): autonomy chip relocated from composer to
+          feed header. Workspace-level posture belongs at the workspace
+          frame, not the operator-input frame. Singular Implementation:
+          one chip, one location — composer chip deleted in same commit. */}
+      <AutonomyHeaderChip />
       {filterToggleAction}
       {snapshotAction}
     </div>

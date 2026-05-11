@@ -23,7 +23,8 @@ import {
 import { useNarrative } from '@/contexts/NarrativeContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
-import { useAutonomy } from '@/lib/content-shapes/autonomy';
+// Commit G (2026-05-11): useAutonomy import retired here — autonomy chip
+// moved to feed header (AutonomyHeaderChip in FeedSurface.tsx).
 import { cn } from '@/lib/utils';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -132,13 +133,9 @@ export function FeedPanel({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // ADR-238 + inline switcher: surface autonomy posture above the composer.
-  // Always visible (not just non-manual) so the operator knows their current
-  // delegation level and can switch with one click. setLevel writes directly
-  // to AUTONOMY.md via PATCH /api/workspace/file — zero LLM.
-  const { effectiveLevel, summary: autonomySummary, setLevel: setAutonomyLevel } = useAutonomy();
-  const [autonomyPopoverOpen, setAutonomyPopoverOpen] = useState(false);
-  const autonomyChipRef = useRef<HTMLButtonElement>(null);
+  // Commit G (2026-05-11): autonomy chip + popover relocated to feed
+  // header (AutonomyHeaderChip in FeedSurface.tsx). Composer-side
+  // useAutonomy + popover state retired per Singular Implementation.
 
   // Accept action card from parent
   useEffect(() => {
@@ -354,64 +351,13 @@ export function FeedPanel({
               className="w-full px-3 pt-2.5 pb-1 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
             />
 
-            {/* Bottom toolbar row — mirrors Claude Code: + / [mode chip] … [send] */}
+            {/* Bottom toolbar row — mirrors Claude Code: + / … [send].
+                Commit G (2026-05-11): autonomy chip relocated to feed
+                header (AutonomyHeaderChip in FeedSurface.tsx). The
+                workspace-level posture belongs at the workspace frame,
+                not the operator-input frame. Singular Implementation. */}
             <div className="flex items-center gap-1 px-1.5 pb-1.5">
               <PlusMenu actions={allPlusMenuActions} disabled={isLoading} />
-
-              {/* Autonomy mode chip — inline switcher, zero LLM write */}
-              <div className="relative">
-                <button
-                  ref={autonomyChipRef}
-                  type="button"
-                  onClick={() => setAutonomyPopoverOpen(o => !o)}
-                  className={cn(
-                    'inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-md transition-colors',
-                    effectiveLevel && effectiveLevel !== 'manual'
-                      ? 'bg-primary/10 text-primary hover:bg-primary/20'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground',
-                  )}
-                  title={effectiveLevel ? `${autonomySummary} — click to change` : 'Set autonomy level'}
-                >
-                  {effectiveLevel
-                    ? effectiveLevel === 'manual' ? 'Manual'
-                      : effectiveLevel === 'bounded' ? 'Bounded'
-                      : 'Full auto'
-                    : 'Autonomy'}
-                  <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="opacity-50 shrink-0">
-                    <path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                  </svg>
-                </button>
-
-                {autonomyPopoverOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setAutonomyPopoverOpen(false)} />
-                    <div className="absolute bottom-full mb-1.5 left-0 z-50 min-w-[210px] rounded-lg border border-border bg-background shadow-lg py-1">
-                      {([
-                        { level: 'manual' as const, label: 'Manual', desc: 'Every proposal requires your approval' },
-                        { level: 'bounded' as const, label: 'Bounded', desc: 'Auto-approve within ceiling; above ceiling needs operator click' },
-                        { level: 'autonomous' as const, label: 'Full auto', desc: 'Reviewer approves and executes (still respects never_auto + irreversibility gate)' },
-                      ] as const).map(({ level, label, desc }) => (
-                        <button
-                          key={level}
-                          type="button"
-                          className={cn(
-                            'w-full text-left px-3 py-1.5 hover:bg-muted/60 transition-colors',
-                            effectiveLevel === level && 'bg-muted/40',
-                          )}
-                          onClick={async () => {
-                            setAutonomyPopoverOpen(false);
-                            await setAutonomyLevel(level);
-                          }}
-                        >
-                          <span className="block text-[11px] font-medium">{label}</span>
-                          <span className="block text-[10px] text-muted-foreground">{desc}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-
               <div className="flex-1" />
               <button
                 type="submit"
