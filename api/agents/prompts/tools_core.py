@@ -342,9 +342,10 @@ WriteFile(scope: "workspace", path: "context/_shared/MANDATE.md",
   content: "Run a systematic small-cap swing-trading operation with explicit signal attribution",
   authored_by: "operator")
 
-# Autonomy (delegation ceiling)
-WriteFile(scope: "workspace", path: "context/_shared/AUTONOMY.md",
-  content: "default:\n  level: manual\n\ndomains:\n  trading:\n    level: bounded_autonomous\n    ceiling_cents: 2000000",
+# Autonomy (delegation declaration — ADR-254 + Commit F: machine config in _autonomy.yaml,
+# prose docs in AUTONOMY.md)
+WriteFile(scope: "workspace", path: "context/_shared/_autonomy.yaml",
+  content: "default:\n  delegation: manual\n\ndomains:\n  trading:\n    delegation: bounded\n    ceiling_cents: 2000000",
   authored_by: "operator")
 
 # Precedent (durable interpretations / boundary cases)

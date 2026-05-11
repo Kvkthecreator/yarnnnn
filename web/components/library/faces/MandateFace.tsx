@@ -124,10 +124,11 @@ function parseMandate(content: string): {
 // making MandateFace the canonical L3 for the autonomy content shape
 // per ADR-245 D4.
 
+// Commit F (2026-05-11): canonical 3-value enum, matches backend
+// _VALID_DELEGATION_LEVELS in api/services/review_policy.py.
 const AUTONOMY_LEVELS: ReadonlyArray<{ value: AutonomyLevel; label: string }> = [
   { value: 'manual', label: 'Manual' },
-  { value: 'assisted', label: 'Assisted' },
-  { value: 'bounded_autonomous', label: 'Bounded autonomous' },
+  { value: 'bounded', label: 'Bounded' },
   { value: 'autonomous', label: 'Autonomous' },
 ];
 
@@ -138,7 +139,7 @@ interface AutonomyToggleProps {
 
 function AutonomyToggle({ raw, onWritten }: AutonomyToggleProps) {
   const { meta, body } = parseAutonomyRoundTrip(raw);
-  const currentLevel = (meta.default_level as AutonomyLevel | undefined) ?? null;
+  const currentLevel = (meta.default_delegation as AutonomyLevel | undefined) ?? null;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -146,7 +147,7 @@ function AutonomyToggle({ raw, onWritten }: AutonomyToggleProps) {
     async (e: React.ChangeEvent<HTMLSelectElement>) => {
       const next = e.target.value as AutonomyLevel;
       if (next === currentLevel) return;
-      const nextMeta: AutonomyMeta = { ...meta, default_level: next };
+      const nextMeta: AutonomyMeta = { ...meta, default_delegation: next };
       const serialized = serializeAutonomy(nextMeta, body);
       setPending(true);
       setError(null);

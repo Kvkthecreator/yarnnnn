@@ -374,7 +374,7 @@ export function FeedPanel({
                 >
                   {effectiveLevel
                     ? effectiveLevel === 'manual' ? 'Manual'
-                      : effectiveLevel === 'bounded_autonomous' ? 'Bounded'
+                      : effectiveLevel === 'bounded' ? 'Bounded'
                       : 'Full auto'
                     : 'Autonomy'}
                   <svg width="8" height="8" viewBox="0 0 8 8" fill="none" className="opacity-50 shrink-0">
@@ -388,8 +388,8 @@ export function FeedPanel({
                     <div className="absolute bottom-full mb-1.5 left-0 z-50 min-w-[210px] rounded-lg border border-border bg-background shadow-lg py-1">
                       {([
                         { level: 'manual' as const, label: 'Manual', desc: 'Every proposal requires your approval' },
-                        { level: 'bounded_autonomous' as const, label: 'Bounded', desc: 'Auto-approve within $2K ceiling' },
-                        { level: 'autonomous' as const, label: 'Full auto', desc: 'Reviewer approves and executes' },
+                        { level: 'bounded' as const, label: 'Bounded', desc: 'Auto-approve within ceiling; above ceiling needs operator click' },
+                        { level: 'autonomous' as const, label: 'Full auto', desc: 'Reviewer approves and executes (still respects never_auto + irreversibility gate)' },
                       ] as const).map(({ level, label, desc }) => (
                         <button
                           key={level}

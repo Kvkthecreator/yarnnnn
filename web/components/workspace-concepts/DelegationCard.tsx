@@ -28,6 +28,11 @@ interface DelegationCardProps {
   className?: string;
 }
 
+// Commit F (2026-05-11): canonical 3-value enum, matches backend
+// _VALID_DELEGATION_LEVELS in api/services/review_policy.py.
+// `assisted` was retired — it had no backend semantics distinct from
+// `manual` and was silently treated as manual by should_auto_execute_verdict.
+// `bounded_autonomous` collapsed to `bounded` (Singular Implementation).
 const LEVELS: { value: AutonomyLevel; label: string; description: string }[] = [
   {
     value: 'manual',
@@ -35,12 +40,7 @@ const LEVELS: { value: AutonomyLevel; label: string; description: string }[] = [
     description: 'Every action waits for your approval before executing.',
   },
   {
-    value: 'assisted',
-    label: 'Assisted',
-    description: 'YARNNN stages and prepares; you approve before consequences.',
-  },
-  {
-    value: 'bounded_autonomous',
+    value: 'bounded',
     label: 'Bounded',
     description: 'Acts autonomously within your declared ceiling. Flags above it.',
   },
@@ -144,7 +144,7 @@ export function DelegationCard({ variant = 'full', onOpen, className }: Delegati
             );
           })}
 
-          {meta?.default_ceiling_cents && currentLevel === 'bounded_autonomous' && (
+          {meta?.default_ceiling_cents && currentLevel === 'bounded' && (
             <p className="text-[11px] text-muted-foreground/60 px-1">
               Ceiling: ${(meta.default_ceiling_cents / 100).toLocaleString()} per action
             </p>

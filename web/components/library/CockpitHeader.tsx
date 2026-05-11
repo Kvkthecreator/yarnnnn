@@ -23,7 +23,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { MessageSquare, ShieldCheck, ShieldAlert, Info } from 'lucide-react';
+import { MessageSquare, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useAutonomy } from '@/lib/content-shapes/autonomy';
 import { useCockpit } from './CockpitContext';
@@ -102,19 +102,19 @@ function isSkeleton(content: string): boolean {
 // Autonomy display
 // ---------------------------------------------------------------------------
 
-type AutonomyLevel = 'manual' | 'assisted' | 'bounded_autonomous' | 'autonomous';
+// Commit F (2026-05-11): canonical 3-value enum, sourced from
+// content-shapes/autonomy. Local re-declaration retired.
+import type { AutonomyDelegation } from '@/lib/content-shapes/autonomy';
 
-function AutonomyBadge({ level, summary }: { level: AutonomyLevel | null; summary: string }) {
+function AutonomyBadge({ level, summary }: { level: AutonomyDelegation | null; summary: string }) {
   const Icon =
     level === 'autonomous' ? ShieldCheck :
-    level === 'bounded_autonomous' ? ShieldAlert :
-    level === 'assisted' ? Info :
+    level === 'bounded' ? ShieldAlert :
     null;
 
   const colorClass =
     level === 'autonomous' ? 'text-primary' :
-    level === 'bounded_autonomous' ? 'text-amber-600' :
-    level === 'assisted' ? 'text-blue-600' :
+    level === 'bounded' ? 'text-amber-600' :
     'text-muted-foreground/50';
 
   return (
@@ -182,7 +182,7 @@ export function CockpitHeader() {
             </div>
           </div>
           <AutonomyBadge
-            level={effectiveLevel as AutonomyLevel | null}
+            level={effectiveLevel as AutonomyDelegation | null}
             summary={autonomySummary}
           />
         </div>
@@ -208,7 +208,7 @@ export function CockpitHeader() {
         <div className="flex items-center gap-3 shrink-0 mt-0.5">
           {/* Autonomy posture — links to TP Autonomy tab for editing */}
           <AutonomyBadge
-            level={effectiveLevel as AutonomyLevel | null}
+            level={effectiveLevel as AutonomyDelegation | null}
             summary={autonomySummary}
           />
           {/* Edit mandate shortcut */}

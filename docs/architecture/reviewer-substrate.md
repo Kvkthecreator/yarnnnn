@@ -72,9 +72,10 @@ This file is the operator's authored intent on *how* they want to be judged on b
 
 Autonomy declaration is no longer owned by the Reviewer seat. ADR-217 moved it to shared operator-intent substrate:
 
-- **Path**: `/workspace/context/_shared/AUTONOMY.md`
+- **Prose path**: `/workspace/context/_shared/AUTONOMY.md` (LLM/human reading only)
+- **Machine config path**: `/workspace/context/_shared/_autonomy.yaml` (ADR-254 + Commit F)
 - **Author**: operator only (or YARNNN on explicit operator instruction)
-- **Meaning**: workspace-scoped delegation ceiling, with `default` + per-domain overrides (`manual`, `assisted`, `bounded_autonomous`, `autonomous`, plus optional `ceiling_cents` and `never_auto`)
+- **Meaning**: workspace-scoped delegation ceiling, with `default` + per-domain overrides. Field `delegation` ∈ `{manual, bounded, autonomous}` (Commit F 2026-05-11 — 3-value canonical enum) plus optional `ceiling_cents` (required when `bounded`) and `never_auto`
 
 The Reviewer dispatcher reads AUTONOMY.md at the start of every verdict rendering. `principles.md` can **narrow** that delegation with additional defer conditions, but never widen it. This is the servant-can-be-more-conservative-than-the-master-permits rule ratified by ADR-217.
 
@@ -137,16 +138,17 @@ Why this matters architecturally: Principle 14 says the seat is interchangeable.
 
 The delegation settings in AUTONOMY.md deserve named vocabulary so that operator-facing surfaces and prompts can refer to them consistently.
 
-**Autonomy level** — positions along the continuum:
+**Delegation** (per Commit F 2026-05-11 — canonical 3-value enum) — positions along the continuum:
 
 - `manual` — every verdict deferred to human, regardless of reversibility or stakes
-- `assisted` — AI occupant renders recommendation, human occupant renders verdict
-- `bounded_autonomous` — AI occupant auto-acts below declared thresholds; defers above
-- `autonomous` — AI occupant auto-acts on all verdicts within the seat's scope; escalates only on declared exception conditions
+- `bounded` — AI occupant auto-acts below declared thresholds; defers above
+- `autonomous` — AI occupant auto-acts on all verdicts within the seat's scope; escalates only on declared exception conditions (still respects `never_auto` and the irreversibility gate)
 
-These are not modes the seat *is in globally* — they are workspace-scoped defaults and per-domain overrides in `AUTONOMY.md`.
+These are not modes the seat *is in globally* — they are workspace-scoped defaults and per-domain overrides in `_autonomy.yaml` (ADR-254 — machine-parsed sibling of AUTONOMY.md).
 
-**Thresholds** — for `bounded_autonomous`, optional `ceiling_cents` and `never_auto` fields narrow what may auto-execute.
+**Thresholds** — for `bounded`, `ceiling_cents` is required; `never_auto` lists action-type substrings that always defer regardless of the ceiling.
+
+**Naming history** — pre-Commit-F the field was `level` and the value space included `assisted` + `bounded_autonomous`. The mismatch silently treated every workspace as `manual` because the FE wrote `level` while the backend read `delegation`. Migration 172 + Commit F unified the schema; the legacy fields no longer exist on disk.
 
 **Framework narrowing** — `principles.md` may add defer conditions beyond AUTONOMY.md. This preserves the separation between operator delegation and the persona's applied framework.
 

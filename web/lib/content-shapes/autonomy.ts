@@ -49,22 +49,35 @@ export const AUTONOMY_YAML_PATH = '/workspace/context/_shared/_autonomy.yaml';
 export const AUTONOMY_PATH = '/workspace/context/_shared/AUTONOMY.md';
 
 // ---------------------------------------------------------------------------
-// Types — match ADR-217 D1 schema
+// Types — match ADR-261 D5 / Commit F (2026-05-11) canonical schema
 // ---------------------------------------------------------------------------
+//
+// Field name + value space aligned with backend `_validate_autonomy_block` +
+// `should_auto_execute_verdict` (api/services/review_policy.py). Pre-Commit-F
+// the FE wrote `level: bounded_autonomous` (4-value union including
+// `assisted`) which the backend silently treated as "manual" because the
+// field name and values both didn't match. Commit F unifies on:
+//
+//   field: `delegation`  (was `level`)
+//   values: 'manual' | 'bounded' | 'autonomous'  (was 4 values)
+//
+// `assisted` and `bounded_autonomous` are retired — `assisted` had no
+// backend semantics; `bounded_autonomous` collapsed to `bounded` per
+// Singular Implementation rule.
 
-export type AutonomyLevel =
-  | 'manual'
-  | 'assisted'
-  | 'bounded_autonomous'
-  | 'autonomous';
+export type AutonomyDelegation = 'manual' | 'bounded' | 'autonomous';
+
+/** @deprecated post-Commit-F use AutonomyDelegation. Kept as a transient
+ *  alias to ease migration; remove after all callers use the new name. */
+export type AutonomyLevel = AutonomyDelegation;
 
 export interface AutonomyDomain {
-  level?: AutonomyLevel | string;
+  delegation?: AutonomyDelegation | string;
   ceiling_cents?: number;
 }
 
 export interface AutonomyMeta {
-  default_level?: AutonomyLevel | string;
+  default_delegation?: AutonomyDelegation | string;
   default_ceiling_cents?: number;
   domains?: Record<string, AutonomyDomain>;
 }
@@ -112,7 +125,7 @@ export function parse(content: string): AutonomyMeta {
       currentDomain = null;
       continue;
     }
-    // Top-level keys that are not `default` or `domains` (e.g. heartbeat_triggers,
+    // Top-level keys that are not `default` or `domains` (e.g.
     // never_auto, paused_until) — reset section context so we don't mis-attribute
     if (/^[a-z_]+:\s/.test(line) || /^[a-z_]+:\s*$/.test(line)) {
       const key = line.match(/^([a-z_]+):/)?.[1];
@@ -134,15 +147,35 @@ export function parse(content: string): AutonomyMeta {
     const k = fieldMatch[1].trim();
     const v = fieldMatch[2].trim().replace(/^['"]|['"]$/g, '').replace(/\s*#.*$/, '').trim();
     if (inDefault) {
-      if (k === 'level') meta.default_level = v as AutonomyLevel;
+      // Commit F (2026-05-11): canonical field name is `delegation`. Pre-Commit-F
+      // files used `level` — read it as a fallback and normalize to delegation.
+      // Migration 172 + the rewriter ensures persisted files only carry
+      // `delegation` going forward; this fallback exists for in-flight reads
+      // during deploy + as a safety net for any unmigrated legacy file.
+      if (k === 'delegation' || k === 'level') {
+        meta.default_delegation = _normalizeDelegation(v);
+      }
       if (k === 'ceiling_cents') meta.default_ceiling_cents = Number(v);
     } else if (inDomains && currentDomain) {
       const dom = meta.domains![currentDomain];
-      if (k === 'level') dom.level = v as AutonomyLevel;
+      if (k === 'delegation' || k === 'level') {
+        dom.delegation = _normalizeDelegation(v);
+      }
       if (k === 'ceiling_cents') dom.ceiling_cents = Number(v);
     }
   }
   return meta;
+}
+
+/** Normalize legacy 4-value union → canonical 3-value enum. Same mapping as
+ *  the migration 172 rewriter — keep them in lockstep. */
+function _normalizeDelegation(raw: string): AutonomyDelegation {
+  const s = raw.toLowerCase().trim();
+  if (s === 'bounded_autonomous') return 'bounded';
+  if (s === 'autonomous') return 'autonomous';
+  if (s === 'bounded') return 'bounded';
+  if (s === 'manual' || s === 'assisted') return 'manual';
+  return 'manual';
 }
 
 /** Legacy alias — back-compat for callers still importing `parseAutonomy`. */
@@ -181,11 +214,12 @@ export function parseRoundTrip(content: string): ParsedAutonomy {
 
 export function serialize(meta: AutonomyMeta, body: string = '', tierBlock: string = ''): string {
   // Rebuild only the structured keys we own; preserve comment lines in body.
+  // Commit F (2026-05-11): canonical field name is `delegation`.
   const lines: string[] = [];
-  if (meta.default_level !== undefined || meta.default_ceiling_cents !== undefined) {
+  if (meta.default_delegation !== undefined || meta.default_ceiling_cents !== undefined) {
     lines.push('default:');
-    if (meta.default_level !== undefined) {
-      lines.push(`  level: ${meta.default_level}`);
+    if (meta.default_delegation !== undefined) {
+      lines.push(`  delegation: ${meta.default_delegation}`);
     }
     if (meta.default_ceiling_cents !== undefined) {
       lines.push(`  ceiling_cents: ${meta.default_ceiling_cents}`);
@@ -195,13 +229,13 @@ export function serialize(meta: AutonomyMeta, body: string = '', tierBlock: stri
     lines.push('domains:');
     for (const [name, dom] of Object.entries(meta.domains)) {
       lines.push(`  ${name}:`);
-      if (dom.level !== undefined) lines.push(`    level: ${dom.level}`);
+      if (dom.delegation !== undefined) lines.push(`    delegation: ${dom.delegation}`);
       if (dom.ceiling_cents !== undefined) lines.push(`    ceiling_cents: ${dom.ceiling_cents}`);
     }
   }
   const yamlSection = lines.join('\n') + (lines.length > 0 ? '\n' : '');
   // Patch the `default:` block inside the existing body to replace only
-  // the structured keys, keeping comment lines (never_auto, heartbeat_triggers…).
+  // the structured keys, keeping comment lines (never_auto, paused_until, …).
   // Strategy: strip existing `default:` + `domains:` blocks from body, prepend new ones.
   const bodyWithoutStructured = body
     .replace(/^default:\s*\n(\s+\S[^\n]*\n)*/m, '')
@@ -216,32 +250,32 @@ export function serialize(meta: AutonomyMeta, body: string = '', tierBlock: stri
 // ---------------------------------------------------------------------------
 
 export function formatAutonomySummary(autonomy: AutonomyMeta): string {
-  const level =
-    autonomy.default_level ??
-    Object.values(autonomy.domains ?? {})[0]?.level ??
+  const delegation =
+    autonomy.default_delegation ??
+    Object.values(autonomy.domains ?? {})[0]?.delegation ??
     null;
-  if (!level) return 'No autonomy declared';
+  if (!delegation) return 'No autonomy declared';
   const ceiling =
     autonomy.default_ceiling_cents ??
     Object.values(autonomy.domains ?? {})[0]?.ceiling_cents ??
     null;
-  const levelLabel = level.replace(/_/g, ' ');
+  const label = delegation.replace(/_/g, ' ');
   if (ceiling && ceiling > 0) {
-    return `${levelLabel} · ceiling $${(ceiling / 100).toLocaleString()}`;
+    return `${label} · ceiling $${(ceiling / 100).toLocaleString()}`;
   }
-  return levelLabel;
+  return label;
 }
 
 export function resolveEffectiveLevel(
   meta: AutonomyMeta | null,
   domain?: string,
-): AutonomyLevel | null {
+): AutonomyDelegation | null {
   if (!meta) return null;
   if (domain) {
     const domEntry = meta.domains?.[domain];
-    if (domEntry?.level) return domEntry.level as AutonomyLevel;
+    if (domEntry?.delegation) return domEntry.delegation as AutonomyDelegation;
   }
-  if (meta.default_level) return meta.default_level as AutonomyLevel;
+  if (meta.default_delegation) return meta.default_delegation as AutonomyDelegation;
   return null;
 }
 
@@ -252,10 +286,15 @@ export function resolveEffectiveLevel(
 export interface UseAutonomyResult {
   meta: AutonomyMeta | null;
   loading: boolean;
-  effectiveLevel: AutonomyLevel | null;
+  /** Effective delegation: per-domain override → workspace default → null. */
+  effectiveDelegation: AutonomyDelegation | null;
+  /** @deprecated post-Commit-F use effectiveDelegation. */
+  effectiveLevel: AutonomyDelegation | null;
   summary: string;
   /** Substrate write via writeShape (ADR-245 D5 contract enforcement). */
-  setLevel: (level: AutonomyLevel, ceilingCents?: number) => Promise<void>;
+  setDelegation: (delegation: AutonomyDelegation, ceilingCents?: number) => Promise<void>;
+  /** @deprecated post-Commit-F use setDelegation. */
+  setLevel: (delegation: AutonomyDelegation, ceilingCents?: number) => Promise<void>;
 }
 
 export function useAutonomy(): UseAutonomyResult {
@@ -290,12 +329,12 @@ export function useAutonomy(): UseAutonomyResult {
     return () => { cancelled = true; };
   }, []);
 
-  const setLevel = async (level: AutonomyLevel, ceilingCents?: number) => {
+  const setDelegation = async (delegation: AutonomyDelegation, ceilingCents?: number) => {
     const next: AutonomyMeta = {
       ...(meta ?? {}),
-      default_level: level,
+      default_delegation: delegation,
       default_ceiling_cents:
-        level === 'bounded_autonomous'
+        delegation === 'bounded'
           ? (ceilingCents ?? meta?.default_ceiling_cents ?? 200000)
           : undefined,
     };
@@ -309,12 +348,20 @@ export function useAutonomy(): UseAutonomyResult {
     // 2026-05-11 (post-FOUNDATIONS-v8.4 audit pass).
     const { writeShape } = await import('./write');
     await writeShape('autonomy', 'context/_shared/_autonomy.yaml', content, {
-      message: `autonomy level → ${level}`,
+      message: `autonomy delegation → ${delegation}`,
     });
   };
 
-  const effectiveLevel = resolveEffectiveLevel(meta);
+  const effectiveDelegation = resolveEffectiveLevel(meta);
   const summary = formatAutonomySummary(meta ?? {});
 
-  return { meta, loading, effectiveLevel, summary, setLevel };
+  return {
+    meta,
+    loading,
+    effectiveDelegation,
+    effectiveLevel: effectiveDelegation,  // back-compat alias
+    summary,
+    setDelegation,
+    setLevel: setDelegation,  // back-compat alias
+  };
 }

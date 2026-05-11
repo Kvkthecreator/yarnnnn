@@ -240,15 +240,19 @@ async def initialize_workspace(
             SHARED_BRAND_PATH: (DEFAULT_BRAND_MD, "Default brand baseline"),
             SHARED_AUTONOMY_PATH: (DEFAULT_AUTONOMY_MD, "Autonomy — prose documentation (LLM reads, ADR-254)"),
             SHARED_AUTONOMY_YAML_PATH: (
-                "# _autonomy.yaml — delegation config (ADR-254)\n"
-                "# Machine-parsed by review_policy and working_memory. See AUTONOMY.md for documentation.\n\n"
+                "# _autonomy.yaml — delegation declaration (ADR-254 + Commit F 2026-05-11)\n"
+                "# Machine-parsed by review_policy + working_memory. See AUTONOMY.md for prose docs.\n"
+                "# Schema:\n"
+                "#   default:\n"
+                "#     delegation: manual | bounded | autonomous   (canonical 3-value enum)\n"
+                "#     ceiling_cents: <int>  (required when delegation=bounded)\n"
+                "#     never_auto: [<action_type>, ...]  (always route to operator)\n"
+                "#   paused_until: <ISO timestamp>  (set by Reviewer / operator, ADR-248 D3)\n\n"
                 "default:\n"
-                "  level: manual    # manual | assisted | bounded_autonomous | autonomous\n"
-                "  # ceiling_cents: 0       # uncomment + set when promoting above manual\n"
-                "  # never_auto: []         # action types that always require operator click\n\n"
-                "heartbeat_triggers: []    # populated at program activation (ADR-255)\n"
-                "                         # e.g.: [{after: signal_evaluation}, {cron: '10 8 * * 1-5'}]\n",
-                "Autonomy delegation config — machine-parsed yaml (ADR-254)"
+                "  delegation: manual\n"
+                "  # ceiling_cents: 0       # uncomment + set when promoting to bounded\n"
+                "  # never_auto: []         # action types that always require operator click\n",
+                "Autonomy delegation declaration — machine-parsed yaml (ADR-254 + Commit F)"
             ),
             SHARED_PRECEDENT_PATH: (DEFAULT_PRECEDENT_MD, "Precedent substrate — durable boundary-case guidance"),
             # YARNNN working memory (ADR-206)

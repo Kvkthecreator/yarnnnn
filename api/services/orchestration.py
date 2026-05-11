@@ -974,68 +974,34 @@ trading:
 
 
 DEFAULT_AUTONOMY_MD = """\
----
-# Workspace autonomy delegation (ADR-217 + ADR-253). Read at reasoning time
-# by the Reviewer dispatcher. Operator-authored. The Reviewer reads this to
-# understand its delegation ceiling and when it should wake proactively.
-#
-# Edit frontmatter to tune delegation ceiling per domain.
-# The `default` block applies to any domain without a specific override.
+# Autonomy — how I delegate judgment authority
 
-default:
-  level: manual                 # manual | assisted | bounded_autonomous | autonomous
-  # ceiling_cents: 0            # threshold for bounded_autonomous
-  # never_auto: []              # action_type substrings that always require human approval
-  # paused_until: ""            # ISO-8601 UTC — Reviewer-written circuit breaker (ADR-248)
-  # pause_reason: ""            # human-readable reason for the pause
-
-# heartbeat_triggers (ADR-253 D5): substrate-change events that wake the
-# Reviewer proactively. When a recurrence matching a trigger slug completes,
-# the Reviewer runs heartbeat_turn() — reads fresh output, decides:
-# propose / directive / stand-down.
-#
-# heartbeat_triggers:
-#   - after: signal_evaluation     # wake when signal-evaluation executor completes
-#   - after: outcome_reconciliation  # wake after daily reconciliation
-#   - cron: "10 8 * * 1-5"         # morning review 08:10 ET (trading days)
-
-# Per-domain overrides:
-# commerce:
-#   level: bounded_autonomous
-#   ceiling_cents: 50000
-#   never_auto:
-#     - issue_refund
-#
-# trading:
-#   level: manual
----
-
-# Autonomy — how I delegate judgment authority to the AI
-
-This file declares how autonomously the AI is allowed to act on my behalf.
+This file is the prose documentation. The machine-parsed delegation
+config lives next to it at `_autonomy.yaml` (ADR-254 + Commit F).
 
 ## What autonomy means here
 
 Autonomy is the **delegation ceiling** for AI-rendered verdicts. When the
-Reviewer approves a proposal, the dispatcher checks this file to decide
-whether the approval auto-executes or routes to the cockpit Queue for my
-click. Principles in `/workspace/review/principles.md` can *narrow* this
-ceiling (add defer conditions) but never *widen* it — the servant can be
-more conservative than I permit, never more permissive.
+Reviewer approves a proposal, the dispatcher checks `_autonomy.yaml` to
+decide whether the approval auto-executes or routes to the cockpit Queue
+for my click. Principles in `/workspace/review/principles.md` can *narrow*
+this ceiling (add defer conditions) but never *widen* it — the servant can
+be more conservative than I permit, never more permissive.
 
 ## Vocabulary
 
-**Level** (per domain):
-- `manual` — every verdict defers to me. No auto-execution.
-- `assisted` — AI recommends; I render the verdict. Effectively manual
-  from an execution standpoint; the difference is tone + effort.
-- `bounded_autonomous` — AI auto-executes within declared ceiling; defers
-  beyond. Requires `ceiling_cents` to be set.
-- `autonomous` — AI auto-executes every verdict within scope. No ceiling
-  check. Reserved for low-stakes domains where the operator trusts the
-  persona's calibration fully.
+**Delegation** (per `_autonomy.yaml` `default.delegation` and any
+`domains.<name>.delegation`):
 
-**Ceiling** (bounded_autonomous only):
+- `manual` — every verdict defers to me. No auto-execution.
+- `bounded` — AI auto-executes within declared ceiling; defers beyond.
+  Requires `ceiling_cents` to be set.
+- `autonomous` — AI auto-executes every verdict within scope. No ceiling
+  check. Still respects `never_auto` and the irreversibility gate.
+  Reserved for low-stakes domains where I trust the persona's calibration
+  fully.
+
+**Ceiling** (`bounded` only):
 - `ceiling_cents` — a notional-value threshold. Proposals whose estimated
   value (e.g. trade notional, commerce transaction amount) exceeds this
   cap defer regardless of the persona's verdict.
@@ -1046,11 +1012,15 @@ more conservative than I permit, never more permissive.
   consequences are categorically worse than the ceiling can express
   (e.g. cancel flows, refund flows, anything irreversible-ish).
 
+**Pause** (set by Reviewer or operator):
+- `paused_until` — ISO-8601 UTC. While non-expired, every proposal
+  defers regardless of delegation. Time-based circuit breaker per
+  ADR-248 D3.
+- `pause_reason` — human-readable note that surfaces on the cockpit.
+
 ## How changes take effect
 
 Changes read on the next proposal verdict. No restart, no migration.
-The Reviewer dispatcher reads the current state of AUTONOMY.md at
-every proposal dispatch cycle.
 
 ## When to revisit
 
@@ -1060,6 +1030,29 @@ every proposal dispatch cycle.
   to `manual` first; recalibrate from zero.
 - After a persona change (IDENTITY.md rotation): reset to `manual` and
   recalibrate — a new persona has no track record yet.
+
+## Schema reference
+
+See `_autonomy.yaml` for the live config. Example shape:
+
+    default:
+      delegation: bounded
+      ceiling_cents: 20000
+      never_auto:
+        - close_position_market
+    domains:
+      commerce:
+        delegation: bounded
+        ceiling_cents: 50000
+
+## Naming history (for archive readers)
+
+The field was named `level` and the value space included `assisted` +
+`bounded_autonomous` from ADR-254 (2026-05-07) until Commit F (2026-05-11).
+The FE wrote `level: bounded_autonomous` while the backend already read
+`delegation: bounded` — the mismatch silently treated every workspace as
+manual. Commit F + Migration 172 unified the schema; the legacy fields
+no longer exist on disk.
 """
 
 
