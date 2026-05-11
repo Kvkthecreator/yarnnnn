@@ -54,19 +54,12 @@ export type LibraryComponent = (props: LibraryComponentProps) => JSX.Element | n
 
 export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   // Kernel-default chrome — register here so the resolver can dispatch
-  // them through the same path as bundle components. Phase I: a single
-  // universal chrome surface (the legacy KernelDeliverable* variants)
-  // serves every recurrence. The Tracking/Action/Maintenance aliases
-  // are kept registered to preserve any in-flight bundle SURFACES.yaml
-  // references; they all render the same universal chrome.
+  // them through the same path as bundle components. Phase I (ADR-261 D1
+  // "one execution shape") collapsed the per-output_kind chrome map to
+  // a single universal pair. KERNEL_DEFAULT_CHROME in
+  // web/lib/compositor/kernel-defaults.ts references only these two.
   KernelDeliverableMetadata: () => <KernelDeliverableMetadata />,
   KernelDeliverableActions: () => <KernelDeliverableActions />,
-  KernelTrackingMetadata: () => <KernelDeliverableMetadata />,
-  KernelTrackingActions: () => <KernelDeliverableActions />,
-  KernelActionMetadata: () => <KernelDeliverableMetadata />,
-  KernelActionActions: () => <KernelDeliverableActions />,
-  KernelMaintenanceMetadata: () => <KernelDeliverableMetadata />,
-  KernelMaintenanceActions: () => <KernelDeliverableActions />,
 
   // alpha-trader bundle components (ADR-242 Phase 2). Declared in
   // docs/programs/alpha-trader/SURFACES.yaml under cockpit.{money_truth,

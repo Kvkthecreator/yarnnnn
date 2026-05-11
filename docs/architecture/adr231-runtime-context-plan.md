@@ -1,6 +1,6 @@
 # ADR-231 Runtime Context Plan
 
-> **Status**: Planning artifact (not an ADR). Companion to ADR-231 v1.1. Read before Phase 3.3-3.9 caller migrations + frontend reshape + final grep gate.
+> **Status**: Planning artifact (not an ADR). **Historical — substantially superseded by ADRs 261/262/263 (2026-05-08 → 2026-05-10).** This doc shipped Phase 3.3–3.9 successfully (see ADR-231 §3 Implementation Status). The (trigger-class × shape) 2-tuple framing it canonized has since collapsed: ADR-261 D1 dissolved the `output_kind`/`shape` axis ("one execution shape"); ADR-263 D2 collapsed the four-trigger taxonomy to two (`addressed | reactive`). Read for ADR-231 historical context only — current runtime behavior lives in `invocation_dispatcher.py` + `recurrence.py` + the `mode` field on each recurrence per ADR-263 D1.
 > **Date**: 2026-04-29 (v1.1 revision: explicit (trigger-class × shape) axiomatic grouping + execution-session handoff section)
 > **Authors**: KVK, Claude
 > **Purpose**: Specify the runtime context, session, prompt assembly, and narrative-emission machinery that comes online once the task abstraction is dissolved. The atomic cutover changes the **substrate**; this doc specifies the **runtime layer** that operates on that substrate.

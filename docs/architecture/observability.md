@@ -104,7 +104,7 @@ CREATE TABLE execution_events (
     user_id             uuid NOT NULL REFERENCES auth.users(id),
     slug                text NOT NULL,
     shape               text NOT NULL,       -- deliverable | accumulation | action | maintenance
-    trigger_type        text NOT NULL,       -- scheduled | manual | back_office
+    trigger_type        text NOT NULL,       -- addressed | reactive | manual | back_office
     status              text NOT NULL,       -- success | failed | skipped
     error_reason        text,               -- see Error Reason Taxonomy below
     error_detail        text,               -- exception message, max 2000 chars
@@ -224,11 +224,11 @@ Set on: `yarnnn-api` + `yarnnn-unified-scheduler`.
 Scheduled invocation arrives
   → check capability (existing)
   → check daily spend from execution_events        ← NEW
-      if spend >= ceiling AND trigger = scheduled:
+      if spend >= ceiling AND trigger = reactive:    # cron-fired recurrence
           write execution_events row (status=skipped, error_reason=spend_ceiling)
           emit narrative entry (spend summary, weight=routine)
           return early
-      if spend >= ceiling AND trigger = manual:
+      if spend >= ceiling AND trigger = manual:      # operator-initiated FireInvocation
           emit narrative warning (not a block — user explicitly requested)
           continue
   → generate (existing)

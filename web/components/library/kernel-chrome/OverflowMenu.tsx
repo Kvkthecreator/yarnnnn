@@ -3,9 +3,10 @@
 /**
  * OverflowMenu — kernel chrome utility (ADR-225 Phase 3).
  *
- * Three-dot lifecycle menu used by KernelDeliverableActions and
- * KernelTrackingActions. Pause/Resume + Edit in chat. Reads handlers
- * from WorkDetailActionsContext.
+ * Three-dot lifecycle menu used by KernelDeliverableActions (the sole
+ * universal chrome action component post-ADR-261 D1 Phase I sweep).
+ * Pause/Resume + Edit in chat. Reads handlers from
+ * WorkDetailActionsContext.
  *
  * Originally inline in WorkDetail.tsx; extracted here as part of the
  * unified compositor seam refactor — chrome action components live in
