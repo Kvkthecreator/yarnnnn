@@ -701,11 +701,22 @@ export type TierLimits = BalanceSummary;
 
 export type RecurrenceStatus = "active" | "completed" | "archived";
 
+// ADR-263: recurrence mode declares wake intent at authoring time.
+// - 'judgment'   → recurrence's prompt invokes the Reviewer with the prompt
+//                  as the addressed-equivalent envelope (today's behavior for
+//                  every legacy entry without an explicit mode).
+// - 'mechanical' → recurrence's prompt names a primitive invocation
+//                  (`@primitive: ...`); dispatcher executes deterministic
+//                  Python; no Reviewer wake; zero LLM cost. Used for substrate
+//                  mirroring (e.g., SyncPlatformState per ADR-264).
+export type RecurrenceMode = 'judgment' | 'mechanical';
+
 export interface Recurrence {
   id: string;
   slug: string;
   title: string;
   status: RecurrenceStatus;
+  mode?: RecurrenceMode;       // ADR-263: defaults to 'judgment' on legacy entries
   schedule?: string;           // cron or human-readable cadence (null = reactive)
   next_run_at?: string;
   last_run_at?: string;

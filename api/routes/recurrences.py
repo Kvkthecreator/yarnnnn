@@ -68,6 +68,11 @@ class TaskResponse(BaseModel):
     id: str
     slug: str
     status: str
+    # ADR-263: mode is the recurrence's wake-intent declaration
+    # ('judgment' | 'mechanical'), authored at create-time. Replaces the
+    # previously-derived mode value (which was just shorthand for
+    # 'is schedule set' — redundant with the schedule field itself; the FE
+    # already derives that label client-side via `recurrenceLabel(schedule)`).
     mode: Optional[str] = None
     schedule: Optional[str] = None
     next_run_at: Optional[str] = None
@@ -172,7 +177,11 @@ def _rec_to_response(
         id=str(row["id"]),
         slug=row["slug"],
         status=row["status"],
-        mode="recurring" if rec and rec.schedule else "reactive",
+        # ADR-263: surface the recurrence's authored mode (judgment | mechanical).
+        # Falls back to the dataclass default ('judgment') when no Recurrence is
+        # available — preserves backward compatibility for legacy entries that
+        # exist only as scheduling-index rows without a parsed YAML body.
+        mode=(rec.mode if rec else "judgment"),
         schedule=(rec.schedule if rec else row.get("schedule")) or None,
         next_run_at=row.get("next_run_at"),
         last_run_at=row.get("last_run_at"),
