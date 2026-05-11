@@ -31,10 +31,12 @@ activation entry point. Replaced the deleted `scaffold_trader.py`.
 .venv/bin/python api/scripts/alpha_ops/activate_persona.py --persona alpha-trader-2
 ```
 
-The harness runs the 7-step ADR-230 D5 sequence: load + validate persona,
-fork bundle reference-workspace per ADR-226, apply persona overrides per
-ADR-230 D6, ensure specialist agent rows, POST default tasks from
-`docs/programs/{program}/tasks.yaml`, optional platform connect.
+The harness runs the ADR-230 D5 sequence: load + validate persona,
+fork bundle reference-workspace per ADR-226 (which includes the bundle's
+`_recurrences.yaml` per ADR-261 D2 — the single canonical recurrence
+declaration substrate; per-shape `_spec.yaml`/`_action.yaml`/`_recurring.yaml`/
+`tasks.yaml` files no longer exist), apply persona overrides per ADR-230 D6,
+ensure specialist agent rows lazy-create on dispatch, optional platform connect.
 
 
 ## Canonical docs (read in this order for fresh sessions)
@@ -55,6 +57,7 @@ ADR-230 D6, ensure specialist agent rows, POST default tasks from
 |---|---|
 | [observations/](./observations/) | One note per friction event. Template + rules in the dir's README. Must classify per DUAL-OBJECTIVE-DISCIPLINE.md schema. |
 | [reports/](./reports/) | Dual weekly reports per persona (A-system + B-product). Sunday cadence. |
+| [parked/](./parked/) | Content lifted out of the canonical playbook when it's no longer alpha-current but worth preserving (alpha-commerce persona spec, pre-Bucket-C BOOTSTRAP runbook). Read banners on each file before quoting from them — substrate vocabulary may be stale. |
 
 ## Alpha-operator subagent (Claude Code)
 
@@ -71,14 +74,10 @@ commit. High-stakes actions explicitly defer back to the main session.
 
 ```bash
 cd /Users/macbook/yarnnn
-.venv/bin/python api/scripts/alpha_ops/verify.py --all
+python -m api.scripts.alpha_ops.verify --all
 ```
 
-If green (23/23 alpha-trader + 20/20 alpha-commerce), workspaces are
-healthy on Objective-A invariants. For Objective-B state, read
-`_performance.md` directly via harness DB query or cockpit Context
-surface. See DUAL-OBJECTIVE-DISCIPLINE.md for don't-drift checklist
-before substantive work begins.
+If green (29/29 per alpha-trader-program persona post-Bucket-A invariants), workspaces are healthy on Objective-A invariants. The expected fail mode pre-Alpaca-connect is `platform_connections count: got 0, expected 1` — 28/29 with that single FAIL is the healthy state after `reset.py` and before `connect.py`. alpha-commerce is parked per SCOPE.md; only alpha-trader-program personas (`alpha-trader`, `alpha-trader-2`, `kvk`) run during Alpha-1. For Objective-B state, read `_performance.md` directly via harness DB query or cockpit Context surface. See DUAL-OBJECTIVE-DISCIPLINE.md for don't-drift checklist before substantive work begins.
 
 ## Iterative-by-design
 
@@ -93,3 +92,4 @@ they generalize. Update this INDEX when new docs land.
 | 2026-04-21 | v1 — Initial index. Five canonical docs + two substrate subdirectories. Created alongside DUAL-OBJECTIVE-DISCIPLINE.md. |
 | 2026-04-30 | v2 — SCOPE.md added as canonical first-read. Locks in trading-only + money-truth + cost-truth contract + alpha-commerce parked. |
 | 2026-04-30 | v3 — Alpha-operator subagent ([.claude/agents/alpha-operator.md](../../.claude/agents/alpha-operator.md)) shipped. Recurring rituals delegate to it; high-stakes actions still route through main session. |
+| 2026-05-11 | v4 — Bucket C alpha-doc cleanup. Adds `parked/` substrate subdirectory. Updates activation-harness blurb to reflect ADR-261/262 substrate (single `_recurrences.yaml`, no `tasks.yaml`). Updates session-start ritual numerics for post-Bucket-A invariants (29/29 with Alpaca connected, 28/29 pre-connect). Pairs with: ALPHA-1-PLAYBOOK §3A.5/§3A.5b unification + §3B alpha-commerce parking; BOOTSTRAP.md archived to `parked/`; E2E-EXECUTION-CONTRACT v4 covering ADR-260/261/262 substrate. |

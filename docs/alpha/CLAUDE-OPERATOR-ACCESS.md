@@ -234,8 +234,7 @@ approve/reject only when the AI Reviewer has explicitly deferred to
 human (visible in `decisions.md` as `defer` verdict) and the operator
 discretion ladder permits the override.
 
-This is the framing correction recorded against
-[BOOTSTRAP.md](./personas/alpha-trader/BOOTSTRAP.md) on 2026-04-27.
+This is the framing correction recorded against the BOOTSTRAP.md runbook on 2026-04-27. (That runbook was archived to [parked/alpha-trader-bootstrap-runbook-2026-04-27.md](./parked/alpha-trader-bootstrap-runbook-2026-04-27.md) on 2026-05-11 per Bucket C of the alpha-doc audit — distilled to OPERATOR-HARNESS.md commands. The framing correction below remains live canon.)
 Earlier framing ("Claude triggers signal-evaluation, kvk approves the
 proposal") was driver-puppeteer-shaped; the system never proves it can
 run itself when an operator is clicking every button. The corrected

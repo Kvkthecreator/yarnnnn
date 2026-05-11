@@ -146,10 +146,40 @@ a key.
 
 ```bash
 # Destroys agents, tasks, workspace_files, platform_connections, chat history.
-# Then synchronously rescaffolds the full alpha roster.
+# Then synchronously rescaffolds: 1 agent (YARNNN per ADR-205) + workspace
+# skeletons + bundle fork if the prior MANDATE.md carried a program marker
+# (ADR-244 D4 — active_program_slug preserved across L4 reset).
 python api/scripts/alpha_ops/reset.py alpha-trader --confirm
 python api/scripts/alpha_ops/connect.py alpha-trader        # re-attach Alpaca
 python api/scripts/alpha_ops/verify.py  alpha-trader        # confirm invariants
+```
+
+### Activate a persona's program (post-reset, or first-time)
+
+L4 reset only re-forks the bundle when the **pre-purge** MANDATE.md carried the program marker (`# Mandate — <slug> (template)`). If the marker is absent (operator overwrote it, never activated, or the workspace was created before bundle activation existed), L4 falls back to kernel-default skeletons. In that case, run the canonical activation harness per [ADR-230](../adr/ADR-230-persona-program-registry-unification.md):
+
+```bash
+# Forks docs/programs/{program}/reference-workspace/ into the persona's
+# /workspace/, applies persona-specific overrides at
+# docs/alpha/personas/{slug}/overrides/ (if any), pre-creates specialist
+# agent rows, optionally connects platform creds.
+# Idempotent — re-running preserves operator-customized content.
+python -m api.scripts.alpha_ops.activate_persona --persona alpha-trader-2
+# Or --dry-run to preview without writing:
+python -m api.scripts.alpha_ops.activate_persona --persona alpha-trader-2 --dry-run
+# Or --skip-connect if creds aren't handy:
+python -m api.scripts.alpha_ops.activate_persona --persona alpha-trader-2 --skip-connect
+```
+
+Per the 2026-05-11 fix in [ADR-226 amendment](../adr/ADR-226-reference-workspace-activation-flow.md#status), the fork primitive now calls `materialize_scheduling_index` inline — the `tasks` scheduling index is populated immediately and `verify.py` sees the recurrences without a scheduler-tick wait.
+
+**End-to-end persona cold-bootstrap** (when L4 reset's auto-refork doesn't fire — e.g. operator's MANDATE.md was kernel-default pre-reset):
+
+```bash
+python -m api.scripts.alpha_ops.reset alpha-trader-2 --confirm
+python -m api.scripts.alpha_ops.activate_persona --persona alpha-trader-2 --skip-connect
+python -m api.scripts.alpha_ops.connect alpha-trader-2
+python -m api.scripts.alpha_ops.verify  alpha-trader-2
 ```
 
 ## Shared-access discipline (KVK ↔ Claude)
@@ -164,9 +194,9 @@ can run the same commands and get identical results. Concretely:
   magic-link OTP flow inline anymore. It happens via `mint_jwt.py`.
 - **Verification is declarative.** The expected shape of a healthy
   persona is data in `personas.yaml`, not prose in a session transcript.
-  When the expected shape changes (e.g. `connect_commerce` starts
-  scaffolding a `commerce-digest` task), update `scaffolded_tasks` in
-  the yaml — don't update prose.
+  When the expected shape changes (e.g. the bundle adds a new
+  recurrence to `_recurrences.yaml`), update `scaffolded_recurrences`
+  in the yaml — don't update prose.
 - **Destruction requires intent.** `reset.py` refuses without `--confirm`.
   `purge_user_data.py` (older, lower-level) stays in place for the rare
   case where we need surgical deletion below the `/account/reset`
@@ -181,12 +211,7 @@ can run the same commands and get identical results. Concretely:
    path conventions. Flagged in `personas.yaml` for `alpha-trader`. Fix
    is a separate concern.
 
-2. **`connect_commerce` doesn't scaffold `commerce-digest`.**
-   `connect_trading` scaffolds a `trading-sync` task (paused, pending
-   source selection). `connect_commerce` scaffolds only the context
-   domains. Asymmetry between ADR-183 and ADR-187. Flagged in
-   `personas.yaml` — will surface as alpha friction when KVK tries to
-   activate commerce sync and can't find the task.
+2. **`connect_commerce` asymmetry (low-priority).** Per SCOPE.md alpha-commerce is `deferred`; this drift is no longer alpha-blocking. Will need verification when alpha-commerce graduates from `deferred` (currently a `deferred` bundle at `docs/programs/alpha-commerce/`).
 
 ## When the harness needs extending
 

@@ -1,24 +1,31 @@
 ---
-title: alpha-trader Bootstrap — kvk Dogfooding Runbook
-date: 2026-04-27
-status: ops runbook (NOT an ADR)
+title: alpha-trader Bootstrap — kvk Dogfooding Runbook (PARKED)
+date: 2026-04-27 (original) / 2026-05-11 (parked)
+status: PARKED — superseded by docs/alpha/E2E-EXECUTION-CONTRACT.md (v4+) + the activate_persona.py harness flow documented in OPERATOR-HARNESS.md. Preserved verbatim from its 2026-04-27 form for trace.
 related:
-  - docs/alpha/ALPHA-1-PLAYBOOK.md (Alpha-1 governance + operating protocol — kvk operator role)
-  - docs/alpha/E2E-EXECUTION-CONTRACT.md (E2E test contract for the framework loop)
-  - docs/programs/alpha-trader/reference-workspace/context/_shared/MANDATE.md (program-canonical mandate template — ADR-230 D2 single source)
-  - docs/alpha/personas/alpha-trader-2/overrides/ (kvk's persona-specific overrides per ADR-230 D6 when authored)
-  - docs/programs/alpha-trader/README.md (program-layer spec — what alpha-trader IS)
-  - docs/adr/ADR-226-reference-workspace-activation-flow.md (universal OS activation flow — what this runbook is NOT)
-  - docs/adr/ADR-187-trading-integration.md (alpaca + alpha vantage wiring)
-  - docs/adr/ADR-194-reviewer-layer.md (Reviewer seat — kvk fills it manually until AI Reviewer is calibrated)
-  - docs/adr/ADR-195-money-truth-substrate.md (_performance.md as canonical money-truth)
+  - docs/alpha/E2E-EXECUTION-CONTRACT.md (current canonical E2E + activation walkthrough)
+  - docs/alpha/OPERATOR-HARNESS.md (canonical harness commands — reset / activate / connect / verify)
+  - docs/adr/ADR-244-workspace-settings-surface.md (canonical operator-facing activation surface)
+  - docs/adr/ADR-226-reference-workspace-activation-flow.md (universal OS activation flow)
+---
+
+> # PARKED — 2026-05-11
+>
+> This runbook was authored 2026-04-27 when "universal activation (ADR-226)" and "alpha-trader-specific dogfooding" were structurally split. After 14 days of ADR churn (ADR-244 shipped the permanent Settings → Workspace activation surface; ADR-260/261/262 collapsed substrate to a single `_recurrences.yaml`), the kvk-specific layer dissolved:
+>
+> - **Workflow distilled to 3 commands.** `reset.py --confirm` → `connect.py` → `verify.py`. Per ADR-244 D5, first-run operators are routed through `Settings → Workspace` automatically; the activate_persona.py harness is the alpha-equivalent. The 6-step runbook structure that followed (Verify activation state → Author MANDATE → Author operator profile → Tune principles → Compose recurrence → Run loop) is now (a) covered by [E2E-EXECUTION-CONTRACT.md](../E2E-EXECUTION-CONTRACT.md) at canonical-doc level, and (b) compressed to ~10 lines in [OPERATOR-HARNESS.md](../OPERATOR-HARNESS.md) at command-reference level.
+> - **Substrate vocabulary is stale.** Step 5 ("Compose first trading-signal recurrence") presumes a `task_types` fallback path + per-shape natural-home YAML model that ADR-261 D2 deleted. The bundle now ships `signal-evaluation` directly in `/workspace/_recurrences.yaml`; no scaffolding step needed.
+> - **Singular implementation discipline.** Maintaining BOOTSTRAP.md + E2E-EXECUTION-CONTRACT.md + OPERATOR-HARNESS.md as parallel-with-overlap canonical references creates exactly the drift this rule guards against. One canonical doc per concern (governance: PLAYBOOK; harness: OPERATOR-HARNESS; E2E contract: E2E-EXECUTION-CONTRACT) is the rule going forward.
+>
+> The file content below is preserved verbatim from 2026-04-27 for git-history trace. **No edits below this line.** Cross-links from `2026-04-23-post-flip-trader-e2e.md` + `2026-04-29-post-refactor-wave-e2e.md` observation files remain valid as historical references.
+
 ---
 
 # alpha-trader Bootstrap — kvk Dogfooding Runbook
 
 > **What this is:** the persona-layer runbook that walks the alpha-trader operator (kvk; or Claude-acting-as-operator-on-behalf, in alpha-test mode 1) from clean-slate workspace to autonomous paper-trading loop running. Operational, specific to the alpha-trader persona + alpaca paper account. Not an ADR. Not OS-architecture work. **Dogfooding to validate the framework end-to-end.**
 >
-> **What this is NOT:** the universal reference-workspace activation flow. That lives at [ADR-226](../../../adr/ADR-226-reference-workspace-activation-flow.md) and is what *every* operator running *any* program does at signup. ADR-226 is OS-level; this file is alpha-trader-persona-level.
+> **What this is NOT:** the universal reference-workspace activation flow. That lives at [ADR-226](../../adr/ADR-226-reference-workspace-activation-flow.md) and is what *every* operator running *any* program does at signup. ADR-226 is OS-level; this file is alpha-trader-persona-level.
 
 ## Framing — operator setup, then autonomous loop
 
