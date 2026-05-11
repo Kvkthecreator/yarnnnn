@@ -16,7 +16,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Loader2, AlertCircle, Clock, ShieldAlert } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
-import { cn } from '@/lib/utils';
+import { useProposalModal } from '@/components/tp/ProposalCard';
 
 type Proposal = Awaited<ReturnType<typeof api.proposals.list>>['proposals'][number];
 
@@ -96,10 +96,54 @@ export function NeedsMePane({ onOpenChatDraft }: NeedsMePaneProps) {
   const overflow = list.length - inline.length;
 
   return (
+    <NeedsMePaneBody
+      list={list}
+      inline={inline}
+      overflow={overflow}
+      onReload={load}
+      onOpenChatDraft={onOpenChatDraft}
+    />
+  );
+}
+
+/**
+ * Hook-bearing body extracted so useProposalModal() can be called
+ * unconditionally (Rules of Hooks) — the empty/loading/error early-
+ * returns in the parent skip past hook calls.
+ */
+function NeedsMePaneBody({
+  list,
+  inline,
+  overflow,
+  onReload,
+  onOpenChatDraft,
+}: {
+  list: Proposal[];
+  inline: Proposal[];
+  overflow: number;
+  onReload: () => Promise<void>;
+  onOpenChatDraft: (prompt: string) => void;
+}) {
+  // ADR-258 + Audit C LB-2 (2026-05-11): briefing Queue rows open the
+  // same InteractiveModal + ProposalDetail that chat-stream ProposalCard
+  // uses. Singular Implementation: one modal path, three entry points
+  // (chat ProposalCard chip + cockpit TrackingFace ProposalRow + briefing
+  // NeedsMePane row).
+  const { openProposal, modalElement } = useProposalModal({
+    onResolved: () => {
+      void onReload();
+    },
+  });
+
+  return (
     <PaneFrame title={`Needs me · ${list.length}`}>
       <div className="flex flex-col gap-2">
         {inline.map((p) => (
-          <InlineProposalRow key={p.id} proposal={p} onReload={load} />
+          <InlineProposalRow
+            key={p.id}
+            proposal={p}
+            onOpen={() => openProposal(adaptProposalForModal(p))}
+          />
         ))}
       </div>
       {overflow > 0 && (
@@ -116,8 +160,26 @@ export function NeedsMePane({ onOpenChatDraft }: NeedsMePaneProps) {
           </button>
         </div>
       )}
+      {modalElement}
     </PaneFrame>
   );
+}
+
+// Adapter: api.proposals.list shape → ProposalCard's ProposalData shape.
+// Same shape as TrackingFace.adaptProposalForModal — kept local to avoid
+// a 3-line shared module. If a third caller emerges, hoist to a shared
+// helper.
+function adaptProposalForModal(p: Proposal): import('@/components/tp/ProposalCard').ProposalData {
+  return {
+    id: p.id,
+    action_type: p.action_type,
+    rationale: p.rationale ?? '',
+    expected_effect: p.expected_effect ?? '',
+    reversibility: p.reversibility,
+    risk_warnings: p.risk_warnings ?? [],
+    expires_at: p.expires_at,
+    status: p.status,
+  };
 }
 
 function PaneFrame({ title, children }: { title: string; children: React.ReactNode }) {
@@ -132,57 +194,33 @@ function PaneFrame({ title, children }: { title: string; children: React.ReactNo
 }
 
 /**
- * Inline row — compact proposal preview with inline approve/reject.
+ * Inline row — compact proposal preview, click-to-inspect-and-act.
  *
- * Simpler than the full ProposalCard (which renders inside chat conversation
- * context). Inline here means: single line title + rationale, two buttons,
- * TTL badge. Deep-link to chat for full conversation if the user wants to
- * modify or discuss.
+ * Per Audit C LB-2 (2026-05-11): all proposal-row surfaces (chat
+ * ProposalCard, cockpit TrackingFace, briefing NeedsMePane) route
+ * approval through the SAME InteractiveModal + ProposalDetail.
+ * Pre-2026-05-11, this row had inline Approve/Reject buttons that
+ * bypassed the modal — operators acted on proposals without seeing
+ * reviewer reasoning, expected_effect, or risk_warnings (Channel-
+ * legibility violation per Derived Principle 12).
  */
 function InlineProposalRow({
   proposal,
-  onReload,
+  onOpen,
 }: {
   proposal: Proposal;
-  onReload: () => Promise<void>;
+  onOpen: () => void;
 }) {
-  const [acting, setActing] = useState<null | 'approve' | 'reject'>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleApprove = async () => {
-    setActing('approve');
-    setError(null);
-    try {
-      const result = await api.proposals.approve(proposal.id);
-      if (!result.success) {
-        setError(result.error ?? 'Failed to approve');
-        setActing(null);
-        return;
-      }
-      await onReload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to approve');
-      setActing(null);
-    }
-  };
-
-  const handleReject = async () => {
-    setActing('reject');
-    setError(null);
-    try {
-      await api.proposals.reject(proposal.id);
-      await onReload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reject');
-      setActing(null);
-    }
-  };
-
   const ttl = formatTTL(proposal.expires_at);
   const irreversible = proposal.reversibility === 'irreversible';
 
   return (
-    <div className="rounded-md border border-border bg-card px-3 py-2">
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Open ${formatActionType(proposal.action_type)} proposal`}
+      className="w-full rounded-md border border-border bg-card px-3 py-2 text-left transition-colors hover:border-foreground/40 hover:bg-muted/30 focus:outline-none focus:ring-1 focus:ring-foreground/40"
+    >
       <div className="flex items-center gap-2">
         <span className="text-xs font-medium text-foreground">
           {formatActionType(proposal.action_type)}
@@ -203,32 +241,10 @@ function InlineProposalRow({
           {proposal.rationale}
         </p>
       )}
-      {error && (
-        <p className="mt-1 text-[11px] text-destructive">{error}</p>
-      )}
-      <div className="mt-2 flex items-center gap-1.5">
-        <button
-          onClick={handleApprove}
-          disabled={acting !== null}
-          className={cn(
-            'rounded-md bg-foreground px-2.5 py-1 text-[11px] font-medium text-background hover:opacity-90',
-            acting === 'approve' && 'opacity-60',
-          )}
-        >
-          {acting === 'approve' ? 'Approving…' : 'Approve'}
-        </button>
-        <button
-          onClick={handleReject}
-          disabled={acting !== null}
-          className={cn(
-            'rounded-md border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground',
-            acting === 'reject' && 'opacity-60',
-          )}
-        >
-          {acting === 'reject' ? 'Rejecting…' : 'Reject'}
-        </button>
-      </div>
-    </div>
+      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
+        Click to inspect &amp; act
+      </p>
+    </button>
   );
 }
 

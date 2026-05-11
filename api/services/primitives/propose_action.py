@@ -470,6 +470,33 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
     except Exception as e:
         logger.warning(f"[EXECUTE_PROPOSAL] approved update failed (non-fatal): {e}")
 
+    # FOUNDATIONS v8.4 Axiom 1 fourth sub-clause (substrate-as-bus): write
+    # the intent-to-execute audit entry BEFORE dispatching the real action.
+    # Without this, a Supabase blip between execute_primitive() success and
+    # the post-execute append_decision call would leave a real-world action
+    # (e.g., Alpaca order placed) with no substrate record — substrate
+    # would lag reality. Audit-first pattern: substrate records intent,
+    # action runs, substrate records outcome. Both substrate writes are
+    # best-effort; under failure the gap is between "intent recorded" and
+    # "outcome recorded" rather than between "action happened" and "any
+    # substrate trace exists" — a recoverable gap (orphan `executing`
+    # entries are detectable by reconcilers) instead of a silent gap.
+    intent_msg = (
+        (reviewer_reasoning + "\n\n" if reviewer_reasoning else "")
+        + "Operator confirmed; dispatching to execution layer."
+    )
+    reversibility_pre = proposal.get("reversibility")
+    await append_decision(
+        auth.client, auth.user_id,
+        proposal_id=proposal_id,
+        action_type=action_type,
+        decision="approve",
+        reviewer_identity=reviewer_identity,
+        reasoning=intent_msg,
+        reversibility=reversibility_pre,
+        outcome="executing",
+    )
+
     # Dispatch via execute_primitive
     try:
         exec_result = await execute_primitive(auth, tool_name, merged_inputs)
@@ -477,8 +504,9 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
         logger.error(f"[EXECUTE_PROPOSAL] dispatch raised: {e}")
         exec_result = {"success": False, "error": "dispatch_error", "message": str(e)}
 
-    # Update final status + append decisions.md entry
-    reversibility = proposal.get("reversibility")
+    # Update final status + append the outcome entry to decisions.md
+    # (intent entry was already written pre-dispatch per audit-first pattern).
+    reversibility = reversibility_pre
     if isinstance(exec_result, dict) and exec_result.get("success"):
         try:
             auth.client.table("action_proposals").update({
@@ -489,14 +517,16 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
         except Exception as e:
             logger.warning(f"[EXECUTE_PROPOSAL] status=executed update failed: {e}")
         logger.info(f"[EXECUTE_PROPOSAL] {proposal_id[:8]} executed successfully")
-        # Audit trail — never blocks; logs on failure.
+        # Audit trail OUTCOME entry — pairs with the pre-dispatch INTENT
+        # entry to give operators a complete two-step audit trail per
+        # execute (intent → outcome). Never blocks; logs on failure.
         await append_decision(
             auth.client, auth.user_id,
             proposal_id=proposal_id,
             action_type=action_type,
             decision="approve",
             reviewer_identity=reviewer_identity,
-            reasoning=reviewer_reasoning,
+            reasoning=("Execution succeeded.\n\n" + (reviewer_reasoning or "")).strip(),
             reversibility=reversibility,
             outcome="executed",
         )

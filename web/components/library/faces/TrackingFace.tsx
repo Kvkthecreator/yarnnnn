@@ -27,8 +27,8 @@ import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { Loader2, AlertCircle, Clock, ShieldAlert, Sparkles } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
-import { cn } from '@/lib/utils';
 import type { NarrativeMaterialEntry } from '@/types';
+import { useProposalModal } from '@/components/tp/ProposalCard';
 // ADR-243 Phase B: dispatchComponent + useComposition imports removed.
 // OperationalState bundle dispatch moved to CockpitRenderer program_sections.
 
@@ -158,6 +158,20 @@ function PendingDecisions({
   error: string | null;
   onReload: () => Promise<void>;
 }) {
+  // ADR-258 + Audit C LB-2 (2026-05-11): cockpit Queue rows open the same
+  // InteractiveModal + ProposalDetail that chat-stream ProposalCard uses.
+  // One modal path, two entry points (Singular Implementation rule 1).
+  // Pre-2026-05-11, cockpit rows had inline Approve/Reject buttons that
+  // bypassed the modal — operators approved trades without seeing
+  // reviewer reasoning, expected_effect, or risk_warnings (Channel-
+  // legibility violation per Derived Principle 12).
+  const { openProposal, modalElement } = useProposalModal({
+    onResolved: () => {
+      // After approve/reject, refresh the list so the row disappears.
+      void onReload();
+    },
+  });
+
   return (
     <div className="mb-5">
       <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -185,7 +199,7 @@ function PendingDecisions({
       ) : (
         <div className="flex flex-col gap-2">
           {proposals.slice(0, PROPOSAL_INLINE_LIMIT).map((p) => (
-            <ProposalRow key={p.id} proposal={p} onReload={onReload} />
+            <ProposalRow key={p.id} proposal={p} onOpen={() => openProposal(adaptProposalForModal(p))} />
           ))}
           {proposals.length > PROPOSAL_INLINE_LIMIT && (
             <Link
@@ -197,54 +211,46 @@ function PendingDecisions({
           )}
         </div>
       )}
+      {modalElement}
     </div>
   );
 }
 
+// Adapter: api.proposals.list shape → ProposalCard's ProposalData shape.
+// The fields the modal cares about land directly; null → undefined for
+// the optional fields the modal expects. ProposalDetail re-fetches
+// reviewer_identity + reviewer_reasoning + live status via
+// api.proposals.get on mount, so we only seed the static fields here.
+function adaptProposalForModal(p: Proposal): import('@/components/tp/ProposalCard').ProposalData {
+  return {
+    id: p.id,
+    action_type: p.action_type,
+    rationale: p.rationale ?? '',
+    expected_effect: p.expected_effect ?? '',
+    reversibility: p.reversibility,
+    risk_warnings: p.risk_warnings ?? [],
+    expires_at: p.expires_at,
+    status: p.status,
+  };
+}
+
 function ProposalRow({
   proposal,
-  onReload,
+  onOpen,
 }: {
   proposal: Proposal;
-  onReload: () => Promise<void>;
+  onOpen: () => void;
 }) {
-  const [acting, setActing] = useState<null | 'approve' | 'reject'>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleApprove = async () => {
-    setActing('approve');
-    setError(null);
-    try {
-      const result = await api.proposals.approve(proposal.id);
-      if (!result.success) {
-        setError(result.error ?? 'Failed to approve');
-        setActing(null);
-        return;
-      }
-      await onReload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to approve');
-      setActing(null);
-    }
-  };
-
-  const handleReject = async () => {
-    setActing('reject');
-    setError(null);
-    try {
-      await api.proposals.reject(proposal.id);
-      await onReload();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reject');
-      setActing(null);
-    }
-  };
-
   const ttl = formatTTL(proposal.expires_at);
   const irreversible = proposal.reversibility === 'irreversible';
 
   return (
-    <div className="rounded-md border border-border bg-background px-3 py-2">
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-label={`Open ${formatActionType(proposal.action_type)} proposal`}
+      className="w-full rounded-md border border-border bg-background px-3 py-2 text-left transition-colors hover:border-foreground/40 hover:bg-muted/30 focus:outline-none focus:ring-1 focus:ring-foreground/40"
+    >
       <div className="flex items-center gap-2">
         <span className="text-xs font-medium text-foreground">
           {formatActionType(proposal.action_type)}
@@ -265,30 +271,10 @@ function ProposalRow({
           {proposal.rationale}
         </p>
       )}
-      {error && <p className="mt-1 text-[11px] text-destructive">{error}</p>}
-      <div className="mt-2 flex items-center gap-1.5">
-        <button
-          onClick={handleApprove}
-          disabled={acting !== null}
-          className={cn(
-            'rounded-md bg-foreground px-2.5 py-1 text-[11px] font-medium text-background hover:opacity-90',
-            acting === 'approve' && 'opacity-60',
-          )}
-        >
-          {acting === 'approve' ? 'Approving…' : 'Approve'}
-        </button>
-        <button
-          onClick={handleReject}
-          disabled={acting !== null}
-          className={cn(
-            'rounded-md border border-border px-2.5 py-1 text-[11px] text-muted-foreground hover:bg-muted hover:text-foreground',
-            acting === 'reject' && 'opacity-60',
-          )}
-        >
-          {acting === 'reject' ? 'Rejecting…' : 'Reject'}
-        </button>
-      </div>
-    </div>
+      <p className="mt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
+        Click to inspect &amp; act
+      </p>
+    </button>
   );
 }
 

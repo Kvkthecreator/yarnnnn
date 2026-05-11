@@ -14,6 +14,7 @@ import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
 import { api } from '@/lib/api/client';
 import { postChatWithFallback } from '@/lib/api/chatTransport';
 import { getToolDisplayMessage } from '@/lib/utils';
+import { useSessionMessagesRealtime } from '@/lib/realtime/use-session-messages-realtime';
 
 // =============================================================================
 // Initial State
@@ -195,6 +196,16 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
   const historyLoadedRef = useRef(false);
   // Timeout ref for stuck status safety
   const statusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Session ID for the unified workspace conversation. Captured from
+  // fetchAndSetHistory and consumed by useSessionMessagesRealtime to
+  // push autonomous-write events to the operator without requiring a
+  // chat-turn round-trip (FOUNDATIONS v8.4 Axiom 1 fourth sub-clause +
+  // ADR-260 real-time-visible-handoffs commitment).
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  // Realtime debounce — coalesce bursts of inserts (e.g., a Reviewer
+  // wake fires 5 System Agent narrations in quick succession) into one
+  // re-fetch, avoiding 5 concurrent globalHistory roundtrips.
+  const realtimeRefetchTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // ---------------------------------------------------------------------------
   // Status timeout safety - reset to idle if stuck in loading state.
@@ -245,6 +256,9 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
 
       if (result.sessions && result.sessions.length > 0) {
         const session = result.sessions[0];
+        // Capture the session_id for realtime subscription. Stable across
+        // the operator's lifetime in this workspace (unified session model).
+        setSessionId(session.id);
         if (session.messages && session.messages.length > 0) {
           const messages: TPMessage[] = session.messages.map((m) => {
             // ADR-042: Reconstruct blocks AND tool results from metadata.tool_history
@@ -365,6 +379,41 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
   useEffect(() => {
     loadScopedHistory();
   }, [loadScopedHistory]);
+
+  // ---------------------------------------------------------------------------
+  // Realtime — autonomous-write events from cron-fired Loop wakes
+  // ---------------------------------------------------------------------------
+  // Per FOUNDATIONS v8.4 Axiom 1 (substrate is the bus the Loop runs over):
+  // when the Reviewer wakes via cron + writes substrate while the operator-
+  // human is absent, the operator-in-real-time embodiment needs to SEE
+  // those writes when they next attend to the cockpit. Without realtime,
+  // the FE only re-fetches after sendMessage, so cron-fired narrations
+  // are invisible until the operator types a chat message — silently
+  // breaking ADR-260's real-time-visible-handoffs commitment.
+  //
+  // Implementation: on every INSERT to session_messages for our session,
+  // schedule a debounced re-fetch of globalHistory. Debounce coalesces
+  // bursts (e.g., a Reviewer wake fires 5 System Agent narrations within
+  // ~100ms) into one re-fetch. The existing fetchAndSetHistory converter
+  // is reused — Singular Implementation rule, no parallel row→TPMessage
+  // logic.
+  useSessionMessagesRealtime({
+    sessionId,
+    onInsert: () => {
+      // Skip realtime echoes during active sendMessage — the streaming
+      // path's reducer mutations already populated optimistic UI state,
+      // and a re-fetch would race against in-flight stream events.
+      if (status.type !== 'idle' && status.type !== 'complete') return;
+      if (realtimeRefetchTimerRef.current) {
+        clearTimeout(realtimeRefetchTimerRef.current);
+      }
+      realtimeRefetchTimerRef.current = setTimeout(() => {
+        realtimeRefetchTimerRef.current = null;
+        // Fire-and-forget; failure is logged inside fetchAndSetHistory.
+        void fetchAndSetHistory();
+      }, 250);
+    },
+  });
 
   // ---------------------------------------------------------------------------
   // Send message to TP

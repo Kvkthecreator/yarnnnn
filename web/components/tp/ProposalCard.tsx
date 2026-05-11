@@ -13,7 +13,7 @@
  * ratify or override — not to independently approve a system action.
  */
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   CheckCircle2, XCircle, Clock, ShieldAlert, Loader2,
   AlertCircle, ShieldCheck, ShieldX, ShieldQuestion, Hexagon,
@@ -27,7 +27,7 @@ import { InteractiveModal } from './InteractiveModal';
 // Types
 // ---------------------------------------------------------------------------
 
-interface ProposalData {
+export interface ProposalData {
   id: string;
   action_type: string;
   rationale: string;
@@ -95,14 +95,21 @@ function deriveReviewerPosture(
   return 'none';
 }
 
-// Strip trailing boilerplate from Reviewer reasoning for display
+// Strip trailing boilerplate from Reviewer reasoning for display.
+// The boilerplate strings are written by review_proposal_dispatch.py
+// (advisory-approve path) and must stay in lockstep — when the backend
+// wording changes, this function MUST be updated in the same commit.
+// 2026-05-11 hardening pass: "**Your confirmation required**" → "**Operator-
+// in-real-time confirmation required**" per Axiom 2 two-embodiments
+// framing (Commit B DD-2). Both wordings checked here for backward-
+// compat with old persisted advisory entries written before the rename.
 function cleanReasoning(reasoning: string): string {
-  const confirmIdx = reasoning.indexOf('\n\n**Your confirmation required**');
+  const confirmIdxNew = reasoning.indexOf('\n\n**Operator-in-real-time confirmation required**');
+  const confirmIdxOld = reasoning.indexOf('\n\n**Your confirmation required**');
   const decidedIdx = reasoning.indexOf('\n\n— ');
-  const cutAt = Math.min(
-    confirmIdx >= 0 ? confirmIdx : reasoning.length,
-    decidedIdx >= 0 ? decidedIdx : reasoning.length,
-  );
+  const candidates = [confirmIdxNew, confirmIdxOld, decidedIdx]
+    .filter((i) => i >= 0);
+  const cutAt = candidates.length > 0 ? Math.min(...candidates) : reasoning.length;
   return reasoning.slice(0, cutAt).trim();
 }
 
@@ -389,4 +396,76 @@ export function ProposalCard({ result }: ProposalCardProps) {
       </InteractiveModal>
     </>
   );
+}
+
+// ---------------------------------------------------------------------------
+// useProposalModal — shared modal launcher for any surface that needs
+// click-to-inspect-and-act on a proposal (FOUNDATIONS v8.4 + Audit C LB-2).
+// ---------------------------------------------------------------------------
+//
+// Singular Implementation: ONE modal path (InteractiveModal +
+// ProposalDetail), N entry points. Currently used by:
+//   - ProposalCard (chat-stream chip-click)
+//   - TrackingFace ProposalRow (cockpit Queue row-click — added 2026-05-11)
+//   - NeedsMePane ProposalRow (briefing Queue row-click — added 2026-05-11)
+//
+// Pre-2026-05-11 the cockpit + briefing rows had INLINE Approve/Reject
+// buttons that bypassed the modal entirely — operators approved trades
+// from cockpit without seeing reviewer reasoning, expected_effect, or
+// risk_warnings (Channel-legibility violation per Derived Principle 12).
+// This hook is the unification.
+//
+// Usage:
+//   const { openProposal, modalElement } = useProposalModal({ onResolved });
+//   return (<>
+//     {proposals.map(p => <Row onClick={() => openProposal(p)} ... />)}
+//     {modalElement}
+//   </>);
+//
+// `onResolved` fires when the operator approves/rejects (the modal
+// auto-closes; caller typically refreshes the list to remove the row).
+
+export interface UseProposalModalOpts {
+  /** Called after the operator approves or rejects the proposal. The
+   *  caller typically refreshes their proposal list here. */
+  onResolved?: (proposalId: string) => void;
+}
+
+export interface UseProposalModalReturn {
+  /** Open the modal for a specific proposal. */
+  openProposal: (proposal: ProposalData) => void;
+  /** Render this once at the bottom of your tree — the modal portals out. */
+  modalElement: React.ReactElement | null;
+  /** True while the modal is open. Useful for caller UX (e.g., dim row). */
+  isOpen: boolean;
+}
+
+export function useProposalModal(opts: UseProposalModalOpts = {}): UseProposalModalReturn {
+  const [active, setActive] = useState<ProposalData | null>(null);
+  const { onResolved } = opts;
+
+  const openProposal = (proposal: ProposalData) => {
+    setActive(proposal);
+  };
+
+  const handleClose = () => {
+    const closingId = active?.id;
+    setActive(null);
+    if (closingId && onResolved) {
+      onResolved(closingId);
+    }
+  };
+
+  const modalElement = active ? (
+    <InteractiveModal
+      isOpen={true}
+      onClose={handleClose}
+      title="Proposal"
+      subtitle={formatActionType(active.action_type)}
+    >
+      <ProposalDetail proposal={active} onClose={handleClose} />
+    </InteractiveModal>
+  ) : null;
+
+  return { openProposal, modalElement, isOpen: active !== null };
 }
