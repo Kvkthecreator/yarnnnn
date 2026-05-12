@@ -122,7 +122,7 @@ path to the account. Fallback mode.
 **Pattern:**
 - KVK is in the cockpit (or on the platform), observes state, narrates
   to Claude: "AAPL bracket proposal just fired, expectancy 0.9R, Signal 1"
-- Claude reasons against declared signals, `_performance.md` context
+- Claude reasons against declared signals, `_money_truth.md` context
   from the observation, risk parameters from the playbook
 - Claude recommends: approve / escalate / reject + reasoning
 - **KVK executes** — Claude cannot
@@ -147,7 +147,7 @@ path to act on it at all.
 | Action | Mode 1 (headless) | Mode 2 (cockpit) | Mode 3 (conversational) |
 |---|---|---|---|
 | Read any substrate file | ✅ via service key or JWT | ✅ via Context browser in UI | KVK describes; Claude reasons |
-| Read `decisions.md`, `_performance.md` | ✅ | ✅ | KVK describes |
+| Read `decisions.md`, `_money_truth.md` | ✅ | ✅ | KVK describes |
 | Run `verify.py --all` | ✅ — this is Mode 1's superpower | ❌ not the right tool; use the UI or Mode 1 | ❌ KVK runs; Claude interprets output |
 | **Chat-initiate on behalf** (post `WriteFile(scope="workspace")` for shared substrate, ask YARNNN to start a cycle, etc.) | ✅ via API as the persona's JWT — what would happen if KVK typed in chat | ✅ Claude types in chat as the persona | ❌ KVK does it |
 | Approve reversible proposal meeting all five conditions | ⚠️ rarely needed — see §"Operator vs autonomous-loop" below; AI Reviewer should approve under `bounded_autonomous` | ⚠️ same — operator clicks only when AI Reviewer deferred | ❌ KVK clicks; Claude advises |
@@ -222,7 +222,7 @@ paths fire on their own per ADR-194 v2 + ADR-205 + ADR-207:
 - Reactive Reviewer dispatch (post-insert hook on `action_proposals`)
 - AI Reviewer decides per AUTONOMY.md `bounded_autonomous` carve-out
 - Approved reversible proposals fire ExecuteProposal → alpaca paper
-- Reconciler writes outcomes to `_performance.md`
+- Reconciler writes outcomes to `_money_truth.md`
 - Next cycle reads richer substrate
 
 **Claude's role during the autonomous loop is observer + occasional
@@ -337,7 +337,7 @@ Gemini) reach YARNNN substrate through it.
 
 **What this could enable for alpha:** Claude in ChatGPT or Claude.ai
 could consult the alpha personas' context mid-conversation. For example,
-a strategy discussion with KVK elsewhere could pull `_performance.md`
+a strategy discussion with KVK elsewhere could pull `_money_truth.md`
 attribution via `pull_context` to ground the discussion in real
 money-truth.
 

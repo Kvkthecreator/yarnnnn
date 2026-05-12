@@ -49,7 +49,7 @@ The database is narrowly permitted for four row kinds only:
 3. **Credentials / auth** — encrypted secrets the filesystem cannot hold safely (`platform_connections`, `mcp_oauth_*`).
 4. **Ephemeral queues / inboxes** — TTL-bounded items awaiting action (`action_proposals`). The row disappears after acceptance, rejection, or expiration.
 
-Anything else belongs in the filesystem. When you read about "the scheduler reads TASK.md" or "the reconciler writes `_performance.md`" below, that is Axiom 1 in operation — not incidental design choice. See [FOUNDATIONS.md Axiom 1](FOUNDATIONS.md).
+Anything else belongs in the filesystem. When you read about "the scheduler reads TASK.md" or "the reconciler writes `_money_truth.md`" below, that is Axiom 1 in operation — not incidental design choice. See [FOUNDATIONS.md Axiom 1](FOUNDATIONS.md).
 
 ### Frame 3 — The Cockpit (ADR-198 v2)
 
@@ -178,7 +178,7 @@ Virtual filesystem over Postgres (`workspace_files` table). Three content areas:
 | **Orchestration surface** | YARNNN | Workspace-level | Conversational surface of the orchestrator; drafts work, routes updates, keeps the system legible | Operational awareness in `/workspace/memory/` |
 | **Orchestration capability bundles** | Production roles + platform integrations | Task / integration-level | Execute production work under dispatch and permission gates | Capability catalog evolves; no persona-bearing development axis |
 | **Instance judgment Agents** | User-authored domain Agents | Domain-level | Execute domain work, accumulate expertise, represent operator intent in a domain | Inward — deeper knowledge through accumulated work in their domain |
-| **Systemic judgment Agent** | Reviewer (human user / AI / impersonation — interchangeable seat) | Proposal-level (structurally separate) | Independent judgment on proposed writes; audit trail author | Through calibration against `_performance.md` |
+| **Systemic judgment Agent** | Reviewer (human user / AI / impersonation — interchangeable seat) | Proposal-level (structurally separate) | Independent judgment on proposed writes; audit trail author | Through calibration against `_money_truth.md` |
 
 **All four classes share one substrate — the filesystem.** None retains state of its own across invocations. YARNNN, production roles, domain Agents, and Reviewer all read `/workspace/`, `/agents/`, `/tasks/`, and (for Reviewer) `/workspace/review/`, act, write back, and terminate.
 

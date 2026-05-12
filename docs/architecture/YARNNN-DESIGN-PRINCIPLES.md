@@ -16,7 +16,7 @@ Two distinct design spectrums govern YARNNN. Conflating them is the most common 
 
 **Where state lives.** DB rows ↔ filesystem files. (The Substrate dimension — FOUNDATIONS Axiom 1.)
 
-FOUNDATIONS Axiom 1 decides this one categorically: the filesystem is the substrate, and the database is narrowly permitted for four row kinds (scheduling indexes, neutral audit ledgers, credentials, ephemeral queues). Anything holding semantic content belongs in a file. This spectrum is **strict by architectural conscience** — every prior collapse of a parallel substrate (platform_content → files, projects → tasks, Composer → YARNNN, knowledge tables → workspace files, user_memory → /workspace/*.md, action_outcomes → `_performance.md`) happened because semantic content was in a DB row when it belonged in a file.
+FOUNDATIONS Axiom 1 decides this one categorically: the filesystem is the substrate, and the database is narrowly permitted for four row kinds (scheduling indexes, neutral audit ledgers, credentials, ephemeral queues). Anything holding semantic content belongs in a file. This spectrum is **strict by architectural conscience** — every prior collapse of a parallel substrate (platform_content → files, projects → tasks, Composer → YARNNN, knowledge tables → workspace files, user_memory → /workspace/*.md, action_outcomes → `_money_truth.md`) happened because semantic content was in a DB row when it belonged in a file.
 
 Do not loosen Axiom 1. The strictness is what makes the architecture coherent across ADRs.
 

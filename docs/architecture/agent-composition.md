@@ -98,7 +98,7 @@ User message (dynamic):
 | `/workspace/context/_shared/AUTONOMY.md` | Dispatcher (`review_proposal_dispatch.py` + `review_policy.py::load_autonomy`) | Operator-authored (ADR-217). Declares the delegation ceiling — NOT read by the Reviewer agent itself; enforced by the dispatcher before invocation. |
 | `/workspace/context/{domain}/_operator_profile.md` | Reviewer agent | Operator-authored. Strategy + style context. |
 | `/workspace/context/{domain}/_risk.md` | Reviewer agent | Operator-authored. Hard floors. |
-| `/workspace/context/{domain}/_performance.md` | Reviewer agent | Reconciler-generated (ADR-195 v2). Track record. |
+| `/workspace/context/{domain}/_money_truth.md` | Reviewer agent | Reconciler-generated (ADR-195 v2). Track record. |
 | The proposal itself | Reviewer agent | `action_proposals` row passed in by dispatcher. |
 
 **Persona**: operator-authored in `/workspace/review/IDENTITY.md`. Platform provides a generic default at signup (neutral skeptical baseline); operator overwrites to embody a specific character (Simons, Buffett, Deming, etc.). The Reviewer agent reads this file as the *opening* section of its user message, so persona shapes reasoning from the first token.
@@ -123,7 +123,7 @@ User message (dynamic, dispatcher-assembled):
   4. ## /workspace/context/_shared/PRECEDENT.md — Operator-declared durable interpretations
   5. ## Operator profile (if present)
   6. ## _risk.md (if trading)
-  7. ## _performance.md (if domain has track record)
+  7. ## _money_truth.md (if domain has track record)
   8. ## Instruction (call return_review_decision tool once)
 ```
 

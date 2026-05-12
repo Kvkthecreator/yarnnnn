@@ -10,7 +10,7 @@
 - **Account state**: `/workspace/context/portfolio/_account.yaml` — refreshed every 5 min by `track-account` (mechanical).
 - **Open orders**: `/workspace/context/portfolio/_orders.yaml` — refreshed every minute by `track-orders` (mechanical).
 - **Signal fires**: `/workspace/context/trading/signals/{signal_id}.yaml` — appended by `signal-evaluation` (judgment).
-- **Performance** (money-truth, ADR-195 v2): `/workspace/context/trading/_performance.md`. Reconciler-owned, never hand-edited.
+- **Performance** (money-truth, ADR-195 v2): `/workspace/context/trading/_money_truth.md`. Reconciler-owned, never hand-edited.
 - **Risk envelope** (operator-authored): `/workspace/context/trading/_risk.md`. Hand-editable for budget changes; declared once, read by Reviewer + signal-evaluation + reports.
 
 ## Proposal envelope conventions
@@ -19,7 +19,7 @@ Every trading proposal carries:
 - **Named signal** (must be declared in `_operator_profile.md`)
 - **Sized stop** (distance + dollar amount)
 - **Risk percent applied** (must match `_operator_profile.md` for the position size class)
-- **Expected expectancy** (from rolling history of the signal in `_performance.md`)
+- **Expected expectancy** (from rolling history of the signal in `_money_truth.md`)
 - **Var budget impact** (must fit current `_risk.md` envelope)
 
 For close-position proposals (exit path):

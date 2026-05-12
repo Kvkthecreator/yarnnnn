@@ -33,7 +33,7 @@ Every proposal carries the math: `position_size = account_size × risk_percent /
 
 ### 1.4 Expectancy decay is data, not hope
 
-When `_performance.md` shows Signal 3's recent 20-trade expectancy is -0.3R (below the -0.5R guardrail), the Reviewer defers. Claude does NOT argue "maybe it'll come back" or "this setup feels different." Claude notes the flag, defers the proposal, and lets KVK decide at quarterly audit whether to retire Signal 3.
+When `_money_truth.md` shows Signal 3's recent 20-trade expectancy is -0.3R (below the -0.5R guardrail), the Reviewer defers. Claude does NOT argue "maybe it'll come back" or "this setup feels different." Claude notes the flag, defers the proposal, and lets KVK decide at quarterly audit whether to retire Signal 3.
 
 ### 1.5 Narrative is out of vocabulary
 
@@ -71,7 +71,7 @@ The loop ADR-206 describes at the framework level, made concrete for the trader 
 │     sizing math. Lands in action_proposals.                                    │
 │                                                                                │
 │  4. AI Reviewer (reactive — fires post-proposal-insert per ADR-194)            │
-│     Reads _operator_profile.md + _risk.md + _performance.md + principles.md.   │
+│     Reads _operator_profile.md + _risk.md + _money_truth.md + principles.md.   │
 │     Executes 6-check capital-EV ladder. Writes decisions.md + emits           │
 │     approve/reject/defer. Rejected proposals are filtered from Queue.          │
 │                                                                                │
@@ -86,7 +86,7 @@ The loop ADR-206 describes at the framework level, made concrete for the trader 
 │  /work Tracking face Queue            ← proposals awaiting operator decision   │
 │  /work task list + outputs           ← pre-market briefs, performance reviews │
 │  /review decisions.md                ← Reviewer's audit trail                 │
-│  /workspace/context/trading/_performance.md ← per-signal P&L + expectancy     │
+│  /workspace/context/trading/_money_truth.md ← per-signal P&L + expectancy     │
 └──────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼ (operator decides)
@@ -100,7 +100,7 @@ The loop ADR-206 describes at the framework level, made concrete for the trader 
 ┌──────────────────────────────────────────────────────────────────────────────┐
 │  MONEY-TRUTH (reconciled, idempotent)                                         │
 │  outcome-reconciliation (daily)                                               │
-│  Reads Alpaca events, updates _performance.md per-signal:                     │
+│  Reads Alpaca events, updates _money_truth.md per-signal:                     │
 │    by_signal:                                                                  │
 │      signal-1-momentum-breakout:                                               │
 │        trades_20: N, wins, losses, avg_win_r, avg_loss_r,                      │
@@ -135,7 +135,7 @@ Every arrow is an observation point. If an arrow doesn't fire (or fires with wro
 Per playbook §2 "What Claude does":
 - Read every cockpit surface (/chat, /work, /agents, /context, /review, /settings/system).
 - Approve **reversible** proposals within the Simons discretion ladder (§6 of the playbook). For the trader domain, reversible = paper-order submission within declared rules with Reviewer's `approve` or `defer` verdict. Paper-order cancellation within the same session is also reversible.
-- Read `_performance.md`, `agent_runs`, `token_usage`, `activity_log`, `decisions.md` for audit.
+- Read `_money_truth.md`, `agent_runs`, `token_usage`, `activity_log`, `decisions.md` for audit.
 - Propose edits to `principles.md`, `_risk.md`, `_operator_profile.md` *to KVK for ratification via observation note*. Never edit these files myself in-session.
 - Trigger tasks manually via `/work` detail-view Run action.
 - Read substrate files via `/api/workspace/file?path=...` or ReadFile primitive.
@@ -189,7 +189,7 @@ Batch commit of observations at end of E2E, one commit with message `observe(alp
 - **Mechanical mirror executors (ADR-264).** Verify `track-account`, `track-orders`, `track-positions` fire as zero-LLM-cost deterministic Python via the `@primitive: SyncPlatformState` directive in the prompt. Output files land at `/workspace/context/portfolio/{account,orders,positions}.yaml` per ADR-254 D5 (machine-parsed `.yaml`, not `.md`). Observation: does the scheduler dispatch them inline without invoking the LLM tier?
 - **Capability gating (ADR-261 + ADR-258 evolution).** Per ADR-261 D5 the `required_capabilities` field on recurrence declarations dissolved with the rest of the per-shape schema. Capability gating now happens at prompt-level (the recurrence's `prompt` field encodes what platforms it expects to be connected) + dispatch-time via `services/agent_creation.py::ensure_infrastructure_agent`. Observation: does a `track-universe` invocation against a workspace without `platform_connections.status='active'` for Alpaca degrade gracefully (Reviewer notes the gap in its verdict) rather than crashing?
 - **One full cycle of track → evaluate → (attempted) propose → Review → Queue.** Confirm the **chat-initiated path** (per ADR-205 chat-first triggering) fires when Claude addresses `@yarnnn — trigger track-universe now`. Confirm the path is real-time and synchronous per ADR-260 — operator sees the Reviewer's narration mid-loop, not as a post-hoc lump per ADR-258 revised's per-action narration commit.
-- **Cockpit four-face rendering (ADR-228).** Read `/work` cockpit and verify the four faces render against operator substrate: **Mandate** (reads `_shared/MANDATE.md` + `_shared/AUTONOMY.md`), **Money truth** (substrate fallback to `_performance.md` if Alpaca live binding deferred), **Performance** (mandate-attributed performance + `decisions.md` calibration), **Tracking** (proposal queue + recurrence health).
+- **Cockpit four-face rendering (ADR-228).** Read `/work` cockpit and verify the four faces render against operator substrate: **Mandate** (reads `_shared/MANDATE.md` + `_shared/AUTONOMY.md`), **Money truth** (substrate fallback to `_money_truth.md` if Alpaca live binding deferred), **Performance** (mandate-attributed performance + `decisions.md` calibration), **Tracking** (proposal queue + recurrence health).
 - **Feed surface naming (ADR-259).** Per ADR-259 the chat surface is now `/feed`. Verify the tab label "Feed" renders in the `ToggleBar` (5 segments: `Chat`-renamed-Feed / Work / Schedule / Agents / Files), URL `/chat` redirects to `/feed`, and the feed surface routes through `routes/feed.py` (renamed from `routes/chat.py`).
 
 **Out of scope for this E2E** (future runs):
@@ -197,7 +197,7 @@ Batch commit of observations at end of E2E, one commit with message `observe(alp
 - Live trade approval and execution. Paper is the substrate.
 - Quarterly signal audit simulation.
 - Multi-day reconciliation cycle (needs time to accumulate outcomes).
-- Automated Reviewer auto-execution beyond `auto_approve_below_cents` threshold (per ADR-194 v2 Phase 3 + ADR-253 D1; alpha defaults to defer-everything until `_performance.md` accumulates).
+- Automated Reviewer auto-execution beyond `auto_approve_below_cents` threshold (per ADR-194 v2 Phase 3 + ADR-253 D1; alpha defaults to defer-everything until `_money_truth.md` accumulates).
 - alpha-commerce persona (parked per SCOPE.md; see [docs/alpha/parked/alpha-commerce-persona-spec.md](./parked/alpha-commerce-persona-spec.md)).
 
 ---

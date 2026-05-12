@@ -19,7 +19,7 @@ oracle:
 dependencies:
   required:
     - adr: ADR-209          # authored substrate revision chain
-    - adr: ADR-195          # OutcomeProvider abstraction + _performance.md
+    - adr: ADR-195          # OutcomeProvider abstraction + _money_truth.md
     - adr: ADR-194          # Reviewer with capital-EV reasoning
     - adr: ADR-217          # AUTONOMY.md delegation file
     - adr: ADR-181          # source-agnostic feedback (system_outcome)
@@ -65,7 +65,7 @@ context_domains:
     # task prompt that includes this domain. Order is presentation order.
     # ADR-230 D2: each path here MUST have a matching template file in
     # this bundle's reference-workspace/. Accumulated substrate (e.g.
-    # _performance.md, _tracker.md) is written by judgment-mode recurrences
+    # _money_truth.md, _tracker.md) is written by judgment-mode recurrences
     # (e.g. outcome-reconciliation, calibration) at runtime — not authored
     # at activation — so it does NOT belong here. (Post-ADR-260 collapse:
     # what were "back-office tasks" are now ordinary recurrences declared
@@ -98,7 +98,7 @@ context_domains:
 
       ## Performance & Attribution
     tracker_file: _tracker.md
-    # ADR-230 D2: portfolio money-truth (_performance.md) is accumulated
+    # ADR-230 D2: portfolio money-truth (_money_truth.md) is accumulated
     # substrate — written by the outcome-reconciliation recurrence per
     # ADR-195 v2 + ADR-228 substrate-stub fix. NOT authored at activation,
     # so it does not appear in authored_substrate. The first run of the
@@ -145,7 +145,7 @@ phases:
     description: Paper account, AUTONOMY bounded_autonomous, Reviewer reasoning logged, no live capital
   - key: paper_discipline
     label: Phase 1 — Paper Discipline
-    description: 90 days of MANDATE compliance, signal expectancy data accumulates in _performance.md
+    description: 90 days of MANDATE compliance, signal expectancy data accumulates in _money_truth.md
   - key: live_float
     label: Phase 2 — Live Float
     description: Small live capital ($5-10K), AUTONOMY flipped to manual approval, every order operator-approved

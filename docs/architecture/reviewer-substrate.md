@@ -106,7 +106,7 @@ This file makes Principle 14 (Roles persist; occupants rotate) legible in substr
 
 ### `calibration.md` — how the seat's judgments have aligned with outcomes
 
-The calibration trail. Periodically (per ADR-195 v2's outcome reconciliation task), this file is rebuilt from `decisions.md` × reconciled outcomes in `_performance.md` across domains.
+The calibration trail. Periodically (per ADR-195 v2's outcome reconciliation task), this file is rebuilt from `decisions.md` × reconciled outcomes in `_money_truth.md` across domains.
 
 Calibration captures:
 - For each verdict category (approve / reject / defer), aggregate outcome metrics over rolling windows
@@ -159,7 +159,7 @@ These are not modes the seat *is in globally* — they are workspace-scoped defa
 The Reviewer seat gains value over tenure via the calibration loop:
 
 1. Verdict renders → `decisions.md`
-2. Proposal executes (if approved) → outcome lands in platform → ADR-195 reconciliation detects outcome → `_performance.md` updates
+2. Proposal executes (if approved) → outcome lands in platform → ADR-195 reconciliation detects outcome → `_money_truth.md` updates
 3. Reconciliation cross-references verdict with outcome → `calibration.md` updates
 4. Future verdicts read `calibration.md` as prior (AI occupants) or consult it for delegation/framework tuning (human occupant)
 5. Occupant rotation decisions reference `calibration.md` (was AI occupant over-confident? → tighten thresholds in `AUTONOMY.md`, add narrowing in `principles.md`, or rotate back to human)
@@ -179,7 +179,7 @@ The **review orchestration** is the runtime coordination that moves a proposal f
 - `ProposeAction` creates a proposal → status `pending`
 - Reactive trigger fires the `review-proposal` task
 - Task pipeline dispatches to the current occupant declared in `OCCUPANT.md`
-- Occupant reads inputs (proposal, `_performance.md`, principles, shared AUTONOMY declaration, calibration), reasons, renders verdict
+- Occupant reads inputs (proposal, `_money_truth.md`, principles, shared AUTONOMY declaration, calibration), reasons, renders verdict
 - Verdict writes to `decisions.md` with proper `authored_by` attribution
 - On approve: verdict triggers `ExecuteProposal` callback
 - On reject: verdict triggers `RejectProposal` callback

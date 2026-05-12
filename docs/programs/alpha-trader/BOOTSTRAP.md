@@ -125,7 +125,7 @@ default:
 | 8:15am ET (daily) | `pre-market-brief` (judgment) | Daily report: signal state, exposure, decay flags, regime. Composed HTML in `/workspace/reports/pre-market-brief/{date}/`. |
 | 6:00am ET (daily) | `morning-calibration` (judgment) | Reviewer compares realized vs declared expectancy; flags divergence in `decisions.md`. |
 | 7:00am ET (daily) | `morning-reflection` (judgment) | Reviewer reflects on prior verdicts; may propose principle edits. |
-| 5:00am ET (daily) | `outcome-reconciliation` (judgment) | Reconciles fills against proposal projections; updates `_performance.md` rolling windows. |
+| 5:00am ET (daily) | `outcome-reconciliation` (judgment) | Reconciles fills against proposal projections; updates `_money_truth.md` rolling windows. |
 | Sunday 6:00pm ET | `weekly-performance-review` (judgment) | Per-signal P&L, Sharpe, expectancy. |
 
 **What you should track during Phase 0:**
@@ -154,7 +154,7 @@ None of these tunes are blocking. They make the system more accurate to your spe
 
 - Don't raise `ceiling_cents` yet. The ceiling is the brake during the calibration period.
 - Don't archive recurrences out of impatience. They're firing on operator-decided cadence.
-- Don't hand-edit `_performance.md`. The reconciler owns it.
+- Don't hand-edit `_money_truth.md`. The reconciler owns it.
 
 ---
 
@@ -235,7 +235,7 @@ default:
 - If `paused_until` is set in `_autonomy.yaml` with a future date, autonomy is in circuit-breaker mode.
 
 **"Reviewer keeps deferring instead of approving or rejecting."**
-- Check `/workspace/context/trading/_performance.md` — is it empty or stale? Reviewer defers when it has insufficient evidence.
+- Check `/workspace/context/trading/_money_truth.md` — is it empty or stale? Reviewer defers when it has insufficient evidence.
 - Check the proposal's reasoning. If it doesn't name a signal from `_operator_profile.md`, Reviewer should reject (hard rule 2), not defer.
 - Inspect `decisions.md` for the deferral reasoning. The Reviewer narrates why.
 

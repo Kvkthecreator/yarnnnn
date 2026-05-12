@@ -58,4 +58,4 @@ Every position the operation opens passes through three phases. The Reviewer own
 
 - Pre-market: review overnight, check signal triggers, decide universe.
 - Mid-day: monitor open positions against stops, no impulse adds. Mechanical mirroring keeps state fresh; the Reviewer reads it.
-- Post-market: log fills, update `_performance.md`, note regime observations.
+- Post-market: log fills, update `_money_truth.md`, note regime observations.

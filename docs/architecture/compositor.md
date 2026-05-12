@@ -85,7 +85,7 @@ Per [ADR-225](../adr/ADR-225-compositor-layer.md) §2, bundles bind components t
 
 | Type | Resolves to | Example |
 |---|---|---|
-| `file` | One markdown file's full content | `/workspace/context/portfolio/_performance.md` |
+| `file` | One markdown file's full content | `/workspace/context/portfolio/_money_truth.md` |
 | `frontmatter` | YAML frontmatter fields from a file | `{path: ..., fields: [pnl_30d, win_rate]}` |
 | `task_output` | A frozen task output artifact | `{task_slug: daily-update, selector: latest}` |
 | `action_proposals` | Filtered query against `action_proposals` table | `{filter: {status: pending}}` |
@@ -128,7 +128,7 @@ Per ADR-228, the cockpit is no longer a flat pane registry. It is **four faces i
 
 - **Faces (universal, fixed order):**
   1. **Mandate** (`MandateFace`) — standing intent + autonomy posture, reads `_shared/MANDATE.md` + `_shared/AUTONOMY.md`. Skeleton state: destructive-tinted authoring CTA.
-  2. **Money truth** (`MoneyTruthFace`) — where the account stands right now. Bundle-declared platform-live source (e.g., Alpaca for trader) with substrate fallback (`_performance.md`). Phase 1 of ADR-228 ships substrate-fallback path; platform-live ships in Commit 3.
+  2. **Money truth** (`MoneyTruthFace`) — where the account stands right now. Bundle-declared platform-live source (e.g., Alpaca for trader) with substrate fallback (`_money_truth.md`). Phase 1 of ADR-228 ships substrate-fallback path; platform-live ships in Commit 3.
   3. **Performance** (`PerformanceFace`) — mandate-attributed performance + Reviewer calibration from `/workspace/review/decisions.md`.
   4. **Tracking** (`TrackingFace`) — pending decisions (proposal queue with inline approve/reject) + operational state (bundle-fed) + recent activity (outcomes only — task-run delivery events excluded per ADR-228 D5).
 - **Kernel default:** No bundle declaration → faces render kernel-default substrate paths.
@@ -178,7 +178,7 @@ When authoring a new component for a slot, honor these conventions. They're not 
 
 Step-by-step, taking alpha-trader's `portfolio-review` as the example:
 
-**1.** Decide what middle archetype the task wants. portfolio-review wants Dashboard (live tile rendering of `_performance.md`, `_positions.md`, `_risk_state.md`).
+**1.** Decide what middle archetype the task wants. portfolio-review wants Dashboard (live tile rendering of `_money_truth.md`, `_positions.md`, `_risk_state.md`).
 
 **2.** Declare the middle in `SURFACES.yaml`:
 
@@ -186,7 +186,7 @@ Step-by-step, taking alpha-trader's `portfolio-review` as the example:
 - match: { task_slug: portfolio-review }
   archetype: dashboard
   bindings:
-    performance: /workspace/context/portfolio/_performance.md
+    performance: /workspace/context/portfolio/_money_truth.md
     positions: /workspace/context/portfolio/_positions.md
     risk: /workspace/context/portfolio/_risk_state.md
   components:

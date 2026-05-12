@@ -18,7 +18,7 @@ That model is incomplete. Real judgment actors — human CROs, seasoned portfoli
 
 The canonical fix is symmetric to how the rest of YARNNN handles accumulation:
 
-- `_performance.md` accumulates **money-truth** from platform outcomes (ADR-195). The operator doesn't hand-write P&L; the reconciliation task writes it from reality.
+- `_money_truth.md` accumulates **money-truth** from platform outcomes (ADR-195). The operator doesn't hand-write P&L; the reconciliation task writes it from reality.
 - Context domains accumulate **domain knowledge** from platform syncs (ADR-151 + platform bots). The operator doesn't hand-write competitive intelligence; platform-sync tasks write it from reality.
 - `PRECEDENT.md` accumulates **operator-authored durable interpretations** from recurring ambiguities (commit `fd4917a`, 2026-04-24). The operator writes a precedent once; all agents honor it thereafter.
 - Persona files should accumulate **judgment character** from the Reviewer's own decisions + outcomes. The operator seeds it; reflection writes the rest from reality.
@@ -92,7 +92,7 @@ Below each failure is an **observable signal** — what to look for in real work
 | Failure | Observable signal |
 |---|---|
 | Signals lack measurable entry conditions | `decisions.md` shows high ratio of `defer` verdicts because Reviewer can't pattern-match against vague triggers |
-| Risk envelope (`_risk.md`) numbers don't match operator's actual account | Proposal sizing math produces positions that look correct vs declared risk_percent but feel wrong; `_performance.md` losses larger than declared max_portfolio_daily_var_usd |
+| Risk envelope (`_risk.md`) numbers don't match operator's actual account | Proposal sizing math produces positions that look correct vs declared risk_percent but feel wrong; `_money_truth.md` losses larger than declared max_portfolio_daily_var_usd |
 | Bundle MANDATE shipped but operator never customized | Operator's actual edge isn't being judged; Reviewer is judging the bundle author's edge against operator's outcomes |
 
 **C2 weak — Reviewer apparatus is inconsistent:**
@@ -198,7 +198,7 @@ Reflection is **substrate-triggered**, executed by a back-office task (analogous
 **Step 1 — Scheduled scan.** A back-office task `back-office-reviewer-reflection` runs on cadence (default: daily, operator-tunable). Task reads:
 
 - `decisions.md` — verdict trail since last reflection.
-- `_performance.md` per context domain — realized outcomes tied to this Reviewer's approvals.
+- `_money_truth.md` per context domain — realized outcomes tied to this Reviewer's approvals.
 - `calibration.md` — per-occupant × verdict rolling windows.
 - The current `IDENTITY.md` + `principles.md` (the frozen-in-file version).
 
@@ -241,7 +241,7 @@ decisions_analyzed: 32
 outcomes_analyzed: 28 (4 open positions)
 changes_made:
   - principles.md: removed narrowing condition "defer when
-    _performance.md empty" (no longer applicable post-calibration)
+    _money_truth.md empty" (no longer applicable post-calibration)
   - principles.md: added narrowing condition "defer when Signal 3
     recent-10-trade realized expectancy drops below 0.2R"
     (evidence: 3 of last 5 Signal 3 trades underperformed declared
@@ -398,7 +398,7 @@ New ADR (next available number after 217) titled "Persona Reflection — Reviewe
 
 - New task type: `back-office-reviewer-reflection`.
 - Scaffolded at workspace_init Phase 5 as an essential task (operator-editable cadence; default daily).
-- Condition-check logic in `api/services/back_office/reviewer_reflection.py`: reads decisions.md + calibration.md + _performance.md, evaluates operator-declared thresholds, returns "reflect" or "no-op."
+- Condition-check logic in `api/services/back_office/reviewer_reflection.py`: reads decisions.md + calibration.md + _money_truth.md, evaluates operator-declared thresholds, returns "reflect" or "no-op."
 - Thresholds declared in `principles.md` operator-authored section (or a separate `reflection-config.md` if cleaner).
 
 ### Stage 3 — Reflection-mode invocation
@@ -417,7 +417,7 @@ New ADR (next available number after 217) titled "Persona Reflection — Reviewe
 
 - Let the Simons-persona accumulate 20+ trades' worth of decisions.
 - Fire the first real reflection cycle.
-- Observe: does the persona correctly remove its cold-start narrowing once `_performance.md` has sufficient trades? Does it add appropriate narrowing conditions based on observed patterns? Does the revision chain show clean authorship attribution?
+- Observe: does the persona correctly remove its cold-start narrowing once `_money_truth.md` has sufficient trades? Does it add appropriate narrowing conditions based on observed patterns? Does the revision chain show clean authorship attribution?
 - Write observation log documenting the first reflective cycle end-to-end.
 
 Each stage ships independently green. Stage 1 is docs-only (this doc + the ADR); Stages 2–4 are code; Stage 5 is alpha validation.
@@ -464,7 +464,7 @@ Possible in theory (bad reflection reasoning, poor substrate, model errors). Mit
 
 Yes, by design. ADR-217 D8 says rotation doesn't touch operator-authored substrate; this doc extends that to persona-evolved substrate. A new occupant inherits the fully-evolved persona. If the operator wants reset-on-rotation, they author it explicitly (operator revision of IDENTITY + principles before or after rotation).
 
-### ST7 — Reflection against corrupted _performance.md
+### ST7 — Reflection against corrupted _money_truth.md
 
 *If outcome reconciliation is broken, does reflection produce bad framework updates?*
 

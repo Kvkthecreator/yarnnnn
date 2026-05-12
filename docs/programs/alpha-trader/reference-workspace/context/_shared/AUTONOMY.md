@@ -26,9 +26,9 @@ For the operator's signal sizing math (`account × risk_percent / stop_distance`
 ## Phase progression
 
 - **Phase 0 — Paper-seed (default)**: `bounded` at `ceiling_cents: 20000` ($200). **Every signal-sized position exceeds this — queues to Queue by design.** Reviewer's approve verdict is visible but advisory; you click before execution. The loop runs end-to-end (signal → Reviewer judgment → Queue → your click → broker → reconciliation) without large autonomous exposure. Stay here until you've watched ~10 closed-loop cycles and trust the Reviewer's reasoning shape.
-- **Phase 1 — Calibrated paper**: raise `ceiling_cents` to admit Signal-1 notional (e.g., `1500000` = $15,000). Reviewer's approve verdict now binds for paper-account entries within sizing rules. Queue still receives anything above the new ceiling. Stay here until your `_performance.md` shows positive expectancy across at least 20 closed paper trades for at least one signal.
+- **Phase 1 — Calibrated paper**: raise `ceiling_cents` to admit Signal-1 notional (e.g., `1500000` = $15,000). Reviewer's approve verdict now binds for paper-account entries within sizing rules. Queue still receives anything above the new ceiling. Stay here until your `_money_truth.md` shows positive expectancy across at least 20 closed paper trades for at least one signal.
 - **Phase 2 — Live float**: tighten back to `manual` the moment you switch to a live account. Live execution requires explicit operator click for every order until you've calibrated against live (not paper) outcomes for 30+ trades.
-- **Phase 3 — Calibrated live**: re-raise ceiling per the live `_performance.md` calibration. The morning-calibration recurrence is your guardrail; raise only when it consistently shows no material divergence between declared and realized expectancy.
+- **Phase 3 — Calibrated live**: re-raise ceiling per the live `_money_truth.md` calibration. The morning-calibration recurrence is your guardrail; raise only when it consistently shows no material divergence between declared and realized expectancy.
 
 ## Reviewer-written pause (ADR-248 D3)
 

@@ -18,9 +18,9 @@ Alpha-1 deliberately does *not* test the agent OS for a second domain (commerce,
 
 The agent OS passes alpha-1 when **two truths converge**:
 
-1. **Money-truth** — accumulated trading P&L net of broker commissions is positive over a rolling 90-day window across at least one persona, with per-signal attribution that survives Reviewer Check 4 (recent expectancy guardrail per ADR-194 v2). `_performance.md` is the substrate that carries this; ADR-195 v2 defines its shape; the `outcome-reconciliation` recurrence (renamed from `back-office-outcome-reconciliation` per ADR-261 D6) writes it.
+1. **Money-truth** — accumulated trading P&L net of broker commissions is positive over a rolling 90-day window across at least one persona, with per-signal attribution that survives Reviewer Check 4 (recent expectancy guardrail per ADR-194 v2). `_money_truth.md` is the substrate that carries this; ADR-195 v2 defines its shape; the `outcome-reconciliation` recurrence (renamed from `back-office-outcome-reconciliation` per ADR-261 D6) writes it.
 
-2. **Cost-truth** — the platform cost (LLM tokens + render service calls + DB IO) of running the operator's loop is **less than the money-truth gain over the same window**. If the loop costs $40/month in API + render and produces $30/month in net trading P&L, the OS is not yet a viable agent OS for this operator class — it's a more expensive trading desk. Cost-truth needs a per-workspace daily rollup that the operator can read alongside `_performance.md`.
+2. **Cost-truth** — the platform cost (LLM tokens + render service calls + DB IO) of running the operator's loop is **less than the money-truth gain over the same window**. If the loop costs $40/month in API + render and produces $30/month in net trading P&L, the OS is not yet a viable agent OS for this operator class — it's a more expensive trading desk. Cost-truth needs a per-workspace daily rollup that the operator can read alongside `_money_truth.md`.
 
 Both truths are required. Either one alone is unfalsifiable: positive P&L without cost-truth lets us hide a money-losing platform behind a winning trader; cost-truth without money-truth lets us hide an unprofitable trader behind an efficient platform.
 
@@ -98,7 +98,7 @@ The rollup function lives at `api/scripts/alpha_ops/_shared.py::fetch_cost_rollu
 - **Supabase IO** (DB CPU, storage, egress). Negligible for alpha; relevant only at scale.
 - **Cockpit surface**. The CLI rollup is enough for alpha-1 weekly reports. A cockpit element is the eventual home but not blocking the contract evaluation.
 
-The contract evaluation at end of paper-discipline phase compares **money-truth (`_performance.md` cumulative net P&L) vs. cost-truth (verify.py --cost --cost-days 90 total)**. Both numbers are now readable; the OS passes when the first is greater.
+The contract evaluation at end of paper-discipline phase compares **money-truth (`_money_truth.md` cumulative net P&L) vs. cost-truth (verify.py --cost --cost-days 90 total)**. Both numbers are now readable; the OS passes when the first is greater.
 
 ---
 

@@ -45,7 +45,7 @@ context_domains:
     purpose: wallet-level state across protocols, gas float, base-token balances
     entities:
       - kind: wallet
-        files: [_positions.md, _gas_float.md, _performance.md]
+        files: [_positions.md, _gas_float.md, _money_truth.md]
   - path: markets
     purpose: token/pair-level entities for tradeable assets
     entities:

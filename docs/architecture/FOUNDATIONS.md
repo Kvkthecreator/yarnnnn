@@ -71,7 +71,7 @@ This axiom was introduced in v5.1 (previously Axiom 0). Its content is preserved
 ### What this means concretely
 
 - **Semantic content lives in files.** Entities, theses, observations, track records, feedback, decisions, identities, charters — all filesystem. A DB row that holds semantic content is, by default, a violation.
-- **Computation is stateless.** The scheduler holds no work-definition state; it reads TASK.md. The pipeline holds no output state; it writes to `/tasks/{slug}/outputs/`. The reconciler holds no performance state; it edits `_performance.md`. The Reviewer holds no judgment state; it writes to `/workspace/review/`. Every component reads the filesystem, acts, writes the filesystem, and terminates. State persists only in files across invocations.
+- **Computation is stateless.** The scheduler holds no work-definition state; it reads TASK.md. The pipeline holds no output state; it writes to `/tasks/{slug}/outputs/`. The reconciler holds no performance state; it edits `_money_truth.md`. The Reviewer holds no judgment state; it writes to `/workspace/review/`. Every component reads the filesystem, acts, writes the filesystem, and terminates. State persists only in files across invocations.
 - **Accumulation happens in files across invocations.** Each cycle adds to context. The recursive property (Axiom 7 below) is enabled by the filesystem being the single accumulation target.
 - **Mechanism varies; statelessness does not.** Scheduling is periodic (cron); execution is one-shot per invocation (task pipeline); review is reactive (triggered by proposal creation); reconciliation is periodic (daily back-office task); rendering is invocation-scoped (compose engine). Different shapes of Mechanism, one invariant: none retain state of their own.
 
@@ -256,7 +256,7 @@ Purpose, from the operator's perspective, is triangulated across three orthogona
 | Layer | What it is | Where it's authored / surfaced |
 |-------|-----------|--------------------------------|
 | **Intent** | Declared rules, risk limits, principles, success criteria. The operator's edge hypothesis. | Authored at `/workspace/context/_shared/*` + domain `_operator_profile.md` + `_risk.md` + `/workspace/review/principles.md`. Rendered on `/context`. |
-| **Deliverables** | Externalized outputs of the operation. Proposals awaiting approval, briefs, weekly reviews, `_performance.md` snapshots. | Surfaced on `/work` list-mode (primary) and `/review`. |
+| **Deliverables** | Externalized outputs of the operation. Proposals awaiting approval, briefs, weekly reviews, `_money_truth.md` snapshots. | Surfaced on `/work` list-mode (primary) and `/review`. |
 | **Operation** | Execution substrate: tasks, agents, reconcilers, scheduler. | Drill-down on `/work` detail mode and `/team` — second-class to the operator. |
 
 The loop the operator runs: **Intent → Operation → Deliverables → Intent (refined).** Reports and briefs are side-effects of the loop running, not the point of the loop. Axiom 3 Purpose is first-class in the Intent layer; Axiom 2 Identity fills the Operation layer; Axiom 6 Channel renders the Deliverables layer.
@@ -319,7 +319,7 @@ Mechanism is the means by which work happens. One dimension with a spectrum:
 
 | Position on spectrum | Character | Examples |
 |---|---|---|
-| **Fully deterministic** | Pure Python, zero LLM. Output is a function of input. | Daily-update empty-state template, `_performance.md` frontmatter folding, workspace cleanup, section-kind renderers, risk-gate rule checks, PostgREST queries, the deterministic System Agent's directive dispatch (per ADR-257), the recurrence walker (per ADR-261 D3), structurally-triggered Compose (per ADR-262 D4) |
+| **Fully deterministic** | Pure Python, zero LLM. Output is a function of input. | Daily-update empty-state template, `_money_truth.md` frontmatter folding, workspace cleanup, section-kind renderers, risk-gate rule checks, PostgREST queries, the deterministic System Agent's directive dispatch (per ADR-257), the recurrence walker (per ADR-261 D3), structurally-triggered Compose (per ADR-262 D4) |
 | **Mixed** | LLM with tight structural contract. Output shape is declared; content is judged. | Inference (IDENTITY.md, BRAND.md, context domains), specialist sub-LLM-calls (researcher, analyst, writer, etc. — `headless` runtime characteristic with focused prompts per ADR-261 D7) |
 | **Fully judgment** | LLM orchestrating with broad latitude. Output is the model's call. | The Reviewer's real-time tool-use loop (per ADR-260 D1) — judging proposals, sequencing specialist sub-calls at high level via discrete named steps, deciding session close. |
 
@@ -355,7 +355,7 @@ Substrate rules tighten over time (Axiom 1). Mechanism rules loosen. These are t
 
 Channel is where output goes. Two sub-shapes:
 
-1. **Substrate-return** — output is written to the filesystem and becomes part of accumulation. Examples: task pipeline writes `/tasks/{slug}/outputs/`; reconciler writes `_performance.md`; Reviewer writes `decisions.md`; feedback actuation writes `memory/feedback.md`. No external addressing.
+1. **Substrate-return** — output is written to the filesystem and becomes part of accumulation. Examples: task pipeline writes `/tasks/{slug}/outputs/`; reconciler writes `_money_truth.md`; Reviewer writes `decisions.md`; feedback actuation writes `memory/feedback.md`. No external addressing.
 2. **Addressed** — output is delivered to a cognitive consumer outside the substrate. Examples: email to operator; Slack/Notion/GitHub write-back to platform; ProposalCard rendered in chat; surface view in `/work` or `/agents` or `/context`; platform write-back via `submit_order`, `create_discount_code`, `send_email`.
 
 ### Addressed channels have subcategories by cognitive consumer
@@ -408,7 +408,7 @@ Perception is Substrate-read (Axiom 1) with zero Mechanism. Four layers of perce
 
 3. **Internal perception** — accumulated workspace context at `/workspace/context/` + task outputs in `/tasks/{slug}/outputs/`. Each run's output feeds the next run's context. Context domains accumulate cross-task intelligence that any Identity can draw from.
 
-4. **Reflexive perception** — user feedback (edits, approvals, dismissals, conversational corrections), YARNNN's observations (`/workspace/notes.md`, `/workspace/style.md`), Reviewer decisions (`/workspace/review/decisions.md`), money-truth reconciliation (`_performance.md`). As time progresses, this accumulated judgment becomes the most valuable signal — more valuable than raw platform data.
+4. **Reflexive perception** — user feedback (edits, approvals, dismissals, conversational corrections), YARNNN's observations (`/workspace/notes.md`, `/workspace/style.md`), Reviewer decisions (`/workspace/review/decisions.md`), money-truth reconciliation (`_money_truth.md`). As time progresses, this accumulated judgment becomes the most valuable signal — more valuable than raw platform data.
 
 ### Three substrates for coherence
 
@@ -429,7 +429,7 @@ External platforms → live API calls → agent execution → task output →
        └── user uploads (/workspace/uploads/) ────┘
        └── user feedback (/workspace/style.md) ──┘
        └── Reviewer decisions (/workspace/review/decisions.md) ─┘
-       └── money-truth (_performance.md) ────────┘
+       └── money-truth (_money_truth.md) ────────┘
        └── YARNNN observations (/workspace/notes.md) ─┘
 ```
 
@@ -449,7 +449,7 @@ YARNNN is not just a knowledge-work platform — it is an **action platform**. P
 
 ### Canonical home
 
-`/workspace/context/{domain}/_performance.md` per domain. Authored by the daily back-office reconciler (ADR-195 v2). Read by Reviewer (for EV reasoning on proposals), daily-update (for linked pointers, per ADR-198), YARNNN (for workforce judgment), and the operator (via Context surface).
+`/workspace/context/{domain}/_money_truth.md` per domain. Authored by the daily back-office reconciler (ADR-195 v2). Read by Reviewer (for EV reasoning on proposals), daily-update (for linked pointers, per ADR-198), YARNNN (for workforce judgment), and the operator (via Context surface).
 
 ### Three structural properties of money-truth substrate
 
@@ -459,9 +459,9 @@ YARNNN is not just a knowledge-work platform — it is an **action platform**. P
 
 ### Three asymmetric bets money-truth substrate enables
 
-1. **The AI Reviewer can reason in capital-EV.** Without `_performance.md`, AI-reviewed decisions collapse to rule-checking. With it, the Reviewer can reason "you're already 40% tech-concentrated, this trade is outside your edge" — capital-EV judgment.
+1. **The AI Reviewer can reason in capital-EV.** Without `_money_truth.md`, AI-reviewed decisions collapse to rule-checking. With it, the Reviewer can reason "you're already 40% tech-concentrated, this trade is outside your edge" — capital-EV judgment.
 2. **Revenue becomes perception, not infrastructure.** Per ADR-184, product health (revenue, subscribers, churn) flows into the workspace as context domains. The operator's capital trajectory is legible to the same cognitive layers that read every other perception.
-3. **Accumulation compounds across action.** A tenured agent + accumulated `_performance.md` is a different product than a tenured agent without. The capital-reconciled substrate is what makes "the team gets better at its job, measured by revenue" a structurally grounded claim rather than a marketing line.
+3. **Accumulation compounds across action.** A tenured agent + accumulated `_money_truth.md` is a different product than a tenured agent without. The capital-reconciled substrate is what makes "the team gets better at its job, measured by revenue" a structurally grounded claim rather than a marketing line.
 
 ### Revenue as external validation of accumulated attention
 
@@ -546,7 +546,7 @@ These follow from the axioms and are stated explicitly for implementation guidan
 
 14. **Chat is the source of truth for work; tasks are legibility wrappers** — Per Axiom 9, every invocation emits a narrative entry, and the narrative is the operator-facing log of *everything* the system did. `/chat` is the narrative surface, not a chat feature; `/work` is the narrative filtered by task slug, not a parallel log. Inline actions and tasks share one atom (the invocation); tasks differ only in carrying a nameplate + pulse + contract that labels and schedules future invocations. This principle gates design decisions: any proposal that sketches a "separate log" for a category of system activity (back-office runs, Reviewer decisions, MCP calls, platform syncs) is a candidate for absorption into the narrative with a rendering-weight decision, not a storage decision. See [invocation-and-narrative.md](invocation-and-narrative.md) for the full framing.
 
-15. **Agent seats persist; occupants rotate** — Persona-bearing Agent seats (Axiom 2 — Reviewer, user-authored domain Agents, future judgment archetypes) are architectural *seats*, not identity commitments. The Reviewer seat is the canonical example: today the occupant is human, tomorrow the occupant may be an AI reviewer (ADR-194 v2 Phase 3), and either occupant fills the same seat with the same inputs (mandate, `_performance.md`, track record, proposal) and produces the same artifact (verdict + reasoning written to `/workspace/review/decisions.md`). The architectural value compounds in the *seat* — the substrate it reads, the judgments it accumulates, the calibration it enables — not in the occupant. This principle applies canonically to Agent seats. Orchestration surfaces and capability bundles (YARNNN, production roles, platform integrations) are not seats in this sense — they have configurations to tune, not occupants to rotate. This principle makes the seat-interchangeability claim in [THESIS.md](THESIS.md) structurally enforceable: code must never couple an Agent seat to a specific occupant class. See THESIS "Independent judgment" commitment; canonical substrate spec for the Reviewer seat lives at [reviewer-substrate.md](reviewer-substrate.md); authoritative Agent/Orchestration taxonomy lives at [LAYER-MAPPING.md](LAYER-MAPPING.md).
+15. **Agent seats persist; occupants rotate** — Persona-bearing Agent seats (Axiom 2 — Reviewer, user-authored domain Agents, future judgment archetypes) are architectural *seats*, not identity commitments. The Reviewer seat is the canonical example: today the occupant is human, tomorrow the occupant may be an AI reviewer (ADR-194 v2 Phase 3), and either occupant fills the same seat with the same inputs (mandate, `_money_truth.md`, track record, proposal) and produces the same artifact (verdict + reasoning written to `/workspace/review/decisions.md`). The architectural value compounds in the *seat* — the substrate it reads, the judgments it accumulates, the calibration it enables — not in the occupant. This principle applies canonically to Agent seats. Orchestration surfaces and capability bundles (YARNNN, production roles, platform integrations) are not seats in this sense — they have configurations to tune, not occupants to rotate. This principle makes the seat-interchangeability claim in [THESIS.md](THESIS.md) structurally enforceable: code must never couple an Agent seat to a specific occupant class. See THESIS "Independent judgment" commitment; canonical substrate spec for the Reviewer seat lives at [reviewer-substrate.md](reviewer-substrate.md); authoritative Agent/Orchestration taxonomy lives at [LAYER-MAPPING.md](LAYER-MAPPING.md).
 
 17. **The Operator is the runtime principal with two embodiments; autonomy governs user-approval degree** (ADR-249, hardened 2026-05-11 per Axiom 2) — The operator is the runtime principal, with two embodiments: **operator-in-real-time** (the human, addressing the system via the feed surface) and **operator-as-Reviewer** (the personified AI agent rendering the operator's judgment function in the human's absence per ADR-194 v2). Both reason against the same standing intent — `MANDATE.md`, `principles.md`, `AUTONOMY.md` — authored once by the human and applied continuously by the Reviewer. The runtime construct in which the personified operator does its work is **the Loop** (the synchronous Reviewer session per ADR-260, glossary-defined); the Loop runs over substrate (Axiom 1's fourth sub-clause). The human is the supervising embodiment who can cut into the Loop at any moment but is not required to be present for it to run. **Autonomy mode** defines how much explicit user approval is required before Reviewer-rendered actions execute: Manual = user must approve each consequence; Bounded = user approval required above declared ceiling; Autonomous = the Reviewer acts within pre-declared framework without user confirmation. In all modes, the human can always intervene. Cadence of the Loop is the operational heartbeat and directly determines cost. See ADR-249.
 

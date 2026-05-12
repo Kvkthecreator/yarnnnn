@@ -56,7 +56,7 @@ was crossed; surface candidates for the quarterly audit retirement list.
   for every active signal — no skipping signals that "didn't fire much."
 - Signals flagged for decay are listed in BOTH section 2 (per-signal
   detail) AND section 3 (decay-flag callout).
-- Reference `/workspace/context/trading/_performance.md` as the single
+- Reference `/workspace/context/trading/_money_truth.md` as the single
   numerical source. Do not recompute from raw fills.
 - Length: ~1,200–2,000 words.
 - Section partials in

@@ -39,7 +39,7 @@ context_domains:
     purpose: account-level state, accommodates discrete-outcome positions
     entities:
       - kind: account
-        files: [_positions.md, _performance.md, _risk_state.md]
+        files: [_positions.md, _money_truth.md, _risk_state.md]
   - path: news_mappings
     purpose: optional — operators using news→market causal mapping
     entities:
@@ -62,7 +62,7 @@ task_types:
   - key: resolution-reconcile
     output_kind: system_maintenance
     cadence: on_resolution
-    purpose: write settlement to _performance.md when market resolves
+    purpose: write settlement to _money_truth.md when market resolves
 
 capabilities:
   - key: read_prediction

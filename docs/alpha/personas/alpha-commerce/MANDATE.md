@@ -16,7 +16,7 @@ Create and adjust commerce-platform listings (Shopify initially — see playbook
 - **Declared-rule sourcing only.** No listing exists without citing which sourcing rule produced it (e.g., "KR→US rule 2: K-beauty trending on Naver + adjacent to 3+ existing rotation SKUs"). "Trending on TikTok" without rule attribution is rejected.
 - **Per-SKU margin discipline.** Every listing proposal carries the full cost stack: COGS + shipping + payment processing + FX + platform fees → net margin %. Target floor: **30% net margin after all real costs**. Proposals below threshold reject, regardless of narrative appeal.
 - **Turnover discipline.** Target **6× annual turnover per SKU** (no SKU sits more than 2 months). Underperformers retire before new entries get approved — 15–30 SKUs active ceiling across both directions.
-- **Currency-regime awareness (not currency gambling).** USD/KRW drift that materially shifts per-SKU economics triggers a flag in `_performance.md` for operator review. FX-driven margin windfalls are surfaced as transient, not as new edge.
+- **Currency-regime awareness (not currency gambling).** USD/KRW drift that materially shifts per-SKU economics triggers a flag in `_money_truth.md` for operator review. FX-driven margin windfalls are surfaced as transient, not as new edge.
 - **Direction-level accountability.** KR→US and US→KR tracked as separate books with separate aggregate performance. Quarterly audit compares direction-level expectancy and proposes capital reallocation if one direction's margin-adjusted returns diverge.
 
 ## Boundary Conditions

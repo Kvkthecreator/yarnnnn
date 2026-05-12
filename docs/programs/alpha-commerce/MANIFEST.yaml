@@ -85,7 +85,7 @@ context_domains:
     # is operator-readable canonical substrate, written by the
     # outcome-reconciliation back-office task.
     authored_substrate:
-      - _performance.md
+      - _money_truth.md
 
 task_types:
   - key: commerce-digest

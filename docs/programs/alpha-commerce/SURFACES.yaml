@@ -15,7 +15,7 @@ tabs:
         - match: { task_slug: revenue-report }
           archetype: dashboard
           bindings:
-            performance: /workspace/context/revenue/_performance.md
+            performance: /workspace/context/revenue/_money_truth.md
             cohorts: /workspace/context/revenue/_cohorts.md
           components:
             - kind: RevenueSnapshot

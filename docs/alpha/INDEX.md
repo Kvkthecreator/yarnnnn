@@ -77,7 +77,7 @@ cd /Users/macbook/yarnnn
 python -m api.scripts.alpha_ops.verify --all
 ```
 
-If green (29/29 per alpha-trader-program persona post-Bucket-A invariants), workspaces are healthy on Objective-A invariants. The expected fail mode pre-Alpaca-connect is `platform_connections count: got 0, expected 1` — 28/29 with that single FAIL is the healthy state after `reset.py` and before `connect.py`. alpha-commerce is parked per SCOPE.md; only alpha-trader-program personas (`alpha-trader`, `alpha-trader-2`, `kvk`) run during Alpha-1. For Objective-B state, read `_performance.md` directly via harness DB query or cockpit Context surface. See DUAL-OBJECTIVE-DISCIPLINE.md for don't-drift checklist before substantive work begins.
+If green (29/29 per alpha-trader-program persona post-Bucket-A invariants), workspaces are healthy on Objective-A invariants. The expected fail mode pre-Alpaca-connect is `platform_connections count: got 0, expected 1` — 28/29 with that single FAIL is the healthy state after `reset.py` and before `connect.py`. alpha-commerce is parked per SCOPE.md; only alpha-trader-program personas (`alpha-trader`, `alpha-trader-2`, `kvk`) run during Alpha-1. For Objective-B state, read `_money_truth.md` directly via harness DB query or cockpit Context surface. See DUAL-OBJECTIVE-DISCIPLINE.md for don't-drift checklist before substantive work begins.
 
 ## Iterative-by-design
 

@@ -195,7 +195,7 @@ A thesis earns its rent by making predictions that would be falsified if the the
 
 1. **In domains with clean money-truth**, a YARNNN-structured operation will outperform an operator running equivalent work through (a) unstructured LLM chat, (b) traditional automation (Zapier-class), and (c) inferred-context agent platforms (Workspace Intelligence, Agentforce-class), over a bounded cycle (weeks for commerce, months for trading).
 
-2. **The reviewer role will compound in value** — an operator's expected ability to judge proposals will measurably improve over tenure on the platform, because the substrate the reviewer consults (`_performance.md`, principles, decisions log, track records) densifies monotonically.
+2. **The reviewer role will compound in value** — an operator's expected ability to judge proposals will measurably improve over tenure on the platform, because the substrate the reviewer consults (`_money_truth.md`, principles, decisions log, track records) densifies monotonically.
 
 3. **The authored substrate will be portable and sticky** — an operator moving to a competitor platform will experience quality regression proportional to the substrate they leave behind. Switching cost is material, not rhetorical.
 

@@ -91,7 +91,7 @@ External UI and marketing vocabulary ("Agents" as the personified workers the op
 
 ### 1. Agents use tools; that doesn't make them orchestration
 
-A judge uses court records. A lawyer uses precedent. Neither becomes infrastructure because they use tools. The same applies here: the Reviewer Agent uses `chat_completion_with_tools`, reads `_performance.md`, writes `decisions.md` — all via Orchestration infrastructure. That's Agents-using-tools, not Agents-being-orchestration.
+A judge uses court records. A lawyer uses precedent. Neither becomes infrastructure because they use tools. The same applies here: the Reviewer Agent uses `chat_completion_with_tools`, reads `_money_truth.md`, writes `decisions.md` — all via Orchestration infrastructure. That's Agents-using-tools, not Agents-being-orchestration.
 
 ### 2. YARNNN is the orchestration feed surface
 

@@ -120,7 +120,7 @@ Each entry carries:
 - **Summary** — one-line description of what the invocation did (the headline).
 - **Body** — optional richer content (LLM output, proposal card, chart, pointer).
 - **Timestamp** — when it terminated.
-- **Provenance** — pointers into substrate (output folder path, decision.md line, `_performance.md` section) so a curious operator can drill in.
+- **Provenance** — pointers into substrate (output folder path, decision.md line, `_money_truth.md` section) so a curious operator can drill in.
 
 Implementation note: today's `session_messages` table carries operator-authored messages and YARNNN replies. The narrative entry shape is a superset of that. ADR-219 (proposed) will scope the storage layer; the present doc commits to the vocabulary.
 

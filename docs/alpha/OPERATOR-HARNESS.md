@@ -90,7 +90,7 @@ invariant per persona. Non-zero exit if anything is off.
 (default 7 days, override with `--cost-days N`): window total + daily
 breakdown + per-recurrence breakdown. This is the surface for SCOPE.md
 success-contract dimension 2 (cost-truth). The contract evaluation at
-end of paper-discipline phase compares money-truth (`_performance.md`
+end of paper-discipline phase compares money-truth (`_money_truth.md`
 cumulative net P&L) vs. `--cost --cost-days 90 total`.
 
 Run this:
@@ -115,7 +115,7 @@ performance / Reviewer calibration against outcomes). A green
 `verify.py --all` means "the workspace is structurally healthy"; it
 does NOT mean "the book is growing" or "signals are producing edge."
 
-For Objective-B reads, use direct `_performance.md` inspection via
+For Objective-B reads, use direct `_money_truth.md` inspection via
 Mode 1 (service-key Postgres read against `workspace_files`) or Mode 2
 (Context browser in the cockpit). A dedicated Objective-B harness tool
 (`perf.py` or similar) is a known gap — will be built when weekly B

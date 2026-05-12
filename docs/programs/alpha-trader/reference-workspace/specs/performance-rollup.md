@@ -1,6 +1,6 @@
 # Performance Rollup Spec
 
-Schema for `/workspace/context/{domain}/_performance.md` rolling-window
+Schema for `/workspace/context/{domain}/_money_truth.md` rolling-window
 money-truth substrate. Written by the `outcome-reconciliation` recurrence
 after fills are reconciled against proposals.
 

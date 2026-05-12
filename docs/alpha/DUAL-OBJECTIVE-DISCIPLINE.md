@@ -125,7 +125,7 @@ Empty sections are OK — they're informative about which axes an observation to
 
 Playbook §7.2 previously had a single weekly report template biased toward Objective A. That template is superseded by **two separate reports**, one per objective, both produced Sunday evening.
 
-Both reports read the same underlying substrate (`_performance.md`, `decisions.md`, observation notes, activity log). They differ in framing.
+Both reports read the same underlying substrate (`_money_truth.md`, `decisions.md`, observation notes, activity log). They differ in framing.
 
 ### Objective A report — system-insight framing
 
@@ -190,7 +190,7 @@ Reader: KVK-as-trader now + KVK-as-trader-future-self reviewing whether Alpha-2 
 - Against declared success criteria (`_operator_profile.md` success block)
 
 ## Per-signal attribution
-Reads `_performance.md` by_signal block. Per signal:
+Reads `_money_truth.md` by_signal block. Per signal:
 
 | Signal | Trades this week | Realized P&L | Expectancy (R) | Recent-20 vs declared baseline | State |
 

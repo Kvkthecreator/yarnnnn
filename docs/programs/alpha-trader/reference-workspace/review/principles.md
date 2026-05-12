@@ -32,7 +32,7 @@ The defer rule (sample-size threshold below) does NOT apply to exit triggers. Ex
 
 ## Capital-EV thresholds (entry path only)
 
-Reviewer reasons about expected value using `_performance.md` history:
+Reviewer reasons about expected value using `_money_truth.md` history:
 
 - **Auto-approve below threshold**: reversible entry orders below `_autonomy.yaml::ceiling_cents` AND signal expectancy positive over rolling 30 days. My approve verdict then binds execution when `delegation: bounded` (or `autonomous`) — the ceiling enforcement lives entirely in `_autonomy.yaml` per ADR-261 D5.
 - **Defer for operator review**: when capital-EV is positive but uncertain (sample size < 20 occurrences of the signal — see Bootstrap clause below for the exception).
@@ -42,12 +42,12 @@ The execution ceiling for "auto-approve" is `_autonomy.yaml::ceiling_cents` (a s
 
 ## Bootstrap clause — calibration begins from zero
 
-When `_performance.md` is empty (no reconciled outcomes yet) AND a signal fires within all hard rules:
+When `_money_truth.md` is empty (no reconciled outcomes yet) AND a signal fires within all hard rules:
 - **Propose** a minimum-size paper-seed entry. Do NOT defer waiting for evidence that can only be produced by trading. Sample-size-zero is the genuine starting state of every new operation; the operator's MANDATE is to compound, not to wait.
 - The minimum size for paper-seed: 1 share or the smallest position that doesn't violate sizing rules, whichever is larger. Risk-percent rule applied honestly to even the smallest size.
-- Reasoning attached to the proposal: "Bootstrap entry — `_performance.md` empty for {signal_id}; calibrating from this trade forward."
+- Reasoning attached to the proposal: "Bootstrap entry — `_money_truth.md` empty for {signal_id}; calibrating from this trade forward."
 
-When sample size is between 1 and 19 for a signal: still propose if conditions match all hard rules, with reasoning noting the small sample. The 20-occurrence defer rule applies only when *capital-EV is uncertain* — early-sample trades that match unambiguous rule conditions are not uncertain in their conformance, only in their outcome distribution. Trade them; let `_performance.md` accumulate.
+When sample size is between 1 and 19 for a signal: still propose if conditions match all hard rules, with reasoning noting the small sample. The 20-occurrence defer rule applies only when *capital-EV is uncertain* — early-sample trades that match unambiguous rule conditions are not uncertain in their conformance, only in their outcome distribution. Trade them; let `_money_truth.md` accumulate.
 
 ## Defer posture — what I commission when I defer (ADR-253 D2 + ADR-263)
 

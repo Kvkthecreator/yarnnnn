@@ -82,7 +82,7 @@ YARNNN's workspace is a **virtual filesystem of human-readable files** backed by
 │   ├── {domain}/                   ← accumulated intelligence per domain (ADR-151)
 │   │   ├── _tracker.md             ← System: per-entity freshness registry (hidden)
 │   │   ├── _recurring.yaml         ← ACCUMULATION recurrence declarations for this domain (ADR-231)
-│   │   ├── _performance.md         ← Money-truth per domain (ADR-195) [SYS]
+│   │   ├── _money_truth.md         ← Money-truth per domain (ADR-195) [SYS]
 │   │   ├── _feedback.md            ← Source-agnostic feedback (ADR-181)
 │   │   ├── _run_log.md             ← Recurrence run log
 │   │   ├── {entity-slug}/          ← Per-entity folder
@@ -91,7 +91,7 @@ YARNNN's workspace is a **virtual filesystem of human-readable files** backed by
 │   │   │   └── ...
 │   │   ├── assets/                 ← Domain-level visual assets (ADR-157)
 │   │   └── landscape.md            ← Cross-entity synthesis (agent-written)
-│   ├── _performance_summary.md     ← Cross-domain rolling-window money-truth (ADR-195 P3) [SYS]
+│   ├── _money_truth_summary.md     ← Cross-domain rolling-window money-truth (ADR-195 P3) [SYS]
 │   ├── slack/  notion/  github/    ← Platform-bot temporal observations (ADR-158)
 │   └── signals/                    ← Cross-domain temporal signal log (no tracker)
 ├── memory/                         ← YARNNN working memory (ADR-206 relocation)
@@ -150,10 +150,10 @@ Eight categories cover the operator-relevant universe:
 | **K-A** | Kernel-seeded but operator-authored on first edit (skeleton → rich) | Most `[K]` files above transition K-S → K-A on operator edit |
 | **P-C** | Program-bundle canon (forked verbatim, operator typically doesn't edit) | Alpha-trader's `_autonomy.yaml` (`tier: canon`), CONVENTIONS.md |
 | **P-A** | Program-bundle authored (forked as template, operator MUST overwrite) | `_operator_profile.md`, `_risk.md`, `_universe.yaml`, `_principles.yaml` |
-| **P-P** | Program-bundle placeholder (empty skeleton in bundle, fills from work) | Per-ticker `{ticker}.yaml`, signal fires, `_performance.md` |
+| **P-P** | Program-bundle placeholder (empty skeleton in bundle, fills from work) | Per-ticker `{ticker}.yaml`, signal fires, `_money_truth.md` |
 | **AGT** | Agent-scoped (currently only Reviewer + user-authored agents) | `/workspace/review/decisions.md`, `/workspace/agents/{slug}/AGENT.md` |
 | **MEM** | YARNNN memory (system-written, operator may read) | `/workspace/memory/style.md`, `notes.md` |
-| **SYS** | System-written aggregates (performance, calibration, audit, run logs) | `_performance.md`, `decisions.md`, `_run_log.md`, `back-office-audit.md`, `reports/{slug}/{date}/output.md` |
+| **SYS** | System-written aggregates (performance, calibration, audit, run logs) | `_money_truth.md`, `decisions.md`, `_run_log.md`, `back-office-audit.md`, `reports/{slug}/{date}/output.md` |
 
 ### Lifecycle column on `workspace_files` (ADR-119)
 
@@ -353,7 +353,7 @@ Per [ADR-263 D2](../adr/ADR-263-recurrence-mode-mechanical-vs-judgment.md) the R
 
 | Trigger | Entry point | When | Pre-loaded context |
 |---|---|---|---|
-| `reactive` | `services/review_proposal_dispatch.py::on_proposal_created` | An `action_proposals` row is inserted (operator/agent proposes an action) | Proposal row + domain substrate (`_performance.md`, `principles.md`, `IDENTITY.md`, `PRECEDENT.md`, `_risk.md`, `_operator_profile.md`) |
+| `reactive` | `services/review_proposal_dispatch.py::on_proposal_created` | An `action_proposals` row is inserted (operator/agent proposes an action) | Proposal row + domain substrate (`_money_truth.md`, `principles.md`, `IDENTITY.md`, `PRECEDENT.md`, `_risk.md`, `_operator_profile.md`) |
 | `reactive` | `services/invocation_dispatcher.py::dispatch` when `recurrence.mode == "judgment"` | A judgment-mode recurrence fires on its cron | Recurrence prompt + signal files + workspace_state + last 7d `decisions.md` |
 | `addressed` | `agents/yarnnn.py::execute_stream_with_tools` chat-executor flow | Operator addresses YARNNN in chat with a turn that requires judgment | All pre-loaded substrate + operator message + conversation window |
 | (not a trigger) | `services/invocation_dispatcher.py::_dispatch_mechanical` | A `mechanical`-mode recurrence fires on its cron (e.g. `SyncPlatformState`) | No Reviewer invocation — pure deterministic Python writes substrate; the next reactive/addressed wake reads what mechanical wrote |
@@ -373,7 +373,7 @@ On wake the Reviewer receives a pre-loaded context bundle assembled by the dispa
 | `/workspace/context/_shared/AUTONOMY.md` | Prose delegation declaration (legibility for human/LLM; not parsed). |
 | `/workspace/context/_shared/_autonomy.yaml` | Machine-parsed delegation policy. Loaded at *dispatch* time via `services.review_policy.load_autonomy()` — drives `should_auto_execute_verdict()`. |
 | `/workspace/context/_shared/PRECEDENT.md` | Durable interpretations / boundary-case rulings. Filters reasoning over substrate; overrides principles per prompt framing. |
-| `/workspace/context/{domain}/_performance.md` | Money-truth track record per domain (rolling 7d/30d/90d, ADR-195 v2 Phase 3). |
+| `/workspace/context/{domain}/_money_truth.md` | Money-truth track record per domain (rolling 7d/30d/90d, ADR-195 v2 Phase 3). |
 | `/workspace/context/{domain}/_operator_profile.md` | Domain strategy + operator style. Program-supplied for active programs. |
 | `/workspace/context/{domain}/_risk.md` | Hard floors / risk envelope. Trading-specific; ceiling enforcement source per ADR-192. |
 | `/workspace/review/decisions.md` | Reviewer's own prior verdicts. Not pre-loaded; available via on-demand `ReadFile` for self-consistency review. |
@@ -408,15 +408,17 @@ Every verdict appends to `/workspace/review/decisions.md` via `services.reviewer
 
 Execution side-effects land at the platform (broker, commerce provider, Slack, etc.). The loop closes through two back-office paths:
 
-**Outcome reconciliation** — daily `back-office-outcome-reconciliation` recurrence calls `services.outcomes.ledger.fold_outcome_candidates()`. Reads `last_reconciled_at` from the domain's `_performance.md` frontmatter, fetches platform events since, writes:
-- `/workspace/context/{domain}/_performance.md` — rolling 7d/30d/90d totals, processed-event-keys (idempotency), by-action breakdown, recent narrative
-- `/workspace/context/_performance_summary.md` — cross-domain rollup (`services.outcomes.ledger.write_performance_summary()` line 710)
+**Outcome reconciliation** — daily `back-office-outcome-reconciliation` recurrence calls `services.outcomes.ledger.fold_outcome_candidates()`. Reads `last_reconciled_at` from the domain's `_money_truth.md` frontmatter, fetches platform events since, writes:
+- `/workspace/context/{domain}/_money_truth.md` — rolling 7d/30d/90d totals, **`by_signal` per-signal attribution** (ADR-267, P&L unification 2026-05-12), processed-event-keys (idempotency), by-action breakdown, recent narrative
+- `/workspace/context/_money_truth_summary.md` — cross-domain rollup (`services.outcomes.ledger.write_money_truth_summary()`)
+
+Signal attribution flows natively from proposal to outcome via Alpaca's `client_order_id` round-trip (ADR-267 D1) — the reconciler reads `client_order_id` on filled orders, joins against `action_proposals` to recover `signal_id` from `proposal.inputs`, and emits outcomes with native attribution. Per-signal rolling windows are computed in lockstep with domain-wide windows on every fold.
 
 High-impact outcomes (above `_principles.yaml::high_impact_threshold_cents`) additionally route to `/workspace/context/{domain}/_feedback.md` per [ADR-181 Phase 5a](../adr/ADR-181-source-agnostic-feedback-layer.md).
 
-**Reviewer calibration** — periodic `back-office-reviewer-reflection` recurrence (judgment mode) wakes the Reviewer with prior decisions + `_performance_summary.md`. Reviewer's verdict types are different here (`no_change | narrow | relax | character_note | pause_autonomy`). Verdicts can mutate `principles.md` or write `paused_until` to `_autonomy.yaml` per [ADR-248 D3](../adr/ADR-248-reviewer-periodic-pulse.md) as a time-bounded circuit breaker.
+**Reviewer calibration** — periodic `back-office-reviewer-reflection` recurrence (judgment mode) wakes the Reviewer with prior decisions + `_money_truth_summary.md`. Reviewer's verdict types are different here (`no_change | narrow | relax | character_note | pause_autonomy`). Verdicts can mutate `principles.md` or write `paused_until` to `_autonomy.yaml` per [ADR-248 D3](../adr/ADR-248-reviewer-periodic-pulse.md) as a time-bounded circuit breaker.
 
-**Closure.** Next reactive/addressed wake reads the updated `_performance.md` + calibrated `principles.md`. The substrate IS the bus per [FOUNDATIONS Axiom 1 fourth sub-clause](FOUNDATIONS.md) — there is no parallel control-flow channel between cycles. Mechanical-mode recurrences sit at the deterministic end of this same architecture, keeping external state mirrored into substrate between wake-ups.
+**Closure.** Next reactive/addressed wake reads the updated `_money_truth.md` + calibrated `principles.md`. The substrate IS the bus per [FOUNDATIONS Axiom 1 fourth sub-clause](FOUNDATIONS.md) — there is no parallel control-flow channel between cycles. Mechanical-mode recurrences sit at the deterministic end of this same architecture, keeping external state mirrored into substrate between wake-ups.
 
 ---
 
@@ -428,7 +430,7 @@ Definitive catalog: for each prerequisite, what specifically breaks at runtime a
 |---|---|---|---|
 | **MANDATE.md skeleton** | Reviewer wakes with neutral frame; cockpit shows "mandate needed" CTA; recurrences not auto-fired (Schedule gate). Reviewer still adjudicates evidence — no auto-execution because no operation context. | **Operational blocker for autonomy** | Author MANDATE.md (via chat or direct edit) — Schedule gate unblocks once non-skeleton |
 | **IDENTITY.md skeleton** | Reviewer defaults to neutral skeptical baseline (`reviewer_agent.py:438`). Verdicts render but lack persona voice. | Non-blocking (acceptable cold-start) | Operator authors persona later via chat |
-| **principles.md skeleton** | Reviewer has no framework. User message says "no declared framework." Verdict renders on EV grounds against MANDATE + `_performance.md` only. | Non-blocking | Framework builds over time via reflection-recurrence calibration |
+| **principles.md skeleton** | Reviewer has no framework. User message says "no declared framework." Verdict renders on EV grounds against MANDATE + `_money_truth.md` only. | Non-blocking | Framework builds over time via reflection-recurrence calibration |
 | **_principles.yaml empty/missing** | `services.review_policy.load_principles()` returns `{}`. High-impact threshold detection skipped → all outcomes treated as routine, no high-impact feedback routing per ADR-181. | Non-blocking | Authored by operator or system at activation |
 | **AUTONOMY.md skeleton (prose only)** | Documentation gap; not load-bearing. Gate reads `_autonomy.yaml`. | Non-blocking | Author for legibility |
 | **`_autonomy.yaml` skeleton / missing** | `load_autonomy()` returns `{}` → `should_auto_execute_verdict()` defaults to `delegation="manual"` → **every approve verdict becomes advisory**. Reviewer adjudicates, nothing auto-executes. | **CRITICAL — disables autonomy entirely** | Author `_autonomy.yaml` with `delegation: bounded` (+ `ceiling_cents`) or `autonomous` |
@@ -437,7 +439,7 @@ Definitive catalog: for each prerequisite, what specifically breaks at runtime a
 | **Reviewer OCCUPANT.md never authored** | No failure — OCCUPANT.md is metadata, not gating. Reviewer wakes normally; IDENTITY + principles drive persona. | No impact | None needed |
 | **Program bundle active + `_operator_profile.md` skeleton** | Reviewer wakes without domain strategy context. Verdicts lack strategy framework. Activation overlay engaged per ADR-226. | Non-blocking but degraded judgment | Author via activation overlay walkthrough |
 | **Program bundle active + `_risk.md` skeleton (trading)** | Proposal value estimation returns None → ceiling check fails → **trading autonomy disabled per-domain** even with `_autonomy.yaml: autonomous`. | **CRITICAL for trading workspaces** | Author `_risk.md` before trading recurrences fire |
-| **All four (MANDATE + AUTONOMY + principles + `_operator_profile`) skeleton** | Reviewer judges on `_performance.md` only; if also empty, defers. No auto-execution. Activation overlay is recovery path. | Critical | Activation overlay walkthrough or chat-driven authoring |
+| **All four (MANDATE + AUTONOMY + principles + `_operator_profile`) skeleton** | Reviewer judges on `_money_truth.md` only; if also empty, defers. No auto-execution. Activation overlay is recovery path. | Critical | Activation overlay walkthrough or chat-driven authoring |
 
 **The single load-bearing fact about autonomy:** even with everything else authored, `_autonomy.yaml` missing or skeleton silently routes every Reviewer approval to the operator-approval queue. Reviewer judgment is correct; nothing happens automatically. **This is the first thing a cold-start playbook must verify.**
 

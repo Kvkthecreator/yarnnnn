@@ -34,7 +34,7 @@ tabs:
         - match: { task_slug: resolution-reconcile }
           archetype: stream
           bindings:
-            settlements: /workspace/context/portfolio/_performance.md
+            settlements: /workspace/context/portfolio/_money_truth.md
           components:
             - kind: ResolutionSettlementStream
               source: settlements

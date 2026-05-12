@@ -71,7 +71,7 @@ Jim Simons — Renaissance Technologies, Medallion Fund — is the prototype of 
 This persona is the **hardest stress test** for three architectural commitments:
 
 1. **AI Reviewer's capital-EV reasoning (ADR-194 §5).** A Simons-trader's Reviewer doesn't reason about character — it reasons about *signal alignment, expectancy, and drawdown contribution*. If the Reviewer can honor that frame (quote signal win rates, flag signal-incompatible trades, reason about position-level contribution to portfolio var), the architecture's claim of "capital-EV not rule-checking" is validated. If it can't, we learn that immediately.
-2. **Money-truth substrate (`_performance.md` per ADR-195).** Simons-trader's `_performance.md` must carry *per-signal* attribution: which signals generated which trades, what each signal's expectancy looks like, how signals behave in different regimes. If the file schema + reconciler can honor this, money-truth is substrate-ready. If not, we learn the shape needs work.
+2. **Money-truth substrate (`_money_truth.md` per ADR-195).** Simons-trader's `_money_truth.md` must carry *per-signal* attribution: which signals generated which trades, what each signal's expectancy looks like, how signals behave in different regimes. If the file schema + reconciler can honor this, money-truth is substrate-ready. If not, we learn the shape needs work.
 3. **Cockpit-as-operator-surface (ADR-198 v2).** A Simons-trader doesn't live in the cockpit all day reacting. They check Overview in the morning to confirm systems ran correctly, review signal-level attribution weekly, intervene rarely. If the cockpit only rewards high-frequency operators, this persona surfaces that gap.
 
 **Scope of "Simons-inspired" here = Option B (medium).** 5–8 declared signals with explicit entry/exit/sizing rules, per-signal performance tracking, quantitative Reviewer reasoning. Not light (rule-following discretion) — not heavy (mini-Medallion, beyond retail paper capability). The *honest* stress test.
@@ -409,7 +409,7 @@ to decisions.md as the reviewer_reasoning field.
 
 ### Check 4: Signal expectancy
 - Read the signal's last-20-trade and last-40-trade expectancy from
-  _performance.md (ADR-195 substrate)
+  _money_truth.md (ADR-195 substrate)
 - Is recent-20-trade expectancy above the decay guardrail in _risk.md?
   - If below → flag as defer with reason: "signal decay — recent 20-trade expectancy is <value>; operator review required"
   - If above → continue
@@ -468,8 +468,8 @@ The bundle's `_recurrences.yaml` (at [docs/programs/alpha-trader/reference-works
 |---|---|---|---|
 | `narrative-digest` | judgment | Daily 03:00 UTC | Aggregates execution narrative entries (per ADR-219 substrate-as-the-bus) into a compact "recent" rollup at `/workspace/memory/recent.md` for the working-memory compact index. |
 | `proposal-cleanup` | judgment | Daily 04:00 UTC | Archives stale `action_proposals` rows + dead-letters anything past Reviewer-defer timeout. |
-| `outcome-reconciliation` | judgment | Daily 05:00 UTC | Reads platform events (Alpaca trade fills, etc.), folds into `/workspace/context/trading/_performance.md` per ADR-195 v2. The money-truth refresh. |
-| `morning-calibration` | judgment | Daily 06:00 UTC | Aggregates `decisions.md` verdicts into rolling 7d/30d/90d windows + cross-domain `_performance_summary.md`. Drives the cockpit Performance face. |
+| `outcome-reconciliation` | judgment | Daily 05:00 UTC | Reads platform events (Alpaca trade fills, etc.), folds into `/workspace/context/trading/_money_truth.md` per ADR-195 v2. The money-truth refresh. |
+| `morning-calibration` | judgment | Daily 06:00 UTC | Aggregates `decisions.md` verdicts into rolling 7d/30d/90d windows + cross-domain `_money_truth_summary.md`. Drives the cockpit Performance face. |
 | `morning-reflection` | judgment | Daily 07:00 UTC | Reviewer reads its own decisions trajectory and writes pattern observations to `/workspace/review/handoffs.md` (per ADR-218 → ADR-256 unified Reviewer invocation, reflection trigger). |
 | `pre-market-brief` | judgment | 15 8 * * 1-5 (8:15 UTC weekdays) | Composed deliverable from signal-evaluation output. Which signals may fire, portfolio exposure vs var budget, decay flags, regime state. Output at `/workspace/reports/pre-market-brief/{date}/output.md` per CONVENTIONS.md slug-templated path. Cockpit surfaces it; daily-update email is expository pointer per ADR-202. |
 | `signal-evaluation` | judgment | 5 8 * * 1-5 (8:05 UTC weekdays) | For each declared signal in `_operator_profile.md`, evaluates current state across the universe. When fire conditions hit, calls `FireInvocation(slug="trade-proposal")` (per ADR-253 D4 — signal evaluator can fire the reactive trade-proposal recurrence directly). Writes signal-state under `/workspace/context/trading/signals/`. |
@@ -478,7 +478,7 @@ The bundle's `_recurrences.yaml` (at [docs/programs/alpha-trader/reference-works
 | `track-orders` | mechanical | `* * 9-16 * 1-5` (every minute, market hours) | Deterministic mirror of open + recently-filled Alpaca orders into `/workspace/context/portfolio/orders.yaml`. |
 | `track-positions` | mechanical | `* * 9-16 * 1-5` (every minute, market hours) | Deterministic mirror of current Alpaca positions + unrealized P&L into `/workspace/context/portfolio/positions.yaml`. |
 | `trade-proposal` | judgment | reactive (no schedule) | Fires via `FireInvocation` when `signal-evaluation` detects a fire condition. Emits a ProposeAction with full signal attribution (see Reviewer Check 1). Runs through AI Reviewer reactive dispatch (ADR-194 v2 Phase 3 + ADR-256 unified invocation) → cockpit Tracking face Queue for human approval if Reviewer defers. |
-| `weekly-performance-review` | judgment | `0 18 * * 0` (Sunday 18:00 UTC) | Reads `_performance.md`. Per-signal P&L, win rate, expectancy, Sharpe. Flags decay. Compares to declared baselines. Output at `/workspace/reports/weekly-performance-review/{date}/output.md`. |
+| `weekly-performance-review` | judgment | `0 18 * * 0` (Sunday 18:00 UTC) | Reads `_money_truth.md`. Per-signal P&L, win rate, expectancy, Sharpe. Flags decay. Compares to declared baselines. Output at `/workspace/reports/weekly-performance-review/{date}/output.md`. |
 | `quarterly-signal-audit` | judgment | `0 18 31 3,6,9,12 *` (quarter-end 18:00 UTC) | Comprehensive review: which signals to retire, which to retune, candidates for new signal slots. Operator drafts final decisions; the recurrence prepares the analysis. |
 
 **Three composition groups** for the reader's mental model:
@@ -489,59 +489,51 @@ The bundle's `_recurrences.yaml` (at [docs/programs/alpha-trader/reference-works
 
 The operator does not "scaffold" these recurrences — they ship with the bundle and fork at activation. Operator authoring lives in `_operator_profile.md` (universe + signal definitions), `_risk.md` (risk parameters), `principles.md` (Reviewer rules), and `AUTONOMY.md` (delegation ceiling). The recurrences are the program's standing engine; the authored substrate is what the engine reasons against.
 
-### 3A.6 Money-truth substrate expectations (`_performance.md` shape)
+### 3A.6 Money-truth substrate expectations (`_money_truth.md` shape)
 
-ADR-195 v2 establishes `_performance.md` as filesystem-native money-truth per domain. For the trading domain under Simons-persona, the reconciler must populate **per-signal attribution**. Expected frontmatter shape:
+**SHIPPED 2026-05-12 via ADR-267 (P&L unification).** Canonical money-truth file renamed `_money_truth.md` → `_money_truth.md`; `_money_truth_summary.md` → `_money_truth_summary.md`. The reconciler now populates per-signal attribution natively via Alpaca's `client_order_id` round-trip — ExecuteProposal stamps `proposal.id` on submit, reconciler reads it back to recover `signal_id` from `proposal.inputs`.
 
-```markdown
----
-domain: trading
-last_reconciled_at: <iso>
-currency: USD
-processed_event_keys:
-  - alpaca_order_id:<id>
-  - ...
+Actual frontmatter shape (JSON, per `api/services/outcomes/ledger.py::_init_money_truth`):
 
-totals:
-  reconciled_event_count: <n>
-  aggregate_pnl_cents: <n>
-  wins: <n>
-  losses: <n>
-  realized_sharpe: <float>
-
-by_signal:
-  signal-1-momentum-breakout:
-    trades_20: <n>
-    trades_40: <n>
-    trades_lifetime: <n>
-    wins: <n>
-    losses: <n>
-    avg_win_r: <float>
-    avg_loss_r: <float>
-    expectancy_r_20: <float>        # recent 20-trade expectancy in R-multiples
-    expectancy_r_40: <float>
-    sharpe_lifetime: <float>
-    max_drawdown_r: <float>
-    state: "active" | "flagged" | "retirement-recommended"
-  signal-2-mean-reversion-oversold:
-    ...
-
-rolling_windows:
-  daily_var_7d: <cents>
-  weekly_drawdown: <cents>
-  vix_regime_days_active_30d: <n>
----
-
-# Trading performance
-
-Narrative body regenerated on each reconciler run. Highlights:
-- Signal-level winners and losers in the past 7/30 days
-- Regime state (VIX scalar active or not)
-- Recent notable trades with attribution
-- Signals flagged for quarterly review
+```json
+{
+  "domain": "trading",
+  "last_reconciled_at": "<iso>",
+  "processed_event_keys": ["alpaca_order_id:<id>", "..."],
+  "totals": {
+    "reconciled_event_count": <n>,
+    "aggregate_value_cents": <n>,
+    "currency": "USD"
+  },
+  "by_action_type": {
+    "trading.submit_order": {"count": <n>, "value_cents": <n>, "wins": <n>, "losses": <n>}
+  },
+  "by_signal": {
+    "momentum-breakout": {
+      "count": <n>,
+      "value_cents": <n>,
+      "wins": <n>,
+      "losses": <n>,
+      "rolling_7d":  {"count": <n>, "value_cents": <n>, "wins": <n>, "losses": <n>},
+      "rolling_30d": {"count": <n>, "value_cents": <n>, "wins": <n>, "losses": <n>},
+      "rolling_90d": {"count": <n>, "value_cents": <n>, "wins": <n>, "losses": <n>}
+    }
+  },
+  "rolling_7d":  {"count": <n>, "value_cents": <n>, "wins": <n>, "losses": <n>},
+  "rolling_30d": {"count": <n>, "value_cents": <n>, "wins": <n>, "losses": <n>},
+  "rolling_90d": {"count": <n>, "value_cents": <n>, "wins": <n>, "losses": <n>},
+  "events": [<append-only per-event time-series>],
+  "recent_wins": [<top-10 narrative entries>],
+  "recent_losses": [<top-10 narrative entries>]
+}
 ```
 
-**Key change from generic `_performance.md`:** the `by_signal` block. If the backend reconciler's current schema doesn't support per-signal attribution, that's an observation item (ADR candidate — schema extension for Simons-class operators). Does NOT block Alpha-1 start; the substrate degrades gracefully (reconciler writes overall totals; operator + Claude observe the gap).
+Body: markdown narrative regenerated on each reconciliation. Includes "## Rolling windows", "## By action type", "## Per-signal attribution" (new section per ADR-267), "## Recent wins", "## Recent losses".
+
+**Differences from the original 3A.6 spec written pre-unification:**
+- Lifetime Sharpe + expectancy_R fields are *not* in frontmatter directly. The Reviewer computes them at prompt time from the `events` array filtered by `signal_id` (per ADR-267 prompts in Commit 3). Less duplication; one canonical event log drives all derived metrics.
+- "state" field per signal (active/flagged/retirement-recommended) is not in frontmatter. The Reviewer's morning-calibration recurrence writes calibration concerns to `decisions.md`; quarterly-signal-audit surfaces retirement candidates in its output report. Substrate stays factual (counts + windows); judgment stays in agent narrative.
+- `daily_var_7d`, `weekly_drawdown`, `vix_regime_days_active_30d` belong to a separate `_risk.md` reading layer; they're not duplicated in `_money_truth.md` frontmatter.
 
 ---
 
@@ -734,7 +726,7 @@ The alpha is not about minimizing implementation friction — it's about testing
 
 #### Implications for §3B content
 
-The §3B spec above (IDENTITY.md / `_operator_profile.md` / `_risk.md` / `principles.md` / task scaffolding / `_performance.md` schema) was written for physical products. All of it stands under Option B — no rewrites needed. Rules 1-6 apply directly; FX-on-inventory exposure is real; shipping/customs costs figure into landed-margin math.
+The §3B spec above (IDENTITY.md / `_operator_profile.md` / `_risk.md` / `principles.md` / task scaffolding / `_money_truth.md` schema) was written for physical products. All of it stands under Option B — no rewrites needed. Rules 1-6 apply directly; FX-on-inventory exposure is real; shipping/customs costs figure into landed-margin math.
 
 #### Platform-integration gap (ADR-203 candidate)
 
@@ -782,7 +774,7 @@ Run for both accounts in sequence (trader first is simpler because fewer Phase-0
    - `principles.md` (§3A.4 or §3B.4)
    - Initial signal/rule state files at `/workspace/context/<domain>/signals/` or `/rules/` (can start empty — `signal-evaluation` or `rule-evaluation` populates on first run)
 7. Store credentials in the shared vault.
-8. Wait for first tracking + evaluation runs. First reconciler pass establishes `_performance.md` baseline (likely empty — accounts need trade/sale history to build performance).
+8. Wait for first tracking + evaluation runs. First reconciler pass establishes `_money_truth.md` baseline (likely empty — accounts need trade/sale history to build performance).
 9. Confirm first daily-update expository-pointer email arrives next morning.
 
 ### Phase 2 — Claude operator onboarding (both accounts)
@@ -801,17 +793,17 @@ Once Phase 1 is complete for an account and credentials are shared:
 
 ### Phase 3 — first triggers, first decisions (both accounts)
 
-- First ~2 weeks is warm-up. Signals/rules need to fire, trades/sales need to execute, `_performance.md` needs to accumulate history.
+- First ~2 weeks is warm-up. Signals/rules need to fire, trades/sales need to execute, `_money_truth.md` needs to accumulate history.
 - Expect no strong Reviewer-calibration signal early (too few events per signal/rule).
-- Focus observation on: does scaffolding work? Do proposals render correctly? Does the Reviewer's six-check framework actually execute? Does `_performance.md` populate attribution correctly?
+- Focus observation on: does scaffolding work? Do proposals render correctly? Does the Reviewer's six-check framework actually execute? Does `_money_truth.md` populate attribution correctly?
 - After ~20 events per account, preliminary calibration signal becomes available.
 - After ~40 events, quarterly-audit tasks have enough substrate to run meaningfully.
 
 ### Phase 3 — first signals, first decisions
 
-- First ~2 weeks are warm-up. Signals need to fire, trades need to execute (on paper), `_performance.md` needs to accumulate per-signal history. During this period:
+- First ~2 weeks are warm-up. Signals need to fire, trades need to execute (on paper), `_money_truth.md` needs to accumulate per-signal history. During this period:
   - Expect no strong Reviewer calibration signal — too few trades per signal
-  - Focus observation on: does the scaffolding work? Do proposals render correctly? Does the Reviewer's structured reasoning (§3.4 checks) actually execute the checks? Does `_performance.md` populate by-signal attribution?
+  - Focus observation on: does the scaffolding work? Do proposals render correctly? Does the Reviewer's structured reasoning (§3.4 checks) actually execute the checks? Does `_money_truth.md` populate by-signal attribution?
 - After ~20 trades across signals, preliminary calibration signal becomes available.
 - After ~40 trades, quarterly-signal-audit task has enough substrate to run meaningfully.
 
@@ -825,7 +817,7 @@ Once Phase 1 is complete for an account and credentials are shared:
 - 8:00: `track-universe` morning recurrence fires → writes `/workspace/context/trading/{ticker}/` per ADR-231 D2
 - 8:05: `signal-evaluation` recurrence fires → state files updated under `/workspace/context/trading/signals/`
 - 8:15: `pre-market-brief` fires → daily-update expository-pointer email arrives per ADR-202 → Claude clicks the deep-link to land at `/work` cockpit (`/overview` redirects to `/work` per ADR-225)
-- 8:15–8:45: Claude reviews the cockpit four faces per ADR-228: **Mandate** (current MANDATE.md + AUTONOMY posture), **Money truth** (substrate fallback to `_performance.md` until live binding lands), **Performance** (decisions.md calibration), **Tracking** (proposal Queue + recurrence health). Reads pre-market brief at `/work?task=pre-market-brief` middle band. Notes any signal-state surprises.
+- 8:15–8:45: Claude reviews the cockpit four faces per ADR-228: **Mandate** (current MANDATE.md + AUTONOMY posture), **Money truth** (substrate fallback to `_money_truth.md` until live binding lands), **Performance** (decisions.md calibration), **Tracking** (proposal Queue + recurrence health). Reads pre-market brief at `/work?task=pre-market-brief` middle band. Notes any signal-state surprises.
 - 8:45–9:15: If any trade-proposals pending from overnight or pre-market signal fires, Claude + KVK coordinate out-of-band on approval.
 
 **Market hours (9:30–16:00 ET):**
@@ -838,7 +830,7 @@ Once Phase 1 is complete for an account and credentials are shared:
 
 **Post-close (16:00–17:00 ET):**
 - Claude reads day's `decisions.md` tail — AI Reviewer's verdicts + rationale. Were any rejections debatable? Any approvals that executed against declared signals correctly? Any concerning patterns?
-- `outcome-reconciliation` runs as a chat-initiated or reactive-on-fill invocation — updates `_performance.md` with any day's fills. Per ADR-205 + Axiom 4, dispatch is operator-or-Claude chat-initiated, not cron-bound; the unified scheduler exists as periodic-trigger infrastructure but the load-bearing path is invocation-flow through the primitive matrix (ADR-194 v2 Phase 2b reactive Reviewer dispatch + ADR-204/207 ProposeAction → ExecuteProposal). Claude reads the update next morning.
+- `outcome-reconciliation` runs as a chat-initiated or reactive-on-fill invocation — updates `_money_truth.md` with any day's fills. Per ADR-205 + Axiom 4, dispatch is operator-or-Claude chat-initiated, not cron-bound; the unified scheduler exists as periodic-trigger infrastructure but the load-bearing path is invocation-flow through the primitive matrix (ADR-194 v2 Phase 2b reactive Reviewer dispatch + ADR-204/207 ProposeAction → ExecuteProposal). Claude reads the update next morning.
 - Observation note logged if anything friction-worthy surfaced.
 
 ### 5.2 Weekly rhythm
@@ -895,7 +887,7 @@ Under Simons-persona, Claude-as-operator's default is **DO NOT OVERRIDE THE SYST
 
 - Approve reversibles that pass the five-condition test above
 - Read any cockpit surface, any substrate, any audit telemetry
-- Talk to YARNNN in the rail — including asking it to explain Reviewer reasoning, walk through signal state, summarize `_performance.md` for a specific signal
+- Talk to YARNNN in the rail — including asking it to explain Reviewer reasoning, walk through signal state, summarize `_money_truth.md` for a specific signal
 - Trigger `track-universe`, `signal-evaluation`, `pre-market-brief` manually if scheduled runs miss (via `FireInvocation` per ADR-235 D1.c, or via the `/work` Run action which wraps the same primitive — useful when debugging a missed fire)
 - Write observation notes
 - Propose ADR-level changes, principles edits, signal-definition edits to KVK
@@ -948,7 +940,7 @@ Templates in
 [DUAL-OBJECTIVE-DISCIPLINE.md §dual-weekly-report-templates](./DUAL-OBJECTIVE-DISCIPLINE.md#dual-weekly-report-templates).
 
 Both produced Sunday evening. Both read the same substrate
-(`_performance.md`, `decisions.md`, observation notes, activity log);
+(`_money_truth.md`, `decisions.md`, observation notes, activity log);
 they differ in framing (A = system-insight / ADR seeds / UX friction;
 B = capital trajectory / per-signal attribution / honesty check /
 hypothesis status).
@@ -1038,7 +1030,7 @@ docs/alpha/
 
 **Architectural (verify during Phase 3 first-triggers):**
 
-9. **`_performance.md` per-signal / per-rule schema** — backend's current reconciler shape may or may not support `by_signal` (trader) or `by_sku`/`by_direction`/`by_rule` (commerce) attribution. Verify during first-triggers. If missing in either, log as structural-gap ADR candidate.
+9. **`_money_truth.md` per-signal / per-rule schema** — backend's current reconciler shape may or may not support `by_signal` (trader) or `by_sku`/`by_direction`/`by_rule` (commerce) attribution. Verify during first-triggers. If missing in either, log as structural-gap ADR candidate.
 10. **Reviewer reasoning format** — does the AI Reviewer write its six-check chain to `decisions.md` in full, or produce a shorter summary? Verify against first few AI verdicts per account; may require prompt adjustment.
 11. **Commerce platform integration gap (if §3B.0 = Option B Shopify)** — YARNNN lacks native Shopify integration. Either we use LS (digital) for Alpha-1 and draft a Shopify-platform-bot ADR for Alpha-1.5 physical upgrade, or we accept initial commerce substrate that's platform-naive (operator + Claude manually reconcile until a Shopify bot ships). Decision depends on §3B.0 outcome.
 12. **Multi-workspace Claude authentication** — if Claude operates two accounts concurrently (trader + commerce), session management across two authenticated YARNNN sessions is an operational concern. Likely separate browser sessions or separate tabs; verify during Phase 2.
@@ -1051,5 +1043,5 @@ docs/alpha/
 |------|--------|
 | 2026-04-20 | v1 — Initial playbook (Rohn-inspired, later corrected). |
 | 2026-04-20 | v2 — Full rewrite. Persona corrected to Jim Simons (systematic quantitative) — Option B scope. Rohn persona superseded. |
-| 2026-04-20 | v3 — **Two-account scope restored** (both accounts concurrent in Alpha-1). §3B added for `alpha-commerce` persona in KVK's voice: Korea↔USA international commerce operator testing dual-life economic hypothesis. §3B symmetric to §3A structure (IDENTITY.md + `_operator_profile.md` with 5 declared rules + 3 reserved + FX regime scalar / `_risk.md` statistical limits / `principles.md` six-check Reviewer framework / `_performance.md` schema with per-SKU + per-direction + per-rule attribution). §4 setup sequence rewritten with explicit KVK-vs-Claude ownership split — honest delineation of what Claude can handle autonomously (Render env vars once workspace selected, workspace onboarding with credentials) vs. what requires KVK (vault, platform signup, email provisioning, YARNNN signup). New §3B.0 platform-choice decision (digital LS / physical Shopify / hybrid) gates commerce setup. §8 phase transitions rewritten: both accounts in Alpha-1 from the start; Alpha-1.5 becomes "physical-commerce upgrade" (if chose Option A/C in §3B.0); Alpha-2 is per-account independent (trader-paper→live and/or commerce-sandbox→real can advance separately). §2 governance extended to name both accounts explicitly. §10 open questions expanded with Render workspace selection, §3B.0 choice, commerce platform integration gap, multi-workspace Claude auth. Previous "e-commerce is deferred" framing removed — sequenced-alpha defeats the anti-verticalization gate (ADR-191). v2 singular-trader framing fully superseded. |
+| 2026-04-20 | v3 — **Two-account scope restored** (both accounts concurrent in Alpha-1). §3B added for `alpha-commerce` persona in KVK's voice: Korea↔USA international commerce operator testing dual-life economic hypothesis. §3B symmetric to §3A structure (IDENTITY.md + `_operator_profile.md` with 5 declared rules + 3 reserved + FX regime scalar / `_risk.md` statistical limits / `principles.md` six-check Reviewer framework / `_money_truth.md` schema with per-SKU + per-direction + per-rule attribution). §4 setup sequence rewritten with explicit KVK-vs-Claude ownership split — honest delineation of what Claude can handle autonomously (Render env vars once workspace selected, workspace onboarding with credentials) vs. what requires KVK (vault, platform signup, email provisioning, YARNNN signup). New §3B.0 platform-choice decision (digital LS / physical Shopify / hybrid) gates commerce setup. §8 phase transitions rewritten: both accounts in Alpha-1 from the start; Alpha-1.5 becomes "physical-commerce upgrade" (if chose Option A/C in §3B.0); Alpha-2 is per-account independent (trader-paper→live and/or commerce-sandbox→real can advance separately). §2 governance extended to name both accounts explicitly. §10 open questions expanded with Render workspace selection, §3B.0 choice, commerce platform integration gap, multi-workspace Claude auth. Previous "e-commerce is deferred" framing removed — sequenced-alpha defeats the anti-verticalization gate (ADR-191). v2 singular-trader framing fully superseded. |
 | 2026-04-20 | v4 — **Decisions locked.** KVK delegated the three outstanding Phase-0 decisions to Claude. Claude resolved: commerce platform = **Option B Shopify** (physical products match the real operator hypothesis; monetary upside justifies higher implementation friction; platform-integration gap becomes ADR-203 candidate surfaced organically from alpha friction). Credentials vault = **1Password** (shared vault `YARNNN Alpha-1`). Persona email = **Gmail aliases** (Resend is outbound-only + delivery-webhook; inbound-parse deferred to ADR-204 candidate if alpha friction warrants). §4 Phase-0 checklist rewritten with locked values + KVK vs Claude task split. Env-var audit (executed via Render MCP) confirms pre-existing infrastructure supports alpha without new env var work (Alpaca + Shopify keys live per-user in `platform_connections`, not globally). §3B.0 updated with locked B commitment + ADR-203 (Shopify platform bot) expected emergence in Week 2-3 of alpha + Alpha-2 Shopify production upgrade path. |

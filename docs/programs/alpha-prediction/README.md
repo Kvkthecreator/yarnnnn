@@ -32,7 +32,7 @@ A more detailed implementation-shape proposal already exists at [docs/alpha/pers
 
 These are the questions OS-layer ADRs must answer affirmatively if they claim generality. If the answer is "only alpha-trader needs this," the work is program-layer.
 
-1. **OutcomeProvider abstraction** (ADR-195 v2) — must accommodate `terminal_binary` outcome shape, not just continuous price marks. A `PredictionOutcomeProvider` writes per-resolution to `_performance.md` with binary settlement; `_performance.md` aggregates across markets.
+1. **OutcomeProvider abstraction** (ADR-195 v2) — must accommodate `terminal_binary` outcome shape, not just continuous price marks. A `PredictionOutcomeProvider` writes per-resolution to `_money_truth.md` with binary settlement; `_money_truth.md` aggregates across markets.
 2. **Time-to-resolution as a first-class task field** — TASK.md should accommodate `**Resolution Window:**` for tasks attached to positions with known expiry. alpha-trader doesn't natively need this (option expiries borrow it); alpha-prediction does. Pure equity wouldn't push this; alpha-prediction is the reason this lives in the OS.
 3. **Substrate-replay primitive** — must work for week-to-month replay windows, not just intraday. ADR-209's revision chain supports this; substrate-replay's API surface must not assume short replay windows.
 4. **Knowledge-domain agents under universal roles** — the Researcher role serves financial fundamentals (alpha-trader) and politics/sports/science domain knowledge (alpha-prediction) without role-class proliferation. If "we need a politics-researcher role" enters discussion, ADR-188 (universal roles, contextual application) has failed its own test.
@@ -56,7 +56,7 @@ Sketch only. None of this is built.
 - `prediction-digest` (accumulates_context, daily) — sweep watched markets, update entity files
 - `prediction-signal` (produces_deliverable, varies) — evaluate edge against current odds + Kelly sizing
 - `prediction-execute` (external_action, reactive) — Reviewer-approved order
-- `resolution-reconcile` (back-office, on resolution) — write settlement to `_performance.md`
+- `resolution-reconcile` (back-office, on resolution) — write settlement to `_money_truth.md`
 
 ### Principles content (operator authors per persona)
 - Kelly fraction or fractional-Kelly required on every proposal

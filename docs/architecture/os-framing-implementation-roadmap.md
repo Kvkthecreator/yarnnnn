@@ -187,11 +187,11 @@ Steps 1, 2/3, 4 can run in parallel after #1's spec is far enough along to unblo
 
 **Decisions to land:**
 
-1. **Back-office task design.** New task: `back-office-reference-graduation`. YARNNN-owned, weekly cadence (or other — TBD). Reads the lived workspace + `_performance.md` + recent feedback substrate, identifies graduation candidates, drafts reference updates as proposals against `action_proposals`.
+1. **Back-office task design.** New task: `back-office-reference-graduation`. YARNNN-owned, weekly cadence (or other — TBD). Reads the lived workspace + `_money_truth.md` + recent feedback substrate, identifies graduation candidates, drafts reference updates as proposals against `action_proposals`.
 
 2. **Graduation criteria.** What graduates: structure (signal definitions, principles, conventions, empty-state resolutions, FE surface needs surfaced in practice). What stays: content (specific P&L numbers, broker history, in-flight experiments not yet validated, kvk-personal preferences not validated by oracle).
 
-3. **Redaction discipline.** Sanitization rules for `_performance.md` graduation (schema + anonymized examples, not actual numbers). API-key/credential exclusion rules (already covered by current substrate practices). Timestamp anonymization where applicable.
+3. **Redaction discipline.** Sanitization rules for `_money_truth.md` graduation (schema + anonymized examples, not actual numbers). API-key/credential exclusion rules (already covered by current substrate practices). Timestamp anonymization where applicable.
 
 4. **Approval flow.** Reviewer queue handles graduation candidates same as any other proposal. Approved → diff committed to the program bundle (in-repo) with a graduation note. Authored substrate (ADR-209) tracks the revision.
 

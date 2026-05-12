@@ -73,7 +73,7 @@ ADR-208 v1 proposed a per-workspace bare git repo on Supabase Storage backing se
 
 1. **It created substrate bifurcation.** Seven paths in git, everything else in Postgres, with routing rules between. The dimensional test (FOUNDATIONS Axiom 0) flagged this immediately — Substrate was being conflated with Mechanism (git's write-mechanism leaked into where the bytes live).
 2. **It bought coordination infrastructure nobody had asked for.** Smart-HTTP reverse proxy, merge conflict UX, remote mirroring — six phases of engineering to serve a use case that alpha operators don't yet have.
-3. **It applied versioning to a curated subset.** The same benefits (attribution, retention, diff, revert) are just as valuable for `_performance.md`, task outputs, agent memory, and domain entities as for the seven authored files. Scoping versioning to a subset meant designing an inclusion test and maintaining it forever.
+3. **It applied versioning to a curated subset.** The same benefits (attribution, retention, diff, revert) are just as valuable for `_money_truth.md`, task outputs, agent memory, and domain entities as for the seven authored files. Scoping versioning to a subset meant designing an inclusion test and maintaining it forever.
 
 The collapse to Authored Substrate resolves all three: one substrate, one write model, universal coverage, no coordination infrastructure until demanded.
 
@@ -206,7 +206,7 @@ The compact index (ADR-159) today shows YARNNN the *shape* of the substrate. Aut
 ```
 /workspace/context/_shared/MANDATE.md (2.1KB, r3, operator · 2d ago)
 /workspace/context/trading/_operator_profile.md (4.3KB, r7, operator · 4h ago)
-/workspace/context/trading/_performance.md (1.8KB, r142, system:outcome-reconciliation · 1h ago)
+/workspace/context/trading/_money_truth.md (1.8KB, r142, system:outcome-reconciliation · 1h ago)
 /workspace/review/decisions.md (12KB, r88, reviewer:ai-sonnet-v1 · 3h ago)
 ```
 
@@ -233,7 +233,7 @@ Notably: **no new write primitive.** Writes still go through `UpdateContext` / `
 
 Alongside ADR-173's "accumulation-first execution" posture (*read before you generate*), Authored Substrate adds a second posture:
 
-> **Before acting on accumulated context, check its authorship and freshness.** If the operator just revised `_risk.md` an hour ago, treat that as the most current intent. If `_performance.md` hasn't been reconciled in three days, flag staleness. Revisions carry intent signal — attend to them.
+> **Before acting on accumulated context, check its authorship and freshness.** If the operator just revised `_risk.md` an hour ago, treat that as the most current intent. If `_money_truth.md` hasn't been reconciled in three days, flag staleness. Revisions carry intent signal — attend to them.
 
 This goes into `tp_prompts/tools_core.py` in Phase 3 of the implementation, referenced from both the workspace and entity profiles.
 

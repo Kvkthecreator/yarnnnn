@@ -22,7 +22,7 @@ When this program needs work that would also serve alpha-prediction or alpha-def
 | Capital threshold | $5K+ paper; live posture gated on AUTONOMY.md flip |
 | Stationarity | Mostly stable question ("did this trade make money over horizon H"); regime drift is real but second-order |
 
-This is the cleanest oracle in the triangle and the reason the program exists. Every part of YARNNN's flywheel — Reviewer judgment grounded in `_performance.md`, principle-evolution from outcome divergence, capital-EV reasoning, expectancy decay — relies on a tight oracle loop. Alpha-trader gives that loop hours-to-days latency.
+This is the cleanest oracle in the triangle and the reason the program exists. Every part of YARNNN's flywheel — Reviewer judgment grounded in `_money_truth.md`, principle-evolution from outcome divergence, capital-EV reasoning, expectancy decay — relies on a tight oracle loop. Alpha-trader gives that loop hours-to-days latency.
 
 ## Surfaces the program needs
 
@@ -49,7 +49,7 @@ What the program brings to a workspace, beyond what the OS scaffolds at signup. 
 
 ### Context domains
 - `/workspace/context/trading/` — per-instrument entities (one folder per ticker), `_signals.md`, `_universe.md`
-- `/workspace/context/portfolio/` — account-level state, `_positions.md`, `_performance.md`, `_risk_state.md`
+- `/workspace/context/portfolio/` — account-level state, `_positions.md`, `_money_truth.md`, `_risk_state.md`
 
 ### Task types (ADR-187 + program-specific)
 - `trading-digest` (accumulates_context, daily) — sweep universe, update entity files
@@ -60,7 +60,7 @@ What the program brings to a workspace, beyond what the OS scaffolds at signup. 
 ### Agent roster (universal roles, contextual application)
 - Researcher, Analyst, Writer, Tracker, Designer, Reporting — the universal six
 - Trading Bot — capability bundle, not a persona-bearing Agent
-- Reviewer — Simons-persona principles, capital-EV reasoning over `_performance.md`. Default persona shipped in [reference-workspace/review/IDENTITY.md](reference-workspace/review/IDENTITY.md).
+- Reviewer — Simons-persona principles, capital-EV reasoning over `_money_truth.md`. Default persona shipped in [reference-workspace/review/IDENTITY.md](reference-workspace/review/IDENTITY.md).
 
 ### Principles content (program guidance, operator authors)
 
@@ -82,7 +82,7 @@ Machine-readable in [MANIFEST.yaml](MANIFEST.yaml) (`dependencies.required` bloc
 |---|---|---|
 | Authored substrate (revision chain on every workspace_files mutation) | ADR-209 | Shipped |
 | OutcomeProvider abstraction | ADR-195 v2 | TradingOutcomeProvider Phase 5a shipped |
-| `_performance.md` as canonical money-truth substrate | ADR-195 v2 | Shipped |
+| `_money_truth.md` as canonical money-truth substrate | ADR-195 v2 | Shipped |
 | Source-agnostic feedback (`system_outcome` source) | ADR-181 | Shipped |
 | Reviewer with capital-EV reasoning | ADR-194 v2 | Phases 1-3 shipped |
 | Action proposal queue with approval / rejection / reasoning | ADR-194 v2 + ADR-202 | Shipped |
@@ -95,7 +95,7 @@ Machine-readable in [MANIFEST.yaml](MANIFEST.yaml) (`dependencies.required` bloc
 What this program asks of the OS that the OS must deliver cleanly. These are the litmus tests other programs (alpha-prediction, alpha-defi) will mirror:
 
 1. **Replay determinism** — substrate-replay must reconstruct any past revision deterministically; non-determinism in the task pipeline (model drift, tool latency) becomes advisory only for backtests.
-2. **Outcome reconciliation idempotency** — duplicate webhook events from the broker must not double-credit P&L. `processed-event-keys` in `_performance.md` frontmatter handles this today.
+2. **Outcome reconciliation idempotency** — duplicate webhook events from the broker must not double-credit P&L. `processed-event-keys` in `_money_truth.md` frontmatter handles this today.
 3. **Reviewer separation under operator-grades-self pressure** — alpha-trader's operator and Reviewer can be the same person early on. Reviewer machinery must stay structurally separate even when occupied by the same identity.
 
 ## Success bar
@@ -114,7 +114,7 @@ These are bars, not promises. Failure of any one is signal about the program; fa
 Machine-readable in [MANIFEST.yaml](MANIFEST.yaml) (`phases` + `current_phase`). Phase-aware cockpit chrome declared in [SURFACES.yaml](SURFACES.yaml) (`phase_overlays`).
 
 - **Phase 0 — Observation** (current) — paper account, AUTONOMY.md `bounded_autonomous` carve-out, Reviewer reasoning logged but no live capital
-- **Phase 1 — Paper Discipline** — 90 days of MANDATE compliance + signal expectancy data accumulates in `_performance.md`
+- **Phase 1 — Paper Discipline** — 90 days of MANDATE compliance + signal expectancy data accumulates in `_money_truth.md`
 - **Phase 2 — Live Float** — small live capital ($5–10K), AUTONOMY.md flipped to manual approval, every order operator-approved in Queue
 - **Phase 3 — Calibrated Autonomy** — selective auto-approval per principles.md thresholds (e.g., low-notional reversible orders), expanded based on Phase 2 calibration data
 - **Phase 4 — Self-Funding Validated** — live P&L sustains platform cost over rolling 90 days

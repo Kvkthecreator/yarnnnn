@@ -19,7 +19,7 @@ framings:
 - **B-product** reader: KVK-as-trader-now + KVK-as-trader-future-self
   reviewing Alpha-2 readiness. Asks "does YARNNN help me make money?"
 
-Reports read the same data (`_performance.md`, `decisions.md`,
+Reports read the same data (`_money_truth.md`, `decisions.md`,
 observation notes, activity log). They differ in what they emphasize
 and what question they answer.
 
