@@ -6,6 +6,79 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.12.2] - P&L unification: prompt re-grounding to _money_truth.md + by_signal
+
+### Reviewer prompt + cockpit awareness + 4 recurrence prompts re-grounded
+
+P&L unification refactor Commit 3 of 6. The substrate canonicalization
+(Commit 2: `_performance.md` → `_money_truth.md` with `by_signal` block)
+required updating every prompt that taught the Reviewer or System Agent
+to read money-truth, so the prompts read the new canonical surface
+instead of the legacy `_performance.md` path or reconstructing per-signal
+data from raw `signal/{slug}.yaml` files.
+
+The pre-unification audit (Cluster 2, 2026-05-12) found three Reviewer
+recurrences (`morning-reflection`, `weekly-performance-review`,
+`quarterly-signal-audit`) whose prompts instructed the agent to reason
+about per-signal patterns the substrate didn't carry. With the new
+`by_signal` block in `_money_truth.md` frontmatter, the prompts now
+read that data directly — closing the prompt-vs-substrate gap the
+audit named.
+
+**Changed:**
+
+- `api/agents/cockpit_awareness.py` — domain substrate path updated
+  (`_performance.md` → `_money_truth.md`); cross-cutting section now
+  surfaces `_money_truth_summary.md` to the Reviewer; "when substrate
+  is missing" guidance gains an explicit directive to read `by_signal`
+  from frontmatter rather than reconstructing from raw signal files.
+- `api/agents/reviewer_agent.py` — _PERSONA_FRAME docstring updated;
+  Independence + Calibration sections reference `_money_truth.md`;
+  `addressed`-turn prompt's pre-loaded substrate list updated; user
+  message section header now reads "## _money_truth.md — Track record
+  (with by_signal frontmatter)".
+- `api/agents/prompts/tools_core.py` — Reviewer + System Agent shared
+  references updated (3 occurrences).
+- `api/services/review_proposal_dispatch.py` — `_read_workspace_file`
+  call updated to read `_money_truth.md`; docstring + comments updated.
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml` —
+  4 recurrence prompts rewritten:
+  - `weekly-performance-review`: reads `by_signal` from frontmatter
+    directly instead of recomputing per-signal expectancy; computes
+    Sharpe-lifetime from the `events` array filtered by signal_id.
+  - `quarterly-signal-audit`: iterates `by_signal` keys for the per-
+    signal report; filters `events` for Sharpe + 40-trade expectancy.
+  - `morning-calibration`: compares portfolio AND per-signal expectancy
+    against declared edge.
+  - `morning-reflection`: per-signal pattern detection now reads
+    `by_signal[signal_id].rolling_*d` for decay detection.
+  - `outcome-reconciliation`: prompt body rewritten to describe the
+    new pipeline (client_order_id round-trip recovery + by_signal
+    bucketing) so a Reviewer reading it understands the reconciler's
+    contract.
+
+**Expected behavior change:**
+
+- Reviewer reasoning over per-signal performance is now deterministic
+  reads of pre-computed `by_signal` windows, not LLM reconstruction
+  from raw event streams. Two runs against identical evidence produce
+  the same verdict shape (closes audit finding A3 — Reviewer self-
+  quantifying thresholds per cycle).
+- `weekly-performance-review` recurrence output's "Per-Signal
+  Attribution" section becomes faithful to substrate (was previously
+  failing silently or hallucinating reconstruction per the audit).
+- `quarterly-signal-audit` retirement-candidate decisions ground in
+  actual `by_signal` counts + rolling windows.
+- New activations of alpha-trader inherit the corrected prompts via
+  bundle fork; pre-existing live workspaces inherit on next re-fork
+  (Commit 6 migration writes the recurrence YAML directly).
+
+**Cross-refs:** ADR-195 v2 (outcome reconciliation), ADR-194 v2
+(Reviewer substrate), ADR-258 (Reviewer-curated primitives), ADR-263
+(judgment-mode recurrences), SCOPE.md per-signal Check 4.
+
+---
+
 ## [2026.05.12.1] - Reviewer prompt cleanup: stop citing dead reflections.md
 
 ### Reviewer prompt + cockpit awareness update

@@ -24,7 +24,7 @@ autonomy gate filters whether the verdict binds.
 On proposal creation, the dispatcher:
 
 1. Resolves `context_domain` from `action_type`.
-2. If the domain has reviewable substrate (`_performance.md`,
+2. If the domain has reviewable substrate (`_money_truth.md`,
    `_operator_profile.md`, or non-empty `principles.md`) → AI Reviewer
    invocation (`reviewer_agent.review_proposal`) renders a verdict. If
    the domain has no reviewable substrate → observe-only fallback.
@@ -80,7 +80,7 @@ logger = logging.getLogger(__name__)
 _REVIEWER_OBSERVATION_IDENTITY = "reviewer-layer:observed"
 
 #: Prefix for all action_type values that map to context_domain="trading".
-#: Used to locate the right _performance.md and to decide whether to
+#: Used to locate the right _money_truth.md and to decide whether to
 #: load _risk.md.
 _TRADING_ACTION_PREFIX = "trading."
 #: Prefix for commerce actions — map to context_domain="revenue".
@@ -137,7 +137,7 @@ async def on_proposal_created(
         context_domain = _resolve_context_domain(action_type)
 
         # 2. Determine whether this domain has reviewable substrate.
-        #    Without ANY of {principles.md, _performance.md, _operator_profile.md},
+        #    Without ANY of {principles.md, _money_truth.md, _operator_profile.md},
         #    Sonnet has no framework or evidence to reason against — fall
         #    back to observe-only. This is the ONE remaining condition for
         #    the observe-only path post-ADR-229; everything else flows
@@ -152,7 +152,7 @@ async def on_proposal_created(
             return
 
         # 3. Run the AI Reviewer first (ADR-229 D1 inversion). Loads
-        #    IDENTITY + principles + PRECEDENT + _performance + _risk +
+        #    IDENTITY + principles + PRECEDENT + _money_truth + _risk +
         #    operator_profile internally and renders a verdict.
         await _run_ai_reviewer(
             client, user_id,
@@ -175,7 +175,7 @@ async def on_proposal_created(
 
 
 def _resolve_context_domain(action_type: str) -> str | None:
-    """Map action_type → context_domain slug used for _performance.md lookup.
+    """Map action_type → context_domain slug used for _money_truth.md lookup.
 
     Mirrors the domain assignment in OutcomeProvider implementations:
       - trading.*  → "trading"
@@ -342,8 +342,11 @@ async def _run_ai_reviewer(
     precedent_md = _read_workspace_file(
         client, user_id, "/workspace/context/_shared/PRECEDENT.md",
     ) or ""
+    # P&L unification (2026-05-12): canonical money-truth file is
+    # _money_truth.md. The frontmatter carries `by_signal` per-signal
+    # rolling windows the Reviewer reads for capital-EV reasoning.
     performance_md = _read_workspace_file(
-        client, user_id, f"/workspace/context/{context_domain}/_performance.md",
+        client, user_id, f"/workspace/context/{context_domain}/_money_truth.md",
     )
     # _risk.md is trading-specific today; extensible per domain
     risk_md = None

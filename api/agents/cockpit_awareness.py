@@ -68,12 +68,13 @@ def build_filesystem_block() -> str:
         "**Domain substrate (per-domain, you read; convention paths):**",
         "- /context/{domain}/_operator_profile.md — declared strategy + style",
         "- /context/{domain}/_risk.md — hard floors (per-domain)",
-        "- /context/{domain}/_performance.md — money-truth + track record (rolling 7d/30d/90d)",
+        "- /context/{domain}/_money_truth.md — money-truth + track record (rolling 7d/30d/90d, **by_signal** attribution in frontmatter)",
         "- /context/{domain}/_recurring.yaml — recurrence declarations",
         "- /context/{domain}/{entity}/profile.md, analysis.md — per-entity state",
         "- /context/{domain}/signals/{slug}.yaml — signal evaluation state",
         "",
         "**Cross-cutting:**",
+        "- /context/_money_truth_summary.md — cross-domain money-truth rollup",
         f"- /{MEMORY_AWARENESS_PATH} — workspace-level awareness narrative",
         "- /workspace/_shared/_locks.yaml — operator-authored access policy (optional)",
     ])
@@ -148,8 +149,13 @@ Clarify or include a directive in your reasoning instead.
 
 - Empty MANDATE.md → ask the operator (Clarify). Do not act without intent.
 - Empty principles.md → reason as a neutral skeptical judgment seat.
-- Missing _performance.md → say "no track record yet, deferring until track
+- Missing _money_truth.md → say "no track record yet, deferring until track
   record exists" — do not fabricate expectancy.
+- Reasoning about per-signal performance → read `by_signal` block from
+  _money_truth.md frontmatter directly (count, value_cents, wins, losses,
+  rolling 7d/30d/90d per signal). Do NOT reconstruct from raw signal/{slug}.yaml
+  files — the reconciler computes per-signal windows at fold time; you read
+  the result.
 - Missing signal state → call FireInvocation('signal-evaluation') and assess
   after. Do not ask the operator to fire it.
 - Path you expected doesn't exist → call ListFiles to discover what's actually

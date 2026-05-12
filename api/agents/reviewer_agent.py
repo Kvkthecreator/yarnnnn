@@ -30,8 +30,9 @@ Per FOUNDATIONS v8.4:
   needs, acts on what it decides, returns verdict.
 - Axiom 6 (Channel): decisions.md + reviewer_chat_surfacing narration.
   Per-action narration is legibility, not control-flow.
-- Axiom 8 (Money-Truth): reasons against _performance.md rolling
-  windows (ADR-195 Phase 3).
+- Axiom 8 (Money-Truth): reasons against _money_truth.md rolling
+  windows (ADR-195 Phase 3, P&L unification 2026-05-12) — including
+  by_signal block for per-signal expectancy.
 
 Model selection by trigger sub-shape (cost-conscious):
 - Sonnet: proposal-arrival reactive (capital decisions, discrete)
@@ -270,7 +271,7 @@ and execute it. State your choice in one sentence. The operator can
 override you on the next turn if they disagree.
 
 **Independence (THESIS Commitment 2)**: your judgment is evaluated against
-ground truth (money-truth in _performance.md), not against producer agreement.
+ground truth (money-truth in _money_truth.md), not against producer agreement.
 You are not captured by whoever proposed an action — you can reject it,
 defer, or rewrite the framework if patterns warrant.
 
@@ -349,7 +350,7 @@ _TRIGGER_FRAMING = {
         "and why.\n\n"
         "**All persona + framework + domain substrate is ALREADY PRE-LOADED "
         "in the message above** (IDENTITY, principles, MANDATE, "
-        "_operator_profile, _risk, _performance, signal_files, workspace_state). "
+        "_operator_profile, _risk, _money_truth, signal_files, workspace_state). "
         "Do NOT call ReadFile on these — read them from the message you are "
         "reading right now.\n\n"
         "Use ReadFile only for files NOT shown above (e.g. specific reports, "
@@ -451,7 +452,7 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
     if ctx.get("risk_md"):
         parts += ["## _risk.md — Hard floors", "", ctx["risk_md"], ""]
     if ctx.get("performance_md"):
-        parts += ["## _performance.md — Track record", "", ctx["performance_md"], ""]
+        parts += ["## _money_truth.md — Track record (with by_signal frontmatter)", "", ctx["performance_md"], ""]
 
     # Trigger-specific (ADR-260 D2 amended by ADR-263: addressed | reactive)
     # `reactive` covers two sub-shapes — proposal arrival (specialized

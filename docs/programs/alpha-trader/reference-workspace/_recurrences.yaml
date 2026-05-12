@@ -188,11 +188,18 @@ recurrences:
       /workspace/reports/weekly-performance-review/{date}/output.md per
       CONVENTIONS topology.
 
-      Read /workspace/context/trading/_performance.md (money-truth substrate
-      from outcome-reconciliation). Compute per-signal P&L, win rate,
-      expectancy-20, expectancy-40, Sharpe-lifetime. Flag any signal whose
-      decay guardrail (declared in /workspace/context/trading/_risk.md) was
-      crossed.
+      Read /workspace/context/trading/_money_truth.md — money-truth substrate
+      from outcome-reconciliation. The frontmatter carries `by_signal` with
+      per-signal {count, value_cents, wins, losses, rolling_7d/30d/90d}
+      pre-computed by the reconciler. **Read those values directly; do not
+      reconstruct per-signal expectancy from raw signal/{slug}.yaml files
+      or from action_proposals.** The reconciler computes per-signal windows
+      at fold time; your job is to surface and judge them.
+
+      Compute additionally: Sharpe-lifetime per signal (you have the
+      per-event time-series in _money_truth.md `events` array filtered by
+      signal_id). Flag any signal whose decay guardrail (declared in
+      /workspace/context/trading/_risk.md) was crossed.
 
       Sections required:
         - Portfolio Totals
@@ -212,10 +219,16 @@ recurrences:
       /workspace/reports/quarterly-signal-audit/{date}/output.md per
       CONVENTIONS topology.
 
-      For every signal:
-        - Surface last-40-trade Sharpe + expectancy.
+      For every signal listed in `by_signal` (in _money_truth.md
+      frontmatter):
+        - Surface its count, value_cents, win rate (wins / count), and
+          rolling 90d windows directly from the frontmatter — no
+          reconstruction needed; the reconciler computed these at fold time.
+        - For Sharpe + last-40-trade-expectancy, filter the `events` array
+          in frontmatter to events where signal_id == this signal, then
+          compute Sharpe over that filtered series.
         - Compare to declared baseline in
-          /workspace/context/_shared/_operator_profile.md.
+          /workspace/context/trading/_operator_profile.md.
         - If a signal crossed a retirement guardrail (from _risk.md), list
           it in Retirement Candidates with quantitative reasoning.
 
@@ -231,28 +244,32 @@ recurrences:
     display_name: "Quarterly signal audit"
 
   # ── outcome-reconciliation — daily money-truth reconcile ─────────────────
-  # NOTE: stays judgment-mode for now because the reconciliation work
-  # (compute realized P&L vs proposal projection, fold into rolling-window
-  # frontmatter on _performance.md) goes beyond a single SyncPlatformState
-  # call. A future ADR-264 follow-on may introduce a dedicated reconciler
-  # primitive that lets the mirror half go mechanical.
+  # The reconciler is deterministic Python (services.outcomes.reconciler.
+  # reconcile_user) that pulls fills from Alpaca, recovers signal attribution
+  # via the client_order_id round-trip (P&L unification 2026-05-12), and
+  # folds into _money_truth.md with by_signal bucketing. The recurrence
+  # prompt is the wake-vehicle that triggers the reconciler through
+  # invocation_dispatcher.
   - slug: outcome-reconciliation
     schedule: "0 5 * * *"
     mode: judgment
     prompt: |
       Reconcile yesterday's executed proposals against platform events.
-      Read the trading platform_connections; pull executed orders + fills
-      since the last reconciliation timestamp.
+      The deterministic reconciler in services.outcomes.reconciler.reconcile_user
+      handles this end-to-end:
 
-      For every fill, compute realized P&L vs the proposal's projection
-      (read original ProposeAction inputs from the proposal record), then
-      append rolling-window updates (7d / 30d / 90d) to
-      /workspace/context/trading/_performance.md following the schema in
-      /workspace/specs/performance-rollup.md.
-
-      Cross-domain summary: regenerate
-      /workspace/context/_performance_summary.md so the daily-update
-      briefing has fresh aggregate numbers.
+        1. Pulls executed orders + fills from the trading platform_connection
+           since the last reconciliation timestamp.
+        2. Recovers signal attribution via Alpaca's client_order_id field
+           (our proposal.id round-trips through Alpaca per the P&L
+           unification refactor; the reconciler reads it back and joins
+           against action_proposals to extract signal_id from inputs).
+        3. Folds outcomes into /workspace/context/trading/_money_truth.md
+           — frontmatter rolling 7d/30d/90d, by_signal per-signal windows,
+           by_action_type, by_provider; body narrative with per-signal
+           attribution section. Schema in /workspace/specs/performance-rollup.md.
+        4. Regenerates /workspace/context/_money_truth_summary.md as the
+           cross-domain rollup the daily-update briefing reads.
 
       Stand down silently if there were no fills in the window.
     display_name: "Outcome Reconciliation"
@@ -263,9 +280,11 @@ recurrences:
     mode: judgment
     prompt: |
       Calibrate against money-truth. Read
-      /workspace/context/trading/_performance.md for the last 7d / 30d /
-      90d windows. Compare realized expectancy to your declared edge in
-      /workspace/review/principles.md.
+      /workspace/context/trading/_money_truth.md for the last 7d / 30d /
+      90d windows (top-level rolling_*d) AND per-signal windows
+      (`by_signal[signal_id].rolling_*d` in frontmatter). Compare realized
+      expectancy to your declared edge in /workspace/review/principles.md
+      both at the portfolio level AND per signal.
 
       If realized P&L diverges materially from your declared edge (e.g.
       realized expectancy negative when declared positive, or Sharpe
@@ -287,12 +306,16 @@ recurrences:
       Reflect on yesterday's decisions against your principles. Read:
         - /workspace/review/decisions.md (last 7 days of verdicts)
         - /workspace/review/principles.md (your judgment framework)
-        - /workspace/context/trading/_performance.md (money-truth)
+        - /workspace/context/trading/_money_truth.md (money-truth)
 
-      Identify patterns:
+      Identify patterns (read `by_signal` block in _money_truth.md
+      frontmatter for per-signal pattern detection):
         - Repeated approve-then-loss patterns by signal or condition
+          (compare by_signal[signal_id].losses / count ratios across signals)
         - Repeated reject-then-would-have-won patterns (false negatives)
         - Drift between stated principles and actual approval thresholds
+        - Per-signal expectancy decay (rolling_7d.value_cents diverging
+          materially from rolling_90d.value_cents on the same signal)
 
       If a pattern warrants a principles adjustment, ProposeAction with
       change_type="update_principles", target_file="principles.md",
