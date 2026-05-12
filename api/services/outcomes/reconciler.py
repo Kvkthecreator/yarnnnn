@@ -4,10 +4,11 @@ Runs every registered OutcomeProvider for a single user, in sequence, and
 returns a structured summary. Provider errors are isolated — one provider's
 outage does not block siblings.
 
-Per ADR-195 v2, the reconciler writes to
-`/workspace/context/{domain}/_performance.md` per domain, not to a SQL
-ledger. Providers emit OutcomeCandidate dicts; ledger.fold_outcome_candidates
-persists them via filesystem upsert with frontmatter-based idempotency.
+Per ADR-195 v2 + the P&L unification refactor (2026-05-12), the reconciler
+writes to `/workspace/context/{domain}/_money_truth.md` per domain, not
+to a SQL ledger. Providers emit OutcomeCandidate dicts (now with optional
+signal_id per Commit 1); ledger.fold_outcome_candidates persists them via
+filesystem upsert with frontmatter-based idempotency and per-signal bucketing.
 
 The back-office task `back-office-outcome-reconciliation` (ADR-195 Phase 2)
 calls `reconcile_user` once per user per day. Callers can also invoke it
@@ -25,7 +26,7 @@ from services.outcomes.commerce import CommerceOutcomeProvider
 from services.outcomes.ledger import (
     compute_since_for_provider,
     fold_outcome_candidates,
-    write_performance_summary,
+    write_money_truth_summary,
 )
 from services.outcomes.trading import TradingOutcomeProvider
 
@@ -114,7 +115,7 @@ async def reconcile_user(
     # summary reflects the current state of each domain's _performance.md.
     try:
         provider_domains = [p.context_domain for p in providers]
-        summary["cross_domain_summary_written"] = await write_performance_summary(
+        summary["cross_domain_summary_written"] = await write_money_truth_summary(
             client, user_id, provider_domains,
         )
     except Exception as exc:  # noqa: BLE001

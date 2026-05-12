@@ -1,32 +1,39 @@
-"""Ledger helpers for money-truth accumulation (ADR-195 v2).
+"""Ledger helpers for money-truth accumulation (ADR-195 v2, P&L unification 2026-05-12).
 
-Money-truth's canonical home per FOUNDATIONS Axiom 7 is:
+Money-truth's canonical home per FOUNDATIONS Axiom 8 + the P&L unification
+refactor is:
 
-    /workspace/context/{domain}/_performance.md
+    /workspace/context/{domain}/_money_truth.md
 
 One file per domain. YAML-compatible JSON frontmatter (machine-readable
-track record + idempotency key list) + narrative markdown body
-(operator + Reviewer legible).
+track record + per-signal attribution + idempotency keys) + narrative
+markdown body (operator + Reviewer legible).
 
-Two responsibilities, same shape as v1 (only the write target changes):
+The file collapses what used to be split across `_money_truth.md`,
+`_money_truth_summary.md`, and signal-attribution reconstruction in
+weekly review prompts. One file answers: "Is this operation paying for
+itself, and which signals are contributing?"
+
+Two responsibilities:
 
   1. compute_since_for_provider — "reconcile events after this timestamp"
-     reads the current `_performance.md` frontmatter's last_reconciled_at
+     reads the current `_money_truth.md` frontmatter's last_reconciled_at
      for this provider, or falls back to a bootstrap window if the file
      doesn't exist.
 
   2. fold_outcome_candidates — idempotent fold of new candidates into
-     `_performance.md`. Reads current file → filters against
+     `_money_truth.md`. Reads current file → filters against
      processed_event_keys → appends new events → rewrites frontmatter
-     totals + body narrative → upserts to workspace_files.
+     totals + by_action_type + by_signal + rolling windows → upserts via
+     authored substrate.
 
 No provider-specific logic lives here. Providers emit OutcomeCandidate
-dicts; this module reconciles them into the domain's performance file.
+dicts (with optional signal_id per Commit 1 of P&L unification); this
+module reconciles them into the domain's money-truth file.
 
 Idempotency keys are namespaced as "{provider.idempotency_key_path}:
 {metadata[key_path]}" — this prevents collisions between providers that
-share a context_domain (e.g., a future TradingOutcomeProvider + a future
-InteractiveBrokersOutcomeProvider both writing to domain=trading).
+share a context_domain.
 """
 
 from __future__ import annotations
@@ -48,7 +55,7 @@ BOOTSTRAP_WINDOW_DAYS = 30
 #: How many entries to keep in each narrative section (Recent wins / losses).
 NARRATIVE_WINDOW = 10
 
-#: Rolling windows (days) tracked in _performance.md frontmatter per domain.
+#: Rolling windows (days) tracked in _money_truth.md frontmatter per domain.
 #: The longest window determines the event-retention horizon.
 ROLLING_WINDOWS_DAYS = (7, 30, 90)
 EVENT_RETENTION_DAYS = max(ROLLING_WINDOWS_DAYS)
@@ -66,12 +73,12 @@ async def compute_since_for_provider(
 ) -> datetime:
     """Return the timestamp from which `provider` should reconcile forward.
 
-    Reads `/workspace/context/{provider.context_domain}/_performance.md` and
+    Reads `/workspace/context/{provider.context_domain}/_money_truth.md` and
     returns the last reconciliation timestamp recorded for this provider.
     Falls back to a bootstrap window if the file doesn't exist yet or has
     no entries for this provider.
     """
-    performance = await _read_performance_file(client, user_id, provider.context_domain)
+    performance = await _read_money_truth_file(client, user_id, provider.context_domain)
     if performance is not None:
         by_provider = performance.get("by_provider") or {}
         provider_state = by_provider.get(provider.provider_name) or {}
@@ -87,38 +94,38 @@ async def fold_outcome_candidates(
     provider: OutcomeProvider,
     candidates: list[OutcomeCandidate],
 ) -> dict[str, int]:
-    """Fold candidates into the domain's _performance.md.
+    """Fold candidates into the domain's _money_truth.md.
 
     Returns a count breakdown:
       {"appended": int, "skipped_duplicate": int, "skipped_invalid": int}
 
     First-run empty-stub policy (ADR-228 cockpit substrate audit
     follow-up, 2026-04-28): when `candidates` is empty AND no
-    `_performance.md` exists for this domain yet, we still write an
-    empty stub via `_init_performance + _render_performance_file +
-    _upsert_performance_file`. The file exists from first task
+    `_money_truth.md` exists for this domain yet, we still write an
+    empty stub via `_init_money_truth + _render_money_truth_file +
+    _upsert_money_truth_file`. The file exists from first task
     execution onward with `reconciled_event_count: 0` frontmatter,
     so the cockpit's `PerformanceFace` (ADR-228) can distinguish
     "task ran, no outcomes yet" (file exists, empty body) from
     "task hasn't run yet" (file 404). Without this, an alpha-trader
-    workspace in paper-only no-fills state has no `_performance.md`
+    workspace in paper-only no-fills state has no `_money_truth.md`
     even after the back-office task has run dozens of times — making
     the 404 ambiguous between "too early" and "writer broken." The
     empty stub closes that ambiguity.
     """
     if not candidates:
-        # Empty-stub-on-first-run: ensure `_performance.md` exists so
+        # Empty-stub-on-first-run: ensure `_money_truth.md` exists so
         # downstream cockpit reads see "no outcomes yet" instead of 404.
-        existing = await _read_performance_file(client, user_id, provider.context_domain)
+        existing = await _read_money_truth_file(client, user_id, provider.context_domain)
         if existing is None:
-            stub = _init_performance(provider.context_domain)
-            rendered = _render_performance_file(stub)
-            ok = await _upsert_performance_file(
+            stub = _init_money_truth(provider.context_domain)
+            rendered = _render_money_truth_file(stub)
+            ok = await _upsert_money_truth_file(
                 client, user_id, provider.context_domain, rendered,
             )
             if ok:
                 logger.info(
-                    "[OUTCOMES] %s: user=%s domain=%s — wrote empty _performance.md "
+                    "[OUTCOMES] %s: user=%s domain=%s — wrote empty _money_truth.md "
                     "stub on first run (no candidates)",
                     provider.provider_name, user_id[:8], provider.context_domain,
                 )
@@ -154,9 +161,9 @@ async def fold_outcome_candidates(
         return {"appended": 0, "skipped_duplicate": 0, "skipped_invalid": skipped_invalid}
 
     # 2) Load current file state (frontmatter + body) or initialize
-    performance = await _read_performance_file(client, user_id, provider.context_domain)
+    performance = await _read_money_truth_file(client, user_id, provider.context_domain)
     if performance is None:
-        performance = _init_performance(provider.context_domain)
+        performance = _init_money_truth(provider.context_domain)
 
     processed_keys: set[str] = set(performance.get("processed_event_keys") or [])
 
@@ -184,8 +191,8 @@ async def fold_outcome_candidates(
     _update_provider_state(performance, provider)
 
     # 5) Render + write
-    rendered = _render_performance_file(performance)
-    ok = await _upsert_performance_file(
+    rendered = _render_money_truth_file(performance)
+    ok = await _upsert_money_truth_file(
         client, user_id, provider.context_domain, rendered,
     )
     if not ok:
@@ -203,7 +210,7 @@ async def fold_outcome_candidates(
 
     # 6) ADR-195 Phase 5: route high-impact outcomes to the originating
     # task's feedback.md per ADR-181. Never blocks — failures log and
-    # the outcome is still persisted to _performance.md above.
+    # the outcome is still persisted to _money_truth.md above.
     try:
         from services.outcomes.high_impact import (
             load_high_impact_thresholds,
@@ -243,17 +250,17 @@ async def fold_outcome_candidates(
 # =============================================================================
 
 
-def _performance_path(context_domain: str) -> str:
-    return f"/workspace/context/{context_domain}/_performance.md"
+def _money_truth_path(context_domain: str) -> str:
+    return f"/workspace/context/{context_domain}/_money_truth.md"
 
 
-async def _read_performance_file(
+async def _read_money_truth_file(
     client: Any, user_id: str, context_domain: str,
 ) -> dict | None:
     """Load existing performance file state. Returns parsed frontmatter dict
     or None if file doesn't exist or can't be parsed.
     """
-    path = _performance_path(context_domain)
+    path = _money_truth_path(context_domain)
     try:
         result = (
             client.table("workspace_files")
@@ -275,20 +282,20 @@ async def _read_performance_file(
         return None
 
     content = rows[0].get("content") or ""
-    return _parse_performance_file(content)
+    return _parse_money_truth_file(content)
 
 
-async def _upsert_performance_file(
+async def _upsert_money_truth_file(
     client: Any, user_id: str, context_domain: str, content: str,
 ) -> bool:
-    """Upsert `_performance.md` for the domain through Authored Substrate.
+    """Upsert `_money_truth.md` for the domain through Authored Substrate.
 
     ADR-209: authored_by="system:outcome-reconciliation" — the
     reconciler is a deterministic system actor (daily back-office task),
     not a cognitive layer. The revision chain captures each reconciliation
     cycle as an attributed revision.
     """
-    path = _performance_path(context_domain)
+    path = _money_truth_path(context_domain)
     try:
         from services.authored_substrate import write_revision
 
@@ -300,7 +307,7 @@ async def _upsert_performance_file(
             authored_by="system:outcome-reconciliation",
             message=f"reconcile {context_domain} outcomes",
             summary=f"Money-truth track record for domain={context_domain}",
-            tags=["_performance", context_domain, "money-truth"],
+            tags=["_money_truth", context_domain, "money-truth"],
             lifecycle="active",
             content_type="text/markdown",
         )
@@ -318,8 +325,8 @@ async def _upsert_performance_file(
 # =============================================================================
 
 
-def _parse_performance_file(content: str) -> dict | None:
-    """Parse a rendered `_performance.md` back into the frontmatter dict.
+def _parse_money_truth_file(content: str) -> dict | None:
+    """Parse a rendered `_money_truth.md` back into the frontmatter dict.
 
     The file format is:
       ---
@@ -340,14 +347,14 @@ def _parse_performance_file(content: str) -> dict | None:
     try:
         data = json.loads(frontmatter_raw)
     except json.JSONDecodeError:
-        logger.warning("[OUTCOMES] Could not parse _performance.md frontmatter as JSON")
+        logger.warning("[OUTCOMES] Could not parse _money_truth.md frontmatter as JSON")
         return None
     if not isinstance(data, dict):
         return None
     return data
 
 
-def _init_performance(context_domain: str) -> dict:
+def _init_money_truth(context_domain: str) -> dict:
     """Initial state for a domain that has never been reconciled."""
     return {
         "domain": context_domain,
@@ -359,12 +366,19 @@ def _init_performance(context_domain: str) -> dict:
             "currency": "USD",
         },
         "by_action_type": {},
+        # P&L unification (2026-05-12): per-signal attribution. Each signal
+        # gets a state dict identical in shape to by_action_type plus
+        # rolling 7d/30d/90d windows. Entries without signal_id (manual
+        # trades, legacy un-attributed) skip this dict — by design.
+        "by_signal": {},
         "by_provider": {},
         "recent_wins": [],
         "recent_losses": [],
         # ADR-195 Phase 3: compact time-series of reconciled events, used
         # to compute rolling windows at fold time. Bounded by
         # EVENT_RETENTION_DAYS — older entries are pruned on every fold.
+        # Each event carries signal_id (when known) so per-signal windows
+        # are recomputed in lockstep with domain-wide windows on every fold.
         "events": [],
         # ADR-195 Phase 3: rolling-window summaries recomputed on every
         # fold from `events`. Consumers (AI Reviewer, daily-update) read
@@ -396,6 +410,7 @@ def _apply_entries(
         "currency": "USD",
     })
     by_action = performance.setdefault("by_action_type", {})
+    by_signal = performance.setdefault("by_signal", {})
     wins: list[dict] = performance.setdefault("recent_wins", [])
     losses: list[dict] = performance.setdefault("recent_losses", [])
     events: list[dict] = performance.setdefault("events", [])
@@ -421,6 +436,26 @@ def _apply_entries(
             elif value < 0:
                 action_state["losses"] = int(action_state.get("losses", 0)) + 1
 
+        # P&L unification (2026-05-12): per-signal totals. Signal_id may be
+        # absent on entries originating from manual trades or pre-attribution
+        # Alpaca submissions — those skip the by_signal bucket but still
+        # contribute to by_action_type + totals.
+        signal_id = entry.get("signal_id")
+        if signal_id:
+            signal_state = by_signal.setdefault(signal_id, {
+                "count": 0,
+                "value_cents": 0,
+                "wins": 0,
+                "losses": 0,
+            })
+            signal_state["count"] = int(signal_state.get("count", 0)) + 1
+            if value is not None:
+                signal_state["value_cents"] = int(signal_state.get("value_cents", 0)) + int(value)
+                if value > 0:
+                    signal_state["wins"] = int(signal_state.get("wins", 0)) + 1
+                elif value < 0:
+                    signal_state["losses"] = int(signal_state.get("losses", 0)) + 1
+
         # Narrative windows: prepend newest, cap
         narrative_entry = _to_narrative_entry(entry, provider)
         if value is not None and value > 0:
@@ -433,14 +468,19 @@ def _apply_entries(
         # Phase 3: compact time-series entry for rolling-window math.
         # Only realized events (value_cents not None) contribute to
         # windows — open positions and unattributable outcomes don't.
+        # P&L unification: carry signal_id so per-signal rolling windows
+        # can be recomputed in lockstep with domain windows.
         if value is not None:
             executed_at_iso = _executed_at_iso(entry.get("executed_at"))
             if executed_at_iso:
-                events.append({
+                event_record = {
                     "executed_at": executed_at_iso,
                     "action_type": action_type,
                     "value_cents": int(value),
-                })
+                }
+                if signal_id:
+                    event_record["signal_id"] = signal_id
+                events.append(event_record)
 
     # Cap narrative windows
     performance["recent_wins"] = wins[:NARRATIVE_WINDOW]
@@ -452,6 +492,16 @@ def _apply_entries(
     for window_days in ROLLING_WINDOWS_DAYS:
         key = f"rolling_{window_days}d"
         performance[key] = _compute_window(performance["events"], now, window_days)
+
+    # P&L unification: per-signal rolling windows. Each signal gets its
+    # own rolling_7d/30d/90d computed from events filtered by signal_id.
+    # Stored as nested dict under by_signal[signal_id]["rolling_Xd"].
+    pruned_events = performance["events"]
+    for signal_id in list(by_signal.keys()):
+        signal_events = [e for e in pruned_events if e.get("signal_id") == signal_id]
+        for window_days in ROLLING_WINDOWS_DAYS:
+            key = f"rolling_{window_days}d"
+            by_signal[signal_id][key] = _compute_window(signal_events, now, window_days)
 
 
 def _executed_at_iso(value: Any) -> str | None:
@@ -556,8 +606,8 @@ def _to_narrative_entry(entry: OutcomeCandidate, provider: OutcomeProvider) -> d
     }
 
 
-def _render_performance_file(performance: dict) -> str:
-    """Render the full `_performance.md` (JSON frontmatter + markdown body)."""
+def _render_money_truth_file(performance: dict) -> str:
+    """Render the full `_money_truth.md` (JSON frontmatter + markdown body)."""
     # Frontmatter: single JSON object, pretty-printed for legibility.
     frontmatter_json = json.dumps(
         performance, indent=2, sort_keys=False, default=str,
@@ -609,6 +659,34 @@ def _render_performance_file(performance: dict) -> str:
                 f"| {action} | {state.get('count', 0)} | "
                 f"{_format_cents(state.get('value_cents', 0))} | "
                 f"{state.get('wins', 0)} | {state.get('losses', 0)} |"
+            )
+        body_lines.append("")
+
+    # P&L unification (2026-05-12): per-signal attribution section. This is
+    # the operator-at-a-glance signal-health view that the alpha-1 success
+    # contract per SCOPE.md needs to validate ("is signal X paying for its
+    # platform cost"). Only renders when by_signal has entries — workspaces
+    # with no signal-attributed outcomes (commerce, manual-only trading)
+    # naturally skip this section.
+    by_signal = performance.get("by_signal") or {}
+    if by_signal:
+        body_lines.append("## Per-signal attribution")
+        body_lines.append("")
+        body_lines.append(
+            "| Signal | Count | Total | Wins | Losses | 7d | 30d | 90d |"
+        )
+        body_lines.append("|---|---|---|---|---|---|---|---|")
+        for signal_id, state in sorted(by_signal.items()):
+            r7 = state.get("rolling_7d") or _empty_window()
+            r30 = state.get("rolling_30d") or _empty_window()
+            r90 = state.get("rolling_90d") or _empty_window()
+            body_lines.append(
+                f"| {signal_id} | {state.get('count', 0)} | "
+                f"{_format_cents(state.get('value_cents', 0))} | "
+                f"{state.get('wins', 0)} | {state.get('losses', 0)} | "
+                f"{_format_cents(r7.get('value_cents', 0))} | "
+                f"{_format_cents(r30.get('value_cents', 0))} | "
+                f"{_format_cents(r90.get('value_cents', 0))} |"
             )
         body_lines.append("")
 
@@ -700,19 +778,19 @@ def _parse_iso(raw: str) -> datetime:
 
 
 # =============================================================================
-# Cross-domain summary — /workspace/context/_performance_summary.md (Phase 3)
+# Cross-domain summary — /workspace/context/_money_truth_summary.md (Phase 3)
 # =============================================================================
 
 
-SUMMARY_PATH = "/workspace/context/_performance_summary.md"
+SUMMARY_PATH = "/workspace/context/_money_truth_summary.md"
 
 
-async def write_performance_summary(
+async def write_money_truth_summary(
     client: Any, user_id: str, provider_domains: list[str],
 ) -> bool:
-    """Regenerate `/workspace/context/_performance_summary.md` from per-domain files.
+    """Regenerate `/workspace/context/_money_truth_summary.md` from per-domain files.
 
-    Reads each `_performance.md` under `/workspace/context/{domain}/`,
+    Reads each `_money_truth.md` under `/workspace/context/{domain}/`,
     aggregates totals + rolling windows across domains, and writes a
     single cross-domain summary. This is the file the daily-update
     briefing (ADR-195 Phase 4) and the Reviewer (ADR-194 Phase 3) read
@@ -733,7 +811,7 @@ async def write_performance_summary(
             if domain in seen_domains:
                 continue
             seen_domains.add(domain)
-            perf = await _read_performance_file(client, user_id, domain)
+            perf = await _read_money_truth_file(client, user_id, domain)
             if perf is None:
                 continue
             domains_state[domain] = perf
@@ -835,7 +913,7 @@ def _build_summary_state(domains_state: dict[str, dict]) -> dict:
 
 
 def _render_summary_file(summary: dict) -> str:
-    """Render `_performance_summary.md` (JSON frontmatter + narrative body)."""
+    """Render `_money_truth_summary.md` (JSON frontmatter + narrative body)."""
     frontmatter_json = json.dumps(summary, indent=2, sort_keys=False, default=str)
 
     body: list[str] = []
