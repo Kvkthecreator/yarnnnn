@@ -798,7 +798,18 @@ async def invoke_reviewer(
                     content_blocks.append({"type": "text", "text": nudge})
                 messages.append({"role": "user", "content": content_blocks})
 
-        # Token accounting
+        # Token accounting. Carry recurrence_slug + signal_id when known
+        # so cost can be broken down per-recurrence and per-signal post-hoc
+        # (cost-truth observability surfaced as gap during 2026-05-13 audit
+        # of overnight Reviewer fires).
+        usage_metadata: dict[str, Any] = {"trigger": trigger, "rounds": rounds_used}
+        if isinstance(context, dict):
+            if context.get("recurrence_slug"):
+                usage_metadata["slug"] = context["recurrence_slug"]
+            if context.get("recurrence_prompt"):
+                usage_metadata["sub_shape"] = "recurrence_fire"
+            elif trigger == "reactive" and context.get("proposal_row"):
+                usage_metadata["sub_shape"] = "proposal_arrival"
         record_token_usage(
             client,
             user_id=user_id,
@@ -807,7 +818,7 @@ async def invoke_reviewer(
             input_tokens=total_input,
             output_tokens=total_output,
             ref_id=context.get("proposal_row", {}).get("id") if trigger == "proposal" else None,
-            metadata={"trigger": trigger, "rounds": rounds_used},
+            metadata=usage_metadata,
         )
 
         if verdict_raw is None:

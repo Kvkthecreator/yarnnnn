@@ -219,13 +219,22 @@ async def dispatch(
         return _result_failed(recurrence, f"reviewer_agent unavailable: {e}", trigger=trigger)
 
     try:
+        # Context keys must match what invoke_reviewer reads at
+        # `reviewer_agent.py::_build_user_message`. The Reviewer's
+        # `is_recurrence_fire` detection (reviewer_agent.py:573) keys
+        # on `recurrence_prompt` / `recurrence_slug` — passing bare
+        # `prompt` / `slug` here would silently drop the recurrence
+        # context, causing every cron-fired Reviewer wake to fall into
+        # the proposal-arrival shape (Sonnet/3-rounds with empty user
+        # message → universal stand_down). Bug surfaced 2026-05-13 in
+        # the post-ADR-267 audit.
         reviewer_output = await invoke_reviewer(
             client=client,
             user_id=user_id,
             trigger=trigger,
             context={
-                "prompt": prompt,
-                "slug": recurrence.slug,
+                "recurrence_prompt": prompt,
+                "recurrence_slug": recurrence.slug,
                 "options": dict(recurrence.options) if recurrence.options else {},
             },
         )
