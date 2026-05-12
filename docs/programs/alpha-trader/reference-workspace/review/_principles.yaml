@@ -1,11 +1,13 @@
 ---
 tier: authored
-prompt: "What are your machine-enforced thresholds? high_impact_threshold_cents routes large outcomes to feedback.md. auto_approve_below_cents lets the Reviewer bind approvals up to this amount."
+prompt: "What are your machine-enforced thresholds? high_impact_threshold_cents routes large outcomes to feedback.md. Execution ceilings (which proposals auto-execute) live in _autonomy.yaml, not here."
 ---
 # _principles.yaml — machine-parsed review thresholds (ADR-254)
 # Read by review_policy.load_principles() via yaml.safe_load.
 # For the Reviewer's full reasoning framework, see principles.md.
+#
+# NOTE: auto_approve_below_cents was folded into _autonomy.yaml::ceiling_cents
+# per ADR-261 D5. Don't add it here — it's read from _autonomy.yaml.
 
 trading:
   high_impact_threshold_cents: 50000     # realized P&L >= $500 routes to task feedback.md (ADR-195 Phase 5)
-  auto_approve_below_cents: 20000        # Reviewer approve verdict binds below $200 (paper mode default)

@@ -34,16 +34,11 @@ The defer rule (sample-size threshold below) does NOT apply to exit triggers. Ex
 
 Reviewer reasons about expected value using `_performance.md` history:
 
-- **Auto-approve below threshold**: reversible entry orders below `auto_approve_below_cents` AND signal expectancy positive over rolling 30 days. My approve verdict then binds execution when AUTONOMY.md ceiling also permits (ADR-253 D1).
+- **Auto-approve below threshold**: reversible entry orders below `_autonomy.yaml::ceiling_cents` AND signal expectancy positive over rolling 30 days. My approve verdict then binds execution when `delegation: bounded` (or `autonomous`) — the ceiling enforcement lives entirely in `_autonomy.yaml` per ADR-261 D5.
 - **Defer for operator review**: when capital-EV is positive but uncertain (sample size < 20 occurrences of the signal — see Bootstrap clause below for the exception).
 - **Reject**: when capital-EV is negative or signal expectancy has decayed below retire-flag threshold. Rejection is unconditional — AUTONOMY does not gate my rejects.
 
-```yaml
-auto_approve_below_cents: 20000   # $200 — paper mode default (ADR-253 D1).
-                                   # Approve verdict binds execution for reversible paper
-                                   # orders under this threshold when AUTONOMY also permits.
-                                   # Set to 0 to require operator Queue click for all orders.
-```
+The execution ceiling for "auto-approve" is `_autonomy.yaml::ceiling_cents` (a single source of truth per ADR-261 D5). To tune it, edit `/workspace/context/_shared/_autonomy.yaml`, not this file.
 
 ## Bootstrap clause — calibration begins from zero
 

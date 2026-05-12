@@ -545,6 +545,52 @@ Narrative body regenerated on each reconciler run. Highlights:
 
 ---
 
+### 3A.7 Content quality audit — Reviewer apparatus (2026-05-12)
+
+> **Status**: First applied instance of the operator-substrate quality framework in [persona-reflection.md §1.5](../architecture/persona-reflection.md#15-operator-substrate-quality-framework). Findings dated against the alpha-trader bundle as of commit `25c00df`. Surface here for operator visibility; track each finding's resolution in a follow-on commit.
+
+The Cluster 2 audit (Reviewer apparatus — IDENTITY + principles.md + `_principles.yaml` + AUTONOMY.md + `_autonomy.yaml` read as one system) surfaced 8 concrete findings. Two are critical drifts between operator-facing prose and code-supported config; three are material inconsistencies the Reviewer must arbitrate per cycle; three are polish for next-iteration.
+
+**🔴 Critical (operator-facing prose drifts from machine-parsed truth)**
+
+| # | Finding | Where it lives | Action |
+|---|---|---|---|
+| **A1** | AUTONOMY.md `## Levels` enumerates 4 delegation values (`manual | assisted | bounded_autonomous | autonomous`). ADR-261 D5 collapsed to 3 (`manual | bounded | autonomous`). `_autonomy.yaml` ships `delegation: bounded` matching the new enum; operator-facing prose still cites the old enum. Operator who sets `delegation: bounded_autonomous` per AUTONOMY.md will have `load_autonomy()` silently fall back to `manual` (the autonomy-disabled state per [WORKSPACE.md §5 row 6](../architecture/WORKSPACE.md#5-cold-start-failure-modes)). | `docs/programs/alpha-trader/reference-workspace/context/_shared/AUTONOMY.md` | Rewrite §"Levels" to canonical 3-value enum; remove `assisted` and `bounded_autonomous` references throughout the file. |
+| **A2** | `_principles.yaml` ships `auto_approve_below_cents: 20000`. principles.md §"Capital-EV thresholds" + Bootstrap clause describe this field as binding Reviewer approve verdicts. Per ADR-261 D5, `auto_approve_below_cents` was folded into `ceiling_cents` (in `_autonomy.yaml`); the principles-side field is dead config. Operator who tunes it observes zero behavioral effect. | `docs/programs/alpha-trader/reference-workspace/review/_principles.yaml` + `principles.md` | Delete `auto_approve_below_cents` from `_principles.yaml`. Rewrite principles.md §"Capital-EV thresholds" to reference `ceiling_cents` from `_autonomy.yaml` instead. |
+
+**🟡 Material (structural weaknesses in the apparatus)**
+
+| # | Finding | Where it lives | Action |
+|---|---|---|---|
+| **A3** | `_principles.yaml` has 2 trading thresholds (`high_impact_threshold_cents`, the dead `auto_approve_below_cents`). principles.md cites several more unquantified: 20-occurrence defer threshold, decay retire-flag, approve-incorrect-rate calibration trigger, false-negatives loosen trigger. Reviewer self-quantifies per cycle. Two runs may verdict differently on identical evidence. | `_principles.yaml` + `principles.md` | Add machine thresholds: `retire_flag_recent_20_trade_expectancy_below_R`, `defer_sample_size_floor`, `calibration_approve_incorrect_rate_threshold`. Surface them in principles.md. |
+| **A4** | principles.md §"Capital-EV thresholds" says "defer when sample size < 20." §"Bootstrap clause" says "propose when sample < 20 if conditions unambiguous." Internal conflict that Reviewer arbitrates per cycle. | `principles.md` | Resolve explicitly: bootstrap supersedes defer when sample < 20 AND no hard rule fails AND no overlap with other open signal positions. Define "unambiguous" concretely. |
+| **A6** | IDENTITY.md + principles.md both say exit-proposals are mandatory and frame the Reviewer as binding execution. `_autonomy.yaml` `never_auto: [close_position_market, cancel_other_orders]` overrides this — stops route to operator queue even in `autonomous` mode. Operator-facing prose doesn't acknowledge the override. | `principles.md` §"Hard exit triggers" | Add note: `never_auto` may route exit proposals to queue even in autonomous mode; intentional for paper-mode safety; tune `_autonomy.yaml::never_auto` to remove `close_position_market` once Phase 2 confidence achieved. |
+
+**🟢 Polish (next-iteration improvements)**
+
+| # | Finding | Action |
+|---|---|---|
+| **A5** | Persona's "principles tighten/loosen" calibration loop is overstated — Reviewer can't rewrite operator-authored principles.md. Reflection emits `narrow`/`relax`/`character_note` verdicts; operator must approve to mutate. | Restate honestly: "If approve-incorrect rate climbs, Reviewer's reflection emits a `narrow` verdict proposing tightening; operator reviews and applies." |
+| **A7** | `_principles.yaml` thresholds are static; no parallel guidance for how they evolve alongside `_autonomy.yaml` Phase progression. | Add §"Threshold progression" to `_principles.yaml` frontmatter or AUTONOMY.md, parallel to ceiling-tuning guidance. |
+| **A8** | No fixture-library regression test for Reviewer verdict quality. The apparatus's behavior is emergent from LLM reasoning; no scripted test for "given proposal X + substrate Y, verdict should be Z." | Schedule a follow-on: 10-15 proposal scenarios with declared expected-verdict annotations. Detect drift between releases of principles.md, Reviewer system prompt, model version. |
+
+**Inter-cluster dependencies surfaced:**
+
+- C2→C1 hard coupling: principles.md hard rule #2 makes Reviewer logic structurally dependent on `_operator_profile.md` quality. Weak signal declarations → false rejects or ambiguous attribution.
+- C2→C4 latent: AUTONOMY.md `paused_until` write requires Reviewer to have WriteFile authority over `_autonomy.yaml`. Verify against `DEFAULT_REVIEWER_WRITE_LOCKS` and operator's `_locks.yaml` (per ADR-258).
+- C2 self-coupling: Bootstrap vs Capital-EV (A4) is internal contradiction Reviewer arbitrates each cycle. A4 fix resolves.
+
+**What the audit validated:**
+
+- Mechanically the apparatus runs the loop end-to-end. The smoke test (commit `25c00df`) proved fork → connect → operational.
+- C1 minimum holds — all 5 signals have concrete trigger / entry / stop / target / sizing fields.
+- C3+C4 prompt-primitive coherence holds — every Reviewer-prompted action is in `REVIEWER_PRIMITIVES`.
+- The persona character itself is well-conceived (Simons-style numbers-first, correlation-paranoid, vocabulary-blocked). The drift is in framework consistency, not in persona vision.
+
+**Verdict:** the alpha-trader Reviewer apparatus is **structurally sound but carries content defects that degrade operator trust without preventing operation**. Fix A1 + A2 unlock honest delegation behavior. A3–A6 sharpen the apparatus to Simons-grade rigor. A7–A8 are next-iteration improvements.
+
+---
+
 ## 3B. `alpha-commerce` — Korea↔USA international commerce operator (PARKED)
 
 > **Per [SCOPE.md](./SCOPE.md), alpha-commerce is deferred for Alpha-1.** The 430-line persona spec that previously lived here (mandate, rule set, six-check Reviewer adaptation, money-truth shape) is preserved verbatim at [docs/alpha/parked/alpha-commerce-persona-spec.md](./parked/alpha-commerce-persona-spec.md).

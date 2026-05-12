@@ -31,6 +31,116 @@ This is what closes the autonomous loop your mandate expects. Without reflection
 
 ---
 
+## 1.5 Operator-substrate quality framework
+
+> **Added 2026-05-12.** Synthesizes findings from the Cluster 2 audit (alpha-trader Reviewer apparatus). Forms the bridge between this doc's reflection model (how persona evolves) and the operator-substrate quality bar that has to hold for reflection to have anything to evolve from.
+
+Reflection works on what's already in the workspace. If the operator-authored substrate the Reviewer reads at reasoning time is weak — internally inconsistent, drifting from machine-parsed config, or claiming autonomy the apparatus can't actually deliver — reflection will accumulate drift on top of drift. **The persona-evolution loop has a quality floor below which evolution becomes noise.**
+
+This section names the four content clusters that gate that floor, how they interrelate, what failure modes emerge when any cluster is weak, and how to test for each.
+
+### The four content clusters
+
+| Cluster | What it is | Where it lives | Owner |
+|---|---|---|---|
+| **C1 — Operator-authored intent** | What the operator commits to. The standing framework against which proposals get judged. | MANDATE.md (workspace north star), `_operator_profile.md` (declared strategy/signals), `_risk.md` (risk envelope) | Operator. Bundle ships defaults; operator MUST customize before the workspace runs *their* operation rather than the bundle template's. |
+| **C2 — Reviewer judgment apparatus** | Who applies what. The persona embodying judgment + the framework it applies + the autonomy ceiling that gates execution. | `/workspace/review/IDENTITY.md`, `/workspace/review/principles.md`, `/workspace/review/_principles.yaml`, `/workspace/context/_shared/AUTONOMY.md`, `/workspace/context/_shared/_autonomy.yaml` | Mixed. IDENTITY + principles + AUTONOMY are operator-authored prose. `_principles.yaml` + `_autonomy.yaml` are machine-parsed; operator edits tune thresholds. |
+| **C3 — Agent prompts** | How LLM reasoning happens. The system prompts the Reviewer + System Agent run under at reasoning time. | `api/agents/yarnnn.py`, `api/agents/reviewer_agent.py`, `api/agents/cockpit_awareness.py`, `api/agents/prompts/` (five-profile registry per ADR-186 + ADR-233) | Platform. Operator does not touch these. Documented in [agent-composition.md](agent-composition.md). |
+| **C4 — Primitives + execution surface** | What the system can actually do. The verbs the Reviewer + System Agent + headless dispatch can call. | `REVIEWER_PRIMITIVES`, `CHAT_PRIMITIVES`, `HEADLESS_PRIMITIVES` registries. Canonical doc: [primitives-matrix.md](primitives-matrix.md) per ADR-168. | Platform. Operator does not extend; gaps surface as "Reviewer wanted to do X and couldn't." |
+
+### Inter-cluster dependencies
+
+The four clusters are not independent. Weakness in one cascades.
+
+```
+C1 (operator-authored intent)         C2 (Reviewer apparatus)
+        ↓                                       ↓
+        └──── Reviewer principles ──────────────┤
+              reference C1 signals              │
+              (hard reject rule #2)             │
+                                                ↓
+                                  C2's autonomy ceiling
+                                  gates execution
+                                                ↓
+                                       C4 (primitives)
+                                  Reviewer's directive
+                                  surface (fire_invocation,
+                                  WriteFile, ProposeAction)
+                                  must include the action
+                                  C2 wants to take
+                                                ↓
+                                       Substrate writes
+                                                ↓
+                                  C3 (agent prompts)
+                                  read the new substrate
+                                  on next reasoning cycle
+```
+
+**Concrete couplings observed in the alpha-trader audit:**
+
+- **C2→C1 (hard):** principles.md hard rule #2 ("rejected if signal not declared in `_operator_profile.md`") makes Reviewer rejection logic structurally coupled to C1 quality. Weak signal declarations in C1 → Reviewer rejects legitimate proposals or accepts ambiguous attribution.
+- **C2 internal (subtle):** AUTONOMY.md (prose) can drift from `_autonomy.yaml` (machine-parsed). The operator reads AUTONOMY.md; the runtime reads YAML. Drift between them means the operator-facing model doesn't match what actually gates execution. This is one of the two CRITICAL failure modes named in the alpha-trader audit (finding A1, ADR-261 D5 collapsed 4 levels to 3, AUTONOMY.md still references 4).
+- **C2→C4 (latent):** AUTONOMY.md describes a "Reviewer-written pause" capability (`paused_until` write). This requires Reviewer to have WriteFile authority over `_autonomy.yaml`. If the operator's `_locks.yaml` (per ADR-258) or `DEFAULT_REVIEWER_WRITE_LOCKS` includes `_autonomy.yaml`, the pause mechanism breaks silently.
+- **C2 self-coupling (semantic):** principles.md's calibration loop ("if approve-incorrect rate climbs, principles tighten") is a self-improvement promise. But Reviewer cannot rewrite operator-authored principles.md; it can only emit `narrow`/`relax` reflection verdicts. The "principles tighten" language overstates apparatus autonomy. (Audit finding A5.)
+
+### Failure modes when each cluster is weak
+
+Below each failure is an **observable signal** — what to look for in real workspace state to detect that the failure is happening. These are testable assertions, suitable for downstream regression-test fixtures.
+
+**C1 weak — operator-authored intent is thin:**
+
+| Failure | Observable signal |
+|---|---|
+| Signals lack measurable entry conditions | `decisions.md` shows high ratio of `defer` verdicts because Reviewer can't pattern-match against vague triggers |
+| Risk envelope (`_risk.md`) numbers don't match operator's actual account | Proposal sizing math produces positions that look correct vs declared risk_percent but feel wrong; `_performance.md` losses larger than declared max_portfolio_daily_var_usd |
+| Bundle MANDATE shipped but operator never customized | Operator's actual edge isn't being judged; Reviewer is judging the bundle author's edge against operator's outcomes |
+
+**C2 weak — Reviewer apparatus is inconsistent:**
+
+| Failure | Observable signal |
+|---|---|
+| AUTONOMY.md prose drifts from `_autonomy.yaml` config | Operator-set delegation value silently falls back to `manual` (load_autonomy rejects unknown enum); every approve verdict queues regardless of intent |
+| `_principles.yaml` has dead config the operator may tune (e.g., `auto_approve_below_cents` post-ADR-261 D5) | Operator tunes a value with zero behavioral effect; trust degrades when expected change doesn't materialize |
+| principles.md cites thresholds not in `_principles.yaml` | Reviewer self-quantifies threshold per cycle; identical evidence produces different verdicts across runs |
+| Persona claims authority (e.g., "principles tighten when approve-incorrect rises") apparatus can't fulfill | Reflection verdicts accumulate without principles.md changes; operator-facing surface looks stagnant despite calibration activity |
+
+**C3 weak — prompts misread substrate:**
+
+| Failure | Observable signal |
+|---|---|
+| Reviewer prompt teaches wrong write target (e.g., points at `reflections.md` post-ADR-256) | Reviewer attempts to write to dead path; no error but no persistence; substrate doesn't accumulate |
+| System Agent prompt routes operator intent to wrong primitive | Operator says "fire X"; system fires Y or asks for clarification when the verb was clear |
+
+**C4 weak — primitives don't cover what C2 wants to do:**
+
+| Failure | Observable signal |
+|---|---|
+| Reviewer wants to commission a fundamental check but `get_fundamentals` is unexposed (alpha-trader README catalogues this) | Reviewer defers with "would benefit from fundamentals lookup" and no path to follow up |
+| AUTONOMY.md pause mechanism requires WriteFile authority that `_locks.yaml` denies | Reviewer reflection emits `pause_autonomy` verdict; nothing happens; operator unaware |
+
+### Quality floor for non-degenerate operation
+
+A workspace's operator-authored substrate is *non-degenerate* (the loop can do real work) when:
+
+1. **C1 minimum** — at least one signal in `_operator_profile.md` has all five fields concrete enough for the Reviewer to pattern-match (Trigger, Entry, Stop, Target, Sizing rule). `_risk.md` numbers match operator's actual account.
+2. **C2 internal consistency** — AUTONOMY.md and `_autonomy.yaml` use identical enum values. `_principles.yaml` thresholds are referenced by principles.md (and vice versa); no thresholds cited in prose without YAML counterpart. No principles.md claims of autonomy that the apparatus structurally can't fulfill.
+3. **C3 + C4 prompt-primitive coherence** — every action the Reviewer's prompt instructs is in `REVIEWER_PRIMITIVES`. No prompt teaches a dead path.
+
+The Cluster 2 audit (2026-05-12) found the alpha-trader bundle passes C1 minimum and C3+C4 coherence but **fails C2 internal consistency on two critical drifts** (A1 + A2 in the audit findings; tracked in [ALPHA-1-PLAYBOOK §3A.audit-findings](../alpha/ALPHA-1-PLAYBOOK.md)).
+
+### Where this framework applies
+
+Use this framework to:
+
+- **Evaluate a new operator's bundle** before shipping it as activatable. Each cluster's minimum bar must hold.
+- **Diagnose Reviewer behavior** that looks wrong. Walk the four clusters; the failure mode tables narrow the search.
+- **Decide whether a content change is operator-substrate (C1) or apparatus-substrate (C2).** The boundary matters because reflection writes can mutate C2 but never C1 — C1 is operator-authority-only.
+- **Track bundle health over time.** Audit findings dated against bundle versions surface drift between bundle updates and runtime code changes (e.g., ADR-261 D5 changed enum but bundle prose wasn't updated).
+
+This framework supersedes any prior implicit "are the contents good?" framing scattered across alpha-1 governance docs.
+
+---
+
 ## 2. What's reflective vs what isn't
 
 Explicit scope, with a clean boundary between what evolves autonomously and what stays operator-owned.

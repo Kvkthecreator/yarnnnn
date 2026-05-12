@@ -134,6 +134,10 @@ default:
 2. **Signal expectancy stability.** Watch `weekly-performance-review`. Are signals tracking their declared baselines?
 3. **Calibration trajectory.** Watch `morning-calibration`. Is realized P&L close to declared expectancy?
 
+**If Reviewer behavior looks off, diagnose via the four content clusters.** [persona-reflection.md §1.5](../../architecture/persona-reflection.md#15-operator-substrate-quality-framework) names the four clusters (operator-authored intent, Reviewer apparatus, agent prompts, primitives) and the failure modes each produces when weak. Most operator-actionable issues live in Cluster 1 (your `_operator_profile.md`, `_risk.md`, MANDATE) or Cluster 2 (Reviewer's principles + autonomy config). Cluster 3+4 issues are platform-side; surface them as observations rather than operator-fixable.
+
+**Pre-launch content quality audit (2026-05-12).** A Cluster 2 audit of the alpha-trader bundle's Reviewer apparatus surfaced 8 findings. Two critical drifts (AUTONOMY.md enum + dead `_principles.yaml` field) were fixed in commit `25c00df`. Six remaining findings (3 material, 3 polish) are tracked at [ALPHA-1-PLAYBOOK §3A.7](../../alpha/ALPHA-1-PLAYBOOK.md). Review the audit if you experience Reviewer verdict quality issues this playbook doesn't cover; the §3A.7 work register names which apparatus content concerns are known-and-acknowledged vs. genuinely novel.
+
 **Optional during Phase 0 — tune for your actual capital:**
 
 | File | What to tune | Why |
