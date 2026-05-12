@@ -317,3 +317,29 @@ Secondary dimensions touched and explicitly preserved:
 - **Channel** (Axiom 6): `/schedule` Phase 3 FE surface renders the mode field visibly per recurrence; the operator can see their workspace's cost-shape at a glance.
 
 No dimension is inadvertently spanning. The ADR's load-bearing claim is in one cell (Trigger), and the new property (`mode`) lives on the existing recurrence record.
+
+---
+
+## 12. Amendment 2026-05-12 — Capability gate at mechanical dispatch
+
+**Triggered by**: alpha-trader workspace observation — a workspace with the alpha-trader bundle activated (which scaffolds `track-positions` / `track-account` / `track-orders` mechanical recurrences) but no Trading platform connected produced ~1 narrative entry per minute (`SyncPlatformState failed: Failed to get trading credentials`), wallpapering the Feed surface and obscuring meaningful events.
+
+**Decision**: `_dispatch_mechanical` gains a capability gate that runs *before* the primitive handler is invoked. The gate is convention-based, no schema bump:
+
+1. **Derivation**: a small helper `_required_platform_for_primitive(name, args)` returns the required `platform_connections.platform` value derived from primitive args. For `SyncPlatformState`, the `tool="platform_<name>_..."` arg names the platform 1:1 with the connection record. Returns `None` for primitives that don't depend on a platform connection. Future platform-bound mechanical primitives extend this helper, not the gate structure.
+2. **Check**: `_platform_connection_active(client, user_id, platform)` is a single `platform_connections` lookup (`status='active'`). Fail-closed (DB error → treated as missing).
+3. **Skip path on miss**: `record_execution_event(status="skipped", error_reason="capability_missing")`, return `_result_failed(...)`. The scheduler advances `next_run_at` normally — the recurrence is not paused at the substrate level (operator can pause via `Schedule(action="pause")` if they want).
+4. **Transition-only narrative**: `_last_skip_reason(client, user_id, slug)` reads the most-recent `execution_events.error_reason`. If the prior reason was *not* `capability_missing`, emit one `_emit_system_narrative` entry naming the missing platform and the two operator paths (reconnect or pause). Subsequent firings stay silent until either action transitions the prior reason to something else.
+
+**Companion change in the same commit (singular implementation discipline)**: the per-fire `_emit_system_narrative` call at the bottom of `_dispatch_mechanical` was firing on **every** mechanical run regardless of `success`. This was the actual spam source — failed credentialled mirrors emitted both the failure summary AND the housekeeping per-fire entry. Per-fire narrative is now `if success` only. Failed runs land an `execution_events` row but no Feed entry. The capability gate handles the operator-facing transition signal for the missing-credentials case; transient/unexpected failures remain visible via `execution_events` (and the upcoming observability surface) without flooding the Feed.
+
+**What this preserves**: FOUNDATIONS Axiom 9 (every invocation emits a narrative entry) is honored at the *audit* layer (`execution_events`); the *feed* layer applies a weight-and-suppression policy on top, which Axiom 9's commentary explicitly permits ("rendering weight (material / routine / housekeeping) is UI policy, logging is complete"). The capability gate's transition entry is itself a narrative entry — Axiom 9 isn't bypassed, repeated identical entries are suppressed.
+
+**What this does NOT do** (deferred):
+- No schema field on `Recurrence` for `requires_platform`. Auto-derive from primitive args is sufficient today; explicit declaration becomes pressure-driven if a non-derivable case appears.
+- No corresponding gate on judgment-mode recurrences. Judgment recurrences read substrate (not platform APIs) as primary perception per ADR-264; when they do call a platform tool the Reviewer's prompt already says "stand down quietly" and the surface_reviewer_actions narration handles operator-facing surfacing. If judgment-mode platform-API failures become a noise source, this gate generalizes trivially.
+- No `Schedule(action="pause", reason="capability_missing")` auto-pause. The recurrence stays scheduled so it resumes naturally when the operator connects the platform; auto-pausing would require operator intervention to un-pause and creates a parallel state to track.
+
+**Implementation surface**: `api/services/invocation_dispatcher.py` only. ~80 LOC added (3 helpers + gate block + `if success` guard on the per-fire narrative). Zero schema, zero new ADR, zero test_recent_commits.py impact.
+
+**Operational follow-up**: a one-shot DB delete pruned the existing 2,328 stale `SyncPlatformState failed:` narrative rows in alpha-trader-2 / kvkthecreator workspaces. Going forward the gate prevents the spam at source.

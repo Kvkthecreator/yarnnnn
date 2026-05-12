@@ -395,6 +395,98 @@ def _parse_primitive_directive(prompt: str) -> Optional[tuple[str, dict]]:
     return (primitive_name, parsed)
 
 
+# ---------------------------------------------------------------------------
+# Capability gate helpers (ADR-263 amendment 2026-05-12)
+#
+# Mechanical primitives that wrap platform APIs (SyncPlatformState today;
+# others later) can be derived to a required platform_connections.platform
+# value from their args. The dispatcher checks the connection before firing
+# and skips with capability_missing when absent — preventing per-minute
+# credential-failure feed spam on workspaces that have a recurrence
+# scheduled but no platform connected.
+#
+# Detection is convention-based (no schema bump): every platform tool name
+# is `platform_<name>_<verb>` and `platform_connections.platform` stores
+# `<name>` (slack | notion | github | commerce | trading). One-line parser.
+# ---------------------------------------------------------------------------
+
+
+def _required_platform_for_primitive(
+    primitive_name: str, primitive_args: dict
+) -> Optional[str]:
+    """Derive the required platform_connections.platform value (e.g. "trading")
+    from a mechanical primitive's args, or None if the primitive doesn't
+    depend on a platform connection.
+
+    Today only SyncPlatformState (ADR-264) needs this — its `tool` arg names
+    a platform tool 1:1 with the connection record. Future platform-bound
+    primitives can be added here without changing the dispatcher gate
+    structure.
+    """
+    if primitive_name != "SyncPlatformState":
+        return None
+    tool = (primitive_args or {}).get("tool")
+    if not isinstance(tool, str) or not tool.startswith("platform_"):
+        return None
+    # platform_<name>_<verb> → <name>
+    parts = tool.split("_", 2)
+    if len(parts) < 3:
+        return None
+    return parts[1]
+
+
+def _platform_connection_active(
+    client, user_id: str, platform: str
+) -> bool:
+    """True iff the user has an active platform_connections row for `platform`.
+    Fail-closed: any DB error returns False (treat as missing — better to
+    skip than to fire-and-fail on broken auth)."""
+    try:
+        result = (
+            client.table("platform_connections")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("platform", platform)
+            .eq("status", "active")
+            .limit(1)
+            .execute()
+        )
+        return bool(result.data)
+    except Exception as e:
+        logger.warning(
+            "[DISPATCH:cap-gate] platform_connections lookup failed for %s/%s: %s",
+            user_id[:8], platform, e,
+        )
+        return False
+
+
+def _last_skip_reason(client, user_id: str, slug: str) -> Optional[str]:
+    """Most-recent execution_events.error_reason for this slug — used by the
+    capability gate to emit a narrative entry only on transition (first
+    detection of capability_missing) and stay silent on subsequent firings.
+    Returns None on no-history or DB error (treat as transition — emit once)."""
+    try:
+        result = (
+            client.table("execution_events")
+            .select("error_reason")
+            .eq("user_id", user_id)
+            .eq("slug", slug)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        if not rows:
+            return None
+        return rows[0].get("error_reason")
+    except Exception as e:
+        logger.warning(
+            "[DISPATCH:cap-gate] last_skip_reason lookup failed for %s/%s: %s",
+            user_id[:8], slug, e,
+        )
+        return None
+
+
 async def _dispatch_mechanical(
     client,
     user_id: str,
@@ -430,6 +522,52 @@ async def _dispatch_mechanical(
         return _result_failed(recurrence, msg, trigger=trigger)
 
     primitive_name, primitive_args = parsed
+
+    # Capability gate (ADR-263 amendment 2026-05-12): when a mechanical primitive
+    # depends on a platform connection that isn't active, skip without firing
+    # the primitive. Detection is derived from primitive args (no schema bump):
+    # SyncPlatformState's `tool="platform_<name>_..."` argument names the
+    # required platform 1:1 with platform_connections.platform.
+    #
+    # Suppression rule: emit ONE narrative entry on the transition firing
+    # (prior status was anything other than capability_missing); subsequent
+    # firings remain silent until the operator either connects the platform
+    # or pauses the recurrence. Eliminates per-minute feed spam without
+    # losing first-detection signal.
+    required_platform = _required_platform_for_primitive(primitive_name, primitive_args)
+    if required_platform and not _platform_connection_active(client, user_id, required_platform):
+        prior_reason = _last_skip_reason(client, user_id, recurrence.slug)
+        is_transition = prior_reason != "capability_missing"
+        record_execution_event(
+            client, user_id=user_id, slug=recurrence.slug,
+            mode="mechanical", trigger_type=trigger,
+            status="skipped", error_reason="capability_missing",
+            error_detail=f"required platform {required_platform!r} not connected",
+        )
+        if is_transition:
+            await _emit_system_narrative(
+                client, user_id, recurrence,
+                summary=(
+                    f"{recurrence.slug} paused — {required_platform.title()} not connected"
+                ),
+                body=(
+                    f"`{recurrence.slug}` requires the {required_platform.title()} platform "
+                    f"to be connected. Reconnect at /settings?tab=connectors, or pause this "
+                    f"recurrence in /workspace/_recurrences.yaml. Subsequent firings will "
+                    f"stay silent until either action is taken."
+                ),
+                trigger=trigger,
+            )
+        else:
+            logger.info(
+                "[DISPATCH:mechanical] %s/%s skipped (capability_missing, silent — repeat)",
+                user_id[:8], recurrence.slug,
+            )
+        return _result_failed(
+            recurrence,
+            f"capability_missing: {required_platform}",
+            trigger=trigger,
+        )
 
     # Look up the handler in the central HANDLERS dict.
     try:
@@ -493,20 +631,26 @@ async def _dispatch_mechanical(
     )
 
     # FOUNDATIONS Axiom 9: every invocation emits a narrative entry. Mechanical
-    # recurrences ARE invocations (Axiom 9 + ADR-263) — their silence pre-
-    # 2026-05-11 violated the axiom. Emit ONE housekeeping-weight entry per
-    # mechanical fire summarizing what happened. The narrative_digest rolls
-    # these up into daily roll-ups; per-fire entries stay weight-gated out
-    # of material/routine FE rendering by default. On failure the entry
-    # already lands via the exception path above (record_execution_event +
-    # _result_failed); this branch covers success.
-    summary = _summarize_mechanical_result(primitive_name, result)
-    await _emit_system_narrative(
-        client, user_id, recurrence,
-        summary=summary,
-        trigger=trigger,
-        weight="housekeeping",
-    )
+    # recurrences ARE invocations (Axiom 9 + ADR-263) and emit ONE housekeeping-
+    # weight entry per successful fire. The narrative_digest rolls these up
+    # into daily roll-ups; per-fire entries stay weight-gated out of
+    # material/routine FE rendering by default.
+    #
+    # Failure suppression (ADR-263 amendment 2026-05-12): per-fire narrative
+    # is success-only. Failed runs already land an execution_events row;
+    # emitting a per-fire feed entry every failure produced the
+    # ~1 entry/minute "background:" spam from credentialled-but-broken
+    # mirrors. The capability gate above handles transition emission for
+    # the common missing-credentials case; transient/unexpected failures
+    # remain visible via execution_events without flooding the feed.
+    if success:
+        summary = _summarize_mechanical_result(primitive_name, result)
+        await _emit_system_narrative(
+            client, user_id, recurrence,
+            summary=summary,
+            trigger=trigger,
+            weight="housekeeping",
+        )
 
     logger.info(
         "[DISPATCH:mechanical] %s/%s done (status=%s duration_ms=%d primitive=%s)",
