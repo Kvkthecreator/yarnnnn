@@ -12,14 +12,16 @@ last_updated: 2026-05-12
 **Supersedes:** `docs/architecture/workspace-init.md` (merged) · `docs/architecture/workspace-conventions.md` (merged) · `docs/design/SHARED-CONTEXT-WORKFLOW.md` · `docs/design/ONBOARDING-TP-AWARENESS.md` · `docs/design/USER-JOURNEY.md`
 **ADRs:** 106 · 119 · 138 · 142 · 149 · 151 · 152 · 154 · 170 · 194 · 205 · 206 · 207 · 209 · 217 · 219 · 222 · 223 · 226 · 231 · 244 · 251 · 253 · 254 · 255
 
-This doc answers four questions, in order:
+This doc answers six questions, in order:
 
 0. **Which layer is what?** — the four-layer model (kernel · workspace · program · agent), plus where user-account concerns live (they're not workspace).
 1. **What files exist in a workspace, who owns each path, and what's the lifecycle?** — the spatial inventory.
 2. **What gets seeded when, by which trigger?** — the temporal bootstrap sequence.
 3. **What does autonomous operation actually require?** — the autonomy threshold.
+4. **How does the closed autonomy loop actually run?** — the loop trace.
+5. **What specifically breaks at cold-start when a prerequisite is missing?** — the failure-mode catalog.
 
-For the operator-facing view of these same files (per-tab contracts, CRUD shapes, affordances), see [docs/design/WORKSPACE.md](../design/WORKSPACE.md).
+For the operator-facing view of these same files (per-tab contracts, CRUD shapes, affordances), see [docs/design/WORKSPACE.md](../design/WORKSPACE.md). For how agents *read* this substrate at reasoning time (prompt assembly, profile selection, cockpit awareness), see [docs/architecture/agent-composition.md](agent-composition.md) — that doc is the orthogonal counterpart on the prompt side.
 
 ---
 
@@ -341,7 +343,109 @@ Per ADR-244 + ADR-226, `workspace_state.activation_state` enum:
 
 ---
 
-## 4. Key files
+## 4. The autonomy loop
+
+Once the autonomy threshold is met (§3), the workspace runs a closed loop: trigger wakes Reviewer → Reviewer reads substrate + assembles prompt → tool-use loop produces verdict → dispatcher gates execution against autonomy policy → outcome lands in substrate → next cycle reads it. This section traces the loop end-to-end. Prompt-assembly mechanics live in [agent-composition.md](agent-composition.md); what follows is the substrate-and-dispatch view.
+
+### 4.1 Triggers — two shapes (post ADR-263 D2)
+
+Per [ADR-263 D2](../adr/ADR-263-recurrence-mode-mechanical-vs-judgment.md) the Reviewer trigger taxonomy collapsed from four to two. `proposal | reflection | heartbeat | addressed` (ADR-256 original) → `reactive | addressed` (ADR-260 → ADR-263).
+
+| Trigger | Entry point | When | Pre-loaded context |
+|---|---|---|---|
+| `reactive` | `services/review_proposal_dispatch.py::on_proposal_created` | An `action_proposals` row is inserted (operator/agent proposes an action) | Proposal row + domain substrate (`_performance.md`, `principles.md`, `IDENTITY.md`, `PRECEDENT.md`, `_risk.md`, `_operator_profile.md`) |
+| `reactive` | `services/invocation_dispatcher.py::dispatch` when `recurrence.mode == "judgment"` | A judgment-mode recurrence fires on its cron | Recurrence prompt + signal files + workspace_state + last 7d `decisions.md` |
+| `addressed` | `agents/yarnnn.py::execute_stream_with_tools` chat-executor flow | Operator addresses YARNNN in chat with a turn that requires judgment | All pre-loaded substrate + operator message + conversation window |
+| (not a trigger) | `services/invocation_dispatcher.py::_dispatch_mechanical` | A `mechanical`-mode recurrence fires on its cron (e.g. `SyncPlatformState`) | No Reviewer invocation — pure deterministic Python writes substrate; the next reactive/addressed wake reads what mechanical wrote |
+
+Mechanical-mode recurrences are not a trigger — they're substrate sensors per [ADR-264](../adr/ADR-264-substrate-canonical-world.md) that keep the substrate the Reviewer reads fresh between Loop wake-ups.
+
+### 4.2 Substrate reads on wake
+
+On wake the Reviewer receives a pre-loaded context bundle assembled by the dispatcher. Once inside the tool-use loop it can call `ReadFile` to fetch any other substrate path on demand. The pre-loaded set:
+
+| File | Role at reasoning time |
+|---|---|
+| `/workspace/review/IDENTITY.md` | Persona embodiment — operator-authored character traits framing judgment. Empty → neutral skeptical baseline. |
+| `/workspace/review/principles.md` | Framework constraints — operator's stated evaluation thresholds in prose. Empty → "no declared framework" fallback. |
+| `/workspace/review/_principles.yaml` | Machine-parsed thresholds. Loaded at *dispatch* time (not Reviewer reasoning) via `services.review_policy.load_principles()`. |
+| `/workspace/context/_shared/MANDATE.md` | Operation's primary intent — the reason the Reviewer exists. |
+| `/workspace/context/_shared/AUTONOMY.md` | Prose delegation declaration (legibility for human/LLM; not parsed). |
+| `/workspace/context/_shared/_autonomy.yaml` | Machine-parsed delegation policy. Loaded at *dispatch* time via `services.review_policy.load_autonomy()` — drives `should_auto_execute_verdict()`. |
+| `/workspace/context/_shared/PRECEDENT.md` | Durable interpretations / boundary-case rulings. Filters reasoning over substrate; overrides principles per prompt framing. |
+| `/workspace/context/{domain}/_performance.md` | Money-truth track record per domain (rolling 7d/30d/90d, ADR-195 v2 Phase 3). |
+| `/workspace/context/{domain}/_operator_profile.md` | Domain strategy + operator style. Program-supplied for active programs. |
+| `/workspace/context/{domain}/_risk.md` | Hard floors / risk envelope. Trading-specific; ceiling enforcement source per ADR-192. |
+| `/workspace/review/decisions.md` | Reviewer's own prior verdicts. Not pre-loaded; available via on-demand `ReadFile` for self-consistency review. |
+
+### 4.3 Prompt assembly + tool-use loop
+
+See [agent-composition.md §Reviewer prompt assembly](agent-composition.md) for the canonical assembly mechanics. In summary: system prompt is a platform-fixed `_PERSONA_FRAME` + auto-generated cockpit-awareness section from `cockpit_awareness.py` (composed at module load from path constants + `REVIEWER_PRIMITIVES` registry — never drifts from runtime). User message is dispatcher-assembled with persona → framework (principles + precedent) → substrate → trigger-specific framing.
+
+Bounded loop: Sonnet (proposal-arrival reactive) = 3 rounds max; Haiku (recurrence-fire reactive + addressed) = 12 rounds max. The Reviewer closes by calling `ReturnVerdict`. Per-round prompt nudges enforce convergence.
+
+### 4.4 Verdict dispatch
+
+The Reviewer emits a `ReviewerOutput` TypedDict — `{verdict, reasoning, confidence, actions_taken, proposals?, evidence_summary?, directives?}`. Verdict types: `approve | reject | defer | stand_down` (proposal/recurrence) or `no_change | narrow | relax | character_note | pause_autonomy` (reflection recurrence). Dispatch routing per ADR-229 D1:
+
+**Approve** → `services.review_policy.should_auto_execute_verdict()` reads `_autonomy.yaml` and decides:
+- **Pause active** (`paused_until > now`) → advisory queue, regardless of delegation
+- **`delegation: manual`** → advisory queue (operator must click Approve)
+- **`delegation: autonomous`** → `handle_execute_proposal` fires the platform tool
+- **`delegation: bounded`** → ceiling check against `proposal.estimated_cents` vs `ceiling_cents`; under → execute; over → advisory queue
+- **Missing `ceiling_cents` on bounded** → advisory queue ("no ceiling_cents set")
+- **Missing `estimated_cents` on proposal** → advisory queue ("no estimated value") — this is the trading-specific failure mode when `_risk.md` is skeleton
+
+**Reject** → `handle_reject_proposal` marks proposal `status="rejected"`; not autonomy-gated (Reviewer's narrowing is always binding).
+
+**Defer** → records observation entry; if `directives` array present, the dispatcher executes each directive (`fire_invocation` / `write_file` to `/workspace/review/*` / `clarify`) per [ADR-253 D2](../adr/ADR-253-reviewer-substrate-native-agent.md).
+
+**Stand_down** → observation entry only; loop closes with no action.
+
+Every verdict appends to `/workspace/review/decisions.md` via `services.reviewer_audit.append_decision()` with `authored_by="reviewer:{occupant}"` per ADR-209.
+
+### 4.5 Outcome reconciliation + calibration recursion
+
+Execution side-effects land at the platform (broker, commerce provider, Slack, etc.). The loop closes through two back-office paths:
+
+**Outcome reconciliation** — daily `back-office-outcome-reconciliation` recurrence calls `services.outcomes.ledger.fold_outcome_candidates()`. Reads `last_reconciled_at` from the domain's `_performance.md` frontmatter, fetches platform events since, writes:
+- `/workspace/context/{domain}/_performance.md` — rolling 7d/30d/90d totals, processed-event-keys (idempotency), by-action breakdown, recent narrative
+- `/workspace/context/_performance_summary.md` — cross-domain rollup (`services.outcomes.ledger.write_performance_summary()` line 710)
+
+High-impact outcomes (above `_principles.yaml::high_impact_threshold_cents`) additionally route to `/workspace/context/{domain}/_feedback.md` per [ADR-181 Phase 5a](../adr/ADR-181-source-agnostic-feedback-layer.md).
+
+**Reviewer calibration** — periodic `back-office-reviewer-reflection` recurrence (judgment mode) wakes the Reviewer with prior decisions + `_performance_summary.md`. Reviewer's verdict types are different here (`no_change | narrow | relax | character_note | pause_autonomy`). Verdicts can mutate `principles.md` or write `paused_until` to `_autonomy.yaml` per [ADR-248 D3](../adr/ADR-248-reviewer-periodic-pulse.md) as a time-bounded circuit breaker.
+
+**Closure.** Next reactive/addressed wake reads the updated `_performance.md` + calibrated `principles.md`. The substrate IS the bus per [FOUNDATIONS Axiom 1 fourth sub-clause](FOUNDATIONS.md) — there is no parallel control-flow channel between cycles. Mechanical-mode recurrences sit at the deterministic end of this same architecture, keeping external state mirrored into substrate between wake-ups.
+
+---
+
+## 5. Cold-start failure modes
+
+Definitive catalog: for each prerequisite, what specifically breaks at runtime and how to recover. This is the foundation for testing playbooks — every row below is a testable assertion.
+
+| Prerequisite | If missing / skeleton | Severity | Recovery |
+|---|---|---|---|
+| **MANDATE.md skeleton** | Reviewer wakes with neutral frame; cockpit shows "mandate needed" CTA; recurrences not auto-fired (Schedule gate). Reviewer still adjudicates evidence — no auto-execution because no operation context. | **Operational blocker for autonomy** | Author MANDATE.md (via chat or direct edit) — Schedule gate unblocks once non-skeleton |
+| **IDENTITY.md skeleton** | Reviewer defaults to neutral skeptical baseline (`reviewer_agent.py:438`). Verdicts render but lack persona voice. | Non-blocking (acceptable cold-start) | Operator authors persona later via chat |
+| **principles.md skeleton** | Reviewer has no framework. User message says "no declared framework." Verdict renders on EV grounds against MANDATE + `_performance.md` only. | Non-blocking | Framework builds over time via reflection-recurrence calibration |
+| **_principles.yaml empty/missing** | `services.review_policy.load_principles()` returns `{}`. High-impact threshold detection skipped → all outcomes treated as routine, no high-impact feedback routing per ADR-181. | Non-blocking | Authored by operator or system at activation |
+| **AUTONOMY.md skeleton (prose only)** | Documentation gap; not load-bearing. Gate reads `_autonomy.yaml`. | Non-blocking | Author for legibility |
+| **`_autonomy.yaml` skeleton / missing** | `load_autonomy()` returns `{}` → `should_auto_execute_verdict()` defaults to `delegation="manual"` → **every approve verdict becomes advisory**. Reviewer adjudicates, nothing auto-executes. | **CRITICAL — disables autonomy entirely** | Author `_autonomy.yaml` with `delegation: bounded` (+ `ceiling_cents`) or `autonomous` |
+| **`_autonomy.yaml` `delegation: manual`** | Every approve verdict routes to operator-approval queue (by design). | By design | Change to `bounded` or `autonomous` when ready |
+| **`_autonomy.yaml` `paused_until > now`** | Gate returns False before delegation check; circuit-breaker mode. | By design (ADR-248 D3) | Wait for expiry or manual unpause |
+| **Reviewer OCCUPANT.md never authored** | No failure — OCCUPANT.md is metadata, not gating. Reviewer wakes normally; IDENTITY + principles drive persona. | No impact | None needed |
+| **Program bundle active + `_operator_profile.md` skeleton** | Reviewer wakes without domain strategy context. Verdicts lack strategy framework. Activation overlay engaged per ADR-226. | Non-blocking but degraded judgment | Author via activation overlay walkthrough |
+| **Program bundle active + `_risk.md` skeleton (trading)** | Proposal value estimation returns None → ceiling check fails → **trading autonomy disabled per-domain** even with `_autonomy.yaml: autonomous`. | **CRITICAL for trading workspaces** | Author `_risk.md` before trading recurrences fire |
+| **All four (MANDATE + AUTONOMY + principles + `_operator_profile`) skeleton** | Reviewer judges on `_performance.md` only; if also empty, defers. No auto-execution. Activation overlay is recovery path. | Critical | Activation overlay walkthrough or chat-driven authoring |
+
+**The single load-bearing fact about autonomy:** even with everything else authored, `_autonomy.yaml` missing or skeleton silently routes every Reviewer approval to the operator-approval queue. Reviewer judgment is correct; nothing happens automatically. **This is the first thing a cold-start playbook must verify.**
+
+For trading workspaces specifically: `_autonomy.yaml` authored AND `_risk.md` authored are both required for the autonomous loop to actually fire trades. Either alone is insufficient.
+
+---
+
+## 6. Key files
 
 | File | Role |
 |---|---|
@@ -357,10 +461,11 @@ Per ADR-244 + ADR-226, `workspace_state.activation_state` enum:
 | [web/app/auth/callback/page.tsx](../../web/app/auth/callback/page.tsx) | First-run redirect gate |
 | [web/components/settings/WorkspaceSection.tsx](../../web/components/settings/WorkspaceSection.tsx) | `/workspace` surface (program lifecycle + substrate status) |
 
-## 5. Related
+## 7. Related
 
 - [docs/design/WORKSPACE.md](../design/WORKSPACE.md) — operator-facing surface contracts (the design counterpart to this doc)
-- [docs/architecture/FOUNDATIONS.md](FOUNDATIONS.md) — axioms (Substrate, Identity, Purpose, Trigger, Mechanism, Channel)
+- [docs/architecture/agent-composition.md](agent-composition.md) — **how agents read this substrate at reasoning time** (prompt assembly, profile selection, cockpit awareness). Orthogonal counterpart to this doc on the prompt side.
+- [docs/architecture/FOUNDATIONS.md](FOUNDATIONS.md) — axioms (Substrate, Identity, Purpose, Trigger, Mechanism, Channel); v8.4 hardening on substrate-as-the-bus + operator-as-one-principal-with-two-embodiments
 - [docs/architecture/SERVICE-MODEL.md](SERVICE-MODEL.md) — end-to-end service model
 - [docs/architecture/authored-substrate.md](authored-substrate.md) — ADR-209 deep dive (revision chain, attribution)
 - [docs/architecture/compositor.md](compositor.md) — kernel/program seam for surface composition
