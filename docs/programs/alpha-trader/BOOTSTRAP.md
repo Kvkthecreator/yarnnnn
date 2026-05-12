@@ -36,7 +36,7 @@ The bundle is **operator-grade out-of-box**. You can run the workspace end-to-en
 ## The four-stage sequence
 
 ```
-Stage 0 — Activate              (1 click + acknowledgment)
+Stage 0 — Activate + Connect    (fork bundle + attach Alpaca paper key)
    ↓
 Stage 1 — Observe Phase 0       (1–2 weeks; recurrences fire, proposals queue)
    ↓
@@ -45,31 +45,55 @@ Stage 2 — Calibrate              (raise ceiling; optionally tune signals)
 Stage 3 — Live autonomous       (auto-execution within new ceiling)
 ```
 
+**Why activation and platform connection are paired in Stage 0.** Per [ADR-224 §3](../../adr/ADR-224-kernel-program-boundary-refactor.md) (capability-implicit activation), a bundle is considered "active for this workspace" only when the workspace has the platform connection that bundle requires. Forking alpha-trader without connecting Alpaca produces a substrate-complete-but-inert state: all recurrences scaffolded, all files present, but `activation_state == "none"` because no Alpaca connection means the trading operation can't actually run. The fork is the substrate half; the platform connection is the capability half. Both are needed before `activation_state` flips to `"operational"`.
+
 ---
 
-## Stage 0 — Activate
+## Stage 0 — Activate + Connect
 
-**What you do:** From `/workspace?first_run=1` (or any time later from Settings → Workspace), click **Activate alpha-trader**.
+**What you do:**
+1. From `/workspace?first_run=1` (or any time later from Settings → Workspace), click **Activate alpha-trader**.
+2. After activation completes, connect Alpaca paper credentials via the platform connection flow.
 
-**What happens on the backend** (per [WORKSPACE.md §2 Phase 5](../../architecture/WORKSPACE.md#phase-5--reference-workspace-fork-optional)):
+**What happens on the backend during activation** (per [WORKSPACE.md §2 Phase 5](../../architecture/WORKSPACE.md#phase-5--reference-workspace-fork-optional)):
 
 1. `POST /api/programs/activate` runs.
-2. `services.programs.fork_reference_workspace()` walks the bundle's `reference-workspace/` directory.
-3. For each file:
-   - `tier: canon` files copied verbatim (alpha-trader: `_autonomy.yaml`)
-   - `tier: authored` files copied to skeleton-state (alpha-trader: `_universe.yaml`, `_principles.yaml`) — operator may overwrite
-   - All other files copied as initial content (the bundle's pre-authored MANDATE, IDENTITY, principles, Reviewer IDENTITY, etc.)
-4. Scheduling index materialized — `tasks` table populated with `next_run_at` for every recurrence.
-5. Workspace lands at `activation_state = "operational"` immediately. MANDATE is non-skeleton (the bundle's pre-authored content satisfies `is_skeleton_content() == False`).
+2. `services.programs.fork_reference_workspace()` walks the bundle's `reference-workspace/` directory and writes ~14 files (5 _shared/, 2 trading/, 6 review/, 5 specs/, 1 root _recurrences.yaml). The kernel-seeded files that pre-existed (AUTONOMY.md, _autonomy.yaml, review/IDENTITY.md, review/_principles.yaml) are skipped — already at canon state.
+3. Bundle files arrive on disk:
+   - `tier: canon` files copied verbatim (alpha-trader: `_autonomy.yaml` with `delegation: bounded`, `ceiling_cents: 20000`)
+   - `tier: authored` files copied (alpha-trader: `_universe.yaml`, `_principles.yaml`) — operator may overwrite
+   - Other files copied (MANDATE template, IDENTITY template, BRAND template, CONVENTIONS, _operator_profile, _risk, Reviewer principles, specs library)
+4. Scheduling index materialized — `tasks` table populated with `next_run_at` for every recurrence (14 recurrences for alpha-trader).
+5. **`activation_state` is still `"none"`** at this point — bundle is forked but no platform_connections exist yet.
 
-**What you'll see:**
+**Then connect Alpaca** (`POST /api/integrations/trading/connect`):
+
+6. Alpaca API key + secret stored in `platform_connections` (encrypted via `INTEGRATION_ENCRYPTION_KEY`)
+7. **Now `activation_state` flips to `"operational"`** — `services.bundle_reader.bundles_active_for_workspace()` sees the Alpaca connection and reports alpha-trader as active.
+8. Mechanical recurrences (`track-positions`, `track-account`, `track-orders`) begin firing on their cron cadences during market hours.
+
+**Verified post-Stage-0 state** (smoke-tested 2026-05-12 against alpha-trader-2 with full reset → activate → connect):
+
+| Surface signal | Expected value | Notes |
+|---|---|---|
+| `has_agents` | `true` | YARNNN agent (thinking_partner role) seeded at workspace_init Phase 1 |
+| `activation_state` | `"operational"` | Requires both bundle fork + platform connection |
+| `active_program_slug` | `"alpha-trader"` *if* MANDATE heading still says `# Mandate — alpha-trader (template)` | **Known gap:** if you customize the MANDATE heading slug (e.g., to a persona-specific name), `parse_active_program_slug()` may not match a valid bundle slug and this field returns `null`. The workspace still runs correctly; just the cockpit's program-specific UI affordances may not surface. See "Known surface drifts" below. |
+| `substrate_status.mandate` | `"authored"` | Bundle's MANDATE.md is rich enough (~4500 chars with ADR-266 D3 schema) to pass the skeleton check despite carrying an `**Operator**: author this file` prompt |
+| `substrate_status.identity` | `"skeleton"` | Operator-facing IDENTITY template ships as skeleton-with-prompts; operator must author. *(Note: prior to the workspace_utils.is_skeleton_content fix on 2026-05-12, this incorrectly reported `"authored"`.)* |
+| `substrate_status.brand` | `"skeleton"` | Same — skeleton template; may stay empty for pure-personal trading workspaces |
+| `substrate_status.autonomy` | `"authored"` | `_autonomy.yaml` shipped tier-canon |
+| `substrate_status.principles` | `"authored"` | Reviewer principles.md shipped full-authored |
+| `capability_gaps` | `[]` | No gaps once Alpaca is connected |
+
+**What you'll see in the cockpit:**
 - Cockpit tabs populate (Chat / Work / Agents / Files).
 - The Mandate face on the Work cockpit shows the bundle's authored Primary Action.
 - The Money truth face shows zero P&L (no trades yet).
 - The Performance face shows empty calibration (no decisions yet).
-- The Tracking face shows pending recurrence schedules but no fires yet.
+- The Tracking face shows pending recurrence schedules.
 
-**Time:** Under 30 seconds.
+**Time:** Activation under 30 seconds. Alpaca connection ~10 seconds. Total Stage 0 under 1 minute.
 
 ---
 
@@ -220,6 +244,32 @@ default:
 - See [WORKSPACE.md §2](../../architecture/WORKSPACE.md#2-temporal-bootstrap--what-gets-seeded-when) for reset semantics.
 
 **For any cold-start failure mode not covered here**, see [WORKSPACE.md §5 — Cold-Start Failure Modes](../../architecture/WORKSPACE.md#5-cold-start-failure-modes). That catalog covers every prerequisite × what specifically breaks × code line that fails.
+
+---
+
+## Known surface drifts
+
+Surfaced by the 2026-05-12 smoke test against alpha-trader-2 (full reset → activate → connect). All are display-layer issues; the underlying autonomy loop functions correctly.
+
+**1. `active_program_slug` returns `null` after operator customizes MANDATE heading slug.**
+
+`parse_active_program_slug()` reads the slug from the MANDATE.md heading (`# Mandate — {slug} (template)`). If the operator rewrites the heading to a persona-specific name not in the bundle registry (e.g., `# Mandate — alpha-trader-2 (Stat-Arb Pairs)` — where `alpha-trader-2` is not a valid program bundle slug), the function returns a slug, but `routes/workspace.py:1055` filters it out via `candidate in _all_slugs()`, and the surface ends up with `active_program_slug = null`.
+
+**Impact:** the cockpit may not surface program-specific UI affordances (BundleBanner, pinned-task lists, alpha-trader-shaped cockpit faces) because the compositor consumes `active_program_slug` to decide which bundle's SURFACES.yaml to apply. The workspace continues to run correctly underneath — all recurrences fire, Reviewer adjudicates, substrate accumulates.
+
+**Workaround:** preserve the bundle slug in the heading. Keep `# Mandate — alpha-trader ({your-suffix})` rather than substituting a non-bundle name. Or wait for the proper fix per [ADR-244 D6](../../adr/ADR-244-workspace-settings-surface.md) follow-on, which separates the bundle-affiliation marker from the operator's persona name.
+
+**2. Bundle-template skeleton detection (fixed 2026-05-12; deploy required).**
+
+Prior to 2026-05-12, `services.workspace_utils.is_skeleton_content()` failed to recognize the alpha-trader bundle's IDENTITY.md template (which starts with `> **Operator**: author this file. YARNNN reads it to understand who is at the keyboard...`). Operators saw `substrate_status.identity = "authored"` for the verbatim bundle template, masking the recommendation that IDENTITY should be customized.
+
+**Fix:** added gated check for the `**Operator**: author this` bundle-template pattern, with a length floor (< 1500 chars) so MANDATE.md — which carries the same prompt alongside substantive Primary Action content — still classifies correctly as authored. See commit on `services/workspace_utils.py`. **Operator action needed only if Render API hasn't redeployed yet** — confirm via `GET /api/workspace/state` returning `substrate_status.identity == "skeleton"` on a fresh fork.
+
+**3. Cold-start sequencing — activate vs. activate+connect.**
+
+A bundle fork without platform connection produces a substrate-complete-but-inert workspace: all files in place, all recurrences scaffolded, but `activation_state == "none"` because `services.bundle_reader.bundles_active_for_workspace()` keys on `platform_connections`, not on bundle-file presence. Per ADR-224 §3 capability-implicit activation. Stage 0 must include both fork AND connect for `activation_state` to flip to `operational`.
+
+This is now reflected in the four-stage sequence above; earlier versions of this playbook described Stage 0 as activation-only.
 
 ---
 
