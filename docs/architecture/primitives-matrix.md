@@ -389,14 +389,14 @@ When renaming, adding, or removing a primitive, perform a grep sweep across thes
 - `docs/architecture/orchestration.md` — capabilities → tool mapping
 - `docs/architecture/agent-execution-model.md`
 - `docs/architecture/YARNNN-DESIGN-PRINCIPLES.md`
-- `docs/architecture/workspace-conventions.md`
+- `docs/architecture/WORKSPACE.md`
 - `docs/architecture/output-substrate.md`
 - `docs/features/context.md`
 - `docs/features/agent-playbook-framework.md`
 - `docs/features/sessions.md`
 - `docs/features/memory.md`
 - `docs/features/task-types.md`
-- `docs/design/SURFACE-CONTRACTS.md` (ADR-215)
+- `docs/design/WORKSPACE.md` (ADR-215 surface contracts)
 - `docs/design/` — grep the rest
 - `docs/adr/` — **reference-only sweep**. ADRs are immutable history. For a rename, add a one-line note in the superseding ADR's status header. Do not rewrite prior ADR prose.
 - `CLAUDE.md` — ADR list entry for the change, File Locations table if affected
@@ -467,6 +467,6 @@ If you are new to this doc:
 - [orchestration.md](orchestration.md) — agent types and the `capabilities` → primitive mapping.
 - [SERVICE-MODEL.md](SERVICE-MODEL.md) — system-level description; this doc is the primitive-level deep dive.
 - [YARNNN-DESIGN-PRINCIPLES.md](YARNNN-DESIGN-PRINCIPLES.md) — design principles for YARNNN's use of chat-mode primitives.
-- [workspace-conventions.md](workspace-conventions.md) — filesystem layout that the `file` substrate family operates on.
+- [WORKSPACE.md](WORKSPACE.md) — workspace architecture, including the filesystem layout that the `file` substrate family operates on.
 - [api/services/primitives/registry.py](../../api/services/primitives/registry.py) — source of truth for registries and handlers.
 - [api/prompts/CHANGELOG.md](../../api/prompts/CHANGELOG.md) — behavioral change history.

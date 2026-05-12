@@ -1,10 +1,18 @@
-# Surface Contracts
+---
+title: Workspace (Design)
+counterpart: docs/architecture/WORKSPACE.md
+scope: design — operator-facing surface contracts, CRUD shapes, affordances
+status: Canonical
+version: v2.6 (2026-05-12 — paired with architecture/WORKSPACE.md; renamed from SURFACE-CONTRACTS.md)
+last_updated: 2026-05-12
+---
 
-**Version:** v2.5 (2026-05-06 — ADR-251: Agents tab — roster reinstated, System Agent + Reviewer as first-class surfaces, Autonomy + Principles migrated to Reviewer detail, cadence panel added)
-**Status:** Canonical
+# Workspace — Design
+
+**Counterpart (architecture):** [docs/architecture/WORKSPACE.md](../architecture/WORKSPACE.md) — substrate, files, layers, bootstrap, autonomy threshold
 **Governed by:** [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — Surface Contracts and CRUD Principles
 **Grounded in:** [ADR-198](../adr/ADR-198-surface-archetypes.md) surface archetypes · [ADR-214](../adr/ADR-214-agents-page-consolidation.md) four-tab nav (Chat | Work | Agents | Files) · [ADR-209](../adr/ADR-209-authored-substrate.md) authored substrate · [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) invocation + narrative · [ADR-231](../adr/ADR-231-task-abstraction-sunset.md) task abstraction sunset · [ADR-235](../adr/ADR-235-update-context-dissolution.md) UpdateContext dissolution (lifecycle → `ManageRecurrence`; substrate writes → `WriteFile(scope='workspace')`; identity/brand merges → `InferContext` / `InferWorkspace`) · [ADR-168](../architecture/primitives-matrix.md) primitive matrix · [ADR-225](../adr/ADR-225-compositor-layer.md) compositor (Phase 3 — unified seam) · [ADR-245](../adr/ADR-245-frontend-kernel-three-layer-content-rendering.md) three-layer content rendering model (orthogonal: per-tab CRUD matrix here governs the **operational shape** of each tab; ADR-245 governs the **render layers** — L1 raw view + L2 content-shape parsers + L3 structured affordances — that L3 components on these tabs sit in) · [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) Axiom 6 (Channel) + Axiom 9 (Invocation + Narrative)
-**Supersedes:** `archive/SURFACE-ARCHITECTURE.md`, `archive/SURFACE-ACTION-MAPPING.md`, `archive/SURFACE-DISPLAY-MAP.md`, `archive/SURFACE-PRIMITIVES-MAP.md`
+**Supersedes:** `SURFACE-CONTRACTS.md` (renamed 2026-05-12) · `archive/SURFACE-ARCHITECTURE.md` · `archive/SURFACE-ACTION-MAPPING.md` · `archive/SURFACE-DISPLAY-MAP.md` · `archive/SURFACE-PRIMITIVES-MAP.md`
 
 ---
 

@@ -36,13 +36,12 @@ Parallel deep-dives on the two sharpest architectural substrates — the write p
 | [agent-execution-model.md](agent-execution-model.md) | 3-layer execution model (mechanical scheduling, LLM generation, TP orchestration) |
 | [**execution-loop.md**](execution-loop.md) | The accumulation cycle — how run N feeds run N+1 (awareness, tracker, feedback, actuation) |
 | [backend-orchestration.md](backend-orchestration.md) | 4 Render services, scheduler phase map, LLM cost surface, env var matrix |
-| [workspace-conventions.md](workspace-conventions.md) | Filesystem layout, directory registry, lifecycle conventions |
+| [WORKSPACE.md](WORKSPACE.md) | Workspace — layers · filesystem inventory · bootstrap · autonomy threshold (paired with [design/WORKSPACE.md](../design/WORKSPACE.md)) |
 | [registry-matrix.md](registry-matrix.md) | Agent types × task types × output categories — the full registry catalog |
 | [primitives-matrix.md](primitives-matrix.md) | Primitives × substrate × mode × capability — the full primitive surface (ADR-168) |
 | [task-type-orchestration.md](task-type-orchestration.md) | Task type registry, mode semantics, pipeline integration |
 | [output-substrate.md](output-substrate.md) | Three-registry architecture (ADR-130), HTML-native output, compose engine |
 | [YARNNN-DESIGN-PRINCIPLES.md](YARNNN-DESIGN-PRINCIPLES.md) | Design principles — Spectrum A/B framing, loosening-with-Reviewer-gate |
-| [naming-conventions.md](naming-conventions.md) | Naming strategy: user-facing → developer → architecture tiers |
 
 `registry-matrix.md` and `primitives-matrix.md` are siblings: the former describes **what** the system works on (domains, tasks, agents); the latter describes **how** the system acts on it (primitives, dispatch paths, permission modes).
 
@@ -58,7 +57,7 @@ For someone new to the codebase:
 6. **[authored-substrate.md](authored-substrate.md)** + **[reviewer-substrate.md](reviewer-substrate.md)** — the two sharpest architectural substrates (write path + judgment seat)
 7. **[orchestration.md](orchestration.md)** — orchestration capabilities and dispatch
 8. **[execution-loop.md](execution-loop.md)** — the accumulation cycle (how recurring work compounds)
-9. **[workspace-conventions.md](workspace-conventions.md)** — the filesystem model
+9. **[WORKSPACE.md](WORKSPACE.md)** — workspace layers, filesystem model, bootstrap, autonomy threshold
 10. **[backend-orchestration.md](backend-orchestration.md)** — how everything runs
 
 ## Archived (`docs/architecture/previous_versions/`)

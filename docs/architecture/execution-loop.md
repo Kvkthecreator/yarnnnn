@@ -7,7 +7,7 @@
 **Related:**
 - [agent-execution-model.md](agent-execution-model.md) — three-layer architecture (scheduler / pipeline / YARNNN)
 - [FEEDBACK-WORKFLOW-REDESIGN.md](../design/FEEDBACK-WORKFLOW-REDESIGN.md) — feedback routing model (domain/agent/task layers)
-- [workspace-conventions.md](workspace-conventions.md) — filesystem layout and directory registry
+- [WORKSPACE.md](WORKSPACE.md) — workspace architecture (filesystem inventory, layers, bootstrap)
 - [FOUNDATIONS.md](FOUNDATIONS.md) — Axiom 4 (accumulated attention compounds)
 
 ---
@@ -568,5 +568,5 @@ These are architectural observations, not bugs:
 
 - **[agent-execution-model.md](agent-execution-model.md)** describes the three-layer *architecture* (what the layers are, what triggers exist, what code runs). This doc describes the *loop mechanics* (how run N feeds run N+1).
 - **[FEEDBACK-WORKFLOW-REDESIGN.md](../design/FEEDBACK-WORKFLOW-REDESIGN.md)** describes the feedback *routing model* (where feedback lands: domain / agent / task layers). This doc describes the full loop including how feedback is collected, verified, and actuated.
-- **[workspace-conventions.md](workspace-conventions.md)** describes the *filesystem layout*. This doc describes how that layout is *used* across cycles.
+- **[WORKSPACE.md](WORKSPACE.md)** describes the *workspace architecture* (filesystem inventory, layers, bootstrap, autonomy threshold). This doc describes how the workspace is *used* across cycles.
 - **[FOUNDATIONS.md](FOUNDATIONS.md)** Axiom 4 states the thesis ("accumulated attention compounds"). This doc describes the mechanism.

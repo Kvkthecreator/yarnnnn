@@ -40,28 +40,19 @@ The convention shapes (per ADR-262 D1):
     Recurrences (canonical declarations file per ADR-261 D2):
       single file:   /workspace/_recurrences.yaml
 
-    Reviewer substrate:
+    Reviewer substrate (ADR-194 v2; ADR-256 unified reflection outputs
+    into decisions.md — there is no separate reflections.md):
       identity:      /workspace/review/IDENTITY.md
       principles:    /workspace/review/principles.md (prose)
       principles:    /workspace/review/_principles.yaml (machine-parsed thresholds)
       decisions:     /workspace/review/decisions.md (append-only)
-      reflections:   /workspace/review/reflections.md (append-only)
 
-    Operator authored shared substrate (ADR-206 + ADR-217 relocated
-    `_shared/` from `/workspace/_shared/` to `/workspace/context/_shared/`;
-    runtime constants in workspace_paths.py are the source of truth):
-      mandate:       /workspace/context/_shared/MANDATE.md
-      identity:      /workspace/context/_shared/IDENTITY.md
-      brand:         /workspace/context/_shared/BRAND.md
-      autonomy:      /workspace/context/_shared/AUTONOMY.md (prose)
-      autonomy:      /workspace/context/_shared/_autonomy.yaml (machine-parsed)
-      conventions:   /workspace/context/_shared/CONVENTIONS.md
-      precedent:     /workspace/context/_shared/PRECEDENT.md
-
-    Memory (YARNNN-authored, in-session, ADR-156):
-      notes:         /workspace/memory/notes.md
-      conversation:  /workspace/memory/conversation.md
-      recent:        /workspace/memory/recent.md  (narrative-digest recurrence output)
+    Operator-authored shared substrate (ADR-206 + ADR-217 relocated
+    `_shared/` to `/workspace/context/_shared/`): see
+    ``services.workspace_paths.SHARED_CONTEXT_FILES`` — that module is
+    the sole source of truth for kernel-seeded path constants. This
+    module deliberately does not duplicate them; importing both would
+    create two sources of truth.
 
     Specs (operator-authored output specs cited by recurrence prompts,
     ADR-262 D2 Pattern (ii)):
@@ -220,35 +211,28 @@ def operation_working_dir(slug: str) -> str:
 
 # ---------------------------------------------------------------------------
 # Reviewer substrate (ADR-194 v2)
+#
+# Note: ADR-256 unified reflection outputs into decisions.md. There is no
+# longer a separate /workspace/review/reflections.md — the dead
+# REVIEW_REFLECTIONS_PATH constant was deleted 2026-05-12.
 # ---------------------------------------------------------------------------
 
 REVIEW_IDENTITY_PATH = "/workspace/review/IDENTITY.md"
 REVIEW_PRINCIPLES_PROSE_PATH = "/workspace/review/principles.md"
 REVIEW_PRINCIPLES_YAML_PATH = "/workspace/review/_principles.yaml"
 REVIEW_DECISIONS_PATH = "/workspace/review/decisions.md"
-REVIEW_REFLECTIONS_PATH = "/workspace/review/reflections.md"
 
 
 # ---------------------------------------------------------------------------
 # Operator-authored shared substrate
+#
+# Source of truth: ``services.workspace_paths.SHARED_CONTEXT_FILES``.
+# This module deliberately does not duplicate those constants — the
+# stale SHARED_*_PATH constants that pointed at /workspace/_shared/
+# (pre-ADR-206 location) were deleted 2026-05-12. The MEMORY_*_PATH
+# constants were also removed (zero importers; callers reference the
+# paths directly).
 # ---------------------------------------------------------------------------
-
-SHARED_MANDATE_PATH = "/workspace/_shared/MANDATE.md"
-SHARED_IDENTITY_PATH = "/workspace/_shared/IDENTITY.md"
-SHARED_BRAND_PATH = "/workspace/_shared/BRAND.md"
-SHARED_AUTONOMY_PROSE_PATH = "/workspace/_shared/AUTONOMY.md"
-SHARED_AUTONOMY_YAML_PATH = "/workspace/_shared/_autonomy.yaml"
-SHARED_CONVENTIONS_PATH = "/workspace/_shared/CONVENTIONS.md"
-SHARED_PRECEDENT_PATH = "/workspace/_shared/PRECEDENT.md"
-
-
-# ---------------------------------------------------------------------------
-# Memory (YARNNN-authored, in-session, ADR-156 + ADR-159)
-# ---------------------------------------------------------------------------
-
-MEMORY_NOTES_PATH = "/workspace/memory/notes.md"
-MEMORY_CONVERSATION_PATH = "/workspace/memory/conversation.md"
-MEMORY_RECENT_PATH = "/workspace/memory/recent.md"
 
 
 # ---------------------------------------------------------------------------
@@ -291,19 +275,6 @@ __all__ = [
     "REVIEW_PRINCIPLES_PROSE_PATH",
     "REVIEW_PRINCIPLES_YAML_PATH",
     "REVIEW_DECISIONS_PATH",
-    "REVIEW_REFLECTIONS_PATH",
-    # Operator-authored shared substrate
-    "SHARED_MANDATE_PATH",
-    "SHARED_IDENTITY_PATH",
-    "SHARED_BRAND_PATH",
-    "SHARED_AUTONOMY_PROSE_PATH",
-    "SHARED_AUTONOMY_YAML_PATH",
-    "SHARED_CONVENTIONS_PATH",
-    "SHARED_PRECEDENT_PATH",
-    # Memory
-    "MEMORY_NOTES_PATH",
-    "MEMORY_CONVERSATION_PATH",
-    "MEMORY_RECENT_PATH",
     # Specs
     "spec_path",
 ]

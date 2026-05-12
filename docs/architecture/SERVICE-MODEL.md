@@ -167,7 +167,7 @@ Mode is a property of the task, not the Agent. A Research Agent can simultaneous
 
 ### Workspace (WHERE)
 
-Virtual filesystem over Postgres (`workspace_files` table). Three content areas: identity, brand, and accumulated context domains (`/workspace/context/` — extensible per ADR-151, ADR-188). The directory registry provides curated domain templates (e.g., competitors, market, customers, trading); YARNNN can scaffold these or compose novel domains with custom entity structures from the user's work description. Path conventions are the schema — new capabilities extend paths, not database tables. See [workspace-conventions.md](workspace-conventions.md).
+Virtual filesystem over Postgres (`workspace_files` table). Three content areas: identity, brand, and accumulated context domains (`/workspace/context/` — extensible per ADR-151, ADR-188). The directory registry provides curated domain templates (e.g., competitors, market, customers, trading); YARNNN can scaffold these or compose novel domains with custom entity structures from the user's work description. Path conventions are the schema — new capabilities extend paths, not database tables. See [WORKSPACE.md](WORKSPACE.md).
 
 ---
 
@@ -377,7 +377,7 @@ Five Purpose-labeled destinations + ambient YARNNN rail. The nav organizes by op
 
 **Inference visibility:** inferred content (IDENTITY.md, BRAND.md) is rendered via `InferenceContentView` which parses the `<!-- inference-meta: ... -->` HTML comment from ADR-162 Sub-phase D and renders source provenance captions + gap banners inline.
 
-Full design doc: [SURFACE-CONTRACTS.md](../design/SURFACE-CONTRACTS.md) (ADR-215 — per-tab contracts + CRUD matrix).
+Full design doc: [design/WORKSPACE.md](../design/WORKSPACE.md) (ADR-215 — per-tab contracts + CRUD matrix; paired with [architecture/WORKSPACE.md](WORKSPACE.md)).
 
 ---
 
@@ -459,7 +459,7 @@ Product health surfaces through existing patterns: daily update enrichment (busi
 | Execution model & trigger taxonomy | [agent-execution-model.md](agent-execution-model.md) |
 | Execution loop & accumulation cycle | [execution-loop.md](execution-loop.md) |
 | Task type orchestration | [task-type-orchestration.md](task-type-orchestration.md) |
-| Workspace filesystem conventions | [workspace-conventions.md](workspace-conventions.md) |
+| Workspace architecture (layers · files · bootstrap · autonomy) | [WORKSPACE.md](WORKSPACE.md) |
 | Output substrate & capabilities | [output-substrate.md](output-substrate.md) |
 | Output surfaces (visual paradigms) | [output-surfaces.md](output-surfaces.md) |
 | Compose substrate (filesystem→output) | [compose-substrate.md](compose-substrate.md) |

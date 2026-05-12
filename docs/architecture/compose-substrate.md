@@ -11,7 +11,7 @@
 > - [ADR-166: Registry Coherence](../adr/ADR-166-registry-coherence-pass.md) — output_kind for revision routing
 > - [output-surfaces.md](output-surfaces.md) — surface types, section kinds, export pipeline
 > - [output-substrate.md](output-substrate.md) — capability + rendering architecture
-> - [workspace-conventions.md](workspace-conventions.md) — filesystem path conventions
+> - [WORKSPACE.md](WORKSPACE.md) — workspace architecture (filesystem inventory, layers, bootstrap)
 
 ---
 

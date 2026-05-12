@@ -4,7 +4,7 @@
 > **Date**: 2026-04-17 (v1.3 revision 2026-04-20 for FOUNDATIONS v6.0 dimensional model; v1.9 amendment 2026-04-25 for Axiom 9; v2.0 amendment 2026-04-27 for OS framing canonization per ADR-222; v2.1 amendment 2026-04-27 for two-compose-modes vocabulary post-discourse; v2.2 amendment 2026-05-06 ADR-251 — System Agent named as cockpit entity; Thinking Partner / meta-cognitive retired as user-facing terms)
 > **Authors**: KVK, Claude
 > **Ratified by**: ADR-189 (Three-Layer Cognition) + ADR-194 v2 (Reviewer as Fourth Cognitive Layer) + FOUNDATIONS v6.0 (Six-Dimensional Model)
-> **Supersedes**: `naming-conventions.md` (to be retired after the ADR-189 rename pass lands)
+> **Supersedes**: `naming-conventions.md` (archived to [previous_versions/naming-conventions.md](previous_versions/naming-conventions.md) after ADR-189 rename pass landed)
 
 ---
 

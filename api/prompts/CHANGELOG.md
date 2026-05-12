@@ -6,6 +6,25 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.12.1] - Reviewer prompt cleanup: stop citing dead reflections.md
+
+### Reviewer prompt + cockpit awareness update
+
+ADR-256 unified Reviewer reflection outputs into `decisions.md` (the `reflection_writer.py` module + the standalone `/workspace/review/reflections.md` file were deleted in that cutover). Two Reviewer-facing prompt strings still cited `reflections.md` as a write target — pointing the Reviewer at a file no part of the system reads back. Same-commit cleanup also dropped the dead `REVIEW_REFLECTIONS_PATH` constant from `services/conventions.py` along with the stale `SHARED_*_PATH` / `MEMORY_*_PATH` constant blocks (zero importers; `services/workspace_paths.py` is sole source of truth per ADR-206 + ADR-217).
+
+**Changed:**
+- `api/agents/cockpit_awareness.py` — line 166-167 tool-use loop step 5 "WriteFile" example list: `decisions.md, reflections.md, notes.md` → `decisions.md, notes within /workspace/review/`.
+- `api/agents/reviewer_agent.py` — line 367-368 system-prompt "write-note" guidance: `decisions.md, reflections.md, or notes` → `decisions.md or notes`.
+- `api/services/conventions.py` — `REVIEW_REFLECTIONS_PATH` constant + module docstring `reflections.md` line + `__all__` entry deleted. Stale `SHARED_*_PATH` and `MEMORY_*_PATH` constant blocks deleted (pointed at pre-ADR-206 `/workspace/_shared/` location; zero importers).
+
+**Expected behavior change:**
+- Reviewer no longer attempts to write to `/workspace/review/reflections.md` (it wasn't anyway — the prompt instruction was nominally dead, but cleaning it removes a future-confusion vector).
+- No functional change for any other caller — all deletions verified zero-importer via repository-wide grep before removal.
+
+**Cross-refs:** ADR-256 (unified Reviewer invocation), ADR-206 + ADR-217 (`_shared/` relocation to `/workspace/context/_shared/`), ADR-209 (sole source of truth in `workspace_paths.py`).
+
+---
+
 ## [2026.05.11.1] - ADR-266: MANDATE.md schema discipline in workspace profile prompt
 
 ### Workspace prompt update + bundle template rewrite

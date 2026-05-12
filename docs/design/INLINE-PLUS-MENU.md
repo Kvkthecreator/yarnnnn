@@ -1,6 +1,6 @@
 # Inline Plus Menu — Contextual Actions in Chat Input
 
-**Related:** [SURFACE-CONTRACTS.md](SURFACE-CONTRACTS.md) — per-tab contracts + CRUD matrix (ADR-215). Under ADR-215 R4 the `+` menu is strictly a modal launcher; the verb taxonomy here applies to modal creation flows.
+**Related:** [WORKSPACE.md](WORKSPACE.md) — per-tab surface contracts + CRUD matrix (ADR-215). Under ADR-215 R4 the `+` menu is strictly a modal launcher; the verb taxonomy here applies to modal creation flows.
 
 ## Status: Implemented (v2 — verb taxonomy)
 

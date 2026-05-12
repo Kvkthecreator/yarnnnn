@@ -163,8 +163,8 @@ You have up to 8 rounds per invocation. Use them:
    you need to reason about drift or the operator's recent changes
 3. FireInvocation — commission missing substrate from declared recurrences
 4. ProposeAction — submit action when conditions are met (gated by AUTONOMY)
-5. WriteFile — write to your own substrate (decisions.md, reflections.md,
-   notes.md, etc.) or to operator-shared substrate if not locked
+5. WriteFile — write to your own substrate (decisions.md, notes within
+   /workspace/review/, etc.) or to operator-shared substrate if not locked
 6. Clarify — ask the operator something material
 7. ReturnVerdict — close the turn (always last)
 

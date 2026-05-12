@@ -29,7 +29,7 @@ The current product story:
 | [architecture/orchestration.md](architecture/orchestration.md) | Agent taxonomy and type registry |
 | [architecture/agent-execution-model.md](architecture/agent-execution-model.md) | Execution model and trigger taxonomy |
 | [architecture/task-type-orchestration.md](architecture/task-type-orchestration.md) | Task type registry and process execution |
-| [architecture/workspace-conventions.md](architecture/workspace-conventions.md) | Workspace filesystem conventions |
+| [architecture/WORKSPACE.md](architecture/WORKSPACE.md) | Workspace (layers · filesystem · bootstrap · autonomy threshold) — paired with [design/WORKSPACE.md](design/WORKSPACE.md) |
 | [architecture/output-substrate.md](architecture/output-substrate.md) | Output capabilities and rendering |
 | [architecture/primitives-matrix.md](architecture/primitives-matrix.md) | Primitive surface (substrate × mode × capability) |
 | [architecture/DOMAIN-STRESS-MATRIX.md](architecture/DOMAIN-STRESS-MATRIX.md) | Agnostic-thesis conscience — gate for every new ADR |
@@ -108,7 +108,7 @@ See [adr/README.md](adr/README.md) for template.
 | Agent taxonomy | Current | [architecture/orchestration.md](architecture/orchestration.md) |
 | Task type registry | Shipped (ADR-145) | [architecture/task-type-orchestration.md](architecture/task-type-orchestration.md) |
 | Execution model | Current (ADR-141) | [architecture/agent-execution-model.md](architecture/agent-execution-model.md) |
-| Workspace filesystem | Shipped (ADR-142) | [architecture/workspace-conventions.md](architecture/workspace-conventions.md) |
+| Workspace | Current (consolidated 2026-05-12) | [architecture/WORKSPACE.md](architecture/WORKSPACE.md) |
 | Output substrate | Phase 1 shipped (ADR-130) | [architecture/output-substrate.md](architecture/output-substrate.md) |
 | Primitives | Shipped (ADR-168) | [architecture/primitives-matrix.md](architecture/primitives-matrix.md) |
 | Approval loop | Shipped (ADR-193) | [adr/ADR-193-propose-action-approval-loop.md](adr/ADR-193-propose-action-approval-loop.md) |

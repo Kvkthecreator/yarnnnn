@@ -309,7 +309,7 @@ This section exists to prevent drift. An earlier draft of this document framed b
 | [reviewer-substrate.md](reviewer-substrate.md) | Sibling canon doc. The Reviewer seat's writes (`OCCUPANT.md`, `decisions.md`, `handoffs.md`, `calibration.md`) flow through Authored Substrate with required `authored_by` attribution — every verdict and every occupant rotation is revision-chain-tracked. Together the two canons cover the write path (here) and the judgment seat (there). |
 | [GLOSSARY.md](GLOSSARY.md) | Canonical vocabulary: Authored Substrate, Revision, Revision chain, Head, Authorship trailer (v1.4). |
 | [SERVICE-MODEL.md](SERVICE-MODEL.md) | Entity Model gains an Authored-Substrate subsection (Phase 1 doc sweep). |
-| [workspace-conventions.md](workspace-conventions.md) | `/history/` convention removed (Phase 2). Authorship-trailer requirement added. Filename-versioning banned. |
+| [WORKSPACE.md](WORKSPACE.md) | `/history/` convention removed (Phase 2). Authorship-trailer requirement added. Filename-versioning banned. |
 | [primitives-matrix.md](primitives-matrix.md) | `ReadRevision`, `DiffRevisions`, `ListRevisions` added. `ListFiles` / `ListEntities` gain authorship filters. (Phase 3.) |
 | ADR-106 (Agent Workspace Architecture) | Extended — Authored Substrate is the second-half completion of ADR-106's filesystem-over-Postgres commitment. |
 | ADR-119 (Workspace Filesystem Architecture) | Phase 3 (`/history/` subfolder versioning) superseded. Phases 1, 2, 4 preserved. |

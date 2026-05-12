@@ -531,7 +531,7 @@ You MUST:
 | Working Memory | `api/services/working_memory.py` |
 | Chat/Streaming | `api/services/anthropic.py` |
 | OAuth Flow | `api/integrations/core/oauth.py` |
-| **Workspace Init (canonical doc)** | `docs/architecture/workspace-init.md` — 5-phase init sequence, CONVENTIONS/PRECEDENT scope, back-office trigger model, first-run flow, skeleton detection, key files. **Start here for anything init/onboarding/bootstrap.** |
+| **Workspace (canonical doc)** | `docs/architecture/WORKSPACE.md` — layers, filesystem inventory, 5-phase bootstrap, autonomy threshold. Paired with `docs/design/WORKSPACE.md` (per-tab surface contracts). **Start here for anything substrate/init/onboarding/bootstrap/autonomy-threshold.** |
 | Workspace Initialization | `api/services/workspace_init.py` — `initialize_workspace()` (5 phases: YARNNN row → skeletons → narrative session → balance audit → optional fork). Called by `GET /api/workspace/state` (lazy scaffold), `DELETE /account/workspace` (L2), `DELETE /account/reset` (L4). |
 | Workspace Path Constants | `api/services/workspace_paths.py` — `SHARED_CONTEXT_FILES` (kernel-seeded set: MANDATE, IDENTITY, BRAND, AUTONOMY, PRECEDENT). `SHARED_CONVENTIONS_PATH` kept as a constant but **not in `SHARED_CONTEXT_FILES`** — CONVENTIONS is program-scoped. |
 | Workspace Utilities | `api/services/workspace_utils.py` — `is_skeleton_content()` + `classify_file_state()`. Single source of truth for skeleton detection (used by init, workspace state surface, and activation state classifier). |
@@ -585,7 +585,7 @@ You MUST:
 | Agents Page (Home) | `web/app/(authenticated)/agents/page.tsx` |
 | Chat Page | `web/app/(authenticated)/chat/page.tsx` |
 | Route Constants | `web/lib/routes.ts` (HOME_ROUTE = "/chat" per ADR-205 F1) |
-| Surface Contracts | `docs/design/SURFACE-CONTRACTS.md` (ADR-215: per-tab contracts + 4-shape CRUD matrix for Chat · Work · Agents · Files) |
+| Workspace Surface Contracts | `docs/design/WORKSPACE.md` (renamed from SURFACE-CONTRACTS.md 2026-05-12; ADR-215: per-tab contracts + 4-shape CRUD matrix for Chat · Work · Agents · Files; paired with `docs/architecture/WORKSPACE.md`) |
 | Invocation & Narrative (canonical) | `docs/architecture/invocation-and-narrative.md` (FOUNDATIONS Axiom 9: atom = one cycle of the six dimensions; narrative = single chat-shaped log of every invocation; task = nameplate + pulse + contract legibility wrapper; `/work` is narrative filtered by task slug) |
 
 ---

@@ -7,7 +7,7 @@
 > - [ADR-183: Commerce Substrate](../adr/ADR-183-commerce-substrate.md) — governing ADR
 > - [ADR-184: Product Health Metrics](../adr/ADR-184-product-health-metrics.md) — intelligence layer over commerce data
 > - [PLATFORM-INTEGRATIONS.md](../integrations/PLATFORM-INTEGRATIONS.md) — platform connection patterns
-> - [workspace-conventions.md](workspace-conventions.md) — filesystem path conventions
+> - [WORKSPACE.md](WORKSPACE.md) — workspace architecture (filesystem inventory, layers, bootstrap)
 > - [registry-matrix.md](registry-matrix.md) — domain ↔ task ↔ agent matrix
 > - [output-substrate.md](output-substrate.md) — render service that produces sellable assets
 

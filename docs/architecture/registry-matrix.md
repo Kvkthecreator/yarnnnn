@@ -211,7 +211,7 @@ Favicons fetched automatically via ManageDomains when entities have a `url` fiel
 1. Add entry to `WORKSPACE_DIRECTORIES` in `directory_registry.py`
 2. Define entity_structure, synthesis_file, signal_log
 3. Update relevant task types with `context_reads`/`context_writes`
-4. Update workspace-conventions.md
+4. Update WORKSPACE.md
 5. Increment directory registry version
 
 ### Adding a New Task Type

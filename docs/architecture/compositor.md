@@ -276,4 +276,4 @@ The existing pattern is the spec. Don't invent a new shape.
 - [ADR-225](../adr/ADR-225-compositor-layer.md) — compositor decision record + amendment trail
 - [ADR-198](../adr/ADR-198-surface-archetypes.md) — five archetypes (Document / Dashboard / Queue / Briefing / Stream)
 - [ADR-167](../adr/ADR-167-list-detail-surfaces.md) — list/detail pattern, kind-aware detail
-- [docs/design/SURFACE-CONTRACTS.md](../design/SURFACE-CONTRACTS.md) — per-tab cockpit contracts (consumes this doc as the seam reference)
+- [docs/design/WORKSPACE.md](../design/WORKSPACE.md) — per-tab cockpit contracts (consumes this doc as the seam reference)
