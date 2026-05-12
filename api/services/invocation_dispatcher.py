@@ -271,7 +271,35 @@ async def dispatch(
     if isinstance(reviewer_output, dict):
         actions_taken = reviewer_output.get("actions_taken", []) or []
         proposals = reviewer_output.get("proposals", []) or []
-        verdict_summary = reviewer_output.get("evidence_summary") or reviewer_output.get("verdict") or ""
+        # The Reviewer's tool schema requires `reasoning` ("2-5 sentences in
+        # your persona's voice ... Written verbatim to decisions.md") for
+        # every verdict. Reading `evidence_summary or verdict` here (prior
+        # behavior) discarded the prose for non-reflection verdicts and
+        # wrote only the enum string ("stand_down") to decisions.md —
+        # making every recurrence-fire entry indistinguishable regardless
+        # of the actual reasoning. Bug surfaced 2026-05-13 in the post-
+        # ADR-267 verdict-quality audit (Problem A).
+        #
+        # Read order: `reasoning` is the primary audit text. When the
+        # Reviewer additionally returned `evidence_summary` (reflection-
+        # shape output per ADR-263), append it as a citations block —
+        # both fields end up in decisions.md, not one substituted for
+        # the other.
+        reasoning_text = (reviewer_output.get("reasoning") or "").strip()
+        evidence_text = (reviewer_output.get("evidence_summary") or "").strip()
+        if reasoning_text and evidence_text:
+            verdict_summary = f"{reasoning_text}\n\n**Evidence summary:**\n{evidence_text}"
+        elif reasoning_text:
+            verdict_summary = reasoning_text
+        elif evidence_text:
+            verdict_summary = evidence_text
+        else:
+            # Fallback to the verdict enum string only when the Reviewer
+            # somehow returned neither prose field (should never happen —
+            # reasoning is `required` in the tool schema, and the early-
+            # exit at reviewer_agent.py:864 already rejects empty
+            # reasoning before this code runs).
+            verdict_summary = reviewer_output.get("verdict") or ""
         reviewer_identity = reviewer_output.get("reviewer_identity") or reviewer_identity
 
     # FOUNDATIONS v8.4 Axiom 1 (substrate-as-bus): persist Reviewer's verdict +
