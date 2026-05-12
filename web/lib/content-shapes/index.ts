@@ -47,7 +47,7 @@ import { META as identityMeta } from './identity';
 import { META as inferenceMetaMeta } from './inference-meta';
 import { META as mandateMeta } from './mandate';
 import { META as snapshotMeta } from './snapshot';
-import { META as performanceMeta } from './performance';
+import { META as moneyTruthMeta } from './money-truth';
 import { META as principlesMeta } from './principles';
 
 export const CONTENT_SHAPES: Readonly<Record<string, ContentShape>> = Object.freeze({
@@ -58,7 +58,7 @@ export const CONTENT_SHAPES: Readonly<Record<string, ContentShape>> = Object.fre
   'inference-meta': inferenceMetaMeta,
   mandate: mandateMeta,
   snapshot: snapshotMeta,
-  performance: performanceMeta,
+  money_truth: moneyTruthMeta,
   principles: principlesMeta,
 });
 

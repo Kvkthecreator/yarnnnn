@@ -8,17 +8,19 @@
  * what's accumulated since the mandate was authored.
  *
  * Reads (kernel default):
- *   - `_performance.md` body (per ADR-195 v2) for headline attribution
+ *   - `_money_truth_summary.md` body (per ADR-195 v2 + P&L unification
+ *     2026-05-12) — cross-domain rollup with per-signal attribution
  *   - `/workspace/review/decisions.md` for Reviewer calibration:
  *       · approve / reject ratio (rolling 7d)
  *       · time since last decision
  *       · operator-Reviewer agreement (when overrides logged)
  *
  * The face is bundle-aware: alpha-trader's PerformanceFace surfaces signal
- * expectancy + accuracy by signal type from `portfolio/_performance.md`;
- * alpha-commerce's surfaces conversion by channel + churn vs target. The
- * structural shape (mandate-attributed performance + Reviewer calibration)
- * is universal; the bundle declares which sub-metrics roll up.
+ * expectancy + accuracy by signal type from `trading/_money_truth.md`
+ * (now natively per-signal via the by_signal block); alpha-commerce's
+ * surfaces conversion by channel + churn vs target. The structural shape
+ * (mandate-attributed performance + Reviewer calibration) is universal;
+ * the bundle declares which sub-metrics roll up.
  *
  * Phase 1 (this commit): renders Reviewer calibration headline + a single
  * link to the bundle-declared performance source. Sub-metric rendering
@@ -44,7 +46,7 @@ import {
 // PerformanceFace renders Reviewer calibration only (kernel-default).
 
 const DECISIONS_PATH = '/workspace/review/decisions.md';
-const DEFAULT_PERFORMANCE = '/workspace/context/_performance_summary.md';
+const DEFAULT_PERFORMANCE = '/workspace/context/_money_truth_summary.md';
 
 // ADR-239: parsing + calibration aggregation lifted to
 // @/lib/content-shapes/decisions. `parseDecisions` returns ReviewerDecision[];

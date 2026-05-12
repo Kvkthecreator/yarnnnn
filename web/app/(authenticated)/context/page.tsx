@@ -96,7 +96,7 @@ function buildBreadcrumbs(root: TreeNode, targetPath: string): TreeNode[] {
 //
 // HIDE RULE (only system-strict hidden):
 //   - Files starting with `_` (machine-config: _recurring.yaml, _tracker.md,
-//     _domain.md, _performance.md, etc.). These are operationally important
+//     _domain.md, _money_truth.md, etc.). These are operationally important
 //     but accumulated by the system; their content is rendered by the
 //     surfaces that need them (faces, briefings). Showing them in the
 //     explorer would create operator confusion about whether they're

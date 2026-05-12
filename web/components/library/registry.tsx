@@ -32,9 +32,11 @@ import type { Binding } from '@/lib/compositor';
 import { KernelDeliverableMetadata } from './kernel-chrome/KernelDeliverableMetadata';
 import { KernelDeliverableActions } from './kernel-chrome/KernelDeliverableActions';
 
-// alpha-trader bundle components (ADR-242 Phase 2 + ADR-243 Phase C)
+// alpha-trader bundle components (ADR-242 Phase 2 + ADR-243 Phase C).
+// TraderSignalExpectancy DELETED 2026-05-12 — per-signal attribution now
+// renders natively in MoneyTruthFace (P&L unification refactor); the old
+// component read frontmatter fields the backend never emitted.
 import { TraderMoneyTruth } from './TraderMoneyTruth';
-import { TraderSignalExpectancy } from './TraderSignalExpectancy';
 import { TraderPositions } from './TraderPositions';
 import { TraderPortfolio } from './TraderPortfolio';
 import { TraderOrders } from './TraderOrders';
@@ -68,7 +70,6 @@ export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   // the same pattern.
   TraderPortfolio: () => <TraderPortfolio />,
   TraderMoneyTruth: () => <TraderMoneyTruth />,
-  TraderSignalExpectancy: (props) => <TraderSignalExpectancy {...props} />,
   TraderPositions: (props) => <TraderPositions {...props} />,
   TraderOrders: () => <TraderOrders />,
 };

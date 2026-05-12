@@ -46,8 +46,10 @@ tabs:
             order: 1
           - kind: TraderMoneyTruth      # balances: buying power, cash, day Δ
             order: 2
-          - kind: TraderSignalExpectancy # signal expectancy table
-            order: 3
+          # TraderSignalExpectancy was here at order 3 — DELETED 2026-05-12
+          # (P&L unification). Per-signal attribution now renders natively
+          # in MoneyTruthFace from the canonical `by_signal` block in
+          # _money_truth.md frontmatter. No bundle binding needed.
           - kind: TraderPositions       # open positions table
             order: 4
           - kind: TraderOrders          # recent orders

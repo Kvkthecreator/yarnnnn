@@ -3,25 +3,17 @@
 /**
  * MoneyTruthFace — face #2 of the four-face cockpit (ADR-228).
  *
- * Renders the live state of the operator's account: balance/equity, buying
- * power, day delta, drawdown, key constraints. The visual shape is the
- * brokerage / commerce dashboard summary an operator would expect — not a
- * card grid, not a placeholder.
+ * Renders money-truth for the operator: rolling P&L windows + per-signal
+ * attribution (when present). Reads `_money_truth_summary.md` (cross-domain
+ * rollup) by default; bundles can override with a specific per-domain
+ * `_money_truth.md`.
  *
- * Source resolution (ADR-228 D5):
- *   - Bundle declares `cockpit.money_truth.live_source` — for trader, an
- *     Alpaca account snapshot; for commerce, a Lemon Squeezy snapshot.
- *   - When live source is unavailable or undeclared, falls back to substrate
- *     (`cockpit.money_truth.substrate_fallback`, typically a `_performance.md`)
- *     and renders a `· last reconciled {ts}` suffix so the operator knows
- *     it's not live.
- *   - When both are absent (true cold start), renders an empty state with
- *     a one-line action pointer.
- *
- * Phase 1 (this commit) renders the substrate-fallback path only. The
- * platform-live binding ships in Commit 3 of the ADR-228 plan, after the
- * `/api/cockpit/money-truth/{workspace_id}` endpoint lands. The face's
- * structural shape is preserved across both paths.
+ * P&L unification (2026-05-12): rewritten to consume the new
+ * `MoneyTruthMeta` JSON-frontmatter shape from `money-truth.ts`. Surfaces
+ * gross (and net once cost-truth lands) + per-signal attribution table.
+ * Replaces the prior implementation that read flat YAML keys the backend
+ * never emitted (the FE was rendering an empty face on every workspace
+ * before this commit).
  */
 
 import { useEffect, useState } from 'react';
@@ -29,24 +21,39 @@ import Link from 'next/link';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useComposition } from '@/lib/compositor';
-import { parse as parsePerformance, type PerformanceMeta } from '@/lib/content-shapes/performance';
-// ADR-243 Phase B: TraderMoneyTruth import removed. Bundle dispatch is now
-// handled by CockpitRenderer via program_sections, not by face-level
-// override. MoneyTruthFace is a kernel-default face for workspaces without
-// an active bundle declaring program_sections.
+import {
+  parse,
+  formatCents,
+  deriveNetMetrics,
+  winRate,
+  signalEntries,
+  type MoneyTruthMeta,
+  type RollingWindow,
+} from '@/lib/content-shapes/money-truth';
 
-const DEFAULT_FALLBACK = '/workspace/context/_performance_summary.md';
+const DEFAULT_FALLBACK = '/workspace/context/_money_truth_summary.md';
 
 function readMoneyTruthSource(composition: ReturnType<typeof useComposition>['data']): string {
   const cockpit = composition.composition.tabs?.work?.list as { cockpit?: { money_truth?: { substrate_fallback?: string } } } | undefined;
   return cockpit?.cockpit?.money_truth?.substrate_fallback ?? DEFAULT_FALLBACK;
 }
 
+/**
+ * Resolve the rolling-window dict for the meta, regardless of whether it's
+ * a per-domain `_money_truth.md` (top-level rolling_30d) or a cross-domain
+ * summary (`aggregate.rolling_30d`).
+ */
+function pickWindow(meta: MoneyTruthMeta, days: 7 | 30 | 90): RollingWindow | undefined {
+  const key = `rolling_${days}d` as const;
+  if (meta.aggregate?.[key]) return meta.aggregate[key];
+  return meta[key];
+}
+
 export function MoneyTruthFace() {
   const { data: composition } = useComposition();
   const path = readMoneyTruthSource(composition);
 
-  const [meta, setMeta] = useState<PerformanceMeta | null>(null);
+  const [meta, setMeta] = useState<MoneyTruthMeta | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -55,7 +62,7 @@ export function MoneyTruthFace() {
       try {
         const file = await api.workspace.getFile(path);
         if (!cancelled) {
-          setMeta(file?.content ? parsePerformance(file.content) : {});
+          setMeta(file?.content ? parse(file.content) : {});
         }
       } catch {
         if (!cancelled) setMeta({});
@@ -68,7 +75,10 @@ export function MoneyTruthFace() {
 
   if (!loaded) return null;
 
-  const isEmpty = !meta || Object.keys(meta).length === 0 || meta.pnl_30d_pct === undefined;
+  const window30d = pickWindow(meta ?? {}, 30);
+  const window7d = pickWindow(meta ?? {}, 7);
+  const window90d = pickWindow(meta ?? {}, 90);
+  const isEmpty = !window30d || window30d.count === 0;
   const linkPath = `/context?path=${encodeURIComponent(path)}`;
 
   if (isEmpty) {
@@ -82,23 +92,25 @@ export function MoneyTruthFace() {
           Money truth
         </div>
         <p className="text-sm text-muted-foreground">
-          No performance data yet.{' '}
+          No realized outcomes yet.{' '}
           <Link
             href="/work"
             className="font-medium text-foreground underline-offset-4 hover:underline"
           >
             Run a tracking task
           </Link>{' '}
-          to begin accumulation.
+          and reconciliation will accumulate here.
         </p>
       </section>
     );
   }
 
-  const pnl = meta.pnl_30d_pct ?? 0;
-  const pnlPositive = pnl >= 0;
-  const pnlColor = pnlPositive ? 'text-emerald-600' : 'text-destructive';
-  const PnlIcon = pnlPositive ? TrendingUp : TrendingDown;
+  const net30 = deriveNetMetrics(window30d);
+  const net30Positive = net30.net_cents >= 0;
+  const netColor = net30Positive ? 'text-emerald-600' : 'text-destructive';
+  const NetIcon = net30Positive ? TrendingUp : TrendingDown;
+
+  const signals = signalEntries(meta ?? {});
 
   return (
     <section
@@ -109,36 +121,92 @@ export function MoneyTruthFace() {
         <span className="font-medium uppercase tracking-wide text-muted-foreground/70">
           Money truth
         </span>
-        {meta.generated_at && (
+        {(meta?.last_reconciled_at || meta?.generated_at) && (
           <Link
             href={linkPath}
             className="text-muted-foreground/60 underline-offset-4 hover:text-foreground hover:underline"
           >
-            last reconciled {formatGeneratedAt(meta.generated_at)}
+            last reconciled {formatGeneratedAt(meta?.last_reconciled_at ?? meta?.generated_at ?? '')}
           </Link>
         )}
       </div>
-      <div className="grid grid-cols-3 gap-6">
+
+      {/* Rolling windows: 7d / 30d / 90d with gross+net (net = gross until
+          cost-truth integration lands). When cost arrives, the third row
+          shows `cost` and a fourth shows `net`. */}
+      <div className="grid grid-cols-3 gap-6 mb-5">
         <Stat
-          label="P&L (30d)"
-          value={`${pnlPositive ? '+' : ''}${pnl.toFixed(1)}%`}
-          target={meta.pnl_30d_target_pct !== undefined ? `vs +${meta.pnl_30d_target_pct.toFixed(1)}% target` : null}
-          color={pnlColor}
-          Icon={PnlIcon}
+          label="Net (30d)"
+          value={formatCents(net30.net_cents)}
+          target={
+            window30d
+              ? `${window30d.wins}W · ${window30d.losses}L · ${window30d.count} events`
+              : null
+          }
+          color={netColor}
+          Icon={NetIcon}
         />
         <Stat
-          label="Drawdown"
-          value={meta.drawdown_30d_pct !== undefined ? `${meta.drawdown_30d_pct.toFixed(1)}%` : '—'}
-          target={meta.drawdown_limit_pct !== undefined ? `cap ${meta.drawdown_limit_pct.toFixed(0)}%` : null}
-          color={drawdownColor(meta.drawdown_30d_pct, meta.drawdown_limit_pct)}
+          label="Net (7d)"
+          value={formatCents(window7d?.value_cents)}
+          target={window7d ? `${window7d.count} events` : null}
+          color={(window7d?.value_cents ?? 0) >= 0 ? 'text-foreground' : 'text-destructive'}
         />
         <Stat
-          label="Win rate"
-          value={meta.win_rate !== undefined ? `${(meta.win_rate * 100).toFixed(0)}%` : '—'}
-          target={null}
-          color="text-foreground"
+          label="Net (90d)"
+          value={formatCents(window90d?.value_cents)}
+          target={window90d ? `${window90d.count} events` : null}
+          color={(window90d?.value_cents ?? 0) >= 0 ? 'text-foreground' : 'text-destructive'}
         />
       </div>
+
+      {/* Per-signal attribution table. Renders only when by_signal has
+          entries (commerce / manual-only workspaces naturally skip this). */}
+      {signals.length > 0 && (
+        <div className="mt-4 border-t border-border pt-4">
+          <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60 mb-2">
+            Per-signal attribution
+          </div>
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="text-muted-foreground/60 text-[10px] uppercase tracking-wide">
+                <th className="text-left font-medium pb-1">Signal</th>
+                <th className="text-right font-medium pb-1">Net</th>
+                <th className="text-right font-medium pb-1">Win rate</th>
+                <th className="text-right font-medium pb-1">30d</th>
+              </tr>
+            </thead>
+            <tbody>
+              {signals.map(([signalId, state]) => {
+                const wr = winRate(state);
+                const sigColor =
+                  (state.value_cents ?? 0) > 0
+                    ? 'text-emerald-600'
+                    : (state.value_cents ?? 0) < 0
+                    ? 'text-destructive'
+                    : 'text-foreground';
+                return (
+                  <tr key={signalId} className="border-t border-border/50">
+                    <td className="py-1.5 font-medium">{signalId}</td>
+                    <td className={`py-1.5 text-right tabular-nums ${sigColor}`}>
+                      {formatCents(state.value_cents)}
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums text-muted-foreground">
+                      {wr !== undefined ? `${(wr * 100).toFixed(0)}%` : '—'}
+                      <span className="text-muted-foreground/60 ml-1">
+                        ({state.wins}/{state.wins + state.losses})
+                      </span>
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums text-muted-foreground">
+                      {formatCents(state.rolling_30d?.value_cents)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
     </section>
   );
 }
@@ -157,7 +225,7 @@ function Stat({
       <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground/60">
         {label}
       </div>
-      <div className={`mt-1 flex items-baseline gap-1 text-2xl font-semibold ${color}`}>
+      <div className={`mt-1 flex items-baseline gap-1 text-2xl font-semibold tabular-nums ${color}`}>
         {Icon && <Icon className="h-4 w-4" />}
         <span>{value}</span>
       </div>
@@ -166,14 +234,6 @@ function Stat({
       )}
     </div>
   );
-}
-
-function drawdownColor(dd?: number, limit?: number): string {
-  if (dd === undefined) return 'text-foreground';
-  const abs = Math.abs(dd);
-  if (limit !== undefined && abs >= Math.abs(limit) * 0.8) return 'text-destructive';
-  if (limit !== undefined && abs >= Math.abs(limit) * 0.5) return 'text-amber-600';
-  return 'text-foreground';
 }
 
 function formatGeneratedAt(iso: string): string {
