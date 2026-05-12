@@ -44,6 +44,14 @@ class OutcomeCandidate(TypedDict, total=False):
     proposal_id: str | None
         # FK to action_proposals when the outcome resolves a proposal.
         # Elevates reconciliation_confidence to "high".
+    signal_id: str | None
+        # Operator-declared signal that produced the proposal (e.g.,
+        # "momentum-breakout", "mean-reversion-oversold" for alpha-trader).
+        # Pulled from action_proposals.inputs.signal_id at reconciliation
+        # time via the client_order_id → proposal lookup (2026-05-12 P&L
+        # unification). Drives per-signal P&L bucketing in _money_truth.md.
+        # None when no signal attribution was carried by the proposal
+        # (e.g., manual operator trades not tied to a fired signal).
     reconciliation_notes: str | None
 
 

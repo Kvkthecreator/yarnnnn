@@ -271,6 +271,10 @@ class AlpacaClient:
         return [
             {
                 "id": o.get("id", ""),
+                "client_order_id": o.get("client_order_id", ""),
+                # Carries our proposal.id when ExecuteProposal set client_order_id
+                # on submit. The trading outcome reconciler reads this field back
+                # to recover signal attribution from action_proposals.inputs.
                 "symbol": o.get("symbol", ""),
                 "side": o.get("side", ""),
                 "qty": o.get("qty", "0"),
@@ -300,8 +304,16 @@ class AlpacaClient:
         time_in_force: str = "day",
         limit_price: Optional[float] = None,
         stop_price: Optional[float] = None,
+        client_order_id: Optional[str] = None,
     ) -> dict:
-        """Submit a trading order. Returns order ID and status."""
+        """Submit a trading order. Returns order ID and status.
+
+        `client_order_id` carries our internal proposal.id round-trip — Alpaca
+        stores it on submit and returns it on every subsequent order read.
+        The trading outcome reconciler uses it to join filled orders back to
+        action_proposals for signal attribution. Alpaca limits the field to
+        128 chars; proposal UUIDs are 36 chars.
+        """
         base = self._get_trading_base(paper)
         body: dict[str, Any] = {
             "symbol": symbol,
@@ -314,6 +326,8 @@ class AlpacaClient:
             body["limit_price"] = str(limit_price)
         if stop_price is not None:
             body["stop_price"] = str(stop_price)
+        if client_order_id is not None:
+            body["client_order_id"] = str(client_order_id)
 
         result = await self._request(
             "POST", base, "/v2/orders", api_key, api_secret, json_body=body,
@@ -323,6 +337,7 @@ class AlpacaClient:
 
         return {
             "id": result.get("id", ""),
+            "client_order_id": result.get("client_order_id", ""),
             "symbol": result.get("symbol", ""),
             "side": result.get("side", ""),
             "qty": result.get("qty", "0"),
@@ -370,6 +385,7 @@ class AlpacaClient:
         stop_loss_stop_price: float,
         stop_loss_limit_price: Optional[float] = None,
         time_in_force: str = "day",
+        client_order_id: Optional[str] = None,
     ) -> dict:
         """Submit a bracket order (entry + take-profit + stop-loss in one atomic call).
 
@@ -377,6 +393,9 @@ class AlpacaClient:
         take_profit (limit) and stop_loss (stop or stop_limit) leg. The three
         legs are submitted atomically; if the entry doesn't fill, the legs
         never activate.
+
+        `client_order_id` round-trips our proposal.id; the reconciler uses
+        it to recover signal attribution from action_proposals on fill.
         """
         base = self._get_trading_base(paper)
         body: dict[str, Any] = {
@@ -393,6 +412,8 @@ class AlpacaClient:
             body["limit_price"] = str(entry_limit_price)
         if stop_loss_limit_price is not None:
             body["stop_loss"]["limit_price"] = str(stop_loss_limit_price)
+        if client_order_id is not None:
+            body["client_order_id"] = str(client_order_id)
 
         result = await self._request(
             "POST", base, "/v2/orders", api_key, api_secret, json_body=body,
@@ -402,6 +423,7 @@ class AlpacaClient:
 
         return {
             "id": result.get("id", ""),
+            "client_order_id": result.get("client_order_id", ""),
             "symbol": result.get("symbol", ""),
             "side": result.get("side", ""),
             "qty": result.get("qty", "0"),
@@ -422,12 +444,15 @@ class AlpacaClient:
         trail_percent: Optional[float] = None,
         trail_price: Optional[float] = None,
         time_in_force: str = "day",
+        client_order_id: Optional[str] = None,
     ) -> dict:
         """Submit a trailing-stop order (stop follows price by % or $).
 
         Provide exactly one of `trail_percent` (e.g., 5.0 for 5%) or
         `trail_price` (dollar offset). Alpaca maintains the stop level
         relative to the high-water (sell) or low-water (buy) mark.
+
+        `client_order_id` round-trips our proposal.id for signal attribution.
         """
         if (trail_percent is None) == (trail_price is None):
             return {"error": "invalid_input", "message": "provide exactly one of trail_percent or trail_price"}
@@ -444,6 +469,8 @@ class AlpacaClient:
             body["trail_percent"] = str(trail_percent)
         else:
             body["trail_price"] = str(trail_price)
+        if client_order_id is not None:
+            body["client_order_id"] = str(client_order_id)
 
         result = await self._request(
             "POST", base, "/v2/orders", api_key, api_secret, json_body=body,
@@ -453,6 +480,7 @@ class AlpacaClient:
 
         return {
             "id": result.get("id", ""),
+            "client_order_id": result.get("client_order_id", ""),
             "symbol": result.get("symbol", ""),
             "side": result.get("side", ""),
             "qty": result.get("qty", "0"),

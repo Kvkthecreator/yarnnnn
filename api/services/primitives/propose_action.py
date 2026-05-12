@@ -453,6 +453,15 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
     # (e.g., task.create → ManageTask({action: "create", ...})).
     merged_inputs = _maybe_inject_manage_task_action(action_type, merged_inputs)
 
+    # P&L unification (2026-05-12): inject proposal.id as underscore-prefixed
+    # `_proposal_id` so platform-specific handlers can round-trip it to the
+    # external platform (e.g., Alpaca's client_order_id field). The outcome
+    # reconciler reads it back on fill to recover signal attribution from
+    # action_proposals.inputs without heuristic joins on (symbol, qty, time).
+    # Underscore prefix marks it as a dispatch-layer concern, not part of the
+    # operator-authored proposal contract.
+    merged_inputs.setdefault("_proposal_id", proposal_id)
+
     # Mark approved BEFORE executing — even if execution fails, approval was
     # recorded. We update to 'executed' on success or 'rejected_at_execution'
     # on validation failure inside the dispatch. Phase 2a: stamp reviewer

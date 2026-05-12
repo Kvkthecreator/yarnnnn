@@ -1921,6 +1921,10 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             time_in_force=tool_input.get("time_in_force", "day"),
             limit_price=tool_input.get("limit_price"),
             stop_price=tool_input.get("stop_price"),
+            # P&L unification: round-trip proposal.id via Alpaca's
+            # client_order_id field. Reconciler reads it back to recover
+            # signal attribution from action_proposals.
+            client_order_id=tool_input.get("_proposal_id"),
         )
         if isinstance(order, dict) and order.get("error"):
             return {"success": False, "error": order["error"]}
@@ -2018,6 +2022,8 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             stop_loss_stop_price=float(sl_stop),
             stop_loss_limit_price=tool_input.get("stop_loss_limit_price"),
             time_in_force=tool_input.get("time_in_force", "day"),
+            # P&L unification: round-trip proposal.id for signal attribution.
+            client_order_id=tool_input.get("_proposal_id"),
         )
         if isinstance(order, dict) and order.get("error"):
             return {"success": False, "error": order["error"]}
@@ -2085,6 +2091,8 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             trail_percent=tool_input.get("trail_percent"),
             trail_price=tool_input.get("trail_price"),
             time_in_force=tool_input.get("time_in_force", "day"),
+            # P&L unification: round-trip proposal.id for signal attribution.
+            client_order_id=tool_input.get("_proposal_id"),
         )
         if isinstance(order, dict) and order.get("error"):
             return {"success": False, "error": order["error"], "message": order.get("message")}
