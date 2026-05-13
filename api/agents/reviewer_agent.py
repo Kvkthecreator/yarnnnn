@@ -102,7 +102,31 @@ class ReviewerOutput(TypedDict, total=False):
 
 class ReviewerContext(TypedDict, total=False):
     """Substrate bag passed by callers. Each trigger pre-loads what it has;
-    the Reviewer uses ReadFile tool to fetch anything else it needs."""
+    the Reviewer uses ReadFile tool to fetch anything else it needs.
+
+    Three valid context shapes per trigger sub-shape (enforced by
+    ``_validate_context_shape`` at the top of ``invoke_reviewer``):
+
+      1. proposal-arrival (trigger="reactive"):
+         REQUIRES: proposal_row
+      2. recurrence-fire (trigger="reactive"):
+         REQUIRES: recurrence_prompt AND recurrence_slug
+      3. addressed (trigger="addressed"):
+         REQUIRES: user_message
+
+    A context bag that doesn't satisfy any shape causes ``invoke_reviewer``
+    to fail loudly with a log error + return None — replacing the prior
+    silent fallback where mismatched context names caused the Reviewer to
+    wake with empty user message and produce inert stand_down. The bug
+    that prompted this discipline lived for days because nothing asserted
+    the shape (commit 85c9736 fixed the symptom — discarded reasoning;
+    this contract enforcement prevents the class of bug).
+
+    Field naming: ``recurrence_prompt`` + ``recurrence_slug`` are
+    canonical for the recurrence-fire shape. The legacy ``trigger_slug``
+    field was removed 2026-05-13 — singular implementation per CLAUDE.md
+    item 1.
+    """
     # Governance layer — all triggers should pass these when available
     identity_md: str
     principles_md: str
@@ -113,17 +137,18 @@ class ReviewerContext(TypedDict, total=False):
     performance_md: str
     risk_md: str
     operator_profile_md: str
-    # Proposal trigger
+    # Sub-shape: proposal-arrival
     proposal_row: dict
-    # Reflection trigger
-    recent_decisions_md: str
-    # Heartbeat trigger
-    trigger_slug: str
-    signal_files: str
-    # Addressed trigger
+    # Sub-shape: recurrence-fire (canonical key names; both must be set
+    # together — invocation_dispatcher.py passes them in lockstep).
+    recurrence_prompt: str
+    recurrence_slug: str
+    # Sub-shape: addressed (operator chat turn)
     user_message: str
     conversation_window: str
-    # Workspace state (compact index) — addressed + heartbeat
+    # Shared across shapes (optional pre-loads the caller can include)
+    recent_decisions_md: str
+    signal_files: str
     workspace_state: str
 
 
@@ -467,8 +492,12 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
             # operator's instruction handed to the Reviewer at scheduled time
             # (ADR-261 D1). It is the addressed-equivalent message — narrate
             # intent, then act.
-            prompt_text = ctx.get("recurrence_prompt") or ctx.get("user_message") or ""
-            slug = ctx.get("recurrence_slug") or ctx.get("trigger_slug")
+            # Canonical shape: recurrence_prompt + recurrence_slug. The legacy
+            # `trigger_slug`/`user_message` fallbacks were removed 2026-05-13
+            # — the contract validator at the top of invoke_reviewer rejects
+            # any recurrence-fire context bag without both canonical fields.
+            prompt_text = ctx.get("recurrence_prompt") or ""
+            slug = ctx.get("recurrence_slug")
             if slug:
                 parts += [f"## Recurrence: `{slug}`", ""]
             if prompt_text:
@@ -508,6 +537,83 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
 
     parts.append(_TRIGGER_FRAMING.get(trigger, ""))
     return "\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Context shape validation (2026-05-13 — Problem B fix)
+# ---------------------------------------------------------------------------
+
+def _validate_context_shape(
+    trigger: str, context: Any, user_id: str
+) -> str | None:
+    """Validate that the context bag matches one of three valid shapes.
+
+    Returns None when valid; returns a short reason string when invalid.
+    Callers (i.e., invoke_reviewer) log the reason and return None instead
+    of waking the Reviewer with an empty user message.
+
+    Why this exists. Python dicts are stringly-typed; the dispatcher and
+    the Reviewer historically named the same data with different keys
+    (commit e55d201 fixed `prompt`/`slug` vs `recurrence_prompt`/`recurrence_slug`
+    mismatch). The bug surfaced because nothing asserted the shape —
+    the model was forgiving, fires logged, costs accrued, the system
+    looked healthy from the audit-log layer. This validator fails loudly
+    on shape violation so the next instance of the same bug class
+    surfaces immediately.
+
+    The three valid shapes are derived from the three trigger sub-shapes
+    `_build_user_message` knows how to construct:
+
+      1. proposal-arrival (trigger="reactive"):
+         REQUIRES proposal_row to be a non-empty dict.
+      2. recurrence-fire (trigger="reactive"):
+         REQUIRES BOTH recurrence_prompt (non-empty str) AND
+         recurrence_slug (non-empty str).
+      3. addressed (trigger="addressed"):
+         REQUIRES user_message (non-empty str).
+
+    A context that satisfies neither (1) nor (2) when trigger=reactive,
+    or doesn't satisfy (3) when trigger=addressed, is rejected.
+    """
+    if not isinstance(context, dict):
+        return f"context must be a dict, got {type(context).__name__}"
+
+    if trigger == "reactive":
+        # Shape 1: proposal-arrival
+        proposal_row = context.get("proposal_row")
+        has_proposal = isinstance(proposal_row, dict) and bool(proposal_row)
+        # Shape 2: recurrence-fire
+        rec_prompt = context.get("recurrence_prompt")
+        rec_slug = context.get("recurrence_slug")
+        has_recurrence = (
+            isinstance(rec_prompt, str) and bool(rec_prompt.strip())
+            and isinstance(rec_slug, str) and bool(rec_slug.strip())
+        )
+
+        if has_proposal and has_recurrence:
+            return (
+                "ambiguous reactive context: both proposal_row and "
+                "recurrence_prompt/recurrence_slug present. Callers must "
+                "choose exactly one sub-shape."
+            )
+        if not has_proposal and not has_recurrence:
+            return (
+                "reactive trigger requires either proposal_row (proposal-"
+                "arrival) or recurrence_prompt+recurrence_slug (recurrence-"
+                f"fire). Got context keys: {sorted(context.keys())}"
+            )
+        return None
+
+    if trigger == "addressed":
+        msg = context.get("user_message")
+        if not (isinstance(msg, str) and msg.strip()):
+            return (
+                "addressed trigger requires non-empty user_message. "
+                f"Got context keys: {sorted(context.keys())}"
+            )
+        return None
+
+    return f"unknown trigger value: {trigger!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -557,6 +663,20 @@ async def invoke_reviewer(
 
     Never raises. Returns None on total failure.
     """
+    # Contract enforcement (2026-05-13 — Problem B fix).
+    # The dispatcher↔Reviewer key-drift bug (commit e55d201) lived for days
+    # because nothing asserted the context shape — silent fallback turned a
+    # malformed call into an inert stand_down. Reject malformed shapes
+    # loudly at the boundary instead of waking the LLM with an empty
+    # user message and burning tokens to produce a useless verdict.
+    shape_error = _validate_context_shape(trigger, context, user_id)
+    if shape_error:
+        logger.error(
+            "[REVIEWER] context shape violation user=%s trigger=%s: %s",
+            user_id[:8] if user_id else "?", trigger, shape_error,
+        )
+        return None
+
     from services.primitives.registry import REVIEWER_PRIMITIVES, execute_primitive
     from types import SimpleNamespace
 
@@ -817,7 +937,11 @@ async def invoke_reviewer(
             model=model,
             input_tokens=total_input,
             output_tokens=total_output,
-            ref_id=context.get("proposal_row", {}).get("id") if trigger == "proposal" else None,
+            ref_id=(
+                (context.get("proposal_row") or {}).get("id")
+                if (trigger == "reactive" and isinstance(context.get("proposal_row"), dict))
+                else None
+            ),
             metadata=usage_metadata,
         )
 
