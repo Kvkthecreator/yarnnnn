@@ -17,7 +17,6 @@
     ],
     "note": "Snapshot, not canonical. Reflects code on commit 6217498 (post-ADR-260/261/262 merge). The dispatcher↔Reviewer key-drift fixes from commits e55d201, 85c9736, 6027459 are encoded in the invariants. Refer to SERVICE-MODEL.md and named ADRs for current canon."
   },
-
   "actors": {
     "operator": {
       "kind": "human",
@@ -68,51 +67,80 @@
       "description": "Slack, Notion, GitHub — direct API clients (ADR-076). No platform_content table anymore (ADR-153); platform data flows live during task execution."
     }
   },
-
   "cross_cuts": {
     "authored_substrate_write": {
       "label": "ADR-209 write_revision()",
       "description": "Every workspace_files mutation MUST route through authored_substrate.write_revision(). Three sequential DB operations: (1) upsert content-addressed blob in workspace_blobs by sha256, (2) insert row in workspace_file_versions with parent_version_id linking to previous head, (3) update workspace_files head_version_id pointer + content + metadata. authored_by attribution is required. Taxonomy: operator | yarnnn:<model> | agent:<slug> | specialist:<role> | reviewer:<identity> | system:<actor>.",
       "file_ref": "api/services/authored_substrate.py:244",
-      "appears_in_flows": ["scheduled", "reactive", "addressed", "mechanical", "outcomes"]
+      "appears_in_flows": [
+        "scheduled",
+        "reactive",
+        "addressed",
+        "mechanical",
+        "outcomes"
+      ]
     },
     "token_ledger_write": {
       "label": "token_usage ledger",
       "description": "Every Anthropic API call writes a row in token_usage with caller tag. Callers: reviewer (Sonnet, capital), reviewer-reflection (Haiku — note: ADR-256 unification kept caller names for telemetry continuity even though function-level reflection mode was unified), system-agent (Haiku/Sonnet, addressed turns), specialist:<role> (Sonnet, ADR-261 D7). Billing rate: 2x Anthropic API (ADR-171/172). Cache discount NOT passed through.",
-      "appears_in_flows": ["scheduled", "reactive", "addressed"]
+      "appears_in_flows": [
+        "scheduled",
+        "reactive",
+        "addressed"
+      ]
     },
     "narrative_append": {
       "label": "session_messages append (the Feed)",
       "description": "Per FOUNDATIONS Axiom 9, every invocation emits a narrative entry. Per ADR-258 revised, Reviewer actions emit per-action narration via reviewer_chat_surfacing.surface_reviewer_actions() — System Agent bubble per consequential successful action (FireInvocation/ProposeAction/WriteFile). Cognition tools stay as transient streaming-status; failed actions stay silent. Per ADR-259, the surface is the Feed (was 'chat'). session_messages.role: user | system_agent | reviewer | agent | external | system.",
       "file_ref": "api/services/narrative.py:79",
-      "appears_in_flows": ["scheduled", "reactive", "addressed", "mechanical", "outcomes"]
+      "appears_in_flows": [
+        "scheduled",
+        "reactive",
+        "addressed",
+        "mechanical",
+        "outcomes"
+      ]
     },
     "decisions_md_append": {
       "label": "/workspace/review/decisions.md append",
       "description": "Every Reviewer verdict + every reactive observation appends to /workspace/review/decisions.md via reviewer_audit.append_decision() or append_recurrence_fire(). Substrate-as-truth: the file is the audit ledger, not the action_proposals.reviewer_reasoning column (which is a denormalization).",
       "file_ref": "api/services/reviewer_audit.py:72",
-      "appears_in_flows": ["reactive", "addressed", "scheduled"]
+      "appears_in_flows": [
+        "reactive",
+        "addressed",
+        "scheduled"
+      ]
     },
     "execution_event_record": {
       "label": "execution_events ledger",
       "description": "Per-dispatch row recording invocation outcome: success | failed | skipped, with error_reason taxonomy (balance_exhausted, spend_ceiling, capability_missing, no_active_session, etc.). Used by /work surface freshness signals and scheduler telemetry.",
       "file_ref": "api/services/invocation_dispatcher.py",
-      "appears_in_flows": ["scheduled", "reactive", "mechanical"]
+      "appears_in_flows": [
+        "scheduled",
+        "reactive",
+        "mechanical"
+      ]
     },
     "autonomy_gate": {
       "label": "should_auto_execute_verdict()",
       "description": "Per-domain delegation + ceiling check from /workspace/context/_shared/_autonomy.yaml (ADR-254 file-format discipline). Levels: manual | bounded | autonomous, with ceiling_cents. Reviewer verdict 'approve' still routes to operator Queue if AUTONOMY doesn't permit; if permitted within ceiling, executes via handle_execute_proposal. ADR-229 D1: judgment-first ordering — Reviewer runs ALWAYS, autonomy filters whether verdict BINDS post-judgment.",
       "file_ref": "api/services/review_policy.py:265",
-      "appears_in_flows": ["reactive", "scheduled"]
+      "appears_in_flows": [
+        "reactive",
+        "scheduled"
+      ]
     },
     "balance_gate": {
       "label": "Balance + daily spend ceiling",
       "description": "Two-step pre-LLM gate on judgment-mode dispatch: (1) workspace.balance_usd > 0 (hard stop at zero; topped up via signup grant $3, top-ups $10/$25/$50, Pro $19/mo = $20 balance reset), (2) daily spend ≤ DAILY_SPEND_CEILING_USD (ADR-250 Phase 3). Reactive triggers get silent skip on ceiling; addressed triggers get warn-but-proceed.",
       "file_ref": "api/services/invocation_dispatcher.py:140",
-      "appears_in_flows": ["scheduled", "reactive", "addressed"]
+      "appears_in_flows": [
+        "scheduled",
+        "reactive",
+        "addressed"
+      ]
     }
   },
-
   "invariants": [
     {
       "id": "INV-1",
@@ -163,39 +191,185 @@
       "enforced_by": "api/services/scheduling.py:114 + api/services/recurrence.py:249 (walk_workspace_recurrences)"
     }
   ],
-
   "flows": {
     "scheduled": {
       "id": "scheduled",
       "title": "Scheduled trigger — cron-fired recurrence",
       "summary": "Render cron tick → due-recurrence query → CAS claim → invocation_dispatcher.dispatch() → either Reviewer (judgment mode) or deterministic primitive (mechanical mode). Most autonomous work flows through here.",
-      "primary_adrs": ["ADR-260", "ADR-261", "ADR-263", "ADR-264"],
-      "mermaid": "flowchart TD\n    cron[\"⏱ Render Cron<br/>yarnnn-unified-scheduler\"]\n    -->|fires every N min| sched\n    sched[\"unified_scheduler.run_unified_scheduler()<br/><code>jobs/unified_scheduler.py:250</code>\"]\n    --> dispatch_due\n    dispatch_due[\"dispatch_due_invocations()<br/><code>jobs/unified_scheduler.py:118</code>\"]\n    --> get_due\n    get_due[\"scheduling.get_due_recurrences()<br/><code>services/scheduling.py:211</code>\"]\n    --> claim\n    claim[\"scheduling.claim_task_run() — CAS<br/><code>services/scheduling.py:272</code>\"]\n    -->|claimed| walk\n    walk[\"recurrence.walk_workspace_recurrences()<br/>reads <code>/workspace/_recurrences.yaml</code>\"]\n    --> dispatch\n    dispatch[\"invocation_dispatcher.dispatch()<br/><code>services/invocation_dispatcher.py:72</code>\"]\n    --> paused_check\n    paused_check{recurrence.paused?}\n    -->|yes| result_paused([_result_paused])\n    paused_check -->|no| mode_branch\n    mode_branch{recurrence.mode}\n    -->|mechanical| mechanical[\"_dispatch_mechanical()<br/><code>:527</code>\"]\n    mode_branch -->|judgment| balance_gate\n    balance_gate{balance > 0?}\n    -->|no| skip_balance([emit narrative + skip])\n    balance_gate -->|yes| ceiling_gate\n    ceiling_gate{daily_spend < ceiling?}\n    -->|no, reactive| skip_ceiling([silent skip])\n    ceiling_gate -->|no, addressed| warn_proceed([warn + proceed])\n    ceiling_gate -->|yes| invoke\n    warn_proceed --> invoke\n    invoke[\"invoke_reviewer(trigger='reactive',<br/>context={recurrence_prompt, recurrence_slug, ...})<br/><code>agents/reviewer_agent.py:623</code>\"]\n    --> sub_shape\n    sub_shape[\"sub-shape = recurrence fire<br/>→ Haiku, 3 rounds\"]\n    --> loop\n    loop[\"tool-use loop:<br/>ReadFile, FireInvocation,<br/>ProposeAction, WriteFile,<br/>DispatchSpecialist, ReturnVerdict\"]\n    --> verdict\n    verdict{verdict type}\n    -->|approve + AUTONOMY permits| exec_proposal[\"handle_execute_proposal()\"]\n    -->|approve + AUTONOMY denies| queue([Queue — operator click])\n    verdict -->|reject| reject[\"handle_reject_proposal()\"]\n    verdict -->|defer / stand_down| stand_down([observation entry only])\n    verdict -->|directives| directives[\"_execute_reviewer_directives()<br/>fire / write / clarify\"]\n    loop -.->|per consequential action| narrate[\"surface_reviewer_actions()<br/>→ Feed bubble\"]\n    loop -.->|each LLM call| token([token_usage row])\n    exec_proposal --> audit[\"reviewer_audit.append_decision()<br/>→ /workspace/review/decisions.md\"]\n    reject --> audit\n    mechanical --> directive_parse[\"_parse_primitive_directive()<br/>regex + YAML coerce\"]\n    directive_parse --> handler[\"HANDLERS[primitive_name](auth, input)\"]\n    handler --> write_revision[(\"<b>write_revision</b><br/>authored_by=system:&lt;actor&gt;\")]\n    exec_proposal --> write_revision\n    directives --> write_revision",
+      "primary_adrs": [
+        "ADR-260",
+        "ADR-261",
+        "ADR-263",
+        "ADR-264"
+      ],
+      "mermaid": "flowchart TD\n    cron[\"⏱ Render Cron<br/>yarnnn-unified-scheduler\"]\n    -->|fires every N min| sched\n    sched[\"unified_scheduler.run_unified_scheduler()<br/><code>jobs/unified_scheduler.py:250</code>\"]\n    --> dispatch_due\n    dispatch_due[\"dispatch_due_invocations()<br/><code>jobs/unified_scheduler.py:118</code>\"]\n    --> get_due\n    get_due[\"scheduling.get_due_recurrences()<br/><code>services/scheduling.py:211</code>\"]\n    --> claim\n    claim[\"scheduling.claim_task_run() — CAS<br/><code>services/scheduling.py:272</code>\"]\n    -->|claimed| walk\n    walk[\"recurrence.walk_workspace_recurrences()<br/>reads <code>/workspace/_recurrences.yaml</code>\"]\n    --> dispatch\n    dispatch[\"invocation_dispatcher.dispatch()<br/><code>services/invocation_dispatcher.py:72</code>\"]\n    --> paused_check\n    paused_check{recurrence.paused?}\n    -->|yes| result_paused([_result_paused])\n    paused_check -->|no| mode_branch\n    mode_branch{recurrence.mode}\n    -->|mechanical| mechanical[\"_dispatch_mechanical()<br/><code>:527</code>\"]\n    mode_branch -->|judgment| balance_gate\n    balance_gate{\"balance > 0?\"}\n    -->|no| skip_balance([emit narrative + skip])\n    balance_gate -->|yes| ceiling_gate\n    ceiling_gate{\"daily_spend < ceiling?\"}\n    -->|no, reactive| skip_ceiling([silent skip])\n    ceiling_gate -->|no, addressed| warn_proceed([warn + proceed])\n    ceiling_gate -->|yes| invoke\n    warn_proceed --> invoke\n    invoke[\"invoke_reviewer(trigger='reactive',<br/>context={recurrence_prompt, recurrence_slug, ...})<br/><code>agents/reviewer_agent.py:623</code>\"]\n    --> sub_shape\n    sub_shape[\"sub-shape = recurrence fire<br/>→ Haiku, 3 rounds\"]\n    --> loop\n    loop[\"tool-use loop:<br/>ReadFile, FireInvocation,<br/>ProposeAction, WriteFile,<br/>DispatchSpecialist, ReturnVerdict\"]\n    --> verdict\n    verdict{verdict type}\n    -->|approve + AUTONOMY permits| exec_proposal[\"handle_execute_proposal()\"]\n    -->|approve + AUTONOMY denies| queue([Queue — operator click])\n    verdict -->|reject| reject[\"handle_reject_proposal()\"]\n    verdict -->|defer / stand_down| stand_down([observation entry only])\n    verdict -->|directives| directives[\"_execute_reviewer_directives()<br/>fire / write / clarify\"]\n    loop -.->|per consequential action| narrate[\"surface_reviewer_actions()<br/>→ Feed bubble\"]\n    loop -.->|each LLM call| token([token_usage row])\n    exec_proposal --> audit[\"reviewer_audit.append_decision()<br/>→ /workspace/review/decisions.md\"]\n    reject --> audit\n    mechanical --> directive_parse[\"_parse_primitive_directive()<br/>regex + YAML coerce\"]\n    directive_parse --> handler[\"HANDLERS[primitive_name](auth, input)\"]\n    handler --> write_revision[(\"<b>write_revision</b><br/>authored_by=system:&lt;actor&gt;\")]\n    exec_proposal --> write_revision\n    directives --> write_revision",
       "nodes": [
-        {"id": "cron", "label": "Render Cron", "kind": "external", "actor": "cron", "file_ref": null},
-        {"id": "sched", "label": "run_unified_scheduler()", "kind": "service", "actor": "system_agent", "file_ref": "api/jobs/unified_scheduler.py:250"},
-        {"id": "dispatch_due", "label": "dispatch_due_invocations()", "kind": "service", "actor": "system_agent", "file_ref": "api/jobs/unified_scheduler.py:118"},
-        {"id": "get_due", "label": "get_due_recurrences()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/scheduling.py:211"},
-        {"id": "claim", "label": "claim_task_run() — CAS", "kind": "service", "actor": "system_agent", "file_ref": "api/services/scheduling.py:272"},
-        {"id": "walk", "label": "walk_workspace_recurrences()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/recurrence.py:249"},
-        {"id": "dispatch", "label": "invocation_dispatcher.dispatch()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/invocation_dispatcher.py:72"},
-        {"id": "mechanical", "label": "_dispatch_mechanical()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/invocation_dispatcher.py:527"},
-        {"id": "invoke", "label": "invoke_reviewer()", "kind": "service", "actor": "reviewer", "file_ref": "api/agents/reviewer_agent.py:623"},
-        {"id": "loop", "label": "Reviewer tool-use loop", "kind": "llm_loop", "actor": "reviewer", "file_ref": "api/agents/reviewer_agent.py:623"},
-        {"id": "exec_proposal", "label": "handle_execute_proposal()", "kind": "primitive", "actor": "system_agent", "file_ref": "api/services/primitives/propose_action.py:374"},
-        {"id": "directives", "label": "_execute_reviewer_directives()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/review_proposal_dispatch.py:604"},
-        {"id": "audit", "label": "decisions.md append", "kind": "substrate_write", "actor": "system_agent", "file_ref": "api/services/reviewer_audit.py:72"},
-        {"id": "write_revision", "label": "authored_substrate.write_revision()", "kind": "substrate_write", "actor": "system_agent", "file_ref": "api/services/authored_substrate.py:244"},
-        {"id": "narrate", "label": "surface_reviewer_actions()", "kind": "narrative_emit", "actor": "system_agent", "file_ref": "api/services/reviewer_chat_surfacing.py:192"}
+        {
+          "id": "cron",
+          "label": "Render Cron",
+          "kind": "external",
+          "actor": "cron",
+          "file_ref": null
+        },
+        {
+          "id": "sched",
+          "label": "run_unified_scheduler()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/jobs/unified_scheduler.py:250"
+        },
+        {
+          "id": "dispatch_due",
+          "label": "dispatch_due_invocations()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/jobs/unified_scheduler.py:118"
+        },
+        {
+          "id": "get_due",
+          "label": "get_due_recurrences()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/scheduling.py:211"
+        },
+        {
+          "id": "claim",
+          "label": "claim_task_run() — CAS",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/scheduling.py:272"
+        },
+        {
+          "id": "walk",
+          "label": "walk_workspace_recurrences()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/recurrence.py:249"
+        },
+        {
+          "id": "dispatch",
+          "label": "invocation_dispatcher.dispatch()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/invocation_dispatcher.py:72"
+        },
+        {
+          "id": "mechanical",
+          "label": "_dispatch_mechanical()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/invocation_dispatcher.py:527"
+        },
+        {
+          "id": "invoke",
+          "label": "invoke_reviewer()",
+          "kind": "service",
+          "actor": "reviewer",
+          "file_ref": "api/agents/reviewer_agent.py:623"
+        },
+        {
+          "id": "loop",
+          "label": "Reviewer tool-use loop",
+          "kind": "llm_loop",
+          "actor": "reviewer",
+          "file_ref": "api/agents/reviewer_agent.py:623"
+        },
+        {
+          "id": "exec_proposal",
+          "label": "handle_execute_proposal()",
+          "kind": "primitive",
+          "actor": "system_agent",
+          "file_ref": "api/services/primitives/propose_action.py:374"
+        },
+        {
+          "id": "directives",
+          "label": "_execute_reviewer_directives()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/review_proposal_dispatch.py:604"
+        },
+        {
+          "id": "audit",
+          "label": "decisions.md append",
+          "kind": "substrate_write",
+          "actor": "system_agent",
+          "file_ref": "api/services/reviewer_audit.py:72"
+        },
+        {
+          "id": "write_revision",
+          "label": "authored_substrate.write_revision()",
+          "kind": "substrate_write",
+          "actor": "system_agent",
+          "file_ref": "api/services/authored_substrate.py:244"
+        },
+        {
+          "id": "narrate",
+          "label": "surface_reviewer_actions()",
+          "kind": "narrative_emit",
+          "actor": "system_agent",
+          "file_ref": "api/services/reviewer_chat_surfacing.py:192"
+        }
       ],
       "gates": [
-        {"id": "paused_check", "predicate": "recurrence.paused == True", "branches": ["paused → _result_paused, skip", "not paused → continue"], "file_ref": "api/services/invocation_dispatcher.py:111"},
-        {"id": "mode_branch", "predicate": "recurrence.mode == 'mechanical'", "branches": ["mechanical → _dispatch_mechanical (zero LLM)", "judgment → balance/ceiling gates → invoke_reviewer"], "file_ref": "api/services/invocation_dispatcher.py:130"},
-        {"id": "balance_gate", "predicate": "platform_limits.check_balance(user_id)", "branches": ["balance ≤ 0 → emit narrative, skip", "balance > 0 → continue"], "file_ref": "api/services/invocation_dispatcher.py:140"},
-        {"id": "ceiling_gate", "predicate": "daily_spend < DAILY_SPEND_CEILING_USD", "branches": ["over + trigger=reactive → silent skip", "over + trigger=addressed → warn and proceed", "under → proceed"], "file_ref": "api/services/invocation_dispatcher.py:165"},
-        {"id": "verdict_branch", "predicate": "verdict = ReturnVerdict tool output", "branches": ["approve + AUTONOMY permits → execute", "approve + AUTONOMY denies → Queue", "reject → handle_reject_proposal", "defer/stand_down → observation only", "directives → _execute_reviewer_directives"], "file_ref": "api/agents/reviewer_agent.py:623"}
+        {
+          "id": "paused_check",
+          "predicate": "recurrence.paused == True",
+          "branches": [
+            "paused → _result_paused, skip",
+            "not paused → continue"
+          ],
+          "file_ref": "api/services/invocation_dispatcher.py:111"
+        },
+        {
+          "id": "mode_branch",
+          "predicate": "recurrence.mode == 'mechanical'",
+          "branches": [
+            "mechanical → _dispatch_mechanical (zero LLM)",
+            "judgment → balance/ceiling gates → invoke_reviewer"
+          ],
+          "file_ref": "api/services/invocation_dispatcher.py:130"
+        },
+        {
+          "id": "balance_gate",
+          "predicate": "platform_limits.check_balance(user_id)",
+          "branches": [
+            "balance ≤ 0 → emit narrative, skip",
+            "balance > 0 → continue"
+          ],
+          "file_ref": "api/services/invocation_dispatcher.py:140"
+        },
+        {
+          "id": "ceiling_gate",
+          "predicate": "daily_spend < DAILY_SPEND_CEILING_USD",
+          "branches": [
+            "over + trigger=reactive → silent skip",
+            "over + trigger=addressed → warn and proceed",
+            "under → proceed"
+          ],
+          "file_ref": "api/services/invocation_dispatcher.py:165"
+        },
+        {
+          "id": "verdict_branch",
+          "predicate": "verdict = ReturnVerdict tool output",
+          "branches": [
+            "approve + AUTONOMY permits → execute",
+            "approve + AUTONOMY denies → Queue",
+            "reject → handle_reject_proposal",
+            "defer/stand_down → observation only",
+            "directives → _execute_reviewer_directives"
+          ],
+          "file_ref": "api/agents/reviewer_agent.py:623"
+        }
       ],
-      "cross_cuts_hit": ["authored_substrate_write", "token_ledger_write", "narrative_append", "decisions_md_append", "execution_event_record", "autonomy_gate", "balance_gate"],
+      "cross_cuts_hit": [
+        "authored_substrate_write",
+        "token_ledger_write",
+        "narrative_append",
+        "decisions_md_append",
+        "execution_event_record",
+        "autonomy_gate",
+        "balance_gate"
+      ],
       "key_files": [
         "api/jobs/unified_scheduler.py",
         "api/services/scheduling.py",
@@ -205,34 +379,151 @@
         "api/services/review_policy.py"
       ]
     },
-
     "reactive": {
       "id": "reactive",
       "title": "Reactive trigger — proposal arrival",
       "summary": "Headless agent or specialist calls ProposeAction → action_proposals row inserted → on_proposal_created() fires → AI Reviewer judges (Sonnet, capital-decision shape) → verdict routes through AUTONOMY gate → either auto-executes within ceiling or queues for operator click.",
-      "primary_adrs": ["ADR-229", "ADR-247", "ADR-252", "ADR-253", "ADR-256", "ADR-258"],
-      "mermaid": "flowchart TD\n    caller[\"Caller proposes action<br/>(specialist sub-LLM, Reviewer<br/>during loop, or platform handler)\"]\n    --> propose\n    propose[\"handle_propose_action()<br/><code>services/primitives/propose_action.py:213</code>\"]\n    --> insert\n    insert[(\"INSERT action_proposals<br/>status=pending\")]\n    --> hook\n    hook[\"review_proposal_dispatch.on_proposal_created()<br/><code>services/review_proposal_dispatch.py:95</code>\"]\n    --> source_check\n    source_check{source ∈<br/>{reviewer_periodic,<br/>reviewer_addressed,<br/>reviewer_heartbeat}?}\n    -->|yes| skip_reflexive([INV-7: skip — Reviewer already judged])\n    skip_reflexive --> autonomy_only\n    source_check -->|no| domain_resolve\n    domain_resolve[\"_resolve_context_domain(action_type)\"]\n    --> domain_check\n    domain_check{context_domain<br/>has reviewable<br/>substrate?}\n    -->|no| observe_only([_write_observation<br/>observe-only path])\n    domain_check -->|yes| run_reviewer\n    run_reviewer[\"_run_ai_reviewer()<br/><code>:294</code>\"]\n    --> invoke\n    invoke[\"invoke_reviewer(trigger='reactive',<br/>context={proposal_row, context_domain, ...})<br/><code>agents/reviewer_agent.py:623</code>\"]\n    --> sub_shape\n    sub_shape[\"sub-shape = proposal arrival<br/>→ Sonnet, 3 rounds<br/>(capital-decision model)\"]\n    --> loop\n    loop[\"Reviewer loads:<br/>IDENTITY · principles · PRECEDENT<br/>_money_truth · _risk · _operator_profile\"]\n    --> verdict\n    verdict{verdict}\n    -->|approve| autonomy_only\n    verdict -->|reject| reject\n    verdict -->|defer / stand_down| defer_obs([observation entry])\n    autonomy_only[\"should_auto_execute_verdict()<br/><code>services/review_policy.py:265</code>\"]\n    --> gate\n    gate{auto_execute<br/>permitted?}\n    -->|yes, within ceiling| exec\n    exec[\"handle_execute_proposal()<br/><code>services/primitives/propose_action.py:374</code>\"]\n    --> tool_dispatch\n    tool_dispatch[\"ACTION_DISPATCH_MAP<br/>→ platform tool\"]\n    --> platform_write\n    platform_write[/\"External write:<br/>Alpaca order · LS product ·<br/>Slack message · email\"/]\n    gate -->|no| queue([Queue — operator click])\n    reject[\"handle_reject_proposal()\"]\n    --> audit\n    exec --> audit\n    audit[\"reviewer_audit.append_decision()<br/>→ /workspace/review/decisions.md\"]\n    loop -.->|each LLM call| token([token_usage<br/>caller=reviewer])\n    loop -.->|consequential action| narrate([surface_reviewer_actions<br/>→ Feed bubble])\n    exec --> write_rev[(\"<b>write_revision</b><br/>authored_by=reviewer:&lt;identity&gt;<br/>or operator\")]",
+      "primary_adrs": [
+        "ADR-229",
+        "ADR-247",
+        "ADR-252",
+        "ADR-253",
+        "ADR-256",
+        "ADR-258"
+      ],
+      "mermaid": "flowchart TD\n    caller[\"Caller proposes action<br/>(specialist sub-LLM, Reviewer<br/>during loop, or platform handler)\"]\n    --> propose\n    propose[\"handle_propose_action()<br/><code>services/primitives/propose_action.py:213</code>\"]\n    --> insert\n    insert[(\"INSERT action_proposals<br/>status=pending\")]\n    --> hook\n    hook[\"review_proposal_dispatch.on_proposal_created()<br/><code>services/review_proposal_dispatch.py:95</code>\"]\n    --> source_check\n    source_check{\"source ∈ {reviewer_periodic, reviewer_addressed, reviewer_heartbeat}?\"}\n    -->|yes| skip_reflexive([INV-7: skip — Reviewer already judged])\n    skip_reflexive --> autonomy_only\n    source_check -->|no| domain_resolve\n    domain_resolve[\"_resolve_context_domain(action_type)\"]\n    --> domain_check\n    domain_check{\"context_domain<br/>has reviewable<br/>substrate?\"}\n    -->|no| observe_only([\"_write_observation<br/>observe-only path\"])\n    domain_check -->|yes| run_reviewer\n    run_reviewer[\"_run_ai_reviewer()<br/><code>:294</code>\"]\n    --> invoke\n    invoke[\"invoke_reviewer(trigger='reactive',<br/>context={proposal_row, context_domain, ...})<br/><code>agents/reviewer_agent.py:623</code>\"]\n    --> sub_shape\n    sub_shape[\"sub-shape = proposal arrival<br/>→ Sonnet, 3 rounds<br/>(capital-decision model)\"]\n    --> loop\n    loop[\"Reviewer loads:<br/>IDENTITY · principles · PRECEDENT<br/>_money_truth · _risk · _operator_profile\"]\n    --> verdict\n    verdict{verdict}\n    -->|approve| autonomy_only\n    verdict -->|reject| reject\n    verdict -->|defer / stand_down| defer_obs([observation entry])\n    autonomy_only[\"should_auto_execute_verdict()<br/><code>services/review_policy.py:265</code>\"]\n    --> gate\n    gate{\"auto_execute<br/>permitted?\"}\n    -->|yes, within ceiling| exec\n    exec[\"handle_execute_proposal()<br/><code>services/primitives/propose_action.py:374</code>\"]\n    --> tool_dispatch\n    tool_dispatch[\"ACTION_DISPATCH_MAP<br/>→ platform tool\"]\n    --> platform_write\n    platform_write[/\"External write:<br/>Alpaca order · LS product ·<br/>Slack message · email\"/]\n    gate -->|no| queue([Queue — operator click])\n    reject[\"handle_reject_proposal()\"]\n    --> audit\n    exec --> audit\n    audit[\"reviewer_audit.append_decision()<br/>→ /workspace/review/decisions.md\"]\n    loop -.->|each LLM call| token([\"token_usage<br/>caller=reviewer\"])\n    loop -.->|consequential action| narrate([\"surface_reviewer_actions<br/>→ Feed bubble\"])\n    exec --> write_rev[(\"<b>write_revision</b><br/>authored_by=reviewer:&lt;identity&gt;<br/>or operator\")]",
       "nodes": [
-        {"id": "caller", "label": "Caller proposes action", "kind": "actor", "actor": "specialist_sub_llm", "file_ref": null},
-        {"id": "propose", "label": "handle_propose_action()", "kind": "primitive", "actor": "system_agent", "file_ref": "api/services/primitives/propose_action.py:213"},
-        {"id": "insert", "label": "INSERT action_proposals", "kind": "datastore_write", "actor": "supabase_postgres", "file_ref": null},
-        {"id": "hook", "label": "on_proposal_created()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/review_proposal_dispatch.py:95"},
-        {"id": "run_reviewer", "label": "_run_ai_reviewer()", "kind": "service", "actor": "reviewer", "file_ref": "api/services/review_proposal_dispatch.py:294"},
-        {"id": "invoke", "label": "invoke_reviewer()", "kind": "service", "actor": "reviewer", "file_ref": "api/agents/reviewer_agent.py:623"},
-        {"id": "autonomy_only", "label": "should_auto_execute_verdict()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/review_policy.py:265"},
-        {"id": "exec", "label": "handle_execute_proposal()", "kind": "primitive", "actor": "system_agent", "file_ref": "api/services/primitives/propose_action.py:374"},
-        {"id": "reject", "label": "handle_reject_proposal()", "kind": "primitive", "actor": "system_agent", "file_ref": "api/services/primitives/propose_action.py:645"},
-        {"id": "platform_write", "label": "External platform write", "kind": "external_call", "actor": "alpaca", "file_ref": null},
-        {"id": "audit", "label": "decisions.md append", "kind": "substrate_write", "actor": "system_agent", "file_ref": "api/services/reviewer_audit.py:72"},
-        {"id": "write_rev", "label": "write_revision()", "kind": "substrate_write", "actor": "system_agent", "file_ref": "api/services/authored_substrate.py:244"}
+        {
+          "id": "caller",
+          "label": "Caller proposes action",
+          "kind": "actor",
+          "actor": "specialist_sub_llm",
+          "file_ref": null
+        },
+        {
+          "id": "propose",
+          "label": "handle_propose_action()",
+          "kind": "primitive",
+          "actor": "system_agent",
+          "file_ref": "api/services/primitives/propose_action.py:213"
+        },
+        {
+          "id": "insert",
+          "label": "INSERT action_proposals",
+          "kind": "datastore_write",
+          "actor": "supabase_postgres",
+          "file_ref": null
+        },
+        {
+          "id": "hook",
+          "label": "on_proposal_created()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/review_proposal_dispatch.py:95"
+        },
+        {
+          "id": "run_reviewer",
+          "label": "_run_ai_reviewer()",
+          "kind": "service",
+          "actor": "reviewer",
+          "file_ref": "api/services/review_proposal_dispatch.py:294"
+        },
+        {
+          "id": "invoke",
+          "label": "invoke_reviewer()",
+          "kind": "service",
+          "actor": "reviewer",
+          "file_ref": "api/agents/reviewer_agent.py:623"
+        },
+        {
+          "id": "autonomy_only",
+          "label": "should_auto_execute_verdict()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/review_policy.py:265"
+        },
+        {
+          "id": "exec",
+          "label": "handle_execute_proposal()",
+          "kind": "primitive",
+          "actor": "system_agent",
+          "file_ref": "api/services/primitives/propose_action.py:374"
+        },
+        {
+          "id": "reject",
+          "label": "handle_reject_proposal()",
+          "kind": "primitive",
+          "actor": "system_agent",
+          "file_ref": "api/services/primitives/propose_action.py:645"
+        },
+        {
+          "id": "platform_write",
+          "label": "External platform write",
+          "kind": "external_call",
+          "actor": "alpaca",
+          "file_ref": null
+        },
+        {
+          "id": "audit",
+          "label": "decisions.md append",
+          "kind": "substrate_write",
+          "actor": "system_agent",
+          "file_ref": "api/services/reviewer_audit.py:72"
+        },
+        {
+          "id": "write_rev",
+          "label": "write_revision()",
+          "kind": "substrate_write",
+          "actor": "system_agent",
+          "file_ref": "api/services/authored_substrate.py:244"
+        }
       ],
       "gates": [
-        {"id": "source_check", "predicate": "proposal_row.source ∈ {reviewer_periodic, reviewer_addressed, reviewer_heartbeat}", "branches": ["yes → skip reactive Reviewer, go straight to AUTONOMY gate", "no → continue to domain resolution"], "file_ref": "api/services/review_proposal_dispatch.py:119"},
-        {"id": "domain_check", "predicate": "context_domain has reviewable substrate (principles.md or _money_truth.md or _operator_profile.md)", "branches": ["no → _write_observation, observe-only", "yes → run AI Reviewer"], "file_ref": "api/services/review_proposal_dispatch.py:148"},
-        {"id": "verdict_branch", "predicate": "ReturnVerdict tool output", "branches": ["approve → AUTONOMY gate", "reject → handle_reject_proposal", "defer / stand_down → observation entry"], "file_ref": "api/agents/reviewer_agent.py:623"},
-        {"id": "autonomy_gate", "predicate": "should_auto_execute_verdict(): delegation level + ceiling_cents check from _autonomy.yaml", "branches": ["permits + within ceiling → handle_execute_proposal", "denies or over ceiling → operator Queue"], "file_ref": "api/services/review_policy.py:265"}
+        {
+          "id": "source_check",
+          "predicate": "proposal_row.source ∈ {reviewer_periodic, reviewer_addressed, reviewer_heartbeat}",
+          "branches": [
+            "yes → skip reactive Reviewer, go straight to AUTONOMY gate",
+            "no → continue to domain resolution"
+          ],
+          "file_ref": "api/services/review_proposal_dispatch.py:119"
+        },
+        {
+          "id": "domain_check",
+          "predicate": "context_domain has reviewable substrate (principles.md or _money_truth.md or _operator_profile.md)",
+          "branches": [
+            "no → _write_observation, observe-only",
+            "yes → run AI Reviewer"
+          ],
+          "file_ref": "api/services/review_proposal_dispatch.py:148"
+        },
+        {
+          "id": "verdict_branch",
+          "predicate": "ReturnVerdict tool output",
+          "branches": [
+            "approve → AUTONOMY gate",
+            "reject → handle_reject_proposal",
+            "defer / stand_down → observation entry"
+          ],
+          "file_ref": "api/agents/reviewer_agent.py:623"
+        },
+        {
+          "id": "autonomy_gate",
+          "predicate": "should_auto_execute_verdict(): delegation level + ceiling_cents check from _autonomy.yaml",
+          "branches": [
+            "permits + within ceiling → handle_execute_proposal",
+            "denies or over ceiling → operator Queue"
+          ],
+          "file_ref": "api/services/review_policy.py:265"
+        }
       ],
-      "cross_cuts_hit": ["authored_substrate_write", "token_ledger_write", "narrative_append", "decisions_md_append", "autonomy_gate"],
+      "cross_cuts_hit": [
+        "authored_substrate_write",
+        "token_ledger_write",
+        "narrative_append",
+        "decisions_md_append",
+        "autonomy_gate"
+      ],
       "key_files": [
         "api/services/primitives/propose_action.py",
         "api/services/review_proposal_dispatch.py",
@@ -241,33 +532,142 @@
         "api/services/reviewer_audit.py"
       ]
     },
-
     "addressed": {
       "id": "addressed",
       "title": "Addressed trigger — operator chat (the Feed)",
       "summary": "Operator types in the Feed (ADR-259, was 'chat') → POST /feed → session resolved, 10-message window built, surface content loaded → invoke_reviewer(trigger='addressed') → 12-round tool loop on Haiku → per-action narration to Feed → conversation.md compaction every 5 user messages.",
-      "primary_adrs": ["ADR-159", "ADR-221", "ADR-247", "ADR-256", "ADR-258", "ADR-259"],
-      "mermaid": "flowchart TD\n    operator((Operator))\n    -->|types in Feed| http\n    http[\"POST /feed<br/><code>routes/feed.py:1033</code>\"]\n    --> balance_check\n    balance_check{balance > 0?}\n    -->|no| reject_balance([402-ish — paywall surface])\n    balance_check -->|yes| session\n    session[\"get_or_create_session(scope='daily')<br/><code>:149</code>\"]\n    --> new_session_check\n    new_session_check{new session?<br/>previous exists?}\n    -->|yes| summarize_prev\n    summarize_prev[\"_summarize_previous_session<br/>+ _write_conversation_summary<br/>→ /workspace/memory/conversation.md\"]\n    new_session_check -->|no| load_msgs\n    summarize_prev --> load_msgs\n    load_msgs[\"get_session_messages()\"]\n    --> window\n    window[\"ADR-159: window to last 10 messages\"]\n    --> compact_check\n    compact_check{user_msg_count<br/>% 5 == 0?}\n    -->|yes| write_conv[\"_write_conversation_summary()<br/>→ conversation.md (rolling compaction)\"]\n    compact_check -->|no| build_history\n    write_conv --> build_history\n    build_history[\"build_history_for_claude()<br/>filters non-conversation roles<br/>(ADR-221 Commit A)\"]\n    --> surface_load\n    surface_load[\"load_surface_content()<br/>per ADR-186 prompt profile\"]\n    --> dispatch_turn\n    dispatch_turn[\"_dispatch_addressed_turn()\"]\n    --> invoke\n    invoke[\"invoke_reviewer(trigger='addressed',<br/>context={user_message, history,<br/>surface_content, ...})<br/><code>agents/reviewer_agent.py:623</code>\"]\n    --> loop\n    loop[\"12-round loop on Haiku<br/>full REVIEWER_PRIMITIVES surface:<br/>ReadFile · WriteFile · SearchFiles ·<br/>FireInvocation · ProposeAction ·<br/>DispatchSpecialist · Clarify · ReturnVerdict\"]\n    --> tool_call\n    tool_call{tool call?}\n    -->|yes| primitive_dispatch\n    primitive_dispatch[\"execute_primitive(name, input)<br/><code>services/primitives/registry.py:462</code>\"]\n    --> lock_check\n    lock_check{WriteFile?<br/>path locked for<br/>Reviewer?}\n    -->|locked| reject_write([INV-5: refuse with explanation])\n    lock_check -->|allowed| handler\n    handler[\"primitive handler executes\"]\n    --> narrate_action\n    narrate_action[\"narrate_reviewer_action()<br/>→ System Agent bubble in Feed\"]\n    --> result_to_model\n    result_to_model[\"tool_result → next round\"]\n    --> loop\n    tool_call -->|no| done\n    done[\"verdict returned\"]\n    --> stream_response\n    stream_response[/\"SSE stream to operator<br/>+ append_message to session_messages\"/]\n    loop -.->|each LLM call| token([token_usage<br/>caller=system-agent / reviewer])",
+      "primary_adrs": [
+        "ADR-159",
+        "ADR-221",
+        "ADR-247",
+        "ADR-256",
+        "ADR-258",
+        "ADR-259"
+      ],
+      "mermaid": "flowchart TD\n    operator((Operator))\n    -->|types in Feed| http\n    http[\"POST /feed<br/><code>routes/feed.py:1033</code>\"]\n    --> balance_check\n    balance_check{\"balance > 0?\"}\n    -->|no| reject_balance([402-ish — paywall surface])\n    balance_check -->|yes| session\n    session[\"get_or_create_session(scope='daily')<br/><code>:149</code>\"]\n    --> new_session_check\n    new_session_check{\"new session?<br/>previous exists?\"}\n    -->|yes| summarize_prev\n    summarize_prev[\"_summarize_previous_session<br/>+ _write_conversation_summary<br/>→ /workspace/memory/conversation.md\"]\n    new_session_check -->|no| load_msgs\n    summarize_prev --> load_msgs\n    load_msgs[\"get_session_messages()\"]\n    --> window\n    window[\"ADR-159: window to last 10 messages\"]\n    --> compact_check\n    compact_check{\"user_msg_count<br/>% 5 == 0?\"}\n    -->|yes| write_conv[\"_write_conversation_summary()<br/>→ conversation.md (rolling compaction)\"]\n    compact_check -->|no| build_history\n    write_conv --> build_history\n    build_history[\"build_history_for_claude()<br/>filters non-conversation roles<br/>(ADR-221 Commit A)\"]\n    --> surface_load\n    surface_load[\"load_surface_content()<br/>per ADR-186 prompt profile\"]\n    --> dispatch_turn\n    dispatch_turn[\"_dispatch_addressed_turn()\"]\n    --> invoke\n    invoke[\"invoke_reviewer(trigger='addressed',<br/>context={user_message, history,<br/>surface_content, ...})<br/><code>agents/reviewer_agent.py:623</code>\"]\n    --> loop\n    loop[\"12-round loop on Haiku<br/>full REVIEWER_PRIMITIVES surface:<br/>ReadFile · WriteFile · SearchFiles ·<br/>FireInvocation · ProposeAction ·<br/>DispatchSpecialist · Clarify · ReturnVerdict\"]\n    --> tool_call\n    tool_call{tool call?}\n    -->|yes| primitive_dispatch\n    primitive_dispatch[\"execute_primitive(name, input)<br/><code>services/primitives/registry.py:462</code>\"]\n    --> lock_check\n    lock_check{\"WriteFile?<br/>path locked for<br/>Reviewer?\"}\n    -->|locked| reject_write([INV-5: refuse with explanation])\n    lock_check -->|allowed| handler\n    handler[\"primitive handler executes\"]\n    --> narrate_action\n    narrate_action[\"narrate_reviewer_action()<br/>→ System Agent bubble in Feed\"]\n    --> result_to_model\n    result_to_model[\"tool_result → next round\"]\n    --> loop\n    tool_call -->|no| done\n    done[\"verdict returned\"]\n    --> stream_response\n    stream_response[/\"SSE stream to operator<br/>+ append_message to session_messages\"/]\n    loop -.->|each LLM call| token([\"token_usage<br/>caller=system-agent / reviewer\"])",
       "nodes": [
-        {"id": "operator", "label": "Operator", "kind": "actor", "actor": "operator", "file_ref": null},
-        {"id": "http", "label": "POST /feed", "kind": "http_endpoint", "actor": "system_agent", "file_ref": "api/routes/feed.py:1033"},
-        {"id": "session", "label": "get_or_create_session()", "kind": "service", "actor": "system_agent", "file_ref": "api/routes/feed.py:149"},
-        {"id": "summarize_prev", "label": "Summarize previous session", "kind": "service", "actor": "system_agent", "file_ref": "api/routes/feed.py:422"},
-        {"id": "write_conv", "label": "_write_conversation_summary()", "kind": "service", "actor": "system_agent", "file_ref": "api/routes/feed.py:334"},
-        {"id": "build_history", "label": "build_history_for_claude()", "kind": "service", "actor": "system_agent", "file_ref": "api/routes/feed.py:494"},
-        {"id": "surface_load", "label": "load_surface_content()", "kind": "service", "actor": "system_agent", "file_ref": "api/routes/feed.py:728"},
-        {"id": "invoke", "label": "invoke_reviewer()", "kind": "service", "actor": "reviewer", "file_ref": "api/agents/reviewer_agent.py:623"},
-        {"id": "loop", "label": "12-round tool loop", "kind": "llm_loop", "actor": "reviewer", "file_ref": "api/agents/reviewer_agent.py:623"},
-        {"id": "primitive_dispatch", "label": "execute_primitive()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/primitives/registry.py:462"},
-        {"id": "narrate_action", "label": "narrate_reviewer_action()", "kind": "narrative_emit", "actor": "system_agent", "file_ref": "api/services/reviewer_chat_surfacing.py:174"}
+        {
+          "id": "operator",
+          "label": "Operator",
+          "kind": "actor",
+          "actor": "operator",
+          "file_ref": null
+        },
+        {
+          "id": "http",
+          "label": "POST /feed",
+          "kind": "http_endpoint",
+          "actor": "system_agent",
+          "file_ref": "api/routes/feed.py:1033"
+        },
+        {
+          "id": "session",
+          "label": "get_or_create_session()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/routes/feed.py:149"
+        },
+        {
+          "id": "summarize_prev",
+          "label": "Summarize previous session",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/routes/feed.py:422"
+        },
+        {
+          "id": "write_conv",
+          "label": "_write_conversation_summary()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/routes/feed.py:334"
+        },
+        {
+          "id": "build_history",
+          "label": "build_history_for_claude()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/routes/feed.py:494"
+        },
+        {
+          "id": "surface_load",
+          "label": "load_surface_content()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/routes/feed.py:728"
+        },
+        {
+          "id": "invoke",
+          "label": "invoke_reviewer()",
+          "kind": "service",
+          "actor": "reviewer",
+          "file_ref": "api/agents/reviewer_agent.py:623"
+        },
+        {
+          "id": "loop",
+          "label": "12-round tool loop",
+          "kind": "llm_loop",
+          "actor": "reviewer",
+          "file_ref": "api/agents/reviewer_agent.py:623"
+        },
+        {
+          "id": "primitive_dispatch",
+          "label": "execute_primitive()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/primitives/registry.py:462"
+        },
+        {
+          "id": "narrate_action",
+          "label": "narrate_reviewer_action()",
+          "kind": "narrative_emit",
+          "actor": "system_agent",
+          "file_ref": "api/services/reviewer_chat_surfacing.py:174"
+        }
       ],
       "gates": [
-        {"id": "balance_check", "predicate": "workspace.balance_usd > 0", "branches": ["yes → continue", "no → paywall response"], "file_ref": "api/routes/feed.py:1033"},
-        {"id": "new_session_check", "predicate": "session.is_new && previous_session_id", "branches": ["yes → kick off summarization + conversation.md write", "no → continue"], "file_ref": "api/routes/feed.py:1072"},
-        {"id": "compact_check", "predicate": "user_msg_count > 0 && user_msg_count % 5 == 0", "branches": ["yes → write conversation.md", "no → skip"], "file_ref": "api/routes/feed.py:1088"},
-        {"id": "lock_check", "predicate": "WriteFile path ∈ DEFAULT_REVIEWER_WRITE_LOCKS - _locks.yaml::unlocked_paths", "branches": ["locked → refuse", "allowed → execute"], "file_ref": "api/services/primitives/workspace.py"}
+        {
+          "id": "balance_check",
+          "predicate": "workspace.balance_usd > 0",
+          "branches": [
+            "yes → continue",
+            "no → paywall response"
+          ],
+          "file_ref": "api/routes/feed.py:1033"
+        },
+        {
+          "id": "new_session_check",
+          "predicate": "session.is_new && previous_session_id",
+          "branches": [
+            "yes → kick off summarization + conversation.md write",
+            "no → continue"
+          ],
+          "file_ref": "api/routes/feed.py:1072"
+        },
+        {
+          "id": "compact_check",
+          "predicate": "user_msg_count > 0 && user_msg_count % 5 == 0",
+          "branches": [
+            "yes → write conversation.md",
+            "no → skip"
+          ],
+          "file_ref": "api/routes/feed.py:1088"
+        },
+        {
+          "id": "lock_check",
+          "predicate": "WriteFile path ∈ DEFAULT_REVIEWER_WRITE_LOCKS - _locks.yaml::unlocked_paths",
+          "branches": [
+            "locked → refuse",
+            "allowed → execute"
+          ],
+          "file_ref": "api/services/primitives/workspace.py"
+        }
       ],
-      "cross_cuts_hit": ["authored_substrate_write", "token_ledger_write", "narrative_append", "balance_gate"],
+      "cross_cuts_hit": [
+        "authored_substrate_write",
+        "token_ledger_write",
+        "narrative_append",
+        "balance_gate"
+      ],
       "key_files": [
         "api/routes/feed.py",
         "api/agents/reviewer_agent.py",
@@ -276,32 +676,130 @@
         "api/services/working_memory.py"
       ]
     },
-
     "mechanical": {
       "id": "mechanical",
       "title": "Mechanical dispatch — zero-LLM primitive execution",
       "summary": "Cron-fired recurrence with mode=mechanical → directive parser extracts @primitive: <Name>(<args>) → HANDLERS registry lookup → capability gate against active platform_connections → handler executes deterministically → write_revision attributes the work as system:<actor>. Zero LLM cost, balance gate bypassed.",
-      "primary_adrs": ["ADR-261", "ADR-263", "ADR-264"],
-      "mermaid": "flowchart TD\n    cron[(\"cron-fired recurrence<br/>mode=mechanical\")]\n    --> dispatch_entry\n    dispatch_entry[\"invocation_dispatcher.dispatch()<br/>mode branch → mechanical\"]\n    --> mech\n    mech[\"_dispatch_mechanical()<br/><code>services/invocation_dispatcher.py:527</code>\"]\n    --> parse\n    parse[\"_parse_primitive_directive()<br/>regex: <code>@primitive: Name(args)</code><br/>YAML-coerce arg dict<br/><code>:391</code>\"]\n    --> parse_check\n    parse_check{directive<br/>parsed?}\n    -->|no| fail_parse([record execution_event<br/>error_reason=directive_unparseable])\n    parse_check -->|yes| cap_check\n    cap_check[\"_required_platform_for_primitive()<br/>→ platform slug | None\"]\n    --> cap_active\n    cap_active{platform connection<br/>active?}\n    -->|inactive + first time| narrate_skip([emit narrative<br/>'capability missing'])\n    cap_active -->|inactive + transition silence| silent_skip([_last_skip_reason match<br/>→ silent skip])\n    cap_active -->|no platform required<br/>or active| handler_lookup\n    handler_lookup[\"HANDLERS[primitive_name]<br/><code>services/primitives/registry.py:400</code>\"]\n    --> invoke_handler\n    invoke_handler[\"handler(auth, input)\"]\n    --> handler_result\n    handler_result{handler<br/>success?}\n    -->|no| fail_handler([record execution_event<br/>error_reason=handler_failed])\n    handler_result -->|yes| compose_check\n    compose_check[\"_maybe_auto_compose()<br/><code>:802</code>\"]\n    --> compose_branch\n    compose_branch{deliverable folder<br/>has sections/*.md?}\n    -->|yes, ADR-262 D4| compose\n    compose[\"POST output-gateway /compose<br/>→ HTML composed + cached\"]\n    compose_branch -->|no| narrate_done\n    compose --> narrate_done\n    narrate_done[\"_emit_system_narrative()<br/><code>:738</code><br/>weight=housekeeping<br/>(routine syncs stay quiet)\"]\n    --> record\n    record[(\"record_execution_event<br/>status=success\")]\n    invoke_handler --> write_revision[(\"<b>write_revision</b><br/>authored_by=system:sync-platform-state<br/>or system:&lt;handler&gt;\")]",
+      "primary_adrs": [
+        "ADR-261",
+        "ADR-263",
+        "ADR-264"
+      ],
+      "mermaid": "flowchart TD\n    cron[(\"cron-fired recurrence<br/>mode=mechanical\")]\n    --> dispatch_entry\n    dispatch_entry[\"invocation_dispatcher.dispatch()<br/>mode branch → mechanical\"]\n    --> mech\n    mech[\"_dispatch_mechanical()<br/><code>services/invocation_dispatcher.py:527</code>\"]\n    --> parse\n    parse[\"_parse_primitive_directive()<br/>regex: <code>@primitive: Name(args)</code><br/>YAML-coerce arg dict<br/><code>:391</code>\"]\n    --> parse_check\n    parse_check{\"directive<br/>parsed?\"}\n    -->|no| fail_parse([\"record execution_event<br/>error_reason=directive_unparseable\"])\n    parse_check -->|yes| cap_check\n    cap_check[\"_required_platform_for_primitive()<br/>→ platform slug | None\"]\n    --> cap_active\n    cap_active{\"platform connection<br/>active?\"}\n    -->|inactive + first time| narrate_skip([\"emit narrative<br/>'capability missing'\"])\n    cap_active -->|inactive + transition silence| silent_skip([\"_last_skip_reason match<br/>→ silent skip\"])\n    cap_active -->|no platform required<br/>or active| handler_lookup\n    handler_lookup[\"HANDLERS[primitive_name]<br/><code>services/primitives/registry.py:400</code>\"]\n    --> invoke_handler\n    invoke_handler[\"handler(auth, input)\"]\n    --> handler_result\n    handler_result{\"handler<br/>success?\"}\n    -->|no| fail_handler([\"record execution_event<br/>error_reason=handler_failed\"])\n    handler_result -->|yes| compose_check\n    compose_check[\"_maybe_auto_compose()<br/><code>:802</code>\"]\n    --> compose_branch\n    compose_branch{\"deliverable folder<br/>has sections/*.md?\"}\n    -->|yes, ADR-262 D4| compose\n    compose[\"POST output-gateway /compose<br/>→ HTML composed + cached\"]\n    compose_branch -->|no| narrate_done\n    compose --> narrate_done\n    narrate_done[\"_emit_system_narrative()<br/><code>:738</code><br/>weight=housekeeping<br/>(routine syncs stay quiet)\"]\n    --> record\n    record[(\"record_execution_event<br/>status=success\")]\n    invoke_handler --> write_revision[(\"<b>write_revision</b><br/>authored_by=system:sync-platform-state<br/>or system:&lt;handler&gt;\")]",
       "nodes": [
-        {"id": "dispatch_entry", "label": "dispatch() — mode=mechanical branch", "kind": "service", "actor": "system_agent", "file_ref": "api/services/invocation_dispatcher.py:130"},
-        {"id": "mech", "label": "_dispatch_mechanical()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/invocation_dispatcher.py:527"},
-        {"id": "parse", "label": "_parse_primitive_directive()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/invocation_dispatcher.py:391"},
-        {"id": "cap_check", "label": "_required_platform_for_primitive()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/invocation_dispatcher.py:451"},
-        {"id": "cap_active", "label": "_platform_connection_active()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/invocation_dispatcher.py:475"},
-        {"id": "handler_lookup", "label": "HANDLERS[name]", "kind": "service", "actor": "system_agent", "file_ref": "api/services/primitives/registry.py:400"},
-        {"id": "invoke_handler", "label": "handler(auth, input)", "kind": "primitive", "actor": "system_agent", "file_ref": "api/services/primitives/registry.py:400"},
-        {"id": "compose_check", "label": "_maybe_auto_compose()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/invocation_dispatcher.py:802"},
-        {"id": "compose", "label": "POST /compose", "kind": "external_call", "actor": "output_gateway", "file_ref": null},
-        {"id": "narrate_done", "label": "_emit_system_narrative()", "kind": "narrative_emit", "actor": "system_agent", "file_ref": "api/services/invocation_dispatcher.py:738"},
-        {"id": "write_revision", "label": "write_revision()", "kind": "substrate_write", "actor": "system_agent", "file_ref": "api/services/authored_substrate.py:244"}
+        {
+          "id": "dispatch_entry",
+          "label": "dispatch() — mode=mechanical branch",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/invocation_dispatcher.py:130"
+        },
+        {
+          "id": "mech",
+          "label": "_dispatch_mechanical()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/invocation_dispatcher.py:527"
+        },
+        {
+          "id": "parse",
+          "label": "_parse_primitive_directive()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/invocation_dispatcher.py:391"
+        },
+        {
+          "id": "cap_check",
+          "label": "_required_platform_for_primitive()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/invocation_dispatcher.py:451"
+        },
+        {
+          "id": "cap_active",
+          "label": "_platform_connection_active()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/invocation_dispatcher.py:475"
+        },
+        {
+          "id": "handler_lookup",
+          "label": "HANDLERS[name]",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/primitives/registry.py:400"
+        },
+        {
+          "id": "invoke_handler",
+          "label": "handler(auth, input)",
+          "kind": "primitive",
+          "actor": "system_agent",
+          "file_ref": "api/services/primitives/registry.py:400"
+        },
+        {
+          "id": "compose_check",
+          "label": "_maybe_auto_compose()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/invocation_dispatcher.py:802"
+        },
+        {
+          "id": "compose",
+          "label": "POST /compose",
+          "kind": "external_call",
+          "actor": "output_gateway",
+          "file_ref": null
+        },
+        {
+          "id": "narrate_done",
+          "label": "_emit_system_narrative()",
+          "kind": "narrative_emit",
+          "actor": "system_agent",
+          "file_ref": "api/services/invocation_dispatcher.py:738"
+        },
+        {
+          "id": "write_revision",
+          "label": "write_revision()",
+          "kind": "substrate_write",
+          "actor": "system_agent",
+          "file_ref": "api/services/authored_substrate.py:244"
+        }
       ],
       "gates": [
-        {"id": "parse_check", "predicate": "_PRIMITIVE_DIRECTIVE_RE.match(prompt)", "branches": ["match → continue", "no match → record execution_event failed, halt"], "file_ref": "api/services/invocation_dispatcher.py:391"},
-        {"id": "cap_active", "predicate": "_platform_connection_active(user_id, platform)", "branches": ["active → handler executes", "inactive + first miss → narrate 'capability missing'", "inactive + transition silence (last skip was same reason) → silent skip"], "file_ref": "api/services/invocation_dispatcher.py:475"},
-        {"id": "compose_branch", "predicate": "deliverable folder contains sections/*.md partials (ADR-262 D4)", "branches": ["yes → POST /compose, cache lookup, persist HTML", "no → skip compose"], "file_ref": "api/services/invocation_dispatcher.py:802"}
+        {
+          "id": "parse_check",
+          "predicate": "_PRIMITIVE_DIRECTIVE_RE.match(prompt)",
+          "branches": [
+            "match → continue",
+            "no match → record execution_event failed, halt"
+          ],
+          "file_ref": "api/services/invocation_dispatcher.py:391"
+        },
+        {
+          "id": "cap_active",
+          "predicate": "_platform_connection_active(user_id, platform)",
+          "branches": [
+            "active → handler executes",
+            "inactive + first miss → narrate 'capability missing'",
+            "inactive + transition silence (last skip was same reason) → silent skip"
+          ],
+          "file_ref": "api/services/invocation_dispatcher.py:475"
+        },
+        {
+          "id": "compose_branch",
+          "predicate": "deliverable folder contains sections/*.md partials (ADR-262 D4)",
+          "branches": [
+            "yes → POST /compose, cache lookup, persist HTML",
+            "no → skip compose"
+          ],
+          "file_ref": "api/services/invocation_dispatcher.py:802"
+        }
       ],
-      "cross_cuts_hit": ["authored_substrate_write", "narrative_append", "execution_event_record"],
+      "cross_cuts_hit": [
+        "authored_substrate_write",
+        "narrative_append",
+        "execution_event_record"
+      ],
       "key_files": [
         "api/services/invocation_dispatcher.py",
         "api/services/primitives/registry.py",
@@ -310,32 +808,126 @@
         "render/compose.py"
       ]
     },
-
     "outcomes": {
       "id": "outcomes",
       "title": "Outcome reconciliation — money-truth substrate",
       "summary": "Daily back-office recurrence → reconcile_user() → provider polymorphism (TradingOutcomeProvider, CommerceOutcomeProvider) calls Alpaca/LS APIs → ledger.fold_outcome_candidates() upserts per-domain /workspace/context/{domain}/_money_truth.md with idempotency frontmatter + rolling 7d/30d/90d windows → cross-domain _performance_summary.md regenerated → high-impact outcomes route to feedback.md (ADR-195 v2 Phase 5a).",
-      "primary_adrs": ["ADR-184", "ADR-195 v2", "ADR-262"],
-      "mermaid": "flowchart TD\n    cron[(\"cron: back-office-outcome-reconciliation<br/>05:00 UTC daily\")]\n    --> dispatch\n    dispatch[\"_dispatch_mechanical()\"]\n    --> reconcile\n    reconcile[\"outcomes.reconciler.reconcile_user()<br/><code>services/outcomes/reconciler.py:45</code>\"]\n    --> providers_fan\n    providers_fan[\"Fan out to active providers\"]\n    --> trading_provider\n    trading_provider[\"TradingOutcomeProvider<br/><code>services/outcomes/trading.py:35</code>\"]\n    providers_fan --> commerce_provider\n    commerce_provider[\"CommerceOutcomeProvider<br/><code>services/outcomes/commerce.py</code>\"]\n    trading_provider --> alpaca\n    alpaca[/\"Alpaca API:<br/>fills, positions,<br/>account state\"/]\n    --> trading_candidates\n    trading_candidates[\"OutcomeCandidates<br/>(FIFO entry consumption<br/>per signal_id)\"]\n    commerce_provider --> ls\n    ls[/\"Lemon Squeezy API:<br/>orders, subscriptions,<br/>refunds\"/]\n    --> commerce_candidates\n    commerce_candidates[\"OutcomeCandidates<br/>(per product/customer)\"]\n    trading_candidates --> fold\n    commerce_candidates --> fold\n    fold[\"ledger.fold_outcome_candidates()<br/><code>services/outcomes/ledger.py:91</code>\"]\n    --> read_existing\n    read_existing[\"_read_money_truth_file()<br/>per domain (trading, commerce)\"]\n    --> idempotency\n    idempotency{event already<br/>in processed_event_keys<br/>frontmatter?}\n    -->|yes| skip_dup([skip duplicate])\n    idempotency -->|no| apply\n    apply[\"_apply_entries()<br/>update rolling 7d/30d/90d windows<br/>+ per-signal by_signal block\"]\n    --> render\n    render[\"_render_money_truth_file()<br/>YAML frontmatter + narrative\"]\n    --> upsert\n    upsert[(\"_upsert_money_truth_file()<br/>→ /workspace/context/{domain}/_money_truth.md<br/>via <b>write_revision</b><br/>authored_by=system:outcome-reconciler\")]\n    --> summary\n    summary[\"write_money_truth_summary()<br/><code>:788</code>\"]\n    --> summary_write[(\"/workspace/context/_money_truth_summary.md\")]\n    apply --> high_impact_check\n    high_impact_check[\"outcomes.high_impact.check()<br/><code>services/outcomes/high_impact.py</code>\"]\n    --> impact_branch\n    impact_branch{outcome crosses<br/>high_impact_threshold_cents?}\n    -->|yes| feedback_route\n    feedback_route[\"resolve proposal → task_slug<br/>→ write feedback.md entry<br/>source: system_outcome\"]\n    impact_branch -->|no| done([done])",
+      "primary_adrs": [
+        "ADR-184",
+        "ADR-195 v2",
+        "ADR-262"
+      ],
+      "mermaid": "flowchart TD\n    cron[(\"cron: back-office-outcome-reconciliation<br/>05:00 UTC daily\")]\n    --> dispatch\n    dispatch[\"_dispatch_mechanical()\"]\n    --> reconcile\n    reconcile[\"outcomes.reconciler.reconcile_user()<br/><code>services/outcomes/reconciler.py:45</code>\"]\n    --> providers_fan\n    providers_fan[\"Fan out to active providers\"]\n    --> trading_provider\n    trading_provider[\"TradingOutcomeProvider<br/><code>services/outcomes/trading.py:35</code>\"]\n    providers_fan --> commerce_provider\n    commerce_provider[\"CommerceOutcomeProvider<br/><code>services/outcomes/commerce.py</code>\"]\n    trading_provider --> alpaca\n    alpaca[/\"Alpaca API:<br/>fills, positions,<br/>account state\"/]\n    --> trading_candidates\n    trading_candidates[\"OutcomeCandidates<br/>(FIFO entry consumption<br/>per signal_id)\"]\n    commerce_provider --> ls\n    ls[/\"Lemon Squeezy API:<br/>orders, subscriptions,<br/>refunds\"/]\n    --> commerce_candidates\n    commerce_candidates[\"OutcomeCandidates<br/>(per product/customer)\"]\n    trading_candidates --> fold\n    commerce_candidates --> fold\n    fold[\"ledger.fold_outcome_candidates()<br/><code>services/outcomes/ledger.py:91</code>\"]\n    --> read_existing\n    read_existing[\"_read_money_truth_file()<br/>per domain (trading, commerce)\"]\n    --> idempotency\n    idempotency{\"event already<br/>in processed_event_keys<br/>frontmatter?\"}\n    -->|yes| skip_dup([skip duplicate])\n    idempotency -->|no| apply\n    apply[\"_apply_entries()<br/>update rolling 7d/30d/90d windows<br/>+ per-signal by_signal block\"]\n    --> render\n    render[\"_render_money_truth_file()<br/>YAML frontmatter + narrative\"]\n    --> upsert\n    upsert[(\"_upsert_money_truth_file()<br/>→ /workspace/context/{domain}/_money_truth.md<br/>via <b>write_revision</b><br/>authored_by=system:outcome-reconciler\")]\n    --> summary\n    summary[\"write_money_truth_summary()<br/><code>:788</code>\"]\n    --> summary_write[(\"/workspace/context/_money_truth_summary.md\")]\n    apply --> high_impact_check\n    high_impact_check[\"outcomes.high_impact.check()<br/><code>services/outcomes/high_impact.py</code>\"]\n    --> impact_branch\n    impact_branch{\"outcome crosses<br/>high_impact_threshold_cents?\"}\n    -->|yes| feedback_route\n    feedback_route[\"resolve proposal → task_slug<br/>→ write feedback.md entry<br/>source: system_outcome\"]\n    impact_branch -->|no| done([done])",
       "nodes": [
-        {"id": "reconcile", "label": "reconcile_user()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/outcomes/reconciler.py:45"},
-        {"id": "trading_provider", "label": "TradingOutcomeProvider", "kind": "service", "actor": "system_agent", "file_ref": "api/services/outcomes/trading.py:35"},
-        {"id": "commerce_provider", "label": "CommerceOutcomeProvider", "kind": "service", "actor": "system_agent", "file_ref": "api/services/outcomes/commerce.py"},
-        {"id": "alpaca", "label": "Alpaca API", "kind": "external_call", "actor": "alpaca", "file_ref": null},
-        {"id": "ls", "label": "Lemon Squeezy API", "kind": "external_call", "actor": "lemonsqueezy", "file_ref": null},
-        {"id": "fold", "label": "fold_outcome_candidates()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/outcomes/ledger.py:91"},
-        {"id": "apply", "label": "_apply_entries()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/outcomes/ledger.py:396"},
-        {"id": "render", "label": "_render_money_truth_file()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/outcomes/ledger.py:609"},
-        {"id": "upsert", "label": "_upsert_money_truth_file()", "kind": "substrate_write", "actor": "system_agent", "file_ref": "api/services/outcomes/ledger.py:288"},
-        {"id": "summary", "label": "write_money_truth_summary()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/outcomes/ledger.py:788"},
-        {"id": "high_impact_check", "label": "high_impact.check()", "kind": "service", "actor": "system_agent", "file_ref": "api/services/outcomes/high_impact.py"},
-        {"id": "feedback_route", "label": "Write to task feedback.md", "kind": "substrate_write", "actor": "system_agent", "file_ref": null}
+        {
+          "id": "reconcile",
+          "label": "reconcile_user()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/outcomes/reconciler.py:45"
+        },
+        {
+          "id": "trading_provider",
+          "label": "TradingOutcomeProvider",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/outcomes/trading.py:35"
+        },
+        {
+          "id": "commerce_provider",
+          "label": "CommerceOutcomeProvider",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/outcomes/commerce.py"
+        },
+        {
+          "id": "alpaca",
+          "label": "Alpaca API",
+          "kind": "external_call",
+          "actor": "alpaca",
+          "file_ref": null
+        },
+        {
+          "id": "ls",
+          "label": "Lemon Squeezy API",
+          "kind": "external_call",
+          "actor": "lemonsqueezy",
+          "file_ref": null
+        },
+        {
+          "id": "fold",
+          "label": "fold_outcome_candidates()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/outcomes/ledger.py:91"
+        },
+        {
+          "id": "apply",
+          "label": "_apply_entries()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/outcomes/ledger.py:396"
+        },
+        {
+          "id": "render",
+          "label": "_render_money_truth_file()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/outcomes/ledger.py:609"
+        },
+        {
+          "id": "upsert",
+          "label": "_upsert_money_truth_file()",
+          "kind": "substrate_write",
+          "actor": "system_agent",
+          "file_ref": "api/services/outcomes/ledger.py:288"
+        },
+        {
+          "id": "summary",
+          "label": "write_money_truth_summary()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/outcomes/ledger.py:788"
+        },
+        {
+          "id": "high_impact_check",
+          "label": "high_impact.check()",
+          "kind": "service",
+          "actor": "system_agent",
+          "file_ref": "api/services/outcomes/high_impact.py"
+        },
+        {
+          "id": "feedback_route",
+          "label": "Write to task feedback.md",
+          "kind": "substrate_write",
+          "actor": "system_agent",
+          "file_ref": null
+        }
       ],
       "gates": [
-        {"id": "idempotency", "predicate": "event_key ∈ processed_event_keys (frontmatter)", "branches": ["yes → skip", "no → apply to window + bucket by signal"], "file_ref": "api/services/outcomes/ledger.py:396"},
-        {"id": "impact_branch", "predicate": "abs(outcome_cents) >= principles.high_impact_threshold_cents", "branches": ["yes → resolve action_proposals.proposal_id → task_slug → append feedback.md entry (source=system_outcome)", "no → no feedback routing"], "file_ref": "api/services/outcomes/high_impact.py"}
+        {
+          "id": "idempotency",
+          "predicate": "event_key ∈ processed_event_keys (frontmatter)",
+          "branches": [
+            "yes → skip",
+            "no → apply to window + bucket by signal"
+          ],
+          "file_ref": "api/services/outcomes/ledger.py:396"
+        },
+        {
+          "id": "impact_branch",
+          "predicate": "abs(outcome_cents) >= principles.high_impact_threshold_cents",
+          "branches": [
+            "yes → resolve action_proposals.proposal_id → task_slug → append feedback.md entry (source=system_outcome)",
+            "no → no feedback routing"
+          ],
+          "file_ref": "api/services/outcomes/high_impact.py"
+        }
       ],
-      "cross_cuts_hit": ["authored_substrate_write", "execution_event_record"],
+      "cross_cuts_hit": [
+        "authored_substrate_write",
+        "execution_event_record"
+      ],
       "key_files": [
         "api/services/outcomes/reconciler.py",
         "api/services/outcomes/ledger.py",
@@ -345,17 +937,26 @@
       ]
     }
   },
-
   "specialist_subloop": {
     "title": "Reviewer → DispatchSpecialist → sub-LLM loop (zoomed in)",
     "description": "Embedded inside any Reviewer loop (Flows 1, 2, 3). The Reviewer composes a brief (research goal, files-to-read, output contract) and dispatches a specialist sub-LLM. The specialist runs headless with curated tools (read-only + scoped scaffold), returns markdown summary, and the Reviewer reads the result on the next round.",
-    "primary_adrs": ["ADR-176", "ADR-261"],
+    "primary_adrs": [
+      "ADR-176",
+      "ADR-261"
+    ],
     "file_refs": [
       "api/services/primitives/dispatch_specialist.py:122",
       "api/services/primitives/dispatch_specialist.py:363",
       "api/services/primitives/dispatch_specialist.py:385"
     ],
-    "roles": ["researcher", "analyst", "writer", "tracker", "designer", "reporting"],
-    "mermaid": "flowchart LR\n    rev_round[\"Reviewer round N<br/>(tool_call: DispatchSpecialist)\"]\n    --> handle\n    handle[\"handle_dispatch_specialist()<br/><code>:122</code>\"]\n    --> compose_prompt\n    compose_prompt[\"_compose_specialist_system_prompt()<br/><code>:363</code>\"]\n    --> sub_llm\n    sub_llm[\"Sonnet headless call<br/>5-round bound<br/>curated tools\"]\n    --> sub_loop\n    sub_loop[\"specialist tool loop:<br/>ReadFile · SearchFiles ·<br/>(scoped scaffold)\"]\n    --> output\n    output[\"markdown output\"]\n    --> stringify\n    stringify[\"_stringify_tool_result()<br/><code>:385</code>\"]\n    --> back_to_rev\n    back_to_rev[\"tool_result → Reviewer round N+1\"]\n    sub_loop -.->|each LLM call| token([token_usage<br/>caller=specialist:&lt;role&gt;])"
+    "roles": [
+      "researcher",
+      "analyst",
+      "writer",
+      "tracker",
+      "designer",
+      "reporting"
+    ],
+    "mermaid": "flowchart LR\n    rev_round[\"Reviewer round N<br/>(tool_call: DispatchSpecialist)\"]\n    --> handle\n    handle[\"handle_dispatch_specialist()<br/><code>:122</code>\"]\n    --> compose_prompt\n    compose_prompt[\"_compose_specialist_system_prompt()<br/><code>:363</code>\"]\n    --> sub_llm\n    sub_llm[\"Sonnet headless call<br/>5-round bound<br/>curated tools\"]\n    --> sub_loop\n    sub_loop[\"specialist tool loop:<br/>ReadFile · SearchFiles ·<br/>(scoped scaffold)\"]\n    --> output\n    output[\"markdown output\"]\n    --> stringify\n    stringify[\"_stringify_tool_result()<br/><code>:385</code>\"]\n    --> back_to_rev\n    back_to_rev[\"tool_result → Reviewer round N+1\"]\n    sub_loop -.->|each LLM call| token([\"token_usage<br/>caller=specialist:&lt;role&gt;\"])"
   }
 }
