@@ -332,6 +332,8 @@ The pre-fix ADR-269 gate (74 assertions) verified the *wiring* — that `require
 - `16dcd5f` — fix #1: tool_uses_raw → response.content reconstruction
 - `9d85d12` — fix #2: ToolUseBlock attribute access
 - `1f41279` — Phase 3 outcome documentation (track-regime E2E success)
+- `5225165` — cold-start verification (track-account + track-regime succeeded, track-universe + falsify-signals partial)
+- `cf5bb69` — fix #3: dispatch_specialist cache markers (A) + per-recurrence max_rounds (B)
 
 ---
 
@@ -427,4 +429,56 @@ The follow-up work (track-universe + falsify-signals heavy-compute substrate) is
 - `f9e79c9`, `8045238` → progressive verification findings
 - `16dcd5f`, `9d85d12` → dispatch_specialist fixes
 - `1f41279` → first E2E success (track-regime)
-- (this commit) → cold-start verification — the load-bearing test answered
+- `5225165` → cold-start verification — the load-bearing test answered
+- `cf5bb69` → cost-regression fix (cache markers + max_rounds)
+- (this commit) → cf5bb69 verification + bundle-prompt finding
+
+---
+
+## cf5bb69 verification (2026-05-13, post-deploys)
+
+L4 reset → re-fork bundle with new max_rounds declarations → balance top-up to $20 → connect Alpaca → wait scheduler tick.
+
+### What was verified
+
+**A (cache markers) works as designed.** Render logs show Sonnet specialist cache behavior across rounds of a single invocation:
+
+```
+round 1: in=993  out=213  cache_create=13203 cache_read=0     cache_hit=0%
+round 2: in=5437 out=2666 cache_create=1005  cache_read=13203 cache_hit=67%
+round 3: in=8147 out=454  cache_create=1005  cache_read=13203 cache_hit=59%
+```
+
+**Round 2+ caching saves ~67% of system-prompt re-billing.** Aligns with ADR-171's pricing model assumption that caching is firing.
+
+**Haiku Reviewer side is NOT cached.** Every Haiku `[TOKENS]` line shows `cache_create=0 cache_read=0 cache_hit=0%` with 15-23K input tokens per call. The Reviewer's `_build_system_prompt()` returns a plain `str` — same issue dispatch_specialist had before cf5bb69. Follow-on fix needed, outside today's scope.
+
+**B (max_rounds threading) is mechanically correct but operationally inert today.** ADR-269 gate proves the wire (auth.recurrence_options carries it through, loop uses the resolved value). But Render logs show:
+- `falsify-signals` specialist ran `rounds=5 tokens=26398/5270 tools=14` and exited cleanly via `stop_reason != "tool_use"` — the specialist *decided it was done*, didn't hit the 20-round ceiling.
+- 14 tool calls were `platform_trading_get_market_data` fetches — zero `WriteFile` calls.
+- Reviewer's defer entry: *"specialist executed (5 rounds, 14 platform API calls) but produced no output files."*
+
+**The next bottleneck is brief composition at the Reviewer→Specialist boundary**, not budget. The specialist LLM is exiting prematurely without writing per-file substrate. Possible causes (not yet diagnosed):
+- The Reviewer's brief to the specialist may strip or de-emphasize the WriteFile directive from the bundle prompt.
+- The specialist's role prompt may not strongly emphasize "write per-signal before terminating."
+- The specialist may be misinterpreting the brief as "fetch and summarize" rather than "fetch and write findings files per spec."
+
+### What this verifies about the structural-resolution path
+
+**The two fixes (A + B) restore the cost model and the budget mechanism**, but neither was the load-bearing blocker for substrate production today. The remaining gap is **prompt/brief-shape at the bundle and Reviewer layers** — a different class of fix (bundle authoring + Reviewer brief-construction discipline, not kernel mechanics).
+
+This is exactly the kind of finding the structural-resolution discipline names as *the right place to stop*. Today's scope was kernel-level cost regression; we shipped it and verified it. The brief-composition gap is its own scope and deserves its own diagnostic-then-fix pass, not bundled urgency.
+
+### Honest tally of today's structural-resolution work
+
+| Layer | Status |
+|---|---|
+| ADR-270 fire_on_activation | ✅ verified end-to-end |
+| dispatch_specialist `tool_uses_raw` AttributeError | ✅ fixed (16dcd5f) |
+| dispatch_specialist `ToolUseBlock.get()` AttributeError | ✅ fixed (9d85d12) |
+| Specialist system prompt cache markers | ✅ fixed + verified (cf5bb69) |
+| Per-recurrence max_rounds override | ✅ wired + tested (cf5bb69) — operationally inert today because specialist exits early |
+| Specialist brief composition → file-write directive | ❌ next gate, not yet fixed |
+| Haiku Reviewer system prompt caching | ❌ next gate (token audit shows 0% cache on every Reviewer call) |
+
+The cold-start infrastructure problem is fully resolved. The substrate-production problem for heavy recurrences is *partially* resolved — they no longer crash, but they don't yet write the intended substrate.
