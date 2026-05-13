@@ -6,6 +6,59 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.13.7] - fix(reviewer_agent): cache markers on Reviewer system prompt (same canonical pattern as cf5bb69)
+
+### Background
+
+`cf5bb69` ([2026.05.13.6] above) fixed specialist-side caching. Same-day Render log audit on seulkim88 verified Sonnet specialist hits 59-67% cache on rounds 2+ as ADR-171/172 pricing model assumes. **The same audit found the Haiku Reviewer was uncached on every call** — every `[TOKENS]` log line for the Reviewer showed `cache_create=0 cache_read=0 cache_hit=0%` with 15-23K input tokens per call.
+
+Same root cause as the specialist side: `reviewer_agent._build_system_prompt()` returned a plain `str`. Anthropic's `prompt-caching-2024-07-31` beta header is attached on every call, but without cache_control markers on static system content, no caching happens.
+
+Cost impact: Reviewer wakes happen on every recurrence fire (~10 recurrences/day for an active alpha-trader workspace, plus reactive wakes on proposals). At 15-23K input × Haiku rate × no caching, this was a real ongoing cost.
+
+### Fix
+
+Same canonical pattern as cf5bb69's A. `_build_system_prompt()` returns `list[dict]` with `cache_control: {"type": "ephemeral"}` on the static frame block. The block contents are still composed from `_PERSONA_FRAME` + `build_cockpit_section()` (ADR-258 D5 drift-resistance preserved).
+
+Module-level `_SYSTEM_PROMPT_CACHE` singleton remains — was `str | None`, now `list[dict] | None`. Lazy-cached behavior unchanged.
+
+Sole caller is `chat_completion_with_tools(system=_system_prompt(), ...)` at line 818. `chat_completion_with_tools` accepts `str | list[dict]` per anthropic.py:221; `_prepare_system` passes lists through unchanged.
+
+### Files changed
+
+- `api/agents/reviewer_agent.py` — `_build_system_prompt()` returns `list[dict]` with cache_control; `_SYSTEM_PROMPT_CACHE` type annotation updated; `_system_prompt()` return annotation updated. Docstring explains the ADR-171/172 economics + cf5bb69 precedent.
+- `api/test_adr269_capability_flow.py` — new test `test_reviewer_system_prompt_has_cache_control` (5 assertions). Mirrors the specialist-side test pattern. Gate now 108/108 PASS (was 103/103).
+
+### Singular Implementation
+
+- Same canonical shape as the specialist-side fix in cf5bb69. One pattern across the codebase: static system content as `list[dict]` with `cache_control: {"type": "ephemeral"}`.
+- No new caching abstraction. Uses Anthropic's documented prompt-caching API directly.
+- Module-level singleton survives — composing once per process is correct (cache_control marker is part of the static content, no per-call mutation).
+
+### Expected behavior changes
+
+- Reviewer wakes within the cache TTL (~5 min Anthropic default for ephemeral cache) hit cache on the system prompt block.
+- Per ADR-171 §"Cache discount: not passed through" — user-facing billing unchanged (2× full input rate), cache discount accrues as platform margin.
+- Visible in Render logs as `[TOKENS] ... cache_create=N cache_read=M cache_hit=X%` on Reviewer calls — should show `cache_read > 0` and `cache_hit > 0%` on rounds 2+ of any Reviewer loop AND across rounds of separate Reviewer wakes within ~5 min.
+
+### What this does NOT do
+
+- Doesn't change billing math. Same as cf5bb69 — cache discount is platform margin per ADR-171.
+- Doesn't touch the dispatch_specialist caching path — that was fixed in cf5bb69.
+- Doesn't address the substrate-write-failure gap surfaced in cf5bb69 verification (specialist exits early without WriteFile). That's a separate scope — bundle prompt / brief composition layer, not kernel-side caching.
+
+### Verification path
+
+Next post-deploy Reviewer wake. Render-log grep:
+
+```
+grep "TOKENS.*haiku.*cache_read" — should show non-zero cache_read on round 2+
+```
+
+If `cache_read > 0` on the second `[TOKENS]` line of a single Reviewer invocation: working.
+
+---
+
 ## [2026.05.13.6] - fix(dispatch_specialist): restore cache markers + per-recurrence max_rounds (cost regression from PR #9)
 
 ### Background — what the audit found

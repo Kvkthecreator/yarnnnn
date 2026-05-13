@@ -525,6 +525,37 @@ def test_reviewer_threads_recurrence_options_onto_auth():
     )
 
 
+def test_reviewer_system_prompt_has_cache_control():
+    """Regression for the Reviewer-side caching gap surfaced by cf5bb69 audit.
+
+    Background: cf5bb69 fixed specialist-side caching (dispatch_specialist).
+    Render log audit on seulkim88 verified Sonnet specialist hits 59-67%
+    cache on rounds 2+. SAME audit found Haiku Reviewer was uncached on
+    every call (every [TOKENS] line: cache_create=0 cache_read=0
+    cache_hit=0% with 15-23K input tokens). Same root cause:
+    reviewer_agent._build_system_prompt() returned plain str — Anthropic's
+    prompt-caching beta header attached but no cache_control markers on
+    static content.
+
+    This test verifies _build_system_prompt() returns the structured
+    content-blocks shape with cache_control on the static frame block —
+    not a plain str. Same canonical pattern as
+    test_dispatch_specialist_system_prompt_has_cache_control above.
+    """
+    from agents.reviewer_agent import _build_system_prompt
+
+    result = _build_system_prompt()
+    assert_true(isinstance(result, list), "system prompt is a list of content blocks")
+    assert_true(len(result) >= 1, "at least one content block")
+    assert_eq(result[0].get("type"), "text", "first block is text-typed")
+    assert_true("cache_control" in result[0], "first block carries cache_control marker")
+    assert_eq(
+        result[0].get("cache_control"),
+        {"type": "ephemeral"},
+        "cache_control is the ephemeral shape Anthropic recognizes",
+    )
+
+
 def test_alpha_trader_heavy_recurrences_declare_max_rounds():
     """Bundle-level: track-universe and falsify-signals declare per-recurrence
     round budgets matching their observed workload size."""
@@ -582,6 +613,7 @@ def main():
         test_dispatch_specialist_system_prompt_has_cache_control,
         test_dispatch_specialist_honors_per_recurrence_max_rounds,
         test_reviewer_threads_recurrence_options_onto_auth,
+        test_reviewer_system_prompt_has_cache_control,
         test_alpha_trader_heavy_recurrences_declare_max_rounds,
     ]
     for t in tests:

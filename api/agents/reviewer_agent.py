@@ -416,18 +416,38 @@ _TRIGGER_FRAMING = {
 
 
 # Composed once at module import; refreshes on deploy when canonical sources change.
-def _build_system_prompt() -> str:
-    """Compose the Reviewer system prompt from canonical sources.
-    ADR-258 D5: cockpit awareness is generated from path constants and the
-    chat-mode primitive registry — drift-resistant by construction."""
+def _build_system_prompt() -> list[dict]:
+    """Compose the Reviewer system prompt as cache-marked content blocks.
+
+    The frame + cockpit-awareness section are static across every Reviewer
+    wake within a deploy — marking them ephemeral lets Anthropic's prompt
+    cache short-circuit re-billing on every round of every Reviewer loop.
+    Without cache markers each Reviewer wake re-bills 15-23K input tokens
+    of system prompt; with them, rounds 2..N (and subsequent waves within
+    the cache TTL) pay ~10% of base input rate.
+
+    ADR-171/172 pricing model assumes caching is firing — the user-facing
+    2× markup is computed against full input rate, the cache discount
+    accrues as platform margin. Same shape as the dispatch_specialist fix
+    in commit cf5bb69. ADR-258 D5 (cockpit awareness drift-resistance) is
+    preserved: section is still generated from path constants + primitive
+    registry, just wrapped in a content-block with cache_control.
+    """
     from agents.cockpit_awareness import build_cockpit_section
-    return "\n\n".join([_PERSONA_FRAME, build_cockpit_section()])
+    body = "\n\n".join([_PERSONA_FRAME, build_cockpit_section()])
+    return [
+        {
+            "type": "text",
+            "text": body,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
 
 
-_SYSTEM_PROMPT_CACHE: str | None = None
+_SYSTEM_PROMPT_CACHE: list[dict] | None = None
 
 
-def _system_prompt() -> str:
+def _system_prompt() -> list[dict]:
     """Lazy-cached system prompt (composed once per process)."""
     global _SYSTEM_PROMPT_CACHE
     if _SYSTEM_PROMPT_CACHE is None:
