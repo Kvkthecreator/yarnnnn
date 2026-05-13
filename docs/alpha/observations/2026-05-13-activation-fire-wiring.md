@@ -203,3 +203,73 @@ Operator uncomments `ALPHA_TRADER_ALPACA_KEY` and `ALPHA_TRADER_ALPACA_SECRET` i
 - `/workspace/research/findings/{signal_id}.md` populated per declared signal
 
 `verify.py alpha-trader` should pass invariants.
+
+---
+
+## Full E2E findings (2026-05-13, post-credentials)
+
+Operator added seulkim88's Alpaca paper credentials (account X4DJ) to `api/.env.alpha-ops`; `connect.py alpha-trader` succeeded; manually reset `last_run_at = NULL` on the four ADR-270 rows (because the pre-credentials run had marked them complete via failed dispatch — see §"What the verification revealed about an existing scheduler interaction" above). Scheduler tick post-credentials produced these outcomes:
+
+| Recurrence | Dispatched | last_run_at | Substrate written | Verdict |
+|---|---|---|---|---|
+| `track-account` | ✓ | 06:13:25 | `/workspace/context/portfolio/_account.yaml` — real Alpaca data (PA3D05L0X4DJ, equity $100,028.14) | **PASS** — full E2E success |
+| `track-regime` | ✓ | 06:14:00 | None observed (no `_regime.yaml` write) | Partial — dispatched but didn't write |
+| `track-universe` | ✓ | 06:14:37 | `/workspace/context/trading/_run_log.md` — failure note: Reviewer couldn't resolve correct tool name, tried `platform_trading_get_bars` + `get_bars`; both rejected. Correct name is `platform_trading_get_market_data`. | **FAIL** — bundle prompt + tool resolution mismatch (iter-4 L3 surface issue) |
+| `falsify-signals` | ✓ | 06:15:17 | `/workspace/review/decisions.md` — Reviewer correctly recognized "this is deterministic work, not judgment, attempting inline would hallucinate," attempted DispatchSpecialist(role=researcher) but received execution error; deferred per principles. | **Partial — exemplary failure** (Reviewer reasoning correct, infrastructure error blocked work) |
+
+### What the full E2E validates
+
+1. **ADR-270's kernel conditional is fully verified end-to-end.** `track-account` ran the complete fire-on-activation → SyncPlatformState → Alpaca API → substrate-write cycle in under 1 second after the scheduler tick that followed `materialize_scheduling_index`. The mechanical recurrence path works as designed.
+
+2. **`verify.py alpha-trader` returns 32/32 invariants passing.** The activation chain is structurally sound; the failures are in *downstream specialist dispatch*, not in activation infrastructure.
+
+3. **Reviewer reasoning quality is high even on failure.** The decisions.md entry for falsify-signals correctly identifies the work as deterministic (not judgment), attempts dispatch, recognizes the execution error, defers with structured options for the operator. This is the calibration-quality canon predicts at Phase 0; the persona-bearing-Agent thesis is doing its job.
+
+### What the full E2E surfaces about downstream layers
+
+1. **iter-4 L3 capability flow has a tool-name resolution issue in practice.** The Reviewer (or its dispatched specialist) didn't know the correct platform tool name (`platform_trading_get_market_data`) for fetching bars. The bundle's `track-universe` prompt says "fetch fresh 1Hour bars via the Alpaca platform tool" but doesn't name the tool explicitly. The Reviewer's tool-discovery path (or the specialist's) tried plausible names and failed.
+
+   **Fix scope (NOT in this commit)**: either bundle prompts should name `platform_trading_get_market_data` explicitly, or the L3 specialist tool surface should make tool-name discovery cleaner. This is iter-4 follow-up work, not ADR-270.
+
+2. **DispatchSpecialist returns execution errors on the falsify-signals path.** The Reviewer attempted `DispatchSpecialist(role=researcher, required_capabilities=['read_trading'])` and got an execution error. Whether this is the same root cause as `track-universe`'s tool-name issue or a different L3 path, the symptom blocks falsify-signals from producing any findings.
+
+   **Fix scope (NOT in this commit)**: trace DispatchSpecialist execution in the Render logs for the relevant invocation; likely same iter-4 follow-up.
+
+3. **The "no `last_run_at` on failed dispatch" interaction I noted earlier was wrong-shaped.** Re-reading: dispatcher DOES set `last_run_at` on failure (we saw it). My earlier note "dispatch failing before record_task_run" was incorrect — record_task_run runs regardless. The actual failure mode is *substrate-write-failure-recorded-as-success*. Once the dispatcher marks the row complete, fire_on_activation won't re-trigger it. **Operator has to manually FireInvocation or wait for periodic schedule.** This is more honest about the interaction than my earlier framing.
+
+4. **`track-regime`'s silent failure** — dispatched, set last_run_at, but no `_regime.yaml` write. Could be same L3 issue (specialist couldn't fetch VIXY/SPY bars), or could be different. Worth investigating separately. Pattern: same shape as the `track-universe` and `falsify-signals` failures — Reviewer/specialist dispatched, attempted tool calls, failed at the tool surface, didn't write substrate.
+
+### What this means for the alpha-1 trade-execution loop
+
+The activation chain is now **fast** (under 60 seconds for the first fires), **structurally correct** (verify.py passes), and produces **partial substrate** (`_account.yaml`). The remaining gaps are in iter-4 L3 capability flow — specifically how the Reviewer's specialist sub-LLM resolves platform tool names. Those gaps existed before ADR-270; ADR-270 just exercises them faster + more visibly.
+
+For the alpha-1 trade-execution path (signal-evaluation → trade-proposal → ProposeAction → execute):
+- `signal-evaluation` is currently scheduled for next `@market_open + 15min` (08:14 UTC = 17:14 KST = 04:14 ET next morning, since current US market is closed).
+- That fire will attempt to read `/workspace/context/trading/{ticker}.yaml` files which currently don't exist (track-universe failed).
+- Without ticker substrate, signal-evaluation will likely stand down with "no data to evaluate."
+- The trade-execution loop is structurally blocked until either L3 is fixed or operator manually populates ticker substrate.
+
+### Verification status summary (updated)
+
+| Layer | Status |
+|---|---|
+| Kernel conditional in `compute_next_run_at` | ✅ verified end-to-end |
+| Bundle YAML parsing (`fire_on_activation` absorbed into `rec.options`) | ✅ verified |
+| `materialize_scheduling_index` writes `next_run_at = now` for flagged rows | ✅ verified |
+| Bundle fork writes new `research/mandate.md` + `specs/falsify-signals.md` | ✅ verified |
+| Scheduler tick picks up due rows | ✅ verified |
+| Dispatch completes successfully + writes substrate | ✅ verified for `track-account` (mechanical); ❌ failed for `track-universe`/`track-regime`/`falsify-signals` (judgment-mode L3 issues) |
+| Falsify-signals produces `/workspace/research/findings/{signal_id}.md` | ❌ blocked on DispatchSpecialist execution error |
+| L3 capability-flow path (iter-4) exercised end-to-end | ⚠️ exercised but tool-name resolution failure observed |
+| `verify.py alpha-trader` invariants | ✅ 32/32 PASS |
+
+### Commits associated with this observation
+
+- `914086f` — ADR-270 implementation (kernel conditional + bundle + ADR + observation skeleton)
+- `f9e79c9` — initial verification findings (pre-credentials, blocked on Alpaca)
+- (this commit) — full E2E findings post-credentials, surfaced iter-4 L3 downstream issues
+
+### What's NOT in scope for follow-up commits on ADR-270
+
+- Track-universe/track-regime/falsify-signals downstream failures — these are iter-4 L3 specialist-tool-surface issues, separately owned. ADR-270 cleanly verified for its own scope.
+- The "substrate-write-failure-recorded-as-success" pattern (corrected understanding of the dispatcher behavior). Worth a separate scheduler-discipline pass if it produces operator friction at scale; flagged for future scope, not blocking ADR-270.
