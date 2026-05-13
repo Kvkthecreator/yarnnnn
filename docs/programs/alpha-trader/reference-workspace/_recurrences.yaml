@@ -52,6 +52,9 @@ recurrences:
   - slug: track-account
     schedule: "@every 5min during regular_hours"   # ADR-268: every 5 min during RTH
     mode: mechanical
+    # ADR-270: fire at activation so the operator sees account state
+    # populated in the cockpit immediately, regardless of RTH timing.
+    fire_on_activation: true
     prompt: |
       @primitive: SyncPlatformState(
         tool="platform_trading_get_account",
@@ -87,6 +90,12 @@ recurrences:
     # fresh regime state.
     schedule: "@market_close + 30min"   # 16:30 ET
     mode: judgment
+    # ADR-270: fire at activation so _regime.yaml exists before the
+    # first signal-evaluation fire. Without this, the Reviewer hits the
+    # principles.md bootstrap exception on every cold-start proposal
+    # (scalar=1.0 regardless of true regime). After this first fire,
+    # the regular @market_close + 30min cadence resumes.
+    fire_on_activation: true
     # ADR-269: Reviewer dispatches a specialist to fetch VIXY + SPY 1Day
     # bars; specialist needs Alpaca market-data access. Without this
     # declaration, get_headless_tools_for_agent returns only the
@@ -148,6 +157,11 @@ recurrences:
       - "@market_open + 3h"        # 12:30 ET — midday
       - "@market_close - 1h"       # 15:00 ET — 1h before close
     mode: judgment
+    # ADR-270: fire at activation so per-ticker snapshots exist before
+    # signal-evaluation's first fire. Without this, signal-evaluation
+    # reads empty/missing {ticker}.yaml files on the first RTH cycle
+    # post-activation. After this first fire, regular RTH cadence resumes.
+    fire_on_activation: true
     # ADR-269: Reviewer dispatches a specialist to fetch 1Hour bars + derive
     # SMA/RSI/ATR per ticker; specialist needs Alpaca market-data access.
     required_capabilities: [read_trading]
@@ -164,6 +178,62 @@ recurrences:
       If Alpaca is unreachable, stand down quietly — log the failure to
       /workspace/context/trading/_run_log.md and try again next cycle.
     display_name: "Universe Tracker"
+
+  # ── falsify-signals — bootstrap research substrate on activation ─────────
+  # ADR-270: one-shot research bootstrap. Fires once on bundle activation
+  # (no recurring schedule), walks each operator-declared signal against
+  # 90 days of historical bars, writes per-signal findings to
+  # /workspace/research/findings/{signal_id}.md. The Reviewer reads those
+  # findings at proposal time alongside _money_truth.md per principles.md.
+  #
+  # This is NOT a permanent research function (ADR-270 §"Earned escalation"):
+  # operator may FireInvocation manually if they want re-falsification later;
+  # if observation shows the work is needed on a regular cadence, a future
+  # bundle revision adds a periodic schedule.
+  - slug: falsify-signals
+    schedule: null   # reactive: fires only on activation + manual FireInvocation
+    mode: judgment
+    fire_on_activation: true
+    required_capabilities: [read_trading]
+    prompt: |
+      What you produce:
+      - per-signal historical findings written to
+        /workspace/research/findings/{signal_id}.md per the schema in
+        /workspace/specs/falsify-signals.md
+
+      Walk every signal declared in
+      /workspace/context/trading/_operator_profile.md against 90 days
+      of historical bars. For each signal:
+
+        1. Read the signal's trigger, entry, stop_loss, target,
+           position_size, and max_hold rules.
+        2. For each ticker in /workspace/context/trading/_universe.yaml:
+             - Fetch 90 days of 1Hour bars via the Alpaca platform tool.
+             - Walk forward bar-by-bar; identify every moment the signal's
+               trigger conditions matched.
+             - For each trigger, compute synthetic outcome from subsequent
+               bars: did stop hit first, target hit first, or max_hold
+               reach? Compute R-multiple = (exit - entry) / (entry - stop).
+        3. Aggregate per signal across all tickers:
+             - sample_size = total triggers
+             - win_rate = fraction with positive R-multiple
+             - avg_win, avg_loss, expectancy_R
+             - Compare to declared baseline in _operator_profile.md
+               ("Historical baseline (to establish)" lines).
+        4. Write findings to /workspace/research/findings/{signal_id}.md
+           with frontmatter (sample_size, win_rate, avg_win_R, avg_loss_R,
+           expectancy_R, computed_at, lookback_days, source: replay) and
+           a narrative body listing the triggered conditions + outcomes.
+
+      If Alpaca returns insufficient or stale bars for a ticker, skip
+      that ticker for that signal and note it in the body; don't fabricate
+      outcomes.
+
+      This is bootstrap-only — the Reviewer reads these findings to seed
+      its capital-EV reasoning when _money_truth.md is empty (post-fork
+      cold start). As live trades accumulate, the Reviewer weights real
+      outcomes higher than these synthetic ones per principles.md.
+    display_name: "Falsify Signals (Bootstrap)"
 
   # ── signal-evaluation — evaluate signals against current bars ────────────
   - slug: signal-evaluation

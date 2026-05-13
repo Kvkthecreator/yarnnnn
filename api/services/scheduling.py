@@ -303,11 +303,25 @@ def compute_next_run_at(
             return rec.paused_until
         return None
 
+    now_utc = now or datetime.now(timezone.utc)
+
+    # ADR-270: fire-on-activation. Operator-authored on the recurrence YAML
+    # body via `fire_on_activation: true` (parsed into `rec.options`). When
+    # set AND no prior run has been recorded, return `now` so the next
+    # scheduler tick after fork picks the row up immediately. After the
+    # first fire records last_run_at, subsequent calls fall through to the
+    # regular schedule resolution below. This closes the activation gap:
+    # bundles that need substrate populated before the first periodic fire
+    # (cold-start research, regime substrate, universe snapshots) declare
+    # themselves activation-fired. No new trigger primitive — the existing
+    # scheduler path picks up the due row via the standard cron tick.
+    if rec.options.get("fire_on_activation") and last_run_at is None:
+        return now_utc
+
     schedule = rec.schedule
     if not schedule:
         return None
 
-    now_utc = now or datetime.now(timezone.utc)
     base = last_run_at or now_utc
 
     # Normalize to list-of-strings for unified handling. A single string

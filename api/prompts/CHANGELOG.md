@@ -6,6 +6,63 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.13.3] - ADR-270: fire-on-activation recurrences + alpha-trader bootstrap research
+
+### Closes the cold-start activation gap
+
+Pre-change: workspace activation produces a substrate-scaffolded workspace where every recurrence waits for its next periodic fire. For US-market-bound bundles activated outside RTH, this is up to 11.5 hours of operator-experienced silence. The architecture's compounding-intelligence claim is structurally honored (nothing in substrate is wrong) but operator-experienced as "scaffolded inbox waiting for cron."
+
+This change adds **`fire_on_activation: true`** as an opt-in YAML key on recurrence declarations. When set AND no `last_run_at` exists yet, the scheduler returns `now` from `compute_next_run_at` — the next scheduler tick after fork picks the row up immediately. One conditional at the top of `compute_next_run_at`; no new primitive, no new agent class, no new trigger sub-shape, no FOUNDATIONS amendment.
+
+Per ADR-270 §3 the change deliberately defers three richer patterns (chat-callable reactive verbs, ad-hoc chat exploration writing substrate, periodic falsify-signals schedule) — each deferred per "earned escalation" until observation justifies.
+
+### Files changed
+
+- **`api/services/scheduling.py`**
+  One conditional at top of `compute_next_run_at`: returns `now_utc` when `rec.options.get("fire_on_activation")` is true AND `last_run_at is None`. Honors pause state (pause beats activation). After first fire, falls through to normal schedule path.
+
+- **`docs/programs/alpha-trader/reference-workspace/_recurrences.yaml`**
+  - `track-account` marked `fire_on_activation: true` (broker account snapshot in cockpit immediately)
+  - `track-regime` marked `fire_on_activation: true` (VIXY + SPY regime substrate before signal-evaluation's first fire — eliminates the principles.md rule 7 bootstrap exception on cold-start)
+  - `track-universe` marked `fire_on_activation: true` (per-ticker bars before signal-evaluation reads them)
+  - New `falsify-signals` recurrence: `schedule: null` (reactive) + `fire_on_activation: true`. Walks 90 days of historical bars through each operator-declared signal; writes per-signal findings to `/workspace/research/findings/{signal_id}.md`. One-shot bootstrap research substrate; re-fires only on explicit `FireInvocation`.
+
+- **`docs/programs/alpha-trader/reference-workspace/review/principles.md`**
+  Capital-EV section extended: Reviewer reads `/workspace/research/findings/{signal_id}.md` alongside `_money_truth.md`. Rule: live data weighs more than replay findings; replay-only-below-baseline is a soft warning, not auto-reject.
+
+- **`docs/programs/alpha-trader/reference-workspace/research/mandate.md`** (new)
+  Operator-facing standing intent for the research substrate. Names fidelity gaps honestly (no slippage model, survivorship bias, no regime conditioning). Distinguishes research-substrate (`source: replay`) from money-truth (`source: live`).
+
+- **`docs/programs/alpha-trader/reference-workspace/specs/falsify-signals.md`** (new)
+  Schema for per-signal findings files. Frontmatter contract: `sample_size, win_rate, avg_win_R, avg_loss_R, expectancy_R, source: replay, baseline_status`.
+
+- **`docs/adr/ADR-270-fire-on-activation-recurrences.md`** (new)
+  Full ADR.
+
+- **`docs/alpha/observations/2026-05-13-activation-fire-wiring.md`** (new)
+  Companion observation doc — verification path against `seulkim88` persona, friction register, discourse trace.
+
+### Expected behavior changes
+
+- **Activation produces an active substrate-population burst within the first scheduler tick.** Operator-experienced: cockpit faces non-empty within 60 seconds of activation; feed surface shows 4-7 system-attributed entries.
+- **`_regime.yaml` exists at first signal-evaluation fire.** Eliminates the principles.md rule 7 bootstrap exception path on cold-start (which always treated regime as inactive). After this change, the first cycle reasons about regime correctly.
+- **Per-signal historical findings exist at first proposal time.** Reviewer reads them alongside `_money_truth.md`. First-cycle Reviewer has historical context, not just operator-declared baselines.
+- **L4 reset → re-activation re-fires `falsify-signals` and the activation-fired tracker recurrences.** Intentional. Token cost amortizes across the cycle but is real.
+
+### What this does NOT do
+
+- No new Python service; no `back_office/regime_tracker.py` analog. The falsify-signals work runs through the existing Reviewer + specialist dispatch path with `required_capabilities: [read_trading]`.
+- No new agent class. Researcher-Agent shape was considered + rejected in discourse; the work is a recurrence, not a persona-bearing seat.
+- No new primitive. `fire_on_activation` is operator-authored YAML metadata absorbed into `rec.options`; no dataclass field needed.
+- No new trigger taxonomy. Axiom 4's periodic / reactive / addressed sub-shapes preserved; activation is the existing periodic path with `next_run_at = now`.
+- No periodic schedule for `falsify-signals`. Bootstrap-only by design; future bundle revision can add a schedule if observation warrants.
+
+### Verification persona
+
+`seulkim88@gmail.com` → persona slug `alpha-trader` → user_id `2be30ac5-b3cf-46b1-aeb8-af39cd351af4`. Operator-experience verification: reset, activate, connect, wait 60s, check cockpit faces + feed surface + filesystem.
+
+---
+
 ## [2026.05.13.2] - alpha-trader: regime wiring (track-regime + trade-proposal + principles.md rules 6+7)
 
 ### Closes the "declared but unenforced" gap on the volatility-regime predicate
