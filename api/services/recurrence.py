@@ -36,13 +36,21 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import yaml
 
 from services.conventions import RECURRENCES_PATH
 
 logger = logging.getLogger(__name__)
+
+
+# ADR-268: a recurrence's schedule may be a single string (plain cron OR
+# semantic `@`-prefixed) OR a list of such strings. List-form represents
+# multiple-fires-per-recurrence (e.g. three RTH snapshots/day); the
+# scheduler resolves each member individually and uses the minimum
+# next-run-at across all members.
+Schedule = Optional[Union[str, list[str]]]
 
 
 # ---------------------------------------------------------------------------
@@ -82,8 +90,13 @@ class Recurrence:
     """
 
     slug: str  # operator-legible identifier
-    schedule: Optional[str]  # cron expression; null for reactive
-    prompt: str  # what the Reviewer reads at fire time (judgment) OR a `@primitive: ...` directive (mechanical)
+    # ADR-268: schedule accepts plain UTC cron OR `@`-prefixed semantic
+    # (resolved against bundle's market_context) OR a list of either
+    # (multiple fires per day). None = reactive (fires on event, not cron).
+    schedule: Schedule = None
+    # Defaulted only to satisfy dataclass field-ordering after `schedule`
+    # gained a default; parser enforces non-empty at construction time.
+    prompt: str = ""
     mode: str = DEFAULT_RECURRENCE_MODE  # ADR-263: judgment | mechanical
 
     # Optional metadata
@@ -180,11 +193,24 @@ def parse_recurrences_yaml(
             )
             continue
 
-        # ``schedule`` may be null (reactive); accept None or empty string.
+        # ``schedule`` may be null (reactive), a string (single cron or
+        # semantic), or a list of strings (multiple fires per day —
+        # ADR-268 §D8). Normalize to one of: None | str | list[str].
         schedule_raw = raw.get("schedule")
-        schedule = (
-            str(schedule_raw).strip() if schedule_raw and str(schedule_raw).strip() else None
-        )
+        schedule: Schedule
+        if schedule_raw is None:
+            schedule = None
+        elif isinstance(schedule_raw, list):
+            cleaned = [str(s).strip() for s in schedule_raw if s and str(s).strip()]
+            schedule = cleaned if cleaned else None
+            if schedule and len(cleaned) == 1:
+                # Singleton lists collapse to plain string — uniform
+                # downstream handling, no special-cased branches.
+                schedule = cleaned[0]
+        elif str(schedule_raw).strip():
+            schedule = str(schedule_raw).strip()
+        else:
+            schedule = None
 
         # ``paused_until``: ISO-8601 string or datetime
         paused_until = _coerce_datetime(raw.get("paused_until"))

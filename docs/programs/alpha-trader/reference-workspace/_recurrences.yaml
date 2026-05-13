@@ -1,10 +1,11 @@
-# /workspace/_recurrences.yaml — alpha-trader bundle (ADR-261 D2 + ADR-263 D1)
+# /workspace/_recurrences.yaml — alpha-trader bundle (ADR-261 D2 + ADR-263 D1 + ADR-268)
 #
 # Single canonical recurrences file. The operator can read the entire
 # scheduled-work surface in 30 seconds. Per ADR-261 D1 each entry is
 # {slug, schedule, mode, prompt} where:
 #   - slug:     stable identifier
-#   - schedule: cron expression (or null for reactive-only)
+#   - schedule: plain UTC cron, @-prefixed semantic schedule (ADR-268),
+#               a list of either (multiple fires per day), or null (reactive)
 #   - mode:     judgment (wakes Reviewer with prompt) | mechanical (executes
 #               @primitive: ... directive deterministically; no Reviewer wake)
 #               Default at parse time when absent: 'judgment' (legacy compat).
@@ -19,6 +20,12 @@
 #
 # Per ADR-262 D1: every output path is slug-templated by CONVENTIONS.md;
 # every spec referenced by a prompt lives under /workspace/specs/.
+#
+# Per ADR-268: semantic schedules ("@market_open + 15min",
+# "@every 1min during regular_hours") resolve to UTC at materialize-due
+# time against this bundle's market_context (declared in MANIFEST.yaml).
+# Market-anchored recurrences live in the trading-business section below;
+# market-agnostic housekeeping uses plain UTC cron.
 
 recurrences:
 
@@ -30,7 +37,7 @@ recurrences:
   # markets produce zero revision noise.
 
   - slug: track-positions
-    schedule: "* * 9-16 * 1-5"   # every minute during US market hours
+    schedule: "@every 1min during regular_hours"   # ADR-268: every minute during RTH (9:30-16:00 ET)
     mode: mechanical
     prompt: |
       @primitive: SyncPlatformState(
@@ -43,7 +50,7 @@ recurrences:
     display_name: "Position State Mirror"
 
   - slug: track-account
-    schedule: "*/5 * 9-16 * 1-5"   # every 5 min during market hours
+    schedule: "@every 5min during regular_hours"   # ADR-268: every 5 min during RTH
     mode: mechanical
     prompt: |
       @primitive: SyncPlatformState(
@@ -54,7 +61,7 @@ recurrences:
     display_name: "Account State Mirror"
 
   - slug: track-orders
-    schedule: "* * 9-16 * 1-5"   # every minute during market hours
+    schedule: "@every 1min during regular_hours"   # ADR-268: every minute during RTH
     mode: mechanical
     prompt: |
       @primitive: SyncPlatformState(
@@ -73,7 +80,13 @@ recurrences:
   # single primitive call. A future ADR-264 follow-on may introduce a
   # dedicated mirror+compute primitive that lets this go mechanical.
   - slug: track-universe
-    schedule: "0 8,11,15 * * 1-5"
+    # ADR-268: three RTH snapshots — post-open settle, midday, pre-close.
+    # Previously "0 8,11,15 UTC" which was pre-market(04:00 ET) +
+    # pre-market(07:00 ET) + mid-RTH(11:00 ET) — only the third overlapped RTH.
+    schedule:
+      - "@market_open + 15min"     # 09:45 ET — 15 min after open, price discovery settled
+      - "@market_open + 3h"        # 12:30 ET — midday
+      - "@market_close - 1h"       # 15:00 ET — 1h before close
     mode: judgment
     prompt: |
       Refresh fundamentals for every ticker listed in
@@ -91,7 +104,9 @@ recurrences:
 
   # ── signal-evaluation — evaluate signals against current bars ────────────
   - slug: signal-evaluation
-    schedule: "5 8 * * 1-5"
+    # ADR-268: post-open after price discovery settles.
+    # Previously "5 8 UTC" = 04:05 ET (pre-market, before RTH open — wrong).
+    schedule: "@market_open + 15min"   # 09:45 ET
     mode: judgment
     prompt: |
       What you produce:
@@ -162,7 +177,9 @@ recurrences:
 
   # ── pre-market-brief — daily pre-market deliverable ──────────────────────
   - slug: pre-market-brief
-    schedule: "15 8 * * 1-5"
+    # ADR-268: 30 min before RTH open, with overnight + pre-market context.
+    # Previously "15 8 UTC" = 04:15 ET — too early, well before RTH.
+    schedule: "@market_open - 30min"   # 09:00 ET
     mode: judgment
     prompt: |
       Produce the pre-market brief. Follow the spec at
@@ -256,7 +273,9 @@ recurrences:
   # prompt is the wake-vehicle that triggers the reconciler through
   # invocation_dispatcher.
   - slug: outcome-reconciliation
-    schedule: "0 5 * * *"
+    # ADR-268: 1h after RTH close — fills + clearing settled. Previously
+    # "0 5 UTC" = 00:00 ET (midnight, multiple hours after close).
+    schedule: "@market_close + 1h"   # 17:00 ET
     mode: judgment
     prompt: |
       Reconcile yesterday's executed proposals against platform events.

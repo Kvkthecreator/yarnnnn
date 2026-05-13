@@ -175,14 +175,28 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
         default_instructions=default_instructions,
     )
 
-    # Resolve headless tool surface for this specialist role
+    # Resolve headless tool surface for this specialist role.
+    # ADR-268 / iter-2 observation 2026-05-13: prior call signature passed
+    # `agent_role=role` which is not a parameter of get_headless_tools_for_agent;
+    # the resulting TypeError was caught silently here, returning
+    # tool_resolution_failed on every dispatch since PR #9 (2026-05-10).
+    # Fixed: pass `agent={"role": role}` matching the function's actual
+    # signature. Note: even with this fix, platform_trading_* tools do NOT
+    # flow to the specialist because (a) the universal specialist roles
+    # (researcher/analyst/tracker/etc. per ADR-176) don't declare
+    # `read_trading` in their role-level capability list, AND (b) the
+    # `task_required_capabilities` parameter is not yet wired through from
+    # the recurrence YAML's `required_capabilities:` block. That's L3 from
+    # iter-2 (full capability-flow wiring) — deferred to a follow-up iter
+    # with its own ADR pass. L2 (this fix) unblocks specialist *launch*;
+    # L3 unblocks specialist *tool surface*.
     from services.primitives.registry import (
         create_headless_executor,
         get_headless_tools_for_agent,
     )
     try:
         tools = await get_headless_tools_for_agent(
-            db_client, user_id, agent_role=role,
+            db_client, user_id, agent={"role": role},
         )
     except Exception as e:
         logger.warning(
@@ -195,9 +209,16 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
             "message": str(e),
         }
 
+    # ADR-268 / iter-2 follow-on: same kwarg-mismatch class as the
+    # get_headless_tools_for_agent call above. create_headless_executor's
+    # first positional is `client`, not `db_client`. Previously this would
+    # have raised TypeError but execution never reached here (the prior
+    # call already failed). Fixing concurrently so the dispatch path is
+    # actually exercise-able post-deploy.
     executor = create_headless_executor(
-        db_client=db_client,
+        client=db_client,
         user_id=user_id,
+        agent={"role": role},
         dynamic_tools=tools,
     )
 

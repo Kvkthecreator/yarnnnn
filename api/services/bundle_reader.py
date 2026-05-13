@@ -145,6 +145,29 @@ def bundles_active_for_workspace(user_id: str, client: Any) -> list[dict[str, An
     return [b for _, b in matching]
 
 
+def get_market_context_for_user(user_id: str, client: Any) -> Optional[dict[str, Any]]:
+    """Return the workspace's active bundle's `market_context:` block (ADR-268).
+
+    Returns None when:
+      - workspace has no active bundle (no matching capability + connection)
+      - the active bundle does not declare a `market_context:` block
+
+    When multiple bundles are active for a workspace (rare; per ADR-244 D4
+    one workspace activates one program at a time, but the registry allows
+    multi-program operators conceptually), returns the FIRST bundle's
+    market_context per the deterministic ordering of
+    `bundles_active_for_workspace`. The semantic schedules in the
+    workspace's `_recurrences.yaml` are bundle-shipped, so the bundle that
+    shipped them is the bundle whose market_context they resolve against.
+    """
+    bundles = bundles_active_for_workspace(user_id, client)
+    for bundle in bundles:
+        mc = bundle.get("market_context")
+        if isinstance(mc, dict):
+            return mc
+    return None
+
+
 def get_task_type_from_bundles(type_key: str) -> Optional[dict[str, Any]]:
     """Find a task_type definition across active bundles.
 

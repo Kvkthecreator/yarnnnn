@@ -16,6 +16,25 @@ oracle:
   capital_threshold_usd: 5000
   attribution: per_position_pnl_with_signal_attribution
 
+# ADR-268: market_context block. Recurrences in this bundle's
+# reference-workspace/_recurrences.yaml may use semantic `@`-prefixed
+# schedules (`@market_open + 15min`, `@every 1min during regular_hours`,
+# etc.) — they resolve to UTC at materialize-due time against the
+# timezone + sessions + calendar declared here. Plain UTC cron schedules
+# still work for market-agnostic recurrences (daily housekeeping, weekly
+# reviews). Future markets (Korean equities, crypto 24/7, futures)
+# declare their own market_context block + register a MarketCalendar in
+# api/services/market_calendars.py.
+market_context:
+  exchange: us_equities
+  timezone: America/New_York
+  sessions:
+    regular_hours: { open: "09:30", close: "16:00" }
+    pre_market:    { open: "04:00", close: "09:30" }
+    after_hours:   { open: "16:00", close: "20:00" }
+  trading_days: weekdays
+  calendar: nyse_us
+
 dependencies:
   required:
     - adr: ADR-209          # authored substrate revision chain
