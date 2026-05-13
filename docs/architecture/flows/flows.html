@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YARNNN — Architecture & Flows</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --panel: #161922;
+      --panel-2: #1d2230;
+      --border: #2a3142;
+      --text: #e6e8ee;
+      --text-dim: #8c92a4;
+      --text-dimmer: #5e6478;
+      --accent: #f5d76e;
+      --accent-2: #6ec1f5;
+      --rose: #f78fb3;
+      --green: #7fd6a7;
+      --orange: #f5a26e;
+      --code-bg: #0a0c12;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      font-size: 14px;
+    }
+    code, pre, .mono {
+      font-family: "SF Mono", "JetBrains Mono", "Menlo", monospace;
+      font-size: 12.5px;
+    }
+    header {
+      padding: 20px 28px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--panel);
+    }
+    header h1 {
+      margin: 0 0 6px;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    header .snapshot {
+      font-size: 12px;
+      color: var(--text-dim);
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+    header .snapshot .badge {
+      background: var(--panel-2);
+      padding: 2px 8px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+    }
+    header .note {
+      font-size: 11.5px;
+      color: var(--text-dimmer);
+      margin-top: 8px;
+      max-width: 900px;
+    }
+    .layout {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      min-height: calc(100vh - 110px);
+    }
+    nav.tabs {
+      border-right: 1px solid var(--border);
+      background: var(--panel);
+      padding: 16px 0;
+    }
+    nav.tabs .group-label {
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dimmer);
+      padding: 12px 18px 6px;
+    }
+    nav.tabs button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border: none;
+      color: var(--text-dim);
+      padding: 8px 18px 8px 24px;
+      cursor: pointer;
+      font-size: 13px;
+      font-family: inherit;
+      border-left: 2px solid transparent;
+      transition: background 0.1s, color 0.1s, border-color 0.1s;
+    }
+    nav.tabs button:hover { color: var(--text); background: var(--panel-2); }
+    nav.tabs button.active {
+      color: var(--accent);
+      border-left-color: var(--accent);
+      background: var(--panel-2);
+    }
+    main {
+      padding: 24px 28px 60px;
+      overflow-x: auto;
+      max-width: 100%;
+    }
+    .panel {
+      display: none;
+    }
+    .panel.active { display: block; }
+    .panel h2 {
+      margin: 0 0 8px;
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    .panel .summary {
+      color: var(--text-dim);
+      max-width: 900px;
+      margin: 0 0 16px;
+    }
+    .adr-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+    .adr-row .chip {
+      font-size: 11px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      padding: 3px 8px;
+      border-radius: 4px;
+      color: var(--accent-2);
+      font-family: inherit;
+    }
+    .mermaid-wrap {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+      margin-bottom: 20px;
+      overflow-x: auto;
+    }
+    .mermaid {
+      text-align: center;
+      min-height: 200px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    @media (max-width: 1100px) { .grid-2 { grid-template-columns: 1fr; } }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+    }
+    .card h3 {
+      margin: 0 0 10px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+    }
+    .card ul { margin: 0; padding-left: 18px; }
+    .card li { margin-bottom: 6px; color: var(--text); }
+    .card li .label { color: var(--accent-2); }
+    .card li code {
+      background: var(--code-bg);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--accent);
+      border: 1px solid var(--border);
+    }
+    .gate {
+      background: var(--code-bg);
+      border-left: 2px solid var(--orange);
+      padding: 8px 12px;
+      margin-bottom: 8px;
+      font-size: 12.5px;
+    }
+    .gate .gate-id { color: var(--orange); font-weight: 600; }
+    .gate .pred { color: var(--text); font-style: italic; }
+    .gate .branches { color: var(--text-dim); margin-top: 4px; }
+    .gate code {
+      background: var(--bg);
+      padding: 1px 4px;
+      border-radius: 3px;
+      color: var(--accent);
+    }
+    .crosscut-pill {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin: 0 4px 4px 0;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+    }
+    .crosscut-pill.authored_substrate_write { color: var(--green); border-color: rgba(127,214,167,0.3); }
+    .crosscut-pill.token_ledger_write { color: var(--accent); border-color: rgba(245,215,110,0.3); }
+    .crosscut-pill.narrative_append { color: var(--accent-2); border-color: rgba(110,193,245,0.3); }
+    .crosscut-pill.decisions_md_append { color: var(--rose); border-color: rgba(247,143,179,0.3); }
+    .crosscut-pill.autonomy_gate { color: var(--orange); border-color: rgba(245,162,110,0.3); }
+    .crosscut-pill.balance_gate { color: var(--orange); border-color: rgba(245,162,110,0.3); }
+    .crosscut-pill.execution_event_record { color: var(--text-dim); }
+    .file-ref {
+      display: inline-block;
+      background: var(--code-bg);
+      padding: 1px 6px;
+      border-radius: 3px;
+      color: var(--accent);
+      font-family: "SF Mono", monospace;
+      font-size: 11.5px;
+      border: 1px solid var(--border);
+    }
+    .invariant {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-left: 2px solid var(--green);
+      border-radius: 4px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+    }
+    .invariant .inv-id {
+      color: var(--green);
+      font-weight: 600;
+      font-family: "SF Mono", monospace;
+      font-size: 11.5px;
+      margin-right: 8px;
+    }
+    .invariant .statement { color: var(--text); }
+    .invariant .rationale { color: var(--text-dim); margin-top: 4px; font-size: 12.5px; }
+    .invariant .enforced { color: var(--text-dimmer); margin-top: 4px; font-size: 11.5px; }
+
+    .legend {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin-bottom: 20px;
+    }
+    .legend h3 {
+      margin: 0 0 10px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-dim);
+    }
+    .legend-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 8px 16px;
+      font-size: 12px;
+    }
+    .legend-item { color: var(--text-dim); }
+    .legend-item strong { color: var(--text); }
+    a, a:visited { color: var(--accent-2); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>YARNNN — Architecture &amp; Flows</h1>
+    <div class="snapshot">
+      <span class="badge">Snapshot: <strong id="snap-date"></strong></span>
+      <span class="badge">Commit: <code id="snap-commit"></code></span>
+      <span class="badge">Post-ADR-260/261/262 merge</span>
+    </div>
+    <div class="note" id="snap-note"></div>
+  </header>
+  <div class="layout">
+    <nav class="tabs" id="tabs">
+      <div class="group-label">Triggers</div>
+      <button data-target="scheduled">Scheduled</button>
+      <button data-target="reactive">Reactive (proposal)</button>
+      <button data-target="addressed">Addressed (Feed)</button>
+      <div class="group-label">Execution</div>
+      <button data-target="mechanical">Mechanical dispatch</button>
+      <button data-target="outcomes">Outcome reconciliation</button>
+      <div class="group-label">Reference</div>
+      <button data-target="specialist">Specialist sub-loop</button>
+      <button data-target="invariants">Invariants & cross-cuts</button>
+    </nav>
+    <main id="main"></main>
+  </div>
+
+  <script>
+    // Load JSON inline (synchronous load via fetch)
+    const FLOWS_JSON_PATH = "./flows.json";
+
+    function pill(crosscut) {
+      return `<span class="crosscut-pill ${crosscut}">${crosscut.replace(/_/g, " ")}</span>`;
+    }
+
+    function fileRef(ref) {
+      if (!ref) return "";
+      return `<span class="file-ref">${ref}</span>`;
+    }
+
+    function renderFlowPanel(flow, crossCuts) {
+      const gatesHtml = (flow.gates || []).map(g => `
+        <div class="gate">
+          <div><span class="gate-id">${g.id}</span> · <span class="pred">${g.predicate}</span></div>
+          <div class="branches">${g.branches.map(b => `<div>→ ${b}</div>`).join("")}</div>
+          ${g.file_ref ? `<div style="margin-top:4px">${fileRef(g.file_ref)}</div>` : ""}
+        </div>
+      `).join("");
+
+      const adrs = (flow.primary_adrs || []).map(a => `<span class="chip">${a}</span>`).join("");
+      const crossCutsHtml = (flow.cross_cuts_hit || []).map(pill).join("");
+      const filesHtml = (flow.key_files || []).map(f => `<li>${fileRef(f)}</li>`).join("");
+      const nodesHtml = (flow.nodes || []).map(n => `
+        <li><span class="label">${n.label}</span> <span style="color:var(--text-dimmer)">(${n.kind} · ${n.actor})</span><br/>
+          ${n.file_ref ? fileRef(n.file_ref) : ""}
+        </li>
+      `).join("");
+
+      return `
+        <h2>${flow.title}</h2>
+        <div class="adr-row">${adrs}</div>
+        <p class="summary">${flow.summary}</p>
+
+        <div class="mermaid-wrap">
+          <div class="mermaid">${flow.mermaid}</div>
+        </div>
+
+        <div class="grid-2">
+          <div class="card">
+            <h3>Decision gates</h3>
+            ${gatesHtml || "<p style='color:var(--text-dim)'>No explicit gates.</p>"}
+          </div>
+          <div class="card">
+            <h3>Cross-cuts hit</h3>
+            <div>${crossCutsHtml}</div>
+            <h3 style="margin-top:14px">Key files</h3>
+            <ul>${filesHtml}</ul>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Nodes (file:line refs for code navigation)</h3>
+          <ul>${nodesHtml}</ul>
+        </div>
+      `;
+    }
+
+    function renderSpecialistPanel(sub) {
+      const adrs = (sub.primary_adrs || []).map(a => `<span class="chip">${a}</span>`).join("");
+      const roles = (sub.roles || []).map(r => `<code>${r}</code>`).join(" · ");
+      const filesHtml = (sub.file_refs || []).map(f => `<li>${fileRef(f)}</li>`).join("");
+      return `
+        <h2>${sub.title}</h2>
+        <div class="adr-row">${adrs}</div>
+        <p class="summary">${sub.description}</p>
+        <p style="color:var(--text-dim)"><strong>Roles:</strong> ${roles}</p>
+
+        <div class="mermaid-wrap">
+          <div class="mermaid">${sub.mermaid}</div>
+        </div>
+
+        <div class="card">
+          <h3>File refs</h3>
+          <ul>${filesHtml}</ul>
+        </div>
+      `;
+    }
+
+    function renderInvariantsPanel(data) {
+      const invs = data.invariants.map(i => `
+        <div class="invariant">
+          <div><span class="inv-id">${i.id}</span><span class="statement">${i.statement}</span></div>
+          <div class="rationale">${i.rationale}</div>
+          <div class="enforced">Enforced by: ${i.enforced_by}</div>
+        </div>
+      `).join("");
+
+      const crossCuts = Object.entries(data.cross_cuts).map(([key, cc]) => `
+        <div class="card" style="margin-bottom:12px">
+          <h3>${pill(key)} ${cc.label}</h3>
+          <p style="color:var(--text-dim);margin:6px 0">${cc.description}</p>
+          ${cc.file_ref ? fileRef(cc.file_ref) : ""}
+          <div style="margin-top:10px;font-size:12px;color:var(--text-dimmer)">
+            Appears in flows: ${(cc.appears_in_flows || []).map(f => `<code>${f}</code>`).join(" · ")}
+          </div>
+        </div>
+      `).join("");
+
+      const actors = Object.entries(data.actors).map(([key, a]) => `
+        <div class="legend-item"><strong>${key}</strong> <span style="color:var(--text-dimmer)">(${a.kind})</span><br/>${a.description}</div>
+      `).join("");
+
+      return `
+        <h2>Invariants & cross-cutting concerns</h2>
+        <p class="summary">Eight invariants the architecture upholds — verify them after any change to dispatch, the Reviewer, or substrate writes. Cross-cuts are concerns that surface in multiple flows; the right column shows where each one fires.</p>
+
+        <h3 style="margin-top:24px;font-size:14px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em">Invariants</h3>
+        ${invs}
+
+        <h3 style="margin-top:28px;font-size:14px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em">Cross-cutting concerns</h3>
+        ${crossCuts}
+
+        <h3 style="margin-top:28px;font-size:14px;color:var(--text-dim);text-transform:uppercase;letter-spacing:0.05em">Actor reference</h3>
+        <div class="legend">
+          <div class="legend-grid">${actors}</div>
+        </div>
+      `;
+    }
+
+    async function init() {
+      let data;
+      try {
+        const resp = await fetch(FLOWS_JSON_PATH);
+        data = await resp.json();
+      } catch (e) {
+        document.getElementById("main").innerHTML = `<div style="color:var(--rose);padding:20px;background:var(--panel);border-radius:6px">
+          <h2>Could not load flows.json</h2>
+          <p>This page must be served, not opened via <code>file://</code>. From the repo root:</p>
+          <pre style="background:var(--code-bg);padding:10px;border-radius:4px">cd docs/architecture/flows
+python3 -m http.server 8765
+# then open http://localhost:8765/flows.html</pre>
+          <p style="color:var(--text-dim);margin-top:10px">Error: ${e.message}</p>
+        </div>`;
+        return;
+      }
+
+      // Header
+      document.getElementById("snap-date").textContent = data.snapshot.as_of;
+      document.getElementById("snap-commit").textContent = data.snapshot.commit;
+      document.getElementById("snap-note").textContent = data.snapshot.note;
+
+      // Build panel HTML for each flow
+      const main = document.getElementById("main");
+      const panels = [];
+
+      for (const [key, flow] of Object.entries(data.flows)) {
+        panels.push({
+          id: key,
+          html: `<div class="panel" data-panel="${key}">${renderFlowPanel(flow, data.cross_cuts)}</div>`
+        });
+      }
+      panels.push({
+        id: "specialist",
+        html: `<div class="panel" data-panel="specialist">${renderSpecialistPanel(data.specialist_subloop)}</div>`
+      });
+      panels.push({
+        id: "invariants",
+        html: `<div class="panel" data-panel="invariants">${renderInvariantsPanel(data)}</div>`
+      });
+
+      main.innerHTML = panels.map(p => p.html).join("");
+
+      // Initialize Mermaid
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: "dark",
+        themeVariables: {
+          fontFamily: "-apple-system, BlinkMacSystemFont, sans-serif",
+          fontSize: "13px",
+          primaryColor: "#1d2230",
+          primaryBorderColor: "#2a3142",
+          primaryTextColor: "#e6e8ee",
+          lineColor: "#5e6478",
+          textColor: "#e6e8ee",
+          mainBkg: "#161922",
+          secondaryColor: "#1d2230",
+          tertiaryColor: "#0f1117",
+          edgeLabelBackground: "#0f1117"
+        },
+        flowchart: { curve: "basis", padding: 10 },
+        securityLevel: "loose"
+      });
+
+      // Tab switching
+      const buttons = document.querySelectorAll("nav.tabs button");
+      const panelEls = document.querySelectorAll(".panel");
+
+      async function activate(target) {
+        buttons.forEach(b => b.classList.toggle("active", b.dataset.target === target));
+        panelEls.forEach(p => p.classList.toggle("active", p.dataset.panel === target));
+        // Render Mermaid diagrams in the newly visible panel
+        const visible = document.querySelector(`.panel[data-panel="${target}"] .mermaid`);
+        if (visible && !visible.dataset.rendered) {
+          try {
+            const id = "mermaid-" + target;
+            const graph = visible.textContent;
+            visible.innerHTML = "";
+            const { svg } = await mermaid.render(id, graph);
+            visible.innerHTML = svg;
+            visible.dataset.rendered = "1";
+          } catch (e) {
+            visible.innerHTML = `<pre style="color:var(--rose);text-align:left;background:var(--code-bg);padding:10px;border-radius:4px">Mermaid render error: ${e.message}</pre>`;
+          }
+        }
+        // Update hash
+        history.replaceState(null, "", "#" + target);
+      }
+
+      buttons.forEach(b => b.addEventListener("click", () => activate(b.dataset.target)));
+
+      // Initial activate — honour hash or default to first
+      const initial = (location.hash || "#scheduled").slice(1);
+      const valid = Array.from(buttons).some(b => b.dataset.target === initial);
+      activate(valid ? initial : "scheduled");
+    }
+
+    init();
+  </script>
+</body>
+</html>
