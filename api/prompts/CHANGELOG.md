@@ -6,6 +6,79 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.13.1] - alpha-trader recurrences: explicit "What you produce" contracts
+
+### Two recurrence prompts gain explicit deliverable-contract preambles
+
+Triggered by an audit comparing YARNNN's Reviewer + recurrence-prompt
+shape against `anthropics/financial-services` (Anthropic's open-source
+Wall Street agent reference, published 2026-05-11). The Wall Street
+agent prompts open with a "What you produce" section declaring the
+agent's concrete deliverable contract before workflow steps; YARNNN's
+judgment-action recurrence prompts (`signal-evaluation`,
+`morning-calibration`) had no equivalent — the deliverable contract
+was implicit in the workflow body.
+
+The deliverable contract is now declared as a 2–4 line block at the
+top of each prompt, before the workflow. This is a labeling tightening,
+not a behavior enablement — no new tools, no new branches, no model
+or round-budget change. The contracts summarize behavior the prompts
+already authorize.
+
+**Expected drift modes reduced:**
+- `signal-evaluation`: exit-path FireInvocation forgotten when no
+  entry signal also fires (the exit branch was buried two paragraphs
+  into the workflow body)
+- `signal-evaluation`: `stand_down` verdicts with no decisions.md
+  entry (observed across multiple alpha-trader observation logs —
+  the Reviewer interpreted "stand down" as "do nothing" rather than
+  "write a one-line stand-down to decisions.md")
+- `morning-calibration`: drift into writing daily "no concerns"
+  entries when the prompt's "stand down silently" instruction was
+  buried in the body — would pollute the decisions.md audit log
+
+**Changed:**
+
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml`
+  - `signal-evaluation::prompt` — +3-line "What you produce" block:
+    (1) signal-entry rows on entry-condition match,
+    (2) FireInvocation(trade-proposal) on entry signal OR exit trigger,
+    (3) stand-down written to decisions.md otherwise
+  - `morning-calibration::prompt` — +2-line "What you produce" block:
+    (1) calibration concern entry on material P&L divergence,
+    (2) silent stand-down with no entry on no divergence
+
+**Token impact:** +50 tokens/fire for signal-evaluation (~5x/week),
++40 tokens/fire for morning-calibration (1x/day). Negligible cost.
+
+**Deliberately NOT in this batch:**
+
+- `morning-reflection`'s `"warrants adjustment"` trigger tightening
+  to numeric thresholds. The right direction (principles.md is
+  already quantitative everywhere else), but the thresholds belong
+  in operator-authored substrate (`_operator_profile.md::reflection_triggers`
+  or `_money_truth.md::frontmatter::baseline_thresholds` computed
+  by the reconciler), not in a prompt edit. Deferred to an ADR-shape
+  conversation about *where the thresholds live* before *what they are*.
+
+- The structural question of whether `_recurrences.yaml` entries
+  should gain an optional `outputs:` field as a machine-readable
+  peer of `prompt:` (so judgment-action recurrences without specs
+  have a clean place to declare their deliverable contract). The
+  inline "What you produce" preamble is the interim shape; if the
+  structural field lands in a future ADR, these preambles become
+  the migration source. Singular implementation honored for now —
+  one place per recurrence, no parallel deliverable-contract surfaces.
+
+**Operator-fork impact:** these changes are in the reference workspace
+that operators fork at program activation per ADR-226 Phase 1. Existing
+forked workspaces (e.g., alpha-trader-2 per kvk) keep their current
+prompt versions until the operator re-forks; their tier-classification
+on these files is `tier: canon` so a re-fork will pick up the new
+content per ADR-209 attribution rules.
+
+---
+
 ## [2026.05.12.2] - P&L unification: prompt re-grounding to _money_truth.md + by_signal
 
 ### Reviewer prompt + cockpit awareness + 4 recurrence prompts re-grounded

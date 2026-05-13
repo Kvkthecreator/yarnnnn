@@ -94,6 +94,11 @@ recurrences:
     schedule: "5 8 * * 1-5"
     mode: judgment
     prompt: |
+      What you produce:
+      - signal-entry rows appended to signals/{signal_id}.yaml when entry conditions match
+      - a FireInvocation(slug="trade-proposal") when any entry signal OR exit trigger fires
+      - stand-down written to /workspace/review/decisions.md when neither path triggers
+
       Evaluate the universe against signals declared in
       /workspace/context/_shared/_operator_profile.md on the fresh 1Hour bars
       track-universe just wrote. For each ticker in
@@ -279,6 +284,11 @@ recurrences:
     schedule: "0 6 * * *"
     mode: judgment
     prompt: |
+      What you produce:
+      - a calibration concern entry appended to /workspace/review/decisions.md
+        when realized P&L diverges materially from declared edge
+      - silent stand-down (no entry written) when no material divergence
+
       Calibrate against money-truth. Read
       /workspace/context/trading/_money_truth.md for the last 7d / 30d /
       90d windows (top-level rolling_*d) AND per-signal windows
