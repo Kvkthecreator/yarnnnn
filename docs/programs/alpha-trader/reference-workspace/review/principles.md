@@ -17,6 +17,10 @@ These produce immediate reject verdicts regardless of any other consideration:
 3. **Stop**: rejected if no stop, or stop distance not justified by instrument volatility per the signal's declared sizing rule.
 4. **Var budget**: rejected if accepting this position would push total open risk above `_risk.md` var budget.
 5. **Discretionary vocabulary**: rejected if reasoning contains "feels right", "intuition", "I think it's going to" or equivalent.
+6. **Regime scalar**: rejected if entry proposal omits the regime scalar from `sizing_formula_trace`, or applies the wrong scalar given current `_regime.yaml::vix_regime_active`. When `vix_regime_active: true`, position_size MUST be the pre-scalar size × 0.5 and the trace MUST cite the active state with VIXY values. When `false`, scalar MUST be 1.0 with the trace explicit. Silently ignoring regime is the failure mode this rule blocks. Operator declared the scalar in `_operator_profile.md` Signal 5; this rule enforces it at the proposal layer.
+7. **Regime substrate freshness**: rejected if `/workspace/context/trading/_regime.yaml` exists AND its `last_updated` is more than 24h old OR `data_stale: true`. A stale regime file silently disables the scalar, which is structurally worse than no regime model at all. Re-fire `track-regime` before judging the proposal.
+
+   **Bootstrap exception**: when `_regime.yaml` does NOT exist yet (e.g., immediately after bundle activation, before the first `track-regime` fire), treat regime as inactive (`vix_regime_active: false`, scalar = 1.0) and note in `sizing_formula_trace`: `"regime_scalar: 1.0 (bootstrap — _regime.yaml not yet populated; next track-regime fire @market_close + 30min)"`. This mirrors the money-truth bootstrap clause — calibration begins from zero, not from refusal-to-trade.
 
 ## Hard exit triggers — close-proposal is mandatory
 

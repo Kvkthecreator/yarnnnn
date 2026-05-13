@@ -6,6 +6,104 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.13.2] - alpha-trader: regime wiring (track-regime + trade-proposal + principles.md rules 6+7)
+
+### Closes the "declared but unenforced" gap on the volatility-regime predicate
+
+`_operator_profile.md` Signal 5 declared a volatility-regime filter
+(VIX > 25 → all sizing × 0.5); `_risk.md` line 33 set
+`apply_vix_regime_scalar: true`. Pre-change audit confirmed the
+predicate was declarative in substrate but unenforced anywhere in
+the runtime path — five layers downstream (data fetch, compute,
+substrate persistence, Reviewer prompt, principles enforcement) were
+all missing. Same trap class as iter-2's three-layer trade-execution
+gap: substrate declares intent, runtime ignores it.
+
+This change wires the predicate end-to-end **with zero Python code**
+— pure bundle-level evolution per ADR-176/188, kernel boundary
+preserved per ADR-222.
+
+### Files changed
+
+- **`docs/programs/alpha-trader/reference-workspace/specs/regime-state.md`** (new)
+  Schema for `/workspace/context/trading/_regime.yaml`. Documents
+  VIXY-as-VIX-proxy decision + operator-tunable calibration thresholds
+  (defaults: `vixy_active_threshold: 22.0`,
+  `vixy_deactivation_threshold: 17.5`). Spec is the authority; the
+  YAML is the mirror.
+
+- **`docs/programs/alpha-trader/reference-workspace/_recurrences.yaml`**
+  - New `track-regime` judgment recurrence at `@market_close + 30min`
+    (ADR-268 semantic schedule). Fetches VIXY (25d) + SPY (55d) 1Day
+    bars via existing `platform_trading_get_market_data` tool;
+    computes SMAs + regime predicate + trend regime; writes
+    `_regime.yaml` per spec. Same primitive pattern as
+    `track-universe` — no new tools, no new infrastructure.
+  - `trade-proposal` prompt extended with mandatory pre-sizing
+    regime read: freshness check, active-state check, scalar
+    application. The `sizing_formula_trace` must now cite either
+    `regime_scalar: 0.5 (...)` or `regime_scalar: 1.0 (...)` — silent
+    omission becomes a rejection at the Reviewer per the new
+    principles rule.
+
+- **`docs/programs/alpha-trader/reference-workspace/review/principles.md`**
+  - Hard rejection rule 6 (new): regime scalar must be cited
+    correctly in `sizing_formula_trace`. When `vix_regime_active:
+    true`, position_size MUST be pre-scalar × 0.5 with the trace
+    citing active state + VIXY values. When false, scalar MUST be
+    1.0 with explicit trace. Silently ignoring regime becomes a
+    rejection.
+  - Hard rejection rule 7 (new): regime substrate freshness. Reject
+    if `_regime.yaml::last_updated` is more than 24h old OR
+    `data_stale: true`. Carries a **bootstrap exception** mirroring
+    the existing money-truth bootstrap clause — when `_regime.yaml`
+    doesn't exist yet (cold start, before first `track-regime` fire),
+    treat as inactive with scalar 1.0 + explicit trace note.
+    Calibration begins from zero; we don't refuse-to-trade on
+    cold-start.
+
+### Expected behavior changes
+
+- **All entry proposals carry a regime line** in
+  `sizing_formula_trace`. Previously silent. Now explicitly
+  active-0.5 or inactive-1.0 with VIXY values when active.
+- **Reviewer rejects sizing-without-regime-citation** at proposal
+  time (rule 6). Catches the silent-ignore failure mode.
+- **Reviewer rejects on stale regime substrate** with the >24h gate
+  (rule 7), except during the bootstrap window (file absent
+  entirely).
+- **`pre-market-brief` §4 + `weekly-performance-review` §4** now
+  read regime from `_regime.yaml` directly instead of computing
+  inline. No section-shape change; same content, different source.
+- **First post-activation proposal hits the bootstrap exception**
+  if it fires before the first `track-regime` (gap window: first
+  ~24h after activation, between 09:30 ET signal-evaluation and
+  16:30 ET first track-regime fire). Observable in proposal trace.
+
+### What this does NOT do
+
+- No new Python code. `back_office/` is gone per ADR-260/261/262;
+  regime compute lives in the LLM at runtime same as
+  `track-universe`'s SMA/RSI/ATR work.
+- No new primitive, no new directory, no `directory_registry.py`
+  change, no `task_types.py` change, no FOUNDATIONS amendment.
+- No ADR — bundle-level evolution per ADR-176 work-first + ADR-188
+  contextual workspace. ADR-264 D5 explicitly anticipates per-bundle
+  judgment recurrences for compute work.
+- No per-signal regime conditioning (Option B). Deferred until
+  operator observation warrants.
+- No promotion of `trend_regime` to a sizing input. Reported in
+  `_regime.yaml` and the deliverables; not actuated. Future
+  `principles.md` evolution decision.
+
+### Companion observation doc
+
+`docs/alpha/observations/2026-05-13-regime-wiring.md` — full audit,
+shape rationale (Option A vs. Option B), verification path against
+kvk's workspace, friction register.
+
+---
+
 ## [2026.05.13.1] - alpha-trader recurrences: explicit "What you produce" contracts
 
 ### Two recurrence prompts gain explicit deliverable-contract preambles

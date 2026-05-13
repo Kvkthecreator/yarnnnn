@@ -74,6 +74,61 @@ recurrences:
 
   # ── JUDGMENT RECURRENCES — wake the Reviewer with a prompt ──────────────
 
+  # ── track-regime — refresh portfolio-level regime state ──────────────────
+  # Operator declared Signal 5 (VIX regime filter) in _operator_profile.md;
+  # _risk.md sets apply_vix_regime_scalar: true. This recurrence is the
+  # substrate sensor that makes the predicate live. Reads VIXY (Alpaca's
+  # only available VIX proxy) + SPY for trend regime. Computes via LLM
+  # (same pattern as track-universe — Alpaca doesn't ship indicators).
+  # Writes /workspace/context/trading/_regime.yaml per specs/regime-state.md.
+  - slug: track-regime
+    # ADR-268: 30 min after RTH close — VIXY's 1Day bar is settled.
+    # Fires before next morning's pre-market-brief so the brief reads
+    # fresh regime state.
+    schedule: "@market_close + 30min"   # 16:30 ET
+    mode: judgment
+    prompt: |
+      What you produce:
+      - /workspace/context/trading/_regime.yaml written per the schema in
+        /workspace/specs/regime-state.md
+      - silent stand-down written to /workspace/review/decisions.md ONLY
+        if Alpaca is unreachable AND the existing _regime.yaml is fresh
+        (last_updated within 24h)
+
+      Refresh portfolio regime state. Two inputs:
+
+      1. VIXY (VIX proxy): fetch 25 trading days of 1Day bars via the
+         Alpaca platform tool (`platform_trading_get_market_data`).
+         Compute:
+           - vixy_close = most-recent 1Day bar close
+           - vixy_sma_20 = simple moving average of last 20 closes
+           - vix_regime_active = vixy_close > vixy_active_threshold
+             AND vixy_close > vixy_sma_20
+           - deactivation_streak_days = count of consecutive trading days
+             at the end of the window where vixy_close < vixy_deactivation_threshold
+
+         Thresholds are mirrored from /workspace/specs/regime-state.md
+         (operator-tunable defaults: 22.0 active, 17.5 deactivation).
+         Read the spec, copy the current values into the YAML.
+
+      2. SPY (trend regime): fetch 55 trading days of 1Day bars. Compute:
+           - spy_close = most-recent 1Day bar close
+           - spy_sma_20 = SMA of last 20 closes
+           - spy_sma_50 = SMA of last 50 closes
+           - trend_regime:
+               uptrend if spy_sma_20 > spy_sma_50 AND spy_close > spy_sma_20
+               downtrend if spy_sma_20 < spy_sma_50 AND spy_close < spy_sma_20
+               chop otherwise
+
+      Write the YAML atomically. If Alpaca returns stale or partial bars,
+      set data_stale: true and keep prior values rather than zeroing.
+
+      If Alpaca is unreachable AND existing _regime.yaml is older than
+      24h, append a freshness-degradation note to
+      /workspace/review/decisions.md so the morning Reviewer wake sees
+      regime is stale before judging any proposal.
+    display_name: "Regime Tracker"
+
   # ── track-universe — refresh ticker fundamentals ─────────────────────────
   # NOTE: this stays judgment-mode for now because it does compute work
   # (SMA/RSI/ATR derivation) beyond what SyncPlatformState handles in a
@@ -147,6 +202,16 @@ recurrences:
       principles in /workspace/review/principles.md and the operator's risk
       envelope in /workspace/context/_shared/_risk.md.
 
+      Before computing sizing, read /workspace/context/trading/_regime.yaml.
+      Two checks:
+        1. Freshness: if last_updated is older than 24h OR data_stale is
+           true, REJECT this proposal with reason "regime substrate stale
+           — re-fire track-regime before trading." Per principles.md
+           Hard rejection rule (regime freshness).
+        2. Active state: if vix_regime_active is true, the final
+           position_size is multiplied by 0.5 (Signal 5 portfolio scalar
+           per _operator_profile.md).
+
       Entry path (signal fired): emit ProposeAction(action_type="trading.submit_order_paper",
       ...) with full sizing math:
         - signal_id (must match the fired signal)
@@ -155,8 +220,11 @@ recurrences:
         - entry_price
         - stop_loss
         - target
-        - position_size
-        - sizing_formula_trace (numbers + formula explanation)
+        - position_size (post-regime-scalar — the final number that hits the broker)
+        - sizing_formula_trace (numbers + formula explanation, including
+          one of:
+            "regime_scalar: 0.5 (VIX regime active — VIXY=<x> > threshold=<y> AND > sma_20=<z>)"
+            "regime_scalar: 1.0 (VIX regime inactive)")
         - entry_rule_trace (which signal conditions matched)
 
       Exit path (stop hit / target reached / max-hold reached): close-proposal
