@@ -165,6 +165,15 @@ def test_handle_dispatch_specialist_passes_capabilities():
         'input.get("required_capabilities")' in ds_src,
         "handle reads required_capabilities from tool input",
     )
+    # iter-5 surfacing: AGENT_TEMPLATES import was a holdover; should be ALL_ROLES.
+    assert_true(
+        "from services.orchestration import ALL_ROLES" in ds_src,
+        "dispatch_specialist imports ALL_ROLES (not deleted AGENT_TEMPLATES)",
+    )
+    assert_true(
+        "AGENT_TEMPLATES" not in ds_src or "AGENT_TEMPLATES + AGENT_TYPES aliases were deleted" in ds_src,
+        "no live AGENT_TEMPLATES reference in dispatch_specialist (comment OK)",
+    )
 
 
 def test_alpha_trader_bundle_declares_capabilities():

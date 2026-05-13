@@ -187,9 +187,18 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
             "message": "brief is required and must be non-empty",
         }
 
-    # Resolve role-specific defaults from AGENT_TEMPLATES
-    from services.orchestration import AGENT_TEMPLATES
-    template = AGENT_TEMPLATES.get(role) or {}
+    # Resolve role-specific defaults from ALL_ROLES (union of SYSTEMIC_AGENTS
+    # + PRODUCTION_ROLES). AGENT_TEMPLATES + AGENT_TYPES aliases were deleted
+    # pre-Commit B per orchestration.py:44; this call site was missed in that
+    # cleanup. Surfaced by iter-5 (2026-05-13): every DispatchSpecialist
+    # invocation raised ImportError("cannot import name 'AGENT_TEMPLATES'"),
+    # which dispatch_specialist's try/except caught as tool_resolution_failed
+    # but only after the import, so the cleaner "specialist never launched"
+    # was actually hiding "import error caught by outer try/except." Same
+    # shape (display_name / tagline / default_instructions) so behavior
+    # identical after rename.
+    from services.orchestration import ALL_ROLES
+    template = ALL_ROLES.get(role) or {}
     display_name = template.get("display_name", role.title())
     tagline = template.get("tagline", "")
     default_instructions = template.get("default_instructions", "")
