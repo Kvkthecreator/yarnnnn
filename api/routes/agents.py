@@ -1028,7 +1028,12 @@ async def trigger_run(
             "agent_id": str(agent_id),
         },
     )
-    exec_result = await dispatch(svc_client, auth.user_id, synthetic, trigger="addressed")
+    # Same manual-fire trigger rule as routes/recurrences.py::trigger_recurrence_run.
+    # Even though this is a synthetic (operator-requested) recurrence, the dispatcher
+    # still builds a recurrence-fire context shape, which only `reactive` trigger
+    # accepts per _validate_context_shape. The synthetic prompt carries the operator's
+    # intent; trigger is a context-shape signal, not an operator-presence signal.
+    exec_result = await dispatch(svc_client, auth.user_id, synthetic, trigger="reactive")
     return {
         "success": exec_result.get("success", False),
         "trigger": exec_result.get("trigger"),

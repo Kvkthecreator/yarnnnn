@@ -868,7 +868,10 @@ async def admin_trigger_task(
         )
 
     try:
-        result = await dispatch(client, user_id, rec, trigger="addressed")
+        # Same manual-fire trigger rule as routes/recurrences.py::trigger_recurrence_run.
+        # Substrate-event-shaped invocation; dispatcher builds recurrence-fire context;
+        # only `reactive` trigger accepts that shape per _validate_context_shape.
+        result = await dispatch(client, user_id, rec, trigger="reactive")
         return {
             "task_slug": task_slug,
             "success": result.get("success", False),
