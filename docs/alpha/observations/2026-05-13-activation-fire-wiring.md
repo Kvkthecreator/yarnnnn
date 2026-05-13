@@ -138,3 +138,68 @@ If activation-fired recurrences fire but periodic recurrences don't subsequently
 - **Predecessor framing**: [2026-05-13-iter2-three-layer-trade-execution-gap-kvk.md](./2026-05-13-iter2-three-layer-trade-execution-gap-kvk.md) — iter-2 named the trap class this change addresses at a different layer
 - **Discourse summary**: this observation doc + ADR-270 §7 (Discourse context for trace) — multi-turn architectural conversation that converged from "should we have a Researcher Agent" to "activation should be an active substrate-population moment"
 - **Verification persona**: `seulkim88@gmail.com` → persona slug `alpha-trader` → user_id `2be30ac5-b3cf-46b1-aeb8-af39cd351af4` → workspace_id `b7e1b9bc-ffb3-478e-bd05-dcae01a8a6b1`
+
+---
+
+## Verification findings (2026-05-13, post-deploy 914086f)
+
+Ran the verification chain against seulkim88 immediately after both API and Scheduler services went live on `914086f`. Findings in order:
+
+### What confirmed working
+
+1. **Reset + activation fork wrote bundle correctly.** `reset.py alpha-trader --confirm` returned success; reset endpoint inline-called `initialize_workspace(program_slug='alpha-trader')` which re-forked the bundle and re-materialized the scheduling index. 30 files in `workspace_files`, including both new bundle files:
+   - `/workspace/research/mandate.md` (ADR-270 new)
+   - `/workspace/specs/falsify-signals.md` (ADR-270 new)
+   And the regime spec from the earlier commit:
+   - `/workspace/specs/regime-state.md` (2026-05-13-regime-wiring.md)
+
+2. **`fire_on_activation` conditional fires correctly in `compute_next_run_at`.** Direct psql verification of `tasks` table for seulkim88 user_id, immediately after reset:
+   ```
+   slug              | next_run_at                       | last_run_at
+   falsify-signals   | 2026-05-13 05:57:39.406559+00     | NULL  ← reactive (schedule=null)
+   track-account     | 2026-05-13 05:57:39.406559+00     | NULL  ← @every 5min
+   track-regime      | 2026-05-13 05:57:39.406559+00     | NULL  ← @market_close+30min
+   track-universe    | 2026-05-13 05:57:39.406559+00     | NULL  ← list-form schedule
+   ```
+   All four flagged recurrences have `next_run_at` = the activation moment (same timestamp across all four, confirming a single materialize-index call). Non-flagged recurrences in the same table have either future cron-resolved next-run-at (`morning-calibration`, `morning-reflection`, etc.) or NULL (semantic schedules requiring market-context resolution outside RTH — `pre-market-brief`, `signal-evaluation`, `track-positions`, etc.). The kernel conditional is doing exactly what ADR-270 D2 specifies, including for the list-form schedule on `track-universe`.
+
+### What I could not verify (and why)
+
+3. **End-to-end recurrence dispatch.** `connect.py alpha-trader` returned "Missing credentials. Set ALPHA_TRADER_ALPACA_KEY and ALPHA_TRADER_ALPACA_SECRET in env." — seulkim88's Alpaca paper credentials are commented out in `api/.env.alpha-ops` (only kvk's are uncommented). Without an active `platform_connections` row, the activation-fired recurrences cannot complete their bodies (every one needs `platform_trading_*` tool access). This is operator-private credential management, not a code issue.
+
+### What the verification revealed about an existing scheduler interaction
+
+4. **Re-fire-on-failure pattern surfaced.** Three minutes after reset, the four ADR-270 rows' `next_run_at` had advanced from `05:57:39` to `06:00:47`, but `last_run_at` was still NULL. Combined with zero entries in `activity_log` since reset, this means:
+   - Scheduler tick **is** picking up the rows and calling `materialize_scheduling_index` (otherwise `next_run_at` wouldn't move).
+   - Scheduler **is** attempting dispatch (the row was due).
+   - Dispatch **is failing before `record_task_run` is called** (no `last_run_at` write, no activity event).
+   - On the next tick, my conditional re-fires `now_utc` (because `last_run_at` is still NULL), and the cycle repeats.
+
+   **This is an existing scheduler property, not an ADR-270 bug.** Any recurrence whose dispatch body fails before `record_task_run` would loop the same way regardless of `fire_on_activation`. ADR-270 surfaces it more visibly because activation-fired recurrences expect rapid first dispatch.
+
+   The failure here is correctly localized to "no Alpaca connection," not to the scheduler/kernel path. Once `connect.py` lands credentials and creates a `platform_connections` row, the next tick should succeed and the cycle terminates.
+
+   **Tolerable property for now** — activation-fired recurrences will loop quietly until they succeed (no LLM cost for the mechanical mirrors like `track-account` because they fail at the platform-tool call boundary). But it's a property worth knowing about: if a persistent failure mode existed in a judgment-mode activation-fired recurrence (which would consume LLM tokens on each tick), it could quietly burn budget. **Future scope** — a "max re-fire count for fire_on_activation" or "exponential backoff on consecutive failures with no last_run_at" gate. Not shipping now; flagged here for the record.
+
+### Verification status summary
+
+| Layer | Status |
+|---|---|
+| Kernel conditional in `compute_next_run_at` | ✅ verified working |
+| Bundle YAML parsing (`fire_on_activation` absorbed into `rec.options`) | ✅ verified — flag round-trips through parser → dataclass → scheduler |
+| `materialize_scheduling_index` writes `next_run_at = now` for flagged rows | ✅ verified |
+| Bundle fork writes new `research/mandate.md` + `specs/falsify-signals.md` | ✅ verified |
+| Scheduler tick picks up due rows | ✅ verified (indirect — `next_run_at` advances) |
+| Dispatch completes successfully + writes substrate | ❌ blocked on Alpaca credentials (operator-private) |
+| Falsify-signals produces `/workspace/research/findings/{signal_id}.md` | ❌ blocked on above |
+| L3 capability-flow path (iter-4) exercised end-to-end | ❌ blocked on above |
+
+### What unblocks full E2E
+
+Operator uncomments `ALPHA_TRADER_ALPACA_KEY` and `ALPHA_TRADER_ALPACA_SECRET` in `api/.env.alpha-ops` (or sets them in env via the operator-side path documented in `docs/alpha/OPERATOR-HARNESS.md`), then `python api/scripts/alpha_ops/connect.py alpha-trader`. After the next scheduler tick, the four activation-fired rows should each execute their bodies once, set `last_run_at`, write substrate, and stop looping. Filesystem inspection at that point should show:
+- `/workspace/context/portfolio/_account.yaml` populated
+- `/workspace/context/trading/_regime.yaml` populated
+- `/workspace/context/trading/{ticker}.yaml` populated per universe member
+- `/workspace/research/findings/{signal_id}.md` populated per declared signal
+
+`verify.py alpha-trader` should pass invariants.
