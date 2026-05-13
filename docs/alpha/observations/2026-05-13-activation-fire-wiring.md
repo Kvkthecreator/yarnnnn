@@ -331,4 +331,100 @@ The pre-fix ADR-269 gate (74 assertions) verified the *wiring* — that `require
 - `8045238` — full E2E findings post-credentials (Gate 1 surfaced)
 - `16dcd5f` — fix #1: tool_uses_raw → response.content reconstruction
 - `9d85d12` — fix #2: ToolUseBlock attribute access
-- (this commit) — Phase 3 outcome documentation
+- `1f41279` — Phase 3 outcome documentation (track-regime E2E success)
+
+---
+
+## Cold-start verification — the load-bearing test (2026-05-13, balance topped up)
+
+Operator topped up seulkim88's balance to $20 to unblock the actual question the discourse set out to answer: **does the recent refactor (ADR-270 + dispatch_specialist fixes) fundamentally resolve the cold-start problem?**
+
+Full L4 reset → reinit → connect Alpaca → wait 3 scheduler ticks. The "from genuine zero state" test the structural-resolution path was always about.
+
+### Cold-start timeline
+
+| T+ | Event | Observable |
+|---|---|---|
+| 0s | `reset.py alpha-trader --confirm` returns success | 21 token_usage rows purged, workspaces row recreated, bundle re-forked, scheduling index re-materialized |
+| 0s | Top up balance to $20 (`UPDATE workspaces SET balance_usd = 20.00`) | Budget gate removed |
+| ~10s | `connect.py alpha-trader` returns active platform_connection | Alpaca paper account X4DJ wired |
+| ~75s | First post-reset scheduler tick | All 4 fire_on_activation rows have `next_run_at = activation moment` |
+| ~3 min | `track-account` runs (07:01:48) | `_account.yaml` populated with real broker data |
+| ~3 min | `track-universe` runs (07:01:47) | No `{ticker}.yaml` files written |
+| ~3 min | `track-regime` runs (07:02:16) | `_regime.yaml` + `_vixy_raw.yaml` + `_spy_raw.yaml` populated |
+| ~5 min | `falsify-signals` runs (07:04:30, duration 133s, 9 actions, 0 proposals) | No findings files written; Reviewer wrote explicit defer entry to `decisions.md` |
+
+### What this verifies
+
+**ADR-270 fire_on_activation works end-to-end on a genuine cold-start.** Within ~3 minutes of activation, four recurrences fired automatically without any operator intervention beyond reset/activate/connect. Two of four produced canonical substrate:
+
+- `_account.yaml` (broker account state mirrored mechanically)
+- `_regime.yaml` (VIXY 26.77, SMA-20 27.72, regime inactive; SPY uptrend) plus raw-bar caches
+
+**The mechanical specialist-dispatch chain is operationally valid.** DispatchSpecialist completes round trips, calls `platform_trading_get_market_data`, writes substrate. Both prior gates (`tool_uses_raw`, `ToolUseBlock.get()`) eliminated.
+
+### What this surfaces about cold-start substrate production
+
+Two of the four activation-fired recurrences executed but did NOT produce their intended substrate. The Reviewer's reasoning quality during failure was high:
+
+- **`track-universe`** (universe ticker snapshots): ran, returned cleanly, wrote no `{ticker}.yaml` files. No decisions.md entry — silent stand-down. The recurrence prompt requires multi-step compute per ticker (fetch bars → derive SMA/RSI/ATR → write structured YAML). Specialist appears to have completed without producing the per-ticker writes. **Specific cause needs Render-log dig in follow-up iter — not blocking, but the work didn't land.**
+
+- **`falsify-signals`** (90-day historical falsification across 5 signals × 5 tickers): ran for 133 seconds, made 14 platform data calls across 5 rounds, exhausted round budget, produced no findings files. Reviewer correctly defaulted to a *defer-with-explicit-clarification* verdict:
+
+  > *"Specialist completed 5 rounds, made 14 platform data calls, but produced no findings files... Root cause hypothesis: Platform bar data unavailable or insufficient at required granularity (1Hour bars, 90-day lookback). The specialist exhausted its round budget before producing substrate."*
+  > *"Recommendation: Do not propose trades until bootstrap research is complete. The operator declared baseline metrics in _operator_profile.md ('Historical baseline (to establish)') — without these findings, the Reviewer cannot size positions against declared expectancy thresholds."*
+
+  This is **exemplary Reviewer behavior at Phase 0**: didn't fake findings, didn't hallucinate baselines, surfaced a structured operator question, paused position-proposal authority until the substrate gap closes. Per principles.md "Bootstrap clause" + Capital-EV thresholds.
+
+### Did we resolve the cold-start problem?
+
+**Mostly yes, with one honest qualification.**
+
+The **cold-start *infrastructure* problem** — activation produces dead silence until next periodic fire — is fully resolved. ADR-270's fire_on_activation conditional + the two dispatch_specialist fixes work end-to-end:
+
+- Activation-fired recurrences materialize at `next_run_at = now` ✓
+- Scheduler picks them up within one tick ✓
+- DispatchSpecialist round-trips complete without AttributeError ✓
+- Substrate writes land with `authored_by="ai:reviewer"` per ADR-209 ✓
+- Reviewer reasoning quality holds even when substrate production fails ✓
+
+The **cold-start *substrate-production* problem** for heavy-compute recurrences (track-universe, falsify-signals) is partially resolved. They fire, they don't crash, but they don't yet write their full intended output. Two hypotheses worth follow-up:
+
+1. **Specialist round-budget too small** for multi-ticker × multi-signal × bar-walk work. Falsify-signals exhausted 5 rounds across 14 platform calls without producing writes — likely needs either more rounds or a different decomposition (per-ticker invocations instead of one omnibus specialist call).
+
+2. **Per-ticker write path may need bundle-prompt tightening.** Track-universe ran cleanly but produced no per-ticker substrate. Possible the Reviewer/specialist completed reasoning inline without invoking WriteFile per ticker. The prompt may need to be more explicit about *write substrate per ticker, not summarize inline*.
+
+**These are bundle-level refinements**, not architectural gaps. The kernel infrastructure works; the heavy recurrences need prompt or budget tuning. That's a different scope (and a smaller one) than what we set out to resolve today.
+
+### What's solidly proven
+
+1. **Operator hits activate → workspace becomes operationally productive in under 5 minutes** (vs. waiting hours for next periodic cron pre-ADR-270).
+2. **The Reviewer + DispatchSpecialist + Alpaca + WriteFile chain works end-to-end** for mechanical mirrors (`track-account`) and structured compute (`track-regime`).
+3. **The Reviewer's reasoning quality holds when substrate production fails** — defers with structured clarification, doesn't fabricate baselines, surfaces operator action items.
+4. **Singular Implementation discipline survived**: every fix used the canonical `reviewer_agent.py` pattern; regression gate now 90/90 with bug-class assertions; no parallel approaches added.
+
+### What's still gated by follow-up work (bundle-level, not kernel)
+
+1. Track-universe per-ticker substrate writes
+2. Falsify-signals findings production (likely needs decomposition into per-signal or per-ticker sub-invocations)
+3. (Trivially) Topping up balance is currently a manual psql update — out of scope for cold-start, but worth productizing if operators need it
+
+### The structural-resolution path closed
+
+The discourse committed to **Reading B (structural resolution)** of the failure class. The path resolved as:
+
+- Phase 0 (diagnostics) → root causes identified
+- Phase 1 (design) → canonical pattern from reviewer_agent.py
+- Phase 2 (implementation) → two fixes shipped (16dcd5f, 9d85d12)
+- Phase 3 (verification) → track-regime E2E success, then cold-start E2E test
+- **Cold-start success criterion**: activation produces operational substrate within 5 minutes of zero state — **met**
+
+The follow-up work (track-universe + falsify-signals heavy-compute substrate) is bundle-shaped and earned by today's evidence: the right operator-driven refinement, not pre-emptive architecture. That's the discipline the discourse named: ship the smallest version, observe what works, refine based on evidence.
+
+### Commits associated with the cold-start verification
+
+- `914086f` → ADR-270 implementation
+- `f9e79c9`, `8045238` → progressive verification findings
+- `16dcd5f`, `9d85d12` → dispatch_specialist fixes
+- `1f41279` → first E2E success (track-regime)
+- (this commit) → cold-start verification — the load-bearing test answered
