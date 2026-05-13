@@ -87,6 +87,11 @@ recurrences:
     # fresh regime state.
     schedule: "@market_close + 30min"   # 16:30 ET
     mode: judgment
+    # ADR-269: Reviewer dispatches a specialist to fetch VIXY + SPY 1Day
+    # bars; specialist needs Alpaca market-data access. Without this
+    # declaration, get_headless_tools_for_agent returns only the
+    # universal researcher role's capabilities (no platform_trading_*).
+    required_capabilities: [read_trading]
     prompt: |
       What you produce:
       - /workspace/context/trading/_regime.yaml written per the schema in
@@ -143,6 +148,9 @@ recurrences:
       - "@market_open + 3h"        # 12:30 ET — midday
       - "@market_close - 1h"       # 15:00 ET — 1h before close
     mode: judgment
+    # ADR-269: Reviewer dispatches a specialist to fetch 1Hour bars + derive
+    # SMA/RSI/ATR per ticker; specialist needs Alpaca market-data access.
+    required_capabilities: [read_trading]
     prompt: |
       Refresh fundamentals for every ticker listed in
       /workspace/context/trading/_universe.yaml.
@@ -163,6 +171,10 @@ recurrences:
     # Previously "5 8 UTC" = 04:05 ET (pre-market, before RTH open — wrong).
     schedule: "@market_open + 15min"   # 09:45 ET
     mode: judgment
+    # ADR-269: Reviewer reads pre-computed ticker.yaml snapshots (no broker
+    # call for signal eval), but may dispatch a specialist to verify open
+    # positions via Alpaca for exit-trigger checks.
+    required_capabilities: [read_trading]
     prompt: |
       What you produce:
       - signal-entry rows appended to signals/{signal_id}.yaml when entry conditions match
@@ -194,6 +206,11 @@ recurrences:
   - slug: trade-proposal
     schedule: null  # reactive — fires on signal trigger via FireInvocation
     mode: judgment
+    # ADR-269: Reviewer sizes and emits ProposeAction within its own loop;
+    # specialist consultation is rare. write_trading is declared so the
+    # downstream ExecuteProposal path has the right capability when
+    # AUTONOMY ceiling permits auto-execute.
+    required_capabilities: [read_trading, write_trading]
     prompt: |
       A signal fire or exit trigger was just recorded. Read the most recent
       entry in /workspace/context/trading/signals/ (entry path) OR the
@@ -345,6 +362,10 @@ recurrences:
     # "0 5 UTC" = 00:00 ET (midnight, multiple hours after close).
     schedule: "@market_close + 1h"   # 17:00 ET
     mode: judgment
+    # ADR-269: deterministic reconciler pulls fills + orders from Alpaca;
+    # specialist consultation requires market-data access for fill
+    # verification.
+    required_capabilities: [read_trading]
     prompt: |
       Reconcile yesterday's executed proposals against platform events.
       The deterministic reconciler in services.outcomes.reconciler.reconcile_user

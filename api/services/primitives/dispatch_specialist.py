@@ -113,6 +113,23 @@ Examples:
                     "format-shaped work."
                 ),
             },
+            "required_capabilities": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Capabilities the specialist needs to do this brief "
+                    "(ADR-269 capability flow). The specialist's tool "
+                    "surface is the union of the role's universal "
+                    "capabilities + these. When dispatched for a "
+                    "recurrence that declares required_capabilities, "
+                    "pass those through at minimum — they're surfaced "
+                    "in your context envelope as "
+                    "`recurrence_required_capabilities`. You may extend "
+                    "the list per dispatch (e.g., add `web_search` if "
+                    "the brief needs web research on top of the "
+                    "recurrence's declared trading capabilities)."
+                ),
+            },
         },
         "required": ["role", "brief"],
     },
@@ -143,6 +160,16 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
     role = input.get("role") or ""
     brief = input.get("brief") or ""
     model = input.get("model")
+    # ADR-269: capability flow — Reviewer passes (or extends) the
+    # recurrence's declared required_capabilities here. Empty/missing →
+    # specialist gets only the role's universal capabilities.
+    rc_raw = input.get("required_capabilities") or []
+    if not isinstance(rc_raw, list):
+        rc_raw = []
+    task_required_capabilities = [
+        str(c).strip() for c in rc_raw
+        if c and isinstance(c, str) and str(c).strip()
+    ]
 
     if role not in VALID_SPECIALIST_ROLES:
         return {
@@ -195,8 +222,13 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
         get_headless_tools_for_agent,
     )
     try:
+        # ADR-269: task_required_capabilities threaded through so the
+        # specialist's tool surface includes program-specific capabilities
+        # declared by the recurrence + (optionally) extended by the Reviewer.
         tools = await get_headless_tools_for_agent(
-            db_client, user_id, agent={"role": role},
+            db_client, user_id,
+            agent={"role": role},
+            task_required_capabilities=task_required_capabilities,
         )
     except Exception as e:
         logger.warning(

@@ -8,8 +8,19 @@ note: "Machine-parsed delegation declaration (ADR-254). Forked to /workspace/con
 # Edit this file to tune your delegation ceilings.
 
 default:
-  delegation: bounded           # manual | bounded | autonomous (Commit F 2026-05-11 — 3-value canonical enum)
-  ceiling_cents: 20000          # $200 — paper-seed default; see AUTONOMY.md "Phase progression" for tuning
+  # ADR-269 / iter-4 (2026-05-13): operator-authored flip to autonomous.
+  # The operator explicitly elected full autonomous execution from first
+  # signal fire rather than the AUTONOMY.md Phase-0 paper-seed posture.
+  # `never_auto` survives as the hard safety floor: close_position_market
+  # and cancel_other_orders still route to the operator's Queue regardless
+  # of approve verdict. _risk.md hard caps (max_position_size_usd: 1000,
+  # max_daily_loss_usd: 200, max_order_size_shares: 100, trading_hours_only)
+  # are enforced by risk_gate.py before any order fires.
+  delegation: autonomous
+  # Safety net even under `autonomous` — orders whose notional exceeds this
+  # still queue. $50,000 admits Signal-1 sized positions (~$12.5k notional)
+  # on the paper-seed account ($25k); larger positions surface for click.
+  ceiling_cents: 5000000
   never_auto:
     - close_position_market     # always requires operator click
     - cancel_other_orders

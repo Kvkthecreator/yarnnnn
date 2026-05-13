@@ -235,6 +235,11 @@ async def dispatch(
             context={
                 "recurrence_prompt": prompt,
                 "recurrence_slug": recurrence.slug,
+                # ADR-269: capability flow — recurrence declares the
+                # program-specific capabilities its dispatched specialists
+                # need. Reviewer reads this from context envelope and
+                # passes through (or extends) when calling DispatchSpecialist.
+                "recurrence_required_capabilities": list(recurrence.required_capabilities),
                 "options": dict(recurrence.options) if recurrence.options else {},
             },
         )

@@ -99,6 +99,15 @@ class Recurrence:
     prompt: str = ""
     mode: str = DEFAULT_RECURRENCE_MODE  # ADR-263: judgment | mechanical
 
+    # ADR-269: program-specific capability declarations. Operator-authored
+    # on the recurrence YAML body via `required_capabilities: [...]`. The
+    # dispatcher carries the list into the Reviewer's context envelope; the
+    # Reviewer passes it through (or extends it) when calling DispatchSpecialist;
+    # the specialist's tool surface is the union of the role's universal
+    # capabilities + these. Empty list for recurrences whose work doesn't
+    # need program-specific tools (daily housekeeping, market-agnostic).
+    required_capabilities: list[str] = field(default_factory=list)
+
     # Optional metadata
     paused: bool = False
     paused_until: Optional[datetime] = None
@@ -227,12 +236,38 @@ def parse_recurrences_yaml(
             )
             mode = DEFAULT_RECURRENCE_MODE
 
+        # ADR-269: ``required_capabilities`` — program-specific capability
+        # declarations the dispatcher carries through to the specialist
+        # tool surface. Operator-authored on the YAML body. Invalid types
+        # coerced to empty list with a warning.
+        rc_raw = raw.get("required_capabilities")
+        required_capabilities: list[str] = []
+        if rc_raw is not None:
+            if isinstance(rc_raw, list):
+                required_capabilities = [
+                    str(c).strip() for c in rc_raw
+                    if c and isinstance(c, str) and str(c).strip()
+                ]
+                if len(required_capabilities) < len(rc_raw):
+                    logger.warning(
+                        "[RECURRENCE] entry '%s' has non-string required_capabilities members — filtered",
+                        slug,
+                    )
+            else:
+                logger.warning(
+                    "[RECURRENCE] entry '%s' has invalid required_capabilities=%r (expected list) — ignoring",
+                    slug, rc_raw,
+                )
+
         # ``options`` is everything else the operator put in the entry
         # (display_name, description, etc.) — optional metadata only.
         options = {
             k: v
             for k, v in raw.items()
-            if k not in {"slug", "schedule", "prompt", "mode", "paused", "paused_until"}
+            if k not in {
+                "slug", "schedule", "prompt", "mode", "paused", "paused_until",
+                "required_capabilities",  # ADR-269: dataclass field, not options
+            }
         }
 
         out.append(
@@ -241,6 +276,7 @@ def parse_recurrences_yaml(
                 schedule=schedule,
                 prompt=str(prompt).strip(),
                 mode=mode,
+                required_capabilities=required_capabilities,
                 paused=bool(raw.get("paused", False)),
                 paused_until=paused_until,
                 options=options,

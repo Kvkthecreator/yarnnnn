@@ -502,6 +502,23 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
                 parts += [f"## Recurrence: `{slug}`", ""]
             if prompt_text:
                 parts += ["## Recurrence prompt (operator's instruction)", "", prompt_text.strip(), ""]
+            # ADR-269: surface recurrence's declared required_capabilities so
+            # the Reviewer can pass them through when calling DispatchSpecialist.
+            rrc = ctx.get("recurrence_required_capabilities") or []
+            if rrc and isinstance(rrc, list):
+                parts += [
+                    "## Required capabilities for dispatched specialists",
+                    "",
+                    f"This recurrence declares: `{', '.join(rrc)}`.",
+                    "",
+                    "When you call `DispatchSpecialist`, include these in the "
+                    "`required_capabilities` array at minimum so the specialist's "
+                    "tool surface includes the program-specific tools "
+                    "(`platform_trading_*`, etc.). You may extend the list if a "
+                    "specific brief needs additional capabilities (e.g., add "
+                    "`web_search` for a brief that needs web research on top).",
+                    "",
+                ]
             if ctx.get("signal_files"):
                 parts += ["## Current signal state (pre-loaded)", "", ctx["signal_files"], ""]
             if ctx.get("workspace_state"):
