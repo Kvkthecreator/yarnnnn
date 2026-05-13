@@ -202,6 +202,93 @@ can run the same commands and get identical results. Concretely:
   case where we need surgical deletion below the `/account/reset`
   endpoint.
 
+## Steered session pattern
+
+The harness commands above are the *machinery*. This section names the
+*discipline* of using them in a closed-loop steered session — where
+KVK directs the work top-down and Claude operates the harness while
+narrating each consequential action so KVK can intervene, redirect,
+or rewind.
+
+This pattern is distinct from the bottom-up rituals of the
+[alpha-operator subagent](../../.claude/agents/alpha-operator.md) (daily
+sanity check, EOD scan, weekly report). Subagent rituals are *recurring
+work the system needs done regardless of intent*. Steered sessions are
+*top-down investigations of a stated objective*. Both use the same
+harness; they differ in driver.
+
+Three commitments make a session "steered":
+
+### S1 — Stated objective at the top
+
+Every steered session opens with one written sentence: "this session
+confirms / measures / discriminates X." If the objective can't fit in
+one sentence, the session is two sessions — split it. The stated
+objective becomes the title of the iteration's observation seed (see
+S3).
+
+### S2 — Narrate-before-act on consequential actions
+
+Before any state-mutating or judgment-affecting action — `reset.py`,
+`connect.py`, firing an `external_action` recurrence, posting an
+addressed feed turn on the persona's behalf — Claude emits a one-line
+narration in the chat with:
+
+- **What** I'm about to do (the command or the verb)
+- **Why** it serves the stated objective
+- **Expected observable** (what KVK should see change)
+- **Rollback** (what undoes this if needed)
+
+This is the steering interface. KVK reads, redirects if wrong, or lets
+it run. Post-hoc narration is too late — the steering wheel has to be
+*ahead* of the wheels.
+
+Read-only actions (verify.py, decisions.md reads, token_usage queries)
+don't need pre-narration; their cost of error is zero. Authority axiom
+applies: standing authority over what's possible per the mode-1 matrix
+does NOT collapse with invocation authorization for a specific turn.
+See [CLAUDE-OPERATOR-ACCESS.md §"Architectural authority vs invocation
+authorization"](./CLAUDE-OPERATOR-ACCESS.md#architectural-authority-vs-invocation-authorization-the-axiom).
+
+### S3 — Three-layer observation captured to an observation file
+
+A steered session produces an observation file at
+`docs/alpha/observations/{YYYY-MM-DD}-iter{N}-{slug}-{persona}.md`
+seeded at the start of the session with the stated objective + procedure
++ expected observable per layer, then filled in during/after the run.
+
+The three layers — *code* (yarnnn correctness), *system* (yarnnn-as-used),
+*outcomes* (paper Alpaca P&L when applicable) — are the axes of the
+DUAL-OBJECTIVE three-axis schema applied to a single iteration's narrow
+objective. Each invariant the iteration tests gets observed at each
+layer where it touches.
+
+Two failure modes the observation-file seed prevents:
+
+- **Drift to whatever was easiest to look at.** Naming expected
+  observable per layer up-front means "we didn't look at the outcome
+  layer" becomes a visible gap, not a silent omission.
+- **Forgotten objective.** Re-reading the seed at the end of the
+  session catches "we ended up debugging a side-quest instead of
+  confirming the stated objective" before the observation gets
+  written up as if the objective was met.
+
+### When the steered-session pattern is overkill
+
+- Subagent rituals (already bottom-up + scripted)
+- Code-only work that doesn't touch live persona state
+- Ad-hoc grep / read / explore against the repo
+
+When in doubt: if the session ends with a `--confirm` flag pressed or
+a feed message posted as the persona, it should have been steered. If
+not, the pattern is overkill.
+
+### Cross-references
+
+- [DUAL-OBJECTIVE-DISCIPLINE.md](./DUAL-OBJECTIVE-DISCIPLINE.md) — three-axis schema the per-layer observation grid extends from; §"Named failure classes" for the canonical "no trades" four-way disambiguation
+- [CLAUDE-OPERATOR-ACCESS.md](./CLAUDE-OPERATOR-ACCESS.md) — authority/authorization axiom that governs narrate-before-act
+- [.claude/agents/alpha-operator.md](../../.claude/agents/alpha-operator.md) — the bottom-up sibling of this pattern
+
 ## Known drifts (documented, not fixed)
 
 1. **`_risk.md` path lacks leading slash.** `api/services/risk_gate.py:48`
@@ -231,3 +318,9 @@ This harness is the operational machinery behind
 and §6 "Rules of engagement". If you're reading the playbook and find a
 gap between "KVK does X manually" and "Claude does X with credentials"
 that the harness could automate — that's a harness-extension signal.
+
+## Revision history
+
+| Date | Change |
+|------|--------|
+| 2026-05-13 | Added §"Steered session pattern" between "Shared-access discipline" and "Known drifts". Names the top-down counterpart to the bottom-up alpha-operator subagent rituals: stated objective at the top (S1), narrate-before-act on consequential actions (S2), three-layer observation captured to an observation file (S3). The pattern uses the same harness machinery; what differs is the driver (KVK directs top-down vs. system needs done bottom-up). Triggered by KVK's 2026-05-13 request to operate iteratively across code / system-as-used / outcome layers under explicit steering, after the Reviewer dispatcher trilogy made E2E aliveness from cold-start the load-bearing next observation. First iteration of the pattern: [observations/2026-05-13-iter1-e2e-aliveness-kvk.md](./observations/2026-05-13-iter1-e2e-aliveness-kvk.md). |

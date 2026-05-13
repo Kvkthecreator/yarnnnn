@@ -280,6 +280,53 @@ This doc's schema, templates, and anti-drift rules will evolve. We'll find new a
 
 ---
 
+## Named failure classes
+
+Some observable failures look identical on the surface but have multiple
+distinct root causes. Naming the failure class — and its disambiguation
+table — keeps future observations from collapsing different causes into
+one verdict.
+
+This section grows: when a new "looks-the-same-from-outside" failure
+class shows up across multiple observations, name it here with its
+disambiguation table.
+
+### F1 — "No trades fired" (zero executions over the observation window)
+
+**Surface symptom**: paper Alpaca account shows zero new positions over
+a session, day, or week. The intent of the alpha-trader program is to
+*place trades*; persistent zero-fire output is the opposite of working.
+
+**The trap**: four root causes produce identical observable surfaces
+(zero executions). Without explicit disambiguation, "no trades" gets
+filed as one finding when it's really four different problems requiring
+four different responses.
+
+| Hypothesis | What it looks like in `decisions.md` | What it looks like in `token_usage` | Disambiguator | Right response |
+|---|---|---|---|---|
+| **A. Environmental** (operator timezone vs US RTH; signal-eval correctly off-hours) | Recurrence-fire entries exist; reasoning notes "market closed" or recurrence correctly short-circuited | Normal cadence at low per-fire cost (Haiku, short-circuit path) | Same persona, same code, different time-of-day — markets-open observation window | Not actionable in code; queue for markets-open observation |
+| **B. Systematic-dispatcher** (Reviewer never actually wakes; or wakes with corrupted context) | Either zero new entries, OR entries with enum-string reasoning instead of prose (the pre-2026-05-13 trilogy-fix failure mode) | Zero fires, OR fires logging universal `stand_down` at ~$0.30/each | Read `decisions.md` reasoning quality + `token_usage` cadence vs schedule | Code bug; fix before further iteration |
+| **C. Systematic-judgment** (Reviewer wakes, reasons, correctly declines per declared checks) | Entries with rich prose reasoning declining on declared check (Check 1 attribution, Check 4 expectancy guardrail, Check 5 sizing, etc.) | Normal cadence + cost | Cross-reference reasoning text against `principles.md` six-check ladder — is the decline well-formed | Not a failure — success looking like failure. Write up + move on |
+| **D. Systematic-config** (Reviewer wakes, reasons, declines because AUTONOMY/principles too restrictive vs operator intent) | Entries with prose reasoning declining on `_risk.md` ceiling or AUTONOMY `auto_approve_below_cents` boundary | Normal cadence + cost | Read `_risk.md` + `AUTONOMY.md` + `principles.md`; check if declared posture is what operator intended | Mis-config; operator (not Claude) edits operator substrate |
+
+**How to use the table**:
+
+1. When observing "no trades" over a window, classify *which hypothesis* before proposing any response.
+2. The disambiguator column names what observation discriminates each from the others.
+3. Each response is structurally different — A is no-op (environmental), B is a code commit, C is documentation only, D is an operator-substrate edit that Claude cannot make unilaterally.
+4. Conflating them produces the wrong response. "No trades, must be a bug" when the answer is A or D wastes engineering attention; "no trades, persona is being conservative" when the answer is B leaves a real bug silent.
+
+**Audit trail**: when an observation classifies against F1, name the
+hypothesis explicitly in the observation's `## What happened` section
+and link the disambiguating evidence in `## Links`.
+
+**Origin**: 2026-05-13 — surfaced after the Reviewer dispatcher trilogy
+(`6027459` / `85c9736` / `e55d201`) revealed that the prior week's "no
+trades" surface was at least partially hypothesis B (corrupted context
+produced universal stand_downs that wrote enum strings to `decisions.md`
+instead of prose). The disambiguation table prevents future "no trades"
+findings from being filed as monocausal.
+
 ## Iterative evolution — how this doc grows
 
 When to amend:
@@ -311,3 +358,4 @@ When to NOT amend:
 | Date | Change |
 |------|--------|
 | 2026-04-21 | v1 — Initial. Two objectives (A-system, B-product) named. Three-axis observation schema (Objective / Within-A scope / FOUNDATIONS dimension) + severity + resolution path + money impact. Dual weekly report templates replacing playbook §7.2 single-template. Session-start don't-drift checklist. Five anti-drift rules (R1–R5). Iterative-evolution protocol. |
+| 2026-05-13 | v2 — Added §"Named failure classes" with F1 "No trades fired" four-way disambiguation table (Environmental / Systematic-dispatcher / Systematic-judgment / Systematic-config). Triggered by the Reviewer dispatcher trilogy (`6027459` / `85c9736` / `e55d201`) revealing the prior week's "no trades" surface was at least partially hypothesis B with enum-string reasoning corruption hiding the dispatcher silently inert. Disambiguation table prevents future "no trades" observations from being filed monocausally. Section is iterative — additional failure classes land here when new looks-the-same-from-outside symptoms surface across multiple observations. |
