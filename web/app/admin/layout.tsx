@@ -6,7 +6,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { isAdminEmail } from "@/lib/internal-access";
 import { HOME_ROUTE } from "@/lib/routes";
-import { ArrowLeft, Shield } from "lucide-react";
+import { ArrowLeft, Shield, Workflow } from "lucide-react";
+import { usePathname } from "next/navigation";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -16,6 +17,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [loading, setLoading] = useState(true);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const router = useRouter();
+  const pathname = usePathname();
   const supabase = createClient();
 
   useEffect(() => {
@@ -81,6 +83,30 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                 <Shield className="w-4 h-4 text-orange-500" />
                 <span className="font-medium">Admin Dashboard</span>
               </div>
+              <div className="h-4 w-px bg-border" />
+              <nav className="flex items-center gap-1">
+                <Link
+                  href="/admin"
+                  className={`text-sm px-2 py-1 rounded transition-colors ${
+                    pathname === "/admin"
+                      ? "text-foreground bg-muted/50"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                  }`}
+                >
+                  Overview
+                </Link>
+                <Link
+                  href="/admin/flows"
+                  className={`text-sm px-2 py-1 rounded transition-colors flex items-center gap-1.5 ${
+                    pathname?.startsWith("/admin/flows")
+                      ? "text-foreground bg-muted/50"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
+                  }`}
+                >
+                  <Workflow className="w-3.5 h-3.5" />
+                  Flows
+                </Link>
+              </nav>
             </div>
             <div className="text-sm text-muted-foreground">{userEmail}</div>
           </div>
