@@ -73,6 +73,19 @@ docs/working_docs/previous_versions/*.key
 docs/working_docs/previous_versions/*.numbers
 docs/working_docs/previous_versions/*.pages
 
+# Investor materials — entire folder is private (per ADR-236 follow-on
+# 2026-05-13 decision). Prior IR decks committed in history remain
+# tracked; new artifacts under this path are not.
+docs/working_docs/investors/
+
+# Personal docs at repo root (resumes, etc.) — kept locally only
+Resume_*.pdf
+Resume_*.docx
+
+# Claude Code runtime locks — not source, was accidentally tracked in
+# commit 27773ad; removed and prevented from re-tracking 2026-05-13.
+.claude/scheduled_tasks.lock
+
 # Lock files (LibreOffice, MS Office temp files)
 .~lock.*
 ~$*
