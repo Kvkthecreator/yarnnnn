@@ -273,3 +273,62 @@ For the alpha-1 trade-execution path (signal-evaluation → trade-proposal → P
 
 - Track-universe/track-regime/falsify-signals downstream failures — these are iter-4 L3 specialist-tool-surface issues, separately owned. ADR-270 cleanly verified for its own scope.
 - The "substrate-write-failure-recorded-as-success" pattern (corrected understanding of the dispatcher behavior). Worth a separate scheduler-discipline pass if it produces operator friction at scale; flagged for future scope, not blocking ADR-270.
+
+---
+
+## Structural-resolution path findings (2026-05-13, post-Phase 3)
+
+After the failures above were noted as out-of-ADR-270-scope, the conversation committed to **Reading B (structural resolution)** of the underlying failure class. The discourse-aligned principle: not just fix alpha-trader symptoms, but resolve the underlying "specialist sub-call → tool-surface mismatch → silent substrate-write failure" pattern so future bundles inherit a working DispatchSpecialist by construction.
+
+The diagnostic-then-fix cycle ran twice. Each gate exposed the next gate in series.
+
+### Gate 1 — `tool_uses_raw` AttributeError (fixed in `16dcd5f`)
+
+Render logs for the failed falsify-signals invocation:
+> *"DispatchSpecialist failed with a platform error ('ChatResponse' object has no attribute 'tool_uses_raw')"*
+
+`dispatch_specialist.py:326` accessed `response.tool_uses_raw` — a field that never existed on `ChatResponse` (anthropic.py:26). Python raised AttributeError before the `or` fallback could evaluate. Bug introduced in PR #9 squash commit `42725c6` (2026-05-10), never exercised end-to-end until today because iter-3's L2 fix + iter-4's L3 wiring + ADR-270's fire_on_activation all needed to land before the bug could surface.
+
+Fix: replace with the canonical reconstruction loop over `response.content` from `reviewer_agent.py`. Same pattern, no new field, no `getattr` band-aid.
+
+### Gate 2 — `ToolUseBlock.get()` AttributeError (fixed in `9d85d12`)
+
+Phase 3 re-fire post-`16dcd5f` cleared Gate 1, but exposed:
+> *"DispatchSpecialist is failing with a backend error ('ToolUseBlock' has no 'get' attribute)"*
+
+`dispatch_specialist.py:357-359` iterated `response.tool_uses` and called `.get()` on each item. But `response.tool_uses` is `list[ToolUseBlock]` per anthropic.py:110-114 — `ToolUseBlock` is a `@dataclass` with `.id`, `.name`, `.input` attributes, not a dict.
+
+Same root-cause class as Gate 1: dispatch_specialist code authored assuming dict shape; ChatResponse parser delivers typed dataclasses. Both bugs in the same commit (`42725c6`).
+
+Fix: replace `.get()` with attribute access. Matches `reviewer_agent.py`'s iteration pattern exactly.
+
+### Gate 3 — balance exhausted (NOT a code bug)
+
+Phase 3 re-fire post-`9d85d12` produced:
+
+- **`track-regime` SUCCEEDED end-to-end.** `/workspace/context/trading/_regime.yaml` populated with real VIXY + SPY computation from Alpaca 1Day bars. Regime correctly classified inactive (VIXY 26.77 > threshold 22.0 BUT < sma_20 27.81 — conjunctive predicate works). Trend regime uptrend (SPY sma_20 717.91 > sma_50 proxy 701.79; close 738.18 > sma_20). Specialist showed its math inline with `_source: Alpaca 1Day bars` attribution. **First end-to-end success of the Reviewer→DispatchSpecialist→Alpaca→substrate chain in alpha-1 history.**
+- **`track-universe` and `falsify-signals` blocked on `[SCHED] ✗ balance exhausted`.** Per ADR-171 universal token ledger + ADR-172 balance-as-single-gate. token_usage shows $3.21 spent today against $3.00 free balance.
+
+This is not a code bug — the budget gate is doing its job. Verifying `track-universe` and `falsify-signals` end-to-end requires either: topping up seulkim88's balance (operator action via Supabase update), verifying via kvk's workspace instead (separate balance), or accepting the partial verification.
+
+### What this structural-resolution path verified
+
+- **Both architectural bugs in DispatchSpecialist eliminated.** Regression gate `test_adr269_capability_flow.py` now 90/90 PASS (was 74/74), with two new tests pinning each fix and the bug class for future readers.
+- **End-to-end specialist dispatch is operationally valid.** `track-regime` proves the full chain works: Reviewer → DispatchSpecialist → headless specialist with `read_trading` capability → Alpaca API → substrate write via `WriteFile` (with `source: ai:reviewer` attribution per ADR-209).
+- **iter-4 L3 capability flow exercised end-to-end** for the first time. iter-2 → iter-3 → iter-4 → today's ADR-270 + two fixes form a four-step chain that finally produces working specialist-dispatched substrate.
+- **Singular Implementation honored throughout.** Both fixes use the canonical `reviewer_agent.py` pattern — one shape across the codebase, no parallel approaches. The regression tests verify the bug class (not just the specific bug) so future similar mistakes get caught.
+
+### What this surfaced about iter-4's regression gate
+
+The pre-fix ADR-269 gate (74 assertions) verified the *wiring* — that `required_capabilities` flowed from YAML through to the specialist tool surface. It did NOT verify the specialist could complete a tool-use round trip. Both bugs were in the round-trip code path, not the wiring.
+
+**Lesson for future iter regression gates: wiring tests verify shape; integration-shaped tests verify execution.** ADR-269 gate now extended with two tests that exercise the execution path with mock dataclasses.
+
+### Commits associated with this path
+
+- `914086f` — ADR-270 implementation (kernel conditional + bundle changes)
+- `f9e79c9` — initial verification findings (pre-credentials)
+- `8045238` — full E2E findings post-credentials (Gate 1 surfaced)
+- `16dcd5f` — fix #1: tool_uses_raw → response.content reconstruction
+- `9d85d12` — fix #2: ToolUseBlock attribute access
+- (this commit) — Phase 3 outcome documentation
