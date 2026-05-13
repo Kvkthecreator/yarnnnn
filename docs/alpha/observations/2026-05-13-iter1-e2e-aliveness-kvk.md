@@ -12,9 +12,9 @@
 - **Objective:** A-system (primary), B-product (secondary — confirms the system is alive enough to *produce* B-data in later iterations)
 - **Within-A scope:** systematic-workflow (bootstrap path), qualitative-agent-behavior (Reviewer reasoning quality post-trilogy-fix)
 - **FOUNDATIONS dimension:** Substrate (workspace re-fork), Identity (Reviewer + Specialists materialize), Trigger (scheduler walk + reactive wake), Mechanism (deterministic mirror + judgment-mode dispatch)
-- **Severity:** *(filled post-run)*
-- **Resolution path:** *(filled post-run)*
-- **Money impact:** none for this iteration (no trades expected during the exercise window itself; this confirms the loop is alive so subsequent iterations can interpret trade behavior)
+- **Severity:** mixed — surface (validation) had no severity; surfaced finding (`/run` trigger bug) was `cognitive-load` (silent placeholder, would have eroded operator trust without iteration-1's structured observation)
+- **Resolution path:** component-patch (landed: commit `94bb25f`) + harness-extension (landed: steered-session pattern in OPERATOR-HARNESS.md + F1 failure class in DUAL-OBJECTIVE-DISCIPLINE.md from commit `486cfbf`)
+- **Money impact:** none for this iteration as stated; downstream impact = significant (the trilogy fix was the gate to any trade ever executing on kvk's workspace; iter-1 confirmed the gate is open)
 
 ---
 
@@ -116,23 +116,69 @@ These produce identical observable surfaces (zero executions) without the disamb
 
 ## Context
 
-*(filled post-run)*
+First iteration of the steered closed-loop development pattern (newly canonized in [OPERATOR-HARNESS.md §"Steered session pattern"](../OPERATOR-HARNESS.md#steered-session-pattern)). KVK steered; Claude operated Mode 1 per the authority axiom. Stated objective: confirm E2E aliveness on `kvk` persona from cold-start, layered on top of validating today's Reviewer dispatcher trilogy (`e55d201`, `85c9736`, `6027459`) in production.
+
+Pre-session state: kvk's workspace had been quiet for ~30 hours after a 23-hour window (May 11 08:00 → May 12 07:00 UTC) of corrupted Reviewer wakes — 10 fires, every one writing the literal string `stand_down` as reasoning, zero proposals ever emitted, zero trades ever executed. $3.12 of LLM spend wasted on universal stand-downs that produced no signal. The workspace was the canonical hypothesis-B specimen — a Reviewer that woke, made tool calls (6–8 actions per fire), then returned a verdict whose reasoning got discarded by the dispatcher's pre-fix code.
+
+The iteration was scaffolded with the observation seed *before* execution — stated objective, six aliveness invariants × three-layer observable grid, F1 four-way disambiguation table. This is the harness-extension product of the session, not an after-fact post-mortem.
 
 ## What happened
 
-*(filled post-run)*
+Phase 1 (read-only baseline): captured the corrupted pre-purge state via `verify.py kvk` (32/32) + `verify.py kvk --cost --cost-days 7` ($3.12, 10 fires, all `<no slug>` in token_usage — pre-`e55d201` signature) + `decisions.md` read (10 `--- recurrence-fire ---` entries, every body = literal `stand_down`) + `workspace_file_versions` query (workspace 2 days old; 10 revisions total; no missing history, just genuinely zero prior fires).
+
+Phase 2 (L4 reset, per-turn go): `reset.py kvk --confirm` dropped 21 row-types (workspace_file_versions: 55, workspace_files: 32, activity_log: 209, tasks: 14, token_usage: 10, platform_connections: 1, workspaces: 1, etc.). Auto-re-forked the alpha-trader bundle per ADR-244 D4 because pre-purge MANDATE.md carried the program marker.
+
+Phase 3: skipped (auto-re-fork done in Phase 2). Phase 4: `verify.py kvk` returned 28/29 — the expected pre-connect shape (1 FAIL = `platform_connections count: got 0, expected 1`).
+
+Phase 5 was *delayed by doc cleanup*. The OPERATOR-HARNESS doc referenced 1Password as the credential store; that was legacy/incorrect. Doc cleanup landed as commit `6217498` — 8 files updated, the `vault_entry` field deleted from personas.yaml + dataclass + connect.py error messages, all 1Password references purged except a single verbatim revision-history line in ALPHA-1-PLAYBOOK.md, `.env.alpha-ops` added to `.gitignore`, canonical pattern documented. Then KVK supplied the EE8K Alpaca paper creds (account is the same EE8K from before, not a fresh third account despite the message header).
+
+Phase 5 (per-turn go, sourced from `.env.alpha-ops`): `connect.py kvk` → connection `d89df14a-9a0c-4c37-8c18-5d91ae2aafc6` created, `status: active`, `paper: true`, `account_number: EE8K`. Phase 6: `verify.py kvk` returned 32/32 — fully green.
+
+Phase 7 manual fire (per-turn go): `POST /api/recurrences/track-universe/run` returned `{triggered: true}` in <2s — but reading state at +30s showed the Reviewer had returned in 96ms with 0 tool calls and 0 token_usage rows. decisions.md got a new entry with reasoning body `_(no verdict reasoning supplied)_`. The trilogy fix's `_validate_context_shape` had rejected a malformed input.
+
+Investigation: `dispatch()` always builds a `recurrence-fire` context shape (`{recurrence_prompt, recurrence_slug, options}`). `/run` (and `routes/admin.py::trigger_recurrence_run` and `routes/agents.py::run_agent_manually`) was passing `trigger="addressed"`. Per `_validate_context_shape`, that combination is invalid — `addressed` requires `user_message`. The validator returned None; the dispatcher wrote the placeholder; the Reviewer never engaged with the LLM. This was a pre-existing latent bug that the trilogy fix's stricter validation made visible. Fix shipped as `94bb25f` (1-line trigger flip across 3 call sites, all `addressed` → `reactive` with comment).
+
+Render auto-deploy completed within ~4 min. Re-fire of `track-universe`:
+- Trigger value reactive ✅
+- 24.8s duration ✅
+- 10 tool actions ✅
+- Real prose reasoning written to decisions.md ✅
+- `token_usage` row: `caller="reviewer-reflection"`, `model="claude-haiku-4-5-20251001"`, `metadata.slug="track-universe"`, `metadata.sub_shape="recurrence_fire"` ✅ (compare Phase 1 baseline where slug was `<no slug>` — confirms `e55d201` is live)
+
+All three trilogy commits validated end-to-end in production on a freshly-bootstrapped workspace.
+
+Concurrent finding from the same re-fire: the Reviewer's prose reasoning surfaced a tool-surface gap — the recurrence prompt asked it to fetch Alpaca 1Hour bars for AAPL/MSFT/NVDA/SPY/TSLA, but `platform_trading_get_market_data` (or equivalent) is not in `REVIEWER_PRIMITIVES`. Reviewer correctly logged the failure and noted "the recurrence will retry on next cycle." This echoes the 2026-04-28 tracker-tool-surface-defect observation; a separate observation should be written.
 
 ## Friction
 
-*(filled post-run)*
+The only real friction was the legacy 1Password documentation, which blocked Phase 5 until I fixed it. Net delay: ~15 minutes of doc-cleanup work between Phase 4 (cold-start verify) and Phase 5 (connect). Worth it — the doc was actively misleading future sessions; the cleanup applies the canonical `.env.alpha-ops` pattern singularly.
+
+Otherwise: no friction. The harness commands worked as documented. The reset/activate/connect/verify chain ran cleanly. The per-turn-go discipline caught two consequential actions (purge + connect) at the right moment without slowing the work.
 
 ## Hypothesis
 
-*(filled post-run)*
+The "no trades" surface that motivated iter-1 was F1-B (systematic-dispatcher) at ~100% load on kvk's workspace. The trilogy fix today addresses the root cause; iter-1 validates that.
+
+Cron-fired Reviewer wakes will resume on kvk's workspace within the next 24h (the next scheduled judgment-mode fires are `narrative-digest` at 03:00 UTC daily, `outcome-reconciliation` at 05:00 UTC daily, `morning-calibration` at 06:00 UTC daily, etc.). Those fires will exercise the same code path manually-validated here, just with `trigger="reactive"` flowing from the unified-scheduler rather than the route. If those produce prose reasoning, the fix is robust across triggers. **Iteration 2 should be a Reviewer reasoning quality audit over the next 7 days** with the workspace in known-clean state.
+
+The "no trades" question itself remains unanswered as a separate concern — even with the trilogy fix working, the Reviewer's first reasoning surfaced a tool-surface gap that prevented signal evaluation. F1-D (systematic-config: maybe the Reviewer's tool surface is too narrow for the work it's being asked to do) is now the hypothesis I'd test next. Iteration 3 may need to fix the tool-surface issue before observed Reviewer reasoning is structurally able to produce signal candidates that could become trade proposals.
 
 ## Counterfactual (Objective B only)
 
-*(filled post-run, even if "N/A — Iter 1 doesn't test trade decisions")*
+N/A by stated objective — iter-1 doesn't test trade decisions directly. But the downstream counterfactual is significant: **without the trilogy fix and this iteration's validation, kvk's workspace would have continued burning ~$0.31/fire on universal stand_downs indefinitely**. The dispatcher fix alone saves real money on a per-fire basis; the slug-metadata fix makes future cost rollups by recurrence accurate; the context-shape contract prevents the failure mode from regressing.
+
+## Links
+
+- **Doc additions (commit `486cfbf`)**: Steered-session pattern + F1 failure class + this seed
+- **1Password→.env.alpha-ops cleanup (commit `6217498`)**: 8 files; singular-implementation cleanup
+- **Manual-fire trigger fix (commit `94bb25f`)**: `routes/recurrences.py:430` + `routes/admin.py:874` + `routes/agents.py:1036` all `addressed` → `reactive`
+- **Trilogy fix series** (pre-existing): `e55d201` (context-key rename), `85c9736` (reasoning capture), `6027459` (validation contract)
+- **Reviewer prose reasoning evidence**: `decisions.md` second entry at `2026-05-13T01:36:25.133933+00:00`
+- **token_usage proof of `e55d201` validation**: row at `2026-05-13 01:36:25.139744+00`, `metadata.slug="track-universe"`, `metadata.sub_shape="recurrence_fire"` (compare pre-purge baseline `<no slug>`)
+- **Related observations**: [2026-04-28-tracker-tool-surface-defect.md](./2026-04-28-tracker-tool-surface-defect.md) (echo of the tool-surface gap surfaced in Phase 7 retry)
+- **Persona spec**: [personas.yaml](../personas.yaml) → `kvk` row (post-cleanup; no `vault_entry`)
+- **Steered-session pattern doc**: [OPERATOR-HARNESS.md §"Steered session pattern"](../OPERATOR-HARNESS.md#steered-session-pattern)
+- **F1 failure class doc**: [DUAL-OBJECTIVE-DISCIPLINE.md §"Named failure classes"](../DUAL-OBJECTIVE-DISCIPLINE.md#named-failure-classes)
 
 ## Links
 
