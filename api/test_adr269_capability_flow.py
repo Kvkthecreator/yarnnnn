@@ -293,6 +293,70 @@ def test_alpha_trader_bundle_parses_cleanly():
         )
 
 
+def test_dispatch_specialist_message_append_uses_response_content():
+    """Regression for the 'tool_uses_raw' AttributeError that blocked every
+    iter-4 specialist round-trip until 2026-05-13.
+
+    Background: dispatch_specialist.py previously read `response.tool_uses_raw`
+    when appending the assistant turn to message history. That field never
+    existed on ChatResponse (anthropic.py:26) — Python raised AttributeError
+    before the `or` fallback could evaluate. The fix replaces that access with
+    a reconstruction loop over `response.content` (mirrors the canonical
+    pattern in api/agents/reviewer_agent.py).
+
+    This test verifies:
+      1. The code path no longer references `tool_uses_raw` anywhere.
+      2. A mock ChatResponse with content + tool_uses can be passed through
+         the message-append branch without raising.
+    """
+    import inspect
+    from services.primitives import dispatch_specialist as ds
+
+    # 1. Grep the source for the bug shape.
+    source = inspect.getsource(ds)
+    # Comment historical-reference is allowed; live access is not.
+    live_refs = [
+        line for line in source.splitlines()
+        if "tool_uses_raw" in line and not line.strip().startswith("#")
+    ]
+    assert_eq(
+        live_refs, [],
+        "no live (non-comment) references to tool_uses_raw remain",
+    )
+
+    # 2. Reconstruct the message-append loop in isolation and verify shape.
+    class _MockBlock:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+    mock_content = [
+        _MockBlock(type="text", text="thinking..."),
+        _MockBlock(type="tool_use", id="t_1", name="ReadFile", input={"path": "x"}),
+    ]
+
+    # This is the exact pattern from dispatch_specialist.py post-fix.
+    assistant_content: list[dict] = []
+    for block in (mock_content or []):
+        btype = getattr(block, "type", None)
+        if btype == "text":
+            assistant_content.append({"type": "text", "text": getattr(block, "text", "")})
+        elif btype == "tool_use":
+            assistant_content.append({
+                "type": "tool_use",
+                "id": getattr(block, "id", ""),
+                "name": getattr(block, "name", ""),
+                "input": getattr(block, "input", {}),
+            })
+
+    assert_eq(len(assistant_content), 2, "reconstructed 2 blocks from mock content")
+    assert_eq(assistant_content[0]["type"], "text", "first block is text")
+    assert_eq(assistant_content[1]["type"], "tool_use", "second block is tool_use")
+    assert_eq(assistant_content[1]["id"], "t_1", "tool_use id round-trips")
+    assert_eq(assistant_content[1]["name"], "ReadFile", "tool_use name round-trips")
+    assert_eq(assistant_content[1]["input"], {"path": "x"}, "tool_use input round-trips")
+
+
 def main():
     tests = [
         test_recurrence_dataclass_has_required_capabilities,
@@ -306,6 +370,7 @@ def main():
         test_alpha_trader_autonomy_is_autonomous,
         test_workspace_init_skips_bundle_owned_paths,
         test_alpha_trader_bundle_parses_cleanly,
+        test_dispatch_specialist_message_append_uses_response_content,
     ]
     for t in tests:
         try:

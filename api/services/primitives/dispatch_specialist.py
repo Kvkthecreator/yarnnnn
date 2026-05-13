@@ -319,13 +319,29 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
                 "[DISPATCH_SPECIALIST] token record failed: %s", _e
             )
 
-        # Append assistant turn
+        # Append assistant turn — reconstruct dict-shaped content from the
+        # SDK content blocks in response.content. Mirrors the canonical
+        # pattern in api/agents/reviewer_agent.py (same problem: round-trip
+        # tool_use blocks back to the Anthropic API for the next turn).
+        # The earlier shape `response.tool_uses_raw` referenced a field
+        # that never existed on ChatResponse — Python raised AttributeError
+        # before the `or` fallback could evaluate. This is the fix path.
         if response.tool_uses:
+            assistant_content: list[dict] = []
+            for block in (response.content or []):
+                btype = getattr(block, "type", None)
+                if btype == "text":
+                    assistant_content.append({"type": "text", "text": getattr(block, "text", "")})
+                elif btype == "tool_use":
+                    assistant_content.append({
+                        "type": "tool_use",
+                        "id": getattr(block, "id", ""),
+                        "name": getattr(block, "name", ""),
+                        "input": getattr(block, "input", {}),
+                    })
             messages.append({
                 "role": "assistant",
-                "content": response.tool_uses_raw or [
-                    {"type": "tool_use", **tu} for tu in response.tool_uses
-                ],
+                "content": assistant_content,
             })
         else:
             final_text = (response.text or "").strip()

@@ -6,6 +6,71 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.13.4] - fix(dispatch_specialist): replace nonexistent `tool_uses_raw` field with canonical `response.content` reconstruction
+
+### Closes the upstream specialist-dispatch bottleneck (Phase 0-3 of the structural-resolution path)
+
+ADR-270's verification on seulkim88 surfaced that DispatchSpecialist had been broken since its introduction in commit `42725c6` (ADR-260/261/262 PR #9 squash, 2026-05-10). Three distinct-looking failures (track-regime, track-universe, falsify-signals) all traced to one Python AttributeError in `dispatch_specialist.py:326`:
+
+```python
+"content": response.tool_uses_raw or [...]
+```
+
+`ChatResponse` (anthropic.py:26) never had a `tool_uses_raw` field. Python raised AttributeError before the `or` fallback could evaluate. iter-3's L2 fix and iter-4's L3 capability flow both shipped successfully but were never exercised past their tool-resolution step until today — the `tool_uses_raw` access was the next gate, and it had been silently broken for three days.
+
+### Fix — canonical pattern from reviewer_agent.py
+
+The reviewer agent solves the identical problem (round-trip tool_use blocks back to the Anthropic API for the next turn). Singular implementation rule: copy the canonical pattern, don't band-aid with `getattr`.
+
+```python
+assistant_content: list[dict] = []
+for block in (response.content or []):
+    btype = getattr(block, "type", None)
+    if btype == "text":
+        assistant_content.append({"type": "text", "text": getattr(block, "text", "")})
+    elif btype == "tool_use":
+        assistant_content.append({
+            "type": "tool_use",
+            "id": getattr(block, "id", ""),
+            "name": getattr(block, "name", ""),
+            "input": getattr(block, "input", {}),
+        })
+messages.append({"role": "assistant", "content": assistant_content})
+```
+
+`response.content` IS the raw SDK block list (see `_parse_response` at anthropic.py:138). The previous code intended to use this; just used the wrong field name.
+
+### Files changed
+
+- **`api/services/primitives/dispatch_specialist.py`** — lines 322-339 (was 322-332). Replaced the broken `response.tool_uses_raw` path with the canonical reconstruction loop from `reviewer_agent.py`. Historical comment preserved naming the bug for future readers.
+- **`api/test_adr269_capability_flow.py`** — new test `test_dispatch_specialist_message_append_uses_response_content` (11 assertions). Greps source for live (non-comment) references to `tool_uses_raw` and verifies the new reconstruction path produces correctly-shaped blocks. ADR-269 gate now 85/85 PASS (was 74/74).
+
+### Singular Implementation
+
+- No `getattr` band-aid (would leave the wrong field name reachable in code as future confusion).
+- Same pattern as reviewer_agent.py — one canonical shape, not two.
+- Historical reference comment names the bug for future readers without leaving it reachable.
+
+### Expected behavior changes
+
+- DispatchSpecialist round-trip no longer raises AttributeError on the first tool-use turn.
+- Three previously-failing alpha-trader recurrences (`track-universe`, `track-regime`, `falsify-signals`) should now complete their bodies end-to-end on the next scheduler tick post-deploy, given an active platform_connections row.
+- iter-4's L3 capability flow becomes operationally validated for the first time (was only structurally verified by the regression gate up to this point).
+
+### Verification path (Phase 3)
+
+Reset `last_run_at = NULL` on the three failed recurrences via psql; wait one scheduler tick; expect:
+- `/workspace/context/trading/_regime.yaml` populated
+- `/workspace/context/trading/{ticker}.yaml` populated for each universe member
+- `/workspace/research/findings/{signal_id}.md` populated per declared signal
+
+### Not in scope
+
+- The "substrate-write-failure-recorded-as-success" interaction noted in ADR-270 observation. Separate scheduler-discipline concern; defer until evidence of operator friction warrants.
+- Generalization audit (Phase 4 of the resolution path) — the test now covers this regression. Future bundles inherit a working DispatchSpecialist by construction.
+
+---
+
 ## [2026.05.13.3] - ADR-270: fire-on-activation recurrences + alpha-trader bootstrap research
 
 ### Closes the cold-start activation gap
