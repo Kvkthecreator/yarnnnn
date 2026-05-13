@@ -6,6 +6,54 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.13.5] - fix(dispatch_specialist): use attribute access on ToolUseBlock dataclass (not `.get()`)
+
+### Next gate after [2026.05.13.4] — same root-cause class, different symptom
+
+After `tool_uses_raw` was fixed, Phase 3 verification re-fired the three failed recurrences on seulkim88. New error class surfaced in the Reviewer's prose:
+
+> "DispatchSpecialist is failing with a backend error ('ToolUseBlock' has no 'get' attribute)"
+
+Root cause: `dispatch_specialist.py:357-359` iterated `response.tool_uses` and called `tu.get("name")` / `tu.get("input")` / `tu.get("id")` — but `response.tool_uses` is `list[ToolUseBlock]` per `anthropic.py:110-114`, and `ToolUseBlock` is a `@dataclass` with `.id`, `.name`, `.input` **attributes**, not a dict.
+
+Same root-cause class as `tool_uses_raw`: dispatch_specialist code was authored assuming dict-shaped values, but the ChatResponse parser delivers typed dataclasses. Both bugs introduced in the same commit (`42725c6`, ADR-260/261/262 PR #9 squash, 2026-05-10).
+
+### Fix — canonical pattern from reviewer_agent.py (again)
+
+```python
+for tu in response.tool_uses:
+    tool_name = tu.name or ""
+    tool_input = tu.input or {}
+    tool_use_id = tu.id or ""
+```
+
+Attribute access against the typed dataclass. Matches `reviewer_agent.py`'s pattern exactly (one canonical shape across the codebase, not two).
+
+### Files changed
+
+- **`api/services/primitives/dispatch_specialist.py`** — lines 354-365. Replaced three `.get()` calls with attribute access. Added a comment explaining the ToolUseBlock shape so future authors don't repeat the mistake.
+- **`api/test_adr269_capability_flow.py`** — new test `test_dispatch_specialist_tool_execution_uses_attribute_access` (5 assertions). Greps for live `tu.get(...)` patterns and verifies the new iteration shape. Includes a negative test that confirms `.get()` raises `AttributeError` on the dataclass-shaped mock — pins the bug class for future readers.
+- ADR-269 gate: 90/90 PASS (was 85/85).
+
+### Singular Implementation
+
+- Same canonical pattern as `reviewer_agent.py` and the prior [2026.05.13.4] fix.
+- No band-aid checks (`hasattr`, `isinstance`). The runtime contract is `ToolUseBlock`; code matches the contract.
+- The test's grep checks specifically for the three live access patterns (`tu.get("name")`, `tu.get("input")`, `tu.get("id")`) without false-positive on other `.get()` uses (e.g., `usage.get(...)` on the dict-shaped token-usage object).
+
+### What this unblocks
+
+DispatchSpecialist's tool-execution loop now runs cleanly. The three alpha-trader recurrences (`track-universe`, `track-regime`, `falsify-signals`) should produce substrate on the next scheduler tick post-deploy:
+- `/workspace/context/trading/_regime.yaml` (VIXY + SPY regime computation)
+- `/workspace/context/trading/{ticker}.yaml` per universe member (1Hour bar fundamentals)
+- `/workspace/research/findings/{signal_id}.md` per declared signal (90-day historical falsification)
+
+### Verification persona
+
+Same as ADR-270 + [2026.05.13.4]: `seulkim88@gmail.com` → user_id `2be30ac5-...`. Reset → wait one scheduler tick → inspect filesystem.
+
+---
+
 ## [2026.05.13.4] - fix(dispatch_specialist): replace nonexistent `tool_uses_raw` field with canonical `response.content` reconstruction
 
 ### Closes the upstream specialist-dispatch bottleneck (Phase 0-3 of the structural-resolution path)

@@ -351,12 +351,18 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
             # Specialist returned text — terminal
             break
 
-        # Execute tools, append results
+        # Execute tools, append results.
+        # `response.tool_uses` is `list[ToolUseBlock]` per anthropic.py
+        # _parse_response: ToolUseBlock is a @dataclass with `.id`, `.name`,
+        # `.input` attributes — NOT a dict. The earlier `.get()` access
+        # raised `'ToolUseBlock' has no 'get' attribute` and blocked every
+        # specialist's tool-execution turn. Same canonical pattern as
+        # reviewer_agent.py: attribute access against the typed dataclass.
         tool_results: list[dict] = []
         for tu in response.tool_uses:
-            tool_name = tu.get("name") or ""
-            tool_input = tu.get("input") or {}
-            tool_use_id = tu.get("id") or ""
+            tool_name = tu.name or ""
+            tool_input = tu.input or {}
+            tool_use_id = tu.id or ""
             tools_called.append(tool_name)
             try:
                 result = await executor(tool_name, tool_input)

@@ -357,6 +357,79 @@ def test_dispatch_specialist_message_append_uses_response_content():
     assert_eq(assistant_content[1]["input"], {"path": "x"}, "tool_use input round-trips")
 
 
+def test_dispatch_specialist_tool_execution_uses_attribute_access():
+    """Regression for the 'ToolUseBlock has no get attribute' AttributeError
+    that blocked every specialist tool-execution turn until 2026-05-13.
+
+    Background: dispatch_specialist.py previously read tool_use fields as
+    `tu.get("name")` / `tu.get("input")` / `tu.get("id")`. But
+    `response.tool_uses` is `list[ToolUseBlock]` per anthropic.py
+    `_parse_response` (lines 110-114) — `ToolUseBlock` is a @dataclass
+    with `.id`, `.name`, `.input` attributes, NOT a dict. The fix uses
+    attribute access (matches reviewer_agent.py's pattern).
+
+    Surfaced AFTER the tool_uses_raw fix shipped — same underlying class
+    of bug (code assumed dict shape, runtime delivers dataclass).
+
+    This test verifies:
+      1. No live (non-comment) `tu.get(` patterns exist in the iteration
+         over response.tool_uses.
+      2. A mock ToolUseBlock-shaped object can be iterated using the
+         attribute access pattern without raising.
+    """
+    import inspect
+    from services.primitives import dispatch_specialist as ds
+
+    # 1. Grep the source for the bug shape — `tu.get(` after iterating
+    #    `for tu in response.tool_uses:`.
+    source = inspect.getsource(ds)
+    live_refs = [
+        line for line in source.splitlines()
+        if (line.strip().startswith("tool_name = tu.get")
+            or line.strip().startswith("tool_input = tu.get")
+            or line.strip().startswith("tool_use_id = tu.get"))
+        and not line.strip().startswith("#")
+    ]
+    assert_eq(
+        live_refs, [],
+        "no live `tu.get(...)` access on ToolUseBlock items remains",
+    )
+
+    # 2. Reconstruct the tool-execution iteration pattern in isolation.
+    class _MockToolUseBlock:
+        """Mirrors anthropic.py ToolUseBlock dataclass: attribute access only."""
+        def __init__(self, id, name, input):
+            self.id = id
+            self.name = name
+            self.input = input
+
+    mock_tool_uses = [
+        _MockToolUseBlock(id="t_1", name="ReadFile", input={"path": "/x"}),
+        _MockToolUseBlock(id="t_2", name="WriteFile", input={"path": "/y", "content": "z"}),
+    ]
+
+    # This is the exact pattern from dispatch_specialist.py post-fix.
+    results = []
+    for tu in mock_tool_uses:
+        tool_name = tu.name or ""
+        tool_input = tu.input or {}
+        tool_use_id = tu.id or ""
+        results.append((tool_name, tool_input, tool_use_id))
+
+    assert_eq(len(results), 2, "iterated 2 tool_uses")
+    assert_eq(results[0], ("ReadFile", {"path": "/x"}, "t_1"), "first tool_use unpacked correctly")
+    assert_eq(results[1], ("WriteFile", {"path": "/y", "content": "z"}, "t_2"), "second tool_use unpacked correctly")
+
+    # 3. Negative test: attempting `.get()` on the dataclass-shaped mock
+    #    should raise AttributeError — confirms the bug class.
+    raised = False
+    try:
+        mock_tool_uses[0].get("name")
+    except AttributeError:
+        raised = True
+    assert_true(raised, "AttributeError raised when calling .get() on ToolUseBlock-shaped object (confirms bug class)")
+
+
 def main():
     tests = [
         test_recurrence_dataclass_has_required_capabilities,
@@ -371,6 +444,7 @@ def main():
         test_workspace_init_skips_bundle_owned_paths,
         test_alpha_trader_bundle_parses_cleanly,
         test_dispatch_specialist_message_append_uses_response_content,
+        test_dispatch_specialist_tool_execution_uses_attribute_access,
     ]
     for t in tests:
         try:
