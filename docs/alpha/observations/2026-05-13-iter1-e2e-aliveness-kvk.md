@@ -55,7 +55,9 @@ Steered. KVK directs each step; Claude narrates intent before each consequential
 # Expected: 28/29 (1 FAIL = platform_connections count 0 vs expected 1, pre-connect)
 
 # Phase 5 — Connect Alpaca (DEFAULT-DENY: needs explicit per-turn go)
-#          Requires ALPHA_KVK_ALPACA_KEY + ALPHA_KVK_ALPACA_SECRET in env (1Password)
+#          Requires KVK_ALPACA_KEY + KVK_ALPACA_SECRET in env, sourced from
+#          api/.env.alpha-ops (see OPERATOR-HARNESS.md §"Where secrets live").
+set -a; source api/.env.alpha-ops; set +a
 .venv/bin/python -m api.scripts.alpha_ops.connect kvk
 
 # Phase 6 — Post-connect verify (read-only)

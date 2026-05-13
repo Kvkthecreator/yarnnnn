@@ -78,7 +78,7 @@ or browser-automation-equipped Claude sessions. Not this Code session.
 
 **What Claude has:**
 - Actual browser (Chrome via Cowork, or headless via Playwright)
-- Ability to log in with persona credentials from 1Password
+- Ability to log in with persona credentials supplied by KVK
 - Rendered cockpit surfaces — can see `/overview`, click
   ProposalCards, read Review chronicle, inspect Context files via the
   UI
@@ -88,7 +88,8 @@ or browser-automation-equipped Claude sessions. Not this Code session.
 - Direct API call bypass — must go through the UI unless augmented
 
 **Auth pattern:**
-1. KVK pulls persona credentials from 1Password
+1. KVK supplies persona web-login credentials (from wherever KVK keeps
+   them — password manager, notes, memory)
 2. KVK either (a) starts the browser session and logs in, then hands
    Claude Cowork the ready tab, or (b) pastes credentials to Cowork
    and instructs "log in as alpha-trader"
@@ -293,19 +294,20 @@ This split is what lets the subagent run autonomous-loop rituals without nagging
 ### Mode 1 auth requirements
 
 - `SUPABASE_SERVICE_KEY` env var set (source: `docs/database/ACCESS.md`,
-  stored in shell env or `api/.env`)
+  stored in `api/.env.alpha-ops` per
+  [OPERATOR-HARNESS.md §"Where secrets live"](./OPERATOR-HARNESS.md#where-secrets-live))
 - Python deps: `psycopg2-binary`, `pyyaml`, `python-dotenv`, `httpx`
   (in `.venv`; install with
   `.venv/bin/pip install psycopg2-binary pyyaml python-dotenv httpx`
   if a fresh venv)
 - For `connect.py` only: persona platform creds as env vars per
-  `personas.yaml` `credentials_env` block (values from 1Password)
+  `personas.yaml::credentials_env`, sourced from `api/.env.alpha-ops`
 
 ### Mode 2 auth requirements
 
-- 1Password access to shared vault `YARNNN Alpha-1`:
-  - `alpha-trader.yarnnn-login` (email + password)
-  - `alpha-commerce.yarnnn-login` (email + password)
+- Persona web-login credentials (email + password), supplied by KVK
+  per session — there is no shared vault. Mode 2 is browser-cockpit
+  operation; web-app passwords come from wherever KVK keeps them.
 - Browser with working cookies (Cowork provides this; Playwright
   provides this with more control)
 - YARNNN web app URL (`app.yarnnn.com` or wherever prod lives)

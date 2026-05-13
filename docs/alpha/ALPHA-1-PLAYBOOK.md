@@ -641,7 +641,7 @@ The Cluster 2 audit (Reviewer apparatus — IDENTITY + principles.md + `_princip
 
 All three KVK-delegated decisions resolved during v4 iteration. Locked values:
 
-- **Credentials vault:** 1Password (shared vault named `YARNNN Alpha-1`)
+- **Credentials home:** `api/.env.alpha-ops` (gitignored; canonical pattern per [OPERATOR-HARNESS.md §"Where secrets live"](./OPERATOR-HARNESS.md#where-secrets-live))
 - **Render workspace:** `tea-cspsq5ogph6c73f4m8t0` (KVKtheCreator's Workspace — only one exists; auto-selected by the MCP tool when Claude queried)
 - **Commerce platform:** Shopify (Option B per §3B.0) — dev store for Alpha-1, production upgrade at Alpha-2
 - **Persona emails:** Gmail aliases (`you+alpha-trader@gmail.com`, `you+alpha-commerce@gmail.com`) off KVK's existing Gmail. Resend outbound already configured; inbound-parse deferred to post-alpha ADR if friction warrants (see "Email architecture note" below).
@@ -673,27 +673,26 @@ KVK requested agent-first email provisioning via Resend. Claude audited: Resend 
 #### Phase 0 task split
 
 **KVK-owned (external signup + account provisioning):**
-- [ ] Create 1Password shared vault `YARNNN Alpha-1`. Add entries for:
-  - `alpha-trader.yarnnn-login` (will populate after YARNNN signup)
-  - `alpha-trader.alpaca-paper` (API key + secret after Alpaca signup)
-  - `alpha-trader.gmail-alias` (email address used; no password needed since it's an alias)
-  - `alpha-commerce.yarnnn-login` (will populate)
-  - `alpha-commerce.shopify-admin` (Admin API token after Shopify signup)
-  - `alpha-commerce.gmail-alias`
+- [ ] Create `api/.env.alpha-ops` (gitignored). Populate the env vars
+      named in [docs/alpha/personas.yaml](./personas.yaml) under each
+      persona's `credentials_env` block, plus `SUPABASE_SERVICE_KEY` from
+      [docs/database/ACCESS.md](../database/ACCESS.md). See
+      [OPERATOR-HARNESS.md §"Where secrets live"](./OPERATOR-HARNESS.md#where-secrets-live)
+      for the file shape.
 - [ ] Create Gmail aliases (no separate Gmail accounts needed):
   - `{your-gmail}+alpha-trader@gmail.com`
   - `{your-gmail}+alpha-commerce@gmail.com`
   - Optional: add Gmail filters routing messages with these `+` tags into dedicated labels
 - [ ] **Alpaca paper credentials.** *Already exists — reuse, do not re-signup.* An active Alpaca paper connection exists in YARNNN production under `kvkthecreator@gmail.com` (verified 2026-04-20 via `platform_connections` DB query; account ends AI0V, created 2026-04-16 during ADR-187 shipping). Options:
-  - **(Recommended) Option 2 — Reuse the key in a fresh `alpha-trader` workspace.** Log into alpaca.markets → paper dashboard → API keys. Copy the existing key ID (starts `PK...`). If you have the secret saved (1Password / keychain / shell history), reuse it. If you've lost the secret, regenerate — but know this invalidates the key your main YARNNN account is using and you'll need to reconnect both. Paste both into the new YARNNN alpha-trader workspace's integrations UI during Phase 1.
+  - **(Recommended) Option 2 — Reuse the key in a fresh `alpha-trader` workspace.** Log into alpaca.markets → paper dashboard → API keys. Copy the existing key ID (starts `PK...`). If you have the secret saved (password manager / keychain / shell history), reuse it. If you've lost the secret, regenerate — but know this invalidates the key your main YARNNN account is using and you'll need to reconnect both. Paste both into `api/.env.alpha-ops` under the appropriate persona's `credentials_env` names; `connect.py` reads them from env when invoked during Phase 1.
   - **(Alternative) Option 1 — Use `kvkthecreator@gmail.com` YARNNN workspace as `alpha-trader`.** No second Alpaca step. Seed Simons-persona files into the existing workspace. Downside: mixed workspace (personal + persona artifacts).
   - Claude recommends Option 2 for persona-separation discipline even at the cost of one copy-paste step.
-- [ ] Sign up for Shopify dev store (free) → partners.shopify.com → create development store → admin panel → apps → create custom app → generate Admin API token with scopes `read_products, write_products, read_inventory, write_inventory, read_orders, write_orders, read_customers, read_price_rules, write_price_rules` → store token in 1Password
+- [ ] Sign up for Shopify dev store (free) → partners.shopify.com → create development store → admin panel → apps → create custom app → generate Admin API token with scopes `read_products, write_products, read_inventory, write_inventory, read_orders, write_orders, read_customers, read_price_rules, write_price_rules` → store token in `api/.env.alpha-ops`
 - [ ] Sign up for 2 YARNNN workspaces using the Gmail aliases:
   - Workspace 1: email = `{your-gmail}+alpha-trader@gmail.com`, workspace name `alpha-trader`
   - Workspace 2: email = `{your-gmail}+alpha-commerce@gmail.com`, workspace name `alpha-commerce`
-  - Store login credentials in 1Password entries
-- [ ] Share 1Password vault access with Claude's operator identity (or confirm session-based access model — see §open questions)
+  - KVK keeps web-login passwords wherever KVK prefers (password manager,
+    notes); they're Mode-2 cockpit creds, not harness creds.
 
 **Claude-owned (after KVK completes the above):**
 - [ ] Verify Render env var inventory (done during v4 audit — nothing alpha-blocking)

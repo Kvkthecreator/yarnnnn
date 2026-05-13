@@ -10,6 +10,9 @@ venv/
 .env.local
 .env.*.local
 
+# Alpha operator credentials (per docs/alpha/OPERATOR-HARNESS.md §"Where secrets live")
+api/.env.alpha-ops
+
 # Build
 .next/
 out/

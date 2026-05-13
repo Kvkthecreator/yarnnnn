@@ -29,45 +29,69 @@ identifiers, payload shapes, or verification invariants each time.
 
 ## Where secrets live
 
-Nothing secret is committed. The harness assumes three things exist outside
+Nothing secret is committed. The harness assumes two things exist outside
 the repo:
 
 1. **Supabase service key** (admin DB access, JWT minting):
    - Source: `docs/database/ACCESS.md`
    - Env var: `SUPABASE_SERVICE_KEY`
-   - Shared by: KVK (password manager) + Claude (reads from env per session)
+   - KVK keeps the value; Claude reads from env per session.
 
-2. **Persona external creds** (Alpaca paper keys, LemonSqueezy API key):
-   - Source: 1Password vault `YARNNN Alpha-1` (entries named in `personas.yaml` `vault_entry`)
-   - Env vars (names defined in `personas.yaml` under `credentials_env`):
-     - `ALPHA_TRADER_ALPACA_KEY`
-     - `ALPHA_TRADER_ALPACA_SECRET`
-     - `ALPHA_COMMERCE_LEMONSQUEEZY_KEY`
+2. **Persona external creds** (Alpaca paper API keys per persona):
+   - Source: `api/.env.alpha-ops` — gitignored file at the repo root.
+     The canonical home for alpha persona credentials.
+   - Env var names are defined in `docs/alpha/personas.yaml` under each
+     persona's `credentials_env` block:
+     - `kvk` → `KVK_ALPACA_KEY` + `KVK_ALPACA_SECRET`
+     - `alpha-trader` → `ALPHA_TRADER_ALPACA_KEY` + `ALPHA_TRADER_ALPACA_SECRET`
+     - `alpha-trader-2` → `ALPHA_TRADER_2_ALPACA_KEY` + `ALPHA_TRADER_2_ALPACA_SECRET`
 
-3. **Production `INTEGRATION_ENCRYPTION_KEY`** (the Fernet key that
-   encrypts creds in `platform_connections`):
-   - Source: Render env on `yarnnn-api` + `yarnnn-unified-scheduler`
-   - Neither you nor Claude ever reads this directly. The connect scripts
-     POST plaintext creds to prod over TLS; Render encrypts them there.
-     This is by design — the blast radius of a leaked service key stays
-     at "can read DB rows" and doesn't extend to "can decrypt every
-     persona's Alpaca account".
+3. **Production `INTEGRATION_ENCRYPTION_KEY`** (Fernet key that encrypts
+   creds in `platform_connections`):
+   - Source: Render env on `yarnnn-api` + `yarnnn-unified-scheduler`.
+   - Neither KVK nor Claude reads this directly. The connect scripts POST
+     plaintext creds to prod over TLS; Render encrypts them there. The
+     blast radius of a leaked service key stays at "can read DB rows" —
+     it doesn't extend to "can decrypt every persona's Alpaca account."
 
-### Recommended session-start ritual (KVK or Claude)
+### `api/.env.alpha-ops` shape
 
 ```bash
-cd /Users/macbook/yarnnn/api
+# Supabase service key (read SUPABASE_SERVICE_KEY value from docs/database/ACCESS.md)
+SUPABASE_SERVICE_KEY=...
 
-# Make sure .env has SUPABASE_SERVICE_KEY. For connect operations also load:
-export ALPHA_TRADER_ALPACA_KEY='PKB3...'       # 1Password > alpha-trader.alpaca-paper
-export ALPHA_TRADER_ALPACA_SECRET='GYVQ...'
-export ALPHA_COMMERCE_LEMONSQUEEZY_KEY='eyJ0...'  # 1Password > alpha-commerce.lemonsqueezy
+# Per-persona Alpaca paper creds (only present for personas you operate)
+KVK_ALPACA_KEY=PK...
+KVK_ALPACA_SECRET=...
+
+ALPHA_TRADER_ALPACA_KEY=PK...
+ALPHA_TRADER_ALPACA_SECRET=...
+
+ALPHA_TRADER_2_ALPACA_KEY=PK...
+ALPHA_TRADER_2_ALPACA_SECRET=...
 ```
 
-Pragmatic tip: keep a small `api/.env.alpha-ops` (gitignored — the repo
-`.gitignore` already excludes `.env*`) that exports the above. Source it
-when you need connect operations. Don't source it during day-to-day API
-development — you don't want persona creds sitting in random Python shells.
+The file is gitignored via an explicit entry in `.gitignore`
+(`api/.env.alpha-ops`). Don't rename it, don't move it — `.gitignore`
+matches this exact path, and any deviation risks accidental commit.
+
+### Session-start ritual (KVK or Claude)
+
+```bash
+cd /Users/macbook/yarnnn
+
+# Source the alpha-ops env file for any session that runs connect.py or
+# verify.py --cost (which needs SUPABASE_SERVICE_KEY). verify.py without
+# --cost is read-only over the prod API and doesn't need the secret key.
+set -a; source api/.env.alpha-ops; set +a
+
+# Sanity check the persona registry + workspace shape
+.venv/bin/python -m api.scripts.alpha_ops.verify --all
+```
+
+Source the env file only when you need it. Don't `source` it during
+day-to-day API development — you don't want persona creds sitting in
+random Python shells longer than the operator-task that needs them.
 
 ## Commands
 
@@ -134,13 +158,18 @@ JWTs last ~1 hour. Mint a new one if you get a 401.
 ### Connect platform creds
 
 ```bash
-# Requires env vars named in personas.yaml credentials_env.
-python api/scripts/alpha_ops/connect.py alpha-trader
-python api/scripts/alpha_ops/connect.py alpha-commerce
+# Source the alpha-ops env file first (provides the api_key + api_secret
+# env vars named in personas.yaml::credentials_env).
+set -a; source api/.env.alpha-ops; set +a
+
+python -m api.scripts.alpha_ops.connect kvk
+python -m api.scripts.alpha_ops.connect alpha-trader
+python -m api.scripts.alpha_ops.connect alpha-trader-2
 ```
 
 Idempotent — the prod connect endpoints upsert. Safe to re-run to rotate
-a key.
+a key. If the env vars are missing the script fails fast with a pointer
+back to `.env.alpha-ops`.
 
 ### Reset a persona to cold-start
 

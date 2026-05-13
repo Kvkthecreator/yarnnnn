@@ -69,7 +69,6 @@ class Persona:
     platform: dict[str, Any]
     context_domains: list[str]
     credentials_env: dict[str, str]
-    vault_entry: str
     expected: dict[str, Any]
 
     @property
@@ -136,7 +135,6 @@ def load_registry() -> Registry:
             platform=p["platform"],
             context_domains=p.get("context_domains", []),
             credentials_env=p.get("credentials_env", {}),
-            vault_entry=p.get("vault_entry", ""),
             expected=p.get("expected", {}),
         )
         for p in raw.get("personas", [])

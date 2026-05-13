@@ -1,8 +1,9 @@
 # Alpha-1 Persona Registry
 #
 # Single source of truth for who each alpha persona is and where their state
-# lives. No secrets belong in this file — credentials live in 1Password +
-# local env vars (see docs/alpha/OPERATOR-HARNESS.md).
+# lives. No secrets belong in this file — credentials live in
+# api/.env.alpha-ops (gitignored, see docs/alpha/OPERATOR-HARNESS.md
+# §"Where secrets live").
 #
 # Both KVK and Claude read this file to know which workspace to act on.
 # Any persona added here is callable via scripts/alpha_ops/*.py by slug.
@@ -74,11 +75,10 @@ personas:
       # invariants; they emerge.
       - trading
     # Exact cred env-var names the connect script reads.
-    # Not the values — those are in 1Password > YARNNN Alpha-1 > alpha-trader.alpaca-paper
+    # Values live in api/.env.alpha-ops (gitignored).
     credentials_env:
       api_key:    ALPHA_TRADER_ALPACA_KEY
       api_secret: ALPHA_TRADER_ALPACA_SECRET
-    vault_entry: "1Password > YARNNN Alpha-1 > alpha-trader.alpaca-paper"
     # Invariants that verify.py checks on this persona.
     expected:
       agent_count: 1   # YARNNN only at activation (specialists lazy-create on dispatch per ADR-205)
@@ -134,7 +134,6 @@ personas:
     credentials_env:
       api_key:    ALPHA_TRADER_2_ALPACA_KEY
       api_secret: ALPHA_TRADER_2_ALPACA_SECRET
-    vault_entry: "kvk personal — see Phase B parallel-loop session log"
     expected:
       agent_count: 1   # YARNNN only at activation (specialists lazy-create on dispatch per ADR-205)
       active_roles: [thinking_partner]
@@ -190,7 +189,6 @@ personas:
     credentials_env:
       api_key:    KVK_ALPACA_KEY
       api_secret: KVK_ALPACA_SECRET
-    vault_entry: "1Password > YARNNN Alpha-1 > kvk.alpaca-paper"
     expected:
       # Per ADR-205, signup scaffolds exactly one agent (YARNNN). Specialists
       # (tracker/analyst/writer/etc.) lazy-create on first dispatch; not

@@ -45,7 +45,7 @@ def _build_payload(persona) -> tuple[str, dict]:
         if not key or not secret:
             raise SystemExit(
                 f"Missing credentials. Set {env['api_key']} and {env['api_secret']} in env. "
-                f"Retrieve from: {persona.vault_entry}"
+                f"Source from api/.env.alpha-ops (see docs/alpha/OPERATOR-HARNESS.md §'Where secrets live')."
             )
         payload = {
             "api_key": key,
@@ -59,7 +59,7 @@ def _build_payload(persona) -> tuple[str, dict]:
         if not key:
             raise SystemExit(
                 f"Missing credentials. Set {env['api_key']} in env. "
-                f"Retrieve from: {persona.vault_entry}"
+                f"Source from api/.env.alpha-ops (see docs/alpha/OPERATOR-HARNESS.md §'Where secrets live')."
             )
         payload = {"api_key": key}
         return "/api/integrations/commerce/connect", payload
