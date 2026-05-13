@@ -33,7 +33,7 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Any, Optional, Union
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -61,7 +61,10 @@ router = APIRouter()
 
 class TaskUpdate(BaseModel):
     status: Optional[str] = None
-    schedule: Optional[str] = None
+    # ADR-268: schedule accepts plain UTC cron, @-prefixed semantic, OR
+    # a list of either (multiple fires per day). Mutating via
+    # Schedule(action='update') accepts both shapes.
+    schedule: Optional[Union[str, list[str]]] = None
 
 
 class TaskResponse(BaseModel):
@@ -74,7 +77,11 @@ class TaskResponse(BaseModel):
     # 'is schedule set' — redundant with the schedule field itself; the FE
     # already derives that label client-side via `recurrenceLabel(schedule)`).
     mode: Optional[str] = None
-    schedule: Optional[str] = None
+    # ADR-268: schedule is the recurrence's authored schedule string OR
+    # a list of strings (multiple fires per day, e.g. `track-universe`'s
+    # three RTH snapshots). FE consumers normalize via `scheduleDisplay()`
+    # in web/lib/schedule.ts.
+    schedule: Optional[Union[str, list[str]]] = None
     next_run_at: Optional[str] = None
     last_run_at: Optional[str] = None
     created_at: str
@@ -153,6 +160,30 @@ def _rec_for_slug(
     return next((r for r in recurrences if r.slug == slug), None)
 
 
+def _decode_persisted_schedule(value: Any) -> Optional[Union[str, list[str]]]:
+    """Decode the `tasks.schedule` column back to its authored shape.
+
+    Per ADR-268 we persist list-form schedules as JSON-encoded strings
+    so the `text` column stays consistent. On read, attempt to parse JSON
+    when the value starts with `[`; otherwise return as plain string.
+    Returns None for empty/None values.
+    """
+    if value is None:
+        return None
+    s = str(value).strip()
+    if not s:
+        return None
+    if s.startswith("["):
+        try:
+            import json
+            parsed = json.loads(s)
+            if isinstance(parsed, list) and all(isinstance(x, str) for x in parsed):
+                return parsed
+        except Exception:
+            pass
+    return s
+
+
 def _rec_to_response(
     row: dict,
     rec: Optional[Recurrence],
@@ -166,6 +197,11 @@ def _rec_to_response(
     (objective, agents, delivery, context_reads/writes) now come from the
     optional ``options`` blob if the operator chose to set them; otherwise
     None. The FE renders them defensively.
+
+    ADR-268: `schedule` is Union[str, list[str], None]. When the parsed
+    Recurrence is available, surface its authored form directly. Fallback
+    to row.schedule (decoded back from its JSON-string persisted form
+    if it was a list).
     """
     options = (rec.options if rec else {}) or {}
     title = options.get("display_name") or row["slug"]
@@ -182,7 +218,7 @@ def _rec_to_response(
         # available — preserves backward compatibility for legacy entries that
         # exist only as scheduling-index rows without a parsed YAML body.
         mode=(rec.mode if rec else "judgment"),
-        schedule=(rec.schedule if rec else row.get("schedule")) or None,
+        schedule=(rec.schedule if rec else _decode_persisted_schedule(row.get("schedule"))),
         next_run_at=row.get("next_run_at"),
         last_run_at=row.get("last_run_at"),
         created_at=row["created_at"],

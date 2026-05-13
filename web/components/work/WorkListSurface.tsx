@@ -110,12 +110,20 @@ function buildSearchText(task: Recurrence, agents: Agent[]): string {
   const obj = task.objective
     ? [task.objective.deliverable, task.objective.audience, task.objective.purpose, task.objective.format]
     : [];
+  // ADR-268: schedule may be list-form (multiple fires per day); flatten
+  // for the search-index token blob so any member matches the operator's
+  // search query without leaking JSON array syntax into the tokens.
+  const scheduleTokens = Array.isArray(task.schedule)
+    ? task.schedule
+    : task.schedule
+      ? [task.schedule]
+      : [];
   return [
     task.title,
     ...agentNamesFor(task, agents),
     task.slug,
     task.delivery,
-    task.schedule,
+    ...scheduleTokens,
     ...(task.context_reads ?? []),
     ...(task.context_writes ?? []),
     ...obj,

@@ -320,8 +320,12 @@ export interface AgentMemory {
 // whether `schedule` is set.
 export type RecurrenceLabel = 'Recurring' | 'One-time';
 
-export function recurrenceLabel(schedule: string | undefined | null): RecurrenceLabel {
+export function recurrenceLabel(
+  schedule: string | string[] | undefined | null,
+): RecurrenceLabel {
   if (!schedule) return 'One-time';
+  // ADR-268: list-form (multiple fires per day) is unambiguously recurring.
+  if (Array.isArray(schedule)) return schedule.length > 0 ? 'Recurring' : 'One-time';
   const s = schedule.trim().toLowerCase();
   return s && s !== 'on-demand' ? 'Recurring' : 'One-time';
 }
@@ -737,7 +741,11 @@ export interface Recurrence {
   title: string;
   status: RecurrenceStatus;
   mode?: RecurrenceMode;       // ADR-263: defaults to 'judgment' on legacy entries
-  schedule?: string;           // cron or human-readable cadence (null = reactive)
+  // ADR-268: schedule may be a single string (plain cron OR @-prefixed
+  // semantic) OR a list of strings (multiple fires per day, e.g.
+  // track-universe's three RTH snapshots). Consumers normalize via
+  // `scheduleDisplay()` in web/lib/schedule.ts. null = reactive.
+  schedule?: string | string[];
   next_run_at?: string;
   last_run_at?: string;
   paused?: boolean;            // explicit flag (ADR-231 Phase 3.4)

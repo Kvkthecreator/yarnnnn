@@ -17,6 +17,7 @@ import { useState, useEffect } from 'react';
 import { ChevronRight, ChevronDown, Circle, FolderOpen, FileText, Settings, Plus } from 'lucide-react';
 import { FileIcon } from './FileIcon';
 import { cn } from '@/lib/utils';
+import { scheduleDisplay } from '@/lib/schedule';
 import { api } from '@/lib/api/client';
 
 interface NavData {
@@ -129,7 +130,7 @@ export function WorkspaceNav({
               />
               <span className="truncate flex-1">{task.title}</span>
               {task.schedule && (
-                <span className="text-[10px] text-muted-foreground flex-shrink-0">{task.schedule}</span>
+                <span className="text-[10px] text-muted-foreground flex-shrink-0">{scheduleDisplay(task.schedule)}</span>
               )}
             </button>
           ))}

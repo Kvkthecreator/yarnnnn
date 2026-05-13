@@ -11,7 +11,9 @@ import { cn } from '@/lib/utils';
 import { recurrenceLabel } from '@/types';
 
 interface WorkShapeBadgeProps {
-  schedule: string | undefined | null;
+  // ADR-268: list-form schedules (multiple fires per day) are accepted;
+  // `recurrenceLabel` returns 'Recurring' for non-empty lists.
+  schedule: string | string[] | undefined | null;
   className?: string;
 }
 

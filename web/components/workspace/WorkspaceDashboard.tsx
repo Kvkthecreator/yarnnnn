@@ -12,6 +12,7 @@
 import { useMemo } from 'react';
 import { Loader2, CheckCircle2, Clock, FolderOpen } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { scheduleDisplay } from '@/lib/schedule';
 import type { Recurrence, Agent } from '@/types';
 
 interface WorkspaceDashboardProps {
@@ -118,7 +119,7 @@ export function WorkspaceDashboard({ tasks, agents, isometricRoom }: WorkspaceDa
                    formatRelative(item.time)}
                 </p>
                 {item.task.schedule && item.status !== 'running' && (
-                  <p className="text-[9px] text-muted-foreground/30">{item.task.schedule}</p>
+                  <p className="text-[9px] text-muted-foreground/30">{scheduleDisplay(item.task.schedule)}</p>
                 )}
               </div>
             </a>

@@ -39,13 +39,40 @@ export const CADENCE_LABELS: Record<CadenceCategory, { title: string; descriptio
 };
 
 /**
+ * Schedule shape accepted across the FE — single string, list of strings,
+ * or null/undefined. Per ADR-268, list-form represents multiple fires per
+ * day on a single recurrence (e.g. `track-universe` snapshots open + mid +
+ * close). All FE consumers normalize via the helpers below; no caller
+ * directly destructures the field.
+ */
+export type ScheduleValue = string | string[] | undefined | null;
+
+/**
+ * Reduce a list-or-string schedule to the first non-empty member as a
+ * string. Used internally by the display + classification helpers.
+ * Returns null when the value is empty/missing.
+ */
+function _firstScheduleString(schedule: ScheduleValue): string | null {
+  if (!schedule) return null;
+  if (Array.isArray(schedule)) {
+    for (const s of schedule) {
+      if (typeof s === 'string' && s.trim()) return s.trim();
+    }
+    return null;
+  }
+  const s = String(schedule).trim();
+  return s ? s : null;
+}
+
+/**
  * Classify a recurrence by its temporal flavor.
  * Mirrors the `recurrenceLabel()` rule for "recurring" so the badge on /work
  * and the section on /schedule stay in agreement.
+ * ADR-268: handles both string and list-of-strings.
  */
 export function cadenceCategory(recurrence: Recurrence): CadenceCategory {
-  const schedule = recurrence.schedule?.trim().toLowerCase();
-  if (schedule && schedule !== 'on-demand') return 'recurring';
+  const first = _firstScheduleString(recurrence.schedule)?.toLowerCase();
+  if (first && first !== 'on-demand') return 'recurring';
   return 'reactive';
 }
 
@@ -54,11 +81,28 @@ export function cadenceCategory(recurrence: Recurrence): CadenceCategory {
  * Cron expressions are recognized loosely; everything else is title-cased.
  * Reactive recurrences pass an empty/undefined schedule and get rendered
  * with their cadence-category label by the caller, not here.
+ *
+ * ADR-268: list-form returns a count-suffixed shape ("3× daily" plus the
+ * first member humanized) so the operator sees the multi-fire intent at
+ * a glance without the row growing unbounded.
  */
-export function humanizeSchedule(schedule: string | undefined | null): string {
+export function humanizeSchedule(schedule: ScheduleValue): string {
+  if (Array.isArray(schedule)) {
+    const filtered = schedule.filter((s): s is string => typeof s === 'string' && !!s.trim());
+    if (filtered.length === 0) return '';
+    if (filtered.length === 1) return _humanizeOne(filtered[0]);
+    // Multi-fire: "3× · first humanized" — compact, surfaces intent
+    return `${filtered.length}× · ${_humanizeOne(filtered[0])}`;
+  }
+  return _humanizeOne(schedule);
+}
+
+function _humanizeOne(schedule: string | undefined | null): string {
   if (!schedule) return '';
   const s = schedule.trim();
   if (!s) return '';
+  // ADR-268: @-prefixed semantic — pass through cleanly (operator-readable).
+  if (s.startsWith('@')) return s;
   // Plain words (daily, weekly, hourly, monthly, every-monday, ...)
   if (/^[a-z][a-z0-9-]*$/i.test(s)) {
     return s.charAt(0).toUpperCase() + s.slice(1).replace(/-/g, ' ');
@@ -66,4 +110,13 @@ export function humanizeSchedule(schedule: string | undefined | null): string {
   // Cron-like: 5 fields → "Custom"
   if (/^(\*|[\d\/,-]+)(\s+(\*|[\d\/,-]+)){4}$/.test(s)) return 'Custom';
   return s;
+}
+
+/**
+ * The canonical display reducer for ADR-268 list-or-string schedules.
+ * Use this anywhere you'd previously have rendered `{task.schedule}`
+ * directly. Returns "" when the schedule is missing.
+ */
+export function scheduleDisplay(schedule: ScheduleValue): string {
+  return humanizeSchedule(schedule);
 }

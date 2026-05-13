@@ -18,6 +18,7 @@ import { useWorkDetailActions } from '../WorkDetailActionsContext';
 import { WorkShapeBadge } from '@/components/work/WorkShapeBadge';
 import { AGENTS_ROUTE } from '@/lib/routes';
 import { formatRelativeTime } from '@/lib/formatting';
+import { scheduleDisplay } from '@/lib/schedule';
 import { coerceSurfaceType, SURFACE_TYPE_LABELS } from '@/lib/recurrence-shapes';
 import type { RecurrenceDetail } from '@/types';
 
@@ -54,7 +55,7 @@ export function KernelDeliverableMetadata() {
       {task.schedule && (
         <>
           <span className="text-muted-foreground/30">·</span>
-          <span className="capitalize">{task.schedule}</span>
+          <span className="capitalize">{scheduleDisplay(task.schedule)}</span>
         </>
       )}
       {task.last_run_at ? (

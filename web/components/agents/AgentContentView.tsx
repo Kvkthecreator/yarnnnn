@@ -30,6 +30,7 @@ import { AgentIcon } from './AgentIcon';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
+import { humanizeSchedule, scheduleDisplay } from '@/lib/schedule';
 import { CONTEXT_ROUTE, WORK_ROUTE } from '@/lib/routes';
 import { SubstrateTab } from './SubstrateTab';
 import { DelegationCard } from '@/components/workspace-concepts/DelegationCard';
@@ -289,13 +290,11 @@ function getTaskKindCounts(tasks: Recurrence[]): TaskKindCounts {
   }, { ...EMPTY_TASK_COUNTS });
 }
 
-function normalizeCadenceLabel(schedule?: string | null): string {
-  if (!schedule) return '';
-  const raw = schedule.trim();
-  if (!raw) return '';
-  if (/^[a-z-]+$/i.test(raw)) return formatKeyLabel(raw);
-  if (/^(\*|[\d\/,-]+)(\s+(\*|[\d\/,-]+)){4}$/.test(raw)) return 'Custom';
-  return raw;
+function normalizeCadenceLabel(schedule?: string | string[] | null): string {
+  // ADR-268: list-form schedules are recurring by construction; the
+  // canonical humanizeSchedule formats them as "N× · first" so the agent
+  // panel shows a meaningful summary without dumping each member.
+  return humanizeSchedule(schedule);
 }
 
 function summarizeRoleContract(agent: Agent, tasks: Recurrence[]) {
@@ -645,7 +644,7 @@ function TasksBlock({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
             >
               <span className="font-medium truncate">{task.title}</span>
               <div className="flex items-center gap-2 shrink-0 text-[11px] text-muted-foreground">
-                {task.schedule && <span className="capitalize">{task.schedule}</span>}
+                {task.schedule && <span className="capitalize">{scheduleDisplay(task.schedule)}</span>}
                 {task.last_run_at && (
                   <>
                     {task.schedule && <span className="text-muted-foreground/30">·</span>}

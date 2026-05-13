@@ -314,6 +314,93 @@ def test_alpha_trader_bundle_recurrences_parse():
     )
 
 
+def test_task_response_accepts_list_schedule():
+    """Regression for the iter-3 prod 500: TaskResponse must accept
+    schedule as either str or list[str] (Pydantic validation pass)."""
+    # Late import — routes module is FastAPI-dependent + heavy.
+    from routes.recurrences import TaskResponse
+    from datetime import datetime
+
+    now_iso = datetime(2026, 5, 13, 0, 0).isoformat()
+
+    # 1. Single-string form (legacy + plain cron)
+    r1 = TaskResponse(
+        id="x", slug="t", status="active",
+        schedule="0 7 * * *",
+        created_at=now_iso, updated_at=now_iso,
+    )
+    assert_eq(r1.schedule, "0 7 * * *", "TaskResponse accepts str schedule")
+
+    # 2. Semantic single-string
+    r2 = TaskResponse(
+        id="x", slug="t", status="active",
+        schedule="@market_open + 15min",
+        created_at=now_iso, updated_at=now_iso,
+    )
+    assert_eq(r2.schedule, "@market_open + 15min", "TaskResponse accepts @-prefixed str")
+
+    # 3. List form (the iter-3 prod 500 case — track-universe)
+    r3 = TaskResponse(
+        id="x", slug="t", status="active",
+        schedule=["@market_open + 15min", "@market_open + 3h", "@market_close - 1h"],
+        created_at=now_iso, updated_at=now_iso,
+    )
+    assert_true(
+        isinstance(r3.schedule, list) and len(r3.schedule) == 3,
+        "TaskResponse accepts list[str] schedule (regression: prod 500)",
+    )
+
+    # 4. None / null form (reactive)
+    r4 = TaskResponse(
+        id="x", slug="t", status="active",
+        schedule=None,
+        created_at=now_iso, updated_at=now_iso,
+    )
+    assert_eq(r4.schedule, None, "TaskResponse accepts None schedule")
+
+
+def test_decode_persisted_schedule():
+    """`_decode_persisted_schedule` round-trips JSON-encoded list strings
+    so consumers see the same authored shape that materialize_scheduling_index
+    persisted."""
+    from routes.recurrences import _decode_persisted_schedule
+
+    # JSON-encoded list (how materialize_scheduling_index persists list-form)
+    decoded = _decode_persisted_schedule(
+        '["@market_open + 15min", "@market_open + 3h"]'
+    )
+    assert_true(
+        isinstance(decoded, list) and decoded == ["@market_open + 15min", "@market_open + 3h"],
+        "decode JSON-encoded list",
+    )
+
+    # Plain cron string
+    assert_eq(
+        _decode_persisted_schedule("0 7 * * *"),
+        "0 7 * * *",
+        "decode plain cron passes through",
+    )
+
+    # Semantic single string
+    assert_eq(
+        _decode_persisted_schedule("@market_open + 15min"),
+        "@market_open + 15min",
+        "decode semantic single passes through",
+    )
+
+    # Empty / None
+    assert_eq(_decode_persisted_schedule(None), None, "decode None")
+    assert_eq(_decode_persisted_schedule(""), None, "decode empty string")
+    assert_eq(_decode_persisted_schedule("   "), None, "decode whitespace")
+
+    # Malformed JSON: falls back to plain string treatment
+    assert_eq(
+        _decode_persisted_schedule("[not json"),
+        "[not json",
+        "decode malformed JSON falls back",
+    )
+
+
 def test_alpha_trader_bundle_recurrences_resolve():
     """All semantic schedules in the alpha-trader bundle resolve cleanly."""
     bundle_path = (
@@ -373,6 +460,8 @@ def main():
         test_unknown_calendar_raises,
         test_alpha_trader_bundle_recurrences_parse,
         test_alpha_trader_bundle_recurrences_resolve,
+        test_task_response_accepts_list_schedule,
+        test_decode_persisted_schedule,
     ]
     for t in tests:
         try:
