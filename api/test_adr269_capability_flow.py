@@ -247,6 +247,27 @@ def test_alpha_trader_autonomy_is_autonomous():
     )
 
 
+def test_workspace_init_skips_bundle_owned_paths():
+    """workspace_init source skips kernel-default seeds for paths the
+    bundle's reference-workspace owns. Surfaced by iter-4 AUTONOMY flip
+    not propagating on re-fork (kernel `delegation: manual` blocked
+    bundle's `delegation: autonomous` from landing)."""
+    src = (_REPO_ROOT / "services" / "workspace_init.py").read_text()
+    assert_true(
+        "bundle_owned_paths" in src,
+        "workspace_init has bundle_owned_paths skip logic",
+    )
+    assert_true(
+        "bundle '{program_slug}' will fork canonical content" in src
+        or "bundle will fork canonical content" in src,
+        "workspace_init logs the skip rationale",
+    )
+    assert_true(
+        "_bundle_root_dir" in src,
+        "workspace_init imports _bundle_root_dir to enumerate bundle files",
+    )
+
+
 def test_alpha_trader_bundle_parses_cleanly():
     bundle_path = (
         _REPO_ROOT.parent / "docs" / "programs" / "alpha-trader"
@@ -274,6 +295,7 @@ def main():
         test_handle_dispatch_specialist_passes_capabilities,
         test_alpha_trader_bundle_declares_capabilities,
         test_alpha_trader_autonomy_is_autonomous,
+        test_workspace_init_skips_bundle_owned_paths,
         test_alpha_trader_bundle_parses_cleanly,
     ]
     for t in tests:
