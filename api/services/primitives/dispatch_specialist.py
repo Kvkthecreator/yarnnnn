@@ -203,7 +203,10 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
     tagline = template.get("tagline", "")
     default_instructions = template.get("default_instructions", "")
 
-    # Compose the focused prompt
+    # Compose the focused prompt. Returns cache-marked content blocks so
+    # rounds 2..N read the system frame from Anthropic's prompt cache
+    # rather than re-billing it. See _compose_specialist_system_prompt
+    # docstring for the ADR-171/172 economics.
     system_prompt = _compose_specialist_system_prompt(
         role=role,
         display_name=display_name,
@@ -263,8 +266,33 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
         dynamic_tools=tools,
     )
 
-    # Headless tool-use loop, bounded
+    # Headless tool-use loop, bounded. The round ceiling is per-recurrence
+    # tunable: the operator declares `options.max_rounds: N` on the
+    # recurrence YAML, the dispatcher copies `options` into the Reviewer's
+    # auth.recurrence_options namespace (reviewer_agent.py), and we read
+    # it here. Empty / missing → fall back to the global default. This
+    # exists because the global default (5) is correctly sized for
+    # single-output recurrences (e.g. track-regime) but undersized for
+    # multi-output bundles (e.g. 5-ticker track-universe needs ~10-12;
+    # 5-signal × 5-ticker falsify-signals needs ~15-20). Per ADR-176 /
+    # ADR-216, work-shape is bundle-shaped not kernel-shaped, so the
+    # kernel exposes the knob and the bundle declares its budget.
     from services.anthropic import chat_completion_with_tools
+    rec_options = getattr(auth, "recurrence_options", None) or {}
+    max_rounds_raw = rec_options.get("max_rounds")
+    try:
+        max_rounds = (
+            int(max_rounds_raw)
+            if max_rounds_raw is not None and int(max_rounds_raw) > 0
+            else _SPECIALIST_MAX_ROUNDS
+        )
+    except (TypeError, ValueError):
+        logger.warning(
+            "[DISPATCH_SPECIALIST] invalid max_rounds=%r in recurrence options — "
+            "falling back to global default %d",
+            max_rounds_raw, _SPECIALIST_MAX_ROUNDS,
+        )
+        max_rounds = _SPECIALIST_MAX_ROUNDS
     chosen_model = model or _SPECIALIST_MODEL_DEFAULT
     messages: list[dict] = [{"role": "user", "content": brief}]
     tools_called: list[str] = []
@@ -273,7 +301,7 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
     final_text = ""
     rounds = 0
 
-    for round_idx in range(_SPECIALIST_MAX_ROUNDS):
+    for round_idx in range(max_rounds):
         rounds = round_idx + 1
         try:
             response = await chat_completion_with_tools(
@@ -377,7 +405,7 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
     else:
         logger.warning(
             "[DISPATCH_SPECIALIST] role=%s exhausted %d rounds without terminal text",
-            role, _SPECIALIST_MAX_ROUNDS,
+            role, max_rounds,
         )
         # Use the last assistant text we have, even if empty
         final_text = final_text or (
@@ -450,8 +478,19 @@ def _compose_specialist_system_prompt(
     display_name: str,
     tagline: str,
     default_instructions: str,
-) -> str:
-    return _SPECIALIST_FRAME.format(
+) -> list[dict]:
+    """Compose the specialist system prompt as cache-marked content blocks.
+
+    Returns a single text block with `cache_control: {"type": "ephemeral"}`.
+    The frame + role defaults are static across every round of one
+    specialist invocation, so caching them avoids re-billing the system
+    prompt on rounds 2..N. ADR-171 §"Cache discount: not passed through"
+    + ADR-172 budget gate both assume caching is firing — the user-facing
+    2× markup is computed against full input rate, cache discount accrues
+    as platform margin. Without cache markers here, the markup compresses
+    rapidly on multi-round specialist work.
+    """
+    body = _SPECIALIST_FRAME.format(
         display_name=display_name,
         tagline=tagline or "Universal contributor.",
         default_instructions=(
@@ -459,6 +498,13 @@ def _compose_specialist_system_prompt(
             or "Apply your role's standard methodology to the brief."
         ),
     )
+    return [
+        {
+            "type": "text",
+            "text": body,
+            "cache_control": {"type": "ephemeral"},
+        }
+    ]
 
 
 # ---------------------------------------------------------------------------

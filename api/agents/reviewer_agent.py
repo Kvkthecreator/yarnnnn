@@ -717,6 +717,17 @@ async def invoke_reviewer(
 
     # Build auth namespace with reviewer_caller flag — handlers consult this
     # for ADR-258 D9 lock enforcement on operator-shared substrate.
+    # `recurrence_options` carries the recurrence YAML's `options` block
+    # (whatever the operator declared) through to downstream primitives.
+    # Specifically `handle_dispatch_specialist` reads `max_rounds` from
+    # here to honor per-recurrence round budgets (heavy work like
+    # falsify-signals or 5-ticker track-universe needs > the global
+    # default of 5).
+    recurrence_options = {}
+    if isinstance(context, dict):
+        raw = context.get("options")
+        if isinstance(raw, dict):
+            recurrence_options = raw
     auth = SimpleNamespace(
         client=client,
         user_id=user_id,
@@ -724,6 +735,7 @@ async def invoke_reviewer(
         agent=None,
         agent_slug=None,
         task_slug=None,
+        recurrence_options=recurrence_options,
     )
 
     # Tool list = curated reviewer primitives + ReturnVerdict (ADR-258 revised)

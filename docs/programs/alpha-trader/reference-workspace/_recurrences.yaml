@@ -162,6 +162,16 @@ recurrences:
     # reads empty/missing {ticker}.yaml files on the first RTH cycle
     # post-activation. After this first fire, regular RTH cadence resumes.
     fire_on_activation: true
+    # Per-recurrence specialist round budget (kernel reads via
+    # rec.options.max_rounds). 5-ticker universe needs:
+    #   ~3 rounds: fetch bars (can batch 2-3 platform tool calls per round)
+    #   ~2 rounds: derive indicators + write per-ticker yaml
+    #   ~1 round:  synthesis / return
+    # Global default (5) is undersized for this workload — cold-start audit
+    # 2026-05-13 showed specialist fetched bars cleanly then ran out of
+    # rounds before any WriteFile fired. Budget is per-recurrence (operator
+    # tunable), not per-role (kernel-bound).
+    max_rounds: 12
     # ADR-269: Reviewer dispatches a specialist to fetch 1Hour bars + derive
     # SMA/RSI/ATR per ticker; specialist needs Alpaca market-data access.
     required_capabilities: [read_trading]
@@ -194,6 +204,17 @@ recurrences:
     schedule: null   # reactive: fires only on activation + manual FireInvocation
     mode: judgment
     fire_on_activation: true
+    # Per-recurrence specialist round budget. 5 signals × 5 tickers × 90d of
+    # 1Hour bars is the heaviest sub-call in the bundle:
+    #   ~5 rounds: per-ticker bar fetches (batched 1-2 platform calls/round)
+    #   ~5 rounds: per-signal aggregate computation across tickers
+    #   ~5 rounds: WriteFile per-signal findings file
+    #   ~1-2 rounds: synthesis / return
+    # ~17 rounds nominal; 20 gives modest headroom for retry on a transient
+    # platform failure. Cold-start audit 2026-05-13 showed specialist
+    # exhausted at the 5-round global default in ~130s with zero findings
+    # written.
+    max_rounds: 20
     required_capabilities: [read_trading]
     prompt: |
       What you produce:

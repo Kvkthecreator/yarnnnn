@@ -430,6 +430,140 @@ def test_dispatch_specialist_tool_execution_uses_attribute_access():
     assert_true(raised, "AttributeError raised when calling .get() on ToolUseBlock-shaped object (confirms bug class)")
 
 
+def test_dispatch_specialist_system_prompt_has_cache_control():
+    """Regression for the lost-on-PR-#9 cache markers on specialist system prompts.
+
+    Background: ADR-260/261/262 squash (commit 42725c6, 2026-05-10) rewrote
+    dispatch_specialist.py greenfield. The prior cost-hardening from
+    CHANGELOG entry 2026.04.30 (in deleted dispatch_helpers.py) wrapped
+    static system content in `cache_control: {"type": "ephemeral"}` so
+    rounds 2..N read the system prompt from Anthropic's prompt cache
+    instead of re-billing it. That mechanism was lost. ADR-171/172
+    pricing assumes caching is firing (markup computed at user-facing
+    input rate, cache discount accrues as platform margin).
+
+    Audit 2026-05-13 found that without cache markers, a 5-round
+    specialist loop was re-billing the full system prompt × 5, and the
+    operator-experienced cost ($0.20/round) matched no-cache pricing.
+
+    This test verifies _compose_specialist_system_prompt returns the
+    structured content-blocks shape with cache_control on the static
+    block — not a plain str.
+    """
+    from services.primitives.dispatch_specialist import _compose_specialist_system_prompt
+
+    result = _compose_specialist_system_prompt(
+        role="researcher",
+        display_name="Researcher",
+        tagline="Test tagline",
+        default_instructions="Test instructions",
+    )
+    assert_true(isinstance(result, list), "system prompt is a list of content blocks")
+    assert_true(len(result) >= 1, "at least one content block")
+    assert_eq(result[0].get("type"), "text", "first block is text-typed")
+    assert_true("cache_control" in result[0], "first block carries cache_control marker")
+    assert_eq(
+        result[0].get("cache_control"),
+        {"type": "ephemeral"},
+        "cache_control is the ephemeral shape Anthropic recognizes",
+    )
+
+
+def test_dispatch_specialist_honors_per_recurrence_max_rounds():
+    """Regression for the global-only round budget that orphaned heavy bundle workloads.
+
+    Background: `_SPECIALIST_MAX_ROUNDS = 5` was correctly sized for
+    single-output specialist work (e.g. track-regime: 11 actions, 1
+    output file, completed in 27s). It was undersized for multi-output
+    bundle workloads (e.g. 5-ticker track-universe needs ~10-12 rounds,
+    5-signal × 5-ticker falsify-signals needs ~15-20). Cold-start audit
+    2026-05-13 showed both heavy recurrences fetched data successfully
+    then ran out of rounds before any WriteFile fired.
+
+    This test verifies handle_dispatch_specialist reads
+    `auth.recurrence_options.max_rounds` and honors it as the loop
+    ceiling. The kernel exposes the knob; bundles declare workload-
+    appropriate budgets per ADR-176/216 (work-shape is bundle-shaped).
+    """
+    from services.primitives import dispatch_specialist as ds
+    import inspect
+
+    source = inspect.getsource(ds.handle_dispatch_specialist)
+    assert_true(
+        "recurrence_options" in source,
+        "handle_dispatch_specialist reads recurrence_options from auth",
+    )
+    assert_true(
+        "max_rounds" in source,
+        "handle_dispatch_specialist resolves a max_rounds value",
+    )
+    assert_true(
+        "range(max_rounds)" in source,
+        "loop iterates over the resolved max_rounds, not the global constant",
+    )
+
+
+def test_reviewer_threads_recurrence_options_onto_auth():
+    """Regression: dispatcher → invoke_reviewer → auth.recurrence_options.
+
+    The Reviewer's tool dispatch builds a SimpleNamespace auth. For
+    per-recurrence specialist budgets to take effect, the Reviewer must
+    copy recurrence options from its context envelope onto auth before
+    invoking tools. Without this hop, max_rounds declared in the bundle
+    YAML never reaches handle_dispatch_specialist.
+    """
+    from agents import reviewer_agent
+    import inspect
+
+    source = inspect.getsource(reviewer_agent)
+    # `auth = SimpleNamespace(... recurrence_options=...)` is the
+    # threading pattern. We don't pin a specific line shape, just that
+    # the name `recurrence_options` appears in the auth construction.
+    assert_true(
+        "recurrence_options" in source,
+        "reviewer_agent threads recurrence_options onto auth",
+    )
+
+
+def test_alpha_trader_heavy_recurrences_declare_max_rounds():
+    """Bundle-level: track-universe and falsify-signals declare per-recurrence
+    round budgets matching their observed workload size."""
+    from services.recurrence import parse_recurrences_yaml
+    import os
+
+    path = os.path.join(
+        os.path.dirname(__file__),
+        "..",
+        "docs",
+        "programs",
+        "alpha-trader",
+        "reference-workspace",
+        "_recurrences.yaml",
+    )
+    with open(path, encoding="utf-8") as f:
+        content = f.read()
+    parsed = parse_recurrences_yaml(content)
+    by_slug = {r.slug: r for r in parsed}
+
+    assert_true(
+        "track-universe" in by_slug,
+        "alpha-trader bundle declares track-universe",
+    )
+    assert_true(
+        by_slug["track-universe"].options.get("max_rounds", 0) >= 10,
+        "track-universe declares max_rounds >= 10 (5-ticker workload)",
+    )
+
+    assert_true(
+        "falsify-signals" in by_slug,
+        "alpha-trader bundle declares falsify-signals",
+    )
+    assert_true(
+        by_slug["falsify-signals"].options.get("max_rounds", 0) >= 15,
+        "falsify-signals declares max_rounds >= 15 (5-signal × 5-ticker workload)",
+    )
+
+
 def main():
     tests = [
         test_recurrence_dataclass_has_required_capabilities,
@@ -445,6 +579,10 @@ def main():
         test_alpha_trader_bundle_parses_cleanly,
         test_dispatch_specialist_message_append_uses_response_content,
         test_dispatch_specialist_tool_execution_uses_attribute_access,
+        test_dispatch_specialist_system_prompt_has_cache_control,
+        test_dispatch_specialist_honors_per_recurrence_max_rounds,
+        test_reviewer_threads_recurrence_options_onto_auth,
+        test_alpha_trader_heavy_recurrences_declare_max_rounds,
     ]
     for t in tests:
         try:

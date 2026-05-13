@@ -6,6 +6,74 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.13.6] - fix(dispatch_specialist): restore cache markers + per-recurrence max_rounds (cost regression from PR #9)
+
+### Background — what the audit found
+
+Cold-start verification on seulkim88 (commits 914086f → 1f41279 → 5225165 above) closed the activation gap and proved Reviewer→DispatchSpecialist→Alpaca→substrate works for light recurrences (track-account, track-regime). The same verification surfaced two recurrences that fired cleanly but produced no substrate: **track-universe** (5-ticker bar refresh) ran 132s / 9 actions / 5 rounds exhausted, **falsify-signals** (5-signal × 5-ticker historical) ran 133s / 9 actions / 5 rounds exhausted. Both Reviewer prose entries explicitly named "exhausted round budget before writing."
+
+Token usage audit revealed two parallel issues:
+- Specialist Sonnet calls averaged $0.12-0.17 per round with 16-22K input tokens. At 5 rounds: $0.60-0.85 per recurrence-fire — way above the per-token pricing implied by ADR-171's 2× markup on cached-input rates.
+- `dispatch_specialist.py` system prompt construction returned a plain `str` — zero cache_control markers anywhere in the call path. Anthropic re-billed the full system frame on every round.
+
+CHANGELOG walk-back surfaced the regression source. Entry `2026.04.30` (in deleted `dispatch_helpers.py`) had:
+- `build_task_execution_prompt` returned `(system_blocks, user_msg)` with cache_control on the static posture.
+- Per-shape round-budget overrides (`read_trading` capped at 12 rounds, sized against the workload).
+
+ADR-260/261/262 squash (commit `42725c6`, 2026-05-10) rewrote dispatch_specialist greenfield. Neither optimization carried forward. Three days later the activation-fire work surfaced the structural gap; today's audit dug down to root cause.
+
+### What ships in this commit
+
+**A — Cache markers on specialist system prompt.** `_compose_specialist_system_prompt` now returns `list[dict]` with `cache_control: {"type": "ephemeral"}` on the static `_SPECIALIST_FRAME` block. `chat_completion_with_tools` accepts `str | list[dict]` system content (anthropic.py:160); `_prepare_system` passes lists through unchanged. Anthropic's prompt-caching-2024-07-31 beta header is already attached to every API call (anthropic.py:183). The cache discount is platform margin per ADR-171 §"Cache discount: not passed through" — user-facing markup doesn't change; YARNNN's actual API cost drops 5-10× on rounds 2..N of any specialist invocation.
+
+**B — Per-recurrence `max_rounds` override.** Operator declares `max_rounds: 12` (or whatever the workload warrants) at the top level of the recurrence YAML entry. The parser absorbs it into `rec.options`. `invocation_dispatcher` already passes `options` into the Reviewer's context envelope (line 243). `reviewer_agent.py` now copies `context.get("options")` onto `auth.recurrence_options` before invoking tools. `handle_dispatch_specialist` reads `getattr(auth, "recurrence_options", {}).get("max_rounds")`; falls back to `_SPECIALIST_MAX_ROUNDS = 5` on missing/invalid values; loop iterates over the resolved value.
+
+NOT in the tool schema: DispatchSpecialist's input_schema is unchanged — the Reviewer's LLM doesn't see `max_rounds` as a Reviewer-controllable parameter. The bundle author (operator) declares budget; the kernel honors it. Matches the `fire_on_activation` precedent — operator-authored YAML metadata absorbed into `rec.options`, kernel-side knob.
+
+### Bundle changes
+
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml`:
+  - `track-universe`: declares `max_rounds: 12`. Sized for 5-ticker workload (3 fetch + 2 write + 1 synthesis rounds nominally, headroom for batched calls).
+  - `falsify-signals`: declares `max_rounds: 20`. Sized for 5-signal × 5-ticker × 90d workload (5 fetch + 5 aggregate + 5 write + 2-3 synthesis rounds nominally).
+
+### Files changed
+
+- `api/services/primitives/dispatch_specialist.py` — `_compose_specialist_system_prompt` returns `list[dict]` with cache_control; `handle_dispatch_specialist` reads `max_rounds` from `auth.recurrence_options` with fallback to global default; exhaustion-warning log message references the resolved value, not the constant.
+- `api/agents/reviewer_agent.py` — auth `SimpleNamespace` now includes `recurrence_options` copied from `context.get("options")` (whatever shape the operator authored on the YAML).
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml` — `max_rounds` declared on `track-universe` (12) and `falsify-signals` (20).
+- `api/test_adr269_capability_flow.py` — four new tests pin cache marker shape, max_rounds resolution path, options-onto-auth threading, and bundle declarations. ADR-269 gate now 103/103 PASS (was 90/90).
+
+### Singular Implementation
+
+- `_SPECIALIST_MAX_ROUNDS = 5` constant remains as the global default. No second copy, no enum, no per-role table. Per-recurrence overrides via `rec.options.max_rounds`. One knob, one canonical source.
+- No new `getattr` shims, no `hasattr` checks beyond the existing auth-namespace pattern. Same shape as `reviewer_caller` and `agent_slug` on the same auth.
+- No new field on the DispatchSpecialist tool schema. The Reviewer's LLM stays naive about budget — bundle authors own that decision.
+- Cache markers use the canonical `cache_control: {"type": "ephemeral"}` shape already documented in `_prepare_system`'s docstring (anthropic.py:151). No new caching abstraction.
+
+### Expected behavior changes
+
+- Specialist sub-calls bill ~10% of base input rate on rounds 2..N when caching fires. Operator-experienced: cost per heavy recurrence drops from ~$0.85 to ~$0.10-0.15.
+- `track-universe` and `falsify-signals` no longer exhaust at 5 rounds. Next cold-start activation should produce `/workspace/context/trading/{ticker}.yaml` (5 files) and `/workspace/research/findings/{signal_id}.md` (4-5 files) end-to-end.
+- Light-recurrence behavior (track-account, track-regime, others without declared `max_rounds`) unchanged — they fall back to the 5-round default which is correctly sized for their workload.
+
+### What this does NOT do
+
+- No change to billing math. Cache discount remains platform margin per ADR-171's decision.
+- No new field on the Recurrence dataclass. `max_rounds` lives in `options` (canonical extensibility surface).
+- No DispatchSpecialist input-schema change. Reviewer's tool-shape unchanged.
+- No FOUNDATIONS amendment. The kernel/bundle split is unchanged: kernel exposes the knob, bundle declares the budget.
+- No ADR — restores documented prior behavior and matches existing `fire_on_activation` precedent. CHANGELOG entry is sufficient.
+
+### Verification path
+
+Reset seulkim88 → activate → connect → wait one scheduler tick. Expect:
+- `_account.yaml`, `_regime.yaml` continue to produce (regression check on light recurrences).
+- `/workspace/context/trading/{ticker}.yaml` × 5 written by track-universe completing within 12 rounds.
+- `/workspace/research/findings/{signal_id}.md` × 4-5 written by falsify-signals completing within 20 rounds.
+- Render logs grep for `[TOKENS] ... cache_read=...` post-deploy — `cache_read > 0` confirms caching fires.
+
+---
+
 ## [2026.05.13.5] - fix(dispatch_specialist): use attribute access on ToolUseBlock dataclass (not `.get()`)
 
 ### Next gate after [2026.05.13.4] — same root-cause class, different symptom
