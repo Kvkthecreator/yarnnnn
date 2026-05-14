@@ -3,6 +3,21 @@
 > **Status**: **Proposed** (2026-05-11)
 > **Date**: 2026-05-11
 > **Authors**: KVK, Claude
+>
+> **Amendment 2026-05-14 — lens distinction sharpened (commits `9c14be2` + `3f51cb8`):**
+> /activity and the Schedule tab at /work?tab=schedule answered overlapping
+> operator questions. Sharpened so each surface has a single clear lens:
+> /activity = **execution-lens** ("did it run, succeed, what did it cost?"),
+> Schedule = **declaration-lens** ("what's scheduled, when, who runs it?").
+> Concrete changes: (a) /activity accepts `?slug=` URL param + pre-filters
+> the execution-events query; (b) Schedule rows carry a `View runs →` deep-
+> link to `/activity?slug={slug}` (auto-expands the single JobCard); (c)
+> /activity JobCard headers carry a reciprocal `Manage →` deep-link to
+> `/work?task={slug}` for declaration-level mutation; (d) per-row mode
+> badge dropped from /activity (redundant with the Mode filter pills);
+> (e) inactive-task narrative-summary excerpt (`headlineSummary`) removed
+> from Schedule rows — it was leaking execution-lens content. WORKSPACE.md
+> Tab: Work section §"Lens distinction" canonizes the discipline.
 
 ---
 
