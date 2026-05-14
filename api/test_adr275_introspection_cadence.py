@@ -370,24 +370,31 @@ def test_preferences_yaml_is_preloaded_in_wake_envelope() -> None:
 # ---------------------------------------------------------------------------
 
 def test_feed_addressed_site_loads_preferences_and_autonomy() -> None:
-    """Addressed-trigger envelope (feed.py) must include both
-    _preferences.yaml AND AUTONOMY.md in its pre-load. AUTONOMY gap was
-    a pre-existing bug surfaced by the ADR-275 audit and fixed in the
-    same commit (Singular Implementation discipline)."""
+    """Addressed-trigger envelope (feed.py) delivers _preferences.yaml +
+    AUTONOMY.md via the shared `load_reviewer_governance_envelope` helper.
+
+    Post-ADR-276 (run-2 refinement), the inline 9-path gather in feed.py
+    is migrated to call the canonical helper at
+    `services/reviewer_envelope.py`. The helper's gate
+    (test_adr276_reactive_envelope.py) verifies the substrate actually
+    reaches the envelope. This gate now verifies the structural delegation
+    is in place.
+    """
     src = (REPO_ROOT / "api" / "routes" / "feed.py").read_text()
-    if "SHARED_PREFERENCES_PATH" in src and 'preferences_yaml' in src:
-        _ok("feed.py imports SHARED_PREFERENCES_PATH + passes preferences_yaml")
+    if "from services.reviewer_envelope import load_reviewer_governance_envelope" in src:
+        _ok("feed.py imports the shared governance-envelope helper (ADR-276)")
     else:
         _bad(
-            "feed.py preferences pre-load",
-            "expected SHARED_PREFERENCES_PATH import + preferences_yaml in context bag",
+            "feed.py envelope helper",
+            "expected import of load_reviewer_governance_envelope from "
+            "services.reviewer_envelope (Singular Implementation per ADR-276)",
         )
-    if "SHARED_AUTONOMY_PATH" in src and '"autonomy_md": autonomy_md' in src:
-        _ok("feed.py imports SHARED_AUTONOMY_PATH + passes autonomy_md (audit-found gap closed)")
+    if "**governance_envelope" in src:
+        _ok("feed.py context bag dict-spreads governance_envelope (incl. preferences + AUTONOMY)")
     else:
         _bad(
-            "feed.py autonomy pre-load",
-            "expected SHARED_AUTONOMY_PATH import + autonomy_md in context bag",
+            "feed.py context bag delegation",
+            "expected '**governance_envelope' in invoke_reviewer call",
         )
 
 

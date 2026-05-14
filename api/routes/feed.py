@@ -1158,51 +1158,15 @@ async def global_chat(
         except Exception:
             pass
 
-        from services.workspace_paths import (
-            REVIEW_IDENTITY_PATH, REVIEW_PRINCIPLES_PATH, SHARED_PRECEDENT_PATH,
-            SHARED_MANDATE_PATH, SHARED_AUTONOMY_PATH, SHARED_PREFERENCES_PATH,
+        # ADR-276: shared governance pre-load helper. Both addressed-trigger
+        # (this site) and reactive-trigger (services/invocation_dispatcher.py)
+        # call the same helper — Singular Implementation, one canonical
+        # envelope-assembly path. Returns a dict keyed by ReviewerContext
+        # field names; drop directly into the context bag below.
+        from services.reviewer_envelope import load_reviewer_governance_envelope
+        governance_envelope = await load_reviewer_governance_envelope(
+            auth.client, auth.user_id
         )
-
-        async def _read(path: str) -> str:
-            full = f"/workspace/{path}"
-            try:
-                res = (
-                    auth.client.table("workspace_files")
-                    .select("content")
-                    .eq("user_id", auth.user_id)
-                    .eq("path", full)
-                    .limit(1)
-                    .execute()
-                )
-                return (res.data or [{}])[0].get("content") or ""
-            except Exception:
-                return ""
-
-        import asyncio as _asyncio
-        # Pre-load all substrate the Reviewer commonly needs.
-        # If we don't pre-load, the Reviewer wastes tool-loop rounds reading
-        # files (and frequently guesses wrong paths). Better to pay one
-        # parallel-fetch round-trip and feed everything in upfront.
-        (
-            identity_md, principles_md, precedent_md, mandate_md,
-            autonomy_md, preferences_yaml,
-            operator_profile_md, risk_md, performance_md,
-        ) = await _asyncio.gather(
-            _read(REVIEW_IDENTITY_PATH),
-            _read(REVIEW_PRINCIPLES_PATH),
-            _read(SHARED_PRECEDENT_PATH),
-            _read(SHARED_MANDATE_PATH),
-            _read(SHARED_AUTONOMY_PATH),       # ADR-275 refinement audit
-            _read(SHARED_PREFERENCES_PATH),    # ADR-275 refinement: load-bearing for cadence-authoring
-            _read("context/trading/_operator_profile.md"),
-            _read("context/trading/_risk.md"),
-            _read("context/trading/_performance.md"),
-        )
-
-        # Pre-load signal state files (compact summary) so the Reviewer
-        # doesn't have to ReadFile each one individually.
-        from agents.reviewer_agent import read_signal_files
-        signal_files_summary = await read_signal_files(auth.client, auth.user_id)
 
         # NOTE: do NOT yield stream_start here. stream_start makes the FE insert
         # a role='assistant' placeholder bubble (NarrativeContext line ~533)
@@ -1233,16 +1197,7 @@ async def global_chat(
             auth.client, auth.user_id,
             trigger="addressed",
             context={
-                "identity_md": identity_md,
-                "principles_md": principles_md,
-                "precedent_md": precedent_md,
-                "mandate_md": mandate_md,
-                "autonomy_md": autonomy_md,                # ADR-275 refinement audit
-                "preferences_yaml": preferences_yaml,      # ADR-275 refinement: cadence-authoring substrate
-                "operator_profile_md": operator_profile_md,
-                "risk_md": risk_md,
-                "performance_md": performance_md,
-                "signal_files": signal_files_summary,
+                **governance_envelope,                     # ADR-276: 9-file pre-load + signal_files
                 "user_message": request.content,
                 "conversation_window": "\n".join(conv_lines) if conv_lines else "",
                 "workspace_state": workspace_state_text or "",

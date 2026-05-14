@@ -6,6 +6,30 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.14.10] - feat(adr-276): reactive-trigger envelope governance pre-load — closes the dev-sequence arc
+
+### Background
+
+ADR-275 refinement (commit `af123ca`) closed the addressed-trigger envelope by pre-loading `_preferences.yaml` + AUTONOMY.md. Run-2 e2e validated Derived Principle 18 lands operationally for addressed wakes (Reviewer authored 3× `Schedule` with `reviewer:ai:reviewer-sonnet-v8` attribution). But the run-2 observation surfaced a symmetric structural gap: `services/invocation_dispatcher.py` (reactive trigger — recurrence fires + proposal arrivals) passed only `recurrence_prompt + recurrence_slug + capabilities + options + operating_context_block` to the Reviewer. MANDATE / IDENTITY / principles / AUTONOMY / `_preferences.yaml` / domain substrate were NOT pre-loaded on reactive wakes. Same prose-vs-pre-load asymmetry that addressed turns suffered before the refinement.
+
+ADR-276 closes the third and final structural gap in the FOUNDATIONS v8.5 → ADR-274 → ADR-275 → ADR-275 refinement → ADR-276 dev-sequence arc.
+
+### Changed
+- `api/services/reviewer_envelope.py` (new): canonical helper `load_reviewer_governance_envelope(client, user_id)` returns a dict keyed by `ReviewerContext` field names — drop directly into the context bag passed to `invoke_reviewer()`. Reads 9 paths in parallel via `asyncio.gather` (IDENTITY + principles + PRECEDENT + MANDATE + AUTONOMY + `_preferences.yaml` + `_operator_profile` + `_risk` + `_performance`) plus signal-files compact summary.
+- `api/routes/feed.py` (addressed trigger): inline 9-path gather + signal_files read DELETED (~25 LOC). Replaced by single `await load_reviewer_governance_envelope(...)` + `**governance_envelope` dict-spread into the invoke_reviewer context bag. Singular Implementation — one canonical helper, no parallel inline copy.
+- `api/services/invocation_dispatcher.py` (reactive trigger): adds `load_reviewer_governance_envelope` call before `invoke_reviewer()`. Context bag dict-spreads `**governance_envelope` alongside recurrence-specific keys. Reactive wakes now perceive the same governance substrate addressed wakes do.
+
+### Expected behavior change
+- The Reviewer's reactive wakes (recurrence-fire + proposal-arrival paths) now receive full governance substrate pre-loaded. No tool calls needed to fetch MANDATE/IDENTITY/principles/AUTONOMY/`_preferences.yaml`/`_operator_profile`/`_risk`/`_performance` — they arrive in the wake envelope.
+- For recurrences whose prompts cite operator-declared substrate (e.g. `signal-evaluation` reading `_operator_profile.md` for declared signals + `_universe.yaml` for tickers + principles for thresholds), the Reviewer can execute the prompt's instructions directly without ReadFile detours.
+- Run-2's side observation (b) — `signal-evaluation` FireInvocation completed without populating `signals/` — is empirically tested by the post-deploy reactive wake. If governance pre-load was the cause, `signals/` will populate naturally; if not, the gap is in the prompt/logic itself (a separate audit).
+
+### Out of scope (preserved as separate concerns)
+- **decisions.md dual-writer race** (run-2 observation §Side a): the Reviewer's `WriteFile` to `decisions.md` + dispatch's `append_decision` both write to the same path; last writer wins on `workspace_files.content`. Singular Implementation question (which writer is canonical?) deserves its own discourse. Not bundled into ADR-276.
+- **Reviewer's persona prose** unchanged. The contract is unchanged; only the structural delivery for reactive triggers gets corrected.
+
+---
+
 ## [2026.05.14.9] - refactor(adr-275 refinement): pre-load _preferences.yaml + AUTONOMY into Reviewer wake envelope
 
 ### Background

@@ -234,6 +234,16 @@ async def dispatch(
         from agents.reviewer_agent import build_operating_context_block
         operating_context = build_operating_context_block(client, user_id)
 
+        # ADR-276: shared governance pre-load — full operator-authored
+        # substrate (IDENTITY + principles + PRECEDENT + MANDATE + AUTONOMY
+        # + _preferences.yaml + _operator_profile + _risk + _performance +
+        # signal_files). Same helper as the addressed-trigger envelope in
+        # routes/feed.py — Singular Implementation per ADR-275 refinement's
+        # empirical learning that prose-named substrate fails to land in
+        # Reviewer behavior; envelope-pre-loaded substrate does.
+        from services.reviewer_envelope import load_reviewer_governance_envelope
+        governance_envelope = await load_reviewer_governance_envelope(client, user_id)
+
         reviewer_output = await invoke_reviewer(
             client=client,
             user_id=user_id,
@@ -248,6 +258,7 @@ async def dispatch(
                 "recurrence_required_capabilities": list(recurrence.required_capabilities),
                 "options": dict(recurrence.options) if recurrence.options else {},
                 "operating_context_block": operating_context,
+                **governance_envelope,  # ADR-276: 9-file pre-load + signal_files
             },
         )
     except Exception as exc:
