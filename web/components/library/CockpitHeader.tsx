@@ -1,24 +1,33 @@
 'use client';
 
 /**
- * CockpitHeader — Layer 1 (common) of the cockpit, always present.
+ * CockpitHeader — Layer 1 (kernel-general) of the cockpit, always present.
  *
- * ADR-243 Phase A. Implements the "common - page header" block from
- * the operator's design sketch: mandate-based title + summary on the
- * left, autonomy mode indicator + toggle on the right.
+ * ADR-243 Phase A. Implements the "common - page header" block from the
+ * operator's design sketch: mandate-based title + summary on the left,
+ * autonomy mode indicator + toggle on the right.
  *
  * Design reference: docs/design/COCKPIT-COMPONENT-DESIGN.md §"Layer 1"
  *
  * NOT a card — full-width, prose-weight header that frames what the
- * operation is trying to achieve and what permissions it carries.
- * Present for every workspace regardless of active bundle.
+ * operation is trying to achieve and what permissions it carries. Present
+ * for every workspace regardless of active bundle.
  *
  * Substrate reads:
- *   /workspace/context/_shared/MANDATE.md  → title + summary
- *   /workspace/context/_shared/AUTONOMY.md → level + ceiling (via useAutonomy)
+ *   /workspace/context/_shared/MANDATE.md  → title + summary (via canonical
+ *                                            L2 parser at content-shapes/mandate.ts
+ *                                            per ADR-245 D3 + ADR-266 D3)
+ *   /workspace/context/_shared/_autonomy.yaml → level + ceiling
+ *                                              (via useAutonomy hook)
  *
- * Autonomy posture links to /agents?agent=reviewer&tab=autonomy
- * (ADR-251: Autonomy tab moved to Reviewer surface).
+ * Singular Implementation discipline: parsing MANDATE.md goes through the
+ * one canonical L2 parser, not a parallel inline implementation. The
+ * earlier inline `isSkeleton` + `deriveTitle` + `deriveSummary` were
+ * deleted in 2026-05-14 — they false-positive-flagged authored mandates
+ * as skeleton (any "Author here:" prompt in a sub-section triggered the
+ * whole-file skeleton banner even when Primary Action was authored).
+ *
+ * Autonomy posture links to /agents?agent=reviewer&tab=autonomy (ADR-251).
  */
 
 import { useEffect, useState } from 'react';
@@ -26,6 +35,8 @@ import Link from 'next/link';
 import { MessageSquare, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useAutonomy } from '@/lib/content-shapes/autonomy';
+import type { AutonomyDelegation } from '@/lib/content-shapes/autonomy';
+import { parse as parseMandate } from '@/lib/content-shapes/mandate';
 import { useCockpit } from './CockpitContext';
 import { cn } from '@/lib/utils';
 
@@ -34,77 +45,8 @@ const MANDATE_PATH = '/workspace/context/_shared/MANDATE.md';
 const AUTONOMY_EDIT_HREF = '/agents?agent=reviewer&tab=autonomy';
 
 // ---------------------------------------------------------------------------
-// Mandate parsing — extract operator-authored title + summary paragraph.
-// The mandate file is a mix of scaffolded headings (## Primary Action,
-// ## Success Criteria, ## Boundary Conditions) and operator prose. We
-// extract: (1) the first operator-authored heading as the title, (2) the
-// first prose paragraph as the summary.
-// ---------------------------------------------------------------------------
-
-function stripLine(raw: string): string | null {
-  let line = raw.replace(/^\s*>+\s?/, '').trim();
-  if (!line) return null;
-  if (line.startsWith('<!--') && line.endsWith('-->')) return null;
-  if (/^[-*_]{3,}$/.test(line)) return null;
-  return line;
-}
-
-function deriveTitle(content: string): string | null {
-  for (const raw of content.split('\n')) {
-    const stripped = raw.trim();
-    // Look for a # heading that isn't the default "# Mandate" scaffold
-    if (stripped.startsWith('# ') && !stripped.toLowerCase().startsWith('# mandate')) {
-      return stripped.slice(2).trim();
-    }
-  }
-  return null;
-}
-
-function deriveSummary(content: string): string[] {
-  const lines = content.split('\n');
-  const intentLines: string[] = [];
-  let inBlock = false;
-  for (const raw of lines) {
-    const t = raw.trim();
-    if (!t) {
-      if (inBlock) break;
-      continue;
-    }
-    if (t.startsWith('#')) {
-      if (inBlock) break;
-      continue;
-    }
-    if (t.startsWith('---')) continue;
-    const stripped = stripLine(raw);
-    if (!stripped) {
-      if (inBlock) break;
-      continue;
-    }
-    // Skip skeleton placeholder lines
-    if (stripped.includes('_<not yet declared') || stripped.includes('Author here:')) continue;
-    intentLines.push(stripped);
-    inBlock = true;
-  }
-  return intentLines;
-}
-
-function isSkeleton(content: string): boolean {
-  const trimmed = content.trim();
-  if (!trimmed) return true;
-  if (/^#\s*Mandate\s*$/im.test(trimmed) && trimmed.length < 400) return true;
-  if (trimmed.includes('_<not yet declared')) return true;
-  if (trimmed.includes('(template)') && trimmed.toLowerCase().includes('mandate')) return true;
-  if (trimmed.includes('Author here:') || trimmed.includes('_<not yet')) return true;
-  return false;
-}
-
-// ---------------------------------------------------------------------------
 // Autonomy display
 // ---------------------------------------------------------------------------
-
-// Commit F (2026-05-11): canonical 3-value enum, sourced from
-// content-shapes/autonomy. Local re-declaration retired.
-import type { AutonomyDelegation } from '@/lib/content-shapes/autonomy';
 
 function AutonomyBadge({ level, summary }: { level: AutonomyDelegation | null; summary: string }) {
   const Icon =
@@ -160,11 +102,14 @@ export function CockpitHeader() {
 
   if (!loaded || autonomyLoading) return null;
 
-  const skeleton = isSkeleton(mandate ?? '');
-  const title = skeleton ? null : deriveTitle(mandate ?? '');
-  const summaryLines = skeleton ? [] : deriveSummary(mandate ?? '');
+  // Canonical L2 parse — single source of truth for what's authored vs
+  // skeleton. isEmpty = no Primary Action + no Success Criteria + no
+  // Boundary Conditions. A workspace with Primary Action authored is NOT
+  // skeleton even if downstream sub-sections still carry "Author here:"
+  // prompts (those are operator-facing nudges, not skeleton markers).
+  const parsed = parseMandate(mandate ?? '');
 
-  if (skeleton) {
+  if (parsed.isEmpty) {
     return (
       <header className="w-full px-6 py-5 border-b border-border/60">
         <div className="flex items-start justify-between gap-4">
@@ -190,23 +135,29 @@ export function CockpitHeader() {
     );
   }
 
+  // Authored mandate — Primary Action is the operation's one-sentence
+  // declaration. Per ADR-266 D3 schema discipline, the Primary Action is
+  // load-bearing (one declarative sentence, the value-moving external
+  // write). Render it as the operation headline; success criteria render
+  // as truncated supporting prose.
+  const headline = parsed.primaryAction ?? 'Operation';
+  const supportingLines = parsed.successCriteria;
+
   return (
     <header className="w-full px-6 py-5 border-b border-border/60">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          {/* Title derived from mandate content */}
-          <h1 className="text-xl font-semibold text-foreground truncate">
-            {title ?? 'Operation'}
+          <h1 className="text-xl font-semibold text-foreground line-clamp-2">
+            {headline}
           </h1>
-          {/* Summary paragraph */}
-          {summaryLines.length > 0 && (
-            <p className="mt-1.5 text-sm text-muted-foreground line-clamp-3">
-              {summaryLines.join(' ')}
+          {supportingLines.length > 0 && (
+            <p className="mt-1.5 text-sm text-muted-foreground line-clamp-2">
+              {supportingLines.slice(0, 3).join(' · ')}
             </p>
           )}
         </div>
         <div className="flex items-center gap-3 shrink-0 mt-0.5">
-          {/* Autonomy posture — links to TP Autonomy tab for editing */}
+          {/* Autonomy posture — links to Reviewer Autonomy tab for editing */}
           <AutonomyBadge
             level={effectiveLevel as AutonomyDelegation | null}
             summary={autonomySummary}

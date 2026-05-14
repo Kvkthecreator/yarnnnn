@@ -278,8 +278,6 @@ export function WorkListSurface({
 
   return (
     <div className="flex flex-col h-full">
-      <BundleBanner tab="work" />
-
       {/* ── Toolbar ── */}
       <div className="px-4 sm:px-6 pb-3 border-b border-border/40 shrink-0 space-y-3">
         {dataError && (
@@ -344,6 +342,13 @@ export function WorkListSurface({
 
         {activeTab === 'dashboard' && (
           <div className="h-full">
+            {/* BundleBanner — scoped to Dashboard. The bundle declaration
+                (tabs.work.list.banner in SURFACES.yaml) is semantically about
+                operation posture ("Paper-only. Live trading gated...") which
+                belongs alongside CockpitHeader, not above the surface chrome.
+                Schedule tab is a declaration-lens view and has no need for
+                this content. */}
+            <BundleBanner tab="work" />
             {cockpitSlot ?? (
               <div className="flex items-center justify-center h-full min-h-[200px] px-4">
                 <div className="text-center max-w-sm">
