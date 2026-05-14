@@ -712,6 +712,60 @@ export const api = {
         }>;
         fallback_reason?: string;
       }>(`/api/cockpit/recent-orders?limit=${limit}`),
+
+    // ADR-273 D3: substrate reads — accumulated trading intelligence.
+    // Zero LLM, zero platform calls. Each route reads workspace_files
+    // directly and parses YAML/markdown frontmatter.
+    regime: () =>
+      request<{
+        live: boolean;
+        as_of?: string;
+        trend_regime?: 'uptrend' | 'downtrend' | 'chop' | string;
+        vix_regime_active?: boolean;
+        deactivation_streak_days?: number;
+        vixy_close?: number;
+        vixy_sma_20?: number;
+        spy_close?: number;
+        spy_sma_20?: number;
+        spy_sma_50?: number;
+        data_stale?: boolean;
+        fallback_reason?: 'no_substrate' | 'parse_failed' | 'read_failed';
+      }>("/api/cockpit/regime"),
+
+    indicators: (ticker: string) =>
+      request<{
+        live: boolean;
+        ticker: string;
+        as_of?: string;
+        price?: number;
+        sma_20?: number;
+        sma_50?: number;
+        sma_200?: number;
+        rsi_14?: number;
+        atr_14?: number;
+        volume_20d_avg?: number;
+        fallback_reason?: 'no_substrate' | 'parse_failed' | 'read_failed';
+      }>(`/api/cockpit/indicators?ticker=${encodeURIComponent(ticker)}`),
+
+    signals: (limit = 10) =>
+      request<{
+        live: boolean;
+        signals: Array<{
+          slug: string;
+          path: string;
+          updated_at?: string;
+          ticker?: string;
+          direction?: 'long' | 'short' | string;
+          expectancy?: number | string;
+          status?: string;
+          rationale?: string;
+          reviewer_decision?: {
+            verdict: 'approved' | 'rejected' | 'deferred' | null;
+            excerpt: string;
+          } | null;
+        }>;
+        fallback_reason?: 'no_substrate' | 'read_failed';
+      }>(`/api/cockpit/signals?limit=${limit}`),
   },
 
   // ADR-231: Recurrences endpoints (was `tasks`; renamed in Phase 3.8)

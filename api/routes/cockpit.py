@@ -301,3 +301,275 @@ async def get_recent_orders(
     except Exception as exc:
         logger.warning(f"[COCKPIT] recent_orders failed for {auth.user_id[:8]}: {exc}")
         return {"live": False, "fallback_reason": "alpaca_unreachable", "orders": []}
+
+
+# ---------------------------------------------------------------------------
+# Substrate-read routes (ADR-273 Phase 3)
+#
+# These three routes read workspace_files directly — no platform calls, no
+# LLM. They surface accumulated trading substrate (regime, per-ticker
+# indicators, signals + reviewer trail) to the FE cockpit sections.
+#
+# Path conventions per alpha-trader bundle:
+#   /workspace/context/trading/_regime.yaml          — TrackRegime output (D3)
+#   /workspace/context/trading/{TICKER}.yaml         — TrackUniverse output (D3)
+#   /workspace/context/trading/signals/{slug}.yaml   — reviewer/specialist writes
+#   /workspace/review/decisions.md                   — reviewer decision trail
+#
+# All three routes return `{ live: bool, ...payload }` with graceful empty
+# states. The FE component renders an empty-state-with-context when
+# `live: False` (e.g. "Regime tracker hasn't fired yet").
+# ---------------------------------------------------------------------------
+
+import yaml  # noqa: E402  — import at use site keeps the platform-only path lean
+
+
+_REGIME_PATH = "/workspace/context/trading/_regime.yaml"
+_DECISIONS_PATH = "/workspace/review/decisions.md"
+_SIGNALS_PREFIX = "/workspace/context/trading/signals/"
+_INDICATORS_PREFIX = "/workspace/context/trading/"
+
+
+def _parse_workspace_yaml(content: str) -> Dict[str, Any]:
+    """Parse YAML body, tolerating optional frontmatter + leading comments.
+
+    The trading substrate writers (TrackRegime, TrackUniverse) emit a
+    leading `# ... — written by ...` comment, then a YAML body. Bundle-
+    forked files prepend `--- ... ---` frontmatter (ADR-226). We strip
+    both and return the parsed dict, or {} on failure.
+    """
+    if not content:
+        return {}
+    body = content
+    if body.startswith("---"):
+        # Strip frontmatter block (`--- ... ---`).
+        parts = body.split("---", 2)
+        if len(parts) >= 3:
+            body = parts[2]
+    try:
+        data = yaml.safe_load(body)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+@router.get("/regime")
+async def get_regime(auth: UserClient) -> Dict:
+    """ADR-273 D3: read /workspace/context/trading/_regime.yaml.
+
+    Returns the regime predicate computed by the TrackRegime primitive.
+    Zero LLM, zero platform calls. Empty-state when file absent (regime
+    tracker hasn't fired yet) — FE renders "Regime tracker hasn't fired
+    yet — paused or first run pending" per ADR-273 D6.
+    """
+    user_id = auth.user_id
+    try:
+        result = (
+            auth.client.table("workspace_files")
+            .select("content, updated_at")
+            .eq("user_id", user_id)
+            .eq("path", _REGIME_PATH)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning(f"[COCKPIT] regime read failed for {user_id[:8]}: {exc}")
+        return {"live": False, "fallback_reason": "read_failed"}
+
+    if not result.data:
+        return {"live": False, "fallback_reason": "no_substrate"}
+
+    row = result.data[0]
+    parsed = _parse_workspace_yaml(row.get("content") or "")
+    if not parsed:
+        return {"live": False, "fallback_reason": "parse_failed"}
+
+    return {
+        "live": True,
+        "as_of": parsed.get("last_updated"),
+        "trend_regime": parsed.get("trend_regime"),  # 'uptrend' | 'downtrend' | 'chop'
+        "vix_regime_active": parsed.get("vix_regime_active"),
+        "deactivation_streak_days": parsed.get("deactivation_streak_days"),
+        "vixy_close": parsed.get("vixy_close"),
+        "vixy_sma_20": parsed.get("vixy_sma_20"),
+        "spy_close": parsed.get("spy_close"),
+        "spy_sma_20": parsed.get("spy_sma_20"),
+        "spy_sma_50": parsed.get("spy_sma_50"),
+        "data_stale": parsed.get("data_stale", False),
+    }
+
+
+@router.get("/indicators")
+async def get_indicators(
+    auth: UserClient,
+    ticker: str,
+) -> Dict:
+    """ADR-273 D3: read /workspace/context/trading/{TICKER}.yaml.
+
+    Returns the per-ticker indicators (SMA/RSI/ATR/volume) computed by
+    the TrackUniverse primitive. Used by TraderPositions to merge live
+    Alpaca position rows with accumulated indicator context.
+
+    Empty-state when file absent — FE renders the position row without
+    the indicator column (graceful per ADR-273 D6).
+    """
+    user_id = auth.user_id
+    ticker_upper = ticker.upper().strip()
+    if not ticker_upper.isalnum():
+        raise HTTPException(status_code=400, detail="invalid ticker")
+    path = f"{_INDICATORS_PREFIX}{ticker_upper}.yaml"
+
+    try:
+        result = (
+            auth.client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", path)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning(f"[COCKPIT] indicators read failed for {user_id[:8]}/{ticker_upper}: {exc}")
+        return {"live": False, "ticker": ticker_upper, "fallback_reason": "read_failed"}
+
+    if not result.data:
+        return {"live": False, "ticker": ticker_upper, "fallback_reason": "no_substrate"}
+
+    parsed = _parse_workspace_yaml(result.data[0].get("content") or "")
+    if not parsed:
+        return {"live": False, "ticker": ticker_upper, "fallback_reason": "parse_failed"}
+
+    return {
+        "live": True,
+        "ticker": parsed.get("ticker", ticker_upper),
+        "as_of": parsed.get("last_updated"),
+        "price": parsed.get("price"),
+        "sma_20": parsed.get("sma_20"),
+        "sma_50": parsed.get("sma_50"),
+        "sma_200": parsed.get("sma_200"),
+        "rsi_14": parsed.get("rsi_14"),
+        "atr_14": parsed.get("atr_14"),
+        "volume_20d_avg": parsed.get("volume_20d_avg"),
+    }
+
+
+@router.get("/signals")
+async def get_signals(auth: UserClient, limit: int = 10) -> Dict:
+    """ADR-273 D3: list /workspace/context/trading/signals/*.yaml.
+
+    Returns up to `limit` most-recently-updated signal files. Each entry
+    carries the parsed signal payload + a best-effort reviewer decision
+    correlation from /workspace/review/decisions.md (text-match on the
+    signal slug). Closes the gap between "signal evaluator fires" and
+    "operator sees what was evaluated and why the reviewer said no."
+
+    Empty-state when no signals folder yet — FE renders "No signals
+    evaluated yet" per ADR-273 D6.
+
+    Correlation is best-effort + denormalized: if decisions.md is empty
+    or doesn't mention the slug, the entry renders without
+    `reviewer_decision`. Components do not retry or fail on missing
+    correlation.
+    """
+    user_id = auth.user_id
+
+    # List signal files (LIKE prefix match on path).
+    try:
+        result = (
+            auth.client.table("workspace_files")
+            .select("path, content, updated_at")
+            .eq("user_id", user_id)
+            .like("path", f"{_SIGNALS_PREFIX}%.yaml")
+            .order("updated_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning(f"[COCKPIT] signals list failed for {user_id[:8]}: {exc}")
+        return {"live": False, "fallback_reason": "read_failed", "signals": []}
+
+    if not result.data:
+        return {"live": False, "fallback_reason": "no_substrate", "signals": []}
+
+    # Read decisions.md once for correlation. Best-effort: failures are
+    # silent (signals just render without reviewer decision).
+    decisions_content = ""
+    try:
+        dec_result = (
+            auth.client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", _DECISIONS_PATH)
+            .limit(1)
+            .execute()
+        )
+        if dec_result.data:
+            decisions_content = dec_result.data[0].get("content") or ""
+    except Exception:
+        decisions_content = ""
+
+    signals: List[Dict[str, Any]] = []
+    for row in result.data:
+        path = row.get("path") or ""
+        slug = path.removeprefix(_SIGNALS_PREFIX).removesuffix(".yaml")
+        parsed = _parse_workspace_yaml(row.get("content") or "")
+        reviewer_decision = _extract_reviewer_decision(decisions_content, slug)
+
+        signals.append({
+            "slug": slug,
+            "path": path,
+            "updated_at": row.get("updated_at"),
+            "ticker": parsed.get("ticker"),
+            "direction": parsed.get("direction"),
+            "expectancy": parsed.get("expectancy"),
+            "status": parsed.get("status"),
+            "rationale": parsed.get("rationale"),
+            "reviewer_decision": reviewer_decision,
+        })
+
+    return {"live": True, "signals": signals}
+
+
+def _extract_reviewer_decision(decisions_md: str, signal_slug: str) -> Optional[Dict[str, Any]]:
+    """Best-effort correlation: find a decision mentioning the signal slug.
+
+    decisions.md is append-only narrative. We scan for the most-recent
+    block mentioning the slug as a substring and extract `verdict` +
+    `reasoning excerpt` if present. Returns None when no match.
+
+    This is intentionally loose — exact schema coupling between
+    decisions.md and signals/*.yaml is not enforced. The reviewer writes
+    prose; we surface the trail when it correlates.
+    """
+    if not decisions_md or not signal_slug:
+        return None
+    # Decisions blocks are typically separated by `---` or `## ` headings.
+    # Find any block containing the slug and capture surrounding context.
+    needle = signal_slug.lower()
+    haystack = decisions_md.lower()
+    idx = haystack.rfind(needle)  # most recent mention
+    if idx < 0:
+        return None
+
+    # Capture ~400-char window around the mention, snap to line boundaries.
+    start = max(0, decisions_md.rfind("\n", 0, idx) + 1)
+    end = min(len(decisions_md), idx + 400)
+    end_nl = decisions_md.find("\n\n", idx, end)
+    if end_nl > 0:
+        end = end_nl
+    excerpt = decisions_md[start:end].strip()
+
+    # Best-effort verdict extraction — look for approve/reject/defer tokens.
+    excerpt_lower = excerpt.lower()
+    verdict: Optional[str] = None
+    if "approve" in excerpt_lower:
+        verdict = "approved"
+    elif "reject" in excerpt_lower:
+        verdict = "rejected"
+    elif "defer" in excerpt_lower or "stand-down" in excerpt_lower or "stand down" in excerpt_lower:
+        verdict = "deferred"
+
+    return {
+        "verdict": verdict,
+        "excerpt": excerpt[:300],
+    }
