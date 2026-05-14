@@ -134,16 +134,19 @@ function ReviewerBubbleRenderer({ msg }: RendererProps): JSX.Element {
 }
 
 /**
- * Ambient system-activity row — ADR-272 Phase 2.
+ * System-activity row — ADR-272 Phase 2.
  *
  * Renders narration from any orchestration-plumbing source: deterministic
  * dispatch (execution_router regex), Reviewer-directed action narration
  * (FireInvocation completed, WriteFile written, ProposeAction emitted),
  * mechanical recurrence completions, scheduler events, MCP write-backs.
  *
- * NOT a chat participant — visually de-emphasised, single-line by default,
- * background-weight. Operator scans these as ambient activity, not as
- * conversation.
+ * Same chrome as agent-bubble / user-bubble (rounded-2xl, bg-muted,
+ * px-3 py-2 padding) so the operator reads system activity as in-thread
+ * content alongside conversation, not as background log. Persona label
+ * cues semantics: "system" identifies the source as ambient orchestration
+ * (not a chat participant with standing intent), but the row itself
+ * carries normal visual weight.
  *
  * If the narration carries a proposalId (e.g. Reviewer fired ProposeAction
  * during a heartbeat / cron-fired wake), the proposal chip renders inline
@@ -152,14 +155,14 @@ function ReviewerBubbleRenderer({ msg }: RendererProps): JSX.Element {
 function renderSystemActivity({ msg, isLoading }: RendererProps): JSX.Element {
   const showLoading = !msg.content && isLoading;
   return (
-    <div className="text-[12px] rounded-lg px-2.5 py-1.5 max-w-[92%] bg-muted/30 border border-border/20">
-      <span className="text-[9px] font-mono text-muted-foreground/40 block mb-0.5">
+    <div className="text-[13px] rounded-2xl px-3 py-2 max-w-[92%] bg-muted rounded-bl-md">
+      <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-1 uppercase">
         system
       </span>
       {msg.blocks && msg.blocks.length > 0 ? (
         <MessageBlocks blocks={msg.blocks} />
       ) : showLoading ? (
-        <div className="flex items-center gap-1.5 text-muted-foreground/60 text-xs">
+        <div className="flex items-center gap-1.5 text-muted-foreground text-xs">
           <Loader2 className="w-3 h-3 animate-spin" />
           Running…
         </div>
