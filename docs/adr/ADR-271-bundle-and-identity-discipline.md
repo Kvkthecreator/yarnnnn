@@ -1,6 +1,6 @@
 # ADR-271: Bundle Authoring Discipline + Identity-Layer Audit
 
-**Status**: **Proposed — discourse-stage. Thread D (dead-headless-path sweep) Implemented 2026-05-14; Threads A + B + C deferred to discourse outcomes.**
+**Status**: **Proposed — discourse-stage. Threads A + D Implemented 2026-05-14; Threads B + C deferred to discourse outcomes.**
 **Author**: KVK + Claude (discourse session 2026-05-14)
 **Companion observation**: [2026-05-13-activation-fire-wiring.md](../alpha/observations/2026-05-13-activation-fire-wiring.md) (cold-start audit that surfaced the symptoms this ADR diagnoses)
 
@@ -41,7 +41,41 @@ Each drift pattern is locally explainable. Together, they form a coherent gap: *
 
 This ADR commits to three threads. Threads A and B are mechanical refactors that enact what canon already says — they survive every framing we considered. Thread C is an identity-layer question genuinely open for discourse.
 
-### Thread A (commit-ready) — Mechanical migration of deterministic recurrences
+### Thread A (Implemented 2026-05-14) — Mechanical migration of deterministic recurrences
+
+**Implementation summary (2026-05-14)**:
+
+Two new dispatcher-only mechanical primitives shipped:
+- `TrackUniverse` (`api/services/primitives/track_universe.py`): fetches Alpaca 1Day bars per ticker in `_universe.yaml`, computes SMA/RSI/ATR/volume indicators in pure Python, writes one `{TICKER}.yaml` per ticker. Zero LLM cost.
+- `TrackRegime` (`api/services/primitives/track_regime.py`): fetches VIXY + SPY 1Day bars, computes VIX-regime-active predicate + trend regime, writes `_regime.yaml`. Reads operator-tunable thresholds from `regime-state.md` spec doc at runtime. Zero LLM cost.
+
+Both primitives:
+- Registered in `HANDLERS` only — NOT in CHAT_PRIMITIVES / HEADLESS_PRIMITIVES / REVIEWER_PRIMITIVES per ADR-264 D3 (mechanical primitives are dispatcher-only).
+- Self-load credentials from `platform_connections.platform='trading'`. Return `error='capability_missing'` cleanly when no active connection.
+- Write substrate via `write_revision(authored_by="system:track-universe" | "system:track-regime")` per ADR-209 attributed-substrate discipline.
+- Recover code originally landed by ADR-253 + ADR-254 that was swept by ADR-261 Phase B. The deletion was wrong-shaped for these specific recurrences — ADR-263 §"Why this rewrite" explicitly named `track-universe` as the canonical mechanical-vs-judgment mismatch case.
+
+Alpha-trader bundle migrated:
+- `track-universe` recurrence: `mode: judgment` → `mode: mechanical`. Prompt collapsed from a ~30-line judgment brief to one line: `@primitive: TrackUniverse()`. Deleted: `required_capabilities: [read_trading]`, `max_rounds: 12`.
+- `track-regime` recurrence: `mode: judgment` → `mode: mechanical`. Prompt collapsed from ~45 lines to `@primitive: TrackRegime()`. Deleted: `required_capabilities: [read_trading]`. Stale-fallback behavior preserved (the primitive's `_emit_stale_fallback` path).
+
+Test gate updates:
+- `test_adr269_capability_flow.py`: `track-universe` and `track-regime` moved from "judgment-mode with required_capabilities" expectations to "mechanical-mirror" class (alongside track-positions / track-account / track-orders). 111/111 assertions pass (was 108 — added 3 mechanical-mode invariants).
+- `test_adr261_phaseB.py`: 62/62 pass (primitive surface invariants unchanged).
+
+Cost & reliability impact (alpha-trader bundle):
+- Eliminated up to 4 judgment-mode Reviewer wakes per RTH day (3× track-universe per RTH + 1× track-regime). At today's audit-measured ~$0.30-$0.80 per wake, ~$1.50-$5/day saved per active workspace.
+- More importantly: eliminated the failure class where the specialist exited early without calling WriteFile. The substrate writes are now deterministic; no brief-composition discipline required.
+- Cold-start activation: track-universe + track-regime now fire mechanically within 1-3 seconds of activation, producing per-ticker + regime substrate before the first signal-evaluation fire.
+
+What this thread did NOT do (deliberate):
+- No change to `falsify-signals` (it's the bootstrap research recurrence; Thread B will address whether it survives as a recurrence or collapses into morning-reflection's prompt).
+- No new dispatcher-side capability gate for `TrackUniverse`/`TrackRegime` (they self-handle via credential load returning `capability_missing` — same pattern as `SyncPlatformState`-via-dispatcher would, just inside the primitive instead of in the dispatcher's `_required_platform_for_primitive` helper).
+- No removal of `SyncPlatformState` (it remains the canonical pure-mirror primitive for simpler shapes — TrackUniverse/TrackRegime are the fetch-plus-compute cousins ADR-264 §"Reconciliation half" anticipated).
+
+---
+
+### Thread A (original proposal text, preserved for trace) — Mechanical migration of deterministic recurrences
 
 Decisions:
 

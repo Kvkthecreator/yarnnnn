@@ -6,6 +6,74 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.14.2] - refactor(adr-271 Thread A): mechanical migration of track-universe + track-regime
+
+### Background
+
+ADR-263 §"Why this rewrite" (2026-05-10) named `track-universe` as the canonical mechanical-vs-judgment mismatch case — pure deterministic indicator math expressed as an LLM judgment prompt. The cold-start audit on 2026-05-13 (seulkim88 alpha-trader workspace) confirmed the pattern in production: 4 judgment-mode `track-universe` fires per RTH day burning ~$0.30-$0.80 each in Sonnet specialist tokens, sometimes exiting early without writing the spec'd per-ticker substrate.
+
+Code archeology: deterministic executors for both `track-universe` and `signal-evaluation` were originally shipped by ADR-253 Commit 2 (commit `551c7b6`) + ADR-254 Commit 4 (commit `9dea639`). ADR-261 Phase B's atomic "back-office package deletion" (commit `42f984c`) swept them as part of broader cleanup — the deletion was over-broad. ADR-271 Thread A restores the deterministic path.
+
+### Two new dispatcher-only mechanical primitives
+
+`api/services/primitives/track_universe.py::handle_track_universe` (new file, 280 LOC):
+- Reads ticker list from `/workspace/context/trading/_universe.yaml`.
+- For each ticker: fetches Alpaca 1Day bars (limit=210), computes SMA-20/50/200 + RSI-14 + ATR-14 + 20d-volume-avg in pure Python.
+- Writes one `{TICKER}.yaml` per ticker via `write_revision(authored_by="system:track-universe")`.
+
+`api/services/primitives/track_regime.py::handle_track_regime` (new file, 360 LOC):
+- Fetches VIXY 25 days + SPY 55 days of 1Day bars.
+- Computes `vix_regime_active` (vixy_close > active_threshold AND vixy_close > vixy_sma_20) + `deactivation_streak_days` + `trend_regime` (uptrend/downtrend/chop).
+- Reads operator-tunable thresholds from `/workspace/specs/regime-state.md` at runtime (fallback to spec-doc-published defaults 22.0/17.5 if absent).
+- Stale-fallback path: when Alpaca is unreachable AND existing `_regime.yaml` is >24h old, appends a freshness-degradation note to `decisions.md`.
+- Writes `_regime.yaml` via `write_revision(authored_by="system:track-regime")`.
+
+Both primitives:
+- Registered in `HANDLERS` ONLY (not in CHAT_PRIMITIVES / HEADLESS_PRIMITIVES / REVIEWER_PRIMITIVES per ADR-264 D3 — operators don't directly invoke mechanical primitives, they author recurrences that name them).
+- Self-load credentials from `platform_connections.platform='trading'`. Return `{success: False, error: "capability_missing"}` cleanly when no active connection.
+- Follow ADR-209 attributed-substrate discipline on every write.
+
+### Bundle migration (alpha-trader)
+
+`docs/programs/alpha-trader/reference-workspace/_recurrences.yaml`:
+
+- `track-universe`: `mode: judgment` → `mode: mechanical`. Verbose multi-step LLM brief replaced with one-line directive `@primitive: TrackUniverse()`. Deleted: `required_capabilities: [read_trading]`, `max_rounds: 12`.
+- `track-regime`: `mode: judgment` → `mode: mechanical`. Verbose ~45-line LLM brief replaced with `@primitive: TrackRegime()`. Deleted: `required_capabilities: [read_trading]`.
+
+### Test gate updates
+
+`api/test_adr269_capability_flow.py`:
+- `track-universe` and `track-regime` moved from "judgment-mode with required_capabilities" expectations into the mechanical-mirror class (alongside `track-positions`/`track-account`/`track-orders`).
+- New assertion: every mechanical-mirror recurrence has `mode == "mechanical"`.
+- `track-universe declares max_rounds` assertion replaced with `track-universe mode == mechanical`.
+- 111/111 PASS (was 108 — added 3 mechanical-mirror invariants).
+
+`api/test_adr261_phaseB.py`: unchanged behavior, 62/62 PASS.
+
+### Cost & reliability impact
+
+- Eliminates 4 judgment-mode Reviewer wakes per RTH day on alpha-trader.
+- At today's audit-measured ~$0.30-$0.80 per wake, ~$1.50-$5/day saved per active workspace.
+- Eliminates the brief-composition failure class where the LLM specialist exited early without calling WriteFile per ticker.
+- Cold-start activation: per-ticker `{TICKER}.yaml` substrate and `_regime.yaml` now materialize within 1-3 seconds of activation, deterministically.
+
+### Files
+
+New:
+- `api/services/primitives/track_universe.py`
+- `api/services/primitives/track_regime.py`
+
+Modified:
+- `api/services/primitives/registry.py` (imports + HANDLERS registration of TrackUniverse + TrackRegime)
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml` (mode flip + prompt collapse on track-universe + track-regime)
+- `api/test_adr269_capability_flow.py` (mechanical-mirror class extended)
+- `docs/adr/ADR-271-bundle-and-identity-discipline.md` (Thread A status: Implemented)
+- `docs/adr/ADR-263-recurrence-mode-mechanical-vs-judgment.md` (bundle-compliance note added)
+
+ADR-264 §"Reconciliation half" reserved the "primitives more complex than SyncPlatformState" slot — these two primitives are the first instances landing in that slot.
+
+---
+
 ## [2026.05.13.7] - fix(reviewer_agent): cache markers on Reviewer system prompt (same canonical pattern as cf5bb69)
 
 ### Background

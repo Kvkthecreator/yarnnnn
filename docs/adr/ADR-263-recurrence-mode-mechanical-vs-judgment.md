@@ -1,6 +1,8 @@
 # ADR-263: Recurrence Mode — Mechanical vs Judgment, Authoring-Intent as the Wake Signal
 
-**Status**: Proposed 2026-05-10 (rewrite of original ADR-263 draft titled "Significance Vocabulary as Kernel Grammar"; the original draft was set aside after stress-test discourse revealed it solved a problem with a simpler authoring-time answer — see §10 "Why this rewrite" for the trace)
+**Status**: Proposed 2026-05-10 (rewrite of original ADR-263 draft titled "Significance Vocabulary as Kernel Grammar"; the original draft was set aside after stress-test discourse revealed it solved a problem with a simpler authoring-time answer — see §10 "Why this rewrite" for the trace).
+
+**2026-05-14 bundle-compliance note (ADR-271 Thread A)**: §1 named `track-universe` as the canonical mechanical-vs-judgment mismatch case. The deterministic Python executor for it was originally shipped by ADR-253 + ADR-254, then accidentally swept by ADR-261 Phase B's back-office cleanup, leaving the alpha-trader bundle with judgment-mode prompts for pure indicator math. ADR-271 Thread A restored the deterministic path via new `TrackUniverse` + `TrackRegime` primitives (`api/services/primitives/track_universe.py` + `track_regime.py`) and migrated both alpha-trader bundle recurrences to `mode: mechanical` with one-line `@primitive: ...` prompts. The ADR-263 thesis is now bundle-compliant on these two recurrences.
 
 **Companion ADRs (atomic together — same architectural arc as 260/261/262)**:
 - ADR-260 — Real-Time Reviewer Loop: Cron is a Nudge, Continuation is Not a Trigger

@@ -185,10 +185,13 @@ def test_alpha_trader_bundle_declares_capabilities():
     parsed = parse_recurrences_yaml(content)
     by_slug = {r.slug: r for r in parsed}
 
+    # ADR-271 Thread A: track-universe + track-regime migrated from
+    # judgment-mode (with required_capabilities) to mechanical-mode
+    # (no LLM tool surface — primitive handles its own credentials).
+    # They now live alongside track-positions / track-account / track-orders
+    # in the mechanical-mirror class.
     expected = {
-        "track-universe": {"read_trading"},
         "signal-evaluation": {"read_trading"},
-        "track-regime": {"read_trading"},
         "outcome-reconciliation": {"read_trading"},
         "trade-proposal": {"read_trading", "write_trading"},
     }
@@ -217,7 +220,14 @@ def test_alpha_trader_bundle_declares_capabilities():
             f"housekeeping recurrence {slug!r} does NOT declare read_trading",
         )
 
-    mirror_slugs = ["track-positions", "track-account", "track-orders"]
+    # ADR-271 Thread A: mechanical-mirror class now includes track-universe
+    # and track-regime alongside the original three account/order/position
+    # mirrors. All mechanical-mode recurrences: zero LLM, primitive loads
+    # its own credentials, no required_capabilities on the recurrence record.
+    mirror_slugs = [
+        "track-positions", "track-account", "track-orders",
+        "track-universe", "track-regime",
+    ]
     for slug in mirror_slugs:
         rec = by_slug.get(slug)
         if rec is None:
@@ -225,6 +235,10 @@ def test_alpha_trader_bundle_declares_capabilities():
         assert_eq(
             rec.required_capabilities, [],
             f"mechanical mirror {slug!r} has empty required_capabilities",
+        )
+        assert_eq(
+            rec.mode, "mechanical",
+            f"mechanical mirror {slug!r} has mode=mechanical",
         )
 
 
@@ -557,8 +571,13 @@ def test_reviewer_system_prompt_has_cache_control():
 
 
 def test_alpha_trader_heavy_recurrences_declare_max_rounds():
-    """Bundle-level: track-universe and falsify-signals declare per-recurrence
-    round budgets matching their observed workload size."""
+    """Bundle-level: heavy judgment-mode recurrences declare per-recurrence
+    round budgets matching their observed workload size.
+
+    ADR-271 Thread A: track-universe migrated to mode=mechanical, no longer
+    routes through specialist dispatch, no longer needs max_rounds. Only
+    judgment-mode heavy recurrences remain in scope here.
+    """
     from services.recurrence import parse_recurrences_yaml
     import os
 
@@ -576,13 +595,15 @@ def test_alpha_trader_heavy_recurrences_declare_max_rounds():
     parsed = parse_recurrences_yaml(content)
     by_slug = {r.slug: r for r in parsed}
 
+    # ADR-271 Thread A: track-universe is now mechanical-mode. No max_rounds
+    # required (no specialist dispatched).
     assert_true(
         "track-universe" in by_slug,
         "alpha-trader bundle declares track-universe",
     )
-    assert_true(
-        by_slug["track-universe"].options.get("max_rounds", 0) >= 10,
-        "track-universe declares max_rounds >= 10 (5-ticker workload)",
+    assert_eq(
+        by_slug["track-universe"].mode, "mechanical",
+        "track-universe is mechanical-mode post-ADR-271",
     )
 
     assert_true(

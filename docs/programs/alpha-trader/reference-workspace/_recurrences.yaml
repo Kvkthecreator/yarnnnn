@@ -80,113 +80,49 @@ recurrences:
   # ── track-regime — refresh portfolio-level regime state ──────────────────
   # Operator declared Signal 5 (VIX regime filter) in _operator_profile.md;
   # _risk.md sets apply_vix_regime_scalar: true. This recurrence is the
-  # substrate sensor that makes the predicate live. Reads VIXY (Alpaca's
-  # only available VIX proxy) + SPY for trend regime. Computes via LLM
-  # (same pattern as track-universe — Alpaca doesn't ship indicators).
-  # Writes /workspace/context/trading/_regime.yaml per specs/regime-state.md.
+  # substrate sensor that makes the predicate live. ADR-271 Thread A:
+  # migrated to mechanical mode — deterministic Python computes the regime
+  # predicate from VIXY+SPY 1Day bars; zero LLM cost; the Reviewer reads
+  # the resulting _regime.yaml at proposal time.
+  #
+  # Was judgment-mode pre-ADR-271; ADR-263 §"Why this rewrite" named this
+  # exact recurrence as the canonical mechanical-vs-judgment mismatch case.
   - slug: track-regime
     # ADR-268: 30 min after RTH close — VIXY's 1Day bar is settled.
     # Fires before next morning's pre-market-brief so the brief reads
     # fresh regime state.
     schedule: "@market_close + 30min"   # 16:30 ET
-    mode: judgment
+    mode: mechanical
     # ADR-270: fire at activation so _regime.yaml exists before the
-    # first signal-evaluation fire. Without this, the Reviewer hits the
-    # principles.md bootstrap exception on every cold-start proposal
-    # (scalar=1.0 regardless of true regime). After this first fire,
-    # the regular @market_close + 30min cadence resumes.
+    # first signal-evaluation fire. Mechanical mode means this runs in
+    # ~1-2s with no LLM cost, so cold-start cost is negligible.
     fire_on_activation: true
-    # ADR-269: Reviewer dispatches a specialist to fetch VIXY + SPY 1Day
-    # bars; specialist needs Alpaca market-data access. Without this
-    # declaration, get_headless_tools_for_agent returns only the
-    # universal researcher role's capabilities (no platform_trading_*).
-    required_capabilities: [read_trading]
     prompt: |
-      What you produce:
-      - /workspace/context/trading/_regime.yaml written per the schema in
-        /workspace/specs/regime-state.md
-      - silent stand-down written to /workspace/review/decisions.md ONLY
-        if Alpaca is unreachable AND the existing _regime.yaml is fresh
-        (last_updated within 24h)
-
-      Refresh portfolio regime state. Two inputs:
-
-      1. VIXY (VIX proxy): fetch 25 trading days of 1Day bars via the
-         Alpaca platform tool (`platform_trading_get_market_data`).
-         Compute:
-           - vixy_close = most-recent 1Day bar close
-           - vixy_sma_20 = simple moving average of last 20 closes
-           - vix_regime_active = vixy_close > vixy_active_threshold
-             AND vixy_close > vixy_sma_20
-           - deactivation_streak_days = count of consecutive trading days
-             at the end of the window where vixy_close < vixy_deactivation_threshold
-
-         Thresholds are mirrored from /workspace/specs/regime-state.md
-         (operator-tunable defaults: 22.0 active, 17.5 deactivation).
-         Read the spec, copy the current values into the YAML.
-
-      2. SPY (trend regime): fetch 55 trading days of 1Day bars. Compute:
-           - spy_close = most-recent 1Day bar close
-           - spy_sma_20 = SMA of last 20 closes
-           - spy_sma_50 = SMA of last 50 closes
-           - trend_regime:
-               uptrend if spy_sma_20 > spy_sma_50 AND spy_close > spy_sma_20
-               downtrend if spy_sma_20 < spy_sma_50 AND spy_close < spy_sma_20
-               chop otherwise
-
-      Write the YAML atomically. If Alpaca returns stale or partial bars,
-      set data_stale: true and keep prior values rather than zeroing.
-
-      If Alpaca is unreachable AND existing _regime.yaml is older than
-      24h, append a freshness-degradation note to
-      /workspace/review/decisions.md so the morning Reviewer wake sees
-      regime is stale before judging any proposal.
+      @primitive: TrackRegime()
     display_name: "Regime Tracker"
 
   # ── track-universe — refresh ticker fundamentals ─────────────────────────
-  # NOTE: this stays judgment-mode for now because it does compute work
-  # (SMA/RSI/ATR derivation) beyond what SyncPlatformState handles in a
-  # single primitive call. A future ADR-264 follow-on may introduce a
-  # dedicated mirror+compute primitive that lets this go mechanical.
+  # ADR-271 Thread A: migrated to mechanical mode. Deterministic Python
+  # fetches 1Day bars per universe ticker and computes SMA/RSI/ATR/volume
+  # indicators; zero LLM cost; the Reviewer reads each {TICKER}.yaml at
+  # signal-evaluation time.
+  #
+  # Was judgment-mode pre-ADR-271; the cold-start audit 2026-05-13 showed
+  # the LLM specialist exited early without writing per-ticker substrate
+  # (brief-composition gap). The mechanical primitive eliminates that
+  # failure class entirely.
   - slug: track-universe
     # ADR-268: three RTH snapshots — post-open settle, midday, pre-close.
-    # Previously "0 8,11,15 UTC" which was pre-market(04:00 ET) +
-    # pre-market(07:00 ET) + mid-RTH(11:00 ET) — only the third overlapped RTH.
     schedule:
       - "@market_open + 15min"     # 09:45 ET — 15 min after open, price discovery settled
       - "@market_open + 3h"        # 12:30 ET — midday
       - "@market_close - 1h"       # 15:00 ET — 1h before close
-    mode: judgment
+    mode: mechanical
     # ADR-270: fire at activation so per-ticker snapshots exist before
-    # signal-evaluation's first fire. Without this, signal-evaluation
-    # reads empty/missing {ticker}.yaml files on the first RTH cycle
-    # post-activation. After this first fire, regular RTH cadence resumes.
+    # signal-evaluation's first fire.
     fire_on_activation: true
-    # Per-recurrence specialist round budget (kernel reads via
-    # rec.options.max_rounds). 5-ticker universe needs:
-    #   ~3 rounds: fetch bars (can batch 2-3 platform tool calls per round)
-    #   ~2 rounds: derive indicators + write per-ticker yaml
-    #   ~1 round:  synthesis / return
-    # Global default (5) is undersized for this workload — cold-start audit
-    # 2026-05-13 showed specialist fetched bars cleanly then ran out of
-    # rounds before any WriteFile fired. Budget is per-recurrence (operator
-    # tunable), not per-role (kernel-bound).
-    max_rounds: 12
-    # ADR-269: Reviewer dispatches a specialist to fetch 1Hour bars + derive
-    # SMA/RSI/ATR per ticker; specialist needs Alpaca market-data access.
-    required_capabilities: [read_trading]
     prompt: |
-      Refresh fundamentals for every ticker listed in
-      /workspace/context/trading/_universe.yaml.
-
-      For each ticker:
-        1. Fetch fresh 1Hour bars via the Alpaca platform tool.
-        2. Compute SMA(20), SMA(50), RSI(14), ATR(14), volume vs 30d average.
-        3. Write the snapshot to /workspace/context/trading/{ticker}.yaml
-           following the schema in /workspace/specs/ticker-snapshot.md.
-
-      If Alpaca is unreachable, stand down quietly — log the failure to
-      /workspace/context/trading/_run_log.md and try again next cycle.
+      @primitive: TrackUniverse()
     display_name: "Universe Tracker"
 
   # ── falsify-signals — bootstrap research substrate on activation ─────────

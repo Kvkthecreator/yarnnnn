@@ -64,6 +64,12 @@ from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
 # via deterministic Python (no LLM). Dispatched by mechanical-mode recurrences
 # per ADR-263 D5 + ADR-264 D2 via the @primitive: ... convention.
 from .sync_platform_state import SYNC_PLATFORM_STATE_TOOL, handle_sync_platform_state
+# ADR-271 Thread A: deterministic trading primitives — dispatched ONLY by the
+# mechanical-mode dispatcher via @primitive: directives. Not in CHAT/HEADLESS/
+# REVIEWER tool surfaces per ADR-264 D3 (operators don't directly invoke
+# mechanical primitives — they author recurrences that name them).
+from .track_universe import handle_track_universe
+from .track_regime import handle_track_regime
 from .repurpose import REPURPOSE_OUTPUT_TOOL, handle_repurpose_output
 from .propose_action import (
     PROPOSE_ACTION_TOOL, handle_propose_action,
@@ -428,6 +434,13 @@ HANDLERS: dict[str, Callable] = {
     # (mirrors external state into substrate; primary surface for use in
     # mechanical-mode recurrences per ADR-263).
     "SyncPlatformState": handle_sync_platform_state,
+    # ADR-271 Thread A: trading-specific deterministic primitives.
+    # Fetch-plus-compute pattern that SyncPlatformState's pure-mirror shape
+    # doesn't cover (multi-bar walk + derived indicator math). ADR-264
+    # §"Reconciliation half" reserved this primitive class. Dispatcher-only
+    # surface; not LLM-callable.
+    "TrackUniverse": handle_track_universe,
+    "TrackRegime": handle_track_regime,
     "ManageDomains": handle_manage_domains,
     # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
     "ReadFile": handle_read_file,
