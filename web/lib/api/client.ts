@@ -500,6 +500,24 @@ export const api = {
         window_days: number;
       }>("/api/agents/reviewer/activity"),
 
+    // 2026-05-14: Reviewer capability library — operator-facing view of
+    // /workspace/specs/. Each spec is a quality contract (schema, sections,
+    // anti-patterns) the Reviewer reads when producing recurring outputs.
+    // The capability-library analog of Claude Code's skills.md.
+    reviewerCapabilities: () =>
+      request<{
+        specs: Array<{
+          slug: string;
+          path: string;
+          title: string;
+          description: string | null;
+          sections: string[];
+          used_by: string[];
+          updated_at: string | null;
+          size_bytes: number;
+        }>;
+      }>("/api/agents/reviewer/capabilities"),
+
     // Create a new agent
     create: (data: AgentCreate) =>
       request<Agent>("/api/agents", {
