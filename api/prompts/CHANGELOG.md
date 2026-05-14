@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.14.7] - feat(adr-275): introspection cadence is Reviewer-authored, not bundle-scaffolded
+
+### Background
+
+ADR-274 + FOUNDATIONS v8.5 canonized that Trigger authoring is an Identity-layer responsibility — but the alpha-trader bundle still shipped 7 pre-scheduled judgment-cadence recurrences (introspection / housekeeping / deliverable production), contradicting the axiom. ADR-275 enacts the structural cleanup: bundles ship substrate-maintenance + reactive triggers + capability specs only. Judgment cadence is Reviewer-authored. Operator deliverable preferences live in a new operator-authored substrate file the Reviewer reads at every wake.
+
+### Changed
+- `api/agents/reviewer_agent.py` `_PERSONA_FRAME`:
+  - Deleted ADR-274's "scaffold cadence is in place" guardrail (now contradictory).
+  - Added explicit `_preferences.yaml` section naming operator deliverable preferences as the cadence-authoring source.
+  - Added "ADR-275 in plain terms" paragraph distinguishing what bundles ship (substrate-maintenance + reactive + capability specs) from what the Reviewer authors (all judgment cadence).
+  - First-wake framing rewritten — there is no scaffold judgment cadence post-ADR-275; substrate mirrors run continuously, but introspection / housekeeping / deliverable cadence is the Reviewer's call.
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml`:
+  - 7 entries deleted (~200 LOC): morning-reflection, morning-calibration, narrative-digest, proposal-cleanup, pre-market-brief, weekly-performance-review, quarterly-signal-audit.
+  - 8 entries preserved: track-positions/account/orders/regime/universe (mechanical mirrors), signal-evaluation (market-event heartbeat), trade-proposal (reactive), outcome-reconciliation (substrate-maintenance reconciler).
+- `docs/programs/alpha-trader/reference-workspace/context/_shared/_preferences.yaml` (new): operator-authored cadence preferences for pre-market-brief, weekly-performance-review, quarterly-signal-audit. `tier: canon` frontmatter — forks at activation. Operator edits `cadence` or `active` to influence; Reviewer reads at every wake and authors corresponding Schedule(action="create"|"update"|"archive") calls.
+- `api/services/workspace_paths.py`: added `SHARED_PREFERENCES_PATH` constant + included in `DEFAULT_REVIEWER_WRITE_LOCKS` (Reviewer reads but never writes).
+- Expected behavior:
+  - The Reviewer on its first wake (operator-addressed turn after activation) reads Operating Context + `_preferences.yaml` + current `_recurrences.yaml` state, decides what moves the operation forward right now (research, fire substrate refresh, write to own substrate, schedule next wake), and authors the cadence it needs via `Schedule`.
+  - For each `active: true` deliverable preference, the Reviewer authors a corresponding scheduled recurrence with `mode: judgment` + prompt built from the spec.
+  - Reviewer authors its own introspection (reflection / calibration) cadence from first-principled judgment — no fixed cron from infrastructure.
+  - Every Reviewer-authored Schedule call is attributed `reviewer:ai:reviewer-sonnet-v8` per ADR-274 dispatch-layer injection.
+
+---
+
 ## [2026.05.14.6] - feat(adr-274 / foundations v8.5): trigger-authoring is Identity-layer responsibility
 
 ### Background

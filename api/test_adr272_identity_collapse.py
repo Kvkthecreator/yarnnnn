@@ -146,7 +146,21 @@ def test_production_role_slugs_narrowed():
 
 
 def test_falsify_signals_recurrence_deleted():
-    """D5: falsify-signals recurrence collapsed into morning-reflection."""
+    """ADR-272 D5: falsify-signals recurrence is deleted.
+
+    Pre-ADR-275, ADR-272 absorbed falsify-signals' bootstrap-research
+    intent into morning-reflection's prompt as a precondition.
+
+    Post-ADR-275, morning-reflection itself is deleted — judgment
+    cadence is Reviewer-authored, not bundle-scaffolded. Bootstrap
+    research is the Reviewer's first-wake judgment call (informed by
+    Operating Context + _preferences.yaml + IDENTITY + principles),
+    not a precondition on a pre-scheduled morning ritual.
+
+    This test now asserts both deletions: neither falsify-signals
+    nor morning-reflection ship in the bundle. The Reviewer handles
+    bootstrap research from cold-start judgment.
+    """
     from services.recurrence import parse_recurrences_yaml
 
     bundle_path = (
@@ -160,17 +174,8 @@ def test_falsify_signals_recurrence_deleted():
         "alpha-trader bundle no longer declares falsify-signals recurrence",
     )
     assert_true(
-        "morning-reflection" in slugs,
-        "alpha-trader bundle declares morning-reflection (absorbs bootstrap-research)",
-    )
-    mr = next(r for r in parsed if r.slug == "morning-reflection")
-    assert_true(
-        "read_trading" in set(mr.required_capabilities),
-        "morning-reflection declares read_trading for bootstrap-research precondition",
-    )
-    assert_true(
-        "/workspace/research/findings/" in mr.prompt or "bootstrap research" in mr.prompt.lower(),
-        "morning-reflection prompt mentions bootstrap research path",
+        "morning-reflection" not in slugs,
+        "alpha-trader bundle no longer declares morning-reflection (ADR-275)",
     )
 
 

@@ -1,0 +1,48 @@
+---
+tier: canon
+note: "Operator-authored cadence preferences (ADR-275). Forked to /workspace/context/_shared/_preferences.yaml at activation. The Reviewer reads this every wake and authors Schedule(action='create'|'update'|'archive') for declared preferences."
+---
+# _preferences.yaml — operator cadence preferences (ADR-275)
+#
+# This file declares the operator-facing deliverables the operator wants
+# produced on cadence. The Reviewer reads this every wake and authors
+# actual scheduled recurrences via the Schedule primitive to honor
+# declared preferences. The Reviewer NEVER writes to this file — it is
+# the operator's declaration of *what* and *when*; the Reviewer decides
+# *how* (content judgment) and authors the actual cadence.
+#
+# Edit `cadence` to change when a deliverable is produced.
+# Edit `active: false` to pause a deliverable without deleting the
+# preference (the Reviewer will pause or archive the corresponding
+# scheduled recurrence on its next wake).
+#
+# `cadence` supports the same shapes as _recurrences.yaml entries:
+#   - plain UTC cron: "0 18 * * 0"
+#   - ADR-268 semantic schedules: "@market_open - 30min",
+#     "@market_close + 1h", "@every 5min during regular_hours"
+#   - list of either (multiple fires per day)
+#   - null (no preference; Reviewer authors cadence from judgment if
+#     it deems the deliverable worth producing)
+#
+# `spec` is the path to the canonical capability spec — the Reviewer
+# reads it when producing this deliverable (Claude Code skills.md
+# analog).
+
+deliverable_preferences:
+  - slug: pre-market-brief
+    spec: /workspace/specs/pre-market-brief.md
+    cadence: "@market_open - 30min"
+    description: "Pre-market brief 30 minutes before RTH open (weekdays)"
+    active: true
+
+  - slug: weekly-performance-review
+    spec: /workspace/specs/weekly-performance-review.md
+    cadence: "0 18 * * 0"
+    description: "Weekly performance synthesis every Sunday at 18:00 UTC"
+    active: true
+
+  - slug: quarterly-signal-audit
+    spec: /workspace/specs/quarterly-signal-audit.md
+    cadence: "0 18 31 3,6,9,12 *"
+    description: "Quarter-end signal discipline audit at 18:00 UTC on quarter-end day"
+    active: true

@@ -610,26 +610,19 @@ def test_alpha_trader_heavy_recurrences_declare_max_rounds():
         "track-universe is mechanical-mode post-ADR-271",
     )
 
-    # ADR-272: falsify-signals recurrence DELETED. Its bootstrap-research
-    # intent is now an inline precondition in morning-reflection's prompt.
-    # Replaces the max_rounds assertion with morning-reflection mode+capability
-    # invariants (it gained read_trading for the bootstrap path).
+    # ADR-272 deleted falsify-signals (collapsed into morning-reflection
+    # precondition). ADR-275 then deleted morning-reflection itself —
+    # judgment cadence is Reviewer-authored, not bundle-scaffolded.
+    # Bootstrap research is the Reviewer's first-wake judgment call.
+    # Assert both deletions; no heavy-judgment recurrence remains in
+    # the bundle to test max_rounds against (and that's the point).
     assert_true(
         "falsify-signals" not in by_slug,
         "alpha-trader bundle no longer declares falsify-signals (ADR-272 collapse)",
     )
     assert_true(
-        "morning-reflection" in by_slug,
-        "alpha-trader bundle declares morning-reflection",
-    )
-    mr = by_slug["morning-reflection"]
-    assert_eq(
-        mr.mode, "judgment",
-        "morning-reflection is judgment-mode",
-    )
-    assert_true(
-        "read_trading" in set(mr.required_capabilities),
-        "morning-reflection declares read_trading (for bootstrap-research precondition)",
+        "morning-reflection" not in by_slug,
+        "alpha-trader bundle no longer declares morning-reflection (ADR-275)",
     )
 
 

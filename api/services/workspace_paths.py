@@ -60,6 +60,11 @@ SHARED_AUTONOMY_YAML_PATH = "context/_shared/_autonomy.yaml"  # machine-parsed (
 # Shared durable interpretations: operator-authored precedent that survives
 # seat rotation and is readable by YARNNN, Reviewer, and domain Agents alike.
 SHARED_PRECEDENT_PATH = "context/_shared/PRECEDENT.md"
+# ADR-275: Operator-authored deliverable cadence preferences. Reviewer
+# reads this every wake and authors Schedule(action="create"|"update"|
+# "archive") for declared preferences. Reviewer never writes — operator-
+# authored substrate, included in DEFAULT_REVIEWER_WRITE_LOCKS below.
+SHARED_PREFERENCES_PATH = "context/_shared/_preferences.yaml"
 
 # Files the kernel seeds at every workspace init. CONVENTIONS.md is intentionally
 # excluded — it is program-scoped, not kernel-scoped. See module docstring above.
@@ -138,6 +143,7 @@ DEFAULT_REVIEWER_WRITE_LOCKS = (
     SHARED_BRAND_PATH,
     SHARED_CONVENTIONS_PATH,
     SHARED_PRECEDENT_PATH,
+    SHARED_PREFERENCES_PATH,  # ADR-275: operator-declared deliverable cadence preferences
     "context/trading/_operator_profile.md",
     "context/trading/_risk.md",
     "context/commerce/_operator_profile.md",

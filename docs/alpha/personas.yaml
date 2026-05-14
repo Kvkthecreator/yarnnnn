@@ -87,21 +87,21 @@ personas:
       # canonical /workspace/_recurrences.yaml file. Slugs are universal
       # (no persona suffix) — per-operator scoping is via user_id in the
       # `tasks` scheduling index.
+      # ADR-275 (2026-05-14): 7 judgment-cadence recurrences deleted —
+      # bundles ship only substrate-maintenance + reactive + event-anchored
+      # heartbeats. Reviewer authors introspection / housekeeping /
+      # deliverable cadence from first-principled judgment. Operator
+      # preferences for deliverable cadence in /workspace/context/_shared/
+      # _preferences.yaml; Reviewer reads and authors Schedule accordingly.
       scaffolded_recurrences:
-        - narrative-digest               # judgment, daily 03:00 UTC
-        - outcome-reconciliation         # judgment, daily 05:00 UTC
-        - proposal-cleanup               # judgment, daily 04:00 UTC
-        - morning-calibration            # judgment, daily 06:00 UTC
-        - morning-reflection             # judgment, daily 07:00 UTC
-        - pre-market-brief               # judgment, 15 8 * * 1-5
-        - signal-evaluation              # judgment, 5 8 * * 1-5
-        - track-universe                 # judgment, 0 8,11,15 * * 1-5
-        - track-account                  # mechanical (ADR-264), */5 * 9-16 * 1-5
-        - track-orders                   # mechanical (ADR-264), * * 9-16 * 1-5
-        - track-positions                # mechanical (ADR-264), * * 9-16 * 1-5
+        - outcome-reconciliation         # judgment-mode but substrate-maint (post-close reconciler)
+        - signal-evaluation              # @market_open + 15min — operator-declared trading heartbeat
+        - track-universe                 # mechanical (ADR-271 Thread A)
+        - track-regime                   # mechanical (ADR-271 Thread A)
+        - track-account                  # mechanical (ADR-264)
+        - track-orders                   # mechanical (ADR-264)
+        - track-positions                # mechanical (ADR-264)
         - trade-proposal                 # reactive (no schedule)
-        - weekly-performance-review      # judgment, 0 18 * * 0
-        - quarterly-signal-audit         # judgment, 0 18 31 3,6,9,12 *
       platform_connections: 1
       core_files:
         - /workspace/_recurrences.yaml   # ADR-261 D2: single canonical recurrence declaration substrate
@@ -110,6 +110,7 @@ personas:
         - /workspace/context/_shared/AUTONOMY.md
         - /workspace/context/_shared/BRAND.md
         - /workspace/context/_shared/CONVENTIONS.md
+        - /workspace/context/_shared/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
         - /workspace/context/trading/_operator_profile.md
         - /workspace/context/trading/_risk.md
         - /workspace/review/IDENTITY.md
@@ -142,21 +143,21 @@ personas:
       # when per-shape declaration files dissolved into a single canonical
       # _recurrences.yaml — disambiguation is per user_id in the `tasks`
       # index, not at the slug level.
+      # ADR-275 (2026-05-14): 7 judgment-cadence recurrences deleted —
+      # bundles ship only substrate-maintenance + reactive + event-anchored
+      # heartbeats. Reviewer authors introspection / housekeeping /
+      # deliverable cadence from first-principled judgment. Operator
+      # preferences for deliverable cadence in /workspace/context/_shared/
+      # _preferences.yaml; Reviewer reads and authors Schedule accordingly.
       scaffolded_recurrences:
-        - narrative-digest               # judgment, daily 03:00 UTC
-        - outcome-reconciliation         # judgment, daily 05:00 UTC
-        - proposal-cleanup               # judgment, daily 04:00 UTC
-        - morning-calibration            # judgment, daily 06:00 UTC
-        - morning-reflection             # judgment, daily 07:00 UTC
-        - pre-market-brief               # judgment, 15 8 * * 1-5
-        - signal-evaluation              # judgment, 5 8 * * 1-5
-        - track-universe                 # judgment, 0 8,11,15 * * 1-5
-        - track-account                  # mechanical (ADR-264), */5 * 9-16 * 1-5
-        - track-orders                   # mechanical (ADR-264), * * 9-16 * 1-5
-        - track-positions                # mechanical (ADR-264), * * 9-16 * 1-5
+        - outcome-reconciliation         # judgment-mode but substrate-maint (post-close reconciler)
+        - signal-evaluation              # @market_open + 15min — operator-declared trading heartbeat
+        - track-universe                 # mechanical (ADR-271 Thread A)
+        - track-regime                   # mechanical (ADR-271 Thread A)
+        - track-account                  # mechanical (ADR-264)
+        - track-orders                   # mechanical (ADR-264)
+        - track-positions                # mechanical (ADR-264)
         - trade-proposal                 # reactive (no schedule)
-        - weekly-performance-review      # judgment, 0 18 * * 0
-        - quarterly-signal-audit         # judgment, 0 18 31 3,6,9,12 *
       platform_connections: 1
       core_files:
         - /workspace/_recurrences.yaml   # ADR-261 D2: single canonical recurrence declaration substrate
@@ -165,6 +166,7 @@ personas:
         - /workspace/context/_shared/AUTONOMY.md
         - /workspace/context/_shared/BRAND.md
         - /workspace/context/_shared/CONVENTIONS.md
+        - /workspace/context/_shared/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
         - /workspace/context/trading/_operator_profile.md
         - /workspace/context/trading/_risk.md
         - /workspace/review/IDENTITY.md
@@ -176,7 +178,7 @@ personas:
     program: alpha-trader
     email: kvkthecreator@gmail.com
     user_id: 2abf3f96-118b-4987-9d95-40f2d9be9a18
-    workspace_id: ff92352e-5b8a-4ba3-9a8c-eb93540df542
+    workspace_id: 848a9d7e-f469-4058-9aad-1d9b3eced9df
     platform:
       kind: trading
       provider: alpaca
@@ -195,21 +197,21 @@ personas:
       # asserted at activation time.
       agent_count: 1
       active_roles: [thinking_partner]
+      # ADR-275 (2026-05-14): 7 judgment-cadence recurrences deleted —
+      # bundles ship only substrate-maintenance + reactive + event-anchored
+      # heartbeats. Reviewer authors introspection / housekeeping /
+      # deliverable cadence from first-principled judgment. Operator
+      # preferences for deliverable cadence in /workspace/context/_shared/
+      # _preferences.yaml; Reviewer reads and authors Schedule accordingly.
       scaffolded_recurrences:
-        - narrative-digest               # judgment, daily 03:00 UTC
-        - outcome-reconciliation         # judgment, daily 05:00 UTC
-        - proposal-cleanup               # judgment, daily 04:00 UTC
-        - morning-calibration            # judgment, daily 06:00 UTC
-        - morning-reflection             # judgment, daily 07:00 UTC
-        - pre-market-brief               # judgment, 15 8 * * 1-5
-        - signal-evaluation              # judgment, 5 8 * * 1-5
-        - track-universe                 # judgment, 0 8,11,15 * * 1-5
-        - track-account                  # mechanical (ADR-264), */5 * 9-16 * 1-5
-        - track-orders                   # mechanical (ADR-264), * * 9-16 * 1-5
-        - track-positions                # mechanical (ADR-264), * * 9-16 * 1-5
+        - outcome-reconciliation         # judgment-mode but substrate-maint (post-close reconciler)
+        - signal-evaluation              # @market_open + 15min — operator-declared trading heartbeat
+        - track-universe                 # mechanical (ADR-271 Thread A)
+        - track-regime                   # mechanical (ADR-271 Thread A)
+        - track-account                  # mechanical (ADR-264)
+        - track-orders                   # mechanical (ADR-264)
+        - track-positions                # mechanical (ADR-264)
         - trade-proposal                 # reactive (no schedule)
-        - weekly-performance-review      # judgment, 0 18 * * 0
-        - quarterly-signal-audit         # judgment, 0 18 31 3,6,9,12 *
       platform_connections: 1
       core_files:
         - /workspace/_recurrences.yaml   # ADR-261 D2: single canonical recurrence declaration substrate
@@ -218,6 +220,7 @@ personas:
         - /workspace/context/_shared/AUTONOMY.md
         - /workspace/context/_shared/BRAND.md
         - /workspace/context/_shared/CONVENTIONS.md
+        - /workspace/context/_shared/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
         - /workspace/context/trading/_operator_profile.md
         - /workspace/context/trading/_risk.md
         - /workspace/review/IDENTITY.md
