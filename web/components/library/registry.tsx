@@ -37,13 +37,15 @@ import type { Binding } from '@/lib/compositor';
 import { KernelDeliverableMetadata } from './kernel-chrome/KernelDeliverableMetadata';
 import { KernelDeliverableActions } from './kernel-chrome/KernelDeliverableActions';
 
-// alpha-trader bundle components (ADR-242 Phase 2 + ADR-243 Phase C).
-// Relocated under programs/alpha-trader/ per ADR-273 D1 (kernel/program
-// folder split). Component `kind`s remain bare strings in SURFACES.yaml —
-// folder location is filesystem signal, not registry namespacing.
-import { TraderMoneyTruth } from './programs/alpha-trader/TraderMoneyTruth';
-import { TraderPositions } from './programs/alpha-trader/TraderPositions';
+// alpha-trader bundle components — kernel/program folder split per
+// ADR-273 D1; component `kind`s remain bare strings in SURFACES.yaml.
+// Folder location is filesystem signal, not registry namespacing.
+import { TraderRegime } from './programs/alpha-trader/TraderRegime';
 import { TraderPortfolio } from './programs/alpha-trader/TraderPortfolio';
+import { TraderMoneyTruth } from './programs/alpha-trader/TraderMoneyTruth';
+import { TraderExpectancy } from './programs/alpha-trader/TraderExpectancy';
+import { TraderPositions } from './programs/alpha-trader/TraderPositions';
+import { TraderSignals } from './programs/alpha-trader/TraderSignals';
 import { TraderOrders } from './programs/alpha-trader/TraderOrders';
 
 /**
@@ -68,15 +70,18 @@ export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   KernelDeliverableMetadata: () => <KernelDeliverableMetadata />,
   KernelDeliverableActions: () => <KernelDeliverableActions />,
 
-  // alpha-trader bundle components (ADR-242 Phase 2). Declared in
-  // docs/programs/alpha-trader/SURFACES.yaml under cockpit.{money_truth,
-  // performance.components, tracking.operational_state}. Future bundles
-  // (alpha-commerce, etc.) register their own components here following
-  // the same pattern.
-  TraderPortfolio: () => <TraderPortfolio />,
+  // alpha-trader bundle components. Declared in
+  // docs/programs/alpha-trader/SURFACES.yaml under cockpit.program_sections[].
+  // Order is determined by SURFACES.yaml; registration here is alphabetical
+  // for grep-ability. Future programs (alpha-commerce, etc.) register their
+  // own components here following the same pattern.
+  TraderExpectancy: () => <TraderExpectancy />,
   TraderMoneyTruth: () => <TraderMoneyTruth />,
-  TraderPositions: () => <TraderPositions />,
   TraderOrders: () => <TraderOrders />,
+  TraderPortfolio: () => <TraderPortfolio />,
+  TraderPositions: () => <TraderPositions />,
+  TraderRegime: () => <TraderRegime />,
+  TraderSignals: () => <TraderSignals />,
 };
 
 /**
