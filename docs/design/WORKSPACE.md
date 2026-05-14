@@ -178,25 +178,40 @@ Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, u
 - **Empty state** (cold start per ADR-205 F1): `<ChatEmptyState>` — deterministic client-side landing with four suggestion chips (Upload a doc, Paste a URL, Track something recurring, Build a recurring report). Zero LLM cost on first load. The only surface in the cockpit that overrides its archetype for first-run guidance.
 - **`+` menu:** exactly one entry per ADR-215 Phase 5 — "Start new work" → `TaskSetupModal` (R4 modal launcher). The prior "Update workspace" entry was retired — it violated R2 (update is never Modal) and R3 (identity/brand/conventions are substrate, edited on Files).
 - **Deep-links out:** any file YARNNN cites (`/context?path=...`), any recurrence `ManageRecurrence` creates or updates (`/work?task=...` — query-param name preserved per ADR-219 D4 task_slug = declaration slug), any agent `ManageAgent` touches (`/agents?agent=...`). Reviewer verdict cards (role='reviewer' messages per ADR-212) link to `/agents?agent=reviewer` (ADR-214 canonical route). Artifacts carry links, not embeds.
-- **Snapshot overlay** (`<SnapshotModal>`): modal opened by YARNNN-emitted `<!-- snapshot: {"lead":"..."} -->` marker OR the surface header "Snapshot" button. **Briefing archetype in its purest form** (ADR-198 §3): pure read, composed by selection, no outbound nav, zero LLM at open time. The overlay is *of* the conversation — Close returns the operator to typing with enriched awareness, not to another tab.
+- **Context overlay** (`<WorkspaceContextOverlay>`): modal opened by YARNNN-emitted `<!-- snapshot: {"lead":"..."} -->` marker OR the surface header "Context" button. **Briefing archetype in its purest form** (ADR-198 §3): pure read, composed by selection, no outbound nav, zero LLM at open time. The overlay is *of* the conversation — Close returns the operator to typing with enriched awareness, not to another tab.
 
-  Three tabs, each rendered in place from substrate files and neutral audit ledgers:
+  **Three sections (refactored 2026-05-14 from 8 overlapping sub-blocks to a 3-section primer):** single operator question this modal answers is *"what do I need to know right now to make sense of the next chat turn?"* — a 5-second awareness primer, not a supervision or forensic surface. Anything richer routes to canonical dedicated surfaces via inline deep-links.
 
-  | Tab | Purpose (the operator's *why*) | What renders in place | Sources | Cost |
+  | Section | Purpose (the operator's *why*) | What renders in place | Sources | Cost |
   |---|---|---|---|---|
-  | **Mandate** | "What have I committed to?" | MANDATE.md rendered as markdown, full. Operator owns keeping it tight (~300 words). | `GET /api/workspace/file?path=/workspace/context/_shared/MANDATE.md` | 1 HTTP GET, 0 LLM |
-  | **Review standard** | "How does judgment happen around here?" | Reviewer principles.md rendered as bullets + last 3 entries from decisions.md (Stream tail, parsed) | `GET` principles.md + `GET` decisions.md | 2 HTTP GETs, 0 LLM |
-  | **Recent** | "What's unresolved right now?" | Pending proposals (count + titles), last 3 task runs, latest AWARENESS.md snippet | SELECT `action_proposals` + SELECT `agent_runs` + `GET` AWARENESS.md | 2 SELECTs + 1 GET, 0 LLM |
+  | **Mandate** | "What's the operation trying to do?" | MandateCard variant=compact — Primary Action sentence + autonomy posture chip | `GET /api/workspace/file?path=/workspace/context/_shared/MANDATE.md` | 1 HTTP GET, 0 LLM |
+  | **Rules** | "How does the system judge + how much delegation?" | PrinciplesCard variant=compact + DelegationCard variant=compact | `GET` principles.md + `GET` _autonomy.yaml | 2 HTTP GETs, 0 LLM |
+  | **Pulse** | "Is it alive + what demands my attention now?" | One-line liveness ("Last wake N ago · M runs in window") + nearest next-wake hint + pending-proposals card (only when count > 0) + deep-links footer | `GET /api/agents/reviewer/activity` + `GET /api/proposals?status=pending` | 2 HTTP GETs, 0 LLM |
+
+  **Lens distinction (sharpened 2026-05-14)** — modal answers ONE operator question (right-now awareness primer). Richer views live on dedicated surfaces:
+    - Full upcoming-wakes schedule → `/work?tab=schedule` (declaration-lens)
+    - Full execution history → `/activity` (execution-lens)
+    - Reviewer-loop supervision (full activity + capabilities + autonomy config) → `/agents?agent=reviewer&tab=activity` (supervision-lens)
+
+  The Pulse section renders a footer link-row pointing at all three so operators can drill into the richer view with one click.
+
+  **SnapshotLead vocabulary (post-2026-05-14 rename):** `mandate | rules | pulse`. Legacy values `review` / `recent` from in-flight TP messages are accepted on read (mapped to `rules` / `pulse` respectively at parse time in `web/lib/content-shapes/snapshot.ts`) — Singular Implementation rule: read-side tolerance during transition, prompt-side emits new vocabulary only.
+
+  **Out-of-scope on this surface** (intentionally dropped from the modal):
+    - 10-row upcoming-wakes schedule (was overload for an "at-a-glance" surface)
+    - 8-row recent-runs history (forensic detail belongs on `/activity`)
+    - "Recent autonomous actions" empty-state noise when autonomy is Manual
+    - awareness.md free-form notes — pre-2026-05-14 surface rendered stale skeleton headings ("Tasks / Context State / Next Steps") for active workspaces because nothing updates them. Post-ADR-261 between-session continuity is decisions.md + _performance.md + domain _run_log.md; awareness.md as parallel substrate is vestigial. File stays in substrate (operator data preserved); no longer surfaced in modal.
 
   **Zero LLM cost at modal open**, by contract. No summarization, no reasoning, no cross-referencing commentary. Every byte rendered was persisted by an earlier conversational turn — the overlay reads what already exists.
 
-  **Stay-in-chat invariant** (the defining discipline): every tab renders its content in place. No "Open on Files" links per row, no stat cards that ship the operator to another tab. If the operator wants to browse the full `_shared/` substrate or the roster, the tab bar already carries Files and Agents — the overlay doesn't duplicate those destinations. Close button returns to typing.
+  **Stay-in-chat invariant** (the defining discipline): every section renders its content in place. The Pulse footer deep-links are explicit operator choice (one click, one destination, no surprise navigation). Close button returns to typing.
 
-  **Permitted affordances per tab:**
+  **Permitted affordances per section:**
   1. Close button — return to conversation.
-  2. At most one `<EditInChatButton>` per tab (R5 single label) seeding a tab-contextual prompt ("Revise my mandate", "Evolve the Reviewer's principles", "What should I do about these pending proposals?"). The seed closes the modal and drops the prompt into the composer. Operator still owns pressing Send.
+  2. At most one Edit-in-chat affordance per concept card (R5 single label) seeding a section-contextual prompt ("Revise my mandate", "Evolve principles", "Walk me through pending proposals"). The seed closes the modal and drops the prompt into the composer. Operator still owns pressing Send.
 
-  **Identity-empty states** degrade gracefully — a missing MANDATE.md renders "Not yet declared" with an "Edit in chat" button seeding "Help me author my mandate"; same pattern for missing principles.md. R3 is preserved (substrate-file edits would happen on Files, but this overlay never *edits* substrate — it only seeds the conversation that eventually writes via `WriteFile(scope='workspace')` or `InferContext`).
+  **Identity-empty states** degrade gracefully — a missing MANDATE.md renders "Not yet declared" with Edit-in-chat seed; same for principles.md. R3 preserved (substrate-file edits happen on Files; this overlay never *edits* substrate — only seeds the conversation that eventually writes via `WriteFile(scope='workspace')` or `InferContext`).
 - **Reviewer verdict thread** (ADR-258, supersedes ADR-212 visual treatment): `role='reviewer'` session messages render as a uniform muted bubble — same shape as System Agent, differentiated by persona name label. Color differentiation is deleted; semantic state (approved/rejected/deferred) appears as a compact inline chip in text + icon only, never as bubble background tinting. No section dividers. The Reviewer is a chat participant, not a gate announcement. Stream archetype invariant: append-only; entries are historical, never mutated inline. Observation entries collapse to a dim Eye-icon one-liner (housekeeping weight).
 - **Interactive stream entries — chip → modal pattern** (ADR-258 D2): proposals and workspace file references use one pattern. Stream entry = compact chip (1–2 lines, append-only). Clicking opens `InteractiveModal` (centered modal, Escape to close) with full detail and action affordances. `InteractiveModal` is the single shared style for all interactive stream items — one component, no per-entry modal variants. Approve/reject executes in the modal and closes it; chip reflects terminal state. This supersedes the prior inline `ProposalCard` expand pattern and the inline `WorkspaceFileView` overlay in `MessageRow`.
 - **Inline-to-recurrence graduation** (ADR-219 D6 + ADR-231 D1/D5): material-weight operator messages that have no `metadata.task_slug` (i.e. inline invocations per FOUNDATIONS Axiom 9 + ADR-231 D1 invocation-first default) carry an inline **"Make this recurring"** affordance. Per D1 the operator's first invocation already fired and produced its result; this affordance attaches a nameplate + pulse + contract for repeat firings. Click opens `TaskSetupModal` pre-filled with `Recurring intent: <message-prefix>` so YARNNN turns it into `ManageRecurrence(action='create', shape=..., slug=..., body={...})` on submit. Reversible: a recurrence can be archived later via `ManageRecurrence(action='archive', ...)` and the same intent returns to inline. The atom of action (the invocation) is the same throughout — only the legibility wrapper rotates.

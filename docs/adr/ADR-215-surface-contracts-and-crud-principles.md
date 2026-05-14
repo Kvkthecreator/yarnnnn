@@ -1,6 +1,9 @@
 # ADR-215: Surface Contracts and CRUD Principles
 
 > **⚠ Vocabulary update (2026-05-08, [ADR-259](ADR-259-feed-surface.md))**: references to "chat" surface in the four-shape CRUD matrix below are preserved as period vocabulary. The "chat" surface is now "the Feed"; URL `/chat` → `/feed`. The four-shape matrix and CRUD principles unchanged.
+>
+> **2026-05-14 amendment — Phase 6 context overlay refactored to 3-section primer (commits `4b10d47` + `451d523`):**
+> Phase 6's three-tab `SnapshotModal` (Mandate / Review standard / Recent) collapsed to a 3-section primer in `WorkspaceContextOverlay` (Mandate · Rules · Pulse). Audit found the modal had drifted to 8 overlapping sub-blocks with three different views of the same activity question ("Upcoming wakes" + "Recent runs" + "Recent task runs"). The lens-sharpening discipline canonized for Schedule vs /activity (2026-05-14 in this same doc — WORKSPACE.md Tab: Work) applied here: each cockpit surface answers one operator question. The context modal's question is *"what do I need to know right now to make sense of the next chat turn?"* — a 5-second awareness primer, not a supervision/forensic/schedule surface (those have dedicated canonical homes the modal now deep-links to). Activity collapsed to a single Pulse section (liveness one-liner + pending proposals + next-wake hint). awareness.md rendering dropped from the modal — schema was stale pre-ADR-261 vocabulary; substrate continuity post-ADR-261 lives in decisions.md + _performance.md + domain _run_log.md. SnapshotLead vocabulary renamed `review → rules`, `recent → pulse` (legacy values still mapped on read for in-flight TP messages). All ADR-215 R1–R5 invariants preserved (stay-in-chat, zero LLM at open, Edit-in-chat seeds prompts).
 
 **Status:** Phases 1–5 Implemented (ADR closed 2026-04-24)
 **Date:** 2026-04-24
