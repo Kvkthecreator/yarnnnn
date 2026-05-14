@@ -18,7 +18,6 @@ import { BookOpen, Filter } from 'lucide-react';
 import { FeedPanel } from '@/components/tp/FeedPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
-import type { Recurrence } from '@/types';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import {
   parseSnapshotMeta,
@@ -32,14 +31,11 @@ import { FeedFilterBar, parseChatFilterFromSearch } from './FeedFilterBar';
 import { cn } from '@/lib/utils';
 
 interface FeedSurfaceProps {
-  /** Tasks feed the Snapshot overlay's Recent tab (last-run list). */
-  tasks: Recurrence[];
   /** Additional plus-menu actions from the page. FeedSurface prepends its own built-in actions. */
   plusMenuActions?: PlusMenuAction[];
 }
 
 export function FeedSurface({
-  tasks,
   plusMenuActions = [],
 }: FeedSurfaceProps) {
   const { messages, sendMessage } = useNarrative();
@@ -228,13 +224,14 @@ export function FeedSurface({
         </div>
       </div>
 
-      {/* Context overlay — replaces SnapshotModal. WorkspaceFileView renders
-          substrate files inline; no tabs, one scrollable panel. */}
+      {/* Context overlay — 3-section primer (Mandate · Rules · Pulse) per
+          2026-05-14 refactor. The legacy `tasks` prop dropped — the Pulse
+          section reads its own activity data via api.agents.reviewerActivity()
+          and api.proposals.list(). */}
       <WorkspaceContextOverlay
         open={snapshotOpen}
         lead={snapshotLead}
         reason={snapshotReason}
-        tasks={tasks}
         onClose={handleSnapshotClose}
         onAskTP={handleAskYARNNN}
       />

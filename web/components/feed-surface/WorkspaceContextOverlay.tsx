@@ -1,53 +1,69 @@
 'use client';
 
 /**
- * WorkspaceContextOverlay — replaces SnapshotModal (ADR-215 Phase 6).
+ * WorkspaceContextOverlay — Feed surface context primer.
  *
- * The SnapshotModal had three tabs (Mandate / Review standard / Recent)
- * each with bespoke fetch + render logic (~612 LOC total). This component
- * replaces it with a single scrollable panel of `WorkspaceFileView` cards —
- * one component, one contract.
+ * 2026-05-14 refactor: collapsed from 8 visual rows of overlapping activity
+ * surfaces to 3 cohesive sections. Single operator question this modal
+ * answers: **"what do I need to know right now to make sense of the next
+ * chat turn?"** — a 5-second awareness primer, not a supervision or
+ * forensic surface.
  *
- * Design change: no tabs. The three files stack vertically in one
- * scrollable view. The operator sees all of them in sequence without
- * clicking between tabs. "Recent" (proposals + runs) remains as a small
- * dedicated section since it queries non-file data.
+ * Three sections (top → bottom):
  *
- * Contract invariants preserved from SnapshotModal:
- *   I1 — stay-in-chat: Close returns to typing. No page navigation.
+ *   1. **Mandate** — what the operation is trying to do.
+ *      MandateCard variant=compact. Reads /workspace/context/_shared/MANDATE.md.
+ *
+ *   2. **Rules** — how the system judges + how much it acts on its own.
+ *      PrinciplesCard variant=compact + DelegationCard variant=compact.
+ *      Reads /workspace/review/principles.md + _autonomy.yaml.
+ *
+ *   3. **Pulse** — one-line "is the system alive?" + "what demands my
+ *      attention right now?" + deep-links to canonical surfaces for
+ *      anything richer.
+ *
+ * Out-of-scope on this surface (lives elsewhere by design):
+ *   - Full upcoming-wakes schedule → /work?tab=schedule
+ *   - Full execution history → /activity
+ *   - Reviewer-loop supervision → /agents?agent=reviewer&tab=activity
+ *   - awareness.md free-form notes (vestigial — never updated past
+ *     activation skeleton; substrate continuity is decisions.md +
+ *     _performance.md + domain _run_log.md per ADR-261)
+ *
+ * Previous shape (ADR-215 Phase 6) stacked Mandate + Principles +
+ * ReviewerActivityPanel + RecentSection + awareness.md — 8 sub-blocks
+ * with significant overlap between "Upcoming wakes" + "Recent runs" +
+ * "Recent task runs" (three views of the same activity question).
+ * The refactor collapses all activity to one compact Pulse strip
+ * with deep-links out.
+ *
+ * SnapshotLead vocabulary updated: 'mandate' | 'rules' | 'pulse'.
+ * Legacy 'review' → 'rules' and 'recent' → 'pulse' on read for
+ * bookmark-safety on in-flight messages.
+ *
+ * Contract invariants preserved:
+ *   I1 — stay-in-chat: Close returns to typing. No page navigation
+ *        triggered by the modal itself; deep-links are explicit operator
+ *        choice.
  *   I2 — zero LLM at open. Pure substrate reads.
  *   I3 — Edit-in-chat buttons seed prompts; operator presses Send.
- *
- * `SnapshotLead` still controls which section is scrolled into view on open,
- * so YARNNN can direct attention: `<!-- snapshot: mandate -->` scrolls to
- * the mandate card, `<!-- snapshot: review -->` scrolls to principles, etc.
  */
 
 import { useEffect, useRef, useState } from 'react';
-import {
-  X,
-  Clock,
-  Inbox,
-  Activity,
-} from 'lucide-react';
+import Link from 'next/link';
+import { X, Activity, ArrowRight, Inbox } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { WorkspaceFileView } from '@/components/shared/WorkspaceFileView';
-import { EditInChatButton } from '@/components/shared/EditInChatButton';
 import { MandateCard } from '@/components/workspace-concepts/MandateCard';
 import { PrinciplesCard } from '@/components/workspace-concepts/PrinciplesCard';
-import { ReviewerActivityPanel } from '@/components/agents/ReviewerActivityPanel';
-import { formatActionType, formatRelativeTimestamp } from '@/lib/content-shapes/decisions';
-import type { Recurrence } from '@/types';
+import { DelegationCard } from '@/components/workspace-concepts/DelegationCard';
 import type { SnapshotLead } from '@/lib/content-shapes/snapshot';
 
 interface WorkspaceContextOverlayProps {
   open: boolean;
-  /** Which section to scroll into view on open. If null, defaults to top. */
+  /** Which section to scroll into view on open. Null = top. */
   lead: SnapshotLead | null;
   /** Optional one-liner YARNNN can pass explaining why it opened the overlay. */
   reason?: string | null;
-  /** Tasks for the Recent section's task-run list. */
-  tasks: Recurrence[];
   onClose: () => void;
   /** Seeds a chat prompt after closing. */
   onAskTP: (prompt: string) => void;
@@ -57,21 +73,28 @@ export function WorkspaceContextOverlay({
   open,
   lead,
   reason,
-  tasks,
   onClose,
   onAskTP,
 }: WorkspaceContextOverlayProps) {
   const mandateRef = useRef<HTMLDivElement>(null);
-  const reviewRef = useRef<HTMLDivElement>(null);
-  const recentRef = useRef<HTMLDivElement>(null);
+  const rulesRef = useRef<HTMLDivElement>(null);
+  const pulseRef = useRef<HTMLDivElement>(null);
 
-  // Scroll the relevant section into view when lead changes or overlay opens.
+  // Scroll the relevant section into view on open. Legacy lead values
+  // ('review' / 'recent') map to current names ('rules' / 'pulse') so
+  // in-flight TP messages with the old marker still open the right
+  // section. The snapshot parser accepts both as part of its read-side
+  // tolerance (singular implementation rule: prompt emits new vocabulary
+  // only; reader is tolerant of legacy values during the transition).
   useEffect(() => {
     if (!open) return;
+    const resolvedLead = lead === 'review' ? 'rules'
+      : lead === 'recent' ? 'pulse'
+      : lead;
     const ref =
-      lead === 'mandate' ? mandateRef :
-      lead === 'review' ? reviewRef :
-      lead === 'recent' ? recentRef :
+      resolvedLead === 'mandate' ? mandateRef :
+      resolvedLead === 'rules' ? rulesRef :
+      resolvedLead === 'pulse' ? pulseRef :
       null;
     if (ref?.current) {
       setTimeout(() => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
@@ -130,20 +153,22 @@ export function WorkspaceContextOverlay({
 
           {/* Scrollable body — three stacked sections */}
           <div className="max-h-[75vh] overflow-y-auto divide-y divide-border/40">
-            {/* Mandate — compact variant */}
+            {/* 1. Mandate — what we're trying to do */}
             <div ref={mandateRef} className="px-5 py-5">
               <MandateCard variant="compact" onEdit={editAndClose} />
             </div>
 
-            {/* Principles + Reviewer activity (supervision surface) */}
-            <div ref={reviewRef} className="px-5 py-5 space-y-4">
+            {/* 2. Rules — judgment framework + delegation posture */}
+            <div ref={rulesRef} className="px-5 py-5 space-y-4">
               <PrinciplesCard variant="compact" onEdit={editAndClose} />
-              <ReviewerActivityPanel />
+              <DelegationCard variant="compact" onOpen={() => editAndClose(
+                'I want to review my autonomy posture and what each level means for how YARNNN acts.'
+              )} />
             </div>
 
-            {/* Recent — proposals + runs + awareness note */}
-            <div ref={recentRef} className="px-5 py-5">
-              <RecentSection tasks={tasks} onAskTP={editAndClose} />
+            {/* 3. Pulse — alive? attention-now? */}
+            <div ref={pulseRef} className="px-5 py-5">
+              <PulseSection onAskTP={editAndClose} />
             </div>
           </div>
         </div>
@@ -153,114 +178,196 @@ export function WorkspaceContextOverlay({
 }
 
 // ---------------------------------------------------------------------------
-// Recent section — proposals + task runs (not a file, kept separate)
+// Pulse — collapsed activity primer
+// ---------------------------------------------------------------------------
+//
+// Pre-2026-05-14 the modal had three overlapping activity surfaces (Upcoming
+// wakes / Recent runs / Recent task runs). The lens-sharpening discipline
+// canonized in WORKSPACE.md (Schedule vs /activity, Autonomy vs Activity tab)
+// applies here: each surface answers one operator question, and the modal's
+// question is "what do I need to know NOW", not "show me the full activity
+// audit". The Pulse section is one cohesive paragraph + a few pointers out.
 // ---------------------------------------------------------------------------
 
-function RecentSection({
-  tasks,
-  onAskTP,
-}: {
-  tasks: Recurrence[];
-  onAskTP: (prompt: string) => void;
-}) {
-  const [pendingCount, setPendingCount] = useState(0);
-  const [pendingTitles, setPendingTitles] = useState<string[]>([]);
+interface PulseData {
+  liveness_line: string;       // "Last wake 59m ago" | "No wakes in 7d" | "Reviewer not configured"
+  pending_count: number;
+  pending_titles: string[];
+  next_wake_slug: string | null;
+  next_wake_relative: string | null;  // "in 22h" | null when no schedule
+}
+
+function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const future = diffMs < 0;
+  const abs = Math.abs(diffMs);
+  const m = Math.floor(abs / 60_000);
+  const h = Math.floor(m / 60);
+  const d = Math.floor(h / 24);
+  const fmt =
+    m < 1 ? 'just now' :
+    m < 60 ? `${m}m` :
+    h < 24 ? `${h}h` :
+    `${d}d`;
+  return future ? `in ${fmt}` : `${fmt} ago`;
+}
+
+function PulseSection({ onAskTP }: { onAskTP: (prompt: string) => void }) {
+  const [data, setData] = useState<PulseData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
     void (async () => {
       try {
-        const res = await api.proposals.list('pending', 10);
+        const [proposals, activity] = await Promise.allSettled([
+          api.proposals.list('pending', 10),
+          api.agents.reviewerActivity(),
+        ]);
+
+        const pendingRows = proposals.status === 'fulfilled' ? proposals.value.proposals || [] : [];
+        const pendingTitles = pendingRows.slice(0, 3).map((p) => {
+          // Best-effort short label
+          const tail = p.action_type.split('.').slice(-1)[0] || p.action_type;
+          return p.expected_effect || tail;
+        });
+
+        let livenessLine = 'Reviewer not configured';
+        let nextWakeSlug: string | null = null;
+        let nextWakeRelative: string | null = null;
+
+        if (activity.status === 'fulfilled') {
+          const runs = activity.value.runs ?? [];
+          const schedules = activity.value.schedules ?? [];
+          if (runs.length > 0 && runs[0].created_at) {
+            livenessLine = `Last Reviewer wake ${relativeTime(runs[0].created_at)} · ${runs.length} runs in last ${activity.value.window_days}d`;
+          } else if (schedules.length > 0) {
+            livenessLine = `No Reviewer wakes in last ${activity.value.window_days}d`;
+          }
+
+          // Find the nearest upcoming wake (smallest future next_fires_at)
+          const upcoming = schedules
+            .filter(s => !s.paused && s.next_fires_at)
+            .sort((a, b) => (a.next_fires_at ?? '').localeCompare(b.next_fires_at ?? ''));
+          if (upcoming.length > 0 && upcoming[0].next_fires_at) {
+            nextWakeSlug = upcoming[0].slug;
+            nextWakeRelative = relativeTime(upcoming[0].next_fires_at);
+          }
+        }
+
         if (cancelled) return;
-        const rows = res.proposals || [];
-        setPendingCount(rows.length);
-        setPendingTitles(rows.slice(0, 3).map((p) => formatActionType(p.action_type)));
-      } catch { /* non-fatal */ }
-      if (!cancelled) setLoading(false);
+        setData({
+          liveness_line: livenessLine,
+          pending_count: pendingRows.length,
+          pending_titles: pendingTitles,
+          next_wake_slug: nextWakeSlug,
+          next_wake_relative: nextWakeRelative,
+        });
+      } catch {
+        if (!cancelled) {
+          setData({
+            liveness_line: 'Status unavailable',
+            pending_count: 0,
+            pending_titles: [],
+            next_wake_slug: null,
+            next_wake_relative: null,
+          });
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
     return () => { cancelled = true; };
   }, []);
 
-  const recentRuns = [...tasks]
-    .filter((t) => t.last_run_at)
-    .sort((a, b) => (b.last_run_at ?? '').localeCompare(a.last_run_at ?? ''))
-    .slice(0, 3);
+  if (loading || !data) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5">
+          <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Pulse</h3>
+        </div>
+        <div className="h-12 rounded bg-muted/20 animate-pulse" />
+      </div>
+    );
+  }
 
   return (
-    <div className="space-y-4">
-      {/* Section heading */}
+    <div className="space-y-3">
       <div className="flex items-center gap-1.5">
-        <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          Recent
-        </h3>
+        <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Pulse</h3>
       </div>
 
-      {/* Pending proposals */}
-      {!loading && pendingCount > 0 && (
+      {/* Liveness line + next-wake hint */}
+      <div className="text-xs text-foreground space-y-1">
+        <p>{data.liveness_line}.</p>
+        {data.next_wake_slug && data.next_wake_relative && (
+          <p className="text-muted-foreground">
+            Next wake: <code className="text-[11px] font-mono">{data.next_wake_slug}</code>
+            <span className="ml-1.5 tabular-nums text-muted-foreground/70">{data.next_wake_relative}</span>
+          </p>
+        )}
+      </div>
+
+      {/* Pending proposals — only render when there are any */}
+      {data.pending_count > 0 && (
         <div className="rounded-md border border-amber-200/60 bg-amber-50/50 px-3 py-2.5">
           <div className="flex items-center gap-2 text-xs">
             <Inbox className="h-3.5 w-3.5 text-amber-600" />
             <span className="font-medium text-amber-800">
-              {pendingCount} {pendingCount === 1 ? 'proposal' : 'proposals'} awaiting you
+              {data.pending_count} {data.pending_count === 1 ? 'proposal' : 'proposals'} awaiting you
             </span>
           </div>
-          {pendingTitles.length > 0 && (
+          {data.pending_titles.length > 0 && (
             <ul className="mt-1.5 space-y-0.5">
-              {pendingTitles.map((t, i) => (
+              {data.pending_titles.map((t, i) => (
                 <li key={i} className="truncate text-[11px] text-amber-700">· {t}</li>
               ))}
-              {pendingCount > pendingTitles.length && (
-                <li className="text-[11px] text-amber-600/70">· and {pendingCount - pendingTitles.length} more</li>
+              {data.pending_count > data.pending_titles.length && (
+                <li className="text-[11px] text-amber-600/70">
+                  · and {data.pending_count - data.pending_titles.length} more
+                </li>
               )}
             </ul>
           )}
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => onAskTP(
+                `I have ${data.pending_count} pending ${data.pending_count === 1 ? 'proposal' : 'proposals'}. Walk me through them so I can decide.`
+              )}
+              className="text-[11px] font-medium text-amber-800 hover:text-amber-900 hover:underline underline-offset-4"
+            >
+              Walk me through them →
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Recent task runs */}
-      {recentRuns.length > 0 ? (
-        <ul className="space-y-1">
-          {recentRuns.map((t) => (
-            <li
-              key={t.slug}
-              className="flex items-center gap-2 rounded-md border border-border/60 bg-muted/10 px-3 py-2 text-xs"
-            >
-              <Activity className="h-3 w-3 text-muted-foreground shrink-0" />
-              <span className="truncate font-medium">{t.title}</span>
-              <span className="ml-auto text-[10px] text-muted-foreground/60 shrink-0">
-                {formatRelativeTimestamp(t.last_run_at)}
-              </span>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="text-xs text-muted-foreground/60 text-center py-2">
-          No task runs yet.
-        </p>
-      )}
-
-      {/* Awareness note (file view, compact) */}
-      <WorkspaceFileView
-        path="/workspace/memory/awareness.md"
-        title="My note between sessions"
-        tagline="YARNNN's carry-forward context from the last conversation."
-        maxLines={8}
-        editPrompt="What should I carry forward into the next session? Help me update my awareness note."
-        onEdit={onAskTP}
-      />
-
-      {/* Bottom CTA */}
-      <div className="flex justify-end pt-1">
-        <EditInChatButton
-          prompt={
-            pendingCount > 0
-              ? `I have ${pendingCount} pending ${pendingCount === 1 ? 'proposal' : 'proposals'}. Walk me through them so I can decide.`
-              : "What should I look at right now?"
-          }
-          onOpenChatDraft={onAskTP}
-        />
+      {/* Deep-links to canonical surfaces */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[11px] text-muted-foreground/60">
+        <Link
+          href="/agents?agent=reviewer&tab=activity"
+          className="inline-flex items-center gap-0.5 hover:text-foreground hover:underline underline-offset-4"
+        >
+          Reviewer activity <ArrowRight className="h-3 w-3" />
+        </Link>
+        <span className="text-muted-foreground/30">·</span>
+        <Link
+          href="/work?tab=schedule"
+          className="inline-flex items-center gap-0.5 hover:text-foreground hover:underline underline-offset-4"
+        >
+          Full schedule <ArrowRight className="h-3 w-3" />
+        </Link>
+        <span className="text-muted-foreground/30">·</span>
+        <Link
+          href="/activity"
+          className="inline-flex items-center gap-0.5 hover:text-foreground hover:underline underline-offset-4"
+        >
+          Execution log <ArrowRight className="h-3 w-3" />
+        </Link>
       </div>
     </div>
   );

@@ -15,13 +15,14 @@
 import { useEffect } from 'react';
 import { FeedSurface } from '@/components/feed-surface/FeedSurface';
 import { useNarrative } from '@/contexts/NarrativeContext';
-import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 
 export default function HomePage() {
   const { loadScopedHistory } = useNarrative();
-  const { tasks } = useAgentsAndRecurrences({ pollInterval: 60_000 });
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 
-  return <FeedSurface tasks={tasks} />;
+  // Post-2026-05-14 context-modal refactor: FeedSurface no longer needs
+  // tasks prop. The modal's Pulse section reads its own activity data
+  // via api.agents.reviewerActivity() and api.proposals.list().
+  return <FeedSurface />;
 }
