@@ -7,9 +7,11 @@
  * writes JSON frontmatter — this parser reads that JSON shape.
  *
  * Per ADR-245 D5 the WRITE_CONTRACT is `live_aggregate` — only the system
- * outcomes ledger writes; operators never edit through L3. The canonical
- * L3 (MoneyTruthFace) renders parsed metrics + escape-hatch link to raw
- * substrate.
+ * outcomes ledger writes; operators never edit through L3. Per ADR-273 D2
+ * the canonical L3 reading `_money_truth.md`'s balance/headline portion is
+ * `TraderMoneyTruth` (the alpha-trader program component); `TraderExpectancy`
+ * consumes the `by_signal` subfield. The legacy kernel `MoneyTruthFace`
+ * fallback (which rendered both) was deleted in ADR-273 Phase 2.
  */
 
 import type { ContentShapeMeta } from './index';
@@ -22,7 +24,7 @@ export const SHAPE_KEY = 'money_truth' as const;
 export const PATH_GLOB =
   '**/context/{*/_money_truth.md,_money_truth_summary.md}';
 export const WRITE_CONTRACT = 'live_aggregate' as const;
-export const CANONICAL_L3 = 'MoneyTruthFace' as const;
+export const CANONICAL_L3 = 'TraderMoneyTruth' as const;
 
 export const META: ContentShapeMeta = {
   SHAPE_KEY,

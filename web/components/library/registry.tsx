@@ -1,19 +1,24 @@
 'use client';
 
 /**
- * Library Component Registry — ADR-225 Phase 3, amended by ADR-228.
+ * Library Component Registry — ADR-225 Phase 3, amended by ADR-228, ADR-273.
  *
  * The dispatch table mapping component `kind` strings (declared
  * in SURFACES.yaml or `kernel-defaults.ts`) to React renderers.
  *
  * Singular Implementation discipline: this is THE registry. Kernel
- * defaults and bundle middle components register here side-by-side; the
- * resolver doesn't distinguish them.
+ * defaults, /work detail middles, chrome components, and bundle program-
+ * section components register here side-by-side; the resolver doesn't
+ * distinguish them by registration shape — the folder location does (per
+ * ADR-273 D1: kernel-general at library/ root, program-specific at
+ * library/programs/{slug}/).
  *
- * Cockpit faces (MandateFace · MoneyTruthFace · PerformanceFace ·
- * TrackingFace) are NOT registered here — they are imported directly by
- * `CockpitRenderer.tsx`. The cockpit no longer dispatches through this
- * registry per ADR-228; only /work detail middles + chrome do.
+ * Post-ADR-273 Phase 2: the cockpit DOES dispatch through this registry —
+ * program_sections render via dispatchComponent({ kind }) (alpha-trader's
+ * SURFACES.yaml lists TraderRegime / TraderPortfolio / TraderMoneyTruth /
+ * TraderExpectancy / TraderPositions / TraderSignals / TraderOrders).
+ * CockpitHeader stays imported directly because it's always-rendered Layer 1,
+ * not declaratively composed.
  *
  * Components are invoked via React.createElement so the registry can
  * stay shape-agnostic — the only convention is that a registered
