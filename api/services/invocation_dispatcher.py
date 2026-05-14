@@ -700,6 +700,16 @@ async def _dispatch_mechanical(
         user_id[:8], recurrence.slug, status, duration_ms, primitive_name,
     )
 
+    # Propagate inner-result `error` field as `error_reason` so the
+    # scheduler's record_task_run can recognize capability_missing and
+    # preserve fire_on_activation arming (cold-start ordering fix). The
+    # dispatcher's capability gate only covers SyncPlatformState; primitives
+    # like TrackUniverse/TrackRegime that self-load credentials report
+    # capability_missing from inside the handler and would otherwise be
+    # invisible to record_task_run.
+    error_reason = None
+    if not success and isinstance(result, dict):
+        error_reason = result.get("error")
     return {
         "success": success,
         "slug": recurrence.slug,
@@ -708,6 +718,7 @@ async def _dispatch_mechanical(
         "primitive": primitive_name,
         "result": result,
         "duration_ms": duration_ms,
+        "error_reason": error_reason,
     }
 
 
