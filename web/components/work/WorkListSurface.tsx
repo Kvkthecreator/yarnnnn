@@ -15,6 +15,7 @@
  */
 
 import { useRef, useEffect, useMemo, useState, type ReactNode } from 'react';
+import Link from 'next/link';
 import {
   CalendarClock,
   Cpu,
@@ -434,19 +435,30 @@ function ScheduleRow({
 
   const assignedAgents = agentNamesFor(task, agents);
 
+  // Declaration-lens signals only — what this recurrence is scheduled
+  // to do and when. Execution detail (what happened, did it succeed,
+  // cost) lives on /activity, the execution-lens surface. The deep-link
+  // below routes the operator there for that question.
   const lastMaterial = narrativeSlice?.last_material ?? null;
   const timeSignal = isActive && task.next_run_at
     ? `Next: ${formatRelativeTime(task.next_run_at)}`
     : lastMaterial
-      ? formatRelativeTime(lastMaterial.created_at)
+      ? `Last ran ${formatRelativeTime(lastMaterial.created_at)}`
       : null;
-  const headlineSummary = !isActive && lastMaterial ? lastMaterial.summary : null;
 
   return (
-    <button
+    <div
+      role="button"
+      tabIndex={0}
       onClick={onSelect}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
       className={cn(
-        'w-full text-left px-3 py-2.5 rounded-lg hover:bg-muted/40 transition-colors flex items-center gap-3 group',
+        'w-full text-left px-3 py-2.5 rounded-lg hover:bg-muted/40 transition-colors flex items-center gap-3 group cursor-pointer',
         (isPaused || isSystem) && 'opacity-60',
       )}
     >
@@ -490,11 +502,6 @@ function ScheduleRow({
             </>
           )}
         </div>
-        {headlineSummary && (
-          <p className="text-[11px] text-muted-foreground/60 truncate mt-0.5 italic">
-            {headlineSummary}
-          </p>
-        )}
       </div>
 
       {timeSignal && (
@@ -502,7 +509,18 @@ function ScheduleRow({
           {timeSignal}
         </span>
       )}
-    </button>
+
+      {/* Execution-lens deep-link — routes to /activity filtered by slug.
+          stopPropagation so the link click doesn't also trigger row select. */}
+      <Link
+        href={`/activity?slug=${encodeURIComponent(task.slug)}`}
+        onClick={(e) => e.stopPropagation()}
+        className="shrink-0 text-[10px] text-muted-foreground/40 hover:text-foreground hover:underline underline-offset-4 transition-colors"
+        title="See execution history for this recurrence"
+      >
+        View runs →
+      </Link>
+    </div>
   );
 }
 
