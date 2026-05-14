@@ -590,51 +590,135 @@ async def list_agents(
 
 @router.get("/reviewer/activity")
 async def get_reviewer_activity(auth: UserClient) -> dict:
-    """Reviewer activity surface — answers the operator's three supervision
-    questions: is it alive, what did it do, when next?
+    """Reviewer activity surface — answers the operator's supervision
+    questions: is the Reviewer alive, what did it do, when does it next fire?
 
-    Joins three substrate sources, all per ADR-251 D5 + ADR-194 v2:
-    1. execution_events: recent runs of `back-office-reviewer-*` slugs (last
-       7 days). The liveness signal — empty = scheduler dead.
-    2. action_proposals: recent autonomous actions sourced from the Reviewer
-       (auto-approved, OR Reviewer-originated regardless of status). The
-       "what did it do for me" trail.
-    3. back-office.yaml: schedule cron strings for `back-office-reviewer-*`
-       jobs. Used to compute next-fire windows so the operator can see
-       when autonomy will next get a chance to act.
+    Post-ADR-260/261 rewrite (2026-05-14): reads canonical
+    `/workspace/_recurrences.yaml` and treats every `mode: judgment`
+    entry as a Reviewer wake (ADR-263 D1: judgment mode wakes the
+    Reviewer with a prompt). The earlier implementation read
+    `/workspace/_shared/back-office.yaml` (substrate dissolved by
+    ADR-261) and filtered on the `back-office-reviewer-` slug prefix
+    (legacy taxonomy; current slugs are `morning-reflection`,
+    `signal-evaluation`, `pre-market-brief`, etc.) — under-counted
+    Reviewer activity by ~80% in production.
 
-    Returns the structured shape the FE Activity panel renders directly.
+    Joins three substrate sources:
+
+    1. **`_recurrences.yaml`** — judgment-mode entries (slug, schedule,
+       prompt). The schedule list + the slug allowlist for the run
+       query both derive from this. Mechanical-mode entries (deterministic
+       Python, no Reviewer wake) are intentionally excluded.
+
+    2. **`execution_events`** — recent runs of any judgment-mode slug
+       (last 7 days). The liveness signal — empty = scheduler dead OR
+       Reviewer not wired up.
+
+    3. **`action_proposals`** — recent Reviewer-originated proposals
+       (auto-approved, OR sourced from `reviewer_*` triggers regardless
+       of approval). The "what did the Reviewer do for me" trail.
+
+    Returns the structured shape the FE Activity tab renders directly.
     Never raises — returns empty arrays on any read failure so the panel
     can degrade gracefully.
+
+    Distinct from `/activity` (workspace-wide execution-lens — every
+    recurrence, every mode, cost-aware): this surface is the **Reviewer
+    supervision lens** — judgment-mode only, Reviewer-action only,
+    answers "is my Reviewer operating the way I told it to?"
     """
     import yaml as _yaml
     from datetime import datetime as _dt, timezone as _tz, timedelta as _td
 
-    BACK_OFFICE_PATH = "/workspace/_shared/back-office.yaml"
-    REVIEWER_SLUG_PREFIX = "back-office-reviewer-"
+    RECURRENCES_PATH = "/workspace/_recurrences.yaml"
     REVIEWER_PROPOSAL_SOURCES = [
         "reviewer_periodic", "reviewer_heartbeat", "reviewer_addressed",
     ]
     LOOKBACK = _dt.now(_tz.utc) - _td(days=7)
 
-    # --- 1. Recent reviewer-* execution events (last 7 days) ---
-    runs: list[dict] = []
+    # --- 1. Parse judgment-mode recurrences from canonical substrate ---
+    # Build (a) the slug allowlist for the run query and (b) the schedule
+    # list for the next-fires section. Both come from one yaml read.
+    judgment_slugs: set[str] = set()
+    schedules: list[dict] = []
     try:
-        events_result = (
-            auth.client.table("execution_events")
-            .select("slug, status, created_at, error_reason, duration_ms")
+        from services.schedule_utils import calculate_next_run_at
+
+        yaml_result = (
+            auth.client.table("workspace_files")
+            .select("content")
             .eq("user_id", auth.user_id)
-            .like("slug", f"{REVIEWER_SLUG_PREFIX}%")
-            .gte("created_at", LOOKBACK.isoformat())
-            .order("created_at", desc=True)
-            .limit(40)
+            .eq("path", RECURRENCES_PATH)
+            .limit(1)
             .execute()
         )
-        runs = events_result.data or []
-    except Exception as e:
-        logger.warning("[REVIEWER_ACTIVITY] execution_events read failed: %s", e)
+        if yaml_result.data:
+            raw = _yaml.safe_load(yaml_result.data[0].get("content") or "") or {}
+            now_utc = _dt.now(_tz.utc)
+            for entry in raw.get("recurrences") or []:
+                # Default mode = judgment per ADR-261 parse-time semantics
+                # (legacy compat). Mechanical-mode entries get excluded; they
+                # don't wake the Reviewer.
+                mode = entry.get("mode") or "judgment"
+                if mode != "judgment":
+                    continue
+                slug = entry.get("slug") or ""
+                if not slug:
+                    continue
+                judgment_slugs.add(slug)
 
-    # --- 2. Recent autonomous actions (last 7 days) ---
+                cron = entry.get("schedule")
+                paused = bool(entry.get("paused", False))
+                # schedule may be a string, a list (multiple fires per day),
+                # or null (reactive — no scheduled fire). For multi-string
+                # schedules we use the first as a rough next-fire signal;
+                # exact multi-fire-per-day expansion is downstream UX.
+                cron_for_calc: str | None = None
+                if isinstance(cron, list) and cron:
+                    cron_for_calc = cron[0] if isinstance(cron[0], str) else None
+                elif isinstance(cron, str):
+                    cron_for_calc = cron
+                next_at = None
+                if cron_for_calc and not paused:
+                    try:
+                        nxt = calculate_next_run_at(
+                            schedule=cron_for_calc,
+                            last_run_at=now_utc,
+                        )
+                        next_at = nxt.isoformat() if nxt else None
+                    except Exception:
+                        next_at = None
+                schedules.append({
+                    "slug": slug,
+                    "display_name": entry.get("display_name") or slug,
+                    "schedule": cron_for_calc,
+                    "paused": paused,
+                    "next_fires_at": next_at,
+                })
+            # Sort: not-scheduled (no next_at) to the end; nearest fire first.
+            schedules.sort(key=lambda s: s["next_fires_at"] or "9999")
+    except Exception as e:
+        logger.warning("[REVIEWER_ACTIVITY] recurrences read failed: %s", e)
+
+    # --- 2. Recent runs (last 7 days, any judgment-mode slug) ---
+    runs: list[dict] = []
+    if judgment_slugs:
+        try:
+            events_result = (
+                auth.client.table("execution_events")
+                .select("slug, status, created_at, error_reason, duration_ms")
+                .eq("user_id", auth.user_id)
+                .in_("slug", list(judgment_slugs))
+                .gte("created_at", LOOKBACK.isoformat())
+                .order("created_at", desc=True)
+                .limit(40)
+                .execute()
+            )
+            runs = events_result.data or []
+        except Exception as e:
+            logger.warning("[REVIEWER_ACTIVITY] execution_events read failed: %s", e)
+
+    # --- 3. Recent autonomous actions (last 7 days) ---
     # Two sources: auto-approved proposals (any source), or Reviewer-originated
     # proposals (any status). Union covers both "Reviewer did something" cases.
     actions: list[dict] = []
@@ -681,48 +765,6 @@ async def get_reviewer_activity(auth: UserClient) -> dict:
         actions = actions[:20]
     except Exception as e:
         logger.warning("[REVIEWER_ACTIVITY] action_proposals read failed: %s", e)
-
-    # --- 3. Schedules + computed next-fire ---
-    schedules: list[dict] = []
-    try:
-        from services.schedule_utils import calculate_next_run_at
-
-        yaml_result = (
-            auth.client.table("workspace_files")
-            .select("content")
-            .eq("user_id", auth.user_id)
-            .eq("path", BACK_OFFICE_PATH)
-            .limit(1)
-            .execute()
-        )
-        if yaml_result.data:
-            raw = _yaml.safe_load(yaml_result.data[0].get("content") or "") or {}
-            now_utc = _dt.now(_tz.utc)
-            for entry in raw.get("back_office_jobs") or []:
-                slug = entry.get("slug") or ""
-                if not slug.startswith(REVIEWER_SLUG_PREFIX):
-                    continue
-                cron = entry.get("schedule")
-                next_at = None
-                if cron and not entry.get("paused", False):
-                    try:
-                        nxt = calculate_next_run_at(
-                            schedule=cron,
-                            last_run_at=now_utc,
-                        )
-                        next_at = nxt.isoformat() if nxt else None
-                    except Exception:
-                        next_at = None
-                schedules.append({
-                    "slug": slug,
-                    "display_name": entry.get("display_name") or slug,
-                    "schedule": cron,
-                    "paused": bool(entry.get("paused", False)),
-                    "next_fires_at": next_at,
-                })
-            schedules.sort(key=lambda s: s["next_fires_at"] or "9999")
-    except Exception as e:
-        logger.warning("[REVIEWER_ACTIVITY] schedule computation failed: %s", e)
 
     return {
         "runs": runs,
