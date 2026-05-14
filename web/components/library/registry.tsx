@@ -75,7 +75,7 @@ export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   // the same pattern.
   TraderPortfolio: () => <TraderPortfolio />,
   TraderMoneyTruth: () => <TraderMoneyTruth />,
-  TraderPositions: (props) => <TraderPositions {...props} />,
+  TraderPositions: () => <TraderPositions />,
   TraderOrders: () => <TraderOrders />,
 };
 

@@ -1,28 +1,31 @@
 'use client';
 
 /**
- * TraderMoneyTruth — bundle component for alpha-trader's MoneyTruth face.
+ * TraderMoneyTruth — alpha-trader program section (order: 3 post-ADR-273).
  *
- * Authored by ADR-242 Phase 2. Calls /api/cockpit/money-truth (the
- * live Alpaca account snapshot endpoint shipped in ADR-242 Phase 1).
- * Renders brokerage shape — equity headline, day Δ tile, buying
- * power, positions count.
+ * Renders the live Alpaca brokerage state — equity headline + day Δ +
+ * buying power + cash + open positions count.
  *
- * Graceful degradation: when the endpoint returns `live: false` (no
- * platform connection / no credentials / Alpaca unreachable), this
- * component renders a small inline notice and the operator sees the
- * substrate-fallback state via the face's fallthrough rendering.
+ * Data: api.cockpit.moneyTruth() → /api/cockpit/money-truth (Alpaca
+ * /v2/account + /v2/positions, normalized for the FE).
  *
- * Per ADR-242 §"Singular Implementation discipline": this is the
- * singular live-snapshot consumer for cockpit. No parallel surface.
+ * Scope split with TraderExpectancy (ADR-273 D4):
+ *   - TraderMoneyTruth owns the LIVE brokerage headline (equity, buying
+ *     power, cash, positions count, day Δ) — what's deployable right now.
+ *   - TraderExpectancy owns the ACCUMULATED per-signal attribution
+ *     (`by_signal` block from _money_truth.md frontmatter) — tenured
+ *     intelligence about which signals work.
+ *   Both can read the same money-truth surface; the split is which
+ *   subset each one renders.
  *
- * Per the per-slot conventions in docs/architecture/compositor.md:
- * the component owns its visual semantics; the resolver only decides
- * which component renders.
+ * Graceful degradation: when the endpoint returns `live: false`,
+ * TraderPortfolio (the section above) is the canonical not-connected
+ * surface for the whole alpha-trader stack. This component returns
+ * null in that case to avoid duplicate messaging.
  */
 
 import { useEffect, useState } from 'react';
-import { Activity, AlertCircle, Loader2, TrendingDown, TrendingUp } from 'lucide-react';
+import { Loader2, TrendingDown, TrendingUp } from 'lucide-react';
 import { api } from '@/lib/api/client';
 
 interface MoneyTruthData {
@@ -99,39 +102,11 @@ export function TraderMoneyTruth() {
     );
   }
 
-  // Live = false — let the face's fallthrough render the substrate
-  // path. Returning null here is the cleanest signal; the face's
-  // dispatch branch checks the binding and decides which component
-  // mounts. But the dispatch happens at MoneyTruthFace level, not
-  // here; if we got mounted with live=false, we render an inline
-  // notice rather than null so the operator can see why.
+  // Not connected / unreachable: TraderPortfolio (above) is the canonical
+  // not-connected surface for the whole alpha-trader stack. Return null
+  // here to avoid duplicate messaging per ADR-273 Phase 4 cleanup.
   if (!data || !data.live) {
-    const reasonText = (() => {
-      switch (data?.fallback_reason) {
-        case 'no_platform_connection':
-          return 'Alpaca not connected — connect in Settings to see live equity.';
-        case 'no_credentials':
-          return 'Alpaca credentials missing — re-connect in Settings.';
-        case 'alpaca_unreachable':
-        default:
-          return 'Alpaca unreachable — showing last reconciled substrate.';
-      }
-    })();
-    return (
-      <section
-        aria-label="Money truth"
-        className="rounded-lg border border-border bg-card p-5"
-      >
-        <div className="mb-3 flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground/70">
-          <Activity className="h-3.5 w-3.5" />
-          Money truth
-        </div>
-        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-          <span>{reasonText}</span>
-        </div>
-      </section>
-    );
+    return null;
   }
 
   const dayPnl = data.day_pnl ?? 0;

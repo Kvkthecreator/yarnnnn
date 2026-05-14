@@ -1,21 +1,24 @@
 'use client';
 
 /**
- * TraderPortfolio — program section component for alpha-trader (order: 1).
+ * TraderPortfolio — alpha-trader program section (order: 2 post-ADR-273).
  *
- * ADR-243 Phase C. Renders the portfolio equity headline + time-series
- * sparkline, matching the Alpaca brokerage dashboard aesthetic per the
- * COCKPIT-COMPONENT-DESIGN.md design reference.
+ * Portfolio equity headline + time-series sparkline. Matches Alpaca's
+ * brokerage dashboard aesthetic.
  *
  * Data: api.cockpit.portfolioHistory() → /api/cockpit/portfolio-history
  *       api.cockpit.moneyTruth()        → equity headline + day Δ
  *
- * Chart: minimal SVG sparkline. Recharts-style line chart kept intentionally
- * lightweight — the full Recharts bundle adds ~200KB; a path-based sparkline
- * handles the brokerage-history shape cleanly with no dependency.
+ * Chart: minimal SVG sparkline. Recharts-style line chart kept
+ * intentionally lightweight — the full Recharts bundle adds ~200KB; a
+ * path-based sparkline handles the brokerage-history shape cleanly with
+ * no dependency.
  *
- * Graceful degradation: when Alpaca is unreachable or disconnected, renders
- * a substrate-based empty state with a message pointing to Settings.
+ * Graceful degradation: when Alpaca is unreachable or disconnected,
+ * renders a substrate-based empty state with a message pointing to
+ * Settings. TraderPortfolio is the canonical not-connected surface for
+ * the whole alpha-trader stack — other sections suppress their own
+ * not-connected messaging to avoid duplication.
  */
 
 import { useEffect, useMemo, useState } from 'react';

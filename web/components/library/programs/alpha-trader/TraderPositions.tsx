@@ -1,184 +1,240 @@
 'use client';
 
 /**
- * TraderPositions — bundle component for alpha-trader's Tracking face's
- * operational state region.
+ * TraderPositions — alpha-trader program section (order: 5 post-ADR-273).
  *
- * Authored by ADR-242 Phase 2. Reads `_positions.md` (or whatever
- * substrate path the bundle declares in
- * `cockpit.tracking.operational_state.source`) and renders the
- * positions table — symbol, quantity, market value, unrealized P&L.
+ * Renders open Alpaca positions merged with per-ticker accumulated
+ * indicators from the TrackUniverse substrate. The merge closes the
+ * gap between "live brokerage state" and "what the system has
+ * accumulated about each instrument."
  *
- * Per ADR-242 D2 alpha-trader's SURFACES.yaml declares this component
- * under `cockpit.tracking.operational_state`. TrackingFace's
- * `OperationalState` region's dispatch branch consults the binding
- * and routes here.
+ * Live data: `api.cockpit.positions()` → /api/cockpit/positions
+ *            → Alpaca /v2/positions for the operator's account
  *
- * Substrate format (illustrative — typically accumulated by the
- * trader's portfolio-review task; can also be operator-authored):
+ * Substrate: `api.cockpit.indicators({ticker})` → /workspace/context/trading/{TICKER}.yaml
+ *            → SMA/RSI/ATR/volume from the TrackUniverse mechanical mirror
  *
- *   ---
- *   positions:
- *     - { symbol: AAPL, qty: 100, market_value: 19500, unrealized_pl: 234, unrealized_plpc: 0.0121 }
- *     - { symbol: MSFT, qty: 50, market_value: 21000, unrealized_pl: -45, unrealized_plpc: -0.0021 }
- *   ---
+ * Per-row enrichment:
+ *   - Trend regime — derived from SMA50 vs SMA200 (golden cross → bullish,
+ *     death cross → bearish, otherwise neutral)
+ *   - Suggested stop — current price minus 2× ATR(14), a common volatility-
+ *     based stop placement; null when ATR unavailable
  *
- * Empty state honors the cold-workspace case (R6 in ADR-242 Risks)
- * — `_positions.md` may not exist yet for fresh workspaces.
+ * Graceful degradation per ADR-273 D6:
+ *   - no Alpaca connection: empty state with "Connect Alpaca" link
+ *   - no indicators for a ticker: row renders without enrichment columns
+ *     (substrate is best-effort, position row is authoritative)
+ *
+ * Replaces the pre-ADR-273 substrate-only path (`source` from a deleted
+ * binding) that always rendered empty in production. Single live path now.
  */
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Briefcase, Loader2 } from 'lucide-react';
-import type { LibraryComponentProps } from '../../registry';
+import { Briefcase, Loader2, TrendingDown, TrendingUp, Minus } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { cn } from '@/lib/utils';
 
-interface PositionRow {
+interface AlpacaPosition {
   symbol: string;
-  qty?: number;
-  market_value?: number;
-  unrealized_pl?: number;
-  unrealized_plpc?: number;
+  qty: string;
+  side: string;
+  market_value: string;
+  cost_basis: string;
+  avg_entry_price: string;
+  current_price: string;
+  unrealized_pl: string;
+  unrealized_plpc: string;
+  change_today: string;
 }
 
-function parsePositions(content: string): PositionRow[] {
-  const fm = content.match(/^---\s*\n([\s\S]*?)\n---/);
-  if (!fm) return [];
-  const body = fm[1];
-  const blockMatch = body.match(/positions:\s*\n([\s\S]*?)(\n[a-z_]+:|$)/);
-  if (!blockMatch) return [];
-  const rows: PositionRow[] = [];
-  for (const rawLine of blockMatch[1].split('\n')) {
-    const line = rawLine.trimEnd();
-    if (!line.trim()) continue;
-    const m = line.match(/^\s*-\s*\{(.*)\}\s*$/);
-    if (!m) continue;
-    const fields = m[1];
-    const row: PositionRow = { symbol: '' };
-    for (const pair of fields.split(',')) {
-      const fm2 = pair.match(/\s*([a-z_]+):\s*([A-Za-z0-9.\-]+)\s*/);
-      if (!fm2) continue;
-      const k = fm2[1];
-      const v = fm2[2];
-      if (k === 'symbol') row.symbol = v;
-      else {
-        const num = Number(v);
-        if (Number.isNaN(num)) continue;
-        if (k === 'qty') row.qty = num;
-        if (k === 'market_value') row.market_value = num;
-        if (k === 'unrealized_pl') row.unrealized_pl = num;
-        if (k === 'unrealized_plpc') row.unrealized_plpc = num;
-      }
-    }
-    if (row.symbol) rows.push(row);
-  }
-  return rows;
+interface IndicatorContext {
+  price?: number;
+  sma_50?: number;
+  sma_200?: number;
+  rsi_14?: number;
+  atr_14?: number;
 }
 
-function formatCurrency(v: number | undefined): string {
-  if (v === undefined) return '—';
+type TrendRegime = 'bullish' | 'bearish' | 'neutral' | 'unknown';
+
+function deriveTrend(ind: IndicatorContext): TrendRegime {
+  if (ind.sma_50 == null || ind.sma_200 == null) return 'unknown';
+  if (ind.sma_50 > ind.sma_200) return 'bullish';
+  if (ind.sma_50 < ind.sma_200) return 'bearish';
+  return 'neutral';
+}
+
+function deriveSuggestedStop(ind: IndicatorContext, currentPrice: number): number | null {
+  if (ind.atr_14 == null) return null;
+  return currentPrice - 2 * ind.atr_14;
+}
+
+function fmtCurrency(v: number | undefined | null, digits = 0): string {
+  if (v == null) return '—';
   return v.toLocaleString('en-US', {
     style: 'currency',
     currency: 'USD',
-    maximumFractionDigits: 0,
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
   });
 }
 
-function formatPnlPct(pct: number | undefined): string {
-  if (pct === undefined) return '—';
-  const sign = pct >= 0 ? '+' : '';
-  return `${sign}${(pct * 100).toFixed(2)}%`;
+function fmtPct(v: number | undefined | null): string {
+  if (v == null) return '—';
+  const sign = v >= 0 ? '+' : '';
+  return `${sign}${(v * 100).toFixed(2)}%`;
 }
 
-export function TraderPositions({ source }: LibraryComponentProps) {
-  const [rows, setRows] = useState<PositionRow[] | null>(null);
+const TREND_BADGE: Record<TrendRegime, { label: string; cls: string; Icon: typeof TrendingUp }> = {
+  bullish: { label: 'Bull', cls: 'text-emerald-600 bg-emerald-50', Icon: TrendingUp },
+  bearish: { label: 'Bear', cls: 'text-destructive bg-red-50', Icon: TrendingDown },
+  neutral: { label: 'Neutral', cls: 'text-muted-foreground bg-muted/40', Icon: Minus },
+  unknown: { label: '—', cls: 'text-muted-foreground/40', Icon: Minus },
+};
+
+export function TraderPositions() {
+  const [positions, setPositions] = useState<AlpacaPosition[] | null>(null);
+  const [indicators, setIndicators] = useState<Record<string, IndicatorContext>>({});
   const [loading, setLoading] = useState(true);
+  const [noConnection, setNoConnection] = useState(false);
 
   useEffect(() => {
-    if (!source) {
-      setLoading(false);
-      return;
-    }
     let cancelled = false;
     (async () => {
       try {
-        const file = await api.workspace.getFile(source);
-        if (!cancelled) {
-          setRows(file?.content ? parsePositions(file.content) : []);
+        const res = await api.cockpit.positions();
+        if (cancelled) return;
+        if (!res.live && res.fallback_reason === 'no_platform_connection') {
+          setNoConnection(true);
+          setLoading(false);
+          return;
+        }
+        setPositions(res.positions);
+        // Kick off indicator reads in parallel, one per ticker. Each is
+        // best-effort — failures leave that ticker's row un-enriched.
+        const tickers = res.positions.map(p => p.symbol);
+        if (tickers.length > 0) {
+          const indResults = await Promise.allSettled(
+            tickers.map(t => api.cockpit.indicators(t))
+          );
+          if (cancelled) return;
+          const indMap: Record<string, IndicatorContext> = {};
+          indResults.forEach((r, i) => {
+            if (r.status === 'fulfilled' && r.value.live) {
+              indMap[tickers[i]] = {
+                price: r.value.price,
+                sma_50: r.value.sma_50,
+                sma_200: r.value.sma_200,
+                rsi_14: r.value.rsi_14,
+                atr_14: r.value.atr_14,
+              };
+            }
+          });
+          setIndicators(indMap);
         }
       } catch {
-        if (!cancelled) setRows([]);
+        if (!cancelled) setPositions([]);
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [source]);
+    return () => { cancelled = true; };
+  }, []);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-4">
-        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-      </div>
+      <section className="rounded-lg border border-border bg-card p-5">
+        <div className="flex items-center justify-center py-4">
+          <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+        </div>
+      </section>
     );
   }
 
-  if (!rows || rows.length === 0) {
-    return (
-      <div className="mb-5">
-        <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-          <Briefcase className="mr-1 inline h-3 w-3" /> Operational state
-        </h3>
-        <div className="rounded-md border border-dashed border-border bg-muted/20 px-3 py-3">
-          <p className="text-sm text-muted-foreground">
-            No positions tracked yet.{' '}
-            <Link
-              href="/work?task=portfolio-review"
-              className="font-medium text-foreground underline-offset-4 hover:underline"
-            >
-              Run portfolio-review
-            </Link>{' '}
-            to populate.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // TraderPortfolio already surfaces the not-connected state at the top
+  // of the stack — render nothing here to avoid duplicate messaging.
+  if (noConnection) return null;
 
   return (
-    <div className="mb-5">
-      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-        <Briefcase className="mr-1 inline h-3 w-3" /> Positions · {rows.length}
-      </h3>
-      <div className="rounded-md border border-border bg-card">
-        <div className="grid grid-cols-4 gap-2 border-b border-border px-3 py-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
-          <span>Symbol</span>
-          <span className="text-right tabular-nums">Qty</span>
-          <span className="text-right tabular-nums">Market value</span>
-          <span className="text-right tabular-nums">Unrealized</span>
-        </div>
-        {rows.map((row) => (
-          <div
-            key={row.symbol}
-            className="grid grid-cols-4 gap-2 px-3 py-1.5 text-sm border-b border-border/30 last:border-b-0 hover:bg-muted/30"
-          >
-            <span className="font-mono font-medium text-foreground">{row.symbol}</span>
-            <span className="text-right tabular-nums text-muted-foreground">
-              {row.qty ?? '—'}
-            </span>
-            <span className="text-right tabular-nums text-foreground">
-              {formatCurrency(row.market_value)}
-            </span>
-            <span
-              className={`text-right tabular-nums ${row.unrealized_pl !== undefined && row.unrealized_pl >= 0 ? 'text-emerald-600' : 'text-destructive'}`}
-            >
-              {formatCurrency(row.unrealized_pl)} ({formatPnlPct(row.unrealized_plpc)})
-            </span>
-          </div>
-        ))}
+    <section className="rounded-lg border border-border bg-card p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <Briefcase className="mr-1 inline h-3 w-3" />
+          Positions {positions && positions.length > 0 && `· ${positions.length}`}
+        </h3>
       </div>
-    </div>
+
+      {!positions || positions.length === 0 ? (
+        <p className="text-sm text-muted-foreground py-3 text-center">
+          No open positions. Place a trade via the API or Alpaca dashboard.
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-[12px]">
+            <thead>
+              <tr className="border-b border-border text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+                <th className="pb-2 text-left">Symbol</th>
+                <th className="pb-2 text-right tabular-nums">Qty</th>
+                <th className="pb-2 text-right tabular-nums">Market value</th>
+                <th className="pb-2 text-right tabular-nums">Unrealized</th>
+                <th className="pb-2 text-center">Trend</th>
+                <th className="pb-2 text-right tabular-nums">Sug. stop</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/30">
+              {positions.map((p) => {
+                const ind = indicators[p.symbol];
+                const currentPrice = parseFloat(p.current_price);
+                const mktVal = parseFloat(p.market_value);
+                const unrealizedPl = parseFloat(p.unrealized_pl);
+                const unrealizedPlpc = parseFloat(p.unrealized_plpc);
+                const stop = ind ? deriveSuggestedStop(ind, currentPrice) : null;
+                const trend = ind ? deriveTrend(ind) : 'unknown';
+                const trendCfg = TREND_BADGE[trend];
+                const TrendIcon = trendCfg.Icon;
+
+                return (
+                  <tr key={p.symbol} className="hover:bg-muted/20 transition-colors">
+                    <td className="py-1.5 font-mono font-medium">{p.symbol}</td>
+                    <td className="py-1.5 text-right tabular-nums text-muted-foreground">
+                      {p.qty}
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums text-foreground">
+                      {fmtCurrency(mktVal)}
+                    </td>
+                    <td className={cn(
+                      'py-1.5 text-right tabular-nums',
+                      unrealizedPl >= 0 ? 'text-emerald-600' : 'text-destructive',
+                    )}>
+                      {fmtCurrency(unrealizedPl, 2)}{' '}
+                      <span className="text-[10px]">({fmtPct(unrealizedPlpc)})</span>
+                    </td>
+                    <td className="py-1.5 text-center">
+                      <span className={cn(
+                        'inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium',
+                        trendCfg.cls,
+                      )}>
+                        <TrendIcon className="h-2.5 w-2.5" />
+                        {trendCfg.label}
+                      </span>
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums text-muted-foreground/80">
+                      {stop != null ? fmtCurrency(stop, 2) : <span className="text-muted-foreground/30">—</span>}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p className="mt-3 text-[10px] text-muted-foreground/40">
+            Trend: SMA50 vs SMA200 from TrackUniverse mirror. Sug. stop:
+            current price − 2× ATR(14). Both null when indicators absent —
+            mirror runs on a cadence; recent additions may not have data
+            yet.
+          </p>
+        </div>
+      )}
+    </section>
   );
 }

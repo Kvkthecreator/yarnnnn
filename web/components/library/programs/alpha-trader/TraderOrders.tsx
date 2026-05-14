@@ -1,14 +1,16 @@
 'use client';
 
 /**
- * TraderOrders — program section component for alpha-trader (order: 4).
+ * TraderOrders — alpha-trader program section (order: 7 post-ADR-273).
  *
- * ADR-243 Phase C. Renders the recent orders table matching the Alpaca
- * brokerage dashboard aesthetic per COCKPIT-COMPONENT-DESIGN.md.
+ * Recent orders table — symbol, type, side, qty, avg fill, status,
+ * submitted-at. Matches Alpaca brokerage dashboard aesthetic.
  *
- * Data: api.cockpit.recentOrders() → /api/cockpit/recent-orders
+ * Data: api.cockpit.recentOrders(limit=10) → /api/cockpit/recent-orders
  *
- * Graceful degradation: empty state when Alpaca unreachable or no orders.
+ * Graceful degradation: returns null when Alpaca not connected
+ * (TraderPortfolio surfaces the canonical not-connected state).
+ * Renders empty-state when connection works but order history is empty.
  */
 
 import { useEffect, useState } from 'react';
