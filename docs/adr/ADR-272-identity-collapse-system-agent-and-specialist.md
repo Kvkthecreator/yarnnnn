@@ -1,6 +1,6 @@
 # ADR-272: Identity-Layer Collapse — System Agent → Ambient Activity, Specialists → Single Production Role
 
-**Status**: **Proposed 2026-05-14** (resolves ADR-271 Threads B + C combined, with Phase 1 BE landing in this ADR and Phase 2 FE sequenced as a follow-on per operator decision)
+**Status**: **Fully Implemented 2026-05-14.** Phase 1 BE landed in commit `1c8c73f`. Phase 2 (BE filter + FE cockpit collapse) landing in this commit. Operational reset+reactivate of seulkim88 + kvk completed against new bundle.
 
 **Companion ADRs (atomic together — same architectural arc as ADR-271)**:
 - ADR-271 — Bundle Authoring Discipline + Identity-Layer Audit (Threads A + D Implemented; B + C resolved here)
@@ -201,7 +201,36 @@ Concrete code changes:
 
 ---
 
-## 5. Phase 2 — FE implementation (sequenced, separate commit after BE bakes)
+## 5. Phase 2 — FE implementation (Implemented 2026-05-14)
+
+**Implementation note**: Phase 2.A (operator-legibility floor) discovered during scope audit to be **already satisfied** by `/work` Schedule tab. The existing surface lists every recurrence with last-run + next-run timestamps, mechanical (`Cpu` icon) vs judgment (`FileText` icon) visual distinction, and cadence grouping. System Agent's `/agents?agent=system` Back Office tab was a lossy re-render of `/work` Schedule data. Removing the duplicate surface returns operators to the canonical work-shaped view.
+
+**Code changes**:
+
+Backend:
+- `api/routes/agents.py::list_agents`: filter clause flipped from `keep thinking_partner regardless of origin` to `drop thinking_partner unconditionally`. The orchestration LLM identity (DB row with `role='thinking_partner'`, `agent_class='meta-cognitive'`) persists as substrate behind `/feed` (referenced by `routes/feed.py::resolve_profile` for chat-mode profile resolution), but is filtered out of the cockpit-facing API response. The FE never receives a row with this role post-filter.
+
+Frontend (atomic Phase 2 commit):
+- `web/app/(authenticated)/agents/page.tsx` rewritten: System Agent roster card + dispatch logic deleted; legacy redirect block (`?agent=yarnnn` / `?agent=thinking-partner` → `?agent=system`) deleted; roster now shows Reviewer (systemic) + Domain Agents (user-authored) only.
+- `web/components/agents/AgentContentView.tsx`: `meta-cognitive` entries deleted from `AGENT_GUIDANCE_REGISTRY`, `AGENT_EMPTY_STATE_REGISTRY`, `ROLE_GUIDANCE_REGISTRY`; inline `meta-cognitive` branches deleted from `getContextSources` / `outputs` / `triggers` computed blocks; `YarnnnDetail` function DELETED; `meta-cognitive` early-return dispatch DELETED.
+- `web/components/tp/MessageDispatch.tsx` rewritten: 7 bubble shapes collapsed to 4 (`user-bubble`, `reviewer-bubble`, `agent-bubble`, `system-activity`). Roles `'system_agent'` / `'assistant'` / `'system'` / `'external'` all resolve to the single `system-activity` shape. `renderSystemAgentBubble` / `renderSystemBubble` / `renderSystemEvent` / `renderExternalEvent` DELETED. Single `renderSystemActivity` renderer emits a de-emphasised activity row labeled "system" — not a chat participant, ambient background-weight, single-line by default. Inline proposal chip support preserved for ProposeAction narration carrying `proposalId`.
+- `web/components/tp/MessageRow.tsx::roleDisplayLabel`: orchestration-plumbing roles (`assistant` / `system_agent` / `system` / `external`) all collapse to label `"system"`. "System Agent" entity label retired at the cockpit surface.
+- `web/lib/routes.ts`: `SYSTEM_AGENT_ROUTE` constant DELETED. Legacy URLs 404-clean.
+- `web/lib/agent-identity.ts`: `thinking_partner` entry removed from `CanonicalAgentRole` type union; `'meta-cognitive'` removed from `AgentClass` type union; `thinking_partner` ROLE_META entry DELETED; `'meta-cognitive'` CLASS_META entry DELETED.
+- `web/types/index.ts`: `'meta-cognitive'` removed from the `agent_class` enum union on the `Agent` interface.
+- `web/components/workfloor/IsometricRoom.tsx`: stale comment updated (the `thinking_partner` → Brain icon mapping kept as defensive coverage; FE never renders a row with this role post-filter).
+
+**Regression gates post-Phase-2**:
+- `api/test_adr272_identity_collapse.py`: 25/25 PASS (added `test_list_agents_filters_orchestration_row` for the BE filter invariant).
+- `api/test_adr269_capability_flow.py`: 110/110 PASS.
+- `api/test_adr261_phaseB.py`: 62/62 PASS.
+- `web` TypeScript compile: zero errors (`tsc --noEmit`).
+
+**Operational reset** (same commit window): `api/scripts/alpha_ops/reset.py` + `activate_persona.py` re-forked both `alpha-trader` (seulkim88) and `kvk` workspaces from the new bundle template. Both personas now run 15 recurrences (5 mechanical + 10 judgment), `falsify-signals` absent, `track-universe` + `track-regime` mechanical. Pre-ADR-272 stale state cleared.
+
+---
+
+## 5a. Phase 2 — historical proposal text (preserved for trace)
 
 Scoped here but not landing in this ADR's commit:
 

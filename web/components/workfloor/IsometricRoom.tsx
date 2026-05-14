@@ -47,7 +47,7 @@ const AGENT_ICON: Record<string, typeof FlaskConical> = {
   slack_bot: MessageCircle,
   notion_bot: Bot,
   github_bot: Bot,
-  // meta-cognitive
+  // orchestration substrate (ADR-272: filtered out of /api/agents — never rendered)
   thinking_partner: Brain,
   // v4 ICP legacy (backward compat)
   competitive_intel: FlaskConical,

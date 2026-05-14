@@ -26,10 +26,16 @@ type CanonicalAgentRole =
   | 'slack_bot'
   | 'notion_bot'
   | 'github_bot'
-  | 'thinking_partner'
   | 'reviewer';
+// ADR-272: 'thinking_partner' removed from CanonicalAgentRole — the
+// orchestration LLM identity is filtered out at /api/agents and no longer
+// surfaces in the cockpit. The DB role string persists as substrate but
+// is not a user-facing role.
 
-type AgentClass = 'specialist' | 'synthesizer' | 'platform-bot' | 'meta-cognitive' | 'reviewer';
+type AgentClass = 'specialist' | 'synthesizer' | 'platform-bot' | 'reviewer';
+// ADR-272: 'meta-cognitive' removed — System Agent dissolved as a cockpit
+// entity. The chat-mode LLM identity (DB enum 'meta-cognitive') persists
+// behind /feed but is not rendered as a roster card or detail surface.
 export type PlatformBotProvider = 'slack' | 'notion' | 'github';
 
 interface RoleMeta {
@@ -149,17 +155,11 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
     authorClass: 'text-slate-600 dark:text-slate-400',
     iconName: 'GitBranch',
   },
-  // ADR-251: cockpit entity label "System Agent". In chat speaks as "YARNNN" (brand).
-  // Internal role slug `thinking_partner` is a data-compat exception (never user-facing).
-  thinking_partner: {
-    displayName: 'System Agent',
-    shortLabel: 'System',
-    tagline: 'Executes declared work. Narrates what happened.',
-    avatarHex: '#1f2937',
-    badgeClass: 'bg-gray-800 text-gray-100 dark:bg-gray-700 dark:text-gray-100',
-    authorClass: 'text-gray-900 dark:text-gray-100',
-    iconName: 'MessageCircle',
-  },
+  // ADR-272 (2026-05-14): `thinking_partner` ROLE_META entry DELETED.
+  // The orchestration LLM identity is filtered out of /api/agents responses
+  // and has no cockpit display. The DB role enum 'thinking_partner' persists
+  // as substrate (routes/feed.py uses it for the orchestration profile),
+  // but the FE never sees a row with this role post-filter.
   // ADR-214 + ADR-251: Reviewer as first-class surface. Substrate at /workspace/review/
   // per ADR-194 v2. Autonomy + Principles + heartbeat cadence housed here (ADR-251 D4).
   reviewer: {
@@ -193,12 +193,11 @@ const CLASS_META: Record<AgentClass, { label: string; description: string }> = {
     label: 'Platform Integration',
     description: 'Platform-API capability bundle — activates when the platform is connected.',
   },
-  // NB: enum key "meta-cognitive" is a data-compat exception (GLOSSARY).
-  // Maps to "System Agent" at display layer per ADR-251.
-  'meta-cognitive': {
-    label: 'System Agent',
-    description: 'System surface — executes declared work, narrates what happened.',
-  },
+  // ADR-272: 'meta-cognitive' class entry DELETED. The orchestration
+  // LLM identity is filtered out at /api/agents — FE never receives a row
+  // with this class post-filter. The DB enum value persists as a data-compat
+  // exception (workspace_init seeds the row at signup) but is invisible
+  // to the cockpit.
   reviewer: {
     label: 'Reviewer',
     description: 'Judgment seat — independent verdicts on proposed actions (ADR-194 / ADR-251).',

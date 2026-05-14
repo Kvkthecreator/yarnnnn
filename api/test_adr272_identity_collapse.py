@@ -204,6 +204,28 @@ def test_dispatch_specialist_primitive_preserved():
     )
 
 
+def test_list_agents_filters_orchestration_row():
+    """ADR-272 D1 + D7 (Phase 2 BE): the orchestration LLM identity row
+    (role='thinking_partner') is filtered out of /api/agents responses.
+    The FE never sees it; System Agent no longer surfaces as a peer entity.
+    Asserts by source-text inspection (no live DB call needed).
+    """
+    import inspect
+    from routes.agents import list_agents
+    source = inspect.getsource(list_agents)
+    # The filter expression should EXCLUDE thinking_partner explicitly
+    assert_true(
+        'a.get("role") != "thinking_partner"' in source,
+        "list_agents filter excludes role='thinking_partner' (ADR-272 D7)",
+    )
+    # And should NOT preserve thinking_partner via the legacy ADR-214 carve-out
+    legacy_carveout = 'a.get("origin") != "system_bootstrap" or a.get("role") == "thinking_partner"'
+    assert_true(
+        legacy_carveout not in source,
+        "legacy ADR-214 carve-out (thinking_partner kept regardless of origin) removed",
+    )
+
+
 def test_dispatch_specialist_tool_enum_narrowed():
     """D3: tool schema's role enum reflects the narrowed VALID_SPECIALIST_ROLES."""
     from services.primitives.dispatch_specialist import DISPATCH_SPECIALIST_TOOL
@@ -231,6 +253,7 @@ def main():
         test_falsify_signals_recurrence_deleted,
         test_dispatch_specialist_primitive_preserved,
         test_dispatch_specialist_tool_enum_narrowed,
+        test_list_agents_filters_orchestration_row,
     ]
 
     print("=" * 70)

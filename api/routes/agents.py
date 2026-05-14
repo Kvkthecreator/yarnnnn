@@ -432,14 +432,15 @@ async def list_agents(
     - quality_trend: "improving" | "stable" | "declining"
     - avg_edit_distance: Average over recent versions
     """
-    # Fetch agents with versions
-    # ADR-214: The /agents list shows judgment-bearing Agents only (ADR-212
-    # taxonomy): Systemic (YARNNN + Reviewer) + Domain (user-authored). YARNNN
-    # is a real row with origin='system_bootstrap' and role='thinking_partner';
-    # we keep it visible. Other system_bootstrap rows (if any legacy
-    # infrastructure survives) stay hidden per ADR-189. Reviewer is synthesized
-    # below as a pseudo-agent — its substrate lives at /workspace/review/*.md
-    # per ADR-194 v2 Axiom 1, not in the agents table.
+    # Fetch agents with versions.
+    # ADR-214: the /agents list shows judgment-bearing Agents only (ADR-212
+    # taxonomy): Systemic (Reviewer) + Domain (user-authored).
+    # ADR-272 (2026-05-14): the `thinking_partner` row that previously
+    # surfaced as the "System Agent" cockpit entity is now FILTERED OUT here.
+    # The orchestration LLM identity persists in the DB (used by routes/feed.py
+    # for chat-mode profile resolution) but is not cockpit-visible per the
+    # ADR-272 collapse — orchestration is ambient activity, not a peer agent.
+    # Reviewer is synthesized below as a pseudo-agent.
     query = (
         auth.client.table("agents")
         .select("*, agent_runs(id, status, version_number, edit_distance_score, approved_at)")
@@ -454,11 +455,11 @@ async def list_agents(
 
     result = query.execute()
     raw_agents = result.data or []
-    # ADR-214: keep YARNNN (thinking_partner) regardless of origin; hide other
-    # system_bootstrap rows to preserve the authored-team moat (ADR-189).
+    # ADR-272: filter out the orchestration substrate row (role='thinking_partner').
+    # Filter out other system_bootstrap rows (legacy infrastructure) per ADR-189.
     agents = [
         a for a in raw_agents
-        if a.get("origin") != "system_bootstrap" or a.get("role") == "thinking_partner"
+        if a.get("origin") != "system_bootstrap" and a.get("role") != "thinking_partner"
     ]
 
     # ADR-106: Read workspace intelligence for all agents in parallel

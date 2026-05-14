@@ -6,6 +6,90 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.14.4] - refactor(adr-272 Phase 2): cockpit FE collapse + BE filter — System Agent surface dissolved
+
+### Background
+
+Phase 1 ([2026.05.14.3]) landed BE invariants: `VALID_SPECIALIST_ROLES` narrowed to `{designer}`, `PRODUCTION_ROLES` shrunk, `falsify-signals` recurrence deleted from bundle, `orchestration_prompts.py` deleted as dead-code legacy. Phase 2 (this commit) lands the **operator-facing collapse**: System Agent dissolves at the cockpit surface, chat bubble shapes consolidate, and the orchestration LLM identity is filtered out of `/api/agents` responses so the FE never receives it.
+
+Phase 2.A (operator-legibility floor) discovered during scope audit to be **already satisfied** by `/work` Schedule tab — it lists every recurrence with last-run + next-run timestamps, mechanical (Cpu icon) vs judgment (FileText icon) visual distinction, cadence grouping. System Agent's `/agents?agent=system` Back Office tab was a lossy re-render of `/work` Schedule data. Removing the duplicate surface returns operators to the canonical work-shaped view.
+
+### Backend filter (D1 + D7 enacted)
+
+`api/routes/agents.py::list_agents`: filter clause flipped.
+
+Before (post-ADR-214):
+```python
+agents = [
+    a for a in raw_agents
+    if a.get("origin") != "system_bootstrap" or a.get("role") == "thinking_partner"
+]
+```
+
+After (post-ADR-272):
+```python
+agents = [
+    a for a in raw_agents
+    if a.get("origin") != "system_bootstrap" and a.get("role") != "thinking_partner"
+]
+```
+
+The `thinking_partner` row persists in the DB (substrate behind `routes/feed.py::resolve_profile` for chat-mode profile resolution) but is filtered out of the cockpit-facing API response. The FE never receives a row with this role post-filter.
+
+### Frontend collapse (atomic Phase 2)
+
+- `web/app/(authenticated)/agents/page.tsx`: System Agent roster card + dispatch logic deleted; legacy redirect block deleted; roster shows Reviewer (systemic) + Domain Agents (user-authored) only. `?agent=system` / `?agent=yarnnn` / `?agent=thinking-partner` URLs 404-clean.
+- `web/components/agents/AgentContentView.tsx`: all `meta-cognitive` paths deleted — registry entries, computed-block branches, `YarnnnDetail` function, dispatch early-return.
+- `web/components/tp/MessageDispatch.tsx` rewritten: **7 bubble shapes collapse to 4** (`user-bubble`, `reviewer-bubble`, `agent-bubble`, `system-activity`). Roles `system_agent` / `assistant` / `system` / `external` all resolve to the single `system-activity` shape — de-emphasised background-weight row labeled "system", not a chat participant. `renderSystemAgentBubble` / `renderSystemBubble` / `renderSystemEvent` / `renderExternalEvent` DELETED; single `renderSystemActivity` renderer. Inline proposal chip support preserved for ProposeAction narration.
+- `web/components/tp/MessageRow.tsx::roleDisplayLabel`: orchestration-plumbing roles all collapse to label `"system"`.
+- `web/lib/routes.ts`: `SYSTEM_AGENT_ROUTE` constant DELETED.
+- `web/lib/agent-identity.ts`: `thinking_partner` removed from `CanonicalAgentRole`; `meta-cognitive` removed from `AgentClass`; ROLE_META + CLASS_META entries DELETED.
+- `web/types/index.ts::Agent.agent_class`: `meta-cognitive` removed from enum union.
+- `web/components/workfloor/IsometricRoom.tsx`: comment updated; defensive `thinking_partner → Brain` icon entry retained (FE never renders such rows post-filter).
+
+### Operational reset (same commit window)
+
+`reset.py` + `activate_persona.py` re-forked both `alpha-trader` (seulkim88) and `kvk` workspaces from the new bundle template. Both personas now run 15 recurrences (5 mechanical + 10 judgment), `falsify-signals` absent, `track-universe` + `track-regime` mechanical. Pre-ADR-272 stale state cleared.
+
+### Regression gates
+
+- `api/test_adr272_identity_collapse.py`: **25/25 PASS** (added `test_list_agents_filters_orchestration_row` for the BE filter invariant).
+- `api/test_adr269_capability_flow.py`: 110/110 PASS.
+- `api/test_adr261_phaseB.py`: 62/62 PASS.
+- `web` TypeScript compile: zero errors (`tsc --noEmit`).
+
+### What operators see post-Phase-2
+
+- `/agents` (no query param): Reviewer card (systemic) + Domain Agents grid (if any user-authored). No System Agent card.
+- `/agents?agent=reviewer`: unchanged (Reviewer Identity · Principles · Autonomy tabs).
+- `/agents?agent=system` / `?agent=yarnnn` / `?agent=thinking-partner`: 404-clean (no silent redirect to a dissolved surface).
+- `/feed`: operator + Reviewer speak as participants. All orchestration-plumbing narration (deterministic dispatch, mechanical recurrence completions, Reviewer-directed action narration, MCP write-backs) renders as an ambient `system-activity` row labeled "system" — de-emphasised, single-line by default, not a chat participant.
+- `/work` Schedule tab: unchanged — operator's canonical "what runs, and when?" surface for both mechanical and judgment recurrences.
+
+### Files
+
+Backend:
+- `api/routes/agents.py` (filter clause flipped)
+- `api/test_adr272_identity_collapse.py` (extended with BE-filter assertion)
+
+Frontend (atomic):
+- `web/app/(authenticated)/agents/page.tsx` (rewritten — System Agent card removed)
+- `web/components/agents/AgentContentView.tsx` (meta-cognitive paths deleted)
+- `web/components/tp/MessageDispatch.tsx` (rewritten — 7 shapes → 4)
+- `web/components/tp/MessageRow.tsx` (orchestration roles → "system" label)
+- `web/lib/routes.ts` (SYSTEM_AGENT_ROUTE deleted)
+- `web/lib/agent-identity.ts` (thinking_partner ROLE_META + meta-cognitive CLASS_META deleted, type unions narrowed)
+- `web/types/index.ts` (agent_class union narrowed)
+- `web/components/workfloor/IsometricRoom.tsx` (comment update only)
+
+Docs:
+- `docs/adr/ADR-272-identity-collapse-system-agent-and-specialist.md` (status → Fully Implemented, Phase 2 implementation note appended)
+
+Operational:
+- `seulkim88` + `kvk` workspaces reset + re-forked from new bundle.
+
+---
+
 ## [2026.05.14.3] - refactor(adr-272 Phase 1): identity-layer collapse — System Agent dissolves, specialists narrow to designer-only
 
 ### Background

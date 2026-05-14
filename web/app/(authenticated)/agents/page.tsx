@@ -1,21 +1,23 @@
 'use client';
 
 /**
- * Agents Page — Detail-only surface (ADR-167 v5, ADR-214, ADR-241).
+ * Agents Page — Reviewer + Domain Agents (ADR-272 Phase 2).
  *
- * ADR-251: roster reinstated. `/agents` (no query param) shows the roster.
- * Two systemic entities: System Agent (?agent=system) + Reviewer (?agent=reviewer).
+ * Post-ADR-272: System Agent dissolved as a cockpit entity. The roster
+ * shows the Reviewer (systemic) + user-authored Domain Agents only. The
+ * orchestration LLM identity (formerly labeled "System Agent") persists
+ * as chat-mode substrate behind /feed; it is not rendered here. System
+ * activity (recurrence health, last-run timestamps, mechanical vs judgment
+ * distinction) surfaces on /work Schedule tab.
  *
- * Bookmark-safety redirects:
- *   ?agent=yarnnn → ?agent=system
- *   ?agent=thinking-partner → ?agent=system
- *   ?agent=yarnnn&tab=principles → ?agent=reviewer&tab=principles
- *   ?agent=yarnnn&tab=autonomy → ?agent=reviewer&tab=autonomy
- *
- * ?agent=reviewer renders ReviewerDetail directly — no redirect (ADR-251 D7).
+ * Legacy URL handling:
+ *   ?agent=yarnnn → 404-clean (redirect block deleted per ADR-272 D7)
+ *   ?agent=thinking-partner → 404-clean
+ *   ?agent=system → 404-clean
+ *   ?agent=reviewer → renders ReviewerDetail (unchanged from ADR-214)
  */
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Loader2,
@@ -27,11 +29,9 @@ import { useNarrative } from '@/contexts/NarrativeContext';
 import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { getAgentSlug } from '@/lib/agent-identity';
-// ADR-241: AgentRosterSurface deleted (always-empty roster post-ADR-235 D2).
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
-// RecurrenceSetupModal removed — creation via Chat
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 
 
@@ -44,27 +44,11 @@ export default function AgentsPage() {
 
   const agentFromUrl = searchParams.get('agent');
 
-  // ADR-251: roster reinstated — no default redirect when no agent param.
-  // Bookmark-safety redirects for legacy ?agent=yarnnn and ?agent=thinking-partner URLs.
-  useEffect(() => {
-    if (agentFromUrl === 'yarnnn' || agentFromUrl === 'thinking-partner') {
-      router.replace('/agents?agent=system', { scroll: false });
-    }
-    // ?agent=yarnnn&tab=principles|autonomy → ?agent=reviewer&tab=...
-    const tab = searchParams.get('tab');
-    if (agentFromUrl === 'yarnnn' && (tab === 'principles' || tab === 'autonomy')) {
-      router.replace(`/agents?agent=reviewer&tab=${tab}`, { scroll: false });
-    }
-  }, [agentFromUrl, router, searchParams]);
-
-  // Detail mode is determined by URL — no auto-selection (ADR-167).
-  // ADR-251: ?agent=system maps to the meta-cognitive agent (System Agent).
-  // ?agent=reviewer maps to the synthesized Reviewer pseudo-agent.
+  // Detail mode is URL-driven (ADR-167). ADR-272: no redirect for legacy
+  // ?agent=system / ?agent=yarnnn / ?agent=thinking-partner — those URLs
+  // 404-clean (no silent forwarding to a dissolved surface).
   const selectedAgent = useMemo(() => {
     if (!agentFromUrl) return null;
-    if (agentFromUrl === 'system') {
-      return agents.find(a => a.agent_class === 'meta-cognitive') ?? null;
-    }
     if (agentFromUrl === 'reviewer') {
       return agents.find(a => a.agent_class === 'reviewer') ?? null;
     }
@@ -78,7 +62,7 @@ export default function AgentsPage() {
     ? tasks.filter(t => t.agent_slugs?.includes(getAgentSlug(selectedAgent)))
     : [];
 
-  // Breadcrumb (segment shape from b033513; PageHeader renders inline now)
+  // Breadcrumb
   useEffect(() => {
     if (selectedAgent) {
       const slug = getAgentSlug(selectedAgent);
@@ -92,7 +76,6 @@ export default function AgentsPage() {
     return () => clearBreadcrumb();
   }, [selectedAgent?.id, selectedAgent?.title, setBreadcrumb, clearBreadcrumb]);
 
-  // Chat config
   const surfaceOverride = selectedAgent
     ? { type: 'agent-detail' as const, agentId: selectedAgent.id }
     : undefined;
@@ -145,6 +128,10 @@ export default function AgentsPage() {
     );
   }
 
+  // Roster (no agent selected): Reviewer + Domain Agents only post-ADR-272.
+  const reviewer = agents.find(a => a.agent_class === 'reviewer');
+  const domainAgents = agents.filter(a => a.agent_class !== 'reviewer');
+
   return (
     <>
     <ThreePanelLayout
@@ -165,33 +152,43 @@ export default function AgentsPage() {
           tasks={agentTasks}
         />
       ) : (
-        // ADR-251: roster landing — no agent selected. Shows two systemic cards.
-        // Full AgentRosterSurface component is the follow-on; this is the interim
-        // placeholder that signals the roster is the correct landing state.
-        <div className="flex-1 overflow-auto p-6 max-w-3xl space-y-4">
-          <p className="text-sm font-medium text-muted-foreground">Your workspace</p>
-          <div className="grid grid-cols-2 gap-3">
-            {agents.filter(a => a.agent_class === 'meta-cognitive').map(a => (
+        <div className="flex-1 overflow-auto p-6 max-w-3xl space-y-6">
+          {reviewer && (
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-3">Systemic</p>
               <button
-                key={a.id}
-                onClick={() => router.push('/agents?agent=system')}
-                className="text-left rounded-lg border border-border/60 bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
-              >
-                <p className="text-sm font-medium">System Agent</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Executes declared work. Narrates what happened.</p>
-              </button>
-            ))}
-            {agents.filter(a => a.agent_class === 'reviewer').map(a => (
-              <button
-                key={a.id}
                 onClick={() => router.push('/agents?agent=reviewer')}
-                className="text-left rounded-lg border border-border/60 bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
+                className="w-full text-left rounded-lg border border-border/60 bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
               >
                 <p className="text-sm font-medium">Reviewer</p>
                 <p className="text-xs text-muted-foreground mt-0.5">Your judgment seat — independent verdicts on proposed actions.</p>
               </button>
-            ))}
-          </div>
+            </div>
+          )}
+          {domainAgents.length > 0 && (
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-3">Your agents</p>
+              <div className="grid grid-cols-2 gap-3">
+                {domainAgents.map(a => (
+                  <button
+                    key={a.id}
+                    onClick={() => router.push(`/agents?agent=${encodeURIComponent(getAgentSlug(a))}`)}
+                    className="text-left rounded-lg border border-border/60 bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
+                  >
+                    <p className="text-sm font-medium">{a.title}</p>
+                    {a.description && (
+                      <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{a.description}</p>
+                    )}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {domainAgents.length === 0 && (
+            <p className="text-xs text-muted-foreground/60">
+              No agents authored yet. Ask in chat to set up recurring work — that&apos;s where agent identity comes from.
+            </p>
+          )}
         </div>
       )}
     </ThreePanelLayout>

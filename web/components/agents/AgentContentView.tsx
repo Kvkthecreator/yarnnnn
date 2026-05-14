@@ -125,12 +125,6 @@ const AGENT_SHELL_REGISTRY: Record<RegistryAgentClass, AgentShellDescriptor> = {
     },
     highlights: (_, counts) => describeActiveRecurrences(counts),
   },
-  'meta-cognitive': {
-    label: 'Role',
-    title: () => 'Keeps the workforce running',
-    description: () => 'Handles orchestration, shared state, and system-level upkeep so the rest of the team can focus on domain work.',
-    highlights: () => [],
-  },
 };
 
 const _SPECIALIST_EMPTY_STATE: AgentEmptyStateDescriptor = {
@@ -151,10 +145,6 @@ const AGENT_EMPTY_STATE_REGISTRY: Record<RegistryAgentClass, AgentEmptyStateDesc
       const platform = roleDisplayName(agent.role).replace(' Bot', '');
       return `Connect ${platform} above and select sources, then ask YARNNN to set up a platform-awareness recurrence.`;
     },
-  },
-  'meta-cognitive': {
-    title: () => 'No back-office work yet',
-    description: () => 'Back-office recurrences materialize on trigger (first proposal, platform connect).',
   },
 };
 
@@ -224,24 +214,6 @@ const ROLE_GUIDANCE_REGISTRY: Record<RegistryAgentClass, RoleGuidanceDescriptor>
         'Draft a concise action update for the latest high-priority thread.',
       ];
     },
-  },
-  'meta-cognitive': {
-    bestFor: () => 'Coordinating the workforce, recurrence hygiene, and system-level upkeep.',
-    does: () => [
-      'Monitors recurrence health and freshness across the workspace',
-      'Runs back-office maintenance recurrences and orchestrations',
-      'Surfaces operational signals for decision-making',
-    ],
-    doesnt: () => [
-      'Own any single domain as a content specialist',
-      'Produce domain reports as primary output',
-      'Replace specialist analysis on domain topics',
-    ],
-    examples: () => [
-      'Which recurrences are stale or at risk right now?',
-      'What maintenance work should run next to keep things healthy?',
-      'Give me a short operational status of the workforce.',
-    ],
   },
 };
 
@@ -319,7 +291,6 @@ function summarizeRoleContract(agent: Agent, tasks: Recurrence[]) {
       const platform = roleDisplayName(agent.role).replace(' Bot', '');
       return `Selected ${platform} sources`;
     }
-    if (cls === 'meta-cognitive') return 'Workspace state, task health, and orchestration signals';
     if (cls === 'synthesizer') return 'Production Role domain outputs';
     return agent.context_domain
       ? `${formatKeyLabel(agent.context_domain, false)} context folder`
@@ -333,7 +304,6 @@ function summarizeRoleContract(agent: Agent, tasks: Recurrence[]) {
   const outputs = (() => {
     if (liveTasks.length > 0) return 'Reports under /workspace/reports/{slug}/';
     if (cls === 'platform-bot') return 'Platform digest and action outputs';
-    if (cls === 'meta-cognitive') return 'Workforce and maintenance status outputs';
     if (cls === 'synthesizer') return 'Cross-domain reports';
     return 'Domain tracking updates and briefs';
   })();
@@ -342,10 +312,8 @@ function summarizeRoleContract(agent: Agent, tasks: Recurrence[]) {
     // Phase I: trigger inference from schedule presence alone (per ADR-260
     // D2 three-trigger model; per ADR-261 D1 there is no `shape` field on
     // recurrences). Recurrence with schedule → Schedule; recurrence without
-    // schedule → On demand (reactive / addressed). meta-cognitive class
-    // → also accessible via Chat.
+    // schedule → On demand (reactive / addressed).
     const triggerSet = new Set<string>();
-    if (cls === 'meta-cognitive') triggerSet.add('Chat');
     if (activeTasks.some((task) => task.schedule)) triggerSet.add('Schedule');
     if (activeTasks.some((task) => !task.schedule)) triggerSet.add('On demand');
     if (triggerSet.size === 0) triggerSet.add('On demand');
@@ -734,25 +702,13 @@ function AgentTabBar({
 }
 
 // ---------------------------------------------------------------------------
-// System Agent detail (ADR-251 D3): Identity only.
-// Mandate lives on /workspace (MandateCard + chat edit panel — proper home).
-// Back-office tasks live on /work (maintenance recurrences, toggle-able).
+// ADR-272 (2026-05-14): YarnnnDetail function DELETED. System Agent surface
+// dissolved as a cockpit entity. The chat-mode LLM identity (formerly the
+// `meta-cognitive` agent class) persists as substrate behind /feed but is
+// filtered out of /api/agents responses and has no detail surface. System
+// activity (recurrence health, last-run timestamps, mechanical vs judgment
+// distinction) surfaces on /work Schedule tab.
 // ---------------------------------------------------------------------------
-
-function YarnnnDetail({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
-  return (
-    <div className="flex-1 overflow-auto">
-      <SurfaceIdentityHeader
-        title="System Agent"
-        metadata={<AgentMetadata agent={agent} tasks={tasks} />}
-      />
-      <div className="max-w-3xl">
-        <AgentRoleBlock agent={agent} tasks={tasks} />
-        <TasksBlock agent={agent} tasks={tasks} />
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Reviewer detail (ADR-251 D4): Identity · Principles · Autonomy
@@ -829,22 +785,15 @@ export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, '
   const router = useRouter();
   const cls = agent.agent_class || 'specialist';
 
-  // ADR-251: reviewer is first-class — no redirect. Renders ReviewerDetail directly.
-  // ADR-251 D7: bookmark-safety redirects for ?agent=yarnnn and ?agent=thinking-partner
-  // are handled in agents/page.tsx (routing layer), not here (rendering layer).
-
-  // meta-cognitive = System Agent surface (ADR-251). Tabs: Identity · Mandate · Back Office.
-  if (cls === 'meta-cognitive') {
-    return <YarnnnDetail agent={agent} tasks={tasks} />;
-  }
-
-  // reviewer = Reviewer first-class surface (ADR-251). Tabs: Identity · Principles · Autonomy · Track Record · Decisions.
+  // ADR-272: meta-cognitive branch deleted. The orchestration LLM identity
+  // is no longer cockpit-visible; filtered out at /api/agents (routes/agents.py).
+  // reviewer = Reviewer first-class surface (ADR-251 D4): Identity · Principles · Autonomy.
   if (cls === 'reviewer') {
     return <ReviewerDetail agent={agent} />;
   }
 
-  // After the meta-cognitive + reviewer early returns, cls is narrowed to
-  // RegistryAgentClass (specialist | domain-steward | synthesizer | platform-bot).
+  // After the reviewer early return, cls is narrowed to RegistryAgentClass
+  // (specialist | domain-steward | synthesizer | platform-bot).
   const isPlatformBot = cls === 'platform-bot';
 
   return (
@@ -861,8 +810,7 @@ export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, '
         {!isPlatformBot && <SpecialistFolderBlock agent={agent} tasks={tasks} />}
 
         {/* LearnedBlock: feedback distillation (specialists/bots only).
-            TP's meta-cognitive branch returned earlier; reviewer also
-            returned earlier. */}
+            Reviewer returns earlier. ADR-272: meta-cognitive branch dissolved. */}
         <LearnedBlock agent={agent} />
       </div>
     </div>

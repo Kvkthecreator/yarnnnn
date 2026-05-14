@@ -215,24 +215,24 @@ function MaterialRow({ msg, isLoading, onMakeRecurring }: MaterialWrapperProps):
  * Maps raw DB role → canonical operator-facing display label per ADR-247 +
  * FOUNDATIONS v7.0 three-party narrative model.
  *
- * Three primary parties: operator ("You"), system ("system"),
- * Reviewer (operator-authored persona name — caller must resolve and pass).
- * Secondary roles (agent, system, external) keep their technical names.
+ * ADR-272 (2026-05-14): two participants (operator + Reviewer) +
+ * user-authored agents, with all orchestration-plumbing roles
+ * (assistant / system_agent / system / external) labeled "system" —
+ * ambient activity, not a peer participant.
  */
 function roleDisplayLabel(role: TPMessage['role'], reviewerPersona?: string | null): string {
   switch (role) {
     case 'user': return 'You';
-    // ADR-247 three-party narrative: legacy `assistant` rows render with
-    // the same "System Agent" label as `system_agent` rows in the bubble
-    // (MessageDispatch.tsx renderSystemBubble + renderSystemAgentBubble
-    // both use "System Agent"). Same DB row should not read as two
-    // different participants depending on weight (Audit-pass-2 DD-5).
-    case 'assistant': return 'System Agent';
-    case 'system_agent': return 'System Agent';
     case 'reviewer': return reviewerPersona ?? 'Reviewer';
     case 'agent': return 'agent';
-    case 'system': return 'background';     // scheduler / back-office events
-    case 'external': return 'external';
+    // ADR-272: all orchestration-plumbing roles render as ambient "system"
+    // activity. The "System Agent" entity label is retired at the cockpit
+    // surface; the chat LLM identity persists as substrate, never user-facing.
+    case 'assistant':
+    case 'system_agent':
+    case 'system':
+    case 'external':
+      return 'system';
     default: return role;
   }
 }
