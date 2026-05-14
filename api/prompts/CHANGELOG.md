@@ -6,6 +6,120 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.14.5] - fix(adr-272 follow-ups): Reviewer inline-default discipline + cold-start ordering preservation
+
+### Background
+
+Live e2e on seulkim88 (2026-05-14) surfaced two architectural follow-ups
+the Phase 2 collapse implicitly exposed:
+
+1. **Reviewer dispatched `designer` for analyst-shaped work.** Bootstrap
+   research (90d × 5 tickers × 5 signals) is analyst/researcher work,
+   not asset rendering. With VALID_SPECIALIST_ROLES narrowed to {designer}
+   per ADR-272 D3, the Reviewer reached for the surviving role even
+   though the work didn't fit it. Output quality was high *despite* the
+   misroute, not because of it — but the semantic mismatch is a real
+   prompt-layer gap.
+
+2. **`fire_on_activation` flag consumed by `capability_missing` failures.**
+   Operators who activate-before-connect (the natural flow when the
+   bundle scaffolds a workspace before Alpaca credentials are wired)
+   have their activation-fire dispatched against an inactive platform.
+   The dispatcher returns `capability_missing`, the scheduler records
+   `last_run_at = NOW()` in the `finally` block regardless, and the
+   activation flag is consumed — the next scheduler tick sees
+   `last_run_at IS NOT NULL` and doesn't re-fire. The operator ends up
+   with a silent workspace until next periodic cron.
+
+Both fixes ship in this commit.
+
+### Fix 1 — Reviewer inline-default discipline (Reviewer prompt)
+
+`api/agents/reviewer_agent.py::_PERSONA_FRAME` extended with explicit
+guidance:
+
+> **Production work defaults to INLINE execution, not specialist dispatch
+> (ADR-272).** You have access to platform tools (platform_trading_*,
+> WriteFile, ReadFile, SearchFiles, ListFiles, WebSearch, QueryKnowledge)
+> in your own tool surface. When a recurrence prompt asks you to fetch
+> data and write substrate — do that work INLINE in your own loop.
+>
+> The only surviving specialist role is `designer` (ADR-272 §7). Dispatch
+> the designer ONLY when the work is asset rendering AND the asset's
+> output meaningfully crowds your judgment context AND the render latency
+> would block your loop. For everything else — research, analysis, prose
+> drafting, tracking, cross-domain synthesis, falsification, data fetches
+> — execute INLINE. You're the judgment seat AND the production hand for
+> non-asset work.
+
+This is the prompt-layer enforcement of ADR-272's §"Default posture"
+commitment that the Reviewer was missing in the live fire.
+
+### Fix 2 — Cold-start ordering preservation (scheduler + dispatcher)
+
+`api/services/invocation_dispatcher.py`:
+- `_result_failed()` gains optional `error_reason` field. Structured tag
+  the scheduler reads to decide flag-arming behavior.
+- The capability-gate branch in `_dispatch_mechanical` passes
+  `error_reason="capability_missing"` when a primitive's required platform
+  isn't connected.
+
+`api/services/scheduling.py::record_task_run`:
+- Accepts new `error_reason` kwarg.
+- When `error_reason == "capability_missing"` AND the recurrence declares
+  `fire_on_activation: true` AND `last_run_at` was still NULL pre-dispatch
+  (i.e., the flag was armed), the function preserves `last_run_at=NULL`
+  so the flag re-arms on next scheduler tick (after the operator connects
+  the platform).
+- `next_run_at` always advances (clears the sentinel). The activation
+  flag's re-fire arming lives in `compute_next_run_at`'s `last_run_at
+  is None` branch, which we preserve here by not writing last_run_at.
+
+`api/jobs/unified_scheduler.py`:
+- The `finally` block now passes `error_reason=result.get("error_reason")`
+  through to `record_task_run`.
+- Result variable initialized to `{}` at the start of each per-recurrence
+  block so the `finally` can safely read it even if `dispatch()` raised.
+
+### Regression gates
+
+`api/test_adr272_identity_collapse.py` extended:
+- `test_reviewer_prompt_defaults_to_inline` — 4 assertions on the
+  Reviewer prompt's inline-default discipline (INLINE keyword, ADR-272
+  citation, "asset rendering" test phrase, `designer` role name).
+- `test_record_task_run_preserves_activation_arming_on_capability_missing`
+  — 4 assertions on the cold-start fix (error_reason kwarg accepted,
+  capability_missing referenced, fire_on_activation flag referenced,
+  preservation branch documented).
+- **33/33 PASS** (was 25/25 pre-fix).
+
+`api/test_adr269_capability_flow.py`: 110/110 PASS.
+`api/test_adr261_phaseB.py`: 62/62 PASS.
+
+### What changes operationally
+
+- Future activation-then-connect flows: mechanical mirrors will re-fire
+  cleanly on the first post-connect scheduler tick instead of standing
+  silent until next periodic cron.
+- Future research/analysis/prose recurrences will be executed inline by
+  the Reviewer instead of misrouted through `DispatchSpecialist(role="designer")`.
+  Token cost drops (no Sonnet specialist sub-call when Haiku Reviewer can
+  do the work directly).
+- DispatchSpecialist still survives and is correct to use for asset
+  rendering (designer's actual purpose). The discipline is "default
+  inline; specialist is the escape hatch."
+
+### Files
+
+Modified:
+- `api/agents/reviewer_agent.py` (_PERSONA_FRAME extended with inline-default discipline)
+- `api/services/invocation_dispatcher.py` (`_result_failed` gains `error_reason`; capability-gate emits it)
+- `api/services/scheduling.py` (`record_task_run` gains `error_reason` kwarg + preservation branch)
+- `api/jobs/unified_scheduler.py` (passes `result.error_reason` through to `record_task_run`)
+- `api/test_adr272_identity_collapse.py` (2 new tests, +8 assertions)
+
+---
+
 ## [2026.05.14.4] - refactor(adr-272 Phase 2): cockpit FE collapse + BE filter — System Agent surface dissolved
 
 ### Background

@@ -604,15 +604,78 @@ def record_task_run(
     *,
     last_run_at: datetime,
     user_timezone: Optional[str] = None,
+    error_reason: Optional[str] = None,
 ) -> None:
     """Write last_run_at + recomputed next_run_at to the thin index
     post-dispatch. Always sets next_run_at — either the next scheduled
     time or None to clear the optimistic sentinel claim_task_run set.
+
+    Cold-start ordering fix (ADR-272 Phase 2 follow-up, 2026-05-14):
+    when the dispatch failed because the required platform was not
+    connected (``error_reason == "capability_missing"``) AND the
+    recurrence declares ``fire_on_activation: true`` AND ``last_run_at``
+    was still NULL pre-dispatch (i.e. the activation flag was armed),
+    DO NOT write last_run_at. Reason: the work didn't actually happen,
+    so the activation flag should re-arm so the next scheduler tick
+    (post-connect) picks the row up immediately. Without this, operators
+    who activate before connect have a silent workspace until the next
+    periodic cron — the flag is consumed by a failure that wasn't the
+    work's failure.
+
+    next_run_at always advances (clears the sentinel). The activation
+    flag's re-fire arming lives in compute_next_run_at's `last_run_at
+    is None` check, which we preserve here by not writing last_run_at.
     """
     user_tz = user_timezone or get_user_timezone(client, user_id)
     # ADR-268: load market_context for semantic-schedule resolution.
     from services.bundle_reader import get_market_context_for_user
     market_context = get_market_context_for_user(user_id, client)
+
+    # Cold-start ordering fix: detect armed-and-blocked activation.
+    preserve_activation_arming = bool(
+        error_reason == "capability_missing"
+        and recurrence.options.get("fire_on_activation")
+    )
+    if preserve_activation_arming:
+        # Check whether last_run_at was still NULL pre-dispatch. If so,
+        # this is the armed-and-blocked case — don't consume the flag.
+        try:
+            existing = (
+                client.table("tasks")
+                .select("last_run_at")
+                .eq("user_id", user_id)
+                .eq("slug", recurrence.slug)
+                .limit(1)
+                .execute()
+            )
+            had_prior_run = bool(
+                existing.data
+                and existing.data[0].get("last_run_at") is not None
+            )
+        except Exception:
+            had_prior_run = True  # fail-closed — preserve original behavior
+        if not had_prior_run:
+            logger.info(
+                "[SCHED] %s/%s capability_missing while fire_on_activation armed — "
+                "preserving last_run_at=NULL so flag re-arms on next tick",
+                user_id[:8], recurrence.slug,
+            )
+            # Still advance next_run_at to clear the sentinel — the next
+            # scheduler tick will re-evaluate the activation flag via
+            # compute_next_run_at and re-set next_run_at = NOW() if
+            # last_run_at is still NULL.
+            update = {"next_run_at": None}
+            try:
+                client.table("tasks").update(update).eq("user_id", user_id).eq(
+                    "slug", recurrence.slug
+                ).execute()
+            except Exception as e:
+                logger.warning(
+                    "[SCHED] record_task_run (preserve-arming) update failed for %s/%s: %s",
+                    user_id[:8], recurrence.slug, e,
+                )
+            return
+
     try:
         next_run = compute_next_run_at(
             recurrence,

@@ -609,6 +609,7 @@ async def _dispatch_mechanical(
             recurrence,
             f"capability_missing: {required_platform}",
             trigger=trigger,
+            error_reason="capability_missing",
         )
 
     # Look up the handler in the central HANDLERS dict.
@@ -965,12 +966,28 @@ def _result_paused(recurrence: Recurrence, trigger: str) -> dict:
     }
 
 
-def _result_failed(recurrence: Recurrence, message: str, *, trigger: str) -> dict:
+def _result_failed(
+    recurrence: Recurrence,
+    message: str,
+    *,
+    trigger: str,
+    error_reason: Optional[str] = None,
+) -> dict:
+    """Build a failed-result envelope.
+
+    error_reason is a structured tag the scheduler reads to decide
+    whether to preserve `fire_on_activation` arming. Default None means
+    "ordinary failure — consume the activation flag as usual."
+    `"capability_missing"` means "platform connection unavailable — the
+    work didn't happen, so don't consume the activation flag" (per the
+    cold-start ordering fix).
+    """
     return {
         "success": False,
         "slug": recurrence.slug,
         "trigger": trigger,
         "message": message,
+        "error_reason": error_reason,
     }
 
 

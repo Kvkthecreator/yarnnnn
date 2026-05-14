@@ -181,6 +181,7 @@ async def dispatch_due_invocations(supabase_client) -> tuple[int, int, int]:
             )
             continue
 
+        result: dict = {}
         try:
             # ADR-263 D2: cron-fired recurrences are dispatched as `reactive`
             # — they are substrate events from the Reviewer's perspective. The
@@ -212,11 +213,15 @@ async def dispatch_due_invocations(supabase_client) -> tuple[int, int, int]:
             )
         finally:
             # Always advance next_run_at — clears the sentinel even on
-            # failure so reactive recurrences don't get stuck.
+            # failure so reactive recurrences don't get stuck. Cold-start
+            # ordering fix: pass result.error_reason so record_task_run
+            # can preserve activation-flag arming when capability_missing
+            # blocked an activation fire (per ADR-272 follow-up).
             try:
                 record_task_run(
                     supabase_client, user_id, recurrence,
                     last_run_at=datetime.now(timezone.utc),
+                    error_reason=result.get("error_reason"),
                 )
             except Exception as e:
                 logger.warning(

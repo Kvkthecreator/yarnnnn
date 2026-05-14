@@ -204,6 +204,64 @@ def test_dispatch_specialist_primitive_preserved():
     )
 
 
+def test_record_task_run_preserves_activation_arming_on_capability_missing():
+    """Cold-start ordering fix (2026-05-14): record_task_run must NOT
+    consume `fire_on_activation` arming when the dispatch failed with
+    error_reason='capability_missing'. Without this, operators who
+    activate-before-connect have a silent workspace until next periodic
+    cron — the flag is consumed by a failure that wasn't the work's fault.
+
+    Asserts the function signature accepts `error_reason` and the
+    source contains the preservation branch.
+    """
+    import inspect
+    from services.scheduling import record_task_run
+    sig = inspect.signature(record_task_run)
+    assert_true(
+        "error_reason" in sig.parameters,
+        "record_task_run accepts error_reason keyword",
+    )
+    source = inspect.getsource(record_task_run)
+    assert_true(
+        'capability_missing' in source,
+        "record_task_run source references capability_missing reason",
+    )
+    assert_true(
+        'fire_on_activation' in source,
+        "record_task_run source references fire_on_activation flag",
+    )
+    assert_true(
+        "preserve_activation_arming" in source or "re-arms" in source.lower(),
+        "record_task_run source documents the preservation branch (variable or comment)",
+    )
+
+
+def test_reviewer_prompt_defaults_to_inline():
+    """ADR-272 Phase 2 follow-up: Reviewer system prompt must explicitly
+    instruct inline-default for non-asset production work. Without this,
+    the Reviewer reaches for DispatchSpecialist(role='designer') when
+    work is analyst/research-shaped — a semantic misroute observed live
+    on 2026-05-14.
+    """
+    from agents.reviewer_agent import _PERSONA_FRAME
+    assert_true(
+        "INLINE execution" in _PERSONA_FRAME or "inline execution" in _PERSONA_FRAME.lower(),
+        "Reviewer prompt explicitly names inline-default discipline",
+    )
+    assert_true(
+        "ADR-272" in _PERSONA_FRAME,
+        "Reviewer prompt cites ADR-272 as the source of the inline-default discipline",
+    )
+    assert_true(
+        "asset rendering" in _PERSONA_FRAME.lower(),
+        "Reviewer prompt names 'asset rendering' as the test for designer dispatch",
+    )
+    assert_true(
+        "designer" in _PERSONA_FRAME,
+        "Reviewer prompt names `designer` as the surviving specialist role",
+    )
+
+
 def test_list_agents_filters_orchestration_row():
     """ADR-272 D1 + D7 (Phase 2 BE): the orchestration LLM identity row
     (role='thinking_partner') is filtered out of /api/agents responses.
@@ -254,6 +312,8 @@ def main():
         test_dispatch_specialist_primitive_preserved,
         test_dispatch_specialist_tool_enum_narrowed,
         test_list_agents_filters_orchestration_row,
+        test_reviewer_prompt_defaults_to_inline,
+        test_record_task_run_preserves_activation_arming_on_capability_missing,
     ]
 
     print("=" * 70)
