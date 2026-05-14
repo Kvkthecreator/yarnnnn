@@ -238,47 +238,53 @@ function roleDisplayLabel(role: TPMessage['role'], reviewerPersona?: string | nu
 }
 
 /**
- * Routine weight — slim non-interactive row. Label + summary + timestamp.
- * No expand toggle — routine entries are ambient log signal, not actionable
- * content the operator needs to drill into.
+ * Routine weight — bubble-chrome row matching renderSystemActivity, with
+ * routine-density treatment: smaller text, dimmed, single-line summary.
+ * Operator reads routine entries as in-thread system messages alongside
+ * conversation, not as background log. Weight controls density inside the
+ * bubble, not whether the bubble exists.
  */
 function RoutineRow({ msg, reviewerPersona }: { msg: TPMessage; reviewerPersona?: string | null }): JSX.Element {
   const summary =
     msg.narrative?.summary ??
-    (msg.content?.split('\n', 1)[0]?.slice(0, 160) ?? '');
+    (msg.content?.split('\n', 1)[0]?.slice(0, 200) ?? '');
   return (
-    <div className="flex items-center gap-1.5 max-w-[92%] py-0.5 opacity-40">
-      <span className="text-[10px] text-muted-foreground/70 shrink-0 font-mono">
-        {roleDisplayLabel(msg.role, reviewerPersona)}:
+    <div className="text-[12px] rounded-2xl px-3 py-1.5 max-w-[92%] bg-muted/60 rounded-bl-md opacity-80">
+      <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-0.5 uppercase">
+        {roleDisplayLabel(msg.role, reviewerPersona)}
       </span>
-      <span className="text-[11px] text-muted-foreground truncate flex-1">{summary}</span>
-      <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
-        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-      </span>
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground flex-1">{summary}</span>
+        <span className="text-[10px] text-muted-foreground/50 shrink-0 tabular-nums">
+          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
     </div>
   );
 }
 
 /**
- * Housekeeping weight — dim one-liner. The narrative_digest system_card
- * (rendered via the material path when its containing message has
- * weight=material) is the curated surface for housekeeping clusters;
- * individual housekeeping rows still render here in case the digest
- * hasn't run yet, but they're visually de-emphasized.
+ * Housekeeping weight — bubble-chrome row at the dimmest density.
+ * The narrative_digest system_card (rendered via the material path) is the
+ * curated surface for housekeeping clusters; individual housekeeping rows
+ * still render here in case the digest hasn't run yet, with reduced
+ * opacity and single-line truncation.
  */
 function HousekeepingRow({ msg, reviewerPersona }: { msg: TPMessage; reviewerPersona?: string | null }): JSX.Element {
   const summary =
     msg.narrative?.summary ??
-    (msg.content?.split('\n', 1)[0]?.slice(0, 160) ?? '');
+    (msg.content?.split('\n', 1)[0]?.slice(0, 200) ?? '');
   return (
-    <div className="text-[11px] flex items-center gap-1.5 max-w-[92%] py-0.5 opacity-25 hover:opacity-60 transition-opacity">
-      <span className="text-[10px] text-muted-foreground/70 shrink-0 font-mono">
-        {roleDisplayLabel(msg.role, reviewerPersona)}:
+    <div className="text-[12px] rounded-2xl px-3 py-1.5 max-w-[92%] bg-muted/40 rounded-bl-md opacity-50 hover:opacity-80 transition-opacity">
+      <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-0.5 uppercase">
+        {roleDisplayLabel(msg.role, reviewerPersona)}
       </span>
-      <span className="text-muted-foreground truncate flex-1">{summary}</span>
-      <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
-        {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-      </span>
+      <div className="flex items-center gap-2">
+        <span className="text-muted-foreground truncate flex-1">{summary}</span>
+        <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
+          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+        </span>
+      </div>
     </div>
   );
 }
