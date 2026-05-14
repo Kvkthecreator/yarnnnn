@@ -6,6 +6,50 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.14.8] - refactor(context-modal): SnapshotLead vocabulary review→rules, recent→pulse
+
+### Background
+Feed context modal collapsed from 8 overlapping sections to a 3-section
+primer (Mandate · Rules · Pulse) per the lens-sharpening discipline
+canonized in WORKSPACE.md. The SnapshotLead vocabulary used in
+`<!-- snapshot: {"lead":"..."} -->` markers renames to match the new
+section names so the marker semantics stay legible: emit `mandate` for
+the Mandate section, `rules` for the Rules section (was `review`), and
+`pulse` for the Pulse section (was `recent`).
+
+### Changed
+- `api/agents/prompts/chat/onboarding.py`:
+  - Valid `lead` values block updated: `mandate | rules | pulse`.
+  - Section descriptions rewritten to reflect 3-section primer
+    (Mandate = Primary Action sentence; Rules = principles +
+    autonomy posture; Pulse = liveness + pending + next wake).
+  - Trigger guidance rewritten — `lead=rules` for principle /
+    autonomy questions; `lead=pulse` for what's-pending /
+    what-happened questions.
+  - Example marker uses new vocabulary.
+  - AWARENESS.md reference deleted from the "first message of session"
+    trigger — awareness.md is no longer rendered in the modal.
+- `web/lib/content-shapes/snapshot.ts`:
+  - `SnapshotLead` type union: `'mandate' | 'rules' | 'pulse'`
+    (was `'mandate' | 'review' | 'recent'`).
+  - `VALID_LEADS` set updated to new vocabulary.
+  - `parse()` extended with a legacy-tolerance mapping
+    (`review → rules`, `recent → pulse`) for in-flight TP messages
+    emitted under the pre-2026-05-14 prompt — read-side accepts
+    both, prompt-side emits new vocabulary only.
+- `web/components/feed-surface/WorkspaceContextOverlay.tsx`:
+  - Scroll-into-view branch simplified — parser maps legacy values
+    before they reach the component, so component only branches on
+    current vocabulary.
+
+### Expected behavior
+- New TP messages emit `mandate | rules | pulse` only.
+- In-flight messages with legacy `review` / `recent` markers still
+  open the correct section (mapped at parse time).
+- No dual emission — Singular Implementation honored.
+
+---
+
 ## [2026.05.14.7] - feat(adr-275): introspection cadence is Reviewer-authored, not bundle-scaffolded
 
 ### Background

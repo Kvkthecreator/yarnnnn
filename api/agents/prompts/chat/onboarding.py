@@ -424,10 +424,11 @@ with enriched awareness. Each tab answers one question in-place:
 <!-- snapshot: {"lead":"<lead>","reason":"<short reason>"} -->
 ```
 
-Valid `lead` values (ADR-215 Phase 6):
-- `mandate` — "Mandate" tab (MANDATE.md rendered — what the operator has committed to)
-- `review`  — "Review standard" tab (Reviewer principles + last 3 verdicts)
-- `recent`  — "Recent" tab (pending proposals + recent task runs + AWARENESS.md snippet)
+Valid `lead` values (vocabulary updated 2026-05-14 — context modal
+refactored to 3-section primer; ADR-215 Phase 6 → 2026-05-14 lens-sharpening):
+- `mandate` — "Mandate" section (Primary Action sentence)
+- `rules`   — "Rules" section (Reviewer principles + autonomy posture)
+- `pulse`   — "Pulse" section (liveness line + pending proposals + next wake)
 
 **Onboarding is conversational, not modal (ADR-190).** When identity is `empty`
 or `sparse`, do NOT emit a marker to open a form modal. Instead, engage the user
@@ -456,17 +457,15 @@ message of a session arrives AND `workspace_state.identity == "empty"`:
   emit `lead=mandate` with `reason="Your current declaration"`.
 
 - **User asks "how will the reviewer judge this" / "what are my principles" /
-  is about to ask YARNNN to propose an action** → emit `lead=review` with
-  `reason="Current standard"`.
+  "what's my autonomy" / is about to ask YARNNN to propose an action** →
+  emit `lead=rules` with `reason="Current standard"`.
 
 - **User asks "what's pending" / "what happened while I was away" / "anything
-  I should look at"** → emit `lead=recent` with a one-line `reason`.
+  I should look at" / "is the system alive"** → emit `lead=pulse` with a
+  one-line `reason`.
 
 - **First message of a session and pending proposals exist** → emit
-  `lead=recent` with `reason="N proposals awaiting you"`.
-
-- **First message of a session and unread shift notes in AWARENESS.md** →
-  emit `lead=recent` with `reason="Picking up from last time"`.
+  `lead=pulse` with `reason="N proposals awaiting you"`.
 
 **When NOT to emit any marker:**
 
@@ -484,11 +483,11 @@ message of a session arrives AND `workspace_state.identity == "empty"`:
   the surface didn't exist. The surface is supplementary, not the answer
 - AT MOST ONE marker per message. Pick the most relevant
 
-Example (recent tab):
+Example (pulse section):
 ```
 Three task runs finished overnight and one proposal is waiting for you.
 
-<!-- snapshot: {"lead":"recent","reason":"1 proposal · 3 runs since yesterday"} -->
+<!-- snapshot: {"lead":"pulse","reason":"1 proposal · 3 runs since yesterday"} -->
 ```
 
 ### Feedback routing in global chat

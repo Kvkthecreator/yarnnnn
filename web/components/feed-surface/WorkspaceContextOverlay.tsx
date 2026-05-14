@@ -81,20 +81,15 @@ export function WorkspaceContextOverlay({
   const pulseRef = useRef<HTMLDivElement>(null);
 
   // Scroll the relevant section into view on open. Legacy lead values
-  // ('review' / 'recent') map to current names ('rules' / 'pulse') so
-  // in-flight TP messages with the old marker still open the right
-  // section. The snapshot parser accepts both as part of its read-side
-  // tolerance (singular implementation rule: prompt emits new vocabulary
-  // only; reader is tolerant of legacy values during the transition).
+  // ('review' / 'recent') are mapped to current vocabulary ('rules' /
+  // 'pulse') by the snapshot.ts parser before they reach this component
+  // — so we only branch on current values here.
   useEffect(() => {
     if (!open) return;
-    const resolvedLead = lead === 'review' ? 'rules'
-      : lead === 'recent' ? 'pulse'
-      : lead;
     const ref =
-      resolvedLead === 'mandate' ? mandateRef :
-      resolvedLead === 'rules' ? rulesRef :
-      resolvedLead === 'pulse' ? pulseRef :
+      lead === 'mandate' ? mandateRef :
+      lead === 'rules' ? rulesRef :
+      lead === 'pulse' ? pulseRef :
       null;
     if (ref?.current) {
       setTimeout(() => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);

@@ -39,10 +39,23 @@ export const META: ContentShapeMeta = {
 // Snapshot marker
 // ---------------------------------------------------------------------------
 
+// 2026-05-14: vocabulary rename per WorkspaceContextOverlay 3-section
+// refactor (Mandate · Rules · Pulse). The current type union is the
+// new vocabulary; the parser accepts legacy `review` / `recent` as
+// aliases for `rules` / `pulse` for tolerance on in-flight messages
+// that were emitted under the old prompt. New prompt emits new
+// vocabulary only (no dual emission — Singular Implementation).
 export type SnapshotLead =
   | 'mandate'
-  | 'review'
-  | 'recent';
+  | 'rules'
+  | 'pulse';
+
+/** Legacy lead values accepted on read; mapped to current vocabulary. */
+type LegacyLead = 'review' | 'recent';
+const LEGACY_LEAD_MAP: Record<LegacyLead, SnapshotLead> = {
+  review: 'rules',
+  recent: 'pulse',
+};
 
 export interface SnapshotDirective {
   lead: SnapshotLead;
@@ -58,8 +71,8 @@ const SNAPSHOT_RE = /\n*<!--\s*snapshot:\s*(\{[\s\S]*?\})\s*-->\s*$/;
 
 const VALID_LEADS: ReadonlySet<SnapshotLead> = new Set<SnapshotLead>([
   'mandate',
-  'review',
-  'recent',
+  'rules',
+  'pulse',
 ]);
 
 export function parse(
@@ -74,9 +87,20 @@ export function parse(
 
   let directive: SnapshotDirective | null = null;
   try {
-    const parsed = JSON.parse(match[1]) as SnapshotDirective;
-    if (parsed && VALID_LEADS.has(parsed.lead)) {
-      directive = parsed;
+    const parsed = JSON.parse(match[1]) as { lead: string; reason?: string };
+    const rawLead = parsed?.lead;
+    if (typeof rawLead === 'string') {
+      // Accept current vocabulary directly.
+      if ((VALID_LEADS as ReadonlySet<string>).has(rawLead)) {
+        directive = { lead: rawLead as SnapshotLead, reason: parsed.reason };
+      // Accept legacy vocabulary by mapping to current (2026-05-14
+      // rename: review → rules, recent → pulse).
+      } else if (rawLead in LEGACY_LEAD_MAP) {
+        directive = {
+          lead: LEGACY_LEAD_MAP[rawLead as LegacyLead],
+          reason: parsed.reason,
+        };
+      }
     }
   } catch {
     directive = null;
