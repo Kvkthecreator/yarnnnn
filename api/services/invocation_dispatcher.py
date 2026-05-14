@@ -142,10 +142,15 @@ async def dispatch(
         balance_ok = True
 
     if not balance_ok:
+        # ADR-277: material weight — hard stop, operator must see this.
+        # Distinct from the substrate-row execution_events entry (which
+        # carries forensic status); the feed entry carries the operator-
+        # actionable "you're out of budget" framing.
         await _emit_system_narrative(
             client, user_id, recurrence,
             summary=f"{recurrence.slug} skipped: balance exhausted",
             trigger=trigger,
+            weight="material",
         )
         record_execution_event(
             client, user_id=user_id, slug=recurrence.slug,
@@ -172,6 +177,10 @@ async def dispatch(
         # treatment when the ceiling is reached; only true `addressed` (operator
         # at the keyboard) gets the warn-but-proceed override.
         if trigger == "reactive":
+            # ADR-277: material weight — autonomous work got skipped due
+            # to spend ceiling. Operator-relevant (they may want to raise
+            # the ceiling or see why today went hot). Distinct from the
+            # execution_events skip row, which carries status only.
             await _emit_system_narrative(
                 client, user_id, recurrence,
                 summary=f"Spend ceiling reached — {recurrence.slug} skipped",
@@ -182,6 +191,7 @@ async def dispatch(
                     f"Resets at midnight UTC."
                 ),
                 trigger=trigger,
+                weight="material",
             )
             record_execution_event(
                 client, user_id=user_id, slug=recurrence.slug,
@@ -191,12 +201,16 @@ async def dispatch(
             )
             return _result_failed(recurrence, warning, trigger=trigger)
         else:
-            # Manual trigger: warn but proceed
+            # Manual trigger: warn but proceed.
+            # ADR-277: routine weight — operator pressed Run, so they're
+            # at the keyboard. Context-only ("just so you know, you're
+            # past the ceiling"); the work proceeds.
             await _emit_system_narrative(
                 client, user_id, recurrence,
                 summary=f"Spend ceiling warning — {recurrence.slug} running (manual)",
                 body=f"Daily ceiling ${DAILY_SPEND_CEILING_USD:.2f} reached, but running anyway (manual trigger). Today: ${daily_spend:.2f}.",
                 trigger=trigger,
+                weight="routine",
             )
 
     # ---- Build the Reviewer prompt envelope ----
@@ -272,11 +286,16 @@ async def dispatch(
             status="failed", error_reason="exception",
             error_detail=str(exc), duration_ms=duration_ms,
         )
+        # ADR-277: material weight — Reviewer invocation raised an
+        # exception. Real failure; operator should see. The execution_events
+        # row carries status=failed + error_reason for the audit log;
+        # the feed entry carries the operator-facing acknowledgment.
         await _emit_system_narrative(
             client, user_id, recurrence,
             summary=f"{recurrence.slug} failed",
             body=f"Reviewer invocation raised: {exc}",
             trigger=trigger,
+            weight="material",
         )
         return _result_failed(recurrence, str(exc), trigger=trigger)
 
@@ -605,6 +624,11 @@ async def _dispatch_mechanical(
             error_detail=f"required platform {required_platform!r} not connected",
         )
         if is_transition:
+            # ADR-277: material weight — first-detection of capability
+            # loss. Operator-actionable (go reconnect). The transition
+            # guard above keeps this firing at most once per disconnect
+            # event (not per per-minute fire), so material weight is
+            # safe — no flood risk.
             await _emit_system_narrative(
                 client, user_id, recurrence,
                 summary=(
@@ -617,6 +641,7 @@ async def _dispatch_mechanical(
                     f"stay silent until either action is taken."
                 ),
                 trigger=trigger,
+                weight="material",
             )
         else:
             logger.info(
@@ -697,21 +722,26 @@ async def _dispatch_mechanical(
     # into daily roll-ups; per-fire entries stay weight-gated out of
     # material/routine FE rendering by default.
     #
-    # Failure suppression (ADR-263 amendment 2026-05-12): per-fire narrative
-    # is success-only. Failed runs already land an execution_events row;
-    # emitting a per-fire feed entry every failure produced the
-    # ~1 entry/minute "background:" spam from credentialled-but-broken
-    # mirrors. The capability gate above handles transition emission for
-    # the common missing-credentials case; transient/unexpected failures
-    # remain visible via execution_events without flooding the feed.
-    if success:
-        summary = _summarize_mechanical_result(primitive_name, result)
-        await _emit_system_narrative(
-            client, user_id, recurrence,
-            summary=summary,
-            trigger=trigger,
-            weight="housekeeping",
-        )
+    # ADR-277 (2026-05-15) emission policy: per-fire success narrative
+    # DELETED. The 478 "SyncPlatformState: 0 written, 1 unchanged" rows
+    # per 24h were pure duplication — execution_events already records
+    # every fire with status + duration + cost; workspace_file_versions
+    # records what got written. The feed is for events whose canonical
+    # home is conversation, not for events the system happened to do.
+    # Mechanical-mirror success carries no operator-relevant judgment
+    # the substrate rows don't already have.
+    #
+    # What stays:
+    #   - The transition guard above emits ONCE per capability-loss
+    #     event (operator-actionable; weight=material).
+    #   - Failure suppression (ADR-263 amendment 2026-05-12) preserved —
+    #     execution_events carries forensic failure detail.
+    #   - execution_events records every fire (visible at /activity).
+    #
+    # The original ADR-219 D5 design intended housekeeping rows to roll
+    # into a daily narrative_digest; that digest job was deleted by the
+    # ADR-260/261/262 back-office package cleanup. Rather than rebuild
+    # the roll-up, ADR-277 makes the emission intentional at source.
 
     logger.info(
         "[DISPATCH:mechanical] %s/%s done (status=%s duration_ms=%d primitive=%s)",
@@ -738,31 +768,6 @@ async def _dispatch_mechanical(
         "duration_ms": duration_ms,
         "error_reason": error_reason,
     }
-
-
-def _summarize_mechanical_result(primitive_name: str, result) -> str:
-    """One-line summary of a mechanical-fire result for the housekeeping
-    narrative entry. Falls back to a generic summary when the primitive's
-    result shape isn't recognized.
-    """
-    if not isinstance(result, dict):
-        return f"{primitive_name} completed"
-    success = bool(result.get("success", False))
-    if not success:
-        err = result.get("error") or "unknown error"
-        return f"{primitive_name} failed: {err}"
-    # SyncPlatformState returns paths_written + paths_skipped + items_processed
-    paths_written = result.get("paths_written")
-    paths_skipped = result.get("paths_skipped")
-    if isinstance(paths_written, list) and isinstance(paths_skipped, list):
-        return (
-            f"{primitive_name}: {len(paths_written)} written, "
-            f"{len(paths_skipped)} unchanged"
-        )
-    items = result.get("items_processed")
-    if isinstance(items, int):
-        return f"{primitive_name}: {items} items processed"
-    return f"{primitive_name} completed"
 
 
 # ---------------------------------------------------------------------------
