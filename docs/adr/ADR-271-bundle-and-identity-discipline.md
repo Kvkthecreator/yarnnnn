@@ -1,6 +1,6 @@
 # ADR-271: Bundle Authoring Discipline + Identity-Layer Audit
 
-**Status**: **Proposed — discourse-stage. Threads A + D Implemented 2026-05-14; Threads B + C deferred to discourse outcomes.**
+**Status**: **Resolved 2026-05-14.** Threads A + D Implemented in commits `2430622` + `54eadf6` respectively. Threads B + C jointly resolved by [ADR-272](ADR-272-identity-collapse-system-agent-and-specialist.md) Phase 1 BE (same day). FE collapse work sequenced as ADR-272 Phase 2 follow-on.
 **Author**: KVK + Claude (discourse session 2026-05-14)
 **Companion observation**: [2026-05-13-activation-fire-wiring.md](../alpha/observations/2026-05-13-activation-fire-wiring.md) (cold-start audit that surfaced the symptoms this ADR diagnoses)
 

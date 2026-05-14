@@ -1,6 +1,8 @@
 # ADR-251: System Agent + Reviewer as First-Class Surfaces — Roster Reinstated
 
-> **⚠ Vocabulary update (2026-05-08, [ADR-259](ADR-259-feed-surface.md))**: references to "chat" / "the chat" below are preserved as period vocabulary. Operator-facing surface is "the Feed" post-ADR-259. The three-party participant model (Operator + System Agent + Reviewer) defined here is the foundation of the feed surface.
+> **⚠ SUPERSEDED by [ADR-272](ADR-272-identity-collapse-system-agent-and-specialist.md) (2026-05-14).** D1 (System Agent + Reviewer as two systemic cockpit entities), D3 (System Agent detail surface with Identity / Mandate / Back Office tabs), D7 (legacy redirects from `?agent=yarnnn` / `?agent=thinking-partner` to `?agent=system`) — ALL REVERSED. System Agent dissolves as a cockpit entity. The `meta-cognitive` DB row persists as chat-mode LLM substrate but no longer renders as a roster card or has a detail surface. The 2026-05-14 live-invocation audit confirmed System Agent had no LLM identity backing — it was a label across three plumbing places (regex router output, Reviewer-directed action narration, cockpit roster card). FE Phase 2 (sequenced after BE bakes) will remove the roster card + detail surface + redirect logic. The Reviewer + user-authored Agents are the only cockpit-rendered identities post-ADR-272.
+
+> **⚠ Vocabulary update (2026-05-08, [ADR-259](ADR-259-feed-surface.md))**: references to "chat" / "the chat" below are preserved as period vocabulary. Operator-facing surface is "the Feed" post-ADR-259. (The three-party participant model that this ADR rested on is itself superseded by ADR-272 above — feed becomes two voices + ambient activity.)
 
 > **Status**: **Implemented** (2026-05-06 — Commits 1–2; D5 cadence panel shipped)
 > **Date**: 2026-05-06

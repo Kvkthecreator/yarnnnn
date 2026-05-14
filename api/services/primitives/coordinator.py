@@ -32,17 +32,17 @@ roster (Reviewer, YARNNN, the universal specialists per ADR-176) is fixed at
 signup; configure tasks against it instead of authoring new agents.
 
 **action="update"** — Change title, role, or instructions for an existing agent.
-  ManageAgent(action="update", agent_slug="researcher", agent_instructions="Also track pricing changes")
-  ManageAgent(action="update", agent_slug="writer", title="Senior Editor")
+  ManageAgent(action="update", agent_slug="designer", agent_instructions="Use rose palette for charts")
+  ManageAgent(action="update", agent_slug="thinking-partner", title="YARNNN")
 
 **action="pause"** — Stop an agent from executing tasks.
-  ManageAgent(action="pause", agent_slug="researcher")
+  ManageAgent(action="pause", agent_slug="designer")
 
 **action="resume"** — Reactivate a paused agent.
-  ManageAgent(action="resume", agent_slug="researcher")
+  ManageAgent(action="resume", agent_slug="designer")
 
 **action="archive"** — Retire an agent permanently.
-  ManageAgent(action="archive", agent_slug="researcher")""",
+  ManageAgent(action="archive", agent_slug="designer")""",
     "input_schema": {
         "type": "object",
         "properties": {

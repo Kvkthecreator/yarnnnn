@@ -206,8 +206,12 @@ def test_alpha_trader_bundle_declares_capabilities():
             f"recurrence {slug!r} declares {expected_caps} (got {actual_caps})",
         )
 
+    # ADR-272: morning-reflection now declares read_trading because the
+    # bootstrap-research precondition (absorbed from the deleted
+    # falsify-signals recurrence) fetches platform bars when findings/ is
+    # empty. Removed from housekeeping_slugs list for that reason.
     housekeeping_slugs = [
-        "narrative-digest", "morning-reflection", "morning-calibration",
+        "narrative-digest", "morning-calibration",
         "proposal-cleanup", "pre-market-brief", "weekly-performance-review",
         "quarterly-signal-audit",
     ]
@@ -606,13 +610,26 @@ def test_alpha_trader_heavy_recurrences_declare_max_rounds():
         "track-universe is mechanical-mode post-ADR-271",
     )
 
+    # ADR-272: falsify-signals recurrence DELETED. Its bootstrap-research
+    # intent is now an inline precondition in morning-reflection's prompt.
+    # Replaces the max_rounds assertion with morning-reflection mode+capability
+    # invariants (it gained read_trading for the bootstrap path).
     assert_true(
-        "falsify-signals" in by_slug,
-        "alpha-trader bundle declares falsify-signals",
+        "falsify-signals" not in by_slug,
+        "alpha-trader bundle no longer declares falsify-signals (ADR-272 collapse)",
     )
     assert_true(
-        by_slug["falsify-signals"].options.get("max_rounds", 0) >= 15,
-        "falsify-signals declares max_rounds >= 15 (5-signal × 5-ticker workload)",
+        "morning-reflection" in by_slug,
+        "alpha-trader bundle declares morning-reflection",
+    )
+    mr = by_slug["morning-reflection"]
+    assert_eq(
+        mr.mode, "judgment",
+        "morning-reflection is judgment-mode",
+    )
+    assert_true(
+        "read_trading" in set(mr.required_capabilities),
+        "morning-reflection declares read_trading (for bootstrap-research precondition)",
     )
 
 

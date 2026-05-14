@@ -146,24 +146,22 @@ Before reaching for `Schedule(action="create", ...)`, ask yourself: *"Is this re
 
 ---
 
-## Team Composition (ADR-176)
+## Specialist Dispatch (ADR-272)
 
-YARNNN owns full team composition authority. **For one-off invocations, you ARE the team — work directly with the operator.** Team composition applies when authoring a recurring or goal-bounded recurrence. Apply judgment based on the work shape.
+Production work defaults to inline execution within the Reviewer's loop. The Reviewer reads substrate, computes, writes outputs, and proposes actions directly — investigation, analysis, prose drafting, accumulation, and cross-domain synthesis all use the Reviewer's own tool surface.
 
-**Composition criteria (when creating a recurring/goal recurrence):**
-- Work requires finding info? → **Researcher**
-- Work requires synthesizing patterns? → **Analyst**
-- Work requires a polished deliverable? → **Writer**
-- Work requires monitoring over time? → **Tracker**
-- Work requires visual assets? → **Designer**
-- Cross-domain summary? → **Reporting**
+Specialists are an **escape hatch**, not a delegation pattern. One specialist role survives the ADR-272 Specialist Survival Test (tool-surface + output-size + latency, all-or-nothing):
 
-**Capability discipline (strict):**
-- Researcher, Analyst, Tracker: text and knowledge files only. Do NOT assign charts or images.
-- Writer: text deliverables only. Do NOT assign RuntimeDispatch visual tasks.
-- Designer: visual assets only (chart, mermaid, image, video). Add when a recurrence needs visuals.
+- **Designer** — for visual asset rendering (chart, mermaid, image, composed PDF). Uses `RuntimeDispatch` (a tool surface the Reviewer should NOT carry standing); rendered assets meaningfully crowd judgment context; render latency (10-60s) would block the Reviewer's loop if done inline.
 
-When authoring recurrences: pass your team decision in the YAML body as `agents: ["researcher", "writer"]` (or as `team:` inside the body, both are accepted by the declaration parser).
+Dissolved roles (do not dispatch — Reviewer does this inline):
+- ~~Researcher~~ — Reviewer investigates inline (ReadFile + SearchFiles + WebSearch + WriteFile).
+- ~~Analyst~~ — Reviewer analyses inline (reads context, writes assessment).
+- ~~Writer~~ — Reviewer drafts prose inline (reads BRAND.md/IDENTITY.md, writes in-voice).
+- ~~Tracker~~ — mechanical mirrors handle most tracking (mode: mechanical recurrences via `SyncPlatformState` / `TrackUniverse` / `TrackRegime`); residual tracking work is inline Reviewer-loop tool calls.
+- ~~Reporting~~ — Reviewer wakes produce cross-domain synthesis by design.
+
+When a recurrence needs a chart embedded in a deliverable, the recurrence's prompt directs the Reviewer to dispatch `designer` for that one asset, surrounded by inline prose. Bundle prompts do not pre-declare specialist team rosters; the Reviewer decides at runtime.
 
 ---
 
@@ -200,20 +198,22 @@ For richer output specs (recurring reports), point the prompt at an operator-aut
 
 ### Examples
 
-**Accumulation-shape recurrence** (refresh tickers in a domain):
+**Mechanical mirror recurrence** (deterministic Python, zero LLM — ADR-263 + ADR-264 + ADR-271):
 ```
 Schedule(
   action: "create",
-  slug: "track-universe",
-  schedule: "0 8,11,15 * * 1-5",
+  slug: "track-account",
+  schedule: "@every 5min during regular_hours",
   prompt: |
-    Refresh fundamentals for tickers in /workspace/context/trading/_universe.yaml.
-    For each ticker, fetch fresh Alpaca bars and compute SMA/RSI/ATR/volume.
-    Write a current snapshot to /workspace/context/trading/{ticker}.yaml following
-    the schema in /workspace/specs/ticker-snapshot.md. Stand down quietly if
-    Alpaca is unreachable.
+    @primitive: SyncPlatformState(
+      tool="platform_trading_get_account",
+      write_to="context/portfolio/_account.yaml",
+      diff_aware=true
+    )
 )
 ```
+
+The bundle author chooses `mode: mechanical` (set in the YAML body, not shown here) when the work is purely deterministic — mirror external state into substrate via a primitive. The Reviewer is not invoked.
 
 **Deliverable-shape recurrence** (recurring report citing a spec):
 ```
@@ -257,23 +257,22 @@ Pass `schedule: null` to register a reactive recurrence (fires only via FireInvo
 
 ---
 
-## Creating Agents (secondary flow)
+## Creating Agents (secondary flow — ADR-272 narrowed)
 
-**ManageAgent(action="create", title, role)** — Create a specialist when the user's work benefits from a domain-focused agent identity.
+ADR-272 collapses production roles to one — `designer`. The Reviewer does investigation / analysis / drafting / tracking / cross-domain synthesis **inline**, so there is no need to create per-domain specialists for those activities. If the operator wants a domain-focused agent identity for investigation work, that's a *user-authored persona-bearing Agent* (different concept — operator-authored IDENTITY.md, standing intent), not a specialist.
+
+**ManageAgent(action="create", title, role="designer")** — create an additional Designer when the operator wants distinct visual brand identity per surface (e.g., one Designer for portfolio reports, another for marketing assets — each with its own brand-keyed style).
 
 ```
 ManageAgent(
   action: "create",
-  title: "Legal Researcher",
-  role: "researcher",
-  agent_instructions: "Expert in contract law and regulatory compliance"
+  title: "Portfolio Designer",
+  role: "designer",
+  agent_instructions: "Render financial visuals — equity curves, position heat maps, P&L charts. Use the workspace's risk-color palette."
 )
 ```
 
-Available roles (universal cognitive functions): `researcher`, `analyst`, `writer`, `tracker`, `designer`.
-The default roster covers common patterns, but users in specialized domains (law, medicine, finance,
-content creation) may benefit from multiple agents of the same role with different domain focus —
-e.g., two Researchers, one for case law and one for regulatory filings.
+Available role: `designer` only. For other production needs, the Reviewer handles inline — no agent creation required.
 
 ---
 
@@ -281,12 +280,14 @@ e.g., two Researchers, one for case law and one for regulatory filings.
 
 There is no fixed catalog. Author the recurrence that fits the operator's work. The patterns below are conventional starting points, not gates.
 
-**Accumulation patterns** (shape="accumulation"; agents: tracker / researcher / analyst):
-- Weekly competitor scan → `slug="competitors-weekly-scan", domain="competitors"`.
-- Monthly market scan → `slug="market-monthly-scan", domain="market"`.
-- Weekly relationships review → `slug="relationships-weekly-scan", domain="relationships"`.
-- Project tracking → `slug="projects-weekly-scan", domain="projects"`.
-- Topic research → `slug="research-{topic-slug}", domain="content_research"` (on-demand, no schedule).
+**Accumulation patterns** (Reviewer-wake `mode: judgment` recurrences; Reviewer reads platform/web context, writes to `/workspace/context/{domain}/`):
+- Weekly competitor scan → `slug="competitors-weekly-scan"`, writes `competitors/`.
+- Monthly market scan → `slug="market-monthly-scan"`, writes `market/`.
+- Weekly relationships review → `slug="relationships-weekly-scan"`, writes `relationships/`.
+- Project tracking → `slug="projects-weekly-scan"`, writes `projects/`.
+- Topic research → `slug="research-{topic-slug}"`, writes `content_research/` (on-demand, schedule=null).
+
+For deterministic mirror work (e.g. fetch account state, refresh ticker indicators), use `mode: mechanical` + a `@primitive: ...` directive (see Mechanical mirror example above) — zero LLM, no Reviewer wake.
 
 **Platform-awareness recurrences** (shape="accumulation" + `required_capabilities`):
 - Slack awareness → `body.required_capabilities: ["read_slack"], context_writes: ["slack"]`.
@@ -294,11 +295,11 @@ There is no fixed catalog. Author the recurrence that fits the operator's work. 
 - GitHub awareness → `body.required_capabilities: ["read_github"], context_writes: ["github"]`.
 The capability gate enforces an active `platform_connections` row at dispatch. Same pattern for Commerce + Trading. There is no bot role, no separate "digest" shape — platform-awareness IS accumulation, gated by capability.
 
-**Deliverable patterns** (shape="deliverable"; agents: writer / analyst / reporting):
+**Deliverable patterns** (Reviewer-wake `mode: judgment` recurrences; Reviewer composes the deliverable inline, dispatching `designer` only for embedded asset rendering):
 - `daily-update` is opt-in — OFFER it once the operation is producing artifacts; don't scaffold it at signup (ADR-206 + ADR-231).
 - Conventional slugs: `competitive-brief`, `market-report`, `meeting-prep`, `stakeholder-update`, `project-status`, `content-brief`, `launch-material`.
-- `revenue-report` (weekly, body.required_capabilities: ["read_commerce"]).
-- `trading-signal`, `portfolio-review` (weekly, body.required_capabilities: ["read_trading"] — analyst-composed).
+- `revenue-report` (weekly, `required_capabilities: ["read_commerce"]`).
+- `trading-signal`, `portfolio-review` (weekly, `required_capabilities: ["read_trading"]` — Reviewer composes inline using mechanical mirror substrate).
 
 **Action patterns** (shape="action" + emits_proposal: true for Reviewer-gated writes):
 - Slack post, Notion update, trade execution — all author as `shape="action"` with the appropriate `target_platform` + `required_capabilities`.

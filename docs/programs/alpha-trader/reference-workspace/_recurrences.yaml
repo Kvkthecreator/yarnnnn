@@ -125,73 +125,6 @@ recurrences:
       @primitive: TrackUniverse()
     display_name: "Universe Tracker"
 
-  # ── falsify-signals — bootstrap research substrate on activation ─────────
-  # ADR-270: one-shot research bootstrap. Fires once on bundle activation
-  # (no recurring schedule), walks each operator-declared signal against
-  # 90 days of historical bars, writes per-signal findings to
-  # /workspace/research/findings/{signal_id}.md. The Reviewer reads those
-  # findings at proposal time alongside _money_truth.md per principles.md.
-  #
-  # This is NOT a permanent research function (ADR-270 §"Earned escalation"):
-  # operator may FireInvocation manually if they want re-falsification later;
-  # if observation shows the work is needed on a regular cadence, a future
-  # bundle revision adds a periodic schedule.
-  - slug: falsify-signals
-    schedule: null   # reactive: fires only on activation + manual FireInvocation
-    mode: judgment
-    fire_on_activation: true
-    # Per-recurrence specialist round budget. 5 signals × 5 tickers × 90d of
-    # 1Hour bars is the heaviest sub-call in the bundle:
-    #   ~5 rounds: per-ticker bar fetches (batched 1-2 platform calls/round)
-    #   ~5 rounds: per-signal aggregate computation across tickers
-    #   ~5 rounds: WriteFile per-signal findings file
-    #   ~1-2 rounds: synthesis / return
-    # ~17 rounds nominal; 20 gives modest headroom for retry on a transient
-    # platform failure. Cold-start audit 2026-05-13 showed specialist
-    # exhausted at the 5-round global default in ~130s with zero findings
-    # written.
-    max_rounds: 20
-    required_capabilities: [read_trading]
-    prompt: |
-      What you produce:
-      - per-signal historical findings written to
-        /workspace/research/findings/{signal_id}.md per the schema in
-        /workspace/specs/falsify-signals.md
-
-      Walk every signal declared in
-      /workspace/context/trading/_operator_profile.md against 90 days
-      of historical bars. For each signal:
-
-        1. Read the signal's trigger, entry, stop_loss, target,
-           position_size, and max_hold rules.
-        2. For each ticker in /workspace/context/trading/_universe.yaml:
-             - Fetch 90 days of 1Hour bars via the Alpaca platform tool.
-             - Walk forward bar-by-bar; identify every moment the signal's
-               trigger conditions matched.
-             - For each trigger, compute synthetic outcome from subsequent
-               bars: did stop hit first, target hit first, or max_hold
-               reach? Compute R-multiple = (exit - entry) / (entry - stop).
-        3. Aggregate per signal across all tickers:
-             - sample_size = total triggers
-             - win_rate = fraction with positive R-multiple
-             - avg_win, avg_loss, expectancy_R
-             - Compare to declared baseline in _operator_profile.md
-               ("Historical baseline (to establish)" lines).
-        4. Write findings to /workspace/research/findings/{signal_id}.md
-           with frontmatter (sample_size, win_rate, avg_win_R, avg_loss_R,
-           expectancy_R, computed_at, lookback_days, source: replay) and
-           a narrative body listing the triggered conditions + outcomes.
-
-      If Alpaca returns insufficient or stale bars for a ticker, skip
-      that ticker for that signal and note it in the body; don't fabricate
-      outcomes.
-
-      This is bootstrap-only — the Reviewer reads these findings to seed
-      its capital-EV reasoning when _money_truth.md is empty (post-fork
-      cold start). As live trades accumulate, the Reviewer weights real
-      outcomes higher than these synthetic ones per principles.md.
-    display_name: "Falsify Signals (Bootstrap)"
-
   # ── signal-evaluation — evaluate signals against current bars ────────────
   - slug: signal-evaluation
     # ADR-268: post-open after price discovery settles.
@@ -443,15 +376,55 @@ recurrences:
       a guardrail — most days it produces no entry.
     display_name: "Morning Calibration"
 
-  # ── morning-reflection — daily Reviewer self-reflection ──────────────────
+  # ── morning-reflection — daily Reviewer self-reflection + bootstrap research ──
+  # ADR-272: absorbs the bootstrap-research intent that ADR-270's
+  # `falsify-signals` recurrence carried. When findings/ is empty, the
+  # Reviewer fetches bars and writes per-signal findings inline before
+  # judging today's posture — no separate recurrence, no specialist
+  # dispatch.
   - slug: morning-reflection
     schedule: "0 7 * * *"
     mode: judgment
+    required_capabilities: [read_trading]   # for the bootstrap-research precondition
     prompt: |
+      # Precondition: bootstrap research (ADR-272 — absorbs falsify-signals)
+
+      First check /workspace/research/findings/. If it is empty AND
+      /workspace/context/trading/_money_truth.md has no live outcomes
+      yet (no `by_signal` entries with non-zero `count`), perform
+      bootstrap research INLINE before reflecting:
+
+        For each signal declared in
+        /workspace/context/_shared/_operator_profile.md:
+          - For each ticker in /workspace/context/trading/_universe.yaml:
+              - Fetch 90 days of 1Hour bars via platform_trading_get_market_data.
+              - Walk forward bar-by-bar; identify every moment the signal's
+                trigger conditions matched.
+              - For each trigger, compute synthetic outcome: did stop hit
+                first, target hit first, or max_hold reach? Compute
+                R-multiple = (exit - entry) / (entry - stop).
+          - Aggregate per signal across all tickers:
+              sample_size, win_rate, avg_win_R, avg_loss_R, expectancy_R.
+          - WriteFile to /workspace/research/findings/{signal_id}.md per
+            the schema in /workspace/specs/falsify-signals.md
+            (frontmatter: sample_size, win_rate, avg_win_R, avg_loss_R,
+            expectancy_R, computed_at, lookback_days, source: replay).
+
+        If Alpaca returns insufficient bars for a ticker, skip that ticker
+        for that signal and note it in the findings body; don't fabricate.
+
+      Bootstrap findings are seed baselines only — as live trades
+      accumulate, weight real outcomes higher than replay outcomes per
+      principles.md.
+
+      # Reflection (main work — every wake)
+
       Reflect on yesterday's decisions against your principles. Read:
         - /workspace/review/decisions.md (last 7 days of verdicts)
         - /workspace/review/principles.md (your judgment framework)
         - /workspace/context/trading/_money_truth.md (money-truth)
+        - /workspace/research/findings/ (replay baselines; seeded by
+          the precondition above if empty)
 
       Identify patterns (read `by_signal` block in _money_truth.md
       frontmatter for per-signal pattern detection):
@@ -461,6 +434,9 @@ recurrences:
         - Drift between stated principles and actual approval thresholds
         - Per-signal expectancy decay (rolling_7d.value_cents diverging
           materially from rolling_90d.value_cents on the same signal)
+        - Live outcomes diverging from replay baselines (regime shift
+          signal — when expectancy_R from findings significantly differs
+          from rolling_30d outcomes on the same signal)
 
       If a pattern warrants a principles adjustment, ProposeAction with
       change_type="update_principles", target_file="principles.md",

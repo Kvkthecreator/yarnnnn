@@ -1,6 +1,6 @@
 # Research Mandate — alpha-trader
 
-> **Operator: this file is the standing intent for the research substrate at `/workspace/research/`.** It is read by the `falsify-signals` recurrence (ADR-270 bootstrap) and any future research recurrences. Customize what's here; the Reviewer reads `/workspace/research/findings/*.md` at proposal time per `principles.md` Capital-EV thresholds.
+> **Operator: this file is the standing intent for the research substrate at `/workspace/research/`.** Customize what's here; the Reviewer reads `/workspace/research/findings/*.md` at proposal time per `principles.md` Capital-EV thresholds. Findings are written by the **`morning-reflection` recurrence's bootstrap precondition** (ADR-272 — replaces the previous `falsify-signals` recurrence; the Reviewer does the falsification inline when findings/ is empty).
 
 ## Purpose
 
@@ -16,7 +16,7 @@ Quantitative, deterministic falsification of operator-declared rules against his
 - Not LLM-generated trading ideas
 - Not market commentary
 
-The `falsify-signals` recurrence walks every signal in `_operator_profile.md` against 90 days of historical Alpaca bars, computes synthetic outcomes deterministically (stop hit / target hit / max-hold), and writes per-signal findings to `/workspace/research/findings/{signal_id}.md` per the schema in `/workspace/specs/falsify-signals.md`.
+The `morning-reflection` recurrence's bootstrap precondition (ADR-272) checks `/workspace/research/findings/` at every fire. If empty (and `_money_truth.md` has no live outcomes yet), the Reviewer walks every signal in `_operator_profile.md` against 90 days of historical Alpaca bars, computes synthetic outcomes deterministically (stop hit / target hit / max-hold), and writes per-signal findings to `/workspace/research/findings/{signal_id}.md` per the schema in `/workspace/specs/falsify-signals.md`. Once findings exist (and/or live `_money_truth.md` accumulates), the precondition is satisfied and morning-reflection proceeds straight to the reflection work.
 
 ## Fidelity gaps (named honestly)
 
@@ -32,7 +32,7 @@ The Reviewer is aware of these gaps via `principles.md` Capital-EV section's not
 
 ## Earned escalation
 
-Per ADR-270 §"Earned escalation," research lives as a one-shot bootstrap recurrence today. If observation across multiple workspaces or multiple weeks of operation shows that ongoing falsification is load-bearing — for example, signals drift faster than the quarterly audit catches — the bundle adds a periodic schedule to `falsify-signals` in a future revision. **Authoring a periodic research cadence is earned by evidence, not pre-emptive.**
+Per ADR-270 §"Earned escalation" (preserved post-ADR-272), research is a one-shot inline precondition in `morning-reflection` today. If observation across multiple workspaces or multiple weeks of operation shows that ongoing falsification is load-bearing — for example, signals drift faster than the quarterly audit catches — the bundle adds a separate periodic research recurrence in a future revision. **Authoring a periodic research cadence is earned by evidence, not pre-emptive.**
 
 ## What this file is NOT
 

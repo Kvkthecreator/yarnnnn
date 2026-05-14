@@ -30,26 +30,35 @@ VALID_SCOPES = {"platform", "cross_platform", "knowledge", "research", "autonomo
 from services.orchestration import ALL_ROLES, LEGACY_ROLE_MAP
 VALID_ROLES = set(ALL_ROLES.keys()) | set(LEGACY_ROLE_MAP.keys()) | {"act"}
 
-# Fallback scope from role (used when infer_scope can't reason about sources)
+# Fallback scope from role (used when infer_scope can't reason about sources).
+# ADR-272: PRODUCTION_ROLES collapsed to {designer}; legacy/dissolved role
+# entries removed. Unknown roles fall through to "knowledge" via the default
+# in the `.get()` callsite below.
 ROLE_TO_SCOPE = {
-    # v2 types
-    "briefer": "platform",
-    "monitor": "platform",
-    "researcher": "research",
-    "drafter": "cross_platform",
-    "analyst": "cross_platform",
-    "writer": "cross_platform",
-    "planner": "platform",
-    "scout": "research",
-    # ADR-164: YARNNN as meta-cognitive agent — orchestration is autonomous scope
+    # ADR-176 (narrowed by ADR-272): designer is the sole production specialist.
+    "designer": "knowledge",
+    # ADR-164: YARNNN as meta-cognitive agent — orchestration is autonomous scope.
     "thinking_partner": "autonomous",
-    # Legacy mappings (DB may still have old values)
-    "digest": "platform",
-    "prepare": "platform",
-    "research": "research",
-    "synthesize": "cross_platform",
-    "act": "autonomous",
-    "custom": "knowledge",
+}
+
+
+# Default agent_instructions seed text per role. ADR-272: inlined here when
+# orchestration_prompts.py was deleted (its build_role_prompt / validate_output
+# machinery was dead-code from the pre-ADR-261 task pipeline). Only the two
+# surviving roles have defaults; everything else gets empty string and the
+# operator authors instructions explicitly.
+_DEFAULT_INSTRUCTIONS: dict[str, str] = {
+    "designer": (
+        "Render visual assets — charts, mermaid diagrams, images, composed "
+        "HTML — from inputs the Reviewer hands you. Read inputs from the "
+        "brief's named substrate paths; write outputs to the slug-templated "
+        "paths the brief declares. Keep the rendered artifact self-contained; "
+        "the Reviewer reads your markdown summary, not your tool-use loop."
+    ),
+    "thinking_partner": (
+        "Orchestrate the operator's workspace. Read substrate, propose actions, "
+        "respect the operator's mandate, defer judgment to the Reviewer."
+    ),
 }
 
 
@@ -124,10 +133,12 @@ async def create_agent_record(
     scope = infer_scope(role)
 
     # Resolve instructions
+    # ADR-272: orchestration_prompts.py deleted (was dead-code legacy from the
+    # pre-ADR-261 task pipeline). Default instructions for the two surviving
+    # roles inline below; any other role falls through to empty string.
     instructions_text = agent_instructions
     if not instructions_text:
-        from services.orchestration_prompts import DEFAULT_INSTRUCTIONS
-        instructions_text = DEFAULT_INSTRUCTIONS.get(role, DEFAULT_INSTRUCTIONS.get("custom", ""))
+        instructions_text = _DEFAULT_INSTRUCTIONS.get(role, "")
 
     now = datetime.now(timezone.utc)
     entity_id = str(uuid4())
@@ -218,28 +229,22 @@ async def create_agent_record(
 # deleted; `ensure_infrastructure_agents_for_type` deleted (callers derive
 # ensure list from the recurrence YAML body's process / agent_ref fields).
 
-PRODUCTION_ROLE_SLUGS: frozenset[str] = frozenset({
-    # ADR-176 universal specialists
-    "researcher", "analyst", "writer", "tracker", "designer",
-    # ADR-176 synthesizer
-    "executive",
-})
+# ADR-272: PRODUCTION_ROLES collapsed to {designer}; the previous 5-element
+# enumeration of universal specialists + 1 synthesizer narrows to one role.
+PRODUCTION_ROLE_SLUGS: frozenset[str] = frozenset({"designer"})
 
 # Infrastructure slug → role. Slugs are derived from ALL_ROLES display
-# names via _slugify_agent; this map is the inverse. Dispatch sites that resolve
-# by slug use it to find the underlying infrastructure role for lazy-ensure.
+# names via _slugify_agent; this map is the inverse. Dispatch sites that
+# resolve by slug use it to find the underlying infrastructure role for
+# lazy-ensure.
+# ADR-272: dissolved roles removed; legacy slugs fall through and surface
+# as "unresolvable" at the lazy-ensure call site (loud failure preferred
+# to silent re-route to wrong role).
 _INFRA_SLUG_TO_ROLE: dict[str, str] = {
-    # Specialists (ADR-176 display names → slugs)
-    "researcher": "researcher",
-    "analyst": "analyst",
-    "writer": "writer",
-    "tracker": "tracker",
+    # ADR-176 (narrowed by ADR-272): designer is the sole production role.
     "designer": "designer",
-    "reporting": "executive",  # title "Reporting" → slug "reporting", role "executive"
     # YARNNN
     "thinking-partner": "thinking_partner",
-    # ADR-207 P4a: Platform Bot slugs (slack-bot / notion-bot / github-bot /
-    # commerce-bot / trading-bot) removed — bots no longer exist as agent rows.
 }
 
 

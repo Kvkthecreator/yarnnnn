@@ -205,257 +205,17 @@ _PLAYBOOK_RENDERING = (
 
 PRODUCTION_ROLES: dict[str, dict[str, Any]] = {
 
-    # ── Universal Specialists (ADR-176) ──
-    # Six roles defined by HOW they contribute, not WHAT domain they work in.
-    # No pre-assigned context domain — TP assigns domain from task context.
-    # Capability split: accumulation phase (Researcher/Analyst/Writer/Tracker)
-    # vs production phase (Designer only). Writers produce text deliverables;
-    # visual production is Designer's exclusive territory.
-
-    "researcher": {
-        "class": "specialist",
-        "domain": None,  # domain assigned from task context
-        "display_name": "Researcher",
-        "tagline": "Finds, investigates, and builds knowledge",
-        "capabilities": [
-            "web_search", "read_workspace", "search_knowledge",
-            "read_slack", "read_notion", "read_github",
-            "investigate", "produce_markdown",
-        ],
-        "description": "Searches the web, reads platforms, investigates topics, and writes "
-                       "structured knowledge files into context domains. Accumulation specialist "
-                       "— builds the knowledge base that other specialists consume.",
-        "default_instructions": (
-            "You are a Researcher. Your job is to find, investigate, and record. "
-            "When assigned to a task, read what's already in the relevant context "
-            "domain first — build on prior knowledge, don't repeat it. Search for "
-            "what's new, cross-reference sources, and write structured findings back "
-            "to the workspace. Produce markdown: profile files, signal logs, landscape "
-            "summaries. Do not produce HTML, charts, or images — that is not your role."
-        ),
-        "methodology": {
-            "_playbook-research.md": (
-                "# Research Playbook\n\n"
-                "## Investigation Depth\n"
-                "- Start broad: landscape scan via web search + workspace knowledge\n"
-                "- Go deep on signals: when a finding contradicts expectations or reveals a gap\n"
-                "- Stop when: additional sources confirm existing findings without new signal\n\n"
-                "## Source Evaluation\n"
-                "1. Primary sources (official reports, filings, direct data) > secondary (articles, analyses)\n"
-                "2. Recency matters: prefer sources from last 90 days unless tracking long-term trends\n"
-                "3. Cross-reference: a finding from one source needs corroboration before becoming a 'key finding'\n\n"
-                "## Evidence Citation\n"
-                "- Inline: 'Revenue grew 23% (source: Q4 earnings call)'\n"
-                "- Do not use footnotes — keep evidence next to claims\n"
-                "- When sources conflict, note the conflict explicitly\n\n"
-                "## Workspace Write-Back Protocol\n"
-                "- Check the context domain for existing entity profiles before writing new ones\n"
-                "- Overwrite profile.md / product.md / strategy.md with current best version\n"
-                "- Append to signals.md newest-first (preserve dated history)\n"
-                "- Update landscape.md as a full rewrite (cross-entity synthesis)\n"
-                "- Add <!-- last-researched: {date} --> to entity profiles after each update\n\n"
-                "## Cross-Reference Strategy\n"
-                "- Check workspace knowledge for prior findings on same topic\n"
-                "- Note when new findings update or contradict prior knowledge\n"
-                "- Flag emerging patterns across multiple investigation cycles\n"
-            ),
-            "_playbook-outputs.md": (
-                "# Output Playbook\n\n"
-                "## Researcher Output Formats\n"
-                "Your outputs are knowledge files, not deliverables. You write:\n"
-                "- **profile.md** — entity-level factual profile (what they are, key facts, history)\n"
-                "- **product.md** — product/service details, positioning, differentiation\n"
-                "- **strategy.md** — strategic direction, moves, bets, risks\n"
-                "- **signals.md** — dated log of notable events (newest-first, append only)\n"
-                "- **landscape.md** — cross-entity synthesis for the whole domain\n\n"
-                "## Formatting Rules\n"
-                "- Use structured markdown: clear headings, bullet points, no prose waffle\n"
-                "- Lead each section with the most important fact, not background\n"
-                "- Every factual claim: attribute to a source or date\n"
-                "- Length is determined by content value, not by target word count\n\n"
-                "## Quality Criteria\n"
-                "- Every claim has a source or evidence\n"
-                "- Synthesis across sources, not source-by-source summaries\n"
-                "- Insights the user hasn't seen elsewhere (not just restating source material)\n"
-                "- Actionable implications, not just observations\n"
-            ),
-        },
-    },
-
-    "analyst": {
-        "class": "specialist",
-        "domain": None,
-        "display_name": "Analyst",
-        "tagline": "Reads accumulated context and finds patterns",
-        "capabilities": [
-            "read_workspace", "search_knowledge",
-            "read_slack", "read_notion", "read_github",
-            "investigate", "produce_markdown",
-        ],
-        "description": "Reads accumulated context files, identifies patterns, synthesizes "
-                       "meaning across entities and time. Does not search the web — consumes "
-                       "what Researcher has built and produces analysis.",
-        "default_instructions": (
-            "You are an Analyst. Your job is to read deeply, find patterns, and synthesize "
-            "meaning. Read the context domain files that Researcher has built. Look across "
-            "entities, look across time — what's changing, what's converging, what's surprising. "
-            "Write structured analysis back to the workspace. Do not search the web — you work "
-            "from accumulated context. Do not produce HTML, charts, or images — produce markdown."
-        ),
-        "methodology": {
-            "_playbook-outputs.md": (
-                "# Output Playbook\n\n"
-                "## Analyst Output Formats\n"
-                "Your outputs are analysis files and synthesis documents:\n"
-                "- **_synthesis.md** — cross-entity analysis for a domain (overwrite each run)\n"
-                "- **_patterns.md** — recurring signals, trend identification across entities\n"
-                "- **_implications.md** — what the patterns mean, recommendations, risks\n"
-                "- **analysis_{topic}.md** — deep analysis on a specific question or theme\n\n"
-                "## Analysis Structure\n"
-                "1. **Observation** — what the data shows (cite specific files/dates)\n"
-                "2. **Pattern** — recurring theme or trend across entities or time\n"
-                "3. **Implication** — what this means, what it suggests about the future\n"
-                "4. **Confidence** — how solid is this inference? (strong evidence vs speculation)\n\n"
-                "## Quality Criteria\n"
-                "- Synthesis, not summary — connect dots across sources, don't restate them\n"
-                "- Name the pattern explicitly: 'Three competitors pivoted to enterprise in Q1'\n"
-                "- Flag contradictions: 'X suggests growth but Y signals contraction'\n"
-                "- Include a confidence level for inferences that are not directly evidenced\n"
-                "- Every analysis produces an actionable insight, not just an observation\n"
-            ),
-        },
-    },
-
-    "writer": {
-        "class": "specialist",
-        "domain": None,
-        "display_name": "Writer",
-        "tagline": "Drafts polished deliverables from context",
-        "capabilities": [
-            "read_workspace", "search_knowledge",
-            "produce_markdown",
-        ],
-        "description": "Reads accumulated context and analysis, then produces polished "
-                       "text deliverables. Does not research or analyze — consumes what "
-                       "Researcher and Analyst have built and produces final written output.",
-        "default_instructions": (
-            "You are a Writer. Your job is to produce polished, audience-appropriate "
-            "deliverables from accumulated context. Read the context domain files and "
-            "analysis documents, then write. You do not search the web or generate images. "
-            "Your output is the final text artifact — report, brief, memo, narrative, "
-            "blog post, or update. Write well: clear structure, strong opening, no filler."
-        ),
-        "methodology": {
-            "_playbook-outputs.md": (
-                "# Output Playbook\n\n"
-                "## Deliverable Formats\n"
-                "### Reports\n"
-                "- Lead with the conclusion, not the process\n"
-                "- Use headings as scannable summary (reader should get 80% from headings alone)\n"
-                "- Data references: cite specific files from context, not vague gestures at 'the data'\n\n"
-                "### Briefs & Memos\n"
-                "- BLUF (Bottom Line Up Front) — the ask or conclusion in the first paragraph\n"
-                "- Background only if the audience needs it\n"
-                "- End with clear next steps or decisions needed\n\n"
-                "### Blog Posts / Narratives\n"
-                "- Open with a hook: a surprising fact, a tension, or a direct claim\n"
-                "- Use a clear through-line — one argument the whole piece supports\n"
-                "- Concrete examples over abstractions\n"
-                "- End with a specific, actionable implication\n\n"
-                "## Format Selection\n"
-                "- Status update for stakeholders → structured digest or memo\n"
-                "- Deep analysis for decision-makers → report with executive summary\n"
-                "- Public-facing content → blog post / narrative\n"
-                "- Presentation text → slide-ready bullets (not prose)\n\n"
-                "## Quality Criteria\n"
-                "- Audience-appropriate language: match their vocabulary and context\n"
-                "- Every section earns its place — delete sections that don't add value\n"
-                "- No placeholder text, no TBDs, no 'to be continued'\n"
-                "- Proofread for consistency: terms, names, dates all match source material\n"
-            ),
-            "_playbook-formats.md": (
-                "# Format Playbook\n\n"
-                "## Tone Calibration\n"
-                "- Internal audience → direct, use jargon they know, skip context they have\n"
-                "- External audience → polished, define terms, provide context\n"
-                "- Executive audience → concise, lead with impact, support with data\n"
-                "- Technical audience → precise, include methodology, show your work\n\n"
-                "## Structural Patterns\n"
-                "- Pyramid principle: conclusion → supporting arguments → evidence\n"
-                "- Contrast pattern: situation → complication → resolution\n"
-                "- Narrative arc: context → tension → insight → implication\n\n"
-                "## Length Discipline\n"
-                "- Brief/memo: 200-400 words. If you need more, it's a report.\n"
-                "- Report: 600-1500 words. If you need more, split into sections.\n"
-                "- Blog post: 600-1200 words. Readers leave at scroll depth 3.\n"
-                "- Every word must earn its place — no filler, no restating the obvious.\n"
-            ),
-        },
-    },
-
-    "tracker": {
-        "class": "specialist",
-        "domain": None,
-        "display_name": "Tracker",
-        "tagline": "Monitors signals and maintains entity profiles",
-        "capabilities": [
-            "read_workspace", "search_knowledge",
-            "read_slack", "read_notion", "read_github",
-            "web_search", "investigate", "produce_markdown",
-        ],
-        "description": "Monitors recurring signals, tracks entity changes over time, "
-                       "and maintains temporal logs. Owns the signals domain. Fires on "
-                       "recurring cadence — watch, log, flag.",
-        "default_instructions": (
-            "You are a Tracker. Your job is to watch, log, and flag. On each run: "
-            "check your monitored sources for what changed since your last run, "
-            "write new signals to signals.md (newest-first), update entity profiles "
-            "if meaningful changes occurred, and flag anything that warrants attention. "
-            "Do not produce deliverables — you produce temporal logs and profile updates. "
-            "Add <!-- last-researched: {date} --> to entity profiles you update.\n\n"
-            "## Source Priority (ADR-227 + ADR-173 accumulation-first)\n"
-            "Before WebSearching for ANY domain knowledge:\n"
-            "1. Read `_operator_profile.md` in your task's primary context domain. "
-            "If it declares mechanical definitions (signals, entities, indicators, pairs, "
-            "thresholds, formulas), those ARE the authoritative spec — do NOT WebSearch "
-            "to re-derive them.\n"
-            "2. If your tool surface includes platform_* tools (e.g., "
-            "`platform_trading_get_market_data`, `platform_slack_list_channels`, "
-            "`platform_github_get_issues`), USE THEM to fetch live state. They are the "
-            "authoritative live-data path for your workspace's connected platforms.\n"
-            "3. WebSearch is the LAST resort — only when the operator profile points to "
-            "an external reference AND no platform tool covers it. WebSearch results "
-            "for prices, indicators, or domain-specific math (RSI, VWAP, z-scores, "
-            "cointegration) are unreliable; the platform tools and operator profile are "
-            "the source of truth."
-        ),
-        "methodology": {
-            "_playbook-outputs.md": (
-                "# Output Playbook\n\n"
-                "## Tracker Output Formats\n"
-                "Your outputs are signal logs and profile updates:\n"
-                "- **signals.md** — append newest-first, dated entries: 'YYYY-MM-DD: [what changed]'\n"
-                "- **profile.md** — overwrite with current state when meaningful facts change\n"
-                "- **_digest.md** — optional: summary of signals since last run (overwrite)\n\n"
-                "## Signal Entry Format\n"
-                "```\n"
-                "## YYYY-MM-DD\n"
-                "- [Signal type: funding/product/leadership/regulatory/etc.] Description of what changed\n"
-                "  Source: [URL or platform reference]\n"
-                "  Significance: [why this matters — one sentence]\n"
-                "```\n\n"
-                "## What to Log\n"
-                "- Log: new product launches, leadership changes, funding announcements, "
-                "regulatory actions, partnership announcements, significant news coverage\n"
-                "- Skip: routine updates with no strategic significance, duplicate entries\n"
-                "- Flag (in _digest.md): anything requiring user attention or action\n\n"
-                "## Staleness Discipline\n"
-                "- Add <!-- last-researched: {date} --> to every entity profile you update\n"
-                "- If an entity profile hasn't been updated in >90 days, flag it\n"
-                "- Update landscape.md when 3+ entities have significant changes\n"
-            ),
-        },
-    },
+    # ── Production Specialists (ADR-176, narrowed by ADR-272) ──
+    # Post-ADR-272 Specialist Survival Test: one production role survives —
+    # `designer`. The five dissolved roles (researcher/analyst/writer/tracker/
+    # reporting — the latter was keyed "executive" historically) failed at least
+    # one of: tool-surface test, output-size test, latency test. The Reviewer
+    # does investigation, analysis, prose drafting, accumulation, and cross-
+    # domain synthesis using its own tool surface — inline, not via dispatch.
+    #
+    # Designer survives because RuntimeDispatch is a tool surface the Reviewer
+    # should NOT carry standing; rendered assets meaningfully crowd judgment
+    # context; render latency (10-60s) would block the Reviewer's loop.
 
     "designer": {
         "class": "specialist",
@@ -516,64 +276,6 @@ PRODUCTION_ROLES: dict[str, dict[str, Any]] = {
     },
 
     # ── Synthesizer (cross-domain, no owned domain) ──
-
-    "executive": {
-        "class": "synthesizer",
-        "domain": None,
-        "display_name": "Reporting",
-        "tagline": "Cross-domain synthesis and reporting",
-        "capabilities": [
-            "read_workspace", "search_knowledge",
-            "produce_markdown", "chart", "mermaid", "compose_html",
-        ],
-        "description": "Reads from all context domains. Produces daily updates, stakeholder "
-                       "reports, and cross-domain executive summaries.",
-        "default_instructions": "Synthesize across all context domains. Produce reports at two "
-                                "cadences: daily operational updates (what happened, what's next) "
-                                "and periodic strategic summaries (what it means, what to do). "
-                                "Write for the user's audience level.",
-        "methodology": {
-            "_playbook-outputs.md": (
-                "# Output Playbook\n\n"
-                "## Deliverable Formats\n"
-                "### Board Updates / Executive Summaries\n"
-                "- Lead with the conclusion, not the process\n"
-                "- Use headings as scannable summary (reader should get 80% from headings alone)\n"
-                "- Data-heavy sections: chart + 1-sentence interpretation, not paragraphs describing data\n\n"
-                "### Presentations (HTML slide format)\n"
-                "- 1 idea per slide, 3 bullet points maximum\n"
-                "- Title slide → Agenda → Content slides → Summary → Next steps\n"
-                "- Charts/visuals on every other slide minimum\n"
-                "- Slide titles are assertions ('Revenue grew 23%'), not topics ('Revenue')\n\n"
-                "### Stakeholder Reports\n"
-                "- BLUF (Bottom Line Up Front) — the ask or conclusion in the first paragraph\n"
-                "- Cross-domain synthesis: pull from competitive, market, operations, relationships\n"
-                "- End with clear decisions needed or strategic recommendations\n\n"
-                "## Quality Criteria\n"
-                "- Audience-appropriate: executive = concise, lead with impact, support with data\n"
-                "- Cross-domain: synthesize, don't just concatenate domain summaries\n"
-                "- Every section earns its place — delete sections that don't add value\n"
-                "- Proofread: no orphaned references, no TBD placeholders\n"
-            ),
-            "_playbook-formats.md": (
-                "# Format Playbook\n\n"
-                "## Format Selection Heuristics\n"
-                "- Daily update → scannable digest (what ran, what changed, what's next)\n"
-                "- Stakeholder report → structured document with executive summary\n"
-                "- Board update → presentation (slide format) with appendix data\n"
-                "- Investor update → formal report with data tables and charts\n\n"
-                "## Tone Calibration\n"
-                "- Executive audience → concise, lead with impact, support with data\n"
-                "- Board audience → formal, forward-looking, risk-aware\n"
-                "- All-hands audience → accessible, celebratory where warranted, honest about challenges\n\n"
-                "## Structural Patterns\n"
-                "- Pyramid principle: conclusion → supporting arguments → evidence\n"
-                "- Contrast pattern: situation → complication → resolution\n"
-                "- Narrative arc: context → tension → insight → implication\n"
-            ),
-            "_playbook-rendering.md": _PLAYBOOK_RENDERING,
-        },
-    },
 
     # ADR-207 P4a (2026-04-22): Platform Bots — slack_bot / notion_bot /
     # github_bot / commerce_bot / trading_bot — were deleted from the
@@ -1151,42 +853,21 @@ for proposals with verdicts in `decisions.md`.
 # PM_MODES — REMOVED (PM/project architecture dissolved)
 
 
-# Legacy role → new type mapping (for DB migration / backward compat reads)
-# v4 ICP domain-steward roles map to the nearest universal specialist (ADR-176)
+# Legacy role → new type mapping (for DB migration / backward compat reads).
+#
+# ADR-272: PRODUCTION_ROLES collapsed to {designer} only. Legacy role names
+# that previously resolved to researcher/analyst/writer/tracker/executive
+# are REMOVED from this map. Per the existing pattern (ADR-207 P4a for
+# deleted platform-bot roles), unmapped legacy roles fall through
+# resolve_role()'s passthrough and then fail the ALL_ROLES lookup loudly —
+# surfacing the migration need rather than silently re-routing to a
+# semantically-wrong role.
+#
+# Surviving entries: designer (current + only specialist) + thinking_partner
+# (systemic agent / chat LLM substrate).
 LEGACY_ROLE_MAP: dict[str, str] = {
-    # v1 legacy
-    "digest": "researcher",
-    "synthesize": "executive",
-    "prepare": "writer",
-    "custom": "researcher",
-    # v2 legacy (ADR-130)
-    "briefer": "writer",
-    "monitor": "tracker",
-    "scout": "tracker",
-    "drafter": "writer",
-    "planner": "analyst",
-    # v3 legacy (ADR-140 v3)
-    "research": "researcher",
-    "content": "writer",
-    "crm": "tracker",
-    # v4 ICP domain-steward roles (ADR-140 → superseded by ADR-176)
-    "competitive_intel": "researcher",
-    "market_research": "researcher",
-    "business_dev": "tracker",
-    "operations": "tracker",
-    "marketing": "writer",
-    # v5 current types pass through (ADR-176)
-    "researcher": "researcher",
-    "analyst": "analyst",
-    "writer": "writer",
-    "tracker": "tracker",
+    # v5 current types pass through (ADR-176, narrowed by ADR-272)
     "designer": "designer",
-    "executive": "executive",
-    # ADR-207 P4a: slack_bot / notion_bot / github_bot / commerce_bot /
-    # trading_bot roles REMOVED from LEGACY_ROLE_MAP. Any legacy agent row
-    # with these roles is dropped by migration 157; any incoming ref is
-    # unresolved by `resolve_role()` (passthrough → still returns the name,
-    # which will then fail the ALL_ROLES lookup loudly).
     # ADR-164: TP as meta-cognitive agent
     "thinking_partner": "thinking_partner",
 }
@@ -1342,11 +1023,17 @@ RUNTIMES: dict[str, dict[str, Any]] = {
 # =============================================================================
 
 def get_type_capabilities(agent_type: str) -> list[str]:
-    """Return the capability list for an agent type. Falls back to researcher for unknown."""
+    """Return the capability list for an agent type.
+
+    ADR-272: PRODUCTION_ROLES collapsed to {designer}; the previous
+    researcher-fallback would now crash. Unknown roles return an empty
+    capability list — the caller treats this as "no special tools" rather
+    than silently inheriting a wrong role's surface.
+    """
     resolved = resolve_role(agent_type)
     type_def = ALL_ROLES.get(resolved)
     if not type_def:
-        return ALL_ROLES["researcher"]["capabilities"]
+        return []
     return type_def["capabilities"]
 
 
@@ -1590,9 +1277,14 @@ def get_relevant_playbooks(agent_type: str, output_kind: str | None = None) -> d
 
 
 def get_type_display(agent_type: str) -> dict[str, str]:
-    """Return display_name and tagline for a type. Used by frontend + TP prompt."""
+    """Return display_name and tagline for a type. Used by frontend + TP prompt.
+
+    ADR-272: previous researcher-fallback now resolves to empty dict;
+    callers fall back to a titlecased raw role name via the .get defaults
+    below.
+    """
     resolved = resolve_role(agent_type)
-    type_def = ALL_ROLES.get(resolved, ALL_ROLES.get("researcher", {}))
+    type_def = ALL_ROLES.get(resolved, {})
     return {
         "display_name": type_def.get("display_name", agent_type.title()),
         "tagline": type_def.get("tagline", ""),

@@ -1,5 +1,7 @@
 # ADR-216: Orchestration Surface vs Judgment Persona — YARNNN Reclassification, Reviewer Persona Wiring
 
+> **⚠ Amended by [ADR-272](ADR-272-identity-collapse-system-agent-and-specialist.md) (2026-05-14).** The orchestration-vs-judgment taxonomy is preserved (YARNNN is orchestration, Reviewer is judgment, specialists are capability bundles). The "System Agent" label as a cockpit entity dissolves — orchestration surfaces as ambient activity, not a peer roster card. Specialists narrow to `{designer}` only per the ADR-272 Specialist Survival Test. The vocabulary distinction (orchestration vs judgment vs capability bundle) is unchanged at the architectural layer; the cockpit's rendering of orchestration as an entity is what collapses.
+
 > **Status**: Proposed — staged implementation across five commits (this ADR is Commit 1).
 > **Date**: 2026-04-24
 > **Authors**: KVK, Claude

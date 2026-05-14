@@ -1,14 +1,20 @@
 # Falsify-Signals Spec
 
-Schema for the per-signal research findings files written by the
-`falsify-signals` recurrence to `/workspace/research/findings/{signal_id}.md`.
+Schema for the per-signal research findings files written to
+`/workspace/research/findings/{signal_id}.md`.
+
+ADR-272: findings are now written by the **`morning-reflection`
+recurrence's bootstrap precondition**, not a dedicated `falsify-signals`
+recurrence (which was dissolved). The filename "falsify-signals.md"
+remains as the schema reference for both the spec and the work it
+describes. The work shape is unchanged; only the writer changed.
 
 ## Why this file exists
 
 `_operator_profile.md` declares signals with target baselines marked
 "(to establish)". The operator inherits those baselines from external
 research, but the system has no first-cycle evidence to reason against.
-`falsify-signals` is the activation-time bootstrap: it walks 90 days of
+The bootstrap precondition in `morning-reflection` walks 90 days of
 historical bars through each declared signal and writes per-signal
 findings the Reviewer reads at proposal time.
 
@@ -31,7 +37,7 @@ operator-declared signal slug (e.g. `signal-1-momentum-breakout`).
 ---
 signal_id: signal-1-momentum-breakout
 source: replay                              # NOT broker-confirmed; synthetic outcomes from historical bars
-computed_at: 2026-05-13T22:05:00Z           # when the falsify-signals recurrence wrote this
+computed_at: 2026-05-13T22:05:00Z           # when the bootstrap precondition wrote this
 lookback_days: 90                           # historical window walked
 universe: [AAPL, MSFT, NVDA, SPY, TSLA]     # tickers walked (subset that returned data)
 

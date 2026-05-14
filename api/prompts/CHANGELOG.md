@@ -6,6 +6,99 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.14.3] - refactor(adr-272 Phase 1): identity-layer collapse — System Agent dissolves, specialists narrow to designer-only
+
+### Background
+
+ADR-271 Threads B + C resolved jointly by ADR-272. Two structural drift patterns surfaced during the 2026-05-14 audit:
+
+1. **System Agent had no LLM identity backing** — it was a label used in three places (regex execution router narration, Reviewer-directed action narration via `reviewer_chat_surfacing.py`, cockpit roster card per ADR-251). None of these is an LLM. The `meta-cognitive` DB row labeled `role='thinking_partner'` is the chat-mode LLM substrate, not a separate executor.
+
+2. **Specialist roster (6 roles per ADR-176 / ADR-261 D7) was wider than the work demands.** Token-usage audit showed researcher/analyst/tracker dispatches were mostly for mechanical work miscategorized as production (collapsed by ADR-271 Thread A). Writer never invoked in production. The remaining demand sits in production-shape work that needs a different tool surface (designer for asset rendering) and weak vibe arguments (writer for distinct prose voice).
+
+### Decisions enacted in this Phase 1 BE commit
+
+**D3 — VALID_SPECIALIST_ROLES narrowed**
+
+- `api/services/primitives/dispatch_specialist.py`: `VALID_SPECIALIST_ROLES = {"designer"}` (was 6-element set).
+- Tool docstring rewritten to declare the survival-test discipline, list designer as the sole surviving role, and explicitly enumerate the 5 dissolved roles ("do not call — Reviewer does this inline").
+- Tool schema's `role` enum auto-narrows to `["designer"]` via `sorted(VALID_SPECIALIST_ROLES)`.
+
+**D7 — Dependent registries shrink**
+
+- `api/services/orchestration.py::PRODUCTION_ROLES`: 6 entries → 1 entry. The 5 dissolved entries (`researcher`, `analyst`, `writer`, `tracker`, `executive`) and their `methodology` playbook content deleted. `ALL_ROLES` union shrinks to `{designer, thinking_partner}`.
+- `api/services/orchestration.py::LEGACY_ROLE_MAP`: legacy-target entries (researcher/analyst/writer/tracker/executive) removed. Only surviving roles map; legacy callers fail loudly through resolve_role()'s passthrough + ALL_ROLES lookup miss (same pattern as ADR-207 P4a for deleted platform-bot roles).
+- `api/services/orchestration.py::get_type_capabilities` + `get_type_display`: previous `researcher`-fallback paths return empty / empty-dict instead of crashing on KeyError.
+- `api/services/agent_creation.py::ROLE_TO_SCOPE`: dissolved-role entries removed; only `designer` + `thinking_partner` survive.
+- `api/services/agent_creation.py::PRODUCTION_ROLE_SLUGS`: shrinks to `frozenset({"designer"})`.
+- `api/services/agent_creation.py::_INFRA_SLUG_TO_ROLE`: dissolved slugs removed (legacy slug refs surface as unresolvable at lazy-ensure call site).
+
+**D7 — Dead code sweep**
+
+- `api/services/orchestration_prompts.py`: DELETED. Pre-ADR-261 task-pipeline legacy. Sole live consumer was `agent_creation.py`'s import of `DEFAULT_INSTRUCTIONS`; that dict (now `_DEFAULT_INSTRUCTIONS`) is inlined in `agent_creation.py` with two surviving roles. The 600-LOC of `ROLE_PROMPTS` + `build_role_prompt` + `validate_output` machinery had zero external callers post-ADR-261.
+
+**D5 — Imperative collapse (bundle)**
+
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml`: `falsify-signals` recurrence DELETED. The 90-day historical falsification intent moves into `morning-reflection`'s prompt as an inline bootstrap precondition the Reviewer checks. The bundle ships 15 recurrences post-ADR-272 (was 16 pre, was 16 mid-ADR-271-Thread-A).
+- `morning-reflection`: gained `required_capabilities: [read_trading]` (for the bootstrap precondition); prompt extended with an explicit precondition section that walks signals × universe × 90 days of historical bars when `/workspace/research/findings/` is empty AND `_money_truth.md` has no live outcomes. No specialist dispatch — Reviewer does the work inline.
+- `docs/programs/alpha-trader/reference-workspace/research/mandate.md` + `specs/falsify-signals.md`: ADR-270 substrate retained as the schema reference, with prose updated to name the new writer (morning-reflection's bootstrap precondition).
+
+**D1+D2 — System Agent cockpit dissolve (BE half)**
+
+- No BE schema change required. `session_messages.role='system_agent'` continues to be written by `execution_router.py` + `reviewer_chat_surfacing.py` (unchanged in this phase). Phase 2 FE will render these rows as `system-activity` shape and remove the `/agents` roster card + detail surface.
+
+**D7 — YARNNN prompts updated**
+
+- `api/agents/prompts/platforms.py`: production-role enumeration in the prompt narrows to designer-only; trading-task descriptions reframe to "Reviewer composes inline against mechanical-mirror substrate; designer dispatched only for embedded charts."
+- `api/agents/prompts/chat/workspace.py`: "Team Composition" section rewritten as "Specialist Dispatch (ADR-272)" — defaults to inline Reviewer execution, names designer as the sole survival, enumerates dissolved roles explicitly with the inline-execution alternative. "Available roles" line collapses from 5 enumerated roles to "designer only." Accumulation + deliverable pattern enumerations updated to remove dissolved-role references.
+
+### Regression gates post-collapse
+
+- **NEW**: `api/test_adr272_identity_collapse.py` — 23/23 PASS. Asserts VALID_SPECIALIST_ROLES = {designer}, PRODUCTION_ROLES single-entry, ALL_ROLES two-entry, LEGACY_ROLE_MAP only-survivors, orchestration_prompts module deleted, _DEFAULT_INSTRUCTIONS inlined, PRODUCTION_ROLE_SLUGS narrowed, falsify-signals recurrence absent, morning-reflection gained read_trading + bootstrap-research mention, DispatchSpecialist primitive preserved across all 3 caller surfaces, tool enum reflects narrowed roster.
+- **UPDATED**: `api/test_adr269_capability_flow.py` — 110/110 PASS. `falsify-signals` assertion replaced with falsify-signals-absent + morning-reflection-mode-and-cap invariants. `morning-reflection` removed from the housekeeping_slugs list (it now correctly declares read_trading).
+- **UNCHANGED**: `api/test_adr261_phaseB.py` — 62/62 PASS. DispatchSpecialist primitive registry assertions unchanged.
+
+### Phase 2 (sequenced after BE bakes)
+
+FE cockpit work — `/agents` roster card removal for System Agent, detail surface removal at `?agent=system`, chat bubble shape collapse (7 → 4: user-bubble, reviewer-bubble, agent-bubble, system-activity), legacy redirect deletion, operator-legibility surface on `/work` for recurrence health — lands as a separate commit on a follow-on day. Decision made for clean BE audit boundary before FE diff.
+
+### Files touched
+
+Deleted:
+- `api/services/orchestration_prompts.py` (~600 LOC dead-code)
+
+Modified (BE):
+- `api/services/primitives/dispatch_specialist.py` (VALID_SPECIALIST_ROLES + tool docstring + enum)
+- `api/services/orchestration.py` (-298 LOC: 5 PRODUCTION_ROLES entries deleted, LEGACY_ROLE_MAP shrunk, fallback paths hardened)
+- `api/services/agent_creation.py` (ROLE_TO_SCOPE + PRODUCTION_ROLE_SLUGS + _INFRA_SLUG_TO_ROLE narrow; _DEFAULT_INSTRUCTIONS inlined)
+- `api/services/primitives/coordinator.py` (docstring examples updated)
+- `api/agents/prompts/platforms.py` (production-role enumeration narrowed)
+- `api/agents/prompts/chat/workspace.py` (Team Composition → Specialist Dispatch rewrite, pattern enumerations updated)
+
+Modified (bundle):
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml` (falsify-signals recurrence deleted; morning-reflection prompt extended with bootstrap precondition + read_trading capability)
+- `docs/programs/alpha-trader/reference-workspace/research/mandate.md` (writer reference updated)
+- `docs/programs/alpha-trader/reference-workspace/specs/falsify-signals.md` (writer reference updated)
+
+Modified (docs):
+- `docs/adr/ADR-272-identity-collapse-system-agent-and-specialist.md` — NEW (the canonical place future readers find this reversal)
+- `docs/adr/ADR-247-three-party-narrative-model.md` — superseded banner
+- `docs/adr/ADR-251-system-agent-reviewer-first-class-surfaces.md` — superseded banner
+- `docs/adr/ADR-176-work-first-agent-model.md` — narrowing banner (specialist roster six → one)
+- `docs/adr/ADR-216-orchestration-surface-vs-judgment-persona.md` — amendment note
+- `docs/adr/ADR-261-recurrences-as-prompts.md` — D7 amendment note
+- `docs/adr/ADR-271-bundle-and-identity-discipline.md` — status updated (Threads B + C → resolved by ADR-272)
+
+Regression-gate updates:
+- `api/test_adr269_capability_flow.py` (morning-reflection invariants updated)
+- `api/test_adr272_identity_collapse.py` (NEW)
+
+### Discourse trace
+
+The decision sequence and structural-tests behind this collapse are documented in ADR-272 §1–§9. The Specialist Survival Test (§7) is the bar against which future role additions are evaluated: tool-surface test + output-size test + latency test, all-or-nothing.
+
+---
+
 ## [2026.05.14.2] - refactor(adr-271 Thread A): mechanical migration of track-universe + track-regime
 
 ### Background

@@ -40,54 +40,62 @@ _SPECIALIST_MAX_TOKENS = 4096
 _SPECIALIST_MAX_ROUNDS = 5  # specialist sub-calls are bounded; ADR-260 D8 round discipline
 
 
+# ADR-272: VALID_SPECIALIST_ROLES narrowed to a single role — `designer` — per
+# the Specialist Survival Test (ADR-272 §7). The five dissolved roles
+# (researcher, analyst, writer, tracker, reporting) failed at least one of:
+# tool-surface test (their surface is the Reviewer's surface), output-size
+# test (their outputs fit the Reviewer's window comfortably), or latency
+# test (their work completes within the Reviewer's blocking budget).
+# Designer survives all three: RuntimeDispatch is a tool surface the
+# Reviewer should NOT carry standing; rendered assets meaningfully crowd
+# the judgment window; render latency (10-60s) genuinely degrades operator
+# experience when blocking the Reviewer's loop.
+#
+# Future additions must clear all three structural tests in their proposing
+# ADR. Vibe arguments (voice, style, brand-fit) are prompt-level concerns,
+# not LLM-identity concerns, and do not satisfy any test.
 VALID_SPECIALIST_ROLES = {
-    "researcher",
-    "analyst",
-    "writer",
-    "tracker",
     "designer",
-    "reporting",
 }
 
 
 DISPATCH_SPECIALIST_TOOL = {
     "name": "DispatchSpecialist",
-    "description": """Dispatch a focused-prompt specialist sub-LLM-call (ADR-261 D7).
+    "description": """Dispatch a focused-prompt specialist sub-LLM-call (ADR-261 D7, narrowed by ADR-272).
 
-Use when production work warrants a specialist's focused context: the
-Reviewer hands a brief to a specialist, the specialist runs in its own
-window with curated tools, and returns markdown the Reviewer reads.
+Escape hatch for production-shape work that genuinely needs a different
+tool surface, larger output budget, and longer latency tolerance than
+your own judgment loop.
 
-Six universal specialist roles:
-  - researcher: finds, investigates, builds knowledge files
-  - analyst: reads accumulated context, finds patterns
-  - writer: drafts deliverable prose from inputs
-  - tracker: maintains dated entity logs
-  - designer: produces visual assets (charts, mermaid, images)
-  - reporting: cross-domain synthesis
+DEFAULT POSTURE: do production work inline. Read substrate, compute,
+write. Specialists are NOT a delegation pattern for "this would be nicer
+in a specialist"; they exist for work that fails inline-execution on
+structural grounds.
 
-The brief should describe what the specialist needs to produce, where
-to read substrate from, and where to write output (using slug-templated
-paths per CONVENTIONS topology). The specialist returns markdown — the
-Reviewer reads it and decides what to do next.
+One specialist role (post ADR-272 Specialist Survival Test):
+  - designer: produces visual assets (charts, mermaid, images, rendered
+    PDFs). Uses RuntimeDispatch — a tool surface YOU should not carry
+    standing. Rendered assets meaningfully crowd judgment context.
+    Render latency (10-60s) would block your loop if done inline.
 
-Specialists run in headless mode (non-streaming, curated tools, no
-operator presence). They write substrate via WriteFile during their
-loop; their final return value is the markdown summary of what they
-produced.
+Dissolved roles (do not call — Reviewer does this inline):
+  - researcher, analyst, writer, tracker, reporting → all dissolved.
+    These were judgment-adjacent activities expressed as production
+    roles; the Reviewer does investigation, analysis, prose drafting,
+    accumulation, and cross-domain synthesis using its own tool surface.
+
+The brief tells the designer what to render, what substrate to read
+inputs from, and where to write the asset (slug-templated paths per
+CONVENTIONS topology). The designer returns markdown summarizing the
+rendered artifact; the Reviewer reads the summary and the rendered
+artifact's manifest entry.
 
 Examples:
-  DispatchSpecialist(role="researcher",
-    brief="Investigate the competitive landscape for vertical SaaS in
-           HR tech. Focus on companies > $10M ARR. Write findings to
-           /workspace/context/competitors/{entity}.md.")
-
-  DispatchSpecialist(role="writer",
-    brief="Draft the executive summary section for the weekly market
-           brief. Read /workspace/context/trading/_performance.md for
-           numbers. Output target: /workspace/reports/weekly-market-brief/
-           {date}/sections/executive-summary.md. Tone: quantitative,
-           one paragraph, lead with the most material number.")""",
+  DispatchSpecialist(role="designer",
+    brief="Render a 90-day equity-curve chart from
+           /workspace/context/portfolio/_performance.md. Output target:
+           /workspace/reports/weekly-performance-review/{date}/
+           sections/equity-curve.png. Caption: 'Account equity, last 90d.'")""",
     "input_schema": {
         "type": "object",
         "properties": {
