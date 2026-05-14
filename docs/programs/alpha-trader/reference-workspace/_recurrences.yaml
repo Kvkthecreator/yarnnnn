@@ -395,7 +395,7 @@ recurrences:
       bootstrap research INLINE before reflecting:
 
         For each signal declared in
-        /workspace/context/_shared/_operator_profile.md:
+        /workspace/context/trading/_operator_profile.md:
           - For each ticker in /workspace/context/trading/_universe.yaml:
               - Fetch 90 days of 1Hour bars via platform_trading_get_market_data.
               - Walk forward bar-by-bar; identify every moment the signal's
