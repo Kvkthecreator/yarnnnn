@@ -6,6 +6,47 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.15.1] - fix(feed-emission-policy): mechanical-fire success no longer emits narrative (ADR-277)
+
+### Background
+Production audit on alpha-trader workspaces showed 478 system-role narrative
+entries per 24h (~196/min during RTH for track-positions + track-orders),
+every row a "SyncPlatformState: 0 written, 1 unchanged" mechanical-mirror
+success notification duplicating data already canonical in execution_events.
+The feed surface — meant to be the operator's conversational substrate —
+became unusable as chat content drowned in mechanical telemetry. ADR-219 D5's
+original housekeeping tier had its intended consumer (narrative_digest
+roll-up job) deleted by the ADR-260/261/262 back-office cleanup, but the
+emissions kept firing.
+
+### Changed
+- `api/services/invocation_dispatcher.py`:
+  - L707 mechanical-fire success `_emit_system_narrative` call DELETED.
+    execution_events row carries the forensic detail; workspace_file_versions
+    carries what got written. No operator-relevant judgment to add.
+  - L145 (balance_exhausted), L175 (spend_ceiling reactive skip), L275
+    (reviewer invocation exception), L608 (capability transition first-
+    detection) tightened to `weight="material"`.
+  - L195 (spend_ceiling manual warn-but-proceed) tightened to `weight="routine"`.
+  - `_summarize_mechanical_result` helper deleted (no live caller).
+
+### Affects Reviewer behavior
+- Reviewer no longer sees per-fire mechanical-mirror entries in its compact
+  index / recent-messages window read from session_messages. Forensic detail
+  is still available via ReadFile on substrate or via the existing
+  `/api/system/execution-events` consumer.
+- Material-tier emissions (balance exhausted, capability transition, real
+  failures, spend ceiling reactive) become more salient — they're the
+  only system-role bubbles in the feed now, no longer competing with the
+  ~478 housekeeping rows per 24h.
+
+### Expected behavior
+- alpha-trader workspace feed: ~478 system rows / 24h → ~10 system rows / 24h.
+- Reviewer-action narration (`services/reviewer_chat_surfacing.py`) UNCHANGED.
+- /activity page UNCHANGED (execution_events still records every fire).
+
+---
+
 ## [2026.05.14.10] - feat(adr-276): reactive-trigger envelope governance pre-load — closes the dev-sequence arc
 
 ### Background
