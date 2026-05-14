@@ -1,22 +1,28 @@
 'use client';
 
 /**
- * /activity — workspace-wide structured ledger of every invocation attempt.
+ * /activity — workspace-wide execution-lens surface.
  *
  * Renamed from /backend per ADR-265. Reads `execution_events` (one row per
  * invocation, always written by `record_execution_event`). Forensic view —
- * complementary to /feed (operator narrative). User-menu placement.
+ * complementary to /feed (operator narrative).
  *
- * Shows every invocation: judgment-mode (Reviewer wakes, LLM cost) and
- * mechanical-mode (deterministic Python, zero LLM cost). Back-office jobs,
- * operational recurrences, manual fires all appear here grouped by slug
- * with expandable per-run detail on failures.
+ * Single operator question this surface answers: "Did the recurrences in my
+ * workspace actually run, did they succeed, what did they cost?"
+ *
+ * Distinct from the Schedule tab at /work?tab=schedule, which is the
+ * declaration-lens surface ("what's scheduled, when does it fire, who runs
+ * it?"). Cross-surface deep-links:
+ *   - Schedule row "View runs →"   → /activity?slug={slug} (this page, pre-filtered)
+ *   - Activity JobCard "Manage →"  → /work?task={slug}    (declaration detail + mutation)
  *
  * Read-only surface. No mutations — recurrence management stays in /work.
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { RefreshCw, CheckCircle2, XCircle, MinusCircle, ChevronDown, ChevronRight, Cpu, Brain } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { RefreshCw, CheckCircle2, XCircle, MinusCircle, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type { ExecutionEvent } from '@/types';
@@ -61,25 +67,6 @@ function statusIcon(status: ExecutionEvent['status']) {
   if (status === 'success') return <CheckCircle2 className="w-3.5 h-3.5 text-green-500 shrink-0" />;
   if (status === 'failed')  return <XCircle className="w-3.5 h-3.5 text-destructive shrink-0" />;
   return <MinusCircle className="w-3.5 h-3.5 text-muted-foreground/50 shrink-0" />;
-}
-
-function modeBadge(mode: string) {
-  // ADR-265 D3: mode badge replaces dead shapeLabel. Convention matches
-  // WorkListSurface.tsx — Cpu icon for mechanical, Brain icon for judgment.
-  if (mode === 'mechanical') {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
-        <Cpu className="w-3 h-3" />
-        Mech
-      </span>
-    );
-  }
-  return (
-    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-muted-foreground/70">
-      <Brain className="w-3 h-3" />
-      Judgment
-    </span>
-  );
 }
 
 function triggerLabel(t: string): string {
@@ -173,15 +160,29 @@ function EventRow({ ev }: { ev: ExecutionEvent }) {
 
 // ─── JobCard ─────────────────────────────────────────────────────────────────
 
-function JobCard({ group }: { group: JobGroup }) {
-  const [open, setOpen] = useState(false);
+function JobCard({ group, defaultOpen = false }: { group: JobGroup; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen);
   const lastStatus = group.events[0]?.status ?? 'skipped';
 
   return (
     <div className="border border-border rounded-lg overflow-hidden">
-      <button
-        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-muted/30 transition-colors"
+      {/* Header — converted from <button> to <div role="button"> so the
+          declaration-lens deep-link below can be a real <Link> without
+          becoming a nested interactive element. Lens-sharpening per the
+          /activity vs /work?tab=schedule split: this surface answers
+          "did it run, succeed, what did it cost"; the link routes
+          operators to the declaration-lens surface for management. */}
+      <div
+        role="button"
+        tabIndex={0}
+        className="w-full flex items-center gap-3 px-4 py-3 text-sm text-left hover:bg-muted/30 transition-colors cursor-pointer"
         onClick={() => setOpen(o => !o)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setOpen(o => !o);
+          }
+        }}
       >
         {open
           ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
@@ -197,8 +198,6 @@ function JobCard({ group }: { group: JobGroup }) {
 
         <span className="font-mono font-medium flex-1 truncate">{group.slug}</span>
 
-        <span className="shrink-0">{modeBadge(group.mode)}</span>
-
         <div className="flex items-center gap-3 text-xs text-muted-foreground/70 shrink-0">
           <span className="text-green-600">{group.successCount} ok</span>
           {group.failedCount > 0 && (
@@ -212,7 +211,18 @@ function JobCard({ group }: { group: JobGroup }) {
             <span>${group.totalCost.toFixed(4)}</span>
           )}
         </div>
-      </button>
+
+        {/* Declaration-lens deep-link — routes to /work?task={slug} where
+            the operator can run / pause / edit the recurrence. */}
+        <Link
+          href={`/work?task=${encodeURIComponent(group.slug)}`}
+          onClick={(e) => e.stopPropagation()}
+          className="shrink-0 text-[10px] text-muted-foreground/40 hover:text-foreground hover:underline underline-offset-4 transition-colors"
+          title="Manage this recurrence (declaration view + run / pause / edit)"
+        >
+          Manage →
+        </Link>
+      </div>
 
       {open && (
         <div className="border-t border-border/40 bg-muted/10">
@@ -263,6 +273,13 @@ function FilterPill({
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ActivityPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  // Schedule tab's "View runs →" deep-link arrives as /activity?slug=X.
+  // Pre-filter the execution-events query to that slug. Chip in the
+  // filter row surfaces the active slug + X to clear.
+  const slugFilter = searchParams.get('slug');
+
   const [events, setEvents] = useState<ExecutionEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -275,6 +292,7 @@ export default function ActivityPage() {
     try {
       const data = await api.system.executionEvents({
         limit: 500,
+        ...(slugFilter && { slug: slugFilter }),
         ...(modeFilter !== 'all' && { mode: modeFilter }),
         ...(statusFilter !== 'all' && { status: statusFilter }),
       });
@@ -284,7 +302,7 @@ export default function ActivityPage() {
     } finally {
       setLoading(false);
     }
-  }, [modeFilter, statusFilter]);
+  }, [slugFilter, modeFilter, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -293,6 +311,13 @@ export default function ActivityPage() {
     () => events.filter(e => e.mode !== 'mechanical').reduce((s, e) => s + (e.cost_usd ?? 0), 0),
     [events]
   );
+
+  const clearSlugFilter = useCallback(() => {
+    const sp = new URLSearchParams(searchParams.toString());
+    sp.delete('slug');
+    const qs = sp.toString();
+    router.replace(qs ? `/activity?${qs}` : '/activity', { scroll: false });
+  }, [router, searchParams]);
 
   return (
     <div className="flex flex-col h-full">
@@ -316,7 +341,17 @@ export default function ActivityPage() {
       </div>
 
       {/* Filter row */}
-      <div className="flex items-center gap-4 px-4 sm:px-6 py-3 border-b border-border/30 shrink-0">
+      <div className="flex items-center gap-4 px-4 sm:px-6 py-3 border-b border-border/30 shrink-0 flex-wrap">
+        {slugFilter && (
+          <button
+            onClick={clearSlugFilter}
+            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/10 text-primary text-xs hover:bg-primary/20 transition-colors"
+            title="Clear slug filter"
+          >
+            <span className="font-mono">{slugFilter}</span>
+            <X className="w-3 h-3" />
+          </button>
+        )}
         <div className="flex items-center gap-1.5">
           <span className="text-[10px] uppercase tracking-wide text-muted-foreground/50 mr-1">Mode</span>
           <FilterPill label="All" active={modeFilter === 'all'} onClick={() => setModeFilter('all')} />
@@ -344,7 +379,14 @@ export default function ActivityPage() {
         ) : (
           <div className="space-y-2 max-w-4xl">
             {groups.map(g => (
-              <JobCard key={g.slug} group={g} />
+              <JobCard
+                key={g.slug}
+                group={g}
+                // Auto-open when arriving from Schedule's "View runs →"
+                // deep-link (single-slug view = operator wants the run
+                // history without an extra click).
+                defaultOpen={!!slugFilter && groups.length === 1}
+              />
             ))}
           </div>
         )}
