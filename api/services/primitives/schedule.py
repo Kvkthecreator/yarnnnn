@@ -145,7 +145,27 @@ async def handle_schedule(auth: Any, input: dict) -> dict:
     mode = input.get("mode")  # ADR-263: judgment | mechanical
     changes = input.get("changes") or {}
     paused_until = input.get("paused_until")
-    authored_by = input.get("authored_by") or "operator"
+
+    # ADR-274 / FOUNDATIONS v8.5 Axiom 4 amendment: authored_by is load-bearing.
+    # Every Trigger-authoring write must assert which Identity is authoring.
+    # Silent attribution drift would break the Trigger-dimension audit trail.
+    # Caller paths inject this at dispatch time (see reviewer_agent.py +
+    # yarnnn.py); direct callers (routes, scripts) pass it explicitly.
+    authored_by_raw = input.get("authored_by")
+    if not authored_by_raw or not isinstance(authored_by_raw, str) or not authored_by_raw.strip():
+        return {
+            "success": False,
+            "error": "missing_authored_by",
+            "message": (
+                "Schedule requires authored_by per FOUNDATIONS v8.5 Axiom 4 "
+                "(Trigger authoring is an Identity-layer responsibility). "
+                "Caller must assert which Identity is authoring "
+                "(e.g., 'operator', 'reviewer:simons', 'agent:portfolio-tracker', "
+                "'system:bundle-fork'). Silent attribution would break the "
+                "Trigger-dimension audit trail."
+            ),
+        }
+    authored_by = authored_by_raw.strip()
 
     if not slug or not isinstance(slug, str):
         return {"success": False, "error": "missing_slug", "message": "slug is required"}

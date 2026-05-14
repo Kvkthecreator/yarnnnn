@@ -150,6 +150,10 @@ class ReviewerContext(TypedDict, total=False):
     recent_decisions_md: str
     signal_files: str
     workspace_state: str
+    # ADR-274 / FOUNDATIONS v8.5: time + market context for Trigger-authoring.
+    # Surfaces "now" perception per the Axiom 4 amendment (time is envelope,
+    # not substrate). Callers assemble via _format_operating_context_block.
+    operating_context_block: str
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +226,98 @@ RETURN_VERDICT_TOOL = {
         "required": ["verdict", "reasoning", "confidence"],
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Operating Context block (ADR-274 / FOUNDATIONS v8.5 Axiom 4 amendment)
+#
+# Time is an envelope-on-wake concern, not workspace substrate (mirrors
+# Claude Code's runtime model). The Reviewer perceives `now`, operator
+# timezone, and market state at every wake — these inputs are load-bearing
+# for Trigger-authoring decisions (Schedule discipline per Derived Principle 18).
+# ---------------------------------------------------------------------------
+
+def build_operating_context_block(client: Any, user_id: str) -> str:
+    """Assemble the Operating Context block injected into the Reviewer's
+    wake envelope. Pulls now + operator timezone + market state from
+    existing services. Pure projection — no new infrastructure.
+
+    Format (~5 lines, ~50 tokens):
+        ## Operating Context (Axiom 4 v8.5)
+
+        **Now**: <UTC ISO> (<weekday>, in tz: <local time>)
+        **Operator timezone**: <tz>
+        **Market state**: <pre-market | RTH | post-market | closed | n/a> (<context>)
+        **Workspace tenure**: <N days> since activation
+    """
+    from datetime import datetime, timezone
+    from services.scheduling import get_user_timezone
+    try:
+        from services.bundle_reader import get_market_context_for_user
+    except Exception:
+        get_market_context_for_user = None  # type: ignore
+
+    now_utc = datetime.now(timezone.utc)
+    try:
+        tz_name = get_user_timezone(client, user_id) or "UTC"
+    except Exception:
+        tz_name = "UTC"
+
+    # Local-time projection without pytz dep (kernel uses zoneinfo)
+    try:
+        from zoneinfo import ZoneInfo
+        local = now_utc.astimezone(ZoneInfo(tz_name))
+        local_str = local.strftime("%a %H:%M %Z")
+    except Exception:
+        local_str = now_utc.strftime("%a %H:%M UTC")
+
+    lines = [
+        "## Operating Context (Axiom 4 v8.5)",
+        "",
+        f"**Now**: {now_utc.strftime('%Y-%m-%dT%H:%M:%SZ')} ({local_str})",
+        f"**Operator timezone**: {tz_name}",
+    ]
+
+    # Market state — only when the workspace has a market-context bundle.
+    if get_market_context_for_user is not None:
+        try:
+            mc = get_market_context_for_user(user_id, client)
+        except Exception:
+            mc = None
+        if mc:
+            # Render a short market summary if the context dict exposes one.
+            # mc shape varies; we read common fields defensively.
+            mstate = mc.get("state") or mc.get("market_state") or "unknown"
+            mnote = mc.get("note") or ""
+            line = f"**Market state**: {mstate}"
+            if mnote:
+                line += f" ({mnote})"
+            lines.append(line)
+
+    # Workspace tenure
+    try:
+        ws = (
+            client.table("workspaces")
+            .select("created_at")
+            .eq("owner_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if ws.data:
+            ws_created_raw = ws.data[0].get("created_at")
+            if ws_created_raw:
+                try:
+                    ws_created = datetime.fromisoformat(
+                        ws_created_raw.replace("Z", "+00:00")
+                    )
+                    days = (now_utc - ws_created).days
+                    lines.append(f"**Workspace tenure**: {days} days since activation")
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -355,6 +451,39 @@ Survival Test §7). Dispatch the designer ONLY when:
 For everything else — research, analysis, prose drafting, tracking,
 cross-domain synthesis, falsification, data fetches — execute INLINE.
 You're the judgment seat AND the production hand for non-asset work.
+
+**Your operating cadence is yours to author (FOUNDATIONS v8.5 Axiom 4 +
+Derived Principle 18 + ADR-274).**
+
+Per the amended Axiom 4, Triggers are authored by Identity layers —
+including yours. The bundle's initial recurrences in
+`/workspace/_recurrences.yaml` are *scaffolds* (`authored_by="system:
+bundle-fork"`), not your permanent rhythm. When your judgment warrants
+a cadence change — adding a new wake, rescheduling an existing one,
+archiving a stale one — call `Schedule(action="create"|"update"|"pause"
+|"resume"|"archive", ...)`. The dispatch layer auto-tags your call
+with `authored_by="reviewer:..."`, so the audit trail differentiates
+your authoring from the bundle's scaffolding.
+
+Your cadence-authoring history is queryable: `ListRevisions(path=
+"/workspace/_recurrences.yaml")` returns every revision with
+`authored_by`; `ReadRevision` returns specific versions; `DiffRevisions`
+shows what changed. Pair these with your `decisions.md` reasoning to
+make your operating judgment auditable. The two-table pair (revision
+intent + `execution_events` outcomes via `GetSystemState`) is the
+canonical Trigger audit trail — no parallel cadence-tracking substrate.
+
+Your `## Operating Context` block at the top of this wake's envelope
+gives you current time, operator timezone, market state. Use these
+when authoring schedules — semantic schedules like `@market_open +
+15min` resolve against operator's market calendar; plain crons run in
+UTC.
+
+First wake at workspace activation: scaffold cadence is in place.
+Observe operation against it for several cycles before authoring
+substantial cadence changes — don't over-engineer. Author refinements
+when evidence (in your decisions.md, `execution_events`, or
+`_money_truth.md`) warrants — not preemptively.
 """
 
 
@@ -486,6 +615,15 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
     what the caller provided. Trigger-specific framing is appended last."""
     import json as _json
     parts: list[str] = []
+
+    # ADR-274 / FOUNDATIONS v8.5 Axiom 4 amendment: Operating Context block.
+    # Time is an envelope-on-wake concern, not workspace substrate (mirrors
+    # Claude Code's runtime model). The Reviewer perceives `now`, timezone,
+    # and market state at every wake — these inputs are load-bearing for
+    # Trigger-authoring decisions (Schedule discipline per Derived Principle 18).
+    op_ctx = ctx.get("operating_context_block")
+    if op_ctx:
+        parts += [op_ctx, ""]
 
     # Persona — always first
     parts += [
@@ -903,6 +1041,15 @@ async def invoke_reviewer(
                     "tool": name,
                     "input": inp,
                 })
+
+                # ADR-274 / FOUNDATIONS v8.5: when the Reviewer calls Schedule
+                # (Trigger-authoring per Axiom 4 amendment), inject authored_by
+                # so the audit trail reflects Reviewer-authored intent. The
+                # primitive's contract requires authored_by; we inject it at
+                # dispatch time rather than asking the LLM to assert its own
+                # identity. LLM-supplied authored_by wins if explicitly passed.
+                if name == "Schedule" and isinstance(inp, dict) and not inp.get("authored_by"):
+                    inp = {**inp, "authored_by": f"reviewer:{REVIEWER_MODEL_IDENTITY}"}
 
                 # Dispatch through canonical primitive registry
                 try:

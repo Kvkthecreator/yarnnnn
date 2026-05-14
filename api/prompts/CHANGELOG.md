@@ -6,7 +6,23 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.05.14.5] - fix(adr-272 follow-ups): Reviewer inline-default discipline + cold-start ordering preservation
+## [2026.05.14.6] - feat(adr-274 / foundations v8.5): trigger-authoring is Identity-layer responsibility
+
+### Background
+
+FOUNDATIONS v8.5 amends Axiom 4 to canonize that the Trigger dimension is authored by Identity layers, not infrastructure. The Reviewer holds standing intent (Axiom 2) and now structurally owns its operating cadence. The bundle's initial `_recurrences.yaml` entries are *scaffolds* — `authored_by="system:bundle-fork"` — not the Reviewer's permanent rhythm. New Derived Principle 18: "Standing intent implies Trigger-authoring authority."
+
+### Changed
+- `api/agents/reviewer_agent.py`:
+  - New helper `build_operating_context_block(client, user_id)` — formats `## Operating Context (Axiom 4 v8.5)` block with now (UTC ISO + local), operator timezone, market state, workspace tenure. Time is a wake-envelope concern (mirrors Claude Code runtime model), not workspace substrate.
+  - `ReviewerContext` TypedDict gains `operating_context_block: str` field.
+  - `_build_user_message` injects the Operating Context block before persona.
+  - Dispatch loop auto-tags Schedule calls with `authored_by=f"reviewer:{REVIEWER_MODEL_IDENTITY}"` — LLM-supplied value wins if explicitly passed.
+  - `_PERSONA_FRAME` extended with cadence-authoring discipline section citing FOUNDATIONS v8.5 Axiom 4 + Derived Principle 18 + ADR-274, names `ListRevisions`/`ReadRevision`/`DiffRevisions` as the audit-trail surface, includes a first-wake guardrail (observe scaffold cadence for several cycles before authoring substantial changes).
+- `api/agents/yarnnn.py`: `tool_executor` closure auto-injects `authored_by="operator"` for Schedule calls from chat.
+- Expected behavior: Reviewer authoring schedule changes flows through the Schedule primitive with correct identity attribution; revision chain on `_recurrences.yaml` differentiates `system:bundle-fork` (initial) from `operator:` (operator chat) from `reviewer:ai:reviewer-sonnet-v8` (Reviewer mid-loop) — making cadence judgment auditable.
+
+
 
 ### Background
 

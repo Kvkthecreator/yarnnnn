@@ -138,7 +138,8 @@ async def _handle_pause(auth: Any, match: re.Match, _msg: str) -> Optional[dict]
         logger.warning("[EXEC_ROUTER] recurrence walk failed: %s", exc)
         return None
 
-    inp = {"action": "pause", "shape": shape, "slug": resolved_slug}
+    # ADR-274: operator-typed regex command → operator-attributed authorship.
+    inp = {"action": "pause", "shape": shape, "slug": resolved_slug, "authored_by": "operator"}
     if domain:
         inp["domain"] = domain
 
@@ -174,7 +175,8 @@ async def _handle_resume(auth: Any, match: re.Match, _msg: str) -> Optional[dict
         logger.warning("[EXEC_ROUTER] recurrence walk failed: %s", exc)
         return None
 
-    inp = {"action": "resume", "shape": shape, "slug": resolved_slug}
+    # ADR-274: operator-typed regex command → operator-attributed authorship.
+    inp = {"action": "resume", "shape": shape, "slug": resolved_slug, "authored_by": "operator"}
     if domain:
         inp["domain"] = domain
 

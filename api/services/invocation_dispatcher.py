@@ -228,6 +228,12 @@ async def dispatch(
         # the proposal-arrival shape (Sonnet/3-rounds with empty user
         # message → universal stand_down). Bug surfaced 2026-05-13 in
         # the post-ADR-267 audit.
+        # ADR-274 / FOUNDATIONS v8.5: assemble Operating Context block —
+        # time + market state + workspace tenure. Reviewer perceives `now`
+        # on every wake (time is envelope, not substrate per Axiom 4 amendment).
+        from agents.reviewer_agent import build_operating_context_block
+        operating_context = build_operating_context_block(client, user_id)
+
         reviewer_output = await invoke_reviewer(
             client=client,
             user_id=user_id,
@@ -241,6 +247,7 @@ async def dispatch(
                 # passes through (or extends) when calling DispatchSpecialist.
                 "recurrence_required_capabilities": list(recurrence.required_capabilities),
                 "options": dict(recurrence.options) if recurrence.options else {},
+                "operating_context_block": operating_context,
             },
         )
     except Exception as exc:

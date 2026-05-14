@@ -655,16 +655,19 @@ def record_task_run(
         except Exception:
             had_prior_run = True  # fail-closed — preserve original behavior
         if not had_prior_run:
+            # Preserve arming (last_run_at stays NULL) AND set next_run_at
+            # to a gentle retry delay (+60s) so the scheduler picks the row
+            # up regularly while waiting for the operator to connect the
+            # platform. Once connected, the very next retry succeeds.
+            # The capability_missing narrative emits once via the existing
+            # transition-detection logic — subsequent retries log silently.
+            retry_at = datetime.now(timezone.utc) + timedelta(seconds=60)
             logger.info(
                 "[SCHED] %s/%s capability_missing while fire_on_activation armed — "
-                "preserving last_run_at=NULL so flag re-arms on next tick",
-                user_id[:8], recurrence.slug,
+                "preserving last_run_at=NULL + retry at %s (60s) for self-heal",
+                user_id[:8], recurrence.slug, retry_at.isoformat(),
             )
-            # Still advance next_run_at to clear the sentinel — the next
-            # scheduler tick will re-evaluate the activation flag via
-            # compute_next_run_at and re-set next_run_at = NOW() if
-            # last_run_at is still NULL.
-            update = {"next_run_at": None}
+            update = {"next_run_at": retry_at.isoformat()}
             try:
                 client.table("tasks").update(update).eq("user_id", user_id).eq(
                     "slug", recurrence.slug

@@ -1215,6 +1215,12 @@ async def global_chat(
         async def _emit_progress(event: dict) -> None:
             await progress_queue.put(event)
 
+        # ADR-274 / FOUNDATIONS v8.5: Operating Context block — time +
+        # market state + workspace tenure. Reviewer perceives `now` on
+        # every wake (time is envelope, not substrate per Axiom 4 amendment).
+        from agents.reviewer_agent import build_operating_context_block
+        operating_context = build_operating_context_block(auth.client, auth.user_id)
+
         # Run invoke_reviewer concurrently so we can yield progress events
         # to the operator while the LLM loop runs in the background.
         invoke_task = _asyncio.create_task(invoke_reviewer(
@@ -1232,6 +1238,7 @@ async def global_chat(
                 "user_message": request.content,
                 "conversation_window": "\n".join(conv_lines) if conv_lines else "",
                 "workspace_state": workspace_state_text or "",
+                "operating_context_block": operating_context,
             },
             event_callback=_emit_progress,
         ))
