@@ -132,10 +132,10 @@ Append-only system provenance log. Records what YARNNN has done across all pipel
 
 | event_type | Written by | summary example |
 |---|---|---|
-| `agent_run` | `agent_execution.py` | `"Weekly Digest v3 generated (staged)"` |
+| `agent_run` | DELETED writer (ADR-271 — agent_execution.py removed; no live producer post-ADR-261) | `"Weekly Digest v3 generated (staged)"` |
 | `memory_written` | TP memory tools | `"Noted: prefers bullet points"` |
-| `platform_synced` | `platform_worker.py` | `"Synced gmail/INBOX: 12 items"` |
-| `chat_session` | `chat.py` | `"Chat session (8 turns)"` |
+| `platform_synced` | `platform_worker.py` (also deleted with ADR-153 platform_content sunset) | `"Synced gmail/INBOX: 12 items"` |
+| `chat_session` | `feed.py` (ADR-259 rename) | `"Chat session (8 turns)"` |
 
 **Read by**: `working_memory.py → build_working_memory()` — last 10 events (7-day window) injected as "Recent activity" block in TP system prompt (~300 tokens)
 

@@ -578,8 +578,9 @@ def build_role_prompt(
     template = ROLE_PROMPTS.get(prompt_role, ROLE_PROMPTS["custom"])
 
     # Common fields present in all templates
-    # ADR-104: Inject agent_instructions into user message (dual injection —
-    # also present in system prompt via _build_headless_system_prompt)
+    # ADR-104: Inject agent_instructions into user message (priority lens).
+    # ADR-271: legacy headless system-prompt builder (_build_headless_system_prompt)
+    # deleted with agent_execution.py — dual-injection note retired.
     instructions = (agent.get("agent_instructions") or "").strip()
     user_instructions = ""
     if instructions:

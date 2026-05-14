@@ -1,27 +1,24 @@
 """
 Webhook handlers for external integrations.
 
-ADR-031 Phase 4: Event Triggers
-
 Endpoints:
 - POST /user-signup - Handle new user signup notifications from Supabase
 - POST /resend/events - Handle Resend delivery outcome webhooks
-- POST /slack/events - Handle Slack Events API (ADR-031)
 
 ADR-131: Gmail push notifications removed (sunset).
+ADR-271: Slack event-trigger endpoint removed (pre-ADR-261 task pipeline dead path).
 """
 
 import os
 import json
 import base64
 import hmac
-import hashlib
 import logging
 from datetime import datetime, timezone
 from typing import Optional, List, Any
 
 import httpx
-from fastapi import APIRouter, Request, HTTPException, status, BackgroundTasks
+from fastapi import APIRouter, Request, HTTPException, status
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -427,156 +424,5 @@ async def handle_resend_events(request: Request):
 # ADR-031 Phase 4: Slack Events API Webhook
 # =============================================================================
 
-SLACK_SIGNING_SECRET = os.environ.get("SLACK_SIGNING_SECRET")
-
-
-def verify_slack_signature(
-    body: bytes,
-    timestamp: str,
-    signature: str,
-) -> bool:
-    """
-    Verify Slack request signature.
-
-    Uses HMAC-SHA256 with Slack signing secret.
-    """
-    if not SLACK_SIGNING_SECRET:
-        log.warning("SLACK_SIGNING_SECRET not configured - skipping verification")
-        return True
-
-    # Check timestamp to prevent replay attacks (5 min window)
-    try:
-        ts = int(timestamp)
-        now = int(datetime.now().timestamp())
-        if abs(now - ts) > 300:
-            log.warning("Slack request timestamp too old")
-            return False
-    except ValueError:
-        return False
-
-    # Compute expected signature
-    sig_basestring = f"v0:{timestamp}:{body.decode('utf-8')}"
-    expected_sig = "v0=" + hmac.new(
-        SLACK_SIGNING_SECRET.encode(),
-        sig_basestring.encode(),
-        hashlib.sha256,
-    ).hexdigest()
-
-    return hmac.compare_digest(signature, expected_sig)
-
-
-async def process_slack_event(event_payload: dict):
-    """
-    Process a Slack event in the background.
-
-    Finds matching agents and triggers execution.
-    """
-    from supabase import create_client
-    from services.event_triggers import (
-        handle_slack_event,
-        execute_event_triggers,
-        PlatformEvent,
-    )
-
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
-
-    if not supabase_url or not supabase_key:
-        log.error("Supabase credentials not configured")
-        return
-
-    try:
-        supabase = create_client(supabase_url, supabase_key)
-
-        # Find matching agents
-        matches = await handle_slack_event(supabase, event_payload)
-
-        if matches:
-            # Build event for execution
-            event = PlatformEvent(
-                platform="slack",
-                event_type=event_payload.get("type", "message"),
-                user_id=matches[0].user_id,  # All matches have same user
-                resource_id=event_payload.get("channel", ""),
-                resource_name=None,
-                event_data=event_payload,
-                event_ts=datetime.now(),
-                thread_id=event_payload.get("thread_ts"),
-                sender_id=event_payload.get("user"),
-                content_preview=event_payload.get("text", "")[:200],
-            )
-
-            # Execute triggers
-            result = await execute_event_triggers(supabase, matches, event)
-            log.info(f"[SLACK_EVENT] Executed: {result}")
-
-    except Exception as e:
-        log.error(f"[SLACK_EVENT] Error processing event: {e}")
-
-
-@router.post("/slack/events")
-async def handle_slack_events(request: Request, background_tasks: BackgroundTasks):
-    """
-    Handle Slack Events API webhook.
-
-    This endpoint handles:
-    1. URL verification challenge (required for Slack app setup)
-    2. Event callbacks (app_mention, message, etc.)
-
-    Configure in Slack App:
-    1. Go to Event Subscriptions
-    2. Enable Events
-    3. Set Request URL to: https://your-api.com/webhooks/slack/events
-    4. Subscribe to: app_mention, message.im, message.channels
-    """
-    body = await request.body()
-    timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
-    signature = request.headers.get("X-Slack-Signature", "")
-
-    # Verify signature if secret is configured
-    if SLACK_SIGNING_SECRET:
-        if not verify_slack_signature(body, timestamp, signature):
-            log.warning("[SLACK_EVENT] Invalid signature")
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid signature",
-            )
-
-    try:
-        payload = json.loads(body)
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid JSON payload",
-        )
-
-    # Handle URL verification challenge
-    if payload.get("type") == "url_verification":
-        log.info("[SLACK_EVENT] URL verification challenge received")
-        return {"challenge": payload.get("challenge")}
-
-    # Handle event callback
-    if payload.get("type") == "event_callback":
-        event = payload.get("event", {})
-        event_type = event.get("type")
-
-        log.info(f"[SLACK_EVENT] Received event: {event_type}")
-
-        # Add team_id to event for user lookup
-        event["team"] = payload.get("team_id")
-
-        # Ignore bot messages to prevent loops
-        if event.get("bot_id") or event.get("subtype") == "bot_message":
-            log.debug("[SLACK_EVENT] Ignoring bot message")
-            return {"ok": True}
-
-        # Process event in background
-        background_tasks.add_task(process_slack_event, event)
-
-        return {"ok": True}
-
-    return {"ok": True}
-
-
-
 # ADR-131: Gmail push notification endpoint removed (sunset)
+# ADR-271: Slack event-trigger endpoint removed (pre-ADR-261 task pipeline dead path)
