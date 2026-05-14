@@ -314,7 +314,11 @@ async def _emit_stale_fallback(
         if not result.data:
             await _append_freshness_note(client, user_id, "no _regime.yaml exists", errors, now)
             return
-        existing = _yaml.safe_load(result.data[0].get("content") or "") or {}
+        # Use load_workspace_yaml for frontmatter-tolerance: TrackRegime
+        # writes _regime.yaml without frontmatter, but if a prior version
+        # forked from a bundle template had one, this stays robust.
+        from services.review_policy import load_workspace_yaml
+        existing = load_workspace_yaml(result.data[0].get("content") or "")
         last_updated_str = existing.get("last_updated")
         if not last_updated_str:
             await _append_freshness_note(client, user_id, "_regime.yaml missing last_updated", errors, now)

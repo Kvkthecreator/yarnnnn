@@ -142,7 +142,14 @@ async def handle_track_universe(auth: Any, input: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 async def _read_universe(client: Any, user_id: str) -> list[str]:
-    """Read ticker list from /workspace/context/trading/_universe.yaml."""
+    """Read ticker list from /workspace/context/trading/_universe.yaml.
+
+    Uses the canonical `load_workspace_yaml` helper (services.review_policy)
+    which strips the bundle-forked frontmatter block (`tier:`, `prompt:`)
+    before parsing. Without this, yaml.safe_load on the full content
+    returns only the frontmatter dict and `tickers` is silently absent.
+    """
+    from services.review_policy import load_workspace_yaml
     try:
         result = (
             client.table("workspace_files")
@@ -159,7 +166,7 @@ async def _read_universe(client: Any, user_id: str) -> list[str]:
             )
             return []
         content = result.data[0].get("content") or ""
-        parsed = _yaml.safe_load(content) or {}
+        parsed = load_workspace_yaml(content)
         tickers = parsed.get("tickers") or []
         return [
             str(t).upper().strip()
