@@ -711,16 +711,25 @@ function AgentTabBar({
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Reviewer detail (ADR-251 D4): Identity · Principles · Autonomy
-// Track Record + Decisions link-outs deleted — aspirational stubs with no
-// inline renderer. Calibration headline already surfaces on cockpit
-// PerformanceFace (ADR-228). Raw files remain accessible via /context.
+// Reviewer detail (ADR-251 D4, expanded 2026-05-14): Identity · Principles ·
+// Autonomy · Activity
+//
+// Activity tab added 2026-05-14 after audit found ReviewerActivityPanel was
+// rendering significantly stale data inside the Autonomy tab. Splitting the
+// supervision surface (Activity) out from the delegation config surface
+// (Autonomy) per the lens-sharpening discipline canonized in WORKSPACE.md
+// (Schedule vs /activity split, same shape applied here). Autonomy = config;
+// Activity = observation. Track Record + Decisions link-outs deleted —
+// aspirational stubs with no inline renderer. Calibration headline already
+// surfaces on cockpit PerformanceFace (ADR-228). Raw files remain accessible
+// via /context.
 // ---------------------------------------------------------------------------
 
 const REVIEWER_TABS: TabDef[] = [
   { key: 'identity', label: 'Identity' },
   { key: 'principles', label: 'Principles' },
   { key: 'autonomy', label: 'Autonomy' },
+  { key: 'activity', label: 'Activity' },
 ];
 
 function ReviewerDetail({ agent }: { agent: Agent }) {
@@ -771,8 +780,12 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
           </div>
         )}
         {activeTab === 'autonomy' && (
-          <div className="px-6 py-5 space-y-4">
+          <div className="px-6 py-5">
             <DelegationCard variant="full" />
+          </div>
+        )}
+        {activeTab === 'activity' && (
+          <div className="px-6 py-5">
             <ReviewerActivityPanel />
           </div>
         )}

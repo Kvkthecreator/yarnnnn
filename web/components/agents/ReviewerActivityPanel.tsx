@@ -1,28 +1,52 @@
 'use client';
 
 /**
- * ReviewerActivityPanel — supervision surface for the Reviewer's autonomous
- * loop (ADR-251 D5, reframed 2026-05-08).
+ * ReviewerActivityPanel — Reviewer supervision surface.
  *
- * Answers the operator's three supervision questions:
- *   1. Is autonomy alive?     ← Recent runs (execution_events)
- *   2. What did it do?        ← Recent autonomous actions (action_proposals)
- *   3. When will it next fire? ← Scheduled fires (back-office.yaml + cron math)
+ * Authored 2026-05-14 as first-principles rewrite (replaces the
+ * ADR-251-D5-era panel that read dissolved back-office.yaml substrate
+ * and a stale slug filter). Now reads the canonical post-ADR-261
+ * GET /api/agents/reviewer/activity which derives from
+ * /workspace/_recurrences.yaml (judgment-mode entries = Reviewer wakes
+ * per ADR-263 D1).
  *
- * Single source of truth: GET /api/agents/reviewer/activity. Reviewer-specific
- * by intent — heartbeat triggers + delegation ceiling are Reviewer concepts.
- * If a second agent ever needs an analogous panel, generalise then.
+ * Single operator question this surface answers:
+ *   "Is my Reviewer functioning autonomously the way it's been told to?"
  *
- * Surfaces (per ADR-251 D5):
- *   - Reviewer agent detail Autonomy tab (below DelegationCard)
- *   - Chat WorkspaceContextOverlay Review section (below PrinciplesCard)
+ * Four sections (top-to-bottom — most-actionable signal first):
  *
- * Editing posture: read-only. Mutations route through chat per ADR-235 D1
- * + ADR-245 (substrate writes via primitives, not bespoke modals).
+ *   1. Health headline — one-line liveness signal. Green = recent run.
+ *      Amber = no run in the configured supervision window.
+ *
+ *   2. Upcoming wakes — when each judgment-mode recurrence next fires.
+ *      Operator can see the cadence schedule at a glance and judge
+ *      whether autonomy is well-shaped.
+ *
+ *   3. Recent autonomous actions — what the Reviewer has actually done
+ *      on the operator's behalf (Reviewer-originated or auto-approved
+ *      proposals). The money-moving trail.
+ *
+ *   4. Recent runs — every judgment-mode run in the supervision window.
+ *      Forensic, but compact — each row deep-links to /activity for
+ *      detail per the supervision-vs-execution lens distinction
+ *      (WORKSPACE.md).
+ *
+ * Distinct from /activity (workspace-wide execution-lens covering every
+ * recurrence + mode + cost): this surface is **Reviewer-only supervision**.
+ * The "View all runs →" deep-link bridges to /activity for the broader
+ * execution view.
+ *
+ * Read-only. Mutations route through chat per ADR-235 D1 + ADR-245
+ * (substrate writes via primitives, not bespoke modals).
+ *
+ * Reused on:
+ *   - /agents?agent=reviewer&tab=activity (canonical home)
+ *   - Chat WorkspaceContextOverlay Review section
  */
 
 import { useEffect, useState } from 'react';
-import { Activity, Calendar, CheckCircle2, AlertCircle, ArrowRight, Inbox } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, Calendar, CheckCircle2, AlertCircle, Inbox, Activity } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useNarrative } from '@/contexts/NarrativeContext';
 
@@ -62,7 +86,10 @@ interface ActivityData {
 }
 
 function shortSlug(slug: string): string {
-  return slug.replace(/^back-office-reviewer-/, '');
+  // Slugs are already human-readable in canonical _recurrences.yaml
+  // (morning-reflection, signal-evaluation, pre-market-brief, etc.) —
+  // no legacy prefix to strip post-ADR-261.
+  return slug;
 }
 
 function relativeTime(iso: string | null | undefined): string {
@@ -82,7 +109,6 @@ function relativeTime(iso: string | null | undefined): string {
 }
 
 function shortAction(a: ActionRow): string {
-  // "trading.submit_order" → "submit_order"
   const tail = a.action_type.split('.').slice(-1)[0] || a.action_type;
   return a.expected_effect || tail;
 }
@@ -123,52 +149,114 @@ export function ReviewerActivityPanel() {
 
   if (data === null) return null;
 
-  const noRunsInWindow = data.runs.length === 0;
   const lastRunAt = data.runs[0]?.created_at;
-  const lastRunStale = lastRunAt
-    ? (Date.now() - new Date(lastRunAt).getTime()) > 36 * 3_600_000  // >36h since any run
-    : true;
+  const hoursSinceLastRun = lastRunAt
+    ? (Date.now() - new Date(lastRunAt).getTime()) / 3_600_000
+    : null;
+
+  // Health signal: derive from the nearest active schedule's cadence rather
+  // than a fixed 36h. If the Reviewer is supposed to fire daily and last
+  // ran 30h ago, that's a real liveness concern; if it fires weekly and
+  // last ran 30h ago, that's normal. Until we have a robust per-recurrence
+  // freshness model, use 36h as a coarse default for now but only when
+  // we have at least one active schedule (otherwise the warning is
+  // meaningless).
+  const activeSchedules = data.schedules.filter(s => !s.paused);
+  const hasActiveSchedules = activeSchedules.length > 0;
+  const isStale = hasActiveSchedules && (
+    hoursSinceLastRun === null || hoursSinceLastRun > 36
+  );
+  const isHealthy = hoursSinceLastRun !== null && hoursSinceLastRun <= 36;
 
   const editPrompt =
-    "I want to change my Reviewer's schedule (when reflection or calibration runs). Walk me through the current cadence and what's possible.";
+    "I want to change my Reviewer's schedule (when reflection, calibration, or other judgment recurrences fire). Walk me through the current cadence.";
 
   return (
-    <div className="rounded-lg border border-border/60 bg-muted/10 px-4 py-4 space-y-4">
-      <div className="flex items-center gap-2">
-        <Activity className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-          Reviewer Activity
-        </span>
-        <span className="ml-auto text-[10px] text-muted-foreground/60">
-          Last {data.window_days}d
-        </span>
-      </div>
-
-      {/* Liveness warning when no runs in window */}
-      {noRunsInWindow && data.schedules.length > 0 && (
-        <div className="rounded-md border border-amber-200/60 bg-amber-50/50 px-3 py-2.5 flex items-start gap-2">
-          <AlertCircle className="h-3.5 w-3.5 text-amber-600 mt-0.5 shrink-0" />
-          <div className="text-xs text-amber-800">
-            No Reviewer runs in the last {data.window_days} days. Schedules below are configured
-            but the scheduler may not be firing — check system status if this persists.
+    <div className="space-y-5">
+      {/* 1. Health headline */}
+      <section className="rounded-lg border border-border bg-card p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <Activity className="h-3.5 w-3.5 text-muted-foreground" />
+          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Reviewer health
+          </h3>
+          <span className="ml-auto text-[10px] text-muted-foreground/60">
+            Last {data.window_days}d
+          </span>
+        </div>
+        {!hasActiveSchedules ? (
+          <p className="text-sm text-muted-foreground">
+            No active judgment recurrences configured. The Reviewer wakes on
+            three triggers (per ADR-260): operator chat, proposed actions, and
+            scheduled cron. The first two are always live; scheduled cadence
+            is opt-in via <code className="text-[11px] bg-muted px-1 rounded">_recurrences.yaml</code>.
+          </p>
+        ) : isHealthy ? (
+          <p className="text-sm text-foreground">
+            <CheckCircle2 className="inline h-3.5 w-3.5 text-emerald-600 mr-1.5 -mt-0.5" />
+            Last Reviewer wake {relativeTime(lastRunAt)}. {data.runs.length} run{data.runs.length === 1 ? '' : 's'} in window.
+          </p>
+        ) : isStale ? (
+          <div className="flex items-start gap-2 text-sm text-amber-800 bg-amber-50/60 rounded-md px-3 py-2 border border-amber-200/60">
+            <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+            <span>
+              {hoursSinceLastRun === null
+                ? `No Reviewer wakes in the last ${data.window_days} days, despite ${activeSchedules.length} active schedule${activeSchedules.length === 1 ? '' : 's'}. Check the scheduler.`
+                : `Last wake was ${Math.floor(hoursSinceLastRun)}h ago. Expected by configured cadence below.`}
+            </span>
           </div>
-        </div>
+        ) : null}
+      </section>
+
+      {/* 2. Upcoming wakes */}
+      {data.schedules.length > 0 && (
+        <section>
+          <div className="flex items-center gap-2 mb-2">
+            <Calendar className="h-3 w-3 text-muted-foreground" />
+            <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              Upcoming wakes
+            </h3>
+            <span className="ml-auto text-[10px] text-muted-foreground/60">
+              {data.schedules.length} judgment recurrence{data.schedules.length === 1 ? '' : 's'}
+            </span>
+          </div>
+          <ul className="space-y-1">
+            {data.schedules.map((s) => (
+              <li key={s.slug} className="flex items-center gap-2 text-xs rounded-md border border-border/60 bg-background px-3 py-2">
+                <span className="font-mono font-medium">{shortSlug(s.slug)}</span>
+                {s.paused && (
+                  <span className="rounded bg-muted px-1 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    paused
+                  </span>
+                )}
+                <span className="text-[11px] text-muted-foreground/60 truncate">
+                  {s.schedule || 'reactive'}
+                </span>
+                <span className="ml-auto text-muted-foreground/70 tabular-nums shrink-0 text-[11px]">
+                  {s.next_fires_at ? relativeTime(s.next_fires_at) : (s.paused ? '—' : 'not scheduled')}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
 
-      {!noRunsInWindow && lastRunStale && (
-        <div className="rounded-md border border-amber-200/60 bg-amber-50/50 px-3 py-2 text-[11px] text-amber-800">
-          Last run was over 36h ago. Expected runs are configured below.
+      {/* 3. Recent autonomous actions */}
+      <section>
+        <div className="flex items-center gap-2 mb-2">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Recent autonomous actions
+          </h3>
+          {data.actions.length > 0 && (
+            <span className="ml-auto text-[10px] text-muted-foreground/60">
+              {data.actions.length}
+            </span>
+          )}
         </div>
-      )}
-
-      {/* Recent autonomous actions — the money-moving events */}
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70 mb-1.5">
-          Recent autonomous actions
-        </p>
         {data.actions.length === 0 ? (
-          <p className="text-xs text-muted-foreground/60">
-            No autonomous actions yet in this window.
+          <p className="text-xs text-muted-foreground/60 px-1">
+            No autonomous actions in this window. With autonomy set to Manual, every action waits
+            for your approval — see /work for pending proposals.
           </p>
         ) : (
           <ul className="space-y-1.5">
@@ -198,69 +286,67 @@ export function ReviewerActivityPanel() {
             })}
           </ul>
         )}
-      </div>
+      </section>
 
-      {/* Recent runs — liveness signal */}
-      <div>
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70 mb-1.5">
-          Recent runs
-        </p>
-        {noRunsInWindow ? (
-          <p className="text-xs text-muted-foreground/60">No runs recorded.</p>
+      {/* 4. Recent runs — compact, deep-links to /activity for forensic detail */}
+      <section>
+        <div className="flex items-center gap-2 mb-2">
+          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Recent runs
+          </h3>
+          {data.runs.length > 0 && (
+            <span className="ml-auto text-[10px] text-muted-foreground/60">
+              {data.runs.length}
+            </span>
+          )}
+        </div>
+        {data.runs.length === 0 ? (
+          <p className="text-xs text-muted-foreground/60 px-1">
+            No runs recorded in the last {data.window_days} days.
+          </p>
         ) : (
           <ul className="space-y-1">
-            {data.runs.slice(0, 5).map((r, i) => (
-              <li key={i} className="flex items-center gap-2 text-xs">
+            {data.runs.slice(0, 8).map((r, i) => (
+              <li key={i} className="flex items-center gap-2 text-xs px-1 py-0.5">
                 {r.status === 'success' ? (
                   <CheckCircle2 className="h-3 w-3 text-emerald-600 shrink-0" />
                 ) : (
                   <AlertCircle className="h-3 w-3 text-rose-600 shrink-0" />
                 )}
-                <span className="font-medium">{shortSlug(r.slug)}</span>
+                <span className="font-mono">{shortSlug(r.slug)}</span>
                 {r.error_reason && (
                   <span className="text-rose-600/80 text-[10px]">· {r.error_reason}</span>
                 )}
-                <span className="ml-auto text-[10px] text-muted-foreground/60 tabular-nums">
-                  {relativeTime(r.created_at)}
-                </span>
+                <Link
+                  href={`/activity?slug=${encodeURIComponent(r.slug)}`}
+                  className="ml-auto text-[10px] text-muted-foreground/40 hover:text-foreground hover:underline underline-offset-4 tabular-nums shrink-0"
+                  title="See full execution detail on /activity"
+                >
+                  {relativeTime(r.created_at)} →
+                </Link>
               </li>
             ))}
           </ul>
         )}
+      </section>
+
+      {/* Cross-surface deep-link to workspace-wide execution-lens */}
+      <div className="flex items-center gap-3 pt-1">
+        <Link
+          href="/activity"
+          className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground hover:underline underline-offset-4 transition-colors"
+        >
+          View all runs <ArrowRight className="h-3 w-3" />
+        </Link>
+        <span className="text-muted-foreground/30">·</span>
+        <button
+          type="button"
+          onClick={() => sendMessage(editPrompt)}
+          className="inline-flex items-center gap-1 text-[11px] text-primary/70 hover:text-primary hover:underline underline-offset-4 transition-colors"
+        >
+          Edit schedule via chat <ArrowRight className="h-3 w-3" />
+        </button>
       </div>
-
-      {/* Scheduled — what's coming */}
-      {data.schedules.length > 0 && (
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70 mb-1.5 flex items-center gap-1.5">
-            <Calendar className="h-3 w-3" />
-            Scheduled
-          </p>
-          <ul className="space-y-1">
-            {data.schedules.map((s) => (
-              <li key={s.slug} className="flex items-center gap-2 text-xs">
-                <span className="font-medium">{shortSlug(s.slug)}</span>
-                {s.paused && (
-                  <span className="rounded bg-muted px-1 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
-                    paused
-                  </span>
-                )}
-                <span className="ml-auto text-muted-foreground/70 tabular-nums">
-                  {s.next_fires_at ? `next ${relativeTime(s.next_fires_at)}` : (s.paused ? '—' : 'not scheduled')}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <button
-        type="button"
-        onClick={() => sendMessage(editPrompt)}
-        className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
-      >
-        Edit schedule via chat <ArrowRight className="h-3 w-3" />
-      </button>
     </div>
   );
 }
