@@ -1158,7 +1158,10 @@ async def global_chat(
         except Exception:
             pass
 
-        from services.workspace_paths import REVIEW_IDENTITY_PATH, REVIEW_PRINCIPLES_PATH, SHARED_PRECEDENT_PATH, SHARED_MANDATE_PATH
+        from services.workspace_paths import (
+            REVIEW_IDENTITY_PATH, REVIEW_PRINCIPLES_PATH, SHARED_PRECEDENT_PATH,
+            SHARED_MANDATE_PATH, SHARED_AUTONOMY_PATH, SHARED_PREFERENCES_PATH,
+        )
 
         async def _read(path: str) -> str:
             full = f"/workspace/{path}"
@@ -1182,12 +1185,15 @@ async def global_chat(
         # parallel-fetch round-trip and feed everything in upfront.
         (
             identity_md, principles_md, precedent_md, mandate_md,
+            autonomy_md, preferences_yaml,
             operator_profile_md, risk_md, performance_md,
         ) = await _asyncio.gather(
             _read(REVIEW_IDENTITY_PATH),
             _read(REVIEW_PRINCIPLES_PATH),
             _read(SHARED_PRECEDENT_PATH),
             _read(SHARED_MANDATE_PATH),
+            _read(SHARED_AUTONOMY_PATH),       # ADR-275 refinement audit
+            _read(SHARED_PREFERENCES_PATH),    # ADR-275 refinement: load-bearing for cadence-authoring
             _read("context/trading/_operator_profile.md"),
             _read("context/trading/_risk.md"),
             _read("context/trading/_performance.md"),
@@ -1231,6 +1237,8 @@ async def global_chat(
                 "principles_md": principles_md,
                 "precedent_md": precedent_md,
                 "mandate_md": mandate_md,
+                "autonomy_md": autonomy_md,                # ADR-275 refinement audit
+                "preferences_yaml": preferences_yaml,      # ADR-275 refinement: cadence-authoring substrate
                 "operator_profile_md": operator_profile_md,
                 "risk_md": risk_md,
                 "performance_md": performance_md,

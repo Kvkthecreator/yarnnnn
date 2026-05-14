@@ -263,14 +263,22 @@ def test_workspace_paths_extended() -> None:
 # ---------------------------------------------------------------------------
 
 def test_persona_frame_references_preferences() -> None:
+    """Persona frame post-refinement: instruction is short + structural.
+
+    Per ADR-275 refinement (run-2): the long ADR-275 paragraphs collapsed
+    to ~10 lines that name `_preferences.yaml` as pre-loaded and instruct
+    `Schedule(action="create")` for active preferences not yet honored.
+    The frame should still cite the file + the contract, but it is no
+    longer the *vehicle* for delivery — pre-load is.
+    """
     from agents.reviewer_agent import _PERSONA_FRAME
 
     needles = [
-        "_preferences.yaml",
-        "ADR-275",
-        "Bundles do NOT ship judgment-cadence",
-        "Operator declares",
-        "you author",  # case-insensitive will be tested below
+        "_preferences.yaml",       # named as the substrate
+        "pre-loaded",              # frame names the structural delivery mechanism
+        "active: true",            # the active-flag contract
+        "Schedule",                # the primitive to call
+        "Bundles ship",            # the bundle-vs-Reviewer split
     ]
     # Case-insensitive
     lower = _PERSONA_FRAME.lower()
@@ -279,36 +287,107 @@ def test_persona_frame_references_preferences() -> None:
         if n.lower() not in lower:
             missing.append(n)
     if not missing:
-        _ok("persona frame names _preferences.yaml + ADR-275 + cadence-authoring contract")
+        _ok("persona frame names _preferences.yaml as pre-loaded + Schedule contract (refined to ~10 lines)")
     else:
         _bad("persona frame ADR-275 section", f"missing markers: {missing}")
 
 
 # ---------------------------------------------------------------------------
-# 6. ADR-274 mention of "scaffold cadence is in place" must be gone
+# 6. Persona-frame post-run-2: collapsed to short structural instruction
 # ---------------------------------------------------------------------------
 
 def test_persona_frame_first_wake_guardrail_updated() -> None:
     from agents.reviewer_agent import _PERSONA_FRAME
 
-    # The old ADR-274 first-wake guardrail said "scaffold cadence is in
-    # place" — this is now wrong (post-ADR-275 there's no scaffold
-    # judgment cadence). Verify the contradictory phrasing was removed.
+    # ADR-274's old "scaffold cadence is in place" guardrail must be gone
+    # (post-ADR-275 there is no scaffold judgment cadence to observe).
     if "scaffold cadence is in place" not in _PERSONA_FRAME:
-        _ok("legacy 'scaffold cadence is in place' phrasing removed from persona frame")
+        _ok("legacy ADR-274 'scaffold cadence is in place' phrasing removed")
     else:
         _bad(
             "persona frame first-wake guardrail",
-            "still contains contradictory 'scaffold cadence is in place' from ADR-274 pre-ADR-275",
+            "still contains contradictory 'scaffold cadence is in place'",
         )
 
-    # The new first-wake framing should name "there is no scaffold judgment cadence"
-    if "no scaffold judgment cadence" in _PERSONA_FRAME.lower() or "scaffold judgment" in _PERSONA_FRAME.lower():
-        _ok("persona frame names new first-wake framing (no scaffold judgment cadence)")
+    # ADR-275-refinement: the long narrative "first-wake bootstrap" /
+    # "ADR-275 in plain terms" paragraphs are collapsed. The persona
+    # frame is no longer the *vehicle* for telling the Reviewer about
+    # _preferences.yaml — pre-loading is. So phrases like "First wake
+    # after workspace activation: there is no scaffold judgment cadence"
+    # from the run-1 verbose version should NOT be there.
+    long_run1_phrase = "First wake after workspace activation"
+    if long_run1_phrase not in _PERSONA_FRAME:
+        _ok("verbose run-1 first-wake narrative collapsed (delivery via pre-load, not prose)")
     else:
         _bad(
-            "persona frame new first-wake framing",
-            "missing 'no scaffold judgment cadence' framing",
+            "persona frame collapse",
+            "still contains verbose run-1 'First wake after workspace activation' narrative",
+        )
+
+
+# ---------------------------------------------------------------------------
+# 6b. ReviewerContext + _build_user_message structurally pre-load _preferences.yaml
+# ---------------------------------------------------------------------------
+
+def test_preferences_yaml_is_preloaded_in_wake_envelope() -> None:
+    """ADR-275 refinement (run-2): _preferences.yaml is a load-bearing
+    input for cadence-authoring. The Reviewer perceives it via the wake
+    envelope, not via a tool call. Same structural shape as MANDATE /
+    AUTONOMY / IDENTITY / principles."""
+    from agents.reviewer_agent import ReviewerContext
+
+    annotations = getattr(ReviewerContext, "__annotations__", {})
+    if "preferences_yaml" in annotations:
+        _ok("ReviewerContext.preferences_yaml field declared (parallel to mandate_md, autonomy_md)")
+    else:
+        _bad(
+            "ReviewerContext.preferences_yaml field",
+            f"expected preferences_yaml in annotations, got {list(annotations.keys())}",
+        )
+
+    import inspect
+    import agents.reviewer_agent as mod
+    src = inspect.getsource(mod._build_user_message)
+    if 'ctx.get("preferences_yaml")' in src:
+        _ok("_build_user_message reads ctx['preferences_yaml']")
+    else:
+        _bad(
+            "_build_user_message preferences injection",
+            "expected ctx.get('preferences_yaml') in _build_user_message body",
+        )
+
+    if "_preferences.yaml — Operator's deliverable cadence preferences" in src:
+        _ok("_build_user_message renders the named _preferences.yaml block header")
+    else:
+        _bad(
+            "_build_user_message preferences header",
+            "expected named header for the _preferences.yaml block in the envelope",
+        )
+
+
+# ---------------------------------------------------------------------------
+# 6c. feed.py addressed-trigger site loads SHARED_PREFERENCES_PATH + AUTONOMY
+# ---------------------------------------------------------------------------
+
+def test_feed_addressed_site_loads_preferences_and_autonomy() -> None:
+    """Addressed-trigger envelope (feed.py) must include both
+    _preferences.yaml AND AUTONOMY.md in its pre-load. AUTONOMY gap was
+    a pre-existing bug surfaced by the ADR-275 audit and fixed in the
+    same commit (Singular Implementation discipline)."""
+    src = (REPO_ROOT / "api" / "routes" / "feed.py").read_text()
+    if "SHARED_PREFERENCES_PATH" in src and 'preferences_yaml' in src:
+        _ok("feed.py imports SHARED_PREFERENCES_PATH + passes preferences_yaml")
+    else:
+        _bad(
+            "feed.py preferences pre-load",
+            "expected SHARED_PREFERENCES_PATH import + preferences_yaml in context bag",
+        )
+    if "SHARED_AUTONOMY_PATH" in src and '"autonomy_md": autonomy_md' in src:
+        _ok("feed.py imports SHARED_AUTONOMY_PATH + passes autonomy_md (audit-found gap closed)")
+    else:
+        _bad(
+            "feed.py autonomy pre-load",
+            "expected SHARED_AUTONOMY_PATH import + autonomy_md in context bag",
         )
 
 
@@ -373,6 +452,8 @@ def main() -> int:
     test_workspace_paths_extended()
     test_persona_frame_references_preferences()
     test_persona_frame_first_wake_guardrail_updated()
+    test_preferences_yaml_is_preloaded_in_wake_envelope()    # run-2 refinement
+    test_feed_addressed_site_loads_preferences_and_autonomy()  # run-2 refinement + audit fix
     test_mechanical_mirrors_preserved()
     test_adr275_doc_exists()
 

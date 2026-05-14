@@ -6,6 +6,30 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.14.9] - refactor(adr-275 refinement): pre-load _preferences.yaml + AUTONOMY into Reviewer wake envelope
+
+### Background
+
+Run-1 empirical e2e on commit `0cf84ae` (operator-says-hi against thinned bundle) showed the Reviewer reading 19 tool calls of substrate but **never reading `_preferences.yaml`** — verdict stood down with no Schedule authoring for the operator's 3 active deliverable preferences. Diagnosis: `_preferences.yaml` was prose-named in `_PERSONA_FRAME` ("remember to read this file") instead of pre-loaded into the wake envelope alongside MANDATE / IDENTITY / principles / AUTONOMY. The architectural pattern ADR-274 used for the Operating Context block (assemble at wake, inject into envelope, every wake perceives without a tool call) is the right pattern.
+
+Audit during fix surfaced that **AUTONOMY.md was missing from the addressed-trigger pre-load entirely** — a pre-existing gap predating ADR-275, closed in the same commit per Singular Implementation discipline.
+
+### Changed
+- `api/agents/reviewer_agent.py`:
+  - `ReviewerContext` gains `preferences_yaml: str` field (parallel to `mandate_md`, `autonomy_md`).
+  - `_build_user_message` injects `## _preferences.yaml — Operator's deliverable cadence preferences` block after AUTONOMY — Reviewer perceives operator cadence preferences at every wake without a tool call.
+  - `_PERSONA_FRAME` collapsed: long ADR-275 paragraph + "ADR-275 in plain terms" + "First wake after workspace activation" 3-step narrative all replaced by ~10 lines of structural instruction. Persona frame names `_preferences.yaml` as **pre-loaded above** and instructs `Schedule(action="create")` for active preferences not yet honored. Delivery mechanism is the envelope; prose declares the contract.
+- `api/routes/feed.py` (addressed-trigger Reviewer invocation):
+  - Imports extended: `SHARED_AUTONOMY_PATH` + `SHARED_PREFERENCES_PATH` from `services.workspace_paths`.
+  - `_asyncio.gather` pre-load expanded from 7 reads → 9 reads (adds AUTONOMY + `_preferences.yaml`).
+  - Reviewer context bag now passes `autonomy_md` + `preferences_yaml`.
+- Expected behavior change: Reviewer's addressed turns now perceive the operator's full governance substrate (IDENTITY + principles + PRECEDENT + MANDATE + AUTONOMY + `_preferences.yaml`) + domain substrate (`_operator_profile` + `_risk` + `_performance`) WITHOUT tool calls. For cadence-authoring specifically: when the Reviewer wakes against a workspace whose `_preferences.yaml` declares `active: true` preferences not yet honored by `_recurrences.yaml`, the Reviewer should now Schedule them. Derived Principle 18 lands operationally not just structurally.
+
+### Out-of-scope, documented
+Reactive trigger path (`services/invocation_dispatcher.py` for recurrence-fire + proposal-arrival) currently passes only `recurrence_prompt + recurrence_slug + capabilities + options + operating_context_block` to the Reviewer — MANDATE / IDENTITY / principles / AUTONOMY / `_preferences.yaml` are NOT pre-loaded on reactive wakes. This predates ADR-275 and is documented as a follow-on (ADR-276 candidate) in `docs/adr/ADR-275-introspection-cadence-reviewer-authored.md` §5b.
+
+---
+
 ## [2026.05.14.8] - refactor(context-modal): SnapshotLead vocabulary review→rules, recent→pulse
 
 ### Background

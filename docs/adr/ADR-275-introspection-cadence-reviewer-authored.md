@@ -178,6 +178,20 @@ A new program bundle (alpha-commerce, alpha-defi, etc.) ships `_recurrences.yaml
 - **No backwards-compatibility shim.** Per Singular Implementation: the 7 deleted recurrences are removed atomically from the bundle. Existing operator workspaces with those recurrences in their `_recurrences.yaml` are unaffected (revision chain preserved); future activations and re-forks ship the thinned bundle.
 - **No removal of `/workspace/specs/`.** Specs are the capability library — they stay.
 
+## 5b. Refinement (2026-05-14, post-run-1 e2e)
+
+Run-1 e2e on commit `0cf84ae` showed the Reviewer reading 19 tool calls of substrate but **never reading `_preferences.yaml`** — verdict stood down with no Schedule authoring for the operator's 3 active preferences. Diagnosis: `_preferences.yaml` was prose-named in `_PERSONA_FRAME` ("remember to read this file") instead of pre-loaded into the wake envelope alongside MANDATE / IDENTITY / principles / AUTONOMY. The architectural pattern that ADR-274 used for the Operating Context block (assemble at wake, inject into envelope, every wake perceives without a tool call) is the right pattern for `_preferences.yaml`.
+
+**Refinement decisions** (Singular Implementation; no new ADR — this is ADR-275 implementation refinement):
+
+- (R1) `ReviewerContext` TypedDict gains `preferences_yaml: str` field. Same shape as `mandate_md`, `autonomy_md`, etc.
+- (R2) `_build_user_message` injects `## _preferences.yaml — Operator's deliverable cadence preferences` block after AUTONOMY. Reviewer perceives operator cadence preferences at every wake without a tool call.
+- (R3) `_PERSONA_FRAME` collapses the long `_preferences.yaml` paragraph + "ADR-275 in plain terms" paragraph + "first-wake bootstrap" paragraph into ~10 lines. The instruction is structural ("pre-loaded above; for each `active: true` preference not yet honored, Schedule"), not narrative.
+- (R4) `routes/feed.py` (addressed trigger) — adds `SHARED_PREFERENCES_PATH` to the `_asyncio.gather` pre-load, passes `preferences_yaml` in the context bag.
+- (R5) Audit finding: `routes/feed.py` was also not pre-loading `SHARED_AUTONOMY_PATH` — fixed in the same commit (closes a pre-existing gap surfaced by this audit; addressed-trigger Reviewer was operating without AUTONOMY context).
+
+**Out of scope, documented gap**: `services/invocation_dispatcher.py` (reactive trigger — recurrence fires) currently passes only `recurrence_prompt + recurrence_slug + recurrence_required_capabilities + options + operating_context_block` to the Reviewer. MANDATE / IDENTITY / principles / AUTONOMY / `_preferences.yaml` are NOT pre-loaded on reactive wakes. This predates ADR-275 and is a larger architectural gap — the Reviewer's reactive wake currently reasons only from the recurrence's own prompt + Operating Context, relying on tool calls to fetch governance substrate. Worth its own follow-on (ADR-276 candidate). For ADR-275's empirical test (operator-says-hi), only the addressed-trigger envelope needs `_preferences.yaml` pre-loaded.
+
 ## 6. Implementation scope
 
 - `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml` — delete 7 entries

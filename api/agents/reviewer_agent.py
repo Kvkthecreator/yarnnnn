@@ -133,6 +133,13 @@ class ReviewerContext(TypedDict, total=False):
     precedent_md: str
     mandate_md: str
     autonomy_md: str
+    # ADR-275 refinement (run-2): operator-authored cadence preferences.
+    # Pre-loaded into the wake envelope — same shape as MANDATE/AUTONOMY/etc.
+    # The Reviewer cannot author cadence correctly without seeing what the
+    # operator declared they want on cadence. Treating it as load-bearing
+    # substrate (not a "remember to ReadFile" side-quest) makes Derived
+    # Principle 18's first-wake obligation structural.
+    preferences_yaml: str
     # Domain substrate
     performance_md: str
     risk_md: str
@@ -479,47 +486,20 @@ when authoring schedules — semantic schedules like `@market_open +
 15min` resolve against operator's market calendar; plain crons run in
 UTC.
 
-**Operator's deliverable preferences live at
-`/workspace/context/_shared/_preferences.yaml` (ADR-275).** This is
-operator-authored substrate declaring which deliverables they want on
-cadence (e.g. pre-market-brief, weekly-performance-review) and what
-cadence they prefer. You read this every wake. For each
-`active: true` preference NOT yet honored by a scheduled recurrence
-(check via `ListRevisions(path="/workspace/_recurrences.yaml")` or
-the substrate index), author the cadence via `Schedule(action=
-"create", slug=preference.slug, schedule=preference.cadence, mode=
-"judgment", prompt=<built from preference.spec content>)`. When the
-operator edits a preference's cadence, update the corresponding
-recurrence. When the operator sets `active: false`, pause or archive
-the recurrence. The operator declares *what* and *when*; you author
-the *how* (Schedule call + prompt built from the spec).
+**Operator's deliverable preferences are pre-loaded above as the
+`_preferences.yaml` block** (ADR-275). For each `active: true`
+preference whose `slug` is NOT yet in `_recurrences.yaml`, author the
+cadence via `Schedule(action="create", slug=..., schedule=cadence,
+mode="judgment", prompt=<built from preference.spec>)`. When the
+operator changes `cadence` or sets `active: false`, update or archive
+the corresponding recurrence. Introspection cadence (your own
+reflection / calibration / housekeeping) is yours to author from
+first-principled judgment about outcome accumulation, decision
+density, regime shifts — not on a fixed cron someone else scheduled.
 
-**ADR-275 in plain terms**: bundles ship substrate-maintenance
-mirrors + reactive triggers + capability specs at `/workspace/specs/`
-(Claude Code skills.md analog). Bundles do NOT ship judgment-cadence
-recurrences. The cadence for introspection (reflection, calibration),
-housekeeping (proposal-cleanup, narrative-digest), and operator-facing
-deliverables (briefs, reviews) is yours to author. You decide when
-to reflect based on outcome accumulation, decision density, regime
-shifts — not on a fixed daily cron someone else scheduled for you.
-
-First wake after workspace activation: there is no scaffold judgment
-cadence. Substrate mirrors run continuously; signal-evaluation fires
-on market events; outcome-reconciliation fires post-close. Beyond
-that, you author. On your first wake:
-  1. Read Operating Context + MANDATE + AUTONOMY + IDENTITY +
-     principles + `_preferences.yaml` + current state of
-     `_recurrences.yaml`.
-  2. Decide what moves the operation forward NOW given time + market
-     state (e.g. in pre-market, bootstrap research and write findings;
-     in RTH, monitor positions; off-hours, reflect on accumulated
-     state).
-  3. Author the cadence you need going forward via `Schedule` —
-     start conservative, refine as you accumulate evidence.
-
-Do the work. Author the cadence. Don't ask the operator what cadence
-they want — they already declared their preferences in
-`_preferences.yaml`; introspection cadence is your judgment call.
+Bundles ship substrate-maintenance + reactive triggers + capability
+specs at `/workspace/specs/` (Claude Code skills.md analog). Bundles
+do NOT ship judgment cadence. That's structurally yours.
 """
 
 
@@ -685,6 +665,17 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
         parts += ["## MANDATE.md — Operation's primary intent", "", ctx["mandate_md"], ""]
     if ctx.get("autonomy_md"):
         parts += ["## AUTONOMY.md — Delegation ceiling", "", ctx["autonomy_md"], ""]
+    # ADR-275 refinement: operator deliverable cadence preferences are
+    # load-bearing for Trigger-authoring (Axiom 4 v8.5 + Derived Principle 18).
+    # Pre-loaded here so the Reviewer perceives operator cadence preferences
+    # at every wake without a tool call — same shape as MANDATE/AUTONOMY.
+    if ctx.get("preferences_yaml"):
+        parts += [
+            "## _preferences.yaml — Operator's deliverable cadence preferences",
+            "",
+            ctx["preferences_yaml"],
+            "",
+        ]
 
     # Domain substrate
     if ctx.get("operator_profile_md"):
