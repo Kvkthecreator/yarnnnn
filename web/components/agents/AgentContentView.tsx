@@ -36,6 +36,7 @@ import { SubstrateTab } from './SubstrateTab';
 import { DelegationCard } from '@/components/workspace-concepts/DelegationCard';
 import { PrinciplesCard } from '@/components/workspace-concepts/PrinciplesCard';
 import { ReviewerActivityPanel } from './ReviewerActivityPanel';
+import { ReviewerCapabilitiesPanel } from './ReviewerCapabilitiesPanel';
 import {
   agentClassDescription,
   agentClassLabel,
@@ -712,22 +713,32 @@ function AgentTabBar({
 
 // ---------------------------------------------------------------------------
 // Reviewer detail (ADR-251 D4, expanded 2026-05-14): Identity · Principles ·
-// Autonomy · Activity
+// Capabilities · Autonomy · Activity
 //
-// Activity tab added 2026-05-14 after audit found ReviewerActivityPanel was
-// rendering significantly stale data inside the Autonomy tab. Splitting the
-// supervision surface (Activity) out from the delegation config surface
-// (Autonomy) per the lens-sharpening discipline canonized in WORKSPACE.md
-// (Schedule vs /activity split, same shape applied here). Autonomy = config;
-// Activity = observation. Track Record + Decisions link-outs deleted —
-// aspirational stubs with no inline renderer. Calibration headline already
-// surfaces on cockpit PerformanceFace (ADR-228). Raw files remain accessible
-// via /context.
+// Five-tab structure reads top-to-bottom as operator orienting themselves
+// to their Reviewer: who (Identity) → frame (Principles) → what it can
+// produce (Capabilities) → how much delegation (Autonomy) → what it did
+// (Activity).
+//
+// Capabilities tab added 2026-05-14: surfaces /workspace/specs/*.md as
+// first-class operator content (the Claude Code skills.md analog). Specs
+// were entirely backend-internal before — Reviewer read them; operator
+// had to manually browse /context to know they existed.
+//
+// Activity tab also added 2026-05-14 after audit found ReviewerActivityPanel
+// was rendering significantly stale data inside the Autonomy tab. Splitting
+// supervision (Activity) from delegation config (Autonomy) per the
+// lens-sharpening discipline canonized in WORKSPACE.md.
+//
+// Track Record + Decisions link-outs deleted in earlier passes —
+// calibration headline already surfaces on cockpit PerformanceFace
+// (ADR-228); raw files remain accessible via /context.
 // ---------------------------------------------------------------------------
 
 const REVIEWER_TABS: TabDef[] = [
   { key: 'identity', label: 'Identity' },
   { key: 'principles', label: 'Principles' },
+  { key: 'capabilities', label: 'Capabilities' },
   { key: 'autonomy', label: 'Autonomy' },
   { key: 'activity', label: 'Activity' },
 ];
@@ -777,6 +788,11 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
         {activeTab === 'principles' && (
           <div className="px-6 py-5">
             <PrinciplesCard variant="full" />
+          </div>
+        )}
+        {activeTab === 'capabilities' && (
+          <div className="px-6 py-5">
+            <ReviewerCapabilitiesPanel />
           </div>
         )}
         {activeTab === 'autonomy' && (
