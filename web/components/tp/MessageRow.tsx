@@ -263,31 +263,11 @@ function RoutineRow({ msg, reviewerPersona }: { msg: TPMessage; reviewerPersona?
   );
 }
 
-/**
- * Housekeeping weight — bubble-chrome row at the dimmest density.
- * The narrative_digest system_card (rendered via the material path) is the
- * curated surface for housekeeping clusters; individual housekeeping rows
- * still render here in case the digest hasn't run yet, with reduced
- * opacity and single-line truncation.
- */
-function HousekeepingRow({ msg, reviewerPersona }: { msg: TPMessage; reviewerPersona?: string | null }): JSX.Element {
-  const summary =
-    msg.narrative?.summary ??
-    (msg.content?.split('\n', 1)[0]?.slice(0, 200) ?? '');
-  return (
-    <div className="text-[12px] rounded-2xl px-3 py-1.5 max-w-[92%] bg-muted/40 rounded-bl-md opacity-50 hover:opacity-80 transition-opacity">
-      <span className="text-[9px] font-medium text-muted-foreground/50 tracking-wider block mb-0.5 uppercase">
-        {roleDisplayLabel(msg.role, reviewerPersona)}
-      </span>
-      <div className="flex items-center gap-2">
-        <span className="text-muted-foreground truncate flex-1">{summary}</span>
-        <span className="text-[10px] text-muted-foreground/40 shrink-0 tabular-nums">
-          {msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-        </span>
-      </div>
-    </div>
-  );
-}
+// HousekeepingRow deleted 2026-05-15 (ADR-277). The weight value
+// 'housekeeping' was retired because its only emission path (mechanical-
+// fire success in invocation_dispatcher.py) was deleted at source.
+// Pre-ADR-277 the row rendered at opacity-50 as a paper-cover for the
+// missing narrative_digest roll-up the ADR-260/261/262 cleanup deleted.
 
 // ---------------------------------------------------------------------------
 // Public row component
@@ -301,11 +281,17 @@ export interface MessageRowProps {
 
 /**
  * Top-level row wrapper. Reads `msg.narrative.weight` and delegates to
- * the appropriate per-weight wrapper (material / routine / housekeeping).
- * Material rows compose with MessageDispatch's renderer; routine and
- * housekeeping have their own minimal renders that don't go through
- * the dispatch table (they're presentation collapses, not full
- * role-shaped renderings).
+ * the appropriate per-weight wrapper (material / routine).
+ * Material rows compose with MessageDispatch's renderer; routine rows
+ * have their own minimal slim render (presentation collapse, not a full
+ * role-shaped rendering).
+ *
+ * ADR-277: housekeeping weight retired. Pre-ADR-277 rows tagged
+ * housekeeping flowed through HousekeepingRow (opacity-50 dim line);
+ * those emissions were deleted at source in invocation_dispatcher.py.
+ * Legacy session_messages rows still on-disk with weight='housekeeping'
+ * fall through to RoutineRow via the default branch — read-side
+ * tolerance for stored historical data.
  */
 export function MessageRow({ msg, isLoading, onMakeRecurring }: MessageRowProps): JSX.Element {
   const reviewerPersona = useReviewerPersona();
@@ -313,8 +299,7 @@ export function MessageRow({ msg, isLoading, onMakeRecurring }: MessageRowProps)
   if (weight === 'material') {
     return <MaterialRow msg={msg} isLoading={isLoading} onMakeRecurring={onMakeRecurring} />;
   }
-  if (weight === 'routine') {
-    return <RoutineRow msg={msg} reviewerPersona={reviewerPersona} />;
-  }
-  return <HousekeepingRow msg={msg} reviewerPersona={reviewerPersona} />;
+  // routine + any legacy weight value (e.g. stored 'housekeeping' rows
+  // from before ADR-277) → slim routine row
+  return <RoutineRow msg={msg} reviewerPersona={reviewerPersona} />;
 }

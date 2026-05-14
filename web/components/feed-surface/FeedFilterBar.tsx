@@ -26,10 +26,12 @@ import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
 import type { NarrativeFilter } from '@/components/tp/FeedPanel';
 
-const WEIGHTS: Array<'material' | 'routine' | 'housekeeping'> = [
+// ADR-277 (2026-05-15): housekeeping weight retired. Emission policy
+// now decides at source whether an event reaches the feed at all;
+// the surviving weights distinguish density only (full bubble vs slim line).
+const WEIGHTS: Array<'material' | 'routine'> = [
   'material',
   'routine',
-  'housekeeping',
 ];
 
 const IDENTITIES: Array<{ id: string; label: string }> = [
@@ -62,7 +64,7 @@ export function parseChatFilterFromSearch(
     ...(weights.length > 0 && {
       weights: new Set(
         weights.filter(w => WEIGHTS.includes(w as typeof WEIGHTS[number])) as Array<
-          'material' | 'routine' | 'housekeeping'
+          'material' | 'routine'
         >,
       ),
     }),

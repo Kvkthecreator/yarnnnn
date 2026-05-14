@@ -377,7 +377,11 @@ export const api = {
               // dispatches on `weight` per ADR-219 D5.
               summary?: string;
               pulse?: 'periodic' | 'reactive' | 'addressed' | 'heartbeat';
-              weight?: 'material' | 'routine' | 'housekeeping';
+              // ADR-277: housekeeping retired (no live emission path).
+              // Pre-ADR-277 stored rows with weight='housekeeping' coerce
+              // to 'routine' on read in FeedPanel; surfacing the legacy
+              // value in the wire type would re-leak it into the FE.
+              weight?: 'material' | 'routine';
               invocation_id?: string;
               // ADR-219 Commit 3: narrative_digest rollup card
               rolled_up_count?: number;

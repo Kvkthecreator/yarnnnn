@@ -72,7 +72,12 @@ export type SystemCardType =
  * stamps. Available on every TPMessage post-Commit-2; older rows
  * surface with only the fields that were set when they were written.
  */
-export type NarrativeWeight = 'material' | 'routine' | 'housekeeping';
+// ADR-277 (2026-05-15): housekeeping weight retired. Emission is by-intent
+// at source per the feed emission policy — mechanical-fire successes that
+// were once tagged housekeeping (and never finished migrating into a
+// roll-up digest) no longer emit. Surviving narrative entries are either
+// material (operator must see) or routine (context if reading the feed).
+export type NarrativeWeight = 'material' | 'routine';
 export type NarrativePulse = 'periodic' | 'reactive' | 'addressed' | 'heartbeat';
 
 export interface NarrativeEnvelope {

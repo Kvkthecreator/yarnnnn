@@ -43,8 +43,9 @@ import type { TPMessage } from '@/types/desk';
  * (chat/page reads the URL); FeedPanel just consumes.
  */
 export interface NarrativeFilter {
-  /** Restrict to entries with `metadata.weight` in this set. */
-  weights?: Set<'material' | 'routine' | 'housekeeping'>;
+  /** Restrict to entries with `metadata.weight` in this set.
+   *  ADR-277: 'housekeeping' retired; the union is now 2-value. */
+  weights?: Set<'material' | 'routine'>;
   /** Restrict to entries with `role` in this set. */
   identities?: Set<string>;
   /** Restrict to entries with `metadata.task_slug` equal to this slug. */
@@ -247,7 +248,12 @@ export function FeedPanel({
           </div>
         )}
 
-        {dedupeBackOfficeEvents(messages.filter(msg => narrativeFilterMatches(msg, narrativeFilter)))
+        {/* ADR-277: dedupeBackOfficeEvents removed. The 60-second-window
+            system+system_agent duplicate-content heuristic was paper-cover
+            for the mechanical-fire-success emission that itself got
+            deleted at source in invocation_dispatcher.py. */}
+        {messages
+          .filter(msg => narrativeFilterMatches(msg, narrativeFilter))
           .map(msg => (
             <NarrativeMessage
               key={msg.id}
@@ -396,63 +402,29 @@ export function FeedPanel({
 
 
 // =============================================================================
-// ADR-219 Commit 5 — weight-driven message rendering
+// ADR-219 Commit 5 (refined ADR-277 2026-05-15) — weight-driven rendering
 // =============================================================================
 //
-// Three render shapes per ADR-219 D5:
-//   - material:    full card (existing user/assistant/reviewer bubble)
-//   - routine:     collapsed line (Identity icon + summary + timestamp + expand)
-//   - housekeeping: hidden by default — rolled into the daily digest emitted
-//                   by services/back_office/narrative_digest.py (Commit 3).
-//                   We render housekeeping rows with a dim collapsed line so
-//                   the operator can scroll past them without noise; the
-//                   digest card (system_card='narrative_digest') is the
-//                   curated headline.
+// Two render shapes:
+//   - material:  full card (user/assistant/reviewer bubble)
+//   - routine:   collapsed slim line (Identity label + summary + timestamp)
+//
+// The legacy 'housekeeping' weight value was retired by ADR-277. Its only
+// emission path (mechanical-fire success in invocation_dispatcher.py) was
+// deleted at source — the feed is for events the operator chose to be told
+// about, not events the system happened to do. Pre-ADR-277 stored rows
+// with weight='housekeeping' fall through to routine rendering via the
+// default branch in MessageRow.tsx (read-side tolerance for legacy data).
 //
 // The legacy bubble path (reviewer special-case + user/yarnnn bubbles) is
-// preserved as the material rendering. Routine and housekeeping are new
-// compact rows. There is one dispatch — singular implementation per
-// discipline rule 1; the legacy "no envelope" path is treated as material
-// so historical messages predating Commit 2 don't disappear.
-
-/**
- * Collapse back-office event pairs where a system (background) entry and an
- * adjacent system_agent entry describe the same recurrence run. Pattern:
- *   system   "back-office: Universe tracker: 5/5 tickers updated"
- *   system_agent "Fired `track-universe`. Universe tracker: 5/5 tickers updated"
- *
- * When both are present within a 60-second window, drop the system_agent
- * routine row — the background entry already covers it. Material-weight
- * system_agent messages (execution narration the operator asked for) are
- * never dropped.
- */
-function dedupeBackOfficeEvents(msgs: TPMessage[]): TPMessage[] {
-  const suppressedIds = new Set<string>();
-  for (let i = 0; i < msgs.length; i++) {
-    const msg = msgs[i];
-    if (msg.role !== 'system_agent') continue;
-    if ((msg.narrative?.weight ?? 'material') === 'material') continue;
-    // Look for a system (background) message within ±60s with overlapping content
-    const msgTime = msg.timestamp.getTime();
-    for (let j = Math.max(0, i - 3); j <= Math.min(msgs.length - 1, i + 3); j++) {
-      if (j === i) continue;
-      const peer = msgs[j];
-      if (peer.role !== 'system') continue;
-      const timeDiff = Math.abs(peer.timestamp.getTime() - msgTime);
-      if (timeDiff > 60_000) continue;
-      // Check content overlap: both should reference the same recurrence slug or
-      // share a significant token (≥8 chars) from the summary/content.
-      const peerText = (peer.narrative?.summary ?? peer.content ?? '').toLowerCase();
-      const msgText = (msg.narrative?.summary ?? msg.content ?? '').toLowerCase();
-      const words = peerText.split(/\W+/).filter(w => w.length >= 8);
-      if (words.some(w => msgText.includes(w))) {
-        suppressedIds.add(msg.id);
-        break;
-      }
-    }
-  }
-  return suppressedIds.size === 0 ? msgs : msgs.filter(m => !suppressedIds.has(m.id));
-}
+// preserved as the material rendering. Singular implementation per rule 1;
+// the "no envelope" path is treated as material so historical messages
+// predating ADR-219 Commit 2 don't disappear.
+//
+// dedupeBackOfficeEvents (60-second-window content-match heuristic that
+// collapsed system+system_agent duplicate-pairs) deleted 2026-05-15. It
+// was paper-cover for the mechanical-fire emission that itself got
+// deleted; the duplicate pattern no longer exists at source.
 
 function narrativeFilterMatches(
   msg: TPMessage,
@@ -460,8 +432,15 @@ function narrativeFilterMatches(
 ): boolean {
   if (!filter) return true;
   if (filter.weights && filter.weights.size > 0) {
-    const w = msg.narrative?.weight ?? 'material'; // legacy → material
-    if (!filter.weights.has(w as 'material' | 'routine' | 'housekeeping')) {
+    // ADR-277: legacy 'housekeeping' rows from before the retirement
+    // are not in the typed union; widen to string at the comparison
+    // site to handle stored data, then coerce 'housekeeping' → 'routine'
+    // for filter-match purposes so pre-ADR-277 data still appears under
+    // the routine filter.
+    const raw: string = (msg.narrative?.weight as string | undefined) ?? 'material';
+    const w: 'material' | 'routine' = raw === 'housekeeping' ? 'routine'
+      : (raw as 'material' | 'routine');
+    if (!filter.weights.has(w)) {
       return false;
     }
   }
