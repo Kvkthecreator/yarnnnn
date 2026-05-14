@@ -15,7 +15,11 @@
 >
 > **2026-05-08 amendment (round 1, superseded by round 2 same day)** — D5's `ReviewerCadencePanel` was generalised to library-grade `HeartbeatPanel`. Round 2 walks back the generic abstraction (single consumer, not yet earned) and reframes the panel from cadence-config to supervision-trail.
 >
-> **2026-05-14 amendment — D4 + D5 lens-sharpening rework (commits `a0b2271` + `1ac4885`):**
+> **2026-05-14 amendment (round 2) — D4 expands to 5 tabs: Capabilities surface (commits `bd1583e` + `f130ac9`):**
+>
+> ReviewerDetail tabs grow from 4 to 5 — `Identity · Principles · Capabilities · Autonomy · Activity`. New Capabilities tab surfaces `/workspace/specs/*.md` as first-class operator content (the Claude Code `skills.md` analog). FE audit found the capability library was entirely backend-internal: Reviewer reads specs by explicit path reference in recurrence prompts (e.g. "Schema in /workspace/specs/performance-rollup.md"), but operator could only see them by manually browsing `/context?path=/workspace/specs/` as raw markdown with no semantic framing. New `GET /api/agents/reviewer/capabilities` reads each spec for title + intro + sections, correlates `used_by` against `_recurrences.yaml` prompt text. New `ReviewerCapabilitiesPanel` renders one card per spec with View-source / Used-by / Edit-in-chat affordances. Tab ordering reads top-to-bottom as operator orientation: who (Identity) → frame (Principles) → what-it-can-produce (Capabilities) → how-much-delegation (Autonomy) → what-it-did (Activity). Out of scope for this commit: ADR-275 (whether bundle pre-schedules judgment cadence vs lets Reviewer author its own) — the panel works under either policy; whatever IS in `/workspace/specs/` gets displayed.
+>
+> **2026-05-14 amendment (round 1) — D4 + D5 lens-sharpening rework (commits `a0b2271` + `1ac4885`):**
 >
 > Two structural updates from a substrate audit on kvk's workspace.
 >
