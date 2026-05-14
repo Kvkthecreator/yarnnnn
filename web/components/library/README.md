@@ -1,26 +1,55 @@
-# System Component Library — ADR-225 §3
+# System Component Library — ADR-225 §3 + ADR-273 D1
 
 Universal components composition manifests reference. Per ADR-222 Principle 16: **system component library is additive-only**. Components shipped here serve programs (programs declare what they need); the library grows via demand-pull, not speculation.
 
+## Folder convention (ADR-273 D1)
+
+The library is one universal registry (`LIBRARY_COMPONENTS` in `registry.tsx`), but the filesystem split makes the kernel-vs-program boundary legible:
+
+```
+web/components/library/
+├── CockpitHeader.tsx              kernel-general (always renders, Layer 1)
+├── CockpitRenderer.tsx            kernel-general (dispatch)
+├── CockpitContext.tsx             kernel-general
+├── MiddleResolver.tsx             kernel-general
+├── ChromeRenderer.tsx             kernel-general
+├── BundleBanner.tsx               kernel-general
+├── WorkDetailActionsContext.tsx   kernel-general
+├── kernel-chrome/                 kernel-general (chrome registry)
+├── registry.tsx                   imports from ./ and ./programs/*
+└── programs/
+    └── alpha-trader/              program-specific (alpha-trader)
+        ├── TraderRegime.tsx
+        ├── TraderPortfolio.tsx
+        ├── TraderMoneyTruth.tsx
+        ├── TraderExpectancy.tsx
+        ├── TraderPositions.tsx
+        ├── TraderSignals.tsx
+        └── TraderOrders.tsx
+```
+
+**Kernel-general components** at the library root render for every workspace regardless of active program. **Program-specific components** at `programs/{slug}/` render only when their SURFACES.yaml declares them in `cockpit.program_sections[]`. Future programs (alpha-commerce, alpha-defi) each get their own `programs/{slug}/` subdirectory, mirroring `docs/programs/{slug}/` on the backend.
+
 ## Discipline
 
-- **Each component is a TSX file with the same name as the SURFACES.yaml `kind` field.** `kind: PerformanceSnapshot` → `PerformanceSnapshot.tsx`.
-- **Components accept a `binding` prop** matching one of the 6 binding-type taxonomy shapes (`file | frontmatter | task_output | action_proposals | narrative | directory` per ADR-225 §2). They fetch+render via existing hooks (`useTaskOutputs`, `useWorkspaceFile`, etc.).
+- **Each component is a TSX file with the same name as the SURFACES.yaml `kind` field.** `kind: TraderPortfolio` → `programs/alpha-trader/TraderPortfolio.tsx`.
+- **Components accept a `binding` prop** matching one of the 6 binding-type taxonomy shapes (`file | frontmatter | task_output | action_proposals | narrative | directory` per ADR-225 §2). They fetch+render via existing hooks (`useTaskOutputs`, `useWorkspaceFile`, etc.) — or call dedicated cockpit API routes (`/api/cockpit/{regime,signals,indicators,money-truth,positions,portfolio-history,recent-orders}`).
 - **Components are PURE READERS in both compose modes.** Surface compose: live binding, re-rendered per load. Document compose: frozen snapshot at compose time. Same render, different data freshness. **Components do not mutate.** Operator interactions that mutate (approve, reject, edit) flow through existing primitive surfaces.
 - **Components are additive-only.** Removing a component is breaking and requires a deprecation cycle with ADR ratification.
 - **No new component shipped without a bundle (or kernel-default middle) that uses it.** The library grows because programs demand it, not on speculation.
-- **A program may NOT ship its own components.** Components needed for a program contribute to this universal library first (PR convention); the bundle then references them. Same rule as macOS frameworks vs `.app` bundles.
+- **Program-specific components register in the universal `LIBRARY_COMPONENTS` dict** alongside kernel components — the registry is one flat namespace keyed by `kind`. Folder location is filesystem signal for human readers and future contributors; it does not affect dispatch.
 
-## Current set (alpha-trader Phase 2)
+## Current set (alpha-trader, post-ADR-273 Phase 5)
 
-| Component | Used by | Binding shape | Status |
+| Component | Path | Used by | Binding shape |
 |---|---|---|---|
-| `PerformanceSnapshot` | alpha-trader portfolio-review middle | file (markdown) | Placeholder render |
-| `PositionsTable` | alpha-trader portfolio-review middle | file (markdown) | Placeholder render |
-| `RiskBudgetGauge` | alpha-trader portfolio-review middle | file (markdown) | Placeholder render |
-| `TradingProposalQueue` | alpha-trader trading-signal middle | action_proposals | Placeholder render |
-
-These are **placeholder implementations** — they read the substrate path, render a simple representation. Real visual designs land additively as alpha-trader matures into a built program. The point of Phase 2 is the wiring (resolver → component dispatch via `kind`), not the visual polish.
+| `TraderRegime` | `programs/alpha-trader/TraderRegime.tsx` | cockpit program_sections (order: 1) | `/api/cockpit/regime` |
+| `TraderPortfolio` | `programs/alpha-trader/TraderPortfolio.tsx` | cockpit program_sections (order: 2) | `/api/cockpit/portfolio-history` + `/money-truth` |
+| `TraderMoneyTruth` | `programs/alpha-trader/TraderMoneyTruth.tsx` | cockpit program_sections (order: 3) | `/api/cockpit/money-truth` |
+| `TraderExpectancy` | `programs/alpha-trader/TraderExpectancy.tsx` | cockpit program_sections (order: 4) | `/api/cockpit/money-truth.by_signal` |
+| `TraderPositions` | `programs/alpha-trader/TraderPositions.tsx` | cockpit program_sections (order: 5) | `/api/cockpit/positions` + `/indicators` |
+| `TraderSignals` | `programs/alpha-trader/TraderSignals.tsx` | cockpit program_sections (order: 6) | `/api/cockpit/signals` |
+| `TraderOrders` | `programs/alpha-trader/TraderOrders.tsx` | cockpit program_sections (order: 7) | `/api/cockpit/recent-orders` |
 
 ## Future expansion (deferred until needed)
 

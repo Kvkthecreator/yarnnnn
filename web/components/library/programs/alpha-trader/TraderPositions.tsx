@@ -30,7 +30,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Briefcase, Loader2 } from 'lucide-react';
-import type { LibraryComponentProps } from './registry';
+import type { LibraryComponentProps } from '../../registry';
 import { api } from '@/lib/api/client';
 
 interface PositionRow {

@@ -33,13 +33,13 @@ import { KernelDeliverableMetadata } from './kernel-chrome/KernelDeliverableMeta
 import { KernelDeliverableActions } from './kernel-chrome/KernelDeliverableActions';
 
 // alpha-trader bundle components (ADR-242 Phase 2 + ADR-243 Phase C).
-// TraderSignalExpectancy DELETED 2026-05-12 — per-signal attribution now
-// renders natively in MoneyTruthFace (P&L unification refactor); the old
-// component read frontmatter fields the backend never emitted.
-import { TraderMoneyTruth } from './TraderMoneyTruth';
-import { TraderPositions } from './TraderPositions';
-import { TraderPortfolio } from './TraderPortfolio';
-import { TraderOrders } from './TraderOrders';
+// Relocated under programs/alpha-trader/ per ADR-273 D1 (kernel/program
+// folder split). Component `kind`s remain bare strings in SURFACES.yaml —
+// folder location is filesystem signal, not registry namespacing.
+import { TraderMoneyTruth } from './programs/alpha-trader/TraderMoneyTruth';
+import { TraderPositions } from './programs/alpha-trader/TraderPositions';
+import { TraderPortfolio } from './programs/alpha-trader/TraderPortfolio';
+import { TraderOrders } from './programs/alpha-trader/TraderOrders';
 
 /**
  * Standard prop bag passed to every library component. Components
