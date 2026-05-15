@@ -61,6 +61,19 @@ def is_skeleton_content(content: Optional[str], bundle_body: Optional[str] = Non
     if "this is the declared review framework for this workspace" in lower:
         return True
 
+    # Kernel-default workspace guide signature (ADR-281).
+    # The no-program workspace guide (DEFAULT_WORKSPACE_GUIDE_MD in
+    # services/orchestration.py) is written by workspace_init Phase 2 for
+    # every workspace; bundle activation should overwrite via Phase 5 fork.
+    # Without this signature check, the kernel-default is non-skeleton-shaped
+    # (5350 bytes of legitimate prose) so the fork's is_skeleton_content
+    # check returns False and the bundle guide doesn't write. Stable
+    # discriminator: the kernel-default "## What this workspace contains"
+    # section says "This workspace runs no program" — bundle-shipped guides
+    # say "This workspace runs the <slug> program".
+    if "this workspace runs no program" in lower:
+        return True
+
     # Bundle template markers
     first_line = stripped.split("\n", 1)[0].lower()
     if "(template)" in first_line:
