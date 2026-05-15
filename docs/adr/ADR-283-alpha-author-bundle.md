@@ -126,14 +126,22 @@ Tentative menu (final list deferred to follow-up commit):
 - GitHub (irrelevant for most author workspaces; YARNNN-author workspace already has architect-level GitHub via direct cockpit, not bundle-needed)
 - Trading / DeFi / Prediction (off-archetype)
 
-### D8. Cockpit faces (four-face parallel to alpha-trader)
+### D8. Cockpit faces (program-specific composition per alpha-trader precedent)
 
-alpha-author's cockpit composes four faces per the ADR-228 four-face cockpit pattern. Speculative mapping (final detail deferred to follow-up commit + SURFACES.yaml authoring):
+**Correction note (2026-05-15 audit)**: An earlier draft of this ADR claimed alpha-author should *"compose four faces per the ADR-228 four-face cockpit pattern."* The audit verified this is structurally incorrect. ADR-228's kernel-default four faces (`MandateFace`, `MoneyTruthFace`, `PerformanceFace`, `TrackingFace`) were **deleted in ADR-273 Phase 2** as dead kernel fallbacks. The current cockpit pattern is: each bundle composes its own program-specific face component set via `SURFACES.yaml::cockpit.{key}` bindings, with no kernel-level four-face floor enforced. alpha-trader exemplifies this — it ships **seven** program-specific face components (`TraderRegime`, `TraderPortfolio`, `TraderMoneyTruth`, `TraderExpectancy`, `TraderPositions`, `TraderSignals`, `TraderOrders`) at `web/components/library/programs/alpha-trader/`, not four kernel-aligned faces.
 
-1. **Mandate face** — unchanged shape, alpha-author-content-tuned. Reads `MANDATE.md` + `AUTONOMY.md`.
-2. **Corpus state face** — equivalent of alpha-trader's MoneyTruth face. Reads `_signal.md` or whatever the instance-level ground-truth substrate becomes. Multi-signal display: corpus health (Reviewer-detected coherence metrics), audience signal (when present), revenue signal (when present). Must degrade gracefully when external signal is absent (script-workspace case) — face shows internal-coherence signals prominently, external-signal slots empty with clear empty-state framing.
-3. **Voice consistency face** — equivalent of alpha-trader's Performance face. Reviewer's voice-drift detections over time, anti-AI-slop scoring, principle-fitness audit results. Per-piece and corpus-aggregate.
-4. **Pipeline face** — equivalent of alpha-trader's Tracking face. Drafts → scheduled → published, comment-debt, audience-signal queue, revision-pulse state. Plus for ship-pulse workspaces: cadence-health indicator (days since last ship).
+**Corrected framing**: alpha-author's cockpit composes program-specific face components per the alpha-trader precedent. Count, naming, and structure are determined by the bundle's `SURFACES.yaml` cockpit binding map, not by a kernel-imposed archetype.
+
+Speculative starter set (final detail deferred to step 1 reference-workspace authoring + SURFACES.yaml composition):
+
+| Face | Substrate read | Purpose |
+|---|---|---|
+| **AuthorMandate** | `MANDATE.md` + `AUTONOMY.md` | Standing intent + autonomy posture (parallel to TraderRegime's role) |
+| **AuthorCorpus** | Instance-level ground-truth substrate (filename TBD per D4) | Multi-signal corpus state: coherence metrics + audience signal when present + revenue signal when present. Must degrade gracefully when external signal absent (Netflix-screenplay case) — internal-coherence prominent, external slots show empty-state |
+| **AuthorVoice** | Reviewer-authored voice-drift logs + recent revision attribution per ADR-209 | Voice fingerprint consistency over time, anti-AI-slop scoring, principle-fitness audit results |
+| **AuthorPipeline** | `/workspace/_recurrences.yaml` + draft/published substrate manifest | Drafts → scheduled → published, comment-debt, audience-signal queue, cadence-health indicator |
+
+Additional faces may emerge during reference-workspace authoring (alpha-trader's `TraderSignals` + `TraderOrders` emerged from the work, not from kernel pattern). Bundle author has full latitude per `SURFACES.yaml::cockpit` shape.
 
 Per ADR-273 these live at `web/components/library/programs/alpha-author/` once authored.
 
@@ -161,7 +169,7 @@ No new ADR-shaped infrastructure required. alpha-author is the second concrete b
 
 This ADR ratifies scope. Implementation lands across multiple commits, each one its own discourse + ADR-or-amendment as needed.
 
-1. **Reference-workspace authoring** — `docs/programs/alpha-author/{MANIFEST,README,SURFACES}.yaml` + `docs/programs/alpha-author/reference-workspace/**` with `tier: canon | authored | placeholder` frontmatter per ADR-226. Most substantive single commit. Decisions: instance-level ground-truth filename + substrate shape (D4 deferred), Reviewer principles starter set (D6 deferred), capability menu finalization (D7 deferred), cockpit faces (D8 deferred).
+1. **Reference-workspace authoring** — `docs/programs/alpha-author/{MANIFEST,README,SURFACES}.yaml` + `docs/programs/alpha-author/reference-workspace/**`. Tier frontmatter (`tier: canon | authored | placeholder`) per ADR-226 may be applied to reference-workspace files as soft annotation, but note that the tier system is **operationally dissolved per ADR-261/262 Phase D.2** — `fork_reference_workspace` strips frontmatter and does not gate behavior on tier values anymore. The annotation remains useful as documentation of authorial intent for the operator-vs-bundle authorship boundary. Most substantive single commit. Decisions: instance-level ground-truth filename + substrate shape (D4 deferred), Reviewer principles starter set (D6 deferred), capability menu finalization (D7 deferred), cockpit faces (D8 deferred — see corrected framing above).
 2. **Capability extensions** — expanded Notion writes (kernel extension), publishing-platform writes (bundle-side or kernel — decided during commit). Code work in `api/integrations/core/` + `api/services/platform_tools.py`.
 3. **Cockpit face components** — `web/components/library/programs/alpha-author/Author{Mandate,Corpus,Voice,Pipeline}.tsx` per ADR-273 convention.
 4. **Persona registry update** — `docs/alpha/personas.yaml` gains `yarnnn-author` and `netflix-script-author` rows with `program: alpha-author`. Persona-specific override directories scaffolded.
@@ -196,3 +204,14 @@ The 2026-05-15 discourse memo captures a discipline that should propagate into h
 alpha-author is the first bundle in YARNNN's history where the architect's personal use case is unambiguously load-bearing on the design. alpha-trader had this risk too but kvk-the-trader-persona overlapped heavily with the median trader-shape. For alpha-author, kvk's two workspaces (founder-of-YARNNN content + Netflix screenplay) are *somewhat* atypical for the bundle's ICP. This is acceptable, but it requires the discipline above to hold during reference-workspace authoring and capability-menu decisions.
 
 Singular Implementation discipline also holds at the bundle level: don't add bundle-level mechanisms to serve dogfooder edge cases that the median operator wouldn't need. Push edge-case accommodation into the workspace-level persona/principles layer wherever possible.
+
+## Discovery note
+
+This ADR was patched in place on 2026-05-15 after a codebase audit verified 11 of 12 architectural claims and surfaced one structural mistake:
+
+- **D8 corrected** — Original draft claimed alpha-author should *"compose four faces per the ADR-228 four-face cockpit pattern."* Audit revealed ADR-228's kernel-default four faces (`MandateFace`, `MoneyTruthFace`, `PerformanceFace`, `TrackingFace`) were deleted in ADR-273 Phase 2 as dead kernel fallbacks. Current pattern is bundle-specific face composition via `SURFACES.yaml::cockpit.{key}` bindings, with no kernel-imposed four-face floor. alpha-trader ships seven program-specific face components, not four. D8 rewritten to describe program-specific composition per alpha-trader precedent with a speculative AuthorMandate / AuthorCorpus / AuthorVoice / AuthorPipeline starter set that bundle authoring may extend or modify.
+- **D2 caveat added** — Tier frontmatter (`tier: canon | authored | placeholder`) per ADR-226 still parses in reference-workspace files but is operationally dissolved per ADR-261/262 Phase D.2 — `fork_reference_workspace` strips frontmatter and does not gate behavior on tier values. Annotation remains useful as authorial-intent documentation but is not load-bearing on activation behavior.
+
+Other audited claims (bundle structure, activation path, persona registry with `program:` field, recurrences + preferences shape, capability specs convention, Notion-write-comment-only, tasks table state, ADR-282 cascade landed) all verified clean. No other ADR-283 claims require correction.
+
+This patch supersedes the affected sections in place per Singular Implementation. No v1/v2; the corrected text is the ADR.
