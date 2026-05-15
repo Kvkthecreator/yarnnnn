@@ -348,12 +348,16 @@ async def _run_ai_reviewer(
     performance_md = _read_workspace_file(
         client, user_id, f"/workspace/context/{context_domain}/_money_truth.md",
     )
-    # _risk.md is trading-specific today; extensible per domain
-    risk_md = None
-    if context_domain == "trading":
-        risk_md = _read_workspace_file(
-            client, user_id, "/workspace/context/trading/_risk.md",
-        )
+    # ADR-280 Stream A: per-domain reads use the same context_domain-parametric
+    # pattern as performance_md above. Bundles declare which substrate paths
+    # are meaningful per their context_domains via MANIFEST `substrate_abi`;
+    # this proposal-arrival assembly mirrors the pattern domain-agnostically.
+    # If the file doesn't exist for a given domain, _read_workspace_file
+    # returns None and the Reviewer treats it as empty — same forgiveness
+    # the canonical envelope helper provides.
+    risk_md = _read_workspace_file(
+        client, user_id, f"/workspace/context/{context_domain}/_risk.md",
+    )
     operator_profile_md = _read_workspace_file(
         client, user_id, f"/workspace/context/{context_domain}/_operator_profile.md",
     )

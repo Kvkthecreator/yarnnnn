@@ -1298,34 +1298,6 @@ def _compact_result_for_model(result: Any) -> str:
 
 
 # ---------------------------------------------------------------------------
-    """Read all signal state YAML files and return compact summary.
-    Public helper — called by invocation_dispatcher to pre-load heartbeat context."""
-    import re as _re
-    try:
-        result = (
-            client.table("workspace_files")
-            .select("path, content")
-            .eq("user_id", user_id)
-            .like("path", "/workspace/context/trading/signals/%.yaml")
-            .execute()
-        )
-        lines = []
-        for row in result.data or []:
-            path = row.get("path", "")
-            content = row.get("content", "")
-            slug = path.split("/")[-1].replace(".yaml", "")
-            triggered = _re.search(r"triggered_today:\s*(\[.*?\])", content)
-            state = _re.search(r"state:\s*(\S+)", content)
-            lines.append(
-                f"- {slug}: state={state.group(1) if state else '?'} "
-                f"triggered={triggered.group(1) if triggered else '[]'}"
-            )
-        return "\n".join(lines) if lines else "_(no signal state files found)_"
-    except Exception:
-        return "_(signal files unavailable)_"
-
-
-# ---------------------------------------------------------------------------
 # Cooperative cancellation (Commit H.1, 2026-05-11)
 # ---------------------------------------------------------------------------
 #
@@ -1386,31 +1358,11 @@ def _clear_session_cancellation(client: Any, user_id: str) -> None:
         logger.warning("[REVIEWER] cancellation clear failed: %s", exc)
 
 
-async def read_signal_files(client: Any, user_id: str) -> str:
-    """Read all signal state YAML files and return compact summary.
-    Public helper — called by invocation_dispatcher and chat.py to pre-load
-    signal state into invoke_reviewer's context bag for the heartbeat /
-    addressed triggers."""
-    import re as _re
-    try:
-        result = (
-            client.table("workspace_files")
-            .select("path, content")
-            .eq("user_id", user_id)
-            .like("path", "/workspace/context/trading/signals/%.yaml")
-            .execute()
-        )
-        lines = []
-        for row in result.data or []:
-            path = row.get("path", "")
-            content = row.get("content", "")
-            slug = path.split("/")[-1].replace(".yaml", "")
-            triggered = _re.search(r"triggered_today:\s*(\[.*?\])", content)
-            state = _re.search(r"state:\s*(\S+)", content)
-            lines.append(
-                f"- {slug}: state={state.group(1) if state else '?'} "
-                f"triggered={triggered.group(1) if triggered else '[]'}"
-            )
-        return "\n".join(lines) if lines else "_(no signal state files found)_"
-    except Exception:
-        return "_(signal files unavailable)_"
+# read_signal_files() relocated to services/reviewer_envelope.py per ADR-280
+# Stream A. The function is kernel-internal envelope-summarizer infrastructure
+# — bundles reference it by name in their MANIFEST `substrate_abi.reviewer_wake_envelope`
+# declarations; the kernel hosts the implementation. New name + module:
+# `services.reviewer_envelope.ENVELOPE_SUMMARIZERS["signal_files"]` (a.k.a.
+# `_summarize_signal_files`). The relocation makes path_glob parametric so
+# the summarizer is no longer alpha-trader-hardcoded; bundles declare their
+# own glob (e.g., `context/trading/signals/*.yaml`).

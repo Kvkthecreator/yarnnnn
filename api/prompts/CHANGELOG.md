@@ -6,6 +6,75 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.15.4] - feat(adr-280-stream-a): wake envelope reads bundle MANIFEST + ENVELOPE_SUMMARIZERS registry
+
+### Background
+Phase 1 of ADR-280 shipped the bundle MANIFEST `substrate_abi` declarations
+(commits 7d3013b + 43374cf + c7e1c84). Stream A consumes that authority
+in the wake envelope assembler so adding a new program (alpha-commerce,
+future) requires zero edits to kernel envelope-assembly code. Closes
+ADR-280 §10 catalog Class 1 + Class 6 sites at the kernel-perception layer.
+
+### Changed
+- `api/services/reviewer_envelope.py` rewritten:
+  - Universal envelope inputs (6 governance files: identity_md, principles_md,
+    precedent_md, mandate_md, autonomy_md, preferences_yaml) remain
+    hardcoded as kernel-universal constants — every workspace has these.
+  - Program-shaped inputs (operator_profile_md, risk_md, performance_md,
+    signal_files for alpha-trader) are now read from
+    `bundle_reader.get_substrate_abi_for_workspace(...).reviewer_wake_envelope`.
+  - Two declaration shapes supported per ADR-280 §D5.b: direct file read
+    (`{key, path, optional}`) and collection-via-summarizer
+    (`{key, path_glob, summarizer, optional}`).
+  - **NEW: `ENVELOPE_SUMMARIZERS` registry** (kernel-implemented, bundle-
+    referenced by name). Today: `{"signal_files": _summarize_signal_files}`.
+    Bundles cannot ship arbitrary summarizer code (security + kernel/program
+    boundary per Principle 16). Adding a new summarizer kind requires its
+    own ADR. **Behavioral artifact per discipline #10 — clear ownership
+    documented inline; location rationale: kernel-side because it implements
+    the summarization, not bundles.**
+  - `_summarize_signal_files` relocated from `agents/reviewer_agent.py` into
+    this module as a module-private kernel function. Now accepts `path_glob`
+    parameter (no alpha-trader default) — bundles supply their own glob.
+  - `elapsed_ms` telemetry preserved per ADR-276 hardening.
+
+- `api/agents/reviewer_agent.py`:
+  - `read_signal_files` definition deleted (relocated to envelope module).
+  - Orphan dead block at lines 1300-1325 (unattached docstring + function
+    body without `def` line — refactor leftover from earlier session)
+    deleted. Comment marker preserved noting the relocation.
+
+- `api/services/review_proposal_dispatch.py`:
+  - Hardcoded `if context_domain == "trading"` branch + literal
+    `/workspace/context/trading/_risk.md` path replaced with
+    `f"/workspace/context/{context_domain}/_risk.md"` interpolation.
+    The function is called with `context_domain` already known per
+    proposal; no need for trading-specific branch.
+
+- `api/services/execution_router.py:223`:
+  - Docstring example `"read /workspace/context/trading/_performance.md"`
+    generalized to `"read /workspace/context/{domain}/_performance.md"`.
+    The regex handler accepts any `.md` path the operator types; the
+    `{domain}` placeholder makes the convention-teaching prose explicit.
+
+### Behavioral expectation
+- The Reviewer's wake envelope is structurally identical for kvk's existing
+  alpha-trader workspaces — same 10 keys, same content. The kernel just
+  reads `substrate_abi` instead of hardcoding. No operator-perceived change.
+- For a future alpha-commerce activation, the envelope helper will compose
+  program-shaped reads from that bundle's declarations automatically. Zero
+  kernel-code edits required.
+
+### Tests
+- New `api/test_adr280_stream_a.py` (11 tests): registry + relocation +
+  bundle-MANIFEST-driven envelope + grep gate against kernel-perception
+  files for literal program-domain paths. 11/11 PASS.
+- Sibling regression: 57/57 across `test_adr280_phase1.py` +
+  `test_adr276_reactive_envelope.py` + `test_adr274_trigger_authoring.py` +
+  `test_adr275_introspection_cadence.py`. Total 68/68.
+
+---
+
 ## [2026.05.15.1] - fix(feed-emission-policy): mechanical-fire success no longer emits narrative (ADR-277)
 
 ### Background
