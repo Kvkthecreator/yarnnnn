@@ -272,7 +272,7 @@ This is the steering interface. KVK reads, redirects if wrong, or lets
 it run. Post-hoc narration is too late — the steering wheel has to be
 *ahead* of the wheels.
 
-Read-only actions (verify.py, decisions.md reads, token_usage queries)
+Read-only actions (verify.py, judgment_log.md reads, token_usage queries)
 don't need pre-narration; their cost of error is zero. Authority axiom
 applies: standing authority over what's possible per the mode-1 matrix
 does NOT collapse with invocation authorization for a specific turn.

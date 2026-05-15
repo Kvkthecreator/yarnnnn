@@ -148,7 +148,7 @@ path to act on it at all.
 | Action | Mode 1 (headless) | Mode 2 (cockpit) | Mode 3 (conversational) |
 |---|---|---|---|
 | Read any substrate file | ✅ via service key or JWT | ✅ via Context browser in UI | KVK describes; Claude reasons |
-| Read `decisions.md`, `_money_truth.md` | ✅ | ✅ | KVK describes |
+| Read `judgment_log.md`, `_money_truth.md` | ✅ | ✅ | KVK describes |
 | Run `verify.py --all` | ✅ — this is Mode 1's superpower | ❌ not the right tool; use the UI or Mode 1 | ❌ KVK runs; Claude interprets output |
 | **Chat-initiate on behalf** (post `WriteFile(scope="workspace")` for shared substrate, ask YARNNN to start a cycle, etc.) | ✅ via API as the persona's JWT — what would happen if KVK typed in chat | ✅ Claude types in chat as the persona | ❌ KVK does it |
 | Approve reversible proposal meeting all five conditions | ⚠️ rarely needed — see §"Operator vs autonomous-loop" below; AI Reviewer should approve under `bounded_autonomous` | ⚠️ same — operator clicks only when AI Reviewer deferred | ❌ KVK clicks; Claude advises |
@@ -232,7 +232,7 @@ Approving/rejecting proposals via API is a Mode 1 *capability*, but it's
 not the *correct posture* during alpha-1 — it short-circuits the AI
 Reviewer machinery the architecture is supposed to validate. Use
 approve/reject only when the AI Reviewer has explicitly deferred to
-human (visible in `decisions.md` as `defer` verdict) and the operator
+human (visible in `judgment_log.md` as a `--- decision ---` entry with `defer` verdict) and the operator
 discretion ladder permits the override.
 
 This is the framing correction recorded against the BOOTSTRAP.md runbook on 2026-04-27. (That runbook was archived to [parked/alpha-trader-bootstrap-runbook-2026-04-27.md](./parked/alpha-trader-bootstrap-runbook-2026-04-27.md) on 2026-05-11 per Bucket C of the alpha-doc audit — distilled to OPERATOR-HARNESS.md commands. The framing correction below remains live canon.)
@@ -447,7 +447,7 @@ Before every autonomous action, Claude verifies in order:
 2. **Discretion ladder** — does this pass playbook §6 five-condition
    test?
 3. **Audit trail** — will this action be legibly attributed in
-   `decisions.md` / `activity_log` / observation notes?
+   `judgment_log.md` / `activity_log` / observation notes?
 4. **Reversibility** — is this reversible or irreversible per ADR-193
    classification?
 

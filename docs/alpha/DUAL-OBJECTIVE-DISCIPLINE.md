@@ -27,7 +27,7 @@ different evidence:
 | Objective | Question being validated | Primary artifacts |
 |---|---|---|
 | **A — System** | Does YARNNN work as a domain-agnostic operator platform? Do the axioms hold under real use? | ADR seeds, architectural observations, prompt-tweak backlog, UX friction list, primitive-matrix tensions |
-| **B — Product** | Does this specific operator (KVK as Simons-trader) actually make money with YARNNN's help? Is the autonomous-agent framework a real edge? | Per-signal realized expectancy, capital trajectory, Reviewer calibration against outcomes, decision-vs-outcome pairs in `decisions.md` |
+| **B — Product** | Does this specific operator (KVK as Simons-trader) actually make money with YARNNN's help? Is the autonomous-agent framework a real edge? | Per-signal realized expectancy, capital trajectory, Reviewer calibration against outcomes, decision-vs-outcome pairs in `judgment_log.md` (decision entries + material-outcome entries per ADR-281 §3) |
 
 Without explicit discipline, default drift is toward Objective A — the
 engineer-nearest, architecture-adjacent, ADR-producing mode. Objective B
@@ -125,7 +125,7 @@ Empty sections are OK — they're informative about which axes an observation to
 
 Playbook §7.2 previously had a single weekly report template biased toward Objective A. That template is superseded by **two separate reports**, one per objective, both produced Sunday evening.
 
-Both reports read the same underlying substrate (`_money_truth.md`, `decisions.md`, observation notes, activity log). They differ in framing.
+Both reports read the same underlying substrate (`_money_truth.md`, `judgment_log.md`, observation notes, activity log). They differ in framing.
 
 ### Objective A report — system-insight framing
 
@@ -206,7 +206,7 @@ Per-verdict table:
 | Proposal | Verdict | Reviewer reasoning | Outcome | Verdict-outcome alignment |
 
 ## Decisions made this week (Claude + KVK)
-From `decisions.md` tail:
+From `judgment_log.md` tail (decision + material-outcome entries):
 - Approvals
 - Rejections (mine and Reviewer's)
 - Escalations that required KVK (how many; did they resolve in time?)
@@ -302,10 +302,12 @@ a session, day, or week. The intent of the alpha-trader program is to
 filed as one finding when it's really four different problems requiring
 four different responses.
 
-| Hypothesis | What it looks like in `decisions.md` | What it looks like in `token_usage` | Disambiguator | Right response |
+> **Vocabulary note (ADR-281, 2026-05-15)**: `decisions.md` was renamed to `judgment_log.md` and tightened to a single-writer contract with two entry kinds (`--- decision ---` on proposal arrival, `--- material-outcome ---` on material recurrence-fire outcomes per the `render_lineage_entry_if_material` gate). The disambiguation logic below still applies; substitute `judgment_log.md` everywhere. Historic references to `decisions.md` survive in this table because the trilogy failure (2026-05-13) was observed against the pre-rename substrate.
+
+| Hypothesis | What it looks like in `judgment_log.md` | What it looks like in `token_usage` | Disambiguator | Right response |
 |---|---|---|---|---|
-| **A. Environmental** (operator timezone vs US RTH; signal-eval correctly off-hours) | Recurrence-fire entries exist; reasoning notes "market closed" or recurrence correctly short-circuited | Normal cadence at low per-fire cost (Haiku, short-circuit path) | Same persona, same code, different time-of-day — markets-open observation window | Not actionable in code; queue for markets-open observation |
-| **B. Systematic-dispatcher** (Reviewer never actually wakes; or wakes with corrupted context) | Either zero new entries, OR entries with enum-string reasoning instead of prose (the pre-2026-05-13 trilogy-fix failure mode) | Zero fires, OR fires logging universal `stand_down` at ~$0.30/each | Read `decisions.md` reasoning quality + `token_usage` cadence vs schedule | Code bug; fix before further iteration |
+| **A. Environmental** (operator timezone vs US RTH; signal-eval correctly off-hours) | Material-outcome entries exist; reasoning notes "market closed" or recurrence correctly short-circuited | Normal cadence at low per-fire cost (Haiku, short-circuit path) | Same persona, same code, different time-of-day — markets-open observation window | Not actionable in code; queue for markets-open observation |
+| **B. Systematic-dispatcher** (Reviewer never actually wakes; or wakes with corrupted context) | Either zero new entries, OR entries with enum-string reasoning instead of prose (the pre-2026-05-13 trilogy-fix failure mode) | Zero fires, OR fires logging universal `stand_down` at ~$0.30/each | Read `judgment_log.md` reasoning quality + `token_usage` cadence vs schedule | Code bug; fix before further iteration |
 | **C. Systematic-judgment** (Reviewer wakes, reasons, correctly declines per declared checks) | Entries with rich prose reasoning declining on declared check (Check 1 attribution, Check 4 expectancy guardrail, Check 5 sizing, etc.) | Normal cadence + cost | Cross-reference reasoning text against `principles.md` six-check ladder — is the decline well-formed | Not a failure — success looking like failure. Write up + move on |
 | **D. Systematic-config** (Reviewer wakes, reasons, declines because AUTONOMY/principles too restrictive vs operator intent) | Entries with prose reasoning declining on `_risk.md` ceiling or AUTONOMY `auto_approve_below_cents` boundary | Normal cadence + cost | Read `_risk.md` + `AUTONOMY.md` + `principles.md`; check if declared posture is what operator intended | Mis-config; operator (not Claude) edits operator substrate |
 

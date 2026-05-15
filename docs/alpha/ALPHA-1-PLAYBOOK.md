@@ -103,7 +103,7 @@ Both accounts run concurrently under the same governance model (§3-seat structu
 
 ### Three seats, per account (both accounts identical)
 
-| Seat | Filled by | Scope | `decisions.md` tag |
+| Seat | Filled by | Scope | `judgment_log.md` tag |
 |---|---|---|---|
 | **Operator (primary)** | KVK | Strategy: signal/rule roster, capital allocation, phase transitions, principles + risk edits, persona-identity edits | `human:<user_id>` |
 | **AI Reviewer** | AI Reviewer agent (ADR-194 Phase 3 — runs automatically via `review-proposal` reactive task) | Per-proposal: attribution check, capital-EV evaluation, rule/signal-rule compliance, risk-limit enforcement. Approve / reject / defer. | `ai:reviewer-sonnet-v1` (or version tag in use) |
@@ -385,7 +385,7 @@ to the human — not to gate execution on its own.
 
 For each proposal, the AI Reviewer executes these checks in order.
 Each check produces a one-line verdict. The full chain is written
-to decisions.md as the reviewer_reasoning field.
+to judgment_log.md as the reviewer_reasoning field of a `--- decision ---` entry (ADR-281 §3 single-writer; proposal-arrival = decision entries, material outcomes = material-outcome entries).
 
 ### Check 1: Signal attribution
 - Does the proposal specify which signal generated it (Signal 1–5)?
@@ -469,7 +469,7 @@ The bundle's `_recurrences.yaml` (at [docs/programs/alpha-trader/reference-works
 | `narrative-digest` | judgment | Daily 03:00 UTC | Aggregates execution narrative entries (per ADR-219 substrate-as-the-bus) into a compact "recent" rollup at `/workspace/memory/recent.md` for the working-memory compact index. |
 | `proposal-cleanup` | judgment | Daily 04:00 UTC | Archives stale `action_proposals` rows + dead-letters anything past Reviewer-defer timeout. |
 | `outcome-reconciliation` | judgment | Daily 05:00 UTC | Reads platform events (Alpaca trade fills, etc.), folds into `/workspace/context/trading/_money_truth.md` per ADR-195 v2. The money-truth refresh. |
-| `morning-calibration` | judgment | Daily 06:00 UTC | Aggregates `decisions.md` verdicts into rolling 7d/30d/90d windows + cross-domain `_money_truth_summary.md`. Drives the cockpit Performance face. |
+| `morning-calibration` | judgment | Daily 06:00 UTC | Aggregates `judgment_log.md` decision + material-outcome entries into rolling 7d/30d/90d windows + cross-domain `_money_truth_summary.md`. Drives the cockpit Performance face. |
 | `morning-reflection` | judgment | Daily 07:00 UTC | Reviewer reads its own decisions trajectory and writes pattern observations to `/workspace/review/handoffs.md` (per ADR-218 → ADR-256 unified Reviewer invocation, reflection trigger). |
 | `pre-market-brief` | judgment | 15 8 * * 1-5 (8:15 UTC weekdays) | Composed deliverable from signal-evaluation output. Which signals may fire, portfolio exposure vs var budget, decay flags, regime state. Output at `/workspace/reports/pre-market-brief/{date}/output.md` per CONVENTIONS.md slug-templated path. Cockpit surfaces it; daily-update email is expository pointer per ADR-202. |
 | `signal-evaluation` | judgment | 5 8 * * 1-5 (8:05 UTC weekdays) | For each declared signal in `_operator_profile.md`, evaluates current state across the universe. When fire conditions hit, calls `FireInvocation(slug="trade-proposal")` (per ADR-253 D4 — signal evaluator can fire the reactive trade-proposal recurrence directly). Writes signal-state under `/workspace/context/trading/signals/`. |
@@ -532,7 +532,7 @@ Body: markdown narrative regenerated on each reconciliation. Includes "## Rollin
 
 **Differences from the original 3A.6 spec written pre-unification:**
 - Lifetime Sharpe + expectancy_R fields are *not* in frontmatter directly. The Reviewer computes them at prompt time from the `events` array filtered by `signal_id` (per ADR-267 prompts in Commit 3). Less duplication; one canonical event log drives all derived metrics.
-- "state" field per signal (active/flagged/retirement-recommended) is not in frontmatter. The Reviewer's morning-calibration recurrence writes calibration concerns to `decisions.md`; quarterly-signal-audit surfaces retirement candidates in its output report. Substrate stays factual (counts + windows); judgment stays in agent narrative.
+- "state" field per signal (active/flagged/retirement-recommended) is not in frontmatter. The Reviewer's morning-calibration recurrence writes calibration concerns to `judgment_log.md` (per ADR-281 §3 single-writer); quarterly-signal-audit surfaces retirement candidates in its output report. Substrate stays factual (counts + windows); judgment stays in agent narrative.
 - `daily_var_7d`, `weekly_drawdown`, `vix_regime_days_active_30d` belong to a separate `_risk.md` reading layer; they're not duplicated in `_money_truth.md` frontmatter.
 
 ---
@@ -816,7 +816,7 @@ Once Phase 1 is complete for an account and credentials are shared:
 - 8:00: `track-universe` morning recurrence fires → writes `/workspace/context/trading/{ticker}/` per ADR-231 D2
 - 8:05: `signal-evaluation` recurrence fires → state files updated under `/workspace/context/trading/signals/`
 - 8:15: `pre-market-brief` fires → daily-update expository-pointer email arrives per ADR-202 → Claude clicks the deep-link to land at `/work` cockpit (`/overview` redirects to `/work` per ADR-225)
-- 8:15–8:45: Claude reviews the cockpit four faces per ADR-228: **Mandate** (current MANDATE.md + AUTONOMY posture), **Money truth** (substrate fallback to `_money_truth.md` until live binding lands), **Performance** (decisions.md calibration), **Tracking** (proposal Queue + recurrence health). Reads pre-market brief at `/work?task=pre-market-brief` middle band. Notes any signal-state surprises.
+- 8:15–8:45: Claude reviews the cockpit four faces per ADR-228: **Mandate** (current MANDATE.md + AUTONOMY posture), **Money truth** (substrate fallback to `_money_truth.md` until live binding lands), **Performance** (judgment_log.md calibration — decision + material-outcome entries per ADR-281 §3), **Tracking** (proposal Queue + recurrence health). Reads pre-market brief at `/work?task=pre-market-brief` middle band. Notes any signal-state surprises.
 - 8:45–9:15: If any trade-proposals pending from overnight or pre-market signal fires, Claude + KVK coordinate out-of-band on approval.
 
 **Market hours (9:30–16:00 ET):**
@@ -828,7 +828,7 @@ Once Phase 1 is complete for an account and credentials are shared:
   - Approve, escalate, or observe per the ladder
 
 **Post-close (16:00–17:00 ET):**
-- Claude reads day's `decisions.md` tail — AI Reviewer's verdicts + rationale. Were any rejections debatable? Any approvals that executed against declared signals correctly? Any concerning patterns?
+- Claude reads day's `judgment_log.md` tail — AI Reviewer's verdicts + rationale (decision entries) + material outcomes when reconciler closes the loop. Were any rejections debatable? Any approvals that executed against declared signals correctly? Any concerning patterns?
 - `outcome-reconciliation` runs as a chat-initiated or reactive-on-fill invocation — updates `_money_truth.md` with any day's fills. Per ADR-205 + Axiom 4, dispatch is operator-or-Claude chat-initiated, not cron-bound; the unified scheduler exists as periodic-trigger infrastructure but the load-bearing path is invocation-flow through the primitive matrix (ADR-194 v2 Phase 2b reactive Reviewer dispatch + ADR-204/207 ProposeAction → ExecuteProposal). Claude reads the update next morning.
 - Observation note logged if anything friction-worthy surfaced.
 
@@ -939,7 +939,7 @@ Templates in
 [DUAL-OBJECTIVE-DISCIPLINE.md §dual-weekly-report-templates](./DUAL-OBJECTIVE-DISCIPLINE.md#dual-weekly-report-templates).
 
 Both produced Sunday evening. Both read the same substrate
-(`_money_truth.md`, `decisions.md`, observation notes, activity log);
+(`_money_truth.md`, `judgment_log.md`, observation notes, activity log);
 they differ in framing (A = system-insight / ADR seeds / UX friction;
 B = capital trajectory / per-signal attribution / honesty check /
 hypothesis status).
@@ -1030,7 +1030,7 @@ docs/alpha/
 **Architectural (verify during Phase 3 first-triggers):**
 
 9. **`_money_truth.md` per-signal / per-rule schema** — backend's current reconciler shape may or may not support `by_signal` (trader) or `by_sku`/`by_direction`/`by_rule` (commerce) attribution. Verify during first-triggers. If missing in either, log as structural-gap ADR candidate.
-10. **Reviewer reasoning format** — does the AI Reviewer write its six-check chain to `decisions.md` in full, or produce a shorter summary? Verify against first few AI verdicts per account; may require prompt adjustment.
+10. **Reviewer reasoning format** — does the AI Reviewer write its six-check chain to `judgment_log.md` decision entries in full, or produce a shorter summary? Verify against first few AI verdicts per account; may require prompt adjustment.
 11. **Commerce platform integration gap (if §3B.0 = Option B Shopify)** — YARNNN lacks native Shopify integration. Either we use LS (digital) for Alpha-1 and draft a Shopify-platform-bot ADR for Alpha-1.5 physical upgrade, or we accept initial commerce substrate that's platform-naive (operator + Claude manually reconcile until a Shopify bot ships). Decision depends on §3B.0 outcome.
 12. **Multi-workspace Claude authentication** — if Claude operates two accounts concurrently (trader + commerce), session management across two authenticated YARNNN sessions is an operational concern. Likely separate browser sessions or separate tabs; verify during Phase 2.
 

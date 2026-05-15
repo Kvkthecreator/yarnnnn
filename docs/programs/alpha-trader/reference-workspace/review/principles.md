@@ -30,7 +30,7 @@ When the position-state mirror substrate (`/workspace/context/portfolio/position
 2. **Target reached**: position's current price has reached the declared target. Proposal: limit close at target.
 3. **Max-hold reached**: position's days-held >= max-hold from the signal's declared sizing rule. Proposal: market close, attribution = "max-hold day {N} reached on {ticker}".
 
-**Silent stand-down on an exit trigger is forbidden.** If the Reviewer cannot decide an exit (e.g., conflicting state — stop hit but pending order to close already exists), it writes the conflict to `decisions.md` and proposes the conservative resolution.
+**Silent stand-down on an exit trigger is forbidden.** If the Reviewer cannot decide an exit (e.g., conflicting state — stop hit but pending order to close already exists), it writes the conflict to `judgment_log.md` and proposes the conservative resolution.
 
 The defer rule (sample-size threshold below) does NOT apply to exit triggers. Exits enforce declared rules; they do not require new evidence.
 
@@ -74,7 +74,7 @@ What I cannot instruct: external platform writes (those are proposals), infrastr
 
 ## Calibration loop
 
-Reviewer's verdict + reasoning + outcome (when reconciler closes the loop) accumulate in `decisions.md`. Calibration aggregates approve-correct vs approve-incorrect over rolling windows. If approve-incorrect rate climbs, principles tighten; if a pattern of false negatives emerges (signals I rejected that would have won), the principles loosen the relevant rule. **Calibration is the quality check; growth is the success measure.**
+Reviewer's verdict + reasoning + outcome (when reconciler closes the loop) accumulate in `judgment_log.md` (proposal-arrival decisions + material-outcome lineage entries per ADR-281 §3). Calibration aggregates approve-correct vs approve-incorrect over rolling windows. If approve-incorrect rate climbs, principles tighten; if a pattern of false negatives emerges (signals I rejected that would have won), the principles loosen the relevant rule. **Calibration is the quality check; growth is the success measure.**
 
 ## What this file is NOT
 
