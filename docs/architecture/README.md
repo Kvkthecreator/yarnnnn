@@ -13,7 +13,7 @@ The canon is stacked: **THESIS** (the philosophical claim the architecture exist
 | Document | Covers |
 |----------|--------|
 | [**THESIS.md**](THESIS.md) | The philosophical thesis — four architectural commitments (declared intent, independent judgment, ground-truth evaluation, authored accumulation), falsifiable predictions, dual-use terminal vision. **Internal canon; not external messaging.** |
-| [**FOUNDATIONS.md**](FOUNDATIONS.md) | First-principles axioms — all ADRs derive from these. Six-dimensional model, filesystem-as-substrate, Axiom 2 sharp Agent-vs-Orchestration split, money-truth, fourteen Derived Principles. |
+| [**FOUNDATIONS.md**](FOUNDATIONS.md) | First-principles axioms — all ADRs derive from these. Six-dimensional model, filesystem-as-substrate, Axiom 2 sharp Agent-vs-Orchestration split, Axiom 8 ground-truth substrate, fourteen Derived Principles. |
 | [**LAYER-MAPPING.md**](LAYER-MAPPING.md) | **Authoritative taxonomy** for the Agent-vs-Orchestration split, amended by ADR-216. Names every entity, classifies it, and clarifies that YARNNN is the orchestration chat surface, not a persona-bearing Agent. |
 | [**agent-composition.md**](agent-composition.md) | The current composition canon — what YARNNN, Reviewer, and domain Agents read at reasoning time; how persona/framework/delegation separate; prompt/versioning discipline. |
 | [**GLOSSARY.md**](GLOSSARY.md) | Canonical vocabulary — one word, one concept, one layer. |

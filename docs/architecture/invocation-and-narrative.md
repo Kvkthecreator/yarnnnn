@@ -203,7 +203,7 @@ Mode is the lifecycle layer. Pulse is the invocation layer. An invocation of a g
 
 ### Preserves
 
-- **FOUNDATIONS Axioms 1 / 2 / 3 / 5 / 7 / 8** — substrate, identity, purpose, mechanism, recursion, money-truth are unchanged.
+- **FOUNDATIONS Axioms 1 / 2 / 3 / 5 / 7 / 8** — substrate, identity, purpose, mechanism, recursion, ground-truth substrate are unchanged.
 - **ADR-141** (Execution Architecture) — three layers of mechanism are unchanged; invocation is one cycle through them.
 - **ADR-164** (Back-office tasks) — YARNNN-owned tasks, narrative rendering is an additive commitment.
 - **ADR-169** (MCP as Context Hub) — foreign LLM invocations already fit the atom; this doc names that fit.
