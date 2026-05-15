@@ -41,11 +41,11 @@ The convention shapes (per ADR-262 D1):
       single file:   /workspace/_recurrences.yaml
 
     Reviewer substrate (ADR-194 v2; ADR-256 unified reflection outputs
-    into decisions.md — there is no separate reflections.md):
-      identity:      /workspace/review/IDENTITY.md
-      principles:    /workspace/review/principles.md (prose)
-      principles:    /workspace/review/_principles.yaml (machine-parsed thresholds)
-      decisions:     /workspace/review/decisions.md (append-only)
+    into the judgment log; ADR-281 §5 renamed decisions.md → judgment_log.md):
+      identity:       /workspace/review/IDENTITY.md
+      principles:     /workspace/review/principles.md (prose)
+      principles:     /workspace/review/_principles.yaml (machine-parsed thresholds)
+      judgment_log:   /workspace/review/judgment_log.md (system-rendered append-only)
 
     Operator-authored shared substrate (ADR-206 + ADR-217 relocated
     `_shared/` to `/workspace/context/_shared/`): see
@@ -212,15 +212,19 @@ def operation_working_dir(slug: str) -> str:
 # ---------------------------------------------------------------------------
 # Reviewer substrate (ADR-194 v2)
 #
-# Note: ADR-256 unified reflection outputs into decisions.md. There is no
-# longer a separate /workspace/review/reflections.md — the dead
-# REVIEW_REFLECTIONS_PATH constant was deleted 2026-05-12.
+# Note: ADR-256 unified reflection outputs into the judgment log. There is
+# no separate reflections.md substrate. ADR-281 §5 renamed decisions.md →
+# judgment_log.md; the canonical path constant lives in
+# `services.workspace_paths.REVIEW_JUDGMENT_LOG_PATH` — this module's
+# REVIEW_DECISIONS_PATH (parallel definition, zero importers) was deleted
+# 2026-05-15 per Singular Implementation. Other REVIEW_* constants here
+# remain as legacy /workspace/-prefixed convenience strings — if a future
+# caller emerges these should be consolidated to workspace_paths.py too.
 # ---------------------------------------------------------------------------
 
 REVIEW_IDENTITY_PATH = "/workspace/review/IDENTITY.md"
 REVIEW_PRINCIPLES_PROSE_PATH = "/workspace/review/principles.md"
 REVIEW_PRINCIPLES_YAML_PATH = "/workspace/review/_principles.yaml"
-REVIEW_DECISIONS_PATH = "/workspace/review/decisions.md"
 
 
 # ---------------------------------------------------------------------------
@@ -274,7 +278,6 @@ __all__ = [
     "REVIEW_IDENTITY_PATH",
     "REVIEW_PRINCIPLES_PROSE_PATH",
     "REVIEW_PRINCIPLES_YAML_PATH",
-    "REVIEW_DECISIONS_PATH",
     # Specs
     "spec_path",
 ]

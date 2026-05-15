@@ -130,7 +130,7 @@ default:
 
 **What you should track during Phase 0:**
 
-1. **Reviewer verdict quality.** Read `/workspace/review/decisions.md` regularly. Are the approve verdicts ones you would have approved? Are the reject verdicts catching real risk?
+1. **Reviewer verdict quality.** Read `/workspace/review/judgment_log.md` regularly. Are the approve verdicts ones you would have approved? Are the reject verdicts catching real risk?
 2. **Signal expectancy stability.** Watch `weekly-performance-review`. Are signals tracking their declared baselines?
 3. **Calibration trajectory.** Watch `morning-calibration`. Is realized P&L close to declared expectancy?
 
@@ -203,7 +203,7 @@ default:
    - `proposal.estimated_cents` ($12,500 for typical entry) < `ceiling_cents` ($15,000) ✓
    - Action type not in `never_auto` ✓
 6. **Executes**: `handle_execute_proposal` fires the platform tool (Alpaca order submission).
-7. Audit: `append_decision(decision="approve", reviewer_identity="ai:reviewer-{occupant}")` to `/workspace/review/decisions.md`.
+7. Audit: `append_decision(decision="approve", reviewer_identity="ai:reviewer-{occupant}")` to `/workspace/review/judgment_log.md`.
 8. Next minute: `track-positions` mechanical recurrence mirrors the new position into substrate.
 9. Next 5am: `outcome-reconciliation` reconciles when the trade closes (stop / target / max-hold).
 10. Next 6am: `morning-calibration` compares realized vs declared expectancy.

@@ -26,7 +26,7 @@ Post-ADR-206 layout:
       │   ├── IDENTITY.md           ← who the seat is (role-level, static)
       │   ├── OCCUPANT.md           ← who currently fills it (rotates via handoffs)
       │   ├── principles.md         ← declared judgment framework (narrative)
-      │   ├── decisions.md          ← append-only verdict trail
+      │   ├── judgment_log.md      ← append-only judgment lineage (system-ledger, ADR-281 §5)
       │   ├── handoffs.md           ← append-only occupant-rotation log
       │   └── calibration.md        ← auto-generated judgments-vs-outcomes trail
       ├── agents/                   ← agent substrate (ADR-106)
@@ -104,7 +104,7 @@ MEMORY_FILES = (
 REVIEW_IDENTITY_PATH = "review/IDENTITY.md"
 REVIEW_PRINCIPLES_PATH = "review/principles.md"          # prose (LLM reads)
 REVIEW_PRINCIPLES_YAML_PATH = "review/_principles.yaml"  # machine-parsed thresholds (ADR-254)
-REVIEW_DECISIONS_PATH = "review/decisions.md"
+REVIEW_JUDGMENT_LOG_PATH = "review/judgment_log.md"
 # Phase 4 (ADR-211) minus modes.md (ADR-217):
 REVIEW_OCCUPANT_PATH = "review/OCCUPANT.md"
 REVIEW_HANDOFFS_PATH = "review/handoffs.md"
@@ -113,7 +113,7 @@ REVIEW_CALIBRATION_PATH = "review/calibration.md"
 REVIEW_FILES = (
     REVIEW_IDENTITY_PATH,
     REVIEW_PRINCIPLES_PATH,
-    REVIEW_DECISIONS_PATH,
+    REVIEW_JUDGMENT_LOG_PATH,
     REVIEW_OCCUPANT_PATH,
     REVIEW_HANDOFFS_PATH,
     REVIEW_CALIBRATION_PATH,

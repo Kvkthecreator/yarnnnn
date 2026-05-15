@@ -373,5 +373,189 @@ def test_grep_gate_kernel_perception_no_program_paths():
     )
 
 
+# ---------------------------------------------------------------------------
+# 8. Stream B Piece 1: judgment_log substrate (ADR-281 §5)
+# ---------------------------------------------------------------------------
+
+def test_review_judgment_log_path_constant_renamed():
+    """ADR-281 §5.D1: REVIEW_DECISIONS_PATH renamed to REVIEW_JUDGMENT_LOG_PATH."""
+    from services import workspace_paths
+    assert hasattr(workspace_paths, "REVIEW_JUDGMENT_LOG_PATH"), \
+        "REVIEW_JUDGMENT_LOG_PATH must exist in workspace_paths"
+    assert workspace_paths.REVIEW_JUDGMENT_LOG_PATH == "review/judgment_log.md"
+    assert not hasattr(workspace_paths, "REVIEW_DECISIONS_PATH"), \
+        "REVIEW_DECISIONS_PATH must be deleted per Singular Implementation"
+
+
+def test_judgment_log_path_in_reviewer_audit():
+    """reviewer_audit.JUDGMENT_LOG_PATH is the full /workspace/-prefixed path."""
+    from services.reviewer_audit import JUDGMENT_LOG_PATH
+    assert JUDGMENT_LOG_PATH == "/workspace/review/judgment_log.md"
+    # And the legacy DECISIONS_PATH is gone
+    from services import reviewer_audit
+    assert not hasattr(reviewer_audit, "DECISIONS_PATH")
+
+
+def test_append_recurrence_fire_deleted():
+    """ADR-281 §5.D4 + Singular Implementation: blanket-write function deleted."""
+    from services import reviewer_audit
+    assert not hasattr(reviewer_audit, "append_recurrence_fire"), \
+        "append_recurrence_fire must be deleted; replaced by render_lineage_entry_if_material"
+
+
+def test_render_lineage_entry_if_material_exists():
+    """ADR-281 §5.D2 + §5.D3: single-writer contract via material-outcome gate."""
+    from services.reviewer_audit import render_lineage_entry_if_material
+    assert callable(render_lineage_entry_if_material)
+
+
+def test_material_outcome_gate_routine_stand_down_renders_no_entry():
+    """§5.D3: a Reviewer wake with no material outcome produces no lineage entry."""
+    from services.reviewer_audit import _detect_outcome_kind
+    # stand_down with no material actions → None
+    assert _detect_outcome_kind({"verdict": "stand_down", "actions_taken": []}) is None
+    # only ReadFile calls → None (read-only wake, no outcome)
+    assert _detect_outcome_kind({
+        "verdict": "stand_down",
+        "actions_taken": [
+            {"tool": "ReadFile", "input": {"path": "/workspace/review/IDENTITY.md"}, "result": {"success": True}},
+            {"tool": "ListFiles", "input": {"path": "/workspace/context/"}, "result": {"success": True}},
+        ],
+    }) is None
+
+
+def test_material_outcome_gate_propose_action_renders_entry():
+    """§5.D3 condition 1: ProposeAction call → propose_action outcome."""
+    from services.reviewer_audit import _detect_outcome_kind
+    assert _detect_outcome_kind({
+        "verdict": "approve",
+        "actions_taken": [
+            {"tool": "ProposeAction", "input": {"action_type": "trading.submit_order"}, "result": {"success": True}},
+        ],
+    }) == "propose_action"
+
+
+def test_material_outcome_gate_schedule_create_renders_entry():
+    """§5.D3 condition 2: Schedule with action=create → schedule_create outcome."""
+    from services.reviewer_audit import _detect_outcome_kind
+    assert _detect_outcome_kind({
+        "verdict": "stand_down",
+        "actions_taken": [
+            {"tool": "Schedule", "input": {"action": "create", "slug": "morning-brief"}, "result": {"success": True}},
+        ],
+    }) == "schedule_create"
+
+
+def test_material_outcome_gate_meta_verdict_renders_entry():
+    """§5.D3 condition 5: meta-level verdict → meta_verdict:<verdict> outcome."""
+    from services.reviewer_audit import _detect_outcome_kind
+    for meta in ("pause_autonomy", "narrow", "relax", "character_note"):
+        assert _detect_outcome_kind({"verdict": meta, "actions_taken": []}) == f"meta_verdict:{meta}"
+
+
+def test_invocation_dispatcher_uses_render_lineage_entry():
+    """ADR-281 §5.D4: invocation_dispatcher.py invokes render_lineage_entry_if_material,
+    NOT the deleted append_recurrence_fire (call sites; doc-comments narrating
+    the dissolution are allowed)."""
+    src = (API_ROOT / "services" / "invocation_dispatcher.py").read_text()
+    # Walk lines: any executable Python referencing append_recurrence_fire is forbidden.
+    # Comment lines (#) explaining the dissolution are allowed.
+    for lineno, raw in enumerate(src.splitlines(), start=1):
+        line = raw.strip()
+        if line.startswith("#"):
+            continue
+        if "append_recurrence_fire" in raw:
+            raise AssertionError(
+                f"invocation_dispatcher.py:{lineno}: live reference to "
+                f"append_recurrence_fire (must be deleted): {raw.strip()!r}"
+            )
+    assert "render_lineage_entry_if_material" in src, \
+        "invocation_dispatcher.py must invoke render_lineage_entry_if_material"
+
+
+def test_track_regime_does_not_write_judgment_log():
+    """ADR-281 §5 / Derived Principle 19: track_regime.py writes substrate
+    (`_regime_freshness.yaml`), not directly to the judgment log."""
+    src = (API_ROOT / "services" / "primitives" / "track_regime.py").read_text()
+    # Should not have a write_revision call targeting /workspace/review/judgment_log.md
+    # or /workspace/review/decisions.md (post-rename or pre-rename).
+    for path in ("/workspace/review/judgment_log.md", "/workspace/review/decisions.md"):
+        # Path may appear in doc-comments explaining the refactor — that's OK.
+        # What's forbidden: an active write call. Heuristic: check for `path=` argument
+        # passing the path string.
+        assert f'path="{path}"' not in src, f"track_regime.py must not write to {path}"
+        assert f"path='{path}'" not in src, f"track_regime.py must not write to {path}"
+    # And should write to _regime_freshness.yaml instead
+    assert "_regime_freshness.yaml" in src, \
+        "track_regime.py must write freshness state to _regime_freshness.yaml substrate"
+
+
+def test_alpha_trader_workspace_guide_declares_judgment_log_role():
+    """alpha-trader bundle workspace guide declares judgment_log.md as system-ledger."""
+    guide = (BUNDLES_ROOT / "alpha-trader" / "reference-workspace" / "_workspace_guide.md").read_text()
+    assert "review/judgment_log.md" in guide
+    assert "review/decisions.md" not in guide, "old path must be fully replaced"
+
+
+def test_no_live_decisions_md_path_in_kernel_perception_files():
+    """ADR-281 §5 grep gate: kernel-perception files reference judgment_log.md, not decisions.md.
+
+    Doc-comment narration explaining the refactor IS allowed (e.g. "decisions.md was
+    renamed to judgment_log.md per ADR-281 §5"). What's forbidden: live path strings.
+    """
+    files_to_check = [
+        API_ROOT / "services" / "workspace_paths.py",
+        API_ROOT / "services" / "reviewer_envelope.py",
+        API_ROOT / "services" / "review_proposal_dispatch.py",
+        API_ROOT / "agents" / "reviewer_agent.py",
+        API_ROOT / "agents" / "cockpit_awareness.py",
+    ]
+    for f in files_to_check:
+        if not f.exists():
+            continue
+        content = f.read_text()
+        for lineno, line in enumerate(content.splitlines(), start=1):
+            stripped = line.strip()
+            # Skip doc-comments that explain the refactor
+            if stripped.startswith("#") or stripped.startswith("*"):
+                continue
+            # Skip lines that are obviously docstring narration about the rename
+            if "renamed" in line.lower() or "ADR-281" in line or "deleted" in line.lower():
+                continue
+            # Live path strings forbidden
+            if "/workspace/review/decisions.md" in line:
+                raise AssertionError(
+                    f"{f.relative_to(API_ROOT)}:{lineno}: live decisions.md path "
+                    f"reference (must be renamed to judgment_log.md): {line.strip()!r}"
+                )
+
+
+# ---------------------------------------------------------------------------
+# 9. FOUNDATIONS + GLOSSARY canon updates
+# ---------------------------------------------------------------------------
+
+def test_foundations_axiom_1_fifth_subclause_added():
+    """FOUNDATIONS Axiom 1 gains the substrate-organization-as-canon sub-clause."""
+    fnd = (REPO_ROOT / "docs" / "architecture" / "FOUNDATIONS.md").read_text()
+    assert "Substrate organization is operator-readable canon" in fnd, \
+        "Axiom 1 must include the fifth sub-clause per ADR-281"
+
+
+def test_glossary_substrate_pedagogy_section_added():
+    """GLOSSARY gains the Substrate Pedagogy section with role taxonomy + judgment_log + ABI."""
+    glossary = (REPO_ROOT / "docs" / "architecture" / "GLOSSARY.md").read_text()
+    assert "Substrate Pedagogy (ADR-281" in glossary, \
+        "GLOSSARY must include the Substrate Pedagogy section"
+    # Role taxonomy entries
+    for role in ("operator-canon", "reviewer-workbench", "system-ledger",
+                 "world-mirror", "running-narrative", "kernel-index"):
+        assert f"`{role}`" in glossary, f"GLOSSARY missing role taxonomy entry for {role}"
+    # Judgment log + Substrate ABI
+    assert "Judgment log" in glossary
+    assert "Substrate ABI" in glossary
+    assert "Material-outcome gate" in glossary
+    assert "The kernel does not compute for the prompt" in glossary
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

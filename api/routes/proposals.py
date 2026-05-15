@@ -37,7 +37,7 @@ class ApproveRequest(BaseModel):
 
     modified_inputs: optional field overrides merged over proposal.inputs.
     reviewer_reasoning: optional short reasoning; lands in action_proposals +
-      /workspace/review/decisions.md per ADR-194 v2 Phase 2a.
+      /workspace/review/judgment_log.md per ADR-194 v2 Phase 2a.
     """
     modified_inputs: Optional[dict] = None
     reviewer_reasoning: Optional[str] = None

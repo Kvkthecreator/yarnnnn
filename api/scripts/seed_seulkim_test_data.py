@@ -268,7 +268,7 @@ def main():
                 "pulse": "reactive",
                 "weight": "material",
                 "reviewer_identity": "ai:reviewer-sonnet-v1",
-                "provenance": [{"path": "/workspace/review/decisions.md", "kind": "decisions_log"}],
+                "provenance": [{"path": "/workspace/review/judgment_log.md", "kind": "decisions_log"}],
             },
             "minutes_ago": 85,
         },

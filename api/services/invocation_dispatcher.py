@@ -351,27 +351,36 @@ async def dispatch(
             verdict_summary = reviewer_output.get("verdict") or ""
         reviewer_identity = reviewer_output.get("reviewer_identity") or reviewer_identity
 
-    # FOUNDATIONS v8.4 Axiom 1 (substrate-as-bus): persist Reviewer's verdict +
-    # reasoning to /workspace/review/decisions.md so a later Reviewer
-    # read-from-substrate (the next Loop wake) can recover what was decided.
-    # Without this, the Reviewer's reasoning lives only in the tool-result
-    # dict returned to the caller — a parallel control-flow channel that
-    # violates the substrate-as-bus invariant. Best-effort; never raises.
+    # ADR-281 §5.D2 + §5.D4 single-writer contract: judgment_log.md is the
+    # Reviewer's operation-shaping judgment lineage, NOT a wake-audit log.
+    # The wake's existence is recorded in execution_events (kernel-side
+    # forensic substrate per ADR-265) + the feed narrative entry below
+    # (per ADR-258 revised). The judgment_log only gets an entry if the
+    # wake produced a material outcome per the §5.D3 deterministic
+    # 5-condition gate (ProposeAction, Schedule create/update/archive,
+    # WriteFile to operator-canon, Clarify alert, or meta-level verdict).
+    # Routine stand-downs correctly produce no lineage entry — they are
+    # not operation-shaping moments.
+    #
+    # Replaces the deleted append_recurrence_fire blanket-write
+    # (pre-ADR-281 every wake produced an entry; this was the same
+    # duplication pattern ADR-277 named at the feed-emission layer,
+    # applied at the substrate-write layer).
+    #
+    # Pass the full reviewer_output dict (carries actions_taken + verdict)
+    # so the gate can inspect tool calls. Best-effort; never raises.
     try:
-        from services.reviewer_audit import append_recurrence_fire
-        await append_recurrence_fire(
+        from services.reviewer_audit import render_lineage_entry_if_material
+        await render_lineage_entry_if_material(
             client, user_id,
+            reviewer_output=reviewer_output if isinstance(reviewer_output, dict) else {},
             slug=recurrence.slug,
             trigger=trigger,
             reviewer_identity=reviewer_identity,
-            reasoning=verdict_summary,
-            duration_ms=duration_ms,
-            actions_count=len(actions_taken),
-            proposals_count=len(proposals),
         )
-    except Exception as exc:  # noqa: BLE001 — substrate audit must not break dispatch
+    except Exception as exc:  # noqa: BLE001 — judgment-log writes must not break dispatch
         logger.warning(
-            "[DISPATCH] %s/%s recurrence-fire substrate write failed: %s",
+            "[DISPATCH] %s/%s judgment-log lineage render failed: %s",
             user_id[:8], recurrence.slug, exc,
         )
 

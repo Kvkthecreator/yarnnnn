@@ -33,7 +33,7 @@ path_zones:
   - path: review/calibration.md
     role: system-ledger
     purpose: per-occupant judgment-vs-outcome rolling windows
-  - path: review/decisions.md
+  - path: review/judgment_log.md
     role: system-ledger
     purpose: Reviewer's judgment lineage
   - path: memory/recent.md
@@ -160,7 +160,7 @@ program adds two operator-canon domains:
 Operational substrate emerges through Reviewer judgment + work over
 tenure: customer-research surfaces the `research/` directory as needed;
 patterns land in `review/notes.md`; operation-shaping decisions
-accumulate in `review/decisions.md`.
+accumulate in `review/judgment_log.md`.
 
 ## When things diverge
 

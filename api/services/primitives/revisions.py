@@ -62,7 +62,7 @@ Path is absolute within the workspace filesystem, e.g.:
   /workspace/context/_shared/MANDATE.md
   /agents/alpha-research/AGENT.md
   /workspace/reports/weekly-brief/_feedback.md
-  /workspace/review/decisions.md
+  /workspace/review/judgment_log.md
 
 Read-only. Use ReadRevision(path, revision_id=...) to fetch a specific
 revision's content, or DiffRevisions(path, from_rev, to_rev) to compare

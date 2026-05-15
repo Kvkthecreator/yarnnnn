@@ -118,7 +118,7 @@ def _maintenance_prompt_for(slug: str, executor: str) -> str:
             "without operator action. Use UpdateContext target='proposal' "
             "to mark them archived (revision log preserves history per "
             "ADR-209). For each archived proposal, append one line to "
-            "/workspace/review/decisions.md noting the auto-archive."
+            "/workspace/review/judgment_log.md noting the auto-archive."
         ),
         "back-office-outcome-reconciliation": (
             "Reconcile yesterday's executed proposals against platform "
@@ -132,11 +132,11 @@ def _maintenance_prompt_for(slug: str, executor: str) -> str:
             "/workspace/context/trading/_performance.md for the last "
             "7d/30d/90d windows. Compare realized expectancy to your "
             "declared edge. If realized P&L diverges materially, append "
-            "a calibration concern to /workspace/review/decisions.md."
+            "a calibration concern to /workspace/review/judgment_log.md."
         ),
         "back-office-reviewer-reflection": (
             "Reflect on yesterday's decisions against your principles. "
-            "Read /workspace/review/decisions.md (last 7d) and "
+            "Read /workspace/review/judgment_log.md (last 7d) and "
             "/workspace/review/principles.md. If a pattern warrants a "
             "principles adjustment, ProposeAction with full revised file "
             "content. Always append a reflections.md entry."

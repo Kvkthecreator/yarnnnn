@@ -161,7 +161,7 @@ async def compose_subject_context(
             entity_row = item
         elif "signals.md" in lower_path or "/signals/" in lower_path:
             signals.append(item)
-        elif "decisions.md" in lower_path or "/memory/notes.md" in lower_path or "/workspace/memory/" in lower_path:
+        elif "judgment_log.md" in lower_path or "/memory/notes.md" in lower_path or "/workspace/memory/" in lower_path:
             decisions.append(item)
         else:
             # General context hit — bucket as a signal by default

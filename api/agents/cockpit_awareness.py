@@ -23,7 +23,7 @@ from services.workspace_paths import (
     REVIEW_IDENTITY_PATH,
     REVIEW_PRINCIPLES_PATH,
     REVIEW_PRINCIPLES_YAML_PATH,
-    REVIEW_DECISIONS_PATH,
+    REVIEW_JUDGMENT_LOG_PATH,
     REVIEW_OCCUPANT_PATH,
     REVIEW_CALIBRATION_PATH,
     MEMORY_AWARENESS_PATH,
@@ -61,7 +61,7 @@ def build_filesystem_block() -> str:
         f"- /{REVIEW_IDENTITY_PATH} — your persona (read first; operator seeded)",
         f"- /{REVIEW_PRINCIPLES_PATH} — your framework (your rules of judgment)",
         f"- /{REVIEW_PRINCIPLES_YAML_PATH} — machine-parsed thresholds",
-        f"- /{REVIEW_DECISIONS_PATH} — your verdict trail (append-only)",
+        f"- /{REVIEW_JUDGMENT_LOG_PATH} — your judgment lineage (system-rendered append-only, ADR-281 §5)",
         f"- /{REVIEW_OCCUPANT_PATH} — current occupant metadata",
         f"- /{REVIEW_CALIBRATION_PATH} — rolling calibration metrics",
         "",
@@ -169,7 +169,7 @@ You have up to 8 rounds per invocation. Use them:
    you need to reason about drift or the operator's recent changes
 3. FireInvocation — commission missing substrate from declared recurrences
 4. ProposeAction — submit action when conditions are met (gated by AUTONOMY)
-5. WriteFile — write to your own substrate (decisions.md, notes within
+5. WriteFile — write to your own substrate (judgment_log.md, notes within
    /workspace/review/, etc.) or to operator-shared substrate if not locked
 6. Clarify — ask the operator something material
 7. ReturnVerdict — close the turn (always last)

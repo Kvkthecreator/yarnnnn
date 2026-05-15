@@ -16,11 +16,11 @@ would fail the constraint.
 sole entry point. Callers (propose_action.handle_execute_proposal,
 propose_action.handle_reject_proposal, review_proposal_dispatch for
 AI-defer + observe-only paths) call this helper after their primary
-verdict write (to decisions.md + action_proposals).
+verdict write (to judgment_log.md + action_proposals).
 
 Failure discipline: surfacing to chat is best-effort. If the session
 lookup or message insert fails, we log and return — the verdict is
-already persisted authoritatively in decisions.md + action_proposals.
+already persisted authoritatively in judgment_log.md + action_proposals.
 The chat surfacing is the *second read path* for human visibility;
 losing it doesn't lose the verdict.
 
@@ -35,7 +35,7 @@ verdict card appears there alongside YARNNN's welcome-back.
 If no active session exists (operator hasn't chatted at all today),
 we do NOT force-create a session. Creating empty sessions just to
 hold unattended verdicts pollutes the session list. The verdict is
-still fully captured in decisions.md + action_proposals — it just
+still fully captured in judgment_log.md + action_proposals — it just
 won't appear in /chat retrospectively if they never chat today.
 This is acceptable; /review is the authoritative audit trail.
 
@@ -53,7 +53,7 @@ rendering:
     }
 
 Content is the reviewer's reasoning — the same text persisted to
-decisions.md. Short (typically 2–5 sentences).
+judgment_log.md. Short (typically 2–5 sentences).
 """
 
 from __future__ import annotations
@@ -81,7 +81,7 @@ async def write_reviewer_message(
     None on any failure path (no active session; insert failed; etc.).
 
     Callers should treat this as write-and-forget — the authoritative
-    verdict record lives in decisions.md + action_proposals. This
+    verdict record lives in judgment_log.md + action_proposals. This
     surfacing is for operator-facing timeline visibility.
     """
     if not user_id or not content:

@@ -57,7 +57,7 @@ When sample size is between 1 and 19 for a signal: still propose if conditions m
 ## Defer posture — what I commission when I defer (ADR-253 D2 + ADR-263)
 
 When deferring because a signal has high uncertainty AFTER the bootstrap window (>= 20 samples, mixed outcomes):
-- Directive: write reasoning to `/workspace/review/decisions.md` so the operator and the morning-calibration recurrence see the pattern.
+- Directive: write reasoning to `/workspace/review/judgment_log.md` so the operator and the morning-calibration recurrence see the pattern.
 
 When deferring because a signal spec is ambiguous:
 - Directive: write a note to `/workspace/review/notes.md` flagging the spec gap so the operator can clarify in `_operator_profile.md`.

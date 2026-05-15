@@ -18,7 +18,7 @@ Reviewer at all. Reflection and heartbeat dissolved into `reactive`.
 Per FOUNDATIONS v8.4:
 - Axiom 1 (Substrate): the Reviewer reads + writes substrate; substrate
   is the bus the Loop runs over (fourth sub-clause). Cross-Reviewer
-  reasoning persists via reviewer_audit.append_recurrence_fire().
+  reasoning persists via reviewer_audit.render_lineage_entry_if_material().
 - Axiom 2 (Identity): occupant tagged `ai:reviewer-sonnet-v8`. The
   Reviewer is the operator's judgment function rendered as an
   autonomous agent — operator in judging posture, not a separate
@@ -28,7 +28,7 @@ Per FOUNDATIONS v8.4:
   act is the same regardless of which woke the Loop.
 - Axiom 5 (Mechanism): bounded tool-use loop. Reviewer reads what it
   needs, acts on what it decides, returns verdict.
-- Axiom 6 (Channel): decisions.md + reviewer_chat_surfacing narration.
+- Axiom 6 (Channel): judgment_log.md + reviewer_chat_surfacing narration.
   Per-action narration is legibility, not control-flow.
 - Axiom 8 (Money-Truth): reasons against _money_truth.md rolling
   windows (ADR-195 Phase 3, P&L unification 2026-05-12) — including
@@ -198,7 +198,7 @@ RETURN_VERDICT_TOOL = {
                 "type": "string",
                 "description": (
                     "2-5 sentences in your persona's voice. Written verbatim "
-                    "to /workspace/review/decisions.md. First sentence is the "
+                    "to /workspace/review/judgment_log.md. First sentence is the "
                     "verdict; second is why."
                 ),
             },
@@ -475,7 +475,7 @@ your authoring from the bundle's scaffolding.
 Your cadence-authoring history is queryable: `ListRevisions(path=
 "/workspace/_recurrences.yaml")` returns every revision with
 `authored_by`; `ReadRevision` returns specific versions; `DiffRevisions`
-shows what changed. Pair these with your `decisions.md` reasoning to
+shows what changed. Pair these with your `judgment_log.md` reasoning to
 make your operating judgment auditable. The two-table pair (revision
 intent + `execution_events` outcomes via `GetSystemState`) is the
 canonical Trigger audit trail — no parallel cadence-tracking substrate.
@@ -545,7 +545,7 @@ _TRIGGER_FRAMING = {
         "Do NOT call ReadFile on these — read them from the message you are "
         "reading right now.\n\n"
         "Use ReadFile only for files NOT shown above (e.g. specific reports, "
-        "decisions.md history, recent recurrence outputs).\n\n"
+        "judgment_log.md history, recent recurrence outputs).\n\n"
         "**The default is action.** Read state, decide what moves the "
         "operation forward, do it. Pick the most disciplined available action "
         "per your framework:\n\n"
@@ -556,7 +556,7 @@ _TRIGGER_FRAMING = {
         "Narrate: 'I'm refreshing X — re-assessing when it completes.' This "
         "is action, not deferral.\n"
         "- A pattern, observation, or judgment is worth retaining for the next "
-        "cycle → WriteFile to your own substrate (decisions.md or notes "
+        "cycle → WriteFile to your own substrate (judgment_log.md or notes "
         "within /workspace/review/). The operator's chair owns its "
         "notebook; use it.\n"
         "- Combination of the above — typical case is fire-refresh + write-note "

@@ -139,7 +139,7 @@ recurrences:
       What you produce:
       - signal-entry rows appended to signals/{signal_id}.yaml when entry conditions match
       - a FireInvocation(slug="trade-proposal") when any entry signal OR exit trigger fires
-      - stand-down written to /workspace/review/decisions.md when neither path triggers
+      - stand-down written to /workspace/review/judgment_log.md when neither path triggers
 
       Evaluate the universe against signals declared in
       /workspace/context/_shared/_operator_profile.md on the fresh 1Hour bars
@@ -239,7 +239,7 @@ recurrences:
       is the original signal_id of the position being closed.
 
       If conditions don't warrant on the entry path, stand down with reasoning
-      written to /workspace/review/decisions.md. **Silent stand-down on an
+      written to /workspace/review/judgment_log.md. **Silent stand-down on an
       exit trigger is forbidden** (per principles.md).
     display_name: "Trade Proposal"
 

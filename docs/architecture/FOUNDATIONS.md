@@ -140,6 +140,18 @@ The principle: **the Loop sleeps; substrate persists; the Loop wakes, reads subs
 
 This sub-clause hardens what the prior three already imply: substrate is not the place the runtime *stores its outputs*; substrate is the place the runtime *exists*. Implementation collisions with this sub-clause — e.g., Reviewer-to-System-Agent direct return values, in-memory caches that bypass substrate writes, parallel control planes — are Axiom 1 violations.
 
+### Substrate organization is operator-readable canon (ADR-281, 2026-05-15)
+
+The four prior sub-clauses say *where* state lives, *how* it evolves, *what kinds* belong, and *what role* substrate plays in the runtime. This fifth sub-clause says **how the substrate is taught**: the substrate's organization is itself operator-readable canon, not kernel-internal knowledge.
+
+Bundles ship a **workspace guide** (`docs/programs/{slug}/reference-workspace/_workspace_guide.md`) — the library's operating manual. Forked into the operator's workspace at activation. The Reviewer reads it at every wake; the operator can edit it. The frontmatter is machine-parseable (mirrors the bundle MANIFEST's `substrate_abi` declarations); the prose body teaches the six-role taxonomy (`operator-canon` / `reviewer-workbench` / `system-ledger` / `world-mirror` / `running-narrative` / `kernel-index`), what NOT to write to operator-canon, and what to do when substrate diverges from declaration.
+
+**The kernel does not author its own pedagogy.** Substrate semantics are bundle-shipped operator-canon, not Python-string-injected at prompt assembly. This sharpens the kernel/program boundary (Principle 16) at the substrate-pedagogy layer: kernels teach syscalls (the substrate-access ABI); bundles teach substrate organization (the workspace guide).
+
+**Singular pedagogy surface.** Per ADR-277's rule of thumb applied at the substrate-pedagogy layer: each substrate concept has one canonical teaching surface. Persona prose, kernel constants, scattered docstrings — none of these are second canonical teaching surfaces; they are pointers at most.
+
+See [ADR-281](../adr/ADR-281-substrate-canonical-substrate-only-prompts.md) for the derivation chain and [GLOSSARY.md](GLOSSARY.md) for the canonical role-taxonomy vocabulary.
+
 ---
 
 ## Axiom 2: Identity — Agents and Orchestration
@@ -473,33 +485,53 @@ External platform integrations are the onramp. The enduring value is in the recu
 
 ---
 
-## Axiom 8: Money-Truth — Substrate Must Carry Reconciled Capital Reality
+## Axiom 8: Ground-Truth Substrate — Substrate Must Carry Reconciled Consequence-Bearing Reality
 
-**Revenue, P&L, and reconciled outcomes belong in the filesystem, per domain, per operator, per cycle.**
+**Reconciled outcomes the operator personally bears the consequences of belong in the filesystem, per domain, per operator, per cycle.**
 
-YARNNN is not just a knowledge-work platform — it is an **action platform**. Per ADR-192 + ADR-193, agents can write to external platforms (trading orders, commerce product updates, campaign emails). Those writes have capital consequences. The system must close the loop: every action must be reconciled against external reality and the reconciled outcome must live in Substrate where Reviewer, YARNNN, and the operator can read it.
+YARNNN is not just a knowledge-work platform — it is an **action platform**. Per ADR-192 + ADR-193, agents can write to external platforms (trading orders, commerce product updates, campaign emails) and operators author artifacts that compound (corpus, drafts, decisions). Those writes have *consequences the operator bears*. The system must close the loop: every action must be reconciled against ground-truth reality and the reconciled outcome must live in Substrate where Reviewer, YARNNN, and the operator can read it.
 
-### Canonical home
+### Three structural properties of ground-truth substrate
 
-`/workspace/context/{domain}/_money_truth.md` per domain. Authored by the daily back-office reconciler (ADR-195 v2). Read by Reviewer (for EV reasoning on proposals), daily-update (for linked pointers, per ADR-198), YARNNN (for workforce judgment), and the operator (via Context surface).
+1. **Consequence-bearing.** The signal is not neutral data. The operator winces when it moves the wrong way. This is what makes it *truth*, not just observation.
+2. **Substrate-grounded.** It flows back into the workspace filesystem as readable substrate, not living only in the operator's head or in an external dashboard. Per Axiom 1. No sibling SQL ledger.
+3. **Calibratable.** The Reviewer can read it and adjust judgment over time. Calibration is the mechanism by which the Reviewer's framework improves against accumulated outcomes.
 
-### Three structural properties of money-truth substrate
+A fourth property follows for instances reconciled from external systems: **idempotent under replay**. The reconciler can run any number of times; output is deterministic modulo external history. Idempotency keys live in file frontmatter (per ADR-195 v2 for alpha-trader's instance).
 
-1. **Reconciled from external reality.** Money-truth is not what YARNNN or the agent *said* happened. It is what the platform API *confirms* happened — order fills, refunds, delivery receipts, subscription events. Reconciliation is the mechanism (`OutcomeProvider` ABC in `api/services/outcomes/`).
-2. **Filesystem-native.** Per Axiom 1. No sibling SQL ledger. `action_outcomes` table was dropped by ADR-195 v2 + ADR-196 for this reason.
-3. **Idempotent under replay.** Reconciler can run any number of times; output is deterministic modulo platform history. Idempotency via `processed_event_keys` in file frontmatter.
+### Three asymmetric bets ground-truth substrate enables
 
-### Three asymmetric bets money-truth substrate enables
+1. **The AI Reviewer can reason against reconciled reality, not just rules.** Without ground-truth substrate, AI-reviewed decisions collapse to rule-checking. With it, the Reviewer can reason "you're already 40% tech-concentrated, this trade is outside your edge" (alpha-trader instance) or "this draft contradicts your stance in last month's piece" (alpha-author instance) — judgment grounded in accumulated outcome, not just declared principle.
+2. **Operator-borne consequence becomes perception, not infrastructure.** Whether revenue (ADR-184 product health), corpus coherence (alpha-author), or capital P&L (alpha-trader), the signal flows into the workspace as context the same cognitive layers read for every other perception.
+3. **Accumulation compounds across action.** A tenured Reviewer + accumulated ground-truth substrate is a different product than a tenured Reviewer without. The reconciled substrate is what makes "the operation gets better at its job, measured by the outcome the operator bears" a structurally grounded claim rather than a marketing line.
 
-1. **The AI Reviewer can reason in capital-EV.** Without `_money_truth.md`, AI-reviewed decisions collapse to rule-checking. With it, the Reviewer can reason "you're already 40% tech-concentrated, this trade is outside your edge" — capital-EV judgment.
-2. **Revenue becomes perception, not infrastructure.** Per ADR-184, product health (revenue, subscribers, churn) flows into the workspace as context domains. The operator's capital trajectory is legible to the same cognitive layers that read every other perception.
-3. **Accumulation compounds across action.** A tenured agent + accumulated `_money_truth.md` is a different product than a tenured agent without. The capital-reconciled substrate is what makes "the team gets better at its job, measured by revenue" a structurally grounded claim rather than a marketing line.
+### Per-instance illustration
 
-### Revenue as external validation of accumulated attention
+Axiom 8 holds across domains; the *signal shape* varies. Three current instances:
 
-Accumulated attention (Axiom 7) is invisible without external validation. For content product businesses, **revenue is the proof that accumulated attention has value.** If quality genuinely improves over time, subscribers notice, retention rises, revenue grows. Switching to any other tool means starting from zero context — quality regresses, revenue declines.
+| Instance | Signal | Substrate home | Latency | Attribution | Reviewer calibration shape |
+|---|---|---|---|---|---|
+| **alpha-trader** (money-truth) | Reconciled order fills + position state from Alpaca | `/workspace/context/{domain}/_money_truth.md` (ADR-195 v2) | Minutes to hours | Per-trade clean | Capital-EV reasoning per proposal |
+| **alpha-commerce** (revenue-truth) | Subscription events, refunds, payment confirmations | `/workspace/context/revenue/_money_truth.md` (ADR-183 + ADR-184) | Minutes (event) to weeks (cohort) | Per-product, weaker per-action | Product-decision EV |
+| **alpha-author** (corpus-coherence + multi-signal, per ADR-283) | Composite: internal corpus coherence + audience signal when present + revenue when present | TBD per ADR-283 reference-workspace authoring | Continuous (coherence) to months (revenue) | Cohort/pattern-level | Editorial discipline across corpus |
 
-Three-tier metrics hierarchy (ADR-184): product health (revenue, subscribers, churn) is upstream, driven by task quality, driven by agent health. Revenue trajectory *is* the quality metric — not a separate business concern, but the measurable consequence of accumulated attention.
+The illustration shows: **the axiom holds. The signal shape varies by domain. The architectural property is invariant.**
+
+### Revenue as one instantiation, not the universal
+
+Accumulated attention (Axiom 7) is invisible without external validation. For content product businesses, **revenue is one valid ground-truth signal** — if quality genuinely improves over time, subscribers notice, retention rises, revenue grows. Switching to any other tool means starting from zero context. The same compounding-validation property holds in non-monetary instances: for an alpha-author screenplay workspace, *internal substrate coherence* (Reviewer-detected continuity across the corpus) plays the validation role until external signal arrives.
+
+Three-tier metrics hierarchy (ADR-184) — product health upstream, driven by task quality, driven by agent health — generalizes to: **ground-truth signal upstream, driven by output quality, driven by agent health.** Revenue is the cleanest available signal in monetary-domain instances. The kernel axiom does not require monetary signal; it requires *consequence-bearing reconciliation*.
+
+### Vocabulary discipline
+
+`money-truth` is alpha-trader's instance-level term for this axiom. Per ADR-282:
+
+- When a canonical doc means *the axiomatic property*, say **ground-truth substrate** and cite Axiom 8.
+- When a doc means *alpha-trader's reconciled-P&L substrate at `_money_truth.md`*, say **money-truth** and cite the alpha-trader bundle.
+- Sentences that legitimately use both in instance-of relationship (e.g., *"alpha-trader's money-truth is the cleanest instance of ground-truth substrate"*) are correct.
+
+`_money_truth.md` filename, `services/outcomes/*.py` module, `OutcomeProvider` ABC, `TraderMoneyTruth` component, `cockpit.money_truth` binding key, and `/api/cockpit/money-truth` route are all **alpha-trader instance-level identifiers** and are preserved unchanged.
 
 ---
 
@@ -612,13 +644,13 @@ Ax 0 (dimensional model) was the missing frame — its introduction does not inv
 | ADR-170 (Compose Substrate) | Mechanism + Channel (legitimate cross-cut) | Aligned — justified by singular-rendering (ADR-148) |
 | ADR-171 (Token Metering) | Substrate (audit ledger, permitted kind 2) | Aligned |
 | ADR-181 (Feedback Layer) | Substrate (feedback.md) + Mechanism (actuation) | Aligned |
-| ADR-183 + ADR-184 (Commerce + Product Health) | Substrate (money-truth) | Aligned — Axiom 8 content |
+| ADR-183 + ADR-184 (Commerce + Product Health) | Substrate (ground-truth, money-truth instance) | Aligned — Axiom 8 content |
 | ADR-186 (Prompt Profiles) | Mechanism (prompt config) + Identity (profile per surface) | Aligned |
 | ADR-188 (Domain-Agnostic Framework) | Purpose + Substrate | Aligned — registries as templates (Principle 10) |
 | ADR-189 (Three-Layer Cognition) | Identity | Aligned — expanded to four layers by ADR-194 |
 | ADR-193 (ProposeAction + Approval Loop) | Trigger (reactive) + Channel (Queue) | Aligned |
 | ADR-194 v2 (Reviewer Layer) | Identity + Purpose + Trigger | Aligned — Reviewer distinctness is Purpose+Trigger (Axiom 2 clarification) |
-| ADR-195 v2 (Money-Truth Substrate) | Substrate | Axiom 8 content |
+| ADR-195 v2 (Money-Truth Substrate) | Substrate (alpha-trader's ground-truth instance) | Axiom 8 content |
 | ADR-196 + ADR-197 (Legacy Table Sunsets) | Substrate | Axiom 1 correction |
 | ADR-198 (Surface Archetypes) | Channel | Aligned — five archetypes = five substrate-consumer-purpose cells |
 
@@ -646,6 +678,7 @@ Carried forward from v5.1, updated for v6.0:
 
 | Date | Change |
 |------|--------|
+| 2026-05-15 | v8.6 — **Axiom 8 rename: `Money-Truth` → `Ground-Truth Substrate` (kernel level), with `money-truth` preserved as alpha-trader instance vocabulary ([ADR-282](../adr/ADR-282-axiom-8-ground-truth-rename.md)).** Reframes Axiom 8 from monetary-domain-locked to consequence-bearing-substrate-general. Three structural properties (consequence-bearing, substrate-grounded, calibratable) replace the alpha-trader-locked "three properties." Three-instance illustration table added (alpha-trader → money-truth, alpha-commerce → revenue-truth, alpha-author → multi-signal corpus-coherence per [ADR-283](../adr/ADR-283-alpha-author-bundle.md)). Vocabulary discipline subsection codifies the kernel/instance rule: when canon means the axiomatic property, say `ground-truth substrate`; when canon means alpha-trader's reconciled-P&L substrate, say `money-truth`; instance-of phrasings are correct. Trigger: ADR-283 (alpha-author bundle) needed Axiom 8 to admit non-monetary ground-truth (corpus-coherence for the Netflix-screenplay workspace where external monetary signal is absent for months). Cascade radius: 8 canonical doc files (FOUNDATIONS Axiom 8 heading + body + ADR-mapping table + version history; GLOSSARY new entry + sharpened existing entries; THESIS L24/L78/L80/L102 targeted edits with L90/L94/L196/L210/L229 preserved as instance-pointers; SERVICE-MODEL L483 version-history gloss; README.md L16 one-liner; invocation-and-narrative.md L206 axiom gloss). No code rename: `_money_truth.md`, `services/outcomes/*.py`, `TraderMoneyTruth.tsx`, `MoneyTruthMeta`, `cockpit.money_truth` binding key, `/api/cockpit/money-truth` route, blog posts — all alpha-trader instance vocabulary, preserved unchanged. Historical ADRs (ADR-194, 195, 205, 207, 228, 231, 267) not edited per ADR-282 D8 (same precedent as ADR-259 chat→feed rename). |
 | 2026-05-14 | v8.5 — **Axiom 4 amendment: Trigger authoring is an Identity-layer responsibility.** New sub-clause inside Axiom 4 + Derived Principle 18 + ADR-274 implementation. The structural gap: Reviewer is a persona-bearing Identity with standing intent (Axiom 2), but the Trigger dimension (Axiom 4) was being authored by kernel cron + bundle fork only — Reviewer was a passive recipient. The amendment commits: (a) Triggers are authored by Identity layers; kernel and bundle scaffold but do not own; (b) the audit trail is the existing two-table pair (`workspace_file_versions` for intent + `execution_events` for outcome) — no new substrate; (c) time is a wake-envelope concern, not workspace state (mirrors Claude Code's runtime model); (d) `Schedule` primitive contract tightens — `authored_by` is load-bearing, fail-fast on unspecified. Consequences for bundles: existing bundle recurrences are *structurally* scaffold (their attribution is `system:bundle-fork`); operator and Reviewer author over the same file with their own attribution. No bundle deletions. ADR-274 lands minimal implementation (~80 LOC): Schedule primitive fail-fast on missing `authored_by`, Reviewer wake envelope gets `## Operating Context` time block, Reviewer system prompt adds one paragraph citing Axiom 4 amendment + existing read-side primitives (`ListRevisions`, `ReadRevision`, `DiffRevisions`) as the cadence-history surface. Companion: Derived Principle 18 ("Standing intent implies Trigger-authoring authority") makes the axiom-level commitment explicit. |
 | 2026-05-11 | v8.4 — **Hardening pass: substrate-as-the-bus + operator-as-one-principal-with-two-embodiments.** Two amendments closing residual conflations after the ADR-260/261/263/264 collapse. (a) **Axiom 1 fourth sub-clause** — "Substrate is the bus the runtime Loop runs over." Substrate is not where the runtime stores outputs; substrate is where the runtime *exists*. The Reviewer reads substrate; the Reviewer directs the System Agent; the System Agent writes substrate; the next Loop wake-up reads what the previous wrote. There is no parallel control-flow channel between the two parties — the substrate revision (ADR-209 attribution) is the channel. Per-action narration on the feed surface (ADR-258 revised) is a Channel-axis legibility affordance, not a runtime dependency. Mechanical recurrences (ADR-263 D5 + ADR-264 D2) sit at the deterministic end of the same architecture, keeping substrate fresh between Loop wake-ups. (b) **Axiom 2 new sub-section** — "The operator is one principal with two runtime embodiments." Operator-in-real-time (the human, addressing the system via the feed) and operator-as-Reviewer (the personified AI agent rendering the operator's judgment function in the human's absence). Both reason against the same operator-authored standing intent (`MANDATE.md`, `principles.md`, `AUTONOMY.md`). The Reviewer's IDENTITY.md persona content is operator-authored; the Reviewer is not a separate principal, it is the operator in judging posture (per ADR-194 v2 + ADR-247 + ADR-249). Personification is not puppetry — THESIS Commitment 2 (independent judgment) survives because independence is judgment-against-substrate, not agreement-with-the-human-operator. The runtime construct in which the personified operator does its work is **the Loop** (synchronous Reviewer session per ADR-260, glossary-defined). Derived Principle 17 amended to use the two-embodiments framing precisely (replacing the prior "primary continuous conversation between Operator and YARNNN" wording that conflated operator-as-principal with operator-as-human-in-real-time). No code change; no new ADR — hardening of canon vocabulary that ADR-194 v2 D6, ADR-247, ADR-249, ADR-260 had each implied without ever stating directly. Companion edits: GLOSSARY (new "Loop" entry as runtime construct disambiguated from ADR-206's operator-facing Loop; "Recurrence" entry hardened to make the mode-bifurcation explicit), invocation-and-narrative.md (new section on the Loop as composition of invocations), SERVICE-MODEL Frame 4 (one-paragraph addition naming the Loop as the runtime construct invocations compose into). |
 | 2026-03-15 | v1 — Initial axioms: one intelligence, recursive perception, accumulated attention, taxonomy as configuration, TP subsumes orchestration, autonomy as direction |

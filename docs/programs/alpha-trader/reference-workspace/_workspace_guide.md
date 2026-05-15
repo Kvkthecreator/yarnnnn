@@ -33,7 +33,7 @@ path_zones:
   - path: review/calibration.md
     role: system-ledger
     purpose: per-occupant judgment-vs-outcome rolling windows
-  - path: review/decisions.md
+  - path: review/judgment_log.md
     role: system-ledger
     purpose: Reviewer's judgment lineage (proposal verdicts, operation-shaping decisions)
   - path: memory/recent.md
@@ -165,9 +165,9 @@ reader + lock + retention; see frontmatter `path_zones[*].role`):
   observations, and scratch the Reviewer wants to retain across wakes
   that aren't yet operation-shaping.
 - **`system-ledger`** — infrastructure-rendered append-only logs
-  (decisions.md, calibration.md, handoffs.md, OCCUPANT.md, memory/recent.md).
+  (judgment_log.md, calibration.md, handoffs.md, OCCUPANT.md, memory/recent.md).
   The Reviewer supplies the content (via its `ReturnVerdict` for
-  decisions.md); infrastructure renders the entries. The Reviewer does
+  judgment_log.md); infrastructure renders the entries. The Reviewer does
   not WriteFile to these directly.
 - **`world-mirror`** — external state mirrored into substrate by
   mechanical primitives (broker positions, account balances, signal
@@ -209,7 +209,7 @@ The alpha-trader program adds two operator-canon domains:
 Operational substrate emerges through Reviewer judgment + work over
 tenure: investigation work surfaces a `research/` directory the Reviewer
 populates; pattern-tracking lands in `review/notes.md`; operation-shaping
-judgment moments accumulate in `review/decisions.md` (rendered by
+judgment moments accumulate in `review/judgment_log.md` (rendered by
 infrastructure from the Reviewer's structured outputs). The bundle ships
 the empty house; the workspace develops as the operation actually runs.
 

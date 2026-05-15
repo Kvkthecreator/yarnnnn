@@ -20,7 +20,7 @@ The narrative envelope (per ADR-219 D1) lives in `metadata` JSONB:
                      per ADR-219 D3 / D5)
     summary        — one-line headline; collapsed-rendering text
     provenance     — list of substrate pointers (output folder paths,
-                     decisions.md line refs, _performance.md anchors).
+                     judgment_log.md line refs, _performance.md anchors).
 
 This file is deliberately small. Storage uses the existing
 `append_session_message` RPC (atomic sequence_number assignment) with a

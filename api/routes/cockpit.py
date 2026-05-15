@@ -314,7 +314,7 @@ async def get_recent_orders(
 #   /workspace/context/trading/_regime.yaml          — TrackRegime output (D3)
 #   /workspace/context/trading/{TICKER}.yaml         — TrackUniverse output (D3)
 #   /workspace/context/trading/signals/{slug}.yaml   — reviewer/specialist writes
-#   /workspace/review/decisions.md                   — reviewer decision trail
+#   /workspace/review/judgment_log.md                   — reviewer decision trail
 #
 # All three routes return `{ live: bool, ...payload }` with graceful empty
 # states. The FE component renders an empty-state-with-context when
@@ -325,7 +325,7 @@ import yaml  # noqa: E402  — import at use site keeps the platform-only path l
 
 
 _REGIME_PATH = "/workspace/context/trading/_regime.yaml"
-_DECISIONS_PATH = "/workspace/review/decisions.md"
+_JUDGMENT_LOG_PATH = "/workspace/review/judgment_log.md"
 _SIGNALS_PREFIX = "/workspace/context/trading/signals/"
 _INDICATORS_PREFIX = "/workspace/context/trading/"
 
@@ -459,7 +459,7 @@ async def get_signals(auth: UserClient, limit: int = 10) -> Dict:
 
     Returns up to `limit` most-recently-updated signal files. Each entry
     carries the parsed signal payload + a best-effort reviewer decision
-    correlation from /workspace/review/decisions.md (text-match on the
+    correlation from /workspace/review/judgment_log.md (text-match on the
     signal slug). Closes the gap between "signal evaluator fires" and
     "operator sees what was evaluated and why the reviewer said no."
 
@@ -499,7 +499,7 @@ async def get_signals(auth: UserClient, limit: int = 10) -> Dict:
             auth.client.table("workspace_files")
             .select("content")
             .eq("user_id", user_id)
-            .eq("path", _DECISIONS_PATH)
+            .eq("path", _JUDGMENT_LOG_PATH)
             .limit(1)
             .execute()
         )

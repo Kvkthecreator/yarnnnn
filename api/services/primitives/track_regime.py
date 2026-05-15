@@ -299,8 +299,18 @@ async def _emit_stale_fallback(
     """Per the bundle prompt's stale-fallback contract.
 
     If the existing _regime.yaml is fresh (within 24h), keep it silently.
-    If it's stale (>24h) or missing, log to decisions.md so the morning
-    Reviewer wake sees the freshness gap.
+    If it's stale (>24h) or missing, write the freshness-state to a
+    substrate file the Reviewer reads at next wake.
+
+    ADR-281 §5 + Derived Principle 19: track-regime is a mechanical primitive;
+    it writes substrate. Pre-ADR-281, it appended a `regime-freshness-gap`
+    block directly to `decisions.md` — a parallel writer to the single
+    `judgment_log.md` writer contract (Singular Implementation violation;
+    also a Derived Principle 19 violation because the kernel-side primitive
+    was writing operation-shaping narrative to the LLM's lineage substrate).
+    Post-ADR-281, the freshness state lives in its own substrate file
+    (`_regime_freshness.yaml`, world-mirror role); the Reviewer reads it on
+    next wake and decides whether the gap warrants Clarify / ProposeAction.
     """
     try:
         result = (
@@ -312,16 +322,17 @@ async def _emit_stale_fallback(
             .execute()
         )
         if not result.data:
-            await _append_freshness_note(client, user_id, "no _regime.yaml exists", errors, now)
+            await _write_freshness_state(
+                client, user_id, "no _regime.yaml exists", "stale", errors, now,
+            )
             return
-        # Use load_workspace_yaml for frontmatter-tolerance: TrackRegime
-        # writes _regime.yaml without frontmatter, but if a prior version
-        # forked from a bundle template had one, this stays robust.
         from services.review_policy import load_workspace_yaml
         existing = load_workspace_yaml(result.data[0].get("content") or "")
         last_updated_str = existing.get("last_updated")
         if not last_updated_str:
-            await _append_freshness_note(client, user_id, "_regime.yaml missing last_updated", errors, now)
+            await _write_freshness_state(
+                client, user_id, "_regime.yaml missing last_updated", "stale", errors, now,
+            )
             return
         try:
             last_updated = datetime.strptime(
@@ -329,59 +340,87 @@ async def _emit_stale_fallback(
                 "%Y-%m-%dT%H:%M:%S%z",
             )
         except Exception:
-            await _append_freshness_note(client, user_id, "_regime.yaml last_updated unparseable", errors, now)
+            await _write_freshness_state(
+                client, user_id, "_regime.yaml last_updated unparseable", "stale", errors, now,
+            )
             return
         age_hours = (now - last_updated).total_seconds() / 3600
         if age_hours > 24:
-            await _append_freshness_note(
+            await _write_freshness_state(
                 client, user_id,
                 f"_regime.yaml stale ({age_hours:.1f}h since last update)",
-                errors, now,
+                "stale", errors, now,
             )
-        # else: silent — prior data is fresh enough.
+        else:
+            # Fresh — record current state so the Reviewer can see "no gap"
+            # explicitly rather than inferring from file absence.
+            await _write_freshness_state(
+                client, user_id, "regime substrate fresh", "fresh", errors, now,
+            )
     except Exception as exc:
         logger.warning("[TRACK_REGIME] stale-fallback path failed: %s", exc)
 
 
-async def _append_freshness_note(
-    client: Any, user_id: str, reason: str, errors: list[str], now: datetime,
+_FRESHNESS_PATH = "/workspace/context/trading/_regime_freshness.yaml"
+
+
+async def _write_freshness_state(
+    client: Any, user_id: str, reason: str, state: str,
+    errors: list[str], now: datetime,
 ) -> None:
-    """Append a freshness-degradation note to /workspace/review/decisions.md."""
+    """Write current regime-freshness state to substrate (world-mirror role).
+
+    Replaces the pre-ADR-281 direct write to judgment_log.md. The Reviewer
+    reads this file on next wake and decides whether the gap is worth
+    surfacing via Clarify or ProposeAction. Idempotent — same content
+    skipped via diff-aware write below.
+    """
     from services.authored_substrate import write_revision
+    import yaml
 
     ts = now.strftime("%Y-%m-%dT%H:%M:%SZ")
-    note = (
-        f"\n\n--- regime-freshness-gap ---\n"
-        f"timestamp: {ts}\n"
-        f"slug: track-regime\n"
-        f"trigger: reactive\n"
-        f"reviewer_identity: system:track-regime\n"
-        f"---\n"
-        f"track-regime could not refresh substrate. Reason: {reason}. "
-        f"Errors during fetch: {'; '.join(errors) if errors else 'none recorded'}.\n"
+    payload = {
+        "last_checked": ts,
+        "state": state,  # "fresh" or "stale"
+        "reason": reason,
+        "errors": list(errors) if errors else [],
+    }
+    content = (
+        "# Regime substrate freshness (world-mirror per ADR-281 §5)\n"
+        "# Written by track-regime; read by the Reviewer at next wake.\n"
+        + yaml.safe_dump(payload, sort_keys=False, default_flow_style=False)
     )
 
+    # Diff-aware: skip when content unchanged.
     try:
-        existing = (
+        prior = (
             client.table("workspace_files")
             .select("content")
             .eq("user_id", user_id)
-            .eq("path", "/workspace/review/decisions.md")
+            .eq("path", _FRESHNESS_PATH)
             .limit(1)
             .execute()
         )
-        prior = existing.data[0].get("content") if existing.data else ""
-        new_content = (prior or "") + note
+        prior_content = prior.data[0].get("content") if prior.data else ""
+        if prior_content == content:
+            return
+    except Exception:
+        pass  # fall through to write
+
+    try:
         write_revision(
             client, user_id=user_id,
-            path="/workspace/review/decisions.md",
-            content=new_content,
+            path=_FRESHNESS_PATH,
+            content=content,
             authored_by="system:track-regime",
-            message=f"freshness-gap {ts}",
-            summary=f"track-regime: {reason[:120]}",
+            message=f"freshness {state} @ {ts}",
+            summary=f"track-regime freshness: {reason[:120]}",
+            tags=["world-mirror", "regime", "freshness"],
+            lifecycle="active",
+            content_type="text/yaml",
         )
     except Exception as exc:
-        logger.warning("[TRACK_REGIME] decisions.md append failed: %s", exc)
+        logger.warning("[TRACK_REGIME] freshness-substrate write failed: %s", exc)
 
 
 # ---------------------------------------------------------------------------

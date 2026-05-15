@@ -88,7 +88,7 @@ async def compute_daily_headline_counts(
 
     # 3. Reviewer decisions since `since` — count approve/reject entries
     # in action_proposals with approved_at or status='rejected' in window.
-    # (decisions.md is markdown; quicker to count via proposal status
+    # (judgment_log.md is markdown; quicker to count via proposal status
     # changes.)
     try:
         approved = (

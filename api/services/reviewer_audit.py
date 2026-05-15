@@ -1,56 +1,61 @@
-"""Reviewer Audit Trail — appends decisions to /workspace/review/decisions.md
-(ADR-194 v2 Phase 2a).
+"""Reviewer Judgment Lineage — appends entries to /workspace/review/judgment_log.md
+(ADR-194 v2 Phase 2a + ADR-281 §5).
 
 Every approve / reject that flows through ExecuteProposal / RejectProposal
-calls `append_decision` here. The entry format is YAML-frontmatter-like
-delimited blocks so parsers (future AI Reviewer calibration loop,
-ADR-194 Phase 4) can round-trip the log cheaply.
+calls `append_decision` here. Every Reviewer-wake that produces a material
+outcome (per the §5.D3 5-condition gate) has its lineage entry rendered by
+`render_lineage_entry_if_material`. The entry format is YAML-frontmatter-like
+delimited blocks so parsers (calibration loop, frontend lineage view) can
+round-trip the log cheaply.
 
-Per FOUNDATIONS v6.0 Axiom 1 (Substrate), decisions.md IS the audit trail. Narrow
-metadata on action_proposals (reviewer_identity / reviewer_reasoning) is
-for UX only — the full record is the filesystem append.
+Per FOUNDATIONS Axiom 1 (Substrate), judgment_log.md IS the audit trail.
+Narrow metadata on action_proposals (reviewer_identity / reviewer_reasoning)
+is for UX only — the full record is the filesystem append.
+
+ADR-281 §5.D1: file renamed `decisions.md` → `judgment_log.md`. The role of
+the file sharpens — it's the Reviewer's structured lineage of
+operation-shaping judgment moments, not a wake-audit log. Routine
+stand-downs DO NOT produce entries per the §5.D3 material-outcome gate;
+their canonical home is `execution_events` (kernel-side forensic substrate
+per ADR-265) + the feed-surface narrative entry (per ADR-258 revised).
+
+ADR-281 §5.D4: `append_recurrence_fire` blanket-write DELETED. It produced
+an entry for every recurrence-fire wake whether or not the wake had a
+material outcome — exactly the duplication ADR-277 named at the feed-emission
+layer, applied at the substrate-write layer. Replaced by the
+`render_lineage_entry_if_material` function which evaluates the
+ReviewerOutput against the deterministic 5-condition gate.
 
 File convention:
-  /workspace/review/decisions.md
+  /workspace/review/judgment_log.md
 
 Append semantics:
 - First write creates the file with a header.
-- Subsequent writes append a new `--- decision ---` block.
-- Newest entries appear last (chronological append), same pattern as
-  other append-only logs in YARNNN (e.g., _tracker.md per ADR-158 is
-  regenerated, but append-only logs like contribution briefs + the
-  soon-to-exist decisions.md append forward).
+- Subsequent writes append a new delimited block.
+- Newest entries appear last (chronological append).
 
-Entry format:
-  --- decision ---
+Entry formats:
+
+  --- decision ---                       (proposal-arrival path, append_decision)
   timestamp: 2026-04-19T10:15:03+00:00
   proposal_id: <uuid>
   action_type: trading.submit_order
   decision: approve  | reject  | defer
-  reviewer_identity: human:<user_id>  |  ai:<slug>  |  impersonated:<...>
+  reviewer_identity: human:<user_id>  |  ai:<slug>  |  ...
   reversibility: reversible
   outcome: executed | rejected_at_execution | expired
   ---
-  <free-form reasoning from the Reviewer, markdown-allowed>
+  <free-form reasoning from the Reviewer>
 
-Recurrence-fire entry (added 2026-05-11 per FOUNDATIONS v8.4 Axiom 1
-fourth sub-clause — substrate is the bus the Loop runs over). When a
-`judgment`-mode recurrence fires (cron or nested FireInvocation),
-the resulting Reviewer output is persisted here so a later Reviewer
-read-from-substrate can recover what was decided. Without this,
-nested-Reviewer reasoning would live only in the dispatcher's tool-
-result dict (substrate-as-bus violation):
-
-  --- recurrence-fire ---
-  timestamp: 2026-05-11T07:00:00+00:00
+  --- material-outcome ---               (recurrence-fire path, conditional)
+  timestamp: 2026-05-15T07:00:00+00:00
   slug: morning-reflection
   trigger: reactive
-  reviewer_identity: ai:reviewer-haiku-v1  |  reviewer:simons  |  ...
-  duration_ms: 4321
-  actions_count: 2
-  proposals_count: 1
+  reviewer_identity: ai:reviewer-sonnet-v8
+  outcome_kind: propose_action | schedule_create | schedule_update | schedule_archive
+              | write_operator_canon | clarify_alert | meta_verdict
   ---
-  <free-form Reviewer verdict + evidence_summary, markdown-allowed>
+  <free-form Reviewer verdict + reasoning, markdown-allowed>
 """
 
 from __future__ import annotations
@@ -59,14 +64,202 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Literal
 
+from services.workspace_paths import REVIEW_JUDGMENT_LOG_PATH
+
 logger = logging.getLogger(__name__)
 
 
-#: Canonical filesystem home for the Reviewer's audit trail.
-DECISIONS_PATH = "/workspace/review/decisions.md"
+#: Canonical filesystem home for the Reviewer's judgment lineage (ADR-281 §5).
+#: The constant `JUDGMENT_LOG_PATH` is the full /workspace/-prefixed path used
+#: by the DB read/write helpers below. Callers that need the workspace-relative
+#: path should import REVIEW_JUDGMENT_LOG_PATH from services.workspace_paths.
+JUDGMENT_LOG_PATH = f"/workspace/{REVIEW_JUDGMENT_LOG_PATH}"
 
 
 Decision = Literal["approve", "reject", "defer"]
+
+
+# ---------------------------------------------------------------------------
+# Material-outcome gate (ADR-281 §5.D3)
+# ---------------------------------------------------------------------------
+#
+# Deterministic, code-evaluated. The kernel renders a lineage entry iff at
+# least one of the 5 conditions holds:
+#   1. ProposeAction was called (proposal awaiting review)
+#   2. Schedule was called with action ∈ {create, update, archive}
+#   3. WriteFile was called against an operator-canon substrate path
+#   4. Clarify was emitted carrying an operator-relevant alert
+#   5. ReturnVerdict.verdict ∈ {pause_autonomy, narrow, relax, character_note}
+#
+# Stand-downs with no material outcome leave the wake's existence in
+# execution_events + the feed narrative entry, NOT in judgment_log.
+
+# Verdict values that are themselves operation-shaping outcomes (condition 5).
+_META_OUTCOME_VERDICTS = frozenset([
+    "pause_autonomy",
+    "narrow",
+    "relax",
+    "character_note",
+])
+
+# Schedule actions that count as operation-shaping (condition 2).
+_OPERATION_SHAPING_SCHEDULE_ACTIONS = frozenset([
+    "create", "update", "archive",
+])
+
+
+def _detect_outcome_kind(reviewer_output: dict) -> str | None:
+    """Return the outcome_kind label for the wake's actions_taken,
+    or None if no material outcome was produced (the §5.D3 gate).
+
+    The kind label is the substring written into the rendered entry's
+    `outcome_kind:` field so future readers can quickly tell what kind of
+    material outcome the wake produced.
+    """
+    if not isinstance(reviewer_output, dict):
+        return None
+
+    # Condition 5: meta-level verdict.
+    verdict = reviewer_output.get("verdict")
+    if isinstance(verdict, str) and verdict in _META_OUTCOME_VERDICTS:
+        return f"meta_verdict:{verdict}"
+
+    actions = reviewer_output.get("actions_taken") or []
+    if not isinstance(actions, list):
+        return None
+
+    # Inspect each tool call.
+    proposed = False
+    schedule_action = None
+    write_to_operator_canon = False
+    clarify_alert = False
+    for action in actions:
+        if not isinstance(action, dict):
+            continue
+        tool_name = action.get("tool") or action.get("name")
+        tool_input = action.get("input") or action.get("args") or {}
+        if not isinstance(tool_input, dict):
+            tool_input = {}
+
+        # Condition 1: ProposeAction called.
+        if tool_name == "ProposeAction":
+            proposed = True
+
+        # Condition 2: Schedule with create/update/archive.
+        if tool_name == "Schedule":
+            action_arg = tool_input.get("action")
+            if isinstance(action_arg, str) and action_arg in _OPERATION_SHAPING_SCHEDULE_ACTIONS:
+                schedule_action = action_arg
+
+        # Condition 3: WriteFile to an operator-canon path. We detect this
+        # heuristically here (looking at the write-result for a lock-policy
+        # signal would be more precise but couples too tightly to the
+        # write-handler internals). If the write_handler ultimately rejects
+        # the write (locked path), then it doesn't count — but if the write
+        # succeeded against an operator-canon path (operator unlocked via
+        # _locks.yaml or workspace guide overrides), that IS operation-shaping.
+        if tool_name == "WriteFile":
+            result = action.get("result") or {}
+            if isinstance(result, dict) and result.get("success"):
+                path = tool_input.get("path") or ""
+                # Operator-canon paths have a stable prefix set; this check
+                # is intentionally conservative — only matches the
+                # universal operator-canon paths to keep the gate
+                # deterministic without consulting the workspace guide
+                # (which would re-introduce per-wake substrate reads at
+                # gate-evaluation time, against Derived Principle 19).
+                # Bundle-declared operator-canon paths are still rare to
+                # write to (locked by default); when they do get written,
+                # the universal-paths check covers the common cases.
+                operator_canon_prefixes = (
+                    "context/_shared/",
+                    "/workspace/context/_shared/",
+                    "review/IDENTITY.md",
+                    "review/principles.md",
+                    "/workspace/review/IDENTITY.md",
+                    "/workspace/review/principles.md",
+                )
+                if any(path.startswith(p) for p in operator_canon_prefixes):
+                    write_to_operator_canon = True
+
+        # Condition 4: Clarify with operator-alert flag.
+        if tool_name == "Clarify":
+            if tool_input.get("clarify_alert") is True:
+                clarify_alert = True
+
+    if proposed:
+        return "propose_action"
+    if schedule_action:
+        return f"schedule_{schedule_action}"
+    if write_to_operator_canon:
+        return "write_operator_canon"
+    if clarify_alert:
+        return "clarify_alert"
+    return None
+
+
+async def render_lineage_entry_if_material(
+    client: Any,
+    user_id: str,
+    *,
+    reviewer_output: dict,
+    slug: str,
+    trigger: str,
+    reviewer_identity: str,
+) -> bool:
+    """Evaluate the §5.D3 material-outcome gate; render an entry iff material.
+
+    Called by `services/invocation_dispatcher.py` after every recurrence-fire
+    Reviewer wake. Replaces the deleted `append_recurrence_fire` blanket-write.
+
+    Returns True iff an entry was rendered (i.e. the wake was material).
+
+    Never raises — lineage failures must not block dispatcher flow.
+    """
+    try:
+        outcome_kind = _detect_outcome_kind(reviewer_output)
+        if outcome_kind is None:
+            # Routine stand-down — no material outcome. Wake's existence
+            # is in execution_events + feed narrative entry. No lineage entry.
+            return False
+
+        reasoning = ""
+        if isinstance(reviewer_output, dict):
+            reasoning = reviewer_output.get("reasoning") or ""
+
+        block = _render_material_outcome_entry(
+            slug=slug,
+            trigger=trigger,
+            reviewer_identity=reviewer_identity,
+            outcome_kind=outcome_kind,
+            reasoning=reasoning,
+        )
+
+        existing = _read_sync(client, user_id)
+        if existing is None:
+            content = _HEADER + "\n\n" + block
+        else:
+            content = existing.rstrip() + "\n\n" + block
+
+        ok = _write_material_outcome_sync(
+            client,
+            user_id,
+            content,
+            reviewer_identity=reviewer_identity,
+            slug=slug,
+            trigger=trigger,
+            outcome_kind=outcome_kind,
+        )
+        return ok
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[REVIEWER_AUDIT] render_lineage_entry_if_material failed for "
+            "user=%s slug=%s: %s",
+            user_id[:8] if user_id else "?",
+            slug,
+            exc,
+        )
+        return False
 
 
 async def append_decision(
@@ -81,14 +274,14 @@ async def append_decision(
     reversibility: str | None = None,
     outcome: str | None = None,
 ) -> bool:
-    """Append a decision entry to /workspace/review/decisions.md.
+    """Append a decision entry to the judgment log (proposal-arrival path).
 
     Creates the file (with a header) on first write. Appends a delimited
     block on subsequent writes. Never raises — audit trail failures must
     not block approval/rejection. Returns True on success.
     """
     try:
-        block = _render_entry(
+        block = _render_decision_entry(
             proposal_id=proposal_id,
             action_type=action_type,
             decision=decision,
@@ -98,17 +291,13 @@ async def append_decision(
             outcome=outcome,
         )
 
-        # Read existing content (if any)
         existing = _read_sync(client, user_id)
-
         if existing is None:
-            # First write — seed with header
             content = _HEADER + "\n\n" + block
         else:
-            # Append with a blank-line separator for readability
             content = existing.rstrip() + "\n\n" + block
 
-        ok = _write_sync(
+        ok = _write_decision_sync(
             client,
             user_id,
             content,
@@ -123,82 +312,11 @@ async def append_decision(
                 proposal_id[:8] if proposal_id else "?",
             )
         return ok
-    except Exception as exc:  # noqa: BLE001 — audit trail must never break flow
+    except Exception as exc:  # noqa: BLE001
         logger.warning(
             "[REVIEWER_AUDIT] append_decision failed for user=%s proposal=%s: %s",
             user_id[:8],
             proposal_id[:8] if proposal_id else "?",
-            exc,
-        )
-        return False
-
-
-async def append_recurrence_fire(
-    client: Any,
-    user_id: str,
-    *,
-    slug: str,
-    trigger: str,
-    reviewer_identity: str,
-    reasoning: str = "",
-    duration_ms: int | None = None,
-    actions_count: int = 0,
-    proposals_count: int = 0,
-) -> bool:
-    """Append a recurrence-fire entry to /workspace/review/decisions.md.
-
-    Per FOUNDATIONS v8.4 Axiom 1 fourth sub-clause (substrate is the bus
-    the runtime Loop runs over): when a `judgment`-mode recurrence fires
-    via the dispatcher (whether cron-triggered or nested via FireInvocation
-    from another Reviewer turn), the resulting Reviewer output must land
-    on substrate. Otherwise the Reviewer's reasoning lives only in the
-    dispatcher's tool-result dict — a parallel control-flow channel that
-    violates the substrate-as-bus invariant.
-
-    Same substrate file as proposal-arrival decisions (singular implementation
-    — one decisions.md, two entry kinds). Distinct entry header
-    (`--- recurrence-fire ---`) preserves parser-level differentiation.
-
-    Never raises — audit trail failures must not block the dispatcher.
-    Returns True on successful substrate write.
-    """
-    try:
-        block = _render_recurrence_fire_entry(
-            slug=slug,
-            trigger=trigger,
-            reviewer_identity=reviewer_identity,
-            reasoning=reasoning,
-            duration_ms=duration_ms,
-            actions_count=actions_count,
-            proposals_count=proposals_count,
-        )
-
-        existing = _read_sync(client, user_id)
-        if existing is None:
-            content = _HEADER + "\n\n" + block
-        else:
-            content = existing.rstrip() + "\n\n" + block
-
-        ok = _write_recurrence_fire_sync(
-            client,
-            user_id,
-            content,
-            reviewer_identity=reviewer_identity,
-            slug=slug,
-            trigger=trigger,
-        )
-        if not ok:
-            logger.warning(
-                "[REVIEWER_AUDIT] recurrence-fire upsert failed for user=%s slug=%s",
-                user_id[:8],
-                slug,
-            )
-        return ok
-    except Exception as exc:  # noqa: BLE001 — audit trail must never break flow
-        logger.warning(
-            "[REVIEWER_AUDIT] append_recurrence_fire failed for user=%s slug=%s: %s",
-            user_id[:8],
-            slug,
             exc,
         )
         return False
@@ -210,19 +328,29 @@ async def append_recurrence_fire(
 
 
 _HEADER = """\
-# Review — Decisions Log
+# Review — Judgment Log
 
-Append-only log of every review decision made in this workspace. Newest
-entries at the bottom. Each entry is a `--- decision ---` block with
-machine-readable fields followed by the Reviewer's reasoning.
+Append-only log of every operation-shaping judgment moment in this workspace.
+Newest entries at the bottom. Two entry kinds:
 
-Written by the Reviewer layer (ADR-194 v2). See `/workspace/review/IDENTITY.md`
-for the Reviewer's identity and `/workspace/review/principles.md` for the
-declared review framework.
+- `--- decision ---` blocks record proposal verdicts (approve / reject /
+  defer) from the proposal-arrival reactive path.
+- `--- material-outcome ---` blocks record recurrence-fire wakes that
+  produced operation-shaping outcomes (ProposeAction, Schedule
+  create/update/archive, WriteFile to operator-canon, Clarify alert, or
+  meta-level verdict). Routine stand-downs leave no entry here — their
+  existence is captured in execution_events + the feed narrative.
+
+Written by the Reviewer layer (ADR-194 v2 + ADR-281 §5). The Reviewer
+itself does NOT WriteFile to this path directly — infrastructure renders
+entries from the Reviewer's structured ReturnVerdict output (single-writer
+contract per ADR-281 §5.D2). See `/workspace/review/IDENTITY.md` for the
+Reviewer's identity and `/workspace/review/principles.md` for the declared
+review framework.
 """
 
 
-def _render_entry(
+def _render_decision_entry(
     *,
     proposal_id: str,
     action_type: str,
@@ -232,7 +360,7 @@ def _render_entry(
     reversibility: str | None,
     outcome: str | None,
 ) -> str:
-    """Render a single decision block."""
+    """Render a single decision block (proposal-arrival path)."""
     ts = datetime.now(timezone.utc).isoformat()
     lines = [
         "--- decision ---",
@@ -254,50 +382,45 @@ def _render_entry(
     return "\n".join(lines)
 
 
-def _render_recurrence_fire_entry(
+def _render_material_outcome_entry(
     *,
     slug: str,
     trigger: str,
     reviewer_identity: str,
+    outcome_kind: str,
     reasoning: str,
-    duration_ms: int | None,
-    actions_count: int,
-    proposals_count: int,
 ) -> str:
-    """Render a single recurrence-fire block."""
+    """Render a single material-outcome block (recurrence-fire path)."""
     ts = datetime.now(timezone.utc).isoformat()
     lines = [
-        "--- recurrence-fire ---",
+        "--- material-outcome ---",
         f"timestamp: {ts}",
         f"slug: {slug}",
         f"trigger: {trigger}",
         f"reviewer_identity: {reviewer_identity}",
+        f"outcome_kind: {outcome_kind}",
+        "---",
     ]
-    if duration_ms is not None:
-        lines.append(f"duration_ms: {duration_ms}")
-    lines.append(f"actions_count: {actions_count}")
-    lines.append(f"proposals_count: {proposals_count}")
-    lines.append("---")
     if reasoning.strip():
         lines.append(reasoning.strip())
     else:
-        lines.append("_(no verdict reasoning supplied)_")
+        lines.append("_(no reasoning supplied)_")
     return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
-# filesystem I/O (direct workspace_files access — same pattern as risk_gate)
+# filesystem I/O
 # ---------------------------------------------------------------------------
 
 
 def _read_sync(client: Any, user_id: str) -> str | None:
-    """Return current decisions.md content or None if absent."""
+    """Return current judgment_log.md content or None if absent."""
     try:
         result = (
             client.table("workspace_files")
             .select("content")
             .eq("user_id", user_id)
-            .eq("path", DECISIONS_PATH)
+            .eq("path", JUDGMENT_LOG_PATH)
             .limit(1)
             .execute()
         )
@@ -312,7 +435,7 @@ def _read_sync(client: Any, user_id: str) -> str | None:
     return rows[0].get("content") or ""
 
 
-def _write_sync(
+def _write_decision_sync(
     client: Any,
     user_id: str,
     content: str,
@@ -321,27 +444,19 @@ def _write_sync(
     proposal_id: str,
     decision: str,
 ) -> bool:
-    """Write decisions.md through the Authored Substrate (ADR-209).
-
-    authored_by carries the reviewer identity: `reviewer:<identity>`.
-    This preserves structural author attribution in the revision chain
-    while the in-file block retains reasoning + full decision context.
-    The revision-chain author becomes the machine-indexable source of
-    "who decided what" — the in-file block is the human-readable
-    reasoning accompanying it.
-    """
+    """Write judgment_log.md through the Authored Substrate (ADR-209)."""
     try:
         from services.authored_substrate import write_revision
 
         write_revision(
             client,
             user_id=user_id,
-            path=DECISIONS_PATH,
+            path=JUDGMENT_LOG_PATH,
             content=content,
             authored_by=f"reviewer:{reviewer_identity}",
             message=f"{decision} proposal {proposal_id[:8] if proposal_id else '?'}",
-            summary="Reviewer decisions log",
-            tags=["_decisions", "review", "audit"],
+            summary="Reviewer judgment log",
+            tags=["_judgment_log", "review", "audit"],
             lifecycle="active",
             content_type="text/markdown",
         )
@@ -353,7 +468,7 @@ def _write_sync(
         return False
 
 
-def _write_recurrence_fire_sync(
+def _write_material_outcome_sync(
     client: Any,
     user_id: str,
     content: str,
@@ -361,30 +476,28 @@ def _write_recurrence_fire_sync(
     reviewer_identity: str,
     slug: str,
     trigger: str,
+    outcome_kind: str,
 ) -> bool:
-    """Write decisions.md through the Authored Substrate (ADR-209) for a
-    recurrence-fire entry. Same substrate path as decisions, distinct
-    revision message identifying the entry kind.
-    """
+    """Write judgment_log.md through Authored Substrate for a material-outcome entry."""
     try:
         from services.authored_substrate import write_revision
 
         write_revision(
             client,
             user_id=user_id,
-            path=DECISIONS_PATH,
+            path=JUDGMENT_LOG_PATH,
             content=content,
             authored_by=f"reviewer:{reviewer_identity}",
-            message=f"recurrence-fire {slug} ({trigger})",
-            summary="Reviewer decisions log",
-            tags=["_decisions", "review", "audit", "recurrence-fire"],
+            message=f"material-outcome {slug} ({outcome_kind})",
+            summary="Reviewer judgment log",
+            tags=["_judgment_log", "review", "audit", "material-outcome"],
             lifecycle="active",
             content_type="text/markdown",
         )
         return True
     except Exception as exc:  # noqa: BLE001
         logger.warning(
-            "[REVIEWER_AUDIT] recurrence-fire write failed for user=%s: %s",
+            "[REVIEWER_AUDIT] material-outcome write failed for user=%s: %s",
             user_id[:8],
             exc,
         )

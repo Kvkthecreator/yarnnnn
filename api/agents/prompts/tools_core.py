@@ -138,7 +138,7 @@ natively.
 
 **ListRevisions(path, limit?)** - Revision chain for a workspace file
 - `ListRevisions(path="/workspace/context/_shared/MANDATE.md")` - who edited the mandate, when
-- `ListRevisions(path="/workspace/review/decisions.md", limit=20)` - recent reviewer decisions
+- `ListRevisions(path="/workspace/review/judgment_log.md", limit=20)` - recent reviewer decisions
 - Returns newest first: `{id, authored_by, message, created_at, parent_version_id}`
 
 **ReadRevision(path, offset?, revision_id?)** - Read a specific historical revision

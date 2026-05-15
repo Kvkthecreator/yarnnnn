@@ -213,7 +213,7 @@ a ticker, row renders without enrichment.
 
 **Data**: `api.cockpit.signals(10)` →
 `/workspace/context/trading/signals/*.yaml` listed newest-first +
-best-effort correlation against `/workspace/review/decisions.md`.
+best-effort correlation against `/workspace/review/judgment_log.md`.
 
 Collapsible list. Header row: ticker · direction · expectancy · verdict
 badge (approved/rejected/deferred). Expand: signal rationale + reviewer
