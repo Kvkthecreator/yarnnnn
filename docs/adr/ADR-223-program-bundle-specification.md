@@ -179,13 +179,13 @@ references:
 - `task_types[*].output_kind` is one of the four canonical values (ADR-166): `accumulates_context | produces_deliverable | external_action | system_maintenance`.
 - `capabilities[*].requires_connection` references a `platform_connections.platform` value (`slack | notion | github | alpaca | lemon_squeezy | ...`).
 
-### 3.bis MANIFEST.yaml `substrate_abi` block — program's contract with the kernel for substrate topology (added by ADR-280, 2026-05-15)
+### 3.bis MANIFEST.yaml `substrate_abi` block — program's contract with the kernel for substrate topology (added by ADR-280, 2026-05-15; revised by ADR-281 same day)
 
-ADR-280 extends MANIFEST.yaml with an optional top-level `substrate_abi` block declaring the program's substrate-topology contract with the kernel. The kernel reads this declaration via `services/bundle_reader.py` helpers and merges it with kernel-universal declarations into the workspace's `_workspace_guide.md` at genesis (Reviewer-authored at first wake per ADR-280 §2.D4).
+ADR-280 introduced the `substrate_abi` block; [ADR-281](ADR-281-substrate-canonical-substrate-only-prompts.md) sharpened the schema per FOUNDATIONS Derived Principle 19 ("The kernel does not compute for the prompt"). MANIFEST.yaml accepts an optional top-level `substrate_abi` block declaring the program's substrate-topology contract with the kernel. The kernel reads this declaration via `services/bundle_reader.py` helpers at composition / scaffolding / runtime moments.
 
 **Why a separate block from `context_domains`.** `context_domains` is a composition-time + scaffolding-time template (per ADR-188 + ADR-224 — bundle ships rich domain structures the operator/Reviewer/YARNNN can compose against). `substrate_abi` is the runtime kernel contract — declares lock policy + Reviewer wake envelope inputs at the substrate layer. The two blocks may declare overlapping paths (alpha-trader's `context/trading` appears in both) because they answer different questions: `context_domains` answers *"what does this domain look like for composition?"*, `substrate_abi` answers *"what role does this path play and what does the Reviewer need pre-loaded?"*
 
-**Schema:**
+**Schema (ADR-281 revised):**
 
 ```yaml
 substrate_abi:
@@ -204,14 +204,17 @@ substrate_abi:
   # Substrate the Reviewer needs pre-loaded at every wake to perceive program state.
   # Universal envelope entries (identity_md, principles_md, precedent_md, mandate_md,
   # autonomy_md, preferences_yaml) are kernel-shipped — bundles only declare additions.
+  #
+  # ADR-281 D1: ONE declaration shape per envelope entry: {key, path, optional}.
+  # No `path_glob`; no `summarizer`. Per Derived Principle 19, the kernel reads
+  # substrate; substrate that needs compaction is written by mechanical-mode
+  # recurrences invoking deterministic primitives (e.g. MirrorSignalState for
+  # alpha-trader's signals summary), which the envelope reads like every other
+  # `path` entry.
   reviewer_wake_envelope:
     - key: <field_name>                   # field name in the envelope dict
       path: context/{domain}/{file}.md    # absolute workspace-relative path
       optional: true|false                # whether absence is tolerated
-    - key: <field_name>
-      path_glob: context/{domain}/*.yaml  # for collections of files
-      summarizer: <named_kernel_fn>       # references a kernel summarizer function
-      optional: true|false
 ```
 
 **Six roles** (per ADR-280 §2.D2 — operator-legible vocabulary, lock policy derived from role):
@@ -231,8 +234,7 @@ substrate_abi:
 - Each `path_zones[*].path` must be a workspace-relative path under `context/` (other top-level paths are kernel-universal — `memory/`, `review/`, `agents/`, etc. — and not bundle-declarable).
 - Each `path_zones[*].role` must be one of the six values above. Adding new roles requires an ADR (anti-vocabulary-proliferation per ADR-166).
 - Each `reviewer_wake_envelope[*].key` must be unique across kernel-universal + bundle-declared envelope entries (no collision with `identity_md`, `principles_md`, etc.).
-- Each `reviewer_wake_envelope[*].path` (or `path_glob`) must be a workspace-relative path.
-- `summarizer` references a named function in `services/reviewer_envelope.py::ENVELOPE_SUMMARIZERS`; adding new summarizer kinds requires an ADR.
+- Each `reviewer_wake_envelope[*].path` must be a workspace-relative path. **Per ADR-281, no `path_glob` or `summarizer` fields — substrate-derivative compaction is the responsibility of mechanical-mode recurrences invoking deterministic primitives (e.g., `MirrorSignalState`), not envelope-time computation.**
 - Bundles are not required to declare `substrate_abi` — bundles without it contribute zero program-specific path zones or envelope entries (the kernel template alone defines the workspace guide).
 
 ### 4. SURFACES.yaml — composition manifest

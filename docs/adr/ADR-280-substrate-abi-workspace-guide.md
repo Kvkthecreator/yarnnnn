@@ -1,6 +1,36 @@
 # ADR-280: Substrate ABI — Bundles Are Libraries; the Reviewer Is the Librarian
 
-**Status**: Phase 1 Implemented (2026-05-15) — Stream A + Stream B in flight
+**Status**: **Superseded by [ADR-281](ADR-281-substrate-canonical-substrate-only-prompts.md) (2026-05-15)**
+
+> **Dissolution rationale (2026-05-15)**: ADR-280 reached its Phase 1 +
+> dissolution + Stream A milestones (commits `7d3013b` + `43374cf` +
+> `c7e1c84` + `3ebfb8e`). Two architectural revisions surfaced empirical
+> falsifications during its lifetime: (1) genesis-by-Reviewer was
+> empirically falsified by the Phase 1 migration on kvk's workspace
+> (16 successive empty-content WriteFile calls); (2) the
+> `ENVELOPE_SUMMARIZERS` registry shipped in Stream A was empirically
+> derived as an Axiom 1 violation (kernel-side prompt-time computation
+> producing state without substrate writes — same pattern Axiom 1
+> fourth sub-clause names as a violation).
+>
+> Per Singular Implementation discipline ("delete boldly that which
+> isn't true"), ADR-280 is superseded in full rather than revised in
+> place. The body below is preserved as historical artifact for the
+> discourse arc; the architecture is canonized in ADR-281, which derives
+> the wake-envelope shape cleanly from the substrate-canonical-world
+> axiom + the new Derived Principle 19 ("The kernel does not compute
+> for the prompt"). ADR-281 preserves the correctly-derived parts of
+> ADR-280 (library/librarian partition, six-role taxonomy, bundle
+> MANIFEST as authority, lock policy 4-layer composition, workspace
+> guide as bundle-shipped operator-canon) and revises only the
+> summarizer machinery.
+>
+> All shipped commits (Phase 1, dissolution, Stream A preserved
+> portions) remain canonical under ADR-281 — only the
+> `ENVELOPE_SUMMARIZERS` + `_summarize_signal_files` portion of Stream A
+> is revised. See ADR-281 §11 for the full discourse trail.
+
+**Original Status**: Phase 1 Implemented (2026-05-15) — Stream A + Stream B in flight
 **Date**: 2026-05-15
 **Dimensional classification**: **Substrate** (Axiom 1) primary — kernel/program/operator authority over substrate topology. **Identity** (Axiom 2) secondary — library vs librarian partition. **Trigger** (Axiom 4) tertiary — librarian operates at every wake from the library it inherits at activation.
 

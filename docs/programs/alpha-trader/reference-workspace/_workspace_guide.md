@@ -107,9 +107,12 @@ reviewer_wake_envelope:
   - key: performance_md
     path: context/trading/_performance.md
     optional: true
+  # ADR-281: signal_files is a path-only entry pointing at the compact
+  # substrate file written by the mirror-signal-state mechanical recurrence.
+  # Per Derived Principle 19, the kernel reads substrate; the recurrence
+  # writes substrate; the envelope reads it like every other path entry.
   - key: signal_files
-    path_glob: context/trading/signals/*.yaml
-    summarizer: signal_files
+    path: context/trading/_signals_summary.md
     optional: true
 
 # Operator overrides on top of role-derived defaults (start empty;

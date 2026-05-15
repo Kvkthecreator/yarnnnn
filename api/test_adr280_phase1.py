@@ -64,14 +64,18 @@ def test_alpha_trader_path_zones_use_valid_roles():
         assert isinstance(zone.get("path"), str) and zone["path"].startswith("context/")
 
 
-def test_alpha_trader_envelope_declares_signal_files_summarizer():
-    """ADR-280 §2.D6.b + §3.bis: signal_files glob requires summarizer reference."""
+def test_alpha_trader_envelope_declares_signal_files_path():
+    """ADR-281 §D1: signal_files envelope entry uses path-only shape (post-dissolution
+    of path_glob+summarizer per Derived Principle 19). Compaction is written by
+    the mirror-signal-state mechanical recurrence; envelope reads the substrate."""
     m = _load_bundle("alpha-trader")
     envelope = m["substrate_abi"]["reviewer_wake_envelope"]
     signal_decl = next((e for e in envelope if e.get("key") == "signal_files"), None)
     assert signal_decl is not None, "signal_files envelope key missing"
-    assert "path_glob" in signal_decl, "signal_files must declare path_glob"
-    assert signal_decl.get("summarizer") == "signal_files", "summarizer ref must match kernel registry name"
+    assert signal_decl.get("path") == "context/trading/_signals_summary.md", \
+        "signal_files must point at the mirror substrate file per ADR-281 §D1"
+    assert "path_glob" not in signal_decl, "path_glob shape forbidden per ADR-281"
+    assert "summarizer" not in signal_decl, "summarizer field forbidden per ADR-281"
 
 
 def test_alpha_commerce_bundle_declares_substrate_abi():

@@ -162,6 +162,29 @@ recurrences:
       stand down.
     display_name: "Signal Evaluator"
 
+  # ── mirror-signal-state — compact substrate for Reviewer wake envelope ──
+  # ADR-281 Derived Principle 19: the Reviewer's wake envelope reads
+  # substrate; it does not derive state at prompt-assembly time. This
+  # mechanical recurrence projects per-signal YAML state files into a
+  # compact `_signals_summary.md` substrate file that the wake envelope
+  # reads as a normal `path` entry (per MANIFEST.substrate_abi.reviewer_wake_envelope).
+  # Replaces the deleted ENVELOPE_SUMMARIZERS["signal_files"] kernel
+  # function. World-mirror role per the six-role taxonomy.
+  - slug: mirror-signal-state
+    schedule: "@every 1min during regular_hours"   # ADR-268: every minute during RTH
+    mode: mechanical
+    # ADR-270: fire at activation so _signals_summary.md exists before
+    # the first reactive Reviewer wake. Mechanical mode means this runs
+    # in <1s with no LLM cost.
+    fire_on_activation: true
+    prompt: |
+      @primitive: MirrorSignalState(
+        source="context/trading/signals/*.yaml",
+        write_to="context/trading/_signals_summary.md",
+        diff_aware=true
+      )
+    display_name: "Signals Summary Mirror"
+
   # ── trade-proposal — emit Reviewer-gated proposal on signal fire or exit ──
   - slug: trade-proposal
     schedule: null  # reactive — fires on signal trigger via FireInvocation

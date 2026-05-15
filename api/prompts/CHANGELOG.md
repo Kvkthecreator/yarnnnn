@@ -6,6 +6,110 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.15.5] - fix(adr-281): substrate-time computation; ENVELOPE_SUMMARIZERS dissolved; bundle ships MirrorSignalState
+
+### Background
+Operator unease about the `ENVELOPE_SUMMARIZERS` registry shipped in Stream
+A (entry [2026.05.15.4] above) prompted first-principles re-evaluation.
+Result: the registry is an Axiom 1 violation. The kernel-side
+`_summarize_signal_files` function runs at LLM-prompt-assembly time, reads
+N substrate files, produces a compact state-shaped string, and embeds it
+in the wake prompt **without writing the compact state back to substrate**.
+That's exactly the "in-memory cache that bypasses substrate writes"
+pattern Axiom 1's fourth sub-clause (substrate-as-bus, hardening
+2026-05-11) names as a violation.
+
+ADR-281 supersedes ADR-280 with a clean derivation from the
+substrate-canonical-world axiom (ADR-264). New Derived Principle 19:
+**"The kernel does not compute for the prompt."** The wake envelope reads
+substrate; substrate that needs compaction is written by mechanical
+primitives, not summarized at prompt-assembly time.
+
+This brings YARNNN structurally closer to Claude Code's substrate-access
+model: Read returns substrate content unchanged; the kernel does not
+pre-aggregate, summarize, or derive on the model's behalf. YARNNN's
+additions (Authored Substrate, personification, substrate-canonical
+world) sharpen the model; this principle ensures we don't diverge from
+its substrate-access shape.
+
+### Changed (kernel-side dissolutions)
+- `api/services/reviewer_envelope.py`:
+  - `ENVELOPE_SUMMARIZERS` registry — DELETED.
+  - `_summarize_signal_files` function — DELETED.
+  - `SummarizerFn` type alias — DELETED.
+  - `path_glob + summarizer` dispatch branch in envelope-assembly loop —
+    DELETED. Envelope is path-only.
+
+### Added
+- `api/services/primitives/mirror_signal_state.py` (NEW) — `MirrorSignalState`
+  mechanical primitive. Reads a glob of per-signal YAML files, extracts
+  `state:` + `triggered_today:` via regex, composes a compact
+  `_signals_summary.md` substrate file via `write_revision` with
+  `authored_by="system:mirror-signal-state"`. Diff-aware (skips writes
+  when content unchanged). Mechanical-only: NOT in CHAT_PRIMITIVES,
+  HEADLESS_PRIMITIVES, or REVIEWER_PRIMITIVES. Dispatched by
+  mechanical-mode recurrences via `@primitive: MirrorSignalState(...)`
+  per ADR-263 + ADR-264 + ADR-281 §D3.
+- `api/services/primitives/registry.py::HANDLERS` — `MirrorSignalState`
+  registered for dispatcher routing.
+- alpha-trader bundle: `mirror-signal-state` mechanical-mode recurrence
+  added to `_recurrences.yaml`. Fires every minute during regular_hours
+  (matches the other mirrors) with `fire_on_activation: true` so the
+  substrate populates before the first reactive Reviewer wake.
+- alpha-trader bundle MANIFEST: `substrate_abi.reviewer_wake_envelope`
+  `signal_files` entry changes from `{path_glob + summarizer}` to
+  `{path: context/trading/_signals_summary.md}` per ADR-281 §D1.
+- alpha-trader workspace guide: frontmatter `reviewer_wake_envelope`
+  `signal_files` entry updated to match (path-only).
+
+### Documentation
+- ADR-281 drafted at `docs/adr/ADR-281-substrate-canonical-substrate-only-prompts.md`
+  — derives the architecture in 4 axiomatic steps; adds Derived Principle
+  19; supersedes ADR-280 in full.
+- ADR-280 status flipped to **Superseded by ADR-281** with a
+  one-paragraph dissolution rationale at top. Body preserved as
+  historical artifact for the discourse arc.
+- FOUNDATIONS.md gains Derived Principle 19: *"The kernel does not
+  compute for the prompt."* Cross-references ADR-281.
+- ADR-223 §3.bis schema doc revised: `reviewer_wake_envelope` declares
+  one shape `{key, path, optional}` only; `path_glob + summarizer`
+  forbidden per ADR-281.
+
+### Behavioral expectation
+- The Reviewer's wake envelope is structurally equivalent for kvk's
+  alpha-trader workspaces — same 10 envelope keys. What changes: the
+  `signal_files` value comes from a single substrate file
+  (`_signals_summary.md`) written by the new mechanical recurrence at
+  known cadence, instead of being computed at every wake from N raw
+  signal files. **Operator-perceived behavior identical; architectural
+  shape now substrate-canonical.**
+- Transition: kvk's workspace gets the `mirror-signal-state` recurrence
+  scaffolded on next bundle re-fork (or on next mechanical-recurrence
+  scheduler cycle, whichever fires first). For the first wake before the
+  mirror runs, `signal_files` envelope entry is empty string (envelope
+  helper handles missing files gracefully per existing contract). After
+  the first mirror fire, substrate populates and subsequent wakes read
+  it normally.
+
+### Tests
+- `api/test_adr281_envelope_path_only.py` (NEW, 20 tests) covers:
+  ENVELOPE_SUMMARIZERS deletion + _summarize_signal_files deletion;
+  no path_glob in envelope module; MirrorSignalState primitive +
+  registry + mechanical-only surface check; alpha-trader MANIFEST +
+  workspace guide + recurrence assertions; envelope assembly for
+  no-program + alpha-trader; ADR-280 superseded; FOUNDATIONS Principle
+  19; ADR-223 schema; preserved Phase 1 + Stream A closures; final
+  grep gate. **20/20 PASS.**
+- `api/test_adr280_phase1.py` updated: the legacy
+  `test_alpha_trader_envelope_declares_signal_files_summarizer` test
+  was asserting the now-dissolved `path_glob + summarizer` shape;
+  replaced with `test_alpha_trader_envelope_declares_signal_files_path`
+  asserting path-only shape per ADR-281.
+- Total: 77/77 across ADR-280 Phase 1 + ADR-281 + ADR-274 + ADR-275 +
+  ADR-276 gates.
+
+---
+
 ## [2026.05.15.4] - feat(adr-280-stream-a): wake envelope reads bundle MANIFEST + ENVELOPE_SUMMARIZERS registry
 
 ### Background

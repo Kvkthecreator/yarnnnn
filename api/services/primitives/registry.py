@@ -64,6 +64,10 @@ from .runtime_dispatch import RUNTIME_DISPATCH_TOOL, handle_runtime_dispatch
 # via deterministic Python (no LLM). Dispatched by mechanical-mode recurrences
 # per ADR-263 D5 + ADR-264 D2 via the @primitive: ... convention.
 from .sync_platform_state import SYNC_PLATFORM_STATE_TOOL, handle_sync_platform_state
+# ADR-281: derivative-compaction substrate primitive — mirrors per-signal
+# state files into a compact summary substrate file. Mechanical-only
+# (not in any LLM tool surface); dispatched by mechanical-mode recurrences.
+from .mirror_signal_state import handle_mirror_signal_state
 # ADR-271 Thread A: deterministic trading primitives — dispatched ONLY by the
 # mechanical-mode dispatcher via @primitive: directives. Not in CHAT/HEADLESS/
 # REVIEWER tool surfaces per ADR-264 D3 (operators don't directly invoke
@@ -434,6 +438,12 @@ HANDLERS: dict[str, Callable] = {
     # (mirrors external state into substrate; primary surface for use in
     # mechanical-mode recurrences per ADR-263).
     "SyncPlatformState": handle_sync_platform_state,
+    # ADR-281: MirrorSignalState — derivative-compaction substrate primitive
+    # (projects per-signal substrate into a compact summary substrate file
+    # so the Reviewer's wake envelope reads substrate instead of computing
+    # at prompt-assembly time per Derived Principle 19). Mechanical-only;
+    # not in any LLM tool surface.
+    "MirrorSignalState": handle_mirror_signal_state,
     # ADR-271 Thread A: trading-specific deterministic primitives.
     # Fetch-plus-compute pattern that SyncPlatformState's pure-mirror shape
     # doesn't cover (multi-bar walk + derived indicator math). ADR-264
