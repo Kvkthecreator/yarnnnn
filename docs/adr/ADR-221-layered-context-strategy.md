@@ -92,7 +92,7 @@ Per singular-implementation discipline (rule 1):
 - `api/routes/chat.py::maybe_compact_history()` — deleted.
 - `COMPACTION_THRESHOLD`, `COMPACTION_PROMPT` constants — deleted.
 - `truncate_history_by_tokens()` — deleted (the 10-message window is the singular truncation; token-based truncation was a backstop that the window already enforces).
-- The `compaction_summary` column on `chat_sessions` becomes vestigial (no writers post-deletion). **Phase 2 follow-up** to drop the column — not blocking; not in this ADR's scope.
+- The `compaction_summary` column on `chat_sessions` becomes vestigial (no writers post-deletion). **Phase 2 follow-up — dropped in migration 174 (2026-05-15)** after an audit confirmed zero live writers + zero live readers across `api/`. Filesystem-native `conversation.md` is now the singular compaction substrate.
 
 ### Three principles
 
@@ -192,7 +192,7 @@ After Commit C lands, three assertions hold:
 
 ## Open questions (deferred to follow-ups, not blocking)
 
-1. **`chat_sessions.compaction_summary` column drop.** Vestigial after this ADR. Drop in a future schema-cleanup migration; not blocking. Existing rows can be ignored or hard-deleted at that time.
+1. ~~**`chat_sessions.compaction_summary` column drop.**~~ **Resolved 2026-05-15** — dropped in migration 174 after an audit confirmed zero live writers + zero live readers in `api/routes/`, `api/services/`, `api/agents/`. Singular Implementation honored.
 
 2. **Should `recent.md` be Identity-grouped or time-grouped?** Currently grouped by Identity class (reviewer / agent / external / system). Alternative: chronological with Identity tags. Chronological is more "log-like"; Identity-grouped is more "scannable for what kind of thing happened." Identity-grouped lands first; revisit after a week of operator use.
 

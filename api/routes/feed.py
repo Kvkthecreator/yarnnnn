@@ -488,7 +488,7 @@ async def _summarize_previous_session(previous_session_id: str, client) -> None:
 #   - COMPACTION_THRESHOLD, COMPACTION_PROMPT
 #   - truncate_history_by_tokens()
 #   - estimate_message_tokens()
-#   - chat_sessions.compaction_summary writes (column drop is Phase 2 follow-up)
+#   - chat_sessions.compaction_summary writes (column dropped in migration 174)
 
 
 def build_history_for_claude(
@@ -717,8 +717,9 @@ def _parse_input_summary(input_summary: str) -> dict:
 # With ADR-221 Commit B's tool-history collapse on older turns, even a
 # tool-heavy 10-message window stays well under Claude's input budget.
 #
-# `chat_sessions.compaction_summary` column is now vestigial (no writers).
-# Drop in a future schema-cleanup migration; not blocking.
+# `chat_sessions.compaction_summary` column was dropped in migration 174
+# (ADR-221 Phase 2 follow-up, 2026-05-15). Filesystem-native conversation.md
+# is the singular compaction substrate.
 
 
 # =============================================================================
@@ -1164,8 +1165,16 @@ async def global_chat(
         # envelope-assembly path. Returns a dict keyed by ReviewerContext
         # field names; drop directly into the context bag below.
         from services.reviewer_envelope import load_reviewer_governance_envelope
-        governance_envelope = await load_reviewer_governance_envelope(
+        governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope(
             auth.client, auth.user_id
+        )
+        # ADR-276 hardening (2026-05-15): addressed turns don't write to
+        # execution_events (chat path), so envelope load timing surfaces via
+        # the structured logger only. INFO level keeps it cheap to grep
+        # ("[REVIEWER_ENVELOPE] addressed user=...") for capacity tuning.
+        logger.info(
+            "[REVIEWER_ENVELOPE] addressed user=%s envelope_load_ms=%d",
+            auth.user_id[:8], envelope_load_ms,
         )
 
         # NOTE: do NOT yield stream_start here. stream_start makes the FE insert

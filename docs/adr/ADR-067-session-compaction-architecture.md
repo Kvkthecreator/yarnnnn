@@ -1,8 +1,9 @@
 # ADR-067: Session Architecture — Follow Claude Code's Model Fully
 
-**Status**: Implemented
+**Status**: Implemented — Phase 3 (in-session LLM compaction) **superseded by ADR-221 Commit C** (2026-04-26). The `chat_sessions.compaction_summary` column added by migration 061 was dropped in migration 174 (2026-05-15) after a vestigial-state audit confirmed zero live writers + zero live readers. Filesystem-native `/workspace/memory/conversation.md` is the singular compaction substrate. Phase 1 (cross-session continuity via `awareness.md`) + Phase 2 (4h inactivity boundary) remain canonical.
 **Date**: 2026-02-19
 **Supersedes**: ADR-049 (Context Freshness Model) — session scope and history management sections
+**Superseded by (Phase 3 only)**: ADR-221 (Layered Context Strategy)
 **Related**: ADR-006 (Session and Message Architecture), ADR-064 (Unified Memory Service), ADR-061 (Two-Path Architecture)
 
 ---

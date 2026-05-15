@@ -1,6 +1,8 @@
 # ADR-276: Reactive-Trigger Envelope Governance Pre-Load
 
-**Status**: **Proposed 2026-05-14** — closes the structural gap ADR-275 §5b documented as out-of-scope. Finishes the dev sequence FOUNDATIONS v8.5 → ADR-274 → ADR-275 → ADR-275 refinement → ADR-276.
+**Status**: **Implemented 2026-05-14** — closes the structural gap ADR-275 §5b documented as out-of-scope. Finishes the dev sequence FOUNDATIONS v8.5 → ADR-274 → ADR-275 → ADR-275 refinement → ADR-276.
+
+**Observability hardening (2026-05-15)**: `load_reviewer_governance_envelope` return signature widened to `(dict, int)` — the second element carries elapsed ms. Reactive callers route the elapsed value into `execution_events.envelope_load_ms` (new column, migration 175); addressed callers log it via structured logger (`[REVIEWER_ENVELOPE] addressed`). Regression gate `api/test_envelope_observability.py` (10/10 PASS) validates the contract; sibling gates (ADR-275 + ADR-274 + ADR-276) still green post-update. Rationale: the helper is the dominant DB-read pattern per Reviewer wake (9 parallel `workspace_files` reads + `signal_files` summary), and today's `duration_ms` couldn't isolate envelope cost from total wake latency. Surfaces capacity-tuning data with zero LLM cost.
 
 **Authors**: KVK + Claude (discourse session 2026-05-14, continued from ADR-275 refinement)
 

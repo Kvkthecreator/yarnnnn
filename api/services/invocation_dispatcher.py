@@ -256,7 +256,9 @@ async def dispatch(
         # empirical learning that prose-named substrate fails to land in
         # Reviewer behavior; envelope-pre-loaded substrate does.
         from services.reviewer_envelope import load_reviewer_governance_envelope
-        governance_envelope = await load_reviewer_governance_envelope(client, user_id)
+        governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope(
+            client, user_id
+        )
 
         reviewer_output = await invoke_reviewer(
             client=client,
@@ -280,11 +282,15 @@ async def dispatch(
         if _SENTRY_AVAILABLE:
             _sentry.capture_exception(exc)
         duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+        # `envelope_load_ms` is defined iff the envelope load completed before the
+        # Reviewer raised. If the gather itself threw, the local is unbound — guard.
+        _env_ms = locals().get("envelope_load_ms")
         record_execution_event(
             client, user_id=user_id, slug=recurrence.slug,
             mode="judgment", trigger_type=trigger,
             status="failed", error_reason="exception",
             error_detail=str(exc), duration_ms=duration_ms,
+            envelope_load_ms=_env_ms,
         )
         # ADR-277: material weight — Reviewer invocation raised an
         # exception. Real failure; operator should see. The execution_events
@@ -304,6 +310,7 @@ async def dispatch(
         client, user_id=user_id, slug=recurrence.slug,
         mode="judgment", trigger_type=trigger,
         status="success", duration_ms=duration_ms,
+        envelope_load_ms=envelope_load_ms,
     )
 
     actions_taken = []

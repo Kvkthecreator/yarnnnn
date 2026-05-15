@@ -1,5 +1,7 @@
 # Context Engineering: Gaps, Opportunities & Recommendations
 
+**Status (2026-05-15)**: STALE — Priority 1 ("Compression Quality & Artifact Trail") references `chat_sessions.compaction_summary`, which was dropped in migration 174 alongside the ADR-221 Commit C sunset of in-session LLM compaction. The filesystem-native `/workspace/memory/conversation.md` (ADR-159 + ADR-221) is now the singular compaction substrate. Recommendations targeting `compaction_summary` are obsolete.
+
 **Date**: 2026-02-26
 **Companion to**: `context-engineering-scorecard-2026-02-26.md`
 **Source**: Cross-analysis of [Agent-Skills-for-Context-Engineering](https://github.com/muratcankoylan/Agent-Skills-for-Context-Engineering) against YARNNN codebase

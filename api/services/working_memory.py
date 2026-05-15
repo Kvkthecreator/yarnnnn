@@ -1257,6 +1257,46 @@ def estimate_working_memory_tokens(working_memory: dict) -> int:
     return len(json_str) // 4
 
 
+# ADR-174 Phase 1 ceiling — shared across workspace + entity profiles.
+# 1 token ≈ 4 chars (conservative). Dev raises on overflow (catches regressions
+# early); prod warns + hard-truncates with an explicit suffix the operator can
+# spot in logs / prompt dumps.
+_COMPACT_INDEX_TOKEN_CEILING = 600
+_COMPACT_INDEX_CHAR_CEILING = _COMPACT_INDEX_TOKEN_CEILING * 4  # 2400 chars
+
+
+def _enforce_compact_index_ceiling(output: str, label: str) -> str:
+    """Enforce the ADR-174 600-token ceiling on a rendered compact index.
+
+    Singular Implementation: workspace and entity profiles both call this
+    helper. Dev environment raises `AssertionError` to surface regressions
+    in CI; production warns and hard-truncates with an explicit suffix.
+
+    Args:
+        output: The rendered compact-index string.
+        label: Identifier for the rendering site (used in warning + assertion).
+
+    Returns:
+        The output unchanged if under the ceiling; otherwise truncated with
+        an explicit suffix the operator can grep.
+    """
+    if len(output) <= _COMPACT_INDEX_CHAR_CEILING:
+        return output
+
+    import os
+    if os.environ.get("ENV", "production") == "development":
+        raise AssertionError(
+            f"{label} exceeded {_COMPACT_INDEX_TOKEN_CEILING}-token ceiling: "
+            f"~{len(output) // 4} tokens ({len(output)} chars). Trim the offending section."
+        )
+
+    logger.warning(
+        "[WORKING_MEMORY] %s exceeded ceiling: ~%d tokens. Truncating.",
+        label, len(output) // 4,
+    )
+    return output[:_COMPACT_INDEX_CHAR_CEILING] + "\n... (truncated — compact index too large)"
+
+
 def _format_entity_index(working_memory: dict, surface_context: Optional[dict] = None) -> str:
     """ADR-186: Compact index for entity-scoped profile.
 
@@ -1331,7 +1371,7 @@ def _format_entity_index(working_memory: dict, surface_context: Optional[dict] =
     lines.append("- `/workspace/memory/awareness.md` — your shift notes")
     lines.append("- `/workspace/memory/notes.md` — stable facts and preferences")
 
-    return "\n".join(lines)
+    return _enforce_compact_index_ceiling("\n".join(lines), "_format_entity_index")
 
 
 def format_compact_index(
@@ -1617,30 +1657,11 @@ def format_compact_index(
         for ah in flagged:
             lines.append(f"- {ah['title']}: {ah['flag']}")
 
-    output = "\n".join(lines)
-
-    # ADR-174 Phase 1: 600-token ceiling enforcement.
-    # 1 token ≈ 4 chars (conservative estimate).
-    _TOKEN_CEILING = 600
-    _CHAR_CEILING = _TOKEN_CEILING * 4  # 2400 chars
-
-    if len(output) > _CHAR_CEILING:
-        import os
-        if os.environ.get("ENV", "production") == "development":
-            actual_tokens = len(output) // 4
-            raise AssertionError(
-                f"format_compact_index exceeded {_TOKEN_CEILING}-token ceiling: "
-                f"~{actual_tokens} tokens ({len(output)} chars). "
-                f"Trim the offending section."
-            )
-        else:
-            logger.warning(
-                f"[WORKING_MEMORY] compact index exceeded ceiling: "
-                f"~{len(output)//4} tokens. Truncating."
-            )
-            output = output[:_CHAR_CEILING] + "\n... (truncated — workspace index too large)"
-
-    return output
+    # ADR-174 Phase 1 + ADR-186: 600-token ceiling enforcement via the shared
+    # `_enforce_compact_index_ceiling` helper. Singular Implementation across
+    # both workspace and entity profiles (helper added 2026-05-15 after audit
+    # found the entity path was missing enforcement).
+    return _enforce_compact_index_ceiling("\n".join(lines), "format_compact_index")
 
 
 

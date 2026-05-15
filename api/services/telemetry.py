@@ -115,6 +115,7 @@ def record_execution_event(
     cache_create_tokens: Optional[int] = None,
     model: Optional[str] = None,
     duration_ms: Optional[int] = None,
+    envelope_load_ms: Optional[int] = None,
     agent_run_id: Optional[str] = None,
 ) -> None:
     """Write one row to execution_events. Never raises.
@@ -135,6 +136,9 @@ def record_execution_event(
         cache_create_tokens: cache creation tokens
         model:              model name for cost rate lookup
         duration_ms:        wall-clock duration of the invocation
+        envelope_load_ms:   ms spent in load_reviewer_governance_envelope() for
+                            Reviewer wakes (ADR-276); NULL for mechanical-mode
+                            recurrences and non-Reviewer paths (migration 175)
         agent_run_id:       agent_runs.id if a row was created (NULL for early exits)
     """
     try:
@@ -173,6 +177,8 @@ def record_execution_event(
             row["cost_usd"] = cost_usd
         if duration_ms is not None:
             row["duration_ms"] = duration_ms
+        if envelope_load_ms is not None:
+            row["envelope_load_ms"] = envelope_load_ms
         if agent_run_id is not None:
             row["agent_run_id"] = agent_run_id
 

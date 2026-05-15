@@ -165,12 +165,16 @@ def test_feed_route_uses_shared_helper() -> None:
             "load_reviewer_governance_envelope'",
         )
 
-    if "governance_envelope = await load_reviewer_governance_envelope" in src:
-        _ok("routes/feed.py calls the helper")
+    # ADR-276 hardening (2026-05-15): helper now returns (dict, elapsed_ms)
+    # tuple so callers can record envelope load latency. Caller pattern
+    # updated to tuple-unpack.
+    if "governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope" in src:
+        _ok("routes/feed.py calls the helper (tuple-unpack)")
     else:
         _bad(
             "feed.py helper call",
-            "expected 'governance_envelope = await load_reviewer_governance_envelope'",
+            "expected 'governance_envelope, envelope_load_ms = await "
+            "load_reviewer_governance_envelope'",
         )
 
     # The old inline _asyncio.gather of 9 paths should be gone. We check
@@ -216,12 +220,14 @@ def test_dispatcher_wires_governance_envelope() -> None:
             "load_reviewer_governance_envelope'",
         )
 
-    if "governance_envelope = await load_reviewer_governance_envelope" in src:
-        _ok("invocation_dispatcher.py calls the helper")
+    # ADR-276 hardening (2026-05-15): tuple-unpack pattern matches feed.py.
+    if "governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope" in src:
+        _ok("invocation_dispatcher.py calls the helper (tuple-unpack)")
     else:
         _bad(
             "dispatcher helper call",
-            "expected 'governance_envelope = await load_reviewer_governance_envelope'",
+            "expected 'governance_envelope, envelope_load_ms = await "
+            "load_reviewer_governance_envelope'",
         )
 
     if "**governance_envelope" in src:

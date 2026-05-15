@@ -293,7 +293,6 @@ TP conversation containers. Inactivity-based session boundary (ADR-067).
 | ended_at | TIMESTAMPTZ | Session end (nullable) |
 | context_metadata | JSONB | Session context `{}` |
 | summary | TEXT | Prose summary written by nightly cron (ADR-067 Phase 1) |
-| compaction_summary | TEXT | In-session compaction summary (ADR-067 Phase 3) |
 | created_at | TIMESTAMPTZ | Auto |
 | updated_at | TIMESTAMPTZ | Bumped on every message append — doubles as last_message_at |
 | agent_id | UUID | ADR-087: FK → agents (nullable, ON DELETE SET NULL). Routes session to a specific agent for scoped memory accumulation. |

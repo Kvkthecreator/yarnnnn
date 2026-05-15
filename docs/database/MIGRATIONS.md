@@ -11,6 +11,25 @@ Note: this log has gaps between 100 and 158. Authoritative source is `supabase/m
 
 ---
 
+### 175 — ADR-276 hardening: envelope_load_ms observability (2026-05-15) ✅
+
+- Adds `execution_events.envelope_load_ms int` column — isolates time spent in `services.reviewer_envelope.load_reviewer_governance_envelope()` from total `duration_ms`
+- Helper signature changed from `→ dict` to `→ (dict, int)` (Singular Implementation — one helper, two callers, atomic update)
+- Reactive path (`services/invocation_dispatcher.py`) routes elapsed_ms into `record_execution_event(..., envelope_load_ms=...)` on both success and failure paths (guarded `locals().get` for pre-envelope failures)
+- Addressed path (`routes/feed.py`) logs elapsed_ms via structured logger (`[REVIEWER_ENVELOPE] addressed`) since addressed turns don't write `execution_events`
+- NULL semantics: mechanical-mode recurrences (no Reviewer wake), pre-migration-175 rows, and reactive failures that raise before envelope load all carry NULL
+- Regression gates: `api/test_envelope_observability.py` (new, 10/10 PASS); ADR-276 + ADR-275 + ADR-274 gates still green
+
+---
+
+### 174 — ADR-221 Phase 2 follow-up: drop compaction_summary (2026-05-15) ✅
+
+- Drops `chat_sessions.compaction_summary` column (added by migration 061 for ADR-067 Phase 3 in-session LLM compaction; superseded by filesystem-native `/workspace/memory/conversation.md` per ADR-221 Commit C, 2026-04-26)
+- Audited 2026-05-15: zero live writers, zero live readers across `api/routes/`, `api/services/`, `api/agents/` since the ADR-221 Commit C landing
+- Singular Implementation: filesystem-native conversation.md is the single compaction substrate; this drop closes the residual dual-substrate possibility
+
+---
+
 ### 164 — ADR-231 Phase 3.4: thin tasks scheduling index (2026-04-29) ✅
 
 - Drops `tasks.mode` (was added by 132; dissolves per ADR-231 D5 — temporal behavior implied by recurrence shape)

@@ -16,12 +16,19 @@ pre-loaded in the envelope.
 
 This helper centralizes the 9-file gather so both trigger paths share one
 implementation. Singular Implementation: one helper, two callers.
+
+Observability (2026-05-15 hardening):
+The helper returns `(envelope_dict, elapsed_ms)` so callers can record
+the dominant Reviewer DB-read pattern to `execution_events.envelope_load_ms`
+(migration 175). Reactive callers route the elapsed ms through telemetry;
+addressed callers log it to the structured logger.
 """
 
 from __future__ import annotations
 
 import asyncio as _asyncio
 import logging
+from datetime import datetime, timezone
 from typing import Any
 
 from services.workspace_paths import (
@@ -36,14 +43,20 @@ from services.workspace_paths import (
 logger = logging.getLogger(__name__)
 
 
-async def load_reviewer_governance_envelope(client: Any, user_id: str) -> dict:
+async def load_reviewer_governance_envelope(
+    client: Any, user_id: str
+) -> tuple[dict, int]:
     """Assemble the Reviewer's wake envelope substrate.
 
-    Returns a dict keyed by `ReviewerContext` field names — drop directly
-    into the context bag passed to `invoke_reviewer()`. All reads happen
-    in parallel via `asyncio.gather` to minimize wake-envelope latency.
+    Returns `(envelope_dict, elapsed_ms)`:
+      - envelope_dict: keyed by `ReviewerContext` field names — drop directly
+        into the context bag passed to `invoke_reviewer()`. All reads happen
+        in parallel via `asyncio.gather` to minimize wake-envelope latency.
+      - elapsed_ms: wall-clock ms spent in this call. Callers route it to
+        `execution_events.envelope_load_ms` (reactive path) or to the
+        structured logger (addressed path) per ADR-276 hardening.
 
-    Fields returned (all str, empty string when absent — never raises):
+    Fields in envelope_dict (all str, empty string when absent — never raises):
       - identity_md          → /workspace/review/IDENTITY.md
       - principles_md        → /workspace/review/principles.md
       - precedent_md         → /workspace/context/_shared/PRECEDENT.md
@@ -60,6 +73,7 @@ async def load_reviewer_governance_envelope(client: Any, user_id: str) -> dict:
     strings for these fields — the Reviewer's envelope renderer
     (`_build_user_message`) skips absent sections gracefully.
     """
+    _started_at = datetime.now(timezone.utc)
 
     async def _read(path: str) -> str:
         """Read a workspace file by relative path, return '' on miss."""
@@ -102,7 +116,7 @@ async def load_reviewer_governance_envelope(client: Any, user_id: str) -> dict:
     from agents.reviewer_agent import read_signal_files
     signal_files_summary = await read_signal_files(client, user_id)
 
-    return {
+    envelope = {
         "identity_md": identity_md,
         "principles_md": principles_md,
         "precedent_md": precedent_md,
@@ -114,3 +128,7 @@ async def load_reviewer_governance_envelope(client: Any, user_id: str) -> dict:
         "performance_md": performance_md,
         "signal_files": signal_files_summary,
     }
+    elapsed_ms = int(
+        (datetime.now(timezone.utc) - _started_at).total_seconds() * 1000
+    )
+    return envelope, elapsed_ms
