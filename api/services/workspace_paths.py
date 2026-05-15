@@ -123,17 +123,27 @@ REVIEW_FILES = (
 # Encodes the Reviewer / Operator authorship boundary — like a human
 # supervisor who reads but doesn't rewrite the operator's foundational
 # declarations (mandate, autonomy ceiling, identity, brand, conventions,
-# durable interpretations, declared strategy + risk floors).
+# durable interpretations).
 #
-# Operator can extend this set via /workspace/_shared/_locks.yaml
-# (locked_paths: [...]) — adds more locked paths.
-# Operator can override defaults via /workspace/_shared/_locks.yaml
-# (unlocked_paths: [...]) — explicitly permits Reviewer writes to paths
-# in this default set when they want a more permissive Reviewer.
+# ADR-280 (2026-05-15): this constant contains ONLY kernel-universal locks —
+# paths present in every workspace regardless of program. Program-specific
+# locks (e.g., trading's `_operator_profile.md` + `_risk.md`, commerce's
+# equivalents) are now declared by bundles in MANIFEST.yaml's
+# `substrate_abi.path_zones` block (role: operator-canon → locked) and
+# composed at runtime by `services/primitives/workspace.py::_is_path_locked_for_reviewer`.
+# This honors FOUNDATIONS Derived Principle 16 (kernel-program boundary):
+# the kernel encodes universals; programs declare program-specific contracts.
+#
+# The composition order at runtime:
+#   1. DEFAULT_REVIEWER_WRITE_LOCKS (this constant — kernel-universal)
+#   2. Workspace guide frontmatter `path_zones` with role='operator-canon'
+#      (services/workspace_guide.py + services/bundle_reader.py)
+#   3. Legacy operator overrides in /workspace/_shared/_locks.yaml
+#      (locked_paths additions, unlocked_paths overrides)
 #
 # When the Reviewer's WriteFile is rejected, the Reviewer can:
 #   - Surface a Clarify to the operator ("I'd like to update X — approve?")
-#   - Note the suggestion in its own decisions.md / reflections.md
+#   - Note the suggestion in its own notes.md / reflections.md (workbench)
 #   - Continue reasoning and let the operator act
 DEFAULT_REVIEWER_WRITE_LOCKS = (
     SHARED_MANDATE_PATH,
@@ -144,9 +154,5 @@ DEFAULT_REVIEWER_WRITE_LOCKS = (
     SHARED_CONVENTIONS_PATH,
     SHARED_PRECEDENT_PATH,
     SHARED_PREFERENCES_PATH,  # ADR-275: operator-declared deliverable cadence preferences
-    "context/trading/_operator_profile.md",
-    "context/trading/_risk.md",
-    "context/commerce/_operator_profile.md",
-    "context/commerce/_risk.md",
     "context/_shared/_locks.yaml",  # operator-authored lock policy itself
 )

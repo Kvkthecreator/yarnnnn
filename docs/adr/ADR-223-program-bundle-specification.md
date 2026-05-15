@@ -179,6 +179,62 @@ references:
 - `task_types[*].output_kind` is one of the four canonical values (ADR-166): `accumulates_context | produces_deliverable | external_action | system_maintenance`.
 - `capabilities[*].requires_connection` references a `platform_connections.platform` value (`slack | notion | github | alpaca | lemon_squeezy | ...`).
 
+### 3.bis MANIFEST.yaml `substrate_abi` block — program's contract with the kernel for substrate topology (added by ADR-280, 2026-05-15)
+
+ADR-280 extends MANIFEST.yaml with an optional top-level `substrate_abi` block declaring the program's substrate-topology contract with the kernel. The kernel reads this declaration via `services/bundle_reader.py` helpers and merges it with kernel-universal declarations into the workspace's `_workspace_guide.md` at genesis (Reviewer-authored at first wake per ADR-280 §2.D4).
+
+**Why a separate block from `context_domains`.** `context_domains` is a composition-time + scaffolding-time template (per ADR-188 + ADR-224 — bundle ships rich domain structures the operator/Reviewer/YARNNN can compose against). `substrate_abi` is the runtime kernel contract — declares lock policy + Reviewer wake envelope inputs at the substrate layer. The two blocks may declare overlapping paths (alpha-trader's `context/trading` appears in both) because they answer different questions: `context_domains` answers *"what does this domain look like for composition?"*, `substrate_abi` answers *"what role does this path play and what does the Reviewer need pre-loaded?"*
+
+**Schema:**
+
+```yaml
+substrate_abi:
+  schema_version: 1
+
+  # Path zones this program contributes beyond the kernel-universal set.
+  # Each declares its role; lock policy is derived from role per ADR-280 §2.D2.
+  path_zones:
+    - path: context/{domain}              # program-relative path under /workspace/
+      role: operator-canon                # one of the six roles per ADR-280 §2.D2
+      purpose: short prose                # one-line purpose for operator readability
+      authored_files: [list of files]     # operator-authored files at this path
+      accumulating_files: [list of files] # mechanically/judgment-written files at this path
+      glob_zones: ["pattern", "..."]      # glob patterns for files in this zone
+
+  # Substrate the Reviewer needs pre-loaded at every wake to perceive program state.
+  # Universal envelope entries (identity_md, principles_md, precedent_md, mandate_md,
+  # autonomy_md, preferences_yaml) are kernel-shipped — bundles only declare additions.
+  reviewer_wake_envelope:
+    - key: <field_name>                   # field name in the envelope dict
+      path: context/{domain}/{file}.md    # absolute workspace-relative path
+      optional: true|false                # whether absence is tolerated
+    - key: <field_name>
+      path_glob: context/{domain}/*.yaml  # for collections of files
+      summarizer: <named_kernel_fn>       # references a kernel summarizer function
+      optional: true|false
+```
+
+**Six roles** (per ADR-280 §2.D2 — operator-legible vocabulary, lock policy derived from role):
+
+| Role | Writer | Reader | Lock | Retention |
+|---|---|---|---|---|
+| `operator-canon` | operator | all | locked from Reviewer | retained forever |
+| `reviewer-workbench` | Reviewer | Reviewer + operator | unlocked for Reviewer | retained forever |
+| `system-ledger` | infrastructure | Reviewer + operator | locked from LLM | retained forever, append-only |
+| `world-mirror` | mechanical primitives | Reviewer | locked from LLM | overwritten each fire (revision chain preserves history) |
+| `running-narrative` | mechanical or judgment | Reviewer + operator | unlocked for declared writer only | retained forever, append-only |
+| `kernel-index` | kernel | kernel + Reviewer (read-only) | not writable outside kernel | regenerated idempotently |
+
+**Validation rules:**
+
+- `substrate_abi.schema_version: 1` required when block is present.
+- Each `path_zones[*].path` must be a workspace-relative path under `context/` (other top-level paths are kernel-universal — `memory/`, `review/`, `agents/`, etc. — and not bundle-declarable).
+- Each `path_zones[*].role` must be one of the six values above. Adding new roles requires an ADR (anti-vocabulary-proliferation per ADR-166).
+- Each `reviewer_wake_envelope[*].key` must be unique across kernel-universal + bundle-declared envelope entries (no collision with `identity_md`, `principles_md`, etc.).
+- Each `reviewer_wake_envelope[*].path` (or `path_glob`) must be a workspace-relative path.
+- `summarizer` references a named function in `services/reviewer_envelope.py::ENVELOPE_SUMMARIZERS`; adding new summarizer kinds requires an ADR.
+- Bundles are not required to declare `substrate_abi` — bundles without it contribute zero program-specific path zones or envelope entries (the kernel template alone defines the workspace guide).
+
 ### 4. SURFACES.yaml — composition manifest
 
 The composition manifest is the program's declarative cockpit shape. The compositor reads it; nothing else does. Schema:

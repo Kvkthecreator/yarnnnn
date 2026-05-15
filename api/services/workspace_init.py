@@ -494,6 +494,94 @@ async def initialize_workspace(
             result["fork_error"] = str(exc)
 
     # =========================================================================
+    # Phase 6 (ADR-280): Genesis-by-Reviewer wake — author the workspace guide
+    # =========================================================================
+    # The Reviewer wakes synchronously here, reads the kernel template +
+    # active bundle's substrate_abi declaration, and authors
+    # `/workspace/_workspace_guide.md` via WriteFile with
+    # authored_by="reviewer:{occupant}/genesis" per ADR-209 §D8 + ADR-280 §2.D4.
+    #
+    # Idempotent — skipped if the workspace guide already exists. The
+    # operator-perceived latency (~one Sonnet wake = ~5-15s) is the
+    # "engine-jump-start" property: the Reviewer's continuous-operation
+    # discipline starts at moment-zero of workspace life when it authors its
+    # own substrate-pedagogy doc, exactly as it will author Schedule calls
+    # and judgment_log entries thereafter.
+    #
+    # Failure mode: if the genesis wake errors mid-way, the workspace guide
+    # may be missing or partial. Recovery: re-run initialize_workspace —
+    # idempotent re-attempt. Non-fatal — workspace remains usable without the
+    # guide; the lock-policy composition gracefully degrades to kernel-only
+    # defaults + bundle substrate_abi fallback.
+    try:
+        from services import workspace_guide as wg_reader
+        from services import bundle_reader
+        from agents.genesis_prompt import (
+            assemble_genesis_prompt, GENESIS_RECURRENCE_SLUG,
+        )
+
+        existing_guide = wg_reader.read_frontmatter(client, user_id)
+        if existing_guide:
+            logger.info(
+                f"[WORKSPACE_INIT] Workspace guide exists for {user_id[:8]} — skipping genesis"
+            )
+            result["workspace_guide_authored"] = False
+            result["workspace_guide_skipped_reason"] = "already_exists"
+        else:
+            substrate_abi = bundle_reader.get_substrate_abi_for_workspace(user_id, client)
+            genesis_directive = assemble_genesis_prompt(
+                program_slug=program_slug,
+                substrate_abi=substrate_abi,
+            )
+
+            # Reviewer reads the genesis directive as a synthetic recurrence-fire
+            # (recurrence_prompt+recurrence_slug shape per ReviewerContext —
+            # reuses the existing canonical context contract; no new shape invented).
+            # Per Singular Implementation: one invoke_reviewer entry point, three
+            # validated context shapes, genesis fits the recurrence-fire shape.
+            from agents.reviewer_agent import invoke_reviewer
+            logger.info(
+                f"[WORKSPACE_INIT] Genesis wake firing for {user_id[:8]} "
+                f"(program={program_slug}, bundle_zones={len(substrate_abi.get('path_zones', []))})"
+            )
+            verdict = await invoke_reviewer(
+                client=client,
+                user_id=user_id,
+                trigger="reactive",
+                context={
+                    "recurrence_prompt": genesis_directive,
+                    "recurrence_slug": GENESIS_RECURRENCE_SLUG,
+                },
+            )
+            # Verify the guide actually got authored (verdict alone isn't
+            # sufficient — Reviewer could stand_down without writing).
+            post_genesis_guide = wg_reader.read_frontmatter(client, user_id)
+            if post_genesis_guide:
+                result["workspace_guide_authored"] = True
+                logger.info(
+                    f"[WORKSPACE_INIT] Genesis wake complete for {user_id[:8]} "
+                    f"(verdict={verdict.get('verdict') if verdict else 'None'}, "
+                    f"path_zones={len(post_genesis_guide.get('path_zones', []))})"
+                )
+            else:
+                result["workspace_guide_authored"] = False
+                result["workspace_guide_error"] = (
+                    f"genesis wake returned verdict={verdict.get('verdict') if verdict else 'None'} "
+                    f"but no /workspace/_workspace_guide.md was authored"
+                )
+                logger.error(
+                    f"[WORKSPACE_INIT] Genesis wake INCOMPLETE for {user_id[:8]}: "
+                    f"{result['workspace_guide_error']}. "
+                    f"Lock-policy gracefully degrades to kernel-defaults + bundle-substrate_abi fallback."
+                )
+    except Exception as exc:
+        logger.error(
+            f"[WORKSPACE_INIT] Genesis wake FAILED for {user_id[:8]} (non-fatal): {exc}"
+        )
+        result["workspace_guide_authored"] = False
+        result["workspace_guide_error"] = str(exc)
+
+    # =========================================================================
     # Post-init validation — check critical invariants
     # =========================================================================
     from services.workspace_paths import SHARED_IDENTITY_PATH

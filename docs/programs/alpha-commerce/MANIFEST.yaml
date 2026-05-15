@@ -121,6 +121,35 @@ capabilities:
       - platform_commerce_update_product
       - platform_commerce_create_discount
 
+# ADR-280: Substrate ABI — bundle's contract with the kernel for substrate
+# topology. Validates the additive pattern even for deferred bundles —
+# when this bundle activates, the kernel reads this declaration and merges
+# it into the workspace guide at genesis. See alpha-trader MANIFEST for
+# field-by-field documentation; this block follows the same schema.
+substrate_abi:
+  schema_version: 1
+
+  path_zones:
+    - path: context/customers
+      role: operator-canon
+      purpose: per-customer entities; lifecycle, LTV, segment
+      authored_files: [_operator_profile.md]
+      accumulating_files: [_tracker.md]
+      glob_zones: ["{customer-slug}/profile.md", "{customer-slug}/history.md"]
+    - path: context/revenue
+      role: operator-canon
+      purpose: account-level revenue, MRR, churn, cohort retention
+      accumulating_files: [_money_truth.md, _tracker.md]
+      glob_zones: ["{product-slug}/performance.md"]
+
+  reviewer_wake_envelope:
+    - key: operator_profile_md
+      path: context/customers/_operator_profile.md
+      optional: false
+    - key: revenue_money_truth_md
+      path: context/revenue/_money_truth.md
+      optional: true   # accumulated by reconciler — empty before first reconciliation
+
 # Activation graduates this from `deferred` → `active` when ALL hold:
 activation_preconditions:
   - alpha-trader Phase 1 (Paper Discipline) completes — OS validated under capital pressure on the easier oracle

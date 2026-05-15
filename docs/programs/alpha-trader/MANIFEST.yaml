@@ -156,6 +156,56 @@ capabilities:
       - platform_trading_cancel_order
       - platform_trading_close_position
 
+# ADR-280: Substrate ABI — bundle's contract with the kernel for substrate
+# topology. Declares which path zones this program uses, their roles, and
+# what substrate the Reviewer needs pre-loaded at every wake. The kernel
+# reads this declaration via `services/bundle_reader.py` helpers and merges
+# it with kernel-universal declarations into the workspace's `_workspace_guide.md`
+# at genesis (Reviewer-authored at first wake per ADR-280 §2.D4).
+#
+# Role taxonomy (six roles per ADR-280 §2.D2):
+#   operator-canon     - operator-authored library (locked from Reviewer)
+#   reviewer-workbench - Reviewer's working substrate (unlocked for Reviewer)
+#   system-ledger      - infrastructure-rendered append-only (locked from LLM)
+#   world-mirror       - mechanical mirror of external state (locked from LLM)
+#   running-narrative  - append-shape, mechanical or judgment-fed
+#   kernel-index       - kernel-managed regenerable index
+substrate_abi:
+  schema_version: 1
+
+  # Path zones this program contributes beyond the kernel-universal set.
+  # Each declares its role; lock policy is derived from role per §2.D2.
+  path_zones:
+    - path: context/trading
+      role: operator-canon
+      purpose: per-instrument entities, signals, watched universe
+      authored_files: [_operator_profile.md, _risk.md, _universe.yaml]
+      accumulating_files: [_performance.md, _money_truth.md, _tracker.md, _regime.yaml]
+      glob_zones: ["signals/*.yaml", "{TICKER}.yaml"]
+    - path: context/portfolio
+      role: operator-canon
+      purpose: account-level state, performance, risk
+      accumulating_files: [_money_truth.md, _tracker.md]
+
+  # Substrate the Reviewer needs pre-loaded at every wake to perceive program state.
+  # The kernel envelope-assembly function reads this declaration and gathers accordingly.
+  # Universal envelope entries (identity_md, principles_md, precedent_md, mandate_md,
+  # autonomy_md, preferences_yaml) are kernel-shipped — bundles only declare additions.
+  reviewer_wake_envelope:
+    - key: operator_profile_md
+      path: context/trading/_operator_profile.md
+      optional: false
+    - key: risk_md
+      path: context/trading/_risk.md
+      optional: false
+    - key: performance_md
+      path: context/trading/_performance.md
+      optional: true   # accumulated by reconciler — empty before first reconciliation
+    - key: signal_files
+      path_glob: context/trading/signals/*.yaml
+      summarizer: signal_files   # named kernel summarizer (services/reviewer_envelope.py)
+      optional: true
+
 activation_preconditions: []  # already active
 
 phases:

@@ -1279,29 +1279,74 @@ async def handle_read_agent_file(auth: Any, input: dict) -> dict:
 async def _is_path_locked_for_reviewer(auth: Any, path: str) -> bool:
     """Check Reviewer-write lock policy for the given path.
 
-    ADR-258 (revised 2026-05-08): the lock policy combines
-      defaults (DEFAULT_REVIEWER_WRITE_LOCKS — operator-authored substrate
-        the Reviewer should not directly modify; encodes the
-        Reviewer/Operator authorship boundary as a default)
-      + operator additions (locked_paths in _locks.yaml)
-      − operator overrides (unlocked_paths in _locks.yaml — explicitly
-        permits Reviewer writes to default-locked paths when the
-        operator wants a more permissive Reviewer).
+    ADR-258 (revised 2026-05-08) + ADR-280 (2026-05-15): the lock policy
+    composes four layers, in order of precedence:
+
+      1. Kernel-universal defaults (DEFAULT_REVIEWER_WRITE_LOCKS — operator-
+         authored substrate present in every workspace regardless of program;
+         per ADR-280 contains ONLY universals — program-specific paths moved
+         to bundle MANIFEST `substrate_abi` declarations).
+      2. Workspace guide frontmatter `path_zones` with role='operator-canon'
+         (per ADR-280 §2.D6.a — the workspace's authored substrate-ABI
+         declaration). Read via `services/workspace_guide.py`.
+      3. Bundle `substrate_abi.path_zones` for active bundles (transitional
+         fallback for workspaces where the workspace guide hasn't been
+         genesis-authored yet — per ADR-280 §4.1 Phase 1 transition support).
+         Read via `services/bundle_reader.py`. Same role-derived semantics
+         as layer 2.
+      4. Legacy operator overrides in /workspace/_shared/_locks.yaml
+         (locked_paths additions, unlocked_paths overrides). Preserved
+         for backward compat with operator-authored lock declarations
+         that pre-date the workspace guide.
+
+    Workspace-guide `locks.add` / `locks.remove` (per ADR-280 §2.D3 schema)
+    are merged at layer 2 via `workspace_guide.get_path_zone_locks`.
 
     Result is cached per-request via auth-scoped memo to avoid re-fetching
     when multiple writes happen in the same primitive batch.
 
-    Returns True when path is locked. Fail-open on parse error.
+    Returns True when path is locked. Fail-open on parse error at any layer.
     """
     cache = getattr(auth, "_reviewer_locks_cache", None)
     if cache is None:
-        # 1. Start with platform defaults
+        # 1. Kernel-universal defaults (ADR-280 — kernel-only, no program paths)
         from services.workspace_paths import DEFAULT_REVIEWER_WRITE_LOCKS
         defaults = {p.strip().lstrip("/") for p in DEFAULT_REVIEWER_WRITE_LOCKS}
+
+        # 2. Workspace-guide-declared locks (ADR-280 §2.D6.a)
+        guide_locked: set[str] = set()
+        guide_locks_remove: set[str] = set()
+        try:
+            from services import workspace_guide
+            frontmatter = workspace_guide.read_frontmatter(auth.client, auth.user_id)
+            guide_locked = workspace_guide.get_path_zone_locks(frontmatter)
+            # `locks.remove` from the guide is applied as a final-step
+            # subtraction (operator can override role-derived defaults too).
+            locks_block = frontmatter.get("locks", {}) if isinstance(frontmatter, dict) else {}
+            if isinstance(locks_block, dict):
+                for p in locks_block.get("remove", []) or []:
+                    if isinstance(p, str):
+                        guide_locks_remove.add(p.strip().lstrip("/"))
+        except Exception:
+            pass
+
+        # 3. Bundle substrate_abi locks (transitional fallback per ADR-280 §4.1)
+        # Active when the workspace guide hasn't been genesis-authored yet.
+        # Once the guide is authored, layer 2 carries the program-shipped
+        # locks (because genesis-by-Reviewer composes from the bundle into
+        # the guide), and this layer becomes a redundant safety net.
+        bundle_locked: set[str] = set()
+        try:
+            from services import bundle_reader
+            bundle_locked = bundle_reader.get_path_zone_locks_for_workspace(
+                auth.user_id, auth.client
+            )
+        except Exception:
+            pass
+
+        # 4. Legacy operator-authored _locks.yaml on top (backward compat)
         added: set[str] = set()
         unlocked: set[str] = set()
-
-        # 2. Layer operator-authored _locks.yaml on top
         try:
             res = (
                 auth.client.table("workspace_files")
@@ -1328,7 +1373,11 @@ async def _is_path_locked_for_reviewer(auth: Any, path: str) -> bool:
             except Exception:
                 pass
 
-        effective = (defaults | added) - unlocked
+        # Compose: union of all four lock sources, then subtract operator overrides.
+        # Workspace-guide `locks.remove` and legacy `_locks.yaml` `unlocked_paths`
+        # both subtract — operator has two equivalent surfaces during the
+        # ADR-280 transition window; long-term the guide subsumes the legacy.
+        effective = (defaults | guide_locked | bundle_locked | added) - guide_locks_remove - unlocked
         cache = effective
         try:
             setattr(auth, "_reviewer_locks_cache", cache)

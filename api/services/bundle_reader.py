@@ -145,6 +145,87 @@ def bundles_active_for_workspace(user_id: str, client: Any) -> list[dict[str, An
     return [b for _, b in matching]
 
 
+def get_substrate_abi_for_workspace(user_id: str, client: Any) -> dict[str, Any]:
+    """ADR-280: aggregate substrate_abi declarations across active bundles for a workspace.
+
+    Returns a dict with two keys:
+      - path_zones: list of all path-zone declarations across active bundles
+      - reviewer_wake_envelope: list of all envelope declarations across active bundles
+
+    Each entry preserves its original bundle declaration shape; consumers
+    (workspace_guide composition at genesis, lock-policy at runtime) treat
+    bundle origin as opaque — they care about the role + path, not which
+    bundle shipped it.
+
+    Multi-bundle workspaces: declarations from different bundles concatenate.
+    Path-zone collisions (two bundles declaring the same path with different
+    roles) are not currently resolved here — first-bundle-wins via the
+    activation-date ordering of `bundles_active_for_workspace`. Future
+    multi-program operator UX will need explicit resolution per ADR-280
+    "Out of scope" §7.
+
+    Returns empty dict when workspace has no active bundles.
+    """
+    bundles = bundles_active_for_workspace(user_id, client)
+    if not bundles:
+        return {"path_zones": [], "reviewer_wake_envelope": []}
+
+    path_zones: list[dict[str, Any]] = []
+    envelope_decls: list[dict[str, Any]] = []
+    for bundle in bundles:
+        abi = bundle.get("substrate_abi") or {}
+        if not isinstance(abi, dict):
+            continue
+        # Tag each entry with origin bundle slug so genesis-by-Reviewer can
+        # attribute the source in the workspace guide prose body.
+        bundle_slug = bundle.get("slug")
+        for zone in abi.get("path_zones", []) or []:
+            if isinstance(zone, dict):
+                zone_with_origin = {**zone, "_program_slug": bundle_slug}
+                path_zones.append(zone_with_origin)
+        for decl in abi.get("reviewer_wake_envelope", []) or []:
+            if isinstance(decl, dict):
+                decl_with_origin = {**decl, "_program_slug": bundle_slug}
+                envelope_decls.append(decl_with_origin)
+
+    return {
+        "path_zones": path_zones,
+        "reviewer_wake_envelope": envelope_decls,
+    }
+
+
+def get_path_zone_locks_for_workspace(user_id: str, client: Any) -> set[str]:
+    """ADR-280: aggregate locked paths from active bundles' substrate_abi declarations.
+
+    Used by `services/primitives/workspace.py::_is_path_locked_for_reviewer`
+    when composing the lock policy: kernel-defaults (DEFAULT_REVIEWER_WRITE_LOCKS)
+    + this set + operator overrides (workspace guide locks.add / locks.remove
+    + legacy /workspace/_shared/_locks.yaml).
+
+    A path is bundle-locked iff its declaration has role='operator-canon' OR
+    it appears in a path-zone's `authored_files` list (those files are
+    operator-authored within an otherwise mixed zone).
+
+    Returns paths workspace-relative (no leading slash), matching the
+    normalization used by the lock-check function. Returns empty set when
+    workspace has no active bundles or when no path zones declare
+    operator-canon role.
+    """
+    abi = get_substrate_abi_for_workspace(user_id, client)
+    locked: set[str] = set()
+    for zone in abi.get("path_zones", []):
+        path = zone.get("path")
+        if not isinstance(path, str):
+            continue
+        path_norm = path.lstrip("/")
+        if zone.get("role") == "operator-canon":
+            locked.add(path_norm)
+            for f in zone.get("authored_files", []) or []:
+                if isinstance(f, str):
+                    locked.add(f"{path_norm}/{f}")
+    return locked
+
+
 def get_market_context_for_user(user_id: str, client: Any) -> Optional[dict[str, Any]]:
     """Return the workspace's active bundle's `market_context:` block (ADR-268).
 
