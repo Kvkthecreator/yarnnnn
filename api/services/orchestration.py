@@ -800,6 +800,174 @@ If it changes how the Reviewer reasons, edit `/workspace/review/principles.md`.
 """
 
 
+# ADR-280: kernel-default workspace guide for no-program workspaces.
+# Bundles ship their own _workspace_guide.md at reference-workspace/ root
+# (e.g. docs/programs/alpha-trader/reference-workspace/_workspace_guide.md);
+# `services.programs.fork_reference_workspace` deterministically copies it
+# into the operator's workspace at activation. This constant is the kernel's
+# fallback for workspaces created without a program — `workspace_init.py`
+# Phase 2 writes it as one of the universal skeleton files alongside
+# MANDATE/IDENTITY/BRAND/AUTONOMY/PRECEDENT.
+#
+# Per ADR-280 §D4 (revised 2026-05-15): the workspace guide is bundle-shipped
+# substrate, not Reviewer-authored at first wake. Kernel ships universal
+# defaults for the no-program case; programs ship richer guides via their
+# bundle's reference-workspace/. Operators and Reviewers revise the guide
+# through the normal authoring channels with proper attribution per ADR-209.
+DEFAULT_WORKSPACE_GUIDE_MD = """\
+---
+schema_version: 1
+
+# Path zones: kernel-universal entries only (no program activated).
+# Each zone declares its role; lock policy is derived per ADR-280 §2.D2.
+path_zones:
+  - path: context/_shared
+    role: operator-canon
+    purpose: operator's standing intent — MANDATE, IDENTITY, BRAND, AUTONOMY, PRECEDENT, _preferences
+  - path: context/_shared/_locks.yaml
+    role: operator-canon
+    purpose: operator-authored lock policy
+  - path: uploads
+    role: operator-canon
+    purpose: operator-contributed reference material
+  - path: review/IDENTITY.md
+    role: operator-canon
+    purpose: Reviewer seat persona declaration
+  - path: review/principles.md
+    role: operator-canon
+    purpose: Reviewer's declared judgment framework
+  - path: review/_principles.yaml
+    role: operator-canon
+    purpose: machine-parsed Reviewer thresholds
+  - path: review/OCCUPANT.md
+    role: system-ledger
+    purpose: current Reviewer seat occupant
+  - path: review/handoffs.md
+    role: system-ledger
+    purpose: append-only seat-occupant rotation log
+  - path: review/calibration.md
+    role: system-ledger
+    purpose: per-occupant judgment-vs-outcome rolling windows
+  - path: review/decisions.md
+    role: system-ledger
+    purpose: Reviewer's judgment lineage
+  - path: memory/recent.md
+    role: system-ledger
+    purpose: back-office narrative digest (24h rollup)
+  - path: review/notes.md
+    role: reviewer-workbench
+    purpose: Reviewer's working scratch across wakes
+  - path: working
+    role: reviewer-workbench
+    purpose: ephemeral scratch (24h TTL)
+  - path: memory
+    role: running-narrative
+    purpose: YARNNN orchestration accumulation
+  - path: agents
+    role: running-narrative
+    purpose: per-agent substrate
+  - path: reports
+    role: running-narrative
+    purpose: per-recurrence deliverable outputs
+  - path: operations
+    role: running-narrative
+    purpose: per-recurrence action state
+  - path: research
+    role: running-narrative
+    purpose: investigation working space (Reviewer creates subdirs as work demands)
+  - path: _recurrences.yaml
+    role: kernel-index
+    purpose: scheduling-index source of truth
+
+reviewer_wake_envelope:
+  - key: identity_md
+    path: review/IDENTITY.md
+    optional: false
+  - key: principles_md
+    path: review/principles.md
+    optional: false
+  - key: precedent_md
+    path: context/_shared/PRECEDENT.md
+    optional: true
+  - key: mandate_md
+    path: context/_shared/MANDATE.md
+    optional: false
+  - key: autonomy_md
+    path: context/_shared/AUTONOMY.md
+    optional: false
+  - key: preferences_yaml
+    path: context/_shared/_preferences.yaml
+    optional: true
+
+locks:
+  add: []
+  remove: []
+---
+
+# Workspace Guide
+
+This is your workspace guide. The Reviewer reads it at every wake to
+understand what substrate exists in this workspace and how to navigate
+it. The frontmatter (machine-parsed) declares path zones and their roles;
+this prose body narrates the contract.
+
+## How this workspace works
+
+Substrate is the persistence layer (FOUNDATIONS Axiom 1). State that
+survives between invocations lives in `/workspace/` files. Computation is
+stateless: read substrate, act, write substrate, terminate. Substrate is
+the bus over which the runtime operates.
+
+Every write is **attributed and retained** (Authored Substrate, ADR-209)
+— `authored_by` identity + short message; revisions accumulate
+non-destructively; history inspectable via `ListRevisions` /
+`ReadRevision` / `DiffRevisions`.
+
+The path zones declared in this guide's frontmatter are guaranteed to be
+the substrate topology — readers do not need to `ListFiles` defensively
+before writing within them.
+
+**Six roles classify every path zone**:
+
+- **`operator-canon`** — operator-authored library (locked from Reviewer).
+- **`reviewer-workbench`** — Reviewer's working substrate (unlocked).
+- **`system-ledger`** — infrastructure-rendered append-only (locked from LLM).
+- **`world-mirror`** — external state mirrored by mechanical primitives.
+- **`running-narrative`** — append-shape, mechanical or judgment-fed.
+- **`kernel-index`** — kernel-managed regenerable indexes.
+
+## What this workspace contains
+
+This workspace runs no program — only the kernel-universal substrate is
+present. The operator can activate a program (e.g., alpha-trader,
+alpha-commerce) which forks a richer `_workspace_guide.md` over this
+default.
+
+Operational substrate emerges through Reviewer judgment + work over
+tenure: investigation work surfaces a `research/` directory the Reviewer
+populates; pattern-tracking lands in `review/notes.md`; operation-shaping
+judgment moments accumulate in `review/decisions.md`.
+
+## When things diverge
+
+The guide describes the substrate topology; it does not enforce it.
+Surface unclassified substrate via `Clarify`; treat it as
+`running-narrative` for reading purposes; never silently classify or
+relocate substrate to enforce the guide.
+
+## What NOT to write to operator-canon
+
+Do NOT write to `operator-canon` paths directly. The lock policy will
+reject the write, but the discipline is upstream of the lock — the
+operator authors their own canon, and the Reviewer's role is to surface
+insight via `Clarify` / `ProposeAction` so the operator authors the
+change with their own attribution.
+
+The right home for the Reviewer's evolving understanding is
+`review/notes.md` (reviewer-workbench).
+"""
+
+
 # DEFAULT_REVIEW_HANDOFFS_MD DELETED — the rotation primitive
 # (services/review_rotation.py::_render_handoff_entry) is the single source
 # of truth for handoffs.md entries. Per ADR-211 D4 singular-implementation,

@@ -1,6 +1,91 @@
-# ADR-280: Substrate ABI — Bundles Declare Their Topology, the Reviewer Authors Its Workspace Guide at Genesis
+# ADR-280: Substrate ABI — Bundles Declare Their Topology and Ship the Workspace Guide as Operator-Canon
 
-**Status**: Proposed (2026-05-15)
+**Status**: Phase 1 Implemented (2026-05-15) — revised same day (see Revision below)
+
+---
+
+## Revision: 2026-05-15 — Genesis-by-Reviewer dissolved; workspace guide is bundle-shipped canon
+
+The first version of this ADR (§D4 below as originally written) specified
+that the Reviewer authors `_workspace_guide.md` at first wake from a kernel
+template + bundle's `substrate_abi` declaration ("genesis-by-Reviewer"). The
+Phase 1 migration against kvk's live workspace empirically falsified this
+design: the Reviewer's tool-use loop produced 16 successive `WriteFile` calls
+with empty content across multiple workspaces, never authoring usable guide
+content. Two distinct bugs surfaced — attribution fell through to
+`yarnnn:chat` instead of the planned `reviewer:.../genesis` variant (no
+dispatch-layer injection had been shipped), and the Reviewer model
+consistently failed to thread a multi-KB structured prompt through its
+WriteFile schema.
+
+The empirical learning surfaced an architectural simplification the operator
+named: **the workspace guide is bundle-shipped operator-canon substrate, not
+a Reviewer-authored artifact.** Bundles already ship every other authored
+canonical file (MANDATE.md, IDENTITY.md, principles.md, AUTONOMY.md,
+`_operator_profile.md`, `_risk.md`, `_universe.yaml`, `_recurrences.yaml`,
+`_principles.yaml`, `_preferences.yaml`) at `reference-workspace/` for
+deterministic fork by `services.programs.fork_reference_workspace`. The
+workspace guide is one more file of the same kind. The Reviewer's role is
+to **read** the guide at every wake (just like every other operator-canon
+file), perceive the substrate topology immediately, and operate over it —
+not to author the substrate-pedagogy doc itself.
+
+The "engine-jump-start" property survives intact via a different route: the
+deterministic fork at activation IS the jump-start. The Reviewer's first
+wake is structurally identical to its second wake — it reads `MANDATE.md`,
+`principles.md`, `IDENTITY.md`, `AUTONOMY.md`, `_workspace_guide.md`, and
+operates. No special-case bootstrap. Operational substrate (research/
+directories, evolving notes, accumulated context) emerges through Reviewer
+judgment + work over tenure — the bundle ships the empty house; the
+workspace develops as the operation actually runs.
+
+**Three structural changes from the original §D4:**
+
+1. **Workspace guide ships in the bundle** at
+   `docs/programs/{slug}/reference-workspace/_workspace_guide.md` — alongside
+   every other operator-canon file. Authored at bundle commit time, forked
+   deterministically at workspace activation by
+   `services.programs.fork_reference_workspace`. Attribution
+   `system:bundle-fork`, same as every other forked file.
+
+2. **No-program workspaces get a kernel-default guide** —
+   `DEFAULT_WORKSPACE_GUIDE_MD` constant in `services/orchestration.py`,
+   written by `workspace_init.py` Phase 2 alongside MANDATE/IDENTITY/BRAND/
+   AUTONOMY/PRECEDENT skeletons. Same write path; one more file in the
+   universal-skeleton list.
+
+3. **Genesis-by-Reviewer machinery deleted entirely** —
+   `api/agents/genesis_prompt.py` (~280 LOC), `services/workspace_init.py::Phase 6`
+   (~80 LOC), and `api/scripts/oneshot/adr280_genesis_for_existing_workspaces.py`
+   all removed. The `reviewer:.../genesis` attribution variant in §D8 (planned
+   but never wired) is also stripped — bundle-fork uses the standard
+   `system:bundle-fork` attribution like every other forked file.
+
+**Phase 1 Implemented** status reflects this revised design as shipped. The
+original §D4 framing is preserved as historical context in the §D4 section
+itself — the discourse arc (proposed Reviewer-authoring → empirical
+falsification on kvk's workspace → architectural simplification) is the
+architectural learning worth canonizing per Authored Substrate discipline
+(no history is silently lost; ADR revisions preserve the prior framing).
+
+What stays from the original ADR (load-bearing under both designs):
+- Substrate ABI as MANIFEST.yaml schema (D1) ✅
+- Six-role taxonomy (D2) ✅
+- Workspace guide as YAML-frontmatter + prose-body single file (D3) ✅
+- Lock-policy 4-layer composition (D6.a) ✅
+- Wake-envelope reads guide frontmatter (D6.b — Phase 2) ✅
+- Persona prose dissolves to one pointer (D6.c — Phase 3) ✅
+- D-Drift descriptive-not-prescriptive principle (D7) ✅
+
+What changes (per this revision):
+- D4 mechanism ("how the guide comes to exist") — Reviewer-authored at
+  genesis → bundle-shipped + kernel-default. ✅ See revised §D4 below.
+- D8 attribution variant (`reviewer:.../genesis`) — DELETED. Bundle fork
+  uses `system:bundle-fork` like every other forked file. ✅
+
+---
+
+**Status (original)**: Proposed (2026-05-15)
 **Date**: 2026-05-15
 **Dimensional classification**: **Substrate** (Axiom 1) primary — defines what the kernel encodes about substrate topology vs. what the program declares vs. what the workspace authors at genesis. **Identity** (Axiom 2) secondary — kernel/program/operator authority boundary expressed at the substrate-naming layer. **Trigger** (Axiom 4) tertiary — genesis-by-Reviewer is a one-shot reactive trigger on workspace activation.
 
@@ -205,24 +290,90 @@ operator drift surfaces, how bundle ABI updates surface)
 
 The Reviewer reads `_workspace_guide.md` at every wake, the same way it reads `principles.md` and `MANDATE.md`. The kernel reads the frontmatter for lock-policy + envelope-assembly. The operator reads the prose to understand how their workspace works. **One file, three consumers, no scattered teaching.**
 
-### D4 — Genesis-by-Reviewer: workspace activation produces the guide
+### D4 — Workspace guide is bundle-shipped operator-canon (revised 2026-05-15)
 
-The workspace guide is **authored by the Reviewer at first wake from kernel template + bundle MANIFEST `substrate_abi` declaration.** This eliminates the cold-start asymmetry where the substrate the Reviewer needs to operate doesn't exist when it first wakes.
+The workspace guide is **bundle-shipped operator-canon substrate**, just like
+every other canonical authored file (`MANDATE.md`, `IDENTITY.md`,
+`principles.md`, `_operator_profile.md`, `_recurrences.yaml`, etc.).
+Bundles ship the guide at `docs/programs/{slug}/reference-workspace/_workspace_guide.md`;
+`services.programs.fork_reference_workspace` deterministically copies it
+into the operator's workspace at activation, attribution `system:bundle-fork`.
+No-program workspaces get a kernel-default guide
+(`DEFAULT_WORKSPACE_GUIDE_MD` in `services/orchestration.py`) seeded by
+`workspace_init.py` Phase 2 alongside the other universal skeletons.
 
 The mechanism:
 
-1. **Workspace activation** triggers a one-shot **genesis wake** — a Reviewer wake with a special `genesis_prompt` envelope.
-2. The genesis envelope contains: kernel-shipped universal "how" template + active bundle's `substrate_abi` declaration (if any program is being activated) + a prompt directing the Reviewer to author `_workspace_guide.md` from these inputs.
-3. The Reviewer reads both, composes the workspace guide (frontmatter + prose body), writes it via `WriteFile` with `authored_by="reviewer:{occupant}/genesis"` per ADR-209.
-4. From this point forward, every Reviewer wake (including subsequent reactive + addressed wakes) reads the workspace guide as canon.
+1. **Workspace activation** runs the existing deterministic scaffold —
+   `workspace_init.py` writes universal skeletons (MANDATE/IDENTITY/BRAND/
+   AUTONOMY/PRECEDENT + kernel-default workspace guide); `fork_reference_workspace`
+   forks the bundle's `reference-workspace/` directory (which now includes
+   `_workspace_guide.md` for program workspaces, overriding the kernel default).
+2. **The Reviewer's first wake is structurally identical to its second wake** —
+   reads `MANDATE.md`, `principles.md`, `IDENTITY.md`, `AUTONOMY.md`,
+   `_workspace_guide.md`, perceives the substrate topology, operates over it.
+   No special-case bootstrap, no LLM round to author the guide, no genesis
+   machinery.
+3. **Operator/Reviewer revisions** to the guide land via the normal
+   `WriteFile` path with proper attribution per ADR-209 (`operator` or
+   `reviewer:{occupant}`). The `system:bundle-fork` attribution stays in the
+   revision chain as the genesis ancestor; subsequent revisions accumulate.
 
-**The kernel template lives in one well-named module** (`api/agents/genesis_prompt.py` or similar) and is read at exactly one moment per workspace lifetime. The genesis-wake persona prose is structurally distinct from steady-state persona prose (which references the workspace guide rather than carrying its content). This is a one-shot bootstrap pattern, not a parallel persona system — Claude Code has the same property (very first session in a new repo has no CLAUDE.md to read; Claude operates from scratch and may help the user author one).
+**No cold-start cost** — the deterministic fork at activation IS the
+"engine-jump-start" property. The workspace exists with full topology
+declared from moment-zero; the Reviewer's first wake operates over a
+substrate it already understands.
 
-**Cost honest:** activation now costs ~one Sonnet wake of Reviewer reasoning + WriteFile (replacing today's deterministic substrate fork for ABI-shaped substrate). Canonical operator-authored library skeletons (MANDATE.md skeleton, IDENTITY.md skeleton, BRAND.md skeleton — content the bundle ships verbatim per ADR-226) **remain init-fork**, not genesis-by-Reviewer authored — those have a deterministic correct content the Reviewer should not paraphrase. Only the workspace guide itself is genesis-by-Reviewer authored.
+**No failure mode beyond ordinary fork** — `fork_reference_workspace` is
+deterministic Python; if it succeeds, the guide exists; if it fails, the
+workspace creation fails (same shape as MANDATE.md fork failure today). No
+LLM-loop failure mode.
 
-**Failure mode:** if the genesis wake errors mid-way, the workspace guide may not exist or may be partially authored. Recovery: re-attempt the genesis wake idempotently. `is_skeleton_content` (per `services/workspace_utils.py`) extends to detect missing/partial workspace guide and triggers re-author on next workspace state read. No partial-state corruption — Authored Substrate's revision chain preserves any prior partial revision.
+**Activations of the same bundle produce identical guides** — the bundle's
+file is copied verbatim. Per-workspace divergence happens through normal
+operator/Reviewer revision after activation.
 
-**Activations of the same bundle produce substantively-identical guides with textually-variable prose.** The role taxonomy + path-zone enumeration is structurally identical (driven by the same bundle declaration); the prose narration may differ in tone or phrasing across activations. This is acceptable — the structurally-identical content is the load-bearing part (kernel reads frontmatter; lock policy reads frontmatter); the prose is for human/LLM reading where minor textual variation is fine.
+**Operational substrate emerges from work** — `research/` directories
+appear when investigation work surfaces a need; `review/notes.md` accumulates
+patterns; `review/decisions.md` accumulates judgment lineage (rendered by
+infrastructure from the Reviewer's structured outputs per ADR-280 §5). The
+bundle ships the empty house; the workspace develops as the operation
+actually runs. The guide is the rulebook; the Reviewer + operator + work
+itself fill in everything else.
+
+#### D4 — Original framing (superseded same day 2026-05-15)
+
+> **Preserved per Authored Substrate discipline (no history silently lost).**
+> The original §D4 specified Reviewer-authored genesis at first wake. The
+> Phase 1 migration against kvk's live workspace empirically falsified this
+> design (16 successive empty-content WriteFile calls; Reviewer model failed
+> to thread the multi-KB structured prompt through its tool schema).
+>
+> The original mechanism: workspace activation fired a one-shot "genesis
+> wake" — a Reviewer wake with a special `genesis_prompt` envelope
+> containing a kernel-shipped universal "how" template + active bundle's
+> `substrate_abi` declaration + a directive to author `_workspace_guide.md`
+> from these inputs via `WriteFile` with `authored_by="reviewer:{occupant}/genesis"`.
+> The kernel template lived in `api/agents/genesis_prompt.py`; activation
+> cost was ~one Sonnet wake of Reviewer reasoning. Failure mode was idempotent
+> re-attempt on next workspace state read.
+>
+> Why it didn't work: (a) the Reviewer's persona prose is trained to be
+> defensive about substrate writes — ask Clarify before authoring canon;
+> the genesis directive contradicted this trained behavior. (b) The
+> Sonnet tool-use loop reliably failed to author multi-KB structured
+> content via WriteFile — empty content rather than partial content,
+> looped until the round bound. (c) The dispatch-layer attribution
+> injection (mirroring ADR-274 Schedule pattern) was never shipped, so
+> attribution fell through to `yarnnn:chat`.
+>
+> The architectural simplification (current §D4 above): the workspace
+> guide is bundle-shipped operator-canon substrate. Bundles already ship
+> every other authored canonical file via `reference-workspace/`; the guide
+> is one more file of the same kind. The Reviewer's role is to read the
+> guide at every wake, perceive the substrate topology, and operate over
+> it — not to author the substrate-pedagogy doc itself. The "engine-jump-start"
+> property survives via the deterministic fork at activation.
 
 ### D5 — Kernel template: the universal "how" portion
 
@@ -378,15 +529,38 @@ The workspace guide describes; it does not enforce. Any reader sniffs out diverg
 
 **Frontmatter-vs-prose drift** (operator updates prose body without updating frontmatter, or vice versa): the Reviewer reads the prose body; it notices "the prose says we have a `research/findings/` zone, but the frontmatter doesn't declare it"; surfaces drift via Clarify. Recursive D-Drift discipline. The Reviewer's persona frame includes a one-line discipline note for this case.
 
-### D8 — Genesis-by-Reviewer attribution variant
+### D8 — Bundle-fork attribution (revised 2026-05-15)
 
-Authored Substrate (ADR-209) `authored_by` taxonomy gains one new variant: **`reviewer:{occupant}/genesis`** for substrate the Reviewer authors at the genesis wake specifically. This makes the genesis act inspectable in the revision chain — operators can see "the Reviewer authored my workspace guide at activation; I revised it three times since" cleanly.
+The workspace guide is bundle-shipped operator-canon, written at activation
+by the existing `services.programs.fork_reference_workspace` mechanism with
+attribution **`system:bundle-fork`** — the same attribution every other
+bundle-forked file uses (MANDATE.md, IDENTITY.md, principles.md,
+`_recurrences.yaml`, etc.). No special attribution variant is needed.
 
-Genesis attribution applies to:
-- `_workspace_guide.md` (always)
-- Any other substrate the Reviewer authors during the genesis wake (rare; documented when added)
+For no-program workspaces, the kernel-default guide is written by
+`workspace_init.py` Phase 2 with attribution `system:workspace-init`, same
+as every other kernel-seeded universal skeleton.
 
-Subsequent Reviewer revisions to the workspace guide carry standard `reviewer:{occupant}` attribution — the `/genesis` qualifier is a one-shot signal of bootstrap origin.
+Subsequent operator/Reviewer revisions to the guide carry standard
+attribution per ADR-209:
+- `operator` for operator-edited revisions
+- `reviewer:{occupant}` for Reviewer-edited revisions (e.g., when the
+  Reviewer surfaces drift via ProposeAction and the operator approves the
+  resulting guide update)
+
+The `system:bundle-fork` revision in the chain IS the genesis ancestor —
+operators can inspect the chain at any time to see "the bundle forked the
+guide at activation; operator revised it twice since" via `ListRevisions`.
+
+#### D8 — Original framing (superseded same day 2026-05-15)
+
+> The original §D8 specified a new `authored_by` variant
+> `reviewer:{occupant}/genesis` for the Reviewer-authored genesis wake.
+> Per the §D4 revision (Reviewer no longer authors the guide; bundle
+> ships it), this attribution variant is unneeded. Bundle fork uses
+> `system:bundle-fork` like every other forked file. The attribution
+> variant was planned in the original ADR but never wired into ADR-209
+> the canonical doc, so no canon strip is needed downstream.
 
 ---
 
@@ -563,7 +737,7 @@ Keeping a separate parked ADR would have created two-source-of-truth drift (Sing
 
 **Tier 3 — Design docs:**
 
-- **`design/WORKSPACE.md`** — Files surface gains a row for `_workspace_guide.md` (operator-readable, system-rendered-at-genesis-by-Reviewer, operator-and-Reviewer-revisable thereafter).
+- **`design/WORKSPACE.md`** — Files surface gains a row for `_workspace_guide.md` (operator-readable, bundle-shipped-or-kernel-default, operator-and-Reviewer-revisable thereafter).
 
 **Tier 4 — Persona prose code (the singular streamline):**
 
@@ -585,19 +759,28 @@ Keeping a separate parked ADR would have created two-source-of-truth drift (Sing
 
 ## 8. Acceptance criteria
 
-### Phase 1
-- [ ] `MANIFEST.yaml` schema documented to include `substrate_abi` block (ADR-223 doc updated).
-- [ ] alpha-trader bundle MANIFEST contains a non-empty `substrate_abi` block per §2.D1 schema.
-- [ ] alpha-commerce bundle MANIFEST contains a non-empty `substrate_abi` block (validates additive pattern for deferred bundle).
-- [ ] `services/workspace_guide.py` exports `read_frontmatter` + `read_frontmatter_async`.
-- [ ] `services/bundle_reader.py` extends with `get_substrate_abi_for_workspace` + `get_path_zone_locks_for_workspace`.
-- [ ] `api/agents/genesis_prompt.py` (new module) contains the universal kernel template per §3.
-- [ ] `services/workspace_init.py` invokes a genesis wake after deterministic substrate scaffold; wake authors `_workspace_guide.md` via `WriteFile` with `authored_by="reviewer:{occupant}/genesis"`.
-- [ ] `services/workspace_paths.py::DEFAULT_REVIEWER_WRITE_LOCKS` contains zero program-specific paths (grep gate — closes 4 sites).
-- [ ] `services/primitives/workspace.py::_is_path_locked_for_reviewer` reads workspace guide frontmatter for lock composition per §2.D6.a algorithm.
-- [ ] One-shot migration script triggers genesis wake for kvk's existing workspace; workspace guide successfully authored; lock policy correctly enforces `context/trading/*` paths via workspace-guide route.
-- [ ] Workspace guide budget gate: `services/workspace_guide.py` enforces a soft cap on guide size when reading (frontmatter parsing always succeeds; prose body has a soft truncation warning logged when content exceeds 25KB / 600 lines — same shape as CC's `truncateEntrypointContent` per `docs/analysis/src_claudeCC/memdir/memdir.ts:57`). Truncation warning is informational only — does not break Reviewer wake; the kernel logs that the operator may want to refactor an over-long guide. Defends ADR-159's compact-index token budget against silent guide-bloat as operators author richer substrate over time.
-- [ ] Regression gate `api/test_adr280_phase1.py` passes.
+### Phase 1 (Implemented 2026-05-15 — revised same-day per §D4 dissolution)
+
+- [x] `MANIFEST.yaml` schema documented to include `substrate_abi` block (ADR-223 §3.bis updated).
+- [x] alpha-trader bundle MANIFEST contains a non-empty `substrate_abi` block per §2.D1 schema.
+- [x] alpha-commerce bundle MANIFEST contains a non-empty `substrate_abi` block (validates additive pattern for deferred bundle).
+- [x] `services/workspace_guide.py` exports `read_frontmatter` + `read_frontmatter_async` + helpers.
+- [x] `services/bundle_reader.py` extends with `get_substrate_abi_for_workspace` + `get_path_zone_locks_for_workspace`.
+- [x] **`docs/programs/alpha-trader/reference-workspace/_workspace_guide.md` exists** (bundle-shipped operator-canon per revised §D4).
+- [x] **`docs/programs/alpha-commerce/reference-workspace/_workspace_guide.md` exists** (validates additive pattern for deferred bundles).
+- [x] **`services/orchestration.py` exports `DEFAULT_WORKSPACE_GUIDE_MD`** (kernel-default for no-program workspaces).
+- [x] **`services/workspace_init.py` Phase 2 writes the kernel-default guide** alongside MANDATE/IDENTITY/BRAND/AUTONOMY/PRECEDENT skeletons. Bundle-shipped guide overrides via Phase 5 fork when a program is activated.
+- [x] `services/workspace_paths.py::DEFAULT_REVIEWER_WRITE_LOCKS` contains zero program-specific paths (grep gate — closes 4 sites).
+- [x] `services/primitives/workspace.py::_is_path_locked_for_reviewer` reads workspace guide frontmatter for lock composition per §2.D6.a algorithm.
+- [x] One-shot migration script writes the alpha-trader bundle guide into kvk's existing workspace via direct DB write (no genesis wake; workspace guide is forked content like every other operator-canon file).
+- [x] Workspace guide budget gate: `services/workspace_guide.py` enforces a soft cap on guide size when reading (warning at 25KB / 600 lines per CC's `truncateEntrypointContent` discipline).
+- [x] Regression gate `api/test_adr280_phase1.py` passes.
+
+**Deleted per §D4 revision (2026-05-15):**
+- ~~`api/agents/genesis_prompt.py`~~ — DELETED (no Reviewer-authored genesis)
+- ~~`services/workspace_init.py::Phase 6` (genesis wake invocation)~~ — DELETED
+- ~~`api/scripts/oneshot/adr280_genesis_for_existing_workspaces.py`~~ — DELETED, replaced by SQL-only migration script
+- ~~`reviewer:{occupant}/genesis` attribution variant~~ — STRIPPED per §D8 revision (bundle fork uses `system:bundle-fork`)
 
 ### Phase 2
 - [ ] `services/reviewer_envelope.py::load_reviewer_governance_envelope` reads workspace guide for envelope inputs; zero hardcoded `context/{program}/*` paths (closes 3 sites).

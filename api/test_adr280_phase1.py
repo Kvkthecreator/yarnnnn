@@ -338,120 +338,155 @@ def test_adr223_documents_substrate_abi_schema():
 
 
 # ---------------------------------------------------------------------------
-# 7. genesis_prompt.py — kernel template + assemble_genesis_prompt
+# 7. Bundle-shipped workspace guides (revised §D4 — bundles ship the guide)
 # ---------------------------------------------------------------------------
 
-def test_genesis_prompt_module_exports():
-    """ADR-280 §8 Phase 1: api/agents/genesis_prompt.py exists with required exports."""
-    from agents import genesis_prompt
-    assert genesis_prompt.GENESIS_RECURRENCE_SLUG == "workspace-genesis"
-    assert callable(genesis_prompt.assemble_genesis_prompt)
-    # Universal kernel template constants populated
-    assert len(genesis_prompt.KERNEL_PATH_ZONES) >= 15, \
-        "Kernel template must declare 15+ universal path zones"
-    assert len(genesis_prompt.KERNEL_REVIEWER_WAKE_ENVELOPE) == 6, \
-        "Kernel template must declare 6 universal envelope inputs"
+def test_alpha_trader_bundle_ships_workspace_guide():
+    """ADR-280 revised §D4: alpha-trader bundle ships the workspace guide as
+    operator-canon at reference-workspace/_workspace_guide.md."""
+    guide_path = BUNDLES_ROOT / "alpha-trader" / "reference-workspace" / "_workspace_guide.md"
+    assert guide_path.exists(), \
+        "alpha-trader bundle must ship _workspace_guide.md at reference-workspace/ root"
+    content = guide_path.read_text()
+    # Must have YAML frontmatter
+    assert content.startswith("---\n"), "Guide must start with YAML frontmatter"
+    # Frontmatter must declare schema_version + path_zones + reviewer_wake_envelope
+    import yaml as _yaml
+    import re as _re
+    match = _re.match(r"^---\s*\n(.*?)\n---", content, _re.DOTALL)
+    assert match, "Guide frontmatter must be parseable"
+    fm = _yaml.safe_load(match.group(1))
+    assert fm.get("schema_version") == 1
+    assert isinstance(fm.get("path_zones"), list) and len(fm["path_zones"]) > 0
+    assert isinstance(fm.get("reviewer_wake_envelope"), list) and len(fm["reviewer_wake_envelope"]) > 0
+    # alpha-trader-specific zones present
+    paths = [z["path"] for z in fm["path_zones"]]
+    assert "context/trading" in paths
+    # Universal kernel zones also present (bundle composes both)
+    assert "context/_shared" in paths
+    assert "review/IDENTITY.md" in paths
 
 
-def test_genesis_prompt_kernel_zones_use_valid_roles():
-    """All kernel-template zones use one of the six canonical roles."""
-    from agents.genesis_prompt import KERNEL_PATH_ZONES
+def test_alpha_commerce_bundle_ships_workspace_guide():
+    """Validates additive pattern: deferred bundle also ships its guide."""
+    guide_path = BUNDLES_ROOT / "alpha-commerce" / "reference-workspace" / "_workspace_guide.md"
+    assert guide_path.exists(), \
+        "alpha-commerce bundle must ship _workspace_guide.md (validates additive pattern)"
+    import yaml as _yaml
+    import re as _re
+    content = guide_path.read_text()
+    match = _re.match(r"^---\s*\n(.*?)\n---", content, _re.DOTALL)
+    fm = _yaml.safe_load(match.group(1))
+    assert fm.get("schema_version") == 1
+    paths = [z["path"] for z in fm["path_zones"]]
+    assert "context/customers" in paths
+
+
+def test_bundle_guides_use_only_valid_roles():
+    """Both bundle guides use the six canonical roles per ADR-280 §2.D2."""
     valid_roles = {
         "operator-canon", "reviewer-workbench", "system-ledger",
         "world-mirror", "running-narrative", "kernel-index",
     }
-    for zone in KERNEL_PATH_ZONES:
-        assert zone["role"] in valid_roles, f"Invalid role: {zone}"
+    import yaml as _yaml
+    import re as _re
+    for slug in ("alpha-trader", "alpha-commerce"):
+        guide_path = BUNDLES_ROOT / slug / "reference-workspace" / "_workspace_guide.md"
+        content = guide_path.read_text()
+        match = _re.match(r"^---\s*\n(.*?)\n---", content, _re.DOTALL)
+        fm = _yaml.safe_load(match.group(1))
+        for zone in fm["path_zones"]:
+            assert zone["role"] in valid_roles, f"{slug} invalid role: {zone}"
 
 
-def test_genesis_prompt_prose_template_has_required_sections():
-    """ADR-280 §3 + CC cross-check: prose template covers the three required sections."""
-    from agents.genesis_prompt import PROSE_TEMPLATE
+def test_bundle_guide_prose_has_required_sections():
+    """Both bundle guides include the three required prose sections per ADR-280 §3."""
+    for slug in ("alpha-trader", "alpha-commerce"):
+        guide_path = BUNDLES_ROOT / slug / "reference-workspace" / "_workspace_guide.md"
+        content = guide_path.read_text()
+        for section in (
+            "## How this workspace works",
+            "## What NOT to write to operator-canon",
+            "## When things diverge",
+        ):
+            assert section in content, f"{slug} guide missing section: {section}"
+        # Guaranteed-topology phrase (may wrap across lines).
+        normalized = " ".join(content.split())
+        assert "guaranteed to be the substrate topology" in normalized, \
+            f"{slug} guide missing guaranteed-topology line"
+
+
+# ---------------------------------------------------------------------------
+# 8. Kernel-default workspace guide for no-program workspaces
+# ---------------------------------------------------------------------------
+
+def test_orchestration_exports_default_workspace_guide_md():
+    """ADR-280 revised §D4: services/orchestration.py exports the kernel-default."""
+    from services.orchestration import DEFAULT_WORKSPACE_GUIDE_MD
+    assert DEFAULT_WORKSPACE_GUIDE_MD.startswith("---\n"), \
+        "Kernel-default guide must start with YAML frontmatter"
+    # Universal-only — no program-specific path zones
+    assert "context/trading" not in DEFAULT_WORKSPACE_GUIDE_MD
+    assert "context/customers" not in DEFAULT_WORKSPACE_GUIDE_MD
+    # Universal kernel zones must be present
+    assert "context/_shared" in DEFAULT_WORKSPACE_GUIDE_MD
+    assert "review/IDENTITY.md" in DEFAULT_WORKSPACE_GUIDE_MD
+    # Three required prose sections
     for section in (
         "## How this workspace works",
-        "## What NOT to write to operator-canon",  # CC cross-check edit
+        "## What NOT to write to operator-canon",
         "## When things diverge",
     ):
-        assert section in PROSE_TEMPLATE, f"Missing section: {section}"
-    # Guaranteed-topology line per CC cross-check edit (phrase may wrap across lines).
-    # Normalize whitespace before matching so wrapping doesn't break the assertion.
-    normalized = " ".join(PROSE_TEMPLATE.split())
-    assert "guaranteed to be the substrate topology" in normalized
-    assert "do not need to `ListFiles` defensively" in normalized
-    # Six-role taxonomy enumerated in prose
-    for role in ("operator-canon", "reviewer-workbench", "system-ledger",
-                 "world-mirror", "running-narrative", "kernel-index"):
-        assert role in PROSE_TEMPLATE
+        assert section in DEFAULT_WORKSPACE_GUIDE_MD, f"Missing section: {section}"
 
 
-def test_assemble_genesis_prompt_no_program():
-    """No-program workspace: prompt has universal content but no program section."""
-    from agents.genesis_prompt import assemble_genesis_prompt
-    prompt = assemble_genesis_prompt(None, None)
-    assert "genesis wake" in prompt
-    assert "WriteFile" in prompt
-    assert "/workspace/_workspace_guide.md" in prompt
-    assert "reviewer:{occupant}/genesis" in prompt
-    assert "Program-specific declarations" not in prompt
+def test_kernel_default_guide_frontmatter_parses():
+    """Kernel-default guide's frontmatter is well-formed YAML."""
+    from services.orchestration import DEFAULT_WORKSPACE_GUIDE_MD
+    from services.workspace_guide import _extract_frontmatter
+    fm = _extract_frontmatter(DEFAULT_WORKSPACE_GUIDE_MD)
+    assert fm.get("schema_version") == 1
+    assert isinstance(fm.get("path_zones"), list) and len(fm["path_zones"]) > 0
+    assert isinstance(fm.get("reviewer_wake_envelope"), list) and len(fm["reviewer_wake_envelope"]) == 6
+    # All universal envelope keys
+    keys = [e["key"] for e in fm["reviewer_wake_envelope"]]
+    for required in ("identity_md", "principles_md", "mandate_md", "autonomy_md"):
+        assert required in keys, f"Universal envelope key {required} missing"
 
 
-def test_assemble_genesis_prompt_with_program():
-    """Program-active workspace: prompt includes program section composing bundle ABI."""
-    from agents.genesis_prompt import assemble_genesis_prompt
-    sample_abi = {
-        "path_zones": [
-            {"path": "context/trading", "role": "operator-canon",
-             "purpose": "per-instrument", "_program_slug": "alpha-trader"},
-        ],
-        "reviewer_wake_envelope": [
-            {"key": "operator_profile_md",
-             "path": "context/trading/_operator_profile.md", "optional": False},
-            {"key": "signal_files",
-             "path_glob": "context/trading/signals/*.yaml",
-             "summarizer": "signal_files", "optional": True},
-        ],
-    }
-    prompt = assemble_genesis_prompt("alpha-trader", sample_abi)
-    assert "alpha-trader" in prompt
-    assert "Program-specific declarations" in prompt
-    assert "context/trading" in prompt
-    assert "summarizer: signal_files" in prompt
-
-
-# ---------------------------------------------------------------------------
-# 8. workspace_init.py genesis-wake integration (mocked invoke_reviewer)
-# ---------------------------------------------------------------------------
-
-def test_workspace_init_genesis_skipped_when_guide_exists():
-    """Idempotency: if workspace guide already exists, genesis wake is skipped."""
-    from services import workspace_init
-    # Mock workspace_guide.read_frontmatter to return non-empty (guide exists)
-    with patch("services.workspace_guide.read_frontmatter") as mock_read:
-        mock_read.return_value = {"schema_version": 1, "path_zones": []}
-        # Call the genesis branch directly via a minimal harness
-        # (full initialize_workspace requires Supabase + many other moving parts;
-        # we test the genesis branch's idempotency behavior)
-        import importlib
-        importlib.reload(workspace_init)  # Ensure fresh state
-    # Above is a type-existence check; full integration test is in
-    # the migration script itself (which runs against kvk's live workspace).
-    # Asserting the idempotency contract via code inspection:
+def test_workspace_init_writes_kernel_default_guide():
+    """workspace_init.py Phase 2 writes the kernel-default guide alongside other skeletons."""
     init_src = (REPO_ROOT / "api" / "services" / "workspace_init.py").read_text()
-    assert "Workspace guide exists" in init_src, \
-        "workspace_init.py must skip genesis when guide exists"
-    assert "GENESIS_RECURRENCE_SLUG" in init_src, \
-        "workspace_init.py must use the canonical genesis slug"
-    assert 'trigger="reactive"' in init_src, \
-        "workspace_init.py must invoke Reviewer with reactive trigger (recurrence-fire shape)"
+    assert "DEFAULT_WORKSPACE_GUIDE_MD" in init_src, \
+        "workspace_init.py must import + write DEFAULT_WORKSPACE_GUIDE_MD"
+    assert "_workspace_guide.md" in init_src, \
+        "workspace_init.py must reference _workspace_guide.md path"
 
 
-def test_workspace_init_genesis_imports_resolve():
-    """workspace_init.py imports the genesis machinery cleanly (no circular imports)."""
-    # If this import succeeds, the wiring is structurally sound.
-    from services import workspace_init  # noqa: F401
-    from agents.genesis_prompt import assemble_genesis_prompt  # noqa: F401
-    from services import workspace_guide  # noqa: F401
-    from services import bundle_reader  # noqa: F401
+def test_workspace_init_no_genesis_machinery():
+    """ADR-280 §D4 dissolution: no genesis-by-Reviewer machinery in workspace_init.py."""
+    init_src = (REPO_ROOT / "api" / "services" / "workspace_init.py").read_text()
+    # Genesis-related symbols MUST be absent
+    assert "GENESIS_RECURRENCE_SLUG" not in init_src, \
+        "GENESIS_RECURRENCE_SLUG must be deleted (no genesis wake)"
+    assert "assemble_genesis_prompt" not in init_src, \
+        "assemble_genesis_prompt import must be deleted"
+    assert "Genesis wake" not in init_src or "genesis-by-Reviewer wake was deleted" in init_src, \
+        "Active genesis-wake invocation must be deleted (deletion-note allowed)"
+
+
+def test_genesis_prompt_module_deleted():
+    """ADR-280 §D4 dissolution: api/agents/genesis_prompt.py must not exist."""
+    genesis_path = REPO_ROOT / "api" / "agents" / "genesis_prompt.py"
+    assert not genesis_path.exists(), \
+        "api/agents/genesis_prompt.py must be deleted per Singular Implementation"
+
+
+def test_old_migration_script_deleted():
+    """ADR-280 §D4 dissolution: old genesis migration script must not exist."""
+    old_script = REPO_ROOT / "api" / "scripts" / "oneshot" / "adr280_genesis_for_existing_workspaces.py"
+    assert not old_script.exists(), \
+        "Old genesis migration script must be deleted per Singular Implementation"
 
 
 if __name__ == "__main__":
