@@ -1,0 +1,164 @@
+# /workspace/_recurrences.yaml — alpha-author bundle (ADR-261 D2 + ADR-263 D1 + ADR-275)
+#
+# Single canonical recurrences file. The operator can read the entire
+# scheduled-work surface in 30 seconds. Per ADR-261 D1 each entry is
+# {slug, schedule, mode, prompt} where:
+#   - slug:     stable identifier
+#   - schedule: plain UTC cron, or null (reactive — fires via FireInvocation)
+#   - mode:     judgment (wakes Reviewer with prompt) | mechanical
+#               (@primitive: ... directive; no Reviewer wake). Default at
+#               parse time when absent: 'judgment' (legacy compat).
+#   - prompt:   Reviewer message (judgment mode) OR @primitive: ... (mechanical)
+#
+# Per ADR-275: bundles ship substrate-maintenance + reactive triggers +
+# capability specs only — judgment cadence (introspection, housekeeping,
+# deliverable production) is Reviewer-authored from `_preferences.yaml`
+# operator declarations + first-principled judgment. This file ships ONLY
+# the reactive triggers and the substrate-maintenance recurrences the
+# bundle commits to. Deliverable cadence (weekly-corpus-review, quarterly-
+# voice-audit) lives in _preferences.yaml; the Reviewer authors actual
+# Schedule(action="create") calls for those on its first wake.
+#
+# alpha-author does NOT use market-anchored semantic schedules (@market_*);
+# the bundle is market-agnostic. Audience-bearing workspaces will gain
+# mechanical track-* recurrences when ADR-283 step 2 ships the publishing-
+# platform capabilities.
+
+recurrences:
+
+  # ── REACTIVE — pre-ship audit ───────────────────────────────────────────
+  # Fires when operator marks a draft `ready_for_review` via the chat
+  # surface or workspace edit. The Reviewer audits the draft against
+  # voice fingerprint + editorial principles + corpus continuity before
+  # operator-driven (Phase 0) or autonomous (Phase 1+ per _autonomy.yaml
+  # ceiling_categories match) publication.
+  - slug: pre-ship-audit
+    schedule: null  # reactive — fires on draft state change via FireInvocation
+    mode: judgment
+    required_capabilities: []  # audit reads workspace substrate; no external capability required
+    prompt: |
+      A draft was just marked `ready_for_review`. Read the draft at
+      /workspace/context/authored/{piece-slug}/content.md, the operator's
+      voice fingerprint at /workspace/context/authored/_voice.md, the
+      operator's editorial principles at /workspace/context/authored/
+      _editorial.md, and the recent corpus (most recently published
+      pieces in /workspace/context/authored/ excluding the draft itself).
+
+      Audit the draft against:
+        1. Voice fingerprint (per /workspace/specs/voice-audit.md schema)
+        2. Continuity with prior corpus (per /workspace/specs/continuity-
+           audit.md schema)
+        3. Anti-AI-slop signature (subset of voice-audit — list-of-three
+           openers, "It's worth noting", hedge stacks, adverb intensifiers,
+           "in conclusion" markers)
+        4. Editorial principle match (per _editorial.md "what gets shipped"
+           criteria)
+        5. Cadence context (is this on declared cadence, ahead, behind —
+           read _preferences.yaml)
+
+      Decide and emit one of:
+        - APPROVE — all checks pass; piece may ship. If _autonomy.yaml
+          delegation is `bounded` AND piece_type matches ceiling_categories,
+          the approve verdict binds publication via ExecuteProposal.
+          Otherwise approve surfaces to operator Queue for click.
+        - DEFER — some checks pass, some need operator iteration. Write
+          specific defect to /workspace/review/judgment_log.md (e.g., "para 3
+          sentence 2: hedge stack 'I think it's worth considering'") and
+          flag draft as deferred. Operator iterates and resubmits.
+        - REJECT — hard rejection rule fires (per /workspace/review/
+          principles.md). Write structured reasoning to judgment_log.md.
+
+      Silent stand-down without writing audit reasoning is forbidden.
+    display_name: "Pre-Ship Audit"
+
+  # ── JUDGMENT — corpus-coherence check ────────────────────────────────────
+  # Periodic Reviewer pass to flag voice drift or continuity breaks
+  # across the corpus. Distinct from pre-ship-audit (which is per-draft
+  # before publication); corpus-coherence-check is cross-corpus and
+  # post-publication. Surfaces drift that requires operator attention.
+  - slug: corpus-coherence-check
+    schedule: "0 12 * * 1,4"   # Mon + Thu at 12:00 UTC — twice-weekly cross-corpus pass
+    mode: judgment
+    required_capabilities: []
+    prompt: |
+      Read the operator's voice fingerprint at /workspace/context/authored/
+      _voice.md and the recent corpus (pieces published in the last
+      30 days at /workspace/context/authored/{piece-slug}/content.md
+      with status=published).
+
+      Audit for:
+        1. Voice fingerprint drift: aggregate voice-audit results across
+           recent pieces; flag if ≥30% show drift on the same anti-pattern
+           per /workspace/review/_principles.yaml::high_impact_voice_drift_
+           recent_pieces threshold.
+        2. Cross-piece continuity break: pairwise continuity check across
+           recent corpus; flag any unacknowledged contradiction.
+        3. Cadence health: read /workspace/context/_shared/_preferences.yaml;
+           compute days-since-last-ship per cadence; flag if 2+ intervals
+           missed (per /workspace/review/_principles.yaml::high_impact_
+           cadence_intervals_missed threshold).
+
+      Write findings to /workspace/context/authored/_signal.md (coherence
+      slice) per /workspace/specs/corpus-coherence-rollup.md schema.
+
+      When findings cross high-impact thresholds, emit Clarify proposals
+      to operator surfacing the specific drift/break/missed cadence with
+      pointers to the affected substrate.
+
+      Stand down silently if no findings cross thresholds.
+    display_name: "Corpus Coherence Check"
+
+  # ── JUDGMENT — outcome reconciliation ────────────────────────────────────
+  # Daily fold of the day's audit outcomes + audience signal slices (when
+  # audience-bearing) into _signal.md. Parallel structurally to alpha-
+  # trader's outcome-reconciliation; alpha-author's "outcomes" are audit
+  # decisions + ship/hold operator overrides + audience response when
+  # publications go live.
+  - slug: outcome-reconciliation
+    schedule: "0 5 * * *"   # 05:00 UTC daily — after most operator time zones' end-of-day
+    mode: judgment
+    required_capabilities: []
+    prompt: |
+      Reconcile the day's audit + ship events into _signal.md per
+      /workspace/specs/corpus-coherence-rollup.md schema.
+
+      Read:
+        - /workspace/review/decisions.md — today's audit verdicts (approve/
+          defer/reject) with reasoning.
+        - Workspace file revisions per ADR-209 for /workspace/context/
+          authored/ — pieces shipped today, drafts iterated today.
+        - When audience-bearing capabilities are connected, /workspace/
+          context/audience/{platform}/_signal.md mechanical-mirror outputs
+          for engagement deltas.
+
+      Fold into /workspace/context/authored/_signal.md:
+        - Frontmatter rolling 7d/30d/90d windows of audit-correct rate,
+          ship-rate, voice-flag-rate, continuity-flag-rate.
+        - by_piece_type per-category windows (newsletter, essay, post,
+          etc.).
+        - Audience-signal slice (when audience-bearing) — engagement
+          z-scores, subscriber deltas.
+        - Body narrative: today's notable verdicts, drift signals, cadence
+          state.
+
+      Regenerate /workspace/context/_signal_summary.md as the cross-domain
+      rollup the daily-update briefing reads.
+
+      Stand down silently if there were no audit or ship events in the
+      window.
+    display_name: "Outcome Reconciliation"
+
+# ADR-275: weekly-corpus-review and quarterly-voice-audit (operator
+# deliverable cadence) live in /workspace/context/_shared/_preferences.yaml.
+# The Reviewer reads _preferences.yaml at every wake and authors Schedule(
+# action="create"|"update"|"archive") for declared preferences. Specs at
+# /workspace/specs/weekly-corpus-review.md + quarterly-voice-audit.md are
+# the Claude Code skills.md analog.
+
+# ADR-283 step 2 will add mechanical track-* recurrences for audience-
+# bearing capabilities (track-linkedin, track-x, track-newsletter). These
+# will follow alpha-trader's track-positions / track-account / track-orders
+# pattern — @primitive: SyncPlatformState() directives that mirror external
+# state into substrate at known cadence. The bundle ships these as
+# `mode: mechanical` recurrences once the corresponding write_* capabilities
+# are shipped per ADR-283 lean dependencies.

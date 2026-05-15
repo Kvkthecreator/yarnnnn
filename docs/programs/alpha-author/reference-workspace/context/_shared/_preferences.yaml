@@ -1,0 +1,39 @@
+---
+tier: canon
+note: "Operator-authored cadence preferences (ADR-275). Forked to /workspace/context/_shared/_preferences.yaml at activation. The Reviewer reads this every wake and authors Schedule(action='create'|'update'|'archive') for declared preferences."
+---
+# _preferences.yaml — operator cadence preferences (ADR-275)
+#
+# This file declares the operator-facing deliverables the operator wants
+# produced on cadence. The Reviewer reads this every wake and authors
+# actual scheduled recurrences via the Schedule primitive to honor
+# declared preferences. The Reviewer NEVER writes to this file — it is
+# the operator's declaration of *what* and *when*; the Reviewer decides
+# *how* (content judgment) and authors the actual cadence.
+#
+# Edit `cadence` to change when a deliverable is produced.
+# Edit `active: false` to pause a deliverable without deleting the
+# preference (the Reviewer will pause or archive the corresponding
+# scheduled recurrence on its next wake).
+#
+# `cadence` supports plain UTC cron and `null` (no preference; Reviewer
+# authors cadence from judgment if it deems the deliverable worth
+# producing). alpha-author does not anchor to market hours, so semantic
+# `@market_*` schedules are not used.
+#
+# `spec` is the path to the canonical capability spec — the Reviewer
+# reads it when producing this deliverable (Claude Code skills.md
+# analog).
+
+deliverable_preferences:
+  - slug: weekly-corpus-review
+    spec: /workspace/specs/weekly-corpus-review.md
+    cadence: "0 18 * * 0"      # Sunday 18:00 UTC
+    description: "Weekly synthesis of corpus state — voice fingerprint stability, continuity threads, cadence health, audience response when audience-bearing"
+    active: true
+
+  - slug: quarterly-voice-audit
+    spec: /workspace/specs/quarterly-voice-audit.md
+    cadence: "0 18 31 3,6,9,12 *"   # Quarter-end at 18:00 UTC
+    description: "Quarter-end voice fingerprint audit — does the declared _voice.md still match the corpus, or has voice evolved enough that the declaration needs operator-authored update?"
+    active: true

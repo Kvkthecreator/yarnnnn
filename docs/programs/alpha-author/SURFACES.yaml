@@ -1,0 +1,93 @@
+schema_version: 1
+
+# alpha-author composition manifest. Read by the compositor (ADR-225 +
+# ADR-228 cockpit reshape). Speaks ADR-198 archetypes × ADR-214 4-tab nav.
+#
+# All bindings are filesystem paths. Components must exist in the system
+# component library (web/components/library/) at compositor render time.
+#
+# ADR-283 patched D8: the four-face kernel pattern was dissolved by
+# ADR-273 Phase 2. alpha-author follows alpha-trader's precedent —
+# program-specific face composition via the cockpit.program_sections
+# binding, no kernel-imposed face floor.
+#
+# DEFERRED: The Author* face components are declared here in advance of
+# step 3 implementation. Until step 3 lands at
+# web/components/library/programs/alpha-author/, the compositor will fall
+# through to kernel-default chrome (CockpitHeader + UnactivatedCockpitCTA).
+# This is honest deferral — the SURFACES manifest captures bundle intent
+# even while the FE components are being authored.
+
+tabs:
+  work:
+    list:
+      pinned_tasks: [pre-ship-audit, weekly-corpus-review]
+      group_default: output_kind
+      filters_default:
+        output_kind: produces_deliverable
+
+      # ADR-283 D8 + ADR-273 Phase 6: program-specific cockpit stack.
+      # The cockpit tells a story top-to-bottom: standing intent →
+      # corpus state → voice consistency → shipping pipeline.
+      # CockpitHeader (kernel-general) sits above this stack and shows
+      # mandate + autonomy posture.
+      #
+      # Order can be customized by operators; sections can be suppressed
+      # by removing entries. YARNNN can edit this file via WriteFile on
+      # request.
+      cockpit:
+        program_sections:
+          - kind: AuthorMandate         # standing intent + voice fingerprint declaration
+            order: 1
+          - kind: AuthorCorpus          # multi-signal ground-truth substrate (_signal.md)
+            order: 2
+          - kind: AuthorVoice           # voice-drift detection + revision-attribution per ADR-209
+            order: 3
+          - kind: AuthorPipeline        # drafts → scheduled → published + cadence health
+            order: 4
+
+    # No detail middles. Per ADR-228 the bundle-shaped specifics for
+    # alpha-author (corpus state, voice consistency, pipeline) live
+    # inside the cockpit's faces — that is where the operator runs the
+    # operation. /work detail mode is forensics: "show me the latest
+    # output" — kernel-default DeliverableMiddle handles that for
+    # pre-ship-audit and weekly-corpus-review the same as every other
+    # produces_deliverable task.
+
+  agents:
+    list:
+      featured: [reviewer]
+    reviewer:
+      principles_default: reference-workspace/review/principles.md
+
+  context:
+    list:
+      featured_domains: [authored, audience]
+
+chat_chips:
+  - "Audit this draft for voice drift"
+  - "What's the corpus signal saying?"
+  - "Did I ship on cadence this week?"
+  - "Walk me through continuity threads"
+
+phase_overlays:
+  accumulation:
+    tabs:
+      work:
+        list:
+          banner: "Phase 0 — Accumulation. Author MANDATE + voice fingerprint + first 30 days of corpus. AUTONOMY manual."
+  cadence_discipline:
+    tabs:
+      work:
+        list:
+          banner: "Phase 1 — Cadence Discipline. 60-day shipping window. AUTONOMY bounded."
+  selective_autonomy:
+    tabs:
+      work:
+        list:
+          banner: "Phase 2 — Selective Autonomy. Reviewer pre-ship audits consultative; auto-approve carve-outs per principles.md."
+  corpus_compounds:
+    tabs:
+      work:
+        list:
+          banner: "Phase 3 — Corpus Compounds. Substrate moat structurally real, not just claimed."
