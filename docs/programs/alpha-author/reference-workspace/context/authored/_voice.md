@@ -44,3 +44,7 @@ Anti-patterns the Reviewer treats as **default hard rejects** (operator may over
 > For operators with multiple voices (a screenwriter who writes their own author-voice essays separately from screenplay character voices; a newsletter writer who occasionally posts to a different-toned platform): declare each voice separately. Each piece's `profile.md` references which voice it expresses.
 
 Default for most operators: single voice; no need for this section.
+
+## Relationship to entity substrate
+
+The voice fingerprint declared here governs **how prose sounds**. The entity substrate at `_entities.md` + `entities/{slug}.md` governs **what characters / concepts / facts the prose commits to**. The two compose at every `pre-ship-audit`: voice-audit checks tone + pattern; entity-continuity-audit checks consistency of established facts about persistent entities. For multi-voice workspaces (screenplay character voices), each entity's `entities/{slug}.md` may reference which voice that entity speaks in — keeping voice-fingerprint and entity-continuity load-bearing together. Per ADR-283 step 2 + `/workspace/specs/entity-continuity.md`.

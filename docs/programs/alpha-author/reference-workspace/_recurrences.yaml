@@ -108,38 +108,100 @@ recurrences:
       Stand down silently if no findings cross thresholds.
     display_name: "Corpus Coherence Check"
 
+  # ── JUDGMENT — revision audit (long-arc author primary loop) ─────────────
+  # ADR-283 step 2 — substrate enrichment for long-arc authorship.
+  # The reactive pre-ship-audit loop assumes drafts progress through
+  # ready_for_review toward publication. Long-arc workspaces (novel,
+  # screenplay, book project) iterate on a single artifact over months
+  # without flipping that flag. revision-audit is the Reviewer's lens for
+  # that loop — periodic pass comparing current draft state against the
+  # prior revision per ADR-209 chain. Spec: /workspace/specs/revision-audit.md
+  - slug: revision-audit
+    schedule: "0 22 * * 5"   # Friday 22:00 UTC ≈ Friday afternoon US Pacific
+    mode: judgment
+    required_capabilities: []
+    prompt: |
+      Periodic revision audit on in-progress drafts. Per
+      /workspace/specs/revision-audit.md schema.
+
+      Read /workspace/context/_shared/_preferences.yaml to determine the
+      audit window length for this workspace (default 7 days for the
+      Friday-weekly cadence; operator may have tuned per-piece-type via
+      _preferences.yaml).
+
+      Procedure:
+        1. List all draft-state pieces in /workspace/context/authored/
+           (status: draft per piece profile.md).
+        2. For each draft, ListRevisions on content.md within the audit
+           window.
+        3. For each draft with >= 1 revision in window:
+           - ReadRevision at window-start + current head.
+           - DiffRevisions to surface what changed.
+           - Audit the diff against:
+             a. Voice fingerprint (_voice.md anti-patterns; universal
+                anti-slop baseline)
+             b. Entity continuity (entities/{slug}.md What's been
+                established for entities the diff touches per
+                /workspace/specs/entity-continuity.md)
+             c. Structural load-bearing (passages other passages depend
+                on that shifted)
+             d. Open-question state (implicit closes of entity What's
+                open without acknowledgment)
+        4. Write findings to /workspace/review/judgment_log.md with
+           audit_type: revision-audit.
+        5. Update each audited draft's profile.md with last_revision_audit
+           timestamp + revision_audit_state verdict.
+        6. When verdict is `concerning-drift` (or `notable-changes` if
+           operator opted into surfacing per _preferences.yaml), emit
+           Clarify proposal to operator with specific findings.
+        7. When no drafts have revisions in window: write one-line
+           `stand_down: no drafts in window` entry to judgment_log.md,
+           exit silently. No Clarify, no noise.
+
+      Revision audit is observational — it surfaces patterns. It does NOT
+      enforce (the gate is pre-ship-audit). It does NOT write to
+      operator-canon (_voice.md, _editorial.md, _entities.md). Findings
+      surface via Clarify for operator authoring.
+    display_name: "Revision Audit"
+
   # ── JUDGMENT — outcome reconciliation ────────────────────────────────────
-  # Daily fold of the day's audit outcomes + audience signal slices (when
-  # audience-bearing) into _signal.md. Parallel structurally to alpha-
-  # trader's outcome-reconciliation; alpha-author's "outcomes" are audit
-  # decisions + ship/hold operator overrides + audience response when
-  # publications go live.
+  # Daily fold of the day's audit outcomes into _signal.md. Parallel
+  # structurally to alpha-trader's outcome-reconciliation; alpha-author's
+  # "outcomes" are audit decisions + ship/hold operator overrides +
+  # revision-audit findings + operator-authored external_outcomes events.
+  # ADR-283 D7 + Discovery note 2: alpha-author runs internal-coherence-
+  # only — no audience-bearing capabilities ship in this bundle.
   - slug: outcome-reconciliation
     schedule: "0 5 * * *"   # 05:00 UTC daily — after most operator time zones' end-of-day
     mode: judgment
     required_capabilities: []
     prompt: |
-      Reconcile the day's audit + ship events into _signal.md per
-      /workspace/specs/corpus-coherence-rollup.md schema.
+      Reconcile the day's audit + ship + revision events into _signal.md
+      per /workspace/specs/corpus-coherence-rollup.md schema.
 
       Read:
-        - /workspace/review/decisions.md — today's audit verdicts (approve/
-          defer/reject) with reasoning.
+        - /workspace/review/judgment_log.md — today's audit verdicts (pre-
+          ship-audit, corpus-coherence-check, revision-audit, entity-
+          continuity findings) with reasoning.
         - Workspace file revisions per ADR-209 for /workspace/context/
           authored/ — pieces shipped today, drafts iterated today.
-        - When audience-bearing capabilities are connected, /workspace/
-          context/audience/{platform}/_signal.md mechanical-mirror outputs
-          for engagement deltas.
+        - Existing /workspace/context/authored/_signal.md::external_outcomes
+          frontmatter — operator-authored sparse events; surface any
+          new-since-last-reconciliation entries to feedback.md per ADR-181
+          when impact: high.
 
       Fold into /workspace/context/authored/_signal.md:
         - Frontmatter rolling 7d/30d/90d windows of audit-correct rate,
-          ship-rate, voice-flag-rate, continuity-flag-rate.
+          ship-rate, voice-flag-rate, continuity-flag-rate, entity-
+          continuity-flag-rate.
         - by_piece_type per-category windows (newsletter, essay, post,
           etc.).
-        - Audience-signal slice (when audience-bearing) — engagement
-          z-scores, subscriber deltas.
-        - Body narrative: today's notable verdicts, drift signals, cadence
-          state.
+        - Revision-audit summary block — drafts audited in window,
+          notable-changes count, concerning-drift count.
+        - Audience-signal block stays empty by design — alpha-author runs
+          internal-coherence-only.
+        - Body narrative: today's notable verdicts, drift signals,
+          cadence state, recent external_outcomes entries.
 
       Regenerate /workspace/context/_signal_summary.md as the cross-domain
       rollup the daily-update briefing reads.

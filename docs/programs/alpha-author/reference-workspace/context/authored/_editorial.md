@@ -54,3 +54,7 @@ Example:
 ## How this file evolves
 
 Editorial principles evolve through use. The `quarterly-voice-audit` recurrence may surface drift between declared `_editorial.md` and actual ship/hold pattern — at that point, operator authors a revision (per ADR-209 revision chain). Reviewer does NOT write to this file; it surfaces drift via `Clarify`.
+
+## Relationship to entity substrate
+
+Editorial principles declared here govern **what gets shipped vs held** at the piece-shape level. The entity substrate at `_entities.md` + `entities/{slug}.md` governs **what canonical facts the corpus has committed about persistent characters / concepts / theses**. The two compose at pre-ship-audit: editorial principles determine ship/hold; entity-continuity-audit can reject a draft that violates an entity's `What's been established` regardless of editorial fit. For piece types where persistent entities are load-bearing (long-arc novels / screenplays / multi-piece-thesis corpora), the operator may add per-piece-type editorial guidance that explicitly invokes entity-continuity (e.g., *"Every chapter draft must list which entities it touches in its `profile.md` Continuity Threads section before pre-ship audit"*). Per ADR-283 step 2 + `/workspace/specs/entity-continuity.md`.

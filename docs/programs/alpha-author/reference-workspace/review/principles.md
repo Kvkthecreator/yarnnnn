@@ -20,18 +20,21 @@ These produce immediate reject verdicts regardless of any other consideration:
    - Adverb intensifiers without content ("fascinating", "incredibly", "absolutely", "truly")
    - Hedge stacks (≥2 hedge words in a single sentence: "I think it's worth considering that maybe...")
    - Generic "as we know" / "as you can see" assumed-context constructions
-3. **Unacknowledged continuity break**: rejected if continuity-audit (per `/workspace/specs/continuity-audit.md`) detects contradiction with prior corpus that the draft does not explicitly bridge. Acknowledged updates ("I previously argued X; the evidence has shifted, and I now think Y because Z") are NOT continuity breaks — they are legitimate corpus evolution.
-4. **Missing voice fingerprint declaration**: rejected if `_voice.md` is empty or contains only the bundle-shipped template prompts. Operator must author voice declaration before pre-ship audits can run meaningfully. (Bootstrap exception below.)
-5. **Engagement-bait construction**: rejected if draft uses curiosity-gap headlines ("the one thing nobody is talking about"), list-of-N constructions in headlines without substantive list content, or "you won't believe" framings.
-6. **Hot-take posture**: rejected if draft framing optimizes for reaction (contrarian-for-attention, "everyone is wrong about X") rather than corpus thesis advancement, AND draft does not constitute a continuity-acknowledged thesis update.
+3. **Unacknowledged text-level continuity break**: rejected if continuity-audit (per `/workspace/specs/continuity-audit.md`) detects contradiction with prior corpus that the draft does not explicitly bridge. Acknowledged updates ("I previously argued X; the evidence has shifted, and I now think Y because Z") are NOT continuity breaks — they are legitimate corpus evolution.
+4. **Entity-continuity break (per ADR-283 step 2)**: rejected if entity-continuity-audit (per `/workspace/specs/entity-continuity.md`) detects the draft contradicting an entity's `What's been established` canonical-facts section in `/workspace/context/authored/entities/{slug}.md` without an explicit bridge in the draft. Acknowledged entity-state changes ("Sarah's sister has been Mei throughout, but a recent revelation establishes she has a half-sister named Anna") are NOT entity-continuity breaks. An *implicit* close of an entity's `What's open` question without acknowledgment defers (not rejects); contradiction of `What's been established` rejects. Entity-continuity is `audit_type` distinct from text-level continuity-audit; both run per piece, both can fire hard-reject.
+5. **Missing voice fingerprint declaration**: rejected if `_voice.md` is empty or contains only the bundle-shipped template prompts. Operator must author voice declaration before pre-ship audits can run meaningfully. (Bootstrap exception below.)
+6. **Engagement-bait construction**: rejected if draft uses curiosity-gap headlines ("the one thing nobody is talking about"), list-of-N constructions in headlines without substantive list content, or "you won't believe" framings.
+7. **Hot-take posture**: rejected if draft framing optimizes for reaction (contrarian-for-attention, "everyone is wrong about X") rather than corpus thesis advancement, AND draft does not constitute a continuity-acknowledged thesis update.
 
 ## Hard action triggers — proposal is mandatory
 
-When the corpus-coherence-check or outcome-reconciliation recurrence detects any of the following, the Reviewer MUST emit a proposal in the same session that perceives the trigger:
+When the corpus-coherence-check, revision-audit, or outcome-reconciliation recurrence detects any of the following, the Reviewer MUST emit a proposal in the same session that perceives the trigger:
 
 1. **Cadence drift (2+ intervals missed)**: operator's declared cadence in `_preferences.yaml` shows 2+ consecutive missed cadences. Proposal: `Clarify` to operator naming the cadence and last-ship date.
 2. **Voice fingerprint corpus-level drift**: aggregated voice-audit results over rolling 30 days show ≥30% of recent pieces flagged for drift on the same anti-pattern. Proposal: `Clarify` proposing `_voice.md` revision authored by operator.
 3. **Cross-piece continuity break detected post-hoc**: a piece published 4+ weeks ago is now in tension with a more recent piece, neither piece acknowledged the other. Proposal: `Clarify` to operator surfacing the unresolved tension.
+4. **Entity-level drift detected post-hoc (per ADR-283 step 2)**: an entity's `What's been established` section is being contradicted across multiple recent pieces (suggesting either operator drift OR the established section needs revision). Proposal: `Clarify` to operator with the specific entity slug + contradicting pieces + the established line being violated. Operator decides whether to revise the entity file or amend the contradicting pieces.
+5. **Revision-audit concerning-drift on in-progress draft (per ADR-283 step 2)**: revision-audit produces a `concerning-drift` verdict on a long-arc in-progress draft (voice tightened-then-loosened, entity contradictions appeared mid-revision, structural load-bearing shift left dependent passages inconsistent). Proposal: `Clarify` to operator surfacing the specific findings with revision IDs so operator can diff inline.
 
 **Silent stand-down on these triggers is forbidden.** The corpus-continuity contract is what makes alpha-author's ground-truth substrate trustworthy.
 
@@ -39,7 +42,7 @@ When the corpus-coherence-check or outcome-reconciliation recurrence detects any
 
 The audit-EV equivalent of alpha-trader's capital-EV reasoning: weigh expected ship-quality (voice match + continuity preserved + anti-slop clean) against rolling history of similar drafts. Audit data accumulates in `_signal.md` (coherence slice) supplemented by `decisions.md` (audit verdicts + outcomes when measurable).
 
-- **Auto-approve below threshold (Phase 1+)**: draft passes all four checks (voice + continuity + anti-slop + cadence) AND piece_type is in `_autonomy.yaml::ceiling_categories`. My approve verdict then binds ship execution per AUTONOMY.
+- **Auto-approve below threshold (Phase 1+)**: draft passes all five checks (voice + text-level-continuity + entity-continuity + anti-slop + cadence) AND piece_type is in `_autonomy.yaml::ceiling_categories`. My approve verdict then binds ship execution per AUTONOMY.
 - **Defer for operator review**: when audit is mixed (e.g., voice passes but continuity has a minor unacknowledged thread that could go either way as a bridge or as a contradiction). Directive: name the specific bridge or contradiction; operator decides.
 - **Reject**: when any hard rejection rule fires. Rejection is unconditional — AUTONOMY does not gate my rejects.
 - **Bootstrap exception**: when `_voice.md` is empty or template-only AND piece is a first-published-piece on the workspace, treat as a soft warning but allow ship with operator's explicit acknowledgment that voice fingerprint is undeclared. Note the gap in audit reasoning; calibration on subsequent pieces begins from the first shipped piece.
