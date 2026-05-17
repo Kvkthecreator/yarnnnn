@@ -180,7 +180,7 @@ substrate_abi:
       role: operator-canon
       purpose: per-instrument entities, signals, watched universe
       authored_files: [_operator_profile.md, _risk.md, _universe.yaml]
-      accumulating_files: [_performance.md, _money_truth.md, _tracker.md, _regime.yaml]
+      accumulating_files: [_money_truth.md, _tracker.md, _regime.yaml]
       glob_zones: ["signals/*.yaml", "{TICKER}.yaml"]
     - path: context/portfolio
       role: operator-canon
@@ -199,8 +199,8 @@ substrate_abi:
       path: context/trading/_risk.md
       optional: false
     - key: performance_md
-      path: context/trading/_performance.md
-      optional: true   # accumulated by reconciler — empty before first reconciliation
+      path: context/trading/_money_truth.md
+      optional: true   # accumulated by reconciler — empty before first reconciliation. Envelope key `performance_md` is the kernel-universal slot name (instance-agnostic per ADR-282); alpha-trader instance vocabulary names the substrate file `_money_truth.md`.
     # ADR-281: signal_files is now a path-only entry pointing at the
     # compact substrate file written by the mirror-signal-state mechanical
     # recurrence (see _recurrences.yaml). Per Derived Principle 19, the

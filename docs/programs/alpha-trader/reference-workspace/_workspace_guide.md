@@ -105,7 +105,7 @@ reviewer_wake_envelope:
     path: context/trading/_risk.md
     optional: false
   - key: performance_md
-    path: context/trading/_performance.md
+    path: context/trading/_money_truth.md
     optional: true
   # ADR-281: signal_files is a path-only entry pointing at the compact
   # substrate file written by the mirror-signal-state mechanical recurrence.

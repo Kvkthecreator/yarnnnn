@@ -185,7 +185,7 @@ async def _resolve_task_slug(
 
     Fallback: None — direct platform-tool calls without a proposal
     have no task home. Those outcomes are still recorded in
-    _performance.md; they just don't produce a feedback entry.
+    _money_truth.md; they just don't produce a feedback entry.
     """
     proposal_id = candidate.get("proposal_id")
     if not proposal_id:

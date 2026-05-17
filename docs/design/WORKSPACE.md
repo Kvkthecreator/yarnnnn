@@ -219,7 +219,7 @@ Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, u
     - 10-row upcoming-wakes schedule (was overload for an "at-a-glance" surface)
     - 8-row recent-runs history (forensic detail belongs on `/activity`)
     - "Recent autonomous actions" empty-state noise when autonomy is Manual
-    - awareness.md free-form notes — pre-2026-05-14 surface rendered stale skeleton headings ("Tasks / Context State / Next Steps") for active workspaces because nothing updates them. Post-ADR-261 between-session continuity is decisions.md + _performance.md + domain _run_log.md; awareness.md as parallel substrate is vestigial. File stays in substrate (operator data preserved); no longer surfaced in modal.
+    - awareness.md free-form notes — pre-2026-05-14 surface rendered stale skeleton headings ("Tasks / Context State / Next Steps") for active workspaces because nothing updates them. Post-ADR-261 between-session continuity is judgment_log.md + per-domain ground-truth substrate (alpha-trader instance: `_money_truth.md`) + domain `_run_log.md`; awareness.md as parallel substrate is vestigial. File stays in substrate (operator data preserved); no longer surfaced in modal.
 
   **Zero LLM cost at modal open**, by contract. No summarization, no reasoning, no cross-referencing commentary. Every byte rendered was persisted by an earlier conversational turn — the overlay reads what already exists.
 
