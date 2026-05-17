@@ -48,6 +48,17 @@ import { TraderPositions } from './programs/alpha-trader/TraderPositions';
 import { TraderSignals } from './programs/alpha-trader/TraderSignals';
 import { TraderOrders } from './programs/alpha-trader/TraderOrders';
 
+// alpha-author bundle components — ADR-283 step 3, substrate-continuity
+// archetype face composition. Approach A (per ADR-283 step 3 discourse):
+// substrate-read components, no new backend routes — they parse
+// /workspace/context/authored/_voice.md, _editorial.md, _entities.md,
+// _signal.md directly via api.workspace.getFile + reuse content-shapes/
+// parsers where applicable.
+import { AuthorMandate } from './programs/alpha-author/AuthorMandate';
+import { AuthorCorpus } from './programs/alpha-author/AuthorCorpus';
+import { AuthorVoice } from './programs/alpha-author/AuthorVoice';
+import { AuthorPipeline } from './programs/alpha-author/AuthorPipeline';
+
 /**
  * Standard prop bag passed to every library component. Components
  * destructure only what they need; React context (e.g.,
@@ -82,6 +93,15 @@ export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   TraderPositions: () => <TraderPositions />,
   TraderRegime: () => <TraderRegime />,
   TraderSignals: () => <TraderSignals />,
+
+  // alpha-author bundle components. Declared in
+  // docs/programs/alpha-author/SURFACES.yaml under cockpit.program_sections[].
+  // ADR-283 step 3. Four faces (Mandate / Corpus / Voice / Pipeline) per the
+  // patched D8 program-specific composition pattern (no kernel four-face floor).
+  AuthorMandate: () => <AuthorMandate />,
+  AuthorCorpus: () => <AuthorCorpus />,
+  AuthorVoice: () => <AuthorVoice />,
+  AuthorPipeline: () => <AuthorPipeline />,
 };
 
 /**
