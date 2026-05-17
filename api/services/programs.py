@@ -313,18 +313,19 @@ async def fork_reference_workspace(
             logger.info(f"[FORK] {target_path} — skipped (operator-customized)")
 
     # ADR-284 (2026-05-17): Reviewer seat-occupant runtime-truth alignment.
-    # Pre-ADR-284 the bundle always shipped OCCUPANT.md with
-    # `occupant_class: human` — produced substrate-runtime drift in alpha
-    # workspaces where AI ran the seat. Post-fork we overwrite the bundle's
-    # template-shaped OCCUPANT.md with runtime occupant identity. Current
-    # alpha state: AI is the runtime occupant on every workspace.
+    # Pre-ADR-284 the kernel scaffold (workspace_init Phase 5) wrote OCCUPANT.md
+    # with `occupant_class: human` as the default — produced substrate-runtime
+    # drift in alpha workspaces where AI actually runs the seat. Post-ADR-284
+    # bundle-fork unconditionally overwrites OCCUPANT.md with the runtime
+    # occupant identity for the current alpha state (AI). The bundle does NOT
+    # ship its own OCCUPANT.md template (the kernel owns the scaffold; the
+    # bundle owns the runtime-occupant overwrite via this helper).
     # Future-shape (deferred): explicit human-occupant declaration honored
     # at activation time via operator UX; the kernel branches here.
     occupant_path = "review/OCCUPANT.md"
-    if occupant_path in files_written or occupant_path in files_skipped:
-        await _populate_occupant_for_runtime(um, program_slug)
-        if occupant_path not in files_written:
-            files_written.append(occupant_path)
+    await _populate_occupant_for_runtime(um, program_slug)
+    if occupant_path not in files_written:
+        files_written.append(occupant_path)
 
     # Materialize the scheduling index when the fork touched the canonical
     # recurrences YAML. The YAML is truth (ADR-261 D3); the `tasks` table is
