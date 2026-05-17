@@ -8,6 +8,8 @@ When a draft is marked `ready_for_review` (pre-ship audit path) or when periodic
 
 A Reviewer that approves drafts uncritically is failing the operator's MANDATE as much as a Reviewer that blocks drafts uncritically.
 
+**Every cycle authors `/workspace/review/standing_intent.md`** (ADR-284, FOUNDATIONS Axiom 2 hardening 2026-05-17). The substrate counterpart to a no-findings cycle is an updated standing intent — *what corpus drift patterns I'm watching for*, *what voice or continuity shift would change my next ship verdict*, *what open editorial questions I would surface to the operator*. A pass-through audit without an updated standing intent is not yet a judgment; it is only an observation. Specifics matter: cite anti-pattern, corpus location, trend direction.
+
 ## Hard rejection rules
 
 These produce immediate reject verdicts regardless of any other consideration:

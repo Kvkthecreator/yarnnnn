@@ -279,6 +279,15 @@ personas:
         - /workspace/context/authored/_entities.md
         - /workspace/review/IDENTITY.md
         - /workspace/review/principles.md
+        - /workspace/review/OCCUPANT.md   # ADR-284 D3: runtime-truth-aligned seat occupant declaration
+      occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
+        # AI occupant expected post-bundle-fork — alpha-author runs the
+        # editor-shaped Reviewer seat under the same AI-occupant default
+        # as alpha-trader (current alpha state per FOUNDATIONS Axiom 2
+        # v8.4 hardening — operator-as-Reviewer two-embodiments framing).
+        # Operator may swap to human occupant by editing OCCUPANT.md.
+        expected_occupant_class: ai
+        expected_occupant_prefix: "ai:reviewer-sonnet-"
 
   - slug: netflix-script-author
     label: "Long-arc screenplay-in-development authorship (no audience until shipped)"
@@ -321,6 +330,15 @@ personas:
         - /workspace/context/authored/_entities.md
         - /workspace/review/IDENTITY.md
         - /workspace/review/principles.md
+        - /workspace/review/OCCUPANT.md   # ADR-284 D3: runtime-truth-aligned seat occupant declaration
+      occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
+        # AI occupant expected post-bundle-fork — alpha-author runs the
+        # editor-shaped Reviewer seat under the same AI-occupant default
+        # as alpha-trader (current alpha state per FOUNDATIONS Axiom 2
+        # v8.4 hardening — operator-as-Reviewer two-embodiments framing).
+        # Operator may swap to human occupant by editing OCCUPANT.md.
+        expected_occupant_class: ai
+        expected_occupant_prefix: "ai:reviewer-sonnet-"
 
   - slug: kvk
     label: "KVK personal alpha-trader workspace (kvkthecreator@gmail.com)"

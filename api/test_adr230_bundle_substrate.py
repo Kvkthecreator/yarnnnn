@@ -78,7 +78,12 @@ def _list_active_programs() -> list[Path]:
 def test_bundle_carries_canonical_substrate():
     """Every authored_substrate path declared in an active bundle's
     MANIFEST.yaml context_domains must exist as a file in the bundle's
-    reference-workspace/ with valid tier frontmatter (tier: authored).
+    reference-workspace/.
+
+    Tier-frontmatter assertion removed per ADR-287 D3: tier system was
+    operationally dissolved by ADR-261/262 D2 (fork strips frontmatter,
+    doesn't gate on tier values). File-presence is the load-bearing
+    assertion the test should preserve.
     """
     active_programs = _list_active_programs()
     assert active_programs, "no active programs found in docs/programs/"
@@ -104,24 +109,6 @@ def test_bundle_carries_canonical_substrate():
                     f"missing at {ref_file.relative_to(REPO_ROOT)}. "
                     f"ADR-230 D2: bundle reference-workspace is the only "
                     f"source of program-shaped substrate templates."
-                )
-
-                content = ref_file.read_text()
-                assert content.startswith("---"), (
-                    f"{ref_file.relative_to(REPO_ROOT)} missing tier "
-                    f"frontmatter. Authored-substrate templates must "
-                    f"declare tier (per ADR-223 §5)."
-                )
-                # Parse first frontmatter block
-                end = content.find("\n---", 4)
-                assert end > 0, (
-                    f"{ref_file.relative_to(REPO_ROOT)} frontmatter "
-                    f"unterminated."
-                )
-                fm = yaml.safe_load(content[4:end])
-                assert (fm or {}).get("tier") in ("canon", "authored", "placeholder"), (
-                    f"{ref_file.relative_to(REPO_ROOT)} declares invalid "
-                    f"tier='{fm.get('tier')}' (must be canon | authored | placeholder)."
                 )
 
 
@@ -188,38 +175,55 @@ def test_activate_persona_exists():
 # =============================================================================
 
 
-def test_alpha_trader_tasks_yaml_carries_default_tasks():
-    """ADR-230 D2: program-default task instances live at
-    docs/programs/{program}/tasks.yaml. alpha-trader specifically extracted
-    its 6-task default set from the deleted scaffold_trader.py:TASKS list."""
-    tasks_yaml = PROGRAMS_ROOT / "alpha-trader" / "tasks.yaml"
-    assert tasks_yaml.exists(), "alpha-trader/tasks.yaml missing"
+def test_alpha_trader_recurrences_yaml_carries_default_recurrences():
+    """ADR-230 D2 + ADR-231 cutover: program-default scheduled work lives
+    at docs/programs/{program}/reference-workspace/_recurrences.yaml
+    (tasks.yaml was dissolved by ADR-231 Phase 3 cutover).
 
-    raw = yaml.safe_load(tasks_yaml.read_text())
-    tasks = (raw or {}).get("tasks") or []
-    titles = [t.get("title") for t in tasks]
+    Rewritten per ADR-287 D3 — the original tasks.yaml-shaped assertion
+    bit-rotted when ADR-231 landed. The conformance contract preserved:
+    alpha-trader ships its canonical recurrence set in the bundle.
+    """
+    recurrences_yaml = PROGRAMS_ROOT / "alpha-trader" / "reference-workspace" / "_recurrences.yaml"
+    assert recurrences_yaml.exists(), "alpha-trader/reference-workspace/_recurrences.yaml missing"
 
-    expected = {
-        "Track universe",
-        "Signal evaluation",
-        "Pre-market brief",
-        "Trade proposal",
-        "Weekly performance review",
-        "Quarterly signal audit",
+    raw = yaml.safe_load(recurrences_yaml.read_text())
+    recurrences = (raw or {}).get("recurrences") or []
+    slugs = {r.get("slug") for r in recurrences}
+
+    # Post-ADR-275: bundles ship substrate-maintenance + reactive + event-
+    # anchored heartbeats. Judgment-cadence (introspection / housekeeping /
+    # deliverable production) is Reviewer-authored from _preferences.yaml.
+    # This assertion pins the bundle-shipped set; deliverable cadence lives
+    # in _preferences.yaml separately.
+    expected_subset = {
+        "outcome-reconciliation",
+        "signal-evaluation",
+        "track-universe",
+        "track-regime",
+        "track-account",
+        "track-orders",
+        "track-positions",
+        "trade-proposal",
     }
-    assert set(titles) == expected, (
-        f"alpha-trader/tasks.yaml has {set(titles)}; expected {expected}. "
-        f"These 6 tasks were extracted from the deleted scaffold_trader.py "
-        f"per ADR-230 D2."
+    missing = expected_subset - slugs
+    assert not missing, (
+        f"alpha-trader _recurrences.yaml missing required recurrences: {missing}. "
+        f"Per ADR-275 the bundle ships substrate-maintenance + reactive entries; "
+        f"these are the load-bearing set."
     )
 
-    # Pipeline wiring sanity per ADR-166 + ADR-151/152
-    by_title = {t["title"]: t for t in tasks}
-    assert by_title["Track universe"]["output_kind"] == "accumulates_context"
-    assert by_title["Trade proposal"]["output_kind"] == "external_action"
-    assert by_title["Trade proposal"]["mode"] == "reactive"
-    assert by_title["Trade proposal"]["schedule"] is None
-    assert "write_trading" in by_title["Trade proposal"]["required_capabilities"]
+    # Pipeline wiring sanity per ADR-263 mode discipline
+    by_slug = {r["slug"]: r for r in recurrences}
+    assert by_slug["track-positions"]["mode"] == "mechanical", (
+        "track-positions must be mechanical-mode per ADR-264 SyncPlatformState"
+    )
+    assert by_slug["trade-proposal"]["mode"] == "judgment", (
+        "trade-proposal must be judgment-mode (Reviewer renders capital judgment)"
+    )
+    assert by_slug["trade-proposal"]["schedule"] is None, (
+        "trade-proposal is reactive — fires on FireInvocation, no schedule"
+    )
 
 
 # =============================================================================
@@ -241,12 +245,10 @@ def test_alpha_trader_2_overrides_present():
     )
 
 
-def test_alpha_trader_no_overrides_directory():
-    """alpha-trader (seulkim88) runs the bundle as-is; no overrides
-    directory should exist for that persona."""
-    overrides = REPO_ROOT / "docs" / "alpha" / "personas" / "alpha-trader" / "overrides"
-    assert not overrides.exists(), (
-        "alpha-trader (seulkim88) should run the bundle template as-is "
-        "with no overrides. If a real override is needed, ship it; "
-        "otherwise this directory should not exist."
-    )
+# test_alpha_trader_no_overrides_directory removed per ADR-287 D3.
+# Original assertion ("alpha-trader runs bundle as-is") was an
+# operator-preference statement, not an architectural invariant.
+# Subsequent ADRs (notably ADR-284 Phase 3) led to legitimate
+# operator overrides landing for alpha-trader. The conformance test
+# this file ships post-ADR-287 doesn't assert the absence of overrides;
+# it asserts presence of required substrate per ADR.

@@ -69,6 +69,16 @@ recurrences:
           principles.md). Write structured reasoning to judgment_log.md.
 
       Silent stand-down without writing audit reasoning is forbidden.
+
+      AND update /workspace/review/standing_intent.md with what you'll
+      be watching for in the next pre-ship cycle per ADR-284 + principles.md
+      "Default posture: audit, then act". Cite specific anti-patterns
+      surfaced in this audit (e.g., "Watching for hedge-stack pattern
+      in piece-foo's next revision — current draft had 2 hits in para 3
+      and 5") or, on a clean approve, what you'll be checking against
+      next (e.g., "Watching for voice-drift on long-form essays — last
+      3 were clean but cadence is accelerating"). Approving without an
+      updated standing intent is not yet a closed judgment cycle.
     display_name: "Pre-Ship Audit"
 
   # ── JUDGMENT — corpus-coherence check ────────────────────────────────────
@@ -105,7 +115,17 @@ recurrences:
       to operator surfacing the specific drift/break/missed cadence with
       pointers to the affected substrate.
 
-      Stand down silently if no findings cross thresholds.
+      Stand down silently if no findings cross thresholds —
+      AND update /workspace/review/standing_intent.md with what corpus
+      drift patterns you're watching for per ADR-284 + principles.md
+      "Default posture". Cite specific anti-patterns trending up across
+      recent pieces (e.g., "Watching for cadence drift — last 3 weeks
+      ran on-cadence but interval is widening; 2 more weeks of widening
+      crosses the 2-interval threshold"). The material-outcome gate
+      (ADR-281 §5) decides whether a judgment_log.md entry is rendered;
+      standing_intent.md update is unconditional. Standing down without
+      updating standing_intent leaves the operator with no evidence of
+      forward-looking judgment — only observation.
     display_name: "Corpus Coherence Check"
 
   # ── JUDGMENT — revision audit (long-arc author primary loop) ─────────────
@@ -162,6 +182,16 @@ recurrences:
       enforce (the gate is pre-ship-audit). It does NOT write to
       operator-canon (_voice.md, _editorial.md, _entities.md). Findings
       surface via Clarify for operator authoring.
+
+      AND update /workspace/review/standing_intent.md with what trajectory
+      patterns you're watching for across in-progress drafts per ADR-284 +
+      principles.md "Default posture". Cite specific drafts + the
+      trajectory dimension (e.g., "Watching for entity-continuity break
+      on screenplay-act-2 — Sarah's stoicism softened in last 3 revisions,
+      next revision crossing into emotional outburst would contradict
+      established arc"). A no-drafts-in-window stand-down still updates
+      standing_intent.md with what would be watched once authorship
+      resumes.
     display_name: "Revision Audit"
 
   # ── JUDGMENT — outcome reconciliation ────────────────────────────────────
@@ -207,7 +237,16 @@ recurrences:
       rollup the daily-update briefing reads.
 
       Stand down silently if there were no audit or ship events in the
-      window.
+      window —
+      AND update /workspace/review/standing_intent.md with what calibration
+      patterns you're watching for per ADR-284 + principles.md "Default
+      posture". Cite specific calibration trajectories (e.g., "Watching
+      voice-audit accuracy 30d trend — current 0.74, drifting down from
+      0.82 a month ago; if it crosses 0.65 the voice-audit thresholds
+      need a Clarify to operator"). The material-outcome gate decides
+      whether feedback.md routing occurs; standing_intent.md update is
+      unconditional. Reconciliation that observes calibration without
+      naming what's being watched for next is not yet a closed cycle.
     display_name: "Outcome Reconciliation"
 
 # ADR-275: weekly-corpus-review and quarterly-voice-audit (operator
