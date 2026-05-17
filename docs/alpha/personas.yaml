@@ -208,6 +208,7 @@ personas:
     workspace_id: 00000000-0000-0000-0000-000000000000   # PLACEHOLDER
     platform:
       kind: none                              # no external platform per ADR-283 D7
+      provider: none                          # required by Persona.platform_provider; sentinel value for archetype-agnostic personas
     context_domains:
       # Activation-time invariant: the bundle ships `authored/` populated
       # with the operator-canon substrate templates (_voice.md, _editorial.md).
@@ -261,6 +262,7 @@ personas:
     workspace_id: 00000000-0000-0000-0000-000000000000   # PLACEHOLDER
     platform:
       kind: none
+      provider: none
     context_domains:
       # Same shape as yarnnn-author. The screenplay workspace exercises
       # the long-arc revision-pulse loop (revision-audit recurrence on

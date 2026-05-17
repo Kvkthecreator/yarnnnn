@@ -227,7 +227,9 @@ def _bundle_recurrence_roles(program_slug: str) -> list[str]:
 
 def _platform_connect(persona: Persona, registry) -> int:
     """Optional Step 7: invoke the existing connect.py path for this
-    persona's platform. Skipped when --skip-connect or when
+    persona's platform. Skipped when --skip-connect, when platform.kind
+    is "none" (architecturally-agnostic persona per ADR-283 D7 — e.g.,
+    alpha-author bundle requires no external writes), or when
     credentials_env vars aren't set.
 
     Reuses connect.py::_build_payload for credential resolution + endpoint
@@ -235,6 +237,13 @@ def _platform_connect(persona: Persona, registry) -> int:
     primitive as `python connect.py {persona-slug}` — just inlined here
     so activation is one command end-to-end.
     """
+    # ADR-283 D7 — architecturally-agnostic personas (substrate-continuity
+    # archetype bundles like alpha-author) declare platform.kind="none"
+    # because no external writes are structurally required. Skip cleanly
+    # rather than treating this as an error.
+    if persona.platform_kind == "none":
+        print(f"  SKIP platform connect — persona.platform.kind=none (no external writes by design)")
+        return 0
     cred_keys = list(persona.credentials_env.values())
     missing = [k for k in cred_keys if not os.environ.get(k)]
     if missing:
