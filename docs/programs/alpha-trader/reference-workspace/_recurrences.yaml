@@ -159,7 +159,14 @@ recurrences:
 
       When any entry signal fires, immediately FireInvocation(slug="trade-proposal")
       to hand the signal to the Reviewer for capital judgment. Otherwise
-      stand down.
+      stand down — AND update /workspace/review/standing_intent.md with what's
+      close to firing per ADR-284 + principles.md "Default posture: action".
+      Cite the closest-to-firing signal, ticker, threshold, and distance
+      (e.g. "Signal 1 Momentum-breakout on NVDA: RSI 82, need 55-75 range,
+      off by +7"). Standing down without updating standing_intent.md leaves
+      the operator with no evidence of forward-looking judgment — only
+      observation. The cycle is not closed until standing intent reflects
+      this cycle's reading of state.
     display_name: "Signal Evaluator"
 
   # ── mirror-signal-state — compact substrate for Reviewer wake envelope ──
@@ -238,9 +245,12 @@ recurrences:
       every entry proposal is tied to a named signal. For exits, attribution
       is the original signal_id of the position being closed.
 
-      If conditions don't warrant on the entry path, stand down with reasoning
-      written to /workspace/review/judgment_log.md. **Silent stand-down on an
-      exit trigger is forbidden** (per principles.md).
+      If conditions don't warrant on the entry path, stand down with reasoning —
+      AND update /workspace/review/standing_intent.md with what would change
+      the assessment (per ADR-284 + principles.md "Default posture: action").
+      The material-outcome gate (ADR-281 §5) decides whether a judgment_log.md
+      entry is rendered; standing_intent.md update is unconditional. **Silent
+      stand-down on an exit trigger is forbidden** (per principles.md).
     display_name: "Trade Proposal"
 
   # ADR-275: pre-market-brief, weekly-performance-review, and
@@ -288,7 +298,11 @@ recurrences:
         4. Regenerates /workspace/context/_money_truth_summary.md as the
            cross-domain rollup the daily-update briefing reads.
 
-      Stand down silently if there were no fills in the window.
+      Stand down if there were no fills in the window — AND update
+      /workspace/review/standing_intent.md noting which open positions you're
+      watching for fills + the next reconciliation window (per ADR-284).
+      Reconciler runs deterministically; your judgment cycle still produces
+      forward-looking substrate even on no-fill cycles.
     display_name: "Outcome Reconciliation"
 
   # ADR-275: morning-calibration, morning-reflection, proposal-cleanup,

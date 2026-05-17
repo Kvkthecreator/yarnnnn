@@ -6,6 +6,39 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.17.2] - feat(adr-284 phase 2): alpha-trader bundle amendments — standing-intent contract load-bearing
+
+### Changed
+- `docs/programs/alpha-trader/reference-workspace/review/IDENTITY.md`: amended the lifecycle posture "no actionable conditions" branch to require a standing_intent.md update; added new section "Standing intent — my forward-looking substrate" naming the file, the every-cycle write contract, and the specificity requirement
+- `docs/programs/alpha-trader/reference-workspace/review/principles.md`: amended "Default posture: action" section with explicit standing_intent.md write declaration + the load-bearing distinction "a stand-down without an updated standing intent is not yet a judgment; it is only an observation"
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml`: 3 judgment-mode recurrence prompts paired with standing_intent.md update instructions on stand-down paths:
+  - `signal-evaluation`: no-fire path now includes "AND update standing_intent.md with what's close to firing" + cites the failure mode "standing down without updating standing_intent.md leaves the operator with no evidence of forward-looking judgment"
+  - `trade-proposal`: entry-path stand-down now requires standing_intent update naming what would change the assessment
+  - `outcome-reconciliation`: no-fill stand-down requires standing_intent update naming which positions you're watching for fills
+
+### Expected behavior
+- Standing-intent contract is now load-bearing in three layers: kernel persona prompt (Phase 1), bundle IDENTITY + principles (Phase 2 prose), bundle recurrence prompts (Phase 2 contract enforcement). The Reviewer perceives the contract from every angle.
+- On the next live Reviewer wake (Monday market-open `signal-evaluation` for kvk's alpha-trader-2), the Reviewer's instruction-following bias should produce the first `standing_intent.md` write to substrate, materializing the operator-visible forward-looking judgment artifact.
+- The structural answer to "why do I see no evidence the Reviewer plans to make a trade based on its learnings?" lands operationally: the operator can read `/workspace/review/standing_intent.md` at any time to see what the Reviewer is watching for.
+
+### Scope discipline
+- Bundle OCCUPANT.md template not amended (intentionally — bundle doesn't ship OCCUPANT.md; kernel scaffolds it via `workspace_init.py` Phase 5 + ADR-284 Phase 1's `_populate_occupant_for_runtime` helper overwrites with runtime occupant identity at bundle-fork time).
+- Deliverable-producing recurrences (`pre-market-brief`, `weekly-performance-review`, `quarterly-signal-audit`) not amended — they're Reviewer-authored via `_preferences.yaml` per ADR-275, not bundle-scaffolded. Each cycle produces a substantial composed deliverable that IS the forward-looking artifact.
+
+### Sibling-gate regression
+- ADR-284 Phase 1: 18/18 green
+- ADR-284 Phase 2 (this entry): 11/11 green
+- ADR-281 envelope path-only: 34/34 green
+- ADR-274 trigger authoring: 16/16 green
+- F1 telemetry pass-through: 7/7 green
+
+### References
+- ADR-284 D6 (recurrence-prompt amendment scope) + D8 (implementation surface — bundle row)
+- ADR-275 (deliverable-producing recurrence sourcing — Reviewer-authored, not bundle-scaffolded)
+- ADR-209 (Authored Substrate attribution — preserved on every standing_intent.md write)
+
+---
+
 ## [2026.05.17.1] - feat(adr-284 phase 1): standing intent + OCCUPANT envelope additions; Reviewer persona extended
 
 ### Changed

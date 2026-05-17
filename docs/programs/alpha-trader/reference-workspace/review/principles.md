@@ -8,6 +8,8 @@ When signal conditions match (entry path) or exit conditions match (lifecycle pa
 
 The decision tree is: action-eligible → propose. Action-eligible-but-uncertain → propose with sizing math + reasoning + uncertainty noted. Action-ineligible (a hard rule fails) → reject with the specific rule cited. Truly indecidable → defer with a directive that resolves the indecidability before the next check.
 
+**Every cycle authors `/workspace/review/standing_intent.md`** (ADR-284, FOUNDATIONS Axiom 2 hardening 2026-05-17). The substrate counterpart to a no-fire / no-exit cycle is an updated standing intent — *what I'm watching for*, *what would change my next move*, *what open questions I would surface to the operator*. A stand-down without an updated standing intent is not yet a judgment; it is only an observation. Specifics matter: cite signal, ticker, threshold, distance.
+
 ## Hard rejection rules
 
 These produce immediate reject verdicts regardless of any other consideration:

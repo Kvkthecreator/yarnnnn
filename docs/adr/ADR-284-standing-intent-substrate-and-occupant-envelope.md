@@ -1,6 +1,6 @@
 # ADR-284: Standing Intent as First-Class Reviewer Substrate + Occupant-Aware Wake Envelope
 
-**Status**: Phase 1 Implemented (2026-05-17), Phase 2 Pending
+**Status**: Fully Implemented (2026-05-17) — Phase 1 (canon + kernel) + Phase 2 (bundle amendments)
 **Date**: 2026-05-17
 **Companion docs**: `docs/architecture/FOUNDATIONS.md` (Axiom 2 hardening), `docs/architecture/GLOSSARY.md` (new `standing-intent` substrate entry), `docs/architecture/reviewer-substrate.md` (canonical substrate inventory update), `docs/adr/ADR-285-holistic-wake-envelope.md` (sibling — envelope mechanism reshape that consumes the substrate this ADR introduces)
 **Amends**: FOUNDATIONS Axiom 2 (Reviewer manifests-through-filesystem section gains the standing-intent claim); GLOSSARY (new `standing-intent` entry, sharpened OCCUPANT entry); ADR-194 v2 (Reviewer substrate inventory grows one file); bundle `IDENTITY.md` + `principles.md` (alpha-trader reference workspace amendment); Reviewer system prompt (`_PERSONA_FRAME` extended with standing-intent posture); bundle recurrence prompts that today say "stand down" without requiring standing-intent update (alpha-trader `signal-evaluation`, etc.)
