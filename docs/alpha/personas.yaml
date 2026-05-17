@@ -173,6 +173,127 @@ personas:
         - /workspace/review/principles.md
       risk_md_path: /workspace/context/trading/_risk.md
 
+  # ─────────────────────────────────────────────────────────────────────
+  # alpha-author personas (ADR-283 step 4, 2026-05-17)
+  # Two operator workspaces dogfooding the alpha-author bundle per
+  # ADR-283 D5. Both run `program: alpha-author`; the bundle is medium-
+  # agnostic at the program level, so workspace-specific persona /
+  # principles / voice content lives in the persona overrides directory
+  # at docs/alpha/personas/alpha-author/{slug}/overrides/ (per ADR-230 D6).
+  #
+  # NOTE on user_id + workspace_id (2026-05-17): the alpha-author bundle
+  # is `status: deferred` per MANIFEST until ADR-283 step 5 activation
+  # smoke-test + step 6 dogfood. The user_id + workspace_id values below
+  # are PLACEHOLDERS — they'll be replaced with real Supabase IDs when a
+  # real workspace is provisioned for each persona at step 5/6 time.
+  # `load_registry()` will still parse these rows successfully (every
+  # required field present + program validates against the bundle
+  # MANIFEST), but `activate_persona.py` will fail at the Supabase fork
+  # step until the placeholders are replaced. This is the honest
+  # `deferred` state — the registry shape is correct; the live
+  # provisioning is the step 5/6 work.
+  #
+  # NOTE on platform.kind="none": alpha-author requires no external
+  # platform writes per ADR-283 D7 + Discovery note 2 (substrate-
+  # continuity archetype). `kind: none` + empty `credentials_env` means
+  # `activate_persona.py` Step 7 (platform connect) skips cleanly with
+  # the "missing env vars" no-op path; the bundle activates in
+  # knowledge-only mode by design.
+
+  - slug: yarnnn-author
+    label: "YARNNN founder content + IR-narrative authorship"
+    program: alpha-author   # ADR-230 D1: bundle at docs/programs/alpha-author/
+    email: yarnnn-author@yarnnn.com
+    user_id: 00000000-0000-0000-0000-000000000000   # PLACEHOLDER — replaced at step 5/6 provisioning
+    workspace_id: 00000000-0000-0000-0000-000000000000   # PLACEHOLDER
+    platform:
+      kind: none                              # no external platform per ADR-283 D7
+    context_domains:
+      # Activation-time invariant: the bundle ships `authored/` populated
+      # with the operator-canon substrate templates (_voice.md, _editorial.md).
+      # `audience/` is declared in the bundle's substrate_abi but stays
+      # empty by design (per ADR-283 D7 — alpha-author runs internal-
+      # coherence-only). Per-piece entities accumulate at
+      # /workspace/context/authored/{piece-slug}/ from real authoring,
+      # not from scaffolding.
+      - authored
+    credentials_env: {}   # empty per platform.kind=none
+    expected:
+      # Per ADR-205, signup scaffolds exactly one agent (YARNNN). The
+      # alpha-author bundle ships no additional agent rows; the Reviewer
+      # is the systemic Agent that occupies the judgment seat (ADR-194 v2).
+      agent_count: 1
+      active_roles: [thinking_partner]
+      # alpha-author's _recurrences.yaml ships 4 entries:
+      #   pre-ship-audit       — reactive, judgment-mode
+      #   corpus-coherence-check — twice-weekly, judgment-mode
+      #   revision-audit       — Friday EOD, judgment-mode (ADR-283 step 2)
+      #   outcome-reconciliation — daily, judgment-mode
+      # No mechanical mirrors (no platform-side state to sync). Deliverable
+      # cadence (weekly-corpus-review, quarterly-voice-audit) lives in
+      # _preferences.yaml; the Reviewer authors Schedule() calls from
+      # first wake per ADR-275.
+      scaffolded_recurrences:
+        - pre-ship-audit
+        - corpus-coherence-check
+        - revision-audit
+        - outcome-reconciliation
+      platform_connections: 0   # ADR-283 D7: zero external writes by design
+      core_files:
+        - /workspace/_recurrences.yaml
+        - /workspace/context/_shared/IDENTITY.md
+        - /workspace/context/_shared/MANDATE.md
+        - /workspace/context/_shared/AUTONOMY.md
+        - /workspace/context/_shared/BRAND.md
+        - /workspace/context/_shared/CONVENTIONS.md
+        - /workspace/context/_shared/_preferences.yaml
+        - /workspace/context/authored/_voice.md
+        - /workspace/context/authored/_editorial.md
+        - /workspace/context/authored/_entities.md
+        - /workspace/review/IDENTITY.md
+        - /workspace/review/principles.md
+
+  - slug: netflix-script-author
+    label: "Long-arc screenplay-in-development authorship (no audience until shipped)"
+    program: alpha-author   # ADR-230 D1: same program as yarnnn-author, different operator
+    email: netflix-script-author@yarnnn.com
+    user_id: 00000000-0000-0000-0000-000000000000   # PLACEHOLDER — replaced at step 5/6 provisioning
+    workspace_id: 00000000-0000-0000-0000-000000000000   # PLACEHOLDER
+    platform:
+      kind: none
+    context_domains:
+      # Same shape as yarnnn-author. The screenplay workspace exercises
+      # the long-arc revision-pulse loop (revision-audit recurrence on
+      # Friday EOD comparing current draft state against prior revision
+      # per ADR-209). _signal.md runs internal-coherence-only — no
+      # external audience signal until production interest arrives;
+      # external_outcomes frontmatter is operator-authored when events
+      # do occur (option, produced, etc.) per ADR-283 step 2.
+      - authored
+    credentials_env: {}
+    expected:
+      agent_count: 1
+      active_roles: [thinking_partner]
+      scaffolded_recurrences:
+        - pre-ship-audit
+        - corpus-coherence-check
+        - revision-audit
+        - outcome-reconciliation
+      platform_connections: 0
+      core_files:
+        - /workspace/_recurrences.yaml
+        - /workspace/context/_shared/IDENTITY.md
+        - /workspace/context/_shared/MANDATE.md
+        - /workspace/context/_shared/AUTONOMY.md
+        - /workspace/context/_shared/BRAND.md
+        - /workspace/context/_shared/CONVENTIONS.md
+        - /workspace/context/_shared/_preferences.yaml
+        - /workspace/context/authored/_voice.md
+        - /workspace/context/authored/_editorial.md
+        - /workspace/context/authored/_entities.md
+        - /workspace/review/IDENTITY.md
+        - /workspace/review/principles.md
+
   - slug: kvk
     label: "KVK personal alpha-trader workspace (kvkthecreator@gmail.com)"
     program: alpha-trader
