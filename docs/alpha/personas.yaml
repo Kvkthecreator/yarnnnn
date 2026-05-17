@@ -115,6 +115,19 @@ personas:
         - /workspace/context/trading/_risk.md
         - /workspace/review/IDENTITY.md
         - /workspace/review/principles.md
+        - /workspace/review/OCCUPANT.md   # ADR-284: runtime-truth-aligned seat occupant declaration (kernel-scaffolded by workspace_init Phase 5; bundle-fork overwrites via _populate_occupant_for_runtime with ai:reviewer-sonnet-v8 for current alpha state)
+      # ADR-284: standing_intent.md is NOT a signup-invariant core_file — it
+      # materializes only after the Reviewer's first judgment-mode cycle
+      # writes it (Reviewer is the single writer per the reviewer-workbench
+      # role / ADR-281 §3). Post-first-Reviewer-cycle invariant lives in
+      # observation discipline, not in verify.py's signup-time checks.
+      occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
+        # OCCUPANT.md frontmatter must declare AI occupant post-bundle-fork
+        # (current alpha state — AI runs the seat per FOUNDATIONS Axiom 2
+        # v8.4). Detects substrate-runtime drift where the bundle scaffold's
+        # `human` default leaks past bundle-fork overwrite.
+        expected_occupant_class: ai
+        expected_occupant_prefix: "ai:reviewer-sonnet-"
       risk_md_path: /workspace/context/trading/_risk.md
 
   - slug: alpha-trader-2
@@ -171,6 +184,19 @@ personas:
         - /workspace/context/trading/_risk.md
         - /workspace/review/IDENTITY.md
         - /workspace/review/principles.md
+        - /workspace/review/OCCUPANT.md   # ADR-284: runtime-truth-aligned seat occupant declaration (kernel-scaffolded by workspace_init Phase 5; bundle-fork overwrites via _populate_occupant_for_runtime with ai:reviewer-sonnet-v8 for current alpha state)
+      # ADR-284: standing_intent.md is NOT a signup-invariant core_file — it
+      # materializes only after the Reviewer's first judgment-mode cycle
+      # writes it (Reviewer is the single writer per the reviewer-workbench
+      # role / ADR-281 §3). Post-first-Reviewer-cycle invariant lives in
+      # observation discipline, not in verify.py's signup-time checks.
+      occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
+        # OCCUPANT.md frontmatter must declare AI occupant post-bundle-fork
+        # (current alpha state — AI runs the seat per FOUNDATIONS Axiom 2
+        # v8.4). Detects substrate-runtime drift where the bundle scaffold's
+        # `human` default leaks past bundle-fork overwrite.
+        expected_occupant_class: ai
+        expected_occupant_prefix: "ai:reviewer-sonnet-"
       risk_md_path: /workspace/context/trading/_risk.md
 
   # ─────────────────────────────────────────────────────────────────────
@@ -348,4 +374,17 @@ personas:
         - /workspace/context/trading/_risk.md
         - /workspace/review/IDENTITY.md
         - /workspace/review/principles.md
+        - /workspace/review/OCCUPANT.md   # ADR-284: runtime-truth-aligned seat occupant declaration (kernel-scaffolded by workspace_init Phase 5; bundle-fork overwrites via _populate_occupant_for_runtime with ai:reviewer-sonnet-v8 for current alpha state)
+      # ADR-284: standing_intent.md is NOT a signup-invariant core_file — it
+      # materializes only after the Reviewer's first judgment-mode cycle
+      # writes it (Reviewer is the single writer per the reviewer-workbench
+      # role / ADR-281 §3). Post-first-Reviewer-cycle invariant lives in
+      # observation discipline, not in verify.py's signup-time checks.
+      occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
+        # OCCUPANT.md frontmatter must declare AI occupant post-bundle-fork
+        # (current alpha state — AI runs the seat per FOUNDATIONS Axiom 2
+        # v8.4). Detects substrate-runtime drift where the bundle scaffold's
+        # `human` default leaks past bundle-fork overwrite.
+        expected_occupant_class: ai
+        expected_occupant_prefix: "ai:reviewer-sonnet-"
       risk_md_path: /workspace/context/trading/_risk.md

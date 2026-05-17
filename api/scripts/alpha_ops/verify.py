@@ -142,6 +142,47 @@ def _verify_one(cur, persona: Persona) -> Check:
         has_files = any(p.startswith(f"/workspace/context/{domain}/") for p in paths)
         check.present(has_files, f"context domain '{domain}' files under /workspace/context/{domain}/")
 
+    # ADR-284 D3: substrate-runtime alignment check on OCCUPANT.md.
+    # Pre-ADR-284 the bundle scaffold's `occupant_class: human` default
+    # leaked through bundle-fork (no overwrite), producing substrate-
+    # runtime drift in alpha workspaces where AI ran the seat. Post-ADR-284
+    # the `_populate_occupant_for_runtime` helper overwrites with the
+    # runtime occupant. This invariant detects regression of that fix.
+    occ_attr = exp.get("occupant_attribution") or {}
+    if occ_attr:
+        cur.execute(
+            "SELECT content FROM workspace_files "
+            "WHERE user_id=%s AND path='/workspace/review/OCCUPANT.md'",
+            (uid,),
+        )
+        row = cur.fetchone()
+        if not row or not row[0]:
+            check.assert_(False, "occupant_attribution: OCCUPANT.md absent or empty")
+        else:
+            content = row[0]
+            exp_class = occ_attr.get("expected_occupant_class")
+            if exp_class:
+                ok = f"occupant_class: {exp_class}" in content
+                check.assert_(
+                    ok,
+                    f"occupant_attribution: expected occupant_class='{exp_class}' in OCCUPANT.md (ADR-284 runtime-truth alignment)",
+                )
+            exp_prefix = occ_attr.get("expected_occupant_prefix")
+            if exp_prefix:
+                # Frontmatter line shape: `occupant: <identity-string>`
+                # Find the line; assert it starts with the expected prefix.
+                ok = False
+                for line in content.splitlines():
+                    stripped = line.strip()
+                    if stripped.startswith("occupant:") and not stripped.startswith("occupant_class:"):
+                        value = stripped.split(":", 1)[1].strip()
+                        ok = value.startswith(exp_prefix)
+                        break
+                check.assert_(
+                    ok,
+                    f"occupant_attribution: expected occupant identity prefix '{exp_prefix}' in OCCUPANT.md (ADR-284 runtime-truth alignment — likely pre-ADR-284 OCCUPANT not yet overwritten by _populate_occupant_for_runtime; re-fork required)",
+                )
+
     return check
 
 

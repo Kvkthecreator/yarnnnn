@@ -131,7 +131,10 @@ shape** — agent count, bot activations, scaffolded recurrences (post-ADR-231:
 the `essential` task flag was dropped by migration 164; recurrence presence
 is verified by walking the recurrence-declaration substrate or querying the
 thin `tasks` scheduling-index), platform connections, core files,
-context-domain presence. It is Objective-A tooling per
+context-domain presence, and (per ADR-284 D3) `occupant_attribution` —
+OCCUPANT.md frontmatter must declare the runtime occupant (`occupant_class: ai`
++ `occupant: ai:reviewer-sonnet-*` for current alpha state where AI runs
+the seat). It is Objective-A tooling per
 [DUAL-OBJECTIVE-DISCIPLINE.md](./DUAL-OBJECTIVE-DISCIPLINE.md).
 
 It does **NOT** validate Objective-B (money-truth / per-signal
