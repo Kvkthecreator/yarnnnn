@@ -997,11 +997,11 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
         has_agents = len(result.data or []) > 0
 
         if not has_agents:
+            # ADR-286: `browser_tz` no longer threaded through workspace_init —
+            # IDENTITY.md is bundle-owned, not kernel-scaffolded. Operator
+            # declares timezone via chat or bundle authoring after activation.
             from services.workspace_init import initialize_workspace
-            browser_tz = request.headers.get("X-Timezone")
-            init_result = await initialize_workspace(
-                auth.client, auth.user_id, browser_tz=browser_tz
-            )
+            init_result = await initialize_workspace(auth.client, auth.user_id)
             has_agents = True
 
             # ADR-179: Write workspace_init_complete system card as persisted

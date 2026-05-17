@@ -152,6 +152,24 @@ Bundles ship a **workspace guide** (`docs/programs/{slug}/reference-workspace/_w
 
 See [ADR-281](../adr/ADR-281-substrate-canonical-substrate-only-prompts.md) for the derivation chain and [GLOSSARY.md](GLOSSARY.md) for the canonical role-taxonomy vocabulary.
 
+### Single-writer per path (ADR-286, 2026-05-17)
+
+The five prior sub-clauses say *where* state lives, *how* it evolves, *what kinds* belong, *what role* substrate plays in the runtime, and *how* the substrate is taught. This sixth sub-clause says **who writes each path**: every substrate path has exactly one authoritative writer.
+
+The discipline rule mechanically separates the writers:
+
+- **Kernel-universal paths** — present in every workspace regardless of program activation. Written by `services/workspace_init.py` Phase 2 at signup. Examples: `context/_shared/PRECEDENT.md`, `memory/_playbook.md`, `review/calibration.md`, `review/OCCUPANT.md` (kernel scaffold; ADR-284 Phase 1 helper overwrites at bundle-fork with runtime occupant), `review/handoffs.md`.
+- **Bundle-owned paths** — every path any active bundle ships via `reference-workspace/`. Written by `services/programs.py::fork_reference_workspace` at program activation. Examples: `context/_shared/{MANDATE, IDENTITY, BRAND, AUTONOMY}.md`, `review/IDENTITY.md`, `review/principles.md`, `_recurrences.yaml`, `_workspace_guide.md` (when program activated; kernel default only on no-program workspaces).
+- **Operator/Reviewer/system paths** — written at runtime via the Authored Substrate pipeline (ADR-209) with the appropriate `authored_by` attribution. Examples: operator-authored edits to bundle-owned files; Reviewer-authored `standing_intent.md` per ADR-284; mechanical primitives writing world-mirror state.
+
+The rule is verifiable mechanically: walk every active bundle's `reference-workspace/`; any path that appears in any bundle is bundle-owned and the kernel does NOT scaffold it.
+
+**Why this matters.** Pre-ADR-286 the kernel scaffold wrote defaults for 10 paths that the alpha-trader bundle also shipped. Two writers raced on those paths; reconciliation depended on a heuristic (`is_skeleton_content` trying to distinguish "kernel default that should be overwritten" from "operator-customized content that should be preserved"). The heuristic required a new patch per kernel-default content shape (placeholder phrases, principles signature, workspace-guide signature, short-and-sparse rule). Three substrate-drift incidents in five days traced to the dual-write pattern. ADR-286 eliminates the dual-write at the structural level; the rescue heuristics become unnecessary; the system gets smaller and more predictable.
+
+**No-program workspace semantic.** A workspace at signup with no program activation has kernel-universal paths populated but bundle-owned paths absent. The Reviewer wake envelope renders empty-state hints for absent files. The workspace IS unconfigured — the envelope reflects that honestly rather than papering it with generic defaults that pretend a persona exists.
+
+See [ADR-286](../adr/ADR-286-kernel-program-substrate-single-writer.md) for the full derivation, deletion ledger, and migration mechanism.
+
 ---
 
 ## Axiom 2: Identity — Agents and Orchestration

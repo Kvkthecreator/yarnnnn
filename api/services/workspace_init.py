@@ -73,7 +73,6 @@ logger = logging.getLogger(__name__)
 async def initialize_workspace(
     client: Any,
     user_id: str,
-    browser_tz: str | None = None,
     program_slug: str | None = None,
 ) -> dict:
     """Initialize a complete workspace for a new user.
@@ -85,9 +84,6 @@ async def initialize_workspace(
     a previously-active bundle.
 
     Args:
-        browser_tz: IANA timezone string inferred from the browser (X-Timezone header).
-                    Written into IDENTITY.md during Phase 3 so the daily-update task
-                    fires at 09:00 local time on first run — no explicit user prompt needed.
         program_slug: Optional program selection (ADR-226). When provided, the
                     bundle's `reference-workspace/` is forked into the operator's
                     `/workspace/` honoring three-tier file categorization
@@ -169,101 +165,51 @@ async def initialize_workspace(
     # CONVENTIONS.md is NOT seeded here — program-scoped (bundles fork it).
     # See docs/architecture/workspace-init.md for the full canonical reference.
     try:
+        # ADR-286 import set: kernel-universal defaults only. Bundle-owned
+        # content (MANDATE, IDENTITY, BRAND, AUTONOMY, etc.) is written by
+        # `fork_reference_workspace` in Phase 5 — never imported here.
         from services.orchestration import (
             TP_ORCHESTRATION_PLAYBOOK,
-            DEFAULT_IDENTITY_MD,
-            DEFAULT_BRAND_MD,
-            DEFAULT_AWARENESS_MD,
-            # DEFAULT_CONVENTIONS_MD deleted — CONVENTIONS.md is program-scoped,
-            # not kernel-seeded. Bundles fork it via reference-workspace/ (tier:canon).
-            # Generic workspaces do not get a skeleton. See workspace_init refactor 2026-05-03.
             DEFAULT_PRECEDENT_MD,
-            DEFAULT_REVIEW_IDENTITY_MD,
-            DEFAULT_REVIEW_PRINCIPLES_MD,
-            # DEFAULT_REVIEW_OCCUPANT_MD + DEFAULT_REVIEW_HANDOFFS_MD deleted
-            # per ADR-211 D4 singular-implementation — rotate_occupant() is
-            # the single write path for both files (see below).
-            # DEFAULT_REVIEW_MODES_MD deleted per ADR-217 — autonomy moved to
-            # workspace-scoped AUTONOMY.md under /workspace/context/_shared/.
-            DEFAULT_AUTONOMY_MD,
             DEFAULT_REVIEW_CALIBRATION_MD,
-            DEFAULT_WORKSPACE_GUIDE_MD,  # ADR-280: kernel-default workspace guide
+            DEFAULT_WORKSPACE_GUIDE_MD,  # kernel-default for no-program workspaces only (ADR-286 D2)
         )
         from services.workspace_paths import (
-            SHARED_MANDATE_PATH, SHARED_IDENTITY_PATH, SHARED_BRAND_PATH,
-            # SHARED_CONVENTIONS_PATH not imported — not seeded at init.
-            SHARED_AUTONOMY_PATH,        # prose doc (LLM reads)
-            SHARED_AUTONOMY_YAML_PATH,   # machine-parsed config (ADR-254)
             SHARED_PRECEDENT_PATH,
-            MEMORY_AWARENESS_PATH, MEMORY_PLAYBOOK_PATH,
+            MEMORY_PLAYBOOK_PATH,
             MEMORY_STYLE_PATH, MEMORY_NOTES_PATH,
-            REVIEW_IDENTITY_PATH, REVIEW_PRINCIPLES_PATH,
-            REVIEW_PRINCIPLES_YAML_PATH,  # machine-parsed thresholds (ADR-254)
+            REVIEW_PRINCIPLES_YAML_PATH,  # machine-parsed thresholds — kernel default empty; bundle overrides
             REVIEW_OCCUPANT_PATH,
             REVIEW_HANDOFFS_PATH, REVIEW_CALIBRATION_PATH,
         )
 
-        identity_content = DEFAULT_IDENTITY_MD
-        if browser_tz:
-            from services.platform_limits import normalize_timezone_name
-            from services.workspace import UserMemory
-            validated_tz = normalize_timezone_name(browser_tz)
-            if validated_tz and validated_tz != "UTC":
-                identity_content = UserMemory._render_memory_md({"timezone": validated_tz})
-                logger.info(f"[WORKSPACE_INIT] Timezone inferred from browser: {validated_tz}")
-
-        # ADR-207 D2 + ADR-235: empty Mandate skeleton. Operator authors via
-        # WriteFile(scope="workspace", path="context/_shared/MANDATE.md", ...)
-        # in first-turn elicitation. Hard gate in ManageRecurrence(create) and
-        # ManageRecurrence._handle_recurrence_single blocks recurrence
-        # scaffolding until Mandate is non-empty.
-        DEFAULT_MANDATE_MD = (
-            "# Mandate\n\n"
-            "<!-- This file declares what this workspace is running.\n"
-            "     Authored via YARNNN conversation at first use; revised when\n"
-            "     the operator decides. No forced revision cadence. -->\n\n"
-            "## Primary Action\n"
-            "_<not yet declared — talk to YARNNN to author your mandate>_\n\n"
-            "## Success Criteria\n\n"
-            "## Boundary Conditions\n"
-        )
-
-        # Static workspace files (not occupancy-dependent). OCCUPANT.md and
-        # handoffs.md are seeded via the rotation primitive below — single
-        # write path per ADR-211 D4 (rotation is a substrate write).
+        # ADR-286 (2026-05-17): Single-Writer Per Path. Kernel scaffolds ONLY
+        # kernel-universal paths — paths that no bundle ships, present in every
+        # workspace regardless of program activation. Bundle-owned paths
+        # (MANDATE, IDENTITY, BRAND, AUTONOMY, _autonomy.yaml, awareness.md,
+        # review/IDENTITY, review/principles, review/_principles.yaml, etc.)
+        # are written exclusively by `fork_reference_workspace` in Phase 5.
+        # No-program workspaces have absent bundle-owned paths; the Reviewer
+        # envelope renders empty-state hints (honest semantic — a no-program
+        # workspace IS unconfigured). See ADR-286 D1 + D2.
+        #
+        # The legacy `bundle_owned_paths` skip mechanism (ADR-269 iter-4) is
+        # dissolved — no kernel write to skip. The `is_skeleton_content`
+        # kernel-default rescue patches in workspace_utils.py are dissolved
+        # for the same reason (per ADR-286 D6).
+        #
+        # `identity_content` (with optional timezone normalization above) is
+        # no longer written here — alpha-trader bundle ships its own IDENTITY.md.
+        # When the operator declares their personal identity, it lives in
+        # `context/_shared/IDENTITY.md` either through bundle-default + edits
+        # or future explicit personal-identity path (deferred). For no-program
+        # workspaces, IDENTITY.md is absent and the operator authors via chat.
         workspace_files = {
-            # Authored shared context (operator-scoped declarations + precedent).
-            # CONVENTIONS.md is NOT seeded here — it is program-scoped (bundles
-            # fork it via reference-workspace/ with tier:canon). Generic workspaces
-            # accumulate it only if/when operator or a bundle writes it.
-            SHARED_MANDATE_PATH: (DEFAULT_MANDATE_MD, "Mandate skeleton — workspace north star"),
-            SHARED_IDENTITY_PATH: (identity_content, "User identity template"),
-            SHARED_BRAND_PATH: (DEFAULT_BRAND_MD, "Default brand baseline"),
-            SHARED_AUTONOMY_PATH: (DEFAULT_AUTONOMY_MD, "Autonomy — prose documentation (LLM reads, ADR-254)"),
-            SHARED_AUTONOMY_YAML_PATH: (
-                "# _autonomy.yaml — delegation declaration (ADR-254 + Commit F 2026-05-11)\n"
-                "# Machine-parsed by review_policy + working_memory. See AUTONOMY.md for prose docs.\n"
-                "# Schema:\n"
-                "#   default:\n"
-                "#     delegation: manual | bounded | autonomous   (canonical 3-value enum)\n"
-                "#     ceiling_cents: <int>  (required when delegation=bounded)\n"
-                "#     never_auto: [<action_type>, ...]  (always route to operator)\n"
-                "#   paused_until: <ISO timestamp>  (set by Reviewer / operator, ADR-248 D3)\n\n"
-                "default:\n"
-                "  delegation: manual\n"
-                "  # ceiling_cents: 0       # uncomment + set when promoting to bounded\n"
-                "  # never_auto: []         # action types that always require operator click\n",
-                "Autonomy delegation declaration — machine-parsed yaml (ADR-254 + Commit F)"
-            ),
+            # Kernel-universal paths only (no bundle ships these):
             SHARED_PRECEDENT_PATH: (DEFAULT_PRECEDENT_MD, "Precedent substrate — durable boundary-case guidance"),
-            # YARNNN working memory (ADR-206)
-            MEMORY_AWARENESS_PATH: (DEFAULT_AWARENESS_MD, "YARNNN situational awareness"),
             MEMORY_PLAYBOOK_PATH: (TP_ORCHESTRATION_PLAYBOOK, "YARNNN orchestration playbook"),
             MEMORY_STYLE_PATH: ("# Style\n<!-- System-inferred from edit patterns. -->\n", "Style placeholder"),
             MEMORY_NOTES_PATH: ("# Notes\n<!-- YARNNN-extracted facts and instructions. -->\n", "Notes placeholder"),
-            # Reviewer substrate Phase 1-3 (ADR-194 v2) — static at signup
-            REVIEW_IDENTITY_PATH: (DEFAULT_REVIEW_IDENTITY_MD, "Reviewer seat identity (role-level, static)"),
-            REVIEW_PRINCIPLES_PATH: (DEFAULT_REVIEW_PRINCIPLES_MD, "Reviewer declared framework (user-editable)"),
             REVIEW_PRINCIPLES_YAML_PATH: (
                 "# _principles.yaml — machine-parsed review thresholds (ADR-254)\n"
                 "# Read by review_policy.load_principles() via yaml.safe_load.\n"
@@ -272,53 +218,33 @@ async def initialize_workspace(
                 "# trading:\n"
                 "#   high_impact_threshold_cents: 50000  # $500 routes outcome to task feedback.md\n"
                 "#   auto_approve_below_cents: 0         # set to enable AI auto-action\n",
-                "Reviewer machine-parsed thresholds — machine-parsed yaml (ADR-254)"
+                "Reviewer machine-parsed thresholds — kernel-universal default (overridden by bundle on activation)"
             ),
-            # Reviewer substrate Phase 4 (ADR-211) minus modes.md (ADR-217 moved autonomy to _shared/):
-            # OCCUPANT.md + handoffs.md are seeded below via the rotation primitive.
             REVIEW_CALIBRATION_PATH: (DEFAULT_REVIEW_CALIBRATION_MD, "Reviewer seat calibration trail (auto-generated by back-office task)"),
-            # ADR-280: kernel-default workspace guide. Bundles override via
-            # fork (Phase 5 below) — the bundle's reference-workspace/_workspace_guide.md
-            # is richer and program-shaped. The skip-on-bundle-overlap logic
-            # in Phase 2 (see `bundle_owned_paths` below) ensures this default
-            # doesn't fight a richer bundle-shipped guide on program-activated
-            # workspaces. No-program workspaces keep the kernel default.
-            "_workspace_guide.md": (DEFAULT_WORKSPACE_GUIDE_MD, "Workspace guide — kernel default (ADR-280)"),
         }
 
-        # ADR-269 / iter-4 fork-skip fix (2026-05-13):
-        # When a program_slug is provided, the bundle's reference-workspace/
-        # fork (Phase 5 below) will own the canonical content for files it
-        # declares. Skip the kernel-default seed for those paths so the
-        # bundle fork doesn't fight an already-seeded kernel default.
-        # Without this skip: kernel writes (e.g.) `_autonomy.yaml` with
-        # `delegation: manual`, then fork_reference_workspace sees the
-        # file is "non-skeleton" content and refuses to overwrite, so
-        # operators on bundle programs get kernel defaults instead of
-        # bundle-shipped canonical values. Surfaced by iter-4 AUTONOMY
-        # flip not propagating to kvk's workspace on re-fork.
-        bundle_owned_paths: set[str] = set()
-        if program_slug:
-            try:
-                from services.programs import _bundle_root_dir
-                bundle_root = _bundle_root_dir(program_slug)
-                if bundle_root.is_dir():
-                    for src in list(bundle_root.rglob("*.md")) + list(bundle_root.rglob("*.yaml")):
-                        rel = src.relative_to(bundle_root).as_posix()
-                        # workspace_files keys are absolute /workspace/... paths;
-                        # bundle file relatives drop the /workspace/ prefix.
-                        bundle_owned_paths.add(f"/workspace/{rel}")
-            except Exception as exc:
-                logger.warning(
-                    f"[WORKSPACE_INIT] bundle_owned_paths lookup failed for {program_slug}: {exc}"
-                )
+        # `_workspace_guide.md` is dual-classifiable per ADR-286 D2: kernel-
+        # universal for no-program workspaces (the kernel default explains
+        # the workspace shape); bundle-owned for program-activated workspaces
+        # (bundles ship richer program-shaped guides). Special-case here:
+        # kernel scaffold writes the default ONLY when no program is
+        # activating at signup. Bundle-fork in Phase 5 writes the bundle
+        # version for program-activated workspaces.
+        if not program_slug:
+            workspace_files["_workspace_guide.md"] = (
+                DEFAULT_WORKSPACE_GUIDE_MD,
+                "Workspace guide — kernel default for no-program workspaces (ADR-286 D2)",
+            )
+
+        # Note: REVIEW_PRINCIPLES_YAML_PATH is in the kernel-universal set
+        # above for backward compatibility — the alpha-trader bundle ALSO
+        # ships review/_principles.yaml with `auto_approve_below_cents` etc.
+        # populated. The bundle's version overrides via Phase 5 fork. For
+        # no-program workspaces, the kernel default empty-template stays.
+        # If a future bundle audit confirms _principles.yaml should always
+        # be bundle-owned, move it to the bundle-owned set per ADR-286 D3.
 
         for path, (content, summary) in workspace_files.items():
-            if path in bundle_owned_paths:
-                logger.info(
-                    f"[WORKSPACE_INIT] skip kernel seed: {path} — bundle '{program_slug}' will fork canonical content"
-                )
-                continue
             existing = await um.read(path)
             if not existing:
                 await um.write(path, content, summary=f"Workspace init: {summary}")

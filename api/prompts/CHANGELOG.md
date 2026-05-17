@@ -6,6 +6,50 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.17.3] - feat(adr-286): kernel/program substrate boundary — single writer per path
+
+### Changed
+- `api/services/workspace_init.py` Phase 2: dropped 10 dual-write entries from `workspace_files` kernel-scaffold dict (`MANDATE.md`, `IDENTITY.md`, `BRAND.md`, `AUTONOMY.md`, `_autonomy.yaml`, `awareness.md`, `review/IDENTITY.md`, `review/principles.md`, `_workspace_guide.md` when program activating). All now bundle-fork-only.
+- `api/services/workspace_init.py`: deleted dead `bundle_owned_paths` skip block (ADR-269 iter-4 — was the rescue mechanism for the dual-write race, now unnecessary).
+- `api/services/workspace_init.py` signature: dropped dead `browser_tz` parameter (IDENTITY.md is bundle-owned; operator declares timezone via chat).
+- `api/routes/workspace.py`: caller updated to no longer thread `browser_tz` through to `initialize_workspace`.
+- `api/services/workspace_utils.py::is_skeleton_content`: deleted 4 kernel-default rescue patches (`placeholder_phrases`, principles signature, workspace-guide signature, short-and-sparse rule). Function now distinguishes only "bundle template" from "operator-authored content" — single-axis classification.
+- Bundle-template detection patches retained for surface display + activation-state classifier (empty/whitespace, bundle_body match, `(template)` first-line, `_<not yet`, short `Author here:` / `**Operator**: author this`).
+
+### New
+- `api/scripts/oneshot/adr286_purge_dual_write_kernel_defaults.py`: one-shot migration. Walks bundle-owned paths in each alpha workspace; deletes kernel-default content (matches pre-ADR-286 default constant) OR optionally all bundle-owned paths via `--alpha-rewrite-all` (alpha-stage cleanup). Subsequent re-fork populates fresh from bundle.
+- `api/test_adr286_single_writer_per_path.py`: regression gate — 8/8 PASS. Asserts D1 (no kernel scaffold for bundle-owned), D2 (kernel-universal survivors), D6 (skeleton-detection simplified), D7 (skip block deleted), signature cleanup.
+
+### Expected behavior
+- New workspace signup: kernel writes only universals (PRECEDENT, _playbook, style, notes, _principles.yaml empty, calibration, OCCUPANT via rotation). Bundle-owned paths absent until program activation.
+- Program activation: bundle-fork is sole writer for its paths. No race condition; no skeleton-detection escape hatches needed.
+- Existing alpha workspaces (kvk, alpha-trader-2): require one-shot migration (purge + re-fork) to pick up bundle-shipped content for previously-kernel-default-stuck paths.
+- No-program workspaces: empty bundle-owned paths render empty-state hints in the Reviewer envelope — honest "unconfigured" semantic.
+
+### Live validation
+- kvk's workspace migrated 2026-05-17: 9 bundle-owned paths purged + 23 files re-forked. Live `review/IDENTITY.md` now 5238 bytes (bundle 5270), `review/principles.md` now 9426 bytes with Phase 2 standing-intent paragraph, `AUTONOMY.md` now 5266 bytes (bundle 5309). All four ADR-284 envelope substrate targets resolved.
+- `verify.py kvk`: 30/30 PASS including ADR-284 `occupant_attribution` invariants.
+
+### Sibling-gate regression
+- ADR-286 (this entry): 8/8 green
+- ADR-284 Phase 1: 18/18 green
+- ADR-284 Phase 2: 11/11 green
+- ADR-281 envelope path-only: 34/34 green
+- ADR-274 trigger authoring: 16/16 green
+- F1 telemetry pass-through: 7/7 green
+- Total: 94/94 across substrate-write boundary
+
+### Canon cascade
+- FOUNDATIONS Axiom 1: new sixth sub-clause "Single-writer per path (ADR-286, 2026-05-17)" with discipline rule, three-writer-class breakdown, no-program-semantic, and historical incident citation.
+- GLOSSARY Substrate Pedagogy table: new "Single writer per path" entry under the existing six-role taxonomy entries.
+
+### References
+- ADR-286 D1 (single writer per path), D2 (kernel-universal survivors), D3 (bundle-owned set), D5 (fork simplification), D6 (skeleton-detection simplification), D7 (skip-block deletion), D8 (migration mechanism), D9 (regression gate enforcement).
+- ADR-281 §3 (six-role taxonomy preserved; ADR-286 inherits the role classifications).
+- ADR-209 (Authored Substrate attribution preserved; every substrate write still attributed per the canonical pipeline).
+
+---
+
 ## [2026.05.17.2] - feat(adr-284 phase 2): alpha-trader bundle amendments — standing-intent contract load-bearing
 
 ### Changed
