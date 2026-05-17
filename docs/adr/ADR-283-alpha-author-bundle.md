@@ -1,7 +1,7 @@
 # ADR-283: alpha-author — Second Operator Bundle, Substrate-Continuity Archetype
 
-**Status**: Proposed (scope-locked; deferred-round detail TBD)
-**Date**: 2026-05-15
+**Status**: Implemented (2026-05-18) — steps 1-5 shipped (commits `cb698c0` / `8ab04f2` / `3775f3c` / `904f9a4` / `5624842`); step 6 dogfood activation is operator-driven by definition (readiness memo at `docs/alpha/observations/2026-05-17-adr283-step6-dogfood-readiness.md`); ADR-287 conformance backfill landed `a8763b1` confirming alpha-author at 13/13 ADR-286 D3 paths + ADR-284 conformance clean
+**Date**: 2026-05-15 (status flipped 2026-05-18 post-ADR-287 backfill)
 **Companion docs**: `docs/analysis/alpha-author-discourse-2026-05-15.md`, `docs/adr/ADR-282-axiom-8-ground-truth-rename.md` (prerequisite)
 **Depends on**: ADR-222 (OS framing), ADR-223 (Program Bundle Specification), ADR-224 (Kernel/Program Boundary), ADR-225 (Compositor Layer), ADR-226 (Reference-Workspace Activation Flow), ADR-230 (Persona-Program Registry Unification), ADR-282 (Axiom 8 rename — must land first)
 **Preserves**: kernel boundary (no kernel changes), alpha-trader bundle unchanged, all existing canon axioms

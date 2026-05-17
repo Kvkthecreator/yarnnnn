@@ -1,7 +1,7 @@
 # ADR-287: Bundle Conformance Discipline — CI Gate for Kernel-Required Bundle Surface
 
-**Status**: Proposed
-**Date**: 2026-05-17
+**Status**: Implemented (2026-05-18) — single atomic commit `a8763b1` shipped ADR + new conformance test (8 ADR-keyed walks) + bit-rot fix in test_adr230 (3 stale tests corrected) + alpha-author backfill (review/IDENTITY.md + principles.md + 4 recurrence prompts + persona-row occupant_attribution). 16/16 conformance assertions PASS across alpha-trader (active) + alpha-author (deferred, 13/13 ready) + alpha-commerce (deferred, 1/13 placeholder per ADR-286 D3 scope).
+**Date**: 2026-05-17 (status flipped 2026-05-18 post-test-validation)
 **Companion docs**: `api/test_adr287_bundle_conformance.py` (new — ADR-keyed conformance walks across all bundles), the existing `api/test_adr230_bundle_substrate.py` (bit-rot fixed in same commit)
 **Amends**: ADR-230 D8 (extends the bundle-substrate test gate to multi-ADR conformance walks)
 **Preserves**: ADR-222 kernel/program boundary; ADR-223 bundle structure; ADR-224 kernel/program registry split; ADR-281 six-role taxonomy; every prior ADR's bundle-side requirements (this ADR catches drift, doesn't change any prior commitment)
