@@ -94,6 +94,18 @@ class ReviewerOutput(TypedDict, total=False):
     # reflection-only
     proposals: list
     evidence_summary: str
+    # Telemetry pass-through — the Reviewer's loop accumulates token usage
+    # for the authoritative `token_usage` ledger write. These fields expose
+    # the same accumulators to the dispatcher so the slug-indexed
+    # `execution_events` row gets denormalized cost data without a second
+    # API call. NULL when the loop never reached LLM dispatch
+    # (shape-violation early-return).
+    input_tokens: int
+    output_tokens: int
+    cache_read_tokens: int
+    cache_create_tokens: int
+    model: str
+    tool_rounds: int
 
 
 # ---------------------------------------------------------------------------
@@ -972,6 +984,8 @@ async def invoke_reviewer(
         max_rounds = 3 if use_sonnet else 12
         total_input = 0
         total_output = 0
+        total_cache_read = 0
+        total_cache_create = 0
         rounds_used = 0
 
         for _round in range(max_rounds):
@@ -995,6 +1009,12 @@ async def invoke_reviewer(
                     reasoning="Operator interrupted the in-flight Loop via the Stop affordance. No further actions taken in this session.",
                     confidence="high",
                     actions_taken=actions_taken,
+                    input_tokens=total_input,
+                    output_tokens=total_output,
+                    cache_read_tokens=total_cache_read,
+                    cache_create_tokens=total_cache_create,
+                    model=model,
+                    tool_rounds=rounds_used,
                 )
             tool_choice = {"type": "any"} if _round == 0 else {"type": "auto"}
             await _emit({"phase": "round_start", "round": rounds_used, "trigger": trigger})
@@ -1011,6 +1031,11 @@ async def invoke_reviewer(
             usage = response.usage or {}
             total_input += int(usage.get("input_tokens", 0) or 0)
             total_output += int(usage.get("output_tokens", 0) or 0)
+            # Anthropic native names — same shape as services/anthropic.py
+            # surfaces. F1 (2026-05-17): denormalize into execution_events
+            # via ReviewerOutput so slug-indexed reads see cache discount.
+            total_cache_read += int(usage.get("cache_read_input_tokens", 0) or 0)
+            total_cache_create += int(usage.get("cache_creation_input_tokens", 0) or 0)
 
             tool_uses = response.tool_uses or []
 
@@ -1240,6 +1265,17 @@ async def invoke_reviewer(
             "reasoning": reasoning,
             "confidence": confidence,
             "actions_taken": actions_taken,
+            # F1 telemetry pass-through (2026-05-17). The dispatcher reads
+            # these off and forwards into `record_execution_event` so the
+            # slug-indexed `execution_events` row carries cost/token data
+            # without re-querying `token_usage`. Authoritative ledger write
+            # remains the `record_token_usage` call above.
+            "input_tokens": total_input,
+            "output_tokens": total_output,
+            "cache_read_tokens": total_cache_read,
+            "cache_create_tokens": total_cache_create,
+            "model": model,
+            "tool_rounds": rounds_used,
         }
 
         # Under ADR-263's two-trigger model, reflection-shaped output fields
