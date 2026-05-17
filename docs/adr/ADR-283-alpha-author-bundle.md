@@ -69,9 +69,9 @@ alpha-author's instance of FOUNDATIONS Axiom 8 (Ground-Truth Substrate, per ADR-
 
 1. **Internal substrate coherence** (always present). The Reviewer's continuity audits across corpus are themselves the ground-truth signal. Detected contradictions, voice drift, broken arcs, stale framings. This signal exists from day one in any alpha-author workspace, regardless of audience or revenue presence.
 
-2. **Audience signal** (when present). Engagement deltas, subscriber cohort behavior, comment patterns, reply velocity. Flows from publishing-platform integrations declared in the bundle's capability menu (see D7).
+2. **Audience signal** (when present — *not from this bundle*). Engagement deltas, subscriber cohort behavior, comment patterns, reply velocity. The `_signal.md` *schema* accommodates this slice (frontmatter blocks declared in `corpus-coherence-rollup.md` spec), but the alpha-author bundle does **not** ship publishing-platform integrations to populate it. Operators who want audience-signal-populated `_signal.md` would do so via a different bundle that ships audience-side capabilities (e.g., a hypothetical future cadence-publishing bundle). See D7 archetype-shape distinction.
 
-3. **Revenue signal** (when present). MRR, churn, ARPU through Lemon Squeezy or equivalent. Inherits ADR-183 (Commerce Substrate) + ADR-184 (Product Health Metrics) mechanics natively.
+3. **Revenue signal** (when present — *not from this bundle*). MRR, churn, ARPU. The `_signal.md` *schema* accommodates this slice; alpha-author does not ship `read_commerce` integration. A commerce-bearing author bundle would inherit ADR-183 (Commerce Substrate) + ADR-184 (Product Health Metrics) mechanics natively when authored.
 
 The bundle's reference-workspace seeds all three signal types; workspace-level activation determines which are populated. A pre-monetization newsletter workspace exercises (1) + (2). A Netflix-screenplay workspace exercises (1) only until the script ships. A monetized paid-newsletter workspace exercises all three.
 
@@ -83,7 +83,7 @@ The instance-level filename + substrate shape is **deferred to a follow-up commi
 
 The architect (kvk) commits to activating `alpha-author` in two concrete personal workspaces:
 
-1. **`yarnnn-author` workspace** — founder content authoring (build-in-public posts, IR-adjacent narrative about YARNNN itself, LinkedIn/blog/newsletter cadence). Exercises: short-recurring publishing cadence, audience signal present (followers/subscribers), eventual revenue signal as YARNNN monetizes.
+1. **`yarnnn-author` workspace** — founder content authoring (build-in-public posts, IR-adjacent narrative, longform pieces about YARNNN's thesis and architecture). Drafts in operator-chosen environment (`.md` files, Notion staging — operator's call). Publishing back to LinkedIn / blog / X happens via operator's own platform UI; the alpha-author bundle does not commit to autonomous publishing. Exercises: medium-cadence corpus authorship, eventual external-outcome signal (citation, public response, narrative reception) routes into `_signal.md` sparse-event schema per the step 2 reframe.
 
 2. **`netflix-script-author` workspace** — screenplay authoring for a side-hobby project. Exercises: long-arc single-output cadence, revision-pulse rather than ship-pulse, no external audience until shipped, internal-coherence as sole ground-truth for the bulk of authoring time.
 
@@ -103,28 +103,30 @@ The Reviewer's seat in alpha-author workspaces is editor-shaped, distinct from a
 
 The persona occupying the seat is operator-authored per ADR-230 (Simons / Buffett / Deming / operator-character analog for alpha-trader maps to e.g. specific editor archetypes for alpha-author — could be a specific historical editor figure or operator-authored original). The seat structure is fixed; the persona is swappable. Two workspaces under one operator can run identical seat structure with distinct editor personas.
 
-### D7. Capability menu (permissive, not prescriptive)
+### D7. Capability menu — intentionally minimal (the archetype does not require external writes)
 
-alpha-author bundle declares a *menu* of useful capabilities in MANIFEST.yaml. Workspace-level activation determines which subset matters. Bundle does not force capability requirements at the bundle level — that's a workspace-shape concern.
+alpha-author's loop is *"author and audit a body of work that compounds."* The corpus *is* the operation. No external action is structurally required by the archetype — the operator drafts in their authorship environment of choice (Scrivener, Final Draft, plain text, Pages, Word, etc.), the Reviewer audits drafts at `/workspace/context/authored/{piece-slug}/content.md`, the operator iterates against the audit. Publishing-back-out (LinkedIn, X, newsletter-platform, Notion-page-write) is *operator-side platform usage*, not bundle-side commitment.
 
-Tentative menu (final list deferred to follow-up commit):
+This is the **archetype-shape distinction** from alpha-trader: alpha-trader requires `write_trading` because the loop *is* "submit order to broker." alpha-commerce requires `write_commerce` because the loop *is* "create product / issue refund." alpha-author's loop is corpus-shaped, not external-write-shaped. The substrate is the value; publishing is downstream of the substrate, not part of the architectural loop.
 
-**Kernel-side (inherited, no new code)**:
-- `read_slack` / `write_slack` (operator's own Slack, audience comms if applicable)
-- `read_notion` / `write_notion` (drafts, accumulated reading notes, corpus organization)
-- `write_email` (transactional sends, audience-facing emails via Resend)
-- `read_uploads` (operator-contributed documents, reference materials)
-- `websearch` (research, source-finding)
+**Capability menu** (intentionally minimal):
 
-**Bundle-declared additions (likely needed, code TBD per ADR-224 bundle-side capability pattern)**:
-- Expanded Notion writes (page creation + page update, not just comment). Currently `write_notion` is comment-only per the 2026-05-15 audit. Most-load-bearing capability gap. Likely a kernel extension once authored, not a bundle-private capability — generalizes beyond alpha-author.
-- Publishing-platform writes — at least one of (LinkedIn schedule-and-publish, X schedule-and-publish, newsletter-platform compose+send). Most-load-bearing for the `yarnnn-author` workspace; not needed for the `netflix-script-author` workspace.
-- `read_commerce` / `write_commerce` (inherited from alpha-commerce bundle pattern per ADR-183; gated on Lemon Squeezy connection if applicable to the workspace).
+- `read_uploads` — operator-contributed reference material (research notes, source materials, character bios, reference photos, interviews)
+- `websearch` — research / source-finding for the operator's lived attention
+- `write_notion` (kernel-inherited, comment-only) — the Reviewer may annotate drafts the operator stages in Notion. Comment-only is sufficient — the Reviewer surfaces audit findings as comments; the operator authors the edits.
 
-**Explicitly out-of-scope (for v1)**:
-- Calendar (was sunset per ADR-131; not load-bearing for alpha-author's core loop)
-- GitHub (irrelevant for most author workspaces; YARNNN-author workspace already has architect-level GitHub via direct cockpit, not bundle-needed)
-- Trading / DeFi / Prediction (off-archetype)
+That is the full menu. No publishing-platform writes. No audience-metrics integrations. No commerce reads or writes.
+
+**Explicitly out-of-archetype (NOT deferred — off-shape entirely):**
+- Notion page-write extension — would be drafting-environment integration. alpha-author's drafting environment is operator-chosen; the bundle does not impose Notion as the canonical drafting surface. Hypothetical future need belongs to a different bundle (e.g., a hypothetical `alpha-notion-author` if a real operator demands canonical Notion-drafting workflow).
+- Publishing-platform writes (LinkedIn / X / newsletter / blog auto-publish) — execution-archetype-shaped. The pitch "Reviewer audits, then auto-ships to your platform" is alpha-creator-shape (cadence-publishing), not alpha-author-shape (corpus-compounds). If a real cadence-publishing operator emerges, that's a different bundle.
+- Audience-metrics reads (LinkedIn engagement, X impressions, newsletter opens, web analytics) — same as above. Audience-signal slice of `_signal.md` (per D4) only populates for operators with bundles that integrate audience-side platforms. alpha-author runs internal-coherence-only by design; the multi-signal `_signal.md` schema accommodates future expansion *if a different bundle ships those capabilities*, but alpha-author does not commit to them.
+- Commerce reads/writes (`read_commerce`, `write_commerce`) — off-archetype. Revenue signal is a possible future ground-truth instance; integration belongs to a commerce-bearing-author bundle if one is ever authored, not to alpha-author.
+- Calendar — sunset per ADR-131 and irrelevant to authorship.
+- GitHub — irrelevant for most author workspaces.
+- Trading / DeFi / Prediction — off-archetype entirely.
+
+The discipline: **capability extensions are bundle-side commitments only when the archetype's operational loop requires the external action.** alpha-author's loop does not. The investment direction for this bundle is *substrate enrichment* (see roadmap step 2 reframe below), not capability extension.
 
 ### D8. Cockpit faces (program-specific composition per alpha-trader precedent)
 
@@ -169,20 +171,32 @@ No new ADR-shaped infrastructure required. alpha-author is the second concrete b
 
 This ADR ratifies scope. Implementation lands across multiple commits, each one its own discourse + ADR-or-amendment as needed.
 
-1. **Reference-workspace authoring** — `docs/programs/alpha-author/{MANIFEST,README,SURFACES}.yaml` + `docs/programs/alpha-author/reference-workspace/**`. Tier frontmatter (`tier: canon | authored | placeholder`) per ADR-226 may be applied to reference-workspace files as soft annotation, but note that the tier system is **operationally dissolved per ADR-261/262 Phase D.2** — `fork_reference_workspace` strips frontmatter and does not gate behavior on tier values anymore. The annotation remains useful as documentation of authorial intent for the operator-vs-bundle authorship boundary. Most substantive single commit. Decisions: instance-level ground-truth filename + substrate shape (D4 deferred), Reviewer principles starter set (D6 deferred), capability menu finalization (D7 deferred), cockpit faces (D8 deferred — see corrected framing above).
-2. **Capability extensions** — expanded Notion writes (kernel extension), publishing-platform writes (bundle-side or kernel — decided during commit). Code work in `api/integrations/core/` + `api/services/platform_tools.py`.
-3. **Cockpit face components** — `web/components/library/programs/alpha-author/Author{Mandate,Corpus,Voice,Pipeline}.tsx` per ADR-273 convention.
-4. **Persona registry update** — `docs/alpha/personas.yaml` gains `yarnnn-author` and `netflix-script-author` rows with `program: alpha-author`. Persona-specific override directories scaffolded.
-5. **Activation harness** — `activate_persona.py` smoke-test against alpha-author bundle. Validates fork mechanics, capability resolution, recurrence registration.
-6. **Dogfood activation** — kvk runs `activate_persona.py --persona yarnnn-author` and `--persona netflix-script-author` against the live workspace. First-wake observations recorded as `docs/alpha/observations/2026-XX-XX-adr283-alpha-author-*.md`.
+1. **Reference-workspace authoring** — `docs/programs/alpha-author/{MANIFEST,README,SURFACES}.yaml` + `docs/programs/alpha-author/reference-workspace/**`. Tier frontmatter (`tier: canon | authored | placeholder`) per ADR-226 may be applied to reference-workspace files as soft annotation, but note that the tier system is **operationally dissolved per ADR-261/262 Phase D.2** — `fork_reference_workspace` strips frontmatter and does not gate behavior on tier values anymore. The annotation remains useful as documentation of authorial intent for the operator-vs-bundle authorship boundary. Most substantive single commit. Decisions: instance-level ground-truth filename + substrate shape (D4 deferred), Reviewer principles starter set (D6 deferred), capability menu finalization (D7 deferred), cockpit faces (D8 deferred — see corrected framing above). **Shipped 2026-05-15 as commit `cb698c0`.**
+
+2. **Substrate enrichment for long-arc authorship** (reframed from "Capability extensions" — see Discovery note for the archetype-leakage correction). Three substrate enrichments, all YAML + prompts + recurrence files, no external platform integrations:
+   - **Entity-continuity substrate** — extend `context/authored/` schema with `_entities.md` (aggregate index) + per-entity sub-folders at `entities/{slug}.md` (parallel to alpha-trader's per-ticker pattern). Captures persistent characters / concepts / factual claims / established positions the Reviewer reads at continuity-audit time. Surfaces "character X said Y in chapter 3; chapter 11 has X saying ¬Y" as a structural continuity break, not just a textual one.
+   - **Revision-pulse recurrence** — add `revision-audit` as a peer to `pre-ship-audit` (long-arc workspaces iterate on a single artifact over months; `ready_for_review` reactive flag is the wrong primary loop for novel / screenplay / book shape). `revision-audit` fires on cadence-or-edit and compares current draft state against last week's revision per ADR-209 chain. Reviewer surfaces what changed, what continuity broke, what voice drifted between revisions.
+   - **Sparse external-outcome frontmatter schema** — extend `_signal.md` schema in `corpus-coherence-rollup.md` spec to accommodate sparse, episodic, deferred external outcomes (`manuscript_accepted_at`, `optioned_at`, `produced_at`, `published_at`, `cited_count`, `award_event` etc.). Schema is *ready* when those events arrive; no integration commits to fetch them.
+
+   Same tooling as step 1 (YAML schema, prompt drafting, recurrence YAML). No `api/integrations/`, no `api/services/platform_tools.py`, no Render env vars, no FE work. ~3-5 hours focused, single commit.
+
+3. **Cockpit face components** — `web/components/library/programs/alpha-author/Author{Mandate,Corpus,Voice,Pipeline}.tsx` per ADR-273 convention. FE component authoring. ~3-5 hours.
+
+4. **Persona registry update** — `docs/alpha/personas.yaml` gains `yarnnn-author` and `netflix-script-author` rows with `program: alpha-author`. Persona-specific override directories scaffolded. ~30 min mechanical.
+
+5. **Activation harness** — `activate_persona.py` smoke-test against alpha-author bundle. Validates fork mechanics, capability resolution, recurrence registration. ~1-2 hours debug + verify.
+
+6. **Dogfood activation** — kvk runs `activate_persona.py --persona yarnnn-author` and `--persona netflix-script-author` against the live workspace. First-wake observations recorded as `docs/alpha/observations/2026-XX-XX-adr283-alpha-author-*.md`. Ongoing dogfood thereafter.
 
 Each step is its own commit + (where architecturally consequential) own ADR. The roadmap is not committing to a timebox — depth-first authoring, not breadth-first.
+
+**Capability extensions are not on the roadmap.** Per D7 reframe + Discovery note, publishing-platform writes / audience-metrics reads / Notion page-write extension are off-archetype for alpha-author. Hypothetical future cadence-publishing or audience-bearing variants belong to *different bundles*, not alpha-author expansion. Singular Implementation per FOUNDATIONS Principle 7.
 
 ## What this ADR explicitly does not do
 
 - Does not declare alpha-author "implemented." Status is Proposed. Implementation is the roadmap above.
 - Does not specify instance-level filenames for ground-truth substrate. That decision lands when the reference-workspace is being authored end-to-end.
-- Does not commit to specific publishing-platform integrations (LinkedIn vs X vs newsletter-platform). That decision lands when capability extension work begins.
+- Does not commit to publishing-platform integrations at all. Per D7 reframe + Discovery note, publishing-platform writes are off-archetype for alpha-author. Hypothetical cadence-publishing variants are *different bundles*, not alpha-author capability extensions.
 - Does not finalize Reviewer principles. D6 lists categories; specific principles get authored during reference-workspace commits and refined through dogfood.
 - Does not modify alpha-trader bundle. alpha-trader is unchanged.
 - Does not amend kernel architecture. alpha-author is purely additive — new bundle under `docs/programs/`, no kernel touch.
@@ -190,7 +204,7 @@ Each step is its own commit + (where architecturally consequential) own ADR. The
 ## Status check
 
 - **Implementation effort (this ADR)**: scope-only, ~zero hours beyond drafting.
-- **Implementation effort (full roadmap)**: substantial. Reference-workspace authoring is the heaviest single commit. Capability extensions (especially Notion page-writes) are non-trivial. Cockpit face components are FE work proportional to alpha-trader's face component effort. Persona registry + activation harness are small.
+- **Implementation effort (full roadmap)**: moderate (smaller than originally estimated, post-Discovery note 2 reframe). Reference-workspace authoring (step 1, shipped) was the heaviest single commit. Substrate enrichment (step 2 reframed) is similar tooling — YAML + prompts + recurrence files, ~3-5 hours. Cockpit face components (step 3) are FE work proportional to alpha-trader's face component effort. Persona registry + activation harness + dogfood are small.
 - **Risk**: low at the scope-ratification level (this ADR). Implementation risk is normal-engineering-shaped, with the substrate-continuity archetype's slower-feedback-loop being the main novelty to be honest about (the bundle's value won't be felt in a single dogfood session).
 - **Blocks on**: ADR-282 (Axiom 8 rename) must land first.
 - **Unblocks**: alpha-author reference-workspace authoring + subsequent roadmap steps.
@@ -213,5 +227,36 @@ This ADR was patched in place on 2026-05-15 after a codebase audit verified 11 o
 - **D2 caveat added** — Tier frontmatter (`tier: canon | authored | placeholder`) per ADR-226 still parses in reference-workspace files but is operationally dissolved per ADR-261/262 Phase D.2 — `fork_reference_workspace` strips frontmatter and does not gate behavior on tier values. Annotation remains useful as authorial-intent documentation but is not load-bearing on activation behavior.
 
 Other audited claims (bundle structure, activation path, persona registry with `program:` field, recurrences + preferences shape, capability specs convention, Notion-write-comment-only, tasks table state, ADR-282 cascade landed) all verified clean. No other ADR-283 claims require correction.
+
+This patch supersedes the affected sections in place per Singular Implementation. No v1/v2; the corrected text is the ADR.
+
+## Discovery note 2 — archetype-leakage correction (2026-05-17)
+
+This ADR was patched a second time on 2026-05-17 after step 1 (reference-workspace authoring) shipped and a discourse round on step 2 scope surfaced an archetype-leakage drift in the original D7 + roadmap step 2.
+
+**The drift**: original D7 listed a permissive capability menu including Notion page-write extension, LinkedIn / X / newsletter publishing-platform writes, commerce reads/writes, and email writes — all under `dependencies.lean` for ADR-283 step 2 to extend. Original roadmap step 2 was framed as "Capability extensions." During discourse, the operator named that this scoping was *creator-archetype-shaped*, not *true-author-archetype-shaped*:
+
+> *"My understanding for the author archetype was that it was closer to a true author not a short term LinkedIn, or Notion like narration, and thus, long-standing almost like writing a Netflix series or book wouldn't have the requirements or framing of the capabilities that you've proposed."*
+
+This was correct. The true-author archetype's loop is **"author and audit a body of work that compounds."** The corpus *is* the operation; the operator drafts in their authorship environment of choice; the Reviewer audits drafts at `/workspace/context/authored/{piece-slug}/content.md`. No external action is structurally required by the archetype. Publishing-back-out is *operator-side platform usage*, not bundle-side architectural commitment.
+
+The archetype-shape distinction from alpha-trader is now crisp:
+- alpha-trader's loop *is* "submit order to broker" → `write_trading` is bundle-required
+- alpha-commerce's loop *is* "create product / issue refund" → `write_commerce` is bundle-required
+- alpha-author's loop *is* "audit a body of work that compounds" → **zero external writes are bundle-required**
+
+The kernel/program boundary (ADR-222 + ADR-224) was designed for exactly this. The kernel commits to generic substrate primitives; the bundle commits to archetype-specific substrate *templates*. Platform-write capabilities are bundle-side commitments *only when the archetype's operational loop requires external action*. alpha-author's loop does not.
+
+**The corrections in this second patch**:
+
+- **D7 reframed entirely** — capability menu collapses to three minimal entries (`read_uploads`, `websearch`, `write_notion` comment-only). All previously-listed `dependencies.lean` capabilities (Notion page-write, LinkedIn, X, newsletter, commerce, email) explicitly moved to "out-of-archetype" — *not deferred, off-shape*. Hypothetical future cadence-publishing or audience-bearing variants belong to *different bundles* per Singular Implementation, not alpha-author expansion.
+- **D4 sharpened** — audience-signal and revenue-signal slices of `_signal.md` remain in the schema for future-bundle accommodation, but alpha-author does not ship the integrations to populate them. The bundle runs internal-coherence-only by design.
+- **D5 softened** — `yarnnn-author` dogfood description no longer promises LinkedIn cadence; operator publishes to their own platforms via their own UI.
+- **Roadmap step 2 reframed entirely** — from "Capability extensions" to "Substrate enrichment for long-arc authorship." Three substrate enrichments: entity-continuity substrate (`_entities.md` + per-entity sub-folders), revision-pulse recurrence (`revision-audit` peer of `pre-ship-audit` for long-arc workspaces), sparse external-outcome frontmatter schema in `_signal.md` (manuscript_accepted_at, optioned_at, published_at, cited_count etc.). Same tooling as step 1 — YAML, prompts, recurrence files. No external integrations.
+- **MANIFEST.yaml** patched in same commit — `dependencies.lean` capability/tool list deleted; replaced with explanatory comment citing this discovery note.
+
+**Architectural takeaway**: the kernel/program boundary lets archetype-specific scaffolding stay archetype-specific *without* leaking generic capability assumptions across archetypes. The original D7 + step 2 framing was leaking creator-archetype assumptions into author-archetype work. The correction isn't a different capability set; it's recognizing that capabilities aren't the load-bearing direction for this archetype at all. Substrate is.
+
+The substrate-continuity archetype has more **architectural surface than execution surface**. The value-creating work is in substrate quality (`_voice.md`, `_editorial.md`, `_signal.md`, `_entities.md`, principles calibration), not in writes. Bundle investment for this archetype goes into substrate templates + Reviewer-prompt patterns + recurrence patterns, not into platform integrations.
 
 This patch supersedes the affected sections in place per Singular Implementation. No v1/v2; the corrected text is the ADR.

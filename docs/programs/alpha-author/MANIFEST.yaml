@@ -54,21 +54,20 @@ dependencies:
     - adr: ADR-283          # alpha-author bundle scope-lock
     - capability: read_uploads
     - capability: websearch
-  lean:
-    # Capability extensions deferred to ADR-283 roadmap step 2.
-    # Bundle's reference-workspace authoring (step 1) ships without these;
-    # step 2 ships them as kernel-side extensions (Notion page-write)
-    # and bundle-side platform integrations (publishing-platform writes).
-    - capability: write_notion_pages       # extend write_notion beyond comment-only (current state)
-    - capability: write_linkedin_post      # not yet implemented
-    - capability: write_x_post             # not yet implemented
-    - capability: write_newsletter         # newsletter-platform-agnostic; ConvertKit/Beehiiv/Substack candidate
-    - capability: read_commerce            # ADR-183 — for revenue-signal slice of _signal.md
-    - capability: write_commerce           # ADR-183 — for cross-posting commerce-side actions
-    - capability: read_email               # for newsletter analytics where API exists (Resend)
-    - tool: notion_create_page             # exists in services/platform_tools.py audit; needs to be added
-    - tool: notion_update_page             # same
-    - tool: notion_append_block            # same
+    - capability: write_notion             # kernel-inherited, comment-only — Reviewer may annotate operator's Notion drafts; page-write extension is off-archetype per ADR-283 D7
+  lean: []
+    # ADR-283 Discovery note 2 (2026-05-17): the original `dependencies.lean`
+    # list of platform-write capability extensions (write_notion_pages,
+    # write_linkedin_post, write_x_post, write_newsletter, read_commerce,
+    # write_commerce, read_email) was archetype-leakage — creator-archetype
+    # capability assumptions imported into true-author-archetype bundle work.
+    # Removed entirely. alpha-author's loop is "author and audit a body of
+    # work that compounds." The corpus IS the operation; the operator drafts
+    # in their authorship environment of choice; publishing-back-out is
+    # operator-side platform usage, not bundle-side architectural commitment.
+    # Hypothetical cadence-publishing or audience-bearing variants belong to
+    # DIFFERENT BUNDLES per Singular Implementation, not alpha-author
+    # expansion. See ADR-283 D7 + Discovery note 2 for the full reasoning.
 
 context_domains:
   - path: authored
