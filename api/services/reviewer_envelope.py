@@ -50,6 +50,8 @@ from typing import Any, Awaitable
 from services.workspace_paths import (
     REVIEW_IDENTITY_PATH,
     REVIEW_PRINCIPLES_PATH,
+    REVIEW_OCCUPANT_PATH,
+    REVIEW_STANDING_INTENT_PATH,
     SHARED_PRECEDENT_PATH,
     SHARED_MANDATE_PATH,
     SHARED_AUTONOMY_PATH,
@@ -67,12 +69,20 @@ logger = logging.getLogger(__name__)
 # This list is the kernel side. Each entry: (key, workspace-relative-path).
 
 _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
+    # — Governance (Persona + Framework class) —
     ("identity_md", REVIEW_IDENTITY_PATH),
     ("principles_md", REVIEW_PRINCIPLES_PATH),
     ("precedent_md", SHARED_PRECEDENT_PATH),
     ("mandate_md", SHARED_MANDATE_PATH),
     ("autonomy_md", SHARED_AUTONOMY_PATH),
     ("preferences_yaml", SHARED_PREFERENCES_PATH),
+    # — Seat Occupant (ADR-284) — current occupant identity, runtime-truth-aligned
+    ("occupant_md", REVIEW_OCCUPANT_PATH),
+    # — Standing Intent (ADR-284) — what the Reviewer was watching for last cycle.
+    # The Reviewer reads this on every wake, compares against current world state,
+    # and updates it before standing down. The substrate counterpart to a no-fire
+    # judgment is an updated standing_intent.md.
+    ("standing_intent_md", REVIEW_STANDING_INTENT_PATH),
 ]
 
 
@@ -101,6 +111,8 @@ async def load_reviewer_governance_envelope(
       - mandate_md           → /workspace/context/_shared/MANDATE.md
       - autonomy_md          → /workspace/context/_shared/AUTONOMY.md
       - preferences_yaml     → /workspace/context/_shared/_preferences.yaml
+      - occupant_md          → /workspace/review/OCCUPANT.md            (ADR-284)
+      - standing_intent_md   → /workspace/review/standing_intent.md     (ADR-284)
 
     Program-shaped envelope (read from active bundle's MANIFEST per ADR-281
     D2): substrate paths declared in `substrate_abi.reviewer_wake_envelope`.

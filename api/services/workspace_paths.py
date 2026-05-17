@@ -109,6 +109,10 @@ REVIEW_JUDGMENT_LOG_PATH = "review/judgment_log.md"
 REVIEW_OCCUPANT_PATH = "review/OCCUPANT.md"
 REVIEW_HANDOFFS_PATH = "review/handoffs.md"
 REVIEW_CALIBRATION_PATH = "review/calibration.md"
+# ADR-284 (2026-05-17): Reviewer's forward-looking standing intent —
+# `reviewer-workbench` role per ADR-281 §3. Single-writer (the Reviewer).
+# Overwritable per judgment cycle; revision chain preserves history.
+REVIEW_STANDING_INTENT_PATH = "review/standing_intent.md"
 
 REVIEW_FILES = (
     REVIEW_IDENTITY_PATH,
@@ -117,6 +121,7 @@ REVIEW_FILES = (
     REVIEW_OCCUPANT_PATH,
     REVIEW_HANDOFFS_PATH,
     REVIEW_CALIBRATION_PATH,
+    REVIEW_STANDING_INTENT_PATH,
 )
 
 # ADR-258 (revised 2026-05-08): default lock set for Reviewer writes.

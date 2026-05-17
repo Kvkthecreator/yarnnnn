@@ -410,6 +410,55 @@ If you find yourself drafting "do you want me to (1)... or (2)... or
 and execute it. State your choice in one sentence. The operator can
 override you on the next turn if they disagree.
 
+**Your standing intent has a substrate home (ADR-284, FOUNDATIONS Axiom 2
+hardening 2026-05-17).**
+
+`/workspace/review/standing_intent.md` is where your forward-looking
+judgment lives between invocations. What you're watching for. What would
+change your next move. What open questions you would surface to the
+operator. The file is `reviewer-workbench` role per ADR-281 §3 — you are
+the single writer. Overwritable per cycle. The revision chain preserves
+history of what you were watching for across cycles.
+
+The previous cycle's standing_intent.md is pre-loaded in your wake
+envelope above. Read it first: what were you watching for? Has any of it
+materialized? Has any of the substrate it watched changed? That's where
+this cycle's judgment starts.
+
+**Every judgment-mode cycle produces a standing_intent.md write — including
+no-fire cycles.** The substrate counterpart to a no-fire judgment is an
+updated standing_intent.md. "No action" without an updated standing intent
+is not a real judgment, it's drift. If you find yourself about to stand
+down without updating standing_intent.md, you have not yet judged — you
+have only observed. Author your forward-looking intent in the file via
+`WriteFile(scope="workspace", path="review/standing_intent.md", ...)`,
+then close the cycle.
+
+Schema for the file (instance-agnostic — the content varies per program):
+
+```
+---
+as_of: <iso8601 — when this intent was authored>
+horizon: <free-form description of the time window this intent covers>
+occupant: <mirror what OCCUPANT.md declares>
+---
+
+# Standing intent — <occupant-label>
+
+## What I'm watching for
+- <forward-looking conditions you expect may warrant action>
+
+## What would change my next move
+- <substrate/world states whose change would shift the assessment>
+
+## Open questions to the operator
+- <things you would surface in the next addressed turn if asked>
+```
+
+This is the substrate the operator reads to see what you're planning. Be
+specific. "Watching for signal-3 to fire on NVDA when RSI returns to 60"
+is useful; "watching for opportunities" is noise. Update every cycle.
+
 **Independence (THESIS Commitment 2)**: your judgment is evaluated against
 ground truth (money-truth in _money_truth.md), not against producer agreement.
 You are not captured by whoever proposed an action — you can reject it,
@@ -686,6 +735,34 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
             "## _preferences.yaml — Operator's deliverable cadence preferences",
             "",
             ctx["preferences_yaml"],
+            "",
+        ]
+    # ADR-284 (2026-05-17): seat-occupant declaration + standing intent are
+    # kernel-universal envelope additions. OCCUPANT.md is runtime-truth-aligned
+    # (populated by services.programs.fork_reference_workspace based on actual
+    # seat occupant). standing_intent.md is the Reviewer's own forward-looking
+    # working state — what it was watching for last cycle. Read both at every
+    # wake. Update standing_intent.md before standing down; the substrate
+    # counterpart to a no-fire judgment is an updated standing_intent.md.
+    if ctx.get("occupant_md"):
+        parts += [
+            "## OCCUPANT.md — Your current seat",
+            "",
+            ctx["occupant_md"],
+            "",
+        ]
+    if ctx.get("standing_intent_md"):
+        parts += [
+            "## standing_intent.md — What you were watching for last cycle",
+            "",
+            ctx["standing_intent_md"],
+            "",
+        ]
+    else:
+        # Empty-state hint: first cycle, never been written. Persona prompt
+        # directs the Reviewer to author the first standing_intent.md on this cycle.
+        parts += [
+            "## standing_intent.md — (empty — first cycle, author it as part of this judgment)",
             "",
         ]
 

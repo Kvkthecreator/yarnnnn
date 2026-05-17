@@ -6,6 +6,36 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.17.1] - feat(adr-284 phase 1): standing intent + OCCUPANT envelope additions; Reviewer persona extended
+
+### Changed
+- `api/services/workspace_paths.py`: added `REVIEW_STANDING_INTENT_PATH = "review/standing_intent.md"` constant; included in `REVIEW_FILES` tuple
+- `api/services/reviewer_envelope.py`: imported `REVIEW_OCCUPANT_PATH` and `REVIEW_STANDING_INTENT_PATH`; added two entries to `_UNIVERSAL_ENVELOPE_DECLS` (occupant_md + standing_intent_md), growing kernel-universal envelope from 6 to 8 entries; docstring documents the new kernel-universal entries with ADR-284 citation
+- `api/agents/reviewer_agent.py::_build_user_message`: renders the two new envelope keys with section headings (`## OCCUPANT.md — Your current seat`, `## standing_intent.md — What you were watching for last cycle`); includes empty-state hint for the first cycle when standing_intent.md hasn't been written yet
+- `api/agents/reviewer_agent.py::_PERSONA_FRAME`: added new section "Your standing intent has a substrate home" — names `/workspace/review/standing_intent.md`, the file schema, the role (`reviewer-workbench`), the every-cycle write contract (including no-fire cycles), and the operator-facing semantic ("be specific" guidance). Cites ADR-284 + FOUNDATIONS Axiom 2 hardening 2026-05-17.
+- `api/services/programs.py::fork_reference_workspace`: added post-fork call to new `_populate_occupant_for_runtime` helper that writes OCCUPANT.md with runtime occupant identity (`ai:reviewer-sonnet-v8` for current alpha state) + `delegation_charter` block + `system:occupant-fork` attribution per ADR-209
+- `api/services/programs.py::_populate_occupant_for_runtime` (new): runtime-truth-aligned OCCUPANT.md population. Pre-ADR-284 the bundle template shipped `occupant_class: human` regardless of actual runtime occupant — produced substrate-runtime drift in alpha workspaces where AI ran the seat.
+
+### Expected behavior
+- Every Reviewer wake now perceives OCCUPANT.md (who am I) + standing_intent.md (what was I watching for last cycle) as part of the kernel-universal envelope, without per-bundle declaration.
+- The Reviewer's persona prompt directs it to update standing_intent.md as part of every judgment cycle — including no-fire cycles. This closes the load-bearing canon gap that pre-ADR-284 declared Agents hold standing intent without giving standing intent a substrate home.
+- New bundle activations (or re-forks of existing workspaces) produce OCCUPANT.md with the AI runtime occupant identity instead of the hardcoded `human` template default. Closes the substrate-runtime Axiom 2 drift surfaced by the 2026-05-17 audit on kvk's alpha-trader-2.
+- Existing workspaces will not automatically get the OCCUPANT update — bundle re-fork is operator-initiated to preserve operator-canon. Standing_intent.md only materializes on the next Reviewer judgment-mode cycle (Phase 2 bundle prompt amendments make the write contract load-bearing in the recurrence prompts).
+
+### Sibling-gate regression
+- ADR-281 envelope path-only: 34/34 green
+- ADR-274 trigger authoring: 16/16 green
+- F1 telemetry pass-through: 7/7 green
+- ADR-284 Phase 1 (this entry): 18/18 green
+
+### References
+- ADR-284 D8 (implementation surface)
+- FOUNDATIONS Axiom 2 hardening 2026-05-17 (Standing intent has a substrate home)
+- GLOSSARY new `Standing intent` entry + sharpened `OCCUPANT.md` entry
+- `docs/architecture/reviewer-substrate.md` standing_intent.md section
+
+---
+
 ## [2026.05.15.5] - fix(adr-281): substrate-time computation; ENVELOPE_SUMMARIZERS dissolved; bundle ships MirrorSignalState
 
 ### Background

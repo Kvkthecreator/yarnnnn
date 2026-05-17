@@ -221,11 +221,19 @@ This clause makes explicit what was previously implied across ADR-194 v2 D6 ("Re
 Per Axiom 1, identity is carried by substrate, not held in code:
 
 - **YARNNN orchestration surface** — `/workspace/memory/awareness.md`, `/workspace/memory/_playbook.md`, `/workspace/memory/style.md`, `/workspace/memory/notes.md` as orchestration accumulation; there is intentionally no workspace-authored YARNNN persona file
-- **Reviewer's identity** — `/workspace/review/IDENTITY.md` + `OCCUPANT.md` (declares current seat occupant) + `principles.md` + `decisions.md` + `handoffs.md` + `calibration.md`; it reasons within delegation declared at `/workspace/context/_shared/AUTONOMY.md`
+- **Reviewer's identity** — `/workspace/review/IDENTITY.md` + `OCCUPANT.md` (declares current seat occupant — runtime-truth-aligned per ADR-284, not template-default) + `principles.md` + `standing_intent.md` (forward-looking working state per ADR-284, `reviewer-workbench` role) + `judgment_log.md` (system-ledger lineage per ADR-281 §5) + `handoffs.md` + `calibration.md`; it reasons within delegation declared at `/workspace/context/_shared/AUTONOMY.md`
 - **User-authored Agent identity** — `/agents/{slug}/AGENT.md` + accumulated domain context
 - **Future systemic Agent identity** — `/workspace/{role}/IDENTITY.md` + role-specific substrate
 
 A file without a declared author identity is an Axiom 2 violation. An Agent acting without a resolvable identity is a bug. Orchestration, by contrast, does not author files in its own name — writes done through the Orchestrator carry the identity of the invoking principal (operator, YARNNN feed surface, Reviewer, user-authored Agent, or `system:*` for mechanical back-office work).
+
+### Standing intent has a substrate home (ADR-284, 2026-05-17)
+
+Every persona-bearing Agent's forward-looking standing intent lives in a `reviewer-workbench`-role substrate file. For the Reviewer seat the canonical path is `/workspace/review/standing_intent.md`; for future systemic Agents the same canon applies at `/workspace/{role}/standing_intent.md`; for user-authored domain Agents at `/agents/{slug}/standing_intent.md` (deferred per ADR-284 D10).
+
+This closes a load-bearing gap. Canon already declared (Axiom 2 above, Axiom 4 + Derived Principle 18) that Agents hold standing intent on behalf of a principal. Axiom 1's third sub-clause requires every kind of state the Reviewer reasons about to live in substrate. Standing intent is a kind of state. Therefore standing intent must live in substrate. Pre-ADR-284 there was no substrate file for it — the Agent's forward-looking judgment lived only in the LLM's context window between invocations, which is precisely the Axiom 1 §4 violation ("substrate is the bus the runtime Loop runs over") that hardening explicitly prohibits.
+
+The file's contract: single-writer (the Agent itself), overwritable per judgment cycle, revision chain (ADR-209) preserves history, never locked from the Agent + always locked from operator/system per `reviewer-workbench` role semantics. Schema is instance-agnostic (frontmatter + three section headings: *What I'm watching for* / *What would change my next move* / *Open questions to the operator*); content varies per program. Every judgment-mode invocation produces a `standing_intent.md` write — including no-fire cycles. The substrate counterpart to a no-fire judgment is an updated standing_intent.md.
 
 ### Development axes — Agents develop, Orchestration does not
 

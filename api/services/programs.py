@@ -122,6 +122,87 @@ def _bundle_root_dir(program_slug: str) -> Path:
     )
 
 
+async def _populate_occupant_for_runtime(um: Any, program_slug: str) -> None:
+    """ADR-284 D3: write OCCUPANT.md with runtime-truth-aligned occupant identity.
+
+    Pre-ADR-284 the bundle template shipped `occupant_class: human` as a
+    hardcoded default. This produced substrate-runtime drift in alpha
+    workspaces where AI ran the seat — OCCUPANT.md said "human" but every
+    judgment-mode fire was attributed `reviewer:ai:reviewer-sonnet-v8`.
+
+    Current alpha state: AI is the runtime occupant on every workspace. The
+    fork populates OCCUPANT.md with the AI occupant identity, including a
+    `delegation_charter` block that mirrors AUTONOMY.md's delegation level at
+    the seat level (so the Reviewer can perceive at every wake what it's
+    authorized to do without operator presence).
+
+    Future shape (deferred per ADR-284 D10): when explicit human-occupant
+    activation lands as an operator-UX option, this function branches on the
+    activation-time signal. For now, AI is the structural default.
+
+    Written through UserMemory.write with authored_by="system:occupant-fork"
+    per ADR-209 attribution.
+    """
+    from datetime import datetime, timezone
+
+    # Import locally to avoid circular dependency at module load.
+    from agents.reviewer_agent import REVIEWER_MODEL_IDENTITY
+
+    activated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    # REVIEWER_MODEL_IDENTITY is "ai:reviewer-sonnet-v8" (prefix included);
+    # the occupant field uses the same string for symmetry with the
+    # authored_by attribution surfaced in workspace_file_versions.
+    occupant_body = f"""---
+occupant: {REVIEWER_MODEL_IDENTITY}
+occupant_class: ai
+activated_at: {activated_at}
+activated_by: system:bundle-fork
+delegation_charter:
+  source: /workspace/context/_shared/AUTONOMY.md
+  posture: read AUTONOMY.md at every wake; render verdicts within declared ceiling
+config: {{}}
+---
+
+# Review Seat — Current Occupant (ADR-284 runtime-truth-aligned)
+
+This file declares who currently fills the Reviewer seat. The seat is the
+architectural role (see `IDENTITY.md`); the **occupant** is who fills it
+right now. Per FOUNDATIONS Derived Principle 14, the seat persists and the
+occupant rotates.
+
+The current occupant is **AI** (`{REVIEWER_MODEL_IDENTITY}`), populated by
+`services.programs.fork_reference_workspace` at bundle-activation time per
+ADR-284 D3. This was the structural default for every alpha-{program_slug}
+workspace at activation — the operator delegated the seat to the AI to run
+in their absence per FOUNDATIONS Axiom 2 v8.4 ("operator-as-Reviewer is the
+personified AI agent rendering the operator's judgment function in the
+human's absence").
+
+The `delegation_charter` block above names what this AI occupant is
+authorized to do: read AUTONOMY.md at every wake, render verdicts within
+the operator's declared ceiling. The operator can always override via the
+Queue. Rotation is a substrate write (edit the `occupant:` field via chat
+with YARNNN, or by direct edit through the cockpit); each rotation appends
+to `handoffs.md`.
+
+Occupant-class taxonomy:
+- `human:<user_id>` — the operator via approval UX (future activation shape)
+- `ai:<model>-<version>` — current alpha state
+- `external:<service>-<identifier>` — an external AI service via adapter
+- `impersonated:<admin>-as-<persona>` — admin alpha-stress-testing
+"""
+    await um.write(
+        "review/OCCUPANT.md",
+        occupant_body,
+        summary=f"OCCUPANT runtime-population for {program_slug} (ADR-284)",
+        authored_by="system:occupant-fork",
+        message=(
+            f"populated OCCUPANT.md with runtime occupant identity "
+            f"({REVIEWER_MODEL_IDENTITY}) per ADR-284 D3"
+        ),
+    )
+
+
 async def fork_reference_workspace(
     client: Any, user_id: str, program_slug: str
 ) -> dict[str, Any]:
@@ -230,6 +311,20 @@ async def fork_reference_workspace(
         else:
             files_skipped.append(target_path)
             logger.info(f"[FORK] {target_path} — skipped (operator-customized)")
+
+    # ADR-284 (2026-05-17): Reviewer seat-occupant runtime-truth alignment.
+    # Pre-ADR-284 the bundle always shipped OCCUPANT.md with
+    # `occupant_class: human` — produced substrate-runtime drift in alpha
+    # workspaces where AI ran the seat. Post-fork we overwrite the bundle's
+    # template-shaped OCCUPANT.md with runtime occupant identity. Current
+    # alpha state: AI is the runtime occupant on every workspace.
+    # Future-shape (deferred): explicit human-occupant declaration honored
+    # at activation time via operator UX; the kernel branches here.
+    occupant_path = "review/OCCUPANT.md"
+    if occupant_path in files_written or occupant_path in files_skipped:
+        await _populate_occupant_for_runtime(um, program_slug)
+        if occupant_path not in files_written:
+            files_written.append(occupant_path)
 
     # Materialize the scheduling index when the fork touched the canonical
     # recurrences YAML. The YAML is truth (ADR-261 D3); the `tasks` table is

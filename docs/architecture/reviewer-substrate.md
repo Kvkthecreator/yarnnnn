@@ -81,7 +81,23 @@ The Reviewer dispatcher reads AUTONOMY.md at the start of every verdict renderin
 
 AUTONOMY.md sits outside the six seat files because seat rotation must not touch it; delegation is operator-to-role, not operator-to-occupant.
 
-### `decisions.md` — append-only verdict trail
+### `standing_intent.md` — forward-looking working state (ADR-284, 2026-05-17)
+
+The Reviewer's forward-looking judgment substrate. *What is the Reviewer watching for?* *What would change its next move?* *What open questions would it surface to the operator?* Read at every wake (kernel-universal envelope addition per ADR-284 + ADR-285). Updated at every judgment-mode cycle — including no-fire cycles, because the substrate counterpart to a no-fire judgment is an updated standing_intent.md.
+
+Schema is instance-agnostic (frontmatter + three section headings: *What I'm watching for* / *What would change my next move* / *Open questions to the operator*); content varies per program. Single-writer (the Reviewer itself). Overwritable per cycle; the revision chain (ADR-209) preserves history of what the seat was watching for across cycles, queryable via `ListRevisions` + `ReadRevision` + `DiffRevisions`.
+
+`reviewer-workbench` role per ADR-281 §3 six-role taxonomy — peer to `notes.md` and `working/`. **Not** `system-ledger` (that role is single-writer infrastructure-rendered append-only; standing_intent is Reviewer-authored and overwritable).
+
+This file closes the load-bearing canon gap that pre-ADR-284 declared the Reviewer "holds standing intent on behalf of a principal" (Axiom 2) without giving standing intent a substrate home. Same canon applies to future systemic Agents (Auditor at `/workspace/auditor/standing_intent.md`, etc.) and to user-authored domain Agents (`/agents/{slug}/standing_intent.md`, deferred per ADR-284 D10).
+
+*Written by*: the occupant currently filling the seat, at every judgment cycle.
+
+### `judgment_log.md` — append-only verdict + material-outcome lineage (post-ADR-281 §5)
+
+> **Vocabulary note (ADR-281, 2026-05-15)**: `decisions.md` was renamed to `judgment_log.md` and tightened to a single-writer contract gated by the 5-condition material-outcome gate. The rest of this section's prose still refers to `decisions.md` in places where ADR-281's cascade pass didn't reach; substitute `judgment_log.md` everywhere. Targeted prose cleanup is a separate scope-discipline commit.
+
+### `decisions.md` (renamed to `judgment_log.md` per ADR-281) — append-only verdict trail
 
 The canonical judgment trail. Every verdict the seat renders, regardless of occupant, appends one entry here. No sibling table, no audit log elsewhere — this file is the audit.
 
