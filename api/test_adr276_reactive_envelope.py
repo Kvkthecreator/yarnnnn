@@ -125,7 +125,7 @@ def test_helper_return_shape() -> None:
     expected_envelope_keys = {
         "identity_md", "principles_md", "precedent_md", "mandate_md",
         "autonomy_md", "preferences_yaml",
-        "operator_profile_md", "risk_md", "performance_md",
+        "operator_profile_md", "risk_md", "ground_truth_md",
         "signal_files",
     }
 
@@ -183,7 +183,7 @@ def test_feed_route_uses_shared_helper() -> None:
     inline_tuple = (
         "        (\n            identity_md, principles_md, precedent_md, mandate_md,\n"
         "            autonomy_md, preferences_yaml,\n"
-        "            operator_profile_md, risk_md, performance_md,\n        ) = await"
+        "            operator_profile_md, risk_md, ground_truth_md,\n        ) = await"
     )
     if inline_tuple not in src:
         _ok("feed.py no longer has the inline 9-file gather tuple")

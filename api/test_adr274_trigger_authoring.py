@@ -193,37 +193,45 @@ def test_build_user_message_injects_operating_context() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 6. Reviewer dispatch loop auto-tags Schedule calls with reviewer identity
+# 6. Reviewer wake builds auth with caller_identity="reviewer:..."
 # ---------------------------------------------------------------------------
+# ADR-274 D5 invariant preserved by ADR-288 D1: Schedule writes from the
+# Reviewer wake are attributed to the Reviewer Identity. Pre-ADR-288 the
+# dispatch loop injected per-call; post-ADR-288 the auth namespace carries
+# caller_identity at construction time and the Schedule primitive defaults
+# authored_by from auth.caller_identity (ADR-288 D2). One declaration site.
 
-def test_reviewer_dispatch_injects_reviewer_authored_by() -> None:
+def test_reviewer_auth_carries_reviewer_caller_identity() -> None:
     import agents.reviewer_agent as mod
     src = inspect.getsource(mod)
-    needle = 'name == "Schedule"'
-    inj = '"authored_by": f"reviewer:{REVIEWER_MODEL_IDENTITY}"'
-    # We accept the substring even within an f-string assignment shape
-    inj_alt = 'authored_by": f"reviewer:'
-    if needle in src and (inj in src or inj_alt in src):
-        _ok("Reviewer dispatch loop injects reviewer-authored authored_by on Schedule")
+    inj = 'caller_identity=f"reviewer:{REVIEWER_MODEL_IDENTITY}"'
+    if inj in src:
+        _ok("Reviewer auth carries caller_identity='reviewer:...' (ADR-288 D1)")
     else:
         _bad(
-            "Reviewer dispatch Schedule injection",
-            f'Expected `name == "Schedule"` + reviewer authored_by pattern',
+            "Reviewer auth caller_identity",
+            f'Expected `{inj}` in SimpleNamespace construction',
         )
 
 
 # ---------------------------------------------------------------------------
-# 7. YARNNN tool_executor injects authored_by="operator" for Schedule
+# 7. YARNNN auth defaults caller_identity="operator"
 # ---------------------------------------------------------------------------
+# ADR-274 D5 invariant preserved by ADR-288 D1: Schedule writes from
+# YARNNN-mediated chat are attributed to the operator. Pre-ADR-288 the
+# tool_executor injected per-call; post-ADR-288 the AuthenticatedClient
+# dataclass defaults caller_identity="operator" (the only path that
+# constructs AuthenticatedClient via FastAPI dep is the operator JWT
+# handler — the operator hit the API).
 
-def test_yarnnn_tool_executor_injects_operator_authored_by() -> None:
-    src = (ROOT / "agents" / "yarnnn.py").read_text()
-    if 'tool_name == "Schedule"' in src and '"authored_by": "operator"' in src:
-        _ok("YARNNN tool_executor injects authored_by='operator' for Schedule")
+def test_authenticated_client_defaults_operator_caller_identity() -> None:
+    src = (ROOT / "services" / "supabase.py").read_text()
+    if 'caller_identity: str = "operator"' in src:
+        _ok("AuthenticatedClient defaults caller_identity='operator' (ADR-288 D1)")
     else:
         _bad(
-            "YARNNN tool_executor injection",
-            'Expected tool_name == "Schedule" + "authored_by": "operator"',
+            "AuthenticatedClient caller_identity default",
+            'Expected `caller_identity: str = "operator"` in AuthenticatedClient dataclass',
         )
 
 
@@ -329,8 +337,8 @@ def main() -> int:
     test_reviewer_persona_includes_cadence_authoring()
     test_reviewer_context_has_operating_context_field()
     test_build_user_message_injects_operating_context()
-    test_reviewer_dispatch_injects_reviewer_authored_by()
-    test_yarnnn_tool_executor_injects_operator_authored_by()
+    test_reviewer_auth_carries_reviewer_caller_identity()
+    test_authenticated_client_defaults_operator_caller_identity()
     test_execution_router_pause_resume_authored_by()
     test_invocation_dispatcher_wires_operating_context()
     test_feed_route_wires_operating_context()

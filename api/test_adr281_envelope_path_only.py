@@ -277,7 +277,7 @@ def test_envelope_returns_program_keys_for_alpha_trader_workspace():
         load_reviewer_governance_envelope(_MockClient(), "test-trading-user")
     )
     expected_program_keys = {
-        "operator_profile_md", "risk_md", "performance_md", "signal_files",
+        "operator_profile_md", "risk_md", "ground_truth_md", "signal_files",
     }
     assert expected_program_keys.issubset(envelope.keys())
 
