@@ -1,6 +1,6 @@
 # ADR-291: Unified Cost Ledger — `execution_events` as the Single Substrate for LLM Spend
 
-**Status**: Implemented (Phase 1 — 2026-05-18; Phase 2 deferred)
+**Status**: Implemented (Phase 1 + Phase 2 — 2026-05-18)
 **Date**: 2026-05-18
 **Authors**: KVK, Claude
 
@@ -209,13 +209,17 @@ Single commit:
    - `docs/database/MIGRATIONS.md` entry.
    - `api/prompts/CHANGELOG.md` — N/A (no prompt change).
 
-### Phase 2 — Flaw 3 cleanup (separate commit)
+### Phase 2 — Flaw 3 cleanup (Implemented 2026-05-18)
 
-Suppress repeat material-weight feed emissions when balance stays at zero across multiple scheduler ticks.
+Suppresses repeat material-weight feed emissions when balance stays at zero across multiple scheduler ticks.
 
-`services/invocation_dispatcher.py` balance-exhausted branch: query `execution_events` for the most recent row for `(user_id, slug)`. If `error_reason='balance_exhausted'`, skip feed emission (still write `execution_events` for forensic trail). If the most recent event was a success or a different failure, emit feed entry as normal (the "transition into balance-exhausted" pattern).
+**Implementation**: `services/invocation_dispatcher.py` balance-exhausted branch queries `execution_events` for the most recent row for `(user_id, slug)`. If `status='failed'` AND `error_reason='balance_exhausted'`, skip the feed emission (still write the `execution_events` forensic row). If the most recent event was a success or a different failure, emit the feed entry as normal — the "transition into balance-exhausted" pattern.
 
-One-query check, no schema change. Doc: amend ADR-172 with the suppression rule.
+**Fail-open**: if the repeat-detection query errors, emit the narrative anyway. Operator visibility wins over silence on uncertainty.
+
+**No schema change.** One additional `execution_events` read per balance-exhausted dispatch (cheap, indexed on `(user_id, slug, created_at)`). Companion ADR-172 amendment notes the suppression rule.
+
+**Net behavior**: a user with $0 balance and a 15-min cadence recurrence sees ONE feed entry on the first balance-exhausted dispatch, then silence until balance recovers. Without this fix, the same user would see ~96 entries/day/recurrence — drowning out actionable signal.
 
 ### Phase 3 — Deferred (do not implement)
 

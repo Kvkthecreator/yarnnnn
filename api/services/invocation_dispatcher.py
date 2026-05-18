@@ -149,16 +149,52 @@ async def dispatch(
         balance_ok = True
 
     if not balance_ok:
-        # ADR-277: material weight — hard stop, operator must see this.
-        # Distinct from the substrate-row execution_events entry (which
-        # carries forensic status); the feed entry carries the operator-
-        # actionable "you're out of budget" framing.
-        await _emit_system_narrative(
-            client, user_id, recurrence,
-            summary=f"{recurrence.slug} skipped: balance exhausted",
-            trigger=trigger,
-            weight="material",
-        )
+        # ADR-291 Phase 2 (Flaw 3 cleanup): suppress repeat material-weight
+        # feed emissions when balance has been zero across multiple scheduler
+        # ticks. Without this, a user with $0 balance and a recurrence on
+        # */15 cadence would generate ~96 feed entries per day per recurrence
+        # — feed noise that drowns out actionable signal.
+        #
+        # Rule: feed entry is the *transition* into balance-exhausted state,
+        # not the repeat. We always write the forensic execution_events row
+        # (operator can still see the full skip history under /admin); we
+        # only suppress the operator-facing feed emission on consecutive
+        # balance-exhausted failures for the same recurrence.
+        is_repeat = False
+        try:
+            prev = (
+                client.table("execution_events")
+                .select("status, error_reason")
+                .eq("user_id", user_id)
+                .eq("slug", recurrence.slug)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if prev.data:
+                prev_row = prev.data[0]
+                is_repeat = (
+                    prev_row.get("status") == "failed"
+                    and prev_row.get("error_reason") == "balance_exhausted"
+                )
+        except Exception as e:
+            # Fail open — emit the narrative if we can't determine repeat
+            # state. Operator visibility wins over silence on uncertainty.
+            logger.warning("[DISPATCH] balance-exhausted repeat check failed: %s", e)
+
+        if not is_repeat:
+            # ADR-277: material weight — hard stop, operator must see this.
+            # Distinct from the substrate-row execution_events entry (which
+            # carries forensic status); the feed entry carries the operator-
+            # actionable "you're out of budget" framing.
+            await _emit_system_narrative(
+                client, user_id, recurrence,
+                summary=f"{recurrence.slug} skipped: balance exhausted",
+                trigger=trigger,
+                weight="material",
+            )
+        # Always record the execution_events row (forensic ledger) regardless
+        # of feed suppression — admin dashboard analytics depend on it.
         record_execution_event(
             client, user_id=user_id, slug=recurrence.slug,
             mode="judgment",  # ADR-265: mode replaces dead shape discriminator
