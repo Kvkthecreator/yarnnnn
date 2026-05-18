@@ -230,8 +230,8 @@ personas:
     label: "YARNNN founder content + IR-narrative authorship"
     program: alpha-author   # ADR-230 D1: bundle at docs/programs/alpha-author/
     email: yarnnn-author@yarnnn.com
-    user_id: 00000000-0000-0000-0000-000000000000   # PLACEHOLDER — replaced at step 5/6 provisioning
-    workspace_id: 00000000-0000-0000-0000-000000000000   # PLACEHOLDER
+    user_id: 0b7a852d-4a67-447d-91d9-2ba1145a60d7   # provisioned 2026-05-18 (ADR-283 step 6)
+    workspace_id: 0b7a852d-4a67-447d-91d9-2ba1145a60d7   # workspace_id == user_id in current schema
     platform:
       kind: none                              # no external platform per ADR-283 D7
       provider: none                          # required by Persona.platform_provider; sentinel value for archetype-agnostic personas
@@ -293,8 +293,8 @@ personas:
     label: "Long-arc screenplay-in-development authorship (no audience until shipped)"
     program: alpha-author   # ADR-230 D1: same program as yarnnn-author, different operator
     email: netflix-script-author@yarnnn.com
-    user_id: 00000000-0000-0000-0000-000000000000   # PLACEHOLDER — replaced at step 5/6 provisioning
-    workspace_id: 00000000-0000-0000-0000-000000000000   # PLACEHOLDER
+    user_id: 23cc7951-b6c7-471c-ac38-657d931db6f7   # provisioned 2026-05-18 (ADR-283 step 6)
+    workspace_id: 23cc7951-b6c7-471c-ac38-657d931db6f7   # workspace_id == user_id in current schema
     platform:
       kind: none
       provider: none
