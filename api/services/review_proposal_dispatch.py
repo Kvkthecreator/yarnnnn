@@ -345,11 +345,11 @@ async def _run_ai_reviewer(
     # P&L unification (2026-05-12): canonical money-truth file is
     # _money_truth.md. The frontmatter carries `by_signal` per-signal
     # rolling windows the Reviewer reads for capital-EV reasoning.
-    performance_md = _read_workspace_file(
+    ground_truth_md = _read_workspace_file(
         client, user_id, f"/workspace/context/{context_domain}/_money_truth.md",
     )
     # ADR-280 Stream A: per-domain reads use the same context_domain-parametric
-    # pattern as performance_md above. Bundles declare which substrate paths
+    # pattern as ground_truth_md above. Bundles declare which substrate paths
     # are meaningful per their context_domains via MANIFEST `substrate_abi`;
     # this proposal-arrival assembly mirrors the pattern domain-agnostically.
     # If the file doesn't exist for a given domain, _read_workspace_file
@@ -369,7 +369,7 @@ async def _run_ai_reviewer(
             "identity_md": identity_md,
             "principles_md": principles_md,
             "precedent_md": precedent_md,
-            "performance_md": performance_md or "",
+            "ground_truth_md": ground_truth_md or "",
             "risk_md": risk_md or "",
             "operator_profile_md": operator_profile_md or "",
             "proposal_row": proposal_row,

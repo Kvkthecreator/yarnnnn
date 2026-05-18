@@ -117,7 +117,7 @@ async def load_reviewer_governance_envelope(
     Program-shaped envelope (read from active bundle's MANIFEST per ADR-281
     D2): substrate paths declared in `substrate_abi.reviewer_wake_envelope`.
     For alpha-trader workspaces today this includes `operator_profile_md`,
-    `risk_md`, `performance_md`, and `signal_files` (which reads the
+    `risk_md`, `ground_truth_md`, and `signal_files` (which reads the
     `_signals_summary.md` substrate file written by alpha-trader's
     `mirror-signal-state` mechanical recurrence per ADR-281 D3).
 

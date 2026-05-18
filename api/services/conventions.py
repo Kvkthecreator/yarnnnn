@@ -23,16 +23,17 @@ The convention shapes (per ADR-262 D1):
       working:       /workspace/reports/{slug}/working/
 
     Context (ACCUMULATION-shaped, additive entity files):
-      domain root:   /workspace/context/{domain}/
-      entity (md):   /workspace/context/{domain}/{entity}.md
-      entity (yml):  /workspace/context/{domain}/{entity}.yaml
-      synthesis:     /workspace/context/{domain}/_<name>.md
-      feedback:      /workspace/context/{domain}/_feedback.md
-      performance:   /workspace/context/{domain}/_performance.md
-      run log:       /workspace/context/{domain}/_run_log.md
+      domain root:    /workspace/context/{domain}/
+      entity (md):    /workspace/context/{domain}/{entity}.md
+      entity (yml):   /workspace/context/{domain}/{entity}.yaml
+      synthesis:      /workspace/context/{domain}/_<name>.md
+      feedback:       /workspace/context/{domain}/_feedback.md
+      ground-truth:   /workspace/context/{domain}/_<ground-truth-instance>.md
+                      (bundle-instance-named; alpha-trader: `_money_truth.md`)
+      run log:        /workspace/context/{domain}/_run_log.md
 
-    Operations (ACTION-shaped, no filesystem output — outcomes via
-    domain _performance.md):
+    Operations (ACTION-shaped, no filesystem output — outcomes flow into
+    the relevant domain's ground-truth substrate per FOUNDATIONS Axiom 8):
       ops root:      /workspace/operations/{slug}/
       run log:       /workspace/operations/{slug}/_run_log.md
       working:       /workspace/operations/{slug}/working/
@@ -178,11 +179,6 @@ def domain_feedback_path(domain: str) -> str:
     return f"/workspace/context/{domain}/_feedback.md"
 
 
-def domain_performance_path(domain: str) -> str:
-    """Per-domain money-truth substrate (ADR-195 v2)."""
-    return f"/workspace/context/{domain}/_performance.md"
-
-
 def domain_run_log_path(domain: str) -> str:
     """Per-domain shared run log (multiple recurrences in one domain
     write to the same log; entries identify by slug)."""
@@ -197,7 +193,8 @@ def domain_run_log_path(domain: str) -> str:
 def operation_root(slug: str) -> str:
     """Per-operation root. Action recurrences have no filesystem output —
     the platform side-effect IS the work, with outcomes flowing into the
-    relevant domain's ``_performance.md`` per ADR-195."""
+    relevant domain's ground-truth substrate per FOUNDATIONS Axiom 8
+    (alpha-trader instance: ``_money_truth.md`` per ADR-195 v2)."""
     return f"/workspace/operations/{slug}"
 
 
@@ -268,7 +265,6 @@ __all__ = [
     "domain_entity_path",
     "domain_synthesis_path",
     "domain_feedback_path",
-    "domain_performance_path",
     "domain_run_log_path",
     # Operations
     "operation_root",

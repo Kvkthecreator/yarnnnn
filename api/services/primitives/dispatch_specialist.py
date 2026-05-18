@@ -93,7 +93,7 @@ artifact's manifest entry.
 Examples:
   DispatchSpecialist(role="designer",
     brief="Render a 90-day equity-curve chart from
-           /workspace/context/portfolio/_performance.md. Output target:
+           /workspace/context/portfolio/_money_truth.md. Output target:
            /workspace/reports/weekly-performance-review/{date}/
            sections/equity-curve.png. Caption: 'Account equity, last 90d.'")""",
     "input_schema": {

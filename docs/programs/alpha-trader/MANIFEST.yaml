@@ -198,9 +198,9 @@ substrate_abi:
     - key: risk_md
       path: context/trading/_risk.md
       optional: false
-    - key: performance_md
+    - key: ground_truth_md
       path: context/trading/_money_truth.md
-      optional: true   # accumulated by reconciler — empty before first reconciliation. Envelope key `performance_md` is the kernel-universal slot name (instance-agnostic per ADR-282); alpha-trader instance vocabulary names the substrate file `_money_truth.md`.
+      optional: true   # accumulated by reconciler — empty before first reconciliation. Kernel slot name `ground_truth_md` per FOUNDATIONS Axiom 8 + ADR-282 vocabulary discipline (ADR-288 D5); the substrate file `_money_truth.md` is the alpha-trader instance of ground-truth substrate.
     # ADR-281: signal_files is now a path-only entry pointing at the
     # compact substrate file written by the mirror-signal-state mechanical
     # recurrence (see _recurrences.yaml). Per Derived Principle 19, the

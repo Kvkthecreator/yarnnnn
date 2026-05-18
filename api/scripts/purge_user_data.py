@@ -165,7 +165,8 @@ def purge_user_data(email: str, dry_run: bool = False):
     # 2. Proposals (ADR-194 — Reviewer queue)
     # ──────────────────────────────────────────────────────────────────────
     # ADR-195 v2 migrated outcomes out of SQL onto the filesystem
-    # (_performance.md per domain) — no action_outcomes table to wipe.
+    # (_money_truth.md per domain post-ADR-267) — no action_outcomes
+    # table to wipe.
     print(f"🗑️  {label} action_proposals...")
     n = _delete(client, "action_proposals", user_id, dry_run=dry_run)
     print(f"   {n} proposals")

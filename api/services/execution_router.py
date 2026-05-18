@@ -220,7 +220,7 @@ async def _handle_list_recurrences(auth: Any, _match: re.Match, _msg: str) -> Op
     r"(?:read|show me|open|get|fetch|display)\s+(?P<slug>[/\w][\w/\.\-_]*\.md)\s*$"
 )
 async def _handle_read_file(auth: Any, match: re.Match, _msg: str) -> Optional[dict]:
-    """ReadFile: "read /workspace/context/{domain}/_performance.md" — domain placeholder is illustrative; the regex matches any `.md` path the operator types."""
+    """ReadFile: "read /workspace/context/{domain}/_money_truth.md" — domain placeholder is illustrative; the regex matches any `.md` path the operator types."""
     from services.primitives.workspace import handle_read_file
 
     try:

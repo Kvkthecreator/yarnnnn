@@ -112,7 +112,7 @@ async def reconcile_user(
 
     # Phase 3: regenerate cross-domain summary after all providers fold.
     # Always runs (even if providers failed or had zero appends) so the
-    # summary reflects the current state of each domain's _performance.md.
+    # summary reflects the current state of each domain's _money_truth.md.
     try:
         provider_domains = [p.context_domain for p in providers]
         summary["cross_domain_summary_written"] = await write_money_truth_summary(

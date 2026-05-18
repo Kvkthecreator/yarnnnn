@@ -124,12 +124,12 @@ def _maintenance_prompt_for(slug: str, executor: str) -> str:
             "Reconcile yesterday's executed proposals against platform "
             "events. Pull executed orders + fills since last reconciliation. "
             "Compute realized P&L per fill and append rolling-window "
-            "updates to /workspace/context/{domain}/_performance.md per "
+            "updates to /workspace/context/{domain}/_money_truth.md per "
             "the schema in /workspace/specs/performance-rollup.md."
         ),
         "back-office-reviewer-calibration": (
             "Calibrate against money-truth. Read "
-            "/workspace/context/trading/_performance.md for the last "
+            "/workspace/context/trading/_money_truth.md for the last "
             "7d/30d/90d windows. Compare realized expectancy to your "
             "declared edge. If realized P&L diverges materially, append "
             "a calibration concern to /workspace/review/judgment_log.md."

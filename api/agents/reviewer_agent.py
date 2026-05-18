@@ -153,7 +153,7 @@ class ReviewerContext(TypedDict, total=False):
     # Principle 18's first-wake obligation structural.
     preferences_yaml: str
     # Domain substrate
-    performance_md: str
+    ground_truth_md: str
     risk_md: str
     operator_profile_md: str
     # Sub-shape: proposal-arrival
@@ -771,8 +771,14 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
         parts += ["## _operator_profile.md — Declared strategy", "", ctx["operator_profile_md"], ""]
     if ctx.get("risk_md"):
         parts += ["## _risk.md — Hard floors", "", ctx["risk_md"], ""]
-    if ctx.get("performance_md"):
-        parts += ["## _money_truth.md — Track record (with by_signal frontmatter)", "", ctx["performance_md"], ""]
+    if ctx.get("ground_truth_md"):
+        # ADR-288 D5: the slot name is kernel-universal (`ground_truth_md`);
+        # the rendered heading is bundle-instance-aware. Today the only active
+        # bundle that fills this slot is alpha-trader (writes `_money_truth.md`
+        # via reconciler), so the heading names the alpha-trader instance file.
+        # Future bundles' Reviewers render their own instance heading via the
+        # bundle's `_workspace_guide.md` directing where to read.
+        parts += ["## _money_truth.md — Track record (with by_signal frontmatter)", "", ctx["ground_truth_md"], ""]
 
     # Trigger-specific (ADR-260 D2 amended by ADR-263: addressed | reactive)
     # `reactive` covers two sub-shapes — proposal arrival (specialized

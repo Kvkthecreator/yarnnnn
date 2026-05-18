@@ -230,6 +230,121 @@ def test_no_live_yarnnn_chat_string_in_code():
 
 
 # -----------------------------------------------------------------------------
+# Phase 2 assertions — envelope key + stale path residue
+# -----------------------------------------------------------------------------
+
+def test_envelope_key_renamed_to_ground_truth_md():
+    """ADR-288 D5: kernel envelope key `performance_md` → `ground_truth_md`.
+
+    Slot name is the kernel concept (FOUNDATIONS Axiom 8); bundles declare
+    what fills it. `performance_md` was ADR-267 residue — pre-rename file path
+    `_performance.md` baked into the slot name.
+    """
+    # Kernel-side: ReviewerContext field + readers
+    src = _read_text(_file("agents", "reviewer_agent.py"))
+    assert "ground_truth_md: str" in src, (
+        "ReviewerContext field must be `ground_truth_md` per ADR-288 D5."
+    )
+    assert "performance_md" not in src, (
+        "`performance_md` identifier must not appear in reviewer_agent.py."
+    )
+
+    # Envelope helper docstring
+    src = _read_text(_file("services", "reviewer_envelope.py"))
+    assert "ground_truth_md" in src, (
+        "reviewer_envelope.py docstring must reference `ground_truth_md`."
+    )
+    assert "performance_md" not in src, (
+        "`performance_md` identifier must not appear in reviewer_envelope.py."
+    )
+
+    # Proposal-arrival reader
+    src = _read_text(_file("services", "review_proposal_dispatch.py"))
+    assert "ground_truth_md" in src, (
+        "review_proposal_dispatch.py must use `ground_truth_md` envelope key."
+    )
+    assert "performance_md" not in src, (
+        "`performance_md` identifier must not appear in review_proposal_dispatch.py."
+    )
+
+
+def test_bundle_manifests_renamed_to_ground_truth_md():
+    """ADR-288 D5: every bundle MANIFEST that declared `performance_md`
+    envelope key now declares `ground_truth_md`. Defensive comments
+    rationalizing the old name DELETED."""
+    import subprocess
+    result = subprocess.run(
+        ["grep", "-rn", "performance_md", str(API_DIR.parent / "docs" / "programs")],
+        capture_output=True,
+        text=True,
+    )
+    matches = [
+        line for line in result.stdout.splitlines()
+        if line and "test_adr288" not in line
+    ]
+    assert not matches, (
+        f"`performance_md` envelope key must not appear in any bundle "
+        f"under docs/programs/ per ADR-288 D5:\n" + "\n".join(matches)
+    )
+
+    # Positive: alpha-trader bundle must declare ground_truth_md
+    bundle_manifest = _read_text(
+        API_DIR.parent / "docs" / "programs" / "alpha-trader" / "MANIFEST.yaml"
+    )
+    assert "key: ground_truth_md" in bundle_manifest, (
+        "alpha-trader bundle MANIFEST must declare `key: ground_truth_md` "
+        "as the envelope key per ADR-288 D5."
+    )
+
+
+def test_dead_helper_domain_performance_path_deleted():
+    """ADR-288 D6: `domain_performance_path()` helper in conventions.py
+    is dead code (zero callers verified pre-deletion). Deletion completes
+    singular-implementation discipline."""
+    src = _read_text(_file("services", "conventions.py"))
+    assert "def domain_performance_path" not in src, (
+        "Dead helper `domain_performance_path` must be deleted per ADR-288 D6."
+    )
+    # Also removed from __all__ export list
+    assert '"domain_performance_path"' not in src, (
+        "Dead helper export `domain_performance_path` must be removed from "
+        "__all__ in conventions.py."
+    )
+
+
+def test_stale_performance_md_in_docstrings_updated():
+    """ADR-288 D7: docstring examples that cite a concrete file path use
+    the instance file name (`_money_truth.md`), not the pre-ADR-267 stale
+    path `_performance.md`.
+
+    Phase 2 scope: non-prompt docstrings (narrative.py, execution_router.py,
+    primitives/dispatch_specialist.py, primitives/revisions.py,
+    outcomes/reconciler.py). Phase 3 scope: kernel prompt content in
+    orchestration.py + cockpit_awareness.py + tools_core.py.
+    """
+    targets = [
+        ("services", "narrative.py"),
+        ("services", "execution_router.py"),
+        ("services", "primitives", "dispatch_specialist.py"),
+        ("services", "primitives", "revisions.py"),
+        ("services", "outcomes", "reconciler.py"),
+    ]
+    for parts in targets:
+        src = _read_text(_file(*parts))
+        assert "_performance.md" not in src, (
+            f"Stale `_performance.md` reference in {'/'.join(parts)} "
+            f"must be updated to `_money_truth.md` per ADR-288 D7."
+        )
+
+    # Conventions.py module docstring + helper docstring updated
+    src = _read_text(_file("services", "conventions.py"))
+    assert "_performance.md" not in src, (
+        "conventions.py module docstring + helper docstrings must not "
+        "reference `_performance.md` per ADR-288 D7."
+    )
+
+
+# -----------------------------------------------------------------------------
 # Test runner
 # -----------------------------------------------------------------------------
 #
@@ -263,6 +378,11 @@ def main() -> int:
         ("D3: yarnnn.py injection deleted", test_yarnnn_schedule_injection_deleted),
         ("D3: reviewer_agent.py injection deleted", test_reviewer_schedule_injection_deleted),
         ("D4: no live yarnnn:chat", test_no_live_yarnnn_chat_string_in_code),
+        # Phase 2 assertions
+        ("D5: envelope key renamed", test_envelope_key_renamed_to_ground_truth_md),
+        ("D5: bundle MANIFESTs renamed", test_bundle_manifests_renamed_to_ground_truth_md),
+        ("D6: dead helper deleted", test_dead_helper_domain_performance_path_deleted),
+        ("D7: stale _performance.md docstrings", test_stale_performance_md_in_docstrings_updated),
     ]
 
     passed = 0
@@ -282,7 +402,7 @@ def main() -> int:
             failed += 1
 
     print()
-    print(f"ADR-288 Phase 1 regression gate: {passed}/{passed+failed} assertions passed")
+    print(f"ADR-288 regression gate: {passed}/{passed+failed} assertions passed")
     return 0 if failed == 0 else 1
 
 

@@ -6,6 +6,32 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.18.2] - feat(adr-288 phase 2): envelope key performance_md → ground_truth_md + _performance.md docstring residue
+
+### Changed
+- Kernel envelope key `performance_md` → `ground_truth_md`. Reasoned from first principles per ADR-288 D5: the envelope key is a kernel-level slot (declared in kernel code, consumed by kernel prompt assembly); bundles declare what fills it. Per FOUNDATIONS Axiom 8 + ADR-282 vocabulary discipline, the slot name should describe the kernel concept (ground-truth substrate), not carry alpha-trader instance vocabulary (`performance_md` was ADR-267 residue from the pre-rename file path `_performance.md`).
+- `api/agents/reviewer_agent.py`: `ReviewerContext.performance_md` → `ground_truth_md`. Reader updated. Heading content stays bundle-instance-aware (alpha-trader bundle renders `## _money_truth.md — Track record` heading because alpha-trader is currently the only bundle filling the slot; future bundles can render their own instance heading).
+- `api/services/reviewer_envelope.py`: docstring updated `performance_md` → `ground_truth_md`.
+- `api/services/review_proposal_dispatch.py`: local var + envelope dict key `performance_md` → `ground_truth_md`.
+- `docs/programs/alpha-trader/MANIFEST.yaml`: bundle envelope declaration `key: performance_md` → `key: ground_truth_md`. Defensive "instance-agnostic" comment DELETED (the slot name now matches the kernel concept; no rationalization needed). Comment updated to cite FOUNDATIONS Axiom 8 + ADR-282.
+- `docs/programs/alpha-trader/reference-workspace/_workspace_guide.md`: same rename.
+- `api/services/conventions.py::domain_performance_path` helper DELETED (zero callers verified pre-deletion). `domain_performance_path` removed from `__all__` export list.
+- `api/services/conventions.py` module docstring: path table row `performance: /workspace/context/{domain}/_performance.md` → `ground-truth: /workspace/context/{domain}/_<ground-truth-instance>.md (bundle-instance-named; alpha-trader: _money_truth.md)`. Operations section docstring rewritten to reference "ground-truth substrate per FOUNDATIONS Axiom 8" instead of "domain `_performance.md`".
+- Stale `_performance.md` docstring references updated to `_money_truth.md` in: `api/services/narrative.py:23`, `api/services/execution_router.py:223`, `api/services/primitives/dispatch_specialist.py:96`, `api/services/primitives/revisions.py:58`, `api/services/outcomes/reconciler.py:115`.
+- One-shot script archival path references updated: `api/scripts/purge_user_data.py:168`, `api/scripts/seed_seulkim_substrate.py:28+186`, `api/scripts/oneshot/phaseB_unify_recurrences.py:127+132`.
+
+### Test gate
+- `api/test_adr288_caller_identity.py` extended with 4 new Phase 2 assertions: envelope key renamed (kernel sites + bundle MANIFESTs), bundle MANIFESTs renamed (no `performance_md` anywhere under `docs/programs/`), dead helper deleted, stale `_performance.md` docstrings updated. **14/14 PASS** (10 Phase 1 + 4 Phase 2).
+
+### Singular implementation
+- The kernel slot now carries kernel concept naming; the file content stays alpha-trader instance vocabulary. Two distinct names for two distinct things per ADR-282 D2 — no rationalization layer needed.
+
+### Out of scope (Phase 3)
+- Kernel prompt content in `services/orchestration.py` (`DEFAULT_REVIEW_IDENTITY_MD` + `DEFAULT_REVIEW_PRINCIPLES_MD`) — those still hardcode alpha-trader instance vocabulary as kernel-default. Phase 3 de-instances them properly with bundle `_workspace_guide.md` as the carrier of program-specific substrate paths.
+- `agents/cockpit_awareness.py` + `agents/prompts/tools_core.py` — same Phase 3 territory.
+
+---
+
 ## [2026.05.18.1] - feat(adr-288 phase 1): caller_identity as first-class auth field
 
 ### Changed

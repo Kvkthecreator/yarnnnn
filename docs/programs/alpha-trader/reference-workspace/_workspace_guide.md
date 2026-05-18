@@ -104,9 +104,9 @@ reviewer_wake_envelope:
   - key: risk_md
     path: context/trading/_risk.md
     optional: false
-  - key: performance_md
+  - key: ground_truth_md
     path: context/trading/_money_truth.md
-    optional: true
+    optional: true   # kernel slot name per FOUNDATIONS Axiom 8; substrate file is alpha-trader's instance
   # ADR-281: signal_files is a path-only entry pointing at the compact
   # substrate file written by the mirror-signal-state mechanical recurrence.
   # Per Derived Principle 19, the kernel reads substrate; the recurrence

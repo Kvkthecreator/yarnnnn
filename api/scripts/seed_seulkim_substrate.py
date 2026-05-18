@@ -25,7 +25,7 @@ Cleanup later:
   DELETE FROM workspace_files WHERE user_id='2be30ac5-b3cf-46b1-aeb8-af39cd351af4'
     AND path IN (
       '/workspace/context/_performance_summary.md',
-      '/workspace/context/portfolio/_performance.md',
+      '/workspace/context/portfolio/_money_truth.md',
       '/workspace/context/portfolio/_positions.md',
       '/workspace/context/portfolio/_risk_state.md',
       '/tasks/maintain-overview/outputs/latest/output.md',
@@ -183,7 +183,7 @@ def upsert_file(path: str, content: str):
 def main():
     print("\n=== A. Performance + portfolio substrate ===")
     upsert_file("/workspace/context/_performance_summary.md", PERF_SUMMARY)
-    upsert_file("/workspace/context/portfolio/_performance.md", PERF_FULL)
+    upsert_file("/workspace/context/portfolio/_money_truth.md", PERF_FULL)
     upsert_file("/workspace/context/portfolio/_positions.md", PERF_POSITIONS)
     upsert_file("/workspace/context/portfolio/_risk_state.md", RISK_STATE)
 

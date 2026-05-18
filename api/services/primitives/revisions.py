@@ -55,7 +55,7 @@ Returns every recorded revision for the given path, newest first. Each
 entry carries the revision id, authored_by identity (operator | yarnnn |
 agent:<slug> | reviewer:<identity> | system:<actor>), a short message,
 and a timestamp. Use this to answer questions like "who has edited
-MANDATE.md this week?" or "how many times has _performance.md been
+MANDATE.md this week?" or "how many times has _money_truth.md been
 reconciled?"
 
 Path is absolute within the workspace filesystem, e.g.:
