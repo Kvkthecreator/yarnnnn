@@ -85,6 +85,9 @@ class ReviewerOutput(TypedDict, total=False):
     invocation that includes recurrence-fire prompts directing the
     Reviewer to author proposals or summarize evidence.
     `actions_taken` records tool calls made during the loop (audit trail).
+    `invocation_id` (ADR-289 D4) — the execution_events.id of this cycle;
+    propagated from the caller and re-exposed so downstream surfacing /
+    audit writes share one stable invocation atom identifier.
     """
     verdict: str          # approve|reject|defer (proposal-arrival reactive)
                           # no_change|narrow|relax|character_note|pause_autonomy
@@ -93,6 +96,7 @@ class ReviewerOutput(TypedDict, total=False):
     reasoning: str
     confidence: str       # low | medium | high
     actions_taken: list   # tool calls executed during the loop
+    invocation_id: str    # ADR-289: execution_events.id for this cycle
     # reflection-only
     proposals: list
     evidence_summary: str
@@ -946,6 +950,7 @@ async def invoke_reviewer(
     *,
     trigger: Literal["addressed", "reactive"],
     context: ReviewerContext,
+    invocation_id: str,
     event_callback: Any = None,
 ) -> ReviewerOutput | None:
     """Unified Reviewer invocation — ADR-258 (revised) + ADR-260 D2 + ADR-263.
@@ -1102,6 +1107,7 @@ async def invoke_reviewer(
                     reasoning="Operator interrupted the in-flight Loop via the Stop affordance. No further actions taken in this session.",
                     confidence="high",
                     actions_taken=actions_taken,
+                    invocation_id=invocation_id,
                     input_tokens=total_input,
                     output_tokens=total_output,
                     cache_read_tokens=total_cache_read,
@@ -1212,6 +1218,12 @@ async def invoke_reviewer(
                     "input": inp,
                     "success": bool(result.get("success", True)) if isinstance(result, dict) else True,
                     "summary": _summarize_result(result),
+                    # ADR-289 D4: stamp the invocation atom id on every
+                    # action record. Downstream surfacing (surface_reviewer_actions)
+                    # reads this to propagate metadata.invocation_id onto every
+                    # narrative entry produced during this cycle. One invocation,
+                    # one shared id, N grouped narrative rows on the Feed surface.
+                    "invocation_id": invocation_id,
                 }
                 if name == "ProposeAction" and isinstance(result, dict):
                     pid = result.get("proposal_id") or (
@@ -1357,6 +1369,11 @@ async def invoke_reviewer(
             "reasoning": reasoning,
             "confidence": confidence,
             "actions_taken": actions_taken,
+            # ADR-289 D4: invocation atom id, propagated from caller, surfaced
+            # so the dispatcher can stamp the same id on the verdict-row write
+            # (write_reviewer_message) and the FE can group every row produced
+            # by this cycle under one invocation card.
+            "invocation_id": invocation_id,
             # F1 telemetry pass-through (2026-05-17). The dispatcher reads
             # these off and forwards into `record_execution_event` so the
             # slug-indexed `execution_events` row carries cost/token data
