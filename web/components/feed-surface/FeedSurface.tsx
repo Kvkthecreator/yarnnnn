@@ -1,21 +1,34 @@
 'use client';
 
 /**
- * FeedSurface — YARNNN feed surface (ADR-259).
+ * FeedSurface — operations timeline + Conversation drawer (ADR-289 Phase 2).
  *
- *   <SurfaceIdentityHeader actions={[Filter, Context]} />
- *   <FeedPanel emptyState={<FeedEmptyState />} />
+ *   <SurfaceIdentityHeader actions={[Filter, Context, Talk]} />
+ *   <FeedTimeline /> ........... operations timeline (invocation cards, etc.)
+ *   <ConversationDrawer /> ..... chat-shaped exchange slide-over (closed by default)
  *   <WorkspaceContextOverlay /> (pure reads, zero LLM)
  *
- * All mutations go through Chat. No separate creation modals.
- * RecurrenceSetupModal removed — "Start new work" seeds the composer;
- * YARNNN handles intent conversationally.
+ * Rewired by ADR-289 Phase 2: the legacy single-panel FeedPanel rendering
+ * is split into a typed-event timeline (FeedTimeline) + a slide-over
+ * Conversation surface (ConversationDrawer). Bubbles are scoped to the
+ * Conversation surface only; the timeline uses typed event rows.
+ *
+ * Engagement model:
+ *   - Operator opens the drawer to engage a conversation (composer lives
+ *     inside the drawer). Clicking an OperatorEventMarker's "opened
+ *     conversation →" affordance also opens the drawer.
+ *   - Drawer close returns to full Feed view.
+ *   - Autonomous wakes that fire while the drawer is open emit narrative
+ *     rows; the FeedTimeline behind picks them up but the drawer stays
+ *     focused on the addressed exchange. Per ADR-289 Phase 2 design
+ *     lock-in (silent autonomous wakes during drawer).
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { BookOpen, Filter } from 'lucide-react';
-import { FeedPanel } from '@/components/tp/FeedPanel';
+import { BookOpen, Filter, MessageCircle } from 'lucide-react';
+import { FeedTimeline } from '@/components/feed/FeedTimeline';
+import { ConversationDrawer } from '@/components/feed/ConversationDrawer';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import { useNarrative } from '@/contexts/NarrativeContext';
@@ -25,9 +38,9 @@ import {
 } from '@/lib/content-shapes/snapshot';
 import { WorkspaceContextOverlay } from './WorkspaceContextOverlay';
 import { AutonomyHeaderChip } from './AutonomyHeaderChip';
-// RecurrenceSetupModal removed — "Start new work" seeds the composer.
 import { FeedEmptyState } from './FeedEmptyState';
 import { FeedFilterBar, parseChatFilterFromSearch } from './FeedFilterBar';
+import { useReviewerPersona } from '@/lib/reviewer-persona';
 import { cn } from '@/lib/utils';
 
 interface FeedSurfaceProps {
@@ -40,11 +53,24 @@ export function FeedSurface({
 }: FeedSurfaceProps) {
   const { messages, sendMessage } = useNarrative();
   const searchParams = useSearchParams();
+  const personaName = useReviewerPersona();
 
   // --- Context overlay state ---
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [snapshotLead, setSnapshotLead] = useState<SnapshotLead | null>(null);
   const [snapshotReason, setSnapshotReason] = useState<string | null>(null);
+
+  // --- Conversation drawer state (ADR-289 Phase 2) ---
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const handleOpenDrawer = useCallback(() => setDrawerOpen(true), []);
+  const handleCloseDrawer = useCallback(() => setDrawerOpen(false), []);
+  // Open drawer scrolled to a specific invocation (called by an
+  // OperatorEventMarker's "opened conversation →" affordance). The
+  // ConversationPanel inside the drawer renders all addressed rows in
+  // the workspace session — scrolling within is a Phase 2.1 refinement.
+  const handleOpenConversation = useCallback((_invocationId: string) => {
+    setDrawerOpen(true);
+  }, []);
 
   // ADR-219 Commit 5: filter bar visibility (off by default — we
   // toggle from the surface header). The filter itself is parsed from
@@ -62,9 +88,10 @@ export function FeedSurface({
   }, [narrativeFilter]);
 
   // --- Empty-state chip seed (ADR-190) ---
-  const [chipSeed, setChipSeed] = useState<{ id: string; text: string } | null>(null);
-  const handleChipClick = useCallback((text: string) => {
-    setChipSeed({ id: `chip-${Date.now()}`, text });
+  // ADR-289 Phase 2: chips on FeedEmptyState now open the drawer.
+  // Composer-prefill is a drawer-side concern.
+  const handleChipClick = useCallback((_text: string) => {
+    setDrawerOpen(true);
   }, []);
 
   // Track the last message id we processed for marker directives.
@@ -166,6 +193,21 @@ export function FeedSurface({
     </button>
   );
 
+  // ADR-289 Phase 2: "Talk" button opens the Conversation drawer.
+  // The Feed surface is the operations timeline; engaging a conversation
+  // happens through the drawer (composer lives inside).
+  const talkAction = (
+    <button
+      type="button"
+      onClick={handleOpenDrawer}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
+      title={`Talk to ${personaName ?? 'Reviewer'}`}
+    >
+      <MessageCircle className="w-3.5 h-3.5" />
+      Talk
+    </button>
+  );
+
   const headerActions = (
     <div className="flex items-center gap-1.5">
       {/* Commit G (2026-05-11): autonomy chip relocated from composer to
@@ -175,6 +217,7 @@ export function FeedSurface({
       <AutonomyHeaderChip />
       {filterToggleAction}
       {snapshotAction}
+      {talkAction}
     </div>
   );
 
@@ -205,24 +248,36 @@ export function FeedSurface({
       )}
       <div className="flex-1 min-h-0">
         <div className="mx-auto h-full w-full max-w-3xl px-3 sm:px-4 py-3 sm:py-5">
-          <FeedPanel
-            surfaceOverride={{ type: 'chat' }}
-            plusMenuActions={allPlusMenuActions}
-            placeholder="Type, drop a file, or paste a link..."
-            showCommandPicker={true}
-            showInputDivider={false}
-            draftSeed={chipSeed}
-            narrativeFilter={narrativeFilter}
-            onMakeRecurring={handleMakeRecurring}
-            emptyState={(helpers) => (
+          {/* ADR-289 Phase 2: FeedTimeline replaces FeedPanel on /feed.
+              Renders typed-event rows (InvocationCard, OperatorEventMarker,
+              StandaloneEventRow, DaySeparator) — no chat bubbles. The
+              composer lives inside the ConversationDrawer; operator opens
+              the drawer via the "Talk" header button or by clicking an
+              existing OperatorEventMarker's "opened conversation →"
+              affordance. */}
+          <FeedTimeline
+            onOpenConversation={handleOpenConversation}
+            emptyState={
               <FeedEmptyState
                 onChipClick={handleChipClick}
-                onUploadClick={helpers.requestUpload}
+                onUploadClick={handleOpenDrawer}
               />
-            )}
+            }
           />
         </div>
       </div>
+
+      {/* ADR-289 Phase 2: Conversation drawer (slide-over). Hosts the
+          ConversationPanel scoped to `pulse='addressed'`. Composer lives
+          inside. Autonomous wakes that fire while open remain silent in
+          the drawer — they surface in the FeedTimeline behind, visible
+          when the drawer closes. */}
+      <ConversationDrawer
+        open={drawerOpen}
+        onClose={handleCloseDrawer}
+        plusMenuActions={allPlusMenuActions}
+        onMakeRecurring={handleMakeRecurring}
+      />
 
       {/* Context overlay — 3-section primer (Mandate · Rules · Pulse) per
           2026-05-14 refactor. The legacy `tasks` prop dropped — the Pulse
@@ -235,8 +290,6 @@ export function FeedSurface({
         onClose={handleSnapshotClose}
         onAskTP={handleAskYARNNN}
       />
-
-      {/* RecurrenceSetupModal removed — all creation via Chat */}
     </div>
   );
 }

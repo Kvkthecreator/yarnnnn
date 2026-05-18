@@ -1,21 +1,24 @@
 'use client';
 
 /**
- * MessageDispatch — chat message rendering grammar.
+ * MessageDispatch — Conversation surface bubble grammar (ADR-289 Phase 2 scope).
  *
  * Originally authored by ADR-237 (Round 2 of the ADR-236 frontend cockpit
  * coherence pass). Collapsed to four shapes by ADR-272 Phase 2 (2026-05-14).
+ * **Scoped to the Conversation surface by ADR-289 D9** — the Feed surface
+ * uses typed-event row components (InvocationCard, OperatorEventMarker,
+ * StandaloneEventRow, DaySeparator), not bubbles.
  *
- * Post-ADR-272: four message shapes, mapping `TPMessage.role` to one of:
+ * Four message shapes, mapping `TPMessage.role` to one of:
  *
  *   user-bubble      — role: 'user'        label: "You"         (operator)
  *   reviewer-bubble  — role: 'reviewer'    label: persona name  (judgment seat)
  *   agent-bubble     — role: 'agent'       label: agent slug    (user-authored Agent)
  *   system-activity  — role: 'system_agent' | 'assistant' | 'system' | 'external'
- *                      label: "System" (ambient — orchestration plumbing,
- *                      deterministic dispatch narration, mechanical recurrence
- *                      completions, MCP write-backs). NOT a chat participant —
- *                      visually de-emphasised, background-weight, no avatar.
+ *                      label: "system" — orchestration plumbing narration
+ *                      (System Agent's per-action narrations during an
+ *                      addressed Reviewer cycle render here as compact rows
+ *                      alongside the conversation; addressed-pulse only).
  *
  * The ADR-272 collapse: System Agent dissolved as a cockpit entity. The
  * orchestration LLM identity persists as substrate behind /feed but no
@@ -23,8 +26,16 @@
  * narration surfaces as ambient activity in a single shape, not three
  * separate ones (system-agent-bubble + system-bubble + system-event).
  *
- * Singular Implementation: this is THE dispatch path for material-weight
- * messages. Weight gating + cross-cutting concerns (authorship chip,
+ * ADR-289 D9 (softened interpretation post-Phase-2-impl): system-activity
+ * shape is preserved on the Conversation surface for addressed-cycle
+ * narrations (Reviewer-directed action callouts during the operator's
+ * turn). Pure operations activity — autonomous wakes, mechanical
+ * recurrences, orphan system events — is filtered out upstream by
+ * ConversationPanel's `filterAddressedMessages` call and never reaches
+ * this dispatcher.
+ *
+ * Singular Implementation: this is THE dispatch path for the Conversation
+ * surface. Weight gating + cross-cutting concerns (authorship chip,
  * Make Recurring affordance) live in MessageRow.tsx — the row wrapper
  * composes around this dispatcher.
  */

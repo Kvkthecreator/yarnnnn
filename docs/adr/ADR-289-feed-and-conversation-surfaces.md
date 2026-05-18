@@ -1,6 +1,6 @@
 # ADR-289: Feed and Conversation Surfaces — Invocation as the Grouping Primitive
 
-**Status**: Phase 1 BE Implemented 2026-05-18 — Phase 2 FE Proposed
+**Status**: Phase 1 BE + Phase 2 FE Implemented 2026-05-18
 **Date**: 2026-05-18
 **Dimensional classification**: **Channel** (Axiom 6) primary — defines surface rendering shape; **Substrate** (Axiom 1) secondary — re-anchors the narrative `invocation_id` envelope field to its canonical source row; **Identity** (Axiom 2) tertiary — clarifies which actor classes render in which surface.
 
@@ -204,18 +204,23 @@ Code deletions:
 
 Net delta: ~100 LOC across 7 files. Zero behavioral change on the FE (still renders flat — Phase 2 picks up the grouping).
 
-**Phase 2 — Feed surface rendering (FE, single atomic commit)**
+**Phase 2 — Feed surface rendering (FE, single atomic commit) — Implemented 2026-05-18**
 
-1. New components: `web/components/feed/FeedTimeline.tsx`, `InvocationCard.tsx`, `OperatorEventMarker.tsx`, `FileEventRow.tsx`, `CapabilityEventRow.tsx`, `DaySeparator.tsx`.
-2. `/feed` page rewires: replaces the FeedSurface→FeedPanel chain with FeedSurface→FeedTimeline at the center; the drawer mounts `ConversationPanel`.
-3. `web/components/tp/FeedPanel.tsx` renames to `ConversationPanel.tsx` (operator-facing semantics align with the surface it serves). All identifier references update in the same commit.
-4. `web/components/tp/MessageDispatch.tsx::renderSystemActivity` deleted. The 4-shape grammar collapses to 3 actor shapes for the Conversation surface.
-5. `web/components/tp/MessageRow.tsx` retains its weight gating + cross-cutting wrappers, scoped to Conversation use.
-6. `web/components/shell/ThreePanelLayout.tsx::chat` prop renames to `conversation`. Four call sites (`/work`, `/agents`, `/context`, `/workspace`) update atomically.
-7. `/feed` page removes the right-panel chat mount — the Feed surface stands alone; conversation engagement opens a drawer over the Feed.
-8. Day separator, invocation card grouping, operator event marker pointer-into-conversation all wired.
+1. ✓ New components landed at `web/components/feed/`: `FeedTimeline.tsx`, `InvocationCard.tsx`, `OperatorEventMarker.tsx`, `StandaloneEventRow.tsx`, `DaySeparator.tsx`, `ConversationDrawer.tsx`.
+2. ✓ `/feed` rewired: `FeedSurface` replaces the legacy FeedPanel mount with `FeedTimeline` at center + `ConversationDrawer` slide-over. Header gains a "Talk" button that opens the drawer; clicking an OperatorEventMarker's "opened conversation →" affordance also opens it.
+3. ✓ `web/components/tp/FeedPanel.tsx` renamed to `ConversationPanel.tsx` via `git mv`. All identifier references (`FeedPanel`, `FeedPanelProps`, `FeedEmptyStateHelpers`) renamed in the same commit. `ConversationPanel` intrinsically filters to `pulse='addressed'` via `filterAddressedMessages` (no opt-in prop) — Singular Implementation per D10.
+4. ✓ `web/components/tp/MessageDispatch.tsx` — `renderSystemActivity` preserved (softened from original D9 strict-delete). Docstring updated: dispatcher is the Conversation surface's bubble grammar; pure operations-only system rows are filtered out upstream by ConversationPanel and never reach this dispatcher.
+5. ✓ `web/components/tp/MessageRow.tsx` retains weight gating + Make Recurring affordance for Conversation use.
+6. ✓ `web/components/shell/ThreePanelLayout.tsx::chat` prop renamed to `conversation`. Internal `<FeedPanel />` mount switched to `<ConversationPanel />`. Four page call sites updated atomically: `/work`, `/agents`, `/context`, `/workspace`. LocalStorage width key `yarnnn:chat-panel-width` preserved for backward-compat.
+7. ✓ `/feed` no longer mounts the right-panel chat FAB — engagement is exclusively via the slide-over drawer.
+8. ✓ Day separators interleaved by `interleaveDaySeparators` helper. Invocation card grouping by `metadata.invocation_id` via `groupFeedMessages`. Operator-event marker "opened conversation →" affordance fires `handleOpenConversation` to open the drawer.
+9. ✓ New helper module `web/lib/feed-grouping.ts` exports `groupFeedMessages`, `interleaveDaySeparators`, `filterAddressedMessages`, plus typed FeedUnit/FeedRow shapes.
 
-Net delta: ~700 LOC additions, ~300 LOC deletions, ~10 files renamed.
+Validation:
+- `npx tsc --noEmit` clean.
+- `npx next build` clean — all 30 routes compile; `/feed` 10 kB, `/work` 25.6 kB.
+
+Net delta: ~750 LOC additions across 7 new component files + 1 grouping helper; ~1 file rename (FeedPanel→ConversationPanel via git mv preserving history); ~200 LOC modified across 7 existing files.
 
 **Phase 3 — Doc-radius cascade (same commit as Phase 2)**
 
@@ -253,14 +258,14 @@ Surfaced for future ADRs that add new actor classes or rendering surfaces:
 - [x] `services/narrative.py` docstring documents `invocation_id` as `execution_events.id`.
 - [x] Test gate `api/test_adr289_invocation_id_anchoring.py` passes (25/25).
 
-**Phase 2 (FE) — pending:**
-- [ ] `/feed` renders invocation cards, operator event markers, file events, capability events, day separators — no chat bubbles for non-addressed rows.
-- [ ] `/feed` drawer renders the Conversation surface with bubble grammar when operator engages an addressed exchange.
-- [ ] `/work`, `/agents`, `/context`, `/workspace` right-panel render the Conversation surface (bubble grammar, `pulse='addressed'` filter).
-- [ ] `ThreePanelLayout::chat` prop renamed to `conversation` at all four call sites.
-- [ ] `MessageDispatch::renderSystemActivity` deleted.
-- [ ] `FeedPanel` renamed to `ConversationPanel` (or equivalent — operator-facing semantics align with Conversation, not Feed).
-- [ ] Doc-radius cascade applied in same commit as Phase 2.
+**Phase 2 (FE) — landed 2026-05-18:**
+- [x] `/feed` renders InvocationCards, OperatorEventMarkers, StandaloneEventRows, DaySeparators — no chat bubbles for non-addressed rows.
+- [x] `/feed` drawer renders the Conversation surface with bubble grammar when operator engages a conversation.
+- [x] `/work`, `/agents`, `/context`, `/workspace` right-panel render the Conversation surface (bubble grammar, `pulse='addressed'` filter intrinsic to ConversationPanel).
+- [x] `ThreePanelLayout::chat` prop renamed to `conversation` at all four call sites.
+- [x] `FeedPanel` renamed to `ConversationPanel` (operator-facing semantics align with Conversation, not Feed).
+- [x] Doc-radius cascade applied in same commit as Phase 2.
+- ~~`MessageDispatch::renderSystemActivity` deleted~~ — **softened**: kept on the Conversation surface to render addressed-cycle System Agent narrations. Pure operations-only system rows are filtered out upstream by `filterAddressedMessages` in ConversationPanel and never reach the dispatcher. Visual-nesting of action pointers under Reviewer bubble is a Phase 2.1 refinement.
 
 **Phase 1B (proposal-arrival audit row) — deferred:**
 - [ ] `_run_ai_reviewer` writes a finalized `execution_events` row across all exit branches.

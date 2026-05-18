@@ -544,7 +544,7 @@ export default function ContextPage() {
         collapsedIcon: <FolderOpen className="w-4 h-4" />,
         collapsedTitle: 'Explorer',
       }}
-      chat={{
+      conversation={{
         surfaceOverride: effectiveSurface,
         plusMenuActions,
         emptyState,

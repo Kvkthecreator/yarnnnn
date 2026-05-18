@@ -1,5 +1,7 @@
 # ADR-259: Feed Surface — Multi-Actor Operations Timeline (Renames Chat Surface)
 
+> **⚠ Rendering grammar arc closed by [ADR-289](ADR-289-feed-and-conversation-surfaces.md) (2026-05-18)**: this ADR renamed the surface; ADR-289 split the rendering grammar between FeedTimeline (typed-event rows on /feed) and ConversationDrawer / ConversationPanel (bubble grammar on right-panel mounts + /feed drawer). The vocabulary rename established here is preserved; ADR-289 finishes the structural arc.
+
 **Status**: Implemented 2026-05-08
 **Renames**: "chat surface" → "feed surface" as the canonical operator-facing concept
 **Supersedes vocabulary in**: ADR-167 (list/detail surfaces), ADR-214 (agents page consolidation), ADR-215 (surface contracts), ADR-219 (invocation and narrative), ADR-251 (system agent + reviewer first-class), ADR-258 (Reviewer as personified chat-mode operator → now "Reviewer as personified feed-mode operator"). Banners added to historical ADRs noting the rename.

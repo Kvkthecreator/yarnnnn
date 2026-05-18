@@ -161,11 +161,13 @@ Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, u
   - Agent identity editing (goes to Agents → Chat)
   - Replacing Files for the `_shared/` authored rules (per R3 — `ManageContextModal` retired)
 
-### Tab: Chat
+### Tab: Feed
 
-**Route:** `/chat` (HOME per ADR-205 F1)
+**Route:** `/feed` (HOME per ADR-205 F1; `/chat` redirects to `/feed` per ADR-259)
 
-- **Archetype:** Stream — **the narrative surface** per [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) (FOUNDATIONS Axiom 9). The universal log of every invocation in the workspace, of which the operator's own conversation is one thread. Reviewer verdicts (`role='reviewer'`), agent task completions (`role='agent'`), back-office digests (`role='system'`), and external MCP foreign-LLM calls (`role='external'`) all surface here as Identity-tagged entries with weight-driven rendering. Cold-start empty-state is the one exception — renders a curated landing panel.
+> **ADR-289 Phase 2 update (2026-05-18):** The Feed tab is now split into two render surfaces — the **FeedTimeline** (operations-timeline rendering of typed event rows, no chat bubbles) and a **ConversationDrawer** (chat-shaped exchange surface scoped to `pulse='addressed'`). Bubble grammar is preserved ONLY on the Conversation surface. The Feed surface groups rows by `metadata.invocation_id` (re-anchored to `execution_events.id` per ADR-289 D2) into InvocationCards. Operator engages a conversation via the header "Talk" button or by clicking an OperatorEventMarker's "opened conversation →" affordance — the drawer slides over the timeline. Autonomous wakes that fire while the drawer is open surface silently in the timeline behind; visible when the drawer closes.
+
+- **Archetype:** Stream — **the narrative surface** per [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) (FOUNDATIONS Axiom 9). The universal log of every invocation in the workspace, of which the operator's own conversation is one thread. Reviewer verdicts (`role='reviewer'`), agent task completions (`role='agent'`), back-office digests (`role='system'`), and external MCP foreign-LLM calls (`role='external'`) all surface here as Identity-tagged entries with **invocation-grouped typed-event rendering** (ADR-289 D6 supersedes ADR-219 D5's bubble-everywhere policy). Cold-start empty-state is the one exception — renders a curated landing panel.
 - **Narrative semantics** (ADR-219):
   - **Identity widening** — `session_messages.role` enum is `user | assistant | system | reviewer | agent | external` (migration 161). Every invocation in the workspace emits exactly one narrative entry into this stream.
   - **Weight-driven rendering** (ADR-219 D5) — `metadata.weight` ∈ `{material, routine, housekeeping}` drives per-row UI density. Material → full card (existing user/assistant/reviewer card path). Routine → collapsed line with chevron + click-to-expand. Housekeeping → dim one-liner; the curated rollup card written by `back-office-narrative-digest` (ADR-219 Commit 3) is the recommended surface for housekeeping clusters. Legacy "no envelope" rows default to material so messages predating ADR-219 Commit 2 don't disappear.

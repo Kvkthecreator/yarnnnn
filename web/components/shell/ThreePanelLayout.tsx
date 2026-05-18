@@ -10,20 +10,25 @@
  * a leftPanel.
  *
  * Structure (with leftPanel):
- *   Left panel | Center content | Right chat (resizable, default closed)
+ *   Left panel | Center content | Right Conversation panel (resizable, default closed)
  *
  * Structure (without leftPanel):
- *   Center content (full width) | Right chat (resizable, default closed)
+ *   Center content (full width) | Right Conversation panel (resizable, default closed)
  *
- * Resize: both the left panel and the chat panel have a drag handle that
- * persists width to localStorage (per panel role). IDE-style — grab the
- * vertical edge to widen/narrow.
+ * Resize: both the left panel and the conversation panel have a drag
+ * handle that persists width to localStorage (per panel role). IDE-style
+ * — grab the vertical edge to widen/narrow.
+ *
+ * ADR-289 Phase 2: `chat` prop renamed to `conversation` and the inner
+ * mount switched from FeedPanel to ConversationPanel (scoped to
+ * `pulse='addressed'`). The localStorage width key is preserved as
+ * `yarnnn:chat-panel-width` so existing operator widths survive.
  */
 
 import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
-import { FeedPanel, type FeedPanelProps } from '@/components/tp/FeedPanel';
+import { ConversationPanel, type ConversationPanelProps } from '@/components/tp/ConversationPanel';
 
 /** Returns true when viewport width < 640px (Tailwind sm breakpoint). */
 function useIsMobile(): boolean {
@@ -76,27 +81,31 @@ export interface ThreePanelLayoutProps {
   /** Center panel content */
   children: ReactNode;
 
-  /** Chat panel configuration. Omit to disable chat entirely (e.g., Activity page). */
-  chat?: {
-    /** Surface override for TP context */
-    surfaceOverride?: FeedPanelProps['surfaceOverride'];
-    /** Prefill the chat input from the parent surface without auto-sending */
-    draftSeed?: FeedPanelProps['draftSeed'];
+  /**
+   * Conversation panel configuration (ADR-289 D10 rename from `chat`).
+   * Mounts a ConversationPanel — chat-shaped exchange between operator
+   * and counterpart, scoped to `pulse='addressed'`. Omit to disable.
+   */
+  conversation?: {
+    /** Surface override for YARNNN context */
+    surfaceOverride?: ConversationPanelProps['surfaceOverride'];
+    /** Prefill the input from the parent surface without auto-sending */
+    draftSeed?: ConversationPanelProps['draftSeed'];
     /** Plus menu actions */
-    plusMenuActions: FeedPanelProps['plusMenuActions'];
-    /** Placeholder text for chat input */
+    plusMenuActions: ConversationPanelProps['plusMenuActions'];
+    /** Placeholder text for input */
     placeholder?: string;
     /** Empty state content */
     emptyState?: ReactNode;
     /** Whether to show command picker */
     showCommandPicker?: boolean;
-    /** Context subtitle shown next to "TP" in chat header */
+    /** Context subtitle shown next to "yarnnn" in panel header */
     contextLabel?: string;
     /** Initial open state (default: false — FAB only) */
     defaultOpen?: boolean;
-    /** Increment to force the chat panel open from the parent surface */
+    /** Increment to force the conversation panel open from the parent surface */
     openSignal?: number;
-    /** Chat panel width in px (default: 380) */
+    /** Conversation panel width in px (default: 380) */
     width?: number;
   };
 }
@@ -104,7 +113,7 @@ export interface ThreePanelLayoutProps {
 export function ThreePanelLayout({
   leftPanel,
   children,
-  chat,
+  conversation,
 }: ThreePanelLayoutProps) {
   const isMobile = useIsMobile();
   const router = useRouter();
@@ -117,7 +126,7 @@ export function ThreePanelLayout({
     if (isMobile) {
       // Force-close the panel if viewport shrinks to mobile (e.g. browser resize).
       setChatOpen(false);
-    } else if (chat?.defaultOpen) {
+    } else if (conversation?.defaultOpen) {
       // On desktop with defaultOpen, open once after mount.
       setChatOpen(true);
     }
@@ -126,30 +135,30 @@ export function ThreePanelLayout({
 
   // Width state — hydrated from localStorage on mount to avoid SSR mismatch.
   const [leftWidth, setLeftWidth] = useState(leftPanel?.width ?? 280);
-  const [chatWidth, setChatWidth] = useState(chat?.width ?? 380);
-  const previousChatOpenSignal = useRef<number | undefined>(chat?.openSignal);
+  const [chatWidth, setChatWidth] = useState(conversation?.width ?? 380);
+  const previousChatOpenSignal = useRef<number | undefined>(conversation?.openSignal);
 
   useEffect(() => {
     setLeftWidth(loadStoredWidth(LEFT_WIDTH_KEY, leftPanel?.width ?? 280, LEFT_MIN, LEFT_MAX));
-    setChatWidth(loadStoredWidth(CHAT_WIDTH_KEY, chat?.width ?? 380, CHAT_MIN, CHAT_MAX));
+    setChatWidth(loadStoredWidth(CHAT_WIDTH_KEY, conversation?.width ?? 380, CHAT_MIN, CHAT_MAX));
     // Read once on mount — defaults are stable per page render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (chat?.openSignal === undefined) {
+    if (conversation?.openSignal === undefined) {
       previousChatOpenSignal.current = undefined;
       return;
     }
     if (previousChatOpenSignal.current === undefined) {
-      previousChatOpenSignal.current = chat.openSignal;
+      previousChatOpenSignal.current = conversation.openSignal;
       return;
     }
-    if (chat.openSignal !== previousChatOpenSignal.current) {
-      previousChatOpenSignal.current = chat.openSignal;
+    if (conversation.openSignal !== previousChatOpenSignal.current) {
+      previousChatOpenSignal.current = conversation.openSignal;
       setChatOpen(true);
     }
-  }, [chat?.openSignal]);
+  }, [conversation?.openSignal]);
 
   // Drag-to-resize for left panel (drag right edge → width grows)
   const leftDragging = useRef(false);
@@ -250,10 +259,10 @@ export function ThreePanelLayout({
         {children}
       </div>
 
-      {/* ── Right: Chat Panel (only renders on non-mobile; on mobile chatOpen stays false) ── */}
-      {chat && chatOpen && (
+      {/* ── Right: Conversation Panel (only renders on non-mobile; on mobile chatOpen stays false) ── */}
+      {conversation && chatOpen && (
         <>
-          {/* Resize handle for chat panel */}
+          {/* Resize handle for conversation panel */}
           <div
             onMouseDown={onChatMouseDown}
             className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
@@ -267,9 +276,9 @@ export function ThreePanelLayout({
               <div className="flex items-center gap-2">
                 <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="" className="w-5 h-5" />
                 <span className="text-sm font-brand">yarnnn</span>
-                {chat.contextLabel && (
+                {conversation.contextLabel && (
                   <span className="text-[10px] text-muted-foreground/50 truncate max-w-[160px]">
-                    · {chat.contextLabel}
+                    · {conversation.contextLabel}
                   </span>
                 )}
               </div>
@@ -281,23 +290,23 @@ export function ThreePanelLayout({
               </button>
             </div>
             <div className="flex-1 min-h-0">
-              <FeedPanel
-                surfaceOverride={chat.surfaceOverride}
-                draftSeed={chat.draftSeed}
-                plusMenuActions={chat.plusMenuActions}
-                placeholder={chat.placeholder}
-                emptyState={chat.emptyState}
-                showCommandPicker={chat.showCommandPicker}
+              <ConversationPanel
+                surfaceOverride={conversation.surfaceOverride}
+                draftSeed={conversation.draftSeed}
+                plusMenuActions={conversation.plusMenuActions}
+                placeholder={conversation.placeholder}
+                emptyState={conversation.emptyState}
+                showCommandPicker={conversation.showCommandPicker}
               />
             </div>
           </div>
         </>
       )}
 
-      {/* FAB — always visible when chat panel is closed.
-          Desktop: opens the inline chat panel.
-          Mobile: navigates to /chat (panel layout doesn't work at <640px). */}
-      {chat && !chatOpen && (
+      {/* FAB — always visible when conversation panel is closed.
+          Desktop: opens the inline conversation panel.
+          Mobile: navigates to /feed (panel layout doesn't work at <640px). */}
+      {conversation && !chatOpen && (
         <button
           onClick={() => isMobile ? router.push('/feed') : setChatOpen(true)}
           className="fixed right-4 z-50 w-12 h-12 rounded-full shadow-lg hover:shadow-xl hover:scale-110 transition-all flex items-center justify-center group sm:right-6"

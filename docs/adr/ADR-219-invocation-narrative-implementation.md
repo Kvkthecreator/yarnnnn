@@ -2,6 +2,8 @@
 
 > **⚠ Vocabulary update (2026-05-08, [ADR-259](ADR-259-feed-surface.md))**: this ADR established the multi-actor narrative timeline that ADR-259 later named "the Feed." References to "chat" / "chat surface" / "chat-not-surfacing" below are preserved as period vocabulary. Architectural decisions in this ADR are foundational to the feed-surface concept and remain unchanged.
 
+> **⚠ Rendering grammar update (2026-05-18, [ADR-289](ADR-289-feed-and-conversation-surfaces.md))**: D5's bubble-everywhere visual-rendering policy is **superseded** for the Feed surface. ADR-289 D6 groups narrative rows by `metadata.invocation_id` (re-anchored to `execution_events.id` per ADR-289 D2) into typed-event InvocationCards on the FeedTimeline; bubble grammar is preserved only on the Conversation surface (drawer on /feed; right-panel on /work, /agents, /context, /workspace). The weight enum (`material | routine`), pulse vocabulary, Identity widening, and substrate single-write-path through `services.narrative.write_narrative_entry` are all preserved unchanged.
+
 > **Status**: **Implemented** (Commits 1–6 landed 2026-04-25 / 2026-04-26). **D2 narrative-coverage extended 2026-04-28 by [ADR-229](./ADR-229-judgment-first-dispatch-and-generative-defer.md) D3**: emission gate widened from `final_status == "delivered"` to `final_status in ("delivered", "failed")`. Failed task runs now emit a narrative entry with `weight: "routine"` and `system_card: "task_failed"`; delivered runs unchanged at `weight: "material"` / `system_card: "task_complete"`. Closes the chat-not-surfacing gap that today's Phase B observation surfaced.
 > **Date**: 2026-04-25
 > **Authors**: KVK, Claude

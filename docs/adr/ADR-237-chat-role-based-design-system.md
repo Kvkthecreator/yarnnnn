@@ -1,6 +1,6 @@
 # ADR-237: Chat Role-Based Design System — One Dispatch Table, One Grammar
 
-> **Status**: **Implemented** (2026-04-29). **Visual grammar superseded by ADR-258** (2026-05-08): the dispatch table and weight gating are preserved; the color-based Reviewer differentiation (rose tinting, section dividers, ReviewerBanner) is deleted and replaced with a uniform muted bubble + compact status chip. See ADR-258 for the first-principles rewrite.
+> **Status**: **Implemented** (2026-04-29). **Visual grammar superseded by ADR-258** (2026-05-08): the dispatch table and weight gating are preserved; the color-based Reviewer differentiation (rose tinting, section dividers, ReviewerBanner) is deleted and replaced with a uniform muted bubble + compact status chip. See ADR-258 for the first-principles rewrite. **Surface scoping by [ADR-289](ADR-289-feed-and-conversation-surfaces.md) (2026-05-18):** the 4-shape grammar is scoped to the Conversation surface only (right-panel mounts + /feed drawer); the FeedTimeline at /feed center uses typed-event row components instead of bubbles.
 > **Date**: 2026-04-29
 > **Authors**: KVK, Claude
 > **Dimensional classification**: **Channel** (Axiom 6) primary — a shared formal grammar for chat-message rendering across roles. **Identity** (Axiom 2) secondary — the grammar is keyed on `TPMessage.role`, which is the chat-surface projection of FOUNDATIONS Axiom 2's identity layer.

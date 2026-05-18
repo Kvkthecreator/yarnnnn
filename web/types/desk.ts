@@ -87,7 +87,9 @@ export interface NarrativeEnvelope {
   weight?: NarrativeWeight;
   /** Task slug nameplate, when this invocation was labeled. */
   taskSlug?: string;
-  /** agent_runs row id when this invocation produced one. */
+  /** ADR-289 D2: the execution_events.id of the cycle that emitted this
+   *  narrative entry. All rows produced during one Reviewer cycle share
+   *  this id; the Feed surface groups them into one InvocationCard. */
   invocationId?: string;
   /** Audit-pass-2 DD-4: when this narration entry corresponds to a
    * ProposeAction tool call (System Agent on Reviewer's direction),

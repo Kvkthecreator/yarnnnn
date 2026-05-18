@@ -6,6 +6,39 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.18.6] - feat(adr-289): Feed/Conversation surface split — Phase 2 FE
+
+### Decision
+
+ADR-289 D6 + D7 + D9 + D10 (Phase 2 FE): split the operator-facing rendering into two surfaces with two grammars. The Feed (operations timeline at /feed) renders typed-event rows grouped by `metadata.invocation_id` — no chat bubbles. The Conversation (right-panel on /work, /agents, /context, /workspace + slide-over drawer on /feed) renders bubble grammar scoped to `pulse='addressed'`. Phase 1 BE already stamps `invocation_id` on every row produced during a Reviewer cycle; Phase 2 consumes that grouping.
+
+Zero prompt changes — this entry is here per CLAUDE.md discipline because the FE rendering layer is a behavioral artifact that pairs with the BE narrative envelope.
+
+### Changed
+
+**New components (web/components/feed/):** `FeedTimeline.tsx` (groups rows by invocation_id, interleaves day separators), `InvocationCard.tsx` (collapsible card: verdict body + nested actions), `OperatorEventMarker.tsx` (standalone marker + "opened conversation →" affordance), `StandaloneEventRow.tsx` (orphan system events), `DaySeparator.tsx`, `ConversationDrawer.tsx` (slide-over hosting ConversationPanel; full-screen on mobile <640px).
+
+**New helper:** `web/lib/feed-grouping.ts` — pure-TS `groupFeedMessages`, `interleaveDaySeparators`, `filterAddressedMessages` exports.
+
+**Renamed (git mv preserving history):** `web/components/tp/FeedPanel.tsx` → `web/components/tp/ConversationPanel.tsx`. Intrinsic `pulse='addressed'` filter (Singular Implementation).
+
+**Modified:** `ThreePanelLayout.chat` → `conversation` prop, inner `<FeedPanel/>` → `<ConversationPanel/>`. `FeedSurface` rewired (FeedTimeline + ConversationDrawer + "Talk" header button). 4 page mounts updated (work/agents/context/workspace). MessageDispatch docstring scoped to Conversation surface. FeedFilterBar import migrated.
+
+### Validation
+
+- `npx tsc --noEmit` clean.
+- `npx next build` clean — all 30 routes compile.
+
+### Doc-radius cascade (this commit)
+
+- ADR-289 status: Phase 1 + Phase 2 Implemented.
+- ADR-219 rendering-grammar banner — D5 bubble-everywhere superseded for Feed.
+- ADR-237 surface-scoping banner — 4-shape grammar scoped to Conversation.
+- ADR-259 rendering-arc-closed banner.
+- WORKSPACE.md Tab: Feed contract updated.
+
+---
+
 ## [2026.05.18.5] - feat(adr-289): invocation_id substrate anchoring — Phase 1 BE
 
 ### Decision

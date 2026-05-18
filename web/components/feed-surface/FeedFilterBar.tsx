@@ -24,7 +24,7 @@ import { useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
-import type { NarrativeFilter } from '@/components/tp/FeedPanel';
+import type { NarrativeFilter } from '@/components/tp/ConversationPanel';
 
 // ADR-277 (2026-05-15): housekeeping weight retired. Emission policy
 // now decides at source whether an event reaches the feed at all;
@@ -45,9 +45,9 @@ const IDENTITIES: Array<{ id: string; label: string }> = [
 
 
 /**
- * Parse the filter URL params into a NarrativeFilter for FeedPanel.
- * Exported so /chat/page can drive FeedPanel's filter prop without
- * re-implementing the parse.
+ * Parse the filter URL params into a NarrativeFilter for ConversationPanel.
+ * Exported so callers can drive the filter prop without re-implementing
+ * the parse. Renamed from FeedPanel reference per ADR-289 D10.
  */
 export function parseChatFilterFromSearch(
   searchParams: URLSearchParams,

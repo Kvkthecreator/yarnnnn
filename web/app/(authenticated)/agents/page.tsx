@@ -135,7 +135,7 @@ export default function AgentsPage() {
   return (
     <>
     <ThreePanelLayout
-      chat={{
+      conversation={{
         surfaceOverride,
         plusMenuActions,
         placeholder: selectedAgent ? `Ask about ${selectedAgent.title}...` : 'Ask anything or type / ...',

@@ -331,7 +331,7 @@ export default function WorkPage() {
   return (
     <>
     <ThreePanelLayout
-      chat={{
+      conversation={{
         surfaceOverride: chatSurfaceOverride,
         draftSeed: chatDraftSeed,
         plusMenuActions,

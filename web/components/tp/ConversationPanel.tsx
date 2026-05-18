@@ -1,15 +1,23 @@
 'use client';
 
 /**
- * FeedPanel — Shared YARNNN feed component (ADR-189, ADR-190, renamed by ADR-259).
+ * ConversationPanel — chat-shaped exchange surface (ADR-289 Phase 2).
  *
- * Used by both the Tasks surface and Context explorer.
- * Handles message display, input, file attachments, command picker,
- * clarification UI, action cards, and token usage.
+ * Renders the operator ↔ counterpart conversation as left/right-aligned
+ * bubble UX. Filtered to `pulse='addressed'` rows only (plus operator
+ * user messages, which always belong to a conversation when present) —
+ * autonomous Reviewer wakes, mechanical recurrences, and other
+ * operations events belong to the FeedTimeline, not the Conversation.
  *
- * ADR-190: the /feed surface passes `emptyState={<FeedEmptyState />}` to
- * render a deterministic welcome + chips when messages.length === 0.
- * File drop + URL paste affordances will migrate here in a later commit.
+ * Mount contexts (ADR-289 D7):
+ *   - Right panel on /work, /agents, /context, /workspace (via
+ *     ThreePanelLayout.conversation prop)
+ *   - Drawer on /feed (ConversationDrawer slide-over)
+ *
+ * Renamed from FeedPanel by ADR-289 D10: operator-facing semantics
+ * align with Conversation (not Feed). The Feed is the operations
+ * timeline (FeedTimeline); the Conversation is the chat-shaped sub-
+ * surface for addressed exchanges only.
  */
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -35,6 +43,7 @@ import {
 } from '@/components/tp/InlineActionCard';
 import { MessageRow } from '@/components/tp/MessageRow';
 import type { TPMessage } from '@/types/desk';
+import { filterAddressedMessages } from '@/lib/feed-grouping';
 
 /**
  * ADR-219 Commit 5: query-param-driven filters on /chat.
@@ -52,7 +61,7 @@ export interface NarrativeFilter {
   taskSlug?: string | null;
 }
 
-export interface FeedPanelProps {
+export interface ConversationPanelProps {
   /** Surface override — when set, used instead of DeskContext surface */
   surfaceOverride?: any;
   /** Prefill the input from a parent surface without auto-sending */
@@ -77,7 +86,7 @@ export interface FeedPanelProps {
    */
   emptyState?:
     | React.ReactNode
-    | ((helpers: FeedEmptyStateHelpers) => React.ReactNode);
+    | ((helpers: ConversationEmptyStateHelpers) => React.ReactNode);
   /** Whether to show the command picker (/ commands) */
   showCommandPicker?: boolean;
   /** Whether to render a divider above the input */
@@ -98,15 +107,15 @@ export interface FeedPanelProps {
 }
 
 /**
- * Helpers exposed to emptyState render functions (ADR-190).
- * Add new helpers here as rich-input affordances grow (URL capture, etc.).
+ * Helpers exposed to emptyState render functions (ADR-190 lineage,
+ * preserved through the ADR-289 rename).
  */
-export interface FeedEmptyStateHelpers {
+export interface ConversationEmptyStateHelpers {
   /** Opens the OS file picker for the composer's hidden file input. */
   requestUpload: () => void;
 }
 
-export function FeedPanel({
+export function ConversationPanel({
   surfaceOverride,
   draftSeed,
   plusMenuActions,
@@ -117,7 +126,7 @@ export function FeedPanel({
   showInputDivider = true,
   narrativeFilter = null,
   onMakeRecurring,
-}: FeedPanelProps) {
+}: ConversationPanelProps) {
   const {
     messages,
     sendMessage,
@@ -248,11 +257,13 @@ export function FeedPanel({
           </div>
         )}
 
-        {/* ADR-277: dedupeBackOfficeEvents removed. The 60-second-window
-            system+system_agent duplicate-content heuristic was paper-cover
-            for the mechanical-fire-success emission that itself got
-            deleted at source in invocation_dispatcher.py. */}
-        {messages
+        {/* ADR-289 D1 + D7: the Conversation surface renders only
+            pulse='addressed' rows (plus operator user messages). Autonomous
+            wakes, mechanical recurrences, and orphan system events belong
+            to the FeedTimeline on /feed — they don't appear here.
+            Singular Implementation per ADR-289 D10: filter is intrinsic to
+            this surface, not opt-in via prop. */}
+        {filterAddressedMessages(messages)
           .filter(msg => narrativeFilterMatches(msg, narrativeFilter))
           .map(msg => (
             <NarrativeMessage

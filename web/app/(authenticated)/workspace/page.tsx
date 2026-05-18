@@ -42,7 +42,7 @@ export default function WorkspaceConfigPage() {
 
   return (
     <ThreePanelLayout
-      chat={{
+      conversation={{
         placeholder: 'Ask YARNNN to update your workspace setup…',
         emptyState: chatEmptyState,
         defaultOpen: true,
