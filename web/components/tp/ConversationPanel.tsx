@@ -46,10 +46,10 @@ import type { TPMessage } from '@/types/desk';
 import { filterAddressedMessages } from '@/lib/feed-grouping';
 
 /**
- * ADR-219 Commit 5: query-param-driven filters on /chat.
+ * ADR-219 Commit 5: query-param-driven filters on /feed.
  * Each filter narrows messages.map render. Empty / null filters render
  * the full narrative. Filter parsing is the parent's responsibility
- * (chat/page reads the URL); FeedPanel just consumes.
+ * (the surface reads the URL); ConversationPanel just consumes.
  */
 export interface NarrativeFilter {
   /** Restrict to entries with `metadata.weight` in this set.
@@ -80,9 +80,9 @@ export interface ConversationPanelProps {
    *   - Other surfaces (work, agents, context via ThreePanelLayout): pass a
    *     plain ReactNode with contextual "select something" guidance.
    *
-   * The render-function form exposes FeedPanel's internal helpers (file
-   * picker ref, future URL input focus, etc.) to the empty-state children
-   * without leaking FeedPanel internals through props.
+   * The render-function form exposes ConversationPanel's internal helpers
+   * (file picker ref, future URL input focus, etc.) to the empty-state
+   * children without leaking panel internals through props.
    */
   emptyState?:
     | React.ReactNode
@@ -203,8 +203,9 @@ export function ConversationPanel({
   }, []);
   useEffect(() => { adjustHeight(); }, [input, adjustHeight]);
 
-  // Built-in attach action — owned by FeedPanel because it references fileInputRef.
-  // Prepended to whatever plusMenuActions the page provides.
+  // Built-in attach action — owned by ConversationPanel because it
+  // references fileInputRef. Prepended to whatever plusMenuActions the
+  // page provides.
   const allPlusMenuActions: PlusMenuAction[] = useMemo(() => [
     {
       id: 'attach-file',
@@ -474,9 +475,9 @@ function narrativeFilterMatches(
  *     (authorship attribution chip, Make Recurring affordance)
  *   - MessageDispatch.tsx — role-shape rendering for material weight
  *
- * This shell exists only because the surrounding map() in FeedPanel
- * passes a single message + isLoading + onMakeRecurring; the row API
- * accepts the same triple.
+ * This shell exists only because the surrounding map() in
+ * ConversationPanel passes a single message + isLoading +
+ * onMakeRecurring; the row API accepts the same triple.
  */
 function NarrativeMessage({
   msg,

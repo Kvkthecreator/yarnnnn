@@ -379,8 +379,8 @@ export const api = {
               pulse?: 'periodic' | 'reactive' | 'addressed' | 'heartbeat';
               // ADR-277: housekeeping retired (no live emission path).
               // Pre-ADR-277 stored rows with weight='housekeeping' coerce
-              // to 'routine' on read in FeedPanel; surfacing the legacy
-              // value in the wire type would re-leak it into the FE.
+              // to 'routine' on read in ConversationPanel; surfacing the
+              // legacy value in the wire type would re-leak it into the FE.
               weight?: 'material' | 'routine';
               invocation_id?: string;
               // ADR-219 Commit 3: narrative_digest rollup card

@@ -4,7 +4,8 @@
  * FeedEmptyState — YARNNN's deterministic first-turn welcome surface
  * (ADR-190 + ADR-231 D1).
  *
- * Rendered by FeedPanel when messages.length === 0. Zero LLM cost — hardcoded
+ * Rendered by FeedTimeline (ADR-289 Phase 2) when messages.length === 0.
+ * Zero LLM cost — hardcoded
  * client-side copy that establishes the authored-team frame before the
  * operator types.
  *
@@ -31,7 +32,9 @@ import { FileUp, Link2, Sparkles } from 'lucide-react';
 interface FeedEmptyStateProps {
   /** Called when a text-seed chip is clicked. */
   onChipClick: (text: string) => void;
-  /** Opens the composer's file picker. Wired from FeedPanel.fileInputRef. */
+  /** Opens the Conversation drawer per ADR-289 Phase 2 (drawer hosts
+   *  the composer; chip-driven engagement always routes through the
+   *  drawer rather than a Feed-level composer). */
   onUploadClick: () => void;
 }
 
