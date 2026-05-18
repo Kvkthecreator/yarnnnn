@@ -75,6 +75,21 @@ recurrences:
       )
     display_name: "Open Orders Mirror"
 
+  # ── back-office-substrate-reapply — ADR-292 continuous re-apply ────────
+  # Daily walk of kernel-universal seed paths + this bundle's reference-
+  # workspace. Re-writes platform-managed files where the operator hasn't
+  # taken authorship (gated by services.workspace_utils.is_skeleton_content).
+  # Zero LLM cost. Audit log appended to /workspace/_shared/substrate-reapply-log.md.
+  # Closes the kernel/bundle → live-workspace propagation gap so improvements
+  # to docs/programs/{slug}/reference-workspace/ and to kernel skeleton
+  # constants reach all forked workspaces, not just new ones.
+  - slug: back-office-substrate-reapply
+    schedule: "0 9 * * *"   # Daily 09:00 UTC — after morning market-context refreshes
+    mode: mechanical
+    prompt: |
+      @primitive: ReapplyPlatformSubstrate()
+    display_name: "Continuous Substrate Re-Apply"
+
   # ── JUDGMENT RECURRENCES — wake the Reviewer with a prompt ──────────────
 
   # ── track-regime — refresh portfolio-level regime state ──────────────────

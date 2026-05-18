@@ -489,6 +489,8 @@ The bundle's `_recurrences.yaml` (at [docs/programs/alpha-trader/reference-works
 
 The operator does not "scaffold" these recurrences — they ship with the bundle and fork at activation. Operator authoring lives in `_operator_profile.md` (universe + signal definitions), `_risk.md` (risk parameters), `principles.md` (Reviewer rules), and `AUTONOMY.md` (delegation ceiling). The recurrences are the program's standing engine; the authored substrate is what the engine reasons against.
 
+Bundle template improvements to any of these 14 recurrences (or to the `specs/*.md` capability library) propagate to activated workspaces via the continuous re-apply mechanism (ADR-292) where the operator has not customized the file. Operator-customized files (HEAD `authored_by` ≠ `system:*`) are never touched. The mechanism runs daily as `back-office-substrate-reapply`; audit at `/workspace/_shared/substrate-reapply-log.md`.
+
 ### 3A.6 Money-truth substrate expectations (`_money_truth.md` shape)
 
 **SHIPPED 2026-05-12 via ADR-267 (P&L unification).** Canonical money-truth file renamed `_money_truth.md` → `_money_truth.md`; `_money_truth_summary.md` → `_money_truth_summary.md`. The reconciler now populates per-signal attribution natively via Alpaca's `client_order_id` round-trip — ExecuteProposal stamps `proposal.id` on submit, reconciler reads it back to recover `signal_id` from `proposal.inputs`.

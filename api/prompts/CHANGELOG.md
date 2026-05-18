@@ -6,6 +6,32 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.18.7] - feat(adr-292): Continuous Substrate Re-Apply — new mechanical primitive + back-office recurrence
+
+### Decision
+
+ADR-292 closes the propagation gap between kernel/bundle substrate and live operator workspaces. Net new mechanical primitive `ReapplyPlatformSubstrate` registered in `services/primitives/registry.HANDLERS`; not in CHAT/HEADLESS/REVIEWER tool surfaces per ADR-264 D3 (operators don't directly invoke mechanical primitives — they author recurrences that name them). Backed by `services/substrate_reapply.py::reapply_platform_substrate`. New `back-office-substrate-reapply` recurrence added to alpha-trader + alpha-author bundle `_recurrences.yaml` files at daily 09:00 UTC cadence.
+
+### Behavioral changes
+
+- New attribution actor `system:substrate-reapply` appears in `workspace_file_versions.authored_by`. Distinct from `system:bundle-fork` (one-shot activation actor) — names the continuous-re-apply actor per ADR-288 D1 (caller_identity = recurrence slug).
+- New audit-log path `/workspace/_shared/substrate-reapply-log.md` — system-authored append-only markdown. Operator-readable; not operator-actionable.
+- Kernel skeleton improvements (e.g., changes to `DEFAULT_REVIEW_CALIBRATION_MD`, `DEFAULT_PRECEDENT_MD`, `TP_ORCHESTRATION_PLAYBOOK`) now reach live workspaces on next daily cycle wherever the operator hasn't customized them. Pre-ADR-292 they reached new workspaces only.
+- Bundle template improvements (e.g., edits to `docs/programs/alpha-trader/reference-workspace/specs/*.md`) propagate the same way via the bundle re-apply layer.
+- Operator-customized files (HEAD content fails `is_skeleton_content` against the canonical content) are never touched. Singular Implementation honored — the existing `fork_reference_workspace` gate is the single decision authority; we did not introduce a parallel `authored_by`-only gate.
+
+### Files
+
+- `api/services/substrate_reapply.py` (new, ~330 LOC)
+- `api/services/primitives/registry.py` (import + HANDLERS entry)
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml` (1 new mechanical recurrence)
+- `docs/programs/alpha-author/reference-workspace/_recurrences.yaml` (1 new mechanical recurrence)
+- `docs/adr/ADR-292-continuous-substrate-reapply.md` (Proposed → expected Implemented after this commit)
+- `docs/architecture/propagation-discipline.md` (planning doc, ratified into ADR-292)
+- `docs/alpha/INDEX.md` + `docs/alpha/ALPHA-1-PLAYBOOK.md` §3A.5 + `docs/alpha/E2E-EXECUTION-CONTRACT.md` §6 (operator-facing surface notes)
+
+---
+
 ## [2026.05.18.6] - feat(adr-289): Feed/Conversation surface split — Phase 2 FE
 
 ### Decision

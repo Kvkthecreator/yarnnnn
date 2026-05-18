@@ -38,6 +38,15 @@ declaration substrate; per-shape `_spec.yaml`/`_action.yaml`/`_recurring.yaml`/
 `tasks.yaml` files no longer exist), apply persona overrides per ADR-230 D6,
 ensure specialist agent rows lazy-create on dispatch, optional platform connect.
 
+**Continuous re-apply (ADR-292).** Once a workspace is activated, kernel +
+bundle updates reach it via the daily `back-office-substrate-reapply`
+recurrence. The mechanism is `authored_by`-gated: files where the operator
+(or any non-system actor) has taken authorship are never touched; files
+still attributed to `system:*` get re-written if the upstream canonical
+content has changed. No operator action required. Audit trail at
+`/workspace/_shared/substrate-reapply-log.md`. See
+[ADR-292](../adr/ADR-292-continuous-substrate-reapply.md) for the discipline.
+
 
 ## Canonical docs (read in this order for fresh sessions)
 

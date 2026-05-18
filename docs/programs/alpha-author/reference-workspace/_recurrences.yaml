@@ -26,6 +26,21 @@
 
 recurrences:
 
+  # ── back-office-substrate-reapply — ADR-292 continuous re-apply ────────
+  # Daily walk of kernel-universal seed paths + this bundle's reference-
+  # workspace. Re-writes platform-managed files where the operator hasn't
+  # taken authorship (gated by services.workspace_utils.is_skeleton_content).
+  # Zero LLM cost. Audit log appended to /workspace/_shared/substrate-reapply-log.md.
+  # Closes the kernel/bundle → live-workspace propagation gap so improvements
+  # to docs/programs/alpha-author/reference-workspace/ and to kernel skeleton
+  # constants reach all forked workspaces, not just new ones.
+  - slug: back-office-substrate-reapply
+    schedule: "0 9 * * *"   # Daily 09:00 UTC
+    mode: mechanical
+    prompt: |
+      @primitive: ReapplyPlatformSubstrate()
+    display_name: "Continuous Substrate Re-Apply"
+
   # ── REACTIVE — pre-ship audit ───────────────────────────────────────────
   # Fires when operator marks a draft `ready_for_review` via the chat
   # surface or workspace edit. The Reviewer audits the draft against
