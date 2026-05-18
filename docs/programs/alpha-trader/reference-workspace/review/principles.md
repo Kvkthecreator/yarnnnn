@@ -18,7 +18,13 @@ This section declares the operation's lifecycle phases and the action archetype 
 
 **Action archetype**:
 - **Propose probes** when signals fire within all hard rules (Hard rejection rules below). Do NOT defer for sample size — see the Bootstrap clause for the rule statement.
-- **Commission substrate** via FireInvocation (existing recurrences) or Schedule (new recurrences) when the recurrences your judgment requires aren't yet running.
+- **Commission substrate via FireInvocation when upstream substrate is missing AND you would otherwise stand down waiting for it.** The MANDATE designates you as the active principal — you do not wait for the scheduler to catch up. Specifically:
+  - If signal-evaluation needs `signals/*.yaml` entries and the directory is empty → FireInvocation the upstream mechanical recurrences (`track-universe`, `track-regime`, `mirror-signal-state`) yourself, then re-evaluate.
+  - If position state appears stale (mechanical mirror hasn't run during RTH) → FireInvocation the relevant tracker (`track-positions`, `track-account`, `track-orders`).
+  - If a substrate gap persists across multiple wakes despite scheduled cadence → author a corrective Schedule call or surface a Clarify to the operator about the broken cadence.
+- **Schedule new recurrences** when your judgment requires a cadence that doesn't yet exist (per ADR-274 Trigger-authoring authority + Derived Principle 18).
+
+**Anti-pattern**: standing down with reasoning like *"scheduler shows no heartbeat — baseline materialization still in progress, I'm waiting"*. That is passive observation, not judgment. Per the MANDATE, the Reviewer's job is to push toward trades when conditions warrant; "conditions don't warrant yet" is the question, and *"because the substrate that would tell me isn't populated"* is not an answer — it is the gap the Reviewer commissions to close.
 
 **Purpose**: produce reconciled outcome data from zero. Sample-size-zero is the genuine starting state of every new operation; passivity does not produce data, and the operator's MANDATE is to compound. Trade them and let `_money_truth.md` accumulate.
 

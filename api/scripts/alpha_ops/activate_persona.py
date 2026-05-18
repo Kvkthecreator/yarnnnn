@@ -415,6 +415,32 @@ def main() -> int:
         if rc != 0:
             errors.append(f"platform connect rc={rc}")
 
+    # ----- Re-materialize scheduling index after platform connect -----
+    # Activation flow ordering: Step 3 fork → materialize_scheduling_index runs
+    # before Step 6 platform connect. Bundle market_context (ADR-268) is gated
+    # on `platform_connections.status='active'` per
+    # `services.bundle_reader.bundles_active_for_workspace`, so at fork-time
+    # the workspace has no active connection → market_context resolves to
+    # None → semantic schedules (`@market_open + 15min`,
+    # `@every 1min during regular_hours`) fail to resolve →
+    # tasks.next_run_at NULL → scheduler never fires market-anchored
+    # recurrences autonomously. Re-materialize here AFTER connect so the
+    # bundle's market_context becomes resolvable and semantic schedules
+    # populate next_run_at on the thin scheduling index. Idempotent —
+    # safe to run regardless of whether the connect succeeded (skipped
+    # personas just re-run the same NULL-result materialize).
+    if not args.skip_connect:
+        print(f"[6.5/6] Re-materialize scheduling index (semantic schedules need active connection)")
+        try:
+            from services.scheduling import materialize_scheduling_index
+            from services.supabase import get_service_client
+            client = get_service_client()
+            rows = asyncio.run(materialize_scheduling_index(client, persona.user_id))
+            print(f"  OK   materialized {rows} scheduling-index rows")
+        except Exception as exc:
+            errors.append(f"re-materialize: {exc}")
+            print(f"  FAIL re-materialize: {exc}")
+
     print()
     if errors:
         print(f"FINISHED WITH {len(errors)} ERRORS:")

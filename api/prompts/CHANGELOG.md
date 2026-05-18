@@ -6,6 +6,59 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.18.8] - fix(adr-290 follow-up): activation re-materialize + active-commissioning principles clause
+
+### Validation context
+Post-ADR-290 fresh-fork wake validation on kvk workspace (purge → activate → manual fire signal-evaluation) surfaced two structural gaps between intended Reviewer behavior and observed behavior:
+
+1. **Activation flow sequencing** — `activate_persona.py` Step 3 fork calls `materialize_scheduling_index` BEFORE Step 6 platform connect. Bundle `market_context` (ADR-268) gates on `platform_connections.status='active'` per `bundles_active_for_workspace`. At fork-time, no active connection → `market_context=None` → semantic schedules (`@market_open + 15min`, `@every 1min during regular_hours`) fail to resolve → `tasks.next_run_at` NULL on market-anchored recurrences. **The scheduler never autonomously fires the load-bearing trading recurrences.**
+
+2. **Reviewer passive-observation drift** — Reviewer recognized substrate gap ("scheduler shows no heartbeat — baseline materialization still in progress") and stood down to wait. But MANDATE.md declares the Reviewer the "active principal" who "pushes toward trades, not sits waiting." Principles.md Lifecycle Posture Bootstrap action archetype already declared "Commission substrate via FireInvocation" but didn't say *when* — specifically, when scheduler latency means the Reviewer should preemptively fire mechanical recurrences. Ambiguity got interpreted as wait.
+
+### Changed
+
+**Fix 1 — `api/scripts/alpha_ops/activate_persona.py`**: added re-materialize-scheduling-index step after platform connect. Step 6.5 runs `materialize_scheduling_index(client, user_id)` post-connect so the bundle's `market_context` becomes resolvable and semantic schedules populate `next_run_at` on the thin scheduling index. Idempotent. Validated: post-fix activation populates all 10 recurrences correctly — mechanical mirrors at 08:05 fire-on-activation, market-anchored recurrences (track-positions/track-orders @ 13:30 UTC, signal-evaluation @ 13:45 UTC, outcome-reconciliation @ 21:00 UTC), back-office-substrate-reapply @ 09:00 UTC.
+
+**Fix 2 — `docs/programs/alpha-trader/reference-workspace/review/principles.md`**: Bootstrap-phase action archetype extended with explicit active-commissioning clause:
+> "Commission substrate via FireInvocation when upstream substrate is missing AND you would otherwise stand down waiting for it. The MANDATE designates you as the active principal — you do not wait for the scheduler to catch up. Specifically: if signal-evaluation needs `signals/*.yaml` entries and the directory is empty → FireInvocation the upstream mechanical recurrences (`track-universe`, `track-regime`, `mirror-signal-state`) yourself, then re-evaluate. If position state appears stale (mechanical mirror hasn't run during RTH) → FireInvocation the relevant tracker. If a substrate gap persists across multiple wakes despite scheduled cadence → author a corrective Schedule call or surface a Clarify to the operator about the broken cadence."
+
+Plus an explicit anti-pattern callout naming "scheduler shows no heartbeat — baseline materialization still in progress, I'm waiting" as passive observation, not judgment. The MANDATE's "push toward trades" framing makes "the substrate that would tell me isn't populated" the gap to commission, not the reason to wait.
+
+### Validation outcome
+
+Post-fix fresh-fork wake (purge → activate → manual fire):
+- ✅ Activation populated all 10 recurrences with valid `next_run_at`
+- ✅ Reviewer fired 3 FireInvocations (track-account, track-regime, track-universe) per active-commissioning clause — exactly the behavior change Fix 2 directed
+- ✅ Render's scheduler autonomously fired the same 4 mechanical mirrors (08:06:54-59 UTC) — Fix 1 path validated end-to-end
+- ✅ Mechanical mirrors wrote real substrate: `_account.yaml`, `_regime.yaml`, per-ticker AAPL/MSFT/NVDA/SPY/TSLA snapshots from Alpaca + Alpha Vantage
+- ✅ Reviewer attribution: `authored_by="reviewer:ai:reviewer-sonnet-v8"` on standing_intent.md write
+- ✅ Telemetry: 50.7s judgment-mode wake, 46k input + 3k output tokens, $0.21 cost
+- ⚠️ Reviewer's local-FireInvocation tool_results showed `success: false` because my local environment lacks `INTEGRATION_ENCRYPTION_KEY` to decrypt the production-encrypted Alpaca tokens. On Render, the same FireInvocations succeed (verified by execution_events). Local-env-only friction; not an architecture issue.
+
+### Test gate
+
+- `api/test_adr290_lifecycle_posture.py` extended with `test_principles_md_bootstrap_active_commissioning_clause` — asserts the new clause + anti-pattern callout present in principles.md. **10/10 PASS** (was 9/9).
+
+### Operator-facing semantics
+
+The intended end-state per MANDATE.md + AUTONOMY.md + principles.md is now reachable autonomously:
+
+1. **Activation produces a complete scheduling index** — all market-anchored recurrences have `next_run_at` set; the scheduler fires them at the right UTC time without operator intervention.
+2. **The Reviewer is the active principal** — when substrate is thin AND scheduler-timing means waiting passes the operator's "passivity is failure" threshold, the Reviewer commissions via FireInvocation rather than standing down to wait.
+3. **The closed-loop autonomous cycle** is structurally complete: track-* mechanical mirrors populate substrate → signal-evaluation wakes Reviewer at market_open+15min → Reviewer reads substrate + applies principles' Bootstrap-phase / Steady-state rules → propose trades when signals fire / stand-down with updated standing_intent when they don't → AUTONOMY=autonomous + ceiling=$50k auto-executes approve verdicts → Alpaca paper order lands → outcome-reconciliation appends to `_money_truth.md` → calibration aggregates → next cycle.
+
+### Singular implementation
+
+The two fixes close gaps that incremental ADR implementation introduced. No new architecture; no new substrate files; no new primitives. Both fixes are derivable from the operator-authored MANDATE + AUTONOMY + principles + AXIOM 4/5 canon — they ratify what was always intended.
+
+### Files
+- `api/scripts/alpha_ops/activate_persona.py` (+15 LOC re-materialize step)
+- `docs/programs/alpha-trader/reference-workspace/review/principles.md` (+8 LOC active-commissioning clause + anti-pattern callout)
+- `api/test_adr290_lifecycle_posture.py` (+22 LOC new test)
+- `api/scripts/alpha_ops/manual_fire.py` (new, test harness for ad-hoc recurrence dispatch)
+
+---
+
 ## [2026.05.18.7] - feat(adr-292): Continuous Substrate Re-Apply — new mechanical primitive + back-office recurrence
 
 ### Decision

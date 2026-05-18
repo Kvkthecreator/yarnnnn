@@ -208,6 +208,30 @@ def test_principles_md_lifecycle_section_names_both_phases():
     )
 
 
+def test_principles_md_bootstrap_active_commissioning_clause():
+    """D2-followup (2026-05-18): principles.md Bootstrap-phase action archetype
+    must declare the active-commissioning clause that closes the MANDATE's
+    "active principal" posture against the persona-frame's "answer is almost
+    always an action" reasoning. Pre-fix, the Reviewer interpreted "scheduler
+    shows no heartbeat" as a reason to wait; post-fix, principles.md
+    explicitly directs FireInvocation when upstream substrate is missing
+    AND the Reviewer would otherwise stand down waiting for it.
+    """
+    src = _read(_bundle("review", "principles.md"))
+    # Positive: active-commissioning clause
+    assert "Commission substrate via FireInvocation when upstream substrate is missing" in src, (
+        "Bootstrap-phase action archetype must declare the active-commissioning "
+        "clause per the active-principal MANDATE posture. The clause closes the "
+        "passive-observation gap surfaced by the 2026-05-18 wake validation."
+    )
+    # Positive: anti-pattern callout
+    assert "Anti-pattern" in src and "passive observation, not judgment" in src, (
+        "Principles.md must explicitly name passive-observation-while-substrate-"
+        "is-missing as an anti-pattern. This is the behavior the active-"
+        "commissioning clause corrects."
+    )
+
+
 def test_principles_md_bootstrap_clause_preserved():
     """D3 invariant preservation: the Bootstrap clause section (the rule
     statement implementing bootstrap-phase action archetype) must remain.
@@ -245,6 +269,9 @@ def main() -> int:
          test_principles_md_lifecycle_section_names_both_phases),
         ("D3: Bootstrap clause section preserved (reorganization not deletion)",
          test_principles_md_bootstrap_clause_preserved),
+        # 2026-05-18 follow-up — active commissioning clause
+        ("D3+: Bootstrap-phase active-commissioning clause",
+         test_principles_md_bootstrap_active_commissioning_clause),
     ]
 
     passed = 0
