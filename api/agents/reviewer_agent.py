@@ -1023,9 +1023,17 @@ async def invoke_reviewer(
         raw = context.get("options")
         if isinstance(raw, dict):
             recurrence_options = raw
+    # ADR-288 D1: caller_identity is the canonical attribution source for
+    # every substrate write made during this Reviewer wake. The Schedule
+    # primitive's per-call injection at the dispatch loop (pre-ADR-288) is
+    # superseded — substrate primitives default authored_by from
+    # auth.caller_identity (ADR-288 D2). reviewer_caller=True is preserved
+    # for ADR-258 D9 lock enforcement (separate concern: locks read paths
+    # against the caller-class flag, not the attribution string).
     auth = SimpleNamespace(
         client=client,
         user_id=user_id,
+        caller_identity=f"reviewer:{REVIEWER_MODEL_IDENTITY}",
         reviewer_caller=True,
         agent=None,
         agent_slug=None,
@@ -1171,14 +1179,13 @@ async def invoke_reviewer(
                     "input": inp,
                 })
 
-                # ADR-274 / FOUNDATIONS v8.5: when the Reviewer calls Schedule
-                # (Trigger-authoring per Axiom 4 amendment), inject authored_by
-                # so the audit trail reflects Reviewer-authored intent. The
-                # primitive's contract requires authored_by; we inject it at
-                # dispatch time rather than asking the LLM to assert its own
-                # identity. LLM-supplied authored_by wins if explicitly passed.
-                if name == "Schedule" and isinstance(inp, dict) and not inp.get("authored_by"):
-                    inp = {**inp, "authored_by": f"reviewer:{REVIEWER_MODEL_IDENTITY}"}
+                # ADR-288 D3: Schedule-specific authored_by injection DELETED.
+                # auth.caller_identity (set at construction time per D1)
+                # propagates through execute_primitive → Schedule's
+                # `authored_by or auth.caller_identity` default-resolution
+                # (parallel pattern to handle_write_file ADR-288 D2). One
+                # canonical declaration replaces three compensating sites.
+                # LLM-supplied authored_by still wins when explicitly passed.
 
                 # Dispatch through canonical primitive registry
                 try:

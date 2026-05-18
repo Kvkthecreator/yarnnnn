@@ -149,9 +149,15 @@ async def handle_schedule(auth: Any, input: dict) -> dict:
     # ADR-274 / FOUNDATIONS v8.5 Axiom 4 amendment: authored_by is load-bearing.
     # Every Trigger-authoring write must assert which Identity is authoring.
     # Silent attribution drift would break the Trigger-dimension audit trail.
-    # Caller paths inject this at dispatch time (see reviewer_agent.py +
-    # yarnnn.py); direct callers (routes, scripts) pass it explicitly.
-    authored_by_raw = input.get("authored_by")
+    #
+    # ADR-288 D2: default authored_by from auth.caller_identity when not
+    # explicitly supplied. Every auth-construction site sets caller_identity
+    # per the ADR-209 taxonomy (yarnnn.py operator-chat, reviewer_agent wake,
+    # HeadlessAuth specialist dispatch, _MechanicalAuth recurrence, MCP
+    # boundary). Per-dispatch-loop injection at the agent layer (pre-ADR-288)
+    # is superseded. Fail-fast on missing remains as the safety net for direct
+    # callers (routes, scripts) that bypass the auth-construction sites.
+    authored_by_raw = input.get("authored_by") or getattr(auth, "caller_identity", None)
     if not authored_by_raw or not isinstance(authored_by_raw, str) or not authored_by_raw.strip():
         return {
             "success": False,
@@ -159,7 +165,9 @@ async def handle_schedule(auth: Any, input: dict) -> dict:
             "message": (
                 "Schedule requires authored_by per FOUNDATIONS v8.5 Axiom 4 "
                 "(Trigger authoring is an Identity-layer responsibility). "
-                "Caller must assert which Identity is authoring "
+                "Pre-ADR-288 callers injected at dispatch; ADR-288 D1 sets "
+                "auth.caller_identity at construction time. Direct callers "
+                "(routes, scripts) must pass authored_by explicitly "
                 "(e.g., 'operator', 'reviewer:simons', 'agent:portfolio-tracker', "
                 "'system:bundle-fork'). Silent attribution would break the "
                 "Trigger-dimension audit trail."

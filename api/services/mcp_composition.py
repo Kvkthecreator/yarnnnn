@@ -673,18 +673,21 @@ async def dispatch_remember_this(
 
     Routing:
       target='memory'   → WriteFile(scope='workspace', path='memory/notes.md',
-                                    content=<formatted>, mode='append',
-                                    authored_by='yarnnn:mcp')
+                                    content=<formatted>, mode='append')
       target='identity' → InferContext(target='identity', text=stamped_text)
       target='brand'    → InferContext(target='brand', text=stamped_text)
       target='agent'    → WriteFile(scope='workspace',
                                     path='agents/{slug}/memory/feedback.md',
-                                    content=<formatted entry>, mode='append',
-                                    authored_by='yarnnn:mcp')
+                                    content=<formatted entry>, mode='append')
       target='task'     → WriteFile(scope='workspace',
                                     path='<resolved natural-home>/feedback.md',
-                                    content=<formatted entry>, mode='append',
-                                    authored_by='yarnnn:mcp')
+                                    content=<formatted entry>, mode='append')
+
+    ADR-288 D1+D2: ``authored_by`` defaults to ``auth.caller_identity``
+    (``"yarnnn:mcp"`` for the MCP boundary per `mcp_server/auth.py`). The
+    three explicit per-call ``authored_by="yarnnn:mcp"`` passes that were
+    here pre-ADR-288 have been removed — caller-identity at construction is
+    the canonical source.
 
     Returns the primitive result (success / error / metadata) unchanged.
     """
@@ -709,7 +712,6 @@ async def dispatch_remember_this(
                 "path": "memory/notes.md",
                 "content": stamped_text,
                 "mode": "append",
-                "authored_by": "yarnnn:mcp",
                 "message": "remember_this → memory",
             },
         )
@@ -737,7 +739,6 @@ async def dispatch_remember_this(
                 "path": f"agents/{slug}/memory/feedback.md",
                 "content": entry,
                 "mode": "append",
-                "authored_by": "yarnnn:mcp",
                 "message": f"remember_this → agent feedback ({slug})",
             },
         )
@@ -768,7 +769,6 @@ async def dispatch_remember_this(
                 "path": relative,
                 "content": entry,
                 "mode": "append",
-                "authored_by": "yarnnn:mcp",
                 "message": f"remember_this → task feedback ({slug})",
             },
         )

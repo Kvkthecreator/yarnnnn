@@ -534,7 +534,17 @@ def get_tools_for_mode(mode: str) -> list[dict]:
 
 
 class HeadlessAuth:
-    """Minimal auth context for headless execution."""
+    """Minimal auth context for headless execution.
+
+    ADR-288 D1: ``caller_identity`` carries the ADR-209 attribution string
+    for substrate writes performed through this auth. Headless callers are
+    specialist sub-LLM dispatches (per ADR-261 D7 DispatchSpecialist);
+    caller_identity defaults to ``f"specialist:{role}"`` when an agent
+    context with a role is available, else ``"specialist:unknown"`` as a
+    telemetry tripwire (logged by the substrate primitive on use). Note:
+    specialist writes that the primitive itself asserts (e.g., output-folder
+    writes carrying a more specific authored_by) override this default.
+    """
 
     def __init__(
         self,
@@ -558,6 +568,10 @@ class HeadlessAuth:
             self.agent_slug = get_agent_slug(agent)
         else:
             self.agent_slug = None
+
+        # ADR-288 D1: caller_identity derived from agent role when present.
+        role = (agent or {}).get("role") if isinstance(agent, dict) else None
+        self.caller_identity = f"specialist:{role}" if role else "specialist:unknown"
 
 
 async def get_headless_tools_for_agent(

@@ -45,4 +45,12 @@ def get_authenticated_client() -> AuthenticatedClient:
 
     logger.info(f"[MCP Auth] Service-key auth for user {user_id}")
 
-    return AuthenticatedClient(client=client, user_id=user_id, email=None)
+    # ADR-288 D1: caller_identity="yarnnn:mcp" — MCP-routed writes through
+    # `execute_primitive()` default authored_by from this field. Replaces the
+    # three explicit per-call passes at services/mcp_composition.py:677/683/687.
+    return AuthenticatedClient(
+        client=client,
+        user_id=user_id,
+        email=None,
+        caller_identity="yarnnn:mcp",
+    )

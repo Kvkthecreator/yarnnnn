@@ -706,13 +706,23 @@ async def _dispatch_mechanical(
 
     # Build a minimal auth-shaped object for the primitive handler.
     # Mechanical dispatch runs as the system actor under the workspace owner's
-    # user_id; the handler's writes will be attributed by the primitive itself
-    # (e.g., SyncPlatformState writes `authored_by="system:sync-platform-state"`).
+    # user_id. Per ADR-288 D1, caller_identity carries the canonical
+    # attribution string — the recurrence slug names the system actor
+    # responsible for the write (e.g., system:sync-platform-state). Primitives
+    # that need attribution default authored_by from auth.caller_identity
+    # (ADR-288 D2). Explicit per-primitive authored_by="system:<actor>" still
+    # wins where the primitive asserts its own specific actor name (e.g.,
+    # SyncPlatformState passes its primitive name as the actor).
     class _MechanicalAuth:
-        def __init__(self, user_id: str, client):
+        def __init__(self, user_id: str, client, caller_identity: str):
             self.user_id = user_id
             self.client = client
-    auth = _MechanicalAuth(user_id=user_id, client=client)
+            self.caller_identity = caller_identity
+    auth = _MechanicalAuth(
+        user_id=user_id,
+        client=client,
+        caller_identity=f"system:{recurrence.slug}",
+    )
 
     try:
         result = await handler(auth, primitive_args)

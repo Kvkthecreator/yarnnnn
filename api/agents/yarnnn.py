@@ -444,15 +444,12 @@ Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on th
             messages.append({"role": "user", "content": user_content})
 
         # Create tool executor that uses our auth context.
-        # ADR-274 / FOUNDATIONS v8.5: YARNNN-routed Schedule calls are
-        # operator-mediated (operator typed into the feed; YARNNN acts on
-        # the operator's behalf). Inject authored_by="operator" if not
-        # explicitly set. Per Axiom 4 amendment, every Trigger-authoring
-        # write asserts which Identity is authoring; this is the
-        # operator-attribution path.
+        # ADR-288 D2/D3: per-tool authored_by injection deleted. The auth
+        # namespace carries caller_identity="operator" (set at construction
+        # time); substrate primitives default authored_by from auth, and
+        # Schedule fails fast if missing (ADR-274). One canonical
+        # declaration site replaces the compensating dispatch-layer patch.
         async def tool_executor(tool_name: str, tool_input: dict) -> dict:
-            if tool_name == "Schedule" and isinstance(tool_input, dict) and not tool_input.get("authored_by"):
-                tool_input = {**tool_input, "authored_by": "operator"}
             return await execute_primitive(auth, tool_name, tool_input)
 
         # Use the streaming with tools function

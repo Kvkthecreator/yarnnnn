@@ -153,7 +153,7 @@ via the Authored Substrate (ADR-209) with attribution + revision chain.""",
             },
             "authored_by": {
                 "type": "string",
-                "description": "ADR-209 attribution. For scope='workspace' writes from chat, defaults to 'yarnnn:chat' if omitted; for explicit operator-authored writes pass 'operator'. Optional otherwise.",
+                "description": "ADR-209 attribution. Defaults to the caller identity from auth (typically 'operator' from operator-mediated chat, 'reviewer:...' from Reviewer wake, 'specialist:...' from sub-LLM dispatch, 'system:...' from mechanical recurrence, 'yarnnn:mcp' from MCP tool). Pass explicitly when overriding (e.g., a route handler asserting 'operator' on behalf of the user). Optional otherwise.",
             },
             "message": {
                 "type": "string",
@@ -565,10 +565,20 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
         else:
             new_content = content
 
-        # Default authored_by for chat-driven writes is yarnnn:chat unless the
-        # caller explicitly asserts operator authorship. Headless writes via
-        # scope='workspace' should pass authored_by explicitly.
-        resolved_author = authored_by or "yarnnn:chat"
+        # ADR-288 D2: default authored_by from the auth's caller_identity.
+        # Every auth-construction site (yarnnn.py operator-chat, reviewer_agent
+        # wake, HeadlessAuth specialist dispatch, _MechanicalAuth recurrence,
+        # MCP boundary) sets caller_identity per the ADR-209 taxonomy. LLM-
+        # supplied authored_by still wins when explicitly passed. The
+        # "system:unknown" fall-through is a telemetry tripwire — emitting it
+        # means an auth-construction site forgot to set caller_identity.
+        caller = getattr(auth, "caller_identity", None) or "system:unknown"
+        if caller == "system:unknown":
+            logger.warning(
+                "[WRITEFILE] auth.caller_identity missing — attributing as 'system:unknown'. "
+                "Auth construction site needs to set caller_identity per ADR-288 D1."
+            )
+        resolved_author = authored_by or caller
         resolved_message = message or f"WriteFile workspace {path}"
 
         ok = await um.write(

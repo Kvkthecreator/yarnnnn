@@ -6,6 +6,40 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.18.1] - feat(adr-288 phase 1): caller_identity as first-class auth field
+
+### Changed
+- `api/services/supabase.py::AuthenticatedClient`: added `caller_identity: str = "operator"` field. Default `"operator"` because the only path that constructs `AuthenticatedClient` via FastAPI dep is the operator JWT handler (the operator hit the API).
+- `api/mcp_server/auth.py::get_authenticated_client`: sets `caller_identity="yarnnn:mcp"` at construction. Replaces three explicit per-call `authored_by="yarnnn:mcp"` passes in `services/mcp_composition.py`.
+- `api/agents/reviewer_agent.py::invoke_reviewer`: auth `SimpleNamespace` gains `caller_identity=f"reviewer:{REVIEWER_MODEL_IDENTITY}"`. Schedule-specific per-call injection block at the dispatch loop (pre-ADR-288 compensating site) DELETED — `auth.caller_identity` propagates through `execute_primitive` → primitive default-resolution.
+- `api/agents/yarnnn.py::tool_executor`: Schedule-specific per-call injection block DELETED. Caller identity defaults to `"operator"` via `AuthenticatedClient` default.
+- `api/services/invocation_dispatcher.py::_MechanicalAuth`: now requires `caller_identity` parameter; mechanical-dispatch site sets `caller_identity=f"system:{recurrence.slug}"`.
+- `api/services/primitives/registry.py::HeadlessAuth`: gains `caller_identity` field derived from agent role (`f"specialist:{role}"` when role available, `"specialist:unknown"` tripwire fallback).
+- `api/services/primitives/workspace.py::handle_write_file`: default resolver changed from hardcoded `"yarnnn:chat"` to `getattr(auth, "caller_identity", None) or "system:unknown"`. Tripwire path logs a warning — emitting `"system:unknown"` means an auth-construction site forgot caller_identity.
+- `api/services/primitives/workspace.py` WriteFile tool schema docstring: updated description of `authored_by` default (no longer claims `yarnnn:chat`; describes the caller-identity-from-auth contract).
+- `api/services/primitives/schedule.py::handle_schedule`: fallback resolver added — `input.get("authored_by") or getattr(auth, "caller_identity", None)`. Fail-fast on missing remains as safety net for direct callers (routes, scripts) that bypass auth construction.
+- `api/services/mcp_composition.py`: three explicit `"authored_by": "yarnnn:mcp"` passes DELETED from the routing dict. Comment block updated to cite ADR-288 D1+D2 (caller_identity at construction is the canonical source).
+
+### New
+- `api/test_adr288_caller_identity.py`: regression gate — 10/10 PASS. Asserts D1 (every auth-construction site sets caller_identity per ADR-209 taxonomy), D2 (both substrate primitives default authored_by from auth.caller_identity), D3 (compensating injection sites deleted), D4 (no live `yarnnn:chat` string).
+
+### Expected behavior
+- Reviewer wake (any trigger — reactive / addressed / scheduled): WriteFile + Schedule writes carry `authored_by="reviewer:ai:reviewer-sonnet-v8"` (the ADR-284 D2 invariant Sunday's wake missed).
+- YARNNN-mediated chat: WriteFile + Schedule writes carry `authored_by="operator"` (unchanged behavior; injection site moved from dispatch loop to construction).
+- MCP-routed remember_this: writes carry `authored_by="yarnnn:mcp"` (unchanged behavior; explicit per-call passes collapsed to single construction-time declaration).
+- Mechanical recurrence (cron-fired): substrate primitives default `authored_by=f"system:{recurrence.slug}"`. Per-primitive explicit attributions (e.g., SyncPlatformState's `"system:sync-platform-state"`) still win where the primitive asserts a more specific actor.
+- Specialist sub-LLM dispatch: writes default `authored_by=f"specialist:{role}"` when role available.
+
+### Singular implementation
+- One default-resolution site per substrate primitive (was: hardcoded string default + two compensating Schedule injection sites at the agent layer = three compensating patches). Collapses to one declaration at the boundary (auth construction) + one resolver per substrate primitive that needs the default.
+- Companion to the substrate-write discipline arc: ADR-274 (Schedule fail-fast) + ADR-276 (governance envelope helper) + ADR-286 (single-writer per substrate path) + ADR-288 (caller-identity at auth construction). Each closes a runtime concern that had leaked across N compensating sites.
+
+### Historical preservation
+- ADR-251's "historical `yarnnn:chat` revision rows are immutable" preserved. Existing `workspace_file_versions` rows attributed `"yarnnn:chat"` stay. Only new writes use the caller-identity-resolved attribution.
+- FE label-mapping in `ContentViewer.tsx` (ADR-236) continues to handle the `yarnnn:` prefix generically — historical rows render correctly.
+
+---
+
 ## [2026.05.17.3] - feat(adr-286): kernel/program substrate boundary — single writer per path
 
 ### Changed
