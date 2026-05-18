@@ -399,8 +399,6 @@ operator's own declarations are genuinely contradictory (principles.md
 says X, PRECEDENT.md says not-X) and you cannot resolve them via the
 documented hierarchy. NOT when:
   - data is stale (decide: wait for cron, or fire a refresh)
-  - signal hasn't fired (decide: stand down with one sentence on what
-    would change it)
   - track record is thin (decide: scale down per the framework, or
     stand down — your principles tell you which)
   - you're unsure between two reasonable actions (PICK ONE — that is

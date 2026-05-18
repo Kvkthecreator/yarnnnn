@@ -74,6 +74,7 @@ async def write_reviewer_message(
     occupant: Optional[str] = None,
     action_type: Optional[str] = None,
     task_slug: Optional[str] = None,
+    invocation_id: Optional[str] = None,
 ) -> Optional[dict]:
     """Surface a reviewer verdict to the operator's active chat session.
 
@@ -138,6 +139,7 @@ async def write_reviewer_message(
             pulse="reactive",
             weight="material",
             task_slug=task_slug,
+            invocation_id=invocation_id,
             extra_metadata=metadata,
         )
     except Exception as exc:
@@ -238,6 +240,11 @@ async def surface_reviewer_actions(
         proposal_id = action.get("proposal_id")
         if tool == "ProposeAction" and proposal_id:
             meta["proposal_id"] = proposal_id
+        # ADR-289 D5: read invocation_id off the action record (Reviewer
+        # stamps it on every action_record per ADR-289 D4) and pass through
+        # to the narrative envelope. FE groups rows sharing invocation_id
+        # into one invocation card on the Feed surface.
+        action_invocation_id = action.get("invocation_id")
         try:
             # weight=material — System Agent is a participant in the
             # conversation, full chat-bubble visual weight.
@@ -249,6 +256,7 @@ async def surface_reviewer_actions(
                 body=body,
                 pulse="reactive",
                 weight="material",
+                invocation_id=action_invocation_id,
                 extra_metadata=meta,
             )
             written += 1

@@ -6,6 +6,120 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.18.5] - feat(adr-289): invocation_id substrate anchoring — Phase 1 BE
+
+### Decision
+
+ADR-289 D2 + D3 + D4 + D5: re-anchor the `metadata.invocation_id` narrative envelope field from the dead `agent_runs.id` link to the canonical `execution_events.id`. Commit addressed cycles to becoming first-class invocations (write `execution_events` rows). Propagate the invocation atom id through the Reviewer loop and every emitted narrative row so the FE can group rows into invocation cards on the Feed surface (Phase 2 FE work).
+
+### Changed
+
+**`api/services/telemetry.py`**
+- `record_execution_event()` accepts optional `id: Optional[str]` parameter (caller-supplied UUID) and returns `Optional[str]` (the inserted row id). Pre-ADR-289 callers continue to work — `id=None` lets Postgres generate.
+
+**`api/agents/reviewer_agent.py`**
+- `ReviewerOutput` TypedDict declares `invocation_id: str`.
+- `invoke_reviewer()` adds required keyword param `invocation_id: str`. Threaded into every `actions_taken[*]` record and the final `ReviewerOutput` dict. Operator-cancellation early return also stamps it.
+
+**`api/services/reviewer_chat_surfacing.py`**
+- `surface_reviewer_actions()` reads `action.get("invocation_id")` from each action record and passes to `write_narrative_entry(invocation_id=...)`. Every System Agent narration row produced during a Reviewer cycle now carries the cycle's `invocation_id`.
+- `write_reviewer_message()` accepts optional `invocation_id: Optional[str]` and passes through to `write_narrative_entry`. Verdict + observation + advisory + defer + clarify writes all stamp it.
+
+**`api/services/invocation_dispatcher.py`**
+- Judgment dispatch pre-generates `invocation_id = str(uuid.uuid4())` at function entry. Passes to `invoke_reviewer(invocation_id=...)` and stamps `id=invocation_id` on both success and failure `record_execution_event` calls.
+
+**`api/routes/feed.py`**
+- `response_stream` pre-generates `invocation_id` for addressed cycles. Stamps `metadata.invocation_id` on operator user message via `append_message`. Threads to `_dispatch_reviewer_turn(images, profile, invocation_id)`.
+- `_dispatch_reviewer_turn` passes invocation_id to `invoke_reviewer`. Stamps `metadata.invocation_id` on every system_agent narration `append_message` (both progress-drain and post-loop drain sites). Stamps on the Reviewer verdict via `write_reviewer_message(invocation_id=...)`. Writes `execution_events` row at cycle close with `slug="addressed"`, `mode="judgment"`, `trigger_type="addressed"` — success branch carries telemetry pass-through; failure branch records `status="failed"`, `error_reason="exception"`.
+
+**`api/services/review_proposal_dispatch.py`**
+- `_run_ai_reviewer()` pre-generates `invocation_id` at function entry. Passes to `invoke_reviewer(invocation_id=...)`. Stamps on every `write_reviewer_message` call (advisory + defer + observe-only fallback).
+- `_execute_reviewer_directives()` accepts optional `invocation_id: str | None`. Caller threads it through; the directive-shaped `write_reviewer_message` for clarify directives stamps it.
+- `_write_observation()` accepts optional `invocation_id: Optional[str]` and stamps on its `write_reviewer_message` call.
+- Note: `execution_events` finalization for proposal-arrival reactive cycles deferred to Phase 1B (this function has 7+ exit branches; finalizing the audit row across all of them is its own refactor). Phase 1 ships narrative grouping first.
+
+**`api/services/narrative.py`**
+- Docstring re-anchored: `invocation_id` documented as `execution_events.id` (canonical invocation atom per FOUNDATIONS Axiom 9 + ADR-289 D2). Pre-ADR-289 wording about `agent_runs.id` removed.
+
+### Expected behavior
+
+- **Zero FE behavioral change in Phase 1.** Backend stamps invocation_id on every narrative row produced during a Reviewer cycle; FE continues to render flat. Phase 2 FE work consumes the new grouping primitive.
+- Every addressed cycle produces exactly one `execution_events` row with `slug="addressed"` (visible at `/activity`).
+- Every recurrence-fired Reviewer cycle's `execution_events.id` matches `metadata.invocation_id` on the cycle's narrative rows.
+
+### Validation
+
+- New `api/test_adr289_invocation_id_anchoring.py` — 25/25 PASS.
+- Existing ADR-288 gate green (19/19).
+- Existing ADR-272 gate same shape as pre-change (29/30 — pre-existing failure unrelated to this commit).
+- All modified Python files parse clean (`ast.parse`).
+
+---
+
+## [2026.05.18.4] - feat(adr-290): Reviewer lifecycle posture in principles + standing-intent single-instance + kernel persona-frame de-bundling
+
+### Decision
+
+Closes the lifecycle-posture organization residue surfaced by the post-ADR-288 wake-envelope first-principles audit. The architecture is complete (every Axiom 0 dimension reached at every wake, every primitive enumerated, every substrate file pre-loaded) — what remained was prompt-shape singular-implementation hygiene.
+
+Three discipline violations, all closed in one atomic commit:
+
+1. **Standing-intent every-cycle contract stated in 4 places.** Kernel persona frame (canonical) + bundle IDENTITY.md (lines 34 + 38-44) + bundle principles.md (line 11) + bundle _recurrences.yaml (signal-evaluation + trade-proposal recurrence prompts). Per Derived Principle 14 (singular implementation), the universal Identity-layer contract must live in exactly one place — the kernel persona frame.
+
+2. **Kernel persona frame bundle-leak.** `_PERSONA_FRAME` line 402 ("signal hasn't fired (decide: stand down ...)") was alpha-trader instance vocabulary hardcoded as kernel-default reasoning shape. Same anti-pattern as ADR-288 Phase 3 (`_money_truth.md` hardcoded as kernel-default). Discipline: kernel speaks in kernel-universal vocabulary; bundles speak in instance vocabulary.
+
+3. **Lifecycle-phase content fragmented across principles.md.** Bootstrap-vs-steady-state distinction lived implicitly in Default-posture-action + Bootstrap clause + Capital-EV thresholds + Defer posture sections. The Reviewer re-derives phase posture each wake per Axiom 5 (Mechanism); making the phase-vs-action-archetype mapping explicit reduces re-derivation cost.
+
+### Rejected alternative
+
+A larger refactor was considered: add a new `reviewer-workbench`-role substrate file `/workspace/review/operating_state.md` carrying lifecycle phase + posture summary + commissioned substrate gaps. **Rejected** by Axiom 0 dimensional purity test — the proposed file conflated four dimensions (Purpose + Substrate + Trigger + Mechanism) into one file, recreating the substrate-canonical-world violation ADR-264 corrected for external platform state. The correct first-principles answer is Mechanism re-derivation per Axiom 5: the Reviewer reads substrate (`_money_truth.md` outcome count, signal entries, recurrence yaml state) + applies framework (principles.md lifecycle rules) and produces current-cycle judgment. Caching the derivation would create a third source-of-truth alongside framework and current state.
+
+### Changed
+
+**D1 — Kernel persona frame de-bundling**
+- `api/agents/reviewer_agent.py` `_PERSONA_FRAME` line 402: deleted bundle-specific "signal hasn't fired (decide: stand down ...)" bullet from the Clarify-rare list. Universal bullets (data stale, track record thin, unsure-between-two-actions) preserved.
+
+**D2 — Standing-intent every-cycle contract single-instance**
+- Authoritative declaration remains in `api/agents/reviewer_agent.py` `_PERSONA_FRAME` (the "Your standing intent has a substrate home" section + four-section schema + revision-chain semantics, lines 415-462).
+- `docs/programs/alpha-trader/reference-workspace/review/IDENTITY.md`: trimmed L34 bullet (kept "No actionable conditions." Simons-voice; deleted "I update standing_intent.md" half — universal contract govern by kernel); deleted L38-44 "Standing intent — my forward-looking substrate (ADR-284)" section in its entirety (kernel persona frame is authoritative; IDENTITY.md is persona character only).
+- `docs/programs/alpha-trader/reference-workspace/review/principles.md`: deleted L11 "Every cycle authors `/workspace/review/standing_intent.md`" paragraph (principles.md houses the framework, not the universal Identity-layer substrate contract).
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml`: trimmed standing_intent trailing clauses in signal-evaluation prompt (lines 160-169 region — "Otherwise stand down — AND update /workspace/review/standing_intent.md with what's close to firing per ADR-284 ...") and trade-proposal prompt (lines 244-249 region — "stand down with reasoning — AND update /workspace/review/standing_intent.md with what would change the assessment ..."). Replaced with brief pointer ("The universal every-cycle standing_intent.md write contract is governed by your kernel persona frame, not by this recurrence prompt").
+
+**D3 — Lifecycle Posture section in principles.md**
+- `docs/programs/alpha-trader/reference-workspace/review/principles.md`: added `## Lifecycle Posture` section between "Default posture: action" and "Hard rejection rules". Section contains three subsections: `### Bootstrap phase` (definition: _money_truth.md empty OR signal sample < 20; action archetype: propose probes + commission substrate), `### Steady-state phase` (definition: signal sample ≥ 20 with reconciled outcomes; action archetype: capital-EV reasoning), `### Phase gates` (Bootstrap → Steady-state: 20 reconciled outcomes; Steady-state → Drawdown: operator-tunable). Zero rule changes — the underlying rules (Bootstrap clause, Capital-EV thresholds, Defer posture) stay; the new section is the index naming them as phase-archetype implementations. Phase determination is re-derived from substrate each wake (per Axiom 5 Mechanism), not cached.
+
+### Test gate
+
+- `api/test_adr289_lifecycle_posture.py`: new regression gate — **9/9 PASS**:
+  - D1: kernel frame no 'signal hasn't fired' bundle leak; universal Clarify-rare bullets preserved
+  - D2: kernel frame carries standing-intent contract (authoritative); bundle IDENTITY.md / principles.md / recurrences.yaml restatements all deleted
+  - D3: principles.md contains `## Lifecycle Posture` section naming Bootstrap phase + Steady-state phase + Phase gates; Bootstrap clause section preserved (reorganization, not deletion)
+- Sibling gates audited green post-ADR-290: ADR-274 16/16, ADR-281 34/34, ADR-284 18/18 (canonical standing-intent contract intact at kernel), ADR-286 8/8, ADR-287 11/11, ADR-288 19/19. **115/115 across the closely-coupled gate set.**
+
+### Singular implementation
+
+- One canonical site for the standing-intent every-cycle contract (kernel persona frame). Bundle surfaces speak only to instance-specific posture, not to universal Identity-layer substrate contracts.
+- Kernel persona frame speaks in kernel-universal vocabulary. Bundle-specific reasoning shapes ("signal hasn't fired") live in bundle surfaces.
+- Lifecycle phase definitions + phase gates organized into one explicit section in principles.md. The rules already existed; the organization makes the phase→archetype dependency legible.
+
+### Companion to discipline arc
+
+ADR-274 (single declaration site for trigger authoring) + ADR-276 (single helper for envelope load) + ADR-286 (single writer per substrate path) + ADR-288 Phase 1 (caller identity at construction) + ADR-288 Phase 2 (single kernel envelope slot name) + ADR-288 Phase 3 (single carrier for instance-substrate paths) + ADR-290 (single declaration site for standing-intent contract; explicit lifecycle phase organization). Each commit closes a residual single-instance violation that incremental ADR implementation introduced. None invents new architecture.
+
+### Out of scope
+
+- No new substrate files. `operating_state.md` proposal rejected per Axiom 0.
+- No primitive contract changes.
+- No new envelope keys or ReviewerContext fields.
+- No mechanical recurrence changes.
+- Quantitative phase-gate tuning (20-occurrence threshold, drawdown consecutive-loss count) deferred to operator decisions per workspace.
+
+### Expected behavior
+
+The Reviewer's wake envelope after ADR-290 carries exactly what the operator intended: full meta-awareness alongside authored-substrate + cadence-self-authoring authority. The Reviewer can author its own cadence ("I need to work on this — let me set it up xxx hours vs xxx days") via Schedule (already enumerated in `_PERSONA_FRAME` lines 525-568), commission substrate via FireInvocation when thin, transition lifecycle posture by reading substrate against principles.md's explicit Lifecycle Posture rules, and propose trades when conditions warrant — all without restating the universal Identity-layer contract at every surface.
+
+---
+
 ## [2026.05.18.3] - feat(adr-288 phase 3): kernel money-truth de-instancing — DEFAULT_REVIEW_* + cockpit_awareness + tools_core speak in ground-truth substrate
 
 ### Decision

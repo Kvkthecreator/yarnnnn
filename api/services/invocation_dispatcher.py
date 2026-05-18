@@ -108,6 +108,13 @@ async def dispatch(
 
     started_at = datetime.now(timezone.utc)
 
+    # ADR-289 D2 + D3: pre-generate the invocation atom id. This UUID is the
+    # canonical execution_events.id for the cycle; every narrative row produced
+    # during the cycle stamps metadata.invocation_id with this value so the FE
+    # can group them into one invocation card on the Feed surface.
+    import uuid as _uuid
+    invocation_id = str(_uuid.uuid4())
+
     # ADR-250: tag Sentry scope so any exception carries context
     if _SENTRY_AVAILABLE:
         with _sentry.configure_scope() as scope:
@@ -264,6 +271,7 @@ async def dispatch(
             client=client,
             user_id=user_id,
             trigger=trigger,
+            invocation_id=invocation_id,
             context={
                 "recurrence_prompt": prompt,
                 "recurrence_slug": recurrence.slug,
@@ -287,6 +295,7 @@ async def dispatch(
         _env_ms = locals().get("envelope_load_ms")
         record_execution_event(
             client, user_id=user_id, slug=recurrence.slug,
+            id=invocation_id,  # ADR-289 D2: canonical invocation atom id
             mode="judgment", trigger_type=trigger,
             status="failed", error_reason="exception",
             error_detail=str(exc), duration_ms=duration_ms,
@@ -313,6 +322,7 @@ async def dispatch(
     _ro = reviewer_output if isinstance(reviewer_output, dict) else {}
     record_execution_event(
         client, user_id=user_id, slug=recurrence.slug,
+        id=invocation_id,  # ADR-289 D2: canonical invocation atom id
         mode="judgment", trigger_type=trigger,
         status="success", duration_ms=duration_ms,
         envelope_load_ms=envelope_load_ms,

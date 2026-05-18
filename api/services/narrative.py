@@ -11,8 +11,11 @@ taxonomy: user, assistant, system, reviewer, agent, external.
 
 The narrative envelope (per ADR-219 D1) lives in `metadata` JSONB:
 
-    invocation_id  — links to the agent_runs row (or None for operator
-                     messages / external MCP calls that don't produce one)
+    invocation_id  — links to the execution_events row for the cycle
+                     (ADR-289 D2 — re-anchored from agent_runs.id; the FE
+                     groups rows sharing this id into one invocation card
+                     on the Feed surface). None for operator messages and
+                     external MCP calls that don't produce a Reviewer cycle.
     task_slug      — task nameplate this invocation was labeled with, or
                      None for inline / unlabelled invocations (ADR-219 D4)
     pulse          — periodic | reactive | addressed | heartbeat
@@ -113,9 +116,12 @@ def write_narrative_entry(
         weight: rendering weight. When None, applies the default policy
             (resolve_default_weight); callers who know better should pass
             an explicit value.
-        invocation_id: agent_runs.id for invocations produced by the task
-            pipeline / agent execution. None for operator messages and
-            for external MCP calls (Commit 6).
+        invocation_id: execution_events.id for the cycle that emitted this
+            narrative entry (ADR-289 D2 — canonical invocation atom per
+            FOUNDATIONS Axiom 9). Stamped on every row produced during a
+            cycle so the FE groups them into one invocation card on the
+            Feed surface. None for inline operator messages outside a
+            Reviewer cycle and for external MCP calls (Commit 6).
         task_slug: task nameplate label per ADR-219 D4. None for inline
             actions and unlabelled workspace events.
         provenance: list of {"path": ..., "kind": ...} substrate pointers

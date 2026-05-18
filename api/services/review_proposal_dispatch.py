@@ -63,7 +63,7 @@ verdicts into the same seat; neither is subordinate to the other.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Optional
 
 from services.reviewer_audit import append_decision
 from services.reviewer_chat_surfacing import write_reviewer_message
@@ -232,6 +232,7 @@ async def _write_observation(
     proposal_id: str,
     proposal_row: dict,
     gate_reason: str,
+    invocation_id: Optional[str] = None,  # ADR-289 D5
 ) -> None:
     """Write the observe-only decisions.md entry. Seat awaits operator-in-real-time occupant
     (per FOUNDATIONS v8.4 Axiom 2 two-embodiments — neither embodiment is a separate party,
@@ -288,6 +289,7 @@ async def _write_observation(
         occupant=_REVIEWER_OBSERVATION_IDENTITY,
         action_type=action_type,
         task_slug=proposal_row.get("task_slug"),
+        invocation_id=invocation_id,  # ADR-289 D5
     )
 
 
@@ -312,9 +314,26 @@ async def _run_ai_reviewer(
 
     Never raises — AI failure falls back to observe-only so the human
     can still decide via ProposalCard.
+
+    ADR-289 D2 + D3: proposal-arrival reactive cycles become first-class
+    invocations. We pre-generate the invocation_id, stamp it on the
+    Reviewer call, the action narrations, and every write_reviewer_message
+    write produced during the cycle, then finalize the canonical
+    execution_events row at function exit.
     """
     from agents.reviewer_agent import invoke_reviewer, REVIEWER_MODEL_IDENTITY
     from agents.reviewer_agent_compat import output_to_review_decision
+    import uuid as _uuid
+
+    # ADR-289 D2 + D3 (partial): canonical invocation atom id for this
+    # proposal-arrival reactive cycle. Threaded through invoke_reviewer +
+    # surface_reviewer_actions + write_reviewer_message so the FE groups
+    # narrative rows from this cycle under one invocation card on the Feed
+    # surface. The execution_events row for proposal-arrival cycles is
+    # deferred to Phase 1B (this function has 7+ exit branches; finalizing
+    # the audit row across all of them is its own refactor — Phase 1 ships
+    # narrative grouping first, audit-row coverage second).
+    invocation_id = str(_uuid.uuid4())
 
     action_type = proposal_row.get("action_type") or "unknown"
     reversibility = proposal_row.get("reversibility")
@@ -365,6 +384,7 @@ async def _run_ai_reviewer(
     output = await invoke_reviewer(
         client, user_id,
         trigger="reactive",  # ADR-260 D2: proposal arrival is the canonical reactive trigger
+        invocation_id=invocation_id,  # ADR-289 D4
         context={
             "identity_md": identity_md,
             "principles_md": principles_md,
@@ -399,6 +419,7 @@ async def _run_ai_reviewer(
             proposal_id=proposal_id,
             proposal_row=proposal_row,
             gate_reason="AI Reviewer unavailable or returned invalid decision; seat defers to human",
+            invocation_id=invocation_id,  # ADR-289 D5
         )
         return
 
@@ -499,6 +520,7 @@ async def _run_ai_reviewer(
             occupant=REVIEWER_MODEL_IDENTITY,
             action_type=action_type,
             task_slug=proposal_row.get("task_slug"),
+            invocation_id=invocation_id,  # ADR-289 D5
         )
         logger.info(
             "[REVIEW_DISPATCH] AI approved (advisory) proposal=%s user=%s action=%s gate=%s",
@@ -535,7 +557,9 @@ async def _run_ai_reviewer(
 
     if directives and isinstance(directives, list):
         results = await _execute_reviewer_directives(
-            client, user_id, directives, proposal_id=proposal_id
+            client, user_id, directives,
+            proposal_id=proposal_id,
+            invocation_id=invocation_id,  # ADR-289 D5
         )
         directive_results = results
         if results:
@@ -566,6 +590,7 @@ async def _run_ai_reviewer(
         occupant=REVIEWER_MODEL_IDENTITY,
         action_type=action_type,
         task_slug=proposal_row.get("task_slug"),
+        invocation_id=invocation_id,  # ADR-289 D5
     )
     logger.info(
         "[REVIEW_DISPATCH] AI deferred proposal=%s user=%s action=%s directives=%d",
@@ -611,6 +636,7 @@ async def _execute_reviewer_directives(
     directives: list[dict],
     *,
     proposal_id: str | None = None,
+    invocation_id: str | None = None,  # ADR-289 D5: stamped on clarify narration
 ) -> list[str]:
     """Execute Reviewer directives immediately after a defer verdict.
 
@@ -690,6 +716,7 @@ async def _execute_reviewer_directives(
                     proposal_id=proposal_id,
                     verdict="clarify",
                     occupant=REVIEWER_MODEL_IDENTITY,
+                    invocation_id=invocation_id,  # ADR-289 D5
                 )
                 results.append(f"clarify: surfaced to operator")
                 logger.info(

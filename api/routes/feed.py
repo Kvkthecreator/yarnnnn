@@ -1130,13 +1130,22 @@ async def global_chat(
         yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': routed_tools})}\n\n"
         logger.info("[EXEC_ROUTER] routed — tools=%s for: %.50r", routed_tools, request.content)
 
-    async def _dispatch_reviewer_turn(images_for_api, profile):
+    async def _dispatch_reviewer_turn(images_for_api, profile, invocation_id: str):
         """Reviewer handles every non-execution turn via invoke_reviewer(addressed).
         ADR-256: Reviewer has a tool-use loop — it reads substrate, acts, returns.
         No action_instruction string. No execution router dispatch from here.
-        Actions (FireInvocation, ProposeAction) execute inside the Reviewer's loop."""
+        Actions (FireInvocation, ProposeAction) execute inside the Reviewer's loop.
+
+        ADR-289 D3: addressed cycles become first-class invocations. The caller
+        (response_stream) pre-generates `invocation_id`, stamps it on the operator's
+        user message, and passes it here. We thread it through invoke_reviewer +
+        every system_agent narration + the Reviewer reply, then finalize the
+        canonical execution_events row at cycle close."""
         from agents.reviewer_agent import invoke_reviewer, REVIEWER_MODEL_IDENTITY
         from services.reviewer_chat_surfacing import write_reviewer_message
+        from services.telemetry import record_execution_event
+        from datetime import timezone as _tz
+        addressed_started_at = datetime.now(_tz.utc)
 
         conv_lines = []
         for m in history[-6:]:
@@ -1205,6 +1214,7 @@ async def global_chat(
         invoke_task = _asyncio.create_task(invoke_reviewer(
             auth.client, auth.user_id,
             trigger="addressed",
+            invocation_id=invocation_id,
             context={
                 **governance_envelope,                     # ADR-276: 9-file pre-load + signal_files
                 "user_message": request.content,
@@ -1263,9 +1273,12 @@ async def global_chat(
                     # weight=material — System Agent is a participant speaking
                     # in the conversation, not a system log line. Renders as
                     # a full chat bubble matching Reviewer/Operator visual weight.
+                    # ADR-289 D3: stamp invocation_id so FE groups under one
+                    # invocation card on the Feed surface.
                     await append_message(auth.client, session_id, "system_agent", narration, {
                         "tools_used": [tool_name], "tool_history": [],
                         "pulse": "addressed", "weight": "material", "reviewer_directed": True,
+                        "invocation_id": invocation_id,
                     })
                     yield f"data: {json.dumps({'content': narration})}\n\n"
 
@@ -1285,36 +1298,78 @@ async def global_chat(
                     await append_message(auth.client, session_id, "system_agent", narration, {
                         "tools_used": [tool_name], "tool_history": [],
                         "pulse": "addressed", "weight": "material", "reviewer_directed": True,
+                        "invocation_id": invocation_id,
                     })
                     yield f"data: {json.dumps({'content': narration})}\n\n"
 
-        output = await invoke_task
+        try:
+            output = await invoke_task
 
-        if not output or not output.get("reasoning"):
-            raise RuntimeError("Reviewer returned no response")
+            if not output or not output.get("reasoning"):
+                raise RuntimeError("Reviewer returned no response")
 
-        # Surface Reviewer response — reasoning is the persona-voice answer
-        response_text = output["reasoning"]
-        await write_reviewer_message(
-            auth.client, auth.user_id,
-            content=response_text,
-            verdict="addressed",
-            occupant=REVIEWER_MODEL_IDENTITY,
-        )
-        yield f"data: {json.dumps({'reviewer_response': response_text})}\n\n"
-        logger.info(
-            "[REVIEWER] addressed (Haiku) for user=%s actions=%d",
-            auth.user_id[:8], len(output.get("actions_taken") or []),
-        )
+            # Surface Reviewer response — reasoning is the persona-voice answer
+            response_text = output["reasoning"]
+            # ADR-289 D5: stamp invocation_id on the verdict row so the FE
+            # groups operator question + Reviewer reply + nested action
+            # narrations under one invocation card on the Feed.
+            await write_reviewer_message(
+                auth.client, auth.user_id,
+                content=response_text,
+                verdict="addressed",
+                occupant=REVIEWER_MODEL_IDENTITY,
+                invocation_id=invocation_id,
+            )
+            yield f"data: {json.dumps({'reviewer_response': response_text})}\n\n"
+            logger.info(
+                "[REVIEWER] addressed (Haiku) for user=%s actions=%d",
+                auth.user_id[:8], len(output.get("actions_taken") or []),
+            )
 
-        # Per-action System Agent narration already happened in-the-moment
-        # above (during the progress-queue drain). No post-hoc lump bubble.
-        # The chat now reads as a conversation: Reviewer narrates intent in
-        # first person; System Agent narrates each consequential action when
-        # it fires. ADR-258 (revised 2026-05-08).
-        actions = output.get("actions_taken") or []
+            # Per-action System Agent narration already happened in-the-moment
+            # above (during the progress-queue drain). No post-hoc lump bubble.
+            # The chat now reads as a conversation: Reviewer narrates intent in
+            # first person; System Agent narrates each consequential action when
+            # it fires. ADR-258 (revised 2026-05-08).
+            actions = output.get("actions_taken") or []
 
-        yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': [a.get('tool','') for a in actions]})}\n\n"
+            # ADR-289 D3: finalize the canonical execution_events row for this
+            # addressed cycle. Telemetry pass-through mirrors the recurrence
+            # path (invocation_dispatcher.py:314). slug='addressed' identifies
+            # operator-driven cycles; trigger_type='addressed' is symmetric.
+            addressed_duration_ms = int(
+                (datetime.now(_tz.utc) - addressed_started_at).total_seconds() * 1000
+            )
+            record_execution_event(
+                auth.client, user_id=auth.user_id, slug="addressed",
+                id=invocation_id,
+                mode="judgment", trigger_type="addressed",
+                status="success", duration_ms=addressed_duration_ms,
+                input_tokens=output.get("input_tokens"),
+                output_tokens=output.get("output_tokens"),
+                cache_read_tokens=output.get("cache_read_tokens"),
+                cache_create_tokens=output.get("cache_create_tokens"),
+                model=output.get("model"),
+                tool_rounds=output.get("tool_rounds"),
+            )
+
+            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': [a.get('tool','') for a in actions]})}\n\n"
+        except Exception as _reviewer_exc:
+            # ADR-289 D3: failed addressed cycles also get their canonical
+            # execution_events row — invocation atom always recorded regardless
+            # of outcome, per ADR-265 forensic-substrate discipline.
+            addressed_duration_ms = int(
+                (datetime.now(_tz.utc) - addressed_started_at).total_seconds() * 1000
+            )
+            record_execution_event(
+                auth.client, user_id=auth.user_id, slug="addressed",
+                id=invocation_id,
+                mode="judgment", trigger_type="addressed",
+                status="failed", error_reason="exception",
+                error_detail=str(_reviewer_exc),
+                duration_ms=addressed_duration_ms,
+            )
+            raise
 
     # ── Main stream dispatcher ────────────────────────────────────────────────
     async def response_stream():
@@ -1326,8 +1381,19 @@ async def global_chat(
             return
 
         try:
+            # ADR-289 D2 + D3: pre-generate the invocation atom id for this
+            # addressed cycle. Stamp on the operator's message metadata so the
+            # entire cycle's narrative rows (user question + Reviewer reply +
+            # system_agent action narrations) share one invocation_id —
+            # FE groups them into one invocation card on the Feed surface.
+            import uuid as _uuid
+            invocation_id = str(_uuid.uuid4())
+
             # Write user message to narrative
-            await append_message(auth.client, session_id, "user", request.content, {"pulse": "addressed"})
+            await append_message(auth.client, session_id, "user", request.content, {
+                "pulse": "addressed",
+                "invocation_id": invocation_id,
+            })
             logger.info("[SYSTEM_AGENT] turn for: %.50r", request.content)
 
             # Build media blocks (images + file attachments)
@@ -1365,7 +1431,7 @@ async def global_chat(
             # No System Agent fallback. Reviewer is always the intelligence layer.
             # If Reviewer includes action_instruction, System Agent executes it as directed.
             # If Reviewer fails entirely, yield error — do not improvise with System Agent.
-            async for chunk in _dispatch_reviewer_turn(images_for_api, profile):
+            async for chunk in _dispatch_reviewer_turn(images_for_api, profile, invocation_id):
                 yield chunk
 
         except Exception as e:

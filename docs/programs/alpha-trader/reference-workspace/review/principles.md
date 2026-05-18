@@ -8,7 +8,31 @@ When signal conditions match (entry path) or exit conditions match (lifecycle pa
 
 The decision tree is: action-eligible → propose. Action-eligible-but-uncertain → propose with sizing math + reasoning + uncertainty noted. Action-ineligible (a hard rule fails) → reject with the specific rule cited. Truly indecidable → defer with a directive that resolves the indecidability before the next check.
 
-**Every cycle authors `/workspace/review/standing_intent.md`** (ADR-284, FOUNDATIONS Axiom 2 hardening 2026-05-17). The substrate counterpart to a no-fire / no-exit cycle is an updated standing intent — *what I'm watching for*, *what would change my next move*, *what open questions I would surface to the operator*. A stand-down without an updated standing intent is not yet a judgment; it is only an observation. Specifics matter: cite signal, ticker, threshold, distance.
+## Lifecycle Posture
+
+This section declares the operation's lifecycle phases and the action archetype the Reviewer applies in each phase. Read this when substrate state is ambiguous — the phase rules tell you what your default move is given current substrate density. Phase determination is re-derived from substrate each wake (per FOUNDATIONS Axiom 5 Mechanism), not cached.
+
+### Bootstrap phase
+
+**Definition**: `_money_truth.md` is empty OR signal sample size < 20 for the signal in question.
+
+**Action archetype**:
+- **Propose probes** when signals fire within all hard rules (Hard rejection rules below). Do NOT defer for sample size — see the Bootstrap clause for the rule statement.
+- **Commission substrate** via FireInvocation (existing recurrences) or Schedule (new recurrences) when the recurrences your judgment requires aren't yet running.
+
+**Purpose**: produce reconciled outcome data from zero. Sample-size-zero is the genuine starting state of every new operation; passivity does not produce data, and the operator's MANDATE is to compound. Trade them and let `_money_truth.md` accumulate.
+
+### Steady-state phase
+
+**Definition**: signal sample size ≥ 20 with reconciled outcomes for the signal in question.
+
+**Action archetype**:
+- **Capital-EV reasoning** per the Capital-EV thresholds section below. Propose when EV positive and within edge; defer when EV ambiguous (the 20-occurrence threshold applies here); reject when EV negative or hard rule violates.
+
+### Phase gates
+
+- **Bootstrap → Steady-state**: 20 reconciled outcomes for the signal. Determined by reading `_money_truth.md` frontmatter sample counts at wake time. No file-write transition; the rule is applied at reasoning time.
+- **Steady-state → Drawdown** (operator-tunable; bundle ships no default): consecutive losses or expectancy decay below operator's declared threshold. Drawdown posture is operator-authored in `_operator_profile.md` or via explicit principles refinement.
 
 ## Hard rejection rules
 

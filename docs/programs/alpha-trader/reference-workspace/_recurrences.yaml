@@ -159,14 +159,10 @@ recurrences:
 
       When any entry signal fires, immediately FireInvocation(slug="trade-proposal")
       to hand the signal to the Reviewer for capital judgment. Otherwise
-      stand down — AND update /workspace/review/standing_intent.md with what's
-      close to firing per ADR-284 + principles.md "Default posture: action".
-      Cite the closest-to-firing signal, ticker, threshold, and distance
-      (e.g. "Signal 1 Momentum-breakout on NVDA: RSI 82, need 55-75 range,
-      off by +7"). Standing down without updating standing_intent.md leaves
-      the operator with no evidence of forward-looking judgment — only
-      observation. The cycle is not closed until standing intent reflects
-      this cycle's reading of state.
+      stand down. (The universal every-cycle standing_intent.md write
+      contract is governed by your kernel persona frame, not by this
+      recurrence prompt — your closest-to-firing reasoning lands there
+      automatically as part of the wake's judgment cycle.)
     display_name: "Signal Evaluator"
 
   # ── mirror-signal-state — compact substrate for Reviewer wake envelope ──
@@ -245,12 +241,11 @@ recurrences:
       every entry proposal is tied to a named signal. For exits, attribution
       is the original signal_id of the position being closed.
 
-      If conditions don't warrant on the entry path, stand down with reasoning —
-      AND update /workspace/review/standing_intent.md with what would change
-      the assessment (per ADR-284 + principles.md "Default posture: action").
+      If conditions don't warrant on the entry path, stand down with reasoning.
       The material-outcome gate (ADR-281 §5) decides whether a judgment_log.md
-      entry is rendered; standing_intent.md update is unconditional. **Silent
-      stand-down on an exit trigger is forbidden** (per principles.md).
+      entry is rendered; the universal every-cycle standing_intent.md write
+      contract is governed by your kernel persona frame, not by this prompt.
+      **Silent stand-down on an exit trigger is forbidden** (per principles.md).
     display_name: "Trade Proposal"
 
   # ADR-275: pre-market-brief, weekly-performance-review, and

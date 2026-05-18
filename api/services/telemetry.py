@@ -106,6 +106,7 @@ def record_execution_event(
     mode: str,
     trigger_type: str,
     status: str,
+    id: Optional[str] = None,
     error_reason: Optional[str] = None,
     error_detail: Optional[str] = None,
     tool_rounds: Optional[int] = None,
@@ -117,16 +118,23 @@ def record_execution_event(
     duration_ms: Optional[int] = None,
     envelope_load_ms: Optional[int] = None,
     agent_run_id: Optional[str] = None,
-) -> None:
-    """Write one row to execution_events. Never raises.
+) -> Optional[str]:
+    """Write one row to execution_events. Never raises. Returns the row id on
+    success, None on insert failure.
 
     Args:
         client:             Supabase service client
         user_id:            User UUID
-        slug:               Recurrence slug
+        slug:               Recurrence slug (or 'addressed' for chat-fired cycles
+                            per ADR-289)
         mode:               judgment | mechanical (ADR-263 — wakes Reviewer or runs deterministic Python)
-        trigger_type:       scheduled | manual | back_office
+        trigger_type:       scheduled | manual | back_office | addressed (ADR-289)
         status:             success | failed | skipped
+        id:                 Caller-supplied UUID for the row. ADR-289 callers
+                            pre-generate the UUID so the invocation_id can be
+                            stamped on narrative rows produced during the cycle
+                            before the audit row finalizes. Omit for legacy
+                            single-shot writes; Postgres generates the UUID.
         error_reason:       taxonomy key (see observability.md Error Reason Taxonomy)
         error_detail:       exception message, truncated to 2000 chars
         tool_rounds:        number of LLM tool rounds executed
@@ -140,6 +148,12 @@ def record_execution_event(
                             Reviewer wakes (ADR-276); NULL for mechanical-mode
                             recurrences and non-Reviewer paths (migration 175)
         agent_run_id:       agent_runs.id if a row was created (NULL for early exits)
+
+    Returns:
+        The execution_events.id of the inserted row, or None on insert failure.
+        Per ADR-289 D2, this is the canonical substrate row for the invocation
+        atom — every narrative entry produced during the cycle stamps
+        metadata.invocation_id with this value.
     """
     try:
         cost_usd = None
@@ -159,6 +173,8 @@ def record_execution_event(
             "trigger_type": trigger_type,
             "status": status,
         }
+        if id is not None:
+            row["id"] = id
         if error_reason is not None:
             row["error_reason"] = error_reason
         if error_detail is not None:
@@ -182,12 +198,23 @@ def record_execution_event(
         if agent_run_id is not None:
             row["agent_run_id"] = agent_run_id
 
-        client.table("execution_events").insert(row).execute()
+        result = client.table("execution_events").insert(row).execute()
+        # Supabase returns the inserted row(s) in result.data when the client
+        # is configured with default representation. ADR-289 callers rely on
+        # this id to stamp metadata.invocation_id on narrative rows.
+        inserted_id: Optional[str] = id
+        if not inserted_id and getattr(result, "data", None):
+            try:
+                inserted_id = result.data[0].get("id")
+            except (IndexError, KeyError, AttributeError, TypeError):
+                inserted_id = None
 
         logger.info(
             "[TELEMETRY] %s/%s %s%s",
             mode, slug, status,
             f" cost=${cost_usd:.4f}" if cost_usd else "",
         )
+        return inserted_id
     except Exception as e:
         logger.warning("[TELEMETRY] record_execution_event failed (non-fatal): %s", e)
+        return None
