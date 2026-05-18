@@ -74,14 +74,6 @@ from .mirror_signal_state import handle_mirror_signal_state
 # mechanical primitives — they author recurrences that name them).
 from .track_universe import handle_track_universe
 from .track_regime import handle_track_regime
-# ADR-292: Continuous Substrate Re-Apply — the mechanical primitive backing
-# `back-office-substrate-reapply` recurrence. Re-applies kernel + bundle
-# substrate updates to live workspaces; gated by is_skeleton_content so
-# operator-customized files are never touched.
-from services.substrate_reapply import (
-    REAPPLY_PLATFORM_SUBSTRATE_TOOL,
-    handle_reapply_platform_substrate,
-)
 from .repurpose import REPURPOSE_OUTPUT_TOOL, handle_repurpose_output
 from .propose_action import (
     PROPOSE_ACTION_TOOL, handle_propose_action,
@@ -459,11 +451,6 @@ HANDLERS: dict[str, Callable] = {
     # surface; not LLM-callable.
     "TrackUniverse": handle_track_universe,
     "TrackRegime": handle_track_regime,
-    # ADR-292: ReapplyPlatformSubstrate — continuous re-apply of kernel +
-    # bundle substrate. Dispatched by `back-office-substrate-reapply`
-    # mechanical recurrence; closes the kernel/bundle → live-workspace
-    # propagation gap. Mechanical-only; not in any LLM tool surface.
-    "ReapplyPlatformSubstrate": handle_reapply_platform_substrate,
     "ManageDomains": handle_manage_domains,
     # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
     "ReadFile": handle_read_file,

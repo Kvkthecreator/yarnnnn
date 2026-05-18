@@ -1,179 +1,191 @@
-# ADR-292: Continuous Substrate Re-Apply — Kernel + Bundle Updates Reach Live Workspaces
+# ADR-292: Operator-Initiated Versioned Substrate Update — Kernel + Bundle Updates Reach Live Workspaces
 
-**Status**: Proposed (2026-05-18)
+**Status**: Implemented (Phase 1 — backend, 2026-05-18); Phase 2 (FE surface) Proposed
 **Authors**: KVK, Claude
 
 **Dimensional classification** (FOUNDATIONS v8.5):
 - **Substrate** (Axiom 1) — primary. Defines how platform-managed substrate evolves in live workspaces.
-- **Mechanism** (Axiom 5) — secondary. Fully-deterministic re-apply loop, no judgment.
+- **Trigger** (Axiom 4) — secondary. Operator-initiated, not scheduled. Versioned platform-update model (Claude Code's `claude --update`, not a daily cron).
 - **Identity** (Axiom 2) — tertiary. `authored_by` attribution is the load-bearing gate between platform-managed and operator-authored revisions.
 
 **Companion canon**:
 - FOUNDATIONS Axiom 1 (Substrate) — workspace_files + revision chain
 - FOUNDATIONS Axiom 2 (Identity) + Derived Principle 13 — every revision is authored, attribution distinguishes actors
-- FOUNDATIONS Derived Principle 14 (Singular Implementation) — one re-apply path, not per-layer ceremony
+- FOUNDATIONS Derived Principle 14 (Singular Implementation) — one update path, not per-layer ceremony
 - ADR-209 — Authored Substrate; `authored_by` taxonomy is the boundary
 - ADR-222 — agent-native OS framing; kernel/program boundary
-- ADR-223 — Program Bundle Specification
+- ADR-223 — Program Bundle Specification (MANIFEST.yaml shape)
 - ADR-226 — Reference-Workspace Activation Flow (one-shot fork at signup)
+- ADR-244 — Workspace Settings Surface (the FE home for the update affordance)
 - ADR-286 — Kernel/Program substrate single-writer discipline
 - `docs/architecture/propagation-discipline.md` — the planning doc this ADR ratifies
 
 **Supersedes**: None — net new mechanism.
 
 **Amends**:
-- ADR-226 — adds a continuous companion to one-shot activation fork. ADR-226's idempotency-on-re-fork semantics survive; this ADR generalizes them into a continuous daily cycle.
+- ADR-226 — adds an operator-initiated versioned-update companion to one-shot activation fork. ADR-226's fork primitive is unchanged; this ADR adds detection + version stamping + a second trigger site that re-uses the same primitive.
 
 **Preserves**: All upstream canon. No primitive renames, no schema changes.
 
 ---
 
+## Drafting history
+
+Drafted 2026-05-18 in the wrong shape (daily mechanical recurrence + new `ReapplyPlatformSubstrate` primitive). Reverted same day after operator feedback: the right model is Claude Code's `claude --update` — **versioned platform releases, operator-initiated adoption** — not a polling cron. This ADR documents the corrected shape directly; the wrong-shape commit `837356b` is amended in place by the corrective commit on top.
+
+---
+
 ## Problem
 
-YARNNN now has multiple live operator workspaces — three alpha-author dogfood personas (`yarnnn-author`, `netflix-script-author`, `korea-thriller-shorts`) plus kvk's alpha-trader-2. These workspaces accumulate real operator content while kernel skeleton text and program bundle templates continue to evolve in `main`.
+YARNNN has multiple live operator workspaces — three alpha-author dogfood personas (`yarnnn-author`, `netflix-script-author`, `korea-thriller-shorts`) plus kvk's alpha-trader-2. These workspaces accumulate real operator content while kernel skeleton text and program bundle templates continue to evolve in `main`.
 
 When kernel constants like `DEFAULT_REVIEW_PRINCIPLES_MD` tighten on 2026-05-25, or when a program bundle's `context/_shared/IDENTITY.md` improves upstream, there is currently **no mechanism that propagates the improvement to already-forked workspaces.** Only new workspaces see the change.
 
-The existing fork primitive ([api/services/programs.py::fork_reference_workspace](/Users/macbook/yarnnn/api/services/programs.py)) and `initialize_workspace()` Phase 2 ([api/services/workspace_init.py](/Users/macbook/yarnnn/api/services/workspace_init.py)) run once per workspace, at signup or persona-harness invocation. There is no scheduled re-apply.
+The existing fork primitive ([api/services/programs.py::fork_reference_workspace](/Users/macbook/yarnnn/api/services/programs.py)) and `initialize_workspace()` Phase 2 ([api/services/workspace_init.py](/Users/macbook/yarnnn/api/services/workspace_init.py)) run once per workspace, at signup or persona-harness invocation. There is no second trigger that re-applies upstream changes.
 
-The result: live workspaces drift further from canon every time the platform improves. With one operator (kvk) at one workspace, this was tolerable. With three dogfood personas now triangulating bundle evolution across distinct format/cadence/audience combinations, drift accumulates faster than manual re-application can address.
+The result: live workspaces drift further from canon every time the platform improves.
 
 ## Decision
 
-Add a single continuous re-apply mechanism that runs on app deploy and as a daily back-office task. The mechanism walks platform-managed paths and re-writes them where the operator has not taken authorship.
+Adopt the **Claude Code update model** for substrate: platform versions its substrate, operator opts in on demand.
 
-### D1. The boundary is `authored_by` attribution, not version metadata
+### D1. Two version stamps
 
-ADR-209's revision chain already records `authored_by` on every revision. The taxonomy distinguishes platform-written (`system:*`) from operator-authored (`operator`, `yarnnn:*`, `agent:*`, `specialist:*`, `reviewer:*`).
+Single string per layer:
 
-A file's HEAD revision's `authored_by` is the single signal that determines whether re-apply touches it:
+- **`KERNEL_VERSION`** constant in [api/services/orchestration.py](/Users/macbook/yarnnn/api/services/orchestration.py). Bumped manually when any kernel-universal seed constant changes meaningfully. Format: date-stamped `YYYY-MM-DD[.N]` aligning with [api/prompts/CHANGELOG.md](/Users/macbook/yarnnn/api/prompts/CHANGELOG.md).
+- **`version:`** field in each bundle's [MANIFEST.yaml](/Users/macbook/yarnnn/docs/programs/alpha-trader/MANIFEST.yaml). Bumped manually by the bundle author on any `reference-workspace/` or `specs/` change. Same date-stamp format.
 
-- HEAD `authored_by` starts with `system:` → platform-managed, candidate for re-apply
-- HEAD `authored_by` is anything else → operator has taken authorship, never touch
+Discipline cost: one line per substrate change, identical to the CHANGELOG entry the change already needs.
 
-No bundle version field. No `activated_bundle_version` workspace column. No diff-detection findings table. The attribution chain is already the answer.
+### D2. Workspace-side version record is substrate-native (MANDATE.md frontmatter)
 
-### D2. The mechanism — one service, one entry point
+The workspace records which versions it has adopted via frontmatter at the top of MANDATE.md:
 
-New service: `api/services/substrate_reapply.py` with one entry point:
-
-```python
-async def reapply_platform_substrate(
-    client,
-    user_id: str,
-    *,
-    source: Literal["deploy", "scheduled", "manual"],
-) -> ReapplyReport
+```yaml
+---
+activated_bundle_version: 2026-05-18.1
+activated_kernel_version: 2026-05-18.1
+---
+# Mandate — alpha-trader (template)
+...
 ```
 
-Logic:
+Rationale:
+- FOUNDATIONS Axiom 1 (Substrate) consistency — workspace state lives in workspace_files, not in schema columns.
+- ADR-209 attribution captures the version-advance event in the revision chain.
+- No schema bifurcation (ADR-244 D4 already established this principle when L2/L4 resets preserve `active_program_slug` by reading MANDATE.md, not a column).
+- `parse_active_program_slug` is unchanged — the heading regex iterates past frontmatter without modification.
 
-1. Walk **kernel-managed paths**: `SHARED_CONTEXT_FILES` + seeded review-substrate paths from `workspace_paths.py`. For each path, resolve canonical content from the corresponding `DEFAULT_*_MD` constant in `orchestration.py`.
-2. Walk **bundle-managed paths**: if `parse_active_program_slug(user_id)` returns a slug, walk every file in `docs/programs/{slug}/reference-workspace/`. Resolve canonical content from the bundle template (with tier frontmatter stripped per ADR-226).
-3. For each canonical path:
-   - Read HEAD revision via `list_revisions(client, user_id, path, limit=1)`.
-   - If HEAD's `authored_by` does NOT start with `system:`, skip (operator owns it).
-   - If HEAD's content equals canonical content byte-for-byte, skip (no drift).
-   - Otherwise, write a new revision via `write_revision()` with `authored_by="system:reapply"` and a message naming the source (`kernel: DEFAULT_REVIEW_PRINCIPLES_MD updated` or `bundle: alpha-author/context/_shared/IDENTITY.md updated`).
-4. Append a structured summary row to `/workspace/_shared/substrate-reapply-log.md` (system-authored, append-only).
+Absence of frontmatter is the legitimate "no version recorded yet" state — workspaces activated before ADR-292 shipped fall in this bucket and the detection helpers handle it naturally.
 
-### D3. Triggers — two only
+### D3. The boundary is `is_skeleton_content`, not `authored_by`
 
-- **On deploy**: a deploy-hook script invokes `reapply_platform_substrate(source="deploy")` for every active workspace. Kernel improvements land within minutes of deploy.
-- **Daily scheduled**: a new back-office recurrence `back-office-substrate-reapply` scaffolded at signup, runs daily. Backstop for bundle improvements that ship without a code deploy (e.g., bundle-template-only PRs).
+The existing [api/services/programs.py::fork_reference_workspace](/Users/macbook/yarnnn/api/services/programs.py) already uses [api/services/workspace_utils.py::is_skeleton_content](/Users/macbook/yarnnn/api/services/workspace_utils.py) as the gate that decides "operator has customized this file → never touch." That gate is battle-tested across every persona activation since ADR-226 shipped.
 
-No manual operator trigger from the UI. If a workspace needs a fresh apply, the daily cycle will catch it. Manual one-off invocation via script is available for kvk during alpha.
+ADR-292 reuses that gate, NOT a parallel `authored_by`-based gate. Singular Implementation: one decision authority. Adding a second gate would create the possibility of two answers disagreeing.
 
-### D4. What does NOT change
+### D4. Update is operator-initiated, NOT scheduled
 
-Explicit non-goals to prevent the implementation from drifting back into the over-engineered shape that the planning doc (`propagation-discipline.md`) initially proposed and rejected:
+The mechanism is `claude --update`-shaped:
 
-- ❌ Bundle versioning (MANIFEST.yaml gaining `version:`)
-- ❌ Workspace schema columns (`activated_bundle_version`, `prompt_version_pin`, etc.)
-- ❌ Drift-findings table
-- ❌ Operator-facing accept/reject UI affordance
-- ❌ Prompt version pinning at the workspace level
-- ❌ Canary rollout infrastructure
-- ❌ Per-file force-re-apply override
+1. Platform releases new substrate (bumps `KERNEL_VERSION` or `MANIFEST.yaml::version`).
+2. Operator opens Settings → Workspace (ADR-244 surface).
+3. Backend detection helpers return `BundleUpdateInfo` and/or `KernelUpdateInfo` if the workspace's recorded version is behind canon.
+4. Operator sees "Update available" with a diff summary.
+5. Operator clicks "Update." This invokes `apply_substrate_update(client, user_id, scope=..., source="operator")`.
+6. Update worker walks the relevant layers, re-applies platform-managed files (skipping operator-authored), advances MANDATE.md frontmatter version stamps, appends UpdateReport to `/workspace/_shared/substrate-update-log.md`.
 
-Each of those becomes its own ADR if and when a concrete production failure makes it acute. We do not pre-build.
+**Explicit non-goals** (the wrong shape that was reverted):
+- ❌ Daily back-office cron walking every workspace every 24h
+- ❌ A `ReapplyPlatformSubstrate` mechanical primitive in HANDLERS
+- ❌ Bundle recurrences shipping a `back-office-substrate-reapply` entry
 
-### D5. Operator-authored files diverging from upstream are correct, not a bug
+Updates only happen when the operator chooses. The platform's job is to make the choice visible and trivial; the operator's job is to decide when to take it.
 
-When the operator customizes `context/_shared/IDENTITY.md`, they take authorship. If the bundle's IDENTITY.md template improves later, the operator does NOT receive the improvement. This is the right tradeoff:
+### D5. Single public function, scope-parameterized
 
-- Overwriting operator content is a worse failure than the operator missing an upstream improvement.
-- The operator can manually pull upstream content by reading the bundle template (via filesystem or `docs/programs/{slug}/reference-workspace/` in the repo) and choosing what to merge.
-- A future ADR can add a soft operator notification ("upstream improved this file you've customized") if the gap becomes concrete. Not now.
+[api/services/substrate_reapply.py::apply_substrate_update](/Users/macbook/yarnnn/api/services/substrate_reapply.py) takes a `scope` parameter: `"kernel"` | `"bundle"` | `"both"`. Both layers share the same gate (`is_skeleton_content`), the same attribution actor (`system:substrate-update`), and the same audit log. The operator UI surfaces the two layers as separate notifications, but the worker treats them as one mechanism with two scopes.
 
-### D6. Prompts and schema remain on their current model
+### D6. Audit log substrate
 
-- Prompts ship at HEAD; all workspaces get them on next invocation. CHANGELOG.md is the audit trail.
-- Schema migrations apply atomically at deploy time. No per-workspace gating.
+`/workspace/_shared/substrate-update-log.md` — system-authored, append-only markdown. Each entry records one update event: source, scope, from/to versions, files touched, skip counters.
 
-Recovery from a regression in either path: `git revert + redeploy`. This affects all workspaces uniformly. At current operator scale (handful of dogfood personas, one human directing), this is correct. The first concrete production regression that this fails to recover from triggers a future ADR — not this one.
+Operator-readable; not operator-actionable. The operator has already made the decision by clicking Update; the log records what happened, not what to decide.
 
-### D7. ReapplyReport — append-only audit substrate
+### D7. What this ADR does NOT do
 
-```python
-@dataclass
-class ReapplyAction:
-    path: str
-    source: Literal["kernel", "bundle"]
-    change_summary: str  # e.g., "DEFAULT_REVIEW_PRINCIPLES_MD updated"
-    revision_id: str  # the new workspace_file_versions row
+Explicit non-goals to prevent scope creep:
 
-@dataclass
-class ReapplyReport:
-    user_id: str
-    source: Literal["deploy", "scheduled", "manual"]
-    ran_at: datetime
-    actions: list[ReapplyAction]
-    skipped_operator_authored: int
-    skipped_aligned: int
-```
+- ❌ Bundle version auto-bump from git (manual discipline mirrors prompt CHANGELOG)
+- ❌ Diff-findings table — diff is computed on read, not persisted
+- ❌ Per-file accept/reject affordance — version-level only
+- ❌ Per-workspace prompt version pinning
+- ❌ Canary rollout / staged release infrastructure
+- ❌ Operator-customized files diverging from upstream are NOT surfaced as "potential updates" — once the operator takes authorship, they own it
+- ❌ Schema migration for version columns (substrate-native record per D2)
 
-Report is appended to `/workspace/_shared/substrate-reapply-log.md` via `write_revision(authored_by="system:reapply")`. Operator can read this file via the Files surface to audit what platform updates have landed in their workspace. No accept/reject; the report is informational.
+Each of these becomes its own ADR if and when a concrete production failure makes it acute.
 
-## Implementation Plan
+### D8. Prompts and DB schema remain on their current models
 
-| Phase | Scope | Touches |
+- Prompts ship at HEAD; all workspaces get them on next invocation. [api/prompts/CHANGELOG.md](/Users/macbook/yarnnn/api/prompts/CHANGELOG.md) is the audit trail.
+- DB schema migrations apply atomically at deploy time.
+
+Recovery from a regression in either path is `git revert + redeploy`, affecting all workspaces uniformly. At current operator scale (handful of dogfood personas, one human directing), this is correct. The first concrete production regression that this fails to recover from triggers a future ADR — not this one.
+
+## Implementation Status
+
+### Phase 1 — Backend (Implemented 2026-05-18, this ADR's commit)
+
+| Component | Status | Notes |
 |---|---|---|
-| 1 | `substrate_reapply.py` service + ReapplyReport schema + audit-log writer | New file only |
-| 2 | Kernel path enumeration (read `SHARED_CONTEXT_FILES` + review skeleton paths from `workspace_paths.py`; resolve canonical content from `orchestration.py` constants) | Read-side only |
-| 3 | Bundle path enumeration (walk `docs/programs/{slug}/reference-workspace/`, strip tier frontmatter, resolve canonical content via existing `_strip_tier_frontmatter` in `programs.py`) | Read-side only |
-| 4 | Write path (`authored_by="system:reapply"` revisions) + audit-log append | Write-side via existing `write_revision()` |
-| 5 | Back-office recurrence registration — `back-office-substrate-reapply` daily | `workspace_init.py` Phase 5 or back-office bundle |
-| 6 | Deploy-hook script invocation across all active workspaces | New deploy-hook entry, Render service config |
-| 7 | Regression test `api/test_adr292_continuous_reapply.py` covering: operator-authored skip, kernel re-apply, bundle re-apply, audit-log append, idempotency | New test |
+| `KERNEL_VERSION` constant | ✅ | [api/services/orchestration.py](/Users/macbook/yarnnn/api/services/orchestration.py) — set to `"2026-05-18.1"` |
+| `version:` field on alpha-trader MANIFEST | ✅ | Set to `2026-05-18.1` |
+| `version:` field on alpha-author MANIFEST | ✅ | Set to `2026-05-18.1` |
+| `bundle_reader.get_bundle_version(slug)` helper | ✅ | Reads MANIFEST.yaml's `version:` field |
+| MANDATE.md frontmatter read/write helpers | ✅ | Tolerant parser; absence = "no version recorded yet" |
+| `bundle_update_available(client, user_id)` detection | ✅ | Returns `BundleUpdateInfo` or `None` |
+| `kernel_update_available(client, user_id)` detection | ✅ | Returns `KernelUpdateInfo` or `None` |
+| `apply_substrate_update(client, user_id, *, scope, source)` worker | ✅ | Single public entry point, scope-parameterized |
+| MANDATE.md version-stamp advance | ✅ | Idempotent write to frontmatter on success |
+| `/workspace/_shared/substrate-update-log.md` audit log | ✅ | Append-only, system-authored |
+| `system:substrate-update` attribution actor | ✅ | Distinct from `system:bundle-fork` |
+| Regression test gate | ✅ | [api/test_adr292_continuous_reapply.py](/Users/macbook/yarnnn/api/test_adr292_continuous_reapply.py) |
 
-No schema migration. No new tables. No frontend surface. No primitive renames. No prompt changes (audit-log writing is system-authored substrate, not prompt-shaped output).
+### Phase 2 — Frontend (Proposed)
+
+| Component | Status | Notes |
+|---|---|---|
+| `GET /api/workspace/state` returns `bundle_update`/`kernel_update` info | Pending | Calls the detection helpers |
+| Settings → Workspace surface renders update affordances | Pending | When detection returns non-None |
+| "Update bundle" button calls `POST /api/programs/update` (or similar) | Pending | Invokes `apply_substrate_update` with scope/source |
+| Audit-log viewer in Settings → Workspace | Pending | Reads `substrate-update-log.md` |
+
+Backend can stand alone; FE is independent and lands in a follow-up commit.
 
 ## Test Gate
 
-Invariants enforced by `api/test_adr292_continuous_reapply.py`:
+Invariants enforced by [api/test_adr292_continuous_reapply.py](/Users/macbook/yarnnn/api/test_adr292_continuous_reapply.py):
 
-1. Operator-authored file (HEAD `authored_by="operator"`) is never touched.
-2. Skeleton-authored file (HEAD `authored_by="system:bundle-fork"`) with stale content gets re-applied; new revision has `authored_by="system:reapply"`.
-3. Skeleton-authored file with content matching canonical is skipped (no spurious revisions).
-4. Audit log at `/workspace/_shared/substrate-reapply-log.md` receives one append per re-apply run.
-5. Idempotency: running re-apply twice in a row produces zero actions on the second run.
-6. No bundle activated → only kernel paths walked; bundle walk skipped cleanly.
+1. `substrate_reapply` module exports the seven public symbols (`apply_substrate_update`, two detection helpers, two info dataclasses, audit log path, attribution actor).
+2. Audit log path constant matches `_shared/substrate-update-log.md`.
+3. Attribution actor matches `system:substrate-update` and passes ADR-209 `is_valid_author` taxonomy.
+4. No mechanical primitive registered — `ReapplyPlatformSubstrate` is NOT in HANDLERS.
+5. No daily recurrence — `back-office-substrate-reapply` is NOT in any bundle's `_recurrences.yaml`.
+6. `KERNEL_VERSION` constant exists in orchestration.py and is a non-empty string.
+7. Both active bundles declare `version:` in MANIFEST.yaml.
+8. MANDATE.md frontmatter parse/render round-trip is idempotent for the empty case.
+9. MANDATE.md frontmatter version-stamp write preserves heading + body.
+10. ADR-292 doc + propagation-discipline.md exist and reference each other.
 
 ## Out of Scope / Future ADRs
 
 The following remain explicitly out of scope and become future ADRs only if a concrete failure case emerges:
 
-- Bundle-template-vs-workspace diff visibility (operator-facing surface)
+- Bundle-template-vs-workspace per-file diff viewer (operator-facing surface)
 - Prompt version pinning + canary rollout
 - Per-migration schema feature flags
 - Cross-workspace propagation observability dashboard
-- Reflexive loop (lived → bundle graduation) — already deferred as ADR 6 in `os-framing-implementation-roadmap.md`
-
-## Open Questions
-
-- **Deploy-hook integration shape.** Render does not have a first-class post-deploy hook for arbitrary scripts. Options: (a) cron job that runs every 5 min and short-circuits if no deploy occurred since last run; (b) explicit one-shot job triggered manually via Render Job after each `main` deploy; (c) accept that "on deploy" really means "within 24h of deploy via the daily back-office task." Option (c) is the simplest and likely correct — kernel improvements are rarely time-critical to the minute.
-
-- **Bundle freshness for the daily cycle.** The daily back-office task running on the API service reads bundles from the deployed code's `docs/programs/` directory. This means the daily cycle picks up bundle changes only after the code is deployed. Bundle-template-only PRs that need to reach workspaces require a deploy regardless. This is acceptable and matches Claude Code's "update the binary, propagate" shape.
-
-- **Audit log retention.** `/workspace/_shared/substrate-reapply-log.md` grows monotonically. ADR-209 revision chain caps file size implicitly via revision count, not byte count. If audit log entries become dense, a future trim discipline may be needed — out of scope for now.
+- Operator-authored file divergence notification ("upstream improved this file you've customized")
+- Reflexive loop (lived → bundle graduation) — already deferred as ADR 6 in [docs/architecture/os-framing-implementation-roadmap.md](/Users/macbook/yarnnn/docs/architecture/os-framing-implementation-roadmap.md)

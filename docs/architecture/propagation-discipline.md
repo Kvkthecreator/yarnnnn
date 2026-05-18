@@ -1,100 +1,142 @@
 ---
 title: Substrate Propagation Discipline — Canonical Reference
 date: 2026-05-18
-status: planning doc — ratified into ADR-292 (Proposed) on 2026-05-18
+status: planning doc — ratified into ADR-292 (Implemented Phase 1) on 2026-05-18
 related:
+  - docs/adr/ADR-292-continuous-substrate-reapply.md (operator-initiated versioned updates)
   - docs/adr/ADR-209-authored-substrate.md (authored_by attribution — the load-bearing primitive)
   - docs/adr/ADR-222-agent-native-operating-system-framing.md (kernel/program boundary)
   - docs/adr/ADR-223-program-bundle-specification.md (bundle shape)
   - docs/adr/ADR-226-reference-workspace-activation-flow.md (one-shot fork)
+  - docs/adr/ADR-244-workspace-settings-surface.md (operator-facing update surface home)
   - api/prompts/CHANGELOG.md (prompt audit trail)
 ---
 
 # Substrate Propagation Discipline — Canonical Reference
 
-> **What this is:** the canonical reference for how kernel + program-bundle substrate updates reach live operator workspaces. Names the one mechanism needed.
+> **What this is:** the canonical reference for how kernel + program-bundle substrate updates reach live operator workspaces. Names the one mechanism, names the shape.
 >
-> **What this is not:** an ADR. The ADR drafts when this is ratified.
+> **What this is not:** an ADR. The ADR is [ADR-292](../adr/ADR-292-continuous-substrate-reapply.md).
 
 ---
 
 ## Motivation
 
-YARNNN now has three live dogfood persona workspaces (`yarnnn-author`, `netflix-script-author`, `korea-thriller-shorts`) forked from the alpha-author bundle on 2026-05-18. When kernel skeleton text improves on 2026-05-25 (e.g., tightened safety language in `DEFAULT_REVIEW_PRINCIPLES_MD`), or when the alpha-author bundle's `context/_shared/IDENTITY.md` improves upstream, **there is no current mechanism to propagate those improvements to the three live workspaces.** The improvements reach new workspaces only.
+YARNNN now has three live dogfood persona workspaces (`yarnnn-author`, `netflix-script-author`, `korea-thriller-shorts`) forked from the alpha-author bundle on 2026-05-18, plus kvk's alpha-trader-2. When kernel skeleton text improves on 2026-05-25 (e.g., tightened safety language in `DEFAULT_REVIEW_PRINCIPLES_MD`), or when the alpha-author bundle's `context/_shared/IDENTITY.md` improves upstream, the improvement does not reach the three live workspaces. Drift accumulates faster than manual re-application can address.
 
-This doc names the discipline that closes that gap. The OS metaphor is the right one: when Claude Code updates, the platform code replaces; the operator's content is untouched. YARNNN should work the same way.
-
----
-
-## The boundary that makes update-in-place safe
-
-ADR-209 already gave us the load-bearing primitive: every revision of every workspace file carries an `authored_by` attribution. The taxonomy (`operator` | `yarnnn:<model>` | `agent:<slug>` | `specialist:<role>` | `reviewer:<identity>` | `system:<actor>`) cleanly distinguishes **platform-written** revisions (anything `system:*`) from **operator-authored** revisions (anything else).
-
-That is the boundary. Files where HEAD revision is `system:*` are platform-managed — safe to update. Files where HEAD revision is anything else are operator-authored — never touched by the update mechanism.
-
-No version columns. No accept/reject UI. No canary infrastructure. The attribution chain already encodes the decision.
+The right mental model: **Claude Code's `claude --update`.** Anthropic releases a new model; Claude Code presents the update as available; the operator decides when to take it. Versioned, operator-initiated, not a polling cron.
 
 ---
 
-## The mechanism
+## The boundary that makes update safe
 
-A single continuous re-apply path. Triggered on deploy and as a cheap daily back-office task.
+ADR-209's revision chain records `authored_by` on every revision. The taxonomy distinguishes platform-written (`system:*`) from operator-authored (`operator`, `yarnnn:*`, `agent:*`, `specialist:*`, `reviewer:*`).
 
-For each workspace:
+But the operative gate is finer: [api/services/workspace_utils.py::is_skeleton_content](../api/services/workspace_utils.py) compares the *content* of a workspace file against canonical content. A file passes the "still platform-managed" check if and only if content matches the canonical template (verbatim, or against bundle-template markers). This is what `fork_reference_workspace` already uses — battle-tested across every persona activation since ADR-226.
 
-1. Walk the **kernel-managed paths** — `SHARED_CONTEXT_FILES` + the seeded review-substrate paths (defined in `workspace_paths.py` and `workspace_init.py` Phase 2).
-2. Walk the **bundle-managed paths** — every file in `docs/programs/{activated_slug}/reference-workspace/` (when a program is activated).
-3. For each path: read HEAD revision's `authored_by`. If it starts with `system:`, compare current content against the canonical source (kernel constant or bundle template). If they differ, write a new revision via `authored_substrate.write_revision()` with `authored_by="system:reapply"` and a message naming the change source.
-4. If `authored_by` is anything else, skip. The operator (or any non-system actor) has taken authorship.
-
-That's the whole mechanism. One service. One cron entry. No schema changes. No UI.
+ADR-292 reuses this gate; no parallel `authored_by`-only gate. Singular Implementation.
 
 ---
 
-## What this does and does not cover
+## The mechanism (Claude Code shape)
+
+Three pieces:
+
+1. **Platform version stamps.**
+   - `KERNEL_VERSION` constant in [api/services/orchestration.py](../api/services/orchestration.py). One string per release. Date-stamped (`2026-05-18.1`).
+   - `version:` field in each bundle's `MANIFEST.yaml`. Bumped by the bundle author per substrate change.
+
+2. **Workspace version record (substrate-native).**
+   - MANDATE.md frontmatter carries `activated_bundle_version` and `activated_kernel_version`.
+   - Absence = "no version recorded yet" (workspaces activated before ADR-292).
+   - ADR-209 attribution captures version-advance events in the revision chain.
+
+3. **Operator-initiated update flow.**
+   - Backend detection helpers (`bundle_update_available()`, `kernel_update_available()`) compare workspace version against platform version. Return non-None when behind.
+   - Settings → Workspace surface (ADR-244 home) renders "Update available" when detection returns non-None.
+   - Operator clicks Update → backend invokes `apply_substrate_update(client, user_id, scope=...)`.
+   - Worker re-applies platform-managed files via existing `fork_reference_workspace` + a parallel kernel-layer walker. Operator-authored files skipped via `is_skeleton_content`.
+   - MANDATE.md frontmatter version stamps advance on success.
+   - Audit log appended to `/workspace/_shared/substrate-update-log.md`.
+
+That's the whole mechanism. No cron, no schema columns, no diff-findings table.
+
+---
+
+## What this covers, and what it does NOT
 
 **Covers:**
-- Kernel skeleton improvements reach all workspaces where the skeleton is still platform-written.
-- Bundle template improvements reach all forked workspaces where the file is still bundle-written.
-- The three dogfood personas accumulate updates continuously, the same way Claude Code accumulates updates between releases.
+- Kernel skeleton improvements reach all workspaces where the operator hasn't customized AND the operator chooses to take the update.
+- Bundle template improvements reach all forked workspaces under the same conditions.
+- The three dogfood personas adopt updates on the operator's cadence, the same way Claude Code adopts updates on the user's cadence.
 
 **Does not cover:**
-- **Operator-authored files diverging from upstream improvements.** Once the operator writes their own IDENTITY.md, they own it. If we improve the bundle's IDENTITY.md, the operator does not get the improvement. This is correct — overriding operator content is a worse failure than letting them miss an upstream improvement.
-- **Prompts.** Already work this way (HEAD ships, all workspaces get it). CHANGELOG.md is the audit trail.
-- **Schema.** Already works this way (atomic migrations).
+- **Automatic propagation.** Operator decides. No background pull.
+- **Operator-authored files diverging from upstream.** Once the operator writes their own IDENTITY.md, they own it. If the bundle improves IDENTITY.md, the operator does NOT get the improvement automatically. Correct: overwriting operator content is a worse failure than missing an upstream improvement.
+- **Prompts.** Ship at HEAD; all workspaces get them on next invocation. CHANGELOG.md is the audit trail.
+- **Schema.** Migrations apply atomically at deploy time.
 
-For prompts and schema, the implicit choice is: **no per-workspace version pinning, no canary rollout.** When a regression ships, recovery is `git revert + redeploy` and affects all workspaces uniformly. This is the right tradeoff at current operator scale (one human, a handful of workspaces). The first concrete production regression that this tradeoff fails to recover from is the trigger for a future ADR — not this one.
-
----
-
-## Implementation shape (for the ADR draft)
-
-When this gets ratified into an ADR:
-
-- New service: `api/services/substrate_reapply.py` with one entry point `reapply_platform_substrate(client, user_id) -> ReapplyReport`.
-- New back-office recurrence: `back-office-substrate-reapply` in workspace_init's signup-time scaffolds, daily cadence.
-- Optional: invoke once on app deploy from a one-shot script the deploy hook runs, so kernel improvements propagate immediately rather than waiting up to 24h.
-- ReapplyReport written to `/workspace/_shared/substrate-reapply-log.md` (append-only, system-authored). Operator-visible audit trail; no affordance needed because no decision is required of them.
-
-No schema migration. No new tables. No new columns. No FE surface.
+For prompts and schema, the implicit choice is: **no per-workspace version pinning, no canary rollout.** Recovery from a regression is `git revert + redeploy` affecting all workspaces uniformly. Right tradeoff at current operator scale; first concrete production regression that this fails to recover from triggers a future ADR.
 
 ---
 
-## What this does not become
+## Implementation shape (Phase 1 — Implemented)
 
-Explicitly out of scope so the ADR draft does not drift back into the original over-engineered shape:
+| Component | Location |
+|---|---|
+| Version constant | `KERNEL_VERSION` in `api/services/orchestration.py` |
+| Bundle version | `version:` in `docs/programs/{slug}/MANIFEST.yaml` |
+| Bundle version helper | `bundle_reader.get_bundle_version(slug)` |
+| MANDATE.md frontmatter | `_parse_frontmatter` / `_render_frontmatter` in `substrate_reapply.py` |
+| Detection (bundle) | `substrate_reapply.bundle_update_available(client, user_id)` |
+| Detection (kernel) | `substrate_reapply.kernel_update_available(client, user_id)` |
+| Worker | `substrate_reapply.apply_substrate_update(client, user_id, *, scope, source)` |
+| Audit log | `/workspace/_shared/substrate-update-log.md` |
+| Attribution actor | `system:substrate-update` |
+| Test gate | `api/test_adr292_continuous_reapply.py` |
 
-- ❌ Bundle versioning (MANIFEST.yaml gaining `version:`)
-- ❌ Workspace columns tracking `activated_bundle_version`
-- ❌ Drift detection findings table
-- ❌ Operator-facing accept/reject affordance
+## Phase 2 — Frontend (Proposed)
+
+| Component | Status |
+|---|---|
+| `GET /api/workspace/state` returns `bundle_update` + `kernel_update` info | Pending |
+| Settings → Workspace surface renders update affordances | Pending |
+| "Update" button calls update endpoint with scope | Pending |
+| Audit-log viewer | Pending |
+
+Backend stands alone; FE lands in a follow-up commit.
+
+---
+
+## What this is NOT (explicit non-goals)
+
+To prevent future drift back into the over-engineered shapes:
+
+- ❌ Daily back-office cron walking every workspace every 24h
+- ❌ Mechanical primitive (`ReapplyPlatformSubstrate`) in HANDLERS
+- ❌ Bundle recurrences shipping a `back-office-substrate-reapply` entry
+- ❌ Schema columns for `activated_bundle_version` (substrate-native in MANDATE.md frontmatter)
+- ❌ Per-file diff-findings table
+- ❌ Per-file accept/reject affordance
 - ❌ Prompt version pinning
-- ❌ Canary rollout infrastructure
+- ❌ Canary rollout / staged release infrastructure
 
-If any of those become acute later (concrete failure case observed in production), they get their own ADR at that time. We do not pre-build them.
+Each becomes its own ADR if a concrete production failure makes it acute.
+
+---
+
+## Discipline lessons recorded
+
+The doc was drafted three times in escalating-then-deescalating scope:
+
+1. **v1** (initial) — 5 ADR slots (bundle versioning + drift detection + operator affordance + kernel re-apply + prompt pinning). 360 lines.
+2. **v2** (corrected) — collapsed to "one continuous re-apply mechanism, gated by `authored_by`." 95 lines. Still wrong: framed as **daily cron**, not operator-initiated.
+3. **v3** (current) — operator-initiated versioned-update shape (this version). Claude Code's `claude --update`, not a background pull.
+
+The lesson: when the OS metaphor pulls toward "build deployment-platform infrastructure," check what real OSes actually do. macOS doesn't auto-merge changes to your `~/Library` daily. Anthropic doesn't push new Claude versions to your sessions. The user runs the update when ready. Same shape for YARNNN.
 
 ---
 
 ## Relationship to ADR 6 (Reference-Reflexive Loop)
 
-The deferred ADR 6 in `os-framing-implementation-roadmap.md` graduates lived substrate patterns *back into bundles*. This doc handles the reverse — updated bundles reaching lived workspaces. Same `authored_by` attribution layer is load-bearing for both, but the two mechanisms are independent and can ship in either order.
+The deferred ADR 6 in `os-framing-implementation-roadmap.md` graduates lived substrate patterns *back into bundles*. This doc handles the reverse — updated bundles reaching lived workspaces. Same `authored_by` attribution + `is_skeleton_content` gate are load-bearing for both, but the two mechanisms are independent.

@@ -1,46 +1,40 @@
 """
-Continuous Substrate Re-Apply — ADR-292.
+Operator-Initiated Substrate Update — ADR-292.
 
 Closes the gap between docs/ canon and live operator workspaces. When kernel
 skeleton constants improve (e.g., tightened safety language in
 `DEFAULT_REVIEW_PRINCIPLES_MD`) or bundle templates evolve in
 `docs/programs/{slug}/reference-workspace/`, this service propagates the
-updates to all live workspaces — gated by the existing operator-authorship
-detection so customized files are never touched.
+updates to a live workspace — when the operator chooses to take them.
 
-Mechanism (intentionally thin — Singular Implementation discipline):
+Shape (ADR-292):
 
-  1. **Bundle layer**: call existing `programs.fork_reference_workspace(...)`.
-     Already idempotent + uses `is_skeleton_content` to skip operator-
-     customized files. Zero new logic — re-running the existing fork IS
-     the bundle re-apply.
+  The model is **Claude Code's `claude --update`**, not a daily cron:
+    - Platform versions substrate (KERNEL_VERSION + MANIFEST.yaml `version:`)
+    - Detection compares platform-version vs workspace-recorded version
+    - Operator sees "Update available" notification on Settings → Workspace
+    - Operator clicks "Update" → this function runs → workspace advances
 
-  2. **Kernel layer**: walk the kernel-universal seed paths from
-     `workspace_init.py` Phase 2, compare current workspace content
-     against current kernel default content. If the workspace copy is
-     still skeleton-shaped (per `is_skeleton_content`), re-apply the
-     current kernel default. Otherwise, skip.
+  Substrate-native version record: MANDATE.md frontmatter carries
+  `activated_bundle_version` + `activated_kernel_version`. ADR-209
+  attribution captures the update event in the revision chain. No schema
+  bifurcation.
 
-  3. **Audit log**: append one structured entry per run to
-     `/workspace/_shared/substrate-reapply-log.md` via `write_revision()`
-     with `authored_by="system:substrate-reapply"` per ADR-209.
+Public surface:
 
-Dispatch surfaces:
-  - **Mechanical primitive**: registered as `ReapplyPlatformSubstrate` in
-    `services/primitives/registry.py::HANDLERS`. Invoked by mechanical-mode
-    recurrence `back-office-substrate-reapply` via
-    `@primitive: ReapplyPlatformSubstrate()` directive (ADR-263 D5 + ADR-264).
-  - **Manual one-shot**: `api/scripts/alpha_ops/reapply_persona.py` for
-    operators to force a re-apply without waiting for the daily cycle.
+  - `bundle_update_available(client, user_id) -> Optional[BundleUpdateInfo]`
+    Read-only detection helper. Cockpit surface consults this.
+  - `kernel_update_available(client, user_id) -> Optional[KernelUpdateInfo]`
+    Read-only detection helper.
+  - `apply_substrate_update(client, user_id, *, scope, source) -> UpdateReport`
+    Operator-initiated update. `scope` = "kernel" | "bundle" | "both".
+    `source` is recorded in the audit log.
 
-What this does NOT do (explicit non-goals per ADR-292 D4):
-  - No bundle versioning, no schema columns, no drift-findings table.
-  - No operator accept/reject affordance.
-  - No prompt version pinning.
-  - No canary rollout.
+NOT a mechanical primitive (no @primitive: ReapplyPlatformSubstrate
+directive). NOT a daily back-office recurrence. Operator decides when.
 
-These remain out of scope until a concrete production failure makes them
-acute.
+Audit log: `/workspace/_shared/substrate-update-log.md`, system-authored,
+append-only. Each entry records one update event with attribution.
 
 Canonical references:
   - docs/adr/ADR-292-continuous-substrate-reapply.md
@@ -50,45 +44,79 @@ Canonical references:
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Audit log path
+# Constants
 # ---------------------------------------------------------------------------
-REAPPLY_AUDIT_LOG_PATH = "_shared/substrate-reapply-log.md"
 
-# ADR-292 attribution actor — kept distinct from `system:bundle-fork` (which is
-# the one-shot activation actor) and `system:reapply` was the original ADR-292
-# spec. Final landed name: `system:substrate-reapply` — names the recurrence
-# slug + the actor in one string per ADR-288 D1.
-REAPPLY_AUTHORED_BY = "system:substrate-reapply"
+UPDATE_AUDIT_LOG_PATH = "_shared/substrate-update-log.md"
+
+# Attribution actor for ADR-292 update events. Distinct from
+# `system:bundle-fork` (one-shot activation actor) — names the operator-
+# initiated update actor per ADR-288 D1 caller_identity contract.
+UPDATE_AUTHORED_BY = "system:substrate-update"
+
+# Frontmatter keys we read/write on MANDATE.md.
+FRONTMATTER_BUNDLE_KEY = "activated_bundle_version"
+FRONTMATTER_KERNEL_KEY = "activated_kernel_version"
+
+UpdateScope = Literal["kernel", "bundle", "both"]
+UpdateSource = Literal["operator", "harness", "test"]
 
 
 # ---------------------------------------------------------------------------
-# Result shape (returned to caller, appended to audit log)
+# Detection result shapes
 # ---------------------------------------------------------------------------
 
 @dataclass
-class ReapplyAction:
-    """One file re-applied during a re-apply run."""
+class BundleUpdateInfo:
+    """Result of `bundle_update_available()` when an update IS available."""
+    program_slug: str
+    workspace_version: Optional[str]   # None if never recorded
+    available_version: str
+    diff_summary: str  # short human-readable e.g. "2026-05-18.1 → 2026-05-25.1"
+
+
+@dataclass
+class KernelUpdateInfo:
+    """Result of `kernel_update_available()` when an update IS available."""
+    workspace_version: Optional[str]   # None if never recorded
+    available_version: str
+    diff_summary: str
+
+
+# ---------------------------------------------------------------------------
+# Update report (returned by apply_substrate_update, appended to audit log)
+# ---------------------------------------------------------------------------
+
+@dataclass
+class UpdateAction:
+    """One file updated during an update event."""
     path: str
     layer: str  # "kernel" | "bundle"
     change_summary: str
 
 
 @dataclass
-class ReapplyReport:
-    """Structured result of one re-apply run."""
+class UpdateReport:
+    """Structured result of one operator-initiated update event."""
     user_id: str
-    source: str  # "scheduled" | "manual"
+    source: str
     ran_at: str  # ISO 8601 UTC
+    scope: str   # "kernel" | "bundle" | "both"
     program_slug: Optional[str]
-    actions: list[ReapplyAction] = field(default_factory=list)
+    kernel_from: Optional[str]
+    kernel_to: Optional[str]
+    bundle_from: Optional[str]
+    bundle_to: Optional[str]
+    actions: list[UpdateAction] = field(default_factory=list)
     skipped_operator_authored: int = 0
     skipped_aligned: int = 0
     error: Optional[str] = None
@@ -96,14 +124,25 @@ class ReapplyReport:
     def to_log_markdown(self) -> str:
         """Render as a markdown append-block for the audit log."""
         lines = [
-            f"## Re-apply run — {self.ran_at}",
+            f"## Substrate update — {self.ran_at}",
             "",
             f"- **Source**: `{self.source}`",
+            f"- **Scope**: `{self.scope}`",
             f"- **Program**: `{self.program_slug or 'none'}`",
+        ]
+        if self.kernel_from or self.kernel_to:
+            lines.append(
+                f"- **Kernel version**: `{self.kernel_from or 'none'}` → `{self.kernel_to or 'unchanged'}`"
+            )
+        if self.bundle_from or self.bundle_to:
+            lines.append(
+                f"- **Bundle version**: `{self.bundle_from or 'none'}` → `{self.bundle_to or 'unchanged'}`"
+            )
+        lines.extend([
             f"- **Actions taken**: {len(self.actions)}",
             f"- **Skipped (operator-authored)**: {self.skipped_operator_authored}",
             f"- **Skipped (aligned with canon)**: {self.skipped_aligned}",
-        ]
+        ])
         if self.error:
             lines.append(f"- **Error**: `{self.error}`")
         if self.actions:
@@ -121,7 +160,176 @@ class ReapplyReport:
 
 
 # ---------------------------------------------------------------------------
-# Kernel-layer re-apply
+# MANDATE.md frontmatter read/write
+# ---------------------------------------------------------------------------
+#
+# We use a minimal hand-rolled YAML frontmatter parser to avoid coupling
+# MANDATE.md reads to a generic frontmatter library. The shape is:
+#
+#   ---
+#   activated_bundle_version: 2026-05-18.1
+#   activated_kernel_version: 2026-05-18.1
+#   ---
+#   # Mandate — alpha-trader (template)
+#   ...
+#
+# Frontmatter is optional. Absence is the legitimate "no version recorded
+# yet" state (e.g., workspaces that activated before ADR-292 shipped).
+
+_FRONTMATTER_RE = re.compile(
+    r"\A---\s*\n(?P<body>.*?)\n---\s*\n(?P<rest>.*)\Z",
+    re.DOTALL,
+)
+
+
+def _parse_frontmatter(content: str) -> tuple[dict[str, str], str]:
+    """Parse YAML frontmatter from a markdown file.
+
+    Returns (frontmatter_dict, body_without_frontmatter). If no frontmatter
+    block is present, returns ({}, content_unchanged).
+
+    Tolerant: malformed YAML returns ({}, content_unchanged) — we never
+    raise on operator content.
+    """
+    if not content:
+        return {}, content or ""
+    match = _FRONTMATTER_RE.match(content)
+    if not match:
+        return {}, content
+    body = match.group("body")
+    rest = match.group("rest")
+    fm: dict[str, str] = {}
+    for line in body.splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        fm[key.strip()] = value.strip()
+    return fm, rest
+
+
+def _render_frontmatter(fm: dict[str, str], body: str) -> str:
+    """Render frontmatter + body as a single string.
+
+    If `fm` is empty, returns body unchanged. Otherwise emits a `---`-
+    delimited YAML block followed by body.
+    """
+    if not fm:
+        return body
+    lines = ["---"]
+    for key in sorted(fm):  # stable key order
+        lines.append(f"{key}: {fm[key]}")
+    lines.append("---")
+    return "\n".join(lines) + "\n" + body
+
+
+def _read_workspace_versions(mandate_content: Optional[str]) -> tuple[Optional[str], Optional[str]]:
+    """Extract (bundle_version, kernel_version) from MANDATE.md frontmatter.
+
+    Returns (None, None) if frontmatter absent or keys missing.
+    """
+    if not mandate_content:
+        return None, None
+    fm, _ = _parse_frontmatter(mandate_content)
+    return (
+        fm.get(FRONTMATTER_BUNDLE_KEY),
+        fm.get(FRONTMATTER_KERNEL_KEY),
+    )
+
+
+def _write_workspace_versions(
+    mandate_content: str,
+    *,
+    bundle_version: Optional[str] = None,
+    kernel_version: Optional[str] = None,
+) -> str:
+    """Return MANDATE.md content with frontmatter version keys updated.
+
+    Only the supplied keys are modified — pass None for keys to leave
+    untouched. Other frontmatter keys (if any future ones exist) are
+    preserved unchanged.
+    """
+    fm, body = _parse_frontmatter(mandate_content)
+    if bundle_version is not None:
+        fm[FRONTMATTER_BUNDLE_KEY] = bundle_version
+    if kernel_version is not None:
+        fm[FRONTMATTER_KERNEL_KEY] = kernel_version
+    return _render_frontmatter(fm, body)
+
+
+# ---------------------------------------------------------------------------
+# Detection helpers (read-only)
+# ---------------------------------------------------------------------------
+
+async def bundle_update_available(
+    client: Any, user_id: str
+) -> Optional[BundleUpdateInfo]:
+    """Return BundleUpdateInfo if the workspace's bundle version is behind canon.
+
+    Returns None when:
+      - workspace has no program activated
+      - workspace's recorded bundle version equals current MANIFEST.yaml version
+      - bundle has no `version:` field declared (caller treats as no-update)
+
+    Caller (cockpit Settings → Workspace surface) renders the update
+    affordance only when this returns non-None.
+    """
+    from services.bundle_reader import get_bundle_version
+    from services.programs import parse_active_program_slug
+    from services.workspace import UserMemory
+    from services.workspace_paths import SHARED_MANDATE_PATH
+
+    um = UserMemory(client, user_id)
+    mandate_content = await um.read(SHARED_MANDATE_PATH)
+    program_slug = parse_active_program_slug(mandate_content)
+    if not program_slug:
+        return None
+
+    available = get_bundle_version(program_slug)
+    if not available:
+        return None  # bundle hasn't declared a version yet
+
+    workspace_version, _ = _read_workspace_versions(mandate_content)
+    if workspace_version == available:
+        return None  # already up-to-date
+
+    return BundleUpdateInfo(
+        program_slug=program_slug,
+        workspace_version=workspace_version,
+        available_version=available,
+        diff_summary=f"{workspace_version or 'unversioned'} → {available}",
+    )
+
+
+async def kernel_update_available(
+    client: Any, user_id: str
+) -> Optional[KernelUpdateInfo]:
+    """Return KernelUpdateInfo if the workspace's kernel version is behind canon.
+
+    Returns None when the workspace's recorded kernel version equals
+    current `services.orchestration.KERNEL_VERSION`.
+    """
+    from services.orchestration import KERNEL_VERSION
+    from services.workspace import UserMemory
+    from services.workspace_paths import SHARED_MANDATE_PATH
+
+    um = UserMemory(client, user_id)
+    mandate_content = await um.read(SHARED_MANDATE_PATH)
+    _, workspace_version = _read_workspace_versions(mandate_content)
+    if workspace_version == KERNEL_VERSION:
+        return None
+
+    return KernelUpdateInfo(
+        workspace_version=workspace_version,
+        available_version=KERNEL_VERSION,
+        diff_summary=f"{workspace_version or 'unversioned'} → {KERNEL_VERSION}",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Update workers
 # ---------------------------------------------------------------------------
 
 def _build_kernel_canonical_set() -> dict[str, tuple[str, str]]:
@@ -129,13 +337,11 @@ def _build_kernel_canonical_set() -> dict[str, tuple[str, str]]:
 
     Mirrors `workspace_init.initialize_workspace` Phase 2's `workspace_files`
     dict but inverts the gate — instead of "write if missing", we want
-    "the canonical content for these paths". The caller compares current
-    workspace content against these and re-applies where they're still
-    skeleton-shaped per `is_skeleton_content`.
+    "the canonical content for these paths" so the update worker can
+    re-apply on operator request.
 
     Per ADR-286, kernel writes ONLY kernel-universal paths (paths no bundle
-    ships). Bundle-owned paths (MANDATE, IDENTITY, BRAND, AUTONOMY, etc.)
-    are handled by the bundle re-apply layer below.
+    ships). Bundle-owned paths are handled by the bundle update layer.
     """
     from services.orchestration import (
         TP_ORCHESTRATION_PLAYBOOK,
@@ -189,16 +395,16 @@ def _build_kernel_canonical_set() -> dict[str, tuple[str, str]]:
     }
 
 
-async def _reapply_kernel_layer(
+async def _update_kernel_layer(
     client: Any,
     user_id: str,
-    report: ReapplyReport,
+    report: UpdateReport,
 ) -> None:
-    """Walk kernel-universal paths; re-apply where skeleton-shaped.
+    """Apply kernel-universal seed updates.
 
-    Gate: a path is re-applicable iff its current workspace content is
-    still detected as skeleton via `is_skeleton_content` AND the canonical
-    content differs from current content. Otherwise skip.
+    Gate: a path is updatable iff its current workspace content is still
+    detected as skeleton via `is_skeleton_content` AND the canonical
+    content differs from current. Otherwise skip.
     """
     from services.workspace import UserMemory
     from services.workspace_utils import is_skeleton_content
@@ -209,275 +415,281 @@ async def _reapply_kernel_layer(
     for path, (canonical_content, change_summary) in canonical.items():
         existing = await um.read(path)
 
-        # No file yet → kernel skeleton missing entirely. workspace_init
-        # would have caught this on signup; re-apply makes the recovery
-        # path explicit for workspaces predating a path addition.
         if existing is None:
             await um.write(
                 path,
                 canonical_content,
-                summary=f"Substrate re-apply: {change_summary}",
-                authored_by=REAPPLY_AUTHORED_BY,
-                message=f"re-applied kernel skeleton (was missing): {path}",
+                summary=f"Substrate update: {change_summary}",
+                authored_by=UPDATE_AUTHORED_BY,
+                message=f"applied kernel update (was missing): {path}",
             )
-            report.actions.append(ReapplyAction(
+            report.actions.append(UpdateAction(
                 path=path,
                 layer="kernel",
                 change_summary=f"created (was missing): {change_summary}",
             ))
             continue
 
-        # Already aligned with canon → nothing to do.
         if existing == canonical_content:
             report.skipped_aligned += 1
             continue
 
-        # Operator has customized → never touch.
         if not is_skeleton_content(existing, bundle_body=canonical_content):
             report.skipped_operator_authored += 1
             continue
 
-        # Skeleton-shaped but content drifted from canon (kernel default
-        # changed since the workspace's last seed). Re-apply.
         await um.write(
             path,
             canonical_content,
-            summary=f"Substrate re-apply: {change_summary}",
-            authored_by=REAPPLY_AUTHORED_BY,
-            message=f"re-applied kernel skeleton (canon updated): {path}",
+            summary=f"Substrate update: {change_summary}",
+            authored_by=UPDATE_AUTHORED_BY,
+            message=f"applied kernel update: {path}",
         )
-        report.actions.append(ReapplyAction(
+        report.actions.append(UpdateAction(
             path=path,
             layer="kernel",
             change_summary=f"updated to current canon: {change_summary}",
         ))
 
 
-# ---------------------------------------------------------------------------
-# Bundle-layer re-apply
-# ---------------------------------------------------------------------------
-
-async def _reapply_bundle_layer(
+async def _update_bundle_layer(
     client: Any,
     user_id: str,
     program_slug: str,
-    report: ReapplyReport,
+    report: UpdateReport,
 ) -> None:
-    """Re-run the existing `fork_reference_workspace` for the activated bundle.
+    """Apply bundle template updates via existing `fork_reference_workspace`.
 
-    `fork_reference_workspace` already implements the exact mechanism
-    ADR-292 needs at the bundle layer: idempotent re-application, gated
+    `fork_reference_workspace` already implements the exact gate ADR-292
+    needs at the bundle layer: idempotent re-application, content-gated
     by `is_skeleton_content`, attributed via ADR-209. Re-running it IS
-    the bundle re-apply.
+    the bundle update worker.
 
-    Singular Implementation: we do NOT introduce a second per-file walker
-    here. One fork primitive, two trigger sites (one-shot activation +
-    continuous re-apply).
+    Singular Implementation: one fork primitive, two trigger sites
+    (one-shot activation + operator-initiated update).
     """
     from services.programs import fork_reference_workspace
 
     fork_result = await fork_reference_workspace(client, user_id, program_slug)
 
-    # fork_reference_workspace returns files_written + files_skipped.
-    # We classify them into the re-apply report's vocabulary.
     for path in fork_result.get("files_written", []):
-        # OCCUPANT.md is always rewritten by fork_reference_workspace's
-        # `_populate_occupant_for_runtime` step — filter it out so re-apply
-        # reports don't show a spurious "OCCUPANT.md was updated" line on
-        # every cycle.
+        # OCCUPANT.md is rewritten on every fork by `_populate_occupant_for_runtime`.
+        # Filter it from the update report so it doesn't surface as a
+        # spurious update action on every cycle.
         if path == "review/OCCUPANT.md":
             report.skipped_aligned += 1
             continue
-        report.actions.append(ReapplyAction(
+        report.actions.append(UpdateAction(
             path=path,
             layer="bundle",
             change_summary=f"re-forked from {program_slug} bundle",
         ))
 
-    # files_skipped in fork's vocabulary = "operator has customized" (the
-    # is_skeleton_content gate said no). Count as operator-authored skip.
     skipped = fork_result.get("files_skipped", [])
     report.skipped_operator_authored += len(skipped)
+
+
+# ---------------------------------------------------------------------------
+# MANDATE.md version-stamp write
+# ---------------------------------------------------------------------------
+
+async def _advance_workspace_version_stamps(
+    client: Any,
+    user_id: str,
+    *,
+    bundle_version: Optional[str],
+    kernel_version: Optional[str],
+) -> None:
+    """Write updated `activated_*_version` keys into MANDATE.md frontmatter.
+
+    Idempotent: if both versions match existing frontmatter, no write happens.
+    """
+    from services.workspace import UserMemory
+    from services.workspace_paths import SHARED_MANDATE_PATH
+
+    um = UserMemory(client, user_id)
+    mandate_content = await um.read(SHARED_MANDATE_PATH) or ""
+
+    existing_bundle, existing_kernel = _read_workspace_versions(mandate_content)
+    needs_write = False
+    if bundle_version is not None and bundle_version != existing_bundle:
+        needs_write = True
+    if kernel_version is not None and kernel_version != existing_kernel:
+        needs_write = True
+    if not needs_write:
+        return
+
+    new_content = _write_workspace_versions(
+        mandate_content,
+        bundle_version=bundle_version,
+        kernel_version=kernel_version,
+    )
+
+    parts = []
+    if bundle_version is not None:
+        parts.append(f"bundle={bundle_version}")
+    if kernel_version is not None:
+        parts.append(f"kernel={kernel_version}")
+
+    await um.write(
+        SHARED_MANDATE_PATH,
+        new_content,
+        summary="Substrate update: advance version stamps",
+        authored_by=UPDATE_AUTHORED_BY,
+        message=f"advance MANDATE.md version stamps ({', '.join(parts)})",
+    )
 
 
 # ---------------------------------------------------------------------------
 # Audit log
 # ---------------------------------------------------------------------------
 
-async def _append_audit_log(client: Any, user_id: str, report: ReapplyReport) -> None:
-    """Append one re-apply run to the workspace audit log.
-
-    The log is system-authored substrate — operator-readable for audit,
-    not operator-actionable (re-apply runs daily on its own; the log
-    surfaces what happened, not what to decide).
-    """
+async def _append_audit_log(client: Any, user_id: str, report: UpdateReport) -> None:
+    """Append one update event to the workspace audit log."""
     from services.workspace import UserMemory
 
     um = UserMemory(client, user_id)
-    existing = await um.read(REAPPLY_AUDIT_LOG_PATH) or (
-        "# Substrate re-apply log\n\n"
-        "Append-only audit trail of `back-office-substrate-reapply` runs.\n"
-        "System-authored per ADR-292. Each block records one re-apply cycle:\n"
-        "actions taken, files skipped because operator customized them, files\n"
-        "skipped because they were already aligned with current canon.\n\n"
+    existing = await um.read(UPDATE_AUDIT_LOG_PATH) or (
+        "# Substrate update log\n\n"
+        "Append-only audit trail of ADR-292 operator-initiated substrate\n"
+        "updates. Each block records one update event: scope, source, before/\n"
+        "after versions, files touched, skip counters.\n\n"
+        "Operator-readable; not operator-actionable (each entry already\n"
+        "represents an applied decision).\n\n"
         "---\n\n"
     )
 
     new_content = existing + report.to_log_markdown()
 
     await um.write(
-        REAPPLY_AUDIT_LOG_PATH,
+        UPDATE_AUDIT_LOG_PATH,
         new_content,
-        summary="Substrate re-apply audit log",
-        authored_by=REAPPLY_AUTHORED_BY,
-        message=f"appended re-apply run ({len(report.actions)} actions)",
+        summary="Substrate update audit log",
+        authored_by=UPDATE_AUTHORED_BY,
+        message=f"appended update event ({len(report.actions)} actions, scope={report.scope})",
     )
 
 
 # ---------------------------------------------------------------------------
-# Public entry point
+# Public entry point — operator-initiated update
 # ---------------------------------------------------------------------------
 
-async def reapply_platform_substrate(
+async def apply_substrate_update(
     client: Any,
     user_id: str,
     *,
-    source: str = "scheduled",
-) -> ReapplyReport:
-    """Run one continuous substrate re-apply cycle for a workspace.
+    scope: UpdateScope = "both",
+    source: UpdateSource = "operator",
+) -> UpdateReport:
+    """Run one operator-initiated substrate update.
 
     Args:
-        client: Supabase client (service-key — same shape every back-office
-            primitive uses).
+        client: Supabase client (service-key shape for back-office work).
         user_id: Workspace owner.
-        source: "scheduled" (daily back-office), "manual" (operator-triggered
-            script), or "deploy" (post-deploy hook). Only affects the
-            audit-log attribution; behavior identical.
+        scope: Which layer to update. "kernel" | "bundle" | "both".
+        source: Audit-log attribution. Default "operator" — the cockpit
+            Settings → Workspace button calls this with source="operator".
+            Harness scripts may call with source="harness"; tests with
+            source="test".
 
-    Returns the ReapplyReport with action list + skip counts. Always
-    appends to the audit log, even on no-op runs (the log entry with empty
-    actions is the proof that the cycle ran).
+    Returns the UpdateReport. Always appends to the audit log, even on
+    no-op runs (the entry with empty `actions` is the proof the
+    update was attempted).
+
+    Behavior:
+      1. Read active program slug from MANDATE.md (if any).
+      2. Resolve "to" versions: kernel = orchestration.KERNEL_VERSION,
+         bundle = bundle_reader.get_bundle_version(slug) or None.
+      3. Read "from" versions from MANDATE.md frontmatter.
+      4. If scope includes "kernel": run kernel-layer update worker.
+      5. If scope includes "bundle" AND program activated: run bundle worker.
+      6. Advance MANDATE.md frontmatter version stamps to the "to" versions.
+      7. Append UpdateReport to audit log.
     """
+    from services.bundle_reader import get_bundle_version
+    from services.orchestration import KERNEL_VERSION
     from services.programs import parse_active_program_slug
     from services.workspace import UserMemory
     from services.workspace_paths import SHARED_MANDATE_PATH
 
     ran_at = datetime.now(timezone.utc).isoformat()
 
-    # Resolve active program (if any) before doing the work, so the report
-    # carries it even on error paths.
     um = UserMemory(client, user_id)
     mandate_content = await um.read(SHARED_MANDATE_PATH)
     program_slug = parse_active_program_slug(mandate_content)
+    bundle_from, kernel_from = _read_workspace_versions(mandate_content)
 
-    report = ReapplyReport(
+    bundle_to: Optional[str] = None
+    if program_slug:
+        bundle_to = get_bundle_version(program_slug)
+    kernel_to: Optional[str] = KERNEL_VERSION
+
+    report = UpdateReport(
         user_id=user_id,
         source=source,
         ran_at=ran_at,
+        scope=scope,
         program_slug=program_slug,
+        kernel_from=kernel_from,
+        kernel_to=kernel_to if scope in ("kernel", "both") else None,
+        bundle_from=bundle_from,
+        bundle_to=bundle_to if scope in ("bundle", "both") else None,
     )
 
-    try:
-        await _reapply_kernel_layer(client, user_id, report)
-    except Exception as e:
-        logger.exception(
-            "[SUBSTRATE_REAPPLY] kernel layer failed for %s: %s", user_id[:8], e
-        )
-        report.error = f"kernel_layer: {e}"
-
-    if program_slug:
+    if scope in ("kernel", "both"):
         try:
-            await _reapply_bundle_layer(client, user_id, program_slug, report)
+            await _update_kernel_layer(client, user_id, report)
         except Exception as e:
             logger.exception(
-                "[SUBSTRATE_REAPPLY] bundle layer failed for %s/%s: %s",
+                "[SUBSTRATE_UPDATE] kernel layer failed for %s: %s", user_id[:8], e
+            )
+            report.error = f"kernel_layer: {e}"
+
+    if scope in ("bundle", "both") and program_slug:
+        try:
+            await _update_bundle_layer(client, user_id, program_slug, report)
+        except Exception as e:
+            logger.exception(
+                "[SUBSTRATE_UPDATE] bundle layer failed for %s/%s: %s",
                 user_id[:8], program_slug, e,
             )
-            # Preserve any prior error; report multiple via concat.
             bundle_err = f"bundle_layer: {e}"
             report.error = (
                 f"{report.error}; {bundle_err}" if report.error else bundle_err
             )
 
+    # Advance version stamps only on success of the layer that updated. We
+    # write whichever stamps the scope covered, regardless of how many
+    # actions were taken — the stamp records "operator approved this
+    # version," not "files actually changed."
+    if not report.error:
+        try:
+            await _advance_workspace_version_stamps(
+                client,
+                user_id,
+                bundle_version=bundle_to if scope in ("bundle", "both") else None,
+                kernel_version=kernel_to if scope in ("kernel", "both") else None,
+            )
+        except Exception as e:
+            logger.exception(
+                "[SUBSTRATE_UPDATE] version-stamp write failed for %s: %s",
+                user_id[:8], e,
+            )
+            report.error = f"version_stamp: {e}"
+
     try:
         await _append_audit_log(client, user_id, report)
     except Exception as e:
         logger.exception(
-            "[SUBSTRATE_REAPPLY] audit log append failed for %s: %s", user_id[:8], e
+            "[SUBSTRATE_UPDATE] audit log append failed for %s: %s", user_id[:8], e
         )
-        # Audit-log failure is not fatal — the actions already landed.
-        # Log loudly but return the report so the caller knows what happened.
+        # Audit-log failure is not fatal — actions already landed.
 
     logger.info(
-        "[SUBSTRATE_REAPPLY] %s/%s: %d actions, %d skipped-operator, %d skipped-aligned",
-        user_id[:8],
-        program_slug or "no-program",
+        "[SUBSTRATE_UPDATE] %s scope=%s program=%s: %d actions, %d skipped-operator, %d skipped-aligned",
+        user_id[:8], scope, program_slug or "no-program",
         len(report.actions),
         report.skipped_operator_authored,
         report.skipped_aligned,
     )
     return report
-
-
-# ---------------------------------------------------------------------------
-# Mechanical primitive handler
-# ---------------------------------------------------------------------------
-# Per ADR-263 D5 + ADR-264 D2: a mechanical-mode recurrence's prompt names a
-# primitive invocation via `@primitive: <Name>(<args>)`. The dispatcher calls
-# the handler registered in HANDLERS. The handler takes (auth, args) and
-# returns a result dict.
-
-REAPPLY_PLATFORM_SUBSTRATE_TOOL = {
-    "name": "ReapplyPlatformSubstrate",
-    "description": (
-        "Continuous substrate re-apply (ADR-292). Walks kernel-universal "
-        "paths + the activated program bundle's reference-workspace, "
-        "re-writes platform-managed files where the operator has not "
-        "taken authorship. Audit log at /workspace/_shared/"
-        "substrate-reapply-log.md.\n\n"
-        "Mechanical-mode primitive — invoked via @primitive: "
-        "ReapplyPlatformSubstrate() directive from "
-        "`back-office-substrate-reapply` recurrence. No args."
-    ),
-    "input_schema": {
-        "type": "object",
-        "properties": {},
-        "required": [],
-    },
-}
-
-
-async def handle_reapply_platform_substrate(auth: Any, input: dict) -> dict:
-    """Execute ReapplyPlatformSubstrate (ADR-292).
-
-    Returns:
-      {
-        "success": bool,
-        "actions_taken": int,
-        "skipped_operator_authored": int,
-        "skipped_aligned": int,
-        "program_slug": str | None,
-        "error": str | None,
-      }
-    """
-    user_id = getattr(auth, "user_id", None)
-    db_client = getattr(auth, "client", None)
-    if not user_id or not db_client:
-        return {
-            "success": False,
-            "error": "auth_required",
-            "actions_taken": 0,
-            "skipped_operator_authored": 0,
-            "skipped_aligned": 0,
-            "program_slug": None,
-        }
-
-    report = await reapply_platform_substrate(db_client, user_id, source="scheduled")
-    return {
-        "success": report.error is None,
-        "actions_taken": len(report.actions),
-        "skipped_operator_authored": report.skipped_operator_authored,
-        "skipped_aligned": report.skipped_aligned,
-        "program_slug": report.program_slug,
-        "error": report.error,
-    }

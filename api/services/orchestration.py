@@ -449,6 +449,34 @@ Write team decisions into the `team:` field of the recurrence YAML declaration. 
 
 
 # =============================================================================
+# Kernel Version (ADR-292)
+# =============================================================================
+#
+# Single version stamp for the kernel-universal seed set (the DEFAULT_*_MD
+# constants below + the seed-paths map in workspace_init.py Phase 2).
+#
+# Bump this string whenever any kernel-universal seed constant changes
+# meaningfully — e.g., tightened safety language in DEFAULT_REVIEW_PRINCIPLES_MD,
+# revised TP_ORCHESTRATION_PLAYBOOK, etc. The operator-facing update flow
+# (ADR-292) compares this against the workspace's recorded
+# `activated_kernel_version` (MANDATE.md frontmatter) and surfaces "Kernel
+# update available" when the strings differ.
+#
+# Format: date-stamped `YYYY-MM-DD[.N]` aligning with api/prompts/CHANGELOG.md.
+# Operator-driven, not auto-computed — discipline cost is one line per kernel
+# substrate change, identical to the CHANGELOG entry the change already needs.
+#
+# Update flow (operator-initiated, like Claude Code's `claude --update`):
+#   1. Operator sees notification on Settings → Workspace surface
+#   2. Operator clicks "Update kernel substrate" — invokes
+#      services.substrate_reapply.reapply_platform_substrate(source="operator")
+#   3. Re-apply runs against kernel-universal paths only (bundle layer
+#      handled by separate per-bundle version stamp in MANIFEST.yaml)
+#   4. On success, MANDATE.md frontmatter `activated_kernel_version` advances
+KERNEL_VERSION = "2026-05-18.1"
+
+
+# =============================================================================
 # Default Workspace Files — seeded at roster scaffold time
 # =============================================================================
 

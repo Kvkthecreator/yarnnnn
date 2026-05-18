@@ -489,7 +489,7 @@ The bundle's `_recurrences.yaml` (at [docs/programs/alpha-trader/reference-works
 
 The operator does not "scaffold" these recurrences — they ship with the bundle and fork at activation. Operator authoring lives in `_operator_profile.md` (universe + signal definitions), `_risk.md` (risk parameters), `principles.md` (Reviewer rules), and `AUTONOMY.md` (delegation ceiling). The recurrences are the program's standing engine; the authored substrate is what the engine reasons against.
 
-Bundle template improvements to any of these 14 recurrences (or to the `specs/*.md` capability library) propagate to activated workspaces via the continuous re-apply mechanism (ADR-292) where the operator has not customized the file. Operator-customized files (HEAD `authored_by` ≠ `system:*`) are never touched. The mechanism runs daily as `back-office-substrate-reapply`; audit at `/workspace/_shared/substrate-reapply-log.md`.
+Bundle template improvements to any of these 14 recurrences (or to the `specs/*.md` capability library) propagate to activated workspaces via the operator-initiated versioned-update mechanism (ADR-292). When the bundle author bumps `version:` in `MANIFEST.yaml`, the workspace's Settings → Workspace surface (per ADR-244) renders an "Update available" affordance with the diff summary. The operator clicks Update; files where the operator has customized are skipped via `is_skeleton_content`. NOT a daily cron — same shape as Claude Code's `claude --update`, where the operator decides when to take a release. Audit at `/workspace/_shared/substrate-update-log.md`.
 
 ### 3A.6 Money-truth substrate expectations (`_money_truth.md` shape)
 

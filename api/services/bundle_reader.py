@@ -46,6 +46,23 @@ def _load_manifest(slug: str) -> Optional[dict[str, Any]]:
         return None
 
 
+def get_bundle_version(slug: str) -> Optional[str]:
+    """Return the bundle's declared `version:` string, or None if absent.
+
+    ADR-292: bundles ship a version stamp in MANIFEST.yaml. The operator-
+    facing update flow consults this to compute "is an update available?"
+    against the workspace's recorded `activated_bundle_version` in
+    MANDATE.md frontmatter. Returns None for bundles that haven't been
+    versioned yet — caller decides whether to treat as "no update" or
+    "needs adoption."
+    """
+    manifest = _load_manifest(slug)
+    if not manifest:
+        return None
+    version = manifest.get("version")
+    return str(version) if version is not None else None
+
+
 @lru_cache(maxsize=1)
 def _all_slugs() -> tuple[str, ...]:
     """Discover bundle slugs by listing docs/programs/ subdirectories."""

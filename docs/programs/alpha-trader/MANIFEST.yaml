@@ -2,6 +2,14 @@ schema_version: 1
 slug: alpha-trader
 title: alpha-trader
 status: active
+# ADR-292: bundle version stamp. Bumped manually by the bundle author when
+# any file under reference-workspace/ or specs/ changes meaningfully.
+# Format: date-stamped `YYYY-MM-DD[.N]` aligning with api/prompts/CHANGELOG.md.
+# Operator-facing update flow compares this against the workspace's recorded
+# `activated_bundle_version` (MANDATE.md frontmatter) and surfaces "Bundle
+# update available" when the strings differ. Discipline cost: one line per
+# bundle change, identical to the CHANGELOG entry the change already needs.
+version: 2026-05-18.1
 date_created: 2026-04-26
 date_updated: 2026-04-27
 

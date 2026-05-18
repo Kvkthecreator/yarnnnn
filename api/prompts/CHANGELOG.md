@@ -6,6 +6,51 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.18.9] - fix(adr-292): re-shape Substrate Update to operator-initiated versioned model (corrective)
+
+### Decision
+
+The original ADR-292 ship in commit `837356b` was shaped wrong: it landed a daily mechanical recurrence (`back-office-substrate-reapply`) + a new `ReapplyPlatformSubstrate` primitive. The right model — surfaced by operator feedback in the same session — is **Claude Code's `claude --update`**: versioned platform releases, operator-initiated adoption. Not a polling cron.
+
+This corrective commit reverts the wrong-shape pieces and ships the right shape: `KERNEL_VERSION` constant + bundle `version:` field in MANIFEST.yaml + MANDATE.md frontmatter version stamps + `bundle_update_available`/`kernel_update_available` detection helpers + `apply_substrate_update(client, user_id, *, scope, source)` operator-initiated worker.
+
+### Behavioral changes
+
+- **`ReapplyPlatformSubstrate` primitive DELETED** from `services/primitives/registry.HANDLERS`. Operator-initiated update is not a mechanical dispatcher primitive.
+- **`back-office-substrate-reapply` recurrence DELETED** from both bundles' `_recurrences.yaml`. No daily cron.
+- **Renamed attribution actor**: `system:substrate-reapply` → `system:substrate-update`. Audit log path renamed: `substrate-reapply-log.md` → `substrate-update-log.md`. Singular Implementation — the old names are deleted, not co-existed.
+- **New `KERNEL_VERSION` constant** in `services/orchestration.py` — manual bump on kernel-universal seed changes, date-stamped format (`2026-05-18.1`).
+- **New `version:` field** in `alpha-trader/MANIFEST.yaml` + `alpha-author/MANIFEST.yaml` — manual bump on `reference-workspace/` or `specs/` changes.
+- **Workspace version record is substrate-native** — MANDATE.md frontmatter carries `activated_bundle_version` + `activated_kernel_version`. ADR-209 attributed via `authored_by="system:substrate-update"`. No schema column. Existing `parse_active_program_slug` regex is unchanged — it iterates past frontmatter without modification.
+- **Detection helpers** `bundle_update_available(client, user_id)` + `kernel_update_available(client, user_id)` — read-only, return `Optional[UpdateInfo]`. The cockpit Settings → Workspace surface (ADR-244) renders the update affordance only when non-None.
+- **Operator-initiated update worker** `apply_substrate_update(client, user_id, *, scope, source)` — scope is `"kernel"` | `"bundle"` | `"both"`. Calls existing `fork_reference_workspace` for bundle scope; calls parallel kernel-layer walker for kernel scope. Advances MANDATE.md frontmatter version stamps on success. Appends UpdateReport to audit log.
+- **Operator-customized files are skipped** via existing `is_skeleton_content` gate (Singular Implementation — same authority `fork_reference_workspace` uses, no parallel `authored_by`-only gate).
+
+### Phase 2 FE deferred to follow-up commit
+
+Backend Phase 1 stands alone. The FE work (Settings → Workspace surface rendering the update affordance + button wiring) is independent.
+
+### Files
+
+- `api/services/substrate_reapply.py` (full rewrite — operator-initiated shape)
+- `api/services/primitives/registry.py` (ReapplyPlatformSubstrate registration deleted)
+- `api/services/orchestration.py` (+ KERNEL_VERSION constant)
+- `api/services/bundle_reader.py` (+ get_bundle_version helper)
+- `docs/programs/alpha-trader/MANIFEST.yaml` (+ version field)
+- `docs/programs/alpha-author/MANIFEST.yaml` (+ version field)
+- `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml` (back-office-substrate-reapply DELETED)
+- `docs/programs/alpha-author/reference-workspace/_recurrences.yaml` (back-office-substrate-reapply DELETED)
+- `docs/adr/ADR-292-continuous-substrate-reapply.md` (full rewrite — operator-initiated shape, Phase 1 Implemented)
+- `docs/architecture/propagation-discipline.md` (rewrite — Claude Code `claude --update` shape)
+- `api/test_adr292_continuous_reapply.py` (full rewrite — verifies operator-initiated shape + wrong-shape revert)
+- `docs/alpha/INDEX.md` + `ALPHA-1-PLAYBOOK.md` §3A.5 + `E2E-EXECUTION-CONTRACT.md` §6 (all updated to operator-initiated shape)
+
+### Discipline lesson
+
+When the OS metaphor pulls toward "build deployment-platform infrastructure," check what real OSes actually do. macOS doesn't auto-merge changes to `~/Library` daily. Anthropic doesn't push new Claude versions to your sessions. The user runs the update when ready. Same shape for YARNNN. Recorded in propagation-discipline.md.
+
+---
+
 ## [2026.05.18.8] - fix(adr-290 follow-up): activation re-materialize + active-commissioning principles clause
 
 ### Validation context
@@ -59,9 +104,13 @@ The two fixes close gaps that incremental ADR implementation introduced. No new 
 
 ---
 
-## [2026.05.18.7] - feat(adr-292): Continuous Substrate Re-Apply — new mechanical primitive + back-office recurrence
+## [2026.05.18.7] - feat(adr-292): Continuous Substrate Re-Apply — initial ship (SUPERSEDED by 2026.05.18.9)
 
-### Decision
+### Status note
+
+This entry is preserved for audit-trail continuity. The shape shipped here (daily mechanical recurrence + `ReapplyPlatformSubstrate` primitive) was wrong and was reverted in `[2026.05.18.9]` (above) within the same session. The corrective entry re-shapes the mechanism to operator-initiated versioned updates (Claude Code's `claude --update` shape). The audit-log discipline does not allow editing history; this entry stays as written, with this note marking it superseded.
+
+### Original decision (now superseded)
 
 ADR-292 closes the propagation gap between kernel/bundle substrate and live operator workspaces. Net new mechanical primitive `ReapplyPlatformSubstrate` registered in `services/primitives/registry.HANDLERS`; not in CHAT/HEADLESS/REVIEWER tool surfaces per ADR-264 D3 (operators don't directly invoke mechanical primitives — they author recurrences that name them). Backed by `services/substrate_reapply.py::reapply_platform_substrate`. New `back-office-substrate-reapply` recurrence added to alpha-trader + alpha-author bundle `_recurrences.yaml` files at daily 09:00 UTC cadence.
 
