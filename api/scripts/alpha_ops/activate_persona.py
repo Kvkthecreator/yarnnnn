@@ -10,25 +10,41 @@ declares which program each persona runs (ADR-230 D1), and the bundle
 at docs/programs/{program}/ is the single source of truth for substrate
 templates + program-default tasks.
 
-Sequence (per ADR-230 D5, post-ADR-231 cutover):
+Sequence (per ADR-230 D5, post-ADR-231 cutover, post-2026-05-18 dogfood-gap fix):
   1. Load persona from personas.yaml; resolve persona.program.
   2. Validate bundle exists at docs/programs/{persona.program}/.
-  3. Run _fork_reference_workspace(persona.user_id, persona.program) —
+  3. Run initialize_workspace(client, user_id, program_slug=None) —
+     kernel-universal skeleton (Phases 1-4 of workspace_init): YARNNN
+     agent row + kernel skeleton files + workspace narrative session +
+     balance audit. **NEW per dogfood gap surfaced 2026-05-18.** This
+     bridges the gap where service-key-provisioned users (via
+     auth.admin.create_user) bypass the canonical initialize_workspace
+     that web-UI signup triggers via /api/workspace/state lazy scaffold.
+     Idempotent — re-running is a clean no-op (gate on existing IDENTITY.md
+     skeleton + agents-table row).
+  4. Run fork_reference_workspace(persona.user_id, persona.program) —
      same primitive as POST /api/programs/activate (ADR-226). Forks both
      .md files (operator substrate) AND .yaml files (recurrence
      declarations per ADR-231 D3). After this step, the operator's
      workspace has the program's recurrence declarations at natural-home
-     locations.
-  4. Apply persona-specific overrides per ADR-230 D6 (if any) from
+     locations. (Equivalent to Phase 5 of initialize_workspace, which we
+     bypass by passing program_slug=None above and calling the fork
+     primitive directly here.)
+  5. Apply persona-specific overrides per ADR-230 D6 (if any) from
      docs/alpha/personas/{persona.slug}/overrides/.
-  5. Pre-create specialist agent rows that the bundle's recurrence
+  6. Pre-create specialist agent rows that the bundle's recurrence
      declarations reference (ADR-205 lazy-create gap).
-  6. (DELETED — ADR-231) Recurrences are now scaffolded via the Step 3
+  7. (DELETED — ADR-231) Recurrences are now scaffolded via the Step 4
      fork. The previous "POST /api/tasks per tasks.yaml entry" path is
      gone. Operator's workspace has the YAML declarations the moment
      fork completes; the scheduler walks them on next tick.
-  7. Optional: run platform connect via existing connect.py for the
+  8. Optional: run platform connect via existing connect.py for the
      persona's declared platform.kind.
+
+Note: display labels in the script use [N/6] (kernel-init + fork + overrides
++ specialists + DELETED step + platform connect). The deleted ADR-231 slot
+frees one display slot, so [N/6] remains accurate even after adding the
+kernel-init step. Canonical sequence above uses 8 items for completeness.
 
 Usage:
     .venv/bin/python api/scripts/alpha_ops/activate_persona.py \
@@ -81,6 +97,27 @@ def _service_client() -> Any:
     if not key:
         raise SystemExit("SUPABASE_SERVICE_KEY required for activation harness")
     return create_client(url, key)
+
+
+async def _run_kernel_init(persona: Persona) -> dict[str, Any]:
+    """Step 2: kernel-universal workspace skeleton via the canonical
+    initialize_workspace function. Pass program_slug=None to run
+    Phases 1-4 only — YARNNN agent row + kernel skeleton files +
+    workspace narrative session + balance audit. Phase 5 (bundle fork)
+    is handled by Step 3 directly.
+
+    Bridges the service-key signup gap: auth.admin.create_user bypasses
+    the lazy-scaffold path that normal web-UI signup goes through. Without
+    this, the YARNNN agent row never gets seeded for harness-provisioned
+    personas (surfaced as verify.py FAIL on agent_count=0 + role=None for
+    thinking_partner, 2026-05-18).
+    """
+    from services.workspace_init import initialize_workspace
+    return await initialize_workspace(
+        client=_service_client(),
+        user_id=persona.user_id,
+        program_slug=None,  # kernel-universal only; fork handled by Step 3
+    )
 
 
 async def _run_fork(persona: Persona) -> dict[str, Any]:
@@ -297,6 +334,7 @@ def main() -> int:
 
     if args.dry_run:
         print("DRY RUN. No writes.")
+        print(f"Step 2 init: initialize_workspace(program_slug=None) [idempotent, kernel skeleton + YARNNN agent row]")
         print(f"Step 3 fork: docs/programs/{persona.program}/reference-workspace/* → /workspace/* (.md + .yaml)")
         print(f"Step 4 overrides: {'apply' if has_overrides else 'skip'} (docs/alpha/personas/{persona.slug}/overrides/)")
         print(f"Step 5 specialists: ensure × {len(unique_roles)}: {', '.join(unique_roles)}")
@@ -305,6 +343,24 @@ def main() -> int:
         return 0
 
     errors: list[str] = []
+
+    # ----- Step 2: Initialize kernel-universal workspace skeleton -----
+    # Bridges the service-key signup gap. auth.admin.create_user (used by
+    # the provisioning harness) bypasses GET /api/workspace/state's lazy
+    # scaffold, so the YARNNN agent row + kernel skeleton files + workspace
+    # narrative session + balance audit never get seeded. Without this step
+    # verify.py reports agent_count=0 + role=None for thinking_partner.
+    # Idempotent — re-runs return already_initialized=True and short-circuit.
+    print(f"[2/6] Initialize kernel-universal workspace skeleton")
+    try:
+        init_summary = asyncio.run(_run_kernel_init(persona))
+        print(f"  OK already_initialized={init_summary.get('already_initialized', False)}, "
+              f"agents_created={init_summary.get('agents_created', [])}, "
+              f"session_bootstrapped={init_summary.get('session_bootstrapped', False)}")
+    except Exception as exc:
+        errors.append(f"kernel-init: {exc}")
+        print(f"  FAIL kernel-init: {exc}")
+        return 1
 
     # ----- Step 3: Fork reference-workspace (.md + .yaml per ADR-231 cutover) -----
     print(f"[3/6] Fork reference-workspace from program={persona.program}")

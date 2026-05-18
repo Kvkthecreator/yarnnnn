@@ -205,6 +205,8 @@ python -m api.scripts.alpha_ops.activate_persona --persona alpha-trader-2 --skip
 
 Per the 2026-05-11 fix in [ADR-226 amendment](../adr/ADR-226-reference-workspace-activation-flow.md#status), the fork primitive now calls `materialize_scheduling_index` inline — the `tasks` scheduling index is populated immediately and `verify.py` sees the recurrences without a scheduler-tick wait.
 
+Per the 2026-05-18 fix in this harness, `activate_persona.py` now runs `initialize_workspace(client, user_id, program_slug=None)` as Step 2 — the kernel-universal init (YARNNN agent row + kernel skeleton files + workspace narrative session + balance audit) — before the Step 3 bundle fork. Service-key-provisioned personas (via `auth.admin.create_user`) bypass the lazy-scaffold path that web-UI signup goes through (`GET /api/workspace/state`), so without this step the YARNNN agent row is never seeded and `verify.py` reports `agent_count=0` + `role thinking_partner: status=None`. Step 2 is idempotent (gates on existing IDENTITY.md skeleton + `agents` row), so re-running activate is still a clean no-op.
+
 **End-to-end persona cold-bootstrap** (when L4 reset's auto-refork doesn't fire — e.g. operator's MANDATE.md was kernel-default pre-reset):
 
 ```bash
