@@ -340,6 +340,63 @@ personas:
         expected_occupant_class: ai
         expected_occupant_prefix: "ai:reviewer-sonnet-"
 
+  # korea-thriller-shorts — third alpha-author dogfood instance (2026-05-18,
+  # ADR-283 step 6 follow-up). Shares character canon with netflix-script-author
+  # (same modern-Korea Thomas-Crown-Joker universe, Jaewon entity mirrored
+  # across both override directories). Different format (AI-video-gen
+  # short-form shot prompts — Higgsfield / Sora / Runway / Veo), different
+  # cadence (ship multiple shorts per week vs the 12-18mo screenplay arc).
+  # Triangulates the alpha-author bundle's medium-agnosticism claim against
+  # three distinct shapes: founder corpus + long-arc screenplay + short-form
+  # AI-video-gen. If alpha-author works for all three, the bundle is durable;
+  # if it works for two of three, the architecture needs amendment.
+  - slug: korea-thriller-shorts
+    label: "Short-form AI-video-gen authorship (Higgsfield etc.) — Jaewon canon shared with netflix-script-author"
+    program: alpha-author   # ADR-230 D1: same program as yarnnn-author + netflix-script-author, different operator + different format
+    email: korea-thriller-shorts@yarnnn.com
+    user_id: ca478643-cee9-4f2b-b641-9a5c536aa668   # provisioned 2026-05-18 (ADR-283 step 6 follow-up)
+    workspace_id: ca478643-cee9-4f2b-b641-9a5c536aa668   # workspace_id == user_id in current schema
+    platform:
+      kind: none
+      provider: none
+    context_domains:
+      # Same shape as yarnnn-author and netflix-script-author. AI-video-gen
+      # short-form is the format axis — knowledge-only workspace with no
+      # external writes. _signal.md runs internal-coherence-only until
+      # external audience signal (uploads to AI-video-gen platforms, views,
+      # subscriber signal) arrives via operator-authored frontmatter per
+      # ADR-283 step 2.
+      - authored
+    credentials_env: {}
+    expected:
+      agent_count: 1
+      active_roles: [thinking_partner]
+      scaffolded_recurrences:
+        - pre-ship-audit
+        - corpus-coherence-check
+        - revision-audit
+        - outcome-reconciliation
+      platform_connections: 0
+      core_files:
+        - /workspace/_recurrences.yaml
+        - /workspace/context/_shared/IDENTITY.md
+        - /workspace/context/_shared/MANDATE.md
+        - /workspace/context/_shared/AUTONOMY.md
+        - /workspace/context/_shared/BRAND.md
+        - /workspace/context/_shared/CONVENTIONS.md
+        - /workspace/context/_shared/_preferences.yaml
+        - /workspace/context/authored/_voice.md
+        - /workspace/context/authored/_editorial.md
+        - /workspace/context/authored/_entities.md
+        - /workspace/review/IDENTITY.md
+        - /workspace/review/principles.md
+        - /workspace/review/OCCUPANT.md   # ADR-284 D3: runtime-truth-aligned seat occupant declaration
+      occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
+        # Same AI-occupant default as the other two alpha-author personas.
+        # Operator may swap to human occupant by editing OCCUPANT.md.
+        expected_occupant_class: ai
+        expected_occupant_prefix: "ai:reviewer-sonnet-"
+
   - slug: kvk
     label: "KVK personal alpha-trader workspace (kvkthecreator@gmail.com)"
     program: alpha-trader
