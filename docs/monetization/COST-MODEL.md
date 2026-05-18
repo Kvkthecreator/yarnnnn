@@ -1,8 +1,10 @@
 # Cost Model — Per-Task Economics
 
-> **Status**: Canonical — updated for ADR-138 (agents + tasks) and prompt caching
-> **Date**: 2026-03-26 (revised)
-> **Related**: ADR-100 (tier model), ADR-138 (agents as work units), ADR-141 (task pipeline), [UNIFIED-CREDITS.md](./UNIFIED-CREDITS.md)
+> **Status**: Canonical — updated for ADR-291 (unified cost ledger, 2026-05-18)
+> **Date**: 2026-03-26 (revised), refreshed 2026-05-18 for ADR-291
+> **Related**: ADR-138 (agents as work units), ADR-141 (task pipeline), ADR-250 (execution telemetry), ADR-291 (unified cost ledger), [STRATEGY.md](./STRATEGY.md)
+>
+> **ADR-291 update**: per-task cost figures below were computed under the cache-agnostic `compute_cost_usd` function (since deleted). Under ADR-291's `compute_cost_usd_inclusive`, the same calls bill at exactly 2× Anthropic invoice — small margin shift on cache-heavy steps but no change to user-visible costs. Numbers below are still in the right ballpark; treat as historical guidance, not contract.
 
 ---
 

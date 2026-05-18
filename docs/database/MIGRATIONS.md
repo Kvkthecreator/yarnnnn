@@ -11,6 +11,17 @@ Note: this log has gaps between 100 and 158. Authoritative source is `supabase/m
 
 ---
 
+### 176 — ADR-291 Unified Cost Ledger (2026-05-18) 🟡 pending apply
+
+- Drops `token_usage` table CASCADE (no backfill — per ADR-291 D6, Singular Implementation applies to data, not just code; 55 historical rows dropped with the table)
+- Rewrites `get_effective_balance(p_user_id)` RPC to read from `execution_events.cost_usd` (was `token_usage.cost_usd`) — closes the load-bearing leak where Reviewer reflection spend (heaviest cost driver) never debited the balance
+- Drops `get_monthly_spend_usd(uuid)` Postgres RPC — replaced by direct table read in `services.platform_limits.get_monthly_spend_usd()` (reads `execution_events`)
+- Companion code change: deletes `BILLING_RATES`, `compute_cost_usd`, `record_token_usage`, `check_spend_budget` from `services/platform_limits.py`; `services.telemetry._BILLING_RATES` + `compute_cost_usd_inclusive()` becomes the sole source of cost truth
+- 7 LLM callers migrated from `record_token_usage` → `record_execution_event` (recurrence_prompt_inference, session_continuity, infer_workspace, infer_context, dispatch_specialist, web_search, plus the Reviewer's prior dual write)
+- Singular Implementation: five SI violations collapse to zero (two ledgers → one, two cost functions → one, two balance gate views → one, two `BILLING_RATES` constants → one, two cost-writer paths → one)
+
+---
+
 ### 175 — ADR-276 hardening: envelope_load_ms observability (2026-05-15) ✅
 
 - Adds `execution_events.envelope_load_ms int` column — isolates time spent in `services.reviewer_envelope.load_reviewer_governance_envelope()` from total `duration_ms`

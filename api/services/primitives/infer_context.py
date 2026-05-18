@@ -138,22 +138,26 @@ async def handle_infer_context(auth: Any, input: dict) -> dict:
             existing_content=existing or "",
         )
 
-        # ADR-171: record token spend.
+        # ADR-291: unified cost ledger — write directly to execution_events.
         if inference_usage.get("input_tokens") or inference_usage.get("output_tokens"):
             try:
-                from services.platform_limits import record_token_usage
+                from services.telemetry import record_execution_event
                 from services.supabase import get_service_client
-                record_token_usage(
+                record_execution_event(
                     get_service_client(),
                     user_id=auth.user_id,
-                    caller="inference",
-                    model="claude-sonnet-4-6",
+                    slug=f"infer-context:{target}",
+                    mode="judgment",
+                    trigger_type="addressed",
+                    status="success",
                     input_tokens=inference_usage.get("input_tokens", 0),
                     output_tokens=inference_usage.get("output_tokens", 0),
-                    metadata={"target": target},
+                    cache_read_tokens=inference_usage.get("cache_read_input_tokens", 0) or 0,
+                    cache_create_tokens=inference_usage.get("cache_creation_input_tokens", 0) or 0,
+                    model="claude-sonnet-4-6",
                 )
             except Exception as e:
-                logger.warning(f"[INFER_CONTEXT] token usage record failed: {e}")
+                logger.warning(f"[INFER_CONTEXT] cost ledger record failed: {e}")
 
         if not new_content or not new_content.strip():
             return {

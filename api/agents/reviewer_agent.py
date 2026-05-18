@@ -49,7 +49,8 @@ import logging
 from typing import Any, Literal, TypedDict
 
 from services.anthropic import chat_completion_with_tools
-from services.platform_limits import record_token_usage
+# ADR-291: token_usage substrate sunset — cost ledger writes flow through
+# `record_execution_event()` in the dispatcher, fed by ReviewerOutput fields.
 
 logger = logging.getLogger(__name__)
 
@@ -100,12 +101,11 @@ class ReviewerOutput(TypedDict, total=False):
     # reflection-only
     proposals: list
     evidence_summary: str
-    # Telemetry pass-through — the Reviewer's loop accumulates token usage
-    # for the authoritative `token_usage` ledger write. These fields expose
-    # the same accumulators to the dispatcher so the slug-indexed
-    # `execution_events` row gets denormalized cost data without a second
-    # API call. NULL when the loop never reached LLM dispatch
-    # (shape-violation early-return).
+    # ADR-291 cost ledger pass-through — the Reviewer's loop accumulates
+    # token usage (incl. cache breakdown) and surfaces it on the output so
+    # the dispatcher can write the authoritative `execution_events` row.
+    # NULL when the loop never reached LLM dispatch (shape-violation
+    # early-return).
     input_tokens: int
     output_tokens: int
     cache_read_tokens: int
@@ -1291,32 +1291,11 @@ async def invoke_reviewer(
                     content_blocks.append({"type": "text", "text": nudge})
                 messages.append({"role": "user", "content": content_blocks})
 
-        # Token accounting. Carry recurrence_slug + signal_id when known
-        # so cost can be broken down per-recurrence and per-signal post-hoc
-        # (cost-truth observability surfaced as gap during 2026-05-13 audit
-        # of overnight Reviewer fires).
-        usage_metadata: dict[str, Any] = {"trigger": trigger, "rounds": rounds_used}
-        if isinstance(context, dict):
-            if context.get("recurrence_slug"):
-                usage_metadata["slug"] = context["recurrence_slug"]
-            if context.get("recurrence_prompt"):
-                usage_metadata["sub_shape"] = "recurrence_fire"
-            elif trigger == "reactive" and context.get("proposal_row"):
-                usage_metadata["sub_shape"] = "proposal_arrival"
-        record_token_usage(
-            client,
-            user_id=user_id,
-            caller=caller,
-            model=model,
-            input_tokens=total_input,
-            output_tokens=total_output,
-            ref_id=(
-                (context.get("proposal_row") or {}).get("id")
-                if (trigger == "reactive" and isinstance(context.get("proposal_row"), dict))
-                else None
-            ),
-            metadata=usage_metadata,
-        )
+        # ADR-291: cost ledger write happens downstream in the dispatcher via
+        # `record_execution_event()`, fed by the cost/token fields on
+        # `ReviewerOutput` (below). Removing the duplicate `token_usage` write
+        # collapses the dual-ledger architecture; the dispatcher's slug-indexed
+        # `execution_events` row is now the sole authoritative record.
 
         if verdict_raw is None:
             # Loop exhausted without ReturnVerdict — construct fallback from last text
@@ -1374,11 +1353,10 @@ async def invoke_reviewer(
             # (write_reviewer_message) and the FE can group every row produced
             # by this cycle under one invocation card.
             "invocation_id": invocation_id,
-            # F1 telemetry pass-through (2026-05-17). The dispatcher reads
-            # these off and forwards into `record_execution_event` so the
-            # slug-indexed `execution_events` row carries cost/token data
-            # without re-querying `token_usage`. Authoritative ledger write
-            # remains the `record_token_usage` call above.
+            # ADR-291: telemetry pass-through (single-ledger). The dispatcher
+            # reads these off and forwards into `record_execution_event` — the
+            # sole authoritative cost ledger write per the unified-cost-ledger
+            # decision (replaces the prior dual write to `token_usage`).
             "input_tokens": total_input,
             "output_tokens": total_output,
             "cache_read_tokens": total_cache_read,

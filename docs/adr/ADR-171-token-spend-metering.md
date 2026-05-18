@@ -1,6 +1,8 @@
 # ADR-171: Token Spend Metering — Universal Usage-Based Pricing
 
-> **Status**: Implemented
+> **Status**: Amended by ADR-291 (2026-05-18) — substrate collapsed from `token_usage` to `execution_events` as the sole canonical cost ledger. Universal-ledger commitment preserved; cost computation moved to `services.telemetry.compute_cost_usd_inclusive` (cache-aware, 2x markup). `compute_cost_usd` (cache-agnostic), `record_token_usage`, and `BILLING_RATES` (in platform_limits) are all deleted. Implementation details below describe the pre-ADR-291 shape — preserved for trace continuity.
+>
+> **Status (original)**: Implemented
 > **Date**: 2026-04-10
 > **Replaces**: Work credits model — `work_credits` table, `CREDIT_COSTS`, `check_credits()`, `record_credits()`, `get_monthly_credits_used()`, `monthly_credits` on `PlatformLimits`
 

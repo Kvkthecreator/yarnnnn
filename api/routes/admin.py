@@ -27,10 +27,10 @@ from services.admin_auth import AdminAuth
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# ADR-171: Use BILLING_RATES from platform_limits as single source of truth.
+# ADR-291: Use _BILLING_RATES from services.telemetry as single source of truth.
 # Admin dashboard uses Anthropic cost (not user-facing markup) for internal analytics.
-# Anthropic rates = BILLING_RATES / 2 (2x markup).
-from services.platform_limits import BILLING_RATES as _BILLING_RATES
+# Anthropic rates = user-facing rates / 2 (2x markup constant).
+from services.telemetry import _BILLING_RATES
 
 _ANTHROPIC_RATES = {
     model: {"input": r["input_per_mtok"] / 2 / 1000, "output": r["output_per_mtok"] / 2 / 1000}
@@ -400,9 +400,9 @@ async def get_execution_stats(admin: AdminAuth):
         runs_30d = client.table("agent_runs").select("id", count="exact")\
             .gte("created_at", cutoff_30d).execute()
 
-        # Spend this month
+        # Spend this month (ADR-291: execution_events is canonical cost ledger)
         month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
-        spend_result = client.table("token_usage")\
+        spend_result = client.table("execution_events")\
             .select("cost_usd")\
             .gte("created_at", month_start)\
             .execute()
@@ -579,8 +579,8 @@ async def list_users(admin: AdminAuth):
 
             last_activity = sessions.data[0].get("created_at") if sessions.data else None
 
-            # Spend this month
-            spend = client.table("token_usage")\
+            # Spend this month (ADR-291: execution_events is canonical cost ledger)
+            spend = client.table("execution_events")\
                 .select("cost_usd")\
                 .eq("user_id", user_id)\
                 .gte("created_at", month_start)\

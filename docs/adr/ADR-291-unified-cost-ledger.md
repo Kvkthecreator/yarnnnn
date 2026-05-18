@@ -1,6 +1,6 @@
 # ADR-291: Unified Cost Ledger — `execution_events` as the Single Substrate for LLM Spend
 
-**Status**: Proposed
+**Status**: Implemented (Phase 1 — 2026-05-18; Phase 2 deferred)
 **Date**: 2026-05-18
 **Authors**: KVK, Claude
 
@@ -182,7 +182,7 @@ The following are explicitly NOT decided here:
 
 Single commit:
 
-1. Migration `170_unified_cost_ledger.sql`:
+1. Migration `176_unified_cost_ledger.sql`:
    - `DROP TABLE token_usage CASCADE;` (no backfill — per D6, historical rows are dropped with the table)
    - Rewrite `get_effective_balance(p_user_id)` RPC to read `execution_events.cost_usd`.
 2. Code changes in `services/platform_limits.py`:

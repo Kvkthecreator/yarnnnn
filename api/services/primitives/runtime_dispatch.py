@@ -193,8 +193,9 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
                        f"Output URL (for manual reference): {output_url}",
         }
 
-    # Token usage for renders is recorded via record_token_usage() at LLM call sites.
-    # No additional credit recording needed here.
+    # ADR-291: LLM token cost is recorded via record_execution_event() at the
+    # call sites that invoke Claude. Render service usage tracked separately
+    # via render_usage RPC; no additional ledger write needed here.
 
     # ADR-118 D.3: Accumulate rendered file metadata for save_output() manifest
     rendered_file_info = {

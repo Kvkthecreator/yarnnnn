@@ -16,7 +16,7 @@ This gives a TRUE cold-start. Wipe order (FK-safe):
 5. agents + agent_runs (cascaded via agent_id)
 6. chat_sessions (cascades session_messages — ADR-125)
 7. platform_connections (OAuth tokens)
-8. token_usage (ADR-171 billing ledger)
+8. execution_events (ADR-291 unified cost ledger; was token_usage pre-ADR-291)
 9. notifications (ADR-041)
 10. uploaded documents purged via workspace_files (ADR-249: /workspace/uploads/*)
 11. user_admin_flags (ADR-194 v2 Phase 2b impersonation scope)
@@ -217,11 +217,12 @@ def purge_user_data(email: str, dry_run: bool = False):
     print(f"   {n} platform connections")
 
     # ──────────────────────────────────────────────────────────────────────
-    # 7. Billing/audit ledger (ADR-171)
+    # 7. Cost ledger (ADR-291: execution_events is the sole canonical ledger;
+    #    token_usage table dropped by migration 176)
     # ──────────────────────────────────────────────────────────────────────
-    print(f"🗑️  {label} token_usage (billing/audit ledger)...")
-    n = _delete(client, "token_usage", user_id, dry_run=dry_run)
-    print(f"   {n} token usage rows")
+    print(f"🗑️  {label} execution_events (cost ledger / telemetry)...")
+    n = _delete(client, "execution_events", user_id, dry_run=dry_run)
+    print(f"   {n} execution event rows")
 
     # ──────────────────────────────────────────────────────────────────────
     # 8. Notifications (ADR-041)

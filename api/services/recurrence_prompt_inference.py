@@ -116,19 +116,26 @@ async def infer_recurrence_prompt(
         refined = response.content[0].text.strip()
 
         try:
-            from services.platform_limits import record_token_usage
+            # ADR-291: unified cost ledger — write directly to execution_events
+            # via the canonical record_execution_event() path. compute_cost_usd_inclusive
+            # is applied automatically (cache-aware, 2x markup).
+            from services.telemetry import record_execution_event
             from services.supabase import get_service_client
-            record_token_usage(
+            record_execution_event(
                 get_service_client(),
                 user_id=user_id,
-                caller="inference",
-                model=INFERENCE_MODEL,
+                slug="recurrence-prompt-inference",
+                mode="judgment",
+                trigger_type="back_office",
+                status="success",
                 input_tokens=getattr(response.usage, "input_tokens", 0),
                 output_tokens=getattr(response.usage, "output_tokens", 0),
-                metadata={"slug": slug, "inference_type": "recurrence_prompt"},
+                cache_read_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+                cache_create_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
+                model=INFERENCE_MODEL,
             )
         except Exception as _e:
-            logger.warning(f"[TOKEN_USAGE] prompt_inference record failed: {_e}")
+            logger.warning(f"[TELEMETRY] prompt_inference record failed: {_e}")
 
         if not refined or len(refined) < 50:
             logger.warning(

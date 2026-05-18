@@ -137,18 +137,24 @@ CONVERSATION:
         if not summary_text:
             return None
 
-        # ADR-171: Record token spend (non-critical — Haiku, ~$0.003/call)
+        # ADR-291: unified cost ledger — write directly to execution_events.
+        # (Was: record_token_usage(caller="session_summary"). Haiku, ~$0.003/call.)
         if user_id:
             try:
-                from services.platform_limits import record_token_usage
+                from services.telemetry import record_execution_event
                 from services.supabase import get_service_client
-                record_token_usage(
+                record_execution_event(
                     get_service_client(),
                     user_id=user_id,
-                    caller="session_summary",
-                    model=SUMMARY_MODEL,
+                    slug="session-summary",
+                    mode="judgment",
+                    trigger_type="back_office",
+                    status="success",
                     input_tokens=getattr(response.usage, "input_tokens", 0),
                     output_tokens=getattr(response.usage, "output_tokens", 0),
+                    cache_read_tokens=getattr(response.usage, "cache_read_input_tokens", 0) or 0,
+                    cache_create_tokens=getattr(response.usage, "cache_creation_input_tokens", 0) or 0,
+                    model=SUMMARY_MODEL,
                 )
             except Exception:
                 pass

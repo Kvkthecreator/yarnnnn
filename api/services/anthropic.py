@@ -194,8 +194,10 @@ async def chat_completion_with_usage(
 ) -> tuple[str, dict]:
     """Non-streaming chat completion returning (text, usage).
 
-    ADR-171: Use this instead of chat_completion() when the caller needs to
-    record token spend to token_usage. Usage dict has input_tokens + output_tokens.
+    ADR-291: Use this instead of chat_completion() when the caller needs to
+    record token spend via record_execution_event(). Usage dict has
+    input_tokens + output_tokens (+ cache_read_input_tokens, cache_creation_input_tokens
+    when applicable).
     """
     client = get_anthropic_client()
 

@@ -337,22 +337,31 @@ async def handle_dispatch_specialist(auth: Any, input: dict) -> dict:
             total_in += int(usage.get("input_tokens", 0) or 0)
             total_out += int(usage.get("output_tokens", 0) or 0)
 
-        # Record token usage per ADR-171
+        # ADR-291: unified cost ledger — write directly to execution_events.
         try:
-            from services.platform_limits import record_token_usage
+            from services.telemetry import record_execution_event
             from services.supabase import get_service_client
-            record_token_usage(
+            _in = int(usage.get("input_tokens", 0) or 0) if isinstance(usage, dict) else 0
+            _out = int(usage.get("output_tokens", 0) or 0) if isinstance(usage, dict) else 0
+            _cache_read = int(usage.get("cache_read_input_tokens", 0) or 0) if isinstance(usage, dict) else 0
+            _cache_create = int(usage.get("cache_creation_input_tokens", 0) or 0) if isinstance(usage, dict) else 0
+            record_execution_event(
                 get_service_client(),
                 user_id=user_id,
-                caller=f"specialist:{role}",
+                slug=f"specialist:{role}",
+                mode="judgment",
+                trigger_type="reactive",
+                status="success",
+                tool_rounds=rounds,
+                input_tokens=_in,
+                output_tokens=_out,
+                cache_read_tokens=_cache_read,
+                cache_create_tokens=_cache_create,
                 model=chosen_model,
-                input_tokens=int(usage.get("input_tokens", 0) or 0) if isinstance(usage, dict) else 0,
-                output_tokens=int(usage.get("output_tokens", 0) or 0) if isinstance(usage, dict) else 0,
-                metadata={"role": role, "round": rounds},
             )
         except Exception as _e:
             logger.warning(
-                "[DISPATCH_SPECIALIST] token record failed: %s", _e
+                "[DISPATCH_SPECIALIST] cost ledger record failed: %s", _e
             )
 
         # Append assistant turn — reconstruct dict-shaped content from the

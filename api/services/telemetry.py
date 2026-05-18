@@ -1,8 +1,9 @@
 """
-Execution Telemetry — ADR-250 Phase 2.
+Execution Telemetry — ADR-250 Phase 2 + ADR-291 unified cost ledger.
 
 Single write path for execution_events table: one row per invocation attempt,
-always written regardless of outcome (success, failed, skipped).
+always written regardless of outcome (success, failed, skipped). Per ADR-291,
+this is the sole canonical cost ledger — token_usage was sunset.
 
 Also provides:
   - cache-inclusive cost computation (accurate Anthropic billing model)
@@ -10,7 +11,7 @@ Also provides:
 
 Design rules (from observability.md):
   - record_execution_event() never raises — non-fatal, logs on failure
-  - cost_usd uses cache-inclusive formula, NOT the legacy cache-agnostic compute_cost_usd()
+  - cost_usd uses cache-inclusive formula (compute_cost_usd_inclusive)
   - agent_run_id is NULL for failures that produce no agent_runs row
 """
 
@@ -24,8 +25,11 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Billing rates (mirrors platform_limits.BILLING_RATES — kept local to avoid
-# circular import; if rates change update both)
+# Billing rates — ADR-291 single source of truth (2x Anthropic markup).
+# Any future Anthropic-cost optimization (cache discount changes, prompt
+# compression, model tier changes) flows through this table only; the
+# multiplier rule is durable. Per ADR-291 D2: cost math lives here, in
+# exactly one place, in compute_cost_usd_inclusive().
 # ---------------------------------------------------------------------------
 
 _BILLING_RATES: dict[str, dict[str, float]] = {
@@ -52,9 +56,9 @@ def compute_cost_usd_inclusive(
 ) -> float:
     """Cache-inclusive cost at user-facing 2× Anthropic billing rates.
 
-    Unlike platform_limits.compute_cost_usd() which is cache-agnostic,
-    this accounts for cache_read (10% of input rate) and cache_creation
-    (125% of input rate), giving the accurate per-invocation cost.
+    ADR-291: this is the sole canonical cost function. Accounts for
+    cache_read (10% of input rate) and cache_creation (125% of input rate),
+    matching Anthropic's actual invoice shape with 2x platform multiplier.
     """
     rate = _BILLING_RATES.get(model, _DEFAULT_RATE)
     ir = rate["input_per_mtok"]

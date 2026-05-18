@@ -315,9 +315,9 @@ async def dispatch(
         return _result_failed(recurrence, str(exc), trigger=trigger)
 
     duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
-    # F1 telemetry pass-through (2026-05-17). reviewer_output carries the
-    # loop's token accumulators and model — denormalize into execution_events
-    # so the slug-indexed audit row shows cost without joining token_usage.
+    # ADR-291 cost ledger write. reviewer_output carries the loop's token
+    # accumulators (incl. cache breakdown) and model — written to execution_events
+    # as the sole authoritative cost record per the unified-cost-ledger collapse.
     # NULL when Reviewer returned None (shape violation / pre-LLM exit).
     _ro = reviewer_output if isinstance(reviewer_output, dict) else {}
     record_execution_event(

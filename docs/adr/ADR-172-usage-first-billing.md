@@ -1,6 +1,8 @@
 # ADR-172: Usage-First Billing — Balance Model
 
-> **Status**: Implemented
+> **Status**: Amended by ADR-291 (2026-05-18) — "balance as single gate" commitment is now structurally honest. Before ADR-291, the `get_effective_balance` RPC read only `token_usage`, missing the Reviewer reflection spend that wrote only to `execution_events` (heaviest cost driver, never debited the balance). Post-ADR-291: `get_effective_balance` reads from `execution_events`, the unified cost ledger; all 7 LLM callers debit the same balance. The commitment in this ADR is preserved; the substrate it rests on changed.
+>
+> **Status (original)**: Implemented
 > **Date**: 2026-04-10
 > **Supersedes**: ADR-100 (2-tier subscription model), ADR-171 tier-limit enforcement (metering preserved, tier gates dissolved)
 

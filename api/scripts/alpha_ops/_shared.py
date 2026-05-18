@@ -270,9 +270,10 @@ def pg_connect():
 # Cost-truth rollup — single source for per-workspace platform cost (SCOPE.md)
 # ----------------------------------------------------------------------------
 #
-# Reads token_usage (ADR-171 universal LLM ledger) and produces two views:
+# Reads execution_events (ADR-291 unified cost ledger) and produces two views:
 #   - by_day: total cost per calendar day over the window
-#   - by_caller_and_slug: breakdown over the window, joining metadata->>slug
+#   - by_slug_and_mode: breakdown over the window (slug + mode are first-class
+#     columns in execution_events, no JSONB join needed)
 #
 # Anything else that needs cost-truth (cockpit element, future endpoint) reads
 # this. Singular implementation: don't reimplement the SQL anywhere.
@@ -301,11 +302,10 @@ def fetch_cost_rollup(
                 {"day": "2026-04-29", "cost_usd": 1.23, "calls": 8},
                 ...
             ],
-            "by_caller_and_slug": [
+            "by_slug_and_mode": [
                 {
-                    "caller": "invocation_dispatcher",
                     "slug": "track-universe-2",
-                    "shape": "accumulation",
+                    "mode": "judgment",
                     "calls": 5,
                     "input_tokens": 1246673,
                     "output_tokens": 30602,
@@ -322,14 +322,14 @@ def fetch_cost_rollup(
     cur.execute("SELECT NOW() - INTERVAL '%s days'" % int(days))
     since = cur.fetchone()[0].isoformat()
 
-    # Total + tokens
+    # Total + tokens (ADR-291: execution_events is canonical cost ledger)
     cur.execute(
         """
         SELECT
             COALESCE(SUM(cost_usd), 0)::float,
             COALESCE(SUM(input_tokens), 0)::int,
             COALESCE(SUM(output_tokens), 0)::int
-        FROM token_usage
+        FROM execution_events
         WHERE user_id = %s
           AND created_at > NOW() - INTERVAL '%s days'
         """ % ("%s", int(days)),
@@ -344,7 +344,7 @@ def fetch_cost_rollup(
             DATE(created_at AT TIME ZONE 'UTC') AS day,
             ROUND(SUM(cost_usd)::numeric, 4)::float AS cost_usd,
             COUNT(*)::int AS calls
-        FROM token_usage
+        FROM execution_events
         WHERE user_id = %s
           AND created_at > NOW() - INTERVAL '%s days'
         GROUP BY day
@@ -357,34 +357,32 @@ def fetch_cost_rollup(
         for row in cur.fetchall()
     ]
 
-    # By caller + recurrence slug + shape (metadata-driven breakdown)
+    # By slug + mode (first-class columns post-ADR-291 — no JSONB join needed)
     cur.execute(
         """
         SELECT
-            caller,
-            metadata->>'slug' AS slug,
-            metadata->>'shape' AS shape,
+            slug,
+            mode,
             COUNT(*)::int AS calls,
             COALESCE(SUM(input_tokens), 0)::int AS input_tokens,
             COALESCE(SUM(output_tokens), 0)::int AS output_tokens,
             ROUND(SUM(cost_usd)::numeric, 4)::float AS cost_usd
-        FROM token_usage
+        FROM execution_events
         WHERE user_id = %s
           AND created_at > NOW() - INTERVAL '%s days'
-        GROUP BY caller, slug, shape
-        ORDER BY cost_usd DESC
+        GROUP BY slug, mode
+        ORDER BY cost_usd DESC NULLS LAST
         """ % ("%s", int(days)),
         (user_id,),
     )
-    by_caller_and_slug = [
+    by_slug_and_mode = [
         {
-            "caller": row[0],
-            "slug": row[1],
-            "shape": row[2],
-            "calls": row[3],
-            "input_tokens": row[4],
-            "output_tokens": row[5],
-            "cost_usd": row[6],
+            "slug": row[0],
+            "mode": row[1],
+            "calls": row[2],
+            "input_tokens": row[3],
+            "output_tokens": row[4],
+            "cost_usd": row[5],
         }
         for row in cur.fetchall()
     ]
@@ -400,7 +398,7 @@ def fetch_cost_rollup(
         "total_input_tokens": total_in,
         "total_output_tokens": total_out,
         "by_day": by_day,
-        "by_caller_and_slug": by_caller_and_slug,
+        "by_slug_and_mode": by_slug_and_mode,
     }
 
 
@@ -426,13 +424,13 @@ def format_cost_rollup(rollup: dict[str, Any]) -> str:
             lines.append(f"    {entry['day']}: ${entry['cost_usd']:.4f} ({entry['calls']} calls)")
         lines.append("")
 
-    if rollup["by_caller_and_slug"]:
-        lines.append("  By caller × recurrence (top 10 by cost):")
-        for entry in rollup["by_caller_and_slug"][:10]:
+    if rollup["by_slug_and_mode"]:
+        lines.append("  By recurrence × mode (top 10 by cost):")
+        for entry in rollup["by_slug_and_mode"][:10]:
             slug = entry["slug"] or "<no slug>"
-            shape = entry["shape"] or "—"
+            mode = entry["mode"] or "—"
             lines.append(
-                f"    [{entry['caller']:22}] {slug:32} ({shape:14}) "
+                f"    {slug:40} ({mode:12}) "
                 f"${entry['cost_usd']:.4f} × {entry['calls']} calls"
             )
 

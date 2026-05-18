@@ -1,19 +1,17 @@
 """
-Platform Limits Service — ADR-172: Usage-First Billing
+Platform Limits Service — ADR-172 (Usage-First Billing) + ADR-291 (Unified Cost Ledger)
 
 Single gate: effective balance > 0. No tier limits, no capability gates.
 
 Balance model:
   balance_usd on workspace = sum of all top-ups + grants (signup $3, topup $10/$25/$50,
   subscription $20 refill, admin grants).
-  Effective balance = balance_usd − SUM(token_usage.cost_usd since last subscription_refill_at).
+  Effective balance = balance_usd − SUM(execution_events.cost_usd since last subscription_refill_at).
 
-Token metering (ADR-171 — unchanged):
-  Every LLM call → record_token_usage() → token_usage table.
-  Billing rates: 2x Anthropic API rates, Sonnet user-facing.
-    Sonnet: $6.00/MTok input, $30.00/MTok output
-    Opus:   $30.00/MTok input, $150.00/MTok output
-    Haiku:  $1.60/MTok input, $8.00/MTok output (internal only)
+Token metering (ADR-291 — substrate collapse):
+  Every LLM call → record_execution_event() → execution_events table.
+  Cost computed via services.telemetry.compute_cost_usd_inclusive (cache-aware, 2x markup).
+  Billing rates live in services.telemetry._BILLING_RATES — single source of truth.
 
 Subscription (optional):
   Pro Monthly $19/mo or Pro Yearly $180/yr.
@@ -32,26 +30,13 @@ SyncFrequency = Literal["1x_daily", "2x_daily", "4x_daily", "hourly"]
 
 
 # =============================================================================
-# Billing rates — user-facing 2x Anthropic API rates (April 2026)
+# Billing rates + cost computation — ADR-291 sunset
 # =============================================================================
-
-BILLING_RATES: dict[str, dict[str, float]] = {
-    "claude-sonnet-4-6":  {"input_per_mtok": 6.00,  "output_per_mtok": 30.00},
-    "claude-opus-4-6":           {"input_per_mtok": 30.00, "output_per_mtok": 150.00},
-    "claude-haiku-4-5-20251001": {"input_per_mtok": 1.60,  "output_per_mtok": 8.00},
-}
-_DEFAULT_BILLING_RATE = BILLING_RATES["claude-sonnet-4-6"]
-
-
-def compute_cost_usd(model: str, input_tokens: int, output_tokens: int) -> float:
-    """Compute cost_usd at user-facing billing rates. Cache-agnostic."""
-    rate = BILLING_RATES.get(model, _DEFAULT_BILLING_RATE)
-    cost = (
-        (input_tokens  / 1_000_000) * rate["input_per_mtok"]
-        + (output_tokens / 1_000_000) * rate["output_per_mtok"]
-    )
-    return round(cost, 6)
-
+# Rates and cost computation live in services.telemetry now:
+#   - _BILLING_RATES (single source of truth for 2x markup)
+#   - compute_cost_usd_inclusive() (cache-aware)
+# This module only orchestrates the gate (check_balance); cost math is one
+# function in one place per Singular Implementation (ADR-291 D2).
 
 # =============================================================================
 # Sync schedule helpers (scheduling infra only — no tier gate)
@@ -241,61 +226,29 @@ def grant_balance(client, workspace_id: str, amount_usd: float, kind: str,
 
 
 # =============================================================================
-# Token spend metering — ADR-171 (unchanged)
+# Monthly spend display — ADR-291 (reads from execution_events)
 # =============================================================================
 
-def record_token_usage(
-    client,
-    user_id: str,
-    caller: str,
-    model: str,
-    input_tokens: int,
-    output_tokens: int,
-    ref_id: str = None,
-    metadata: dict = None,
-) -> None:
-    """Record one LLM call to token_usage.
-
-    caller: 'chat' | 'task_pipeline' | 'web_search' | 'inference' |
-            'evaluation' | 'session_summary'
-    """
-    cost = compute_cost_usd(model, input_tokens, output_tokens)
-    try:
-        row = {
-            "user_id": user_id,
-            "caller": caller,
-            "model": model,
-            "input_tokens": input_tokens,
-            "output_tokens": output_tokens,
-            "cost_usd": cost,
-        }
-        if ref_id:
-            row["ref_id"] = str(ref_id)
-        if metadata:
-            row["metadata"] = metadata
-        client.table("token_usage").insert(row).execute()
-    except Exception as e:
-        logger.warning(
-            f"[TOKEN_USAGE] Failed to record {caller} "
-            f"({input_tokens}in/{output_tokens}out tokens, ${cost:.4f}): {e}"
-        )
-
-
 def get_monthly_spend_usd(client, user_id: str) -> float:
-    """Total token spend this calendar month (analytics/display — not enforcement)."""
+    """Total LLM spend this calendar month (analytics/display — not enforcement).
+
+    ADR-291: reads execution_events.cost_usd, the sole canonical cost ledger.
+    """
     try:
-        result = client.rpc("get_monthly_spend_usd", {"p_user_id": user_id}).execute()
-        val = result.data
-        return float(val) if val is not None else 0.0
-    except Exception:
+        from datetime import datetime as _dt
+        month_start = _dt.utcnow().replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+        result = (
+            client.table("execution_events")
+            .select("cost_usd")
+            .eq("user_id", user_id)
+            .gte("created_at", month_start)
+            .execute()
+        )
+        rows = result.data or []
+        return round(sum(float(r.get("cost_usd") or 0) for r in rows), 6)
+    except Exception as e:
+        logger.warning(f"[BALANCE] get_monthly_spend_usd failed: {e}")
         return 0.0
-
-
-# Legacy alias — callers migrated to check_balance() but this prevents import errors
-def check_spend_budget(client, user_id: str) -> tuple[bool, float, float]:
-    """Deprecated: use check_balance(). Returns (allowed, balance, None)."""
-    allowed, balance = check_balance(client, user_id)
-    return allowed, balance, None
 
 
 # =============================================================================

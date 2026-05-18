@@ -1,6 +1,6 @@
 # yarnnn Monetization Documentation
 
-> **Updated**: 2026-04-15 (ADR-171/172 balance model, ADR-183/184 commerce substrate)
+> **Updated**: 2026-05-18 (ADR-291 unified cost ledger — `execution_events` is sole canonical cost substrate; ADR-171/172 amended; ADR-183/184 commerce substrate)
 
 ## Two Commerce Surfaces
 

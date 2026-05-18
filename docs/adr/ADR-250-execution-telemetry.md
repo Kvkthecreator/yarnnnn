@@ -1,5 +1,7 @@
 # ADR-250: Execution Telemetry — Sentry + Postgres Event Ledger + Spend Guard
 
+> **Promoted by ADR-291** (2026-05-18): Phase 2's `execution_events` substrate is now load-bearing — the **sole canonical cost ledger** for all 7 LLM callers, replacing the parallel `token_usage` table that was dropped. Phase 3 daily spend ceiling is unchanged but now naturally sees the full spend surface. The original §3 context observation ("`token_usage.cost_usd` is cache-agnostic and underreports by ~15–20%") is finally fully resolved at the substrate level.
+>
 > **Status**: **Phases 1–4 Implemented** (2026-05-06 — Sentry wired; execution_events table live (migration 165); telemetry wired into all dispatcher paths; spend guard active; admin dashboard updated)
 > **Date**: 2026-05-06
 > **Authors**: KVK, Claude

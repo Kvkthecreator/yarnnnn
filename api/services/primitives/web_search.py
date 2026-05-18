@@ -91,8 +91,11 @@ class WebSearchResult:
     results: list[dict]  # [{title, url, snippet}]
     success: bool
     error: Optional[str] = None
-    input_tokens: int = 0   # ADR-171: accumulated across all rounds
+    # ADR-291: accumulate across all rounds for cache-inclusive cost computation
+    input_tokens: int = 0
     output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_create_tokens: int = 0
 
 
 @dataclass
@@ -269,9 +272,11 @@ async def _execute_web_search(
     try:
         messages = [{"role": "user", "content": user_prompt}]
         search_results = []
-        # ADR-171: accumulate tokens across all rounds
+        # ADR-291: accumulate tokens (incl. cache breakdown) across all rounds
         total_input_tokens = 0
         total_output_tokens = 0
+        total_cache_read = 0
+        total_cache_create = 0
 
         def _extract_results(content_blocks):
             """Pull web_search_tool_result blocks from a response content list."""
@@ -301,6 +306,8 @@ async def _execute_web_search(
         if response.usage:
             total_input_tokens += getattr(response.usage, "input_tokens", 0)
             total_output_tokens += getattr(response.usage, "output_tokens", 0)
+            total_cache_read += getattr(response.usage, "cache_read_input_tokens", 0) or 0
+            total_cache_create += getattr(response.usage, "cache_creation_input_tokens", 0) or 0
 
         _extract_results(response.content)
 
@@ -317,6 +324,8 @@ async def _execute_web_search(
             if response.usage:
                 total_input_tokens += getattr(response.usage, "input_tokens", 0)
                 total_output_tokens += getattr(response.usage, "output_tokens", 0)
+                total_cache_read += getattr(response.usage, "cache_read_input_tokens", 0) or 0
+                total_cache_create += getattr(response.usage, "cache_creation_input_tokens", 0) or 0
             _extract_results(response.content)
 
         # Deduplicate by URL
@@ -335,6 +344,8 @@ async def _execute_web_search(
             success=True,
             input_tokens=total_input_tokens,
             output_tokens=total_output_tokens,
+            cache_read_tokens=total_cache_read,
+            cache_create_tokens=total_cache_create,
         )
 
     except Exception as e:
@@ -409,22 +420,28 @@ async def handle_web_search(auth: Any, input: dict) -> dict:
 
     result = await _execute_web_search(query, context, max_results)
 
-    # ADR-171: Record token spend for this search
+    # ADR-291: unified cost ledger — write directly to execution_events.
+    # Note: web_search uses Haiku internally (`claude-haiku-4-5-20251001`),
+    # so model="claude-haiku-4-5-20251001" for accurate cost computation.
     if result.input_tokens or result.output_tokens:
         try:
-            from services.platform_limits import record_token_usage
+            from services.telemetry import record_execution_event
             from services.supabase import get_service_client
-            record_token_usage(
+            record_execution_event(
                 get_service_client(),
                 user_id=auth.user_id,
-                caller="web_search",
-                model="claude-sonnet-4-6",
+                slug="web-search",
+                mode="judgment",
+                trigger_type="reactive",
+                status="success",
                 input_tokens=result.input_tokens,
                 output_tokens=result.output_tokens,
-                metadata={"query": query[:200]},
+                cache_read_tokens=result.cache_read_tokens,
+                cache_create_tokens=result.cache_create_tokens,
+                model="claude-haiku-4-5-20251001",
             )
         except Exception as _e:
-            logger.warning(f"[TOKEN_USAGE] web_search record failed: {_e}")
+            logger.warning(f"[TELEMETRY] web_search record failed: {_e}")
 
     if not result.success:
         return {

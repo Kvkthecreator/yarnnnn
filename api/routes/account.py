@@ -524,7 +524,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
     - platform_connections (user should not re-OAuth on a workspace reset)
     - user_admin_flags (admin identity survives workspace wipe — L4 only)
     - user_notification_preferences (email prefs survive workspace wipe)
-    - token_usage (billing ledger — L4 only, never L2)
+    - execution_events (cost ledger — L4 only, never L2; ADR-291)
     - active program (ADR-244 D4): if a program was active before the purge,
       the bundle is re-forked during reinit so the operator lands on the
       same program with bundle templates restored. Operator's authored
@@ -747,7 +747,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         a reset is a true fresh start.
       - Task / agent state: tasks, agents, agent_runs (cascaded from agents).
       - Interaction: chat_sessions (cascades session_messages), activity_log,
-        notifications, token_usage (ADR-171 ledger).
+        notifications, execution_events (ADR-291 cost ledger).
       - Integrations: platform_connections, sync_registry, integration_sync_config,
         export_log, destination_delivery_log, event_trigger_log.
       - Uploads: filesystem_documents (cascades filesystem_chunks).
@@ -806,7 +806,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
             "notifications",
             "platform_connections",
             "sync_registry",
-            "token_usage",                # ADR-171 universal billing ledger
+            "execution_events",           # ADR-291 unified cost ledger
             "user_admin_flags",           # ADR-194 v2 Phase 2b admin scope
             "user_notification_preferences",
         ]

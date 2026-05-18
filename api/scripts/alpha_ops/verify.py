@@ -206,7 +206,7 @@ def main() -> int:
         "--cost",
         action="store_true",
         help=(
-            "Append per-workspace cost-truth rollup (token_usage over last "
+            "Append per-workspace cost-truth rollup (execution_events over last "
             "--cost-days days). Reads SCOPE.md success contract dimension 2."
         ),
     )

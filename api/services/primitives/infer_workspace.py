@@ -113,22 +113,26 @@ async def handle_infer_workspace(auth: Any, input: dict) -> dict:
     )
     usage = inference_result.get("usage", {}) or {}
 
-    # ADR-171: record token usage.
+    # ADR-291: unified cost ledger — write directly to execution_events.
     if usage.get("input_tokens") or usage.get("output_tokens"):
         try:
-            from services.platform_limits import record_token_usage
+            from services.telemetry import record_execution_event
             from services.supabase import get_service_client
-            record_token_usage(
+            record_execution_event(
                 get_service_client(),
                 user_id=auth.user_id,
-                caller="inference",
-                model="claude-sonnet-4-6",
+                slug="infer-workspace",
+                mode="judgment",
+                trigger_type="addressed",
+                status="success",
                 input_tokens=usage.get("input_tokens", 0),
                 output_tokens=usage.get("output_tokens", 0),
-                metadata={"target": "workspace", "first_act": True},
+                cache_read_tokens=usage.get("cache_read_input_tokens", 0) or 0,
+                cache_create_tokens=usage.get("cache_creation_input_tokens", 0) or 0,
+                model="claude-sonnet-4-6",
             )
         except Exception as e:
-            logger.warning(f"[INFER_WORKSPACE] token usage record failed: {e}")
+            logger.warning(f"[INFER_WORKSPACE] cost ledger record failed: {e}")
 
     if inference_result.get("error") and not (
         inference_result.get("identity_md")
