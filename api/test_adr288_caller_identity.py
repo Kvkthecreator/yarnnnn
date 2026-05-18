@@ -312,6 +312,147 @@ def test_dead_helper_domain_performance_path_deleted():
     )
 
 
+# -----------------------------------------------------------------------------
+# Phase 3 assertions — kernel money-truth de-instancing
+# -----------------------------------------------------------------------------
+
+def test_default_review_identity_md_speaks_in_ground_truth_substrate():
+    """ADR-288 D8 / Phase 3: DEFAULT_REVIEW_IDENTITY_MD must not hardcode
+    alpha-trader instance vocabulary as kernel-default.
+
+    Negative: no `_performance.md` or alpha-trader-specific reasoning shape
+    in kernel-default prose.
+    Positive: speaks in `ground-truth substrate` (kernel concept) and
+    points at `_workspace_guide.md` for the instance.
+    """
+    src = _read_text(_file("services", "orchestration.py"))
+    # Extract the IDENTITY constant body
+    import re as _re
+    m = _re.search(
+        r'DEFAULT_REVIEW_IDENTITY_MD\s*=\s*"""(.*?)"""', src, _re.DOTALL,
+    )
+    assert m, "DEFAULT_REVIEW_IDENTITY_MD constant not found in orchestration.py"
+    body = m.group(1)
+
+    # Negative assertions
+    assert "_performance.md" not in body, (
+        "DEFAULT_REVIEW_IDENTITY_MD must not reference `_performance.md` — "
+        "this is alpha-trader pre-rename residue shipped to every Reviewer."
+    )
+
+    # Positive assertions
+    assert "ground-truth substrate" in body, (
+        "DEFAULT_REVIEW_IDENTITY_MD must reference the kernel concept "
+        "`ground-truth substrate` (FOUNDATIONS Axiom 8)."
+    )
+    assert "_workspace_guide.md" in body, (
+        "DEFAULT_REVIEW_IDENTITY_MD must point at `_workspace_guide.md` "
+        "as the carrier of bundle-specific substrate paths per ADR-280."
+    )
+
+
+def test_default_review_principles_md_speaks_in_ground_truth_substrate():
+    """Phase 3: DEFAULT_REVIEW_PRINCIPLES_MD same de-instancing as IDENTITY."""
+    src = _read_text(_file("services", "orchestration.py"))
+    import re as _re
+    m = _re.search(
+        r'DEFAULT_REVIEW_PRINCIPLES_MD\s*=\s*"""(.*?)"""', src, _re.DOTALL,
+    )
+    assert m, "DEFAULT_REVIEW_PRINCIPLES_MD constant not found in orchestration.py"
+    body = m.group(1)
+
+    assert "_performance.md" not in body, (
+        "DEFAULT_REVIEW_PRINCIPLES_MD must not reference `_performance.md`."
+    )
+    assert "ground-truth substrate" in body, (
+        "DEFAULT_REVIEW_PRINCIPLES_MD must reference `ground-truth substrate`."
+    )
+
+
+def test_cockpit_awareness_de_instanced():
+    """Phase 3: agents/cockpit_awareness.py must not hardcode `_money_truth.md`
+    as kernel-universal Reviewer substrate. The bundle's `_workspace_guide.md`
+    is the authoritative carrier of program-specific substrate paths.
+    """
+    src = _read_text(_file("agents", "cockpit_awareness.py"))
+
+    # The domain-substrate path list must point at `_workspace_guide.md`
+    # rather than hardcoding `_money_truth.md` as a kernel-universal slot.
+    # Allow instance-pointer mentions of `_money_truth.md` (e.g. "alpha-
+    # trader's instance is `_money_truth.md`") as long as the kernel-concept
+    # phrasing is also present.
+    assert "_workspace_guide.md" in src, (
+        "cockpit_awareness.py must point at `_workspace_guide.md` as the "
+        "authoritative carrier of bundle-specific substrate paths per "
+        "ADR-280 + ADR-288 Phase 3."
+    )
+    assert "ground-truth" in src.lower() or "ground truth" in src.lower(), (
+        "cockpit_awareness.py must reference ground-truth substrate "
+        "(kernel concept per FOUNDATIONS Axiom 8)."
+    )
+
+    # The empty-state guidance "Missing _money_truth.md" framing should be
+    # generalized — alpha-author Reviewer has no `_money_truth.md` to miss.
+    # The framing should say "missing ground-truth substrate" with the
+    # bundle's instance as example.
+    assert "Missing _money_truth.md" not in src, (
+        "Empty-state guidance must be de-instanced — alpha-author Reviewer "
+        "has no `_money_truth.md` to miss. Phrase as `missing ground-truth "
+        "substrate (per workspace guide — alpha-trader: _money_truth.md)`."
+    )
+
+
+def test_tools_core_de_instanced():
+    """Phase 3: `tools_core.py` must not prescribe alpha-trader instance
+    vocabulary as kernel reasoning shape for the Reviewer description.
+
+    Mentions of `_money_truth.md` as alpha-trader's instance example are
+    allowed (kernel concept + instance pointer is correct per ADR-282
+    instance-of phrasings); claims that the Reviewer reasons "against
+    _money_truth.md money-truth" as if it were the universal substrate
+    are NOT (that hardcodes alpha-trader vocabulary as kernel reasoning).
+    """
+    src = _read_text(_file("agents", "prompts", "tools_core.py"))
+
+    # Negative: no kernel-as-universal claims tying Reviewer to _money_truth.md
+    # alone. Allow instance-pointer phrasings ("alpha-trader's instance:
+    # `_money_truth.md`").
+    assert "against `_money_truth.md` money-truth" not in src, (
+        "tools_core.py must not claim Reviewer reasons against "
+        "`_money_truth.md` as if it were the universal substrate. Use "
+        "kernel concept + instance-pointer phrasing per ADR-282."
+    )
+    assert "Capital-EV reasoning against `_money_truth.md`" not in src, (
+        "tools_core.py must not prescribe Capital-EV as kernel reasoning "
+        "shape. Capital-EV is alpha-trader's instance reasoning."
+    )
+
+    # Positive: ground-truth substrate framing present
+    assert "ground-truth substrate" in src, (
+        "tools_core.py must reference `ground-truth substrate` (kernel "
+        "concept per FOUNDATIONS Axiom 8)."
+    )
+
+
+def test_reviewer_agent_docstring_de_instanced():
+    """Phase 3: reviewer_agent.py module docstring + persona-frame Independence
+    block must use ADR-282 vocabulary (ground-truth substrate as kernel
+    concept; money-truth as alpha-trader instance pointer).
+    """
+    src = _read_text(_file("agents", "reviewer_agent.py"))
+
+    # Module-level Axiom 8 reference (L33 region) must use kernel concept
+    assert "Axiom 8 (Ground-Truth Substrate)" in src, (
+        "reviewer_agent.py Axiom 8 reference must use the kernel concept "
+        "name `Ground-Truth Substrate` per ADR-282."
+    )
+    # Old name should be gone from this site
+    assert "Axiom 8 (Money-Truth)" not in src, (
+        "reviewer_agent.py must not refer to Axiom 8 by its retired name "
+        "`Money-Truth` (kernel-level)."
+    )
+
+
 def test_stale_performance_md_in_docstrings_updated():
     """ADR-288 D7: docstring examples that cite a concrete file path use
     the instance file name (`_money_truth.md`), not the pre-ADR-267 stale
@@ -383,6 +524,12 @@ def main() -> int:
         ("D5: bundle MANIFESTs renamed", test_bundle_manifests_renamed_to_ground_truth_md),
         ("D6: dead helper deleted", test_dead_helper_domain_performance_path_deleted),
         ("D7: stale _performance.md docstrings", test_stale_performance_md_in_docstrings_updated),
+        # Phase 3 assertions
+        ("D8: DEFAULT_REVIEW_IDENTITY_MD de-instanced", test_default_review_identity_md_speaks_in_ground_truth_substrate),
+        ("D8: DEFAULT_REVIEW_PRINCIPLES_MD de-instanced", test_default_review_principles_md_speaks_in_ground_truth_substrate),
+        ("D8: cockpit_awareness.py de-instanced", test_cockpit_awareness_de_instanced),
+        ("D8: tools_core.py de-instanced", test_tools_core_de_instanced),
+        ("D8: reviewer_agent.py docstring de-instanced", test_reviewer_agent_docstring_de_instanced),
     ]
 
     passed = 0

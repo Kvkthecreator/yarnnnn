@@ -6,6 +6,54 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.18.3] - feat(adr-288 phase 3): kernel money-truth de-instancing — DEFAULT_REVIEW_* + cockpit_awareness + tools_core speak in ground-truth substrate
+
+### Decision
+
+Closes a kernel-vs-program boundary violation surfaced by the Phase 2 audit. ADR-282 (2026-05-15) named the discipline rule — kernel speaks in `ground-truth substrate` (kernel concept); instances speak in `money-truth` (alpha-trader vocabulary). The vocabulary discipline propagated through canonical docs (FOUNDATIONS, GLOSSARY, THESIS) but did NOT propagate through kernel-prompt surfaces that ship to every Reviewer at every wake. The kernel was silently treating alpha-trader instance vocabulary as universal:
+
+- `DEFAULT_REVIEW_IDENTITY_MD` (forked into every workspace's `/workspace/review/IDENTITY.md` at signup when no program activated, or referenced when a bundle inherits) declared "I read domain substrate: `_performance.md`, `_risk.md`, ..." and "My approve-correct rate against money-truth is the measure of my value" — alpha-trader instance vocabulary as kernel default.
+- `DEFAULT_REVIEW_PRINCIPLES_MD` (kernel-default Reviewer principles) cited `_performance.md` as defer condition.
+- `agents/cockpit_awareness.py` listed `_money_truth.md` + `_money_truth_summary.md` as "Domain substrate" / "Cross-cutting" — shipped to every Reviewer at every wake regardless of program.
+- `agents/prompts/tools_core.py` declared Reviewer "Capital-EV reasoning against `_money_truth.md`" — alpha-trader instance reasoning shape as kernel definition.
+
+For alpha-author (Netflix screenplay workspace, per ADR-283) the Reviewer wakes today and gets shipped: a kernel-default IDENTITY that says it reasons against "money-truth in `_performance.md`"; a cockpit-awareness prompt listing `_money_truth.md` as canonical substrate; a tools_core prompt saying its reasoning shape is "Capital-EV". None of which exist for alpha-author. Same anti-pattern shape as Phase 1's `yarnnn:chat` default and ADR-286's kernel rescue patches — kernel surface compensating for what it doesn't know about a specific program by hardcoding that program's vocabulary as kernel default.
+
+Phase 3 enforces ADR-282 vocabulary discipline at kernel-prompt surfaces. Bundle's `_workspace_guide.md` (per ADR-280) is the authoritative carrier of program-specific substrate paths. Kernel prompts defer to it.
+
+### Changed
+
+- `api/services/orchestration.py::DEFAULT_REVIEW_IDENTITY_MD` rewritten to speak in `ground-truth substrate` (kernel concept per FOUNDATIONS Axiom 8). Specific instance paths (`_performance.md`, `_risk.md`, `_operator_profile.md`) abstracted to "domain substrate as declared by the workspace guide". Developmental axis section points at `/workspace/_workspace_guide.md` for the instance, with alpha-trader's `_money_truth.md` cited as instance example.
+- `api/services/orchestration.py::DEFAULT_REVIEW_PRINCIPLES_MD` rewritten same way. "Edit ... reads this alongside `_risk.md` and the domain's `_performance.md`" → "reads this alongside `_risk.md` and the program's ground-truth substrate per FOUNDATIONS Axiom 8". "Defer ... edge case not in `_performance.md`" → "edge case not yet in the ground-truth substrate". "When deferring because _performance.md is empty" → "When deferring because ground-truth substrate is empty".
+- `api/services/orchestration.py::DEFAULT_REVIEW_CALIBRATION_MD` (line ~990) docstring updated: "outcomes reconciled in `_performance.md`" → "outcomes reconciled in the program's ground-truth substrate per domain (per FOUNDATIONS Axiom 8 — alpha-trader's instance is `_money_truth.md` per ADR-195 v2; alpha-author's instance is multi-signal corpus-coherence per ADR-283)". "money-truth → future-judgment cycle per FOUNDATIONS Axiom 7 + Axiom 8 (Money-Truth)" → "ground-truth → future-judgment cycle per FOUNDATIONS Axiom 7 + Axiom 8 (Ground-Truth Substrate)".
+- `api/agents/cockpit_awareness.py` — Domain substrate section rewritten: hardcoded `_money_truth.md` / `_money_truth_summary.md` paths replaced with `_workspace_guide.md` pointer + bundle-instance phrasing ("your program's ground-truth substrate per FOUNDATIONS Axiom 8 (the workspace guide names the file; alpha-trader's instance is `_money_truth.md` ...)"). Empty-state guidance rewritten: "Missing _money_truth.md" → "Missing ground-truth substrate (per `_workspace_guide.md`'s declaration — e.g. alpha-trader's `_money_truth.md`)". Per-signal-performance guidance generalized to "Bundle-specific reasoning shape (e.g. per-signal performance for alpha-trader)" — Reviewers in other programs don't have signal-shaped substrate.
+- `api/agents/prompts/tools_core.py` — four sites updated:
+  - "_money_truth.md hasn't been reconciled in three days" → "the program's ground-truth substrate (per FOUNDATIONS Axiom 8 — see `/workspace/_workspace_guide.md` for the instance file) hasn't been reconciled in three days"
+  - Reviewer description in Domain Terms: "against the operator's declared principles and `_money_truth.md` money-truth" → "against the operator's declared principles and the program's ground-truth substrate per FOUNDATIONS Axiom 8 (alpha-trader's instance: `_money_truth.md`; alpha-author's instance: multi-signal corpus-coherence)"
+  - Reviewer description in Three-Party Model: "Capital-EV reasoning against `_money_truth.md`" → "Reasoning grounded in the program's ground-truth substrate per FOUNDATIONS Axiom 8 (alpha-trader: capital-EV against `_money_truth.md`; alpha-author: corpus-coherence)"
+  - Deliverables enumeration: "weekly reviews, `_money_truth.md` snapshots" → "weekly reviews, ground-truth substrate snapshots (per Axiom 8 — what the operator consults to verify the operation is converging)"
+- `api/agents/reviewer_agent.py` — module docstring Axiom 8 reference (L33) `"Axiom 8 (Money-Truth): reasons against _money_truth.md rolling windows"` → `"Axiom 8 (Ground-Truth Substrate): reasons against the program's ground-truth substrate per the bundle's `_workspace_guide.md` declaration. Alpha-trader's instance is `_money_truth.md` ... Alpha-author's instance is multi-signal corpus-coherence (ADR-283)"`. Persona-frame Independence block (L463) updated same way — "your judgment is evaluated against ground truth (money-truth in `_money_truth.md`)" → "your judgment is evaluated against the program's ground-truth substrate per FOUNDATIONS Axiom 8 (see `/workspace/_workspace_guide.md` for your bundle's instance)".
+
+### Expected behavior
+
+- Alpha-author Reviewer (and any future non-monetary program Reviewer): no longer ships alpha-trader instance vocabulary as kernel default. Wakes with kernel prose that says "ground-truth substrate per Axiom 8 + your bundle's `_workspace_guide.md`"; bundle's workspace guide supplies its program's instance (corpus-coherence substrate for alpha-author).
+- Alpha-trader Reviewer: unchanged behavior. Bundle MANIFEST + reference workspace + persona prompt all declare `_money_truth.md` as its ground-truth instance; the kernel prompt now correctly defers to those declarations rather than hardcoding them.
+- Kernel-prompt surface no longer hardcodes program-specific substrate paths. Bundles are the authoritative carrier per ADR-280.
+
+### Test gate
+- `api/test_adr288_caller_identity.py` extended with 5 new Phase 3 assertions: DEFAULT_REVIEW_IDENTITY_MD + DEFAULT_REVIEW_PRINCIPLES_MD de-instanced (no `_performance.md`, positive `ground-truth substrate` + `_workspace_guide.md` references), cockpit_awareness.py de-instanced (no `_money_truth.md` kernel-universal claims; `_workspace_guide.md` pointer present), tools_core.py de-instanced (no "Capital-EV reasoning against `_money_truth.md`" kernel claims; `ground-truth substrate` framing present), reviewer_agent.py docstring de-instanced (Axiom 8 reference uses kernel concept name). **19/19 PASS** (10 Phase 1 + 4 Phase 2 + 5 Phase 3).
+
+### Singular implementation
+- One kernel-level concept name (`ground-truth substrate`); one carrier for bundle instance paths (`_workspace_guide.md`); one rule (kernel speaks in kernel concept, bundles speak in instance vocabulary). Three compensating-by-hardcoding sites (orchestration kernel-default substrate templates + cockpit-awareness + tools_core) collapse to deferring to the bundle's authoritative workspace-guide declaration.
+
+### Companion to discipline arc
+- ADR-274 (Schedule fail-fast) + ADR-276 (governance envelope helper) + ADR-286 (single-writer per substrate path) + ADR-288 Phase 1 (caller-identity at construction) + ADR-288 Phase 2 (kernel-universal envelope-key naming) + ADR-288 Phase 3 (kernel-prompt de-instancing). Each closes a runtime concern that had leaked across N compensating sites by establishing the canonical declaration site (boundary, helper, registry, prompt surface).
+
+### Historical preservation
+- Alpha-trader's `_money_truth.md` substrate file unchanged. Its bundle MANIFEST + reference workspace + persona prompt continue to declare it. Instance vocabulary preserved per ADR-282 D8.
+
+---
+
 ## [2026.05.18.2] - feat(adr-288 phase 2): envelope key performance_md → ground_truth_md + _performance.md docstring residue
 
 ### Changed
