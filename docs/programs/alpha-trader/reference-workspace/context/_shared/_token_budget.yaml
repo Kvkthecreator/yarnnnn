@@ -1,0 +1,38 @@
+---
+tier: canon
+note: "Compute-resource governance (ADR-293 D7). Operator declares spending ceilings + cadence floors. Reviewer reads but cannot author — this is a governance file per ADR-293 D2."
+---
+# _token_budget.yaml — alpha-trader bundle default
+#
+# Per ADR-293 D7: scheduler reads this file before firing each judgment-mode
+# recurrence. Tripping any ceiling skips the fire and records an execution_event
+# row with status='skipped'. The Reviewer cannot author this file —
+# Reviewer-edit could escalate its own resource ceiling, granting itself
+# authority the operator did not delegate.
+#
+# Defaults below are bundle-scaffolded; operator may freely edit. Singular
+# Implementation: this is the SOLE per-workspace mechanism for compute-resource
+# governance. The kernel env var DAILY_SPEND_CEILING_USD is the fall-through
+# when this file is absent or malformed.
+
+# Hard cap on workspace daily LLM spend in USD. Tripping this skips the
+# fire and surfaces a system narrative entry; next fire that would push
+# past the ceiling waits until the daily window rolls over (00:00 UTC).
+daily_spend_ceiling_usd: 10.00
+
+# Cap on number of judgment-mode recurrence fires per UTC day.
+# Mechanical-mode recurrences (zero LLM cost) don't count.
+# Alpha-trader's bundle ships 2 daily judgment recurrences (signal-evaluation
+# at 13:45 UTC, outcome-reconciliation at 21:00 UTC), so 50 is comfortable
+# headroom for Reviewer-authored self-schedules + FireInvocation calls.
+max_judgment_recurrences_per_day: 50
+
+# Floor on cadence: a recurrence cannot fire more frequently than this
+# many seconds apart (per-slug last_run_at gate). Operator may declare
+# per-recurrence overrides under `overrides:` below.
+min_interval_between_recurrence_fires_seconds: 60
+
+# Per-recurrence overrides (optional). Uncomment and tune to taste:
+# overrides:
+#   signal-evaluation:
+#     min_interval_seconds: 900   # never more frequent than 15 min

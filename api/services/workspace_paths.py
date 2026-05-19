@@ -62,9 +62,24 @@ SHARED_AUTONOMY_YAML_PATH = "context/_shared/_autonomy.yaml"  # machine-parsed (
 SHARED_PRECEDENT_PATH = "context/_shared/PRECEDENT.md"
 # ADR-275: Operator-authored deliverable cadence preferences. Reviewer
 # reads this every wake and authors Schedule(action="create"|"update"|
-# "archive") for declared preferences. Reviewer never writes — operator-
-# authored substrate, included in DEFAULT_REVIEWER_WRITE_LOCKS below.
+# "archive") for declared preferences.
+# ADR-293: this file is OPERATIONAL substrate (Reviewer-writable subject
+# to AUTONOMY-mode gating). The Reviewer maintains operator deliverable
+# preferences on the operator's behalf; under `bounded` writes queue with
+# operator diff-preview; under `autonomous` writes apply immediately with
+# revision-chain capture. Previously locked-by-default per ADR-275; ADR-
+# 293's first-principles test (governance only locks files that grant
+# the Reviewer unauthorized authority) removes the lock — preferences
+# refinement is operational maintenance, not authority grant.
 SHARED_PREFERENCES_PATH = "context/_shared/_preferences.yaml"
+
+# ADR-293: Compute-resource governance. Operator declares spending
+# ceilings + recurrence-cadence floors that the scheduler enforces
+# regardless of AUTONOMY mode. The Reviewer reads but cannot author —
+# Reviewer-edit could escalate its own resource ceiling, granting itself
+# authority the operator did not delegate. Governance file per the
+# first-principles test.
+SHARED_TOKEN_BUDGET_PATH = "context/_shared/_token_budget.yaml"
 
 # Files the kernel seeds at every workspace init. CONVENTIONS.md is intentionally
 # excluded — it is program-scoped, not kernel-scoped. See module docstring above.
@@ -124,40 +139,40 @@ REVIEW_FILES = (
     REVIEW_STANDING_INTENT_PATH,
 )
 
-# ADR-258 (revised 2026-05-08): default lock set for Reviewer writes.
-# Encodes the Reviewer / Operator authorship boundary — like a human
-# supervisor who reads but doesn't rewrite the operator's foundational
-# declarations (mandate, autonomy ceiling, identity, brand, conventions,
-# durable interpretations).
+# ADR-293 (2026-05-19): governance file set — the ONLY paths locked from
+# Reviewer runtime. Pre-ADR-293 this set contained 9 paths derived from a
+# 4-layer composition (kernel defaults + workspace guide path_zones +
+# bundle path_zones + _locks.yaml overrides). The first-principles test
+# in ADR-293 D1 narrowed the lock to files whose Reviewer-edit could grant
+# unauthorized authority: the delegation declaration + the compute-budget
+# declaration. Everything else is OPERATIONAL — Reviewer-writable subject
+# to AUTONOMY-mode gating (manual queues all, bounded queues with operator
+# diff-preview, autonomous applies immediately with revision-chain capture).
 #
-# ADR-280 (2026-05-15): this constant contains ONLY kernel-universal locks —
-# paths present in every workspace regardless of program. Program-specific
-# locks (e.g., trading's `_operator_profile.md` + `_risk.md`, commerce's
-# equivalents) are now declared by bundles in MANIFEST.yaml's
-# `substrate_abi.path_zones` block (role: operator-canon → locked) and
-# composed at runtime by `services/primitives/workspace.py::_is_path_locked_for_reviewer`.
-# This honors FOUNDATIONS Derived Principle 16 (kernel-program boundary):
-# the kernel encodes universals; programs declare program-specific contracts.
+# Singular Implementation: this is the SOLE lock source. No bundle-derived
+# locks, no workspace-guide locks, no `_locks.yaml` overrides. The composition
+# in `services/primitives/workspace.py::_is_path_locked_for_reviewer` collapses
+# to one check: `path in DEFAULT_REVIEWER_WRITE_LOCKS`.
 #
-# The composition order at runtime:
-#   1. DEFAULT_REVIEWER_WRITE_LOCKS (this constant — kernel-universal)
-#   2. Workspace guide frontmatter `path_zones` with role='operator-canon'
-#      (services/workspace_guide.py + services/bundle_reader.py)
-#   3. Legacy operator overrides in /workspace/_shared/_locks.yaml
-#      (locked_paths additions, unlocked_paths overrides)
+# Why these three (and only these three):
+#   - AUTONOMY.md / _autonomy.yaml — Reviewer rewriting `delegation: bounded`
+#     to `autonomous` grants itself unconditional auto-execute authority
+#     the operator did not delegate. Lock is structurally load-bearing.
+#   - _token_budget.yaml — Reviewer raising `daily_spend_ceiling_usd` from
+#     $5 to $500 escalates its own compute resource ceiling. Lock is
+#     structurally load-bearing.
 #
-# When the Reviewer's WriteFile is rejected, the Reviewer can:
-#   - Surface a Clarify to the operator ("I'd like to update X — approve?")
-#   - Note the suggestion in its own notes.md / reflections.md (workbench)
-#   - Continue reasoning and let the operator act
+# Why everything else is unlocked:
+#   - MANDATE, IDENTITY, BRAND, CONVENTIONS, PRECEDENT, _operator_profile,
+#     _risk, _universe, _preferences, _recurrences, principles, etc. — these
+#     are operational content. Reviewer-edits change WHAT the operation does,
+#     not WHETHER the Reviewer has unauthorized authority to do it. The
+#     revision chain (ADR-209) is the audit trail; AUTONOMY mode is the
+#     gating mechanism; the operator reviews diffs (under bounded) or revision
+#     history (under autonomous). Same trust model as Claude Code editing the
+#     project's CLAUDE.md.
 DEFAULT_REVIEWER_WRITE_LOCKS = (
-    SHARED_MANDATE_PATH,
     SHARED_AUTONOMY_PATH,
     SHARED_AUTONOMY_YAML_PATH,
-    SHARED_IDENTITY_PATH,
-    SHARED_BRAND_PATH,
-    SHARED_CONVENTIONS_PATH,
-    SHARED_PRECEDENT_PATH,
-    SHARED_PREFERENCES_PATH,  # ADR-275: operator-declared deliverable cadence preferences
-    "context/_shared/_locks.yaml",  # operator-authored lock policy itself
+    SHARED_TOKEN_BUDGET_PATH,
 )

@@ -39,8 +39,12 @@ _BILLING_RATES: dict[str, dict[str, float]] = {
 }
 _DEFAULT_RATE = _BILLING_RATES["claude-sonnet-4-6"]
 
-# Daily spend ceiling (Phase 3 spend guard). Overridable via env var.
-DAILY_SPEND_CEILING_USD: float = float(os.getenv("DAILY_SPEND_CEILING_USD", "10.0"))
+# ADR-293 (2026-05-19): DAILY_SPEND_CEILING_USD export DELETED.
+# Compute-resource governance is now per-workspace via
+# `services/token_budget.py` reading `/workspace/context/_shared/_token_budget.yaml`.
+# Kernel default (env var) still applies as the fall-through value when
+# no per-workspace governance file exists — read directly by token_budget.py.
+# Singular Implementation: one canonical source for the ceiling value.
 
 
 # ---------------------------------------------------------------------------

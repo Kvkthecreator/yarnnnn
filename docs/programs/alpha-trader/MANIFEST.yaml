@@ -182,7 +182,19 @@ substrate_abi:
   schema_version: 1
 
   # Path zones this program contributes beyond the kernel-universal set.
-  # Each declares its role; lock policy is derived from role per §2.D2.
+  #
+  # ADR-293 (2026-05-19): `role: operator-canon` is INFORMATIONAL metadata
+  # only. Pre-ADR-293 the role conferred Reviewer write-lock via bundle_reader.
+  # get_path_zone_locks_for_workspace. That helper is DELETED. Lock-derivation
+  # collapsed to the kernel-universal governance set (AUTONOMY + token_budget).
+  # These paths are now OPERATIONAL — Reviewer-writable, gated by AUTONOMY mode
+  # at write-time per ADR-293 D4.
+  #
+  # The role tag survives as documentation: it declares the author-of-origin
+  # (operator authored these files at activation; Reviewer maintains them
+  # on the operator's behalf going forward). For surface labeling (cockpit
+  # "Operator-authored" badges) and first-fork-write attribution, the role
+  # is still meaningful — it just no longer locks.
   path_zones:
     - path: context/trading
       role: operator-canon

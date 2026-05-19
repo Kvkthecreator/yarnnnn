@@ -284,7 +284,7 @@ Every workspace has exactly three principals in the loop:
   Deliverable is surprising.
 
 **Runtime gate model (ADR-247 + Claude Code philosophy):**
-The agent always acts with full intent. The gate is at the action boundary, not in the model's head. Production agents propose (`ProposeAction`). The Reviewer judges. `should_auto_execute_verdict()` checks AUTONOMY.md and decides whether to auto-execute or route to the Queue. The agent never reasons about its permission level — it produces the best proposal it can.
+The agent always acts with full intent. The gate is at the action boundary, not in the model's head. Production agents propose (`ProposeAction`). The Reviewer judges. `should_auto_apply()` checks AUTONOMY.md and decides whether the consequence (capital action OR substrate write) auto-applies or routes to the Queue (ADR-293 D4 uniform gate). The agent never reasons about its permission level — it produces the best proposal/edit it can.
 
 **Production-role palette (drafted per recurrence; capability bundles the Orchestrator dispatches):**
 - **Researcher** — finds, investigates, builds knowledge.

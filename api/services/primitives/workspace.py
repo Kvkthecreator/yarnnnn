@@ -540,21 +540,75 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
         elif path.startswith("workspace/"):
             path = path[len("workspace/"):]
 
-        # ADR-258 D3 + D9: when caller is Reviewer, enforce operator-authored
-        # access policy from /workspace/_shared/_locks.yaml. Default-empty,
-        # opt-in. The substrate-level safety story is attribution + revision
-        # chain + AUTONOMY; this is a thin operator-controlled belt on top.
+        # ADR-293: when caller is Reviewer, apply governance + AUTONOMY-mode
+        # gating. Two-tier check:
+        #   (1) Governance lock — three files (AUTONOMY.md, _autonomy.yaml,
+        #       _token_budget.yaml) are immutable from Reviewer runtime
+        #       regardless of AUTONOMY mode. These declare the Reviewer's
+        #       authority structure; Reviewer-edit would grant unauthorized
+        #       authority. Reject hard.
+        #   (2) AUTONOMY-mode gate (Phase 1.d per ADR-293 D14) — for
+        #       operational paths, call should_auto_apply(action_class=
+        #       'substrate'). Under `autonomous`: apply immediately. Under
+        #       `bounded`/`manual`: reject with structured error prompting
+        #       Clarify. Phase 4 will replace the bounded/manual branch
+        #       with queueing logic (ADR-293 D10 + D13).
         if getattr(auth, "reviewer_caller", False):
-            blocked = await _is_path_locked_for_reviewer(auth, path)
-            if blocked:
+            blocked_by_governance = await _is_path_locked_for_reviewer(auth, path)
+            if blocked_by_governance:
                 return {
                     "success": False,
-                    "error": "operator_locked",
+                    "error": "governance_locked",
                     "message": (
-                        f"Path /{path} is operator-locked via /workspace/_shared/_locks.yaml. "
-                        "Surface a Clarify or include a directive in your verdict reasoning instead."
+                        f"Path /{path} is a governance file (ADR-293 D2). "
+                        f"Reviewer cannot author its own authority declaration "
+                        f"(AUTONOMY.md, _autonomy.yaml) or compute-resource "
+                        f"ceiling (_token_budget.yaml). Surface a Clarify to "
+                        f"the operator; they edit governance directly."
                     ),
                     "path": f"/workspace/{path}",
+                }
+
+            # Operational path — apply AUTONOMY-mode gate.
+            try:
+                from services.review_policy import (
+                    load_autonomy,
+                    autonomy_for_domain,
+                    should_auto_apply,
+                )
+                autonomy = load_autonomy(auth.client, auth.user_id)
+                # Operational substrate writes are workspace-scoped, not
+                # domain-scoped; use the default policy view (no domain).
+                autonomy_policy = autonomy_for_domain(autonomy, "")
+                allowed, gate_reason = should_auto_apply(
+                    autonomy_policy=autonomy_policy,
+                    action_class="substrate",
+                    substrate_path=path,
+                    caller_identity=getattr(auth, "caller_identity", "") or "",
+                )
+            except Exception as exc:
+                logger.warning(
+                    "[WRITEFILE] AUTONOMY gate evaluation failed for Reviewer "
+                    "substrate write to %s: %s. Failing closed (block write).",
+                    path, exc,
+                )
+                allowed = False
+                gate_reason = f"autonomy_gate_error: {exc}"
+
+            if not allowed:
+                return {
+                    "success": False,
+                    "error": "substrate_write_requires_autonomous",
+                    "message": (
+                        f"Reviewer substrate write to /{path} requires "
+                        f"AUTONOMY=autonomous. Current gate: {gate_reason}. "
+                        f"Phase 1 ships autonomous-mode write authority only "
+                        f"(ADR-293 D14); bounded/manual queueing arrives in "
+                        f"Phase 4. Surface a Clarify to the operator OR ask "
+                        f"the operator to elect autonomous AUTONOMY mode."
+                    ),
+                    "path": f"/workspace/{path}",
+                    "next_action": "clarify",
                 }
 
         um = UserMemory(auth.client, auth.user_id)
@@ -1289,116 +1343,26 @@ async def handle_read_agent_file(auth: Any, input: dict) -> dict:
 async def _is_path_locked_for_reviewer(auth: Any, path: str) -> bool:
     """Check Reviewer-write lock policy for the given path.
 
-    ADR-258 (revised 2026-05-08) + ADR-280 (2026-05-15): the lock policy
-    composes four layers, in order of precedence:
+    ADR-293 (2026-05-19): the lock surface is GOVERNANCE-ONLY. Three files
+    are locked from Reviewer runtime regardless of AUTONOMY mode — the
+    delegation declaration (AUTONOMY.md + _autonomy.yaml) and the compute-
+    budget declaration (_token_budget.yaml). Pre-ADR-293's 4-layer
+    composition (kernel defaults + workspace guide path_zones + bundle
+    path_zones + _locks.yaml overrides) collapsed per first-principles test:
+    only governance-purpose files (those whose Reviewer-edit could grant
+    unauthorized authority) warrant lock; everything else is operational,
+    Reviewer-writable, AUTONOMY-mode-gated at write time.
 
-      1. Kernel-universal defaults (DEFAULT_REVIEWER_WRITE_LOCKS — operator-
-         authored substrate present in every workspace regardless of program;
-         per ADR-280 contains ONLY universals — program-specific paths moved
-         to bundle MANIFEST `substrate_abi` declarations).
-      2. Workspace guide frontmatter `path_zones` with role='operator-canon'
-         (per ADR-280 §2.D6.a — the workspace's authored substrate-ABI
-         declaration). Read via `services/workspace_guide.py`.
-      3. Bundle `substrate_abi.path_zones` for active bundles (transitional
-         fallback for workspaces where the workspace guide hasn't been
-         genesis-authored yet — per ADR-280 §4.1 Phase 1 transition support).
-         Read via `services/bundle_reader.py`. Same role-derived semantics
-         as layer 2.
-      4. Legacy operator overrides in /workspace/_shared/_locks.yaml
-         (locked_paths additions, unlocked_paths overrides). Preserved
-         for backward compat with operator-authored lock declarations
-         that pre-date the workspace guide.
+    Per-path operator overrides (e.g., "lock _universe.yaml under autonomous")
+    moved to `_autonomy.yaml::never_auto` with `path:` prefix per ADR-293 D5.
 
-    Workspace-guide `locks.add` / `locks.remove` (per ADR-280 §2.D3 schema)
-    are merged at layer 2 via `workspace_guide.get_path_zone_locks`.
-
-    Result is cached per-request via auth-scoped memo to avoid re-fetching
-    when multiple writes happen in the same primitive batch.
-
-    Returns True when path is locked. Fail-open on parse error at any layer.
+    Singular Implementation: one check, one source, one mechanism.
     """
-    cache = getattr(auth, "_reviewer_locks_cache", None)
-    if cache is None:
-        # 1. Kernel-universal defaults (ADR-280 — kernel-only, no program paths)
-        from services.workspace_paths import DEFAULT_REVIEWER_WRITE_LOCKS
-        defaults = {p.strip().lstrip("/") for p in DEFAULT_REVIEWER_WRITE_LOCKS}
-
-        # 2. Workspace-guide-declared locks (ADR-280 §2.D6.a)
-        guide_locked: set[str] = set()
-        guide_locks_remove: set[str] = set()
-        try:
-            from services import workspace_guide
-            frontmatter = workspace_guide.read_frontmatter(auth.client, auth.user_id)
-            guide_locked = workspace_guide.get_path_zone_locks(frontmatter)
-            # `locks.remove` from the guide is applied as a final-step
-            # subtraction (operator can override role-derived defaults too).
-            locks_block = frontmatter.get("locks", {}) if isinstance(frontmatter, dict) else {}
-            if isinstance(locks_block, dict):
-                for p in locks_block.get("remove", []) or []:
-                    if isinstance(p, str):
-                        guide_locks_remove.add(p.strip().lstrip("/"))
-        except Exception:
-            pass
-
-        # 3. Bundle substrate_abi locks (transitional fallback per ADR-280 §4.1)
-        # Active when the workspace guide hasn't been genesis-authored yet.
-        # Once the guide is authored, layer 2 carries the program-shipped
-        # locks (because genesis-by-Reviewer composes from the bundle into
-        # the guide), and this layer becomes a redundant safety net.
-        bundle_locked: set[str] = set()
-        try:
-            from services import bundle_reader
-            bundle_locked = bundle_reader.get_path_zone_locks_for_workspace(
-                auth.user_id, auth.client
-            )
-        except Exception:
-            pass
-
-        # 4. Legacy operator-authored _locks.yaml on top (backward compat)
-        added: set[str] = set()
-        unlocked: set[str] = set()
-        try:
-            res = (
-                auth.client.table("workspace_files")
-                .select("content")
-                .eq("user_id", auth.user_id)
-                .eq("path", "/workspace/_shared/_locks.yaml")
-                .limit(1)
-                .execute()
-            )
-            content = (res.data or [{}])[0].get("content") or ""
-        except Exception:
-            content = ""
-
-        if content:
-            try:
-                import yaml  # type: ignore
-                parsed = yaml.safe_load(content) or {}
-                raw_locked = parsed.get("locked_paths") or []
-                if isinstance(raw_locked, list):
-                    added = {str(p).strip().lstrip("/") for p in raw_locked if p}
-                raw_unlocked = parsed.get("unlocked_paths") or []
-                if isinstance(raw_unlocked, list):
-                    unlocked = {str(p).strip().lstrip("/") for p in raw_unlocked if p}
-            except Exception:
-                pass
-
-        # Compose: union of all four lock sources, then subtract operator overrides.
-        # Workspace-guide `locks.remove` and legacy `_locks.yaml` `unlocked_paths`
-        # both subtract — operator has two equivalent surfaces during the
-        # ADR-280 transition window; long-term the guide subsumes the legacy.
-        effective = (defaults | guide_locked | bundle_locked | added) - guide_locks_remove - unlocked
-        cache = effective
-        try:
-            setattr(auth, "_reviewer_locks_cache", cache)
-        except Exception:
-            pass
-
-    if not cache:
-        return False
+    from services.workspace_paths import DEFAULT_REVIEWER_WRITE_LOCKS
 
     candidate = path.strip().lstrip("/")
     if candidate.startswith("workspace/"):
         candidate = candidate[len("workspace/"):]
 
-    return candidate in cache
+    governance = {p.strip().lstrip("/") for p in DEFAULT_REVIEWER_WRITE_LOCKS}
+    return candidate in governance

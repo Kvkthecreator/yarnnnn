@@ -6,6 +6,61 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.19.1] - feat(adr-293): governance/operational substrate taxonomy + uniform AUTONOMY-mode gating
+
+### Decision
+
+Codifies the Claude Code trust-model analog for YARNNN's Reviewer. Pre-ADR-293, the Reviewer was structurally prevented from self-improvement — the lock model treated it like an external untrusted agent (ADR-258 D9 residue from before Axiom 2 hardening collapsed that framing). The Reviewer IS the operator in judging posture per FOUNDATIONS Axiom 2; locking it out of operator-canon contradicts the active-principal MANDATE framing.
+
+First-principles test (ADR-293 D1): a file should be locked iff Reviewer-edit could grant the Reviewer authority the operator did not delegate. Two governance instruments emerge: delegation (AUTONOMY.md + _autonomy.yaml) and compute budget (_token_budget.yaml). Everything else is operational — Reviewer-writable subject to AUTONOMY-mode gating.
+
+### Changed — Phase 1 (kernel substrate + scheduler enforcement)
+
+- `workspace_paths.py`: `DEFAULT_REVIEWER_WRITE_LOCKS` 9 → 3 paths; new `SHARED_TOKEN_BUDGET_PATH`
+- `primitives/workspace.py::_is_path_locked_for_reviewer`: 4-layer composition collapsed to single-set check (~100 LOC deleted)
+- `workspace_guide.py::get_path_zone_locks` + `bundle_reader.py::get_path_zone_locks_for_workspace` DELETED (dead helpers per Singular Implementation)
+- `review_policy.py`: `should_auto_execute_verdict` → `should_auto_apply` with `action_class` branch (capital | substrate). New `_check_never_auto` helper extends `never_auto` to support `path:` prefix patterns.
+- `review_proposal_dispatch.py`: call site migrated to `should_auto_apply(action_class="capital", ...)`
+- `primitives/workspace.py::handle_write_file`: Reviewer-caller branch adds governance check + AUTONOMY-mode substrate gate (D14). Under `autonomous` proceeds; under `bounded`/`manual` returns structured error `substrate_write_requires_autonomous`.
+- `token_budget.py` NEW (~200 LOC): per-workspace compute-resource governance with kernel-default fall-through, judgment-count + last-fire helpers, `DEFAULT_TOKEN_BUDGET_YAML` scaffold content
+- `invocation_dispatcher.py`: 3 per-workspace gates (daily_spend_ceiling_usd, max_judgment_recurrences_per_day, min_interval_between_recurrence_fires_seconds); legacy `DAILY_SPEND_CEILING_USD` import deleted
+- `telemetry.py::DAILY_SPEND_CEILING_USD` export DELETED
+- `workspace_init.py` Phase 2: seeds `_token_budget.yaml` as kernel-universal scaffold
+
+### Changed — Phase 2 (persona frame + principles.md + bundle MANIFEST)
+
+- `reviewer_agent.py::_PERSONA_FRAME`: new "Your write authority" section per ADR-293 D8. Declares governance/operational taxonomy explicitly. Names 3 governance files (locked) + enumerates operational paths Reviewer can now write. Maps AUTONOMY mode to effective application semantics. Closes with fiduciary-principle framing.
+- `alpha-trader/reference-workspace/review/principles.md`: new `## Self-Improvement Posture` section per ADR-293 D9. Four scenarios for proposing edits (calibration/near-miss/substrate-gap/cadence). Two for NOT proposing (governance / recent operator iteration).
+- `alpha-trader/MANIFEST.yaml::path_zones`: `role: operator-canon` retained as INFORMATIONAL metadata. Comment block documents the role's surviving purpose (surface labeling, first-fork-write attribution) — lock-derivation removed per ADR-293 D3.
+- `alpha-trader/reference-workspace/context/_shared/_token_budget.yaml` NEW: bundle-shipped default for alpha-trader workspaces
+
+### Test gate
+
+`api/test_adr293_governance_taxonomy.py` — **18/18 PASS**. Asserts D2 (governance set exactly 3 paths), D1/D3 (pre-ADR-293 lock paths NOT in governance set), D3 (function collapse + helper deletion), D4 (action_class branches), D5 (never_auto path: prefix), D6 (_locks.yaml not read), D7 (token_budget module + dispatcher integration + workspace_init seeding), D14 (handle_write_file AUTONOMY gate + governance_locked distinct error), bundle ships token_budget.
+
+Sibling gates audited green: ADR-274 16/16, ADR-281 34/34, ADR-284 18/18, ADR-286 8/8, ADR-288 19/19, ADR-290 10/10. **123/123 across the closely-coupled gate set.**
+
+### Expected behavior
+
+**Under `autonomous` AUTONOMY** (kvk's current mode): Reviewer's WriteFile to operational substrate applies immediately. Reviewer can now refine `_operator_profile.md` (signal definitions), `_risk.md`, MANDATE/IDENTITY/BRAND/CONVENTIONS/PRECEDENT, schedule new recurrences per ADR-275, refine own `principles.md`. All writes attributed `reviewer:ai:reviewer-sonnet-v8` per ADR-288; revision chain captures.
+
+**Under `bounded`/`manual`**: substrate writes return `error: substrate_write_requires_autonomous` until Phase 4 ships cockpit Substrate-Queue. Reviewer falls through to Clarify.
+
+**Compute governance**: every workspace reads `_token_budget.yaml`. Scheduler enforces 3 ceilings at fire time. Tripping any ceiling skips with structured error_reason. Runaway-spend prevention is structural per-workspace, not kernel-constant.
+
+### Singular implementation
+
+- One lock-derivation rule (was 4-layer composition)
+- One gate function `should_auto_apply` covers both capital and substrate (was capital-only)
+- One per-path override surface `_autonomy.yaml::never_auto path:` (was `_locks.yaml` parallel mechanism)
+- One compute-resource governance source `_token_budget.yaml` per-workspace (was kernel env-var only)
+
+### Phase 4 deferred (per ADR-293 D10 + D13)
+
+Bounded-mode Substrate-Queue (FE + backend queueing) ships as one coherent deliverable when cockpit Queue UX work has design cycles. Scope: `workspace_file_versions.queued_for_operator` column + handle_write_file queue-routing + API routes + FE cockpit surface with diff preview + cost preview for cadence edits. Until then, operators choose `autonomous` (full write authority) or `manual`/`bounded` with Reviewer falling through to Clarify.
+
+---
+
 ## [2026.05.18.9] - fix(adr-292): re-shape Substrate Update to operator-initiated versioned model (corrective)
 
 ### Decision

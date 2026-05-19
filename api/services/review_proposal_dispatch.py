@@ -29,7 +29,7 @@ On proposal creation, the dispatcher:
    invocation (`reviewer_agent.review_proposal`) renders a verdict. If
    the domain has no reviewable substrate → observe-only fallback.
 3. The Reviewer's verdict (`approve` | `reject` | `defer`) routes:
-   - `approve` → loads AUTONOMY, calls `should_auto_execute_verdict`.
+   - `approve` → loads AUTONOMY, calls `should_auto_apply`.
      If binding → `handle_execute_proposal`. If non-binding → advisory
      observation entry, proposal queued for operator click.
    - `reject` → `handle_reject_proposal` (Reviewer's own narrowing is
@@ -111,7 +111,7 @@ async def on_proposal_created(
 
     ADR-229 D1: judgment-first ordering. Reviewer runs ALWAYS (when the
     domain has reviewable substrate); autonomy filters whether the
-    verdict binds via `should_auto_execute_verdict` AFTER judgment, not
+    verdict binds via `should_auto_apply` AFTER judgment, not
     before.
     """
     try:
@@ -303,7 +303,7 @@ async def _run_ai_reviewer(
 ) -> None:
     """Run the AI Reviewer and route its decision per ADR-229 D1+D2.
 
-    - approve verdict → loads AUTONOMY, calls should_auto_execute_verdict.
+    - approve verdict → loads AUTONOMY, calls should_auto_apply.
       If binding → handle_execute_proposal. If non-binding → advisory
       observation entry, proposal queued for operator click.
     - reject verdict → handle_reject_proposal (terminal, never bound by
@@ -445,7 +445,7 @@ async def _run_ai_reviewer(
             load_principles,
             autonomy_for_domain,
             principles_for_domain,
-            should_auto_execute_verdict,
+            should_auto_apply,
         )
         autonomy = load_autonomy(client, user_id)
         autonomy_policy = autonomy_for_domain(autonomy, context_domain)
@@ -453,14 +453,15 @@ async def _run_ai_reviewer(
         principles_policy = principles_for_domain(principles, context_domain)
         estimated_cents = _estimate_proposal_value_cents(proposal_row)
 
-        # ADR-254 D3: both AUTONOMY gate + PRINCIPLES gate must pass
-        should_bind, gate_reason = should_auto_execute_verdict(
+        # ADR-293 D4: uniform AUTONOMY-mode gate (capital-action class).
+        # Substrate-write class flows through handle_write_file's parallel call.
+        should_bind, gate_reason = should_auto_apply(
             autonomy_policy=autonomy_policy,
+            action_class="capital",
             verdict="approve",
             action_type=action_type,
             estimated_cents=estimated_cents,
             reversibility=reversibility or "",
-            principles_policy=principles_policy,
         )
 
         if should_bind:

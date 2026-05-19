@@ -151,40 +151,13 @@ async def read_frontmatter_async(client: Any, user_id: str) -> dict[str, Any]:
     return read_frontmatter(client, user_id)
 
 
-def get_path_zone_locks(frontmatter: dict[str, Any]) -> set[str]:
-    """Extract the set of paths locked from Reviewer writes from frontmatter.
-
-    Composes per ADR-280 §2.D6.a:
-      - Every path_zone with role='operator-canon' is locked.
-      - Plus operator additions from frontmatter `locks.add`.
-      - Minus operator overrides from frontmatter `locks.remove`.
-
-    Returns paths workspace-relative (no leading slash) to match the
-    normalization used by the lock-check function.
-    """
-    locked: set[str] = set()
-    for zone in frontmatter.get("path_zones", []) or []:
-        if not isinstance(zone, dict):
-            continue
-        role = zone.get("role")
-        path = zone.get("path")
-        if role == "operator-canon" and isinstance(path, str):
-            locked.add(path.lstrip("/"))
-            # Also lock any explicitly-named authored_files under this zone
-            for f in zone.get("authored_files", []) or []:
-                if isinstance(f, str):
-                    locked.add(f"{path.lstrip('/')}/{f}")
-
-    locks_block = frontmatter.get("locks", {})
-    if isinstance(locks_block, dict):
-        for p in locks_block.get("add", []) or []:
-            if isinstance(p, str):
-                locked.add(p.lstrip("/"))
-        for p in locks_block.get("remove", []) or []:
-            if isinstance(p, str):
-                locked.discard(p.lstrip("/"))
-
-    return locked
+# ADR-293 (2026-05-19): `get_path_zone_locks` DELETED. Lock-derivation
+# from workspace-guide `path_zones[].role: operator-canon` removed.
+# `path_zones` is preserved as informational metadata (declares author-
+# of-origin for surface labeling + first-fork-write authority) but no
+# longer confers Reviewer write-lock. The lock surface collapses to the
+# governance file set (DEFAULT_REVIEWER_WRITE_LOCKS). Operator per-path
+# overrides moved to `_autonomy.yaml::never_auto` with `path:` prefix.
 
 
 def get_reviewer_wake_envelope_decls(frontmatter: dict[str, Any]) -> list[dict[str, Any]]:

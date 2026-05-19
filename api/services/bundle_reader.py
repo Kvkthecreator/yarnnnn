@@ -211,36 +211,12 @@ def get_substrate_abi_for_workspace(user_id: str, client: Any) -> dict[str, Any]
     }
 
 
-def get_path_zone_locks_for_workspace(user_id: str, client: Any) -> set[str]:
-    """ADR-280: aggregate locked paths from active bundles' substrate_abi declarations.
-
-    Used by `services/primitives/workspace.py::_is_path_locked_for_reviewer`
-    when composing the lock policy: kernel-defaults (DEFAULT_REVIEWER_WRITE_LOCKS)
-    + this set + operator overrides (workspace guide locks.add / locks.remove
-    + legacy /workspace/_shared/_locks.yaml).
-
-    A path is bundle-locked iff its declaration has role='operator-canon' OR
-    it appears in a path-zone's `authored_files` list (those files are
-    operator-authored within an otherwise mixed zone).
-
-    Returns paths workspace-relative (no leading slash), matching the
-    normalization used by the lock-check function. Returns empty set when
-    workspace has no active bundles or when no path zones declare
-    operator-canon role.
-    """
-    abi = get_substrate_abi_for_workspace(user_id, client)
-    locked: set[str] = set()
-    for zone in abi.get("path_zones", []):
-        path = zone.get("path")
-        if not isinstance(path, str):
-            continue
-        path_norm = path.lstrip("/")
-        if zone.get("role") == "operator-canon":
-            locked.add(path_norm)
-            for f in zone.get("authored_files", []) or []:
-                if isinstance(f, str):
-                    locked.add(f"{path_norm}/{f}")
-    return locked
+# ADR-293 (2026-05-19): `get_path_zone_locks_for_workspace` DELETED.
+# Bundle path_zones `role: operator-canon` is preserved as informational
+# metadata (declares author-of-origin for surface labeling + first-fork-
+# write authority) but no longer confers Reviewer write-lock. The lock
+# surface collapses to the governance file set; operator per-path overrides
+# moved to `_autonomy.yaml::never_auto` with `path:` prefix.
 
 
 def get_market_context_for_user(user_id: str, client: Any) -> Optional[dict[str, Any]]:

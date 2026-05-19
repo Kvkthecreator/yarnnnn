@@ -49,7 +49,9 @@ Public API:
                                        "paused_until": ..., "pause_reason": ...}
 - `autonomy_for_domain(autonomy, context_domain)` → resolved policy dict
 - `principles_for_domain(principles, context_domain)` → resolved principles dict
-- `should_auto_execute_verdict(...)` → (bool, reason_str)
+- `should_auto_apply(autonomy_policy, action_class, ...)` → (bool, reason_str)
+  ADR-293 D4: uniform gate covering both capital-action and substrate-write
+  consequence classes. Replaces the pre-ADR-293 `should_auto_execute_verdict`.
 """
 
 from __future__ import annotations
@@ -238,7 +240,7 @@ def autonomy_for_domain(autonomy: dict, context_domain: str) -> dict:
         block = dict(domains[context_domain])
     else:
         block = dict(autonomy.get("default") or {})
-    # Mix in workspace-wide pause fields so should_auto_execute_verdict sees them.
+    # Mix in workspace-wide pause fields so should_auto_apply sees them.
     if autonomy.get("paused_until") is not None:
         block.setdefault("paused_until", autonomy.get("paused_until"))
     if autonomy.get("pause_reason") is not None:
@@ -259,31 +261,89 @@ def principles_for_domain(principles: dict, context_domain: str) -> dict:
 
 
 # =============================================================================
-# Decision gate — single AUTONOMY ceiling check (ADR-261 D5 collapse)
+# Decision gate — uniform AUTONOMY mode gating (ADR-293 D4 generalization)
 # =============================================================================
 
-def should_auto_execute_verdict(
+def _check_never_auto(
     autonomy_policy: dict,
-    verdict: str = "approve",
     *,
+    action_type: str = "",
+    substrate_path: str = "",
+) -> tuple[bool, str]:
+    """Check `_autonomy.yaml::never_auto` overrides (ADR-293 D5).
+
+    `never_auto` accepts two pattern types:
+      - Bare strings → action_type substring match (existing behavior)
+      - `path:`-prefixed strings → substrate-path prefix match (new)
+
+    Returns (is_blocked, reason). When True, the action MUST queue
+    regardless of AUTONOMY mode.
+    """
+    never_auto = autonomy_policy.get("never_auto") or []
+    if not isinstance(never_auto, list):
+        return False, ""
+    for entry in never_auto:
+        if not isinstance(entry, str):
+            continue
+        e = entry.strip()
+        if not e:
+            continue
+        if e.startswith("path:"):
+            target = e[len("path:"):].strip().lstrip("/")
+            candidate = (substrate_path or "").strip().lstrip("/")
+            if candidate.startswith("workspace/"):
+                candidate = candidate[len("workspace/"):]
+            # Path match: exact OR directory-prefix
+            if target and candidate and (candidate == target or candidate.startswith(target + "/")):
+                return True, f"never_auto path-match: {entry!r}"
+        else:
+            # action_type substring match (legacy behavior)
+            if action_type and e in action_type:
+                return True, f"never_auto action-match: {entry!r}"
+    return False, ""
+
+
+def should_auto_apply(
+    autonomy_policy: dict,
+    action_class: str,  # "capital" | "substrate"
+    *,
+    # Capital-action parameters
+    verdict: str = "approve",
     action_type: str = "",
     estimated_cents: int | None = None,
     reversibility: str = "reversible",
-    principles_policy: dict | None = None,  # accepted for legacy callsites; unused post-ADR-261 D5
+    # Substrate-action parameters (ADR-293)
+    substrate_path: str = "",
+    caller_identity: str = "",
+    # Pause check (ADR-248 D3)
     paused_until: str | None = None,
     pause_reason: str | None = None,
 ) -> tuple[bool, str]:
-    """Decide whether a Reviewer verdict auto-executes (per ADR-261 D5).
+    """Decide whether a Reviewer-authored consequential action auto-applies
+    or queues for operator click (ADR-293 D4 — uniform gate across capital
+    actions AND substrate writes).
 
-    One gate: operator's delegation level + ceiling. The Reviewer's verdict
-    must be `approve` (`reject`/`defer` always route through operator); the
-    delegation policy then permits or denies execution.
+    Capital actions (verdict-bound proposals):
+      - `manual`: queue for operator click
+      - `bounded`: auto-bind within `ceiling_cents`; queue above
+      - `autonomous`: auto-bind (ceiling_cents still applies as safety net)
+      - All modes: `never_auto` action-type matches force queue
+      - All modes: `reversibility='irreversible'` forces queue
+      - All modes: `paused_until` (future timestamp) forces queue
 
-    Returns (should_execute, reason).
+    Substrate writes (Reviewer-authored WriteFile to operational paths):
+      - `manual`: queue for operator click (diff preview)
+      - `bounded`: queue for operator click (diff preview)
+      - `autonomous`: apply immediately (revision-chain captures)
+      - All modes: `never_auto` path-match (path: prefix) forces queue
+      - All modes: `paused_until` forces queue
+
+    Returns (auto_applies, reason). When False, the consequence MUST queue.
     """
-    # --- pause check (ADR-248 D3 mechanism preserved) ---
-    # paused_until / pause_reason may come either as explicit kwargs (newer
-    # callers) or be mixed into autonomy_policy by autonomy_for_domain.
+    if action_class not in ("capital", "substrate"):
+        return False, f"action_class={action_class!r} unrecognized"
+
+    # --- pause check (ADR-248 D3 mechanism — applies to both action classes) ---
     pu = paused_until or autonomy_policy.get("paused_until")
     pr = pause_reason or autonomy_policy.get("pause_reason")
     if pu:
@@ -301,43 +361,65 @@ def should_auto_execute_verdict(
         except (ValueError, TypeError):
             pass  # malformed timestamp — ignore
 
-    # --- verdict gate ---
-    if verdict == "reject":
-        return False, "verdict=reject — Reviewer's own narrowing, never auto-executes"
-    if verdict == "defer":
-        return False, "verdict=defer — Reviewer surfaced to operator"
-    if verdict != "approve":
-        return False, f"verdict={verdict!r} unrecognized — defaulting to non-binding"
-
     # --- delegation gate ---
     delegation = autonomy_policy.get("delegation", "manual")
-    if delegation == "manual":
-        return False, "autonomy.delegation=manual — operator retains every binding decision"
     if delegation not in _VALID_DELEGATION_LEVELS:
         return False, f"autonomy.delegation={delegation!r} unrecognized — defaulting to manual"
 
-    if reversibility == "irreversible":
-        return False, "reversibility=irreversible — irreversible writes always route to operator"
+    # --- never_auto override (ADR-293 D5) — applies to both action classes ---
+    blocked, never_reason = _check_never_auto(
+        autonomy_policy,
+        action_type=action_type,
+        substrate_path=substrate_path,
+    )
+    if blocked:
+        return False, never_reason
 
-    if delegation == "autonomous":
-        return True, "verdict=approve, autonomy.delegation=autonomous — auto-execute"
+    # --- capital-action branch ---
+    if action_class == "capital":
+        # Verdict gate (capital actions have a verdict; substrate writes don't)
+        if verdict == "reject":
+            return False, "verdict=reject — Reviewer's own narrowing, never auto-executes"
+        if verdict == "defer":
+            return False, "verdict=defer — Reviewer surfaced to operator"
+        if verdict != "approve":
+            return False, f"verdict={verdict!r} unrecognized — defaulting to non-binding"
 
-    # delegation == "bounded"
-    ceiling = autonomy_policy.get("ceiling_cents")
-    if ceiling is None or ceiling <= 0:
-        return False, "autonomy.delegation=bounded but no ceiling_cents set"
-    if estimated_cents is None:
-        return False, "proposal has no estimated value — cannot compare against ceiling"
-    if abs(estimated_cents) > ceiling:
+        if delegation == "manual":
+            return False, "autonomy.delegation=manual — operator retains every binding decision"
+
+        if reversibility == "irreversible":
+            return False, "reversibility=irreversible — irreversible writes always route to operator"
+
+        if delegation == "autonomous":
+            return True, "verdict=approve, autonomy.delegation=autonomous — auto-execute"
+
+        # delegation == "bounded"
+        ceiling = autonomy_policy.get("ceiling_cents")
+        if ceiling is None or ceiling <= 0:
+            return False, "autonomy.delegation=bounded but no ceiling_cents set"
+        if estimated_cents is None:
+            return False, "proposal has no estimated value — cannot compare against ceiling"
+        if abs(estimated_cents) > ceiling:
+            return (
+                False,
+                f"estimated ${abs(estimated_cents)/100:.2f} exceeds autonomy ceiling ${ceiling/100:.2f}",
+            )
         return (
-            False,
-            f"estimated ${abs(estimated_cents)/100:.2f} exceeds autonomy ceiling ${ceiling/100:.2f}",
+            True,
+            f"verdict=approve, autonomy.delegation=bounded ceiling=${ceiling/100:.2f} — within ceiling",
         )
 
-    return (
-        True,
-        f"verdict=approve, autonomy.delegation=bounded ceiling=${ceiling/100:.2f} — within ceiling",
-    )
+    # --- substrate-action branch (ADR-293) ---
+    # action_class == "substrate"
+    if delegation == "manual":
+        return False, "autonomy.delegation=manual — operator click required for substrate writes"
+    if delegation == "bounded":
+        return False, "autonomy.delegation=bounded — substrate writes queue with operator diff-preview"
+    if delegation == "autonomous":
+        return True, "autonomy.delegation=autonomous — substrate write applies immediately"
+    # unreachable given _VALID_DELEGATION_LEVELS check above
+    return False, f"unreachable: delegation={delegation!r}"
 
 
 # =============================================================================
