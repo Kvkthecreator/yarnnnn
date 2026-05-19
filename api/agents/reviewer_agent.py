@@ -1019,8 +1019,12 @@ async def invoke_reviewer(
     Tool surface = curated REVIEWER_PRIMITIVES + ReturnVerdict. Tool-use loop
     bounded at 12 rounds for addressed, 3 for reactive (ADR-260 D8).
 
-    Safety story: attribution (ADR-209 authored substrate) + revision chain
-    + AUTONOMY gating + operator-authored _locks.yaml. Not access control.
+    Safety story (ADR-293): attribution (ADR-209 authored substrate) +
+    revision chain + uniform AUTONOMY-mode gating (capital + substrate via
+    should_auto_apply) + 3-file governance lock (AUTONOMY.md / _autonomy.yaml
+    / _token_budget.yaml — paths the Reviewer cannot author because editing
+    them would grant the Reviewer unauthorized authority). Not access control;
+    not blanket lock. Everything else operational + revertable.
 
     Two triggers (ADR-260 D2 amended by ADR-263 D2):
     - `addressed` — operator addressed the Reviewer (chat turn).

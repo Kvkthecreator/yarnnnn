@@ -6,6 +6,53 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.19.2] - fix(adr-293 work-1): cockpit_awareness.py prompt envelope alignment + D10 Phase-4 FE-reuse amendment
+
+### Context
+
+ADR-293 Phase 1+2 (commit 856be6a) landed the structural pivot — governance/operational taxonomy, lock collapse, uniform AUTONOMY gate, token budget governance. The `_PERSONA_FRAME` (Phase 2.a) was updated correctly with the new "Your write authority" framing. But the post-Phase-1 audit surfaced **three stale ADR-293-contradicting surfaces** in `cockpit_awareness.py` — which is also read by the Reviewer at every wake alongside `_PERSONA_FRAME`. The contradictions actively mislead the Reviewer about what it can write.
+
+### Three surgical fixes
+
+**`agents/cockpit_awareness.py` substrate-list block (line ~85)**: `/workspace/_shared/_locks.yaml — operator-authored access policy (optional)` line DELETED. Replaced with an explicit `**Governance files (locked from your runtime per ADR-293 D2):**` block naming AUTONOMY.md + _autonomy.yaml + _token_budget.yaml with structural reasoning ("editing would let you grant yourself authority the operator did not delegate" / "editing would let you escalate your own resource ceiling").
+
+**`agents/cockpit_awareness.py` build_tools_block (lines ~116-121)**: "Not in your tool surface (operator-authorship territory)" reframed to honest tool-curation framing per ADR-258 revised. The set (ManageDomains, ManageAgent, InferContext, InferWorkspace, RuntimeDispatch, RepurposeOutput, EditEntity, ExecuteProposal, RejectProposal) is genuinely curated out of REVIEWER_PRIMITIVES — but for tool-curation reasons (orchestration / scaffolding / inference shape), not authority-escalation. ExecuteProposal/RejectProposal are dispatched by review_proposal_dispatch on the Reviewer's behalf after verdict; the Reviewer doesn't call them directly. Operator runs YARNNN-chat which has these tools.
+
+**`agents/cockpit_awareness.py::_OPERATING_POSTURE` (lines ~140-152)**: the load-bearing contradiction. Pre-fix said *"Operator-authored substrate (MANDATE, AUTONOMY, IDENTITY, BRAND, CONVENTIONS, PRECEDENT) — you may read freely, and you may write IF the operator hasn't locked it via /workspace/_shared/_locks.yaml."* — directly contradicts ADR-293's three-governance-files + uniform-AUTONOMY-gate model. Rewritten to declare the ADR-293 taxonomy explicitly: 3 governance files always locked; everything else operational + AUTONOMY-mode-gated. Adds fiduciary framing: "write because accumulated outcomes / near-miss telemetry / calibration data warrant the refinement, not because you're idly editing."
+
+**`agents/reviewer_agent.py::invoke_reviewer` docstring (line ~1023)**: safety-story bullet `"AUTONOMY gating + operator-authored _locks.yaml"` rewritten to cite the post-ADR-293 model: "uniform AUTONOMY-mode gating (capital + substrate via should_auto_apply) + 3-file governance lock (AUTONOMY.md / _autonomy.yaml / _token_budget.yaml — paths the Reviewer cannot author because editing them would grant the Reviewer unauthorized authority). Not access control; not blanket lock. Everything else operational + revertable."
+
+### ADR-293 D10 amendment (Phase 4 FE-reuse discipline)
+
+Post-Phase-1 audit surfaced that YARNNN already ships a complete Queue archetype (per ADR-198 §3) for `action_proposals` rows. Phase 4 Substrate-Queue MUST reuse this infrastructure rather than parallel a new top-level surface. D10 amended with:
+
+- Reusable pieces enumerated: ProposalCard (chip + modal), InteractiveModal (`proposal` variant), NeedsMePane (Queue archetype list), TraderOrders (bundle-specific Queue)
+- Phase 4 implementation discipline (4 rules): substrate-revision is a ROW TYPE alongside proposals (not parallel surface); InteractiveModal gains ONE new variant `substrate_revision`; data source is `workspace_file_versions WHERE authored_by LIKE 'reviewer:%' AND queued_for_operator = True` (no new tables); no new top-level cockpit page
+- Rejected alternative: dedicated `/substrate-queue` page (creates parallel mental model + parallel surface; violates ADR-198 archetype reuse; doubles operator-cognitive-load)
+- Phase 4 scope: ~1-2 days of FE work (one new card component + one InteractiveModal variant + one row-shape-dispatch in NeedsMePane) rather than 1-2 weeks of new-surface design + implementation
+
+### Test gate
+
+`api/test_adr293_governance_taxonomy.py` extended with 2 new assertions:
+- Work 1: cockpit_awareness.py aligned with ADR-293 (governance-files block present; no operator-authorship-territory framing; no `_locks.yaml`-conditional write gate; explicit ADR-293 taxonomy citation in _OPERATING_POSTURE)
+- Work 1: invoke_reviewer docstring aligned (no `_locks.yaml` safety-story reference; 3-file governance lock cited)
+
+**20/20 PASS** (was 18/18). Sibling gates audited green: ADR-274 16/16, ADR-281 34/34, ADR-284 18/18, ADR-286 8/8, ADR-288 19/19, ADR-290 10/10. **125/125 across closely-coupled gate set.**
+
+### Expected behavior
+
+The Reviewer's wake envelope (system prompt = `_PERSONA_FRAME` + `build_cockpit_section()`) is now ADR-293-coherent end-to-end. Pre-fix, the persona frame said "you can write to any operational path" while the cockpit-awareness block said "you may write IF the operator hasn't locked it via _locks.yaml" — the Reviewer would get conflicting signals at wake-time. Post-fix, both surfaces declare the same 3-governance-files + AUTONOMY-mode-gate framing.
+
+This is hygiene completion of ADR-293 Phase 2's prompt-alignment work; no behavioral change beyond eliminating the prompt-level conflict. The substrate-write authority was already enabled in Phase 1+2; Work 1 ensures the Reviewer's understanding of that authority is consistent across the two prompt-surface read sites.
+
+### Files
+- `api/agents/cockpit_awareness.py` (3 surgical edits per Work 1)
+- `api/agents/reviewer_agent.py::invoke_reviewer` (docstring safety-story update)
+- `docs/adr/ADR-293-governance-operational-substrate-taxonomy.md` (D10 Phase-4 FE-reuse amendment)
+- `api/test_adr293_governance_taxonomy.py` (+2 assertions)
+
+---
+
 ## [2026.05.19.1] - feat(adr-293): governance/operational substrate taxonomy + uniform AUTONOMY-mode gating
 
 ### Decision

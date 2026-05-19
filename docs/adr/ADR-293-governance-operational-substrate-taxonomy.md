@@ -325,6 +325,28 @@ New cockpit affordance parallel to today's proposal Queue. Shows Reviewer-author
 
 **Phasing decision (per D13 below)**: D10 is **deferred to Phase 4** in full — both FE Queue UX AND the backend queueing path. Phase 1 ships *only* the autonomous-mode write authority (D4 substrate branch — `autonomous: apply immediately`). Under `bounded`/`manual`, Reviewer writes to operational paths **block with a clear error**, prompting the Reviewer to surface a Clarify to the operator. This is the cleanest discipline: no half-built queueing mechanism; the autonomous path is the operational mode we test first; Phase 4 brings the full bounded/manual queueing experience alongside the cockpit Queue surface.
 
+**FE-reuse discipline for Phase 4 (added 2026-05-19 post-Phase-1 audit)**:
+
+Phase 4 MUST reuse existing Queue-archetype infrastructure rather than parallel a new top-level cockpit surface. The audit surfaced that YARNNN already ships a complete Queue archetype (per ADR-198 §3) for `action_proposals` rows, with these proven pieces:
+
+- `web/components/tp/ProposalCard.tsx` — chip + modal pattern; called from three sites (chat-stream chip, TrackingFace ProposalRow, NeedsMePane ProposalRow)
+- `web/components/tp/InteractiveModal.tsx` — variant-based modal; existing `proposal` variant wraps approve/reject
+- `web/components/work/briefing/NeedsMePane.tsx` — Queue archetype list view; already routes through ProposalCard
+- `web/components/library/programs/alpha-trader/TraderOrders.tsx` — bundle-specific Queue-shaped surface
+
+Phase 4 implementation discipline:
+
+1. **Substrate-revision is a ROW TYPE** alongside proposals, NOT a parallel surface. NeedsMePane (and TrackingFace cockpit Queue) list mixed rows: proposal rows continue rendering via ProposalCard; queued-substrate-revision rows render via a parallel `SubstrateRevisionCard` (or a generalized `QueueRowCard` that dispatches on row shape).
+2. **InteractiveModal gains ONE new variant `substrate_revision`** (or absorbs into existing `proposal` variant if shape collapses cleanly) — adds diff preview + cost preview affordances. Same approve/reject buttons; same operator-comment-on-reject mechanism.
+3. **Data source**: queued substrate rows read from `workspace_file_versions` filtered to `authored_by LIKE 'reviewer:%' AND queued_for_operator = True`. No new tables. Approve flips `queued_for_operator = False` AND updates `workspace_files.head_version_id` to point at the queued revision (apply-to-head). Reject sets the revision's `rejected_by_operator = True` (optionally with `rejection_comment` text) and leaves the head pointer unchanged; the Reviewer reads rejection on next wake via `ListRevisions`.
+4. **No new top-level cockpit page**. The Queue archetype is the existing pattern; substrate-Queue extends it.
+
+**Rejected alternative for Phase 4**: dedicated `/substrate-queue` page or new tab. Rejected because it creates parallel mental model + parallel surface to maintain, violates ADR-198 archetype reuse, and doubles the operator-cognitive-load (proposal Queue + substrate Queue as separate ceremonies vs unified "things awaiting my click").
+
+This discipline ensures Phase 4 lands as ~1-2 days of FE work (one new card component + one InteractiveModal variant + one row-shape-dispatch in NeedsMePane) rather than ~1-2 weeks of new-surface design + implementation.
+
+**Phase 4 acceptance criterion** (post-amendment): operator under `bounded` AUTONOMY can review + click Reviewer-authored substrate edits in the SAME Queue surface they review trade proposals; rejected edits revert cleanly via revision chain; approved edits apply to head; cost preview legible for cadence edits.
+
 ### D11 — Migration / data discipline
 
 **No legacy data wipe.** Forward-compatibility:

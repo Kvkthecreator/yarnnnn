@@ -374,6 +374,78 @@ def test_handle_write_file_governance_error_distinct():
 # Bundle alpha-trader carries the token_budget governance file
 # -----------------------------------------------------------------------------
 
+def test_cockpit_awareness_prompt_envelope_aligned_with_adr293():
+    """ADR-293 Work 1 follow-up: cockpit_awareness.py is read by the
+    Reviewer at every wake. Pre-Work-1 it carried stale lock-policy
+    references that contradicted ADR-293 D6 (deleted `_locks.yaml`) and
+    D9 framing. Three surgical edits aligned it:
+
+    1. `_locks.yaml` line in substrate list DELETED; replaced with explicit
+       governance-files block citing ADR-293 D2.
+    2. "Not in your tool surface (operator-authorship territory)" reframed
+       to honest tool-curation framing (NOT authority-escalation).
+    3. `_OPERATING_POSTURE` paragraph rewritten — no longer says writes
+       gated by `_locks.yaml`; explicitly names the 3 governance files +
+       AUTONOMY-mode-gate framing per D8.
+    """
+    src = _read(_file("agents", "cockpit_awareness.py"))
+
+    # Edit 1: governance-files block present in substrate list
+    assert "Governance files (locked from your runtime per ADR-293 D2)" in src, (
+        "cockpit_awareness.py substrate list must explicitly call out the "
+        "3 governance files per ADR-293 D2."
+    )
+    # Edit 1: the legacy "_locks.yaml — operator-authored access policy" line is gone
+    assert "operator-authored access policy" not in src, (
+        "cockpit_awareness.py must not name `_locks.yaml` as operator-authored "
+        "access policy — that lock surface was deleted in ADR-293 D6."
+    )
+
+    # Edit 2: "operator-authorship territory" framing replaced
+    assert "operator-authorship territory" not in src, (
+        "cockpit_awareness.py must not frame curated-tool-surface as "
+        "'operator-authorship territory' — that conflates tool-curation "
+        "with authority-escalation. ADR-293 D8 reframes."
+    )
+    assert "curated tool surface" in src.lower() or "curated for the" in src.lower(), (
+        "cockpit_awareness.py must explain the not-in-surface set as "
+        "tool-curation, not authority-territory."
+    )
+
+    # Edit 3: _OPERATING_POSTURE no longer says "you may write IF the
+    # operator hasn't locked it via /workspace/_shared/_locks.yaml"
+    assert "if the operator hasn't" not in src.lower(), (
+        "_OPERATING_POSTURE must not gate write authority on operator "
+        "having-or-not-locked the file via _locks.yaml. ADR-293: governance "
+        "set is fixed at 3 files; everything else is operational + "
+        "AUTONOMY-mode-gated."
+    )
+    # Edit 3: new framing present
+    assert "Governance / Operational taxonomy" in src, (
+        "_OPERATING_POSTURE must explicitly cite the ADR-293 governance / "
+        "operational taxonomy in its 'Write authority' subsection."
+    )
+
+
+def test_reviewer_agent_invoke_docstring_aligned():
+    """ADR-293 Work 1 follow-up: invoke_reviewer's docstring previously cited
+    `operator-authored _locks.yaml` as part of the safety story. Post-Work-1
+    rewritten to cite 3-file governance lock + uniform AUTONOMY gate."""
+    src = _read(_file("agents", "reviewer_agent.py"))
+    # Find the invoke_reviewer docstring region
+    idx = src.find("async def invoke_reviewer")
+    assert idx > -1
+    docstring_region = src[idx:idx + 3000]
+    assert "operator-authored _locks.yaml" not in docstring_region, (
+        "invoke_reviewer docstring must not cite `_locks.yaml` as a live "
+        "safety-story component (deleted per ADR-293 D6)."
+    )
+    assert "3-file governance lock" in docstring_region or "3 governance" in docstring_region.lower(), (
+        "invoke_reviewer docstring must reference the 3-file governance "
+        "lock per ADR-293 D2 in its safety story."
+    )
+
+
 def test_alpha_trader_bundle_ships_token_budget():
     """Bundle reference-workspace MUST include _token_budget.yaml so
     program-activated workspaces inherit it via Phase 5 fork."""
@@ -413,6 +485,9 @@ def main() -> int:
         ("D14: handle_write_file has AUTONOMY gate", test_handle_write_file_has_autonomy_gate),
         ("D14: governance_locked distinct from substrate gate", test_handle_write_file_governance_error_distinct),
         ("Bundle alpha-trader ships token_budget", test_alpha_trader_bundle_ships_token_budget),
+        # Work 1 follow-up — prompt envelope alignment
+        ("Work 1: cockpit_awareness.py aligned with ADR-293", test_cockpit_awareness_prompt_envelope_aligned_with_adr293),
+        ("Work 1: invoke_reviewer docstring aligned", test_reviewer_agent_invoke_docstring_aligned),
     ]
 
     passed = 0
