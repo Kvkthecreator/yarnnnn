@@ -312,7 +312,7 @@ or via the revision history surface (under autonomous). Trust compounds
 through consistent good judgment captured in the revision chain.
 ```
 
-### D10 — Substrate-Queue UI surface (FE work, may stage)
+### D10 — Substrate-Queue UI surface (deferred to Phase 4)
 
 New cockpit affordance parallel to today's proposal Queue. Shows Reviewer-authored substrate edits awaiting operator click under `bounded`. Each queue entry:
 
@@ -321,7 +321,9 @@ New cockpit affordance parallel to today's proposal Queue. Shows Reviewer-author
 - For cadence edits (`_recurrences.yaml` writes): cost preview pulled from `_token_budget.yaml` per-recurrence estimates and the new recurrence's `mode + cadence` (judgment-mode recurrences priced at ~$0.22/wake estimate)
 - Approve / Reject buttons; Reject + Comment for operator-explained rejection (Reviewer reads on next wake)
 
-FE work; can stage after D1-D9 backend lands. Backend prerequisite (data shape): no new tables — the Queue reads `workspace_file_versions` rows with `authored_by` starting `reviewer:` AND head pointer is the queued revision (not yet applied to `workspace_files.content`). New column `workspace_file_versions.queued_for_operator: bool` (default False; True when AUTONOMY=bounded and Reviewer wrote — held back from head-pointer update until operator clicks).
+**Implementation scope**: FE + backend queueing path. Backend prerequisite (data shape): no new tables — the Queue reads `workspace_file_versions` rows with `authored_by` starting `reviewer:` AND head pointer is the queued revision (not yet applied to `workspace_files.content`). New column `workspace_file_versions.queued_for_operator: bool` (default False; True when AUTONOMY=bounded and Reviewer wrote — held back from head-pointer update until operator clicks).
+
+**Phasing decision (per D13 below)**: D10 is **deferred to Phase 4** in full — both FE Queue UX AND the backend queueing path. Phase 1 ships *only* the autonomous-mode write authority (D4 substrate branch — `autonomous: apply immediately`). Under `bounded`/`manual`, Reviewer writes to operational paths **block with a clear error**, prompting the Reviewer to surface a Clarify to the operator. This is the cleanest discipline: no half-built queueing mechanism; the autonomous path is the operational mode we test first; Phase 4 brings the full bounded/manual queueing experience alongside the cockpit Queue surface.
 
 ### D11 — Migration / data discipline
 
@@ -333,6 +335,43 @@ FE work; can stage after D1-D9 backend lands. Backend prerequisite (data shape):
 - **Existing workspaces under `autonomous` mode**: their Reviewer immediately gains substrate-write authority on next wake. Operators who were relying on `_locks.yaml` for path-level protection should add `path:` entries to `_autonomy.yaml::never_auto` BEFORE deploying. This is the one user-action required for backward-compat safety.
 
 **Pre-deploy operator-facing communication** (for kvk's workspace and any active alpha personas): brief note on the substrate-write authority extension. Operators currently under `bounded` can stay in `bounded` and review the Queue; operators under `autonomous` should review their `_autonomy.yaml::never_auto` and add any paths they want operator-only-click on.
+
+### D13 — Phasing rationale (recorded for downstream development sequence)
+
+The four-phase cascade (Phase 1 backend + Phase 2 prompts + Phase 3 validation + Phase 4 Substrate-Queue UX) was chosen deliberately. Two options were considered and rejected:
+
+**Rejected: Option β — backend-skeleton-only in Phase 1.** Add `queued_for_operator` column + migration + handle_write_file branch routing bounded/manual writes to queue state, but DEFER the API routes + cockpit Queue UI to Phase 4.
+
+Rejection reasoning: building a queue with no surface to drain it means writes pile up invisibly. Operators under `bounded` would silently accumulate Reviewer-authored revisions they never see. This violates the principle that every architectural commitment should have a visible operator affordance at the time it lands. Half-built mechanisms create the kind of operational drift that ADR-288 / ADR-290 / ADR-286 spent effort eliminating elsewhere.
+
+**Rejected: Option α — full implementation in Phase 1.** Add column + migration + handle_write_file branch + API routes + FE Queue UI all in Phase 1.
+
+Rejection reasoning: FE work has its own iteration cycle, cost-preview UX needs design, and bundling FE work into the load-bearing structural pivot dilutes review focus. ADR-293 Phase 1's primary commitment is the *governance taxonomy + lock collapse + uniform AUTONOMY gate*. FE work should stage after that structural shape is empirically validated (Phase 3) against kvk's workspace.
+
+**Accepted: Option γ — autonomous-only write authority in Phase 1.** Under `autonomous`, Reviewer writes to operational paths apply immediately. Under `bounded`/`manual`, Reviewer writes to operational paths return a structured error (`error: substrate_write_requires_autonomous_or_explicit_approval`) prompting the Reviewer to surface a Clarify.
+
+Acceptance reasoning:
+- **Clean discipline**: no half-built mechanism; every commitment has a complete behavioral path
+- **Empirical validation first**: the autonomous path is the operational mode kvk's workspace runs in; Phase 1 ships exactly what gets tested in Phase 3
+- **No data migration**: zero schema changes in Phase 1; `queued_for_operator` column lands when Phase 4 ships the Queue UX
+- **Failure mode is honest**: under `bounded`/`manual`, the Reviewer learns it cannot autonomously edit operator-canon and surfaces a Clarify — this is the same fall-through as today, just with a clearer error message
+- **Operator-trust progression**: operators who want substrate-write authority delegated set `autonomous`; operators who want diff-preview-then-click wait for Phase 4 cockpit Queue surface
+- **Phase 4 is a discrete, well-scoped deliverable** with a clear acceptance criterion (cockpit Queue UI + queueing backend + cost-preview for cadence edits)
+
+The Phase 1 / Phase 4 split treats the autonomous-mode behavior (immediate-apply with revision-chain audit) and the bounded-mode behavior (diff-preview + operator-click) as separable behavioral surfaces that can land independently. This is structurally cleaner than coupling them in one commit.
+
+### D14 — Phase 1.d concrete implementation
+
+Per D13 phasing decision:
+
+- `handle_write_file` in `services/primitives/workspace.py`: when caller is Reviewer (`auth.reviewer_caller=True`) AND path is operational (not in `DEFAULT_REVIEWER_WRITE_LOCKS`), call `should_auto_apply(action_class='substrate', substrate_path=path, autonomy_policy=loaded)`:
+  - Returns `(True, _)` → proceed with the write (autonomous-mode path)
+  - Returns `(False, reason)` → return `{"success": False, "error": "substrate_write_requires_autonomous", "message": <reason>, "path": <path>, "next_action": "Surface a Clarify to the operator OR escalate to autonomous mode."}` without writing
+- No `queued_for_operator` column, no migration, no API routes
+- Reviewer's standing_intent.md / notes.md captures the attempt + reason for the operator to see at their next presence
+- When Phase 4 ships, the `False` branch becomes the queueing path; the `True` branch is unchanged
+
+This is the cleanest Phase 1.d shape: one branch in `handle_write_file`, deterministic, no schema impact, no half-built surface.
 
 ### D12 — Out of scope (deferred)
 
@@ -346,18 +385,16 @@ FE work; can stage after D1-D9 backend lands. Backend prerequisite (data shape):
 
 Four atomic commits:
 
-### Phase 1 — Canon + kernel substrate
+### Phase 1 — Canon + kernel substrate + autonomous-mode write authority
 - FOUNDATIONS Derived Principle 20 (Governance vs Operational taxonomy)
 - GLOSSARY new entries: Governance file, Operational file
 - `api/services/workspace_paths.py` — `DEFAULT_REVIEWER_WRITE_LOCKS` reduced to 3 governance files; add `SHARED_TOKEN_BUDGET_PATH` constant
-- `api/services/primitives/workspace.py::_is_path_locked_for_reviewer` — 4-layer composition collapses to 1-layer governance-set check; `_locks.yaml` reading code DELETED
-- `api/services/review_policy.py::should_auto_execute_verdict` generalizes to `should_auto_apply` covering both action classes; `never_auto` extended to support `path:` prefixes
-- `api/services/primitives/workspace.py::handle_write_file` — when path is operational AND Reviewer-caller AND mode is `manual` or `bounded`: route through new queue path (sets `workspace_file_versions.queued_for_operator=True` instead of head-pointer update)
-- Migration `supabase/migrations/NNN_add_queued_for_operator_column.sql` — adds bool column with default False to `workspace_file_versions`
-- Migration `supabase/migrations/NNN_seed_token_budget_on_activation.sql` — adds `_token_budget.yaml` seeding to `workspace_init` Phase 2 SQL (or in Python; whichever path applies)
-- `api/services/workspace_init.py` Phase 2 — seeds `_token_budget.yaml` with kernel-constant defaults
-- `api/jobs/unified_scheduler.py` — reads `_token_budget.yaml` before firing; enforces daily_spend / max_recurrences / min_interval
-- Regression gate `api/test_adr293_governance_taxonomy.py` — 12+ assertions covering: governance lock set reduced; operational paths Reviewer-writable; queue routing under bounded; never_auto path: prefix; token budget enforced at scheduler
+- `api/services/primitives/workspace.py::_is_path_locked_for_reviewer` — 4-layer composition collapses to 1-layer governance-set check; legacy `workspace_guide.get_path_zone_locks` + `bundle_reader.get_path_zone_locks_for_workspace` + `_locks.yaml` reading code DELETED
+- `api/services/review_policy.py::should_auto_execute_verdict` → renamed to `should_auto_apply` covering both action classes; `never_auto` extended to support `path:` prefixes per D5
+- `api/services/primitives/workspace.py::handle_write_file` — Reviewer-caller branch (D14): autonomous-mode writes apply immediately; bounded/manual-mode writes return structured error prompting Clarify. No queueing column, no migration in Phase 1.
+- `api/services/workspace_init.py` Phase 2 — seeds `_token_budget.yaml` with kernel-constant defaults at workspace activation
+- `api/jobs/unified_scheduler.py` — reads `_token_budget.yaml` before firing; enforces daily_spend_ceiling_usd / max_judgment_recurrences_per_day / min_interval_between_recurrence_fires_seconds
+- Regression gate `api/test_adr293_governance_taxonomy.py` — assertions covering: governance lock set reduced; operational paths Reviewer-writable; should_auto_apply branches; never_auto path: prefix; bounded/manual block-with-error for Reviewer substrate writes; token budget enforced at scheduler
 
 ### Phase 2 — Persona frame + principles.md + bundle MANIFEST
 - `api/agents/reviewer_agent.py::_PERSONA_FRAME` — D8 update
@@ -368,12 +405,18 @@ Four atomic commits:
 ### Phase 3 — Validation
 - Sibling gates audited green: ADR-274 / ADR-281 / ADR-284 / ADR-286 / ADR-287 / ADR-288 / ADR-290
 - Alpha verify all personas — 30/30 expected on kvk; pre-existing failures on alpha-trader / alpha-trader-2 unchanged
-- Post-purge + re-activate kvk; trigger manual signal-evaluation; observe Reviewer behavior — should attempt operator-canon edits when calibration data warrants (this validates the structural change)
+- Post-purge + re-activate kvk; trigger manual signal-evaluation; observe Reviewer behavior under `autonomous` AUTONOMY — should attempt operator-canon edits when calibration data warrants (this validates the structural change). The kvk workspace is `autonomous` per `_autonomy.yaml::delegation`, so the new D14 write-authority branch is the operational path being tested.
 
-### Phase 4 (deferred) — Substrate-Queue FE
-- New cockpit surface alongside proposal Queue
-- Backend already in place (queued_for_operator column + queue-read API endpoint added in Phase 1)
-- TS components + API client + routing
+### Phase 4 (deferred) — Bounded-mode Substrate-Queue (FE + backend queueing)
+Per D13 phasing rationale: Phase 4 ships the full bounded/manual queueing experience as one coherent deliverable. Scope:
+
+- Migration `supabase/migrations/NNN_add_queued_for_operator_column.sql` — adds `queued_for_operator: bool` (default False) to `workspace_file_versions`
+- `handle_write_file` Reviewer-caller bounded/manual branch — D14's structured error replaced by queue-routing logic (set `queued_for_operator=True`, hold back head-pointer update)
+- New API routes — list queued revisions, approve (apply revision to head), reject (mark rejected, optionally with operator comment that Reviewer reads next wake)
+- New FE cockpit surface — Substrate Queue alongside proposal Queue, diff preview, cost preview for cadence edits, approve/reject affordances
+- Phase 4 acceptance criterion: operator under `bounded` AUTONOMY can review + click Reviewer-authored substrate edits; rejected edits revert cleanly via revision chain; approved edits apply to head
+
+Phase 4 is a discrete deliverable; it lands when the cockpit Queue UX work has design + iteration cycles available. Until then, operators choose between `autonomous` (full write authority, revision-chain audit) or `manual`/`bounded` with Reviewer falling through to Clarify when it wants substrate edits.
 
 ## Test plan
 
