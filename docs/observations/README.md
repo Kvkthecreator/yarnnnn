@@ -39,17 +39,30 @@ Ad-hoc observation notes (the pre-ADR-294 pattern) drift. ADR-294 commits observ
 - **Interpretable**: `findings.md` is human-written. The point of observation is interpretation, not just data capture.
 - **Linkable**: ADRs reference specific observations as evidence; observations reference ADRs they validate or stress.
 
+## Session-start orientation (persistent threads)
+
+For ongoing autonomy demonstrations (operator-absent, multi-window), persistent session-start guides live at `docs/observations/sessions/`:
+
+- [`sessions/alpha-author-autonomy-loop.md`](./sessions/alpha-author-autonomy-loop.md) — substrate-continuity archetype, faster feedback (yarnnn-author, netflix-script-author, korea-thriller-shorts personas)
+- [`sessions/alpha-trader-autonomy-loop.md`](./sessions/alpha-trader-autonomy-loop.md) — capital-execution archetype, longer feedback horizon (kvk, alpha-trader, alpha-trader-2 personas)
+
+A new Claude session for either lane opens by reading the relevant session-start file first. Each file maintains its own active-persona table + current-state block + cold-start checklist + capture cadence protocol. They are the cross-session continuity layer for observations that span multi-day windows.
+
 ## Folder layout
 
 ```
 docs/observations/
   README.md                            # this file — discipline + index
-  scenarios/                           # versioned scenario YAML files
+  sessions/                            # persistent session-start guides (one per autonomy-loop thread)
+    alpha-author-autonomy-loop.md
+    alpha-trader-autonomy-loop.md
+  scenarios/                           # versioned scenario YAML files (operator-proxy-driven probes)
     warm-start-auto-execute.yaml
     cold-start-governance-self-amend.yaml
+    post-refusal-self-amendment-probe.yaml
     ...
 
-  YYYY-MM-DDTHHMMSS-{slug}/            # one folder per observation run
+  YYYY-MM-DDTHHMMSS-{slug}/            # one folder per observation run (time-bounded capture)
     README.md                          # 1-line summary + metadata
     PLAYBOOK.md                        # scenario or REPL session metadata
     transcript.md                      # operator–Reviewer dialog (session_messages slice)
