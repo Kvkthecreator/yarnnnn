@@ -6,6 +6,88 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.20.3] - feat(adr-295 phase A): Reviewer self-amendment discipline — evidence thresholds, revision-message format, anti-pattern ledger, design-time-deference
+
+### Decision
+
+ADR-295 (Reviewer Self-Amendment Discipline) sharpens ADR-293's
+Self-Improvement Posture seed with concrete evidence thresholds,
+revision-chain message-format discipline, a six-item anti-pattern
+ledger, and the design-time-operator-vs-run-time-Reviewer framing.
+
+The discipline is universal across programs; the persona frame
+(`api/agents/reviewer_agent.py::_PERSONA_FRAME`) holds the universal
+shape. Per-program numeric thresholds (40 reconciled outcomes for
+alpha-trader; 20 published pieces for alpha-author) live in bundle
+`principles.md` operator-canon.
+
+### Changed
+
+**`api/agents/reviewer_agent.py::_PERSONA_FRAME`** — new section after
+the existing "Your write authority" + fiduciary-principle blocks:
+**Self-amendment discipline** (~80 lines). Names:
+- D1 four evidence patterns (calibration-drift, near-miss-accumulation,
+  substrate-gap, cadence) with per-program threshold references
+- D2 revision-chain message format (change-summary | evidence | reasoning |
+  source-substrate)
+- D3 six anti-patterns:
+  (1) don't disable safety floors
+  (2) don't amend on single-wake friction
+  (3) don't loosen risk under drawdown
+  (4) don't widen ceilings for stale-data proposals
+  (5) don't touch governance files
+  (6) don't edit MANDATE without Clarify+confirm
+- D4 design-time-operator vs run-time-Reviewer framing — operator-canon
+  was authored deliberately at a moment the Reviewer doesn't have in any
+  single wake; epistemic deference required; enrich what's there, don't
+  bulldoze it
+
+**`docs/programs/alpha-trader/reference-workspace/review/principles.md`** —
+Self-Improvement Posture section (existing per ADR-293 D9) expanded
+with trading-specific numeric thresholds (40 reconciled trades, 10 distinct
+wakes / 5 days persistence), a concrete revision-message example
+(loosening Signal-1 RSI band), six anti-patterns with trading-flavor
+examples, and the fiduciary-principle counterweight framing.
+
+**`docs/programs/alpha-author/reference-workspace/review/principles.md`** —
+NEW Self-Improvement Posture section (alpha-author bundle predates
+ADR-293 D9; this commit closes the gap + applies ADR-295 sharpening in
+the same edit). Editorial-flavor numeric thresholds (20 published pieces
+with audience-response data, 8 distinct audits / 2 weeks persistence),
+voice-amendment revision-message example, six anti-patterns with
+editorial-flavor examples (don't lower the bar to ship, don't tighten
+during corpus slow-down, etc.).
+
+### Expected behavior
+
+On wakes where the Reviewer considers an operator-canon edit, the
+Reviewer should:
+1. Identify which D1 evidence pattern applies + verify threshold is met.
+2. If threshold not met: defer; write to standing_intent.md / notes.md;
+   accumulate the pattern across wakes.
+3. If threshold met: author the WriteFile + write the D2 revision-chain
+   message in the prescribed format.
+4. NEVER touch a file in the D3 anti-pattern ledger, even when AUTONOMY
+   would permit.
+5. Reference the design-time-operator deference framing (D4) when
+   evaluating whether to amend vs defer.
+
+### Validation
+
+Phase D of ADR-295 implementation: `post-refusal-self-amendment-probe.yaml`
+scenario under ADR-294 observation discipline. Probe is intended to
+surface whether the Reviewer follows D1-D4 discipline OR reflexively
+edits in response to operator-proxy nudge. Findings will live in
+docs/observations/ and feed back to ADR-295 amendments if drift surfaces.
+
+The validation discipline (developer-side checklist for evaluating
+self-amendment behavior) lives in docs/observations/README.md per
+FOUNDATIONS v8.6 system-vs-developer boundary. This CHANGELOG entry
+documents the SYSTEM CANON change (persona frame + bundle principles).
+Developer-side checklist is separate.
+
+---
+
 ## [2026.05.20.2] - fix(adr-294 phase 2 finding 1): trigger-aware standing_intent.md write order in Reviewer prompt
 
 ### Decision
