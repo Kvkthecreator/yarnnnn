@@ -125,6 +125,8 @@ def record_execution_event(
     model: Optional[str] = None,
     duration_ms: Optional[int] = None,
     envelope_load_ms: Optional[int] = None,
+    wake_source: Optional[str] = None,
+    funnel_decision: Optional[str] = None,
     agent_run_id: Optional[str] = None,
 ) -> Optional[str]:
     """Write one row to execution_events. Never raises. Returns the row id on
@@ -155,6 +157,18 @@ def record_execution_event(
         envelope_load_ms:   ms spent in load_reviewer_governance_envelope() for
                             Reviewer wakes (ADR-276); NULL for mechanical-mode
                             recurrences and non-Reviewer paths (migration 175)
+        wake_source:        ADR-296 v2 D1 wake-source taxonomy. One of
+                            cron_tick | addressed | proposal_arrival |
+                            substrate_event | manual_fire. NULL for rows
+                            predating migration 177 + Session B (telemetry
+                            accepts the kwarg as no-op; population wired in
+                            Session C/D when wake.submit_wake_proposal becomes
+                            the singular invocation gateway).
+        funnel_decision:    ADR-296 v2 D2 funnel decision taxonomy. One of
+                            skip | tier_2_wait | tier_2_observe | escalate |
+                            mechanical. NULL for rows predating migration 177
+                            + Session B. Population wired in Session C/D when
+                            wake_evaluation.evaluate() produces the decision.
         agent_run_id:       agent_runs.id if a row was created (NULL for early exits)
 
     Returns:
@@ -203,6 +217,10 @@ def record_execution_event(
             row["duration_ms"] = duration_ms
         if envelope_load_ms is not None:
             row["envelope_load_ms"] = envelope_load_ms
+        if wake_source is not None:
+            row["wake_source"] = wake_source
+        if funnel_decision is not None:
+            row["funnel_decision"] = funnel_decision
         if agent_run_id is not None:
             row["agent_run_id"] = agent_run_id
 
