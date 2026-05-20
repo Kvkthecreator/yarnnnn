@@ -303,10 +303,16 @@ async def _fetch_account_state(client: Any, user_id: str) -> dict:
     the Alpaca call fails. Risk gate degrades gracefully — size / ticker
     rules that don't need account state still apply.
     """
+    # Canonical credential-fetch pattern per platform_tools._handle_trading_tool
+    # (ADR-187 + ADR-294 Phase 2 v2 finding — risk_gate.py was missed when
+    # platform_connections.access_token was renamed to credentials_encrypted).
     try:
+        from integrations.core.alpaca_client import get_trading_client
+        from integrations.core.tokens import get_token_manager
+
         conn_result = (
             client.table("platform_connections")
-            .select("access_token, metadata")
+            .select("credentials_encrypted, metadata")
             .eq("user_id", user_id)
             .eq("platform", "trading")
             .eq("status", "active")
@@ -316,41 +322,20 @@ async def _fetch_account_state(client: Any, user_id: str) -> dict:
         rows = conn_result.data or []
         if not rows:
             return {}
-        conn = rows[0]
+        row = rows[0]
 
-        # Decrypt + call get_account
-        try:
-            from integrations.core.tokens import decrypt_token  # type: ignore
-        except Exception:
-            # Alternative path (some services import via different module)
-            from services.encryption import decrypt_token  # type: ignore
+        token_manager = get_token_manager()
+        credentials = token_manager.decrypt(row["credentials_encrypted"])
+        metadata = row.get("metadata") or {}
 
-        token_raw = conn.get("access_token") or ""
-        try:
-            token_data = decrypt_token(token_raw) if token_raw else {}
-        except Exception as e:
-            logger.warning(f"[RISK_GATE] token decrypt failed: {e}")
+        # Trading credentials are stored as "key:secret" per platform_tools.
+        if ":" not in credentials:
+            logger.warning("[RISK_GATE] trading credentials format invalid (no colon separator)")
             return {}
+        api_key, api_secret = credentials.split(":", 1)
 
-        if isinstance(token_data, str):
-            # Older tokens may be encrypted JSON strings; try parse
-            import json
-            try:
-                token_data = json.loads(token_data)
-            except Exception:
-                return {}
-        if not isinstance(token_data, dict):
-            return {}
+        paper = metadata.get("paper", True)
 
-        api_key = token_data.get("api_key") or token_data.get("key")
-        api_secret = token_data.get("api_secret") or token_data.get("secret")
-        if not (api_key and api_secret):
-            return {}
-
-        metadata = conn.get("metadata") or {}
-        paper = metadata.get("mode", "paper") == "paper"
-
-        from integrations.core.alpaca_client import get_trading_client
         alpaca = get_trading_client()
         account = await alpaca.get_account(api_key, api_secret, paper)
         if isinstance(account, dict) and account.get("error"):
