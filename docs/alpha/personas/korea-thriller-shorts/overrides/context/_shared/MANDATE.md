@@ -1,4 +1,6 @@
-# Mandate — korea-thriller-shorts
+# Mandate — alpha-author
+
+> **Persona**: korea-thriller-shorts (short-form AI-video-gen prompts in the Jaewon canon). The program-slug heading marker (`alpha-author`) is preserved per ADR-244 D2 + ADR-283 D2 so `parse_active_program_slug` resolves the program for `apply_substrate_update` (ADR-292) and `bundles_active_for_workspace`. Persona-specific Primary Action follows.
 
 > Workspace authored 2026-05-18 by operator on behalf via ADR-283 step 6 alpha-author dogfood. Premise + character canon shared with netflix-script-author (same Jaewon, same modern-Korea Thomas-Crown-Joker universe); format is short-form AI-video-gen prompts (Higgsfield et al.). Synthetic stress-test persona — no production interest, no audience deliverable yet. Operator-attributable per ADR-209.
 

@@ -1,4 +1,6 @@
-# Mandate — yarnnn-author
+# Mandate — alpha-author
+
+> **Persona**: yarnnn-author (founder content + IR-narrative authorship). The program-slug heading marker (`alpha-author`) is preserved per ADR-244 D2 + ADR-283 D2 so `parse_active_program_slug` resolves the program for `apply_substrate_update` (ADR-292) and `bundles_active_for_workspace`. Persona-specific Primary Action follows.
 
 > Workspace authored 2026-05-18 by operator on behalf via ADR-283 step 6 alpha-author dogfood. Voice + editorial distilled from canonical docs (FOUNDATIONS, THESIS, NARRATIVE, ESSENCE) + existing prose in `content/posts/`. Operator-attributable per ADR-209.
 

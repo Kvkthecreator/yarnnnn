@@ -1,4 +1,6 @@
-# Mandate — netflix-script-author
+# Mandate — alpha-author
+
+> **Persona**: netflix-script-author (long-arc Korean Thomas-Crown-Joker screenplay). The program-slug heading marker (`alpha-author`) is preserved per ADR-244 D2 + ADR-283 D2 so `parse_active_program_slug` resolves the program for `apply_substrate_update` (ADR-292) and `bundles_active_for_workspace`. Persona-specific Primary Action follows.
 
 > Workspace authored 2026-05-18 by operator on behalf via ADR-283 step 6 alpha-author dogfood. Premise + character architecture authored from operator prompt; voice / editorial / entity substrate authored by Claude on operator's behalf per ADR-209 attribution discipline (operator-attributable; framed honestly as alpha-bundle stress-test persona — not a real Netflix development project at this moment).
 
