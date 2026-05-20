@@ -1,5 +1,7 @@
 # ADR-274: Trigger-Authoring Implementation — Reviewer Cadence Self-Awareness
 
+> **⚠ Extended by [ADR-296 v2](ADR-296-continuous-judgment-cycle.md) D2 (2026-05-20).** ADR-274's Trigger-authoring framing (Schedule as Reviewer's mid-loop cadence authority + persona-frame cadence-authoring discipline + `_recurrences.yaml` attribution via `authored_by`) is preserved unchanged. ADR-296 v2 D2 adds **`ManageHook`** as the sibling shape — substrate-event hook lifecycle over `/workspace/_hooks.yaml`. Together Schedule + ManageHook + WriteFile (to `/workspace/review/standing_intent.md`) form the Reviewer's complete trigger-authoring + standing-intent authority surface (Derived Principle 18 + Derived Principle 20). FireInvocation is removed from the Reviewer's surface per ADR-296 v2 D3.
+
 **Status**: **Proposed 2026-05-14** — implementation ADR for FOUNDATIONS v8.5 Axiom 4 amendment + Derived Principle 18.
 
 **Authors**: KVK + Claude (discourse session 2026-05-14)

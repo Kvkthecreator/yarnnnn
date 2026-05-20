@@ -1,9 +1,9 @@
 # Invocation and Narrative
 
-> **Status**: Canonical
-> **Date**: 2026-04-25
+> **Status**: Canonical (v2 — ADR-296 wake-architecture alignment, 2026-05-20)
+> **Date**: 2026-04-25 (v1); 2026-05-20 (v2 — pulse aligned to wake sources)
 > **Authors**: KVK, Claude
-> **Ratified by**: FOUNDATIONS v6.8 (Axiom 9) + GLOSSARY v1.9
+> **Ratified by**: FOUNDATIONS v6.8 (Axiom 9) + GLOSSARY v1.9 + ADR-296 v2 (2026-05-20)
 > **Scope**: The atom of action in YARNNN and the narrative surface where that atom becomes legible to the operator.
 
 ---
@@ -75,28 +75,51 @@ All these invocations land in the universal narrative (§3 below), each as its o
 
 **Pulse**: the named wrapper around Axiom 4 Trigger when the trigger pertains to a specific actor. Pulse is not a separate dimension; it is Trigger viewed through the Identity lens.
 
-Every actor in YARNNN has at most four pulse sub-shapes. Most actors have one; some have more.
+Per **ADR-296 v2 (2026-05-20)**, the architecture's irreducible Trigger-axis unit is **wake**. Five wake sources contribute proposals to one evaluation funnel; the Reviewer fires only on `escalate`. Pulse is the actor-facing lens onto that wake.
 
-| Pulse sub-shape | Trigger (Axiom 4) | Canonical invocations |
+### Wake sources and their pulse mapping
+
+| Wake source (ADR-296 v2 D1) | Reviewer pulse (sub-shape) | Wake-warrant |
 |---|---|---|
-| **Periodic** | Scheduled cron | Task heartbeats (daily-update, recurring tasks, back-office tasks, reviewer calibration) |
-| **Reactive** | Event-driven | Proposal landed → Reviewer invocation; upload POST → working-memory refresh; platform webhook → sync |
-| **Addressed** | User action | Operator sends chat message → YARNNN turn; Approve click → ExecuteProposal; MCP call from foreign LLM |
-| **Heartbeat** | Liveness pings | System tasks that fire regardless of load to prove the system is alive (daily-update empty-state template is the archetype) |
+| **`cron_tick`** | Reactive | Recurrence's `schedule` declared a moment to consider |
+| **`proposal_arrival`** | Reactive | A `action_proposals` row landed; creation is itself a wake-warrant |
+| **`substrate_event`** | Reactive | A `workspace_file_versions` revision matched a `_hooks.yaml` declaration |
+| **`addressed`** | Addressed | Operator (or external MCP caller) wrote to the feed surface |
+| **`manual_fire`** | Addressed | Operator's explicit `FireInvocation` in chat |
 
-The fourth (Heartbeat) is a degenerate case of Periodic — worth naming because ADR-161 (daily-update as "the system is alive") depends on it. If the distinction feels academic, collapse Heartbeat into Periodic. What matters is the first three are structurally distinct; Heartbeat is a design-intent flavor of Periodic.
+The Reviewer's pulse sub-shapes (`reactive | addressed`) are the **internal viewpoint** — the user-message envelope shape the Reviewer assembles around the wake. The wake source is the kernel-internal primary vocabulary. Pulse is not a separate dimension; it is the wake source's actor-facing projection.
+
+### Wake routes through one singular gateway (ADR-296 v2 D1)
+
+Every Reviewer invocation routes through `services/wake.py::submit_wake_proposal(source, payload)` (or `stream_addressed_wake(...)` for SSE-streaming addressed). No other path invokes the Reviewer. Each wake source has a source-side module at `services/wake_sources/{name}.py` that builds the source-specific payload and routes through the gateway.
+
+### The funnel decides which wakes propagate (ADR-296 v2 D2)
+
+Each wake proposal passes through `services/wake_evaluation.py::evaluate()`. Five funnel decisions:
+
+| Funnel decision | Meaning | Reviewer fires? |
+|---|---|---|
+| `skip` | Tier 1 kernel gate failed (balance/spend/cap/min-interval) | No |
+| `tier_2_wait` | Tier 2 Haiku said wait | No |
+| `tier_2_observe` | Tier 2 Haiku said observe | No |
+| `escalate` | Tier 1 deterministic or Tier 2 Haiku said yes | Yes |
+| `mechanical` | `cron_tick` on `mode: mechanical` recurrence | No (deterministic primitive runs) |
+
+Operator-addressed, proposal-arrival, manual-fire, and substrate-event wakes auto-escalate at Tier 1. Cron-tick judgment recurrences pass kernel gates first; mechanical recurrences bypass.
+
+### Heartbeat is deleted as a pulse sub-shape
+
+The previous taxonomy named four pulse sub-shapes (Periodic / Reactive / Addressed / Heartbeat). Under ADR-260 D2 + ADR-256 supersession + ADR-296 v2, heartbeat is deleted — mid-loop continuation is the natural shape of a real-time tool-use loop, not a separate trigger. Periodic collapses into the `cron_tick` wake source. The two surviving pulse sub-shapes (reactive + addressed) are the Reviewer's internal viewpoint on the five wake sources.
 
 ### Pulse is on actors and on tasks
 
-An Agent has a pulse. Reviewer is reactive-pulsed (fires when a proposal lands). YARNNN is addressed-pulsed (fires when the operator sends a message). A user-authored domain Agent has whatever pulse its assigned tasks give it.
+An Agent has a pulse. Reviewer is wake-pulsed (fires on any of the five wake sources). YARNNN is addressed-pulsed (fires when the operator sends a feed message). A user-authored domain Agent has whatever pulse its assigned tasks give it.
 
-A task is a **scheduled pulse with a nameplate and a contract** (§4). When YARNNN creates a task with `schedule: daily`, it is attaching a periodic pulse to the work. When a task is `reactive`, the pulse is reactive. When a task has no schedule (run-now default per ADR-205), the initial firing is addressed and no persistent pulse is attached.
+A task is a **scheduled pulse with a nameplate and a contract** (§4). When YARNNN creates a task with `schedule: daily`, it is attaching a `cron_tick`-source pulse to the work. When a task is reactive (no schedule, listening for an event), the pulse is `proposal_arrival` or `substrate_event`. When a task has no schedule (run-now default per ADR-205), the initial firing is an `addressed`-source pulse and no persistent recurrence is authored.
 
-### No parallel dispatch systems (Axiom 4 Derived)
+### Singular invocation gateway (Axiom 4 Derived; hardened by ADR-296 v2 D1)
 
-There is one dispatcher per pulse sub-shape. Periodic → `api/jobs/unified_scheduler.py`. Reactive → event handlers in `api/routes/`. Addressed → user-facing routes + `api/mcp_server/`. If a new mechanic seems to need a new dispatcher, it is almost always an existing sub-shape in a new cell — route it to the existing dispatcher and move on.
-
-This is already FOUNDATIONS Axiom 4 policy. Naming the sub-shapes as *pulse* gives the operator-facing vocabulary a home without introducing new dispatch layers.
+There is exactly **one** Reviewer-invocation mechanism: `services/wake.py`. Pre-ADR-296 vocabulary spoke of "dispatchers per trigger sub-shape" — that framing is superseded. Every wake source's module routes through the singular gateway. If a new mechanic seems to need a new dispatcher, it is almost always an existing wake source in a new cell — route it through `wake_sources/{name}.py` and move on.
 
 ---
 
@@ -196,10 +219,11 @@ Mode is the lifecycle layer. Pulse is the invocation layer. An invocation of a g
 
 ### Supersedes / amends
 
-- **Amends FOUNDATIONS Axiom 4** (Trigger) — introduces *pulse* as the actor-scoped vocabulary wrapper; sub-shapes are unchanged.
+- **Amends FOUNDATIONS Axiom 4** (Trigger) — introduces *pulse* as the actor-scoped vocabulary wrapper; under ADR-296 v2 (2026-05-20) the irreducible unit is *wake*, with five wake sources mapping to two Reviewer pulse sub-shapes.
 - **Amends FOUNDATIONS Axiom 6** (Channel) — names the narrative as a first-class Channel, not just "chat UX."
 - **Amends ADR-138** (Agents as Work Units) — tasks are nameplate + pulse + contract rather than independent work units. Schema and implementation unchanged.
 - **Supersedes implicit drift in ADR-163 / ADR-198 surface framing** — `/work` and `/chat` are not parallel substrates.
+- **Aligns with ADR-296 v2** — pulse sub-shapes (reactive / addressed) map to wake-source taxonomy (cron_tick + proposal_arrival + substrate_event → reactive; addressed + manual_fire → addressed). Heartbeat as a pulse sub-shape is deleted.
 
 ### Preserves
 
@@ -231,3 +255,4 @@ Mode is the lifecycle layer. Pulse is the invocation layer. An invocation of a g
 | Date | Change |
 |------|--------|
 | 2026-04-25 | v1 — Initial canonicalization. Invocation as atom, pulse as actor-scoped Trigger wrapper, narrative as universal log, task as legibility wrapper. Ratified by FOUNDATIONS v6.8 (Axiom 9). |
+| 2026-05-20 | v2 — §2 Pulse amended for ADR-296 v2: five wake sources (cron_tick + addressed + proposal_arrival + substrate_event + manual_fire) map to two Reviewer pulse sub-shapes (reactive + addressed). The wake source is the kernel-internal primary vocabulary; pulse is its actor-facing projection. Singular invocation gateway at `services/wake.py`. Five funnel decisions (skip / tier_2_wait / tier_2_observe / escalate / mechanical) stamp every `execution_events` row. Heartbeat sub-shape deleted. |

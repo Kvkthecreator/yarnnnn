@@ -1,5 +1,7 @@
 # ADR-260: Real-Time Reviewer Loop — Cron is a Nudge, Continuation is Not a Trigger
 
+> **⚠ Three-trigger taxonomy reframed by [ADR-296 v2](ADR-296-continuous-judgment-cycle.md) (2026-05-20).** ADR-260 D2's three triggers (`addressed | reactive | scheduled`, collapsed to two by ADR-263 D2 — `reactive | addressed`) survive as the Reviewer's user-message-envelope sub-shape. The primary kernel-internal vocabulary is now the five-value **wake source** taxonomy (`cron_tick | addressed | proposal_arrival | substrate_event | manual_fire`); five wake sources contribute proposals to one evaluation funnel; the Reviewer fires only on `escalate`. The real-time synchronous tool-use loop shape (D1) is preserved. The three scheduler guarantees (D3) are preserved. Singular invocation gateway is `services/wake.py::submit_wake_proposal()` per ADR-296 v2 D1.
+
 **Status**: Implemented 2026-05-10 (Phase B atomic commit; D4 heartbeat deletion + D2 trigger collapse + D5 Schedule primitive landed in PR #9)
 **Companion ADRs (atomic together)**:
 - ADR-261 — Recurrences as Prompts: Single Execution Shape

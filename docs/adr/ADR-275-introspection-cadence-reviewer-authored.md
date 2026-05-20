@@ -1,5 +1,7 @@
 # ADR-275: Introspection Cadence is Reviewer-Authored, Not Bundle-Scaffolded
 
+> **⚠ Preserved by [ADR-296 v2](ADR-296-continuous-judgment-cycle.md) (2026-05-20).** ADR-275's commitment that bundles ship capability + maintenance + reactive recurrences only (not judgment cadence) is preserved and **strengthened**. Under ADR-296 v2 D3, the Reviewer's authority is over cadence preference + substrate-event interest + standing intent — the natural extension of ADR-275's "Reviewer authors its own cadence." Reactive `schedule: null` recurrence pattern as the substrate-event vehicle is **superseded** by the sibling `_hooks.yaml` substrate per ADR-296 v2 D2 — the alpha-author `pre-ship-audit` migration from `_recurrences.yaml` to `_hooks.yaml` (Checkpoint 2) is the canonical example. Bundles continue to ship initial cadence as scaffolding; the Reviewer continues to author over them; the audit trail (D5 + D6) is unchanged.
+
 **Status**: **Proposed 2026-05-14** — closes the structural gap ADR-274 named but didn't finish.
 
 **Authors**: KVK + Claude (discourse session 2026-05-14, continued from ADR-274)

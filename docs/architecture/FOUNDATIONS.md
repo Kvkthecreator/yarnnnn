@@ -223,7 +223,7 @@ Orchestration capability bundles have **configurations** (templates, prompts, to
 
 ### The Reviewer seat's distinctness is in Purpose + Trigger, not Identity
 
-A load-bearing clarification enabled by Axiom 0's dimensional model: the Reviewer Agent is not distinguished from other Agents by having a unique Identity class. The Reviewer *seat* is **swappable** across occupant classes (human operator, AI reviewer, admin impersonation) *precisely because* Identity is not what makes it distinct. What makes the Reviewer distinct is its Purpose (independent judgment on proposed writes) and its Trigger (reactive to proposal creation). The seat is the Purpose + Trigger cell; the occupant fills the Identity slot.
+A load-bearing clarification enabled by Axiom 0's dimensional model: the Reviewer Agent is not distinguished from other Agents by having a unique Identity class. The Reviewer *seat* is **swappable** across occupant classes (human operator, AI reviewer, admin impersonation) *precisely because* Identity is not what makes it distinct. What makes the Reviewer distinct is its Purpose (independent judgment on proposed writes) and its Trigger (Axiom 4 wake — fires when the evaluation funnel escalates, across any of the five wake sources per ADR-296 v2 D1). The seat is the Purpose + Trigger cell; the occupant fills the Identity slot.
 
 This is why ADR-194 v2 + ADR-211 are correct to treat Reviewer as a distinct Agent, and why swapping human ↔ AI in that seat requires no architectural change: the dimensions the swap preserves (Purpose, Trigger, Mechanism, Channel, Substrate) are all the same; only the Identity occupant rotates.
 
@@ -315,43 +315,73 @@ Axiom 3's "Purpose can also be carried by Identity" rule maps directly here: sub
 
 ---
 
-## Axiom 4: Trigger — Two Sub-Shapes of Invocation, Authoring-Intent Encoded
+## Axiom 4: Trigger — Wake Is the Irreducible Architectural Unit
 
-**Every invocation has a When. Invocation is reactive (to a recurrence fire or specialized event handler) or addressed (by an intent-bearing identity).**
+**Every invocation has a When. Wake is the irreducible unit: something changed in the world or worldview, and under the operator's standing intent that change warrants a moment of judgment.**
 
-Trigger is what begins a Reviewer session. One dimension; two sub-shapes (per ADR-260 as amended by ADR-263):
+Per **ADR-296 v2 D1**, Trigger is the **wake** dimension. Five wake sources contribute proposals to one evaluation gate; the Reviewer fires only when the gate escalates. Wake is the architecture; trigger sub-shapes are the internal viewpoint on it.
 
-1. **Reactive** — invoked when an event occurs that the recurrence's author or a specialized handler declared as judgment-needing. Examples: a `judgment`-mode recurrence fires its scheduled time (e.g., `morning-reflection` at 7am); a proposal arrives via `on_proposal_created`; a future webhook handler fires.
-2. **Addressed** — invoked when an intent-bearing identity (operator or external MCP caller) writes to the feed surface. Always wakes the Reviewer; the operator's act of addressing is itself the wake signal. Examples: user sends feed message; MCP `remember_this` call from ChatGPT.
+### Five wake sources, one evaluation gate
 
-The wake decision lives at the *authoring site* of each trigger source — not derived after the fact from substrate writes. Three concrete authoring sites:
-
-| Source | Wake decision | Authored at |
+| Wake source | Wake-warrant | Source-side module |
 |---|---|---|
-| **Recurrence fires** | The recurrence's `mode` field (`judgment` wakes; `mechanical` doesn't). | Authoring time (operator-via-YARNNN, Reviewer-mid-loop, or system-bundle-fork). |
-| **Operator addresses** | Always wakes (operator's feed message is itself the wake signal). | Operator types into the feed surface. |
-| **Reactive event handler** | Specialized handler logic (e.g., `on_proposal_created` resolves context_domain + observe-only fallback). | Handler source code. |
+| **`cron_tick`** | Recurrence's `schedule` declares "the next moment to consider this." | `services/wake_sources/cron_tick.py` |
+| **`addressed`** | Operator (or external MCP caller) wrote to the feed surface; presence is the wake-warrant. | `services/wake_sources/addressed.py` |
+| **`proposal_arrival`** | A proposal row landed; proposal creation is itself a wake-warrant. | `services/wake_sources/proposal_arrival.py` |
+| **`substrate_event`** | A `workspace_file_versions` revision matched a `_hooks.yaml` declaration. | `services/wake_sources/substrate_event.py` |
+| **`manual_fire`** | Operator explicit assertion via `FireInvocation` in chat. | `services/wake_sources/manual_fire.py` |
 
-**Mid-loop continuation is not a trigger.** It is the natural shape of a real-time tool-use loop: every tool call returns, the Reviewer reads the result, decides next, calls another tool. Per ADR-260 D1 + ADR-256 supersession, the previous "heartbeat" trigger conflated two structurally-different things — mid-loop continuation (within a session) vs. cron wake-up (starts a session). Heartbeat is deleted as a trigger; mid-loop continuation is invisible-as-loop-iteration.
+All five route through `services/wake.py::submit_wake_proposal(source, payload)` (or `stream_addressed_wake(...)` for the SSE-streaming addressed path). The wake gateway is **singular** — no other path invokes the Reviewer.
 
-### Cron is part of the environment, not part of the trigger taxonomy (ADR-263 amendment)
+### The evaluation funnel (ADR-296 v2 D2)
 
-The previous three-trigger model (`addressed | reactive | scheduled`) treated cron as a distinct trigger. Under ADR-263, cron is part of the *environment that fires recurrences on schedule*. Whether a recurrence fire wakes the Reviewer is a property of the recurrence's `mode` field, not a separate trigger sub-shape:
+Each wake proposal passes through `services/wake_evaluation.py::evaluate(...)`, which produces one of five **funnel decisions**:
 
-- **`judgment`-mode recurrences** invoke the Reviewer with their `prompt` as the message envelope (today's behavior; the path the Reviewer experiences as `reactive`).
-- **`mechanical`-mode recurrences** are dispatched to deterministic Python execution. The `prompt` names a primitive invocation (`@primitive: ...`); the dispatcher parses it, executes the primitive, writes substrate via the primitive's normal write path. No LLM session.
+| Funnel decision | Meaning |
+|---|---|
+| **`skip`** | Tier 1 kernel gate failed (balance exhausted, spend ceiling, judgment cap, min-interval). No Reviewer wake. |
+| **`tier_2_wait`** | Tier 2 Haiku said "wait" — moment didn't warrant the Reviewer's full attention. No wake. |
+| **`tier_2_observe`** | Tier 2 Haiku said "observe" — note but don't act. No wake. |
+| **`escalate`** | Tier 1 deterministic or Tier 2 Haiku said "yes." Full Reviewer cycle fires. |
+| **`mechanical`** | `cron_tick` wake on a `mode: mechanical` recurrence. Bypasses the Reviewer entirely — deterministic Python primitive runs. |
 
-Cron's role is upstream of the wake decision — it fires recurrences; the recurrence's mode determines whether the fire wakes the Reviewer.
+Operator-addressed, proposal-arrival, and manual-fire wakes auto-escalate at Tier 1 (their wake-warrants are unconditional). Cron-tick judgment recurrences pass kernel gates first; mechanical recurrences bypass; substrate-event hooks auto-escalate on match (the operator/Reviewer authoring the hook is the wake-warrant declaration).
 
-### One execution shape under Reactive trigger; mode encodes wake intent
+Every `execution_events` row stamps `wake_source` + `funnel_decision` columns (migration 177). The funnel decision is the load-bearing observability signal.
 
-Per ADR-261 (extended by ADR-263), recurrences carry one shape `{slug, schedule, mode, prompt}`. The `mode` field (`judgment | mechanical`) is the explicit author-time declaration of whether the recurrence wakes the Reviewer.
+### Two trigger sub-shapes — the Reviewer's internal viewpoint on wake
 
-### No parallel dispatch systems
+Inside the Reviewer's `invoke_reviewer(trigger=...)` signature, the wake source maps to one of two **trigger sub-shapes** (preserved as internal vocabulary per ADR-263 D2):
 
-Per Axiom 0's anti-conflation rule, there is exactly one Reviewer-wake mechanism per authoring source. The recurrence walker in `invocation_dispatcher.py` walks `/workspace/_recurrences.yaml` and fires recurrences on schedule — branching on `recurrence.mode` to either (a) invoke the Reviewer (judgment) or (b) execute the mechanical primitive directly. Specialized reactive handlers (`on_proposal_created`, future webhook handlers) carry their own policy gates and dispatch directly. Operator addressing routes through the feed surface and wakes the Reviewer immediately.
+1. **Reactive** — `cron_tick` + `proposal_arrival` + `substrate_event` arrive at the Reviewer with `trigger="reactive"`.
+2. **Addressed** — `addressed` + `manual_fire` arrive with `trigger="addressed"`.
 
-If a new mechanic appears to need a new dispatcher, check first whether one of these three sources covers it. Usually yes.
+The sub-shapes are an internal differentiation of the user-message envelope shape, not a separate dimension. Wake is the dimension; the sub-shape is the Reviewer's lens onto it.
+
+### Wake sources are kernel-internal; the Reviewer reasons against worldview
+
+Per ADR-296 v2 D1, the Reviewer does **not** reason about which wake source proposed its wake at its prompt-facing layer. It reads worldview (substrate + standing intent + operating context block) and renders judgment. The wake source is plumbing-internal — it determines what arrives in the envelope, not what the Reviewer reasons about.
+
+**Mid-loop continuation is not a wake.** Inside a Reviewer session, every tool call returns and the Reviewer reads the result. That is the natural shape of a real-time tool-use loop, not a separate trigger. Per ADR-260 D1 + ADR-256 supersession, the previous "heartbeat" trigger conflated two structurally-different things — mid-loop continuation (within a session) vs. cron wake-up (starts a session). Heartbeat is deleted as a trigger; mid-loop continuation is invisible-as-loop-iteration.
+
+### Cron is the cron-tick wake source's environment (ADR-263 amendment, ADR-296 v2 generalization)
+
+The previous three-trigger model (`addressed | reactive | scheduled`) treated cron as a distinct trigger. Under ADR-263 + ADR-296 v2, cron is the *environment of the `cron_tick` wake source* — it fires recurrences on schedule; the recurrence's `mode` field determines whether the resulting wake escalates to the Reviewer or bypasses to deterministic execution:
+
+- **`judgment`-mode recurrences** produce wake proposals that, on `escalate`, invoke the Reviewer with the recurrence's `prompt` as the message envelope.
+- **`mechanical`-mode recurrences** produce wake proposals that resolve to `funnel_decision="mechanical"` — bypassing the Reviewer; the dispatcher parses `@primitive: <Name>(<args>)` and executes deterministically. No LLM session.
+
+Cron's role is upstream of the wake gateway — it fires recurrences; the `cron_tick` wake source's body decides funnel routing per the recurrence's mode + kernel gates.
+
+### One execution shape; mode + funnel encode wake intent
+
+Per ADR-261 (extended by ADR-263), recurrences carry one shape `{slug, schedule, mode, prompt}`. The `mode` field (`judgment | mechanical`) is the explicit author-time declaration of whether the recurrence wakes the Reviewer; the funnel decision (`escalate | mechanical | skip`) is the kernel's runtime realization of that declaration.
+
+### Singular invocation gateway (ADR-296 v2 D1 hardening)
+
+Per Axiom 0's anti-conflation rule + ADR-296 v2 D1, there is exactly **one** Reviewer-invocation mechanism: `services/wake.py::submit_wake_proposal()` (plus its SSE-streaming twin `stream_addressed_wake()` for the addressed source). Every wake source — `cron_tick`, `addressed`, `proposal_arrival`, `substrate_event`, `manual_fire` — routes through the gateway via its source-side module in `services/wake_sources/`. The gateway runs the funnel and dispatches to source-specific Reviewer-invocation bodies.
+
+If a new mechanic appears to need a new dispatcher, check first whether one of these five sources covers it. Usually yes. If a genuinely new wake source is needed (e.g., a new external-event class), it ships as a sixth `wake_sources/` module plus a sixth `WakeSource` enum value — never as a parallel invocation path.
 
 ### Corollary: Run-now is the default trigger; schedule is an annotation (ADR-205, refined by ADR-261/263)
 
@@ -359,18 +389,27 @@ A user request to "do this" is Addressed (operator wrote a feed message). If the
 
 This corollary does not introduce a third Trigger sub-shape. Axiom 4's two sub-shapes remain the complete set.
 
-### Trigger authoring is an Identity-layer responsibility (v8.5 amendment, 2026-05-14)
+### Trigger authoring is an Identity-layer responsibility (v8.5 amendment, 2026-05-14; extended by ADR-296 v2 D2, 2026-05-20)
 
 **Triggers are authored by Identity layers, not by kernel infrastructure or bundle declarations.** The kernel's cron + the bundle's initial recurrences are *scaffolds*; they do not *own* the Trigger dimension across the workspace's lifecycle.
+
+Trigger-authoring substrate has **two sibling declarative shapes** per ADR-296 v2 D2:
+
+| Substrate | Wake source it configures | Primitive |
+|---|---|---|
+| **`/workspace/_recurrences.yaml`** | `cron_tick` — time-driven wakes | `Schedule(action=...)` |
+| **`/workspace/_hooks.yaml`** | `substrate_event` — substrate-transition-driven wakes | `ManageHook(action=...)` |
+
+Both substrate files compose into the singular evaluation gate identically; the differentiation is which wake source they configure (time vs event). Recurrences carry `{slug, schedule, mode, prompt}`; hooks carry `{slug, event, path_match, field_change, prompt, paused}`. Both are operator-authored (via YARNNN-chat) or Reviewer-authored (mid-loop), with the same ADR-209 attribution chain.
 
 Every Identity with standing intent — Operator, Reviewer, persona-bearing Agents — authors its own Trigger contribution to the workspace. Concretely:
 
 | Identity | Authors Trigger by | Authored-by attribution |
 |---|---|---|
-| **Operator** | Typing feed messages (chat) + invoking `Schedule` via YARNNN | `authored_by="operator"` |
-| **Reviewer** | Calling `Schedule(...)` mid-loop per ADR-261 D4 | `authored_by="reviewer:{occupant}"` |
-| **Persona-bearing Agents** | Calling `Schedule(...)` when their standing intent implies cadence | `authored_by="agent:{slug}"` |
-| **Bundle fork** | Scaffolding initial recurrences at activation | `authored_by="system:bundle-fork"` |
+| **Operator** | Typing feed messages (chat) + invoking `Schedule` / `ManageHook` via YARNNN | `authored_by="operator"` |
+| **Reviewer** | Calling `Schedule(...)` / `ManageHook(...)` mid-loop per ADR-261 D4 + ADR-296 v2 D3 | `authored_by="reviewer:{occupant}"` |
+| **Persona-bearing Agents** | Calling `Schedule(...)` / `ManageHook(...)` when their standing intent implies cadence/event-interest | `authored_by="agent:{slug}"` |
+| **Bundle fork** | Scaffolding initial recurrences + hooks at activation | `authored_by="system:bundle-fork"` |
 
 The bundle fork's attribution makes its role **structurally** scaffolding: any later authoring (operator, Reviewer, agent) writes new revisions of the same `_recurrences.yaml` with their own attribution. The Authored Substrate's parent-pointer chain (ADR-209) records the full history of cadence ownership transfers across the workspace's life.
 
@@ -656,6 +695,8 @@ These follow from the axioms and are stated explicitly for implementation guidan
 
 18. **Standing intent implies Trigger-authoring authority** (v8.5 amendment, 2026-05-14) — An Identity layer that holds standing intent (per Axiom 2) must have structural authority to author the Trigger dimension (per Axiom 4 v8.5 amendment). The Operator authors Trigger via chat + Schedule. The Reviewer authors Trigger via mid-loop Schedule calls (ADR-261 D4). Persona-bearing Agents author Trigger when their standing intent depends on cadence. Kernel cron + bundle fork are *scaffolds* — they seed initial cadence; they do not own the Trigger dimension across the workspace's lifecycle. The authoring path is uniform: every Trigger-authoring write to `/workspace/_recurrences.yaml` carries `authored_by` per Principle 13 (Authored Substrate). The audit trail is the existing two-table pair: `workspace_file_versions` (intent — what the Identity wrote) + `execution_events` (outcome — what the kernel actually dispatched). No parallel cadence-tracking substrate. Time is an envelope concern on each wake, not workspace state. See [ADR-274](../adr/ADR-274-reviewer-cadence-self-awareness.md).
 
+20. **Wake is the irreducible architectural unit; the funnel is the singular evaluation mechanism** (2026-05-20, ADR-296 v2) — Per Axiom 4 reframing, the architecture's irreducible unit of Reviewer invocation is the *wake*: something changed in the world or worldview, and under standing intent that change warrants a moment of judgment. Five wake sources contribute proposals to one evaluation funnel (`services/wake_evaluation.py`); the Reviewer fires only on `escalate`. The singular invocation gateway is `services/wake.py::submit_wake_proposal()` (plus `stream_addressed_wake()` for the SSE-streaming addressed path) — there is no parallel Reviewer-invocation mechanism. Recurrences (`/workspace/_recurrences.yaml`) configure the cron-tick wake source; hooks (`/workspace/_hooks.yaml`) configure the substrate-event wake source; both substrate files compose into the funnel identically. The Reviewer's authority is over **cadence preference** (Schedule) + **substrate-event interest** (ManageHook) + **standing intent** (WriteFile to `/workspace/review/standing_intent.md`) — NOT over invoking itself; FireInvocation is operator-chat-only (`CHAT_PRIMITIVES`), removed from `REVIEWER_PRIMITIVES` per ADR-296 v2 D3. Telemetry: every `execution_events` row stamps `wake_source` + `funnel_decision` columns (migration 177). Diagnostic test: if a code path calls `invoke_reviewer()` from outside `services/wake.py`, it is a violation of this principle. The fix is always the same shape: route through a `wake_sources/*.py` module that submits a wake proposal via `submit_wake_proposal()`. See [ADR-296](../adr/ADR-296-continuous-judgment-cycle.md).
+
 19. **The kernel does not compute for the prompt** (2026-05-15, ADR-281) — The wake envelope reads substrate; it does not derive new state at prompt-assembly time. Any computation that produces state-shaped data (summary, aggregation, compaction, projection) must write its result to substrate first; the envelope reads that substrate like every other substrate file. Per-wake LLM-prompt-time computation that produces state without writing it to substrate is an Axiom 1 violation (substrate-as-bus, fourth sub-clause). **Diagnostic test**: if a kernel function takes substrate inputs and produces a string that goes directly into an LLM prompt without first being written to substrate, the function violates this principle. The fix is always the same shape: move the computation to a mechanical primitive; have it write the result to substrate; let the envelope read the substrate file. **Mechanism**: the substrate-mirror pattern from ADR-264 (`SyncPlatformState` for external state) generalizes to derivative-compaction state — a mechanical-mode recurrence invokes a deterministic primitive that writes derivative substrate at known cadence. Derivative-compaction substrate has the same canonical-home discipline as external-mirror substrate: written by a named primitive, attributed via ADR-209, retained in the revision chain, read by the envelope as a normal `path` entry. **Architectural counterpart**: this principle is YARNNN's structural alignment with Claude Code's substrate-access model — `Read` returns substrate content unchanged; the kernel does not pre-aggregate, summarize, or derive on the model's behalf at prompt-assembly time. YARNNN's additions (Authored Substrate, personification, substrate-canonical world) sharpen the model; this principle ensures we don't diverge from its substrate-access shape. See [ADR-281](../adr/ADR-281-substrate-canonical-substrate-only-prompts.md).
 
 ---
@@ -691,6 +732,7 @@ Ax 0 (dimensional model) was the missing frame — its introduction does not inv
 | ADR-195 v2 (Money-Truth Substrate) | Substrate (alpha-trader's ground-truth instance) | Axiom 8 content |
 | ADR-196 + ADR-197 (Legacy Table Sunsets) | Substrate | Axiom 1 correction |
 | ADR-198 (Surface Archetypes) | Channel | Aligned — five archetypes = five substrate-consumer-purpose cells |
+| ADR-296 (Wake Is Event-Driven and Evaluation-Gated) | Trigger | Aligned — Axiom 4 reframed around wake-as-irreducible-unit; ratified Principle 20 |
 
 Any ADR that cannot be mapped to one or more dimensions is either incomplete or drifted — the dimensional test flags it for revision.
 

@@ -1,7 +1,7 @@
 # YARNNN Service Model
 
 > **Status**: Canonical
-> **Date**: 2026-03-29 (v1.6 revision 2026-04-20; taxonomy/autonomy hardening amended 2026-04-24; invocation/narrative amendment 2026-04-25; v1.7 OS framing canonized 2026-04-27)
+> **Date**: 2026-03-29 (v1.6 revision 2026-04-20; taxonomy/autonomy hardening amended 2026-04-24; invocation/narrative amendment 2026-04-25; v1.7 OS framing canonized 2026-04-27; v1.8 ADR-296 v2 wake architecture amendments canonized 2026-05-20)
 > **Scope**: End-to-end service model — how the system works, from user intent to delivered output.
 > **Rule**: This is the single document that describes the complete system. Deep-dive docs are linked, not duplicated.
 
@@ -71,17 +71,19 @@ The operator works *inside* YARNNN. The front-end model is a **cockpit**, not a 
 
 Implication: `produces_deliverable` task types (ADR-166) output a **cockpit-consumable surface**, not an emailable document as the primary artifact. The task output folder (`/tasks/{slug}/outputs/`) remains substrate per Axiom 1 — what changes is the operator's consumption Channel, not the filesystem. External distribution runs as a post-compose derivative per ADR-185 when a task's `## Delivery` names external recipients.
 
-### Frame 4 — Invocation as the Atom, Narrative as the Log (Axiom 9)
+### Frame 4 — Invocation as the Atom, Wake as the Architectural Unit, Narrative as the Log (Axiom 4 + Axiom 9)
 
 One cycle of the six dimensions is an **invocation** — the atom of action. One actor fires once, applies some mechanism, reads and writes substrate, emits to some channel, terminates. Every actor class in YARNNN — persona-bearing Agents (Reviewer, user-authored domain Agents), the orchestration feed surface (YARNNN), orchestration capability bundles (production roles, platform integrations), and external callers (foreign LLMs via MCP) — emits invocations of the same shape. Only the Identity slot rotates.
+
+Per **ADR-296 v2 (2026-05-20)**, the architecture's irreducible Trigger-axis unit is the **wake**: *something changed in the world or worldview, and under standing intent that change warrants a moment of judgment.* The Reviewer is event-fired, not continuously-running. Five wake sources (`cron_tick`, `addressed`, `proposal_arrival`, `substrate_event`, `manual_fire`) contribute wake proposals to one evaluation funnel; the Reviewer fires only when the funnel escalates. The **singular invocation gateway** is `services/wake.py::submit_wake_proposal()` (plus `stream_addressed_wake()` for SSE-streaming addressed); no other path invokes the Reviewer.
 
 Every invocation surfaces in one **narrative** — the chat-shaped operator-facing log of everything the system did. Ordered by time, attributed by Identity, filterable by Agent or task-nameplate. The narrative is not "the chat feature"; it is the Axiom 6 Channel that closes Derived Principle 12 (Channel legibility gates autonomy). The operator's own messages are one thread among many.
 
 **Tasks are legibility wrappers, not parallel substrates.** A task is a nameplate + pulse + contract attached to a category of recurring invocations. `/work` is the narrative filtered by task slug — the data substrate is unchanged from ADR-138; the mental model sharpens. Inline actions are invocations without a nameplate; the inline-to-task transition (attach a nameplate + pulse) is gradient and reversible.
 
-**Invocations compose into the Loop.** Per FOUNDATIONS v8.4, the runtime construct in which most invocations occur is **the Loop** (glossary-defined) — the synchronous Reviewer session per [ADR-260](../adr/ADR-260-real-time-reviewer-loop.md). One Loop wake-up is composed of one Reviewer invocation plus zero-or-more System Agent invocations (the tool calls the Reviewer makes, dispatched deterministically per ADR-257) plus zero-or-more nested specialist invocations (`DispatchSpecialist` calls). Mechanical recurrences (`mode: mechanical` per ADR-263 D5) are the deterministic end of the same architecture — they emit single System Agent invocations between Loop wake-ups, keeping substrate fresh so the Loop has truth to read from when it next wakes. The Loop is the runtime construct in which the operator-as-Reviewer (the personified embodiment per FOUNDATIONS Axiom 2) does its work; substrate is the bus the Loop runs over (Axiom 1's fourth sub-clause).
+**Invocations compose into the Loop.** Per FOUNDATIONS v8.4, the runtime construct in which most invocations occur is **the Loop** (glossary-defined) — the synchronous Reviewer session per [ADR-260](../adr/ADR-260-real-time-reviewer-loop.md). One Loop wake-up is composed of one Reviewer invocation plus zero-or-more System Agent invocations (the tool calls the Reviewer makes, dispatched deterministically per ADR-257) plus zero-or-more nested specialist invocations (`DispatchSpecialist` calls). Mechanical recurrences (`mode: mechanical` per ADR-263 D5) are the deterministic end of the same architecture — they resolve to `funnel_decision="mechanical"` and bypass the Loop entirely, keeping substrate fresh so the Loop has truth to read from when it next wakes. The Loop is the runtime construct in which the operator-as-Reviewer (the personified embodiment per FOUNDATIONS Axiom 2) does its work; substrate is the bus the Loop runs over (Axiom 1's fourth sub-clause).
 
-Deep dive: [invocation-and-narrative.md](invocation-and-narrative.md). ADR-219 (proposed) scopes implementation of the narrative-storage and /work-as-filter commitments.
+Deep dive: [invocation-and-narrative.md](invocation-and-narrative.md). ADR-219 (proposed) scopes implementation of the narrative-storage and /work-as-filter commitments. ADR-296 v2 (Implemented 2026-05-20) commits the wake architecture.
 
 ### Frame 5 — Agent-Native Operating System Architecture (FOUNDATIONS Principle 16, ADR-222)
 
@@ -209,7 +211,23 @@ No hidden flag. No `task_kind` column. Task ownership (agent.role) is the only d
 
 ## Execution Flow
 
-> **Updated 2026-05-08 per ADRs 260/261/262.** Prior framing of "three execution layers" with a separate headless task pipeline is dissolved. The unified execution model is: cron wakes the Reviewer with a recurrence's prompt; the Reviewer's real-time tool-use loop runs whatever the prompt directs; specialists run as focused-prompt sub-LLM-calls within that loop; the deterministic System Agent dispatches each step.
+> **Updated 2026-05-20 per ADR-296 v2** (canon rewrite). Prior framing of "three reasons a Reviewer session begins" is reframed as **five wake sources funneled through one singular gateway**. The wake gateway runs Tier 1 + Tier 2 funnel evaluation and escalates only when the moment warrants the Reviewer's full attention.
+>
+> Previously updated 2026-05-08 per ADRs 260/261/262: prior framing of "three execution layers" with a separate headless task pipeline dissolved. The unified execution model is: a wake proposal escalates through the funnel; the Reviewer's real-time tool-use loop runs whatever the wake envelope provides; specialists run as focused-prompt sub-LLM-calls within that loop; the deterministic System Agent dispatches each step.
+
+### How a wake source produces a Reviewer invocation
+
+Per **ADR-296 v2 D1**, every Reviewer invocation routes through `services/wake.py::submit_wake_proposal(source, payload)`. Five wake sources contribute proposals:
+
+| Wake source | Source-side module | Wake-warrant |
+|---|---|---|
+| **`cron_tick`** | `services/wake_sources/cron_tick.py` | Scheduler walked a due entry in `/workspace/_recurrences.yaml` |
+| **`addressed`** | `services/wake_sources/addressed.py` | Operator messaged the feed (or external MCP caller wrote) |
+| **`proposal_arrival`** | `services/wake_sources/proposal_arrival.py` | A row landed in `action_proposals` |
+| **`substrate_event`** | `services/wake_sources/substrate_event.py` | A `workspace_file_versions` revision matched a `/workspace/_hooks.yaml` declaration |
+| **`manual_fire`** | `services/wake_sources/manual_fire.py` | Operator's `FireInvocation` in chat |
+
+Each source builds its source-specific payload and submits to the gateway. The gateway runs the funnel (`services/wake_evaluation.py::evaluate()`) and dispatches to the appropriate Reviewer-invocation body on `escalate`.
 
 ### How a recurrence is authored
 
@@ -220,23 +238,54 @@ Operator intent (feed conversation or explicit primitive call)
   → Append to /workspace/_recurrences.yaml (Authored Substrate write)
 ```
 
-Recurrences live in one canonical file (`/workspace/_recurrences.yaml`); there are no per-shape declaration files (`_spec.yaml`, `_recurring.yaml`, `back-office.yaml`, etc. — all dissolved per ADR-261 D2). A recurrence is three load-bearing fields: `slug`, `schedule`, `prompt`.
+Recurrences live in one canonical file (`/workspace/_recurrences.yaml`); there are no per-shape declaration files (`_spec.yaml`, `_recurring.yaml`, `back-office.yaml`, etc. — all dissolved per ADR-261 D2). A recurrence is four load-bearing fields: `slug`, `schedule`, `mode`, `prompt`. **Recurrences are the cron-tick wake source's configuration.**
+
+### How a substrate-event hook is authored (ADR-296 v2 D2)
+
+```
+Operator/Reviewer declares interest in a substrate transition
+  → ManageHook(action="create", slug=..., event="substrate_change",
+               path_match=..., field_change=..., prompt=...)
+  → Append to /workspace/_hooks.yaml (Authored Substrate write)
+```
+
+Hooks live in one canonical file (`/workspace/_hooks.yaml`), the sibling of `_recurrences.yaml`. A hook is six fields: `slug`, `event` (today: `substrate_change`), `path_match` (workspace-absolute glob), `field_change` (frontmatter key → expected new value), `prompt`, `paused`. **Hooks are the substrate-event wake source's configuration.** A transition guard ensures the hook fires only on the actual transition into the matched state, not on every preserving write.
+
+### How the funnel routes a wake proposal (ADR-296 v2 D2)
+
+```
+Wake proposal arrives at services/wake.py::submit_wake_proposal(source, payload)
+  → wake_evaluation.evaluate(...) runs Tier 1 + Tier 2
+  → Funnel decision is one of:
+       • skip          — Tier 1 kernel gate failed (balance, spend, cap, min-interval)
+       • tier_2_wait   — Tier 2 Haiku said wait
+       • tier_2_observe — Tier 2 Haiku said observe
+       • escalate      — Reviewer's full cycle fires
+       • mechanical    — cron_tick on mode=mechanical recurrence; primitive runs
+  → Decision stamps execution_events.funnel_decision (migration 177)
+  → On `escalate`: dispatcher routes to source-specific Reviewer-invocation body
+  → On `mechanical`: dispatcher routes to deterministic primitive execution
+  → On `skip` / `tier_2_*`: telemetry-only; no Reviewer invocation
+```
+
+Operator-addressed, proposal-arrival, manual-fire, and substrate-event wakes auto-escalate at Tier 1 (their wake-warrants are unconditional). Cron-tick judgment recurrences pass kernel gates first; cron-tick mechanical recurrences bypass.
 
 ### How a Reviewer session executes (the unified shape)
 
-A Reviewer session runs **synchronously in real-time** as one continuous tool-use loop. It begins for one of three reasons (Axiom 4 sub-shapes): **Scheduled** (cron fires with a recurrence's prompt), **Reactive** (event triggers — proposal arrives, outcome reconciles), or **Addressed** (operator messages the Reviewer in the feed).
+A Reviewer session runs **synchronously in real-time** as one continuous tool-use loop. It begins when a wake proposal escalates through the funnel. From the Reviewer's internal perspective the wake source maps to one of two trigger sub-shapes — **Reactive** (`cron_tick` + `proposal_arrival` + `substrate_event`) or **Addressed** (`addressed` + `manual_fire`) — but at the Reviewer's prompt-facing layer it reads worldview, not which source proposed its wake.
 
 ```
-Reviewer session start (Scheduled / Reactive / Addressed)
+Reviewer session start (wake proposal escalated)
   → Reviewer reads operator-authored substrate (MANDATE, IDENTITY, principles, AUTONOMY,
     PRECEDENT, _operator_profile, _risk, _performance) — pre-loaded into context
-  → Reviewer reads recurrence prompt (Scheduled), proposal (Reactive), or operator
-    message (Addressed)
+  → Reviewer reads wake envelope: recurrence prompt (cron_tick / manual_fire), proposal
+    row (proposal_arrival), operator message (addressed), or hook prompt + path +
+    field_change (substrate_event)
   → Reviewer reasons; calls a tool:
        • ReadFile / ListFiles / SearchFiles — cognition (transient streaming-status
          in feed)
-       • FireInvocation / Schedule / WriteFile — consequential action (System Agent
-         narrates as a feed bubble)
+       • Schedule / ManageHook / WriteFile — Trigger-authoring + standing-intent
+         authority (per ADR-296 v2 D3; System Agent narrates as feed bubble)
        • DispatchSpecialist(role, brief) — focused-prompt sub-LLM-call in headless
          runtime mode (per ADR-261 D7)
        • ProposeAction — capital-moving directive (gated by AUTONOMY)
@@ -245,6 +294,8 @@ Reviewer session start (Scheduled / Reactive / Addressed)
   → Loop continues until Reviewer calls ReturnVerdict to close session
   → Bounded at ≤12 rounds (addressed/scheduled) or ≤3 rounds (reactive) per ADR-260 D8
 ```
+
+**Per ADR-296 v2 D3, FireInvocation is NOT in the Reviewer's tool surface.** The Reviewer's trigger-authoring authority is cadence (`Schedule`) + substrate-event interest (`ManageHook`) + standing intent (`WriteFile` to `/workspace/review/standing_intent.md`). FireInvocation remains in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES — operator manual fire is the `manual_fire` wake source's entry point.
 
 **Three actors, three responsibilities** (per ADR-261 D7 amendment):
 
@@ -265,9 +316,14 @@ Recurrence prompts encode output expectations using two layers (per ADR-262):
 
 ### The scheduler
 
-The scheduler's only job is to walk `/workspace/_recurrences.yaml` and invoke the Reviewer for each due entry (per ADR-261 D3). Three architectural guarantees committed:
+The scheduler's jobs per ADR-261 D3 + ADR-296 v2 D2:
 
-1. **Parallel concurrent Reviewer sessions** when multiple recurrences are simultaneously due.
+1. **Cron-tick wake source walker** — walk `/workspace/_recurrences.yaml` for each user with due entries and submit wake proposals via `wake_sources.cron_tick.dispatch_recurrence(...)`. The gateway runs the funnel; due judgment recurrences escalate to Reviewer, due mechanical recurrences bypass to deterministic primitives.
+2. **Substrate-event wake source walker** (ADR-296 v2 D2) — after the cron-tick walk completes, walk each active user's `/workspace/_hooks.yaml` against recent `workspace_file_versions` revisions via `wake_sources.substrate_event.walk_hooks(...)`. Hook matches submit wake proposals; transition guard prevents re-firing on preserving writes.
+
+Three architectural guarantees committed:
+
+1. **Parallel concurrent Reviewer sessions** when multiple wake proposals are simultaneously due.
 2. **Sub-minute scheduling precision** — recurrences scheduled at `0 7 * * *` fire at 07:00:00.
 3. **No head-of-line blocking** from slow sessions.
 
