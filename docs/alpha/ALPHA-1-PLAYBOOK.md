@@ -460,9 +460,11 @@ The operator makes the call.
 
 Post-ADR-261/262, the bundle ships a single canonical recurrence declaration substrate at `/workspace/_recurrences.yaml`. Per-shape natural-home YAML files (`_spec.yaml`, `_action.yaml`, `_recurring.yaml`, `back-office.yaml`) and the `output_kind` enum dissolved per ADR-261 D2. Every recurrence is `{slug, schedule, mode, prompt}` — one shape, one execution path.
 
-The bundle's `_recurrences.yaml` (at [docs/programs/alpha-trader/reference-workspace/_recurrences.yaml](../programs/alpha-trader/reference-workspace/_recurrences.yaml)) ships **14 recurrences** that fork into every alpha-trader-program workspace at activation. The 14 are not operator-composed via chat at onboarding — they're pre-declared by the bundle and inherited at fork time per ADR-226. YARNNN may help the operator tune cadence or pause individual recurrences via `Schedule(action="pause"|"update")`, but the set itself is the program's authored opinion.
+The bundle's `_recurrences.yaml` (at [docs/programs/alpha-trader/reference-workspace/_recurrences.yaml](../programs/alpha-trader/reference-workspace/_recurrences.yaml)) ships **13 recurrences** that fork into every alpha-trader-program workspace at activation. The 13 are not operator-composed via chat at onboarding — they're pre-declared by the bundle and inherited at fork time per ADR-226. YARNNN may help the operator tune cadence or pause individual recurrences via `Schedule(action="pause"|"update")`, but the set itself is the program's authored opinion.
 
 **Modes** (ADR-261 D7): `judgment` = focused Sonnet sub-LLM call dispatched via the Reviewer's loop (uses `DispatchSpecialist` for production-role specialists per ADR-176); `mechanical` = deterministic Python executor at `@primitive: SyncPlatformState`, zero LLM cost (per ADR-264).
+
+**Post-ADR-296 v2 collapse (2026-05-20)**: the pre-ADR-296 inventory carried 14 recurrences including a reactive `trade-proposal` recurrence that `signal-evaluation` invoked via `FireInvocation(slug="trade-proposal")`. ADR-296 v2 D3 removed FireInvocation from `REVIEWER_PRIMITIVES` — the Reviewer no longer self-invokes by name — and the `signal-evaluation → trade-proposal` chain pattern dissolved with it. `signal-evaluation` now emits `ProposeAction` **inline** when fire conditions match. The Reviewer wakes on the resulting `proposal_arrival` wake source per ADR-296 v2 D1 — same end-state, one fewer hop, no FireInvocation chain. Inventory is therefore 13, not 14.
 
 | Slug | Mode | Cadence | Purpose |
 |---|---|---|---|
@@ -472,24 +474,31 @@ The bundle's `_recurrences.yaml` (at [docs/programs/alpha-trader/reference-works
 | `morning-calibration` | judgment | Daily 06:00 UTC | Aggregates `judgment_log.md` decision + material-outcome entries into rolling 7d/30d/90d windows + cross-domain `_money_truth_summary.md`. Drives the cockpit Performance face. |
 | `morning-reflection` | judgment | Daily 07:00 UTC | Reviewer reads its own decisions trajectory and writes pattern observations to `/workspace/review/handoffs.md` (per ADR-218 → ADR-256 unified Reviewer invocation, reflection trigger). |
 | `pre-market-brief` | judgment | 15 8 * * 1-5 (8:15 UTC weekdays) | Composed deliverable from signal-evaluation output. Which signals may fire, portfolio exposure vs var budget, decay flags, regime state. Output at `/workspace/reports/pre-market-brief/{date}/output.md` per CONVENTIONS.md slug-templated path. Cockpit surfaces it; daily-update email is expository pointer per ADR-202. |
-| `signal-evaluation` | judgment | 5 8 * * 1-5 (8:05 UTC weekdays) | For each declared signal in `_operator_profile.md`, evaluates current state across the universe. When fire conditions hit, calls `FireInvocation(slug="trade-proposal")` (per ADR-253 D4 — signal evaluator can fire the reactive trade-proposal recurrence directly). Writes signal-state under `/workspace/context/trading/signals/`. |
+| `signal-evaluation` | judgment | 5 8 * * 1-5 (8:05 UTC weekdays) | For each declared signal in `_operator_profile.md`, evaluates current state across the universe. Writes signal-state under `/workspace/context/trading/signals/`. **Post-ADR-296 v2**: when fire conditions hit, emits `ProposeAction(trading.submit_order)` **inline** with full signal attribution (Reviewer Check 1) — no separate `trade-proposal` recurrence, no FireInvocation chain. The Reviewer wakes on the resulting `proposal_arrival` wake source. |
 | `track-universe` | judgment | 0 8,11,15 * * 1-5 (3× weekdays UTC) | Reads `/workspace/context/trading/_universe.yaml` (operator-declared tickers per ADR-254 D4), pulls fresh price/indicator state, writes per-ticker `.yaml` under `/workspace/context/trading/` per ADR-254 D5. |
 | `track-account` | mechanical | `*/5 * 9-16 * 1-5` (every 5min, market hours) | Deterministic Python mirror of Alpaca account state (cash, equity, buying power) into `/workspace/context/portfolio/account.yaml`. Zero LLM cost. |
 | `track-orders` | mechanical | `* * 9-16 * 1-5` (every minute, market hours) | Deterministic mirror of open + recently-filled Alpaca orders into `/workspace/context/portfolio/orders.yaml`. |
 | `track-positions` | mechanical | `* * 9-16 * 1-5` (every minute, market hours) | Deterministic mirror of current Alpaca positions + unrealized P&L into `/workspace/context/portfolio/positions.yaml`. |
-| `trade-proposal` | judgment | reactive (no schedule) | Fires via `FireInvocation` when `signal-evaluation` detects a fire condition. Emits a ProposeAction with full signal attribution (see Reviewer Check 1). Runs through AI Reviewer reactive dispatch (ADR-194 v2 Phase 3 + ADR-256 unified invocation) → cockpit Tracking face Queue for human approval if Reviewer defers. |
 | `weekly-performance-review` | judgment | `0 18 * * 0` (Sunday 18:00 UTC) | Reads `_money_truth.md`. Per-signal P&L, win rate, expectancy, Sharpe. Flags decay. Compares to declared baselines. Output at `/workspace/reports/weekly-performance-review/{date}/output.md`. |
 | `quarterly-signal-audit` | judgment | `0 18 31 3,6,9,12 *` (quarter-end 18:00 UTC) | Comprehensive review: which signals to retire, which to retune, candidates for new signal slots. Operator drafts final decisions; the recurrence prepares the analysis. |
 
 **Three composition groups** for the reader's mental model:
 
 - **Operator-facing deliverables** (4): `pre-market-brief`, `weekly-performance-review`, `quarterly-signal-audit`, `narrative-digest`. Composed outputs the operator reads.
-- **Reasoning engine** (3): `signal-evaluation` (fires proposals), `trade-proposal` (the proposal), `track-universe` (universe state the signals evaluate against).
+- **Reasoning engine** (2): `signal-evaluation` (emits proposals inline when fire conditions hit), `track-universe` (universe state the signals evaluate against).
 - **System hygiene** (7): `outcome-reconciliation`, `morning-calibration`, `morning-reflection`, `proposal-cleanup` (judgment); `track-account`, `track-orders`, `track-positions` (mechanical, deterministic Alpaca mirrors per ADR-264).
 
 The operator does not "scaffold" these recurrences — they ship with the bundle and fork at activation. Operator authoring lives in `_operator_profile.md` (universe + signal definitions), `_risk.md` (risk parameters), `principles.md` (Reviewer rules), and `AUTONOMY.md` (delegation ceiling). The recurrences are the program's standing engine; the authored substrate is what the engine reasons against.
 
-Bundle template improvements to any of these 14 recurrences (or to the `specs/*.md` capability library) propagate to activated workspaces via the operator-initiated versioned-update mechanism (ADR-292). When the bundle author bumps `version:` in `MANIFEST.yaml`, the workspace's Settings → Workspace surface (per ADR-244) renders an "Update available" affordance with the diff summary. The operator clicks Update; files where the operator has customized are skipped via `is_skeleton_content`. NOT a daily cron — same shape as Claude Code's `claude --update`, where the operator decides when to take a release. Audit at `/workspace/_shared/substrate-update-log.md`.
+Bundle template improvements to any of these 13 recurrences (or to the `specs/*.md` capability library) propagate to activated workspaces via the operator-initiated versioned-update mechanism (ADR-292). When the bundle author bumps `version:` in `MANIFEST.yaml`, the workspace's Settings → Workspace surface (per ADR-244) renders an "Update available" affordance with the diff summary. The operator clicks Update; files where the operator has customized are skipped via `is_skeleton_content`. NOT a daily cron — same shape as Claude Code's `claude --update`, where the operator decides when to take a release. Audit at `/workspace/_shared/substrate-update-log.md`.
+
+### 3A.5b Substrate-event hooks (alpha-trader)
+
+Per ADR-296 v2 D2, hooks are the sibling declarative shape to recurrences — recurrences configure the cron-tick wake source; hooks configure the substrate-event wake source. Both compose into the singular evaluation gate identically.
+
+The bundle ships `/workspace/_hooks.yaml` with **`hooks: []`** by design. alpha-trader's operational shape doesn't naturally surface substrate transitions that should fire the Reviewer — its wake-warrants live in the cron-tick path (time-anchored evaluation) and the proposal-arrival path (Reviewer judging its own freshly-emitted inline `ProposeAction`). The empty hook list is the bundle author's authored opinion: nothing in the trader loop benefits from event-driven wake configuration today.
+
+The capability is operator/Reviewer-authorable later if standing intent emerges. Example shape: "wake me when a fresh fill lands in `/workspace/context/portfolio/positions/{ticker}.yaml` that crosses my attention threshold." Author via `ManageHook(action="create", slug=..., path_match=..., field_change=..., prompt=...)` — same primitive available in `CHAT_PRIMITIVES` (operator-via-chat) + `REVIEWER_PRIMITIVES` (Reviewer's standing-intent authority per ADR-296 v2 D3).
 
 ### 3A.6 Money-truth substrate expectations (`_money_truth.md` shape)
 
@@ -590,6 +599,66 @@ The Cluster 2 audit (Reviewer apparatus — IDENTITY + principles.md + `_princip
 > **Per [SCOPE.md](./SCOPE.md), alpha-commerce is deferred for Alpha-1.** The 430-line persona spec that previously lived here (mandate, rule set, six-check Reviewer adaptation, money-truth shape) is preserved verbatim at [docs/alpha/parked/alpha-commerce-persona-spec.md](./parked/alpha-commerce-persona-spec.md).
 >
 > When alpha-commerce graduates from `deferred`, rewrite a fresh §3B here against current canon — do not unpark the historical content (it carries pre-ADR-261/262 substrate vocabulary).
+
+---
+
+## 3C. `alpha-author` — Substrate-continuity author program
+
+> **Status**: program at [docs/programs/alpha-author/](../programs/alpha-author/) (MANIFEST `status: deferred`, but actively dogfooded). Three personas run this program — `yarnnn-author` (founder content + IR-narrative authorship), `netflix-script-author`, `korea-thriller-shorts` — declared in [personas.yaml](./personas.yaml). The bundle is medium-agnostic at the program level; persona overrides at `docs/alpha/personas/{persona}/overrides/` carry medium-specific voice + cadence + audience content.
+> **Archetype**: substrate-continuity (sibling of alpha-trader's autonomous-execution archetype). Reviewer is editor-and-continuity-guardian; loop is slower than capital but feedback-faster than market RTH; corpus accumulates as moat.
+
+### 3C.1 Why alpha-author is the canonical canary for ADR-296 D2
+
+ADR-296 v2 introduced the **substrate-event wake source** — the sibling of cron-tick recurrences. The thesis is that operator/Reviewer-declared hooks fire wakes on substrate transitions (e.g., frontmatter field changes) at the same singular evaluation gate that cron-tick wakes flow through. alpha-trader ships `_hooks.yaml` with `hooks: []` by design (its loop doesn't naturally surface substrate transitions worth firing the Reviewer on). alpha-author ships the **only canonical hook** in either bundle today — `pre-ship-audit` — and that hook is the load-bearing test of ADR-296 D2.
+
+The pre-ship-audit hook was the **first deletion-and-migration ADR-296 v2 enacted on a live bundle**. Pre-ADR-296, alpha-author shipped a reactive recurrence (`schedule: null`) that fired via FireInvocation chain. ADR-296 v2 D3 dissolved the FireInvocation-from-Reviewer authority; the chain pattern couldn't survive. ADR-296 v2 D2 supplied the replacement (substrate-event hooks). The migration is documented in [docs/programs/alpha-author/reference-workspace/_recurrences.yaml](../programs/alpha-author/reference-workspace/_recurrences.yaml) header comments + [docs/programs/alpha-author/reference-workspace/_hooks.yaml](../programs/alpha-author/reference-workspace/_hooks.yaml).
+
+### 3C.2 Recurrence set (3 entries)
+
+The bundle ships **3 judgment recurrences** in `/workspace/_recurrences.yaml` (vs alpha-trader's 13). Smaller because alpha-author's primary driver is event-driven, not time-driven — most of the work fires from the pre-ship-audit hook, not from cron.
+
+| Slug | Mode | Cadence | Purpose |
+|---|---|---|---|
+| `corpus-coherence-check` | judgment | `0 12 * * 1,4` (Mon + Thu 12:00 UTC) | Cross-corpus pass for voice drift, continuity breaks, cadence health. Surfaces drift requiring operator attention via Clarify proposals. Spec at `/workspace/specs/corpus-coherence-rollup.md`. |
+| `revision-audit` | judgment | `0 22 * * 5` (Friday 22:00 UTC) | Long-arc author lens — periodic pass comparing current draft against prior revision (per ADR-209 chain). Lets long-arc workspaces (novel/screenplay/book) iterate on a single artifact over months without flipping ready_for_review. Spec at `/workspace/specs/revision-audit.md`. |
+| `outcome-reconciliation` | judgment | (universal back-office) | Per ADR-195 v2. Folds platform events (LinkedIn/Medium/X engagement when audience-bearing; nothing when pre-monetization) into `/workspace/context/authored/_signal.md` per ADR-282 multi-signal ground-truth shape. |
+
+### 3C.3 Hook set (1 entry — pre-ship-audit)
+
+The bundle ships **1 substrate-event hook** in `/workspace/_hooks.yaml`:
+
+| Slug | Event | Path match | Field change | Purpose |
+|---|---|---|---|---|
+| `pre-ship-audit` | `substrate_change` | `/workspace/context/authored/*/profile.md` | `status: ready_for_review` | When a draft's frontmatter `status` transitions to `ready_for_review`, the substrate-event walker fires a wake proposal within one scheduler tick (~5 min). Reviewer reads draft + voice fingerprint + editorial principles + recent corpus, audits against voice/continuity/anti-slop/editorial criteria, emits APPROVE/DEFER/REJECT with structured reasoning to `judgment_log.md`. Under `delegation: bounded` + matching ceiling, APPROVE binds publication via ExecuteProposal. The transition guard (per `_field_change_matches` in `services/wake_sources/substrate_event.py`) ensures the hook fires once per actual transition, not on every preserving write. |
+
+### 3C.4 Authored substrate (operator-side)
+
+Parallel to alpha-trader's `_operator_profile.md`/`_risk.md`/`principles.md`/`AUTONOMY.md`, alpha-author workspaces author:
+
+- `/workspace/context/authored/_voice.md` — voice fingerprint (sentence-length distribution, vocabulary tics, anti-pattern blocklist)
+- `/workspace/context/authored/_editorial.md` — editorial principles (what gets shipped, what gets killed, taste rules)
+- `/workspace/context/_shared/_preferences.yaml` — cadence preferences per platform (linkedin: 3×/week, medium: weekly, etc.); the Reviewer authors `Schedule(action="create")` calls for declared deliverables on its first wake per ADR-275
+- `/workspace/review/principles.md` — Reviewer's editorial framework (thresholds for high-impact voice drift, cadence misses, anti-pattern density)
+- `/workspace/context/_shared/AUTONOMY.md` + `_autonomy.yaml` — delegation ceiling per `piece_type` (LinkedIn post under 500 words → `bounded`; novel chapter → `manual`)
+
+The persona overrides at `docs/alpha/personas/{persona}/overrides/` supply medium-specific instantiation of these files.
+
+### 3C.5 Wake-source profile (post-ADR-296 v2)
+
+| Wake source | How alpha-author exercises it |
+|---|---|
+| `cron_tick` | corpus-coherence-check (Mon/Thu), revision-audit (Fri), outcome-reconciliation (daily). |
+| `substrate_event` | **pre-ship-audit hook** (transition into `ready_for_review`). The canonical canary for ADR-296 D2. |
+| `proposal_arrival` | When pre-ship-audit emits ProposeAction (publication intent) and Reviewer wakes to judge it (if hook routes through a separate judgment cycle vs. inline approval). |
+| `addressed` | Operator addresses YARNNN/Reviewer via chat (e.g., "audit this draft now"). |
+| `manual_fire` | Operator triggers a recurrence via `/work` Run action or chat `FireInvocation`. |
+
+### 3C.6 Why alpha-author's feedback is faster than alpha-trader's
+
+- alpha-trader's main wake (`signal-evaluation` at 13:45Z) fires once per RTH day. Most days produce no signal match. The autonomy story needs weeks-to-months to interpret.
+- alpha-author's main wake (substrate transition into `ready_for_review`) fires on every operator draft-marked-ready event. The operator chooses the cadence by drafting. Audit-and-verdict happens within one scheduler tick.
+
+This makes alpha-author the right test bed for **structural ADR-296 v2 validation** (does the substrate-event wake source work end-to-end?) and alpha-trader the right test bed for **operational discipline** (does the autonomous capital loop close cleanly over weeks?). They exercise different archetypes; neither subsumes the other.
 
 ---
 
@@ -819,10 +888,10 @@ Once Phase 1 is complete for an account and credentials are shared:
 - 8:05: `signal-evaluation` recurrence fires → state files updated under `/workspace/context/trading/signals/`
 - 8:15: `pre-market-brief` fires → daily-update expository-pointer email arrives per ADR-202 → Claude clicks the deep-link to land at `/work` cockpit (`/overview` redirects to `/work` per ADR-225)
 - 8:15–8:45: Claude reviews the cockpit four faces per ADR-228: **Mandate** (current MANDATE.md + AUTONOMY posture), **Money truth** (substrate fallback to `_money_truth.md` until live binding lands), **Performance** (judgment_log.md calibration — decision + material-outcome entries per ADR-281 §3), **Tracking** (proposal Queue + recurrence health). Reads pre-market brief at `/work?task=pre-market-brief` middle band. Notes any signal-state surprises.
-- 8:45–9:15: If any trade-proposals pending from overnight or pre-market signal fires, Claude + KVK coordinate out-of-band on approval.
+- 8:45–9:15: If any trade proposals are pending from overnight or pre-market signal fires (emitted inline by `signal-evaluation` per ADR-296 v2 — no separate `trade-proposal` recurrence), Claude + KVK coordinate out-of-band on approval.
 
 **Market hours (9:30–16:00 ET):**
-- Signals can fire intraday (track-universe runs at 11:30 and 15:45). Each fire → `trade-proposal` reactive recurrence emits a ProposeAction → AI Reviewer reactive dispatch (ADR-194 v2 Phase 3) → cockpit Tracking face Queue.
+- Signals can fire intraday (track-universe runs at 11:30 and 15:45). Each fire → `signal-evaluation` emits `ProposeAction` inline (per ADR-296 v2 — no `trade-proposal` recurrence chain) → Reviewer wakes via `proposal_arrival` wake source → cockpit Tracking face Queue.
 - Claude checks the Tracking face Queue periodically (every 1–2 hours during market; not minute-by-minute — Simons-persona isn't a scalper).
 - For each pending proposal:
   - Read the proposal card (action, signal attribution, Reviewer verdict + reasoning chain)
