@@ -1,6 +1,6 @@
 # ADR-294 — Operator-Proxy Capability + Observation Discipline
 
-**Status:** Proposed
+**Status:** Phase 1 Implemented (2026-05-20) — Phase 2 scenarios pending; Phase 3+4 deferred
 **Date:** 2026-05-20
 **Author(s):** kvk (with Claude/Sonnet drafting)
 **Supersedes:** none
@@ -281,4 +281,14 @@ Operator-proxy lets us *test* the substrate-approval flow today, ahead of FE Pha
 
 ---
 
-## Status: Proposed pending operator ratification.
+## Status: Phase 1 Implemented (2026-05-20)
+
+**Phase 1 shipped** (test gate `api/test_adr294_operator_proxy.py` — 14/14 PASS):
+- `api/services/authored_substrate.py` extended `VALID_AUTHOR_PREFIXES` with `operator-proxy:` sub-namespace
+- `api/services/operator_proxy/{__init__,client,capture,scenarios}.py` — module + capture + scenario runner
+- `api/scripts/operator/{loop,run_scenario}.py` — REPL + scenario player
+- `docs/observations/README.md` — discipline doc, schema, workflow
+
+**Phase 2 pending**: scenario YAMLs + first observation runs.
+**Phase 3** (cockpit Substrate-Queue): deferred per ADR-293 D10.
+**Phase 4** (MCP-as-operator): deferred, opportunistic; module separation makes it a clean add-on.

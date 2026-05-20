@@ -66,9 +66,20 @@ logger = logging.getLogger(__name__)
 #   system:outcome-reconciliation
 #   system:workspace-cleanup
 #   system:backfill-158
+#   operator-proxy:claude-sonnet-4-7:acting-as-alpha-trader-2
+#   operator-proxy:scenario-runner:acting-as-kvk
+#   operator-proxy:external:chatgpt-5:acting-as-yarnnn-author
+#
+# ADR-294 D2: operator-proxy:* sub-namespace names the operator's voice
+# materialized by a non-human caller — Claude running scenarios, future
+# MCP-as-operator callers (ADR-169 thesis), scripted scenario players,
+# and workspace-delegated agents. The role is operator-voice; the
+# identity is the proxy. Audit trail stays interpretable about who
+# *really* did what.
 
 VALID_AUTHOR_PREFIXES = (
     "operator",
+    "operator-proxy:",  # ADR-294 D2
     "yarnnn:",
     "agent:",
     "specialist:",
