@@ -1,0 +1,107 @@
+scenario_schema_version: 1
+scenario: warm-start-auto-execute
+description: |
+  Validate the full autonomous capital path on a warm kvk workspace:
+  Reviewer should reach an approve verdict within Sonnet round budget
+  when substrate has accumulated mechanical-mirror state + a stub
+  ground-truth file (_money_truth.md) so expectancy reasoning has
+  data to land on, rather than burning rounds inferring it.
+
+  Replaces "Test A" from the 2026-05-20 three-persona validation,
+  where the cold-start defer (proposal stayed pending) prevented
+  observation of the auto-execute branch. By pre-warming the workspace
+  with track-account + track-universe + track-regime fires and a
+  seeded _money_truth.md, the Reviewer can reach verdict in 3 rounds.
+
+  What this validates:
+    - should_auto_apply(action_class="capital") returning True under
+      autonomous + verdict=approve + ceiling not exceeded
+    - handle_execute_proposal called by review_proposal_dispatch
+    - Alpaca paper submit_order endpoint reached
+    - proposal status flips from pending → executed
+    - reviewer_identity attribution on the executed proposal
+
+  What this does NOT validate (separate scenarios):
+    - Reviewer's meta-aware governance/principles self-amendment loop
+      (covered by cold-start-governance-self-amend)
+    - Bounded-mode substrate-write gating (covered by 2026-05-20 Test C)
+
+persona: kvk
+
+setup:
+  # Warm the workspace with mechanical-mirror state. These are the same
+  # recurrences the scheduler would fire naturally; we just trigger them
+  # eagerly so the Reviewer reads non-empty substrate.
+  - fire: track-account
+  - fire: track-universe
+  - fire: track-regime
+
+  # Seed a stub _money_truth.md (operator-voice authorship — this is
+  # the operator standing in for accumulated performance history that
+  # doesn't exist yet on a fresh workspace). Without this, the Reviewer
+  # burns rounds inferring expectancy from missing substrate.
+  - write_substrate:
+      path: /workspace/context/trading/_money_truth.md
+      authored_by: operator-proxy:scenario-runner:acting-as-kvk
+      content: |
+        ---
+        rolling_30d_expectancy_R: +0.31
+        rolling_30d_sharpe: +0.68
+        rolling_30d_sample_size: 18
+        rolling_90d_expectancy_R: +0.28
+        rolling_90d_sharpe: +0.61
+        rolling_90d_sample_size: 47
+        by_signal:
+          signal-1-momentum-breakout:
+            expectancy_R: +0.42
+            sample_size: 12
+          signal-2-mean-reversion-oversold:
+            expectancy_R: +0.31
+            sample_size: 18
+          signal-3-pead:
+            expectancy_R: -0.05
+            sample_size: 6
+        ---
+        # Ground truth — kvk (warm-start seed)
+
+        Seeded by warm-start-auto-execute scenario to give the Reviewer
+        a non-empty performance read at fire time. Real workspaces
+        accumulate this organically via outcome-reconciliation; the
+        scenario stub stands in for that accumulation so we can
+        validate the Reviewer's auto-execute branch without waiting
+        for real trades to settle.
+
+        Signal-2 (mean-reversion-oversold) shows +0.31R expectancy
+        over 18 trades — comfortably above the framework's -0.5R
+        decay guardrail. This means a fresh Signal-2 NVDA proposal
+        should pass Check 4 (signal expectancy) cleanly.
+
+turns:
+  # Turn 1: operator-voice nudge to establish session + check Reviewer's
+  # read on conditions (warms the conversation context without invoking
+  # capital path yet).
+  - send_message: |
+      Reviewer, you should now see a warm workspace — track-account
+      ran, track-universe + track-regime fired, and _money_truth.md
+      has 30d/90d rolling expectancy. What's your read on conditions?
+    expect:
+      - reviewer_responded
+      - no_capital_action
+
+  # Turn 2: emit the Signal-2 NVDA proposal (passes all 6 Reviewer
+  # checks by construction). Reviewer wakes proposal-trigger.
+  # Under autonomous + warmed substrate, expect approve verdict +
+  # auto-execute via should_auto_apply("capital").
+  - emit_proposal:
+      template: signal-2-nvda
+    expect:
+      - reviewer_verdict_in: [approve, reject]   # NOT defer
+      - if_approved_then_executed                 # auto-execute branch fired
+      - if_approved_then_alpaca_order_submitted
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages

@@ -1,6 +1,6 @@
 # ADR-294 — Operator-Proxy Capability + Observation Discipline
 
-**Status:** Phase 1 Implemented (2026-05-20) — Phase 2 scenarios pending; Phase 3+4 deferred
+**Status:** Phases 1 + 2 Implemented (2026-05-20) — Phase 3 (cockpit Substrate-Queue) + Phase 4 (MCP-as-operator) deferred
 **Date:** 2026-05-20
 **Author(s):** kvk (with Claude/Sonnet drafting)
 **Supersedes:** none
@@ -281,14 +281,20 @@ Operator-proxy lets us *test* the substrate-approval flow today, ahead of FE Pha
 
 ---
 
-## Status: Phase 1 Implemented (2026-05-20)
+## Status: Phases 1 + 2 Implemented (2026-05-20)
 
 **Phase 1 shipped** (test gate `api/test_adr294_operator_proxy.py` — 14/14 PASS):
 - `api/services/authored_substrate.py` extended `VALID_AUTHOR_PREFIXES` with `operator-proxy:` sub-namespace
-- `api/services/operator_proxy/{__init__,client,capture,scenarios}.py` — module + capture + scenario runner
+- `api/services/operator_proxy/{__init__,client,capture,scenarios,proposal_templates}.py` — module + capture + scenario runner + template registry
 - `api/scripts/operator/{loop,run_scenario}.py` — REPL + scenario player
 - `docs/observations/README.md` — discipline doc, schema, workflow
 
-**Phase 2 pending**: scenario YAMLs + first observation runs.
-**Phase 3** (cockpit Substrate-Queue): deferred per ADR-293 D10.
+**Phase 2 shipped** — two scenarios authored + ran end-to-end + captured + interpreted:
+- `docs/observations/scenarios/warm-start-auto-execute.yaml` — kvk persona, validates auto-execute branch. **Surfaced architectural pressure on ADR-260 / ADR-256 3-round Sonnet budget** (full transcript shows Reviewer reaching approve-aligned reasoning but budget expiring mid-write).
+- `docs/observations/scenarios/cold-start-governance-self-amend.yaml` — alpha-trader persona, validates self-improvement loop. **Reviewer principled-refused premature framework amendment**, citing its own bootstrap-vs-steady-state clause — strong positive validation.
+- Both observation folders under `docs/observations/2026-05-20-*` with all 8 canonical artifacts including human-written findings.md.
+
+**Phase 3** (cockpit Substrate-Queue per ADR-293 D10): deferred.
 **Phase 4** (MCP-as-operator): deferred, opportunistic; module separation makes it a clean add-on.
+
+**Follow-on discourse trigger from Phase 2**: the warm-start finding identifies a real ADR-260 / ADR-256 pressure point (3-round Sonnet budget runs out before ReturnVerdict on capital-review wakes). Lean fix is prompt-tightening (Option A in findings.md); architectural responses (bump budget, split wakes) named as alternatives but not chosen. Worth a follow-up ADR / amendment after operator review.

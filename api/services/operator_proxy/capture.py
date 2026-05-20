@@ -244,34 +244,41 @@ async def _format_substrate_diff(user_id: str, revision_ids: set[str]) -> str:
 
 
 async def _format_decisions_slice(user_id: str, since_iso: str) -> str:
-    """Read current /workspace/review/decisions.md and return entries
-    created after since_iso. Simple substring filter on timestamp lines."""
+    """Read current /workspace/review/judgment_log.md and return entries
+    written after since_iso. judgment_log.md is the canonical Reviewer
+    decision log per ADR-194 v2 + ADR-281 §5. Split on `--- decision ---`
+    and `--- material-outcome ---` block markers and filter by timestamp."""
     from services.supabase import get_service_client
     client = get_service_client()
     rows = (
         client.table("workspace_files")
         .select("content")
         .eq("user_id", user_id)
-        .eq("path", "/workspace/review/decisions.md")
+        .eq("path", "/workspace/review/judgment_log.md")
         .execute()
     )
     if not rows.data:
-        return "# Decisions slice\n\n(No /workspace/review/decisions.md exists.)\n"
+        return "# Decisions slice\n\n(No /workspace/review/judgment_log.md exists.)\n"
     content = rows.data[0].get("content") or ""
 
-    # Split on `--- decision ---` blocks and filter by timestamp.
-    blocks = content.split("--- decision ---")
+    # Split on both decision and material-outcome block markers.
+    # Capture the marker so we can re-prepend it on each entry.
+    import re
+    parts = re.split(r"(--- decision ---|--- material-outcome ---)", content)
     fresh: list[str] = []
-    for block in blocks[1:]:  # skip preamble
-        # First line in each block looks like:  timestamp: 2026-05-20T00:12:22+00:00
-        ts_line = block.strip().splitlines()[0] if block.strip() else ""
+    # parts is: [preamble, marker1, body1, marker2, body2, ...]
+    for i in range(1, len(parts), 2):
+        marker = parts[i]
+        body = parts[i + 1] if i + 1 < len(parts) else ""
+        # First line of body looks like:  timestamp: 2026-05-20T00:12:22+00:00
+        ts_line = body.strip().splitlines()[0] if body.strip() else ""
         if "timestamp:" in ts_line:
             ts_value = ts_line.split("timestamp:", 1)[1].strip()
             if ts_value >= since_iso:
-                fresh.append("--- decision ---" + block)
+                fresh.append(marker + body)
     if not fresh:
-        return f"# Decisions slice\n\n(No new decisions since {since_iso}.)\n"
-    return "# Decisions slice\n\n" + "\n".join(fresh)
+        return f"# Decisions slice\n\n(No new judgment_log entries since {since_iso}.)\n"
+    return "# Decisions slice (from /workspace/review/judgment_log.md)\n\n" + "\n".join(fresh)
 
 
 async def _format_proposals(user_id: str, proposal_ids: set[str]) -> str:
@@ -301,6 +308,10 @@ async def _format_proposals(user_id: str, proposal_ids: set[str]) -> str:
 
 
 async def _format_token_usage(user_id: str, event_ids: set[str]) -> str:
+    """Group execution_events by (slug, mode, trigger_type) — the closest
+    proxy to "caller" the current schema offers. Reviewer wakes appear
+    as mode=judgment; mechanical mirrors as mode=mechanical.
+    """
     if not event_ids:
         return "# Token usage\n\n(No new execution_events in this window.)\n"
 
@@ -308,23 +319,34 @@ async def _format_token_usage(user_id: str, event_ids: set[str]) -> str:
     client = get_service_client()
     rows = (
         client.table("execution_events")
-        .select("caller_identity, cost_usd, prompt_tokens, completion_tokens, created_at")
+        .select("slug, mode, trigger_type, cost_usd, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, created_at")
         .in_("id", list(event_ids))
         .execute()
     )
-    by_caller: dict[str, dict] = {}
+    by_key: dict[str, dict] = {}
     for r in rows.data or []:
-        caller = r.get("caller_identity") or "(unknown)"
-        slot = by_caller.setdefault(caller, {"count": 0, "cost_usd": 0.0, "prompt": 0, "completion": 0})
+        key = f"{r.get('slug', '?')} ({r.get('mode', '?')}, trigger={r.get('trigger_type', '?')})"
+        slot = by_key.setdefault(key, {
+            "count": 0, "cost_usd": 0.0,
+            "input": 0, "output": 0,
+            "cache_read": 0, "cache_create": 0,
+        })
         slot["count"] += 1
         slot["cost_usd"] += float(r.get("cost_usd") or 0)
-        slot["prompt"] += int(r.get("prompt_tokens") or 0)
-        slot["completion"] += int(r.get("completion_tokens") or 0)
+        slot["input"] += int(r.get("input_tokens") or 0)
+        slot["output"] += int(r.get("output_tokens") or 0)
+        slot["cache_read"] += int(r.get("cache_read_tokens") or 0)
+        slot["cache_create"] += int(r.get("cache_create_tokens") or 0)
 
-    lines = ["# Token usage", "", "| Caller | Events | Cost (USD) | Prompt tok | Completion tok |", "|---|---|---|---|---|"]
-    for caller in sorted(by_caller):
-        d = by_caller[caller]
+    lines = [
+        "# Token usage",
+        "",
+        "| Recurrence / mode / trigger | Fires | Cost (USD) | Input tok | Output tok | Cache R | Cache C |",
+        "|---|---|---|---|---|---|---|",
+    ]
+    for key in sorted(by_key):
+        d = by_key[key]
         lines.append(
-            f"| `{caller}` | {d['count']} | {d['cost_usd']:.4f} | {d['prompt']:,} | {d['completion']:,} |"
+            f"| `{key}` | {d['count']} | {d['cost_usd']:.4f} | {d['input']:,} | {d['output']:,} | {d['cache_read']:,} | {d['cache_create']:,} |"
         )
     return "\n".join(lines)

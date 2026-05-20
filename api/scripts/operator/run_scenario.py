@@ -23,10 +23,14 @@ _API_ROOT = _THIS_DIR.parents[1]
 if str(_API_ROOT) not in sys.path:
     sys.path.insert(0, str(_API_ROOT))
 
-from dotenv import load_dotenv  # noqa: E402
-load_dotenv(_API_ROOT / ".env.alpha-ops")
-
 REPO_ROOT = _THIS_DIR.parents[2]
+
+from dotenv import load_dotenv  # noqa: E402
+# Load alpha-ops first (persona JWT mint creds), then root .env (runtime
+# secrets like INTEGRATION_ENCRYPTION_KEY needed by platform-tool decryption
+# during local fire-dispatch in scenario setup steps).
+load_dotenv(_API_ROOT / ".env.alpha-ops")
+load_dotenv(REPO_ROOT / ".env")
 
 
 def _observation_folder(scenario_slug: str) -> Path:

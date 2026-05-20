@@ -222,15 +222,23 @@ class ScenarioRunner:
             return obs
 
         if "emit_proposal" in turn:
-            template = turn["emit_proposal"].get("template")
+            template_name = turn["emit_proposal"].get("template")
             obs["action"] = "emit_proposal"
-            obs["template"] = template
-            obs["note"] = (
-                "Proposal emission via scenario template requires the existing "
-                "emit_test_proposal.py mechanism to be invoked here; runner "
-                "currently logs the intent — wire into emit_test_proposal "
-                "internals when needed."
-            )
+            obs["template"] = template_name
+            if not template_name:
+                obs["error"] = "emit_proposal turn missing required 'template' field"
+                return obs
+            try:
+                result = await _emit_proposal_from_template(
+                    proxy.config.user_id, template_name
+                )
+                obs["proposal_id"] = result.get("proposal_id")
+                obs["proposal_status"] = (result.get("proposal") or {}).get("status")
+                obs["success"] = result.get("success", False)
+            except KeyError as exc:
+                obs["error"] = str(exc)
+            except Exception as exc:
+                obs["error"] = f"{type(exc).__name__}: {exc}"
             return obs
 
         if "approve_proposal" in turn:
@@ -273,6 +281,25 @@ async def _manual_fire(user_id: str, slug: str) -> None:
     if target is None:
         raise ScenarioError(f"Recurrence slug={slug!r} not found in scenario user's _recurrences.yaml")
     await dispatch(client, user_id, target, trigger="reactive", context=None)
+
+
+async def _emit_proposal_from_template(user_id: str, template_name: str) -> dict:
+    """Emit an action_proposals row via handle_propose_action.
+
+    Resolves a template by name from proposal_templates.TEMPLATES, then
+    calls the canonical primitive that any agent would call. The
+    proposal-arrival trigger fires through review_proposal_dispatch.py,
+    waking the Reviewer.
+    """
+    from types import SimpleNamespace
+    from services.supabase import get_service_client
+    from services.primitives.propose_action import handle_propose_action
+    from .proposal_templates import get_template
+
+    template = get_template(template_name)
+    client = get_service_client()
+    auth = SimpleNamespace(client=client, user_id=user_id)
+    return await handle_propose_action(auth, template)
 
 
 async def _write_substrate_with_author(

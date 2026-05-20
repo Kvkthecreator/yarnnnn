@@ -130,23 +130,27 @@ class OperatorProxy:
         # Mint JWT once per session. Tokens are ~1h; for longer sessions
         # the proxy will need a re-mint helper (not in Phase 1 scope).
         if self._jwt is None:
-            # mint_jwt is sync — run in executor to avoid blocking the loop.
+            # mint_jwt only reads persona.email + Registry.supabase_url. Build
+            # a minimal synthetic Persona that satisfies the dataclass shape;
+            # the JWT-mint path is email-only, doesn't touch the other fields.
             loop = asyncio.get_running_loop()
+            registry = load_registry()
             persona = Persona(
                 slug=self.config.persona_slug,
                 label="(proxy synthetic)",
-                program="alpha-trader",  # unused for JWT mint
                 email=self.config.email,
                 user_id=self.config.user_id,
-                platform_kind="none",
-                platform_provider="none",
-                platform_mode=None,
-                platform_account_suffix=None,
+                workspace_id=self.config.user_id,  # not used by mint_jwt
+                program="alpha-trader",            # not used by mint_jwt
+                platform={"kind": "none", "provider": "none"},
                 context_domains=[],
                 credentials_env={},
                 expected={},
             )
-            self._jwt = await loop.run_in_executor(None, mint_jwt, persona, load_registry())
+            self._jwt = await loop.run_in_executor(
+                None,
+                lambda: mint_jwt(persona, registry=registry),
+            )
         self._client = httpx.AsyncClient(
             timeout=60.0,
             base_url=self.config.api_base,

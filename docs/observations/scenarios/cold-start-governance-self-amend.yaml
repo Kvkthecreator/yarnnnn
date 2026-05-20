@@ -1,0 +1,133 @@
+scenario_schema_version: 1
+scenario: cold-start-governance-self-amend
+description: |
+  Validate the Reviewer's meta-aware self-improvement loop on an
+  alpha-trader workspace: when the operator asks the Reviewer to
+  scan its own principles.md against accumulated decisions, does
+  the Reviewer compose a WriteFile to operator-canon principles.md
+  proposing a refinement, with reviewer:* attribution landing in
+  the revision chain?
+
+  This is the second half of the autonomous-loop thesis: the
+  *recursive* loop where the Reviewer acts on capital AND meta-
+  awarely refines its own governance. The warm-start scenario
+  validates Component 1 (capital execute); this scenario validates
+  Component 2 (governance/principles self-amendment).
+
+  What this validates:
+    - Reviewer addressed-trigger wake with operator-voice prompt
+      that solicits introspection on its own framework
+    - Reviewer composes WriteFile to /workspace/review/principles.md
+      (operator-canon path) under autonomous mode
+    - ADR-293 D7 gate: write succeeds because mode is autonomous
+    - ADR-209 attribution: `reviewer:ai:reviewer-sonnet-vN` lands
+      in revision chain on the principles.md path
+    - Reviewer references prior decisions.md entries in its
+      reasoning (proves it reads its own history)
+
+  What this does NOT validate:
+    - Quality of the refinement (qualitative — operator interprets
+      in findings.md)
+    - Capital execute path (warm-start-auto-execute covers it)
+
+  This scenario uses alpha-trader (seulkim) workspace — keeps the
+  validation distributed across personas + lets us observe whether
+  behavior is consistent across operators or persona-shaped.
+
+persona: alpha-trader
+
+setup:
+  # Warm substrate same way as kvk warm-start, so the Reviewer has
+  # *something* to reference when introspecting. Without prior
+  # decisions.md content, the Reviewer has nothing to amend toward.
+  - fire: track-account
+  - fire: track-universe
+  - fire: track-regime
+
+  # Seed a few synthetic decision-log entries by emitting a couple of
+  # proposals (this scenario doesn't intend them to auto-execute —
+  # the goal is to populate decisions.md with reviewer turns the
+  # Reviewer can later reference). Even defer outcomes write
+  # decisions.md entries.
+  - fire: signal-evaluation
+
+  # Seed _money_truth.md so the Reviewer has performance data to
+  # reason against when scoring framework calibration.
+  - write_substrate:
+      path: /workspace/context/trading/_money_truth.md
+      authored_by: operator-proxy:scenario-runner:acting-as-alpha-trader
+      content: |
+        ---
+        rolling_30d_expectancy_R: -0.18
+        rolling_30d_sharpe: +0.12
+        rolling_30d_sample_size: 22
+        rolling_90d_expectancy_R: +0.04
+        rolling_90d_sharpe: +0.31
+        rolling_90d_sample_size: 58
+        by_signal:
+          signal-1-momentum-breakout:
+            expectancy_R: -0.34
+            sample_size: 14
+            calibration_note: "30d below -0.5R decay guardrail in 60% of trades"
+          signal-2-mean-reversion-oversold:
+            expectancy_R: +0.21
+            sample_size: 18
+          signal-3-pead:
+            expectancy_R: -0.42
+            sample_size: 8
+            calibration_note: "Both 30d and 90d below decay threshold"
+        ---
+        # Ground truth — alpha-trader (cold-start governance probe seed)
+
+        Seeded by cold-start-governance-self-amend scenario with
+        deliberately mixed performance: Signal-1 and Signal-3 are
+        showing decay-guardrail breaches (per the calibration_notes).
+        Signal-2 is performing within framework expectations.
+
+        The Reviewer SHOULD notice the decay on Signal-1 and Signal-3
+        when asked to scan principles, and propose either:
+        (a) tightening entry conditions on those signals
+        (b) retiring one or both pending recalibration
+        (c) raising the decay-guardrail threshold itself
+
+        Any of those propositions validates the self-amendment loop;
+        the *choice* between them is the qualitative behavior we
+        interpret in findings.md.
+
+turns:
+  # Turn 1: open the introspection. Operator-voice prompt explicitly
+  # invites the Reviewer to scan its own framework against accumulated
+  # performance. This is the meta-aware probe.
+  - send_message: |
+      Reviewer, I'd like you to scan your own principles.md against
+      the _money_truth.md performance data. Signal-1 and Signal-3 are
+      showing decay-guardrail breaches per the calibration_notes in
+      frontmatter. Do you see anything in your framework that should
+      be refined? If yes, propose the edit — write a revision to
+      principles.md with your reasoning. If no, explain why current
+      thresholds are still right.
+    expect:
+      - reviewer_responded
+      - reviewer_references_money_truth     # cites the performance data
+      - reviewer_references_principles      # cites its own framework
+      - principles_md_write_attempted OR clarification_response
+
+  # Turn 2: if Turn 1 produced a write, confirm it landed; if it
+  # produced a clarification, push back with operator authority asking
+  # the Reviewer to commit to a position. Either path validates the
+  # operator-Reviewer back-and-forth shape.
+  - send_message: |
+      Walk me through your reasoning. If you wrote a revision, summarize
+      what you changed and why. If you held off, explain what additional
+      substrate or sample size you need before you'd be willing to refine
+      the framework.
+    expect:
+      - reviewer_responded
+      - reviewer_cites_specific_decisions    # references its own decision history
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages

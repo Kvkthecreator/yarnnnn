@@ -32,11 +32,11 @@ _API_ROOT = _THIS_DIR.parents[1]
 if str(_API_ROOT) not in sys.path:
     sys.path.insert(0, str(_API_ROOT))
 
+REPO_ROOT = _THIS_DIR.parents[2]
+
 from dotenv import load_dotenv  # noqa: E402
 load_dotenv(_API_ROOT / ".env.alpha-ops")
-
-
-REPO_ROOT = _THIS_DIR.parents[2]
+load_dotenv(REPO_ROOT / ".env")
 
 
 def _observation_folder(scenario_name: str) -> Path:
