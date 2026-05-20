@@ -9,9 +9,9 @@ status: active
 # `activated_bundle_version` (MANDATE.md frontmatter) and surfaces "Bundle
 # update available" when the strings differ. Discipline cost: one line per
 # bundle change, identical to the CHANGELOG entry the change already needs.
-version: 2026-05-18.1
+version: 2026-05-20.1
 date_created: 2026-04-26
-date_updated: 2026-04-27
+date_updated: 2026-05-20
 
 tagline: Equities + options operator workflow with continuous-price oracle. Self-funding by design.
 

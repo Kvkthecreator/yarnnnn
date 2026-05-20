@@ -67,6 +67,28 @@ UPDATE_AUTHORED_BY = "system:substrate-update"
 FRONTMATTER_BUNDLE_KEY = "activated_bundle_version"
 FRONTMATTER_KERNEL_KEY = "activated_kernel_version"
 
+# ADR-292 v3 D9: bundle files divided by architectural role. CONFIG_PATHS
+# are operationally load-bearing — the kernel scheduler + wake architecture
+# read them as source of truth for what the workspace does. Operator-edits
+# express intent but the bundle ships shape constraints (which slugs exist;
+# which sub-shapes are valid; what prompts are runtime-coupled). When the
+# bundle moves shape, operator-edits on the old shape may be functionally
+# inert or broken under the new code. Discipline: auto-overwrite the bundle's
+# new content into the live path; back up the operator's prior content to
+# `/workspace/_shared/conflict-backups/{ran_at}/{relative_path}` for manual
+# inspection. Closed-set today — adding a third config file requires an ADR
+# amendment naming it and updating this constant in the same commit.
+CONFIG_PATHS: frozenset[str] = frozenset({
+    "_recurrences.yaml",
+    "_hooks.yaml",
+})
+
+# Per ADR-292 v3 D10: backup destination convention for operator-edited
+# config files that get overwritten by a bundle update. Operator-readable;
+# the audit log entry surfaces the backup path so manual re-application of
+# the prior edits is a known affordance.
+CONFLICT_BACKUP_PREFIX = "_shared/conflict-backups"
+
 UpdateScope = Literal["kernel", "bundle", "both"]
 UpdateSource = Literal["operator", "harness", "test"]
 
@@ -105,6 +127,25 @@ class UpdateAction:
 
 
 @dataclass
+class ConflictedFile:
+    """One CONFIG_PATHS file that was auto-overwritten with backup.
+
+    Per ADR-292 v3 D9 + D10. Bundle-config files (`_recurrences.yaml`,
+    `_hooks.yaml`) that were operator-edited get auto-overwritten with the
+    bundle's new content; the operator's prior content lives at backup_path
+    for manual inspection / selective re-application.
+
+    The audit log renders these distinctly from `actions` (which are normal
+    re-fork writes) and from `skipped_operator_authored` (operator-edited
+    prose preserved as-is). A ConflictedFile entry means "we did write the
+    bundle's content; your prior edits are at the backup path."
+    """
+    path: str           # relative workspace path that was overwritten
+    backup_path: str    # relative workspace path where operator edits were saved
+    bundle_version: str # bundle version that was re-applied
+
+
+@dataclass
 class UpdateReport:
     """Structured result of one operator-initiated update event."""
     user_id: str
@@ -119,6 +160,7 @@ class UpdateReport:
     actions: list[UpdateAction] = field(default_factory=list)
     skipped_operator_authored: int = 0
     skipped_aligned: int = 0
+    config_conflicts: list[ConflictedFile] = field(default_factory=list)  # ADR-292 v3
     error: Optional[str] = None
 
     def to_log_markdown(self) -> str:
@@ -140,9 +182,13 @@ class UpdateReport:
             )
         lines.extend([
             f"- **Actions taken**: {len(self.actions)}",
-            f"- **Skipped (operator-authored)**: {self.skipped_operator_authored}",
+            f"- **Skipped (operator-authored prose)**: {self.skipped_operator_authored}",
             f"- **Skipped (aligned with canon)**: {self.skipped_aligned}",
         ])
+        if self.config_conflicts:
+            lines.append(
+                f"- **Config conflicts auto-resolved**: {len(self.config_conflicts)}"
+            )
         if self.error:
             lines.append(f"- **Error**: `{self.error}`")
         if self.actions:
@@ -152,6 +198,18 @@ class UpdateReport:
             for action in self.actions:
                 lines.append(
                     f"- `{action.path}` ({action.layer}) — {action.change_summary}"
+                )
+        if self.config_conflicts:
+            # Per ADR-292 v3 D10: surface backup paths so operator knows
+            # where to inspect prior edits.
+            lines.append("")
+            lines.append("### Config conflicts (operator-edits backed up, bundle re-applied)")
+            lines.append("")
+            for conflict in self.config_conflicts:
+                lines.append(
+                    f"- `{conflict.path}` → backup at `{conflict.backup_path}` "
+                    f"(bundle version `{conflict.bundle_version}`). "
+                    f"Operator may inspect the backup to re-apply edits selectively."
                 )
         lines.append("")
         lines.append("---")
@@ -461,9 +519,10 @@ async def _update_bundle_layer(
     """Apply bundle template updates via existing `fork_reference_workspace`.
 
     `fork_reference_workspace` already implements the exact gate ADR-292
-    needs at the bundle layer: idempotent re-application, content-gated
-    by `is_skeleton_content`, attributed via ADR-209. Re-running it IS
-    the bundle update worker.
+    needs at the bundle layer: idempotent re-application, content-gated by
+    `is_skeleton_content`, attributed via ADR-209. Per ADR-292 v3 D10, the
+    fork worker also handles config-vs-prose taxonomy + conflict backups
+    internally — this function maps its return shape into UpdateReport.
 
     Singular Implementation: one fork primitive, two trigger sites
     (one-shot activation + operator-initiated update).
@@ -472,12 +531,29 @@ async def _update_bundle_layer(
 
     fork_result = await fork_reference_workspace(client, user_id, program_slug)
 
+    # Surface config conflicts first so the report renders them distinctly
+    # from normal re-fork writes (per ADR-292 v3 D10).
+    conflict_paths = set()
+    for conflict in fork_result.get("config_conflicts", []) or []:
+        report.config_conflicts.append(ConflictedFile(
+            path=conflict["path"],
+            backup_path=conflict["backup_path"],
+            bundle_version=conflict["bundle_version"],
+        ))
+        conflict_paths.add(conflict["path"])
+
     for path in fork_result.get("files_written", []):
         # OCCUPANT.md is rewritten on every fork by `_populate_occupant_for_runtime`.
         # Filter it from the update report so it doesn't surface as a
         # spurious update action on every cycle.
         if path == "review/OCCUPANT.md":
             report.skipped_aligned += 1
+            continue
+        # Config conflicts already surfaced above — don't double-count.
+        if path in conflict_paths:
+            continue
+        # Also skip backup-path writes (system-authored, not operator-facing actions).
+        if path.startswith(CONFLICT_BACKUP_PREFIX + "/"):
             continue
         report.actions.append(UpdateAction(
             path=path,

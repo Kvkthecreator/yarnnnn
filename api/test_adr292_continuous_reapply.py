@@ -72,12 +72,15 @@ def test_module_exports_correct_shape() -> None:
         "KernelUpdateInfo",
         "UpdateReport",
         "UpdateAction",
+        "ConflictedFile",  # ADR-292 v3 D10
         "UPDATE_AUDIT_LOG_PATH",
         "UPDATE_AUTHORED_BY",
+        "CONFIG_PATHS",  # ADR-292 v3 D9
+        "CONFLICT_BACKUP_PREFIX",  # ADR-292 v3 D10
     ]
     missing = [s for s in needed if not hasattr(substrate_reapply, s)]
     if not missing:
-        _ok("substrate_reapply exports operator-initiated public surface (9 symbols)")
+        _ok(f"substrate_reapply exports operator-initiated public surface ({len(needed)} symbols incl. v3)")
     else:
         _bad("substrate_reapply exports", f"missing: {missing}")
 
@@ -328,7 +331,9 @@ def test_update_report_shape() -> None:
     required_report = {
         "user_id", "source", "ran_at", "scope", "program_slug",
         "kernel_from", "kernel_to", "bundle_from", "bundle_to",
-        "actions", "skipped_operator_authored", "skipped_aligned", "error",
+        "actions", "skipped_operator_authored", "skipped_aligned",
+        "config_conflicts",  # ADR-292 v3 D10
+        "error",
     }
     actual_report = {f.name for f in dataclasses.fields(UpdateReport)}
     missing = required_report - actual_report
@@ -365,6 +370,147 @@ def test_update_report_shape() -> None:
         _ok("UpdateReport.to_log_markdown produces structured audit-log block")
     else:
         _bad("to_log_markdown output", f"missing expected markers: {md[:300]}...")
+
+
+# ---------------------------------------------------------------------------
+# 5b. v3 — ConflictedFile + config-conflict rendering (ADR-292 v3 D9+D10)
+# ---------------------------------------------------------------------------
+
+def test_conflicted_file_dataclass_shape() -> None:
+    """ConflictedFile carries path + backup_path + bundle_version (D10)."""
+    import dataclasses
+    from services.substrate_reapply import ConflictedFile
+
+    required = {"path", "backup_path", "bundle_version"}
+    actual = {f.name for f in dataclasses.fields(ConflictedFile)}
+    missing = required - actual
+    if missing:
+        _bad("ConflictedFile fields", f"missing: {missing}")
+        return
+    _ok(f"ConflictedFile carries required fields {sorted(required)}")
+
+
+def test_config_paths_closed_set() -> None:
+    """CONFIG_PATHS is a frozenset containing exactly _recurrences.yaml + _hooks.yaml.
+
+    Per ADR-292 v3 D9 this is the closed-set policy declaration. Adding a third
+    file is an ADR amendment, not a code change in isolation.
+    """
+    from services.substrate_reapply import CONFIG_PATHS
+
+    if not isinstance(CONFIG_PATHS, frozenset):
+        _bad("CONFIG_PATHS type", f"expected frozenset, got {type(CONFIG_PATHS).__name__}")
+        return
+
+    expected = frozenset({"_recurrences.yaml", "_hooks.yaml"})
+    if CONFIG_PATHS != expected:
+        _bad(
+            "CONFIG_PATHS value",
+            f"expected {expected}, got {CONFIG_PATHS}. Adding/removing entries "
+            f"requires an ADR amendment per D9.",
+        )
+        return
+    _ok(f"CONFIG_PATHS == {sorted(CONFIG_PATHS)} (ADR-292 v3 D9 closed-set)")
+
+
+def test_conflict_backup_prefix_value() -> None:
+    from services.substrate_reapply import CONFLICT_BACKUP_PREFIX
+
+    expected = "_shared/conflict-backups"
+    if CONFLICT_BACKUP_PREFIX == expected:
+        _ok(f"CONFLICT_BACKUP_PREFIX == {expected!r}")
+    else:
+        _bad(
+            "CONFLICT_BACKUP_PREFIX value",
+            f"expected {expected!r}, got {CONFLICT_BACKUP_PREFIX!r}",
+        )
+
+
+def test_update_report_renders_config_conflicts() -> None:
+    """to_log_markdown surfaces config_conflicts with backup paths."""
+    from services.substrate_reapply import UpdateReport, ConflictedFile
+
+    report = UpdateReport(
+        user_id="test-user",
+        source="test",
+        ran_at="2026-05-20T11:00:00+00:00",
+        scope="bundle",
+        program_slug="alpha-trader",
+        kernel_from=None,
+        kernel_to=None,
+        bundle_from="2026-05-18.1",
+        bundle_to="2026-05-20.1",
+        config_conflicts=[
+            ConflictedFile(
+                path="_recurrences.yaml",
+                backup_path="_shared/conflict-backups/2026-05-20T11-00-00Z/_recurrences.yaml",
+                bundle_version="2026-05-20.1",
+            ),
+        ],
+    )
+    md = report.to_log_markdown()
+
+    required_markers = [
+        "Config conflicts auto-resolved",
+        "_recurrences.yaml",
+        "_shared/conflict-backups/2026-05-20T11-00-00Z/_recurrences.yaml",
+        "2026-05-20.1",
+        "operator may inspect the backup",  # case-insensitive substring
+    ]
+    md_lower = md.lower()
+    missing = [m for m in required_markers if m.lower() not in md_lower]
+    if missing:
+        _bad(
+            "config_conflicts rendering",
+            f"missing markers: {missing}\nRendered:\n{md}",
+        )
+        return
+    _ok("UpdateReport renders config_conflicts with backup-path discoverability")
+
+
+def test_fork_return_shape_includes_v3_fields() -> None:
+    """fork_reference_workspace return dict includes config_conflicts + bundle_version (D10)."""
+    import inspect
+    from services.programs import fork_reference_workspace
+
+    # We can't run the async fork in this synchronous test gate, but we can
+    # check the docstring + source as a structural smoke test.
+    src = inspect.getsource(fork_reference_workspace)
+    needed_returns = [
+        '"config_conflicts": config_conflicts',
+        '"bundle_version": bundle_version',
+    ]
+    missing = [m for m in needed_returns if m not in src]
+    if missing:
+        _bad(
+            "fork_reference_workspace return shape",
+            f"v3 return-dict keys not found in source: {missing}",
+        )
+        return
+    _ok("fork_reference_workspace returns config_conflicts + bundle_version (v3)")
+
+
+def test_fork_decision_tree_branches_present() -> None:
+    """fork_reference_workspace source contains all 5 v3 decision-tree branches."""
+    import inspect
+    from services.programs import fork_reference_workspace
+
+    src = inspect.getsource(fork_reference_workspace)
+    branches = [
+        "write_new",
+        "skip_aligned",
+        "write_refresh_skeleton",
+        "config_conflict_auto_resolve",
+        "skip_operator_authored_prose",
+    ]
+    missing = [b for b in branches if b not in src]
+    if missing:
+        _bad(
+            "fork_reference_workspace decision tree (D10)",
+            f"missing branches: {missing}",
+        )
+        return
+    _ok(f"fork_reference_workspace decision tree has all 5 branches per D10")
 
 
 # ---------------------------------------------------------------------------
@@ -498,6 +644,12 @@ def main() -> int:
     test_frontmatter_write_preserves_body()
     test_frontmatter_idempotent_second_write()
     test_update_report_shape()
+    test_conflicted_file_dataclass_shape()
+    test_config_paths_closed_set()
+    test_conflict_backup_prefix_value()
+    test_update_report_renders_config_conflicts()
+    test_fork_return_shape_includes_v3_fields()
+    test_fork_decision_tree_branches_present()
     test_detection_helpers_are_coroutines()
     test_apply_substrate_update_signature()
     test_adr292_doc_exists()

@@ -215,22 +215,35 @@ async def fork_reference_workspace(
     (per ADR-209: ``authored_by="system:bundle-fork"`` vs
     ``authored_by="operator"``).
 
-    The fork rule is one decision per file:
+    Per ADR-292 v3 D9–D10: bundle files divide into two architectural
+    classes — config (operationally load-bearing; `_recurrences.yaml`,
+    `_hooks.yaml`) and prose (operator-authored substrate). Per-file
+    decision tree:
 
       - File doesn't exist in operator's workspace → write the bundle copy.
       - File exists but is still skeleton (per workspace_utils.is_skeleton_content,
         which compares against the bundle copy) → write the bundle copy
         (operator hasn't customized yet — refresh from bundle).
-      - File exists and operator has customized → skip (preserve operator
-        content; the bundle update is available in the bundle's git
-        history if the operator wants to merge manually).
+      - File exists, equals bundle body → already aligned, skip (no-op).
+      - File exists, operator-edited, **and is a CONFIG_PATHS file**
+        (`_recurrences.yaml` or `_hooks.yaml` per ADR-292 v3 D9) →
+        auto-overwrite-with-backup: write operator's prior content to
+        `_shared/conflict-backups/{ran_at}/{relative}` attributed
+        `system:substrate-update`, then write bundle's new content to the
+        live path attributed `system:bundle-fork`. The conflict is recorded
+        in the returned `config_conflicts` list. This preserves operator
+        intent (backup) while letting the kernel's shape-constraints reach
+        the live workspace.
+      - File exists, operator-edited prose → skip (preserve operator content;
+        bundle improvements are available in git history if the operator
+        wants to merge manually).
 
-    Bundle files are copied verbatim. They contain no tier frontmatter
-    (stripped from bundle source files in Phase D.2). Operator's view
-    of the file is exactly what's in the bundle.
+    Bundle files are copied verbatim. Operator's view of a written file is
+    exactly what's in the bundle.
 
     Written through UserMemory.write → authored_substrate.write_revision
-    with authored_by="system:bundle-fork".
+    with appropriate attribution (`system:bundle-fork` for bundle writes;
+    `system:substrate-update` for backup writes per D10).
 
     Post-fork: if the bundle contained ``/workspace/_recurrences.yaml``,
     ``materialize_scheduling_index`` is called once to populate the thin
@@ -241,11 +254,23 @@ async def fork_reference_workspace(
     the scheduler can query it.
 
     Returns ``{"files_written": [...], "files_skipped": [...],
-    "program_slug": slug, "scheduling_index_rows": N}``.
+    "config_conflicts": [...], "program_slug": slug,
+    "scheduling_index_rows": N, "bundle_version": str | None}``.
+
+    Each entry of ``config_conflicts`` is a dict ``{path, backup_path,
+    bundle_version}`` matching the ``ConflictedFile`` dataclass shape in
+    `services.substrate_reapply`.
     """
-    from services.bundle_reader import _load_manifest
+    from datetime import datetime, timezone
+
+    from services.bundle_reader import _load_manifest, get_bundle_version
     from services.conventions import RECURRENCES_PATH
     from services.scheduling import materialize_scheduling_index
+    from services.substrate_reapply import (
+        CONFIG_PATHS,
+        CONFLICT_BACKUP_PREFIX,
+        UPDATE_AUTHORED_BY,
+    )
     from services.workspace import UserMemory
     from services.workspace_utils import is_skeleton_content
 
@@ -266,9 +291,17 @@ async def fork_reference_workspace(
             f"only active or deferred bundles can be forked."
         )
 
+    bundle_version = get_bundle_version(program_slug) or "unversioned"
+    # Stable timestamp prefix shared by all conflict backups in this fork
+    # call. Same ran_at value used by apply_substrate_update's UpdateReport;
+    # they don't have to coincide perfectly, but using one timestamp per
+    # fork keeps a single backup directory per event readable.
+    ran_at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
+
     um = UserMemory(client, user_id)
     files_written: list[str] = []
     files_skipped: list[str] = []
+    config_conflicts: list[dict[str, str]] = []
 
     bundle_files = sorted(
         list(bundle_root.rglob("*.md")) + list(bundle_root.rglob("*.yaml"))
@@ -287,14 +320,21 @@ async def fork_reference_workspace(
             continue
 
         existing = await um.read(target_path)
-        if existing is None:
-            should_write = True
-        elif is_skeleton_content(existing, bundle_body=body):
-            should_write = True
-        else:
-            should_write = False
+        # Per ADR-292 v3 D10 decision tree. Compute exactly one branch.
+        is_config_file = relative in CONFIG_PATHS
 
-        if should_write:
+        if existing is None:
+            branch = "write_new"
+        elif existing == body:
+            branch = "skip_aligned"
+        elif is_skeleton_content(existing, bundle_body=body):
+            branch = "write_refresh_skeleton"
+        elif is_config_file:
+            branch = "config_conflict_auto_resolve"
+        else:
+            branch = "skip_operator_authored_prose"
+
+        if branch in ("write_new", "write_refresh_skeleton"):
             await um.write(
                 target_path,
                 body,
@@ -308,9 +348,51 @@ async def fork_reference_workspace(
             )
             files_written.append(target_path)
             logger.info(f"[FORK] {target_path} ← {program_slug}/reference-workspace/{relative}")
-        else:
+        elif branch == "skip_aligned":
             files_skipped.append(target_path)
-            logger.info(f"[FORK] {target_path} — skipped (operator-customized)")
+            logger.info(f"[FORK] {target_path} — skipped (already aligned with bundle)")
+        elif branch == "config_conflict_auto_resolve":
+            # ADR-292 v3 D9+D10: operator-edited CONFIG_PATHS file +
+            # bundle has new content → back up operator content + overwrite
+            # with bundle's. Backup path is operator-readable; the audit
+            # log surfaces it so manual re-application of prior edits is
+            # discoverable.
+            backup_path = f"{CONFLICT_BACKUP_PREFIX}/{ran_at}/{relative}"
+            await um.write(
+                backup_path,
+                existing,
+                summary=f"Backup of operator-edited config before {program_slug} re-fork",
+                authored_by=UPDATE_AUTHORED_BY,
+                message=(
+                    f"backed up operator-edited {relative} prior to bundle re-apply "
+                    f"(bundle version {bundle_version}) per ADR-292 v3 D10"
+                ),
+            )
+            await um.write(
+                target_path,
+                body,
+                summary=f"Re-applied {program_slug} bundle config",
+                authored_by="system:bundle-fork",
+                message=(
+                    f"re-applied {relative} from "
+                    f"docs/programs/{program_slug}/reference-workspace/ "
+                    f"(bundle version {bundle_version}, operator edits backed up at "
+                    f"{backup_path}) per ADR-292 v3 D10"
+                ),
+            )
+            files_written.append(target_path)
+            config_conflicts.append({
+                "path": target_path,
+                "backup_path": backup_path,
+                "bundle_version": bundle_version,
+            })
+            logger.info(
+                f"[FORK] {target_path} — config conflict auto-resolved "
+                f"(backup at {backup_path})"
+            )
+        else:  # skip_operator_authored_prose
+            files_skipped.append(target_path)
+            logger.info(f"[FORK] {target_path} — skipped (operator-authored prose)")
 
     # ADR-284 (2026-05-17): Reviewer seat-occupant runtime-truth alignment.
     # Pre-ADR-284 the kernel scaffold (workspace_init Phase 5) wrote OCCUPANT.md
@@ -356,6 +438,8 @@ async def fork_reference_workspace(
     return {
         "files_written": files_written,
         "files_skipped": files_skipped,
+        "config_conflicts": config_conflicts,  # ADR-292 v3 D10
         "program_slug": program_slug,
+        "bundle_version": bundle_version,  # ADR-292 v3 D10: surface to caller
         "scheduling_index_rows": scheduling_index_rows,
     }

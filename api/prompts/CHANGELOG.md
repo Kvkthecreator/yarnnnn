@@ -6,6 +6,122 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.20.6] - feat(adr-292 v3): config-vs-prose taxonomy + CI version-bump gate close Checkpoint 2 propagation drift
+
+### Decision
+
+ADR-292 v3 amendment closes two structural drift classes surfaced by the
+2026-05-20 pre-e2e readiness audit (`docs/observations/2026-05-20-100309-
+pre-e2e-readiness-audit-adr296-v2/findings.md`):
+
+**Gap A** — Checkpoint 2 modified bundle reference-workspace files for
+alpha-trader + alpha-author without bumping `MANIFEST.yaml::version`.
+Bundles still declared `2026-05-18.1` post-Checkpoint-2;
+`bundle_update_available()` returned None for both live workspaces because
+version strings matched. Code shipped at deploy; bundles did not propagate.
+
+**Gap B** — operator-edited `_recurrences.yaml` skipped silently during
+re-fork once it ceased to be skeleton, even when the bundle's content had
+moved shape (Checkpoint 2 deleted `pre-ship-audit` recurrence + added
+`_hooks.yaml`; live workspace had no way to receive the change).
+
+v3 introduces a **config-vs-prose taxonomy** on bundle files. Config files
+(operationally load-bearing: `_recurrences.yaml`, `_hooks.yaml`) get
+auto-overwrite-with-backup when the bundle moves. Prose files (IDENTITY,
+MANDATE body, BRAND, principles, voice, editorial, risk envelope, operator
+profile) stay operator-protected. Plus a CI lint enforcing version bump on
+any reference-workspace or specs content change.
+
+### Changed
+
+**`docs/adr/ADR-292-continuous-substrate-reapply.md`** — adds D9–D12 (v3
+amendment section) and Phase 3 implementation table. Status flips to
+"v3 Implemented." Drafting history updated with v3 entry.
+
+**`api/services/substrate_reapply.py`** — adds:
+- `CONFIG_PATHS: frozenset` — closed-set of `{_recurrences.yaml, _hooks.yaml}`
+- `CONFLICT_BACKUP_PREFIX = "_shared/conflict-backups"` — backup path convention
+- `ConflictedFile` dataclass — `{path, backup_path, bundle_version}`
+- `UpdateReport.config_conflicts: list[ConflictedFile]` — new field
+- `to_log_markdown()` extended to render config conflicts distinctly
+- `_update_bundle_layer()` consumes new return shape from fork worker
+
+**`api/services/programs.py::fork_reference_workspace`** — extends per-file
+decision tree from 3 branches to 5 per ADR-292 v3 D10:
+- `write_new` (file missing)
+- `skip_aligned` (existing equals bundle)
+- `write_refresh_skeleton` (operator hasn't customized)
+- `config_conflict_auto_resolve` (NEW — CONFIG_PATHS file diverged + bundle moved)
+- `skip_operator_authored_prose` (preserve operator prose)
+
+Return dict gains `config_conflicts: list[dict]` + `bundle_version: str`
+fields. Existing callers (`activate_persona.py`, `workspace_init.py`,
+`substrate_reapply._update_bundle_layer`) consume the new keys; old
+callers ignore them (non-breaking).
+
+**`scripts/lint_bundle_version_bump.py`** (NEW) — runnable CI lint. Compares
+files-changed-in-range against `MANIFEST.yaml::version` line diff for every
+bundle under `docs/programs/`. Exits 1 when bundle content
+(`reference-workspace/` or `specs/`) changed but version didn't bump.
+Verified against commit `37426c5` (Checkpoint 2) — would have failed both
+alpha-trader + alpha-author had it been in place.
+
+**`api/test_adr292_continuous_reapply.py`** — extends regression gate with
+6 new v3 tests: ConflictedFile dataclass shape, CONFIG_PATHS closed-set,
+CONFLICT_BACKUP_PREFIX value, UpdateReport conflict rendering, fork return
+shape, fork decision-tree branch coverage. **25/25 passing**.
+
+**`docs/architecture/propagation-discipline.md`** — new v3 amendment
+section naming Gap A + Gap B + their fixes (D9–D11). Lint invocation
+documented.
+
+### Expected behavior
+
+**Before this change**: bundle author changes `_recurrences.yaml` without
+bumping MANIFEST `version:` → no operator workspace can detect the update
+via `bundle_update_available()`. Operator-edited `_recurrences.yaml` skips
+silently during any re-fork attempt. Code-vs-substrate drift accumulates.
+
+**After this change**: 
+1. CI lint catches the missing version bump at PR time (`exit 1`,
+   names the affected bundle + missing files).
+2. Once version is bumped + operator clicks "Update" in Settings → Workspace
+   (or `apply_substrate_update` is invoked from harness), config files get
+   auto-overwritten with the bundle's new content. Operator's prior edits
+   are saved to `/workspace/_shared/conflict-backups/{ran_at}/{path}` with
+   `system:substrate-update` attribution per ADR-209.
+3. Audit log entry (`/workspace/_shared/substrate-update-log.md`) surfaces
+   the conflict explicitly under "Config conflicts auto-resolved" with the
+   backup path so manual re-application of prior edits is a discoverable
+   affordance.
+4. Operator-authored prose files (IDENTITY, MANDATE body, BRAND, etc.) stay
+   exactly as the operator authored them — same protection as before.
+
+This is the sustainable propagation discipline, not a one-shot patch. The
+class of "Checkpoint N modified bundle content but version stayed at N-1"
+mistakes is now CI-enforced; the class of "operator-edited config file
+silently shielded from operationally-necessary bundle updates" is now
+structurally resolved.
+
+### Why now
+
+ADR-296 v2 Checkpoint 2 (commit `37426c5`, 2026-05-20T07:45Z) was the
+exemplar of Gap A — bundle changes without version bump, both alpha-trader
++ alpha-author affected. The pre-e2e audit at `docs/observations/2026-05-
+20-100309-pre-e2e-readiness-audit-adr296-v2/` documented the substrate
+evidence; operator confirmed sustainable-fix direction at 2026-05-20T10:50Z;
+v3 amendment lands as the structural close.
+
+### Companion canon
+
+- ADR-292 v3 D9–D12: config-vs-prose taxonomy + decision tree + CI lint
+- FOUNDATIONS Axiom 1 (Substrate) — every revision attributed, retained
+- ADR-209 attribution discipline — `system:substrate-update` actor for
+  conflict backups + version-stamp writes
+- ADR-296 v2 Checkpoint 2 — the case that surfaced the gaps
+
+---
+
 ## [2026.05.20.5] - feat(adr-296 v2 checkpoint 2): singular invocation gateway + funnel + substrate-event hooks + ManageHook primitive + bundle migrations
 
 ### Decision

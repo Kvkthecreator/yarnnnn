@@ -117,11 +117,38 @@ To prevent future drift back into the over-engineered shapes:
 - ❌ Bundle recurrences shipping a `back-office-substrate-reapply` entry
 - ❌ Schema columns for `activated_bundle_version` (substrate-native in MANDATE.md frontmatter)
 - ❌ Per-file diff-findings table
-- ❌ Per-file accept/reject affordance
+- ❌ Per-file accept/reject affordance for operator at update-time (the config-vs-prose taxonomy per ADR-292 v3 D9 is the policy)
+- ❌ Three-way merge of operator-edits into bundle config
 - ❌ Prompt version pinning
 - ❌ Canary rollout / staged release infrastructure
 
 Each becomes its own ADR if a concrete production failure makes it acute.
+
+---
+
+## v3 amendment (2026-05-20) — config-vs-prose taxonomy + CI version-bump gate
+
+Closes two structural drift classes surfaced by ADR-296 v2 Checkpoint 2 ([observation findings](../observations/2026-05-20-100309-pre-e2e-readiness-audit-adr296-v2/findings.md)):
+
+**Gap A — version-bump dependency on author discipline.** Checkpoint 2 modified bundle reference-workspace files for both alpha-trader and alpha-author without bumping `MANIFEST.yaml::version`. Both bundles still declared `version: 2026-05-18.1` post-Checkpoint-2. `bundle_update_available()` returned None because version strings matched; live workspaces had no path to detect the update.
+
+**Fix (D11):** `scripts/lint_bundle_version_bump.py` — runnable lint that compares files-changed-in-range against `MANIFEST.yaml::version` line diff for every bundle under `docs/programs/`. Exit 1 when bundle content (`reference-workspace/` or `specs/`) changed but version didn't bump.
+
+Run before commit:
+```bash
+python scripts/lint_bundle_version_bump.py --working-tree
+```
+
+Run against PR diff:
+```bash
+python scripts/lint_bundle_version_bump.py --base-ref origin/main
+```
+
+**Gap B — silent skip of operator-edited bundle config files.** The `fork_reference_workspace` worker uses `is_skeleton_content()` as the only gate. Once the operator (or the Reviewer per ADR-275) edits `_recurrences.yaml`, every subsequent re-fork attempt skips it silently. When the bundle later changes the file's shape (Checkpoint 2 deleted `pre-ship-audit` from `_recurrences.yaml` and added `_hooks.yaml`), the live workspace had no way to receive the change.
+
+**Fix (D9 + D10):** introduce a config-vs-prose taxonomy on bundle files. **Config files** (operationally load-bearing: `_recurrences.yaml`, `_hooks.yaml`) auto-overwrite-with-backup when the bundle moves — operator edits go to `/workspace/_shared/conflict-backups/{ran_at}/{relative_path}`, bundle's new content lands at the live path, the audit log + UpdateReport surface the conflict explicitly. **Prose files** (IDENTITY, MANDATE body, BRAND, principles, voice, editorial, risk envelope, operator profile) stay operator-protected as before. Closed-set declared in code (`services.substrate_reapply.CONFIG_PATHS`); adding a third config file requires an ADR amendment.
+
+The discipline change in plain words: when the platform ships a new bundle version, operationally-load-bearing config files reach the live workspace automatically (with the operator's prior edits backed up for inspection); operator-authored prose stays where the operator put it. The mismatch between "operator intent" (their edits) and "kernel runtime contract" (the bundle's shape) is resolved by giving each side its proper home — backup for the operator's intent record, live path for the kernel's runtime contract.
 
 ---
 

@@ -1,6 +1,6 @@
 # ADR-292: Operator-Initiated Versioned Substrate Update — Kernel + Bundle Updates Reach Live Workspaces
 
-**Status**: Implemented (Phase 1 — backend, 2026-05-18); Phase 2 (FE surface) Proposed
+**Status**: Implemented (Phase 1 — backend, 2026-05-18); Phase 2 (FE surface) Proposed; **v3 amendment (2026-05-20) — Implemented**: content-vs-prose taxonomy + version-bump CI gate close the silent-drift class surfaced by Checkpoint 2 of ADR-296 v2
 **Authors**: KVK, Claude
 
 **Dimensional classification** (FOUNDATIONS v8.5):
@@ -31,7 +31,9 @@
 
 ## Drafting history
 
-Drafted 2026-05-18 in the wrong shape (daily mechanical recurrence + new `ReapplyPlatformSubstrate` primitive). Reverted same day after operator feedback: the right model is Claude Code's `claude --update` — **versioned platform releases, operator-initiated adoption** — not a polling cron. This ADR documents the corrected shape directly; the wrong-shape commit `837356b` is amended in place by the corrective commit on top.
+- **2026-05-18 (drafted, reverted same day)**: v1 daily mechanical recurrence + new `ReapplyPlatformSubstrate` primitive. Reverted after operator feedback: the right model is Claude Code's `claude --update` — versioned platform releases, operator-initiated adoption — not a polling cron.
+- **2026-05-18 (v2, Implemented)**: corrected shape per D1–D8 below. `bundle_update_available` + `kernel_update_available` detection helpers + `apply_substrate_update(scope, source)` worker + MANDATE.md frontmatter version-stamp substrate + audit log.
+- **2026-05-20 (v3 amendment, Implemented)**: closes a structural drift class surfaced by ADR-296 v2 Checkpoint 2 — bundle reference-workspace content can change without bumping `MANIFEST.yaml::version`, AND operator-edited bundle-config files (e.g., `_recurrences.yaml`) skip silently during re-fork even when the bundle's content is functionally newer. v3 introduces (a) a content-vs-prose taxonomy on bundle files with auto-overwrite-with-backup for config files when versions mismatch, and (b) a CI lint enforcing version bump on any reference-workspace content change. See decisions D9–D11 below.
 
 ---
 
@@ -134,6 +136,124 @@ Each of these becomes its own ADR if and when a concrete production failure make
 
 Recovery from a regression in either path is `git revert + redeploy`, affecting all workspaces uniformly. At current operator scale (handful of dogfood personas, one human directing), this is correct. The first concrete production regression that this fails to recover from triggers a future ADR — not this one.
 
+---
+
+## v3 amendment (2026-05-20) — content-vs-prose taxonomy + CI version-bump gate
+
+The 2026-05-20 audit of kvk's alpha-trader and yarnnn-author workspaces ([docs/observations/2026-05-20-100309-pre-e2e-readiness-audit-adr296-v2](/Users/macbook/yarnnn/docs/observations/2026-05-20-100309-pre-e2e-readiness-audit-adr296-v2/findings.md)) surfaced two structural gaps in the v2 mechanism:
+
+**Gap A — version-bump dependency on author discipline.** ADR-296 v2 Checkpoint 2 (commit `37426c5`, 2026-05-20T07:45Z) modified bundle reference-workspace files (`_recurrences.yaml`, `_hooks.yaml`, `review/principles.md`) for both alpha-trader and alpha-author **without bumping `version:` in either `MANIFEST.yaml`**. Both bundles still declared `version: 2026-05-18.1`. Live workspaces had no path to detect the update because `bundle_update_available()` compares version strings and both matched. Result: code shipped at deploy; bundles did not propagate.
+
+**Gap B — silent skip of operator-edited bundle config files.** The `fork_reference_workspace` worker uses `is_skeleton_content()` as the only gate. Once an operator (or the Reviewer per ADR-275) edits `_recurrences.yaml` to add deliverable Schedule entries, the file ceases to be skeleton — and every subsequent re-fork attempt skips it silently. yarnnn-author's substrate-update-log shows this: the 2026-05-20T03:08Z re-fork counted 5 files as "Skipped (operator-authored)" including `_recurrences.yaml`. When Checkpoint 2 later changed the bundle's `_recurrences.yaml` (deleted `pre-ship-audit` recurrence, added `_hooks.yaml`), the live workspace had no way to receive the change because its `_recurrences.yaml` was no longer skeleton.
+
+Both gaps preserve the v2 model's core (operator-initiated, Claude-Code-shaped) but make the propagation contract honest about: *which files can be auto-overwritten when the bundle moves, vs. which files require manual operator decision*.
+
+### D9. Bundle file taxonomy — config vs prose
+
+Files shipped in `docs/programs/{slug}/reference-workspace/` divide into two classes by **architectural role**, not by file extension or path heuristic:
+
+**Config files (operationally load-bearing).** Their content is consumed by the kernel scheduler / wake architecture / runtime dispatch as the source of truth for *what the workspace does*. Operator-edits express *operator intent*, but the bundle's shape constraints (which slugs exist; which sub-shapes are valid; what prompts are runtime-coupled) come from upstream. When the bundle changes shape (e.g., deletes a slug, migrates a recurrence to a hook, introduces a new wake-source-coupled prompt), operator-edits on the old shape may be **functionally inert or broken** under the new code. The right discipline is auto-overwrite-with-backup: the bundle's new shape lands; the operator's prior edits are preserved at a backup path for manual re-application.
+
+Canonical config files (CONFIG_PATHS):
+- `_recurrences.yaml` — cron-tick wake source's configuration (ADR-296 v2 D2)
+- `_hooks.yaml` — substrate-event wake source's configuration (ADR-296 v2 D2)
+
+This list is closed-set today. Adding a third config file in a future ADR requires updating CONFIG_PATHS in code + this section.
+
+**Prose files (operator-authored substrate).** Their content is consumed by the LLM at reasoning time as operator-authored declaration — IDENTITY, MANDATE, BRAND, principles, voice, editorial, risk envelope, operator profile. Operator-edits are the substantive content of the file; the bundle ships a template that the operator overwrites and never expects the system to touch again. The right discipline is preserve-and-surface: the bundle's new template content is recorded in the update audit log + UpdateReport, but the operator's content is not overwritten. (Same behavior as v2 — explicitly preserved here as half of the taxonomy.)
+
+The taxonomy is a code-level declaration in `services/substrate_reapply.py`:
+
+```python
+# Bundle files that are operationally load-bearing config — the kernel's
+# wake architecture reads them as source of truth. Auto-overwrite with
+# backup when bundle version moves; operator's prior edits go to
+# /workspace/_shared/conflict-backups/{ran_at}/{relative_path}.
+CONFIG_PATHS: frozenset[str] = frozenset({
+    "_recurrences.yaml",
+    "_hooks.yaml",
+})
+```
+
+### D10. Re-fork worker gains content-aware conflict handling
+
+`fork_reference_workspace` (and by extension `_update_bundle_layer` per D5) extends the per-file decision tree:
+
+```
+existing = read(target_path)
+bundle_body = read(bundle_path)
+
+if existing is None:
+    → write bundle_body, attributed system:bundle-fork
+elif existing == bundle_body:
+    → skip (already aligned)
+elif is_skeleton_content(existing, bundle_body=bundle_body):
+    → write bundle_body, attributed system:bundle-fork (still skeleton — refresh)
+elif relative_path in CONFIG_PATHS:
+    → AUTO-OVERWRITE WITH BACKUP:
+        1. write existing to /workspace/_shared/conflict-backups/{ran_at}/{relative_path}
+           attributed system:substrate-update with message "backed up operator-edited config"
+        2. write bundle_body to target_path
+           attributed system:substrate-update with message "config re-applied from {slug} bundle vN.M (operator edits backed up)"
+        3. append ConflictedFile entry to UpdateReport.config_conflicts
+else:
+    → skip (operator-authored prose, preserve)
+        and count to skipped_operator_authored as today
+```
+
+The backup path convention `/workspace/_shared/conflict-backups/{ran_at}/{relative_path}` is operator-readable; revisions are attributed per ADR-209 so the chain shows the backup write + the overwrite as one atomic update event in the audit log.
+
+`UpdateReport` gains a new field:
+
+```python
+@dataclass
+class ConflictedFile:
+    path: str
+    backup_path: str
+    bundle_version: str
+
+@dataclass
+class UpdateReport:
+    # ... existing fields ...
+    config_conflicts: list[ConflictedFile] = field(default_factory=list)
+```
+
+Audit log rendering names the conflicts explicitly:
+
+```markdown
+## Substrate update — 2026-05-20T11:00:00+00:00
+- **Source**: `operator`
+- **Scope**: `bundle`
+- **Bundle version**: `2026-05-18.1` → `2026-05-20.1`
+- **Actions taken**: 3
+- **Skipped (operator-authored prose)**: 5
+- **Config conflicts auto-resolved**: 1
+
+### Config conflicts (operator-edits backed up, bundle re-applied)
+- `_recurrences.yaml` → backup at `_shared/conflict-backups/2026-05-20T11:00:00/_recurrences.yaml`
+  Operator may inspect the backup to re-apply edits selectively. Bundle's new content
+  is now live.
+```
+
+### D11. CI version-bump enforcement
+
+A CI lint script enforces: any change under `docs/programs/{slug}/reference-workspace/` or `docs/programs/{slug}/specs/` requires a bump in the corresponding `docs/programs/{slug}/MANIFEST.yaml::version` in the same commit (or in a commit ahead of the change in the same PR).
+
+Implementation: `scripts/lint_bundle_version_bump.py` runs in CI on every PR. Compares files-changed-by-PR against `git diff --name-only HEAD~1..HEAD` (PR head vs main); if a reference-workspace or specs file changed AND MANIFEST.yaml did NOT change (or its `version:` line is identical), CI fails with a descriptive error pointing the author at the bump.
+
+This is discipline-as-code: the rule "every bundle content change bumps version" was previously a `propagation-discipline.md` convention; v3 makes it CI-enforced. Mirrors the ADR's own observation that this discipline costs "one line per substrate change, identical to the CHANGELOG entry the change already needs" (D1 rationale).
+
+### D12. What v3 does NOT change
+
+Explicit non-goals to preserve v2's core:
+
+- ❌ Daily cron — still NOT a daily back-office recurrence. Operator-initiated only.
+- ❌ Per-file accept/reject UI for the operator. The config-vs-prose taxonomy is the policy; operator doesn't choose per-file at update time.
+- ❌ Three-way merge of operator-edits into the new bundle's `_recurrences.yaml`. Auto-overwrite-with-backup; operator re-applies manually if needed.
+- ❌ Backwards-compat shim for the old "silent skip" behavior. Singular Implementation — there's one decision tree, codified in D10.
+- ❌ A new primitive. The mechanism is still `apply_substrate_update(scope, source)`.
+- ❌ Conflict notification via chat (Clarify proposal from substrate-update). Audit log + UpdateReport are sufficient at current scale; the FE surface (Phase 2) renders them.
+
 ## Implementation Status
 
 ### Phase 1 — Backend (Implemented 2026-05-18, this ADR's commit)
@@ -161,8 +281,21 @@ Recovery from a regression in either path is `git revert + redeploy`, affecting 
 | Settings → Workspace surface renders update affordances | Pending | When detection returns non-None |
 | "Update bundle" button calls `POST /api/programs/update` (or similar) | Pending | Invokes `apply_substrate_update` with scope/source |
 | Audit-log viewer in Settings → Workspace | Pending | Reads `substrate-update-log.md` |
+| Config-conflict surfacing in audit-log viewer | Pending (v3) | Renders `UpdateReport.config_conflicts` block with backup paths |
 
 Backend can stand alone; FE is independent and lands in a follow-up commit.
+
+### Phase 3 — v3 amendment (Implemented 2026-05-20)
+
+| Component | Status | Notes |
+|---|---|---|
+| `CONFIG_PATHS` constant in substrate_reapply | ✅ | Closed-set: `{_recurrences.yaml, _hooks.yaml}` |
+| `ConflictedFile` dataclass | ✅ | Carries path + backup_path + bundle_version |
+| `UpdateReport.config_conflicts` field | ✅ | List of ConflictedFile; rendered in audit log |
+| Conflict-aware fork worker (config files auto-overwrite-with-backup) | ✅ | `fork_reference_workspace` extends the decision tree per D10 |
+| Backup path `/workspace/_shared/conflict-backups/{ran_at}/{path}` | ✅ | ADR-209-attributed via `system:substrate-update` |
+| `scripts/lint_bundle_version_bump.py` CI lint | ✅ | Fails on bundle content change without MANIFEST version bump |
+| Regression test gate (v3 additions) | ✅ | Extends `api/test_adr292_continuous_reapply.py` with config-conflict + CI-lint tests |
 
 ## Test Gate
 
