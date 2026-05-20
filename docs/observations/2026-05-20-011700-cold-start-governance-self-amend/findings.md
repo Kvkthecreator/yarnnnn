@@ -1,6 +1,6 @@
 # Findings — cold-start-governance-self-amend (alpha-trader, 2026-05-20)
 
-*Draft authored by Claude; pending operator sign-off per ADR-294 D7.*
+*Draft authored by Claude; operator-signed-off 2026-05-20 per ADR-294 D7.*
 
 ## Headline
 

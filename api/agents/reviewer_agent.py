@@ -429,14 +429,26 @@ envelope above. Read it first: what were you watching for? Has any of it
 materialized? Has any of the substrate it watched changed? That's where
 this cycle's judgment starts.
 
-**Every judgment-mode cycle produces a standing_intent.md write — including
-no-fire cycles.** The substrate counterpart to a no-fire judgment is an
-updated standing_intent.md. "No action" without an updated standing intent
-is not a real judgment, it's drift. If you find yourself about to stand
-down without updating standing_intent.md, you have not yet judged — you
-have only observed. Author your forward-looking intent in the file via
-`WriteFile(scope="workspace", path="review/standing_intent.md", ...)`,
-then close the cycle.
+**standing_intent.md writes are trigger-aware** (refined per ADR-294 Phase 2
+warm-start observation, 2026-05-20):
+
+- **Reactive recurrence fires + addressed turns + heartbeats**: every cycle
+  produces a standing_intent.md write. The substrate counterpart to a no-fire
+  judgment is an updated standing intent. "No action" without an updated
+  standing intent is not a real judgment, it's drift. Author the forward-
+  looking intent via `WriteFile(scope="workspace", path="review/standing_intent.md", ...)`,
+  then close the cycle.
+
+- **Proposal-trigger wakes (a proposal is shown above)**: the verdict IS the
+  substrate-of-record — infrastructure renders it into `judgment_log.md` from
+  your `ReturnVerdict` output. **Call `ReturnVerdict` BEFORE any
+  standing_intent.md write on proposal wakes.** The 3-round Sonnet budget
+  for capital-review is tight; spending a round on standing_intent before
+  verdict starves the verdict. If you want to update forward-looking intent
+  after the verdict, you can WriteFile in the same turn — but ReturnVerdict
+  is the priority. A proposal wake that times out before ReturnVerdict
+  produces a low-confidence defer fallback, which is worse for the operator
+  than an approve/reject decision followed by no intent update.
 
 Schema for the file (instance-agnostic — the content varies per program):
 
@@ -646,9 +658,15 @@ _TRIGGER_FRAMING = {
         "it. Read substrate it cites. Apply your framework. Take the action "
         "it directs.\n\n"
         "If a Proposed action is shown above, a proposal has been submitted "
-        "for review. Apply your framework. Call ReturnVerdict with "
-        "approve | reject | defer + reasoning. Use ReadFile/ListFiles to "
-        "fetch missing substrate before deciding if needed.\n\n"
+        "for review. Apply your framework. **Call ReturnVerdict with "
+        "approve | reject | defer + reasoning EARLY in the loop — do NOT "
+        "write standing_intent.md before the verdict on proposal wakes "
+        "(ADR-294 Phase 2 warm-start finding: the 3-round Sonnet budget "
+        "expires mid-write).** Use ReadFile/ListFiles to fetch missing "
+        "substrate only if absolutely necessary; the wake envelope already "
+        "pre-loaded governance + ground-truth substrate. After ReturnVerdict, "
+        "if there's remaining budget, optionally WriteFile standing_intent.md "
+        "as the same turn's follow-on; otherwise leave it for the next wake.\n\n"
         "Common shapes for recurrence fires:\n"
         "- Reflection prompt → `no_change` is the common and expected "
         "outcome; if patterns warrant adjustment, include proposals with "

@@ -6,6 +6,73 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.20.2] - fix(adr-294 phase 2 finding 1): trigger-aware standing_intent.md write order in Reviewer prompt
+
+### Decision
+
+Phase 2 of ADR-294's warm-start-auto-execute observation (commit `ea14646`)
+surfaced a structural pressure point on the Reviewer's capital-review path:
+the **persona-frame directive** "every judgment-mode cycle produces a
+standing_intent.md write" pushed the Reviewer to do `WriteFile review/standing_intent.md`
+BEFORE `ReturnVerdict` on proposal-trigger wakes. Combined with the 3-round
+Sonnet budget for capital-review (ADR-260 / ADR-256), this exhausted the
+budget mid-write and produced a low-confidence `defer` fallback even when
+the Reviewer's actual reasoning had reached approve.
+
+Operator-signed-off findings.md at `docs/observations/2026-05-20-011340-warm-start-auto-execute/`
+captured the smoking-gun transcript: Reviewer explicitly concluded "All hard
+rules pass. Sizing math verified. Regime scalar correctly applied. Signal
+conditions met. EV positive." then announced "Now I'll write my
+standing_intent.md and return the verdict" — and the budget expired during
+the write.
+
+Fix is a behavioral prompt edit (Option A in findings.md), not an architectural
+change. Differentiate the standing_intent write directive by trigger:
+- Reactive (recurrence) + addressed + heartbeat: every cycle writes
+  standing_intent (unchanged — substrate counterpart to a no-fire judgment).
+- Proposal-trigger: call `ReturnVerdict` FIRST. standing_intent is optional
+  follow-on, skip if budget is tight.
+
+### Changed
+
+**`api/agents/reviewer_agent.py`**:
+- Persona-frame `standing_intent.md write` directive (around line 432)
+  rewritten to differentiate by trigger context. Reactive + addressed +
+  heartbeat keep "every cycle writes standing_intent" rule. Proposal-
+  trigger adds explicit "call ReturnVerdict FIRST" instruction.
+- `_TRIGGER_PROMPTS["reactive"]` proposal-shape paragraph tightened: "Call
+  ReturnVerdict with approve | reject | defer + reasoning **EARLY in the
+  loop — do NOT write standing_intent.md before the verdict on proposal
+  wakes (ADR-294 Phase 2 warm-start finding)**." Adds explicit "only if
+  absolutely necessary" guidance on ReadFile/ListFiles since the wake
+  envelope pre-loads governance + ground-truth.
+
+### Expected behavior
+
+On proposal-trigger wakes (`trigger="reactive"` with a Proposed action in
+the user message), the Reviewer should now:
+1. Read the proposal + wake-envelope substrate (already pre-loaded — round 1
+   reasoning, not ReadFile).
+2. Walk framework checks inline (round 1–2).
+3. Call ReturnVerdict (round 2–3).
+4. Optionally WriteFile standing_intent.md in the same turn as a follow-on
+   action (only if budget remains).
+
+The reactive-recurrence-fire and addressed-turn flows are unchanged — those
+wakes still produce a standing_intent.md write every cycle, since their
+12-round Haiku budget can afford it and the standing_intent IS the cycle's
+deliverable in those cases.
+
+### Validation
+
+To be re-run after this prompt change: warm-start-auto-execute scenario
+against kvk persona via `python -m api.scripts.operator.run_scenario`. Goal:
+verdict lands as approve (not low-confidence defer) within budget, auto-
+execute branch fires through `should_auto_apply("capital")` per ADR-293 D4,
+Alpaca paper order submits.
+
+---
+
 ## [2026.05.20.1] - feat(adr-289 phase-2a): Reviewer-action 3-bucket taxonomy + pulse fix + FE polish
 
 ### Decision
