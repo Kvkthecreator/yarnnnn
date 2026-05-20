@@ -6,6 +6,61 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.20.1] - feat(adr-289 phase-2a): Reviewer-action 3-bucket taxonomy + pulse fix + FE polish
+
+### Decision
+
+Phase 2a of ADR-289 — taxonomy + polish + bug fixes following operator visual review. Three load-bearing fixes, plus FE polish for the Feed surface.
+
+**Behavioral-artifact discipline**: extends `surface_reviewer_actions` (a curated registry of Reviewer-narration filter sets). The 3-bucket taxonomy (cognition / mirror-refresh / judgment) is a behavioral-artifact extension governed by ADR-289 D9 (softened) + ADR-277's rule of thumb ("each event has one canonical home; the feed is for events whose canonical home is conversation").
+
+### Changed
+
+**`api/services/reviewer_chat_surfacing.py`** (canonical Reviewer-narration filter sets):
+- New `REVIEWER_MIRROR_REFRESH_TOOLS` frozenset (currently `{SyncPlatformState}`). Reviewer-directed substrate-mirror refreshes — the Reviewer asking the system for fresh state mid-loop — silent at narration emit.
+- New `is_mirror_refresh_action(action, client, user_id)` classifier. Returns True if tool is in the frozenset OR (tool == FireInvocation AND target recurrence's `mode == 'mechanical'`). The mechanical-mode check uses `services.recurrence.walk_workspace_recurrences` to look up the target by slug.
+- New `_is_mechanical_fire_invocation` helper — best-effort, never raises; defaults to False (surfacing) on lookup error so judgment-mode fires don't get silently dropped.
+- `surface_reviewer_actions` body extended: skips mirror-refresh actions in addition to cognition tools.
+- `write_reviewer_message` accepts new `pulse: Optional[str]` kwarg (defaults to `'reactive'` for backward-compat with proposal-arrival callers). Addressed-cycle callers pass `pulse='addressed'`.
+
+**`api/routes/feed.py`** (Singular Implementation — uses canonical sets):
+- Inline `_COGNITION_ONLY = {...}` set DELETED. Replaced with `from services.reviewer_chat_surfacing import REVIEWER_COGNITION_TOOLS as _COGNITION_ONLY, is_mirror_refresh_action`.
+- Both live-narration sites (progress-drain + post-loop-drain) extended to call `is_mirror_refresh_action({"tool": tool_name, "input": event.get("input")}, ...)` and skip when True.
+- `_dispatch_reviewer_turn` passes `pulse="addressed"` to `write_reviewer_message` — closes the blank-after-send filter bug.
+
+**`api/agents/reviewer_agent.py`** (`invoke_reviewer` tool_end emit):
+- `tool_end` progress event extended with `"input": inp` so the live narration site in `routes/feed.py` can classify mechanical-mode FireInvocations via the shared classifier.
+
+**`web/lib/feed-grouping.ts`**:
+- New `LEGACY_MIRROR_REFRESH_PATTERNS` regex array + `isLegacyMirrorRefreshRow` helper. `groupFeedMessages` skips rows matching the pre-Phase-2a mirror-refresh narration prefixes (SyncPlatformState; FireInvocation of TrackPositions/Orders/Regime/Universe/Account). Transient until alpha data reset.
+- `filterAddressedMessages` rewritten with three-path inclusion logic: role=user OR pulse=addressed OR `invocation_id` matches an addressed-cycle invocation (defense-in-depth — invocation_id grouping primitive wins if pulse is ever mis-tagged).
+
+**`web/components/feed/FeedTimeline.tsx`**:
+- Sticky-bottom scroll pattern. `STICKY_BOTTOM_THRESHOLD_PX = 96` — operator considered "at bottom" within this distance. Auto-scroll only fires when sticky-bottom is true. "Jump to latest" pill (centered, bottom of timeline, shadowed) appears when operator has scrolled up, opts back into sticky-bottom on click.
+- Inner scroller now lives at `absolute inset-0 overflow-y-auto` inside a `relative` flex-1 wrapper; pill positioned absolutely against the wrapper. Padding-bottom widened for safe-area.
+
+**`web/components/feed-surface/FeedSurface.tsx`**:
+- Header `<SurfaceIdentityHeader>` + FilterBar wrapped in a `shrink-0` block with subtle `border-b border-border/40 bg-background z-10`. Pinned above the timeline's scroll container so the "Talk" button (and other actions) are always reachable. Pre-Phase-2a the header lived in the document scroll context and was effectively unreachable after the first auto-scroll-to-bottom.
+
+### Expected behavior
+
+- **Feed**: SyncPlatformState narrations + mechanical-recurrence FireInvocation narrations stop appearing in new entries. Operator's old data with these narrations gets hidden client-side (regex filter on the known prefixes). Header always reachable; auto-scroll only when operator is already at the bottom.
+- **Conversation drawer (`/feed` slide-over) + right-panel ConversationPanel (`/work`, `/agents`, `/context`, `/workspace`)**: operator's question + Reviewer reply both surface as bubbles. The Reviewer reply was previously filtered out by the strict pulse-matching; now it surfaces via the explicit `pulse="addressed"` tag + via the invocation_id grouping fallback.
+- **Reviewer-fired judgment recurrences** (e.g., signal-evaluation, trade-proposal): still surface as "Firing recurrence on Reviewer's direction. <slug>" because their target is judgment-mode, not mechanical.
+
+### Validation
+
+- `api/test_adr289_invocation_id_anchoring.py` — **33/33 PASS** (extended from 25/25 with 8 new Phase 2a assertions).
+- `npx tsc --noEmit` clean.
+- `npx next build` clean — all 30 routes compile.
+
+### Doc-radius cascade
+
+- ADR-289 status flipped to include Phase 2a. New acceptance-criteria block (8 items) added.
+- This CHANGELOG entry.
+
+---
+
 ## [2026.05.19.2] - fix(adr-293 work-1): cockpit_awareness.py prompt envelope alignment + D10 Phase-4 FE-reuse amendment
 
 ### Context

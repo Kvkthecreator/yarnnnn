@@ -75,6 +75,7 @@ async def write_reviewer_message(
     action_type: Optional[str] = None,
     task_slug: Optional[str] = None,
     invocation_id: Optional[str] = None,
+    pulse: Optional[str] = None,
 ) -> Optional[dict]:
     """Surface a reviewer verdict to the operator's active chat session.
 
@@ -120,10 +121,15 @@ async def write_reviewer_message(
     try:
         from services.narrative import write_narrative_entry
 
-        # Reviewer verdicts are reactive-pulsed (a proposal landing
-        # triggered the invocation) and material by default per
-        # ADR-219 D3. The summary uses the verdict + occupant for
-        # collapsed rendering; full reasoning lives in body.
+        # ADR-289 Phase 2a (2026-05-20): pulse defaults to 'reactive' for
+        # backward-compat with proposal-arrival callers (review_proposal_dispatch);
+        # the addressed-cycle caller in routes/feed.py passes pulse='addressed'
+        # so the Reviewer's reply correctly classifies as part of the operator's
+        # conversation. Pre-Phase-2a the pulse was hardcoded 'reactive' which
+        # made the Reviewer's addressed-cycle reply fall outside
+        # filterAddressedMessages — operator saw their question and a blank
+        # panel (the reply got filtered).
+        resolved_pulse = pulse or "reactive"
         verdict_label = (verdict or "decision").upper()
         if task_slug:
             summary = f"Reviewer {verdict_label} — {task_slug}"
@@ -136,7 +142,7 @@ async def write_reviewer_message(
             role="reviewer",
             summary=summary,
             body=content,
-            pulse="reactive",
+            pulse=resolved_pulse,
             weight="material",
             task_slug=task_slug,
             invocation_id=invocation_id,
@@ -171,6 +177,80 @@ REVIEWER_COGNITION_TOOLS = frozenset({
     "LookupEntity", "list_integrations", "WebSearch", "QueryKnowledge",
     "DiscoverAgents", "ReadAgentFile", "ListEntities", "Clarify",
 })
+
+# ADR-289 Phase 2a (2026-05-20): 3-bucket taxonomy for Reviewer action
+# narration. Extends ADR-277's emission-at-source policy to Reviewer-
+# directed mechanical-mirror tool calls.
+#
+# Pre-Phase-2a the binary taxonomy was cognition vs. consequential. The
+# consequential bucket conflated two different shapes:
+#   - Judgment-bearing actions (ProposeAction, WriteFile to operator
+#     substrate, Schedule create/update/archive) → operator-relevant
+#   - Substrate-mirror refresh (SyncPlatformState, FireInvocation of a
+#     mechanical recurrence like track-positions/track-regime) → low
+#     operator-relevance plumbing the Reviewer fires to get fresh state
+#
+# The 3-bucket taxonomy:
+#   - REVIEWER_COGNITION_TOOLS    → silent (pure reads, no side-effect)
+#   - REVIEWER_MIRROR_REFRESH_TOOLS → silent (side-effect but mechanical-
+#                                     mirror substrate canonicalization,
+#                                     not judgment)
+#   - everything else              → emit System Agent narration
+#
+# `FireInvocation` is special-cased: it surfaces ONLY when the target
+# recurrence is judgment-mode. Firing a mechanical recurrence is
+# substrate refresh; firing a judgment recurrence is the Reviewer
+# delegating a discrete reasoning task and IS operator-relevant.
+REVIEWER_MIRROR_REFRESH_TOOLS = frozenset({
+    "SyncPlatformState",
+})
+
+
+def _is_mechanical_fire_invocation(action: dict, client: Any, user_id: str) -> bool:
+    """Return True if the action is a FireInvocation of a mechanical-mode
+    recurrence. These fires are substrate-mirror refresh, not judgment,
+    and should not surface as narrative entries.
+
+    Best-effort: if the recurrence lookup fails, return False (default to
+    surfacing — better to emit too much than to silently drop a
+    judgment-mode fire). Never raises.
+    """
+    if action.get("tool") != "FireInvocation":
+        return False
+    inp = action.get("input") or {}
+    slug = inp.get("slug")
+    if not slug or not isinstance(slug, str):
+        return False
+    try:
+        from services.recurrence import walk_workspace_recurrences
+        recurrences = walk_workspace_recurrences(client, user_id)
+        rec = next((r for r in recurrences if r.slug == slug), None)
+        if rec is None:
+            return False
+        return getattr(rec, "mode", "judgment") == "mechanical"
+    except Exception as exc:
+        logger.warning(
+            "[REVIEWER_CHAT] mechanical-fire detection failed for slug=%s: %s",
+            slug, exc,
+        )
+        return False
+
+
+def is_mirror_refresh_action(action: dict, client: Any, user_id: str) -> bool:
+    """Phase 2a 3-bucket taxonomy classifier — should this action be
+    surfaced as a narrative entry, or is it substrate-mirror refresh
+    that the operator doesn't need to see? Returns True to SKIP.
+
+    Two paths to True:
+      1. Tool is in REVIEWER_MIRROR_REFRESH_TOOLS (e.g., SyncPlatformState).
+      2. Tool is FireInvocation targeting a mechanical-mode recurrence.
+    """
+    tool = action.get("tool", "")
+    if tool in REVIEWER_MIRROR_REFRESH_TOOLS:
+        return True
+    if tool == "FireInvocation":
+        return _is_mechanical_fire_invocation(action, client, user_id)
+    return False
 
 
 def narrate_reviewer_action(tool: str, summary: str = "") -> str:
@@ -223,6 +303,14 @@ async def surface_reviewer_actions(
             continue
         tool = action.get("tool", "?")
         if tool in REVIEWER_COGNITION_TOOLS:
+            continue
+        # ADR-289 Phase 2a: mirror-refresh actions (SyncPlatformState +
+        # FireInvocation of mechanical-mode recurrences) carry no
+        # operator-relevant judgment — substrate-canonicalization plumbing.
+        # Extends ADR-277's emission-at-source policy to Reviewer-directed
+        # mechanical fires that ADR-277's dispatcher-direct silence didn't
+        # cover.
+        if is_mirror_refresh_action(action, client, user_id):
             continue
         summary = action.get("summary", "")
         body = narrate_reviewer_action(tool, summary)

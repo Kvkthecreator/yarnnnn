@@ -1301,6 +1301,10 @@ async def invoke_reviewer(
                     "phase": "tool_end",
                     "round": rounds_used,
                     "tool": name,
+                    "input": inp,  # ADR-289 Phase 2a: needed by the live
+                                   # narration site in routes/feed.py to
+                                   # classify mirror-refresh FireInvocations
+                                   # (mechanical mode) via is_mirror_refresh_action.
                     "success": actions_taken[-1]["success"],
                     "summary": actions_taken[-1]["summary"],
                 })

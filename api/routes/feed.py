@@ -1231,12 +1231,17 @@ async def global_chat(
         # ADR-258 (revised): the chat reads as a conversation between two
         # participants — Reviewer (persona voice) and System Agent (executes
         # on Reviewer's direction). Per-action, in-the-moment, not post-hoc lump.
-        _COGNITION_ONLY = {
-            "ReadFile", "ListFiles", "SearchFiles", "ListRevisions",
-            "ReadRevision", "DiffRevisions", "GetSystemState", "SearchEntities",
-            "LookupEntity", "list_integrations", "WebSearch", "QueryKnowledge",
-            "DiscoverAgents", "ReadAgentFile", "ListEntities", "Clarify",
-        }
+        #
+        # ADR-289 Phase 2a (2026-05-20): Singular Implementation — import
+        # the canonical filter sets + classifier from reviewer_chat_surfacing
+        # instead of duplicating the cognition list inline. Adds 3-bucket
+        # taxonomy (cognition / mirror-refresh / judgment) — mirror-refresh
+        # actions (SyncPlatformState + FireInvocation of mechanical recurrences)
+        # are silent at narration emit, same as cognition tools.
+        from services.reviewer_chat_surfacing import (
+            REVIEWER_COGNITION_TOOLS as _COGNITION_ONLY,
+            is_mirror_refresh_action,
+        )
 
         def _narrate_consequential_action(tool: str, summary: str) -> str:
             """Compose a System Agent narration line for a consequential action."""
@@ -1265,10 +1270,18 @@ async def global_chat(
                 yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_end', 'tool': tool_name, 'summary': summary, 'success': success})}\n\n"
 
                 # In-the-moment per-action System Agent narration: only for
-                # CONSEQUENTIAL successful actions. Cognition tools stay as
-                # transient status; failed actions surface in Reviewer's
+                # CONSEQUENTIAL JUDGMENT-BEARING successful actions. Cognition
+                # tools stay as transient status (filtered by _COGNITION_ONLY).
+                # Mirror-refresh actions (SyncPlatformState + FireInvocation of
+                # mechanical recurrences) also stay silent per ADR-289 Phase 2a
+                # 3-bucket taxonomy. Failed actions surface in Reviewer's
                 # reasoning, not as a misleading System Agent bubble.
-                if success and tool_name not in _COGNITION_ONLY:
+                _action_synth = {"tool": tool_name, "input": event.get("input") or {}}
+                if (
+                    success
+                    and tool_name not in _COGNITION_ONLY
+                    and not is_mirror_refresh_action(_action_synth, auth.client, auth.user_id)
+                ):
                     narration = _narrate_consequential_action(tool_name, summary)
                     # weight=material — System Agent is a participant speaking
                     # in the conversation, not a system log line. Renders as
@@ -1293,7 +1306,12 @@ async def global_chat(
             if phase == "tool_end":
                 summary = event.get("summary", "")
                 success = event.get("success", True)
-                if success and tool_name not in _COGNITION_ONLY:
+                _action_synth = {"tool": tool_name, "input": event.get("input") or {}}
+                if (
+                    success
+                    and tool_name not in _COGNITION_ONLY
+                    and not is_mirror_refresh_action(_action_synth, auth.client, auth.user_id)
+                ):
                     narration = _narrate_consequential_action(tool_name, summary)
                     await append_message(auth.client, session_id, "system_agent", narration, {
                         "tools_used": [tool_name], "tool_history": [],
@@ -1313,12 +1331,18 @@ async def global_chat(
             # ADR-289 D5: stamp invocation_id on the verdict row so the FE
             # groups operator question + Reviewer reply + nested action
             # narrations under one invocation card on the Feed.
+            # ADR-289 Phase 2a (2026-05-20): pulse='addressed' so the
+            # ConversationPanel's filterAddressedMessages surfaces the
+            # Reviewer reply alongside the operator's user message. Pre-
+            # Phase-2a write_reviewer_message hardcoded pulse='reactive'
+            # which classified the reply as outside the conversation.
             await write_reviewer_message(
                 auth.client, auth.user_id,
                 content=response_text,
                 verdict="addressed",
                 occupant=REVIEWER_MODEL_IDENTITY,
                 invocation_id=invocation_id,
+                pulse="addressed",
             )
             yield f"data: {json.dumps({'reviewer_response': response_text})}\n\n"
             logger.info(

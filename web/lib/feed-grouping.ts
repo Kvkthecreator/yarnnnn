@@ -98,6 +98,37 @@ export interface StandaloneEventUnit {
 }
 
 // ---------------------------------------------------------------------------
+// Legacy mirror-refresh narration filter (ADR-289 Phase 2a, 2026-05-20)
+// ---------------------------------------------------------------------------
+//
+// Pre-Phase-2a `surface_reviewer_actions` emitted System Agent narration for
+// every consequential Reviewer-directed action including mirror-refresh
+// fetches (SyncPlatformState; FireInvocation of mechanical recurrences like
+// track-positions / track-regime / track-universe / track-orders). Phase 2a
+// silences these at the BE emit boundary going forward. This client-side
+// filter discards rows already on disk that were written under the pre-fix
+// policy, so the operator's feed doesn't show "SyncPlatformState: 1 written,
+// 0 unchanged" historical noise.
+//
+// Transient by design — legacy data will roll off with the alpha reset cycle.
+// Strict pattern match on the known narration prefixes to avoid hiding
+// anything else.
+const LEGACY_MIRROR_REFRESH_PATTERNS: RegExp[] = [
+  /SyncPlatformState\b/,                          // ADR-264 mirror primitive
+  /^Firing recurrence on Reviewer's direction\.\s*(TrackPositions|TrackOrders|TrackRegime|TrackUniverse|TrackAccount)/,
+  /^(TrackPositions|TrackOrders|TrackRegime|TrackUniverse|TrackAccount):/,
+];
+
+function isLegacyMirrorRefreshRow(msg: TPMessage): boolean {
+  // Only system_agent narrations are subject to the legacy filter.
+  // Operator user messages, Reviewer verdicts, user-authored Agent
+  // outputs, and orphan system events are never filtered.
+  if (msg.role !== 'system_agent') return false;
+  const content = msg.content ?? '';
+  return LEGACY_MIRROR_REFRESH_PATTERNS.some((re) => re.test(content));
+}
+
+// ---------------------------------------------------------------------------
 // Grouping
 // ---------------------------------------------------------------------------
 
@@ -115,15 +146,23 @@ export interface StandaloneEventUnit {
  *
  * The output preserves a deterministic stable order across re-renders
  * with the same input — React's reconciler stays happy.
+ *
+ * ADR-289 Phase 2a: rows matching LEGACY_MIRROR_REFRESH_PATTERNS are
+ * skipped at the grouping boundary so pre-fix mirror-refresh narrations
+ * already on disk don't surface in the Feed.
  */
 export function groupFeedMessages(messages: TPMessage[]): FeedUnit[] {
   if (messages.length === 0) return [];
+
+  // Pass 0 — drop legacy mirror-refresh narrations (Phase 2a).
+  const filtered = messages.filter((m) => !isLegacyMirrorRefreshRow(m));
+  if (filtered.length === 0) return [];
 
   // Pass 1 — bucket rows by invocation_id (or 'standalone' for no id).
   const groups = new Map<string, TPMessage[]>();
   const standalone: TPMessage[] = [];
 
-  for (const msg of messages) {
+  for (const msg of filtered) {
     const id = msg.narrative?.invocationId;
     if (!id) {
       standalone.push(msg);
@@ -264,18 +303,47 @@ export function interleaveDaySeparators(units: FeedUnit[]): FeedRow[] {
 // ---------------------------------------------------------------------------
 
 /**
- * Filter the flat message list to `pulse='addressed'` rows only.
- * Used by the Conversation surface (drawer on /feed; right-panel on
- * /work, /agents, /context, /workspace) — the Conversation renders the
- * chat-shaped exchange between operator and addressee, not the broader
+ * Filter the flat message list to addressed-cycle rows only. Used by
+ * the Conversation surface (drawer on /feed; right-panel on /work,
+ * /agents, /context, /workspace) — the Conversation renders the chat-
+ * shaped exchange between operator and addressee, not the broader
  * operations timeline.
  *
- * Includes user rows (no envelope pulse, but always operator-driven)
- * AND any rows whose pulse is explicitly 'addressed'.
+ * Three inclusion paths (any one is sufficient):
+ *   1. Role is `user` — operator messages are always conversation.
+ *   2. `narrative.pulse === 'addressed'` — explicit pulse tag.
+ *   3. `narrative.invocationId` matches the invocation_id of any user
+ *      row in the session (defense-in-depth per ADR-289 Phase 2a). If
+ *      the operator addressed an invocation cycle, every other row
+ *      sharing that invocation_id belongs to the conversation by
+ *      construction — even if its own pulse is mis-tagged (e.g.,
+ *      pre-Phase-2a Reviewer reply hardcoded pulse='reactive'). The
+ *      invocation_id grouping primitive wins over pulse-tag accuracy
+ *      because pulse is an emitter-set field that can drift; invocation
+ *      grouping is structural.
+ *
+ * Legacy mirror-refresh narrations are NOT additionally filtered here —
+ * groupFeedMessages already handles that at the Feed-surface boundary;
+ * mirror-refresh rows on the Conversation surface are rare enough
+ * (operator's addressed-cycle Reviewer rarely fires SyncPlatformState
+ * within an addressed turn) to leave the rendering to MessageDispatch.
  */
 export function filterAddressedMessages(messages: TPMessage[]): TPMessage[] {
+  // Pass 1 — collect invocation_ids that have at least one user row.
+  // These are the "addressed-cycle" invocation atoms by construction.
+  const addressedInvocations = new Set<string>();
+  for (const m of messages) {
+    if (m.role === 'user' && m.narrative?.invocationId) {
+      addressedInvocations.add(m.narrative.invocationId);
+    }
+  }
+
+  // Pass 2 — filter using the three inclusion paths.
   return messages.filter((m) => {
     if (m.role === 'user') return true;
-    return m.narrative?.pulse === 'addressed';
+    if (m.narrative?.pulse === 'addressed') return true;
+    const invId = m.narrative?.invocationId;
+    if (invId && addressedInvocations.has(invId)) return true;
+    return false;
   });
 }

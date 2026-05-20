@@ -389,6 +389,132 @@ def test_narrative_docstring_does_not_promise_agent_runs_link():
     )
 
 
+# -----------------------------------------------------------------------------
+# Phase 2a — 3-bucket taxonomy + pulse fix (2026-05-20)
+# -----------------------------------------------------------------------------
+
+def test_phase2a_mirror_refresh_frozenset_exists():
+    """surface_reviewer_actions exports REVIEWER_MIRROR_REFRESH_TOOLS."""
+    src = _read("services/reviewer_chat_surfacing.py")
+    assert "REVIEWER_MIRROR_REFRESH_TOOLS = frozenset({" in src, (
+        "reviewer_chat_surfacing must define REVIEWER_MIRROR_REFRESH_TOOLS "
+        "per ADR-289 Phase 2a (3-bucket taxonomy)."
+    )
+    # SyncPlatformState is the canonical mirror-refresh tool per ADR-264.
+    assert "\"SyncPlatformState\"" in src, (
+        "REVIEWER_MIRROR_REFRESH_TOOLS must include SyncPlatformState."
+    )
+
+
+def test_phase2a_is_mirror_refresh_classifier_exists():
+    """is_mirror_refresh_action classifier is defined + exported."""
+    src = _read("services/reviewer_chat_surfacing.py")
+    assert "def is_mirror_refresh_action(" in src, (
+        "is_mirror_refresh_action classifier must be defined per ADR-289 Phase 2a."
+    )
+    assert "def _is_mechanical_fire_invocation(" in src, (
+        "_is_mechanical_fire_invocation helper must be defined per ADR-289 Phase 2a."
+    )
+
+
+def test_phase2a_surface_reviewer_actions_calls_classifier():
+    """surface_reviewer_actions skips mirror-refresh actions."""
+    src = _read("services/reviewer_chat_surfacing.py")
+    # The filter call appears in the for-loop body after the cognition skip.
+    m = re.search(
+        r"if tool in REVIEWER_COGNITION_TOOLS:\s*\n\s*continue\s*\n"
+        r"[^\n]*\n(?:[^\n]*\n){0,15}?\s*if is_mirror_refresh_action\(action,\s*client,\s*user_id\):",
+        src, re.DOTALL,
+    )
+    assert m, (
+        "surface_reviewer_actions must skip mirror-refresh actions after the "
+        "cognition skip per ADR-289 Phase 2a."
+    )
+
+
+def test_phase2a_routes_feed_imports_canonical_filter():
+    """routes/feed.py imports the canonical filter sets — Singular Implementation."""
+    src = _read("routes/feed.py")
+    m = re.search(
+        r"from services\.reviewer_chat_surfacing import \(\s*\n"
+        r"\s*REVIEWER_COGNITION_TOOLS as _COGNITION_ONLY,\s*\n"
+        r"\s*is_mirror_refresh_action,",
+        src, re.DOTALL,
+    )
+    assert m, (
+        "routes/feed.py must import the canonical filter sets from "
+        "reviewer_chat_surfacing (Singular Implementation per ADR-289 Phase 2a). "
+        "The inline _COGNITION_ONLY duplicate must be deleted."
+    )
+    # Inline duplicate set must be gone.
+    inline_duplicate = re.search(
+        r"_COGNITION_ONLY\s*=\s*\{\s*\n\s*\"ReadFile\"",
+        src, re.DOTALL,
+    )
+    assert not inline_duplicate, (
+        "routes/feed.py must not redefine _COGNITION_ONLY inline — it's now "
+        "imported as an alias from reviewer_chat_surfacing per ADR-289 Phase 2a."
+    )
+
+
+def test_phase2a_routes_feed_calls_mirror_refresh_classifier():
+    """routes/feed.py live narration sites call is_mirror_refresh_action."""
+    src = _read("routes/feed.py")
+    # Both narration sites (live drain + post-loop drain) should invoke
+    # the classifier on a synthetic action record.
+    matches = re.findall(
+        r"is_mirror_refresh_action\(_action_synth,\s*auth\.client,\s*auth\.user_id\)",
+        src,
+    )
+    assert len(matches) >= 2, (
+        "routes/feed.py must call is_mirror_refresh_action at both narration "
+        "sites (live drain + post-loop drain) per ADR-289 Phase 2a — found %d."
+        % len(matches)
+    )
+
+
+def test_phase2a_reviewer_agent_emits_input_on_tool_end():
+    """reviewer_agent.invoke_reviewer emits 'input' in the tool_end event."""
+    src = _read("agents/reviewer_agent.py")
+    # The _emit({...}) block for tool_end must include 'input': inp so the
+    # live narration site in routes/feed.py can classify mirror-refresh fires.
+    m = re.search(
+        r'await _emit\(\{[^}]*?"phase":\s*"tool_end"[^}]*?"input":\s*inp',
+        src, re.DOTALL,
+    )
+    assert m, (
+        "reviewer_agent.invoke_reviewer tool_end emit must include 'input': inp "
+        "per ADR-289 Phase 2a (live narration mirror-refresh classifier needs it)."
+    )
+
+
+def test_phase2a_write_reviewer_message_accepts_pulse():
+    """write_reviewer_message accepts optional pulse kwarg."""
+    src = _read("services/reviewer_chat_surfacing.py")
+    m = re.search(
+        r"async def write_reviewer_message\([^)]*?pulse\s*:\s*Optional\[str\]",
+        src, re.DOTALL,
+    )
+    assert m, (
+        "write_reviewer_message must accept optional pulse kwarg per ADR-289 "
+        "Phase 2a (addressed cycles need pulse='addressed', proposal-arrival "
+        "defaults to 'reactive')."
+    )
+
+
+def test_phase2a_addressed_cycle_passes_pulse_addressed():
+    """routes/feed.py addressed cycle passes pulse='addressed' to write_reviewer_message."""
+    src = _read("routes/feed.py")
+    m = re.search(
+        r"write_reviewer_message\([^)]*?pulse\s*=\s*\"addressed\"",
+        src, re.DOTALL,
+    )
+    assert m, (
+        "Addressed-cycle write_reviewer_message must pass pulse='addressed' "
+        "per ADR-289 Phase 2a — fixes the blank-after-send filter bug."
+    )
+
+
 if __name__ == "__main__":
     # Mini in-file runner — same pattern as ADR-288's gate.
     import traceback

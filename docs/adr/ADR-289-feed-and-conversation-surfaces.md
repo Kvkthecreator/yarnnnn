@@ -1,6 +1,6 @@
 # ADR-289: Feed and Conversation Surfaces — Invocation as the Grouping Primitive
 
-**Status**: Phase 1 BE + Phase 2 FE Implemented 2026-05-18
+**Status**: Phase 1 BE + Phase 2 FE Implemented 2026-05-18; Phase 2a polish Implemented 2026-05-20
 **Date**: 2026-05-18
 **Dimensional classification**: **Channel** (Axiom 6) primary — defines surface rendering shape; **Substrate** (Axiom 1) secondary — re-anchors the narrative `invocation_id` envelope field to its canonical source row; **Identity** (Axiom 2) tertiary — clarifies which actor classes render in which surface.
 
@@ -269,6 +269,15 @@ Surfaced for future ADRs that add new actor classes or rendering surfaces:
 
 **Phase 1B (proposal-arrival audit row) — deferred:**
 - [ ] `_run_ai_reviewer` writes a finalized `execution_events` row across all exit branches.
+
+**Phase 2a (taxonomy + polish + bug fixes) — landed 2026-05-20:**
+- [x] **3-bucket Reviewer-action taxonomy** — `REVIEWER_MIRROR_REFRESH_TOOLS` frozenset + `is_mirror_refresh_action(action, client, user_id)` classifier in `services/reviewer_chat_surfacing.py`. Extends ADR-277's emission-at-source policy to Reviewer-directed mechanical-mirror tool calls (SyncPlatformState + FireInvocation of mechanical-mode recurrences like track-positions / track-regime / track-universe / track-orders). The 3 buckets: cognition (silent) / mirror-refresh (silent) / judgment (narrated).
+- [x] **Singular Implementation in `routes/feed.py`** — inline `_COGNITION_ONLY` set deleted; imports the canonical frozenset + classifier from `reviewer_chat_surfacing`. `reviewer_agent.invoke_reviewer` `tool_end` event extended with `input: inp` so the live narration site can classify mechanical-mode FireInvocations.
+- [x] **Pulse fix for addressed Reviewer reply** — `write_reviewer_message` accepts optional `pulse: Optional[str]` kwarg (defaults to `'reactive'` for backward-compat with proposal-arrival callers). `routes/feed.py::_dispatch_reviewer_turn` passes `pulse="addressed"`. Closes the blank-after-send filter bug where the Reviewer's addressed-cycle reply got hardcoded `pulse='reactive'` and fell outside `filterAddressedMessages`.
+- [x] **FE legacy hide-on-read for pre-fix mirror-refresh narrations** — `groupFeedMessages` in `web/lib/feed-grouping.ts` skips rows matching `LEGACY_MIRROR_REFRESH_PATTERNS` (regex on known narration prefixes — `SyncPlatformState`, `TrackPositions/Orders/Regime/Universe/Account` etc.). Transient until alpha data reset.
+- [x] **Defense-in-depth on `filterAddressedMessages`** — three-path inclusion: role=user OR pulse=addressed OR invocation_id matches an addressed-cycle invocation. Means a future BE pulse-tag mistake won't break Conversation surfacing — invocation_id grouping wins per the operator's "invocation is the atom" reframing.
+- [x] **Scroll behavior fix on `FeedTimeline`** — sticky-bottom pattern. Operator's at-or-near-bottom position is detected per scroll event; auto-scroll-to-new only fires when sticky-bottom is true. "Jump to latest" pill appears bottom-center when scrolled up. Fixes the prior bug where auto-scroll-to-bottom on every messages change made the surface header (with the "Talk" button) unreachable.
+- [x] **Feed surface polish** — `FeedSurface` header pinned above the timeline's scroll container with a subtle border-bottom; FeedTimeline owns its own scroll; padding-bottom on the scroller widens the safe-area.
 
 ---
 

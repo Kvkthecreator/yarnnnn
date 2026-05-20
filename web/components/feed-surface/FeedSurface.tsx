@@ -231,21 +231,29 @@ export function FeedSurface({
 
   return (
     <div className="flex h-full flex-col bg-background">
-      <div className="mx-auto w-full max-w-3xl px-3 sm:px-4">
-        <SurfaceIdentityHeader
-          size="md"
-          bordered={false}
-          icon={surfaceLogo}
-          title="yarnnn"
-          brandTitle
-          actions={headerActions}
-        />
-      </div>
-      {filterBarOpen && (
-        <div className="mx-auto w-full max-w-3xl">
-          <FeedFilterBar />
+      {/* ADR-289 Phase 2a: header pinned at the top so the Talk button
+          (and other actions) are always reachable. Pre-Phase-2a the
+          header lived in the document scroll context — the FeedTimeline's
+          auto-scroll-to-bottom meant operators couldn't reach the
+          header without fighting the scroll. The header is now outside
+          the scrolling container; FeedTimeline owns its own scroll. */}
+      <div className="shrink-0 border-b border-border/40 bg-background z-10">
+        <div className="mx-auto w-full max-w-3xl px-3 sm:px-4">
+          <SurfaceIdentityHeader
+            size="md"
+            bordered={false}
+            icon={surfaceLogo}
+            title="yarnnn"
+            brandTitle
+            actions={headerActions}
+          />
         </div>
-      )}
+        {filterBarOpen && (
+          <div className="mx-auto w-full max-w-3xl">
+            <FeedFilterBar />
+          </div>
+        )}
+      </div>
       <div className="flex-1 min-h-0">
         <div className="mx-auto h-full w-full max-w-3xl px-3 sm:px-4 py-3 sm:py-5">
           {/* ADR-289 Phase 2: FeedTimeline replaces FeedPanel on /feed.
