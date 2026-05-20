@@ -407,13 +407,22 @@ def test_phase2a_mirror_refresh_frozenset_exists():
 
 
 def test_phase2a_is_mirror_refresh_classifier_exists():
-    """is_mirror_refresh_action classifier is defined + exported."""
+    """is_mirror_refresh_action classifier is defined + exported.
+
+    ADR-296 v2 D3 narrowing: the `_is_mechanical_fire_invocation` helper
+    DISSOLVED when FireInvocation left REVIEWER_PRIMITIVES — the Reviewer
+    no longer calls FireInvocation, so the mechanical-mode branch of the
+    classifier is unreachable. The classifier itself survives (single
+    path: tool in REVIEWER_MIRROR_REFRESH_TOOLS, today: SyncPlatformState).
+    """
     src = _read("services/reviewer_chat_surfacing.py")
     assert "def is_mirror_refresh_action(" in src, (
         "is_mirror_refresh_action classifier must be defined per ADR-289 Phase 2a."
     )
-    assert "def _is_mechanical_fire_invocation(" in src, (
-        "_is_mechanical_fire_invocation helper must be defined per ADR-289 Phase 2a."
+    assert "def _is_mechanical_fire_invocation(" not in src, (
+        "_is_mechanical_fire_invocation helper must NOT be defined per "
+        "ADR-296 v2 D3 — FireInvocation left REVIEWER_PRIMITIVES so the "
+        "FireInvocation branch of the mirror-refresh classifier is dead."
     )
 
 

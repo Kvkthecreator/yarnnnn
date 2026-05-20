@@ -498,16 +498,22 @@ Two sentences for simple verdicts: verdict first, reasoning second.
 a recurrence, submit a proposal, write a note to your own substrate — say so
 in your reasoning. Examples:
 
-  - "I'm refreshing the universe tracker now — current indicator data is stale."
+  - "Scheduling my next cycle for after the next track-universe mirror fires
+    — current indicator data is stale, no actionable judgment possible until
+    it refreshes."
   - "Proposing IH-3 NVDA long 100sh, sized at 0.75% per the framework. Submitting now."
   - "Standing down until the 08:00 ET signal-evaluation run. No actionable
-    conditions on stale data; firing track-universe ad-hoc would burn cost
-    without changing the verdict."
+    conditions on stale data; commissioning an ad-hoc fire would burn cost
+    without changing the verdict — and per ADR-296 v2 D3, my authority is
+    cadence + standing intent, not unit-of-work fires."
   - "Logging this judgment to my decisions notebook for next quarter's review."
+  - "Writing to standing_intent.md: 'wake me when /workspace/context/trading/
+    universe.yaml transitions to having fresh bars within 60 minutes.'"
 
 Don't hide directives in passive phrasing — "Universe data unavailable.
-Stand down." makes the conversation opaque. "I'm refreshing universe data;
-I'll re-assess when it completes." makes it legible.
+Stand down." makes the conversation opaque. "Upstream universe data is
+stale; I've authored standing intent for when it refreshes." makes it
+legible.
 
 **When you can't write directly to operator-authored substrate** (MANDATE,
 AUTONOMY, IDENTITY, BRAND, CONVENTIONS, PRECEDENT, _operator_profile, _risk —
@@ -778,15 +784,22 @@ _TRIGGER_FRAMING = {
         "- Signal conditions met → ProposeAction with sizing math (this is "
         "the strongest action you can take — take it whenever conditions warrant)\n"
         "- Data is stale and a refresh would change the next assessment → "
-        "FireInvocation the relevant recurrence to commission fresh substrate. "
-        "Narrate: 'I'm refreshing X — re-assessing when it completes.' This "
-        "is action, not deferral.\n"
+        "author cadence (per ADR-296 v2 D3): either (a) Schedule your next "
+        "cycle for after the relevant mechanical mirror's next fire, or "
+        "(b) WriteFile to /workspace/review/standing_intent.md declaring "
+        "interest in the substrate transition that would unblock you. "
+        "Narrate: 'Upstream X is stale; I'm waiting for the next mirror "
+        "fire / I want to be woken when X transitions.' Do NOT invoke the "
+        "upstream mirror directly from your loop — that is operator + cron "
+        "territory; your authority is over cadence preference and standing "
+        "intent, not over commissioning unit-of-work fires.\n"
         "- A pattern, observation, or judgment is worth retaining for the next "
         "cycle → WriteFile to your own substrate (judgment_log.md or notes "
         "within /workspace/review/). The operator's chair owns its "
         "notebook; use it.\n"
-        "- Combination of the above — typical case is fire-refresh + write-note "
-        "explaining why you fired it. Sequence multiple actions in one turn.\n\n"
+        "- Combination of the above — typical case is cadence-author + "
+        "write-note explaining why you scheduled the next cycle. Sequence "
+        "multiple actions in one turn.\n\n"
         "**Stand-down is the LAST option, only when no action moves the "
         "operation forward.** Before standing down, ask: would a refresh "
         "tighten my next assessment? Would a written observation help next "
@@ -1402,8 +1415,11 @@ async def invoke_reviewer(
                     "tool": name,
                     "input": inp,  # ADR-289 Phase 2a: needed by the live
                                    # narration site in routes/feed.py to
-                                   # classify mirror-refresh FireInvocations
-                                   # (mechanical mode) via is_mirror_refresh_action.
+                                   # classify mirror-refresh SyncPlatformState
+                                   # calls via is_mirror_refresh_action.
+                                   # ADR-296 v2 D3: the FireInvocation branch
+                                   # of that classifier dissolved when
+                                   # FireInvocation left REVIEWER_PRIMITIVES.
                     "success": actions_taken[-1]["success"],
                     "summary": actions_taken[-1]["summary"],
                 })

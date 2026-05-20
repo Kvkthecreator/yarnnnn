@@ -336,13 +336,13 @@ PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.
 
 
 # =============================================================================
-# ADR-258 (revised 2026-05-08): REVIEWER_PRIMITIVES — curated subset
+# ADR-258 (revised 2026-05-08) + ADR-296 v2 D3: REVIEWER_PRIMITIVES — curated subset
 # =============================================================================
 # The Reviewer is the operator's installed judgment character — personified
 # to act on the operator's behalf. Like a human supervisor, the Reviewer:
 #   - Reads any report directly (observation is unmediated)
 #   - Writes its own notebook (decisions, reflections, notes within /workspace/review/)
-#   - Directs subordinates to fire recurrences or submit proposals (FireInvocation, ProposeAction)
+#   - Submits proposals for capital actions (ProposeAction)
 #   - Asks the operator when in doubt (Clarify)
 #
 # What the Reviewer does NOT do directly (operator-authorship territory —
@@ -354,6 +354,17 @@ PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.
 #     (the dispatcher executes ExecuteProposal/RejectProposal on Reviewer's verdict —
 #      Reviewer doesn't call them itself)
 #   - Mutate entity-layer rows: EditEntity (Reviewer reasons against files, not rows)
+#
+# ADR-296 v2 D3 — FireInvocation REMOVED from REVIEWER_PRIMITIVES.
+# The Reviewer's authority is over cadence preference + standing intent; not
+# over invoking itself or commissioning unit-of-work fires. When upstream
+# substrate is stale, the Reviewer authors:
+#   (a) cadence — Schedule the next mechanical mirror's run, or
+#   (b) standing intent — update /workspace/review/standing_intent.md to
+#       declare interest in the substrate transition that would unblock it.
+# It does not dispatch its own next wake by name. FireInvocation remains in
+# CHAT_PRIMITIVES for operator-initiated manual fire (operator presence is
+# itself a wake-warrant).
 #
 # What the Reviewer DOES do that is structurally Reviewer-territory (ADR-261 D4):
 #   - Schedule its own future wake-ups via Schedule (renamed from ManageRecurrence).
@@ -382,8 +393,8 @@ REVIEWER_PRIMITIVES = [
     QUERY_KNOWLEDGE_TOOL,
     # Self-substrate writes — own notebook (lock check enforces /workspace/review/ + non-locked paths)
     WRITE_FILE_TOOL,
-    # Direction primitives — Reviewer says, System Agent executes
-    FIRE_INVOCATION_TOOL,
+    # ADR-296 v2 D3: FireInvocation REMOVED. Reviewer does not self-invoke.
+    # Direction primitive (Reviewer says, System Agent executes)
     PROPOSE_ACTION_TOOL,
     # Self-scheduling (ADR-261 D4) — Reviewer authors its own future wake-ups
     SCHEDULE_TOOL,
@@ -400,7 +411,7 @@ REVIEWER_PRIMITIVES = [
     SYNC_PLATFORM_STATE_TOOL,
     # Conversation
     CLARIFY_TOOL,
-]  # 21 tools — ADR-264 added SyncPlatformState (Reviewer mid-loop substrate refresh)
+]  # 20 tools — ADR-296 v2 D3 removed FireInvocation (Reviewer does not self-invoke)
 
 
 # =============================================================================

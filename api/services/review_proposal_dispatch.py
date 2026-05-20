@@ -641,10 +641,13 @@ async def _execute_reviewer_directives(
 ) -> list[str]:
     """Execute Reviewer directives immediately after a defer verdict.
 
-    ADR-253 D2: replaces the deleted propose_followup (ADR-229 D2).
-    Directives are System Agent instructions with no action_proposals row
-    and no second Reviewer pass. Three allowed actions:
-    - fire_invocation: fire an existing recurrence slug
+    ADR-253 D2 (amended by ADR-296 v2 D3): replaces the deleted
+    propose_followup (ADR-229 D2). Directives are System Agent instructions
+    with no action_proposals row and no second Reviewer pass.
+
+    Two allowed actions (ADR-296 v2 D3 removed the `fire_invocation`
+    action — Reviewer does not self-invoke; cadence is authored via
+    Schedule, not via directive-fire of upstream recurrences):
     - write_file: write to /workspace/review/ only
     - clarify: surface a question to the operator in the narrative
 
@@ -659,32 +662,7 @@ async def _execute_reviewer_directives(
         reason = d.get("reason", "")
 
         try:
-            if action == "fire_invocation":
-                slug = d.get("slug", "")
-                if not slug:
-                    results.append(f"fire_invocation: missing slug — skipped")
-                    continue
-                from services.recurrence import walk_workspace_recurrences
-                import asyncio
-                decls = await asyncio.to_thread(walk_workspace_recurrences, client, user_id)
-                target = next((dec for dec in decls if dec.slug == slug), None)
-                if not target:
-                    results.append(f"fire_invocation({slug}): recurrence not found — skipped")
-                    continue
-                from services.invocation_dispatcher import dispatch
-                # ADR-258 revised D-directives: dispatch signature requires
-                # (client, user_id, recurrence). The earlier `dispatch(target)`
-                # call site silently failed (caught by the broad except below)
-                # so Reviewer-mid-loop scheduling directives never fired in
-                # production. Fixed 2026-05-11 audit pass.
-                await dispatch(client, user_id, target)
-                results.append(f"fire_invocation({slug}): dispatched")
-                logger.info(
-                    "[REVIEWER_DIRECTIVE] fire_invocation slug=%s proposal=%s user=%s",
-                    slug, (proposal_id or "?")[:8], user_id[:8],
-                )
-
-            elif action == "write_file":
+            if action == "write_file":
                 path = d.get("path", "")
                 content = d.get("content", "")
                 if not path or not path.startswith("/workspace/review/"):

@@ -284,12 +284,21 @@ def main() -> None:
         _fail("DispatchSpecialist handler not registered")
     _ok("DispatchSpecialist handler registered in HANDLERS")
 
-    # Reviewer roster has Schedule + Compose + DispatchSpecialist + FireInvocation
-    expected_reviewer_authority = {"Schedule", "Compose", "DispatchSpecialist", "FireInvocation", "ProposeAction"}
+    # Reviewer roster has Schedule + Compose + DispatchSpecialist + ProposeAction.
+    # ADR-296 v2 D3: FireInvocation REMOVED from REVIEWER_PRIMITIVES — Reviewer
+    # does not self-invoke. Cadence is authored via Schedule; standing intent
+    # via WriteFile. FireInvocation remains in CHAT_PRIMITIVES for operator-
+    # initiated manual fire (operator presence is itself a wake-warrant).
+    expected_reviewer_authority = {"Schedule", "Compose", "DispatchSpecialist", "ProposeAction"}
     missing = expected_reviewer_authority - reviewer_names
     if missing:
         _fail(f"REVIEWER_PRIMITIVES missing authority tools: {missing}")
     _ok(f"REVIEWER_PRIMITIVES has full direction authority: {sorted(expected_reviewer_authority)}")
+
+    # ADR-296 v2 D3: FireInvocation MUST be absent from REVIEWER_PRIMITIVES.
+    if "FireInvocation" in reviewer_names:
+        _fail("FireInvocation still in REVIEWER_PRIMITIVES — must be removed per ADR-296 v2 D3")
+    _ok("FireInvocation absent from REVIEWER_PRIMITIVES (ADR-296 v2 D3 — Reviewer does not self-invoke)")
 
     # All three primitive handlers conform to the (auth, input) contract
     import inspect

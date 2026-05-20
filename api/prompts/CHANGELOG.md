@@ -6,6 +6,129 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.20.4] - feat(adr-296 v2 checkpoint 1): FireInvocation re-scope — Reviewer does not self-invoke; cadence + standing intent are its authority
+
+### Decision
+
+ADR-296 v2 D3 commits: the Reviewer's authority is over cadence
+preference + standing intent. Not over invoking itself. FireInvocation
+is removed from `REVIEWER_PRIMITIVES` and from every prompt-layer
+teaching surface that previously instructed the Reviewer to call it.
+
+FireInvocation remains in `CHAT_PRIMITIVES` for operator-initiated
+manual fire — operator presence is itself a wake-warrant per ADR-296
+v2 D1. The primitive shape (slug + optional context) is unchanged.
+
+This is Checkpoint 1 of the multi-checkpoint ADR-296 v2 landing arc
+(Session A planning + Session B telemetry substrate already shipped
+at commits 4ea87f2 + 314d378). Checkpoint 2 builds the wake.py
+gateway + Tier 1/Tier 2 funnel + `_hooks.yaml` substrate + bundle
+migrations. Checkpoint 3 rewrites canon (FOUNDATIONS / GLOSSARY /
+invocation-and-narrative / primitives-matrix / SERVICE-MODEL).
+
+### Changed
+
+**`api/agents/reviewer_agent.py::_PERSONA_FRAME`** — "Data is stale
+and a refresh would change the next assessment" branch rewritten.
+Pre-ADR-296: instructed `FireInvocation the relevant recurrence to
+commission fresh substrate. Narrate: I'm refreshing X — re-assessing
+when it completes.` Post-ADR-296: instructs cadence authority +
+standing intent — `Schedule your next cycle for after the relevant
+mechanical mirror's next fire, or WriteFile to standing_intent.md
+declaring interest in the substrate transition that would unblock
+you. Do NOT invoke the upstream mirror directly from your loop —
+that is operator + cron territory.`
+
+Example narrations rewritten same block: the universe-refresh example
+becomes a Schedule-next-cycle + standing-intent-write pattern. Why:
+narration-shape teaches the model what kind of action is in scope.
+
+**`api/agents/cockpit_awareness.py`** — two FireInvocation teaching
+sites rewritten:
+- "Missing signal state" branch: now teaches Schedule + standing
+  intent, with explicit framing of cadence-authority boundary.
+- "Tool-use loop" step 3: was `FireInvocation — commission missing
+  substrate from declared recurrences`. Now: `Schedule — author your
+  own next cycle's wake-up (cadence authority per ADR-274 + ADR-296
+  v2 D3). NOT for invoking upstream recurrences.`
+
+**`api/services/orchestration.py`** — Reviewer principles.md scaffold
+template (the doc-template literal seeded at workspace activation)
+"Defer posture" + "Directive posture" sections rewritten. The
+`directive: fire_invocation(slug=<accumulation-recurrence>)` example
+deleted; replaced with a Schedule + standing-intent example. The
+"Directive posture" section now states the directives mechanism is
+`{write_file, clarify}` only (per ADR-296 v2 D3 amendment to ADR-253 D2).
+
+**`api/services/primitives/registry.py::REVIEWER_PRIMITIVES`** —
+`FIRE_INVOCATION_TOOL` entry deleted from the list. Count drops 21 → 20.
+The block-leading docstring rewritten to name ADR-296 v2 D3 as the
+authority: Reviewer no longer commissions unit-of-work fires; cadence
++ standing intent are its authority surfaces.
+
+### Removed
+
+- **`api/services/reviewer_chat_surfacing.py::_is_mechanical_fire_invocation`**
+  helper (lines 209-236) — dissolved per ADR-296 v2 D3 narrowing.
+  Reviewer no longer calls FireInvocation, so the
+  FireInvocation-of-mechanical-mode branch of the mirror-refresh
+  classifier is unreachable.
+- **`is_mirror_refresh_action`** simplified: pre-ADR-296 had two paths
+  (`tool in REVIEWER_MIRROR_REFRESH_TOOLS` + `tool == "FireInvocation"`).
+  Post-ADR-296: single path (`tool in REVIEWER_MIRROR_REFRESH_TOOLS`).
+  `client` + `user_id` parameters retained for signature stability across
+  feed.py call sites.
+- **`narrate_reviewer_action`** FireInvocation case (line 265-266) — the
+  `if tool == "FireInvocation": return "Firing recurrence on Reviewer's
+  direction."` branch deleted.
+- **`api/services/review_proposal_dispatch.py::_execute_reviewer_directives`** —
+  `if action == "fire_invocation":` branch (lines 662-685) deleted.
+  The directives mechanism (ADR-253 D2) shrinks from 3 actions to 2:
+  `write_file | clarify`.
+- **`api/agents/reviewer_agent_compat.py::output_to_review_decision`** —
+  FireInvocation-action-as-directive extraction block (lines 60-67)
+  deleted. The adapter still maps verdict → decision and carries
+  reasoning + confidence; the directives extraction was the only
+  load-bearing ADR-296-impacted line.
+
+### Expected behavior
+
+- **Reviewer**: when upstream substrate is stale, no longer attempts
+  `FireInvocation(slug=...)`. Instead either (a) schedules its own
+  next cycle for after the mirror's next fire via `Schedule(action=
+  "create", ...)` or (b) writes to `/workspace/review/standing_intent.md`
+  declaring interest in the substrate transition.
+- **Mechanical mirrors** continue to fire on their cron schedules
+  (unchanged); Reviewer is woken by the cron-tick wake source when
+  the substrate they refresh is read by the next judgment-mode
+  recurrence — not by direct invocation.
+- **Operator chat**: FireInvocation in chat (`/api/feed` →
+  CHAT_PRIMITIVES route) unchanged. The operator can still type "fire
+  X now" and YARNNN dispatches via the existing chat shim.
+- **`execution_events`** rows for Reviewer wakes now carry
+  `wake_source` ∈ {cron_tick, addressed, manual_fire} and
+  `funnel_decision` ∈ {skip, escalate, mechanical} per migration 177.
+  Tier 2 (Haiku) decisions (`tier_2_wait` / `tier_2_observe`) remain
+  NULL until Checkpoint 2 wires the funnel module.
+
+### Impact
+
+LLM behavior — Reviewer cycles where upstream substrate is stale
+should resolve via Schedule + standing-intent authoring rather than
+FireInvocation. The bundle's mechanical recurrences continue to mirror
+their own state on cron cadence; the Reviewer perceives `now` and the
+"next mirror at" from its operating context block (per ADR-274 +
+v8.5 Axiom 4) and authors the next cycle accordingly.
+
+The autonomy-demo framework (Hat-B) should observe a clean shift: no
+more Reviewer-fired mirror-refresh narration events; cadence-author +
+standing-intent-write entries appear in their place. The 13 prose
+mentions of FireInvocation across bundles + prompts that the prior
+session's audit named drop to 0 in the Reviewer surface; FireInvocation
+remains in the chat surface only.
+
+---
+
 ## [2026.05.20.3] - feat(adr-295 phase A): Reviewer self-amendment discipline — evidence thresholds, revision-message format, anti-pattern ledger, design-time-deference
 
 ### Decision

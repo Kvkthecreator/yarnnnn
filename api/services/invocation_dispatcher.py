@@ -107,6 +107,12 @@ async def dispatch(
 
     started_at = datetime.now(timezone.utc)
 
+    # ADR-296 v2 D1: wake-source taxonomy for telemetry. The dispatcher
+    # is the cron-tick wake source's escalation path; manual fires (via
+    # FireInvocation in CHAT_PRIMITIVES) arrive with trigger="addressed".
+    # `wake_source` stamps every execution_events row this function writes.
+    wake_source = "manual_fire" if trigger == "addressed" else "cron_tick"
+
     # ADR-289 D2 + D3: pre-generate the invocation atom id. This UUID is the
     # canonical execution_events.id for the cycle; every narrative row produced
     # during the cycle stamps metadata.invocation_id with this value so the FE
@@ -136,7 +142,7 @@ async def dispatch(
     if recurrence.mode == "mechanical":
         return await _dispatch_mechanical(
             client, user_id, recurrence, trigger=trigger, context=context,
-            started_at=started_at,
+            started_at=started_at, wake_source=wake_source,
         )
 
     # ---- Balance gate (ADR-172) ----
@@ -199,6 +205,8 @@ async def dispatch(
             mode="judgment",  # ADR-265: mode replaces dead shape discriminator
             trigger_type=trigger,
             status="failed", error_reason="balance_exhausted",
+            wake_source=wake_source,
+            funnel_decision="skip",  # ADR-296 v2 D2: Tier 1 kernel gate
         )
         return _result_failed(recurrence, "balance exhausted", trigger=trigger)
 
@@ -245,6 +253,8 @@ async def dispatch(
                 mode="judgment", trigger_type=trigger,
                 status="skipped", error_reason="spend_ceiling",
                 error_detail=warning,
+                wake_source=wake_source,
+                funnel_decision="skip",  # ADR-296 v2 D2: Tier 1 kernel gate
             )
             return _result_failed(recurrence, warning, trigger=trigger)
         else:
@@ -271,6 +281,8 @@ async def dispatch(
                 mode="judgment", trigger_type=trigger,
                 status="skipped", error_reason="judgment_cap",
                 error_detail=warning,
+                wake_source=wake_source,
+                funnel_decision="skip",  # ADR-296 v2 D2: Tier 1 kernel gate
             )
             return _result_failed(recurrence, warning, trigger=trigger)
         # Manual: warn but proceed (operator at the keyboard).
@@ -290,6 +302,8 @@ async def dispatch(
                 mode="judgment", trigger_type=trigger,
                 status="skipped", error_reason="min_interval",
                 error_detail=warning,
+                wake_source=wake_source,
+                funnel_decision="skip",  # ADR-296 v2 D2: Tier 1 kernel gate
             )
             return _result_failed(recurrence, warning, trigger=trigger)
         # Manual: warn but proceed.
@@ -374,6 +388,8 @@ async def dispatch(
             status="failed", error_reason="exception",
             error_detail=str(exc), duration_ms=duration_ms,
             envelope_load_ms=_env_ms,
+            wake_source=wake_source,
+            funnel_decision="escalate",  # ADR-296 v2 D2: Reviewer was invoked
         )
         # ADR-277: material weight — Reviewer invocation raised an
         # exception. Real failure; operator should see. The execution_events
@@ -406,6 +422,8 @@ async def dispatch(
         cache_create_tokens=_ro.get("cache_create_tokens"),
         model=_ro.get("model"),
         tool_rounds=_ro.get("tool_rounds"),
+        wake_source=wake_source,
+        funnel_decision="escalate",  # ADR-296 v2 D2: Reviewer was invoked
     )
 
     actions_taken = []
@@ -685,6 +703,7 @@ async def _dispatch_mechanical(
     trigger: str,
     context: Optional[str],
     started_at: datetime,
+    wake_source: str,
 ) -> dict:
     """Execute a mechanical-mode recurrence (ADR-263 + ADR-264).
 
@@ -708,6 +727,8 @@ async def _dispatch_mechanical(
             mode="mechanical", trigger_type=trigger,
             status="failed", error_reason="no_primitive_directive",
             error_detail=msg,
+            wake_source=wake_source,
+            funnel_decision="mechanical",  # ADR-296 v2 D2
         )
         return _result_failed(recurrence, msg, trigger=trigger)
 
@@ -733,6 +754,8 @@ async def _dispatch_mechanical(
             mode="mechanical", trigger_type=trigger,
             status="skipped", error_reason="capability_missing",
             error_detail=f"required platform {required_platform!r} not connected",
+            wake_source=wake_source,
+            funnel_decision="mechanical",  # ADR-296 v2 D2
         )
         if is_transition:
             # ADR-277: material weight — first-detection of capability
@@ -785,6 +808,8 @@ async def _dispatch_mechanical(
             mode="mechanical", trigger_type=trigger,
             status="failed", error_reason="unknown_primitive",
             error_detail=msg,
+            wake_source=wake_source,
+            funnel_decision="mechanical",  # ADR-296 v2 D2
         )
         return _result_failed(recurrence, msg, trigger=trigger)
 
@@ -823,6 +848,8 @@ async def _dispatch_mechanical(
             mode="mechanical", trigger_type=trigger,
             status="failed", error_reason="primitive_raised",
             error_detail=str(e), duration_ms=duration_ms,
+            wake_source=wake_source,
+            funnel_decision="mechanical",  # ADR-296 v2 D2
         )
         return _result_failed(recurrence, str(e), trigger=trigger)
 
@@ -835,6 +862,8 @@ async def _dispatch_mechanical(
         mode="mechanical", trigger_type=trigger,
         status=status, duration_ms=duration_ms,
         error_reason=None if success else (result.get("error") if isinstance(result, dict) else None),
+        wake_source=wake_source,
+        funnel_decision="mechanical",  # ADR-296 v2 D2
     )
 
     # FOUNDATIONS Axiom 9: every invocation emits a narrative entry. Mechanical

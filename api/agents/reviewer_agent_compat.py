@@ -39,9 +39,15 @@ def output_to_review_decision(output: dict | None) -> dict | None:
     """Adapt ReviewerOutput to the dict shape review_proposal_dispatch expects.
 
     Maps verdict → decision for the approve/reject/defer routing in
-    _run_ai_reviewer(). Preserves directives as actions_taken entries
-    with action=fire_invocation shape so _execute_reviewer_directives
-    still works.
+    _run_ai_reviewer().
+
+    ADR-296 v2 D3 removed the FireInvocation-directive extraction
+    block — Reviewer no longer self-invokes via directive-fire of
+    upstream recurrences; the directives mechanism (per
+    review_proposal_dispatch._execute_reviewer_directives) now only
+    carries `write_file` + `clarify` actions, and those are emitted
+    by the Reviewer's tool calls during the loop, not derived from
+    actions_taken here.
     """
     if output is None:
         return None
@@ -51,19 +57,8 @@ def output_to_review_decision(output: dict | None) -> dict | None:
     if decision not in ("approve", "reject", "defer"):
         return None
 
-    result: dict = {
+    return {
         "decision": decision,
         "reasoning": output.get("reasoning", ""),
         "confidence": output.get("confidence", "low"),
     }
-
-    # Carry any FireInvocation actions_taken as directives
-    directives = [
-        {"action": "fire_invocation", "slug": a.get("slug", ""), "reason": a.get("reason", "")}
-        for a in (output.get("actions_taken") or [])
-        if a.get("tool") == "FireInvocation"
-    ]
-    if directives and decision == "defer":
-        result["directives"] = directives
-
-    return result

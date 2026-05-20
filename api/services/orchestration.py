@@ -640,26 +640,34 @@ regardless of AUTONOMY level.
 # auto_approve_below_cents: 0   # uncomment + set to enable AI auto-action
 ```
 
-## Defer posture — what I commission when I defer for evidence gap (ADR-253 D2)
+## Defer posture — what I commission when I defer for evidence gap (ADR-253 D2 amended by ADR-296 v2 D3)
 
-When I defer because evidence is insufficient, I issue directives to
-commission the missing substrate. I do not re-propose to myself.
+When I defer because evidence is insufficient, I author cadence + standing
+intent. I do not re-propose to myself, and per ADR-296 v2 D3 I do not
+fire upstream recurrences by name — that is operator + cron territory.
 
 ```
 # Example (override for your domain):
 # When deferring because a signal has < 20 closed-loop samples:
-#   directive: fire_invocation(slug=<accumulation-recurrence>)
+#   directive: write_file(path="/workspace/review/standing_intent.md",
+#                          content="I want to be woken when this signal
+#                                   crosses 20 closed-loop samples.")
+#   AND
+#   Schedule(action="create", slug="reviewer-next-cycle", schedule=...,
+#            prompt="Re-assess <signal> after upstream accumulation.")
 #
 # When deferring because ground-truth substrate is empty:
 #   directive: clarify("No closed-loop outcomes exist. Approve a
 #                       minimum-size seed action to begin calibration.")
 ```
 
-## Directive posture — what I can instruct directly (ADR-253 D2)
+## Directive posture — what I can instruct directly (ADR-253 D2 amended by ADR-296 v2 D3)
 
-The Reviewer issues directives for substrate work (fire existing
-recurrences, write to own substrate, clarify to operator). It does
-NOT issue directives for external platform writes (those are proposals),
+The Reviewer issues directives for self-substrate work (write to own
+substrate, clarify to operator). Per ADR-296 v2 D3, the historical
+`fire_invocation` directive is removed — Reviewer authors cadence via
+Schedule, not via directive-fire of upstream recurrences. It does NOT
+issue directives for external platform writes (those are proposals),
 infrastructure changes, or operator configuration.
 
 ## Per-domain high-impact thresholds (ADR-195 Phase 5)

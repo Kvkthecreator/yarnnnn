@@ -1375,6 +1375,8 @@ async def global_chat(
                 cache_create_tokens=output.get("cache_create_tokens"),
                 model=output.get("model"),
                 tool_rounds=output.get("tool_rounds"),
+                wake_source="addressed",  # ADR-296 v2 D1
+                funnel_decision="escalate",  # ADR-296 v2 D2: operator presence is wake-warrant
             )
 
             yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': [a.get('tool','') for a in actions]})}\n\n"
@@ -1392,6 +1394,8 @@ async def global_chat(
                 status="failed", error_reason="exception",
                 error_detail=str(_reviewer_exc),
                 duration_ms=addressed_duration_ms,
+                wake_source="addressed",  # ADR-296 v2 D1
+                funnel_decision="escalate",  # ADR-296 v2 D2: operator presence escalated; Reviewer raised
             )
             raise
 

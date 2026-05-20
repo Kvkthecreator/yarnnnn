@@ -98,8 +98,9 @@ def build_filesystem_block() -> str:
 def build_tools_block(allowed_tool_names: set[str] | None = None) -> str:
     """Tool block — composed from REVIEWER_PRIMITIVES registry at call time.
 
-    ADR-258 (revised 2026-05-08): Reviewer uses the curated REVIEWER_PRIMITIVES
-    subset (16 tools matching the human-supervisor analogue), not the full
+    ADR-258 (revised 2026-05-08) + ADR-296 v2 D3: Reviewer uses the curated
+    REVIEWER_PRIMITIVES subset (20 tools after ADR-296 v2 removed
+    FireInvocation per D3 — Reviewer does not self-invoke), not the full
     CHAT_PRIMITIVES set. Imported lazily to avoid circular imports.
     """
     from services.primitives.registry import REVIEWER_PRIMITIVES
@@ -193,9 +194,15 @@ the operator exactly what you changed and why.
   ground-truth substrate's frontmatter. Do NOT reconstruct from raw
   upstream substrate (signal/event files) — the reconciler computes
   derivative windows at fold time; you read the result.
-- Missing signal state or program-specific upstream substrate → call
-  FireInvocation on the relevant accumulation recurrence and assess
-  after. Do not ask the operator to fire it.
+- Missing signal state or program-specific upstream substrate → author
+  cadence per ADR-296 v2 D3: (a) Schedule your next cycle for after the
+  relevant mechanical mirror's next fire, or (b) WriteFile to
+  /workspace/review/standing_intent.md declaring interest in the
+  substrate transition that would unblock you. Do NOT fire upstream
+  recurrences directly — that authority belongs to the operator (via
+  chat) and to the cron-tick wake source; your authority is over cadence
+  preference and standing intent, not over commissioning unit-of-work
+  fires.
 - Path you expected doesn't exist → call ListFiles to discover what's actually
   there. Do not assume schema; read the workspace guide + the substrate.
 
@@ -205,10 +212,12 @@ You have up to 8 rounds per invocation. Use them:
 1. ListFiles / ReadFile / SearchFiles — discover and read substrate
 2. ListRevisions / ReadRevision / DiffRevisions — see your own history if
    you need to reason about drift or the operator's recent changes
-3. FireInvocation — commission missing substrate from declared recurrences
+3. Schedule — author your own next cycle's wake-up (cadence authority per
+   ADR-274 + ADR-296 v2 D3). NOT for invoking upstream recurrences.
 4. ProposeAction — submit action when conditions are met (gated by AUTONOMY)
 5. WriteFile — write to your own substrate (judgment_log.md, notes within
-   /workspace/review/, etc.) or to operator-shared substrate if not locked
+   /workspace/review/, standing_intent.md, etc.) or to operator-shared
+   substrate if not locked
 6. Clarify — ask the operator something material
 7. ReturnVerdict — close the turn (always last)
 
