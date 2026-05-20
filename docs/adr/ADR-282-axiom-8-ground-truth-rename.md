@@ -1,6 +1,6 @@
 # ADR-282: Axiom 8 — Propagate the Kernel/Instance Distinction for `money-truth`
 
-**Status**: Proposed
+**Status**: Implemented (2026-05-15 cascade landed across FOUNDATIONS Axiom 8 + GLOSSARY + THESIS + SERVICE-MODEL + README + invocation-and-narrative per D3–D7; status flipped to Implemented 2026-05-20 after Fix 1C verification confirmed all 6 named canonical doc locations carry the kernel/instance discipline correctly and no kernel-level use of `money-truth` remains in active prose).
 **Date**: 2026-05-15
 **Companion docs**: `docs/analysis/alpha-author-discourse-2026-05-15.md`, `docs/adr/ADR-283-alpha-author-bundle.md` (prerequisite-of)
 **Amends**: FOUNDATIONS.md (Axiom 8 heading + body + version history), GLOSSARY.md (new axiom-level entry + sharpened instance entries), THESIS.md (targeted line edits where `money-truth` is doing kernel-level work), SERVICE-MODEL.md (version-history axiom name), README.md (one-liner axiom gloss), invocation-and-narrative.md (axiom gloss)
@@ -199,3 +199,27 @@ This rewrite supersedes the original ADR-282 text in place per Singular Implemen
 - **Risk**: low. Docs-only, no code, no migration, no test impact. The grep gate provides post-cascade verification.
 - **Blocks**: ADR-283 (alpha-author bundle) implementation depends on this cascade landing first
 - **Cascade**: 6 canonical doc files (8 if optional version-history updates included) + 1 new ADR. Single commit.
+
+## Verification (post-Fix-1C 2026-05-20)
+
+Status flipped from Proposed to Implemented after surveying all 6 named canonical doc locations:
+
+| Location | Expected post-cascade state | Verified |
+|---|---|---|
+| `FOUNDATIONS.md` Axiom 8 heading | "Ground-Truth Substrate — Substrate Must Carry Reconciled Consequence-Bearing Reality" | ✓ (line 565) |
+| `GLOSSARY.md` Ground-truth substrate entry | New axiom-level entry; Money-Truth + `_money_truth.md` + Outcome entries point to it as instance-of | ✓ (line 184 + sharpened existing entries) |
+| `THESIS.md` L24/L78/L80/L102 | Instance-of phrasings ("ground-truth substrate ... money-truth in alpha-trader's instance"); L102 cites "FOUNDATIONS Axiom 8 (Ground-Truth Substrate)" | ✓ (all 4 lines aligned) |
+| `SERVICE-MODEL.md` L539 version history | "ground-truth substrate / money-truth instance: Ax7→Ax8 — see ADR-282" | ✓ |
+| `README.md` L16 axiom one-liner | "Axiom 8 ground-truth substrate" | ✓ |
+| `invocation-and-narrative.md` L230 | "...recursion, ground-truth substrate are unchanged" | ✓ |
+
+Instance-level identifiers preserved unchanged per D2 + D7:
+- File: `_money_truth.md`, `_money_truth_summary.md`
+- Code: `services/outcomes/*.py`, `TraderMoneyTruth` component, `MoneyTruthMeta` types, `web/lib/content-shapes/money-truth.ts`
+- Bindings: `cockpit.money_truth` SURFACES key, `/api/cockpit/money-truth` route
+
+Drift findings (historical artifacts preserved per D7/D8):
+- `DOMAIN-STRESS-MATRIX.md` L368 — version-history line citing old Axiom 7 name "Money-Truth Is the Truth Test" — preserve as historical artifact per D7.
+- `adr296-canon-and-runtime-audit.md` L214 — uses "Money-truth substrate" as parenthetical when citing Axiom 8 — developer-side audit doc, not user-facing canon; lower priority. Could amend in a follow-on.
+
+The kernel/instance discipline rule (D2) is materially live across canon. The vocabulary cleanup is complete.

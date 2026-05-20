@@ -211,7 +211,7 @@ The audit cannot resolve this. Worth surfacing for the next discourse round: wha
 
 | Source | Position | Color |
 |---|---|---|
-| [FOUNDATIONS Axiom 8 "Money-truth substrate"](FOUNDATIONS.md) | Ground-truth substrate per program (`_money_truth.md` for trading; future programs have their analog). Money/value loop closure is foundational. | **A** |
+| [FOUNDATIONS Axiom 8 "Ground-Truth Substrate"](FOUNDATIONS.md) | Ground-truth substrate per program (alpha-trader's instance is `_money_truth.md`; future programs have their analog per ADR-282 kernel/instance discipline). Money/value loop closure is foundational. | **A** |
 | [ADR-193 ProposeAction + AUTONOMY gating](../adr/ADR-193-action-proposals.md) | Back-edge primitive with autonomy-mode gates. Implemented end-to-end for trading capital actions. | **A** |
 | [ADR-293 D4 "AUTONOMY mode gates substrate writes uniformly with capital actions"](../adr/ADR-293-governance-operational-substrate-taxonomy.md) | Uniform gating across capital + substrate writes. | **A** |
 | [ADR-294 autonomy-demo + ADR-295 self-amendment discipline](../adr/ADR-294-operator-proxy-and-observation-discipline.md) | Hat-B framework for testing autonomy + Reviewer-self-amendment. | **A** |
