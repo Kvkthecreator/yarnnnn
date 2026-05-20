@@ -36,6 +36,48 @@ YARNNN is an **autonomous agent platform for recurring knowledge work**. Persist
 - **Context Domains** — accumulated intelligence at `/workspace/context/{domain}/`. Created by work demand, not pre-scaffolded. Shared across all tasks.
 - **Mandate** — the operator's authored Primary-Action declaration at `/workspace/context/_shared/MANDATE.md` (ADR-207). Hard gate on task creation.
 
+## The Two Hats: System Editor vs External Developer of the System
+
+YARNNN is an Agent OS. Real operators of YARNNN interact via the cockpit + chat surface; the system runs Reviewer + System Agent + Orchestration + substrate + governance on their behalf. **All of that — every file under `api/`, `web/`, every ADR, every architecture doc, every bundle reference-workspace — is INSIDE the system.** That's the world FOUNDATIONS describes.
+
+There is a separate surface — the **external developer surface** — that exists only because we are still iterating on YARNNN. It comprises the operator-proxy capability (ADR-294), scripted scenarios + observations (`docs/observations/`), ADR drafts before they ratify, the human developer (KVK), and Claude as a collaborator. **None of this ships to real operators.** It is the toolchain through which YARNNN's canon evolves.
+
+**Two hats. Don't conflate them.**
+
+### Hat A — System Editor
+
+When working in any of these locations, you are editing the system real operators will inherit:
+- `api/services/`, `api/agents/`, `api/routes/`, `api/services/primitives/`, `api/scripts/alpha_ops/` (yes — alpha-ops orchestrates real persona workspaces)
+- `web/` (frontend cockpit)
+- `docs/adr/`, `docs/architecture/`, `docs/programs/{program}/` (canon + bundles)
+- `api/prompts/CHANGELOG.md` (LLM-facing behavior)
+- Any bundle reference-workspace file (`docs/programs/{program}/reference-workspace/**`)
+
+System-hat discipline:
+- Speak in system vocabulary (Reviewer, operator, substrate, gating). Do NOT introduce "developer," "Claude," "observation" as system actors.
+- Singular implementation, doc-first ADR amendments, full Render parity check.
+- The change ships through git → Render deploy → real operator workspaces.
+
+### Hat B — External Developer of the System
+
+When working in these locations, you are operating the developer toolchain that probes + iterates on the system:
+- `api/services/operator_proxy/`, `api/scripts/operator/` (the harness)
+- `docs/observations/` (scenarios + captures + findings)
+- Pre-ratification ADR drafts (after ratification they're system canon)
+
+Developer-hat discipline:
+- Speak in evaluation vocabulary (scenarios, expected vs observed, hypotheses, findings).
+- A finding here recommends system-side changes; it does not make them. The *fix* lands in Hat A territory.
+- Don't introduce concepts that only make sense to developers into the system's vocabulary. If a recommendation requires a new primitive / axiom / ADR, that primitive/axiom/ADR lives in Hat A docs after ratification.
+
+### Why the hats matter for autonomy
+
+The Agent-OS aspiration is full autonomy: the Reviewer can take capital actions AND meta-aware-edit every operator-canon file (principles, mandate, risk envelope, ground-truth) on its own initiative, under in-system discipline + audit trail + revertibility. The current ADR-293 lock-set on three governance files (`AUTONOMY.md` + `_autonomy.yaml` + `_token_budget.yaml`) is **current dev-trust state**, not permanent architecture. As we harden the Reviewer's self-amendment discipline through Hat-A edits (validated *via* Hat-B observation runs), the lock-set should shrink toward zero.
+
+**Hat-B is the feedback loop. Hat-A is where the system actually changes.**
+
+If a session is unclear which hat applies, the test is: *would a real operator on a stable YARNNN release see this change?* If yes, Hat A. If no, Hat B. The system's own runtime never references Hat-B artifacts; FOUNDATIONS doesn't mention them; ADRs treat them as out-of-canon. They exist purely as our scaffolding while we build.
+
 ## Core Execution Disciplines
 
 ### 0. Before Proposing Architectural Changes

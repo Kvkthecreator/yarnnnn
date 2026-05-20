@@ -6,6 +6,30 @@ This directory holds version-controlled captures of operator-proxy sessions — 
 
 This is the qualitative companion to `api/test_adr*.py` regression gates. Together they form the YARNNN evaluation discipline: regression gates assert structural invariants; observations capture behavioral shape across multi-turn interactions.
 
+## The Hat We Wear in This Directory: External Developer of the System
+
+Everything in `docs/observations/` — this README, the scenarios, the captured runs, the findings — lives **outside the YARNNN system**. We wear the **external developer hat** when authoring or interpreting content here.
+
+That distinction matters because YARNNN itself (described in `docs/architecture/FOUNDATIONS.md`) is an Agent OS with its own internal entities: Reviewer, System Agent, operator (the human-at-cockpit), substrate, governance files, gating mechanisms. Those are *system-side* concepts. Real operators of YARNNN will never see this directory; their interface is the cockpit + chat surface.
+
+The **developer surface** — operator-proxy capability (ADR-294), scenario runners, observation captures, ADR drafts, the human author of these docs, Claude as a collaborator — is the toolchain through which YARNNN's canon evolves. We use it to:
+- Probe whether the system's behavior matches what canon claims it should be
+- Surface drift between code and canon
+- Iterate on persona frames, principles bundles, gating mechanisms, ADRs
+- Test hypotheses about Reviewer self-amendment, governance discipline, capital-action paths
+
+What this hat means in practice:
+
+1. **Findings here recommend system-side changes; they don't make them.** A finding might say "Reviewer should be tightened to handle X." The actual tightening happens in `api/agents/reviewer_agent.py` persona frame, `docs/programs/{program}/reference-workspace/review/principles.md` bundle defaults, ADRs in `docs/adr/` — system-side artifacts that flow through to real operators. The observation doc records the *evaluation*; the system canon records the *change*.
+
+2. **Vocabulary boundary.** When writing scenarios + findings, refer to YARNNN's internal entities (Reviewer, System Agent, substrate, gating) the way they're defined in FOUNDATIONS. Don't introduce concepts that only make sense to developers — those belong here in observation-meta-discipline only, not leaking into the system's own vocabulary.
+
+3. **The system's autonomy aspiration.** YARNNN aims to be fully autonomous: under operator-declared autonomous mode, the Reviewer can take capital actions AND meta-aware-edit every operator-canon file. The current lock-set on three governance files (per ADR-293) is **dev-trust state, not permanent architecture**. As Reviewer self-amendment discipline hardens (validated *via* observation runs in this directory), the lock-set should shrink. This dynamic — observations as the feedback loop that hardens in-system discipline — is the developer's job to drive.
+
+4. **The "hat" is operational, not ontological.** The same human or Claude session might switch hats: editing `reviewer_agent.py` (system-side), then writing findings.md (developer-side). The discipline is keeping the boundary clear *in each artifact*. System edits speak in system vocabulary and ship to real operators; developer-side artifacts speak in evaluation vocabulary and live here.
+
+If a finding ever recommends introducing a developer-only concept *into the system*, that's a smell. Either the concept belongs in the system (in which case it's properly an axiom / derived principle / ADR), or it's purely developer-side (in which case it stays here). No third category.
+
 ## Why this exists
 
 The autonomy/observability question — *"does the Reviewer act the way we think it does?"* — cannot be answered by unit tests alone. Behavioral validation requires multi-turn interaction under realistic operator pacing, with substrate accumulation, governance gates, capital-action paths, and the back-and-forth of operator-voice nudges all in scope.

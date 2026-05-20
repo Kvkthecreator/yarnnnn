@@ -1,7 +1,7 @@
 # YARNNN Cognitive Architecture — Foundations
 
 > **Status**: Canonical
-> **Date**: 2026-03-25 (v6.0 rewrite 2026-04-20; canon hardening amended 2026-04-24; v6.8 Axiom 9 added 2026-04-25; v6.9 OS framing canonized 2026-04-27; v7.0 three-party narrative model + YARNNN-as-system-name 2026-05-03; v8.4 substrate-as-the-bus + operator-as-one-principal-with-two-embodiments hardening 2026-05-11; **v8.5 Axiom 4 amendment — Trigger authoring as Identity-layer responsibility 2026-05-14**)
+> **Date**: 2026-03-25 (v6.0 rewrite 2026-04-20; canon hardening amended 2026-04-24; v6.8 Axiom 9 added 2026-04-25; v6.9 OS framing canonized 2026-04-27; v7.0 three-party narrative model + YARNNN-as-system-name 2026-05-03; v8.4 substrate-as-the-bus + operator-as-one-principal-with-two-embodiments hardening 2026-05-11; v8.5 Axiom 4 amendment — Trigger authoring as Identity-layer responsibility 2026-05-14; **v8.6 Scope amendment — system-vs-developer-surface boundary canonized 2026-05-20**)
 > **Authors**: KVK, Claude
 > **Scope**: First principles from which all architectural decisions derive.
 > **Rule**: ADRs implement these axioms. If an ADR contradicts a foundation, the ADR must justify the deviation or be revised.
@@ -11,6 +11,18 @@
 ## Purpose
 
 This document defines the foundational axioms of YARNNN's cognitive architecture. It is not an implementation guide — it is the conceptual substrate from which implementation decisions follow. Everything in `docs/adr/`, `docs/architecture/`, and the codebase should be derivable from or consistent with these axioms.
+
+## Scope: This Document Describes the System, Not the Surface That Iterates On It
+
+FOUNDATIONS describes **YARNNN itself** — the Agent OS. The entities named here (Reviewer, System Agent, Orchestration surface, substrate, primitives, governance files, gating mechanisms) are *inside the system*. The real operator's interface to YARNNN is the cockpit + chat surface; everything that drives execution and gating lives in-system.
+
+The **developer surface that iterates on YARNNN** — including the human author of these docs, Claude as a collaborator, the operator-proxy capability (ADR-294), scripted scenario runners, observation captures, ADR drafts, regression gates — is **outside the system**. It is the toolchain through which YARNNN's canon evolves. It is NOT part of the system's runtime architecture and does not appear as an actor in any axiom below.
+
+When reading FOUNDATIONS: every "Reviewer," "operator," "System Agent," and "substrate" reference is a system-side entity. When you see "developer" or "Claude" or "operator-proxy" or "observation discipline," that's tooling outside this canon — those concepts belong in `docs/observations/README.md` (the developer-evaluation discipline doc), not here.
+
+The aspiration is that YARNNN becomes a fully autonomous Agent OS where real operators of any program (alpha-trader, alpha-author, future programs) have a Reviewer that reasons, acts, edits substrate, and learns — all under in-system discipline + audit trail + revertibility. Today's lock-set on three governance files (per ADR-293) is **current dev-trust state**, not a permanent architectural line; as the Reviewer's self-amendment discipline hardens, the lock-set shrinks.
+
+This scope distinction is load-bearing: it means findings from developer-side evaluation runs feed into amendments of in-system canon (FOUNDATIONS, ADRs, persona frames, principles bundles) but **do not introduce new architectural concepts that only the developer can see**. Every system property must be expressible from inside the system. The developer surface is an accelerator of YARNNN's evolution, not a co-resident of YARNNN's runtime.
 
 ---
 
