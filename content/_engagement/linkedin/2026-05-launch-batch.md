@@ -38,3 +38,26 @@
 ## Source content
 
 The original 22 LinkedIn-adapted drafts (~500 words each, body content) were deleted after posting. If you need the LinkedIn-specific adaptation again, regenerate from the canonical blog post at `content/posts/{slug}.md`.
+
+---
+
+# Hermes-Cluster Batch — 2026-05-15
+
+8 follow-on posts ideated from Hermes Agent / open-source agent wave research. Same distribution pattern as launch batch.
+
+| # | Canonical slug | LinkedIn URL | Medium draft |
+|---|----------------|--------------|--------------|
+| 1 | hermes-agent-vs-yarnnn-same-substrate-different-bet | [7457945038921129984](https://www.linkedin.com/feed/update/urn:li:activity:7457945038921129984/) | [eedc624c77f4](https://medium.com/p/eedc624c77f4/edit) |
+| 2 | what-224b-tokens-per-day-tells-you-about-the-agent-market | [7460905919124516864](https://www.linkedin.com/feed/update/urn:li:share:7460905919124516864/) | [5100b9db3376](https://medium.com/p/5100b9db3376/edit) |
+| 3 | the-reviewer-seat-is-what-single-agent-architectures-cant-add | [7460907787917762560](https://www.linkedin.com/feed/update/urn:li:share:7460907787917762560/) | [e1f50513fc8d](https://medium.com/p/e1f50513fc8d/edit) |
+| 4 | self-improvement-is-not-self-calibration | [7460909454264324098](https://www.linkedin.com/feed/update/urn:li:share:7460909454264324098/) | [fb08d971e7d0](https://medium.com/p/fb08d971e7d0/edit) |
+| 5 | personal-automation-daemon-vs-operations-cockpit | [7460909797488369665](https://www.linkedin.com/feed/update/urn:li:share:7460909797488369665/) | [b9af25f2c6b7](https://medium.com/p/b9af25f2c6b7/edit) |
+| 6 | programs-are-more-than-skills | [7460910094990483458](https://www.linkedin.com/feed/update/urn:li:share:7460910094990483458/) | [9fdd1b7beb5b](https://medium.com/p/9fdd1b7beb5b/edit) |
+| 7 | gepa-and-the-limits-of-self-optimization | [7460910366554873856](https://www.linkedin.com/feed/update/urn:li:share:7460910366554873856/) | [c0aeb99b195f](https://medium.com/p/c0aeb99b195f/edit) |
+| 8 | the-open-source-agent-wave-needs-a-judgment-seat | [7460910600475332608](https://www.linkedin.com/feed/update/urn:li:share:7460910600475332608/) | [94795ca15000](https://medium.com/p/94795ca15000/edit) |
+
+## Status
+
+- **LinkedIn:** all 8 published live to yarnnn company page on 2026-05-15. Posted as company page identity.
+- **Medium:** all 8 saved as drafts on 2026-05-15 via medium.com/p/import. Each draft awaits manual cleanup before publishing: (1) strip " | yarnnn" from title, (2) delete YARNNN logo image (first imported image), (3) set canonical URL to corresponding `yarnnn.com/blog/{slug}`, (4) add 3-5 tags, (5) Publish. Medium has a 2/day publishing limit — full batch ~4 days to ship.
+- **Canonical blog:** all 8 published with staggered dates May 7 – June 18, organized into existing series (Reviewer Seat, Money-Truth, Agent OS).
