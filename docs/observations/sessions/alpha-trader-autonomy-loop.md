@@ -28,7 +28,7 @@ Demonstrating the full chain end-to-end without operator interjection is the dem
 
 | Persona | user_id | workspace_id | Alpaca account | Status | Active demo |
 |---|---|---|---|---|---|
-| kvk | `2abf3f96-118b-4987-9d95-40f2d9be9a18` | `848a9d7e-f469-4058-9aad-1d9b3eced9df` | EE8K (paper) | activated, autonomous, probe-corrupted state cleaned 2026-05-20 | available for next demo |
+| **kvk** | `2abf3f96-118b-4987-9d95-40f2d9be9a18` | `848a9d7e-f469-4058-9aad-1d9b3eced9df` | EE8K (paper) | activated, autonomous, **probe-residue present** (Reviewer-edited `_operator_profile.md` from post-refusal probe still in chain head; see T0 PLAYBOOK) | **T0 captured 2026-05-20T04:13Z** |
 | alpha-trader (seulkim) | `2be30ac5-b3cf-46b1-aeb8-af39cd351af4` | `b7e1b9bc-ffb3-478e-bd05-dcae01a8a6b1` | X4DJ (paper) | activated, autonomous | available for next demo |
 | alpha-trader-2 | `29a74c63-0c9c-4998-b8bb-56dd0d810a4e` | `68c0eabc-efa4-45cb-87da-8d14e5a979c1` | 5D28 (paper) | activated, currently `bounded` (per 2026-05-20 Test C harness flip) | available for next demo (post mode-flip) |
 
@@ -36,14 +36,39 @@ Update this table when a new demo window opens or AUTONOMY mode shifts on any pe
 
 ## Current state
 
-**No active alpha-trader demo window** at session-start time (2026-05-20). The alpha-author thread is running first.
+**Persona under active observation**: `kvk`
+**Demo window**: 2026-05-20T04:13Z (T0) onwards
+**Latest observation folder**: `docs/observations/2026-05-20-040500-kvk-autonomy-demonstration-T0/`
+**AUTONOMY mode**: `autonomous`, `ceiling_cents: 5000000`, `never_auto: [close_position_market, cancel_other_orders]`
+**Active probe-residue caveat**: `_operator_profile.md` Reviewer-edit from post-refusal-self-amendment-probe (commit `72f775b`) still at revision-chain head. Hat-A cleanup may be needed before next-RTH window for clean attribution. See T0 PLAYBOOK §"Probe-residue named explicitly".
 
-Most recent alpha-trader activity:
+**Next capture: event-anchored, not strict T+24h ladder:**
+- **T+~10h** = 2026-05-20 ~14:00Z (just after signal-evaluation fire at 13:45Z)
+- **T+~17h** = 2026-05-20 ~21:30Z (just after outcome-reconciliation at 21:00Z)
+- **T+24h** = 2026-05-21 ~04:00Z (Seoul morning synthesis)
+- **T+5d** = 2026-05-25 ~04:00Z (week-end interpretation)
+
+### The time-aspect difficulty, named structurally (audit finding, 2026-05-20)
+
+Triggered by KVK's session-start question. Confirmed by reading bundle `_recurrences.yaml` + checking `tasks.next_run_at` + `execution_events` across all three personas:
+
+**Three stacked blockers** make natural-RTH autonomy validation slow:
+
+1. **Capital-judgment wakes are concentrated at one moment per RTH day** — `signal-evaluation` fires once at `@market_open + 15min` (13:45 UTC). All other wakes are either mechanical (no Reviewer involvement) or reactive (only fire if signal-evaluation FireInvocation'd them). The Reviewer's natural capital-decision opportunity is ~15 minutes/day, not all-day.
+
+2. **Signal frequency is low by design** — entry rules in `_operator_profile.md` are selective. On most RTH days, no ticker matches any signal; signal-evaluation stands down; zero proposals; zero downstream Reviewer wakes. Realistic natural frequency between meaningful capital loops is probably days to a week, depending on universe + signal calibration.
+
+3. **Seoul timezone is hostile** — US RTH = 13:30–20:00 UTC = 22:30–05:00 KST. Operator sleeps through the only window the system is alive on judgment-relevant work. Real-time observation isn't on the table; observation is by morning capture only.
+
+**Stacked implication**: confirming "the full autonomous capital loop ran naturally and the governance gate behaved correctly" can take a week of patient observation per persona. Not a bug — the operational cadence of the program. The session-start guide already named this in the capture-cadence section; the T0 observation now grounds it in real-data terms.
+
+**What is NOT a blocker**: scheduler is healthy on kvk. Per ADR-263 D2, cron-fired recurrences carry `trigger_type='reactive'` (not `'scheduled'`). The `tasks.next_run_at` values resolve correctly against `@every 1min during regular_hours` semantic schedules to "next RTH open" when RTH is closed. The 19 reactive events on kvk in the last 36h came from natural cron lane via kvk's auto-trigger context, not from probe interventions.
+
+### Past alpha-trader activity (recent)
+
 - 2026-05-20 three-persona validation observation (`docs/observations/2026-05-20-adr293-three-persona-validation.md`)
 - 2026-05-20 warm-start auto-execute v1/v2/v3 + post-refusal-self-amendment-probe scenarios (operator-proxy-driven; superseded as the validation pattern by the autonomy-demonstration shift)
 - 2026-05-20 risk_gate.py schema drift fix (Hat A — commit `601d78f`)
-
-When you open a new alpha-trader demo, update this section + the "Active persona(s)" table with the chosen persona + window details. Don't pretend a demo is running if it isn't.
 
 ## Cold-start checklist (when you open a new Claude session for this thread)
 
