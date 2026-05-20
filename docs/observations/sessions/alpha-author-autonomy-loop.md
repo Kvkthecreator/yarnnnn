@@ -34,10 +34,12 @@ Update this table when a new demo window opens on any persona.
 
 **Persona under active observation**: `yarnnn-author`
 **Demo window**: 2026-05-20T03:43Z (T0) onwards
-**Next scheduled capture**: T+24h ≈ 2026-05-21T03:43Z
+**Next anchored capture**: post-`outcome-reconciliation` (next scheduled 2026-05-20T05:00Z — ~51 min after T0 per the T+~26m liveness check)
+**Subsequent**: post-`corpus-coherence-check` (~2026-05-21T12:00Z, Thu) + T+1week wall-clock (~2026-05-27T03:43Z)
+**`pre-ship-audit` status**: NOT EXPECTED TO FIRE under current bundle declaration — `schedule: null` recurrences are FireInvocation-only handles per FOUNDATIONS Axiom 4, and no upstream wake in the alpha-author bundle currently dispatches it. Pending Hat-A bundle-prompt fix (see findings, Recommendation #1).
 **AUTONOMY mode**: `autonomous`
 **First seeded piece**: `/workspace/context/authored/governance-as-trust/` (status: `ready_for_review`)
-**Latest observation folder**: `docs/observations/2026-05-20-034317-yarnnn-author-autonomy-demonstration-T0/`
+**Latest observation folder**: `docs/observations/2026-05-20-034317-yarnnn-author-autonomy-demonstration-T0/` (interim note + diagnostic audit appended 2026-05-20T04:09Z server-time)
 
 ## Cold-start checklist (when you open a new Claude session for this thread)
 
@@ -76,13 +78,23 @@ If you find yourself wanting to do any of the above, the right move is usually: 
 
 ## Capture cadence protocol
 
-For an active demo window:
-- **T0**: baseline snapshot at demo start. Document setup state in `PLAYBOOK.md`. Findings stub.
-- **T+24h**: mid-window snapshot. Diff against T0. Findings drafted with what the system did on its own.
-- **T+48h**: end-of-window snapshot. Final diff. Findings finalized.
-- **T+7d** (optional): extended observation if the 48h window was inconclusive.
+Anchor captures to the **system's own clock** (scheduled fires + reactive triggers) rather than wall-clock human intervals. The discipline of operator-absent observation says: observe what the system does on its own — so sample where it's *supposed* to be doing something.
 
-Snapshot folder naming: `docs/observations/{YYYY-MM-DD-HHMMSS}-{persona-slug}-autonomy-demonstration-{T0|T+24h|T+48h|T+7d}/`.
+For an active demo window:
+
+- **T0**: baseline snapshot at demo start. Document setup state in `PLAYBOOK.md`. Findings stub.
+- **T+~1h liveness check** (read-only, no snapshot folder): psql-only sanity check. Confirms (a) any new revisions since T0, (b) `next_run_at` on the next-due recurrence is sane / not stuck, (c) any rows in `execution_events` since T0, (d) the seeded substrate state (e.g., `status: ready_for_review`) is intact. If the next-due cron is overdue or the reactive recurrence has never fired in the workspace's lifetime, that is itself a finding — record it as an interim note inside the T0 observation folder and surface as a system-canon recommendation. Do NOT create a new observation folder for a liveness check.
+- **Event-anchored snapshots** (snapshot folder per snapshot): capture *after each scheduled fire the demo cares about*. For alpha-author these are:
+  - post-`outcome-reconciliation` (~05:00 UTC daily)
+  - post-`corpus-coherence-check` (~12:00 UTC Mon, Thu)
+  - post-`revision-audit` (~22:00 UTC Fri)
+  - post-`weekly-corpus-review` (~18:00 UTC Sun)
+  - post-`pre-ship-audit` (reactive, fires on `status: ready_for_review` substrate change) — capture as soon as you see a `pre-ship-audit` row in `execution_events` post-T0
+- **T+1week wall-clock snapshot**: the demo-defining artifact. After a full week of operator-absent operation, snapshot + diff against T0. This is the capture that answers "did the autonomous loop produce coherent behavior over real time."
+
+Snapshot folder naming: `docs/observations/{YYYY-MM-DD-HHMMSS}-{persona-slug}-autonomy-demonstration-{T0|post-{recurrence-slug}|T+1week}/`.
+
+**Why event-anchored over wall-clock intervals**: a fixed wall-clock window (e.g., T+24h) lands at an arbitrary point in the scheduler's cycle and produces mostly dead air. An event-anchored snapshot is taken when the system is supposed to have done something, so silence at that point is a *signal*, not a sampling artifact.
 
 After T+48h findings are finalized, the demo window closes. To start a new window:
 1. Cleanup or freshly re-activate the persona (operator decision: same workspace continuing accumulation, or reset for clean baseline?)
