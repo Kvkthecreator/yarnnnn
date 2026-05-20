@@ -290,8 +290,11 @@ async def handle_propose_action(auth: Any, input: dict) -> dict:
         # returned to the caller.
         if proposal_id:
             try:
-                from services.review_proposal_dispatch import on_proposal_created
-                await on_proposal_created(
+                # ADR-296 v2 D1: proposal-arrival wake source routes through
+                # the singular wake gateway. The funnel auto-escalates
+                # (proposal creation is itself a wake-warrant per D1).
+                from services.wake_sources.proposal_arrival import on_created
+                await on_created(
                     auth.client, auth.user_id, proposal_id, created,
                 )
             except Exception as dispatch_exc:  # noqa: BLE001

@@ -1,10 +1,16 @@
 """
-FireInvocation Primitive — ADR-261 unified shape.
+FireInvocation Primitive — ADR-261 unified shape + ADR-296 v2 D3 chat-only.
 
-Manual fire of a recurrence — "run this once now." The operator (via
-chat) or the Reviewer (mid-loop) calls FireInvocation with a slug; the
-dispatcher invokes the Reviewer with that recurrence's prompt as the
-addressed-equivalent envelope (per ADR-260 D1 + ADR-261 D3).
+Manual fire of a recurrence — "run this once now." Per ADR-296 v2 D3
+this primitive is CHAT-ONLY: the operator (via chat) calls FireInvocation
+with a slug, routing through the manual-fire wake source. The Reviewer
+does NOT have this primitive in REVIEWER_PRIMITIVES — its authority is
+over cadence + standing intent, not over invoking itself.
+
+When the operator calls FireInvocation, the handler routes through
+`wake_sources.manual_fire.fire()` which submits a wake proposal to the
+singular funnel; the funnel auto-escalates (operator explicit assertion
+is a wake-warrant) and the Reviewer's full cycle runs.
 
 Per ADR-261 D1 there is no shape parameter — every recurrence has the
 same shape. Per ADR-261 D2 there is one canonical file
@@ -61,14 +67,14 @@ For chat-first operator-immediate work (where no recurrence exists yet), do NOT 
 async def handle_fire_invocation(auth: Any, input: dict) -> dict:
     """Fire an invocation against the named recurrence.
 
-    Per ADR-261 D3 + ADR-260 D1: walks ``/workspace/_recurrences.yaml``,
-    finds the entry, and dispatches via ``invocation_dispatcher.dispatch``
-    with ``trigger="addressed"`` (operator-initiated) plus optional
-    one-shot ``context`` steering.
+    Per ADR-261 D3 + ADR-260 D1 + ADR-296 v2 D1: walks
+    ``/workspace/_recurrences.yaml``, finds the entry, and submits a wake
+    proposal via the manual-fire wake source. The funnel auto-escalates
+    (operator explicit assertion is a wake-warrant per ADR-296 v2 D1).
 
-    Returns ``{success, slug, trigger, message, ...}`` from the dispatcher.
+    Returns ``{success, slug, ...}`` from the wake outcome.
     """
-    from services.invocation_dispatcher import dispatch
+    from services.wake_sources.manual_fire import fire as manual_fire
     from services.recurrence import walk_workspace_recurrences
 
     user_id = getattr(auth, "user_id", None)
@@ -106,12 +112,8 @@ async def handle_fire_invocation(auth: Any, input: dict) -> dict:
             ),
         }
 
-    return await dispatch(
-        client=db_client,
-        user_id=user_id,
-        recurrence=rec,
-        trigger="addressed",
-        context=context,
+    return await manual_fire(
+        db_client, user_id, rec, context=context,
     )
 
 

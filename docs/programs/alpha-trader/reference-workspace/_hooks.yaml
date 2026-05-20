@@ -1,0 +1,28 @@
+# /workspace/_hooks.yaml — alpha-trader bundle (ADR-296 v2 D2)
+#
+# Substrate-event wake source declarations. The substrate-event walker
+# (services/wake_sources/substrate_event.py::walk_hooks) reads this file
+# at every scheduler tick, matches recent workspace_file_versions revisions
+# against declared hooks, and submits a wake proposal per match.
+#
+# Per ADR-296 v2 D2, hooks are the sibling declarative shape to
+# /workspace/_recurrences.yaml:
+#   - Recurrences are the cron-tick wake source's configuration (time-driven)
+#   - Hooks are the substrate-event wake source's configuration (event-driven)
+# Both compose into the singular evaluation gate identically.
+#
+# alpha-trader ships with no pre-declared hooks. The operator or Reviewer
+# may author hook entries via ManageHook as standing-intent authority
+# emerges (e.g., "wake me when a fresh fill lands in
+# /workspace/context/portfolio/positions/{ticker}.yaml that crosses my
+# attention threshold").
+#
+# Hook schema:
+#   - slug:         stable identifier
+#   - event:        "substrate_change" (today's only event type)
+#   - path_match:   workspace-absolute glob pattern (fnmatch syntax)
+#   - field_change: dict of frontmatter key → expected new value
+#   - prompt:       what the Reviewer reads when the hook fires
+#   - paused:       optional (default false)
+
+hooks: []

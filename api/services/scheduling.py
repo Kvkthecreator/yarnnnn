@@ -3,7 +3,8 @@ Scheduling — ADR-261 D3 walker over /workspace/_recurrences.yaml.
 
 The scheduler walks the canonical recurrences file per user
 (via services.recurrence.walk_workspace_recurrences) and dispatches due
-invocations through services.invocation_dispatcher.dispatch.
+invocations through services.wake_sources.cron_tick.dispatch_recurrence
+(per ADR-296 v2 D1 — the cron-tick wake source).
 
 The `tasks` table is preserved as the Path B thin scheduling index
 (per ADR-231 D4): it stores `last_run_at` + `next_run_at` per
@@ -17,7 +18,8 @@ RECURRENCES_PATH constant — kept for schema compat and future trace.
 
 Module ownership (per discipline rule 10):
 - Owner: scheduling concerns. Sibling to `services.recurrence`
-  (YAML schema + walker) and `services.invocation_dispatcher` (firing).
+  (YAML schema + walker) and `services.wake` (singular invocation gateway
+  per ADR-296 v2 D1).
 - Consumer: `jobs.unified_scheduler.run_unified_scheduler()`.
 - Producers (both call materialize_scheduling_index when the canonical
   recurrences YAML changes):

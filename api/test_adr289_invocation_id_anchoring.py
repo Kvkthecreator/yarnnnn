@@ -182,7 +182,7 @@ def test_record_execution_event_returns_id():
 
 def test_dispatcher_pregenerates_invocation_id():
     """invocation_dispatcher judgment path pre-generates UUID."""
-    src = _read("services/invocation_dispatcher.py")
+    src = _read("services/wake.py")
     assert "invocation_id = str(_uuid.uuid4())" in src, (
         "Judgment dispatch must pre-generate invocation_id per ADR-289 D3."
     )
@@ -190,7 +190,7 @@ def test_dispatcher_pregenerates_invocation_id():
 
 def test_dispatcher_passes_invocation_id_to_invoke_reviewer():
     """Judgment dispatcher passes invocation_id to invoke_reviewer call."""
-    src = _read("services/invocation_dispatcher.py")
+    src = _read("services/wake.py")
     m = re.search(
         r"invoke_reviewer\([^)]*?invocation_id\s*=\s*invocation_id",
         src, re.DOTALL,
@@ -202,7 +202,7 @@ def test_dispatcher_passes_invocation_id_to_invoke_reviewer():
 
 def test_dispatcher_stamps_execution_events_with_id():
     """Judgment dispatcher passes id=invocation_id to record_execution_event."""
-    src = _read("services/invocation_dispatcher.py")
+    src = _read("services/wake.py")
     # Expect both the success and failure record_execution_event calls
     # to stamp id=invocation_id.
     matches = re.findall(
@@ -254,17 +254,23 @@ def test_addressed_cycle_passes_invocation_id_to_dispatcher():
 
 
 def test_addressed_cycle_stamps_system_agent_narrations():
-    """System Agent narrations during addressed cycle stamp invocation_id."""
+    """System Agent narrations during addressed cycle stamp invocation_id.
+
+    Post-ADR-296 v2: routes/feed.py consumes wake_sources.addressed.stream
+    as an async generator and emits one append_message per `agent_narration`
+    event (the wake gateway handles cognition + mirror-refresh filtering
+    internally). The single append_message call site stamps invocation_id.
+    Pre-ADR-296 had two sites (live drain + post-loop drain); the wake
+    gateway's event-driven shape collapses them.
+    """
     src = _read("routes/feed.py")
-    # Find the append_message calls for system_agent role and verify
-    # invocation_id is in the metadata dict.
     matches = re.findall(
         r'append_message\([^)]*?"system_agent"[^)]*?"invocation_id"\s*:\s*invocation_id',
         src, re.DOTALL,
     )
-    assert len(matches) >= 2, (
-        "Both progress-drain and post-loop drain system_agent narrations must "
-        "stamp invocation_id per ADR-289 D3 (expected 2 sites, found %d)." % len(matches)
+    assert len(matches) >= 1, (
+        "Addressed-cycle system_agent narration must stamp invocation_id "
+        "per ADR-289 D3 (expected >=1 site, found %d)." % len(matches)
     )
 
 
@@ -441,9 +447,16 @@ def test_phase2a_surface_reviewer_actions_calls_classifier():
     )
 
 
-def test_phase2a_routes_feed_imports_canonical_filter():
-    """routes/feed.py imports the canonical filter sets — Singular Implementation."""
-    src = _read("routes/feed.py")
+def test_phase2a_wake_imports_canonical_filter():
+    """services/wake.py (the addressed-stream entry per ADR-296 v2)
+    imports the canonical filter sets — Singular Implementation.
+
+    Pre-ADR-296: routes/feed.py inlined the cognition-skip + mirror-refresh
+    classifier logic. Post-ADR-296: the SSE-streaming addressed body
+    moved into services.wake.stream_addressed_wake; routes/feed.py
+    consumes a typed event stream and doesn't classify directly.
+    """
+    src = _read("services/wake.py")
     m = re.search(
         r"from services\.reviewer_chat_surfacing import \(\s*\n"
         r"\s*REVIEWER_COGNITION_TOOLS as _COGNITION_ONLY,\s*\n"
@@ -451,32 +464,24 @@ def test_phase2a_routes_feed_imports_canonical_filter():
         src, re.DOTALL,
     )
     assert m, (
-        "routes/feed.py must import the canonical filter sets from "
-        "reviewer_chat_surfacing (Singular Implementation per ADR-289 Phase 2a). "
-        "The inline _COGNITION_ONLY duplicate must be deleted."
-    )
-    # Inline duplicate set must be gone.
-    inline_duplicate = re.search(
-        r"_COGNITION_ONLY\s*=\s*\{\s*\n\s*\"ReadFile\"",
-        src, re.DOTALL,
-    )
-    assert not inline_duplicate, (
-        "routes/feed.py must not redefine _COGNITION_ONLY inline — it's now "
-        "imported as an alias from reviewer_chat_surfacing per ADR-289 Phase 2a."
+        "services/wake.py must import the canonical filter sets from "
+        "reviewer_chat_surfacing inside stream_addressed_wake (Singular "
+        "Implementation per ADR-296 v2 + ADR-289 Phase 2a). The "
+        "addressed-stream body moved here from routes/feed.py."
     )
 
 
-def test_phase2a_routes_feed_calls_mirror_refresh_classifier():
-    """routes/feed.py live narration sites call is_mirror_refresh_action."""
-    src = _read("routes/feed.py")
-    # Both narration sites (live drain + post-loop drain) should invoke
-    # the classifier on a synthetic action record.
+def test_phase2a_wake_calls_mirror_refresh_classifier():
+    """services/wake.py::stream_addressed_wake calls is_mirror_refresh_action
+    at both narration sites (live drain + post-loop drain) per ADR-289 Phase 2a +
+    ADR-296 v2."""
+    src = _read("services/wake.py")
     matches = re.findall(
-        r"is_mirror_refresh_action\(_action_synth,\s*auth\.client,\s*auth\.user_id\)",
+        r"is_mirror_refresh_action\(_action_synth,\s*client,\s*user_id\)",
         src,
     )
     assert len(matches) >= 2, (
-        "routes/feed.py must call is_mirror_refresh_action at both narration "
+        "services/wake.py::stream_addressed_wake must call is_mirror_refresh_action "
         "sites (live drain + post-loop drain) per ADR-289 Phase 2a — found %d."
         % len(matches)
     )

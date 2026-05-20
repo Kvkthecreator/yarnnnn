@@ -125,44 +125,86 @@ recurrences:
       @primitive: TrackUniverse()
     display_name: "Universe Tracker"
 
-  # ── signal-evaluation — evaluate signals against current bars ────────────
+  # ── signal-evaluation — evaluate signals + inline ProposeAction ────────────
+  # ADR-296 v2 D3: Reviewer does not self-invoke. The previous pattern
+  # ("FireInvocation(slug='trade-proposal')" inside this prompt) dissolved
+  # when FireInvocation left REVIEWER_PRIMITIVES. The trade-proposal
+  # recurrence is deleted; its sizing + emission logic moves inline into
+  # signal-evaluation's prompt. The Reviewer evaluates signals AND emits
+  # ProposeAction(...) inline when conditions warrant — one judgment
+  # cycle, one decision, no self-fire.
   - slug: signal-evaluation
     # ADR-268: post-open after price discovery settles.
-    # Previously "5 8 UTC" = 04:05 ET (pre-market, before RTH open — wrong).
     schedule: "@market_open + 15min"   # 09:45 ET
     mode: judgment
     # ADR-269: Reviewer reads pre-computed ticker.yaml snapshots (no broker
     # call for signal eval), but may dispatch a specialist to verify open
-    # positions via Alpaca for exit-trigger checks.
-    required_capabilities: [read_trading]
+    # positions via Alpaca for exit-trigger checks. write_trading needed so
+    # downstream ExecuteProposal has the right capability when AUTONOMY
+    # ceiling permits auto-execute.
+    required_capabilities: [read_trading, write_trading]
     prompt: |
-      What you produce:
+      What you produce (ADR-296 v2 D3 — single judgment cycle, inline emit):
       - signal-entry rows appended to signals/{signal_id}.yaml when entry conditions match
-      - a FireInvocation(slug="trade-proposal") when any entry signal OR exit trigger fires
+      - ProposeAction(...) emitted INLINE when any entry signal OR exit trigger fires
       - stand-down written to /workspace/review/judgment_log.md when neither path triggers
 
-      Evaluate the universe against signals declared in
-      /workspace/context/_shared/_operator_profile.md on the fresh 1Hour bars
-      track-universe just wrote. For each ticker in
+      Step 1 — Evaluate signals. For each ticker in
       /workspace/context/trading/_universe.yaml:
         - Read the latest snapshot at /workspace/context/trading/{ticker}.yaml.
-        - Apply each signal's boolean rule.
+        - Apply each signal's boolean rule from
+          /workspace/context/_shared/_operator_profile.md.
         - When a signal fires, append a signal entry to
           /workspace/context/trading/signals/{signal_id}.yaml with timestamp,
           ticker, conditions snapshot, and sizing inputs.
 
-      Also check open positions (read /workspace/context/portfolio/positions/)
-      for exit triggers per principles.md "Hard exit triggers" section —
-      stop hit, target reached, max-hold reached. When an exit triggers,
-      immediately FireInvocation(slug="trade-proposal") with context noting
-      the exit shape so the Reviewer proposes close.
+      Step 2 — Check open positions for exit triggers. Read
+      /workspace/context/portfolio/positions/{ticker}.yaml against the
+      "Hard exit triggers" section in /workspace/review/principles.md —
+      stop hit, target reached, max-hold reached.
 
-      When any entry signal fires, immediately FireInvocation(slug="trade-proposal")
-      to hand the signal to the Reviewer for capital judgment. Otherwise
-      stand down. (The universal every-cycle standing_intent.md write
-      contract is governed by your kernel persona frame, not by this
-      recurrence prompt — your closest-to-firing reasoning lands there
-      automatically as part of the wake's judgment cycle.)
+      Step 3 — Before sizing entry proposals, read
+      /workspace/context/trading/_regime.yaml. Two checks:
+        (a) Freshness: if last_updated > 24h OR data_stale=true, do NOT
+            emit entry proposals — note in reasoning + stand down on entries
+            (exits still emit per the mandatory-close rule below).
+        (b) Active state: if vix_regime_active=true, multiply each entry's
+            position_size by 0.5 (Signal 5 portfolio scalar).
+
+      Step 4 — Emit proposals inline. For each fired entry signal:
+
+        ProposeAction(
+          action_type="trading.submit_order_paper",
+          inputs={
+            signal_id: "<must match the fired signal>",
+            ticker: "<...>",
+            direction: "long|short",
+            entry_price: <...>,
+            stop_loss: <...>,
+            target: <...>,
+            position_size: <post-regime-scalar — the final number to broker>,
+            sizing_formula_trace: "<formula + numbers including regime_scalar line>",
+            entry_rule_trace: "<which signal conditions matched>",
+          },
+          ...
+        )
+
+      For each exit trigger (mandatory per principles.md "Hard exit triggers"):
+
+        ProposeAction(
+          action_type="trading.close_position",
+          inputs={
+            ticker: "<...>",
+            exit_reason: "stop_hit|target_reached|max_hold_reached",
+            position_state_trace: "<substrate snapshot that triggered close>",
+          },
+          ...
+        )
+
+      **Silent stand-down on an exit trigger is forbidden** per principles.md.
+      Otherwise, when neither entries nor exits fire, stand down with
+      reasoning. The universal every-cycle standing_intent.md write contract
+      is governed by your kernel persona frame.
     display_name: "Signal Evaluator"
 
   # ── mirror-signal-state — compact substrate for Reviewer wake envelope ──
@@ -188,65 +230,11 @@ recurrences:
       )
     display_name: "Signals Summary Mirror"
 
-  # ── trade-proposal — emit Reviewer-gated proposal on signal fire or exit ──
-  - slug: trade-proposal
-    schedule: null  # reactive — fires on signal trigger via FireInvocation
-    mode: judgment
-    # ADR-269: Reviewer sizes and emits ProposeAction within its own loop;
-    # specialist consultation is rare. write_trading is declared so the
-    # downstream ExecuteProposal path has the right capability when
-    # AUTONOMY ceiling permits auto-execute.
-    required_capabilities: [read_trading, write_trading]
-    prompt: |
-      A signal fire or exit trigger was just recorded. Read the most recent
-      entry in /workspace/context/trading/signals/ (entry path) OR the
-      relevant /workspace/context/portfolio/positions/{ticker}.yaml (exit
-      path). Decide whether the situation warrants a trade against your
-      principles in /workspace/review/principles.md and the operator's risk
-      envelope in /workspace/context/_shared/_risk.md.
-
-      Before computing sizing, read /workspace/context/trading/_regime.yaml.
-      Two checks:
-        1. Freshness: if last_updated is older than 24h OR data_stale is
-           true, REJECT this proposal with reason "regime substrate stale
-           — re-fire track-regime before trading." Per principles.md
-           Hard rejection rule (regime freshness).
-        2. Active state: if vix_regime_active is true, the final
-           position_size is multiplied by 0.5 (Signal 5 portfolio scalar
-           per _operator_profile.md).
-
-      Entry path (signal fired): emit ProposeAction(action_type="trading.submit_order_paper",
-      ...) with full sizing math:
-        - signal_id (must match the fired signal)
-        - ticker
-        - direction (long | short)
-        - entry_price
-        - stop_loss
-        - target
-        - position_size (post-regime-scalar — the final number that hits the broker)
-        - sizing_formula_trace (numbers + formula explanation, including
-          one of:
-            "regime_scalar: 0.5 (VIX regime active — VIXY=<x> > threshold=<y> AND > sma_20=<z>)"
-            "regime_scalar: 1.0 (VIX regime inactive)")
-        - entry_rule_trace (which signal conditions matched)
-
-      Exit path (stop hit / target reached / max-hold reached): close-proposal
-      is mandatory per principles.md "Hard exit triggers". Emit
-      ProposeAction(action_type="trading.close_position", ...) with:
-        - ticker
-        - exit_reason (stop_hit | target_reached | max_hold_reached)
-        - position_state_trace (the substrate snapshot that triggered the close)
-
-      Check 1 (signal attribution) must pass by construction for entries —
-      every entry proposal is tied to a named signal. For exits, attribution
-      is the original signal_id of the position being closed.
-
-      If conditions don't warrant on the entry path, stand down with reasoning.
-      The material-outcome gate (ADR-281 §5) decides whether a judgment_log.md
-      entry is rendered; the universal every-cycle standing_intent.md write
-      contract is governed by your kernel persona frame, not by this prompt.
-      **Silent stand-down on an exit trigger is forbidden** (per principles.md).
-    display_name: "Trade Proposal"
+  # ADR-296 v2 D3: trade-proposal recurrence DELETED. Its emission logic
+  # inlined into signal-evaluation's prompt (above). The reactive
+  # `schedule: null` + FireInvocation chain pattern dissolves when the
+  # Reviewer loses self-invocation authority — one judgment cycle, one
+  # decision, no self-fire.
 
   # ADR-275: pre-market-brief, weekly-performance-review, and
   # quarterly-signal-audit were judgment-cadence entries previously

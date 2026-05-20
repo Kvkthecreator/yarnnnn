@@ -1198,7 +1198,7 @@ async def trigger_run(
     Recurrence whose prompt asks the Reviewer to dispatch this specific
     agent now. The Reviewer's loop then routes to DispatchSpecialist.
     """
-    from services.invocation_dispatcher import dispatch
+    from services.wake_sources.manual_fire import fire as wake_manual_fire
     from services.recurrence import Recurrence
     from services.supabase import get_service_client
 
@@ -1242,12 +1242,11 @@ async def trigger_run(
             "agent_id": str(agent_id),
         },
     )
-    # Same manual-fire trigger rule as routes/recurrences.py::trigger_recurrence_run.
-    # Even though this is a synthetic (operator-requested) recurrence, the dispatcher
-    # still builds a recurrence-fire context shape, which only `reactive` trigger
-    # accepts per _validate_context_shape. The synthetic prompt carries the operator's
-    # intent; trigger is a context-shape signal, not an operator-presence signal.
-    exec_result = await dispatch(svc_client, auth.user_id, synthetic, trigger="reactive")
+    # ADR-296 v2 D1: operator-clicked agent runs are manual fires routed
+    # through the manual_fire wake source. The funnel auto-escalates;
+    # the synthetic recurrence's prompt carries the dispatch instruction
+    # to the Reviewer (which will then invoke DispatchSpecialist).
+    exec_result = await wake_manual_fire(svc_client, auth.user_id, synthetic)
     return {
         "success": exec_result.get("success", False),
         "trigger": exec_result.get("trigger"),

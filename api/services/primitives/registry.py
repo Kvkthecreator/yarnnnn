@@ -38,6 +38,7 @@ from .fire_invocation import FIRE_INVOCATION_TOOL, handle_fire_invocation
 from .infer_context import INFER_CONTEXT_TOOL, handle_infer_context
 from .infer_workspace import INFER_WORKSPACE_TOOL, handle_infer_workspace
 from .schedule import SCHEDULE_TOOL, handle_schedule  # ADR-261 §3 — renamed from ManageRecurrence
+from .manage_hook import MANAGE_HOOK_TOOL, handle_manage_hook  # ADR-296 v2 D2 — substrate-event hook lifecycle
 from .compose import COMPOSE_TOOL, handle_compose  # ADR-262 D4 — callable primitive wrapping render engine
 from .dispatch_specialist import (  # ADR-261 D7 — Reviewer-loop specialist sub-call
     DISPATCH_SPECIALIST_TOOL,
@@ -251,6 +252,9 @@ CHAT_PRIMITIVES = [
     # ADR-235 D1.c: ManageRecurrence — recurrence-declaration lifecycle.
     # Mirrors ManageAgent / ManageDomains shape.
     SCHEDULE_TOOL,
+    # ADR-296 v2 D2: ManageHook — substrate-event hook lifecycle.
+    # Sibling to Schedule (recurrences) for the substrate-event wake source.
+    MANAGE_HOOK_TOOL,
     # ADR-231 D5: FireInvocation — manual fire of a recurrence declaration.
     # Replaces ManageTask(action="trigger"). All other lifecycle actions
     # (create/update/pause/resume/archive) flow through Schedule.
@@ -277,7 +281,7 @@ CHAT_PRIMITIVES = [
     LIST_REVISIONS_TOOL,
     READ_REVISION_TOOL,
     DIFF_REVISIONS_TOOL,
-]  # 26 tools — ADR-235: -UpdateContext (-1), +InferContext +InferWorkspace +ManageRecurrence (+3); ManageAgent action enum tightened (no enum count change in registry — see coordinator.py)
+]  # 27 tools — ADR-296 v2 D2 added ManageHook (substrate-event hook lifecycle)
 
 # Headless mode: background agent execution.
 # Base registry only. Provider-native platform tools are added dynamically per
@@ -309,6 +313,8 @@ HEADLESS_PRIMITIVES = [
     # ADR-235 D1.c: ManageRecurrence — agents may pause/resume/update their
     # own declarations on outcome signals. Chat parity.
     SCHEDULE_TOOL,
+    # ADR-296 v2 D2: ManageHook — substrate-event hook lifecycle. Chat parity.
+    MANAGE_HOOK_TOOL,
     # ADR-231 D5: FireInvocation — recurrence-aware dispatch.
     FIRE_INVOCATION_TOOL,
     # ADR-262 D4: Compose — specialists may compose mid-session for handoff.
@@ -329,7 +335,7 @@ HEADLESS_PRIMITIVES = [
     LIST_REVISIONS_TOOL,
     READ_REVISION_TOOL,
     DIFF_REVISIONS_TOOL,
-]  # 22 static tools + dynamic platform_* — ADR-264 added SyncPlatformState
+]  # 23 static tools + dynamic platform_* — ADR-296 v2 D2 added ManageHook
 
 # Combined list — for handler registration and backwards compatibility
 PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.values())
@@ -398,6 +404,10 @@ REVIEWER_PRIMITIVES = [
     PROPOSE_ACTION_TOOL,
     # Self-scheduling (ADR-261 D4) — Reviewer authors its own future wake-ups
     SCHEDULE_TOOL,
+    # ADR-296 v2 D3: ManageHook — Reviewer authors substrate-event hooks as
+    # part of its standing-intent authority. Declaring interest in a substrate
+    # transition is the substrate-event analog of authoring cadence via Schedule.
+    MANAGE_HOOK_TOOL,
     # Composition (ADR-262 D4) — Reviewer may direct mid-session composition
     COMPOSE_TOOL,
     # Specialist dispatch (ADR-261 D7) — Reviewer hands focused briefs to
@@ -411,7 +421,7 @@ REVIEWER_PRIMITIVES = [
     SYNC_PLATFORM_STATE_TOOL,
     # Conversation
     CLARIFY_TOOL,
-]  # 20 tools — ADR-296 v2 D3 removed FireInvocation (Reviewer does not self-invoke)
+]  # 21 tools — ADR-296 v2 D2 added ManageHook (substrate-event hook authoring as standing-intent authority)
 
 
 # =============================================================================
@@ -441,6 +451,8 @@ HANDLERS: dict[str, Callable] = {
     "InferWorkspace": handle_infer_workspace,
     # ADR-235 D1.c: Lifecycle management for recurrence declarations
     "Schedule": handle_schedule,
+    # ADR-296 v2 D2: Substrate-event hook lifecycle
+    "ManageHook": handle_manage_hook,
     # ADR-262 D4: Compose — callable primitive wrapping render engine
     "Compose": handle_compose,
     # ADR-261 D7: DispatchSpecialist — Reviewer-loop sub-LLM-call

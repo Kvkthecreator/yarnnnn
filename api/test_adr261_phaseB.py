@@ -114,8 +114,10 @@ def main() -> None:
     assert_attr_missing("services.recurrence", "RecurrenceDeclaration")
     assert_attr_missing("services.recurrence", "shape_for_path")
     assert_attr_missing("services.recurrence", "derive_declaration_path")
-    assert_attr_missing("services.invocation_dispatcher", "find_declaration_for_agent")
-    assert_attr_missing("services.invocation_dispatcher", "_maybe_fire_reviewer_heartbeat")
+    # ADR-296 v2: services.invocation_dispatcher renamed to services.wake.
+    # The deleted ADR-260/261-era symbols never made it into wake.py either.
+    assert_attr_missing("services.wake", "find_declaration_for_agent")
+    assert_attr_missing("services.wake", "_maybe_fire_reviewer_heartbeat")
     print()
 
     # --- Section 3: new surface present ---
@@ -132,7 +134,10 @@ def main() -> None:
     assert_attr_present("services.conventions", "report_feedback_path")
     assert_attr_present("services.conventions", "domain_root")
     assert_attr_present("services.conventions", "domain_entity_path")
-    assert_attr_present("services.invocation_dispatcher", "dispatch")
+    # ADR-296 v2: services.invocation_dispatcher renamed to services.wake;
+    # dispatch() renamed to submit_wake_proposal() (singular gateway).
+    assert_attr_present("services.wake", "submit_wake_proposal")
+    assert_attr_present("services.wake", "stream_addressed_wake")
     assert_attr_present("services.scheduling", "get_due_recurrences")
     assert_attr_present("services.scheduling", "compute_next_run_at")
     assert_attr_present("services.primitives.schedule", "handle_schedule")
@@ -209,25 +214,27 @@ def main() -> None:
     _ok("FIRE_INVOCATION_TOOL surface = {slug, context?}")
     print()
 
-    # --- Section 6: dispatcher signature + trigger taxonomy ---
-    print("Section 6 — dispatcher signature")
+    # --- Section 6: singular wake gateway signature ---
+    print("Section 6 — services.wake.submit_wake_proposal signature")
     import inspect
-    from services.invocation_dispatcher import dispatch
-    sig = inspect.signature(dispatch)
+    # ADR-296 v2: dispatch() → submit_wake_proposal() in services.wake.
+    # The signature shape is fundamentally different: (client, user_id, *,
+    # source, payload) — the legacy (client, user_id, recurrence, *, trigger)
+    # is gone. Cron-tick + manual-fire routes pass the recurrence inside
+    # payload; substrate-event passes hook + path; proposal-arrival passes
+    # proposal_row.
+    from services.wake import submit_wake_proposal
+    sig = inspect.signature(submit_wake_proposal)
     params = list(sig.parameters.keys())
-    if params[:3] != ["client", "user_id", "recurrence"]:
-        _fail(f"dispatch signature wrong: {params}")
-    if "trigger" not in sig.parameters:
-        _fail("dispatch should accept 'trigger' kwarg per ADR-260 D2")
-    # ADR-263 D2 amendment: 'scheduled' trigger collapsed into 'reactive'
-    # — cron is part of the environment that fires recurrences, not a
-    # separate trigger sub-shape. The dispatcher's default is now 'reactive'.
-    if sig.parameters["trigger"].default != "reactive":
+    if params[:2] != ["client", "user_id"]:
+        _fail(f"submit_wake_proposal signature wrong (first 2 positional): {params}")
+    if "source" not in sig.parameters:
+        _fail("submit_wake_proposal should accept 'source' kwarg per ADR-296 v2 D1")
+    if "payload" not in sig.parameters:
         _fail(
-            f"dispatch trigger default should be 'reactive' (per ADR-263 D2), got "
-            f"{sig.parameters['trigger'].default!r}"
+            f"submit_wake_proposal should accept 'payload' kwarg per ADR-296 v2 D1"
         )
-    _ok("dispatch(client, user_id, recurrence, *, trigger='reactive', context=None) — ADR-263 D2")
+    _ok("submit_wake_proposal(client, user_id, *, source, payload) — ADR-296 v2 D1")
     print()
 
     # --- Section 7: legacy bundle artifacts gone ---
@@ -255,7 +262,7 @@ def main() -> None:
     # --- Section 8: Phase C wiring (Compose auto-trigger + DispatchSpecialist) ---
     print()
     print("Section 8 — Phase C wiring")
-    assert_attr_present("services.invocation_dispatcher", "_maybe_auto_compose")
+    assert_attr_present("services.wake", "_maybe_auto_compose")
     assert_attr_present("services.primitives.dispatch_specialist", "handle_dispatch_specialist")
     assert_attr_present("services.primitives.dispatch_specialist", "DISPATCH_SPECIALIST_TOOL")
     assert_attr_present("services.primitives.dispatch_specialist", "VALID_SPECIALIST_ROLES")

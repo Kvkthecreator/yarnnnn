@@ -26,9 +26,10 @@ This module provides:
   - `walk_workspace_recurrences(client, user_id)` — filesystem scanner
   - `compute_next_run_at(rec, now)` — scheduler-facing timing helper
 
-The dispatcher (`api/services/invocation_dispatcher.py`) consumes
-``Recurrence`` objects and invokes the Reviewer with each entry's
-``prompt`` per ADR-260 D1 + ADR-261 D3. There is one dispatch path.
+The singular invocation gateway (`api/services/wake.py`, per ADR-296 v2 D1)
+consumes ``Recurrence`` objects via the cron-tick wake source and submits
+wake proposals to the funnel; on `escalate`, the Reviewer is invoked with
+the entry's ``prompt`` per ADR-260 D1 + ADR-261 D3.
 """
 
 from __future__ import annotations

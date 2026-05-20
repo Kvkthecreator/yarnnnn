@@ -1131,22 +1131,24 @@ async def global_chat(
         logger.info("[EXEC_ROUTER] routed — tools=%s for: %.50r", routed_tools, request.content)
 
     async def _dispatch_reviewer_turn(images_for_api, profile, invocation_id: str):
-        """Reviewer handles every non-execution turn via invoke_reviewer(addressed).
-        ADR-256: Reviewer has a tool-use loop — it reads substrate, acts, returns.
-        No action_instruction string. No execution router dispatch from here.
-        Actions (FireInvocation, ProposeAction) execute inside the Reviewer's loop.
+        """Reviewer handles every non-execution turn via the addressed wake source.
 
-        ADR-289 D3: addressed cycles become first-class invocations. The caller
-        (response_stream) pre-generates `invocation_id`, stamps it on the operator's
-        user message, and passes it here. We thread it through invoke_reviewer +
-        every system_agent narration + the Reviewer reply, then finalize the
-        canonical execution_events row at cycle close."""
-        from agents.reviewer_agent import invoke_reviewer, REVIEWER_MODEL_IDENTITY
+        ADR-296 v2 D1: routes through wake_sources.addressed.stream() — the
+        singular SSE-streaming entry point for operator-addressed wakes.
+        The wake source handles envelope assembly + Reviewer invocation +
+        progress event generation; this route maps the typed event stream
+        to SSE frames + finalizes the execution_events row.
+        """
+        from agents.reviewer_agent import REVIEWER_MODEL_IDENTITY
         from services.reviewer_chat_surfacing import write_reviewer_message
         from services.telemetry import record_execution_event
+        from services.wake_sources.addressed import stream as wake_addressed_stream
         from datetime import timezone as _tz
         addressed_started_at = datetime.now(_tz.utc)
 
+        # Assemble route-layer inputs: conversation_window + workspace_state.
+        # The wake source assembles the rest (governance envelope, operating
+        # context, Reviewer invocation).
         conv_lines = []
         for m in history[-6:]:
             role_label = "Operator" if m.get("role") == "user" else "System"
@@ -1159,7 +1161,6 @@ async def global_chat(
             if msg_content and isinstance(msg_content, str):
                 conv_lines.append(f"{role_label}: {msg_content[:300]}")
 
-        # Load workspace state (compact index) for Reviewer operational awareness
         workspace_state_text: str | None = None
         try:
             from services.working_memory import build_working_memory, format_compact_index
@@ -1168,222 +1169,87 @@ async def global_chat(
         except Exception:
             pass
 
-        # ADR-276: shared governance pre-load helper. Both addressed-trigger
-        # (this site) and reactive-trigger (services/invocation_dispatcher.py)
-        # call the same helper — Singular Implementation, one canonical
-        # envelope-assembly path. Returns a dict keyed by ReviewerContext
-        # field names; drop directly into the context bag below.
-        from services.reviewer_envelope import load_reviewer_governance_envelope
-        governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope(
-            auth.client, auth.user_id
-        )
-        # ADR-276 hardening (2026-05-15): addressed turns don't write to
-        # execution_events (chat path), so envelope load timing surfaces via
-        # the structured logger only. INFO level keeps it cheap to grep
-        # ("[REVIEWER_ENVELOPE] addressed user=...") for capacity tuning.
-        logger.info(
-            "[REVIEWER_ENVELOPE] addressed user=%s envelope_load_ms=%d",
-            auth.user_id[:8], envelope_load_ms,
-        )
-
-        # NOTE: do NOT yield stream_start here. stream_start makes the FE insert
-        # a role='assistant' placeholder bubble (NarrativeContext line ~533)
-        # which would render as a phantom "System Agent" bubble during the
-        # Reviewer's internal cognition loop — misattributing the Reviewer's
-        # reads as System Agent execution. The Reviewer's response arrives via
-        # `reviewer_response` event which triggers loadScopedHistory() and
-        # renders a proper Reviewer bubble. Progress is surfaced via the
-        # streaming-status indicator (set via `reviewer_progress` events).
-
-        # Progress-event queue — invoke_reviewer fills it via event_callback;
-        # this generator drains it in parallel with the LLM loop.
-        import asyncio as _asyncio
-        progress_queue: _asyncio.Queue = _asyncio.Queue()
-
-        async def _emit_progress(event: dict) -> None:
-            await progress_queue.put(event)
-
-        # ADR-274 / FOUNDATIONS v8.5: Operating Context block — time +
-        # market state + workspace tenure. Reviewer perceives `now` on
-        # every wake (time is envelope, not substrate per Axiom 4 amendment).
-        from agents.reviewer_agent import build_operating_context_block
-        operating_context = build_operating_context_block(auth.client, auth.user_id)
-
-        # Run invoke_reviewer concurrently so we can yield progress events
-        # to the operator while the LLM loop runs in the background.
-        invoke_task = _asyncio.create_task(invoke_reviewer(
-            auth.client, auth.user_id,
-            trigger="addressed",
-            invocation_id=invocation_id,
-            context={
-                **governance_envelope,                     # ADR-276: 9-file pre-load + signal_files
-                "user_message": request.content,
-                "conversation_window": "\n".join(conv_lines) if conv_lines else "",
-                "workspace_state": workspace_state_text or "",
-                "operating_context_block": operating_context,
-            },
-            event_callback=_emit_progress,
-        ))
-
-        # Drain progress events while invoke_task runs. As tools fire, surface
-        # cognition tools as transient streaming-status, and consequential
-        # tools as in-the-moment system_agent narration bubbles.
-        # ADR-258 (revised): the chat reads as a conversation between two
-        # participants — Reviewer (persona voice) and System Agent (executes
-        # on Reviewer's direction). Per-action, in-the-moment, not post-hoc lump.
-        #
-        # ADR-289 Phase 2a (2026-05-20): Singular Implementation — import
-        # the canonical filter sets + classifier from reviewer_chat_surfacing
-        # instead of duplicating the cognition list inline. Adds 3-bucket
-        # taxonomy (cognition / mirror-refresh / judgment) — mirror-refresh
-        # actions (SyncPlatformState + FireInvocation of mechanical recurrences)
-        # are silent at narration emit, same as cognition tools.
-        from services.reviewer_chat_surfacing import (
-            REVIEWER_COGNITION_TOOLS as _COGNITION_ONLY,
-            is_mirror_refresh_action,
-        )
-
-        def _narrate_consequential_action(tool: str, summary: str) -> str:
-            """Compose a System Agent narration line for a consequential action."""
-            if tool == "FireInvocation":
-                return f"Firing recurrence on Reviewer's direction. {summary}"
-            if tool == "ProposeAction":
-                return f"Proposal submitted on Reviewer's direction. {summary}"
-            if tool == "WriteFile":
-                return f"Wrote to Reviewer substrate on its direction. {summary}"
-            return f"Executed `{tool}` on Reviewer's direction. {summary}"
-
-        while not invoke_task.done():
-            try:
-                event = await _asyncio.wait_for(progress_queue.get(), timeout=0.5)
-            except _asyncio.TimeoutError:
-                continue
-
-            phase = event.get("phase")
-            tool_name = event.get("tool", "?")
-
-            if phase == "tool_start":
-                yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_start', 'tool': tool_name})}\n\n"
-            elif phase == "tool_end":
-                summary = event.get("summary", "")
-                success = event.get("success", True)
-                yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_end', 'tool': tool_name, 'summary': summary, 'success': success})}\n\n"
-
-                # In-the-moment per-action System Agent narration: only for
-                # CONSEQUENTIAL JUDGMENT-BEARING successful actions. Cognition
-                # tools stay as transient status (filtered by _COGNITION_ONLY).
-                # Mirror-refresh actions (SyncPlatformState + FireInvocation of
-                # mechanical recurrences) also stay silent per ADR-289 Phase 2a
-                # 3-bucket taxonomy. Failed actions surface in Reviewer's
-                # reasoning, not as a misleading System Agent bubble.
-                _action_synth = {"tool": tool_name, "input": event.get("input") or {}}
-                if (
-                    success
-                    and tool_name not in _COGNITION_ONLY
-                    and not is_mirror_refresh_action(_action_synth, auth.client, auth.user_id)
-                ):
-                    narration = _narrate_consequential_action(tool_name, summary)
-                    # weight=material — System Agent is a participant speaking
-                    # in the conversation, not a system log line. Renders as
-                    # a full chat bubble matching Reviewer/Operator visual weight.
-                    # ADR-289 D3: stamp invocation_id so FE groups under one
-                    # invocation card on the Feed surface.
-                    await append_message(auth.client, session_id, "system_agent", narration, {
-                        "tools_used": [tool_name], "tool_history": [],
-                        "pulse": "addressed", "weight": "material", "reviewer_directed": True,
-                        "invocation_id": invocation_id,
-                    })
-                    yield f"data: {json.dumps({'content': narration})}\n\n"
-
-        # Drain any remaining queued events (round_end after task completion)
-        while not progress_queue.empty():
-            try:
-                event = progress_queue.get_nowait()
-            except Exception:
-                break
-            phase = event.get("phase")
-            tool_name = event.get("tool", "?")
-            if phase == "tool_end":
-                summary = event.get("summary", "")
-                success = event.get("success", True)
-                _action_synth = {"tool": tool_name, "input": event.get("input") or {}}
-                if (
-                    success
-                    and tool_name not in _COGNITION_ONLY
-                    and not is_mirror_refresh_action(_action_synth, auth.client, auth.user_id)
-                ):
-                    narration = _narrate_consequential_action(tool_name, summary)
-                    await append_message(auth.client, session_id, "system_agent", narration, {
-                        "tools_used": [tool_name], "tool_history": [],
-                        "pulse": "addressed", "weight": "material", "reviewer_directed": True,
-                        "invocation_id": invocation_id,
-                    })
-                    yield f"data: {json.dumps({'content': narration})}\n\n"
-
+        # Consume the wake-source's typed event stream + map to SSE frames.
+        # System Agent narration writes happen here (route owns the
+        # session_id + append_message); the wake source produces the
+        # narration text via narrate_reviewer_action.
         try:
-            output = await invoke_task
-
-            if not output or not output.get("reasoning"):
-                raise RuntimeError("Reviewer returned no response")
-
-            # Surface Reviewer response — reasoning is the persona-voice answer
-            response_text = output["reasoning"]
-            # ADR-289 D5: stamp invocation_id on the verdict row so the FE
-            # groups operator question + Reviewer reply + nested action
-            # narrations under one invocation card on the Feed.
-            # ADR-289 Phase 2a (2026-05-20): pulse='addressed' so the
-            # ConversationPanel's filterAddressedMessages surfaces the
-            # Reviewer reply alongside the operator's user message. Pre-
-            # Phase-2a write_reviewer_message hardcoded pulse='reactive'
-            # which classified the reply as outside the conversation.
-            await write_reviewer_message(
+            captured_output: dict | None = None
+            async for event in wake_addressed_stream(
                 auth.client, auth.user_id,
-                content=response_text,
-                verdict="addressed",
-                occupant=REVIEWER_MODEL_IDENTITY,
+                session_id=session_id,
                 invocation_id=invocation_id,
-                pulse="addressed",
-            )
-            yield f"data: {json.dumps({'reviewer_response': response_text})}\n\n"
-            logger.info(
-                "[REVIEWER] addressed (Haiku) for user=%s actions=%d",
-                auth.user_id[:8], len(output.get("actions_taken") or []),
-            )
+                user_message=request.content,
+                conversation_window="\n".join(conv_lines) if conv_lines else "",
+                workspace_state_text=workspace_state_text or "",
+            ):
+                etype = event.get("type")
 
-            # Per-action System Agent narration already happened in-the-moment
-            # above (during the progress-queue drain). No post-hoc lump bubble.
-            # The chat now reads as a conversation: Reviewer narrates intent in
-            # first person; System Agent narrates each consequential action when
-            # it fires. ADR-258 (revised 2026-05-08).
-            actions = output.get("actions_taken") or []
+                if etype == "progress":
+                    ev = event.get("event") or {}
+                    phase = ev.get("phase")
+                    tool_name = ev.get("tool", "?")
+                    if phase == "tool_start":
+                        yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_start', 'tool': tool_name})}\n\n"
+                    elif phase == "tool_end":
+                        summary = ev.get("summary", "")
+                        success = ev.get("success", True)
+                        yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_end', 'tool': tool_name, 'summary': summary, 'success': success})}\n\n"
 
-            # ADR-289 D3: finalize the canonical execution_events row for this
-            # addressed cycle. Telemetry pass-through mirrors the recurrence
-            # path (invocation_dispatcher.py:314). slug='addressed' identifies
-            # operator-driven cycles; trigger_type='addressed' is symmetric.
-            addressed_duration_ms = int(
-                (datetime.now(_tz.utc) - addressed_started_at).total_seconds() * 1000
-            )
-            record_execution_event(
-                auth.client, user_id=auth.user_id, slug="addressed",
-                id=invocation_id,
-                mode="judgment", trigger_type="addressed",
-                status="success", duration_ms=addressed_duration_ms,
-                input_tokens=output.get("input_tokens"),
-                output_tokens=output.get("output_tokens"),
-                cache_read_tokens=output.get("cache_read_tokens"),
-                cache_create_tokens=output.get("cache_create_tokens"),
-                model=output.get("model"),
-                tool_rounds=output.get("tool_rounds"),
-                wake_source="addressed",  # ADR-296 v2 D1
-                funnel_decision="escalate",  # ADR-296 v2 D2: operator presence is wake-warrant
-            )
+                elif etype == "agent_narration":
+                    tool_name = event.get("tool", "?")
+                    narration = event.get("narration", "")
+                    await append_message(auth.client, session_id, "system_agent", narration, {
+                        "tools_used": [tool_name], "tool_history": [],
+                        "pulse": "addressed", "weight": "material", "reviewer_directed": True,
+                        "invocation_id": invocation_id,
+                    })
+                    yield f"data: {json.dumps({'content': narration})}\n\n"
 
-            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': [a.get('tool','') for a in actions]})}\n\n"
+                elif etype == "reviewer_response":
+                    response_text = event.get("text", "")
+                    captured_output = event.get("output")
+                    await write_reviewer_message(
+                        auth.client, auth.user_id,
+                        content=response_text,
+                        verdict="addressed",
+                        occupant=REVIEWER_MODEL_IDENTITY,
+                        invocation_id=invocation_id,
+                        pulse="addressed",
+                    )
+                    yield f"data: {json.dumps({'reviewer_response': response_text})}\n\n"
+
+                elif etype == "done":
+                    actions = event.get("actions", [])
+                    addressed_duration_ms = int(
+                        (datetime.now(_tz.utc) - addressed_started_at).total_seconds() * 1000
+                    )
+                    out = captured_output or {}
+                    record_execution_event(
+                        auth.client, user_id=auth.user_id, slug="addressed",
+                        id=invocation_id,
+                        mode="judgment", trigger_type="addressed",
+                        status="success", duration_ms=addressed_duration_ms,
+                        input_tokens=out.get("input_tokens"),
+                        output_tokens=out.get("output_tokens"),
+                        cache_read_tokens=out.get("cache_read_tokens"),
+                        cache_create_tokens=out.get("cache_create_tokens"),
+                        model=out.get("model"),
+                        tool_rounds=out.get("tool_rounds"),
+                        wake_source="addressed",  # ADR-296 v2 D1
+                        funnel_decision="escalate",  # ADR-296 v2 D2: operator presence is wake-warrant
+                    )
+                    logger.info(
+                        "[REVIEWER] addressed for user=%s actions=%d",
+                        auth.user_id[:8], len(actions),
+                    )
+                    yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': [a.get('tool','') for a in actions]})}\n\n"
+
+                elif etype == "error":
+                    err = event.get("error", "Reviewer returned no response")
+                    raise RuntimeError(err)
+
         except Exception as _reviewer_exc:
-            # ADR-289 D3: failed addressed cycles also get their canonical
-            # execution_events row — invocation atom always recorded regardless
-            # of outcome, per ADR-265 forensic-substrate discipline.
             addressed_duration_ms = int(
                 (datetime.now(_tz.utc) - addressed_started_at).total_seconds() * 1000
             )

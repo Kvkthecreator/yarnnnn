@@ -22,7 +22,7 @@ Funnel decisions (D2 taxonomy):
   - escalate           — Reviewer full cycle fired
   - mechanical         — Mechanical-mode recurrence bypass (no Reviewer)
 
-Checkpoint 1 scope: Reviewer-wake telemetry sites in invocation_dispatcher.py
+Checkpoint 1 scope: Reviewer-wake telemetry sites in wake.py
 (11 record_execution_event calls) + routes/feed.py (2 calls) all carry
 wake_source + funnel_decision. Non-wake LLM-cost-ledger sites (anthropic.py,
 session_continuity.py, recurrence_prompt_inference.py, primitives/infer_*.py,
@@ -80,43 +80,59 @@ def test_telemetry_signature_accepts_wake_kwargs() -> None:
 
 
 # ----------------------------------------------------------------------------
-# 2. invocation_dispatcher.py — every record_execution_event call carries
+# 2. wake.py — every record_execution_event call carries
 #    wake_source. The local `wake_source` variable is computed once at entry.
 # ----------------------------------------------------------------------------
 
 def test_dispatcher_computes_wake_source_at_entry() -> None:
-    src = _read("services/invocation_dispatcher.py")
-    # The taxonomy mapping: addressed → manual_fire; else cron_tick.
+    """Post-Checkpoint-2: wake_source comes in as a function parameter on
+    _invoke_recurrence_wake (passed by submit_wake_proposal). The legacy
+    `trigger` is derived from wake_source per the kw-only signature.
+    """
+    src = _read("services/wake.py")
+    # Verify the new signature: _invoke_recurrence_wake accepts wake_source
     m = re.search(
-        r'wake_source\s*=\s*"manual_fire"\s+if\s+trigger\s*==\s*"addressed"\s+else\s+"cron_tick"',
-        src,
+        r"async def _invoke_recurrence_wake\([^)]*wake_source:\s*WakeSource",
+        src, re.DOTALL,
     )
     if not m:
         _fail(
-            "invocation_dispatcher does not compute wake_source at function entry",
-            "expected `wake_source = \"manual_fire\" if trigger == \"addressed\" else \"cron_tick\"`",
+            "_invoke_recurrence_wake signature missing wake_source: WakeSource",
+            "Phase 1A: caller (submit_wake_proposal) passes wake_source explicitly",
         )
-    _ok("invocation_dispatcher computes wake_source at function entry")
+    # Verify trigger is derived inside the body
+    if 'trigger = "addressed" if wake_source == "manual_fire" else "reactive"' not in src:
+        _fail(
+            "_invoke_recurrence_wake does not derive trigger from wake_source",
+            "Phase 1A: trigger is internal vocabulary derived from wake_source",
+        )
+    _ok("wake.py: _invoke_recurrence_wake accepts wake_source param + derives trigger internally")
 
 
 def test_dispatcher_all_telemetry_sites_stamp_wake_source() -> None:
-    src = _read("services/invocation_dispatcher.py")
-    # Count record_execution_event call sites
+    """Every record_execution_event call in wake.py carries a wake_source.
+    The pattern is either `wake_source=wake_source` (param-threaded in
+    recurrence + mechanical bodies) or `wake_source="<source>"` literal
+    (substrate_event body — the source is known statically).
+    """
+    src = _read("services/wake.py")
     call_count = len(re.findall(r"record_execution_event\(", src))
-    # Count wake_source= populations
-    wake_count = len(re.findall(r"wake_source=wake_source", src))
-    if wake_count < call_count:
+    threaded = len(re.findall(r"wake_source=wake_source", src))
+    literal = len(re.findall(r'wake_source="(?:cron_tick|manual_fire|substrate_event|addressed|proposal_arrival)"', src))
+    total_stamped = threaded + literal
+    if total_stamped < call_count:
         _fail(
-            "invocation_dispatcher has unstamped record_execution_event calls",
-            f"found {call_count} calls, {wake_count} carry wake_source=wake_source",
+            "wake.py has unstamped record_execution_event calls",
+            f"found {call_count} calls, {total_stamped} carry wake_source "
+            f"({threaded} threaded, {literal} literal)",
         )
-    _ok(f"invocation_dispatcher: all {call_count} record_execution_event "
-        f"calls carry wake_source=wake_source")
+    _ok(f"wake.py: all {call_count} record_execution_event calls carry "
+        f"wake_source ({threaded} param-threaded, {literal} source-literal)")
 
 
 def test_dispatcher_funnel_decision_taxonomy() -> None:
     """funnel_decision values at dispatcher sites match the D2 taxonomy."""
-    src = _read("services/invocation_dispatcher.py")
+    src = _read("services/wake.py")
     # Find all funnel_decision= populations
     populations = re.findall(r'funnel_decision="([^"]+)"', src)
     allowed = {"skip", "tier_2_wait", "tier_2_observe", "escalate", "mechanical"}
@@ -143,7 +159,7 @@ def test_dispatcher_funnel_decision_taxonomy() -> None:
 
 def test_dispatch_mechanical_accepts_wake_source() -> None:
     """_dispatch_mechanical accepts wake_source as a keyword-only parameter."""
-    src = _read("services/invocation_dispatcher.py")
+    src = _read("services/wake.py")
     if not re.search(r"async def _dispatch_mechanical\([^)]*wake_source:\s*str", src, re.DOTALL):
         _fail(
             "_dispatch_mechanical signature missing wake_source",

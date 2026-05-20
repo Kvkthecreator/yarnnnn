@@ -3,8 +3,10 @@
 The Reviewer perceives full operator-authored governance substrate +
 program-shaped substrate at every wake, regardless of trigger shape
 (addressed | reactive). This module is the single canonical assembly
-point for that substrate — called by both `routes/feed.py` (addressed
-turns) and `services/invocation_dispatcher.py` (reactive turns).
+point for that substrate — called by both `services/wake.py` (cron-tick
++ substrate-event + manual-fire + proposal-arrival wakes) and the
+addressed-stream entry within `services/wake.py::stream_addressed_wake`
+(driven by `routes/feed.py` per ADR-296 v2 D1).
 
 Pre-loading discipline (FOUNDATIONS v8.5 Axiom 4 + Derived Principle 18 +
 ADR-275 refinement learning): load-bearing substrate arrives in the wake
@@ -31,7 +33,8 @@ every workspace has) remain hardcoded as kernel-universal constants.
 Adding a new program requires zero edits to this module — the new bundle
 declares its envelope; bundle_reader exposes it; this module reads it.
 
-Singular Implementation: one helper, two callers (feed.py + invocation_dispatcher).
+Singular Implementation: one helper, used by every wake source through
+`services/wake.py` (ADR-296 v2 D1).
 
 Observability (2026-05-15 hardening):
 The helper returns `(envelope_dict, elapsed_ms)` so callers can record

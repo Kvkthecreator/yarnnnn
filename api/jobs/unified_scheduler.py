@@ -5,14 +5,18 @@ Layer 1 (this file — pure dispatcher, zero LLM cost):
 - Walks `services.scheduling.get_due_declarations(client)` for due recurrence
   declarations across all users.
 - For each due declaration: atomic CAS claim via
-  `services.scheduling.claim_task_run`, then dispatch via
-  `services.invocation_dispatcher.dispatch(decl)`.
+  `services.scheduling.claim_task_run`, then submit wake proposal via
+  `services.wake_sources.cron_tick.dispatch_recurrence(...)` (ADR-296 v2 D1).
 - Post-dispatch: `services.scheduling.record_task_run` writes last_run_at +
   recomputes next_run_at into the thin `tasks` index.
+- Substrate-event walk: after recurrence dispatch, walks each active user's
+  `/workspace/_hooks.yaml` against recent `workspace_file_versions` via
+  `services.wake_sources.substrate_event.walk_hooks(...)`.
 
-Layer 2 (services.invocation_dispatcher — Sonnet generation per shape):
-- Reads the recurrence YAML, generates output, writes natural-home substrate,
-  emits narrative entry. See ADR-231 D2 for the substrate matrix.
+Layer 2 (services.wake + wake_sources — singular invocation gateway):
+- The wake gateway (`submit_wake_proposal`) is the ONLY entry to the
+  Reviewer's invocation surface. Five wake sources contribute proposals
+  to one evaluation funnel; the Reviewer fires only on escalate.
 
 Layer 3 (yarnnn.py — operator-present only):
 - Chat mode with primitives. YARNNN is the single intelligence layer
@@ -118,16 +122,17 @@ async def should_send_email(supabase_client, user_id: str, notification_type: st
 async def dispatch_due_invocations(supabase_client) -> tuple[int, int, int]:
     """Find due recurrences and dispatch each one.
 
-    Per ADR-261 D3, this walks ``/workspace/_recurrences.yaml`` for each
-    user with due rows and dispatches via ``invocation_dispatcher.dispatch``.
+    Per ADR-261 D3 + ADR-296 v2 D1, this walks ``/workspace/_recurrences.yaml``
+    for each user with due rows and submits wake proposals via the
+    cron-tick wake source: ``wake_sources.cron_tick.dispatch_recurrence``.
 
       1. ``get_due_recurrences`` queries the thin `tasks` index for due
          rows AND re-reads each user's _recurrences.yaml.
       2. For each due (user_id, recurrence) pair: CAS claim against the
-         index, then ``dispatch(supabase, user_id, recurrence,
-         trigger="reactive")`` either invokes the Reviewer (judgment-mode
-         per ADR-263) or executes the prompt's `@primitive: ...` directive
-         deterministically (mechanical-mode per ADR-263 + ADR-264).
+         index, then ``dispatch_recurrence(supabase, user_id, recurrence)``
+         submits a wake proposal to the singular funnel. The funnel
+         decides escalate (Reviewer's full cycle), mechanical (deterministic
+         primitive), or skip (kernel gate failed).
       3. Post-dispatch, ``record_task_run`` writes last_run_at +
          recomputed next_run_at into the index.
 
@@ -138,7 +143,10 @@ async def dispatch_due_invocations(supabase_client) -> tuple[int, int, int]:
         get_due_recurrences,
         record_task_run,
     )
-    from services.invocation_dispatcher import dispatch
+    # ADR-296 v2 D1: cron-tick wake source routes through the singular
+    # wake gateway. The scheduler is no longer the dispatch caller — it
+    # is the cron-tick wake source's walker.
+    from services.wake_sources.cron_tick import dispatch_recurrence
 
     now = datetime.now(timezone.utc)
     pairs = await get_due_recurrences(supabase_client, now=now)
@@ -183,13 +191,13 @@ async def dispatch_due_invocations(supabase_client) -> tuple[int, int, int]:
 
         result: dict = {}
         try:
-            # ADR-263 D2: cron-fired recurrences are dispatched as `reactive`
-            # — they are substrate events from the Reviewer's perspective. The
-            # recurrence's `mode` field (judgment | mechanical) determines
-            # whether the dispatcher invokes the Reviewer or executes a
-            # mechanical primitive.
-            result = await dispatch(
-                supabase_client, user_id, recurrence, trigger="reactive"
+            # ADR-296 v2 D1: cron-tick wake source submits a wake proposal
+            # to the singular funnel. The recurrence's `mode` field
+            # (judgment | mechanical) determines whether the wake escalates
+            # to the Reviewer or bypasses to deterministic primitive
+            # execution. Both flow through wake.submit_wake_proposal().
+            result = await dispatch_recurrence(
+                supabase_client, user_id, recurrence,
             )
             if result.get("success"):
                 succeeded += 1
@@ -304,12 +312,40 @@ async def run_unified_scheduler():
 
     # -------------------------------------------------------------------------
     # ADR-231 Phase 3.3: dispatch due invocations from YAML declarations
+    # (cron-tick wake source per ADR-296 v2 D1)
     # -------------------------------------------------------------------------
     found, succeeded, failed = await dispatch_due_invocations(supabase)
     if found > 0:
         logger.info(f"[SCHED] dispatch complete: {succeeded}/{found} succeeded, {failed} failed")
     else:
         logger.info("[SCHED] no due declarations")
+
+    # -------------------------------------------------------------------------
+    # ADR-296 v2 D1 + D2: substrate-event wake source walker.
+    # For each active user, walk /workspace/_hooks.yaml against recent
+    # workspace_file_versions revisions. Hook matches submit wake proposals
+    # to the funnel. The transition guard in _field_change_matches ensures
+    # hooks fire only on the actual transition, not on every preserving write.
+    # -------------------------------------------------------------------------
+    try:
+        from services.wake_sources.substrate_event import walk_hooks
+        substrate_event_outcomes_total = 0
+        for hook_user_id in active_user_ids:
+            try:
+                outcomes = await walk_hooks(supabase, hook_user_id)
+                substrate_event_outcomes_total += len(outcomes)
+            except Exception as exc:
+                logger.warning(
+                    "[SCHED] substrate-event walk failed for %s: %s",
+                    hook_user_id[:8], exc,
+                )
+        if substrate_event_outcomes_total > 0:
+            logger.info(
+                "[SCHED] substrate-event walker fired %d hook(s) across %d user(s)",
+                substrate_event_outcomes_total, len(active_user_ids),
+            )
+    except Exception as exc:
+        logger.warning("[SCHED] substrate-event walker raised: %s", exc)
 
     # -------------------------------------------------------------------------
     # ADR-260 D4: cron-heartbeat walker deleted. Cron wake-ups fire the

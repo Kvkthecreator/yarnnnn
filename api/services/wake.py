@@ -1,52 +1,70 @@
 """
-Invocation Dispatcher — ADR-260 + ADR-261 unified path.
+services/wake.py — Singular invocation gateway (ADR-296 v2).
 
-ONE dispatch path. Per ADR-261 D3, the scheduler walks recurrences in
-``/workspace/_recurrences.yaml`` and for each due (and not paused) entry
-calls ``dispatch(client, user_id, recurrence)``. Per ADR-260 D1, this
-function invokes the Reviewer with the recurrence's ``prompt`` as the
-addressed-equivalent envelope; the Reviewer's real-time loop then runs.
+Per ADR-296 v2 D1, wake is the irreducible architectural unit of YARNNN's
+autonomy: something changed in the world or worldview, and under the
+operator's standing intent that change warrants a moment of judgment.
+This module is THE entry point for every Reviewer wake — there is no
+parallel path.
 
-There is no shape branching. There is no agent resolution at the
-dispatcher level. There is no per-shape substrate writer. The Reviewer's
-loop directs work via tool calls — including specialist sub-LLM-calls
-through DispatchSpecialist (per ADR-261 D7, landing in Phase C.2) and
-self-scheduling through Schedule (per ADR-261 §3 / Phase A.3).
+`submit_wake_proposal(client, user_id, source, payload)` is the singular
+public API. Five wake sources contribute proposals to one evaluation
+funnel; the Reviewer's full cycle fires only when the funnel escalates:
 
-Per ADR-260 D2 amended by ADR-263 D2 there are two Reviewer triggers:
-  - "addressed"  operator addressed the Reviewer (chat path, not the
-                  scheduler).
-  - "reactive"   substrate event requires Reviewer judgment. Two sub-shapes
-                  internally to invoke_reviewer (differentiated by context-bag
-                  contents): proposal arrival (proposal_row in context) and
-                  judgment-mode recurrence fire (recurrence_prompt in context).
-                  Cron-fired Reviewer wakes use "reactive" — the recurrence
-                  is the substrate event.
+  - cron_tick         scheduler walked a due recurrence
+  - addressed         operator addressed the Reviewer via chat (streaming)
+  - proposal_arrival  proposal creation woke Reviewer for judgment
+  - substrate_event   /workspace/_hooks.yaml match — substrate transition
+                       operator/Reviewer declared interest in
+  - manual_fire       operator explicitly fired via FireInvocation in chat
 
-Per ADR-263, the recurrence's `mode` field declares whether a fire wakes the
-Reviewer. Mechanical-mode recurrences are dispatched via `_dispatch_mechanical`
-(no Reviewer, no LLM, deterministic Python primitive execution); judgment-mode
-recurrences flow through the Reviewer-invocation path with trigger="reactive".
+Evaluation (per ADR-296 v2 D2) is two tiers, both inside `submit_wake_proposal`:
 
-Per ADR-260 D3 cron has one use: fire recurrences. The recurrence's `mode`
-determines whether the fire involves the Reviewer at all.
+  - Tier 1 deterministic (zero LLM) — given source + payload + budget +
+    standing intent + recent-fire history: skip | tier_2 | escalate.
+  - Tier 2 cheap Haiku — when Tier 1 returns "tier_2", a minimal-envelope
+    LLM call decides wait | observe | escalate.
 
-Cost gating:
-  - Balance check (ADR-172) at dispatch entry; exit early on exhaustion.
-  - Daily spend ceiling (ADR-250 Phase 3); exit early on scheduled
-    triggers when ceiling reached, warn-but-proceed on manual triggers.
+Only on `escalate` does the Reviewer's full real-time loop run. The
+funnel decision stamps every execution_events row via the wake_source +
+funnel_decision columns (migration 177).
 
-Failure discipline:
-  Returns ``{success: bool, ...}`` always. On failure: narrative entry
-  emits with a system-role bubble describing the failure; the scheduler
-  index advances next_run_at so on-demand recurrences don't get stuck.
+Per ADR-296 v2 D3 the Reviewer's authority is over cadence preference +
+standing intent. It does not invoke itself by name. FireInvocation lives
+in CHAT_PRIMITIVES (operator manual fire path); it routes through the
+`manual_fire` wake source. The Reviewer's mid-loop primitives are
+Schedule + WriteFile + ProposeAction + DispatchSpecialist + Compose +
+reads + Clarify + ReturnVerdict.
+
+Per ADR-263, the recurrence's `mode` field declares whether a fire wakes
+the Reviewer. Mechanical-mode recurrences bypass Reviewer invocation via
+the `mechanical` funnel decision (deterministic Python primitive
+execution; no LLM); judgment-mode recurrences flow through the Reviewer-
+invocation path on `escalate`.
+
+Cost gating (Tier 1 deterministic — these are kernel pre-conditions that
+short-circuit the funnel to "skip"):
+  - Balance check (ADR-172)
+  - Daily spend ceiling (ADR-293 D7 / ADR-250 Phase 3)
+  - Daily judgment-recurrence cap (ADR-293 D7)
+  - Per-slug min-interval (ADR-293 D7)
+
+Failure discipline: every public entry returns `{success: bool, ...}`.
+Reviewer exceptions emit a system-role narrative entry; the scheduler
+index advances next_run_at so on-demand recurrences don't get stuck.
+
+Streaming: the `addressed` wake source has its own SSE-streaming
+entry point `stream_addressed_wake(...)` (async generator) because the
+operator's HTTP response is the consumer; events yield as the Reviewer
+runs. Same funnel semantics — operator presence is itself a wake-warrant
+(Tier 1 auto-escalates).
 """
 
 from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Optional
+from typing import Any, AsyncGenerator, Literal, Optional
 
 try:
     import sentry_sdk as _sentry
@@ -64,16 +82,145 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Public entry point
+# Wake-source + funnel-decision taxonomies (ADR-296 v2 D1 + D2)
+# ---------------------------------------------------------------------------
+
+WakeSource = Literal[
+    "cron_tick",
+    "addressed",
+    "proposal_arrival",
+    "substrate_event",
+    "manual_fire",
+]
+
+FunnelDecision = Literal[
+    "skip",
+    "tier_2_wait",
+    "tier_2_observe",
+    "escalate",
+    "mechanical",
+]
+
+
+# ---------------------------------------------------------------------------
+# Public entry point — Singular invocation gateway (ADR-296 v2 D1)
 # ---------------------------------------------------------------------------
 
 
-async def dispatch(
+async def submit_wake_proposal(
     client,
     user_id: str,
-    recurrence: Recurrence,
     *,
-    trigger: str = "reactive",
+    source: WakeSource,
+    payload: dict,
+) -> dict:
+    """Singular wake-proposal entry point per ADR-296 v2 D1.
+
+    Every Reviewer wake originates here. The funnel evaluates whether
+    the wake warrants the Reviewer's full cycle; only on `escalate`
+    does the Reviewer's real-time loop run. Other decisions:
+      - skip          Tier 1 kernel gate (budget exhausted, repeat
+                       capability_missing, etc.) — no Reviewer wake
+      - tier_2_wait   Tier 2 Haiku said wait (no Reviewer wake)
+      - tier_2_observe Tier 2 Haiku said observe (no Reviewer wake)
+      - mechanical    mechanical-mode recurrence bypass (no Reviewer)
+
+    Args:
+        client: Supabase service client
+        user_id: Workspace owner UUID
+        source: WakeSource taxonomy value naming what proposed the wake
+        payload: source-specific dict. By source:
+            - cron_tick / manual_fire: {"recurrence": Recurrence,
+                                         "context": Optional[str]}
+            - proposal_arrival: {"proposal_row": dict,
+                                  "context_domain": str}
+            - substrate_event: {"hook": dict, "path": str,
+                                 "field_change": dict}
+            - addressed: NOT this entry point — use
+                          stream_addressed_wake() (SSE generator).
+
+    Returns:
+        WakeOutcome dict: {success, source, funnel_decision, ...}
+        Additional fields per source — recurrence fires return
+        {slug, actions_taken, proposals, ...}.
+
+    The `addressed` source is NOT served by this function — it has its
+    own streaming entry (`stream_addressed_wake`) because the operator's
+    HTTP response is the consumer. Both paths share the same funnel
+    semantics + the same Reviewer invocation primitives.
+    """
+    if source == "addressed":
+        # Architectural invariant: addressed routes through the SSE
+        # generator, not the synchronous entry. Caller error.
+        raise ValueError(
+            "submit_wake_proposal does not serve source='addressed' — "
+            "use stream_addressed_wake() for the SSE-streaming path."
+        )
+
+    # Route to source-specific Reviewer-invocation body. The funnel
+    # decision is computed inline within each body so the kernel gates
+    # (balance / spend / cap / min-interval / capability_missing) can
+    # short-circuit before doing any work and stamp funnel_decision="skip"
+    # at the telemetry call site.
+    if source in ("cron_tick", "manual_fire"):
+        recurrence = payload.get("recurrence")
+        if not isinstance(recurrence, Recurrence):
+            raise ValueError(
+                f"wake source {source!r} requires payload['recurrence'] "
+                f"as a Recurrence object; got {type(recurrence).__name__}"
+            )
+        return await _invoke_recurrence_wake(
+            client, user_id,
+            recurrence=recurrence,
+            wake_source=source,
+            context=payload.get("context"),
+        )
+
+    if source == "proposal_arrival":
+        # Proposal-arrival Reviewer invocation lives in
+        # services/review_proposal_dispatch.py::on_proposal_created.
+        # ADR-296 v2 D1 invariant: the funnel decision (always "escalate"
+        # for proposal arrivals — proposal creation is itself a wake-
+        # warrant) is recorded by the downstream telemetry path. We
+        # dispatch through the existing proposal handler. The handler
+        # returns None (event-driven shape); we wrap into WakeOutcome.
+        from services.review_proposal_dispatch import on_proposal_created
+        proposal_row = payload.get("proposal_row") or {}
+        proposal_id = proposal_row.get("id") or payload.get("proposal_id") or ""
+        await on_proposal_created(
+            client, user_id,
+            proposal_id=proposal_id,
+            proposal_row=proposal_row,
+        )
+        return {
+            "success": True,
+            "source": "proposal_arrival",
+            "proposal_id": proposal_id,
+            "funnel_decision": "escalate",
+        }
+
+    if source == "substrate_event":
+        return await _invoke_substrate_event_wake(
+            client, user_id,
+            hook=payload["hook"],
+            path=payload.get("path") or "",
+            field_change=payload.get("field_change") or {},
+        )
+
+    raise ValueError(f"unknown wake source: {source!r}")
+
+
+# ---------------------------------------------------------------------------
+# Recurrence-fire wake body (cron_tick + manual_fire)
+# ---------------------------------------------------------------------------
+
+
+async def _invoke_recurrence_wake(
+    client,
+    user_id: str,
+    *,
+    recurrence: Recurrence,
+    wake_source: WakeSource,  # "cron_tick" | "manual_fire"
     context: Optional[str] = None,
 ) -> dict:
     """Fire one recurrence (mode=judgment → Reviewer; mode=mechanical → primitive).
@@ -86,32 +233,22 @@ async def dispatch(
       the prompt's `@primitive: ...` directive and executes deterministically.
       No Reviewer, no LLM.
 
-    Args:
-        client: Supabase service client
-        user_id: Workspace owner UUID
-        recurrence: parsed Recurrence to fire
-        trigger: per ADR-260 D2 amended by ADR-263 D2 — one of "reactive"
-                 (default; substrate event including cron-fired recurrences)
-                 or "addressed" (operator addressed the Reviewer; rarely used
-                 here — chat surfaces invoke the Reviewer directly).
-        context: optional one-shot steering for this firing (appended to
-                 the prompt). Does not mutate the recurrence record.
-
-    Returns:
-        ``{success: bool, slug, trigger, message, ...}`` — at minimum.
-        ``actions_taken`` and ``proposals`` populated when the Reviewer's
-        loop produced them.
+    ADR-296 v2: the legacy `trigger` parameter is computed here from
+    `wake_source` for backwards compatibility with downstream functions
+    (record_execution_event's trigger_type column, narrative pulse,
+    Reviewer's context envelope). `wake_source="manual_fire"` ↔
+    `trigger="addressed"`; `wake_source="cron_tick"` ↔ `trigger="reactive"`.
+    The trigger axis itself is preserved as kernel-internal vocabulary
+    per ADR-263 D2; only the public surface speaks wake_source.
     """
     if recurrence.paused:
-        return _result_paused(recurrence, trigger)
+        return _result_paused(recurrence, wake_source)
 
     started_at = datetime.now(timezone.utc)
 
-    # ADR-296 v2 D1: wake-source taxonomy for telemetry. The dispatcher
-    # is the cron-tick wake source's escalation path; manual fires (via
-    # FireInvocation in CHAT_PRIMITIVES) arrive with trigger="addressed".
-    # `wake_source` stamps every execution_events row this function writes.
-    wake_source = "manual_fire" if trigger == "addressed" else "cron_tick"
+    # ADR-296 v2 D1: wake-source comes from the caller. Derive the
+    # legacy `trigger` value for downstream callers that still consume it.
+    trigger = "addressed" if wake_source == "manual_fire" else "reactive"
 
     # ADR-289 D2 + D3: pre-generate the invocation atom id. This UUID is the
     # canonical execution_events.id for the cycle; every narrative row produced
@@ -1140,11 +1277,11 @@ async def _maybe_auto_compose(
 # ---------------------------------------------------------------------------
 
 
-def _result_paused(recurrence: Recurrence, trigger: str) -> dict:
+def _result_paused(recurrence: Recurrence, trigger_or_source: str) -> dict:
     return {
         "success": True,
         "slug": recurrence.slug,
-        "trigger": trigger,
+        "trigger": trigger_or_source,
         "skipped": True,
         "message": f"recurrence {recurrence.slug} is paused",
     }
@@ -1175,4 +1312,310 @@ def _result_failed(
     }
 
 
-__all__ = ["dispatch"]
+# ---------------------------------------------------------------------------
+# Substrate-event wake body (Phase 1C will wire _hooks.yaml walking;
+# this body assembles the Reviewer envelope when a hook match fires)
+# ---------------------------------------------------------------------------
+
+
+async def _invoke_substrate_event_wake(
+    client,
+    user_id: str,
+    *,
+    hook: dict,
+    path: str,
+    field_change: dict,
+) -> dict:
+    """Invoke the Reviewer with a substrate-event hook's prompt as envelope.
+
+    Per ADR-296 v2 D2, substrate-event wakes are gated identically to
+    cron-tick wakes — kernel gates apply (balance / spend / cap), then
+    the Reviewer's full real-time loop runs with the hook's prompt as
+    the addressed-equivalent envelope.
+
+    The hook declaration carries the prompt; the path + field_change
+    payload identify which substrate transition fired the hook. Both
+    are passed into the Reviewer's user-message context as
+    `substrate_event_*` fields so the Reviewer can read the transition
+    that woke it.
+    """
+    started_at = datetime.now(timezone.utc)
+    import uuid as _uuid
+    invocation_id = str(_uuid.uuid4())
+
+    slug = hook.get("slug") or "substrate-event"
+    prompt = hook.get("prompt") or ""
+
+    if not prompt.strip():
+        record_execution_event(
+            client, user_id=user_id, slug=slug,
+            id=invocation_id,
+            mode="judgment", trigger_type="reactive",
+            status="failed", error_reason="empty_hook_prompt",
+            wake_source="substrate_event",
+            funnel_decision="skip",
+        )
+        return {
+            "success": False,
+            "slug": slug,
+            "source": "substrate_event",
+            "message": f"hook {slug!r} has empty prompt",
+        }
+
+    # ---- Balance gate (ADR-172) ----
+    try:
+        from services.platform_limits import check_balance
+        balance_ok, _balance = check_balance(client, user_id)
+    except Exception as e:
+        logger.warning("[WAKE:substrate] balance check failed (proceeding): %s", e)
+        balance_ok = True
+
+    if not balance_ok:
+        record_execution_event(
+            client, user_id=user_id, slug=slug,
+            id=invocation_id,
+            mode="judgment", trigger_type="reactive",
+            status="failed", error_reason="balance_exhausted",
+            wake_source="substrate_event",
+            funnel_decision="skip",
+        )
+        return {
+            "success": False, "slug": slug, "source": "substrate_event",
+            "message": "balance exhausted",
+        }
+
+    try:
+        from agents.reviewer_agent import (
+            invoke_reviewer,
+            build_operating_context_block,
+        )
+        from services.reviewer_envelope import load_reviewer_governance_envelope
+    except ImportError as e:
+        logger.exception("[WAKE:substrate] reviewer_agent not importable: %s", e)
+        return {
+            "success": False, "slug": slug, "source": "substrate_event",
+            "message": f"reviewer_agent unavailable: {e}",
+        }
+
+    try:
+        operating_context = build_operating_context_block(client, user_id)
+        governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope(
+            client, user_id
+        )
+        reviewer_output = await invoke_reviewer(
+            client=client,
+            user_id=user_id,
+            trigger="reactive",
+            invocation_id=invocation_id,
+            context={
+                "recurrence_prompt": prompt,
+                "recurrence_slug": slug,
+                "recurrence_required_capabilities": [],
+                "options": {},
+                "substrate_event_path": path,
+                "substrate_event_field_change": field_change,
+                "operating_context_block": operating_context,
+                **governance_envelope,
+            },
+        )
+    except Exception as exc:
+        logger.exception("[WAKE:substrate] reviewer raised: %s", exc)
+        if _SENTRY_AVAILABLE:
+            _sentry.capture_exception(exc)
+        duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+        _env_ms = locals().get("envelope_load_ms")
+        record_execution_event(
+            client, user_id=user_id, slug=slug,
+            id=invocation_id,
+            mode="judgment", trigger_type="reactive",
+            status="failed", error_reason="exception",
+            error_detail=str(exc), duration_ms=duration_ms,
+            envelope_load_ms=_env_ms,
+            wake_source="substrate_event",
+            funnel_decision="escalate",
+        )
+        return {
+            "success": False, "slug": slug, "source": "substrate_event",
+            "message": str(exc),
+        }
+
+    duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
+    _ro = reviewer_output if isinstance(reviewer_output, dict) else {}
+    record_execution_event(
+        client, user_id=user_id, slug=slug,
+        id=invocation_id,
+        mode="judgment", trigger_type="reactive",
+        status="success", duration_ms=duration_ms,
+        envelope_load_ms=envelope_load_ms,
+        input_tokens=_ro.get("input_tokens"),
+        output_tokens=_ro.get("output_tokens"),
+        cache_read_tokens=_ro.get("cache_read_tokens"),
+        cache_create_tokens=_ro.get("cache_create_tokens"),
+        model=_ro.get("model"),
+        tool_rounds=_ro.get("tool_rounds"),
+        wake_source="substrate_event",
+        funnel_decision="escalate",
+    )
+
+    return {
+        "success": True,
+        "slug": slug,
+        "source": "substrate_event",
+        "duration_ms": duration_ms,
+        "actions_taken": _ro.get("actions_taken", []) or [],
+        "proposals": _ro.get("proposals", []) or [],
+        "message": (_ro.get("reasoning") or "").strip() or f"{slug} completed",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Addressed-stream entry — SSE async generator (ADR-296 v2 D1)
+# ---------------------------------------------------------------------------
+
+
+async def stream_addressed_wake(
+    client,
+    user_id: str,
+    *,
+    session_id: str,
+    invocation_id: str,
+    user_message: str,
+    conversation_window: str,
+    workspace_state_text: str,
+) -> AsyncGenerator[dict, None]:
+    """Addressed wake source — SSE-streaming entry point.
+
+    Per ADR-296 v2 D1, operator-addressed wakes pass the funnel by default
+    (operator presence is itself a wake-warrant). This async generator
+    runs the Reviewer's real-time loop and yields progress events as
+    they fire, so routes/feed.py can stream them as SSE to the operator.
+
+    Yields dicts shaped for SSE consumption — caller is responsible for
+    formatting + writing to the HTTP response. Each yield is one of:
+      {"type": "progress", "event": <invoke_reviewer event dict>}
+      {"type": "agent_narration", "tool": str, "summary": str, "narration": str}
+      {"type": "reviewer_response", "text": str, "actions": list}
+      {"type": "done", "actions": list}
+      {"type": "error", "error": str}
+
+    The funnel decision is always "escalate" for addressed wakes — the
+    telemetry row is finalized via record_execution_event at the route
+    layer (routes/feed.py owns the addressed_started_at + duration_ms
+    accounting because the SSE response is structured around it).
+    """
+    import asyncio as _asyncio
+    from agents.reviewer_agent import (
+        invoke_reviewer,
+        REVIEWER_MODEL_IDENTITY,
+        build_operating_context_block,
+    )
+    from services.reviewer_envelope import load_reviewer_governance_envelope
+    from services.reviewer_chat_surfacing import (
+        REVIEWER_COGNITION_TOOLS as _COGNITION_ONLY,
+        is_mirror_refresh_action,
+        narrate_reviewer_action,
+    )
+
+    progress_queue: _asyncio.Queue = _asyncio.Queue()
+
+    async def _emit_progress(event: dict) -> None:
+        await progress_queue.put(event)
+
+    operating_context = build_operating_context_block(client, user_id)
+    governance_envelope, _envelope_load_ms = await load_reviewer_governance_envelope(
+        client, user_id
+    )
+
+    invoke_task = _asyncio.create_task(invoke_reviewer(
+        client, user_id,
+        trigger="addressed",
+        invocation_id=invocation_id,
+        context={
+            **governance_envelope,
+            "user_message": user_message,
+            "conversation_window": conversation_window,
+            "workspace_state": workspace_state_text or "",
+            "operating_context_block": operating_context,
+        },
+        event_callback=_emit_progress,
+    ))
+
+    # Drain progress events while invoke_task runs.
+    while not invoke_task.done():
+        try:
+            event = await _asyncio.wait_for(progress_queue.get(), timeout=0.5)
+        except _asyncio.TimeoutError:
+            continue
+
+        phase = event.get("phase")
+        tool_name = event.get("tool", "?")
+
+        yield {"type": "progress", "event": event}
+
+        if phase == "tool_end":
+            summary = event.get("summary", "")
+            success = event.get("success", True)
+            _action_synth = {"tool": tool_name, "input": event.get("input") or {}}
+            if (
+                success
+                and tool_name not in _COGNITION_ONLY
+                and not is_mirror_refresh_action(_action_synth, client, user_id)
+            ):
+                narration = narrate_reviewer_action(tool_name, summary)
+                yield {
+                    "type": "agent_narration",
+                    "tool": tool_name,
+                    "summary": summary,
+                    "narration": narration,
+                }
+
+    # Drain any remaining queued events.
+    while not progress_queue.empty():
+        try:
+            event = progress_queue.get_nowait()
+        except Exception:
+            break
+        phase = event.get("phase")
+        tool_name = event.get("tool", "?")
+        yield {"type": "progress", "event": event}
+        if phase == "tool_end":
+            summary = event.get("summary", "")
+            success = event.get("success", True)
+            _action_synth = {"tool": tool_name, "input": event.get("input") or {}}
+            if (
+                success
+                and tool_name not in _COGNITION_ONLY
+                and not is_mirror_refresh_action(_action_synth, client, user_id)
+            ):
+                narration = narrate_reviewer_action(tool_name, summary)
+                yield {
+                    "type": "agent_narration",
+                    "tool": tool_name,
+                    "summary": summary,
+                    "narration": narration,
+                }
+
+    try:
+        output = await invoke_task
+        if not output or not output.get("reasoning"):
+            yield {"type": "error", "error": "Reviewer returned no response"}
+            return
+        response_text = output["reasoning"]
+        actions = output.get("actions_taken") or []
+        yield {
+            "type": "reviewer_response",
+            "text": response_text,
+            "actions": actions,
+            "output": output,  # full ReviewerOutput for the route's telemetry write
+        }
+        yield {"type": "done", "actions": actions}
+    except Exception as exc:
+        yield {"type": "error", "error": str(exc)}
+
+
+__all__ = [
+    "submit_wake_proposal",
+    "stream_addressed_wake",
+    "WakeSource",
+    "FunnelDecision",
+]

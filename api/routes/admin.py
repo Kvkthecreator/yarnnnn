@@ -837,10 +837,11 @@ async def admin_trigger_task(
 ) -> dict:
     """Trigger a recurrence for testing.
 
-    Per ADR-261 D3: walks /workspace/_recurrences.yaml for the user that
-    owns the slug and dispatches via services.invocation_dispatcher.
+    Per ADR-261 D3 + ADR-296 v2 D1: walks /workspace/_recurrences.yaml
+    for the user that owns the slug and submits a wake proposal through
+    the manual_fire wake source.
     """
-    from services.invocation_dispatcher import dispatch
+    from services.wake_sources.manual_fire import fire as wake_manual_fire
     from services.recurrence import walk_workspace_recurrences
 
     supabase_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
@@ -868,10 +869,10 @@ async def admin_trigger_task(
         )
 
     try:
-        # Same manual-fire trigger rule as routes/recurrences.py::trigger_recurrence_run.
-        # Substrate-event-shaped invocation; dispatcher builds recurrence-fire context;
-        # only `reactive` trigger accepts that shape per _validate_context_shape.
-        result = await dispatch(client, user_id, rec, trigger="reactive")
+        # ADR-296 v2 D1: admin manual fire routes through the manual_fire
+        # wake source. Funnel auto-escalates per D1 (operator explicit
+        # assertion is wake-warrant).
+        result = await wake_manual_fire(client, user_id, rec)
         return {
             "task_slug": task_slug,
             "success": result.get("success", False),

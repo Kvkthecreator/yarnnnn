@@ -3,11 +3,12 @@
 Usage:
     python scripts/alpha_ops/manual_fire.py --persona kvk --slug signal-evaluation
 
-Reads `/workspace/_recurrences.yaml`, finds the named slug, and calls
-`services.invocation_dispatcher.dispatch(client, user_id, recurrence)`
-synchronously. Output streams to stdout. Used for ADR-290 fresh-fork
-behavioral validation — bypasses the scheduler so we don't have to wait
-for the natural cron.
+Reads `/workspace/_recurrences.yaml`, finds the named slug, and submits
+a wake proposal via the manual_fire wake source (ADR-296 v2 D1) —
+`services.wake_sources.manual_fire.fire(client, user_id, recurrence)`.
+Output streams to stdout. Used for ADR-290 fresh-fork behavioral
+validation — bypasses the scheduler so we don't have to wait for the
+natural cron.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ def _load_persona(slug: str) -> tuple[str, str]:
 async def fire(persona_slug: str, recurrence_slug: str) -> int:
     from services.supabase import get_service_client
     from services.recurrence import walk_workspace_recurrences
-    from services.invocation_dispatcher import dispatch
+    from services.wake_sources.manual_fire import fire as wake_manual_fire
 
     user_id, email = _load_persona(persona_slug)
     print(f"\n--- Manual fire: persona={persona_slug} ({email}) slug={recurrence_slug} ---\n")
@@ -51,9 +52,9 @@ async def fire(persona_slug: str, recurrence_slug: str) -> int:
         return 1
 
     print(f"Found: slug={target.slug} mode={target.mode} paused={target.paused}")
-    print(f"Firing dispatch(trigger='reactive', context=None)...\n")
+    print(f"Submitting wake proposal (source=manual_fire)...\n")
 
-    result = await dispatch(client, user_id, target, trigger="reactive", context=None)
+    result = await wake_manual_fire(client, user_id, target, context=None)
 
     print("\n--- Result ---")
     print(json.dumps(result, indent=2, default=str))

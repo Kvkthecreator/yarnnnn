@@ -6,6 +6,150 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.20.5] - feat(adr-296 v2 checkpoint 2): singular invocation gateway + funnel + substrate-event hooks + ManageHook primitive + bundle migrations
+
+### Decision
+
+ADR-296 v2 Checkpoint 2 lands the architectural shape the thesis committed:
+the singular invocation gateway (`services/wake.py::submit_wake_proposal`),
+the funnel module (`services/wake_evaluation.py`), the five wake_sources
+package modules, the `ManageHook` primitive, and the bundle migrations
+that collapse FireInvocation chain patterns into either inline ProposeAction
+(alpha-trader signal-evaluation) or substrate-event hooks (alpha-author
+pre-ship-audit). All 8 dispatch() callers + 3 invoke_reviewer() call sites
+outside the gateway migrate through the source-side modules.
+
+This is THE atomic kernel landing of ADR-296 v2. Canon rewrite (FOUNDATIONS,
+GLOSSARY, SERVICE-MODEL, primitives-matrix, invocation-and-narrative, ADR
+status banners) ships as a follow-on commit — architectural shape first,
+vocabulary cleanup second.
+
+### Changed
+
+**`api/services/wake.py`** (renamed from `services/invocation_dispatcher.py`
+via `git mv`) — rewritten around `submit_wake_proposal(source, payload)`
+as the singular public API. Recurrence-fire body extracts to private
+`_invoke_recurrence_wake()`. New `_invoke_substrate_event_wake()` body for
+hook-fired wakes. New `stream_addressed_wake()` async generator for the
+SSE-streaming addressed path.
+
+**`api/services/wake_evaluation.py`** (NEW) — Tier 1 deterministic
+decision logic + Tier 2 cheap Haiku gate. `evaluate(client, user_id,
+source, payload, budget)` is the singular evaluation entry; returns
+FunnelDecision tuple. `BudgetSignals` dataclass carries substrate-aware
+kernel pre-conditions. Tier 2 prompt template + Haiku call wired to
+`reviewer-tier-2-idle-tick` caller for cost telemetry. Fails open to
+escalate on any exception (safer than silent suppression).
+
+**`api/services/wake_sources/` package (NEW)** — 5 modules. `cron_tick.py`
+exposes `dispatch_recurrence(client, user_id, recurrence)` for the
+scheduler. `addressed.py` exposes `stream(...)` for feed.py SSE.
+`proposal_arrival.py` exposes `on_created(...)` for the propose_action
+primitive. `substrate_event.py` exposes `walk_hooks(client, user_id,
+since=)` for the scheduler tick + `parse_hooks`/`read_hooks` helpers +
+revision-walking matcher with frontmatter transition guard. `manual_fire.py`
+exposes `fire(...)` for FireInvocation in chat.
+
+**`api/services/primitives/manage_hook.py`** (NEW) — ManageHook primitive
+mirroring Schedule's shape. Five actions (create/update/pause/resume/archive).
+Registered in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES + REVIEWER_PRIMITIVES
+(Reviewer hook authoring is part of its standing-intent authority per D3).
+HANDLERS["ManageHook"] = handle_manage_hook. Operates on `/workspace/_hooks.yaml`.
+
+**Caller migrations (Phase 2)** — 11 sites:
+  - `jobs/unified_scheduler.py` — calls `wake_sources.cron_tick.dispatch_recurrence`;
+    new substrate-event walker step `wake_sources.substrate_event.walk_hooks`
+    per active user every scheduler tick.
+  - `services/scheduling.py` — docstring updated to name the wake gateway.
+  - `services/primitives/fire_invocation.py` — handler routes through
+    `wake_sources.manual_fire.fire`.
+  - `services/primitives/propose_action.py` — proposal INSERT handler routes
+    through `wake_sources.proposal_arrival.on_created`.
+  - `services/operator_proxy/scenarios.py` — `_manual_fire` routes through
+    `wake_sources.manual_fire.fire`.
+  - `routes/recurrences.py` — operator manual-fire endpoint routes through
+    `wake_sources.manual_fire.fire`.
+  - `routes/admin.py` — admin debug trigger routes through manual_fire.
+  - `routes/agents.py` — operator-clicked agent runs route through manual_fire.
+  - `routes/feed.py` — `_dispatch_reviewer_turn` consumes
+    `wake_sources.addressed.stream()` as async generator; maps typed events
+    (progress / agent_narration / reviewer_response / done / error) to SSE
+    frames. Previous 200+ LOC inline body shrinks to ~80 LOC. The wake
+    source handles envelope assembly + Reviewer invocation internally.
+  - `scripts/alpha_ops/manual_fire.py` — test harness routes through manual_fire.
+
+**Bundle migrations (Phase 3)**:
+  - `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml`:
+    `trade-proposal` recurrence DELETED. `signal-evaluation` prompt
+    rewritten to inline ProposeAction(...) when conditions match —
+    one judgment cycle, no self-fire chain. Both entry-signal and
+    exit-trigger emission paths consolidated in signal-evaluation's
+    prompt with regime-scalar gate applied inline.
+  - `docs/programs/alpha-trader/reference-workspace/review/principles.md`:
+    "Commission substrate via FireInvocation" + "Directive: fire the
+    track-positions mechanical recurrence via FireInvocation" clauses
+    rewritten to teach cadence + standing-intent authoring per D3.
+  - `docs/programs/alpha-trader/reference-workspace/_hooks.yaml` (NEW):
+    `hooks: []` — operator/Reviewer authors substrate-event interests
+    as they emerge.
+  - `docs/programs/alpha-author/reference-workspace/_recurrences.yaml`:
+    `pre-ship-audit` recurrence DELETED.
+  - `docs/programs/alpha-author/reference-workspace/_hooks.yaml` (NEW):
+    pre-ship-audit hook entry — `event: substrate_change`, `path_match:
+    /workspace/context/authored/*/profile.md`, `field_change: {status:
+    ready_for_review}`. Existing pre-ship-audit prompt preserved as the
+    hook's prompt body.
+
+### Added
+
+- `MANAGE_HOOK_TOOL` in CHAT_PRIMITIVES (now 27 tools) + HEADLESS_PRIMITIVES
+  (now 23 static + dynamic platform_*) + REVIEWER_PRIMITIVES (now 21 tools).
+- `services.wake.WakeSource` + `services.wake.FunnelDecision` Literal types
+  (also re-exported by wake_evaluation for Singular Implementation).
+
+### Removed
+
+- `api/services/invocation_dispatcher.py` — renamed via `git mv` to
+  `api/services/wake.py`. The old name is gone (Singular Implementation).
+- `dispatch()` function signature — replaced by `submit_wake_proposal()`
+  with explicit `source` + `payload` parameters.
+
+### Expected behavior
+
+- **Reviewer** is invoked exclusively through `wake.submit_wake_proposal`
+  or `wake.stream_addressed_wake`. Every wake stamps `wake_source` +
+  `funnel_decision` on `execution_events`.
+- **Cron-tick wakes** flow scheduler → `cron_tick.dispatch_recurrence` →
+  `submit_wake_proposal(source="cron_tick")` → funnel → Reviewer (escalate)
+  or mechanical primitive (mechanical) or kernel-gate short-circuit (skip).
+- **Addressed wakes** flow feed.py route → `addressed.stream` →
+  `stream_addressed_wake` → Reviewer with progress callback; route consumes
+  the typed event stream and maps to SSE.
+- **Proposal-arrival wakes** flow proposal INSERT → `proposal_arrival.on_created`
+  → `submit_wake_proposal(source="proposal_arrival")` → existing
+  `review_proposal_dispatch.on_proposal_created` body (preserved).
+- **Substrate-event wakes** flow scheduler tick → `substrate_event.walk_hooks`
+  → match revisions against `_hooks.yaml` → `submit_wake_proposal(
+  source="substrate_event")` → Reviewer with hook prompt as envelope.
+  Transition guard prevents re-firing on preserving writes.
+- **Manual-fire wakes** flow chat FireInvocation → `manual_fire.fire` →
+  `submit_wake_proposal(source="manual_fire")` → Reviewer.
+- **Alpha-trader signal-evaluation** emits ProposeAction inline; no more
+  FireInvocation(slug="trade-proposal") chain.
+- **Alpha-author drafts** marked ready_for_review trigger pre-ship-audit
+  via substrate-event hook within ~5 min (next scheduler tick).
+
+### Impact
+
+The Reviewer's prompt-layer guidance + the bundle prompts no longer
+direct it to FireInvocation upstream recurrences. The cron-tick wake
+source owns time-driven cadence; the substrate-event wake source owns
+event-driven hooks; the Reviewer owns cadence preference + standing
+intent + substrate-event hook authoring (via ManageHook). The autonomy
+loop closes through substrate transitions rather than self-fire chains.
+
+---
+
 ## [2026.05.20.4] - feat(adr-296 v2 checkpoint 1): FireInvocation re-scope — Reviewer does not self-invoke; cadence + standing intent are its authority
 
 ### Decision

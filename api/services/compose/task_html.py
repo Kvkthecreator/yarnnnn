@@ -11,7 +11,7 @@ Callers:
   - api/routes/recurrences.py: GET /recurrences/{slug}/outputs/{date}/render
   - api/services/delivery.py: email body composition
   - api/services/primitives/repurpose.py: format conversion
-  - api/services/invocation_dispatcher.py: post-fire auto-compose
+  - api/services/wake.py: post-fire auto-compose (per ADR-296 v2 D1)
 
 The render service is responsible for content-addressed caching (ADR-213),
 so repeated calls with unchanged substrate cost ~10ms (storage fetch) vs.

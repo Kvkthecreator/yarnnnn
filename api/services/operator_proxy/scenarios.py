@@ -270,17 +270,17 @@ class ScenarioRunner:
 # ---------------------------------------------------------------------------
 
 async def _manual_fire(user_id: str, slug: str) -> None:
-    """Fire a recurrence by slug via the existing dispatcher path."""
+    """Fire a recurrence by slug via the manual-fire wake source (ADR-296 v2)."""
     from services.supabase import get_service_client
     from services.recurrence import walk_workspace_recurrences
-    from services.invocation_dispatcher import dispatch
+    from services.wake_sources.manual_fire import fire as wake_manual_fire
 
     client = get_service_client()
     recurrences = walk_workspace_recurrences(client, user_id)
     target = next((r for r in recurrences if r.slug == slug), None)
     if target is None:
         raise ScenarioError(f"Recurrence slug={slug!r} not found in scenario user's _recurrences.yaml")
-    await dispatch(client, user_id, target, trigger="reactive", context=None)
+    await wake_manual_fire(client, user_id, target, context=None)
 
 
 async def _emit_proposal_from_template(user_id: str, template_name: str) -> dict:

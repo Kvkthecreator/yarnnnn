@@ -444,7 +444,10 @@ async def trigger_recurrence_run(slug: str, auth: UserClient) -> TaskRunTriggere
         )
 
     try:
-        from services.invocation_dispatcher import dispatch
+        # ADR-296 v2 D1: operator manual fire from the recurrence-detail
+        # surface routes through the manual_fire wake source. The funnel
+        # auto-escalates (operator explicit assertion is a wake-warrant).
+        from services.wake_sources.manual_fire import fire as wake_manual_fire
         from services.supabase import get_service_client
         svc_client = get_service_client()
         recurrences = walk_workspace_recurrences(svc_client, auth.user_id)
@@ -454,16 +457,7 @@ async def trigger_recurrence_run(slug: str, auth: UserClient) -> TaskRunTriggere
                 status_code=404,
                 detail=f"No recurrence entry for slug '{slug}' in _recurrences.yaml",
             )
-        # Manual fire is a substrate-event-shaped invocation, NOT a chat-
-        # addressed turn. The dispatcher builds a `recurrence-fire` context
-        # ({recurrence_prompt, recurrence_slug, options}) which `invoke_reviewer`'s
-        # `_validate_context_shape` (reviewer_agent.py:546-616) accepts only
-        # under `trigger="reactive"`. Passing `trigger="addressed"` here was
-        # a latent bug — the Reviewer rejected the context shape silently
-        # (96ms return, 0 tool calls, "no verdict reasoning supplied"
-        # placeholder in decisions.md). Surfaced by iter-1 E2E exercise
-        # 2026-05-13 after the trilogy fix tightened context-shape validation.
-        result = await dispatch(svc_client, auth.user_id, rec, trigger="reactive")
+        result = await wake_manual_fire(svc_client, auth.user_id, rec)
         logger.info(
             f"[RECURRENCE] inline dispatch for {slug}: "
             f"{result.get('success', '?')}"

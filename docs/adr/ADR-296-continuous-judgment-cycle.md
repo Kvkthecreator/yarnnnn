@@ -1,9 +1,17 @@
 # ADR-296: Wake Is Event-Driven and Evaluation-Gated — The Reviewer Fires When the Moment Warrants Judgment
 
-> **Status**: Proposed (v2 — pure thesis, distilled from v1 + audit + alignment discourse 2026-05-20)
+> **Status**: Implemented (v2 — kernel landing 2026-05-20)
 > **Date**: 2026-05-20
 > **Authors**: KVK, Claude
-> **Scope**: System canon — the architectural shape of how the Reviewer is invoked, by whom, against what. Pure thesis. Implementation, migration, and ADR-relationship sections deferred to post-ratification work.
+> **Scope**: System canon — the architectural shape of how the Reviewer is invoked, by whom, against what.
+>
+> **Implementation status (2026-05-20)**: kernel + bundle migrations + telemetry substrate Implemented across 4 commits:
+>   - Session A (`4ea87f2`) — planning artifacts (thesis + canon-runtime audit + implementation scope)
+>   - Session B (`314d378`) — execution_events.wake_source + funnel_decision columns (migration 177) + telemetry signature extension
+>   - Checkpoint 1 (`28d48fe`) — FireInvocation removed from REVIEWER_PRIMITIVES + Reviewer prompt teaching deleted + chat-surfacing narrowed + directives fire_invocation action deleted + telemetry population at every Reviewer-wake call site
+>   - Checkpoint 2 (this commit) — `services/wake.py` singular invocation gateway + `services/wake_evaluation.py` funnel module + `services/wake_sources/` package (5 modules) + `services/primitives/manage_hook.py` + alpha-trader trade-proposal collapse into signal-evaluation inline ProposeAction + alpha-author pre-ship-audit → `_hooks.yaml` substrate-event hook + bundle `_hooks.yaml` scaffolds + 8 dispatch() callers + 3 invoke_reviewer() callers migrated through singular gateway + scheduler substrate-event walker
+>
+> **Canon rewrite deferred to a follow-on commit**: FOUNDATIONS Axiom 2 + Axiom 4 amendments, GLOSSARY new entries (Wake source / Wake proposal / Wake evaluation funnel / Hook), `invocation-and-narrative.md` rewrite, `primitives-matrix.md` updates, SERVICE-MODEL Execution Flow rewrite, status banners on ADR-256/260/261/263/274/275/276/253. These are doc edits that don't change behavior and ship as a separate atomic canon commit. The architectural shape is committed; the vocabulary cleanup follows.
 
 > **Note on this ADR's form.** This is a **pure thesis ADR**. It states the target shape of wake, recurrences, hooks, and Reviewer invocation derived from first principles + the human-autonomy analogy + the runtime audit at [`adr296-canon-and-runtime-audit.md`](../architecture/adr296-canon-and-runtime-audit.md). It deliberately does **not** declare what existing canon (FOUNDATIONS axioms, prior ADRs, current runtime) it supersedes, amends, preserves, or contradicts. Those declarations require a separate cross-canon-edit work product after thesis ratification. Until then, the thesis stands alone for reasoning against.
 

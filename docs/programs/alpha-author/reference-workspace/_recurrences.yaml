@@ -27,59 +27,17 @@
 recurrences:
 
   # ── REACTIVE — pre-ship audit ───────────────────────────────────────────
-  # Fires when operator marks a draft `ready_for_review` via the chat
-  # surface or workspace edit. The Reviewer audits the draft against
-  # voice fingerprint + editorial principles + corpus continuity before
-  # operator-driven (Phase 0) or autonomous (Phase 1+ per _autonomy.yaml
-  # ceiling_categories match) publication.
-  - slug: pre-ship-audit
-    schedule: null  # reactive — fires on draft state change via FireInvocation
-    mode: judgment
-    required_capabilities: []  # audit reads workspace substrate; no external capability required
-    prompt: |
-      A draft was just marked `ready_for_review`. Read the draft at
-      /workspace/context/authored/{piece-slug}/content.md, the operator's
-      voice fingerprint at /workspace/context/authored/_voice.md, the
-      operator's editorial principles at /workspace/context/authored/
-      _editorial.md, and the recent corpus (most recently published
-      pieces in /workspace/context/authored/ excluding the draft itself).
-
-      Audit the draft against:
-        1. Voice fingerprint (per /workspace/specs/voice-audit.md schema)
-        2. Continuity with prior corpus (per /workspace/specs/continuity-
-           audit.md schema)
-        3. Anti-AI-slop signature (subset of voice-audit — list-of-three
-           openers, "It's worth noting", hedge stacks, adverb intensifiers,
-           "in conclusion" markers)
-        4. Editorial principle match (per _editorial.md "what gets shipped"
-           criteria)
-        5. Cadence context (is this on declared cadence, ahead, behind —
-           read _preferences.yaml)
-
-      Decide and emit one of:
-        - APPROVE — all checks pass; piece may ship. If _autonomy.yaml
-          delegation is `bounded` AND piece_type matches ceiling_categories,
-          the approve verdict binds publication via ExecuteProposal.
-          Otherwise approve surfaces to operator Queue for click.
-        - DEFER — some checks pass, some need operator iteration. Write
-          specific defect to /workspace/review/judgment_log.md (e.g., "para 3
-          sentence 2: hedge stack 'I think it's worth considering'") and
-          flag draft as deferred. Operator iterates and resubmits.
-        - REJECT — hard rejection rule fires (per /workspace/review/
-          principles.md). Write structured reasoning to judgment_log.md.
-
-      Silent stand-down without writing audit reasoning is forbidden.
-
-      AND update /workspace/review/standing_intent.md with what you'll
-      be watching for in the next pre-ship cycle per ADR-284 + principles.md
-      "Default posture: audit, then act". Cite specific anti-patterns
-      surfaced in this audit (e.g., "Watching for hedge-stack pattern
-      in piece-foo's next revision — current draft had 2 hits in para 3
-      and 5") or, on a clean approve, what you'll be checking against
-      next (e.g., "Watching for voice-drift on long-form essays — last
-      3 were clean but cadence is accelerating"). Approving without an
-      updated standing intent is not yet a closed judgment cycle.
-    display_name: "Pre-Ship Audit"
+  # ADR-296 v2 D2: pre-ship-audit recurrence DELETED. Migrated to
+  # the substrate-event wake source — see /workspace/_hooks.yaml in
+  # this bundle for the hook declaration. When a draft's profile.md
+  # frontmatter `status` transitions to `ready_for_review`, the
+  # substrate-event wake source fires a wake proposal with the
+  # pre-ship-audit prompt as envelope.
+  #
+  # The reactive `schedule: null` + FireInvocation chain pattern dissolved
+  # when the Reviewer lost self-invocation authority per ADR-296 v2 D3.
+  # Substrate-event hooks are the sibling declarative shape (operator-
+  # authored event-driven wake configuration).
 
   # ── JUDGMENT — corpus-coherence check ────────────────────────────────────
   # Periodic Reviewer pass to flag voice drift or continuity breaks

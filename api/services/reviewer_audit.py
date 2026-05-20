@@ -209,8 +209,9 @@ async def render_lineage_entry_if_material(
 ) -> bool:
     """Evaluate the §5.D3 material-outcome gate; render an entry iff material.
 
-    Called by `services/invocation_dispatcher.py` after every recurrence-fire
-    Reviewer wake. Replaces the deleted `append_recurrence_fire` blanket-write.
+    Called by `services/wake.py` (per ADR-296 v2 D1) after every Reviewer
+    wake that escalated through the funnel. Replaces the deleted
+    `append_recurrence_fire` blanket-write.
 
     Returns True iff an entry was rendered (i.e. the wake was material).
 
