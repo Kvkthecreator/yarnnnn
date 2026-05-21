@@ -70,6 +70,26 @@ Developer-hat discipline:
 - A finding here recommends system-side changes; it does not make them. The *fix* lands in Hat A territory.
 - Don't introduce concepts that only make sense to developers into the system's vocabulary. If a recommendation requires a new primitive / axiom / ADR, that primitive/axiom/ADR lives in Hat A docs after ratification.
 
+### Crossing hats inside one session
+
+Two hats, two **commit shapes**, NOT necessarily two sessions. The discipline is preserved by commit boundaries, not session boundaries — same principle `docs/observations/README.md` §"The Hat We Wear" already names: *"the 'hat' is operational, not ontological."* When the same session does both — Hat-B surfaces a finding, Hat-A lands the fix — the discipline holds as a **three-commit shape**:
+
+1. **Commit 1 (Hat B)**: author + commit the observation folder (`PLAYBOOK.md` + `findings.md`) with the recommendation written as if the fix is for someone else's session. No code changes.
+2. **Commit 2 (Hat A)**: land the system-canon fix in a separate commit. Reference the observation folder by path in the commit message; system vocabulary throughout; no new observation framing.
+3. **Commit 3 (Hat B coda)**: append a resolution addendum to `findings.md` (or open a new follow-up observation folder if the resolution surfaces new substrate evidence worth its own capture). Commit separately.
+
+Three commits, three hat-labels visible in `git log`, zero session-boundary required. The observation folder is never mutated to include canon edits; the canon-edit commit is never mutated to include new observation framing. That preserves what the session-boundary rule was protecting (don't blur the discovery from the response) without throwing away substrate continuity (same session knows the bug + the codebase + the validation path).
+
+When NOT to cross hats inside one session:
+- The fix is non-trivial (>~50 LOC, touches >1 module, or needs ADR amendment) — those benefit from operator sign-off between the finding and the fix.
+- The finding's recommendation surfaces multiple possible fixes that need design discussion — Hat-B captures the finding, operator chooses the direction, Hat-A executes in a fresh session with that direction as input.
+- The observation has not yet been operator-acknowledged — operator may want to redirect or decline the recommendation before it becomes a fix.
+
+When TO cross hats inside one session:
+- The fix is small + obvious + has an in-canon precedent the recommendation can cite (the substrate-event walker fix is the canonical example: ~5 lines, 2 method swaps with named existing precedent).
+- The validation requires the same context that produced the observation (re-loading bug context in a fresh session wastes 5-10 min for a 30-line change).
+- The operator is in-loop and authorizes the cross.
+
 ### Why the hats matter for autonomy
 
 The Agent-OS aspiration is full autonomy: the Reviewer can take capital actions AND meta-aware-edit every operator-canon file (principles, mandate, risk envelope, ground-truth) on its own initiative, under in-system discipline + audit trail + revertibility. The current ADR-293 lock-set on three governance files (`AUTONOMY.md` + `_autonomy.yaml` + `_token_budget.yaml`) is **current dev-trust state**, not permanent architecture. As we harden the Reviewer's self-amendment discipline through Hat-A edits (validated *via* Hat-B observation runs), the lock-set should shrink toward zero.
