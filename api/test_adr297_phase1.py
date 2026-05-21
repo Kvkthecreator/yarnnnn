@@ -1,8 +1,8 @@
-"""ADR-297 Phase 1 + D11 — atomic surfaces registry regression gate.
+"""ADR-297 Phase 1 + D11 + D12 — atomic surfaces registry regression gate.
 
 Asserts the compositor extension emits the `surfaces[]` field with:
-- All kernel surfaces always present (13 content surfaces + 4 chrome
-  surfaces from D11 = 17 entries; every slug from
+- All kernel surfaces always present (13 content surfaces + 3 chrome
+  surfaces after D12 = 16 entries; every slug from
   kernel_surfaces.KERNEL_SURFACES)
 - Each kernel surface carries tier="kernel"
 - Each entry has the required fields (slug, title, archetype, tier,
@@ -17,13 +17,20 @@ Asserts the compositor extension emits the `surfaces[]` field with:
 
 ADR-297 D11 additions (Universal Surface Application):
 - ARCHETYPES contains `input`, `navigator`, `chrome`
-- Four chrome surfaces registered: `top-bar` (chrome/top),
-  `dock` (navigator/bottom-floating), `launcher`
-  (navigator/floating-overlay), `chat-composer` (input/bottom-fixed)
 - Every chrome-style surface (i.e., one with default_region set)
   declares both default_region and default_visibility
 - Chrome surfaces are not navigable (route == "")
 - Chrome surfaces are not pinnable (default_pinned == False)
+
+ADR-297 D12 amendments (top-center merged dock-bar):
+- Three chrome surfaces registered (D11 had four; `dock` deleted):
+    `top-bar` (chrome/top) — merged dock-bar body
+    `launcher` (navigator/floating-overlay/summon) — overlay only
+    `chat-composer` (input/bottom-fixed)
+- `dock` slug is GONE from the registry. Its responsibility absorbed
+  into the top-bar body.
+- The `bottom-floating` LayoutRegion survives in the type union but
+  no kernel surface targets it.
 
 Run: .venv/bin/python api/test_adr297_phase1.py
 """
@@ -83,9 +90,9 @@ def test_kernel_surfaces_module() -> None:
     print("\n[1] kernel_surfaces module hygiene")
 
     _assert(
-        len(KERNEL_SURFACES) >= 17,
-        f"At least 17 kernel surfaces declared "
-        f"(13 content + 4 D11 chrome) (found {len(KERNEL_SURFACES)})",
+        len(KERNEL_SURFACES) >= 16,
+        f"At least 16 kernel surfaces declared "
+        f"(13 content + 3 D12 chrome) (found {len(KERNEL_SURFACES)})",
     )
 
     slugs = [s["slug"] for s in KERNEL_SURFACES]
@@ -109,12 +116,18 @@ def test_kernel_surfaces_module() -> None:
         "program",
         "queue",
         "activity",
-        # ADR-297 D11 — chrome surfaces
+        # ADR-297 D11 chrome surfaces (D12 collapsed `dock` into top-bar)
         "top-bar",
-        "dock",
         "launcher",
         "chat-composer",
     }
+
+    # ADR-297 D12: `dock` slug DELETED from registry. Singular
+    # Implementation regression guard — fail if it sneaks back in.
+    _assert(
+        "dock" not in slugs,
+        "D12: `dock` kernel surface absent (responsibilities absorbed into top-bar)",
+    )
     actual = set(slugs)
     missing = expected_slugs - actual
     _assert(
@@ -376,12 +389,13 @@ def test_d11_archetype_catalog() -> None:
 
 
 def test_d11_chrome_surfaces() -> None:
-    print("\n[5b-chrome] ADR-297 D11 chrome-surface contract")
+    print("\n[5b-chrome] ADR-297 D11+D12 chrome-surface contract")
 
-    # The four chrome surfaces and their declared (region, visibility)
+    # The three chrome surfaces (post-D12) and their declared
+    # (archetype, region, visibility). D12 deleted `dock` from this
+    # set — top-bar's body now renders pinned-surface icons inline.
     expected_chrome = {
         "top-bar": ("chrome", "top", "always"),
-        "dock": ("navigator", "bottom-floating", "always"),
         "launcher": ("navigator", "floating-overlay", "summon"),
         "chat-composer": ("input", "bottom-fixed", "always"),
     }

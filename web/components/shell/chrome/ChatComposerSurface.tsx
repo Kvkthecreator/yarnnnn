@@ -43,7 +43,6 @@ import { useFileAttachments } from '@/hooks/useFileAttachments';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { useShellChrome } from '../ShellChromeContext';
-import { cn } from '@/lib/utils';
 
 const PLACEHOLDER = 'Ask YARNNN — type, drop a file, or paste a link...';
 
@@ -152,15 +151,16 @@ export function ChatComposerSurface() {
 
   return (
     // Outer wrapper sits at the bottom of the shell's flex column.
-    // `shrink-0` keeps it out of the flex-1 main region's flow. The
-    // inner `border-t` carries the composer visual; the trailing
-    // `h-16` spacer reserves room below for the Dock (Dock floats
-    // at `fixed inset-x-0 bottom-3 z-40`, ~52px tall + 12px gap).
-    <div className="shrink-0 bg-background">
-      <div className={cn(
-        'border-t border-border bg-background px-3 pt-2 pb-2 sm:px-4'
-      )}>
-        <div className="mx-auto max-w-3xl">
+    // `shrink-0` keeps it out of the flex-1 main region's flow. After
+    // ADR-297 D12 the bottom-floating Dock was deleted, so the
+    // composer gets the full bottom region — no Dock-breathing-room
+    // spacer is needed. iOS safe-area inset honored on the outer
+    // padding-bottom.
+    <div
+      className="shrink-0 border-t border-border bg-background px-3 pt-2 pb-2 sm:px-4"
+      style={{ paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom))' }}
+    >
+      <div className="mx-auto max-w-3xl">
         {commandPickerOpen && (
           <CommandPicker
             query={commandQuery ?? ''}
@@ -290,17 +290,7 @@ export function ChatComposerSurface() {
             </div>
           </div>
         </form>
-        </div>
       </div>
-      {/* Dock breathing room — Dock floats at `fixed bottom-3` (~64px
-          tall including gap). Without this spacer the Dock overlays
-          the composer's send/attach controls. The spacer also carries
-          the iOS safe-area inset. */}
-      <div
-        className="h-16"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-        aria-hidden
-      />
     </div>
   );
 }

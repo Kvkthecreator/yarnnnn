@@ -277,38 +277,36 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     # =========================================================================
     # ADR-297 D11 — Chrome surfaces (Universal Surface Application)
+    # ADR-297 D12 — Top-center merged dock-bar (2026-05-21)
     # =========================================================================
     #
-    # These four entries dissolve the chrome-as-special-case in
+    # These chrome entries dissolve the chrome-as-special-case in
     # AuthenticatedLayout.tsx. The compositor mounts them into named
     # layout regions via `default_region`. They are NOT navigable from
     # the launcher (`route` is "" — the launcher consumer filters out
     # entries with no route). They are NOT pinnable (`default_pinned` is
-    # always False — the dock consumer filters out chrome-archetype
-    # entries). They participate in the kernel surface registry purely so
-    # the compositor has a single source of truth for what mounts where.
+    # always False). They participate in the kernel surface registry
+    # purely so the compositor has a single source of truth for what
+    # mounts where.
+    #
+    # D12 (2026-05-21) collapsed the prior 4-entry chrome set (top-bar,
+    # dock, launcher, chat-composer) to 3 entries. The `dock` kernel
+    # surface is DELETED — its responsibility (rendering pinned-surface
+    # icons + dispatching `setSurface` on click) absorbs into the
+    # top-bar body. The launcher's overlay still mounts in
+    # `floating-overlay`; only the *trigger button* moves into the
+    # top-bar body. See ADR-297 §D12 for rationale (Singular
+    # Implementation + composer real estate + visual hierarchy).
     {
         "slug": "top-bar",
         "title": "Top Bar",
         "archetype": "chrome",
-        "substrate_paths": [],
+        "substrate_paths": [],  # reads useSurfacePreferences().pinned for the merged dock-bar body
         "icon_key": "layout-top",
         "default_pinned": False,
         "route": "",  # not navigable; structural framing only
-        "summary": "Top chrome region — brand mark, launcher trigger, user menu.",
+        "summary": "Top-center merged dock-bar — brand · launcher trigger · pinned surfaces · user menu (D12).",
         "default_region": "top",
-        "default_visibility": "always",
-    },
-    {
-        "slug": "dock",
-        "title": "Dock",
-        "archetype": "navigator",
-        "substrate_paths": [],  # reads useSurfacePreferences().pinned (localStorage)
-        "icon_key": "layout-dock",
-        "default_pinned": False,
-        "route": "",  # not navigable; surface-dispatch affordance
-        "summary": "Bottom-floating dock — operator-pinned surfaces; clicking dispatches via DeskContext.",
-        "default_region": "bottom-floating",
         "default_visibility": "always",
     },
     {
@@ -319,7 +317,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "layout-grid",
         "default_pinned": False,
         "route": "",  # not navigable; summon-only overlay
-        "summary": "Full surface index overlay — type-to-filter, per-row pin toggle, tier grouping.",
+        "summary": "Full surface index overlay — type-to-filter, per-row pin toggle, tier grouping. Trigger lives in top-bar (D12).",
         "default_region": "floating-overlay",
         "default_visibility": "summon",
     },
