@@ -6,6 +6,133 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.21.1] - feat(adr-275 D9-D11): bundle-fork honors _preferences.yaml at activation; persona-frame contract simplifies to change-reconciliation
+
+### Decision
+
+ADR-275 D9–D11 amendment closes a contract-shape mismatch surfaced by the
+2026-05-20 substrate contract audit (`docs/observations/2026-05-20-235100-
+substrate-contract-audit/findings.md`):
+
+  `_preferences.yaml` is operator-declaration-shape (operator names what
+  they want), but ADR-275 D5 specified its honoring mechanism as
+  Reviewer-judgment-shape (Reviewer reconciles every wake). Every other
+  operator-declaration substrate file (MANDATE, IDENTITY, BRAND, _risk,
+  _operator_profile, _universe) has its content honored at activation
+  deterministically; _preferences.yaml alone was deferred to runtime
+  Reviewer judgment. The kvk-vs-alpha-trader-2 cycle-1 asymmetry
+  (alpha-trader-2's Reviewer authored 3 Schedule calls; kvk's authored
+  none on identical _preferences.yaml) was the predicted consequence.
+
+The audit walked seven options across the spectrum. Option 4 (reframe:
+bundle-fork honors first-time _preferences.yaml; Reviewer reconciles
+subsequent operator preference changes) survived as the structurally
+correct move — restores shape symmetry with every other operator-
+declaration file.
+
+### Changed
+
+**`docs/adr/ADR-275-introspection-cadence-reviewer-authored.md`** —
+amended with D9–D11 + amendment banner + cross-ref to the audit
+observation. D9 specifies bundle-fork-from-preferences seeding at
+activation; D10 simplifies Reviewer's runtime contract from "every wake
+author Schedule for declared preferences" to "every wake reconcile
+preference CHANGES (cadence edits, active flips) via Schedule(update|
+pause|archive)"; D11 preserves D1–D8 commitments around introspection
+cadence (still Reviewer-authored from first principles).
+
+**`api/services/programs.py`** — extends `fork_reference_workspace` with:
+- `_seed_recurrences_from_preferences()` — async helper that reads
+  post-fork `_preferences.yaml`, walks `active: true` deliverable
+  preferences, seeds new `_recurrences.yaml` entries with
+  `authored_by="system:bundle-fork-from-preferences"`. Idempotent —
+  skips slugs already present regardless of authorship; preserves
+  operator-edited and Reviewer-authored cadences for the same slug.
+- `_format_recurrence_entry_yaml()` — pure-Python helper that formats
+  a recurrence entry matching the hand-authored bundle style.
+- Wired into `fork_reference_workspace` BEFORE
+  `materialize_scheduling_index` so seeded entries land in the `tasks`
+  index in the same fork transaction.
+- Return dict gains `preferences_seeded: list[str]` +
+  `preferences_skipped_already_present: list[str]` keys.
+
+**`api/agents/reviewer_agent.py`** — `_PERSONA_FRAME` cadence-authoring
+paragraph rewritten per D10. Old contract ("for each active: true
+preference not yet scheduled, author Schedule(create)") replaced with
+explicit "initial honoring was bundle-fork; your runtime contract is
+CHANGE RECONCILIATION (Schedule(update|pause|archive) when operator
+edits a cadence or flips active)."
+
+**`api/services/workspace_paths.py`** — `DEFAULT_REVIEWER_WRITE_LOCKS`
+extended with `SHARED_PREFERENCES_PATH`. Closes pre-existing drift
+between ADR-275 D6 (which specified the lock) and prior code state.
+The Reviewer reads but does not write `_preferences.yaml`; operator
+authority preserved.
+
+**`api/test_adr275_introspection_cadence.py`** — extends regression gate
+with 6 new D9–D11 assertions (helper exists, attribution actor valid,
+fork return shape, seed-before-materialize order, persona-frame
+markers, ADR doc carries amendment). Also corrects pre-existing
+PRESERVED_SLUGS drift (removes `trade-proposal` per ADR-296 v2
+Checkpoint 2 deletion; adds `mirror-signal-state` per ADR-281). Net:
+22/26 → 24/26 passing. Two remaining failures are pre-existing
+ADR-276 feed.py drift (out of scope for this commit; recorded as
+separate finding in the contract-shape resolution observation).
+
+### Attribution
+
+New ADR-209 actor sub-type: `system:bundle-fork-from-preferences`.
+Distinct from `system:bundle-fork` (which seeds the bundle's own
+recurrences) and `reviewer:...` (which authors Reviewer-judgment
+cadence). Passes `is_valid_author()` taxonomy (starts with `system:`).
+
+### Expected behavior
+
+**Before this change**: on first natural Reviewer wake post-activation,
+the Reviewer reads `_preferences.yaml` + `_recurrences.yaml`, judges
+whether to author Schedule(create) for each active preference whose
+slug isn't yet scheduled. Result: variable across Reviewers — same
+input produced different output (kvk authored none; alpha-trader-2
+authored three).
+
+**After this change**: at activation time, the bundle-fork helper
+deterministically seeds `_recurrences.yaml` with all `active: true`
+preferences. By the time the first natural Reviewer wake fires, the
+deliverable cadences are already scheduled. The Reviewer's runtime
+contract is change-reconciliation only — observable when operator
+edits a preference, deterministic, low-stakes. Introspection cadence
+(reflection / calibration / housekeeping) remains Reviewer-authored
+from first principles per Derived Principle 18.
+
+The kvk-vs-alpha-trader-2 cycle-1 asymmetry dissolves structurally.
+Every future workspace activation of any program will have its
+declared deliverables scheduled at fork time, regardless of which
+Reviewer wakes first or how its judgment that day inclines.
+
+### Companion canon
+
+- ADR-275 D9–D11 amendment text
+- FOUNDATIONS Derived Principle 18 (standing intent implies
+  Trigger-authoring authority — unchanged; D11 preserves Reviewer's
+  introspection-cadence authority)
+- ADR-209 attribution discipline (new `system:bundle-fork-from-
+  preferences` actor)
+- ADR-292 v3 (CONFIG_PATHS taxonomy unchanged; `_recurrences.yaml`
+  remains a config file; auto-overwrite-with-backup logic unchanged)
+- Substrate contract audit observation (2026-05-20-235100) — the
+  Hat-B finding that motivated this Hat-A amendment
+
+### Why now
+
+The kvk-vs-alpha-trader-2 cycle-1 asymmetry observed at
+2026-05-20T13:46-13:47Z was the second-cycle decision point. The
+operator chose to reason structurally rather than wait for cycle-2
+empirical data. The audit + spectrum-walk identified the contract-
+shape mismatch as the root cause; O4 (bundle-fork-from-preferences)
+as the structurally correct fix. This amendment lands the fix.
+
+---
+
 ## [2026.05.20.6] - feat(adr-292 v3): config-vs-prose taxonomy + CI version-bump gate close Checkpoint 2 propagation drift
 
 ### Decision

@@ -2,7 +2,9 @@
 
 > **⚠ Preserved by [ADR-296 v2](ADR-296-continuous-judgment-cycle.md) (2026-05-20).** ADR-275's commitment that bundles ship capability + maintenance + reactive recurrences only (not judgment cadence) is preserved and **strengthened**. Under ADR-296 v2 D3, the Reviewer's authority is over cadence preference + substrate-event interest + standing intent — the natural extension of ADR-275's "Reviewer authors its own cadence." Reactive `schedule: null` recurrence pattern as the substrate-event vehicle is **superseded** by the sibling `_hooks.yaml` substrate per ADR-296 v2 D2 — the alpha-author `pre-ship-audit` migration from `_recurrences.yaml` to `_hooks.yaml` (Checkpoint 2) is the canonical example. Bundles continue to ship initial cadence as scaffolding; the Reviewer continues to author over them; the audit trail (D5 + D6) is unchanged.
 
-**Status**: **Proposed 2026-05-14** — closes the structural gap ADR-274 named but didn't finish.
+> **⚠ Amended 2026-05-21 (D9–D11 below).** The 2026-05-20 substrate contract audit ([docs/observations/2026-05-20-235100-substrate-contract-audit/](../observations/2026-05-20-235100-substrate-contract-audit/findings.md)) surfaced a contract-shape mismatch: `_preferences.yaml` is operator-declaration-shape (operator names what they want), but ADR-275 D5 specified its honoring mechanism as Reviewer-judgment-shape (Reviewer reconciles every wake). Every other operator-declaration substrate file (MANDATE, IDENTITY, BRAND, `_risk.md`, `_operator_profile.md`, `_universe.yaml`) has its content honored at activation deterministically; `_preferences.yaml` alone was deferred to runtime Reviewer judgment. The kvk-vs-alpha-trader-2 cycle-1 asymmetry (alpha-trader-2's Reviewer authored 3 Schedule calls; kvk's Reviewer authored none on identical `_preferences.yaml`) was the predicted consequence. D9–D11 split deliverable-cadence (now bundle-fork-honored at activation) from introspection-cadence (still Reviewer-authored). ADR-275's original intent — operator authority over deliverable cadence; Reviewer authority over introspection — is preserved with sharper mechanism alignment.
+
+**Status**: **Proposed 2026-05-14** — closes the structural gap ADR-274 named but didn't finish. **Amended 2026-05-21** (D9–D11) — split deliverable-cadence from introspection-cadence honoring mechanism; deliverable cadence becomes bundle-fork-honored.
 
 **Authors**: KVK + Claude (discourse session 2026-05-14, continued from ADR-274)
 
@@ -172,6 +174,85 @@ The system itself ships pure axiom — no infrastructure scaffolds the first Rev
 
 A new program bundle (alpha-commerce, alpha-defi, etc.) ships `_recurrences.yaml` with only substrate-maintenance + reactive + operator-declared-trading-business-heartbeat entries. Judgment cadence for introspection / housekeeping / operator-facing deliverables is **never** pre-scheduled in a bundle. Specs go in `/workspace/specs/`. Operator preferences for deliverable cadence go in `/workspace/context/_shared/_preferences.yaml`.
 
+## 4b. Amendment (2026-05-21) — D9–D11: split deliverable-cadence from introspection-cadence
+
+The 2026-05-20 substrate contract audit walked 18 operator-relevant substrate files across four axes (authorship layer × document purpose × contract strength × prompt-text location). Step B output identified `_preferences.yaml` as the only file whose contract names a specific Reviewer ACTION but enforces that action through verbiage strength alone.
+
+**Compound-axiom in the audit**: a substrate file's contract shape = authorship layer × document purpose. Separation of concerns must hold on both dimensions for prompting effectiveness.
+
+**Single sharp finding**: `_preferences.yaml` is declaration-shape (operator names what they want) but its honoring mechanism is Reviewer-judgment-shape (Reviewer decides each wake whether to act). Every other operator-declaration file has shape symmetry between declaration and honoring. `_preferences.yaml` is the structural outlier.
+
+The audit walked seven options across the spectrum (promote, hard-gate, strengthen text, reframe-bundle-fork-honors, dissolve into MANDATE, dissolve into `_recurrences.yaml`, delete entirely). Five eliminated on first-principles grounds. **Option 4 (reframe: bundle-fork honors first-time `_preferences.yaml` declarations at activation; Reviewer reconciles subsequent operator preference changes)** survived as the structurally correct move because it restores shape symmetry with every other operator-declaration file: each is honored at activation; subsequent changes propagate via existing mechanisms.
+
+D5's original framing — "Every wake, the Reviewer reads `_preferences.yaml` ... authors new cadences ... for active preferences not yet honored" — conflated two distinct contract shapes: (a) initial honoring at activation (deterministic, structural), (b) reconciliation of operator-authored changes (Reviewer-judgment-quality). D5 treated both as Reviewer-judgment-shape, which is the source of the cycle-1 asymmetry. D9–D11 split them.
+
+### D9. Bundle-fork honors deliverable-cadence preferences at activation.
+
+When `_fork_reference_workspace` runs (program activation, or operator-initiated substrate update per ADR-292), it reads the operator's `_preferences.yaml` post-fork (which itself was just forked from the bundle template) and seeds `_recurrences.yaml` accordingly:
+
+- For each `active: true` deliverable preference whose `slug` is NOT yet a recurrence in `/workspace/_recurrences.yaml`, the fork appends a new recurrence entry with `mode: judgment`, `schedule: <preference.cadence>`, and a prompt block built from the spec at `preference.spec`.
+- Attribution: `authored_by="system:bundle-fork-from-preferences"` (new ADR-209 actor sub-type per D9 + ADR-209 attribution taxonomy). Distinct from `system:bundle-fork` (which seeds the bundle's own recurrences) and `reviewer:...` (which authors Reviewer-judgment cadence).
+- Idempotent: if the slug already exists as a recurrence (regardless of who authored it), the fork does NOT clobber. Operator-edited or Reviewer-authored recurrences for the same slug are preserved.
+- The fork iterates declared preferences in order; revision messages name the preference declaration that drove each new entry.
+
+**Why this honors ADR-275's original intent rather than violating it**: ADR-275's commitment is "Reviewer authors its own *introspection* cadence, not bundle-scaffolded judgment cadence." Deliverable cadence is NOT Reviewer introspection — it's operator-declared output cadence. The bundle ships *capability specs* (the spec library); the bundle-fork honors *operator declarations* of which capabilities to schedule at activation. The Reviewer's authority survives for: (a) introspection cadence (reflection, calibration, housekeeping) — first-principled judgment, always Reviewer-authored; (b) preference-change reconciliation — when operator updates `_preferences.yaml` post-activation, the Reviewer reads and authors Schedule(update|archive) per D10.
+
+### D10. Reviewer reconciles operator preference CHANGES, not the initial set.
+
+The persona-frame contract text simplifies from "every wake, read `_preferences.yaml` and author Schedule for declared preferences" to: **"Every wake, compare `_preferences.yaml` against current `_recurrences.yaml`. If a preference's `cadence` was edited or its `active` flag flipped, author `Schedule(action="update"|"pause"|"archive")` to honor the change."**
+
+Initial honoring is structural (bundle-fork); ongoing reconciliation is Reviewer-judgment. The contract matches the action's appropriate enforcement layer.
+
+### D11. Introspection cadence remains Reviewer-authored per first principles.
+
+D1–D8 commitments around introspection cadence (Reviewer's reflection, calibration, housekeeping) are unchanged. The Reviewer authors these from first-principled judgment about outcome accumulation, decision density, market regime, etc. Bundles do NOT ship introspection cadence; operator `_preferences.yaml` does NOT declare introspection cadence. These are Reviewer's structural authority per Derived Principle 18.
+
+The split is cleaner than ADR-275 originally drew it:
+
+| Cadence class | Who declares | Who honors at activation | Who honors changes |
+|---|---|---|---|
+| **Introspection** (reflection / calibration / housekeeping) | Reviewer (first-principled judgment) | Reviewer (first wake) | Reviewer (every wake) |
+| **Deliverable** (operator-facing outputs on cadence) | Operator (`_preferences.yaml`) | **bundle-fork** (D9, new) | Reviewer (D10) |
+| **Substrate-maintenance** (mechanical mirrors) | Bundle author | Bundle-fork (existing) | Operator via Schedule or bundle update |
+| **Operator-trading-business heartbeat** (signal-evaluation) | Bundle author + operator declaration in `_operator_profile.md` | Bundle-fork | Operator via Schedule |
+
+### D9 Implementation: `_fork_reference_workspace` extension
+
+```python
+# In api/services/programs.py, post-existing-fork loop, before
+# materialize_scheduling_index:
+
+async def _seed_recurrences_from_preferences(
+    client: Any,
+    user_id: str,
+    program_slug: str,
+    files_written: list[str],
+    files_skipped: list[str],
+) -> int:
+    """Seed _recurrences.yaml with operator-active deliverable preferences.
+
+    Per ADR-275 D9 (2026-05-21 amendment). Idempotent: skips slugs that
+    already exist as recurrences regardless of who authored them.
+
+    Returns count of preference-derived recurrences seeded.
+    """
+    # Read post-fork _preferences.yaml + _recurrences.yaml
+    # Parse preferences; for each active: true whose slug not in recurrences,
+    # build a recurrence entry from spec template + cadence;
+    # append to _recurrences.yaml with authored_by="system:bundle-fork-from-preferences"
+    # ...
+```
+
+Attribution actor `system:bundle-fork-from-preferences` extends ADR-209 `is_valid_author` taxonomy (starts with `system:`, so the existing prefix check accepts it).
+
+### D9 + D10 effect on the cycle-1 asymmetry
+
+Post-D9, both kvk and alpha-trader-2 (and any future alpha-trader-program workspace) get all three deliverable cadences (`pre-market-brief`, `weekly-performance-review`, `quarterly-signal-audit`) seeded into `_recurrences.yaml` at activation. The Reviewer's first natural wake post-activation observes them already scheduled; no cadence-authoring action required for the initial set. The kvk-vs-alpha-trader-2 cycle-1 asymmetry dissolves structurally.
+
+On operator-preference CHANGE (operator edits `_preferences.yaml`'s `cadence` for `weekly-performance-review` from Sunday 18:00 to Friday 22:00), the Reviewer's wake reads both files, observes the cadence drift, and authors `Schedule(action="update", slug="weekly-performance-review", schedule=<new>)`. The Reviewer-judgment contract (D10) survives at the layer where Reviewer judgment is genuinely appropriate.
+
+---
+
 ## 5. What this ADR does NOT do
 
 - **No new primitives.** `Schedule` already exists per ADR-261 D4. Reading `_preferences.yaml` uses existing ReadFile primitive.
@@ -198,6 +279,8 @@ Run-1 e2e on commit `0cf84ae` showed the Reviewer reading 19 tool calls of subst
 
 ## 6. Implementation scope
 
+### Original ADR-275 implementation (2026-05-14)
+
 - `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml` — delete 7 entries
 - `docs/programs/alpha-trader/reference-workspace/context/_shared/_preferences.yaml` — new file with three deliverable preferences
 - `api/services/workspace_paths.py` — extend `DEFAULT_REVIEWER_WRITE_LOCKS` with `_preferences.yaml`
@@ -209,6 +292,17 @@ Run-1 e2e on commit `0cf84ae` showed the Reviewer reading 19 tool calls of subst
 - `docs/architecture/FOUNDATIONS.md` — no new amendment (v8.5 axiom already covers this); add a one-line cross-ref under Derived Principle 18
 
 Net: ~150 LOC across 9 files (mostly doc-edits + the 1-paragraph persona extension).
+
+### D9–D11 amendment implementation (2026-05-21)
+
+- `api/services/programs.py` — extend `fork_reference_workspace` with `_seed_recurrences_from_preferences` step (post-existing-fork, pre-materialize_scheduling_index). New attribution actor `system:bundle-fork-from-preferences`.
+- `api/agents/reviewer_agent.py` — `_PERSONA_FRAME` cadence-authoring paragraph rewritten per D10. The contract simplifies from "every wake, read preferences and author Schedule" to "every wake, reconcile preference CHANGES (cadence edits, active flips) via Schedule(update|pause|archive); the initial set was bundle-fork-honored."
+- `api/test_adr275_introspection_cadence.py` — extend regression gate with D9-D11 assertions (idempotency, attribution actor, persona-frame text shape).
+- `api/prompts/CHANGELOG.md` — new `[2026.05.21.N]` entry naming the D9–D11 amendment.
+- `docs/adr/ADR-275-introspection-cadence-reviewer-authored.md` — this amendment (D9–D11 + amendment banner + cross-reference to substrate contract audit observation).
+- Re-fork all live workspaces (kvk, alpha-trader-2, yarnnn-author) idempotently via the existing apply_substrate_update path. Bumped-version bundles already present (alpha-trader v2026-05-20.1, alpha-author v2026-05-20.1) — no version bump needed since the per-workspace seeding is at the fork-helper layer.
+
+Net: ~120 LOC across 5 files (1 code extension + 1 persona-frame edit + 3 doc/test).
 
 ## 7. Empirical test (post-deploy)
 

@@ -51,6 +51,10 @@ DELETED_SLUGS = (
     "quarterly-signal-audit",
 )
 
+# ADR-296 v2 Checkpoint 2 (2026-05-20) deleted `trade-proposal` from the
+# alpha-trader bundle — signal-evaluation now emits ProposeAction inline
+# per ADR-296 v2 D3. `mirror-signal-state` added per ADR-281 §3 derived
+# principle 19 (substrate-mirror for Reviewer wake envelope).
 PRESERVED_SLUGS = (
     "track-positions",
     "track-account",
@@ -58,8 +62,8 @@ PRESERVED_SLUGS = (
     "track-regime",
     "track-universe",
     "signal-evaluation",
-    "trade-proposal",
     "outcome-reconciliation",
+    "mirror-signal-state",
 )
 
 
@@ -447,6 +451,152 @@ def test_adr275_doc_exists() -> None:
 
 
 # ---------------------------------------------------------------------------
+# D9–D11 amendment (2026-05-21) — bundle-fork-from-preferences seeding
+# ---------------------------------------------------------------------------
+
+def test_d9_seed_helper_exists() -> None:
+    """ADR-275 D9: programs.py exports _seed_recurrences_from_preferences."""
+    try:
+        from services import programs
+    except Exception as e:
+        _bad("programs module imports for D9 check", str(e))
+        return
+
+    if not hasattr(programs, "_seed_recurrences_from_preferences"):
+        _bad(
+            "_seed_recurrences_from_preferences exists",
+            "programs.py does not export the D9 seeding helper",
+        )
+        return
+    if not hasattr(programs, "_format_recurrence_entry_yaml"):
+        _bad(
+            "_format_recurrence_entry_yaml exists",
+            "programs.py does not export the D9 YAML-format helper",
+        )
+        return
+
+    import inspect
+    if not inspect.iscoroutinefunction(programs._seed_recurrences_from_preferences):
+        _bad(
+            "_seed_recurrences_from_preferences signature",
+            "must be a coroutine function (async def)",
+        )
+        return
+    _ok("_seed_recurrences_from_preferences + _format_recurrence_entry_yaml exported as coroutine + helper (D9)")
+
+
+def test_d9_attribution_actor_valid() -> None:
+    """ADR-275 D9: 'system:bundle-fork-from-preferences' passes ADR-209 is_valid_author taxonomy."""
+    from services.authored_substrate import is_valid_author
+
+    actor = "system:bundle-fork-from-preferences"
+    if is_valid_author(actor):
+        _ok(f"D9 attribution actor {actor!r} passes ADR-209 taxonomy")
+    else:
+        _bad(
+            "D9 attribution actor",
+            f"{actor!r} rejected by is_valid_author — D9 cannot write attributed revisions",
+        )
+
+
+def test_d9_fork_returns_preferences_seeded() -> None:
+    """ADR-275 D9: fork_reference_workspace return dict includes preferences_seeded + preferences_skipped_already_present."""
+    import inspect
+    from services.programs import fork_reference_workspace
+
+    src = inspect.getsource(fork_reference_workspace)
+    needed_returns = [
+        '"preferences_seeded": prefs_seeded',
+        '"preferences_skipped_already_present": prefs_skipped',
+    ]
+    missing = [m for m in needed_returns if m not in src]
+    if missing:
+        _bad(
+            "fork_reference_workspace return shape (D9)",
+            f"D9 return-dict keys not found in source: {missing}",
+        )
+        return
+    _ok("fork_reference_workspace returns preferences_seeded + preferences_skipped_already_present (D9)")
+
+
+def test_d9_seed_step_wired_before_materialize() -> None:
+    """ADR-275 D9: seed step runs BEFORE materialize_scheduling_index inside fork_reference_workspace."""
+    import inspect
+    from services.programs import fork_reference_workspace
+
+    src = inspect.getsource(fork_reference_workspace)
+    seed_call = "await _seed_recurrences_from_preferences("
+    materialize_call = "await materialize_scheduling_index("
+
+    if seed_call not in src:
+        _bad("D9 seed call wiring", f"{seed_call!r} not found in fork_reference_workspace")
+        return
+    if materialize_call not in src:
+        _bad("D9 seed call wiring", f"{materialize_call!r} not found in fork_reference_workspace")
+        return
+
+    if src.find(seed_call) >= src.find(materialize_call):
+        _bad(
+            "D9 seed-before-materialize order",
+            "_seed_recurrences_from_preferences must run BEFORE materialize_scheduling_index "
+            "so seeded entries land in the tasks index in the same fork transaction",
+        )
+        return
+    _ok("_seed_recurrences_from_preferences runs before materialize_scheduling_index (D9)")
+
+
+def test_d10_persona_frame_change_reconciliation() -> None:
+    """ADR-275 D10: persona frame says Reviewer's runtime contract is CHANGE reconciliation, not initial set."""
+    reviewer_agent_path = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
+    if not reviewer_agent_path.exists():
+        _bad("reviewer_agent.py present", f"missing: {reviewer_agent_path}")
+        return
+    text = reviewer_agent_path.read_text()
+
+    # D10 markers — persona frame must explicitly name change-reconciliation
+    # contract and reference D9 (initial set is bundle-fork-from-preferences).
+    # Substring "CHANGE\nRECONCILIATION" spans a line break in the actual prose,
+    # so we check normalized text (whitespace-collapsed).
+    normalized = " ".join(text.split())
+    markers = [
+        "Initial honoring",  # names the structural seeding
+        "bundle-fork-from-preferences",  # cites the D9 actor
+        "CHANGE RECONCILIATION",  # uppercase emphasis on the contract (post-normalize)
+    ]
+    missing = [m for m in markers if m not in normalized]
+    if missing:
+        _bad(
+            "D10 persona-frame change-reconciliation markers",
+            f"persona frame missing D10 markers: {missing}",
+        )
+        return
+    _ok("persona frame names D10 change-reconciliation contract + cites D9 initial honoring")
+
+
+def test_d9_d11_amendment_documented() -> None:
+    """ADR-275 doc carries the D9–D11 amendment section."""
+    path = REPO_ROOT / "docs" / "adr" / "ADR-275-introspection-cadence-reviewer-authored.md"
+    if not path.exists():
+        _bad("ADR-275 doc present for amendment check", f"missing: {path}")
+        return
+    text = path.read_text()
+
+    needed = [
+        "Amended 2026-05-21",
+        "D9. Bundle-fork honors deliverable-cadence",
+        "D10. Reviewer reconciles operator preference CHANGES",
+        "D11. Introspection cadence remains Reviewer-authored",
+        "substrate contract audit",  # cross-ref to observation
+        "system:bundle-fork-from-preferences",  # cites the new attribution actor
+    ]
+    missing = [m for m in needed if m not in text]
+    if missing:
+        _bad("ADR-275 D9–D11 amendment markers", f"missing: {missing}")
+        return
+    _ok("ADR-275 doc carries D9–D11 amendment section + cross-ref to substrate contract audit")
+
+
+# ---------------------------------------------------------------------------
 # Entry point
 # ---------------------------------------------------------------------------
 
@@ -463,6 +613,14 @@ def main() -> int:
     test_feed_addressed_site_loads_preferences_and_autonomy()  # run-2 refinement + audit fix
     test_mechanical_mirrors_preserved()
     test_adr275_doc_exists()
+
+    # D9–D11 amendment (2026-05-21)
+    test_d9_seed_helper_exists()
+    test_d9_attribution_actor_valid()
+    test_d9_fork_returns_preferences_seeded()
+    test_d9_seed_step_wired_before_materialize()
+    test_d10_persona_frame_change_reconciliation()
+    test_d9_d11_amendment_documented()
 
     total = len(_PASS) + len(_FAIL)
     print(f"\n{len(_PASS)}/{total} pass")

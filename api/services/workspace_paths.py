@@ -175,4 +175,12 @@ DEFAULT_REVIEWER_WRITE_LOCKS = (
     SHARED_AUTONOMY_PATH,
     SHARED_AUTONOMY_YAML_PATH,
     SHARED_TOKEN_BUDGET_PATH,
+    # ADR-275 D6 + D9 (2026-05-21 amendment): _preferences.yaml is operator's
+    # declaration of deliverable cadence — bundle-fork honors at activation
+    # (D9), Reviewer reconciles operator-authored changes via Schedule (D10).
+    # The Reviewer reads but does not write this file; preference content is
+    # the operator's authority. Closes pre-existing drift between ADR-275 D6
+    # (which specified the lock) and the prior code state (which had it
+    # unlocked).
+    SHARED_PREFERENCES_PATH,
 )

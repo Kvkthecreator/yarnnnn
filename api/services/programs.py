@@ -122,6 +122,230 @@ def _bundle_root_dir(program_slug: str) -> Path:
     )
 
 
+async def _seed_recurrences_from_preferences(
+    client: Any,
+    user_id: str,
+    program_slug: str,
+    bundle_version: str,
+) -> tuple[list[str], list[str]]:
+    """Seed _recurrences.yaml with operator-active deliverable preferences.
+
+    Per ADR-275 D9 (2026-05-21 amendment).
+
+    The contract-shape gap ADR-275 D9 closes: `_preferences.yaml` is
+    operator-declaration-shape (operator names what they want), but the
+    original D5 framing put its honoring mechanism in Reviewer-judgment-
+    shape (Reviewer reconciles every wake). Every other operator-
+    declaration substrate file (MANDATE, IDENTITY, BRAND, _risk,
+    _operator_profile, _universe) has its content honored at activation
+    deterministically. This helper restores shape-symmetry for
+    `_preferences.yaml`.
+
+    For each `active: true` deliverable preference in
+    `/workspace/context/_shared/_preferences.yaml` whose `slug` is NOT
+    yet a recurrence in `/workspace/_recurrences.yaml`, this helper
+    appends a new recurrence entry with:
+      - mode: judgment
+      - schedule: <preference.cadence>
+      - prompt: built from the spec at preference.spec (capability-library
+        skills.md analog)
+      - authored_by="system:bundle-fork-from-preferences" (new ADR-209
+        actor sub-type, distinct from system:bundle-fork and reviewer:...)
+
+    Idempotency: if a slug already exists as a recurrence (regardless of
+    who authored it — operator, Reviewer, prior bundle-fork), this helper
+    does NOT overwrite. Operator-edited or Reviewer-authored cadences for
+    the same slug are preserved.
+
+    Returns (slugs_seeded, slugs_skipped_already_present). Caller writes
+    `_recurrences.yaml` once at the end with the appended content.
+
+    Skips silently if `_preferences.yaml` is missing or malformed.
+    Reviewer reconciliation of subsequent operator preference CHANGES
+    (cadence edits, active flips) per ADR-275 D10 is unchanged and
+    happens at runtime via Schedule(update|pause|archive).
+    """
+    import yaml
+
+    from services.conventions import RECURRENCES_PATH
+    from services.workspace import UserMemory
+    from services.workspace_paths import SHARED_PREFERENCES_PATH
+
+    um = UserMemory(client, user_id)
+
+    # Read post-fork preferences + current recurrences.
+    preferences_yaml = await um.read(SHARED_PREFERENCES_PATH)
+    if not preferences_yaml:
+        logger.info(
+            f"[FORK:D9] no _preferences.yaml for {user_id[:8]}/{program_slug}; "
+            f"skipping deliverable-cadence seeding"
+        )
+        return [], []
+
+    # Strip ADR-261-style tier frontmatter from the .yaml body before yaml.safe_load.
+    pref_body = preferences_yaml
+    if pref_body.lstrip().startswith("---"):
+        parts = pref_body.split("---", 2)
+        if len(parts) >= 3:
+            pref_body = parts[2]
+
+    try:
+        pref_doc = yaml.safe_load(pref_body) or {}
+    except yaml.YAMLError as exc:
+        logger.warning(
+            f"[FORK:D9] _preferences.yaml parse failed for {user_id[:8]}: {exc}; "
+            f"skipping deliverable-cadence seeding"
+        )
+        return [], []
+
+    declared = pref_doc.get("deliverable_preferences") or []
+    active_prefs = [
+        p for p in declared
+        if isinstance(p, dict) and p.get("active") is True and p.get("slug")
+    ]
+    if not active_prefs:
+        return [], []
+
+    recurrences_relative = RECURRENCES_PATH.lstrip("/").removeprefix("workspace/")
+    recurrences_yaml = await um.read(recurrences_relative)
+    if not recurrences_yaml:
+        logger.warning(
+            f"[FORK:D9] _recurrences.yaml missing for {user_id[:8]}/{program_slug}; "
+            f"cannot seed deliverable cadences"
+        )
+        return [], []
+
+    # Inventory existing slugs in recurrences (regardless of who authored).
+    try:
+        rec_doc = yaml.safe_load(recurrences_yaml) or {}
+        existing_slugs = {
+            r.get("slug") for r in (rec_doc.get("recurrences") or [])
+            if isinstance(r, dict) and r.get("slug")
+        }
+    except yaml.YAMLError as exc:
+        logger.warning(
+            f"[FORK:D9] _recurrences.yaml parse failed for {user_id[:8]}: {exc}; "
+            f"skipping seeding to avoid clobber"
+        )
+        return [], []
+
+    seeded: list[str] = []
+    skipped: list[str] = []
+    for pref in active_prefs:
+        slug = pref["slug"]
+        if slug in existing_slugs:
+            skipped.append(slug)
+            continue
+
+        # Read the spec the preference points at. The spec is the
+        # capability-library entry (Claude Code skills.md analog). Path
+        # is workspace-absolute in the preference; convert to relative
+        # for um.read.
+        spec_path_abs = pref.get("spec", "")
+        spec_relative = spec_path_abs.lstrip("/").removeprefix("workspace/")
+        spec_content = await um.read(spec_relative) if spec_relative else None
+
+        cadence = pref.get("cadence")
+        description = pref.get("description") or f"Deliverable: {slug}"
+
+        # Build the recurrence prompt from the spec. The prompt instructs
+        # the Reviewer to produce the deliverable per the spec's schema.
+        # If the spec is missing, build a minimal prompt that references
+        # the spec path for the Reviewer to read at fire time.
+        if spec_content:
+            prompt_body = (
+                f"Produce the {slug} deliverable per the capability spec at "
+                f"{spec_path_abs}. Read the spec for output schema, sections, "
+                f"and quality criteria. Write the composed output to the "
+                f"slug-templated path per CONVENTIONS.md. Update "
+                f"/workspace/review/standing_intent.md with what you're "
+                f"watching for in the next cycle per ADR-284 + principles.md "
+                f'"Default posture".\n\n'
+                f"This recurrence was seeded at activation from operator "
+                f"`_preferences.yaml` declaration per ADR-275 D9. Operator "
+                f"can edit the cadence or active flag in `_preferences.yaml`; "
+                f"on operator preference CHANGE, the Reviewer reconciles "
+                f"via Schedule(update|pause|archive) per ADR-275 D10."
+            )
+        else:
+            prompt_body = (
+                f"Produce the {slug} deliverable. Read the capability spec at "
+                f"{spec_path_abs} (referenced by operator preference but not yet "
+                f"present in the workspace; if missing, surface a Clarify to "
+                f"the operator). Update standing_intent.md per ADR-284.\n\n"
+                f"Seeded at activation per ADR-275 D9."
+            )
+
+        # Append a new entry to recurrences_yaml. We write idiomatic YAML
+        # rather than re-serializing the whole doc (preserves operator
+        # comments + ordering for existing entries).
+        new_entry_yaml = _format_recurrence_entry_yaml(
+            slug=slug,
+            schedule=cadence,
+            mode="judgment",
+            prompt=prompt_body,
+            display_name=description,
+        )
+        recurrences_yaml = recurrences_yaml.rstrip() + "\n\n" + new_entry_yaml + "\n"
+
+        await um.write(
+            recurrences_relative,
+            recurrences_yaml,
+            summary=f"Seed deliverable-cadence recurrence {slug} from _preferences.yaml",
+            authored_by="system:bundle-fork-from-preferences",
+            message=(
+                f"seeded recurrence '{slug}' at activation from operator "
+                f"`_preferences.yaml` declaration (cadence={cadence}, "
+                f"spec={spec_path_abs}, bundle={program_slug} v{bundle_version}) "
+                f"per ADR-275 D9"
+            ),
+        )
+        seeded.append(slug)
+        existing_slugs.add(slug)  # next iteration sees it as present
+        logger.info(
+            f"[FORK:D9] seeded recurrence '{slug}' for {user_id[:8]}/{program_slug} "
+            f"from _preferences.yaml (cadence={cadence})"
+        )
+
+    return seeded, skipped
+
+
+def _format_recurrence_entry_yaml(
+    *,
+    slug: str,
+    schedule: Any,
+    mode: str,
+    prompt: str,
+    display_name: str,
+) -> str:
+    """Format a single recurrence entry as YAML text for append.
+
+    Output matches the hand-authored bundle reference _recurrences.yaml
+    style (2-space indent under `recurrences:` top key, schedule as
+    quoted string or list, mode field, prompt as `|` block scalar).
+    """
+    # Schedule: quote if string, render as inline list if list.
+    if isinstance(schedule, list):
+        sched_yaml = "[" + ", ".join(f'"{s}"' for s in schedule) + "]"
+    else:
+        sched_yaml = f'"{schedule}"'
+
+    # Indent prompt body by 6 spaces (4 for entry + 2 for prompt key block).
+    prompt_lines = prompt.splitlines() or [""]
+    prompt_indented = "\n".join(f"      {line}".rstrip() for line in prompt_lines)
+
+    entry = (
+        f"  # ── {slug} — operator-declared deliverable (ADR-275 D9 seeded) ──\n"
+        f"  - slug: {slug}\n"
+        f"    schedule: {sched_yaml}\n"
+        f"    mode: {mode}\n"
+        f"    display_name: \"{display_name}\"\n"
+        f"    prompt: |\n"
+        f"{prompt_indented}"
+    )
+    return entry
+
+
 async def _populate_occupant_for_runtime(um: Any, program_slug: str) -> None:
     """ADR-284 D3: write OCCUPANT.md with runtime-truth-aligned occupant identity.
 
@@ -409,6 +633,34 @@ async def fork_reference_workspace(
     if occupant_path not in files_written:
         files_written.append(occupant_path)
 
+    # ADR-275 D9 (2026-05-21 amendment): seed deliverable-cadence recurrences
+    # from operator's _preferences.yaml at activation. Restores contract-
+    # shape symmetry — every operator-declaration substrate file now has
+    # its content honored at activation deterministically. The Reviewer's
+    # authority survives at runtime for: (a) introspection cadence
+    # (Reviewer-authored from first-principled judgment per D11),
+    # (b) preference-CHANGE reconciliation (Reviewer-authored when operator
+    # edits cadence or flips active flag per D10).
+    #
+    # Must run BEFORE materialize_scheduling_index so the seeded entries
+    # land in the `tasks` index in the same fork transaction. Idempotent
+    # — if a slug already exists in _recurrences.yaml regardless of
+    # authorship, this helper does NOT overwrite (Reviewer-authored or
+    # operator-edited cadences for the same slug are preserved).
+    try:
+        prefs_seeded, prefs_skipped = await _seed_recurrences_from_preferences(
+            client, user_id, program_slug, bundle_version
+        )
+    except Exception as exc:
+        # Non-fatal — preference seeding is operator-facing convenience, not
+        # safety-critical. Log but continue; operator can manually Schedule()
+        # the preferences via chat. Bundle's own recurrences are unaffected.
+        logger.warning(
+            f"[FORK:D9] _seed_recurrences_from_preferences failed for "
+            f"{user_id[:8]}/{program_slug}: {exc}"
+        )
+        prefs_seeded, prefs_skipped = [], []
+
     # Materialize the scheduling index when the fork touched the canonical
     # recurrences YAML. The YAML is truth (ADR-261 D3); the `tasks` table is
     # the index the scheduler queries. Without this, the freshly-forked
@@ -419,6 +671,7 @@ async def fork_reference_workspace(
     fork_touched_recurrences = (
         recurrences_relative in files_written
         or recurrences_relative in files_skipped
+        or bool(prefs_seeded)  # ADR-275 D9: preference seeding mutates _recurrences.yaml
     )
     scheduling_index_rows = 0
     if fork_touched_recurrences:
@@ -442,4 +695,6 @@ async def fork_reference_workspace(
         "program_slug": program_slug,
         "bundle_version": bundle_version,  # ADR-292 v3 D10: surface to caller
         "scheduling_index_rows": scheduling_index_rows,
+        "preferences_seeded": prefs_seeded,  # ADR-275 D9 (2026-05-21)
+        "preferences_skipped_already_present": prefs_skipped,  # ADR-275 D9
     }
