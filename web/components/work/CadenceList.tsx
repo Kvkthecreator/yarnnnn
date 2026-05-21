@@ -1,26 +1,28 @@
 'use client';
 
 /**
- * WorkListSurface — Full-width list surface for /work.
+ * CadenceList — Atomic Cadence surface body (ADR-297 D1).
  *
- * Two tabs:
- *   Dashboard — cockpit kernel (Mandate · Money truth · Performance · Tracking)
- *   Schedule  — all recurrences, cadence-grouped (Recurring / Reactive / One-time)
- *               with search, agent filter, and include-historical toggle.
+ * Renders all recurrences cadence-grouped (Recurring / Reactive) with
+ * search, agent filter, and include-historical toggle. Answers the
+ * operator's question "what runs, and when?"
  *
- * "Schedule" is the canonical term for the recurrence list — it answers
- * "what runs, and when?" System/back-office recurrences are hidden by default
- * (visible via include-historical toggle). Connector vs user-work distinction
- * dissolved — every recurrence is a first-class scheduled item.
+ * System/back-office recurrences are hidden by default (visible via
+ * include-historical toggle in the overflow menu). Connector vs user-
+ * work distinction dissolved per ADR-261 — every recurrence is a first-
+ * class scheduled item.
+ *
+ * Renamed from WorkListSurface in the ADR-297 atomic-shell migration.
+ * The former Dashboard tab dissolved — cockpit rendering lives at the
+ * dedicated /cockpit atomic surface. Cockpit-slot + activeTab + WorkTab
+ * concepts all removed; this is a single-mode list surface now.
  */
 
-import { useRef, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useRef, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
-  CalendarClock,
   Cpu,
   FileText,
-  LayoutDashboard,
   MoreHorizontal,
   Search,
   Settings2,
@@ -41,19 +43,12 @@ import type { Recurrence, Agent, NarrativeByTaskSlice } from '@/types';
 import { BundleBanner } from '@/components/library/BundleBanner';
 import { useComposition, getTab } from '@/lib/compositor';
 
-export type WorkTab = 'dashboard' | 'schedule';
-
-interface WorkListSurfaceProps {
+interface CadenceListProps {
   tasks: Recurrence[];
   agents: Agent[];
   narrativeByTask: Map<string, NarrativeByTaskSlice>;
   agentFilter: string | null;
   dataError?: string | null;
-  /** Cockpit content rendered inside the Dashboard tab. */
-  cockpitSlot?: ReactNode;
-  /** URL-driven active tab — controlled by parent so ?tab= stays in sync. */
-  activeTab: WorkTab;
-  onTabChange: (tab: WorkTab) => void;
   onClearAgentFilter: () => void;
   onSelect: (slug: string) => void;
 }
@@ -195,18 +190,15 @@ function OverflowOptions({
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function WorkListSurface({
+export function CadenceList({
   tasks,
   agents,
   narrativeByTask,
   agentFilter,
   dataError,
-  cockpitSlot,
-  activeTab,
-  onTabChange,
   onClearAgentFilter,
   onSelect,
-}: WorkListSurfaceProps) {
+}: CadenceListProps) {
   const [search, setSearch] = useState('');
   const [includeSystem, setIncludeSystem] = useState(false);
   const [includeHistorical, setIncludeHistorical] = useState(false);
@@ -271,131 +263,87 @@ export function WorkListSurface({
     ? agents.find(a => getAgentSlug(a) === agentFilter)?.title ?? agentFilter
     : null;
 
-  const tabs: { id: WorkTab; label: string; icon: React.ElementType }[] = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'schedule', label: 'Schedule', icon: CalendarClock },
-  ];
-
   return (
     <div className="flex flex-col h-full">
       {/* ── Toolbar ── */}
-      <div className="px-4 sm:px-6 pb-3 border-b border-border/40 shrink-0 space-y-3">
+      <div className="px-4 sm:px-6 pt-3 pb-3 border-b border-border/40 shrink-0 space-y-3">
         {dataError && (
           <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-[11px] text-amber-700">
             Showing last available data — refresh to retry.
           </div>
         )}
 
-        {/* Tab row */}
-        <div className="flex items-center gap-1">
-          {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => onTabChange(tab.id)}
-              className={cn(
-                'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-colors',
-                activeTab === tab.id
-                  ? 'bg-foreground text-background'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/60',
-              )}
-            >
-              <tab.icon className="w-3 h-3" />
-              {tab.label}
-            </button>
-          ))}
-        </div>
+        {/* Bundle banner — operator-facing posture string from the active
+            program's SURFACES.yaml. Optional; renders nothing when the
+            bundle declares no banner. Kept here so program-shipped
+            context still surfaces on the Cadence list. */}
+        <BundleBanner tab="work" />
 
-        {/* Search + agent filter + overflow — Schedule tab only */}
-        {activeTab === 'schedule' && (
-          <div className="flex items-center gap-2">
-            <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search..."
-                className="w-full pl-8 pr-3 py-1.5 text-xs bg-muted/40 border border-border/60 rounded-md focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring"
-              />
-            </div>
-            {agentFilter && (
-              <button
-                onClick={onClearAgentFilter}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-primary/10 text-primary text-xs hover:bg-primary/20 transition-colors shrink-0"
-              >
-                {agentLabel}
-                <X className="w-3 h-3" />
-              </button>
-            )}
-            <OverflowOptions
-              includeSystem={includeSystem}
-              includeHistorical={includeHistorical}
-              onToggleSystem={() => setIncludeSystem(v => !v)}
-              onToggleHistorical={() => setIncludeHistorical(v => !v)}
+        {/* Search + agent filter + overflow */}
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search..."
+              className="w-full pl-8 pr-3 py-1.5 text-xs bg-muted/40 border border-border/60 rounded-md focus:outline-none focus:ring-1 focus:ring-ring focus:border-ring"
             />
           </div>
-        )}
+          {agentFilter && (
+            <button
+              onClick={onClearAgentFilter}
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-primary/10 text-primary text-xs hover:bg-primary/20 transition-colors shrink-0"
+            >
+              {agentLabel}
+              <X className="w-3 h-3" />
+            </button>
+          )}
+          <OverflowOptions
+            includeSystem={includeSystem}
+            includeHistorical={includeHistorical}
+            onToggleSystem={() => setIncludeSystem(v => !v)}
+            onToggleHistorical={() => setIncludeHistorical(v => !v)}
+          />
+        </div>
       </div>
 
-      {/* ── Tab body ── */}
+      {/* ── Cadence list ── */}
       <div className="flex-1 overflow-auto">
-
-        {activeTab === 'dashboard' && (
-          <div className="h-full">
-            {/* BundleBanner — scoped to Dashboard. The bundle declaration
-                (tabs.work.list.banner in SURFACES.yaml) is semantically about
-                operation posture ("Paper-only. Live trading gated...") which
-                belongs alongside CockpitHeader, not above the surface chrome.
-                Schedule tab is a declaration-lens view and has no need for
-                this content. */}
-            <BundleBanner tab="work" />
-            {cockpitSlot ?? (
-              <div className="flex items-center justify-center h-full min-h-[200px] px-4">
-                <div className="text-center max-w-sm">
-                  <LayoutDashboard className="w-6 h-6 text-muted-foreground/25 mx-auto mb-3" />
-                  <p className="text-sm font-medium mb-1.5">No dashboard yet</p>
-                  <p className="text-xs text-muted-foreground">The operational dashboard will appear here once your workspace is set up.</p>
+        {cadenceGroups.length === 0 ? (
+          <EmptySchedule hasFilters={!!search || !!agentFilter} />
+        ) : (
+          <div className="px-4 sm:px-6 py-4 max-w-4xl space-y-6">
+            {cadenceGroups.map(group => (
+              <section key={group.key}>
+                <header className="mb-2 px-1">
+                  <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    {group.label.title}
+                    <span className="ml-2 text-[11px] font-normal text-muted-foreground/40">
+                      {group.items.length}
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground/60 mt-0.5">
+                    {group.label.description}
+                  </p>
+                </header>
+                <div className="space-y-1">
+                  {group.items.map(task => (
+                    <ScheduleRow
+                      key={task.id}
+                      task={task}
+                      agents={agents}
+                      narrativeSlice={narrativeByTask.get(task.slug) ?? null}
+                      category={cadenceCategory(task)}
+                      isPinned={pinnedSlugs.has(task.slug)}
+                      onSelect={() => onSelect(task.slug)}
+                    />
+                  ))}
                 </div>
-              </div>
-            )}
+              </section>
+            ))}
           </div>
-        )}
-
-        {activeTab === 'schedule' && (
-          cadenceGroups.length === 0 ? (
-            <EmptySchedule hasFilters={!!search || !!agentFilter} />
-          ) : (
-            <div className="px-4 sm:px-6 py-4 max-w-4xl space-y-6">
-              {cadenceGroups.map(group => (
-                <section key={group.key}>
-                  <header className="mb-2 px-1">
-                    <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                      {group.label.title}
-                      <span className="ml-2 text-[11px] font-normal text-muted-foreground/40">
-                        {group.items.length}
-                      </span>
-                    </h3>
-                    <p className="text-[11px] text-muted-foreground/60 mt-0.5">
-                      {group.label.description}
-                    </p>
-                  </header>
-                  <div className="space-y-1">
-                    {group.items.map(task => (
-                      <ScheduleRow
-                        key={task.id}
-                        task={task}
-                        agents={agents}
-                        narrativeSlice={narrativeByTask.get(task.slug) ?? null}
-                        category={cadenceCategory(task)}
-                        isPinned={pinnedSlugs.has(task.slug)}
-                        onSelect={() => onSelect(task.slug)}
-                      />
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          )
         )}
       </div>
     </div>

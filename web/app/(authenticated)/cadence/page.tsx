@@ -3,24 +3,22 @@
 /**
  * Cadence Page — atomic Cadence surface (ADR-297 D1).
  *
- * Renamed from /work in the ADR-297 atomic-shell migration. The previous
- * `dashboard` tab dissolves — cockpit rendering now lives at the dedicated
- * /cockpit atomic surface (ADR-297 D1, 13th kernel surface).
+ * Renamed from /work in the ADR-297 atomic-shell migration. Tab framing
+ * fully dissolved — cockpit rendering moved to the dedicated /cockpit
+ * atomic surface (13th kernel surface). This surface is a single-mode
+ * recurrence list answering "what runs, and when?"
  *
  * Two modes (substrate-unchanged):
- *   - List mode (no `?task=` param): full-width recurrence list — search,
- *     agent filter, cadence groups.
+ *   - List mode (no `?task=` param): full-width CadenceList — search,
+ *     agent filter, cadence groups (Recurring · Reactive).
  *   - Detail mode (`?task={slug}`): kind-aware recurrence detail via
  *     WorkDetail dispatching the middle band on task.output_kind (ADR-166).
  *
- * Tab state simplified: this surface always shows `schedule` content; the
- * `?tab=dashboard` query param no-ops for bookmark safety and falls
- * through to the schedule view.
- *
  * The `?agent={slug}` query param is preserved as a deep-link shortcut.
+ * Stale `?tab=…` query params are silently ignored.
  */
 
-import { useState, useEffect, useRef, useMemo, useCallback, type ReactNode } from 'react';
+import { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Briefcase, Loader2, MessageCircle, RefreshCw } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
@@ -28,9 +26,8 @@ import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { useRecurrenceDetail } from '@/hooks/useRecurrenceDetail';
 import { APIError, api } from '@/lib/api/client';
-import { WorkListSurface, type WorkTab } from '@/components/work/WorkListSurface';
+import { CadenceList } from '@/components/work/CadenceList';
 import { WorkDetail } from '@/components/work/WorkDetail';
-import { CockpitRenderer } from '@/components/library/CockpitRenderer';
 import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
 import { PageHeader } from '@/components/shell/PageHeader';
 // RecurrenceSetupModal removed — creation via Chat
@@ -74,26 +71,20 @@ function SurfaceState({
   );
 }
 
-export default function WorkPage() {
+export default function CadencePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { sendMessage } = useNarrative();
   const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
-  // ADR-219 Commit 4: opt into narrative fetch — /work is the surface
+  // ADR-219 Commit 4: opt into narrative fetch — Cadence is the surface
   // that renders recent-activity headlines from session_messages.
   const { agents, tasks, narrativeByTask, loading, error, reload } = useAgentsAndRecurrences({ includeNarrative: true });
 
   const agentFilter = searchParams.get('agent');
   const taskSlugFromUrl = searchParams.get('task');
-  // ?tab=dashboard|schedule — URL-driven so TP can deep-link to a specific tab.
-  // Default is 'schedule'; 'dashboard' is the cockpit view.
-  const tabParam = searchParams.get('tab');
-  // Local state is the source of truth for the active tab — router.replace
-  // updates the URL as a side effect but useSearchParams can lag in the
-  // App Router. Initial value is derived from the URL param.
-  // ADR-297: dashboard tab dissolved — cockpit lives at /cockpit. The
-  // schedule view is the only tab on this surface.
-  const [activeTab, setActiveTab] = useState<WorkTab>('schedule');
+  // ADR-297: tab framing dissolved on Cadence. Cockpit lives at /cockpit;
+  // this surface is a single-mode recurrence list. Stale ?tab=… query
+  // params are silently ignored.
   const {
     task: selectedRecurrenceDetail,
     loading: taskDetailLoading,
@@ -115,19 +106,6 @@ export default function WorkPage() {
   const [chatDraftSeed, setChatDraftSeed] = useState<{ id: string; text: string } | null>(null);
   const [chatOpenSignal, setChatOpenSignal] = useState(0);
 
-  // Sync from URL only on initial mount and genuine external navigation
-  // (back/forward, TP deep-link). Do NOT re-sync on every tabParam change —
-  // that races with the optimistic setActiveTab in handleTabChange.
-  // The initial useState value handles the URL-on-load case; this effect
-  // handles the case where the URL changes without a click (e.g. popstate).
-  const lastSyncedTabParam = useRef(tabParam);
-  useEffect(() => {
-    if (tabParam === lastSyncedTabParam.current) return; // no external change
-    lastSyncedTabParam.current = tabParam;
-    // ADR-297: schedule is the only tab; ignore dashboard requests.
-    setActiveTab('schedule');
-  }, [tabParam]);
-
   useEffect(() => {
     if (!actionNotice) return;
     const timeout = window.setTimeout(() => setActionNotice(null), 5000);
@@ -140,11 +118,11 @@ export default function WorkPage() {
 
   // Breadcrumb (ADR-180: task-first, no agent middle segment)
   //
-  // Work surface: Work › Task Title — tasks are first-class, agents are participants.
+  // Cadence surface: Cadence › Task Title — tasks are first-class, agents are participants.
   // Exception: when ?agent= is present the user navigated here from the Agents surface
   // (via "Manage task" link) — breadcrumb traces actual navigation: Agents › Agent › Task.
   // Agent-filter-only list mode (no task selected) shows no breadcrumb — the filter chip
-  // in WorkListSurface already communicates the active filter.
+  // in CadenceList already communicates the active filter.
   useEffect(() => {
     if (taskSlugFromUrl) {
       const breadcrumbTask = selectedTask;
@@ -262,16 +240,6 @@ export default function WorkPage() {
     router.replace(qs ? `/cadence?${qs}` : '/cadence', { scroll: false });
   }, [router, searchParams]);
 
-  const handleTabChange = useCallback((tab: WorkTab) => {
-    setActiveTab(tab);
-    // Always write tab to URL — no silent defaults — so the URL always
-    // reflects the active tab and TP can deep-link to either.
-    lastSyncedTabParam.current = tab;
-    const sp = new URLSearchParams(searchParams.toString());
-    sp.set('tab', tab);
-    router.replace(`/cadence?${sp.toString()}`, { scroll: false });
-  }, [router, searchParams]);
-
   const plusMenuActions: PlusMenuAction[] = useMemo(() => {
     if (selectedTask) return [];
     return [
@@ -311,7 +279,7 @@ export default function WorkPage() {
     return (
       <div className="flex h-full">
         <div className="flex flex-1 flex-col bg-background">
-          <PageHeader defaultLabel="Work" />
+          <PageHeader defaultLabel="Cadence" />
           <SurfaceState
             title="Failed to load work"
             description="The work index could not be loaded right now. Retry the workspace fetch."
@@ -345,7 +313,7 @@ export default function WorkPage() {
         openSignal: chatOpenSignal,
       }}
     >
-      <PageHeader defaultLabel="Work" />
+      <PageHeader defaultLabel="Cadence" />
       {taskSlugFromUrl ? (
         taskDetailLoading && !selectedRecurrenceDetail ? (
           <div className="flex flex-1 items-center justify-center">
@@ -408,20 +376,12 @@ export default function WorkPage() {
         ) : null
       ) : (
         <div className="flex flex-1 flex-col overflow-y-auto">
-          <WorkListSurface
+          <CadenceList
             tasks={tasks}
             agents={agents}
             narrativeByTask={narrativeByTask}
             agentFilter={agentFilter}
             dataError={error}
-            activeTab={activeTab}
-            onTabChange={handleTabChange}
-            cockpitSlot={
-              // Hidden when an agent filter is active (ADR-206 deliberate focus shift).
-              !agentFilter
-                ? <CockpitRenderer onOpenChatDraft={handleOpenChatDraft} />
-                : undefined
-            }
             onClearAgentFilter={handleClearAgentFilter}
             onSelect={handleSelect}
           />
