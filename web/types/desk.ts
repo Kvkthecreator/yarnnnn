@@ -9,26 +9,54 @@
 // Desk Surface Types
 // =============================================================================
 
+// ADR-297 axiom (2026-05-21): surface = viewport panel, not URL
+// destination. KernelSurfaceSlug enumerates the 13 atomic surfaces
+// declared by api/services/kernel_surfaces.py.
+export type KernelSurfaceSlug =
+  | 'feed'
+  | 'cockpit'
+  | 'cadence'
+  | 'delegation'
+  | 'mandate'
+  | 'principles'
+  | 'identity'
+  | 'brand'
+  | 'files'
+  | 'agents'
+  | 'program'
+  | 'queue'
+  | 'activity';
+
 export type DeskSurface =
-  // Agents (create handled by YARNNN chat — /dashboard?create)
+  // ADR-297: atomic kernel surface — slug identifies which surface
+  // component to mount; params carry optional deep-link state
+  // (e.g. `task` slug on cadence, `agent` slug on agents).
+  | { type: 'atomic'; slug: KernelSurfaceSlug; params?: Record<string, string> }
+  // Legacy surface kinds — predate ADR-297 and remain in use by the
+  // NarrativeContext handoff machinery + signal-shaped deep-links.
+  // Subsumed by `atomic` over time; kept until call sites migrate.
   | { type: 'agent-review'; agentId: string; runId: string }
   | { type: 'agent-detail'; agentId: string }
   | { type: 'agent-list'; status?: 'active' | 'paused' | 'archived' }
-  // Tasks (ADR-139)
   | { type: 'task-detail'; taskSlug: string }
-  // Context (ADR-034: user's accumulated knowledge, scoped by emergent domains)
   | { type: 'context-browser'; scope: 'user' | 'agent'; scopeId?: string }
   | { type: 'context-editor'; memoryId: string }
-  // Documents
   | { type: 'document-viewer'; documentId: string }
   | { type: 'document-list' }
-  // Platforms (ADR-033)
   | { type: 'platform-list' }
   | { type: 'platform-detail'; platform: 'slack' | 'notion' }
-  // Workspace explorer (Context surface)
   | { type: 'workspace-explorer'; path: string; navigation_type?: 'file' | 'folder' }
   // Idle state
   | { type: 'idle' };
+
+export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
+  'feed', 'cockpit', 'cadence', 'delegation', 'mandate', 'principles',
+  'identity', 'brand', 'files', 'agents', 'program', 'queue', 'activity',
+] as const;
+
+export function isKernelSurfaceSlug(s: string): s is KernelSurfaceSlug {
+  return (KERNEL_SURFACE_SLUGS as readonly string[]).includes(s);
+}
 
 // =============================================================================
 // Attention Queue
@@ -325,6 +353,16 @@ export function surfaceToParams(surface: DeskSurface): URLSearchParams {
   params.set('surface', surface.type);
 
   switch (surface.type) {
+    case 'atomic':
+      // ADR-297: slug identifies the surface; optional params carry
+      // deep-link state (task slug, agent slug, file path, etc.).
+      params.set('slug', surface.slug);
+      if (surface.params) {
+        for (const [k, v] of Object.entries(surface.params)) {
+          if (v) params.set(k, v);
+        }
+      }
+      break;
     case 'agent-review':
       params.set('did', surface.agentId);
       params.set('vid', surface.runId);
@@ -363,6 +401,22 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
   const surfaceType = params.get('surface');
 
   switch (surfaceType) {
+    case 'atomic': {
+      const slug = params.get('slug');
+      if (slug && isKernelSurfaceSlug(slug)) {
+        // Collect non-canonical params as the atomic surface's params bag.
+        const bag: Record<string, string> = {};
+        params.forEach((v, k) => {
+          if (k !== 'surface' && k !== 'slug' && v) bag[k] = v;
+        });
+        return {
+          type: 'atomic',
+          slug,
+          params: Object.keys(bag).length > 0 ? bag : undefined,
+        };
+      }
+      break;
+    }
     case 'agent-review': {
       const did = params.get('did');
       const vid = params.get('vid');

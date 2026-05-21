@@ -18,10 +18,11 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Pin, PinOff, Search, X } from 'lucide-react';
 import type { Surface, SurfaceTier } from '@/lib/compositor/types';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
+import { useDesk } from '@/contexts/DeskContext';
+import { isKernelSurfaceSlug } from '@/types/desk';
 import { cn } from '@/lib/utils';
 
 interface LauncherProps {
@@ -87,7 +88,7 @@ export function Launcher({
   onUnpin,
   bundleTitleBySlug,
 }: LauncherProps) {
-  const router = useRouter();
+  const { setSurface } = useDesk();
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -130,7 +131,11 @@ export function Launcher({
   );
 
   const navigate = (surface: Surface) => {
-    router.push(surface.route);
+    // ADR-297 axiom: setSurface is the canonical action. DeskContext
+    // syncs the URL as a side effect for bookmark safety.
+    if (isKernelSurfaceSlug(surface.slug)) {
+      setSurface({ type: 'atomic', slug: surface.slug });
+    }
     onClose();
   };
 

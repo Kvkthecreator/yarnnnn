@@ -14,6 +14,7 @@ import {
   AttentionItem,
   surfaceToParams,
   paramsToSurface,
+  isKernelSurfaceSlug,
 } from '@/types/desk';
 import { api } from '@/lib/api/client';
 import { isHomeRoute } from '@/lib/routes';
@@ -188,10 +189,40 @@ export function DeskProvider({ children }: DeskProviderProps) {
   }, [refreshAttention]);
 
   // ---------------------------------------------------------------------------
-  // Sync surface state with URL params (handles back/forward navigation)
+  // Sync surface state with URL (handles direct URL visits + back/forward)
+  // ADR-297 axiom: URL is the deep-link transport for the surface state
+  // that lives in DeskContext. Direct visits to atomic surface routes
+  // (e.g. /cadence) hydrate DeskState into the atomic shape so the rest
+  // of the shell (Dock active-highlight, useSurfacePreferences last-
+  // active, etc.) sees a consistent picture regardless of how the
+  // operator arrived.
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    // Only sync when on dashboard routes
+    // ADR-297: pathname like `/cadence` maps to an atomic surface in
+    // DeskState. The leading slash + first segment is the slug.
+    const firstSegment = pathname.split('/').filter(Boolean)[0];
+    if (firstSegment && isKernelSurfaceSlug(firstSegment)) {
+      const bag: Record<string, string> = {};
+      searchParams.forEach((v, k) => { if (v) bag[k] = v; });
+      const incoming: DeskSurface = {
+        type: 'atomic',
+        slug: firstSegment,
+        params: Object.keys(bag).length > 0 ? bag : undefined,
+      };
+      // Avoid dispatch when state already matches — protects against
+      // setSurface → URL push → useEffect → setSurface loops.
+      const current = state.surface;
+      const same =
+        current.type === 'atomic' &&
+        current.slug === incoming.slug &&
+        JSON.stringify(current.params ?? {}) === JSON.stringify(incoming.params ?? {});
+      if (!same) {
+        dispatch({ type: 'SET_SURFACE', surface: incoming });
+      }
+      return;
+    }
+
+    // Legacy URL-param-driven sync — only on home route (/feed).
     if (!isHomeRoute(pathname)) {
       return;
     }
@@ -247,12 +278,32 @@ export function DeskProvider({ children }: DeskProviderProps) {
     (surface: DeskSurface) => {
       dispatch({ type: 'SET_SURFACE', surface });
 
-      // Only update URL with surface params when on /dashboard
-      // Other routes (like /settings) don't use the surface system
+      // ADR-297 axiom: setSurface is the canonical action. URL update
+      // is a side effect so deep-links + browser back/forward stay
+      // operator-friendly.
+      //
+      // For atomic surfaces, sync to the per-slug bookmark route
+      // (`/cadence`, `/mandate`, etc. — existing kernel routes per
+      // kernel_surfaces.py's `route` field). Optional params in the
+      // surface bag (task slug, agent slug, file path) become query
+      // params on that route. The route is the deep-link transport;
+      // DeskState is the source of truth.
+      if (surface.type === 'atomic') {
+        const target = `/${surface.slug}`;
+        if (surface.params && Object.keys(surface.params).length > 0) {
+          const qs = new URLSearchParams(surface.params).toString();
+          router.push(`${target}?${qs}`, { scroll: false });
+        } else if (pathname !== target) {
+          router.push(target, { scroll: false });
+        }
+        return;
+      }
+
+      // Legacy non-atomic surfaces — original behavior preserved.
+      // Only update URL with surface params when on /feed (home).
       if (isHomeRoute(pathname)) {
         const params = surfaceToParams(surface);
         const newUrl = `${pathname}?${params.toString()}`;
-        // Use push instead of replace so browser back/forward works
         router.push(newUrl, { scroll: false });
       }
     },

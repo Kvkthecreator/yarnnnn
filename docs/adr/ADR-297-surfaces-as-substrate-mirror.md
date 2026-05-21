@@ -34,6 +34,21 @@ A surface is a **mountable React component bound to substrate**, addressed
 by surface state (slug + params), rendered into the shell's viewport.
 URLs are *optional addressing transport*, not the surface's identity.
 
+**Implementation status (2026-05-21)**: the axiom is enacted at the
+source-of-truth layer (DeskContext is canonical for surface identity;
+Dock + Launcher dispatch `setSurface`, not `router.push`; the per-slug
+URLs sync to DeskState via the pathname → atomic-slug useEffect in
+DeskContext). The per-slug Next.js routes (`/cadence`, `/mandate`,
+etc.) survive as **deep-link transport** and bookmark safety — they
+are no longer the surface's identity, just one way to reach it.
+SurfaceRegistry + SurfaceViewport components are committed and ready
+for use when ADR-297 D10 advances to multi-surface coexistence (split-
+mode / peek / pinned-content). At that point the route files become
+thin AtomicSurfaceMount wrappers and the actual render moves into
+SurfaceViewport. For the alpha-1 single-active-surface state, this
+intermediate shape honors the axiom without requiring full component
+extraction across 13 surfaces.
+
 This commits the OS-shell framing of ADR-222 at the frontend layer. A
 surface in YARNNN is structurally analogous to an *app window* in macOS:
 it has state, it mounts into a viewport, it can coexist with other

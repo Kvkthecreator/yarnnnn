@@ -17,11 +17,12 @@
  * enhancement; for now, unpinning happens from the launcher.
  */
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useMemo } from 'react';
 import type { Surface } from '@/lib/compositor/types';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
+import { useDesk } from '@/contexts/DeskContext';
+import { isKernelSurfaceSlug } from '@/types/desk';
 import { cn } from '@/lib/utils';
 
 interface DockProps {
@@ -31,6 +32,7 @@ interface DockProps {
 
 export function Dock({ surfaces, pinned }: DockProps) {
   const pathname = usePathname();
+  const { setSurface } = useDesk();
 
   // Resolve pinned slugs to Surface entries in the operator's pin order.
   // Surfaces not in the registry (e.g., stale pin from a deleted bundle)
@@ -59,10 +61,19 @@ export function Dock({ surfaces, pinned }: DockProps) {
           const isActive =
             pathname === surface.route ||
             pathname.startsWith(surface.route + '/');
+          // ADR-297 axiom: setSurface is the canonical action. The Dock
+          // dispatches surface state; the URL update is a side effect
+          // managed inside DeskContext.
+          const handleClick = () => {
+            if (isKernelSurfaceSlug(surface.slug)) {
+              setSurface({ type: 'atomic', slug: surface.slug });
+            }
+          };
           return (
-            <Link
+            <button
               key={surface.slug}
-              href={surface.route}
+              type="button"
+              onClick={handleClick}
               title={surface.title}
               aria-label={surface.title}
               className={cn(
@@ -73,7 +84,7 @@ export function Dock({ surfaces, pinned }: DockProps) {
               )}
             >
               <Icon className="h-5 w-5" />
-            </Link>
+            </button>
           );
         })}
       </div>
