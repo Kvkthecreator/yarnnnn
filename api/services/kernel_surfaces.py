@@ -32,20 +32,31 @@ from typing import Any
 
 
 # =============================================================================
-# Archetype enum — extends ADR-198's five with two catalog additions
+# Archetype enum — extends ADR-198's five with D1 + D11 catalog additions
 # =============================================================================
 #
 # ADR-198 names five archetypes: document | dashboard | queue | briefing |
-# stream. ADR-297 D1 names two catalog extensions for surfaces that don't
-# fit cleanly into the original five:
-#   - `browser` — interactive file/path navigation (the Files surface)
-#   - `roster` — list-of-actors surface (the Agents surface)
-# Both are operator-facing reading shapes that ADR-198's original five
-# don't cover; both are kernel-only (no program-shipped browser or roster
-# surfaces).
+# stream. This module extends with two content-shape additions from
+# ADR-297 D1 and three structural-role additions from ADR-297 D11:
+#
+#   ADR-297 D1 (content shapes — operator-facing reading):
+#     - `browser` — interactive file/path navigation (the Files surface)
+#     - `roster` — list-of-actors surface (the Agents surface)
+#
+#   ADR-297 D11 (structural — Universal Surface Application):
+#     - `input` — writes substrate (composer, command bar, search field)
+#     - `navigator` — lists/dispatches surface set (dock, launcher, breadcrumb)
+#     - `chrome` — structural framing (top bar, status bar, brand mark)
+#
+# Per ADR-297 D11: chrome-vs-content is not a special case at the
+# architecture layer. Every operator-visible thing is a surface; the
+# archetype classifies its reading/writing shape. Visibility policy (always
+# visible / summon / pinned-only) is a separate 2nd-order concern handled
+# by the compositor's layout regions.
 #
 # The TS mirror in web/lib/compositor/types.ts extends `Archetype` to
-# match.
+# match. Drift between this list and the TS union is a regression-gate
+# failure target.
 
 ARCHETYPES = (
     "document",
@@ -55,6 +66,9 @@ ARCHETYPES = (
     "stream",
     "browser",
     "roster",
+    "input",
+    "navigator",
+    "chrome",
 )
 
 
@@ -87,6 +101,20 @@ ARCHETYPES = (
 # Some surfaces (Feed, Queue, Activity) read DB tables, not files; their
 # `substrate_paths` is empty and the substrate-class is documented in
 # the comment.
+#
+# ADR-297 D11 fields (optional; absent on legacy content surfaces, which
+# default to the `main` region with `summon`-style visibility — i.e., the
+# active atomic surface mounts to `main`):
+#   - `default_region`: which named layout region the compositor mounts
+#     this surface into. One of `main | top | bottom-floating |
+#     bottom-fixed | floating-overlay`.
+#   - `default_visibility`: when the compositor mounts it. One of
+#     `always` (mounted whenever any authenticated surface is active),
+#     `summon` (mounted only when explicitly opened — e.g., Launcher
+#     overlay), `pinned-only` (mounted only if pinned by operator —
+#     today: not used; reserved for future ops).
+# The kernel ships default policy via these fields; operator overrides
+# land in Phase D (out of scope for D11 minimum-viable).
 
 KERNEL_SURFACES: list[dict[str, Any]] = [
     {
@@ -246,6 +274,66 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "default_pinned": False,
         "route": "/activity",  # _route_status: NEW in Phase 2 — current /activity is deleted per ADR-163; reinstated as surface-mode
         "summary": "Execution-event log — every wake, every dispatch, every cost.",
+    },
+    # =========================================================================
+    # ADR-297 D11 — Chrome surfaces (Universal Surface Application)
+    # =========================================================================
+    #
+    # These four entries dissolve the chrome-as-special-case in
+    # AuthenticatedLayout.tsx. The compositor mounts them into named
+    # layout regions via `default_region`. They are NOT navigable from
+    # the launcher (`route` is "" — the launcher consumer filters out
+    # entries with no route). They are NOT pinnable (`default_pinned` is
+    # always False — the dock consumer filters out chrome-archetype
+    # entries). They participate in the kernel surface registry purely so
+    # the compositor has a single source of truth for what mounts where.
+    {
+        "slug": "top-bar",
+        "title": "Top Bar",
+        "archetype": "chrome",
+        "substrate_paths": [],
+        "icon_key": "layout-top",
+        "default_pinned": False,
+        "route": "",  # not navigable; structural framing only
+        "summary": "Top chrome region — brand mark, launcher trigger, user menu.",
+        "default_region": "top",
+        "default_visibility": "always",
+    },
+    {
+        "slug": "dock",
+        "title": "Dock",
+        "archetype": "navigator",
+        "substrate_paths": [],  # reads useSurfacePreferences().pinned (localStorage)
+        "icon_key": "layout-dock",
+        "default_pinned": False,
+        "route": "",  # not navigable; surface-dispatch affordance
+        "summary": "Bottom-floating dock — operator-pinned surfaces; clicking dispatches via DeskContext.",
+        "default_region": "bottom-floating",
+        "default_visibility": "always",
+    },
+    {
+        "slug": "launcher",
+        "title": "Launcher",
+        "archetype": "navigator",
+        "substrate_paths": [],  # reads composition.surfaces[] (full registry)
+        "icon_key": "layout-grid",
+        "default_pinned": False,
+        "route": "",  # not navigable; summon-only overlay
+        "summary": "Full surface index overlay — type-to-filter, per-row pin toggle, tier grouping.",
+        "default_region": "floating-overlay",
+        "default_visibility": "summon",
+    },
+    {
+        "slug": "chat-composer",
+        "title": "Chat Composer",
+        "archetype": "input",
+        "substrate_paths": [],  # writes session_messages DB table
+        "icon_key": "message-square",
+        "default_pinned": False,
+        "route": "",  # not navigable; bottom-fixed input region
+        "summary": "Operator chat composer — writes session_messages; mounted in every authenticated surface.",
+        "default_region": "bottom-fixed",
+        "default_visibility": "always",
     },
 ]
 

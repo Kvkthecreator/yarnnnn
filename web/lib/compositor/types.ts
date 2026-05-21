@@ -43,7 +43,63 @@ export interface ComponentDecl {
 // Middle declarations — ADR-225 §4 + Phase I (slug-only match resolution)
 // ---------------------------------------------------------------------------
 
-export type Archetype = 'document' | 'dashboard' | 'queue' | 'briefing' | 'stream';
+/**
+ * Archetype enum — mirrors `api/services/kernel_surfaces.py::ARCHETYPES`.
+ *
+ * ADR-198 originally named five (document/dashboard/queue/briefing/stream).
+ * ADR-297 D1 added two content shapes (browser/roster) and ADR-297 D11
+ * added three structural roles (input/navigator/chrome) for chrome
+ * surfaces under the Universal Surface Application axiom.
+ *
+ * Drift between this union and the Python tuple is a regression-gate
+ * failure target — the Phase 1 gate compares both.
+ */
+export type Archetype =
+  | 'document'
+  | 'dashboard'
+  | 'queue'
+  | 'briefing'
+  | 'stream'
+  | 'browser'
+  | 'roster'
+  | 'input'
+  | 'navigator'
+  | 'chrome';
+
+/**
+ * LayoutRegion — named compositor mount points (ADR-297 D11).
+ *
+ * The compositor partitions registered surfaces by `default_region`
+ * and mounts each region's surface(s) at the matching JSX slot in
+ * ShellCompositor.tsx. Visibility policy (`default_visibility`) is
+ * orthogonal — a region can hold an always-mounted, summon-only, or
+ * pinned-only surface.
+ *
+ * Today's regions:
+ *   - `main` — primary content area (one surface today; multi-surface
+ *     composition is the D10 forward horizon)
+ *   - `top` — top-of-viewport chrome region
+ *   - `bottom-floating` — bottom-floating affordance (today: Dock)
+ *   - `bottom-fixed` — bottom-fixed input region (today: ChatComposer)
+ *   - `floating-overlay` — modal-style overlay summoned over `main`
+ *     (today: Launcher)
+ */
+export type LayoutRegion =
+  | 'main'
+  | 'top'
+  | 'bottom-floating'
+  | 'bottom-fixed'
+  | 'floating-overlay';
+
+/**
+ * Surface visibility policy (ADR-297 D11) — when the compositor mounts
+ * a surface. Orthogonal to LayoutRegion.
+ *
+ *   - `always` — mounted whenever any authenticated surface is active
+ *   - `summon` — mounted only when explicitly opened (Launcher overlay)
+ *   - `pinned-only` — mounted only if pinned by operator (reserved)
+ */
+export type SurfaceVisibility = 'always' | 'summon' | 'pinned-only';
 
 /**
  * Phase I (post-merge sweep, 2026-05-10): the legacy 4-tier match
@@ -181,9 +237,24 @@ export interface Surface {
   substrate_paths: string[];
   icon_key: string;
   default_pinned: boolean;
+  /**
+   * URL the launcher navigates to when the operator selects the
+   * surface. Empty string ("") for chrome surfaces (top-bar, dock,
+   * launcher, chat-composer) — they are not navigable from the
+   * launcher; the launcher consumer filters out entries with empty
+   * routes.
+   */
   route: string;
   summary: string;
   tier: SurfaceTier;
+  /**
+   * ADR-297 D11 — compositor mount policy. Absent on legacy content
+   * surfaces, which the compositor treats as `default_region: 'main'`
+   * with `default_visibility: 'summon'` (i.e., the active atomic
+   * surface mounts to `main`).
+   */
+  default_region?: LayoutRegion;
+  default_visibility?: SurfaceVisibility;
 }
 
 // ---------------------------------------------------------------------------

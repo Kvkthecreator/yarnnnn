@@ -1,7 +1,8 @@
-"""ADR-297 Phase 1 — atomic surfaces registry regression gate.
+"""ADR-297 Phase 1 + D11 — atomic surfaces registry regression gate.
 
 Asserts the compositor extension emits the `surfaces[]` field with:
-- All kernel surfaces always present (12 entries, every slug from
+- All kernel surfaces always present (13 content surfaces + 4 chrome
+  surfaces from D11 = 17 entries; every slug from
   kernel_surfaces.KERNEL_SURFACES)
 - Each kernel surface carries tier="kernel"
 - Each entry has the required fields (slug, title, archetype, tier,
@@ -13,6 +14,16 @@ Asserts the compositor extension emits the `surfaces[]` field with:
 - The existing `composition` field is unchanged (Phase 1 is additive)
 - Bad bundle surfaces[] entries are skipped, not raised — kernel
   surfaces still emit
+
+ADR-297 D11 additions (Universal Surface Application):
+- ARCHETYPES contains `input`, `navigator`, `chrome`
+- Four chrome surfaces registered: `top-bar` (chrome/top),
+  `dock` (navigator/bottom-floating), `launcher`
+  (navigator/floating-overlay), `chat-composer` (input/bottom-fixed)
+- Every chrome-style surface (i.e., one with default_region set)
+  declares both default_region and default_visibility
+- Chrome surfaces are not navigable (route == "")
+- Chrome surfaces are not pinnable (default_pinned == False)
 
 Run: .venv/bin/python api/test_adr297_phase1.py
 """
@@ -72,8 +83,9 @@ def test_kernel_surfaces_module() -> None:
     print("\n[1] kernel_surfaces module hygiene")
 
     _assert(
-        len(KERNEL_SURFACES) >= 10,
-        f"At least 10 kernel surfaces declared (found {len(KERNEL_SURFACES)})",
+        len(KERNEL_SURFACES) >= 17,
+        f"At least 17 kernel surfaces declared "
+        f"(13 content + 4 D11 chrome) (found {len(KERNEL_SURFACES)})",
     )
 
     slugs = [s["slug"] for s in KERNEL_SURFACES]
@@ -97,6 +109,11 @@ def test_kernel_surfaces_module() -> None:
         "program",
         "queue",
         "activity",
+        # ADR-297 D11 — chrome surfaces
+        "top-bar",
+        "dock",
+        "launcher",
+        "chat-composer",
     }
     actual = set(slugs)
     missing = expected_slugs - actual
@@ -327,6 +344,116 @@ def test_resolver_program_surfaces_emit() -> None:
 
 
 # =============================================================================
+# Group 5b — ADR-297 D11 archetype + chrome-surface invariants
+# =============================================================================
+
+
+def test_d11_archetype_catalog() -> None:
+    print("\n[5b-archetypes] ADR-297 D11 archetype catalog")
+
+    # All D1 + D11 archetypes present
+    expected_archetypes = {
+        # ADR-198 originals
+        "document",
+        "dashboard",
+        "queue",
+        "briefing",
+        "stream",
+        # ADR-297 D1 additions
+        "browser",
+        "roster",
+        # ADR-297 D11 additions
+        "input",
+        "navigator",
+        "chrome",
+    }
+    actual = set(ARCHETYPES)
+    missing = expected_archetypes - actual
+    _assert(
+        not missing,
+        f"ARCHETYPES contains all D1+D11 entries (missing: {missing or 'none'})",
+    )
+
+
+def test_d11_chrome_surfaces() -> None:
+    print("\n[5b-chrome] ADR-297 D11 chrome-surface contract")
+
+    # The four chrome surfaces and their declared (region, visibility)
+    expected_chrome = {
+        "top-bar": ("chrome", "top", "always"),
+        "dock": ("navigator", "bottom-floating", "always"),
+        "launcher": ("navigator", "floating-overlay", "summon"),
+        "chat-composer": ("input", "bottom-fixed", "always"),
+    }
+
+    by_slug = {s["slug"]: s for s in KERNEL_SURFACES}
+
+    for slug, (archetype, region, visibility) in expected_chrome.items():
+        entry = by_slug.get(slug)
+        _assert(entry is not None, f"Chrome surface '{slug}' is declared")
+        if entry is None:
+            continue
+
+        _assert(
+            entry.get("archetype") == archetype,
+            f"'{slug}' archetype is '{archetype}' "
+            f"(got: {entry.get('archetype')})",
+        )
+        _assert(
+            entry.get("default_region") == region,
+            f"'{slug}' default_region is '{region}' "
+            f"(got: {entry.get('default_region')})",
+        )
+        _assert(
+            entry.get("default_visibility") == visibility,
+            f"'{slug}' default_visibility is '{visibility}' "
+            f"(got: {entry.get('default_visibility')})",
+        )
+        # Chrome surfaces are not launcher-navigable
+        _assert(
+            entry.get("route") == "",
+            f"'{slug}' is not launcher-navigable (route == '')",
+        )
+        # Chrome surfaces are not dock-pinnable
+        _assert(
+            entry.get("default_pinned") is False,
+            f"'{slug}' is not default_pinned",
+        )
+
+    # Every surface that declares default_region must also declare
+    # default_visibility (and vice versa) — D11 layout policy is a
+    # paired contract.
+    for entry in KERNEL_SURFACES:
+        has_region = "default_region" in entry
+        has_visibility = "default_visibility" in entry
+        _assert(
+            has_region == has_visibility,
+            f"'{entry['slug']}' D11 fields are paired "
+            f"(region={has_region}, visibility={has_visibility})",
+        )
+
+    # Every declared region is one of the canonical five
+    legal_regions = {"main", "top", "bottom-floating", "bottom-fixed", "floating-overlay"}
+    for entry in KERNEL_SURFACES:
+        region = entry.get("default_region")
+        if region is not None:
+            _assert(
+                region in legal_regions,
+                f"'{entry['slug']}' default_region '{region}' is canonical",
+            )
+
+    # Every declared visibility is one of the canonical three
+    legal_visibility = {"always", "summon", "pinned-only"}
+    for entry in KERNEL_SURFACES:
+        visibility = entry.get("default_visibility")
+        if visibility is not None:
+            _assert(
+                visibility in legal_visibility,
+                f"'{entry['slug']}' default_visibility '{visibility}' is canonical",
+            )
+
+
+# =============================================================================
 # Group 5 — schema-version bump check (canary for future schema changes)
 # =============================================================================
 
@@ -362,9 +489,11 @@ if __name__ == "__main__":
     test_kernel_surface_entries_shape()
     test_resolver_empty_workspace()
     test_resolver_program_surfaces_emit()
+    test_d11_archetype_catalog()
+    test_d11_chrome_surfaces()
     test_schema_version_stable()
 
     print(f"\n{'='*60}")
-    print(f"ADR-297 Phase 1 regression gate: {_passed} passed, {_failed} failed")
+    print(f"ADR-297 Phase 1 + D11 regression gate: {_passed} passed, {_failed} failed")
     print(f"{'='*60}")
     sys.exit(0 if _failed == 0 else 1)
