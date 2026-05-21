@@ -44,16 +44,17 @@ function CallbackHandler() {
       }
 
       const finalize = async () => {
-        // ADR-244: replace ADR-240's modal-mount with a settings-surface
-        // redirect on first run. Same activation_state gate; the surface
-        // (Settings → Workspace) is the permanent home for program
-        // lifecycle, accessible at any time after signup.
+        // ADR-297: post-migration, the /workspace container dissolves;
+        // first-run operators land on the atomic Program surface (the
+        // permanent home for program lifecycle — activate / switch /
+        // deactivate / capability gaps). The state-fetch still triggers
+        // roster scaffolding as a side effect.
         if (next === HOME_ROUTE) {
           try {
             setStatus("Setting up...");
             const state = await api.workspace.getState(); // triggers roster scaffolding
             if (state.activation_state === "none" && !state.active_program_slug) {
-              window.location.href = "/workspace?first_run=1";
+              window.location.href = "/program?first_run=1";
               return;
             }
           } catch {

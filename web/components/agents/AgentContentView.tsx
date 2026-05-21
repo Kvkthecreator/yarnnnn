@@ -33,8 +33,6 @@ import { formatRelativeTime } from '@/lib/formatting';
 import { humanizeSchedule, scheduleDisplay } from '@/lib/schedule';
 import { CONTEXT_ROUTE, WORK_ROUTE } from '@/lib/routes';
 import { SubstrateTab } from './SubstrateTab';
-import { DelegationCard } from '@/components/workspace-concepts/DelegationCard';
-import { PrinciplesCard } from '@/components/workspace-concepts/PrinciplesCard';
 import { ReviewerActivityPanel } from './ReviewerActivityPanel';
 import { ReviewerCapabilitiesPanel } from './ReviewerCapabilitiesPanel';
 import {
@@ -735,11 +733,15 @@ function AgentTabBar({
 // (ADR-228); raw files remain accessible via /context.
 // ---------------------------------------------------------------------------
 
+// ADR-297: Autonomy + Principles tabs DELETED. Operator-authored
+// governance (delegation ceiling + judgment principles) lives on atomic
+// surfaces (/delegation, /principles). Reviewer page shrinks to
+// Reviewer-substance only — who occupies the seat, what it can do, what
+// it did. URL params ?tab=autonomy and ?tab=principles fail the
+// validTab check below and gracefully fall through to 'identity'.
 const REVIEWER_TABS: TabDef[] = [
   { key: 'identity', label: 'Identity' },
-  { key: 'principles', label: 'Principles' },
   { key: 'capabilities', label: 'Capabilities' },
-  { key: 'autonomy', label: 'Autonomy' },
   { key: 'activity', label: 'Activity' },
 ];
 
@@ -785,19 +787,9 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
             />
           </div>
         )}
-        {activeTab === 'principles' && (
-          <div className="px-6 py-5">
-            <PrinciplesCard variant="full" />
-          </div>
-        )}
         {activeTab === 'capabilities' && (
           <div className="px-6 py-5">
             <ReviewerCapabilitiesPanel />
-          </div>
-        )}
-        {activeTab === 'autonomy' && (
-          <div className="px-6 py-5">
-            <DelegationCard variant="full" />
           </div>
         )}
         {activeTab === 'activity' && (

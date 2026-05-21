@@ -1,6 +1,6 @@
 # ADR-297 — Surfaces as Substrate Mirror: Atomic Surfaces, Summon Index, Compositor as Registry
 
-> **Status:** Phase 1 Implemented (2026-05-21) · Phases 2 + 3 Implemented (2026-05-21, same-session clean-slate)
+> **Status:** Implemented (2026-05-21, same-session clean-slate migration)
 > **Amendment (2026-05-21 same-session, pre-Phase-2-implementation):** D1 kernel surface list extended from 12 to 13 entries with the addition of `cockpit` (Dashboard archetype). Resolves an ambiguity the deletion-scope audit surfaced: `/work` today hosts cockpit rendering (ADR-228 four-face stack via `CockpitRenderer`) inside its dashboard tab. Clean-slate migration dissolves `/work` entirely — recurrence list folds into Cadence, task detail becomes drill-down from Cadence (`/cadence/{slug}`), and cockpit rendering relocates to its own atomic Cockpit surface. The 13th kernel surface honors substrate-mirrors-surface for the cockpit-as-substrate-read concept that ADR-228 already established; no rewrite of `CockpitRenderer`, just relocation.
 > **Authors:** KVK, Claude
 > **Supersedes:** [ADR-244](ADR-244-workspace-settings-surface.md) (workspace settings surface as container — replaced by atomic kernel surfaces) · [ADR-266](ADR-266-workspace-surface-content-discipline.md) (workspace page-as-container reshape — replaced by atomic + index) · [ADR-243](ADR-243-schedule-surface.md) (Schedule surface as a tab — folds into atomic Cadence surface) · the 4-tab nav portion of [ADR-214](ADR-214-agents-page-consolidation.md) (Feed/Work/Agents/Files framing — dissolves into pinned-surface dock + summon index)
@@ -187,6 +187,83 @@ This ADR commits to **not blocking** that direction. Specifically: the surface r
 - **Does not change substrate.** Every substrate path and schema preserved. This is purely a frontend reshape.
 - **Does not amend FOUNDATIONS or GLOSSARY.** No new axioms; this is the surface-layer enactment of existing axioms (1 — Substrate; 6 — Channel) and OS framing (ADR-222).
 - **Does not specify cadence-surface design.** The atomic Cadence surface exists per D1's enumeration but its archetype/content/interactions are spec'd in implementation. The `cadence-and-wakes.md` canon doc already provides the substrate map; the surface design follows from it.
+
+---
+
+## Phases 2 + 3 Implementation — landed 2026-05-21 (same-session)
+
+The full atomic-shell migration shipped as a sequence of incremental
+commits, each TS-clean and regression-gate-green:
+
+**Shell rebuild**:
+- `web/lib/shell/surface-preferences.ts` — localStorage-backed pinned-
+  surfaces + last-active-surface persistence (D5 + D6 substrate). Default-
+  pinned: Feed only.
+- `web/lib/shell/useSurfacePreferences.ts` — React hook over the
+  persistence helpers.
+- `web/lib/shell/surface-icons.tsx` — `icon_key` → lucide-react resolver.
+- `web/components/shell/Dock.tsx` — persistent bottom dock of pinned
+  surfaces, active-route highlight.
+- `web/components/shell/Launcher.tsx` — summon-first overlay; type-to-
+  filter; per-row pin toggle; subtle tier grouping (Workspace /
+  <Program> / Custom).
+- `web/components/shell/LauncherButton.tsx` — always-visible icon in top
+  chrome (LayoutGrid).
+- `web/components/shell/SurfacePage.tsx` — common content chrome for
+  atomic surfaces.
+- `web/components/shell/AuthenticatedLayout.tsx` — rewired. ToggleBar
+  import + render REMOVED. Dock + Launcher + LauncherButton mounted.
+  Last-used home behavior implemented (recordVisit on pathname change,
+  resolves slug to route on logo click).
+
+**Atomic surface routes** (10 new + 1 renamed):
+- `/mandate` — MandateCard full variant
+- `/delegation` — DelegationCard full variant (formerly "Autonomy" tab)
+- `/principles` — PrinciplesCard full variant (formerly "Principles" tab)
+- `/identity` — IdentityBrandCard (co-renders identity + brand)
+- `/brand` — redirects to /identity (peer atomic, splittable later)
+- `/program` — ProgramLifecycleDrawer + workspace state fetch
+- `/cockpit` — CockpitRenderer (ADR-228 four-face + ADR-273 program
+  sections intact; 13th kernel surface)
+- `/queue` — thin placeholder pointing to Feed (richer queue view is a
+  follow-on if demand surfaces)
+- `/activity` — RETAINED (no change; "Manage →" deep-link updated to
+  `/cadence?task=`)
+- `/agents` — RETAINED (Reviewer tabs reduced — see below)
+- `/cadence` — RENAMED from `/work` via filesystem move. Dashboard tab
+  dissolved (cockpit content moved to `/cockpit`). Detail mode + agent
+  filter + recurrence list preserved.
+
+**Inbound-link reroutes**:
+- `UserMenu.tsx` `/workspace` → `/mandate`; menu label "Workspace" →
+  "Mandate"
+- `auth/callback/page.tsx` first-run `/workspace?first_run=1` →
+  `/program?first_run=1`
+- `operation/page.tsx` `/workspace` → `/mandate`
+- `CockpitHeader.tsx` `AUTONOMY_EDIT_HREF` updated from
+  `/agents?agent=reviewer&tab=autonomy` to `/delegation`
+- `CockpitRenderer.tsx` UnactivatedCockpitCTA `/settings?tab=workspace`
+  → `/program`
+- `activity/page.tsx` JobCard "Manage →" `/work?task=` → `/cadence?task=`
+
+**Deletions** (Singular Implementation):
+- `web/components/shell/ToggleBar.tsx` — 4-tab nav DELETED
+- `web/app/(authenticated)/workspace/page.tsx` — container DELETED
+- `web/app/(authenticated)/schedule/page.tsx` — redirect-stub DELETED
+- `web/components/workspace-config/WorkspaceConfigSection.tsx` — DELETED
+- `web/components/workspace-config/WorkspacePostureLine.tsx` — DELETED
+- `web/components/workspace-config/` directory — REMOVED (drawer
+  relocated to `web/components/library/ProgramLifecycleDrawer.tsx`)
+- `AgentContentView.tsx` Reviewer `autonomy` + `principles` tabs DELETED
+  (REVIEWER_TABS shrunk from 5 to 3: identity · capabilities · activity)
+
+**Verification**:
+- TS clean (`npx tsc --noEmit` exit 0 after `.next` cache reset)
+- ADR-297 regression gate: 58/58 PASS (cockpit surface declared, all
+  required fields present, archetype enum compliance, Feed-only default
+  pin invariant)
+- `composition` field preserved verbatim (Phase 1 additive contract
+  honored — `surfaces[]` is the new field; existing consumers unaffected)
 
 ---
 

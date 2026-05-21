@@ -1,19 +1,21 @@
 'use client';
 
 /**
- * Work Page — List/detail surface (ADR-167 v5).
+ * Cadence Page — atomic Cadence surface (ADR-297 D1).
  *
- * SURFACE-ARCHITECTURE.md v9.4: /work is a single surface with two modes:
- *   - List mode (no `?task=` param): full-width WorkListSurface with filter
- *     chips, search, group-by, agent filter
- *   - Detail mode (`?task={slug}`): kind-aware WorkDetail dispatching the
- *     middle band on task.output_kind (ADR-166)
+ * Renamed from /work in the ADR-297 atomic-shell migration. The previous
+ * `dashboard` tab dissolves — cockpit rendering now lives at the dedicated
+ * /cockpit atomic surface (ADR-297 D1, 13th kernel surface).
  *
- * The breadcrumb is rendered as chrome via <PageHeader /> — pure navigation,
- * no title, no metadata, no actions. The task's visual identity (title +
- * metadata + actions) lives inside WorkDetail via <SurfaceIdentityHeader />
- * where it belongs alongside the task content. v5 undoes the v2-v4 pattern
- * of plumbing task-shaped data through the chrome layer.
+ * Two modes (substrate-unchanged):
+ *   - List mode (no `?task=` param): full-width recurrence list — search,
+ *     agent filter, cadence groups.
+ *   - Detail mode (`?task={slug}`): kind-aware recurrence detail via
+ *     WorkDetail dispatching the middle band on task.output_kind (ADR-166).
+ *
+ * Tab state simplified: this surface always shows `schedule` content; the
+ * `?tab=dashboard` query param no-ops for bookmark safety and falls
+ * through to the schedule view.
  *
  * The `?agent={slug}` query param is preserved as a deep-link shortcut.
  */
@@ -89,9 +91,9 @@ export default function WorkPage() {
   // Local state is the source of truth for the active tab — router.replace
   // updates the URL as a side effect but useSearchParams can lag in the
   // App Router. Initial value is derived from the URL param.
-  const [activeTab, setActiveTab] = useState<WorkTab>(
-    tabParam === 'dashboard' ? 'dashboard' : 'schedule'
-  );
+  // ADR-297: dashboard tab dissolved — cockpit lives at /cockpit. The
+  // schedule view is the only tab on this surface.
+  const [activeTab, setActiveTab] = useState<WorkTab>('schedule');
   const {
     task: selectedRecurrenceDetail,
     loading: taskDetailLoading,
@@ -122,8 +124,8 @@ export default function WorkPage() {
   useEffect(() => {
     if (tabParam === lastSyncedTabParam.current) return; // no external change
     lastSyncedTabParam.current = tabParam;
-    const derived: WorkTab = tabParam === 'dashboard' ? 'dashboard' : 'schedule';
-    setActiveTab(derived);
+    // ADR-297: schedule is the only tab; ignore dashboard requests.
+    setActiveTab('schedule');
   }, [tabParam]);
 
   useEffect(() => {
@@ -162,19 +164,19 @@ export default function WorkPage() {
             label: taskNotFound
               ? 'Task not found'
               : breadcrumbTask?.title ?? taskSlugFromUrl,
-            href: `/work?task=${encodeURIComponent(taskSlugFromUrl)}&agent=${encodeURIComponent(agentFilter)}`,
+            href: `/cadence?task=${encodeURIComponent(taskSlugFromUrl)}&agent=${encodeURIComponent(agentFilter)}`,
             kind: 'task',
           },
         ]);
       } else {
         // Standard Work navigation — task is the subject, no agent container
         setBreadcrumb([
-          { label: 'Work', href: '/work', kind: 'surface' },
+          { label: 'Cadence', href: '/cadence', kind: 'surface' },
           {
             label: taskNotFound
               ? 'Task not found'
               : breadcrumbTask?.title ?? taskSlugFromUrl,
-            href: `/work?task=${encodeURIComponent(taskSlugFromUrl)}`,
+            href: `/cadence?task=${encodeURIComponent(taskSlugFromUrl)}`,
             kind: 'task',
           },
         ]);
@@ -242,7 +244,7 @@ export default function WorkPage() {
   const handleSelect = useCallback((slug: string) => {
     const sp = new URLSearchParams(searchParams.toString());
     sp.set('task', slug);
-    router.push(`/work?${sp.toString()}`, { scroll: false });
+    router.push(`/cadence?${sp.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
   // Clear agent filter chip in list mode
@@ -250,14 +252,14 @@ export default function WorkPage() {
     const sp = new URLSearchParams(searchParams.toString());
     sp.delete('agent');
     const qs = sp.toString();
-    router.replace(qs ? `/work?${qs}` : '/work', { scroll: false });
+    router.replace(qs ? `/cadence?${qs}` : '/cadence', { scroll: false });
   }, [router, searchParams]);
 
   const handleBackToList = useCallback(() => {
     const sp = new URLSearchParams(searchParams.toString());
     sp.delete('task');
     const qs = sp.toString();
-    router.replace(qs ? `/work?${qs}` : '/work', { scroll: false });
+    router.replace(qs ? `/cadence?${qs}` : '/cadence', { scroll: false });
   }, [router, searchParams]);
 
   const handleTabChange = useCallback((tab: WorkTab) => {
@@ -267,7 +269,7 @@ export default function WorkPage() {
     lastSyncedTabParam.current = tab;
     const sp = new URLSearchParams(searchParams.toString());
     sp.set('tab', tab);
-    router.replace(`/work?${sp.toString()}`, { scroll: false });
+    router.replace(`/cadence?${sp.toString()}`, { scroll: false });
   }, [router, searchParams]);
 
   const plusMenuActions: PlusMenuAction[] = useMemo(() => {

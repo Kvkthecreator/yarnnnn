@@ -27,7 +27,8 @@
  * as skeleton (any "Author here:" prompt in a sub-section triggered the
  * whole-file skeleton banner even when Primary Action was authored).
  *
- * Autonomy posture links to /agents?agent=reviewer&tab=autonomy (ADR-251).
+ * Autonomy posture links to /delegation (ADR-297 atomic Delegation
+ * surface; formerly /agents?agent=reviewer&tab=autonomy per ADR-251).
  */
 
 import { useEffect, useState } from 'react';
@@ -41,8 +42,8 @@ import { useCockpit } from './CockpitContext';
 import { cn } from '@/lib/utils';
 
 const MANDATE_PATH = '/workspace/context/_shared/MANDATE.md';
-// ADR-251: Autonomy lives under the Reviewer surface.
-const AUTONOMY_EDIT_HREF = '/agents?agent=reviewer&tab=autonomy';
+// ADR-297: Autonomy → Delegation atomic surface.
+const AUTONOMY_EDIT_HREF = '/delegation';
 
 // ---------------------------------------------------------------------------
 // Autonomy display

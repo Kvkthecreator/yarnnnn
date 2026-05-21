@@ -13,7 +13,7 @@ import { useEffect, useState } from 'react';
 import { Loader2, AlertCircle } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { SurfacePage } from '@/components/shell/SurfacePage';
-import { ProgramLifecycleDrawer } from '@/components/workspace-config/ProgramLifecycleDrawer';
+import { ProgramLifecycleDrawer } from '@/components/library/ProgramLifecycleDrawer';
 
 type WorkspaceState = Awaited<ReturnType<typeof api.workspace.getState>>;
 
