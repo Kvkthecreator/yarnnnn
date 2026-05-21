@@ -222,6 +222,83 @@ A future ADR — provisional title *"Composed Surfaces — Operator-Authored Vie
 
 This ADR commits to **not blocking** that direction. Specifically: the surface registry schema (D3) accommodates a `tier: composed` entry; the launcher (D4) supports a "Custom" section; the dock (D5) accepts composed surfaces in the pinned set with no special-casing. We don't build the authoring path; we don't preclude it.
 
+### D11 — Universal Surface Application (2026-05-21 same-session amendment)
+
+The axiom **surface = viewport panel, not URL destination** (D1 amendment) applies *universally*. Everything operator-visible is a surface. No exceptions:
+
+- **Chat composer is a surface** (Input archetype — writes session_messages)
+- **Feed timeline is a surface** (Stream archetype — reads session_messages)
+- **Dock is a surface** (Navigator archetype — renders pinned surface registry)
+- **Launcher overlay is a surface** (Navigator archetype — renders full surface registry)
+- **Top bar is a surface** (Chrome archetype — renders brand + launcher trigger + user menu)
+
+What today exists as hardcoded "shell chrome" in `AuthenticatedLayout.tsx` is, under D11, a collection of surfaces mounted into named layout regions by the compositor.
+
+**Why this matters**: the chrome-vs-content distinction is the place where "page-as-container" patterns reassert themselves under different names. A surface that's "always visible" looks like chrome; a surface that's "summon-only" looks like a modal. D11 commits that *visibility policy* is a separate concern from *what a thing fundamentally is*. Everything is a surface. Some surfaces are mounted-by-default; others are summon-only; others are always-visible in a fixed region. The shell becomes a **compositor** that reads layout policy and mounts surfaces into regions, not a fixed layout.
+
+**Archetype catalog widens** (extends ADR-198 + the `browser`/`roster` additions already in this ADR):
+- `Document` / `Dashboard` / `Queue` / `Briefing` / `Stream` (ADR-198 — content shapes)
+- `Browser` / `Roster` (this ADR D1 — content shapes)
+- **`Input`** (new — composer, command bar, search field; writes substrate)
+- **`Navigator`** (new — dock, launcher overlay, breadcrumb; lists/dispatches surface set)
+- **`Chrome`** (new — top bar, status bar, brand mark; structural framing)
+
+**Layout regions** (where surfaces mount):
+- `main` — primary content area (one surface today; multi-surface composition in D10 future)
+- `top` — top-of-viewport chrome region
+- `bottom-floating` — bottom-floating affordance (today: Dock)
+- `bottom-fixed` — bottom-fixed input region (today: nothing; future composer home for D11 implementation)
+- `floating-overlay` — modal-style overlay summoned over `main` (today: Launcher)
+
+**Layout policy** is operator-configurable second-order. The kernel ships default policy:
+- Top bar always mounted in `top`
+- Dock always mounted in `bottom-floating` (pinned surfaces only)
+- Composer always mounted in `bottom-fixed` (Input surface — every operator can chat with YARNNN from any surface)
+- Launcher mounted in `floating-overlay` on summon
+- Active atomic surface mounted in `main`
+
+Operator preferences (future, via `useSurfacePreferences` extension) can override defaults: hide composer, move dock to right rail, etc. Layout policy is the 2nd-order concern; the universal-surface axiom is the 1st.
+
+**Why D11 and not its own ADR**: D11 is the *logical completion* of the surface-mirrors-substrate principle (the foundational principle of this ADR). It doesn't introduce new concepts so much as remove an unprincipled exception — chrome-as-special-case. Same ADR; explicit amendment for trace continuity.
+
+D11 implementation status: **declared, not yet implemented.** The infrastructure for D11 (compositor + surface registry + layout regions) requires its own dedicated session — see implementation path below.
+
+---
+
+## Implementation path for D11 — Uniform Compositor
+
+A future session opens with this scoped plan. Each phase ships independently and is TS-clean + regression-gate-green.
+
+**Phase A — Taxonomy + types** (~1h):
+1. Extend `ARCHETYPES` enum in `api/services/kernel_surfaces.py` with `input`, `navigator`, `chrome`.
+2. Add new kernel-surface declarations: `chat-composer` (Input), `launcher` (Navigator — wraps existing Launcher.tsx), `dock` (Navigator — wraps existing Dock.tsx), `top-bar` (Chrome). Each declares its default layout region.
+3. Add new `LayoutRegion` enum to `web/lib/compositor/types.ts`: `main | top | bottom-floating | bottom-fixed | floating-overlay`.
+4. Extend `Surface` type with `default_region?: LayoutRegion` and `default_visibility?: 'always' | 'summon' | 'pinned-only'` fields.
+5. Update Phase 1 regression gate to cover new archetypes + the new chrome-surface entries.
+
+**Phase B — Compositor & Layout** (~2h):
+1. Replace AuthenticatedLayout's hardcoded JSX with a `ShellCompositor` component that reads the surface registry, partitions surfaces by `default_region`, and mounts each region's surface(s).
+2. `ShellCompositor` consumes layout policy (kernel default + operator overrides) — for alpha-1, kernel default only.
+3. Each chrome element (Dock, Launcher, TopBar, ChatComposer) becomes a surface component registered in `SurfaceRegistry`; the compositor mounts them via the same path as content surfaces.
+4. Existing `<Dock>` and `<Launcher>` components become surface implementations; their *invocation* shifts from explicit JSX in AuthenticatedLayout to compositor-driven mounting.
+
+**Phase C — Chat composer as Input surface** (~1.5h):
+1. Extract chat composition affordance from `web/components/feed-surface/` into a standalone `ChatComposerSurface` component (Input archetype, mounted in `bottom-fixed` region by default).
+2. Feed surface trims to pure Stream archetype (timeline read only).
+3. Remove `ThreePanelLayout(conversation=…)` calls from all atomic surface pages — composer is shell-mounted, not per-surface.
+4. Mobile divergence: composer surface declares mobile-shape (full-screen on summon; bottom-bar-summon-icon when collapsed).
+
+**Phase D — Layout policy persistence** (~1h, optional):
+1. Extend `useSurfacePreferences` with `surfaceLayoutOverrides` — per-surface region/visibility overrides.
+2. Add operator-facing UI for moving/hiding chrome surfaces (right-click → "Move to right rail", etc.).
+3. Persist to localStorage same pattern as `pinnedSurfaces`.
+
+**Phase E — Multi-surface main region** (the D10 advance):
+1. `main` region accepts an array of surface declarations, not just one.
+2. Default layout: single-active. Split-mode + peek layouts unlock when operator demands.
+
+Phases A + B + C are the minimum-viable D11. Phase D is operator-customization. Phase E is the D10 multi-surface advance enabled by the uniform-compositor foundation.
+
 ---
 
 ## What this ADR does NOT do
