@@ -67,6 +67,7 @@ from typing import Any, Optional
 
 from services.reviewer_audit import append_decision
 from services.reviewer_chat_surfacing import write_reviewer_message
+from services.reviewer_envelope import load_reviewer_governance_envelope
 
 logger = logging.getLogger(__name__)
 
@@ -338,47 +339,34 @@ async def _run_ai_reviewer(
     action_type = proposal_row.get("action_type") or "unknown"
     reversibility = proposal_row.get("reversibility")
 
-    # Load substrate the AI reads against
-    principles_md = _read_workspace_file(
-        client, user_id, "/workspace/review/principles.md",
-    ) or ""
-    # ADR-216 Commit 2: IDENTITY.md is the persona the Reviewer embodies.
-    # Read at reasoning time and injected as the opening section of the
-    # user message so operator-authored persona content (e.g. Simons-
-    # character for a trading Reviewer) flows into the model. Fall back
-    # to empty string — the model treats empty as neutral skeptical
-    # baseline.
-    identity_md = _read_workspace_file(
-        client, user_id, "/workspace/review/IDENTITY.md",
-    ) or ""
-    # persona-reflection.md v1.1: PRECEDENT.md is the operator-authored
-    # durable-interpretation substrate (committed fd4917a). The Reviewer
-    # must read it alongside principles.md so that operator-declared
-    # boundary-case resolutions land in every verdict. Operator-declared
-    # interpretations narrow (or in some cases open) the persona's own
-    # framework; precedent + principles combine into the full narrowing
-    # layer the persona applies on top of the AUTONOMY.md ceiling.
-    precedent_md = _read_workspace_file(
-        client, user_id, "/workspace/context/_shared/PRECEDENT.md",
-    ) or ""
-    # P&L unification (2026-05-12): canonical money-truth file is
-    # _money_truth.md. The frontmatter carries `by_signal` per-signal
-    # rolling windows the Reviewer reads for capital-EV reasoning.
-    ground_truth_md = _read_workspace_file(
-        client, user_id, f"/workspace/context/{context_domain}/_money_truth.md",
-    )
-    # ADR-280 Stream A: per-domain reads use the same context_domain-parametric
-    # pattern as ground_truth_md above. Bundles declare which substrate paths
-    # are meaningful per their context_domains via MANIFEST `substrate_abi`;
-    # this proposal-arrival assembly mirrors the pattern domain-agnostically.
-    # If the file doesn't exist for a given domain, _read_workspace_file
-    # returns None and the Reviewer treats it as empty — same forgiveness
-    # the canonical envelope helper provides.
-    risk_md = _read_workspace_file(
-        client, user_id, f"/workspace/context/{context_domain}/_risk.md",
-    )
-    operator_profile_md = _read_workspace_file(
-        client, user_id, f"/workspace/context/{context_domain}/_operator_profile.md",
+    # ADR-276 implementation completion (2026-05-21): use canonical
+    # `load_reviewer_governance_envelope` helper rather than hand-rolling
+    # 6 envelope reads. The helper assembles the full 8-key universal
+    # envelope (identity_md / principles_md / precedent_md / mandate_md /
+    # autonomy_md / preferences_yaml / occupant_md / standing_intent_md)
+    # PLUS bundle-declared program-shaped envelope keys per the active
+    # bundle's MANIFEST `substrate_abi.reviewer_wake_envelope`. For
+    # alpha-trader workspaces this surfaces operator_profile_md, risk_md,
+    # ground_truth_md (= `_money_truth.md`), and signal_files. For
+    # alpha-author it surfaces voice_md, editorial_md, corpus_signal_md,
+    # and audience_signal_md.
+    #
+    # Pre-2026-05-21 this function hand-rolled 6 reads + missed MANDATE,
+    # AUTONOMY, _preferences.yaml, OCCUPANT.md, standing_intent.md,
+    # signal_files — meaning capital-judgment wakes (the highest-stakes
+    # Reviewer wakes) operated without MANDATE (operator's Primary Action
+    # declaration) and AUTONOMY (delegation ceiling). The drift was the
+    # third instance of the prose-named-but-not-pre-loaded class (first
+    # two closed by ADR-275 D5 refinement + ADR-276); this commit closes
+    # the class by routing every invoke_reviewer call site through the
+    # same helper.
+    #
+    # `context_domain` parameter is preserved for backward-compat with
+    # logging + downstream branches but no longer drives substrate
+    # reads — the bundle's substrate_abi is the source of truth for
+    # per-program envelope shape per ADR-281 D2.
+    governance_envelope, _envelope_load_ms = await load_reviewer_governance_envelope(
+        client, user_id
     )
 
     output = await invoke_reviewer(
@@ -386,12 +374,7 @@ async def _run_ai_reviewer(
         trigger="reactive",  # ADR-260 D2: proposal arrival is the canonical reactive trigger
         invocation_id=invocation_id,  # ADR-289 D4
         context={
-            "identity_md": identity_md,
-            "principles_md": principles_md,
-            "precedent_md": precedent_md,
-            "ground_truth_md": ground_truth_md or "",
-            "risk_md": risk_md or "",
-            "operator_profile_md": operator_profile_md or "",
+            **governance_envelope,  # ADR-276 + ADR-281 D2 (this commit closes the third instance)
             "proposal_row": proposal_row,
         },
     )
@@ -599,32 +582,13 @@ async def _run_ai_reviewer(
     )
 
 
-# ---------------------------------------------------------------------------
-# Filesystem read helper — same pattern as risk_gate + reviewer_audit
-# ---------------------------------------------------------------------------
-
-
-def _read_workspace_file(client: Any, user_id: str, path: str) -> str | None:
-    """Read a workspace file's content. Returns None on missing or error."""
-    try:
-        result = (
-            client.table("workspace_files")
-            .select("content")
-            .eq("user_id", user_id)
-            .eq("path", path)
-            .limit(1)
-            .execute()
-        )
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "[REVIEW_DISPATCH] read failed for %s (user=%s): %s",
-            path, user_id[:8], exc,
-        )
-        return None
-    rows = result.data or []
-    if not rows:
-        return None
-    return rows[0].get("content") or None
+# Note: pre-2026-05-21 this module carried a local `_read_workspace_file`
+# helper that the proposal-arrival hand-rolled envelope assembly called.
+# Migration to `services.reviewer_envelope.load_reviewer_governance_envelope`
+# (ADR-276 implementation completion) dissolved every caller; helper deleted
+# per Singular Implementation. Canonical workspace reads now route through
+# the envelope helper for Reviewer-bound assembly + `UserMemory.read` for
+# other contexts.
 
 
 # ---------------------------------------------------------------------------

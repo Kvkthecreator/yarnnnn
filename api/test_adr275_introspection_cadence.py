@@ -373,33 +373,83 @@ def test_preferences_yaml_is_preloaded_in_wake_envelope() -> None:
 # 6c. feed.py addressed-trigger site loads SHARED_PREFERENCES_PATH + AUTONOMY
 # ---------------------------------------------------------------------------
 
-def test_feed_addressed_site_loads_preferences_and_autonomy() -> None:
-    """Addressed-trigger envelope (feed.py) delivers _preferences.yaml +
-    AUTONOMY.md via the shared `load_reviewer_governance_envelope` helper.
+def test_all_invoke_reviewer_call_sites_use_canonical_envelope() -> None:
+    """All three `invoke_reviewer` call sites route through the canonical
+    `load_reviewer_governance_envelope` helper.
 
-    Post-ADR-276 (run-2 refinement), the inline 9-path gather in feed.py
-    is migrated to call the canonical helper at
-    `services/reviewer_envelope.py`. The helper's gate
-    (test_adr276_reactive_envelope.py) verifies the substrate actually
-    reaches the envelope. This gate now verifies the structural delegation
-    is in place.
+    Pre-ADR-296-v2 (commit 37426c5, 2026-05-20), feed.py was the addressed-
+    trigger Reviewer invocation site. The wake architecture refactor moved
+    that responsibility into services/wake.py::stream_addressed_wake (called
+    by services/wake_sources/addressed.py). The original ADR-275 test
+    assertion targeting feed.py is therefore stale topology.
+
+    Post-2026-05-21 (ADR-276 implementation completion commit), the third
+    call site (`services/review_proposal_dispatch.py::_run_ai_reviewer`) is
+    also migrated to use the canonical helper — closes the prose-named-but-
+    not-pre-loaded class for capital-judgment wakes.
+
+    The three call sites are:
+      1. services/wake.py::dispatch_recurrence (cron_tick + manual_fire)
+      2. services/wake.py::stream_addressed_wake (addressed)
+      3. services/review_proposal_dispatch.py::_run_ai_reviewer (proposal_arrival)
     """
-    src = (REPO_ROOT / "api" / "routes" / "feed.py").read_text()
-    if "from services.reviewer_envelope import load_reviewer_governance_envelope" in src:
-        _ok("feed.py imports the shared governance-envelope helper (ADR-276)")
-    else:
+    sites = [
+        (REPO_ROOT / "api" / "services" / "wake.py", "wake.py"),
+        (REPO_ROOT / "api" / "services" / "review_proposal_dispatch.py", "review_proposal_dispatch.py"),
+    ]
+    missing_import: list[str] = []
+    missing_spread: list[str] = []
+    for path, label in sites:
+        if not path.exists():
+            missing_import.append(f"{label}: file not found at {path}")
+            continue
+        src = path.read_text()
+        if "load_reviewer_governance_envelope" not in src:
+            missing_import.append(f"{label}: missing import of load_reviewer_governance_envelope")
+        if "**governance_envelope" not in src:
+            missing_spread.append(f"{label}: missing '**governance_envelope' spread into invoke_reviewer context")
+
+    if missing_import or missing_spread:
+        if missing_import:
+            _bad(
+                "envelope helper import at all invoke_reviewer call sites",
+                "; ".join(missing_import),
+            )
+        if missing_spread:
+            _bad(
+                "envelope helper spread at all invoke_reviewer call sites",
+                "; ".join(missing_spread),
+            )
+        return
+    _ok("all invoke_reviewer call sites (wake.py + review_proposal_dispatch.py) route through load_reviewer_governance_envelope (Singular Implementation per ADR-276 + 2026-05-21 completion)")
+
+
+def test_review_proposal_dispatch_no_hand_rolled_envelope() -> None:
+    """Negative: review_proposal_dispatch.py must not carry the legacy
+    `_read_workspace_file` helper or the hand-rolled 6-key envelope assembly
+    that pre-dated the ADR-276 implementation completion.
+
+    Singular Implementation rule per CLAUDE.md: delete legacy code when
+    replacing. The proposal-arrival envelope assembly is the canonical
+    helper, period.
+    """
+    src = (REPO_ROOT / "api" / "services" / "review_proposal_dispatch.py").read_text()
+
+    # Function definition + body markers from the old hand-rolled shape
+    forbidden_markers = [
+        "def _read_workspace_file(",  # local helper that the hand-rolled reads called
+        '"identity_md": identity_md,',  # hand-rolled context-key assignment
+        '"principles_md": principles_md,',
+        '"precedent_md": precedent_md,',
+    ]
+    leaked = [m for m in forbidden_markers if m in src]
+    if leaked:
         _bad(
-            "feed.py envelope helper",
-            "expected import of load_reviewer_governance_envelope from "
-            "services.reviewer_envelope (Singular Implementation per ADR-276)",
+            "review_proposal_dispatch.py legacy envelope code absent",
+            f"forbidden hand-rolled markers still present (Singular Implementation violation): {leaked}",
         )
-    if "**governance_envelope" in src:
-        _ok("feed.py context bag dict-spreads governance_envelope (incl. preferences + AUTONOMY)")
-    else:
-        _bad(
-            "feed.py context bag delegation",
-            "expected '**governance_envelope' in invoke_reviewer call",
-        )
+        return
+    _ok("review_proposal_dispatch.py hand-rolled envelope assembly deleted (Singular Implementation)")
 
 
 # ---------------------------------------------------------------------------
@@ -610,7 +660,8 @@ def main() -> int:
     test_persona_frame_references_preferences()
     test_persona_frame_first_wake_guardrail_updated()
     test_preferences_yaml_is_preloaded_in_wake_envelope()    # run-2 refinement
-    test_feed_addressed_site_loads_preferences_and_autonomy()  # run-2 refinement + audit fix
+    test_all_invoke_reviewer_call_sites_use_canonical_envelope()  # 2026-05-21: post-ADR-296-v2 topology
+    test_review_proposal_dispatch_no_hand_rolled_envelope()  # 2026-05-21: Singular Implementation negative check
     test_mechanical_mirrors_preserved()
     test_adr275_doc_exists()
 

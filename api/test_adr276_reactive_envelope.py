@@ -67,188 +67,160 @@ def test_helper_module_exists() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 2. Helper reads the canonical 9 substrate paths
+# 2. Helper reads the canonical universal substrate paths via constants
 # ---------------------------------------------------------------------------
+#
+# Post-ADR-281 D1 refactor (2026-05-15) + ADR-282 vocabulary discipline +
+# ADR-296 v2 wake architecture (2026-05-20): the helper no longer hard-codes
+# substrate paths. It iterates `_UNIVERSAL_ENVELOPE_DECLS` for kernel-shipped
+# paths AND reads bundle-declared program-shaped paths from the active
+# bundle's MANIFEST `substrate_abi.reviewer_wake_envelope`. Per-program
+# substrate (trading vs author vs commerce) is the bundle's responsibility,
+# not the helper's.
+#
+# This test verifies the helper's STRUCTURAL shape (uses path constants from
+# workspace_paths; covers the universal envelope set) rather than grep'ing
+# for hard-coded program-specific path strings.
 
 def test_helper_reads_canonical_paths() -> None:
     import services.reviewer_envelope as mod
-    src = inspect.getsource(mod)
 
-    # All 6 path constants from workspace_paths
-    needles = [
-        "REVIEW_IDENTITY_PATH",
-        "REVIEW_PRINCIPLES_PATH",
-        "SHARED_PRECEDENT_PATH",
-        "SHARED_MANDATE_PATH",
-        "SHARED_AUTONOMY_PATH",
-        "SHARED_PREFERENCES_PATH",
-    ]
-    missing = [n for n in needles if n not in src]
+    # The helper's _UNIVERSAL_ENVELOPE_DECLS must declare the full
+    # kernel-universal envelope (governance + persona + occupant +
+    # standing-intent).
+    if not hasattr(mod, "_UNIVERSAL_ENVELOPE_DECLS"):
+        _bad(
+            "_UNIVERSAL_ENVELOPE_DECLS exists",
+            "helper module must export the universal envelope declaration list",
+        )
+        return
+    decls = mod._UNIVERSAL_ENVELOPE_DECLS
+    decl_keys = {k for k, _ in decls}
+    expected_universal_keys = {
+        "identity_md",
+        "principles_md",
+        "precedent_md",
+        "mandate_md",
+        "autonomy_md",
+        "preferences_yaml",
+        "occupant_md",
+        "standing_intent_md",
+    }
+    missing = expected_universal_keys - decl_keys
     if not missing:
-        _ok("helper imports 6 governance path constants from workspace_paths")
+        _ok(f"_UNIVERSAL_ENVELOPE_DECLS covers all {len(expected_universal_keys)} kernel-universal envelope keys")
     else:
-        _bad("workspace_paths constants", f"missing: {missing}")
+        _bad("universal envelope coverage", f"missing keys: {missing}")
 
-    # Three trading-program-specific paths
-    trading_paths = [
-        '"context/trading/_operator_profile.md"',
-        '"context/trading/_risk.md"',
-        '"context/trading/_performance.md"',
-    ]
-    missing_t = [p for p in trading_paths if p not in src]
-    if not missing_t:
-        _ok("helper reads 3 trading-domain paths")
-    else:
-        _bad("trading domain paths", f"missing: {missing_t}")
-
-    # Signal-files compact summary
-    if "read_signal_files" in src:
-        _ok("helper invokes read_signal_files for signal-state summary")
+    # Program-shaped substrate (operator_profile, risk, ground_truth, signal_files,
+    # voice_md, editorial_md, etc.) is now bundle-declared via MANIFEST
+    # `substrate_abi.reviewer_wake_envelope`. Verify the helper reads bundle
+    # MANIFEST rather than hard-coding paths.
+    src = inspect.getsource(mod)
+    if "substrate_abi" in src and "reviewer_wake_envelope" in src:
+        _ok("helper consults bundle substrate_abi for program-shaped envelope keys (ADR-281 D2)")
     else:
         _bad(
-            "signal_files coverage",
-            "expected read_signal_files call in helper",
+            "bundle substrate_abi consultation",
+            "helper must read bundle MANIFEST substrate_abi.reviewer_wake_envelope "
+            "for program-shaped envelope keys (per ADR-281 D2)",
         )
 
 
 # ---------------------------------------------------------------------------
-# 3. Helper returns dict keyed by ReviewerContext field names
+# 3. ReviewerContext TypedDict declares the full envelope key set
 # ---------------------------------------------------------------------------
 
 def test_helper_return_shape() -> None:
-    """Helper return dict must use the same field names as ReviewerContext."""
+    """ReviewerContext declares every envelope key the helper can populate."""
     from agents.reviewer_agent import ReviewerContext
-    import services.reviewer_envelope as mod
-    src = inspect.getsource(mod)
 
     rc_fields = set(getattr(ReviewerContext, "__annotations__", {}).keys())
-    expected_envelope_keys = {
+    # Kernel-universal envelope keys (helper populates unconditionally)
+    universal_keys = {
         "identity_md", "principles_md", "precedent_md", "mandate_md",
         "autonomy_md", "preferences_yaml",
-        "operator_profile_md", "risk_md", "ground_truth_md",
-        "signal_files",
+        "occupant_md", "standing_intent_md",
     }
+    # Program-shaped envelope keys (helper populates from bundle MANIFEST;
+    # alpha-trader declares operator_profile_md/risk_md/ground_truth_md/
+    # signal_files; alpha-author declares voice_md/editorial_md/etc.). The
+    # TypedDict must declare each as Optional so callers can spread without
+    # breaking type-checking.
+    program_keys = {
+        "operator_profile_md", "risk_md", "ground_truth_md", "signal_files",
+    }
+    expected = universal_keys | program_keys
 
-    # All expected keys are declared on ReviewerContext
-    missing_on_ctx = expected_envelope_keys - rc_fields
+    missing_on_ctx = expected - rc_fields
     if not missing_on_ctx:
-        _ok("ReviewerContext declares all 10 envelope keys")
+        _ok(f"ReviewerContext declares all {len(expected)} envelope keys (universal + alpha-trader program-shaped)")
     else:
         _bad(
             "ReviewerContext fields",
             f"missing on TypedDict: {missing_on_ctx}",
         )
 
-    # The helper's source contains each key as a return-dict literal
-    missing_in_helper = [k for k in expected_envelope_keys if f'"{k}":' not in src]
-    if not missing_in_helper:
-        _ok("helper return dict contains all 10 envelope keys")
-    else:
-        _bad(
-            "helper return dict keys",
-            f"missing: {missing_in_helper}",
-        )
-
 
 # ---------------------------------------------------------------------------
-# 4. routes/feed.py migrated to the shared helper (no inline gather)
+# 4. All invoke_reviewer call sites route through the shared helper
 # ---------------------------------------------------------------------------
+#
+# Post-ADR-296-v2 wake architecture (commit 37426c5, 2026-05-20): the
+# addressed-trigger Reviewer invocation moved from routes/feed.py to
+# services/wake.py::stream_addressed_wake. invocation_dispatcher.py was
+# renamed to services/wake.py in the same commit. The proposal-arrival
+# Reviewer invocation lives in services/review_proposal_dispatch.py.
+#
+# Three canonical invoke_reviewer call sites today:
+#   - services/wake.py::dispatch_recurrence (cron_tick + manual_fire)
+#   - services/wake.py::stream_addressed_wake (addressed)
+#   - services/review_proposal_dispatch.py::_run_ai_reviewer (proposal_arrival)
+#
+# All three must import + call the helper + dict-spread the result into the
+# invoke_reviewer context bag.
 
-def test_feed_route_uses_shared_helper() -> None:
-    src = (ROOT / "routes" / "feed.py").read_text()
-    if "from services.reviewer_envelope import load_reviewer_governance_envelope" in src:
-        _ok("routes/feed.py imports load_reviewer_governance_envelope")
+def test_all_call_sites_use_shared_helper() -> None:
+    sites = [
+        (ROOT / "services" / "wake.py", "wake.py"),
+        (ROOT / "services" / "review_proposal_dispatch.py", "review_proposal_dispatch.py"),
+    ]
+    missing_import: list[str] = []
+    missing_spread: list[str] = []
+    for path, label in sites:
+        if not path.exists():
+            missing_import.append(f"{label}: file not found at {path}")
+            continue
+        src = path.read_text()
+        if "load_reviewer_governance_envelope" not in src:
+            missing_import.append(f"{label}: missing import/use of load_reviewer_governance_envelope")
+        if "**governance_envelope" not in src:
+            missing_spread.append(f"{label}: missing '**governance_envelope' dict-spread")
+
+    if missing_import:
+        _bad("envelope helper import at all call sites", "; ".join(missing_import))
     else:
-        _bad(
-            "feed.py helper import",
-            "expected 'from services.reviewer_envelope import "
-            "load_reviewer_governance_envelope'",
-        )
+        _ok("envelope helper imported at all invoke_reviewer call sites (wake.py + review_proposal_dispatch.py)")
 
-    # ADR-276 hardening (2026-05-15): helper now returns (dict, elapsed_ms)
-    # tuple so callers can record envelope load latency. Caller pattern
-    # updated to tuple-unpack.
-    if "governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope" in src:
-        _ok("routes/feed.py calls the helper (tuple-unpack)")
+    if missing_spread:
+        _bad("envelope helper dict-spread at all call sites", "; ".join(missing_spread))
     else:
-        _bad(
-            "feed.py helper call",
-            "expected 'governance_envelope, envelope_load_ms = await "
-            "load_reviewer_governance_envelope'",
-        )
-
-    # The old inline _asyncio.gather of 9 paths should be gone. We check
-    # specifically that the unpack-tuple syntax for the 9 fields is no
-    # longer present in feed.py (was Singular Implementation violation).
-    inline_tuple = (
-        "        (\n            identity_md, principles_md, precedent_md, mandate_md,\n"
-        "            autonomy_md, preferences_yaml,\n"
-        "            operator_profile_md, risk_md, ground_truth_md,\n        ) = await"
-    )
-    if inline_tuple not in src:
-        _ok("feed.py no longer has the inline 9-file gather tuple")
-    else:
-        _bad(
-            "feed.py inline gather removal",
-            "the inline _asyncio.gather of 9 paths is still present "
-            "(Singular Implementation violation)",
-        )
-
-    # And the dict-spread {**governance_envelope, ...} pattern is in the
-    # context bag passed to invoke_reviewer.
-    if "**governance_envelope" in src:
-        _ok("feed.py context bag dict-spreads governance_envelope")
-    else:
-        _bad(
-            "feed.py context bag",
-            "expected '**governance_envelope' in invoke_reviewer call",
-        )
+        _ok("**governance_envelope dict-spread present at all invoke_reviewer call sites")
 
 
-# ---------------------------------------------------------------------------
-# 5. invocation_dispatcher.py wires the helper into reactive dispatch
-# ---------------------------------------------------------------------------
-
-def test_dispatcher_wires_governance_envelope() -> None:
-    src = (ROOT / "services" / "invocation_dispatcher.py").read_text()
-    if "from services.reviewer_envelope import load_reviewer_governance_envelope" in src:
-        _ok("invocation_dispatcher.py imports load_reviewer_governance_envelope")
-    else:
-        _bad(
-            "dispatcher helper import",
-            "expected 'from services.reviewer_envelope import "
-            "load_reviewer_governance_envelope'",
-        )
-
-    # ADR-276 hardening (2026-05-15): tuple-unpack pattern matches feed.py.
-    if "governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope" in src:
-        _ok("invocation_dispatcher.py calls the helper (tuple-unpack)")
-    else:
-        _bad(
-            "dispatcher helper call",
-            "expected 'governance_envelope, envelope_load_ms = await "
-            "load_reviewer_governance_envelope'",
-        )
-
-    if "**governance_envelope" in src:
-        _ok("invocation_dispatcher.py context bag dict-spreads governance_envelope")
-    else:
-        _bad(
-            "dispatcher context bag",
-            "expected '**governance_envelope' in invoke_reviewer call",
-        )
-
-    # The reactive context bag retains the recurrence-specific keys.
+def test_wake_py_preserves_recurrence_context() -> None:
+    """wake.py::dispatch_recurrence preserves recurrence-specific context
+    keys alongside the spread governance envelope."""
+    src = (ROOT / "services" / "wake.py").read_text()
     for key in (
         '"recurrence_prompt": prompt',
         '"recurrence_slug": recurrence.slug',
         '"operating_context_block": operating_context',
     ):
-        if key in src:
-            continue
-        _bad("dispatcher context preservation", f"missing key: {key}")
-        return
-    _ok("dispatcher preserves recurrence_prompt + recurrence_slug + operating_context_block")
+        if key not in src:
+            _bad("wake.py recurrence context preservation", f"missing key: {key}")
+            return
+    _ok("wake.py preserves recurrence_prompt + recurrence_slug + operating_context_block alongside spread envelope")
 
 
 # ---------------------------------------------------------------------------
@@ -280,8 +252,8 @@ def main() -> int:
     test_helper_module_exists()
     test_helper_reads_canonical_paths()
     test_helper_return_shape()
-    test_feed_route_uses_shared_helper()
-    test_dispatcher_wires_governance_envelope()
+    test_all_call_sites_use_shared_helper()
+    test_wake_py_preserves_recurrence_context()
     test_adr276_doc_exists()
 
     total = len(_PASS) + len(_FAIL)

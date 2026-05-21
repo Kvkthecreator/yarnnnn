@@ -158,6 +158,14 @@ class ReviewerContext(TypedDict, total=False):
     # substrate (not a "remember to ReadFile" side-quest) makes Derived
     # Principle 18's first-wake obligation structural.
     preferences_yaml: str
+    # ADR-284: seat occupant + standing intent. The canonical envelope helper
+    # populates both via `_UNIVERSAL_ENVELOPE_DECLS`; the renderer at
+    # `_build_user_message` reads them via `ctx.get(...)`. Declaring them
+    # here closes the prior drift between the TypedDict + the renderer +
+    # the envelope helper (surfaced by the 2026-05-21 ADR-276 test gate
+    # realignment).
+    occupant_md: str
+    standing_intent_md: str
     # Domain substrate
     ground_truth_md: str
     risk_md: str

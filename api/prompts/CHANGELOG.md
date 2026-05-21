@@ -6,6 +6,134 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.21.2] - fix(adr-276 completion): proposal-arrival path routes through canonical envelope helper
+
+### Decision
+
+Closes the third invoke_reviewer call site under the ADR-276 Singular
+Implementation contract. The 2026-05-21 audit (triggered by an ADR-275
+D9-D11 regression-gate failure looking for the helper in `routes/feed.py`)
+revealed that the addressed-trigger Reviewer invocation moved from
+`routes/feed.py` into `services/wake.py::stream_addressed_wake` during the
+ADR-296 v2 wake architecture refactor (commit 37426c5, 2026-05-20). Two of
+the three invoke_reviewer call sites were already using
+`load_reviewer_governance_envelope`:
+
+  ✓ `services/wake.py::dispatch_recurrence` (cron_tick + manual_fire)
+  ✓ `services/wake.py::stream_addressed_wake` (addressed)
+
+The third — `services/review_proposal_dispatch.py::_run_ai_reviewer`
+(proposal_arrival reactive path) — was still hand-rolling 6 envelope keys
+(identity_md / principles_md / precedent_md / ground_truth_md / risk_md /
+operator_profile_md) and missing 5+ envelope keys the canonical helper
+provides (mandate_md, autonomy_md, preferences_yaml, occupant_md,
+standing_intent_md, plus program-shaped substrate via bundle MANIFEST
+substrate_abi.reviewer_wake_envelope).
+
+This is the same prose-named-but-not-pre-loaded class of failure that
+ADR-275 D5 refinement closed for the addressed path on 2026-05-14 —
+substrate that the persona frame names in prose but isn't structurally
+pre-loaded into the wake envelope fails to land in Reviewer behavior.
+Capital-judgment wakes (proposal_arrival trigger) are the highest-stakes
+Reviewer wakes — Reviewer judging whether to approve a trade proposal
+under autonomous mode + ceiling. Operating without MANDATE (operator's
+Primary Action declaration) and AUTONOMY (delegation ceiling) on capital
+judgments was a real architectural gap.
+
+### Changed
+
+**`api/services/review_proposal_dispatch.py`** — `_run_ai_reviewer`
+migrated to use `load_reviewer_governance_envelope` + `**governance_envelope`
+dict-spread into the invoke_reviewer context bag. 6 hand-rolled
+`_read_workspace_file` calls + ~30 lines of substrate-loading prose deleted
+per Singular Implementation discipline. `context_domain` parameter
+preserved for backward-compat with downstream branches (autonomy_for_domain
++ principles_for_domain still consult it). Local helper
+`_read_workspace_file` deleted (no callers post-migration).
+
+**`api/agents/reviewer_agent.py`** — `ReviewerContext` TypedDict extended
+with `occupant_md: str` + `standing_intent_md: str` fields. The canonical
+envelope helper has always populated these (via `_UNIVERSAL_ENVELOPE_DECLS`);
+`_build_user_message` renderer has always read them via `ctx.get(...)`. The
+TypedDict declaration was the missing third leg. Drift surfaced by the
+2026-05-21 ADR-276 test gate realignment.
+
+**`api/test_adr275_introspection_cadence.py`** —
+`test_feed_addressed_site_loads_preferences_and_autonomy` (pre-ADR-296-v2
+topology) replaced with:
+  - `test_all_invoke_reviewer_call_sites_use_canonical_envelope` — checks
+    both wake.py + review_proposal_dispatch.py
+  - `test_review_proposal_dispatch_no_hand_rolled_envelope` — Singular
+    Implementation negative check (the legacy `_read_workspace_file`
+    helper + hand-rolled context keys must not return)
+
+**`api/test_adr276_reactive_envelope.py`** — realigned to the post-
+ADR-296-v2 + post-ADR-281 D1 + post-ADR-282 codebase topology:
+  - `test_helper_reads_canonical_paths` rewritten to inspect
+    `_UNIVERSAL_ENVELOPE_DECLS` structurally rather than grep'ing for
+    hard-coded program-specific path strings (which moved into bundle
+    MANIFEST substrate_abi per ADR-281 D2)
+  - `test_helper_return_shape` rewritten to verify ReviewerContext declares
+    all envelope keys via TypedDict introspection rather than source-string
+    grep
+  - `test_feed_route_uses_shared_helper` +
+    `test_dispatcher_wires_governance_envelope` replaced with
+    `test_all_call_sites_use_shared_helper` +
+    `test_wake_py_preserves_recurrence_context` pointing at the actual
+    call sites (wake.py + review_proposal_dispatch.py)
+
+### Test gate state
+
+  - `test_adr275_introspection_cadence.py`: 26/26 ✓
+  - `test_adr276_reactive_envelope.py`: 9/9 ✓ (was 8/9 pre-TypedDict-fix)
+  - `test_adr292_continuous_reapply.py`: 25/25 ✓ (no regression)
+
+### Expected behavior
+
+**Before this change**: on proposal_arrival reactive wakes, the Reviewer's
+user-message envelope rendered identity + principles + precedent +
+ground_truth + risk + operator_profile sections only. The MANDATE,
+AUTONOMY, `_preferences.yaml`, OCCUPANT.md, and standing_intent.md sections
+were absent — the renderer's `ctx.get(...)` checks returned empty, sections
+were skipped silently.
+
+**After this change**: proposal_arrival wakes render the full universal
+envelope (8 kernel-shipped sections) plus program-shaped substrate from
+the active bundle's MANIFEST. For alpha-trader this adds the missing five
+universal sections + `signal_files` (compact signal-state summary written
+by `mirror-signal-state` mechanical recurrence per ADR-281 D3). The
+Reviewer's capital-judgment reasoning now has full operator-declared intent
+(MANDATE) + delegation ceiling (AUTONOMY) + standing intent continuity
+(standing_intent.md) + occupant identity (OCCUPANT.md) at envelope-time.
+
+### Why now
+
+The ADR-275 D9-D11 amendment (commit `8652d09`) introduced a test assertion
+that surfaced the pre-existing drift — the ADR-275 gate expected the
+addressed-trigger path to use the canonical helper at a location
+(`feed.py`) where it no longer lives post-ADR-296-v2. Reading the test
+failure honestly revealed: (a) the ADR-275 gate was checking the wrong
+file, (b) `feed.py` never invokes the Reviewer post-refactor, (c) the
+proposal_arrival site was the actual hand-rolled outlier.
+
+This commit closes the third call site, finishes ADR-276 Singular
+Implementation, and aligns the test gates with the post-ADR-296-v2
+topology so future test runs surface real drift rather than stale topology
+assertions.
+
+### Companion canon
+
+- ADR-276 (canonical envelope helper + Singular Implementation rule)
+- ADR-296 v2 commit `37426c5` (wake architecture refactor that relocated
+  the addressed-trigger Reviewer invocation)
+- ADR-275 D5 refinement (the original prose-named-but-not-pre-loaded fix
+  on the addressed path; this commit applies the same pattern to the
+  proposal-arrival path)
+- ADR-281 D1+D2 (substrate_abi-driven program-shaped envelope keys)
+- ADR-282 (kernel/instance vocabulary discipline preserved)
+
+---
+
 ## [2026.05.21.1] - fix: Reviewer specs discovery via envelope inventory
 
 ### Changed
