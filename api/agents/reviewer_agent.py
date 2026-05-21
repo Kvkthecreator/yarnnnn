@@ -1621,17 +1621,42 @@ async def invoke_reviewer(
 
 
 def _summarize_result(result: Any) -> str:
-    """One-line summary of a primitive result for actions_taken audit log."""
+    """One-line summary of a primitive result for actions_taken audit log.
+
+    Field-preference order is semantic-first: when a result carries multiple
+    discriminators, prefer the one that distinguishes this action from a
+    sibling action of the same tool.
+
+      1. action + slug     (Schedule / ManageHook — two writes to the same
+                            file with distinct recurrence/hook slugs look
+                            identical when summarized by path alone)
+      2. proposal_id       (ProposeAction — every proposal is a distinct
+                            decision; prefer the proposal identity)
+      3. slug              (FireInvocation + any other slug-bearing result
+                            without an action verb)
+      4. path              (WriteFile etc. — terminal fallback)
+
+    Closes Pattern 3 of docs/observations/2026-05-21-005856-wake-duplication-
+    audit/findings.md — pre-fix the helper checked `path` first, collapsing
+    distinct Schedule calls (weekly-corpus-review vs quarterly-voice-audit)
+    to identical `path=/workspace/_recurrences.yaml` summaries that looked
+    like duplicate actions in the feed.
+    """
     if not isinstance(result, dict):
         return "ok"
     if result.get("success") is False:
         return f"error: {result.get('error') or 'unknown'}"
-    if "path" in result:
-        return f"path={result['path']}"
+    # Slug + action verb together — the strongest discriminator for
+    # lifecycle primitives (Schedule / ManageHook). Two distinct slugs
+    # at the same path render with distinct summaries.
+    if "slug" in result and "action" in result:
+        return f"action={result['action']} slug={result['slug']}"
     if "proposal_id" in result:
         return f"proposal_id={result['proposal_id'][:8]}..."
     if "slug" in result:
         return f"slug={result['slug']}"
+    if "path" in result:
+        return f"path={result['path']}"
     return "ok"
 
 
