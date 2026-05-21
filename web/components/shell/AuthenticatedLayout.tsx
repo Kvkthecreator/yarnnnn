@@ -1,15 +1,23 @@
 'use client';
 
 /**
- * ADR-037: Chat-First Surface Architecture
+ * AuthenticatedLayout — ADR-297 shell.
  *
- * Navigation model:
- * Primary:   Orchestrator
- * Secondary: Context | Activity | Settings
+ * Per ADR-297 D7, the shell carries:
+ *   - Top chrome: brand mark (left), launcher button + user menu (right)
+ *   - Bottom chrome: persistent Dock of operator-pinned surfaces
+ *   - Center: surface content (delivered via children)
  *
- * Dashboard collapsed into Orchestrator (single landing page).
- * Agent pages still accessible via direct URL.
- * Context = platform connections + uploaded files (was "Sources").
+ * The 4-tab nav (ADR-205 F1 / ADR-214 — Feed · Work · Agents · Files)
+ * is DELETED. Navigation is summon-first via the Launcher overlay; the
+ * Dock holds operator-pinned defaults (Feed by default, operator pins
+ * more from the Launcher).
+ *
+ * Home behavior (D6): logo click navigates to the operator's last-active
+ * surface (macOS-natural), not a fixed home route. First-time operators
+ * land on Feed (the only default-pinned surface). The legacy HOME_ROUTE
+ * constant survives but is overridden by the last-active preference
+ * when set.
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -20,11 +28,13 @@ import { NarrativeProvider, useNarrative } from '@/contexts/NarrativeContext';
 import { BreadcrumbProvider } from '@/contexts/BreadcrumbContext';
 import type { DeskSurface } from '@/types/desk';
 import { UserMenu } from './UserMenu';
-import { ToggleBar } from './ToggleBar';
-// ADR-167 v2: GlobalBreadcrumb DELETED. Each surface renders <PageHeader />
-// inside its own content area instead of a separate bar between header and main.
+import { Dock } from './Dock';
+import { Launcher } from './Launcher';
+import { LauncherButton } from './LauncherButton';
+import { useComposition } from '@/lib/compositor/useComposition';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
-import { HOME_ROUTE, isHomeRoute } from '@/lib/routes';
+import { HOME_ROUTE } from '@/lib/routes';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -103,8 +113,29 @@ function AuthenticatedLayoutInner({
   const router = useRouter();
   const pathname = usePathname();
   const { setSurface, setSurfaceWithHandoff } = useDesk();
+  const { data: composition } = useComposition();
+  const { pinned, pin, unpin, recordVisit, lastActive } = useSurfacePreferences();
+  const [launcherOpen, setLauncherOpen] = useState(false);
 
-  const isOnHome = isHomeRoute(pathname);
+  // Build bundle title map from active_bundles for Launcher tier headers.
+  const bundleTitleBySlug: Record<string, string> = {};
+  composition.active_bundles.forEach((b) => {
+    if (b.slug && b.title) bundleTitleBySlug[b.slug] = b.title;
+  });
+
+  // ADR-297 D6: record visits to drive last-active home behavior. Compute
+  // the active surface slug by matching the current pathname against the
+  // surface registry's routes (longest-prefix wins).
+  useEffect(() => {
+    if (!composition.surfaces || composition.surfaces.length === 0) return;
+    const sorted = [...composition.surfaces].sort(
+      (a, b) => b.route.length - a.route.length
+    );
+    const match = sorted.find(
+      (s) => pathname === s.route || pathname.startsWith(s.route + '/')
+    );
+    if (match) recordVisit(match.slug);
+  }, [pathname, composition.surfaces, recordVisit]);
 
   // Handle surface change from TP tool results
   const handleSurfaceChange = useCallback(
@@ -147,16 +178,19 @@ function AuthenticatedLayoutInner({
   );
 
   const navigateToHome = useCallback(() => {
-    // Logo click navigates to the appropriate home based on maturity
-    if (!isOnHome) {
-      router.push(HOME_ROUTE);
-    }
-  }, [isOnHome, router]);
+    // ADR-297 D6: logo click navigates to operator's last-active surface
+    // (macOS-natural). Resolves the slug to a route via the compositor
+    // registry; falls back to HOME_ROUTE if the registry isn't loaded
+    // yet or the slug is unknown.
+    const surface = composition.surfaces?.find((s) => s.slug === lastActive);
+    const target = surface?.route || HOME_ROUTE;
+    if (pathname !== target) router.push(target);
+  }, [router, pathname, composition.surfaces, lastActive]);
 
   return (
     <NarrativeProvider onSurfaceChange={handleSurfaceChange}>
       <div className="flex flex-col h-screen bg-background">
-        {/* Top Bar */}
+        {/* Top Bar — ADR-297 D7: brand mark (left) + launcher + user menu (right). */}
         <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0">
           {/* Left: Logo */}
           <div className="flex items-center min-w-0">
@@ -168,17 +202,31 @@ function AuthenticatedLayoutInner({
             </button>
           </div>
 
-          {/* Center: Toggle bar */}
-          <ToggleBar />
-
-          {/* Right: User menu */}
-          <UserMenu email={userEmail} />
+          {/* Right: Launcher + User menu */}
+          <div className="flex items-center gap-1">
+            <LauncherButton onClick={() => setLauncherOpen(true)} />
+            <UserMenu email={userEmail} />
+          </div>
         </header>
 
         {/* Main content. ADR-167 v2: each surface renders its own <PageHeader />
             inside the content area — there is no separate breadcrumb bar. */}
         <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
+
+        {/* ADR-297 D5: persistent dock of pinned surfaces (bottom). */}
+        <Dock surfaces={composition.surfaces || []} pinned={pinned} />
       </div>
+
+      {/* ADR-297 D4: summon-first launcher overlay. */}
+      <Launcher
+        open={launcherOpen}
+        onClose={() => setLauncherOpen(false)}
+        surfaces={composition.surfaces || []}
+        pinned={pinned}
+        onPin={pin}
+        onUnpin={unpin}
+        bundleTitleBySlug={bundleTitleBySlug}
+      />
 
       {/* Setup Confirmation Modal - rendered inside NarrativeProvider */}
       <SetupConfirmModalWrapper />
