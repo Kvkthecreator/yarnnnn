@@ -165,6 +165,62 @@ Both changes target the same artifact (the nudge), can be tested with the same r
 - alpha-author hook prompt that's most affected: [`docs/programs/alpha-author/reference-workspace/_hooks.yaml`](../../programs/alpha-author/reference-workspace/_hooks.yaml) (pre-ship-audit)
 - ADR-260 round-bound rationale: ADR-260 D8 + ADR-263 (referenced in the code comment at line 1301-1305)
 
+## Resolution addendum (2026-05-21T02:11Z)
+
+Option D landed in commit `e8017d3`: nudge deleted, budget raised 12 → 20, CHANGELOG entry added. All sibling ADR-296 regression gates green. Deploy `dep-d876efojs32c7391q3j0` live on Scheduler 2026-05-21T02:01-02:02Z.
+
+### Validation canary v3 — partial success
+
+Re-fired the substrate-event canary at 02:07:29Z. Result:
+
+| Metric | Pre-fix (canary v2) | Post-Option-D (canary v3) |
+|---|---|---|
+| Wakes per transition | 1 | 1 ✓ (Pattern 1 dedup still working) |
+| `tool_rounds` | 6 | **13** ✓ (Option D budget raise worked) |
+| Reviewer substrate writes | 0 | 0 ✗ |
+| Token cost | $0.25 | $0.31 |
+| Loop exit branch | counter-nudge stand_down | text-only fallback stand_down |
+
+**Option D fixed what it was designed to fix.** The Reviewer is no longer being pushed to early-stand_down by the counter-based nudge. The 13-round run is solid evidence that the trust-the-model framing engages cleanly — the model had room to do its work.
+
+**But Option D surfaced a sibling problem.** At round 13 the Reviewer produced a text-only response (no tool call) instead of calling ReturnVerdict + WriteFile to close the turn. The framework's fallback at `api/agents/reviewer_agent.py:1391-1404` interpreted the prose as `stand_down`'s reasoning field rather than parsing the audit verdict + standing_intent content out of it. The wake completed `status=success` with `verdict=stand_down` (the auto-converted fallback) but with zero substrate writes.
+
+Render-log evidence: `WARNING:agents.reviewer_agent:[REVIEWER] text-only response round 12 trigger=reactive user=0b7a852d` at 02:09:26Z, immediately before `[TELEMETRY] judgment/pre-ship-audit success cost=$0.3068`.
+
+### Why this matters
+
+Cross-checked against the full historical population (N=28 prior wakes): **ZERO text-only fallback events ever fired before this canary**. The fallback at line 1391-1404 was a dormant safety net for a class of failure that previously didn't manifest. Why now? Most plausible hypothesis: the prior nudge (now deleted) provided the model an explicit "ReturnVerdict next" instruction that prevented this branch from being taken. With the nudge gone, the model on read-heavy hooks has to self-determine when to switch from cognition to action — and on this hook's prompt shape, it chose prose-final over ReturnVerdict-final.
+
+This is the **first observed "sibling rhyming symptom"** of the broader nudge-as-prompt-coaching pattern. The deleted counter-based nudge was doing TWO jobs:
+  - (1) **wrong job**: pushing premature stand_down on incomplete tasks (the surfaced bug)
+  - (2) **right job, wrong mechanism**: reminding the model that ReturnVerdict is the structured close signal (the now-exposed gap)
+
+Option D correctly removed the wrong job but didn't replace the right job. The right job belongs in the **persona frame + hook prompt**, not in a mid-loop counter-based nudge. The hook prompt currently says "Decide and emit one of: APPROVE / DEFER / REJECT" but doesn't structurally bind those to ReturnVerdict + WriteFile. The model's prose response IS the verdict — but the framework doesn't extract it.
+
+### Recommendation status
+
+| Recommendation | Status |
+|---|---|
+| Option D — delete nudge + raise budget | **Done** (commit e8017d3, live) |
+| Pattern 1 dedup (prior session) | **Still working** ✓ (1 wake per transition) |
+| Round-budget gives head room | **Validated** ✓ (Reviewer used 13/20 rounds — past the previous nudge boundary, well within budget) |
+| Reviewer writes substrate on read-heavy hooks | **NEW OPEN GAP** — text-only response fallback intercepts the verdict prose |
+
+### Next surface (sibling rhyming symptom)
+
+The broader Reviewer prompt-strategy audit (stub folder forthcoming as Step 3 of this session's plan) now has its first motivating empirical finding. Candidate Hat-A directions when that audit picks up:
+
+  - **Tighten hook prompt structure**: the pre-ship-audit hook (and corpus-coherence-check, revision-audit, outcome-reconciliation) instruct verdict-text production but don't structurally bind to ReturnVerdict + WriteFile as the close signal. The "Decide and emit" line should be rewritten as "Call ReturnVerdict(verdict=approve/defer/reject) AND call WriteFile to update standing_intent.md before closing."
+  - **Update persona frame**: the system prompt at `_PERSONA_FRAME` could explicitly establish "every wake ends with ReturnVerdict; text-only responses are not closing actions." Currently this rule is implicit.
+  - **Adjust the text-only fallback**: instead of auto-converting to `stand_down`, the framework could re-prompt the model to call ReturnVerdict explicitly. Higher cost but preserves verdict integrity. Probably the wrong direction (it's another framework-side nudge); prompt-side fix preferred.
+  - **Or**: live with one more round of evidence — fire canary v4 (or wait for a natural pre-ship-audit) to see whether this happens consistently or just to this specific prompt shape. If `corpus-coherence-check` and `outcome-reconciliation` continue to write substrate fine, only pre-ship-audit needs prompt-tightening. If all hooks now hit the text-only fallback, the persona frame needs the structural rule.
+
+### Discipline note
+
+This is exactly the "fix surfaces next-class issue" pattern the prior session's three-commit-shape discipline was designed to accommodate. Option D earned its keep — the counter-nudge problem is structurally gone. The text-only fallback is a separate concern with a separate evidence base; it goes into the next observation folder, not as a retroactive amendment to this one's fix. The broader prompt-strategy audit gets opened next.
+
+---
+
 ## Capture method (reproducibility)
 
 All findings derived from two SQL aggregates against Supabase prod:
