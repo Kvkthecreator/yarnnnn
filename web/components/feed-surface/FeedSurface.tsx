@@ -41,6 +41,7 @@ import { AutonomyHeaderChip } from './AutonomyHeaderChip';
 import { FeedEmptyState } from './FeedEmptyState';
 import { FeedFilterBar, parseChatFilterFromSearch } from './FeedFilterBar';
 import { useReviewerPersona } from '@/lib/reviewer-persona';
+import { useSuppressShellComposer } from '@/components/shell/ShellChromeContext';
 import { cn } from '@/lib/utils';
 
 interface FeedSurfaceProps {
@@ -51,6 +52,12 @@ interface FeedSurfaceProps {
 export function FeedSurface({
   plusMenuActions = [],
 }: FeedSurfaceProps) {
+  // ADR-297 D11 Phase C safer-shape: /feed is the canonical Conversation
+  // surface (FeedTimeline + ConversationDrawer). Suppress the shell-
+  // bottom composer here — the operator engages chat via the drawer
+  // button, not via a redundant bottom strip.
+  useSuppressShellComposer();
+
   const { messages, sendMessage } = useNarrative();
   const searchParams = useSearchParams();
   const personaName = useReviewerPersona();

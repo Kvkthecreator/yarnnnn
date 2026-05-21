@@ -261,7 +261,7 @@ Operator preferences (future, via `useSurfacePreferences` extension) can overrid
 
 **Why D11 and not its own ADR**: D11 is the *logical completion* of the surface-mirrors-substrate principle (the foundational principle of this ADR). It doesn't introduce new concepts so much as remove an unprincipled exception — chrome-as-special-case. Same ADR; explicit amendment for trace continuity.
 
-D11 implementation status: **declared, not yet implemented.** The infrastructure for D11 (compositor + surface registry + layout regions) requires its own dedicated session — see implementation path below.
+D11 implementation status: **Phases A + B + C Implemented 2026-05-21** (commits `72da5d4` A · `265042b` B · Phase C in this same session). Phase C shipped in the **safer-shape** variant — see "D11 Phase A + B + C — landed 2026-05-21" below for the divergence from the original spec and the explicit Phase C.2 follow-on scope. Phases D + E remain forward horizon.
 
 ---
 
@@ -309,6 +309,125 @@ Phases A + B + C are the minimum-viable D11. Phase D is operator-customization. 
 - **Does not change substrate.** Every substrate path and schema preserved. This is purely a frontend reshape.
 - **Does not amend FOUNDATIONS or GLOSSARY.** No new axioms; this is the surface-layer enactment of existing axioms (1 — Substrate; 6 — Channel) and OS framing (ADR-222).
 - **Does not specify cadence-surface design.** The atomic Cadence surface exists per D1's enumeration but its archetype/content/interactions are spec'd in implementation. The `cadence-and-wakes.md` canon doc already provides the substrate map; the surface design follows from it.
+
+---
+
+## D11 Phase A + B + C Implementation — landed 2026-05-21 (same-session)
+
+The minimum-viable D11 stack shipped as three incremental commits, each
+TS-clean and regression-gate-green. The session opened from the prompt
+at `docs/design/SESSION-OPENER-ADR-297-D11.md`.
+
+**Commit `72da5d4` — Phase A: taxonomy + chrome surfaces in kernel
+registry.**
+- `api/services/kernel_surfaces.py::ARCHETYPES` extends with the three
+  D11 entries: `input` (writes substrate), `navigator` (lists/dispatches
+  surface set), `chrome` (structural framing). Adds the four chrome
+  kernel-surface declarations: `top-bar` (chrome / `top` region),
+  `dock` (navigator / `bottom-floating`), `launcher` (navigator /
+  `floating-overlay` / `summon`), `chat-composer` (input /
+  `bottom-fixed`). Each carries a paired `default_region` +
+  `default_visibility` field. Chrome surfaces are not launcher-
+  navigable (`route == ""`) and not dock-pinnable.
+- `web/lib/compositor/types.ts::Archetype` synced to Python — picks up
+  the pre-existing D1 drift (`browser`, `roster`) and the new D11 trio.
+  New `LayoutRegion` and `SurfaceVisibility` type unions. `Surface`
+  interface gains optional `default_region` + `default_visibility`
+  fields.
+- Regression gate `api/test_adr297_phase1.py` extended: surface-count
+  floor raised 10 → 17, `expected_slugs` gains the four chrome
+  surfaces, two new test groups assert D11 archetype catalog +
+  chrome-surface (archetype, region, visibility) tuples + paired-fields
+  invariant + canonical-enum membership for regions/visibility. **120
+  assertions PASS**.
+
+**Commit `265042b` — Phase B: shell compositor dissolves chrome into
+surfaces.**
+- `web/components/shell/ShellCompositor.tsx` — partitions
+  `composition.surfaces` by `default_region`; mounts each region's
+  chrome surface(s) via `CHROME_SURFACE_REGISTRY`. The `main` region
+  mounts `SurfaceViewport` (single content surface today; the D10
+  multi-surface advance is forward horizon).
+- `web/components/shell/ChromeRegistry.tsx` — slug → component map for
+  the four D11 chrome surfaces. Distinct from `KERNEL_SURFACE_REGISTRY`
+  (content surfaces) only in WHICH JSX slot the compositor mounts into;
+  both come from the same kernel registry.
+- `web/components/shell/ShellChromeContext.tsx` — lightweight provider
+  for chrome-shared state (userEmail, launcher open/close). Chrome
+  surfaces consume this instead of receiving N props through M JSX
+  slots; the compositor mounts them with zero props.
+- Four chrome-surface components at
+  `web/components/shell/chrome/{TopBar,Dock,Launcher,ChatComposer}Surface.tsx`.
+  Top bar is self-contained (brand mark + LauncherButton + UserMenu +
+  D6 last-active-home navigation). Dock + Launcher are zero-prop
+  wrappers around the pre-existing Dock + Launcher components — same
+  bodies, just invocation moves from inline JSX to compositor mount.
+  ChatComposerSurface is the Phase C target.
+- `AuthenticatedLayout.tsx` shrinks 263 → 197 lines: hardcoded shell
+  JSX (top header, Dock, Launcher mounts, SurfaceViewport) DELETED;
+  body owns only the auth check, provider stack, NarrativeContext
+  handoff machinery, and last-active-surface recording. Singular
+  Implementation — no parallel mount paths.
+- Validation: tsc clean, `next build` clean (all 30+ routes compile,
+  bundle sizes unchanged ±1KB), regression gate 120/120 unchanged.
+
+**Phase C (this commit) — universal shell composer (safer shape).**
+- `ChatComposerSurface` body shipped: input bar, send/stop button,
+  attach-file PlusMenu, CommandPicker, file/image/docx attachment
+  previews, paste-to-attach, Enter-to-send. Reads workspace-global
+  state from `NarrativeContext` (sendMessage, loopActive,
+  stopActiveLoop) and current surface from `DeskContext`. Universal
+  scope — no per-surface props (no `surfaceOverride`, `draftSeed`,
+  `pendingActionConfig`, `emptyState`, `narrativeFilter`,
+  `contextLabel`).
+- `ShellChromeContext` gains a `composerSuppressed` flag + paired
+  `useSuppressShellComposer()` hook. Surfaces that mount their own
+  composer (today: /agents /context /cadence via
+  `ThreePanelLayout.conversation`, plus /feed via `ConversationDrawer`)
+  call the hook on mount; the shell-bottom `ChatComposerSurface`
+  renders `null` while any suppressor is registered.
+- `ThreePanelLayout` mounts a tiny `ShellComposerSuppressor` component
+  when its `conversation` prop is set. `FeedSurface` calls
+  `useSuppressShellComposer()` unconditionally (/feed owns the
+  Conversation drawer affordance).
+- **What this Phase C does NOT do** — the *safer shape* commitment, made
+  explicit so the follow-on scope is unambiguous:
+  - Per-surface `ConversationPanel` mounts on /agents /context /cadence
+    are preserved verbatim. `ThreePanelLayout.conversation` prop
+    survives. /feed `ConversationDrawer` survives.
+  - No publish/subscribe pattern lifting `draftSeed`,
+    `pendingActionConfig`, `plusMenuActions`, `surfaceOverride`,
+    `contextLabel` through global context. Those per-surface
+    affordances remain prop-threaded through `ConversationPanel` as
+    today.
+  - No deletion of `ConversationPanel`, `ConversationDrawer`, or the
+    `conversation` prop on `ThreePanelLayout`.
+  - **Phase C.2 (follow-on)** lifts those per-surface affordances into
+    a chat-composer-intent publish/subscribe pattern on DeskContext or
+    a sibling context, then deletes the per-surface `ConversationPanel`
+    mounts and the `conversation` prop. Operator UX shifts at that
+    point — the right-panel chat goes away on /agents /context
+    /cadence, replaced by the shell composer + a separate messages-
+    read surface. That UX shift is the reason Phase C.2 deserves its
+    own session.
+
+**Operational result of A + B + C**:
+- Compositor mounts every chrome element from the kernel registry.
+  Adding a new chrome surface in the future is a single
+  `kernel_surfaces.py` declaration + a single `ChromeRegistry.tsx`
+  registration; the compositor picks it up without code changes.
+- Operator-visible behavior: shell composer visible at the bottom of
+  every surface that doesn't own its own (today: most read-only
+  surfaces — `/cockpit`, `/mandate`, `/principles`, `/identity`,
+  `/brand`, `/program`, `/queue`, `/activity`, `/delegation`). The
+  three rich surfaces (/agents /context /cadence) and /feed continue
+  to own their bespoke chat affordance.
+- Validation: tsc clean, `next build` clean, regression gate 120/120.
+
+The D11 axiom (surface = viewport panel; chrome is not a special case)
+now holds *structurally*: every chrome element is a registered surface
+mounted by region. The Phase C.2 follow-on is purely about per-surface
+affordance migration, not about reopening the axiom.
 
 ---
 

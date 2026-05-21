@@ -29,6 +29,7 @@ import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { ConversationPanel, type ConversationPanelProps } from '@/components/tp/ConversationPanel';
+import { useSuppressShellComposer } from './ShellChromeContext';
 
 /** Returns true when viewport width < 640px (Tailwind sm breakpoint). */
 function useIsMobile(): boolean {
@@ -108,6 +109,18 @@ export interface ThreePanelLayoutProps {
     /** Conversation panel width in px (default: 380) */
     width?: number;
   };
+}
+
+/**
+ * Tiny zero-render component that always calls
+ * useSuppressShellComposer. Mounted by ThreePanelLayout when its
+ * `conversation` prop is set, so the shell-bottom composer hides
+ * while a per-surface ConversationPanel is owning the chat affordance.
+ * Phase C safer-shape per ADR-297 D11.
+ */
+function ShellComposerSuppressor() {
+  useSuppressShellComposer();
+  return null;
 }
 
 export function ThreePanelLayout({
@@ -210,6 +223,10 @@ export function ThreePanelLayout({
 
   return (
     <div className="flex h-full overflow-hidden">
+      {/* ADR-297 D11 Phase C safer-shape: suppress shell-bottom composer
+          while this surface owns its own ConversationPanel. */}
+      {conversation && <ShellComposerSuppressor />}
+
       {/* ── Left Panel (ADR-167: optional, hidden on mobile) ── */}
       {leftPanel && !isMobile && (
         panelOpen ? (
