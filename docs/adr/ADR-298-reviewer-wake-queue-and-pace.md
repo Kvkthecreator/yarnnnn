@@ -33,14 +33,18 @@ This is a structural inversion of ADR-261 D3 §1 (parallel concurrent Reviewer s
 
 All five wake sources enqueue into a single per-workspace queue. The scheduler drains the queue; the Reviewer executes drained wakes. No source bypasses the queue.
 
-**Critical classification per Axiom 1**: the queue is **transient compute, not authoritative state.** Modeled on the `tasks` scheduling-index precedent (ADR-231 D4), the queue is:
+**Critical classification per Axiom 1 — this is the load-bearing structural move of the ADR.** The queue is **transient compute + deterministic enforcement, not authoritative state.** Without this classification, ADR-298 would introduce a parallel state-bearing substrate outside the filesystem-is-truth axiom — a structural drift from FOUNDATIONS Axiom 1 that would set precedent for future "this state can live in DB too" decisions and erode the substrate-is-filesystem discipline. Scenario L (§6) is the falsifiability check that confirms this classification is honest: the queue table can be wiped and reconstructed entirely from filesystem state + existing DB telemetry. If that reconstruction is not possible, the classification is wrong and the ADR fails.
+
+Modeled on the `tasks` scheduling-index precedent (ADR-231 D4), the queue is:
 
 - Mechanically reconstructable from filesystem state + DB telemetry at every moment. Every pending wake's source-of-truth lives in files: cron recurrences in `_recurrences.yaml`, hooks in `_hooks.yaml`, substrate transitions in `workspace_file_versions`, addressed turns in `session_messages`, proposals in `action_proposals`.
 - A denormalized read-optimization layer + atomic-lock surface for the scheduler to coordinate single-lane drain across multiple scheduler instances.
 - Not operator-readable as substrate. Operators read configuration (yaml files), outcomes (feed + `execution_events`), and watch-state (`standing_intent.md`). The "things about to happen" intermediate state is implementation detail.
 - Garbage-collected after completion; completed wakes older than 7 days dropped by back-office maintenance (mirrors `execution_events` retention).
 
-**No `_queue.yaml` file in workspace.** A workspace-substrate queue would: (a) require rewriting on every enqueue/dequeue, (b) introduce file-lock contention on bursts, (c) trigger ADR-209 revision-chain growth for transient state, (d) misframe the queue as semantically meaningful operator-readable substrate. The queue is more like `execution_events` (telemetry) than like `_recurrences.yaml` (configuration).
+**Distinction from `execution_events`** (worth naming because future reviewers will ask "why not just append to `execution_events` with `status='pending'`?"): `execution_events` is historical telemetry — immutable, append-only, GC'd by age, no UNIQUE-constraint-driven enforcement on the insert path. `wake_queue` is imminent compute — mutable status field, lock acquire/release semantics, dequeue mutates state, UNIQUE constraint on `(user_id, wake_source, dedup_key)` is system-behavior enforcement, not telemetry. Both are non-substrate (per Axiom 1) but have different lifecycle shapes that demand separate tables. Folding the queue into `execution_events` would conflate immutable history with mutable in-flight state and make the dedup-and-lock semantics expensive on a high-write append-only table.
+
+**No `_queue.yaml` file in workspace.** A workspace-substrate queue would: (a) require rewriting on every enqueue/dequeue, (b) introduce file-lock contention on bursts, (c) trigger ADR-209 revision-chain growth for transient state, (d) misframe the queue as semantically meaningful operator-readable substrate. The queue is closer to `execution_events` (DB-resident, non-substrate) than to `_recurrences.yaml` (filesystem-resident, substrate), but is structurally distinct from `execution_events` for the lifecycle reasons above.
 
 Schema (proposed):
 
@@ -76,6 +80,8 @@ Wakes enter one of two lanes at enqueue time:
 | **live** | `addressed`, `substrate_event`, `manual_fire`, `proposal_arrival` (Reviewer-relevant) | As fast as single-in-flight constraint allows | Drained next-available; waits for current wake to complete (~30-75s typical) |
 
 Both lanes share the **single-in-flight constraint**: only one wake executes per workspace at a time. The lane determines drain rate, not concurrency.
+
+**FIFO within the live lane is deliberate, not a default-by-omission.** Live-lane wakes drain in enqueue order; addressed turns do NOT preempt mid-flight substrate-event wakes (and vice versa). The reasoning: substrate-event wakes are also operator-driven (the operator just transitioned substrate by editing a file or flipping a status); allowing addressed turns to preempt their own causally-prior substrate transitions would let the operator chat "is the audit done?" *before* the audit actually fires — producing operator confusion, not better UX. FIFO serialization gives the operator the coherent audit-then-respond story: substrate transition → audit fires → operator's next addressed turn reads the just-completed audit via `judgment_log.md` and responds with awareness (see Scenario H). The ~30-75s latency cost on addressed turns waiting behind a substrate-event audit is the tax for that coherence. If future production data shows operators frequently typing during mid-flight audits and complaining about the wait, a preemption policy could be introduced as an ADR amendment — but the current default is FIFO, deliberately.
 
 Mechanical-mode wakes (`@primitive: SyncPlatformState()`) do NOT enter the queue. They execute directly without invoking the Reviewer (zero LLM cost, no concurrency-with-Reviewer concern).
 
@@ -123,6 +129,8 @@ The `wake_queue.dedup_key` column with `UNIQUE (user_id, wake_source, dedup_key)
 - `manual_fire` — null (operator explicitly bypasses dedup).
 
 The cross-source case (substrate-event + addressed referring to the same operator intent) is **not deduped** — they have different dedup keys because they're different judgment shapes. Both run, serialized via single-in-flight.
+
+**Load-bearing dependency: D6's non-dedup is only safe because of D1 (single-lane).** In a parallel-concurrent execution world, the un-deduped substrate-event + addressed pair would race for substrate writes — exactly the failure mode ADR-298 §1 identifies as motivating the queue. Single-lane drain serializes them: the second wake reads the first's output via `judgment_log.md` + `standing_intent.md` and stays coherent (see Scenario H). If a future ADR ever proposes relaxing D1 (e.g., "live-lane wakes have different dedup keys, why not parallelize them?"), the answer is no — the un-deduped cross-source pair would race again and the queue's whole coherence guarantee collapses. D6 and D1 are co-load-bearing; neither can be relaxed without revisiting the other.
 
 ### D7 — Bundle-declared minimum pace
 
@@ -274,6 +282,19 @@ Scheduler instance A locks a wake at 14:00:23, crashes at 14:00:45 before comple
 
 Operator on `pace: daily`, `monthly_budget_usd: 30`. Operator flips 50 drafts in one day (50 live-lane audits at $0.30 = $15). Cumulative monthly cost crosses 80% threshold at $24. Reviewer Clarify surfaces. Operator ignores. Cost crosses 100% at $30. Paced lane stops draining; live lane continues for remaining budget. At billing-level hard cap, all drain stops. Workspace in mechanical/addressed-only mode until budget extended.
 
+### Scenario M — operator drops pace while paced-lane queue has pending wakes
+
+Operator on `daily` with 4 daily-cadence recurrences active. Over a 24h period, 4 paced-lane wakes have queued (one per recurrence) but only 1 has drained (drain rate = daily = 1/day). Operator drops pace to `weekly`.
+
+What happens to the 3 pending paced-lane wakes?
+
+- **Pending wakes are NOT auto-dropped.** Dropping queued fires would mean the system silently discarding work the operator's recurrences scheduled — a substrate-aligned-execution violation.
+- **Pending wakes drain at the new pace.** Drain rate immediately becomes weekly (1/week). The 3 pending wakes will drain over the next 3 weeks at 1/week.
+- **Scenario F's Clarify mechanism handles the underlying recurrence reconciliation.** When operator drops pace to weekly, Scenario F's Clarify fires: "your 4 daily-cadence recurrences exceed new weekly pace budget. Pause 3, change them to weekly, or revert pace?" Operator's choice on recurrence-level cleanup determines whether new paced wakes continue accumulating; the existing queue contents drain at new pace regardless.
+- **Cockpit signals the backlog.** "Paced lane: 3 pending, drain rate: weekly. Estimated time to clear: 3 weeks." Operator-visible cost reality, not silent backlog.
+
+Combined effect: pace-change is a forward-looking policy change; existing queue contents honor the new policy from the moment of change but are not retroactively dropped. The operator-explicit recurrence reconciliation in Scenario F is the cleanup mechanism for the underlying frequency mismatch.
+
 ### Scenario L — queue is reconstructable from filesystem state (Axiom 1 check)
 
 Database wiped accidentally. `wake_queue` table empty. Scheduler restarts:
@@ -294,10 +315,12 @@ Database wiped accidentally. `wake_queue` table empty. Scheduler restarts:
 - **Does not establish a new wake source.** The five sources from ADR-296 v2 are preserved; only their dispatch path changes (direct → enqueue).
 - **Does not change the Reviewer's tool surface.** `Schedule` primitive gains a pace-check, but the action enum (`create | update | pause | resume | archive`) is unchanged.
 - **Does not claim single-lane execution is axiomatically correct.** Single-lane is prudentially chosen by observed failure modes (§3). The discipline being locked in is "choose based on observed failure modes," not "single-lane forever."
+- **Does not address durable execution / step-level memoization.** A Reviewer wake is the unit of retry; mid-wake failure means re-running all tool calls within the session. This is fine for the current Reviewer cost profile (30-75s sessions); if session duration grows past ~3min or tool-call cost dominates wake cost, step-level memoization becomes the next architectural seam. Scope for a future ADR. Inngest's per-LLM-call retry-with-persisted-result model is the mature shape to study when that ADR opens.
+- **Does not address cross-workspace fairness.** When N workspaces all hit hourly pace and share an upstream LLM rate limit, contention behavior is unspecified. Within-workspace serialization is solved (D1 + D3); cross-workspace prioritization, throttling, and fairness are the next problem layer. Scope for a future ADR. OpenClaw's global concurrency lane + Inngest's multi-tenant throttling are the patterns to study when that ADR opens.
 
 ## 8. Open questions to resolve during code-PR
 
-- **Stale-lock detection threshold.** ~180s based on current session population? Open for empirical tuning.
+- **Stale-lock detection threshold.** Empirical-tuning target: 2× the p95 session duration from `execution_events.duration_ms` (population data shows current sessions 30-75s; p95 ≈ 75s suggests ~150-180s threshold). Recommend computing from telemetry at implementation time rather than picking a round number.
 - **Cockpit Schedule tab UX shape.** Queue depth visibility? Per-pace cost estimate sub-line? Defer to FE PR.
 - **Pace-overrun signaling.** Cockpit chip vs daily-update entry vs Reviewer Clarify? Probably all three at different thresholds.
 - **Numeric pace override (`every: 4h`).** First iteration: parse + compute back to enum band for display + drain rate. Future: pure-numeric pace if operators consistently want fine-grained tuning.
@@ -321,6 +344,7 @@ Database wiped accidentally. `wake_queue` table empty. Scheduler restarts:
 - FOUNDATIONS Axiom 1 (filesystem-is-substrate) — `_pace.yaml` is substrate; `wake_queue` is transient compute per D2
 - FOUNDATIONS Principle 18 — standing intent implies Trigger-authoring authority; pace constrains but does not remove the authority
 - Production evidence: [canary v4 findings](../observations/2026-05-21-044500-canary-v4-substrate-event-revalidation/findings.md), [wake-duplication audit](../observations/2026-05-21-005856-wake-duplication-audit/findings.md), [round-budget population audit](../observations/2026-05-21-014009-reviewer-round-budget-population-audit/findings.md)
+- Cross-system convergence evidence: [ADR-298 cross-analysis against OpenClaw, Hermes, and durable-execution platforms](../analysis/adr298-cross-analysis-openclaw-hermes-2026-05-22.md) — single-lane execution, two-lane drain, and queue-as-transient-compute are convergent with production agent-OS patterns; pace as first-class operator dial is YARNNN-distinctive net addition
 
 ## 10. Path to ratification
 
