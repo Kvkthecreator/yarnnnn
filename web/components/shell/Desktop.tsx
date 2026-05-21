@@ -14,11 +14,12 @@
  * not a navigation destination — it's the absence of an open
  * application.
  *
- * D13 ships the minimum-viable empty state — a centered prompt with
- * affordances pointing to the launcher (top-center icon) and to
- * pinning. A future ADR may promote the desktop to a first-class
- * kernel surface with operator-customizable wallpaper, pinned-files,
- * etc.; D13 deliberately does NOT do that.
+ * D13 ships the minimum-viable empty state — a centered prompt
+ * pointing to the launcher (top-center icon) and to the Dock-keep
+ * affordance (D14: Keep in Dock, was "pin"). A future ADR may
+ * promote the desktop to a first-class kernel surface with
+ * operator-customizable wallpaper, pinned-files, etc.; D13
+ * deliberately does NOT do that.
  */
 
 import { LayoutGrid } from 'lucide-react';

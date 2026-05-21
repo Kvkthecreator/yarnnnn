@@ -356,6 +356,62 @@ D11 + D12 made the structural claim that *every operator-visible thing is a surf
 
 D13 implementation status: **Implemented 2026-05-21** (this session, code commit follows this doc).
 
+### D14 — Window chrome + Keep-in-Dock semantic (2026-05-21 same-session amendment)
+
+**Supersedes** D5 §Defaults + D5 §Pinning mechanic (the "pinned" concept dissolves; "kept" replaces) and **dissolves** D13 §8 (the open-but-not-pinned-tail follow-on — its rationale gets absorbed into the unified Keep/Open Dock model).
+
+D13 made surfaces multi-mount and gave each a foreground/background lifecycle, but the operator-visible affordance kept the pre-D13 page-as-container appearance: when a surface foregrounded, it filled the viewport edge-to-edge with no visual indication it was a window. The Dock continued to show only "pinned" surfaces — a concept independent of "open" — which made open-but-not-pinned surfaces invisible to the Dock entirely. Both gaps were operator-observed (KVK 2026-05-21) immediately after D13 shipped: *"now, when i click on the surfaces, aren't i suppose to see the windows? […] and thus, the pin concept is fundamentally mis aligned now."*
+
+D14 closes both gaps with one coherent move. Two parts, locked together because they are coupled (the window's close affordance interacts with Dock semantics; the Dock's contents reflect window lifecycle).
+
+**Part 1 — Pure window chrome.**
+
+Every open content surface mounts inside a visible window frame:
+- **32px title bar** at the top of the frame. Left: surface name (e.g. "Feed", "Cockpit", "Delegation"). Right: × close button.
+- **Subtle border** (1px) + rounded corners around the entire frame.
+- **Inset from the desktop edges** — the window doesn't extend to the viewport edge; there's a small breathing margin (the visible "desktop wallpaper" border, in macOS parlance).
+- **Surface body** mounts below the title bar. The per-surface `PageHeader` (which today renders breadcrumb + per-surface actions) continues to render inside the body, unchanged. The window title bar shows the *surface name*; the PageHeader shows *subtitle + actions*. Minor visual redundancy (the name appears twice — once in window title, once in PageHeader) is the price for not invading every surface's existing chrome. Future v2 may collapse them; D14 ships the minimum surgery.
+
+The desktop empty state (D13 §5) continues to render edge-to-edge with no window frame (there is no window).
+
+**Part 2 — Pin reframed as Keep-in-Dock.**
+
+The "Pinned" concept that lived in D5 + D11 + D12 + D13 is dissolved entirely. "Keeping" replaces it, with cleaner semantics:
+
+- **The Dock shows the union of (kept surfaces) + (open surfaces).** No separation between rails; a single canonical row.
+- **Kept** is the operator's "I want this in the Dock permanently" declaration — the macOS "Keep in Dock" semantic. Persists across sessions.
+- **Open** is the runtime "this surface has a live mount" state, tracked in the open-surfaces registry from D13.
+- A Dock icon's appearance reflects its combined state:
+  - **Kept + Open** — solid icon, indicator dot, persists across sessions.
+  - **Open + Not-Kept** — solid icon, indicator dot. Disappears from Dock when closed.
+  - **Kept + Not-Open** — muted/gray icon, no indicator dot, persists. Click opens.
+- **Right-click menus** reshape to the new model:
+  - Open + Kept → "Close" / "Remove from Dock"
+  - Open + Not-Kept → "Close" / "Keep in Dock"
+  - Kept + Not-Open → "Open" / "Remove from Dock"
+
+**Default-kept set**: `['feed']` (preserves the D5 rationale verbatim — first-boot operators see one anchor in the Dock; every other surface enters the Dock when first opened and stays only if explicitly Kept). The slot is renamed from `pinned-surfaces` to `kept-surfaces` in localStorage; no migration shim per Singular Implementation discipline.
+
+**API rename** (atomic):
+- `useSurfacePreferences().pinned` → `.kept`
+- `.pin(slug)` → `.keep(slug)`
+- `.unpin(slug)` → `.release(slug)`
+- `.isPinned(slug)` → `.isKept(slug)`
+- localStorage key prefix `yarnnn:shell:pinned-surfaces:` → `yarnnn:shell:kept-surfaces:`
+- Default constant `DEFAULT_PINNED_SURFACES` → `DEFAULT_KEPT_SURFACES`
+
+The Launcher's per-row pin/unpin toggle becomes a keep/release toggle; the icon stays the same (a pin), the verb shifts. The Launcher is no longer the primary keep affordance — operators are expected to discover Keep-in-Dock via right-click on an open Dock icon — but the Launcher's pin toggle survives as a power-user shortcut.
+
+**Why D14 and not its own ADR**: same rationale as D11/D12/D13 — refinement of the surface-mirrors-substrate principle's layout-policy expression. D14 doesn't reopen the axiom; it brings the visual and the semantic into alignment with the macOS-window-manager metaphor D13 declared. Same ADR; explicit amendment for trace continuity.
+
+**What D14 does NOT do**:
+- Does not introduce window drag-to-resize or drag-to-reposition. Windows are full-bleed within their inset; one window foregrounded at a time. Split-mode / peek / tile layouts remain forward horizon (the D10 advance).
+- Does not absorb the per-surface PageHeader into the window title bar. PageHeader keeps its breadcrumb + actions role inside the surface body. A future ADR may collapse them when operator pressure justifies it.
+- Does not change the Launcher overlay's primary affordance shape (type-to-filter + tier grouping + per-row keep toggle). Only the verbiage shifts (pin → keep).
+- Does not change the chat-composer suppression rules, atomic-route bookmark-safety, or any aspect of D11/D12 chrome architecture.
+
+D14 implementation status: **Implemented 2026-05-21** (this session, code commit lands together with this doc per the single-combined-commit cadence locked in question Q2 of the D14 design discourse).
+
 ---
 
 ## Implementation path for D11 — Uniform Compositor

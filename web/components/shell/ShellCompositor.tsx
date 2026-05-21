@@ -107,8 +107,9 @@ export function ShellCompositor({ children }: ShellCompositorProps) {
   return (
     <>
       <div className="flex flex-col h-screen bg-background">
-        {/* Top region — TopBarSurface (D12: merged dock-bar — brand ·
-            launcher trigger · pinned surfaces · user menu). */}
+        {/* Top region — TopBarSurface (D12 + D14: merged dock-bar —
+            brand · launcher trigger · Dock icons (kept ∪ open) ·
+            user menu). */}
         {mountRegion('top')}
 
         {/* Main region — atomic content surface via SurfaceViewport,
@@ -121,7 +122,7 @@ export function ShellCompositor({ children }: ShellCompositorProps) {
         {mountRegion('bottom-fixed')}
 
         {/* D12 (2026-05-21): bottom-floating region intentionally NOT
-            mounted. The Dock kernel surface was deleted; its pinned-
+            mounted. The Dock kernel surface was deleted; its Dock-
             icon responsibility absorbed into TopBarSurface's body. The
             `bottom-floating` LayoutRegion survives in the type union
             (a future chrome surface might target it) but no kernel

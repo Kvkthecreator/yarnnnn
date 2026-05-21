@@ -1,30 +1,30 @@
 'use client';
 
 /**
- * SurfaceViewport — ADR-297 axiom (2026-05-21) + D13 multi-mount.
+ * SurfaceViewport — ADR-297 axiom (2026-05-21) + D13 multi-mount + D14 windows.
  *
- * The shell's single content slot. Pre-D13 mounted exactly one surface
- * (the active one) and unmounted prior ones on dispatch. D13
- * (2026-05-21) shifted to the macOS-window-manager metaphor: every
- * open surface stays mounted; non-foregrounded ones are hidden via
- * `hidden` attribute (display: none).
+ * The shell's single content slot. Renders every open surface from the
+ * registry inside a WindowFrame (D14), with the foregrounded surface
+ * visible and all others hidden via the `hidden` attribute
+ * (display: none). The visible "desktop wallpaper" border around the
+ * window is the viewport's own background showing through the inset
+ * padding.
  *
- * Resolution order (D13):
+ * Resolution order:
  *
  *   1. For every slug in useSurfacePreferences().open, mount that
- *      surface's component. Apply `hidden` to all but the foregrounded
- *      one. Surfaces preserve their state (scroll position, form
- *      drafts, expanded sections, in-flight network requests) across
- *      foreground/background transitions.
+ *      surface's component inside a WindowFrame. Apply `hidden` to all
+ *      but the foregrounded one. Surfaces preserve their state
+ *      (scroll position, form drafts, expanded sections, in-flight
+ *      network requests) across foreground/background transitions.
  *
  *   2. If the open registry is empty, fall back to:
  *      a. URL pathname (deep-link transport — cold load to /cadence
- *         etc. mounts that surface before DeskContext/useSurfacePreferences
- *         have hydrated). The AuthenticatedLayout's pathname watcher
- *         calls foregroundSurface(slug) which populates the registry
- *         on the first tick post-hydration.
+ *         etc. opens that surface before the foregroundSurface effect
+ *         in AuthenticatedLayout has fired).
  *      b. If pathname doesn't resolve to a kernel surface either,
- *         render the Desktop empty state (D13 §5).
+ *         render the Desktop empty state (D13 §5) — no WindowFrame,
+ *         the desktop wallpaper extends edge-to-edge.
  *
  *   3. Children (legacy non-atomic routes) render as fallback only
  *      when neither (1) nor (2a) resolves.
@@ -33,18 +33,24 @@
  * Hiding via CSS preserves: React state, scroll position, in-flight
  * fetches, expanded UI sections, focused inputs. The cost is the React
  * tree memory of every open surface — bounded by kernel count (today
- * ≤16 content surfaces) plus small program contribution. If a surface
- * proves heavy we add per-surface virtualization; no LRU eviction.
- * Operator closes what they don't want — that's the contract.
+ * ≤13 content surfaces). No LRU eviction; operator closes what they
+ * don't want.
+ *
+ * Why each surface gets a WindowFrame (D14): the operator-visible
+ * affordance of "this is a window" was missing pre-D14. The 32px
+ * title bar + close × inside the frame is the surface's visible
+ * window chrome.
  */
 
 import { type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useComposition } from '@/lib/compositor/useComposition';
 import { isKernelSurfaceSlug } from '@/types/desk';
 import type { KernelSurfaceSlug } from '@/types/desk';
 import { resolveSurfaceComponent } from './SurfaceRegistry';
 import { Desktop } from './Desktop';
+import { WindowFrame } from './WindowFrame';
 
 interface SurfaceViewportProps {
   /**
@@ -57,20 +63,19 @@ interface SurfaceViewportProps {
 
 export function SurfaceViewport({ children }: SurfaceViewportProps) {
   const pathname = usePathname();
-  const { open, foregrounded } = useSurfacePreferences();
+  const { open, foregrounded, closeSurface } = useSurfacePreferences();
+  const { data: composition } = useComposition();
 
-  // Compute the pathname-derived slug ONCE per render. Used as a
-  // cold-load fallback before the foregroundSurface effect in
-  // AuthenticatedLayout has fired (registry not yet hydrated). Also
-  // ensures the surface is mounted even if the registry persistence
-  // lags (e.g. operator pasted a deep link with localStorage cleared).
+  // Cold-load fallback: if the URL deep-links to an atomic surface
+  // but the registry hasn't hydrated yet, mount that surface anyway.
+  // The AuthenticatedLayout's pathname watcher will fold it into the
+  // registry on the next tick.
   const firstSegment = pathname.split('/').filter(Boolean)[0];
   const pathnameSlug: KernelSurfaceSlug | null =
     firstSegment && isKernelSurfaceSlug(firstSegment) ? firstSegment : null;
 
-  // Build the active mount list: union of (registry-open) and
-  // (pathname-deep-link), preserving the registry's order. Dedupe via
-  // Set so a deep-link to an already-open surface doesn't double-mount.
+  // Union of (registry-open) and (pathname-deep-link), preserving the
+  // registry's order; pathname slug appended if not already present.
   const mountSlugs: KernelSurfaceSlug[] = (() => {
     const set = new Set<string>(open);
     if (pathnameSlug) set.add(pathnameSlug);
@@ -82,7 +87,11 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
   //   2. pathnameSlug if registry hasn't decided yet
   //   3. last item in mountSlugs (most-recently-opened)
   const visibleSlug: KernelSurfaceSlug | null = (() => {
-    if (foregrounded && isKernelSurfaceSlug(foregrounded) && mountSlugs.includes(foregrounded)) {
+    if (
+      foregrounded &&
+      isKernelSurfaceSlug(foregrounded) &&
+      mountSlugs.includes(foregrounded)
+    ) {
       return foregrounded;
     }
     if (pathnameSlug && mountSlugs.includes(pathnameSlug)) {
@@ -91,13 +100,24 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
     return mountSlugs.length > 0 ? mountSlugs[mountSlugs.length - 1] : null;
   })();
 
-  // If neither the registry nor the URL has anything → Desktop empty
-  // state. Only when the URL is non-atomic (legacy route) AND nothing
-  // is open do we fall through to children (preserves legacy fallback
-  // for /settings, /connectors, /docs, etc.).
+  // Surface-title lookup for the WindowFrame title bar.
+  const titleBySlug = (() => {
+    const map = new Map<string, string>();
+    (composition.surfaces || []).forEach((s) => map.set(s.slug, s.title));
+    return map;
+  })();
+  const titleFor = (slug: string): string => {
+    const t = titleBySlug.get(slug);
+    if (t) return t;
+    // Fallback: kebab → Title Case
+    return slug
+      .split('-')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  };
+
+  // Empty registry + non-atomic pathname → let legacy children render.
   if (mountSlugs.length === 0) {
-    // Pathname is non-atomic; let legacy children render. If pathname
-    // would have been atomic we'd be in mountSlugs already.
     if (pathnameSlug === null && firstSegment) {
       return <>{children}</>;
     }
@@ -105,7 +125,11 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
   }
 
   return (
-    <>
+    // D14: desktop wallpaper margin. The window frames sit inside this
+    // padded area, with the muted background showing through as the
+    // visible desktop. Inset proportions: 12px on all sides at mobile,
+    // 16px at sm+.
+    <div className="h-full w-full bg-muted/30 p-3 sm:p-4">
       {mountSlugs.map((slug) => {
         const Component = resolveSurfaceComponent(slug);
         const isVisible = slug === visibleSlug;
@@ -113,16 +137,18 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
           <div
             key={slug}
             hidden={!isVisible}
-            // The hidden attribute applies display:none; using a
-            // wrapper div per surface preserves the surface
-            // component's own layout while letting us toggle
-            // visibility without unmounting.
             className="h-full w-full"
           >
-            <Component />
+            <WindowFrame
+              title={titleFor(slug)}
+              isForegrounded={isVisible}
+              onClose={() => closeSurface(slug)}
+            >
+              <Component />
+            </WindowFrame>
           </div>
         );
       })}
-    </>
+    </div>
   );
 }

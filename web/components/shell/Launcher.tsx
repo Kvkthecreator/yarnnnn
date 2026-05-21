@@ -1,10 +1,10 @@
 'use client';
 
 /**
- * Launcher — ADR-297 D4.
+ * Launcher — ADR-297 D4 + D14.
  *
  * Summon-first overlay listing every atomic surface available in the
- * workspace. Opens from `LauncherButton` (top-right of shell chrome) or
+ * workspace. Opens from TopBarSurface's launcher trigger button or
  * Escape-closes. Type to filter; Enter to navigate; click to navigate.
  *
  * Surface grouping per ADR-297 D4 — subtle tier headers ("Workspace" /
@@ -12,14 +12,18 @@
  * emitted by the compositor (per kernel_surface_entries + program bundle
  * SURFACES.yaml surfaces[]).
  *
- * Pin/unpin affordance: each row carries a pin toggle so operators
- * customize the dock from the launcher itself (no separate settings
- * surface needed).
+ * Keep/release affordance (D14 — was pin/unpin): each row carries a
+ * pin icon toggle so operators customize the Dock from the launcher
+ * itself (no separate settings surface needed). The icon stays a pin
+ * (universal "keep this around" visual); the verb shifted in D14 from
+ * "pin" to "Keep in Dock" / "Remove from Dock" so the right-click
+ * Dock context menu and the launcher per-row toggle speak the same
+ * language. ADR-297 §D14.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pin, PinOff, Search, X } from 'lucide-react';
-import type { Surface, SurfaceTier } from '@/lib/compositor/types';
+import type { Surface } from '@/lib/compositor/types';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
 import { useDesk } from '@/contexts/DeskContext';
 import { isKernelSurfaceSlug } from '@/types/desk';
@@ -29,9 +33,17 @@ interface LauncherProps {
   open: boolean;
   onClose: () => void;
   surfaces: Surface[];
-  pinned: string[];
-  onPin: (slug: string) => void;
-  onUnpin: (slug: string) => void;
+  /** Dock-permanence surfaces (D14 — was `pinned`). */
+  kept: string[];
+  /** Add a surface to the Dock-permanence list. */
+  onKeep: (slug: string) => void;
+  /** Remove a surface from the Dock-permanence list. */
+  onRelease: (slug: string) => void;
+  /** Open a surface + bring it to the foreground (D13). The pre-D13
+   *  setSurface dispatch is retained as a side-effect inside this
+   *  handler for legacy DeskState consumers; this prop is the D13
+   *  canonical action. */
+  onForeground: (slug: string) => void;
   bundleTitleBySlug: Record<string, string>;
 }
 
@@ -83,9 +95,10 @@ export function Launcher({
   open,
   onClose,
   surfaces,
-  pinned,
-  onPin,
-  onUnpin,
+  kept,
+  onKeep,
+  onRelease,
+  onForeground,
   bundleTitleBySlug,
 }: LauncherProps) {
   const { setSurface } = useDesk();
@@ -96,7 +109,6 @@ export function Launcher({
   useEffect(() => {
     if (open) {
       setQuery('');
-      // Defer focus so the overlay is mounted first
       setTimeout(() => inputRef.current?.focus(), 10);
     }
   }, [open]);
@@ -114,16 +126,24 @@ export function Launcher({
     return () => window.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  // Filter out launcher-non-navigable surfaces (chrome: route="" per
+  // D11+D12+D14). The Dock has its own entry; we shouldn't list itself
+  // as a navigation target.
+  const navigableSurfaces = useMemo(
+    () => surfaces.filter((s) => s.route !== ''),
+    [surfaces]
+  );
+
   const filtered = useMemo(() => {
-    if (!query.trim()) return surfaces;
+    if (!query.trim()) return navigableSurfaces;
     const q = query.toLowerCase();
-    return surfaces.filter(
+    return navigableSurfaces.filter(
       (s) =>
         s.title.toLowerCase().includes(q) ||
         s.summary.toLowerCase().includes(q) ||
         s.slug.toLowerCase().includes(q)
     );
-  }, [surfaces, query]);
+  }, [navigableSurfaces, query]);
 
   const grouped = useMemo(
     () => groupSurfaces(filtered, bundleTitleBySlug),
@@ -131,9 +151,10 @@ export function Launcher({
   );
 
   const navigate = (surface: Surface) => {
-    // ADR-297 axiom: setSurface is the canonical action. DeskContext
-    // syncs the URL as a side effect for bookmark safety.
+    // D13/D14: foregroundSurface opens + foregrounds in one action.
+    // setSurface kept in sync for legacy DeskState consumers.
     if (isKernelSurfaceSlug(surface.slug)) {
+      onForeground(surface.slug);
       setSurface({ type: 'atomic', slug: surface.slug });
     }
     onClose();
@@ -141,7 +162,6 @@ export function Launcher({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // Enter navigates to the first filtered surface
     const first = filtered[0];
     if (first) navigate(first);
   };
@@ -195,7 +215,7 @@ export function Launcher({
                 </div>
                 {group.surfaces.map((surface) => {
                   const Icon = resolveSurfaceIcon(surface.icon_key);
-                  const pinnedNow = pinned.includes(surface.slug);
+                  const isKept = kept.includes(surface.slug);
                   return (
                     <div
                       key={surface.slug}
@@ -218,14 +238,19 @@ export function Launcher({
                       </button>
                       <button
                         type="button"
-                        onClick={() => (pinnedNow ? onUnpin(surface.slug) : onPin(surface.slug))}
-                        aria-label={pinnedNow ? `Unpin ${surface.title}` : `Pin ${surface.title}`}
+                        onClick={() => (isKept ? onRelease(surface.slug) : onKeep(surface.slug))}
+                        aria-label={
+                          isKept
+                            ? `Remove ${surface.title} from Dock`
+                            : `Keep ${surface.title} in Dock`
+                        }
+                        title={isKept ? 'Remove from Dock' : 'Keep in Dock'}
                         className={cn(
                           'rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
-                          pinnedNow && 'text-foreground'
+                          isKept && 'text-foreground'
                         )}
                       >
-                        {pinnedNow ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
+                        {isKept ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
                       </button>
                     </div>
                   );

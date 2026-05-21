@@ -2,16 +2,15 @@
 
 /**
  * LauncherSurface — ADR-297 D11 chrome surface (region: floating-overlay,
- * visibility: summon).
+ * visibility: summon) + D14 (kept/released vocabulary).
  *
  * Zero-prop wrapper over the existing Launcher overlay. The compositor
  * mounts this surface into the floating-overlay region; visibility is
  * controlled by the launcherOpen flag in ShellChromeContext (toggled
- * by TopBarSurface's LauncherButton).
+ * by TopBarSurface's launcher trigger button).
  *
- * Body unchanged from pre-D11 Launcher — only the invocation site
- * moves from inline JSX in AuthenticatedLayout to compositor-driven
- * mount.
+ * D14 rename: pin/unpin → keep/release. The Launcher's per-row toggle
+ * now writes through the keep/release path from useSurfacePreferences.
  */
 
 import { useMemo } from 'react';
@@ -22,7 +21,7 @@ import { useShellChrome } from '../ShellChromeContext';
 
 export function LauncherSurface() {
   const { data: composition } = useComposition();
-  const { pinned, pin, unpin } = useSurfacePreferences();
+  const { kept, keep, release, foregroundSurface } = useSurfacePreferences();
   const { launcherOpen, closeLauncher } = useShellChrome();
 
   // Build bundle title map from active_bundles for Launcher tier headers.
@@ -39,9 +38,10 @@ export function LauncherSurface() {
       open={launcherOpen}
       onClose={closeLauncher}
       surfaces={composition.surfaces || []}
-      pinned={pinned}
-      onPin={pin}
-      onUnpin={unpin}
+      kept={kept}
+      onKeep={keep}
+      onRelease={release}
+      onForeground={foregroundSurface}
       bundleTitleBySlug={bundleTitleBySlug}
     />
   );
