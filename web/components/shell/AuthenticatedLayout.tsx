@@ -40,7 +40,10 @@ import type { DeskSurface } from '@/types/desk';
 import { ShellCompositor } from './ShellCompositor';
 import { ShellChromeProvider } from './ShellChromeContext';
 import { useComposition } from '@/lib/compositor/useComposition';
-import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import {
+  SurfacePreferencesProvider,
+  useSurfacePreferences,
+} from '@/lib/shell/useSurfacePreferences';
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
 
 interface AuthenticatedLayoutProps {
@@ -101,9 +104,11 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
   return (
     <BreadcrumbProvider>
       <DeskProvider>
-        <ShellChromeProvider userEmail={userEmail}>
-          <AuthenticatedLayoutInner>{children}</AuthenticatedLayoutInner>
-        </ShellChromeProvider>
+        <SurfacePreferencesProvider>
+          <ShellChromeProvider userEmail={userEmail}>
+            <AuthenticatedLayoutInner>{children}</AuthenticatedLayoutInner>
+          </ShellChromeProvider>
+        </SurfacePreferencesProvider>
       </DeskProvider>
     </BreadcrumbProvider>
   );

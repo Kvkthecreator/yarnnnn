@@ -412,6 +412,28 @@ The Launcher's per-row pin/unpin toggle becomes a keep/release toggle; the icon 
 
 D14 implementation status: **Implemented 2026-05-21** (this session, code commit lands together with this doc per the single-combined-commit cadence locked in question Q2 of the D14 design discourse).
 
+### D14.1 — Shared registry context + Launcher Keep-toggle removal (2026-05-22 patch)
+
+**Bug-fix amendment** following operator observation that the Dock failed to show open-but-not-kept surfaces (a misalignment with the D14 §"Dock = kept ∪ open" semantic). Two coupled corrections:
+
+**Correction 1 — single source of truth for surface preferences.**
+
+Pre-D14.1 every consumer of `useSurfacePreferences` held its own local `useState` for `(kept, open, foregrounded)`. TopBarSurface and SurfaceViewport mounted as siblings; each call to `useSurfacePreferences` allocated its own registry instance. A write through one (e.g., AuthenticatedLayout's pathname watcher calling `foregroundSurface`) updated only that one's local state — the Dock's `open[]` slice stayed stale at `[]`, so newly-opened surfaces never appeared in the Dock.
+
+D14.1 lifts the state into a `SurfacePreferencesProvider` Context mounted in AuthenticatedLayout. Every `useSurfacePreferences` call now reads from + writes through the same context value. The Dock correctly reflects `kept ∪ open` as D14 specified.
+
+**Correction 2 — Launcher Keep-toggle deleted.**
+
+Pre-D14.1 the Launcher overlay carried a per-row pin/keep toggle, and the Dock right-click menu carried a Keep/Remove action. Two affordances for the same Keep operation. macOS doesn't work this way — Launchpad has no pin affordance; Keep is exclusively a Dock right-click action discovered after using an app.
+
+D14.1 deletes the per-row Keep toggle from the Launcher entirely. The Launcher becomes pure launch: click → open + foreground. Keep is exclusively a Dock-right-click action. Singular Implementation: one Keep affordance.
+
+The Launcher's prop surface shrinks accordingly: `kept`, `onKeep`, `onRelease` props deleted. The `Pin` / `PinOff` icon imports are dropped. `LauncherSurface` wrapper simplifies to read only `foregroundSurface` from the hook.
+
+**Why D14.1 and not D15**: this is a correction to D14's enactment, not a new architectural decision. D15 (forthcoming this same session) is the multi-window manager amendment — independent concern, much larger scope.
+
+D14.1 implementation status: **Implemented 2026-05-22** (this session, single commit).
+
 ---
 
 ## Implementation path for D11 — Uniform Compositor

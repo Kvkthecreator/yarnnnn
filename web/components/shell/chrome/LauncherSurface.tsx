@@ -2,15 +2,16 @@
 
 /**
  * LauncherSurface — ADR-297 D11 chrome surface (region: floating-overlay,
- * visibility: summon) + D14 (kept/released vocabulary).
+ * visibility: summon) + D14 + D14.1.
  *
  * Zero-prop wrapper over the existing Launcher overlay. The compositor
  * mounts this surface into the floating-overlay region; visibility is
  * controlled by the launcherOpen flag in ShellChromeContext (toggled
  * by TopBarSurface's launcher trigger button).
  *
- * D14 rename: pin/unpin → keep/release. The Launcher's per-row toggle
- * now writes through the keep/release path from useSurfacePreferences.
+ * D14.1 (2026-05-22): per-row Keep toggle deleted from Launcher.
+ * Launcher becomes pure launch — click → openAndForeground; nothing
+ * else. Keep is exclusively a Dock right-click action.
  */
 
 import { useMemo } from 'react';
@@ -21,7 +22,7 @@ import { useShellChrome } from '../ShellChromeContext';
 
 export function LauncherSurface() {
   const { data: composition } = useComposition();
-  const { kept, keep, release, foregroundSurface } = useSurfacePreferences();
+  const { foregroundSurface } = useSurfacePreferences();
   const { launcherOpen, closeLauncher } = useShellChrome();
 
   // Build bundle title map from active_bundles for Launcher tier headers.
@@ -38,9 +39,6 @@ export function LauncherSurface() {
       open={launcherOpen}
       onClose={closeLauncher}
       surfaces={composition.surfaces || []}
-      kept={kept}
-      onKeep={keep}
-      onRelease={release}
       onForeground={foregroundSurface}
       bundleTitleBySlug={bundleTitleBySlug}
     />

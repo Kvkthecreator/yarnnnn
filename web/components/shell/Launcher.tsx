@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Launcher — ADR-297 D4 + D14.
+ * Launcher — ADR-297 D4 + D14 + D14.1.
  *
  * Summon-first overlay listing every atomic surface available in the
  * workspace. Opens from TopBarSurface's launcher trigger button or
@@ -12,33 +12,26 @@
  * emitted by the compositor (per kernel_surface_entries + program bundle
  * SURFACES.yaml surfaces[]).
  *
- * Keep/release affordance (D14 — was pin/unpin): each row carries a
- * pin icon toggle so operators customize the Dock from the launcher
- * itself (no separate settings surface needed). The icon stays a pin
- * (universal "keep this around" visual); the verb shifted in D14 from
- * "pin" to "Keep in Dock" / "Remove from Dock" so the right-click
- * Dock context menu and the launcher per-row toggle speak the same
- * language. ADR-297 §D14.
+ * D14.1 (2026-05-22): the per-row Keep toggle is DELETED. macOS
+ * Launchpad has no pin affordance — clicking an app opens it; "Keep
+ * in Dock" is discovered after using the app, via right-click on the
+ * open Dock icon. The Launcher becomes pure launch. Keep is
+ * exclusively a Dock-right-click action (TopBarSurface owns the
+ * context menu). Singular Implementation: one Keep affordance, not
+ * two.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Pin, PinOff, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import type { Surface } from '@/lib/compositor/types';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
 import { useDesk } from '@/contexts/DeskContext';
 import { isKernelSurfaceSlug } from '@/types/desk';
-import { cn } from '@/lib/utils';
 
 interface LauncherProps {
   open: boolean;
   onClose: () => void;
   surfaces: Surface[];
-  /** Dock-permanence surfaces (D14 — was `pinned`). */
-  kept: string[];
-  /** Add a surface to the Dock-permanence list. */
-  onKeep: (slug: string) => void;
-  /** Remove a surface from the Dock-permanence list. */
-  onRelease: (slug: string) => void;
   /** Open a surface + bring it to the foreground (D13). The pre-D13
    *  setSurface dispatch is retained as a side-effect inside this
    *  handler for legacy DeskState consumers; this prop is the D13
@@ -95,9 +88,6 @@ export function Launcher({
   open,
   onClose,
   surfaces,
-  kept,
-  onKeep,
-  onRelease,
   onForeground,
   bundleTitleBySlug,
 }: LauncherProps) {
@@ -215,44 +205,23 @@ export function Launcher({
                 </div>
                 {group.surfaces.map((surface) => {
                   const Icon = resolveSurfaceIcon(surface.icon_key);
-                  const isKept = kept.includes(surface.slug);
                   return (
-                    <div
+                    <button
                       key={surface.slug}
-                      className="flex items-center gap-3 px-4 py-2 hover:bg-muted/60"
+                      type="button"
+                      onClick={() => navigate(surface)}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-muted/60"
                     >
-                      <button
-                        type="button"
-                        onClick={() => navigate(surface)}
-                        className="flex flex-1 items-center gap-3 text-left"
-                      >
-                        <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                          <Icon className="h-4 w-4" />
+                      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium">{surface.title}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {surface.summary}
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium">{surface.title}</div>
-                          <div className="truncate text-xs text-muted-foreground">
-                            {surface.summary}
-                          </div>
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => (isKept ? onRelease(surface.slug) : onKeep(surface.slug))}
-                        aria-label={
-                          isKept
-                            ? `Remove ${surface.title} from Dock`
-                            : `Keep ${surface.title} in Dock`
-                        }
-                        title={isKept ? 'Remove from Dock' : 'Keep in Dock'}
-                        className={cn(
-                          'rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground',
-                          isKept && 'text-foreground'
-                        )}
-                      >
-                        {isKept ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
-                      </button>
-                    </div>
+                      </div>
+                    </button>
                   );
                 })}
               </div>
