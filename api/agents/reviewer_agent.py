@@ -1298,12 +1298,22 @@ async def invoke_reviewer(
         actions_taken: list[dict] = []
         verdict_raw: dict | None = None
 
-        # ADR-260 D8 + ADR-263: round bound varies by sub-shape.
+        # ADR-260 D8 + ADR-263 + 2026-05-21 population audit
+        # (docs/observations/2026-05-21-014009-reviewer-round-budget-population-
+        # audit/): round bound varies by sub-shape.
         # - Proposal-arrival reactive (Sonnet) is a discrete decision call → 3 rounds.
-        # - Recurrence-fire reactive (Haiku) needs room for the recurrence's full
-        #   real-time tool-use loop → 12 rounds (same as old `scheduled`).
-        # - Addressed (Haiku) is a chat turn with full tool budget → 12 rounds.
-        max_rounds = 3 if use_sonnet else 12
+        # - Recurrence-fire reactive (Haiku) needs room for read-heavy hook
+        #   prompts (e.g. pre-ship-audit reads 8+ files before writing) → 20
+        #   rounds (raised from 12 after population audit showed 70% silent
+        #   rate at round 6 due to a mid-loop nudge that has since been deleted).
+        # - Addressed (Haiku) is a chat turn with full tool budget → 20 rounds.
+        #
+        # Trust-the-model philosophy (Claude Code-aligned): set the budget as
+        # a COST CEILING, not a behavioral constraint. The model decides when
+        # it's done via ReturnVerdict; the budget caps cost-per-wake. The
+        # fallback at line ~1530 (verdict_raw is None) is the safety net for
+        # the rare case the model truly can't synthesize within budget.
+        max_rounds = 3 if use_sonnet else 20
         total_input = 0
         total_output = 0
         total_cache_read = 0
@@ -1491,9 +1501,25 @@ async def invoke_reviewer(
             if verdict_raw is not None:
                 break
 
-            # Loop-shape nudges to prevent runaway tool use:
-            # - After Clarify: the operator's question is logged; the turn must close
-            # - After round 4: hard nudge to close the turn before round budget exhausts
+            # Loop-shape nudge (signal-based, not counter-based per 2026-05-21
+            # population audit docs/observations/2026-05-21-014009-reviewer-
+            # round-budget-population-audit/):
+            #
+            # After Clarify the operator's question has been surfaced and the
+            # turn should close so the operator can respond. This nudge fires
+            # only after the Reviewer has called Clarify in the current round
+            # — it's a signal-based stop condition, parallel to Claude Code's
+            # "repeated identical action" pattern.
+            #
+            # The previous round-counter-based nudge (`elif _round >= 4`) was
+            # DELETED 2026-05-21 because population data showed it was solving
+            # a problem we don't have (zero wakes reached round 11+ in N=28
+            # history) while causing the problem we do have (70% silent rate
+            # at round 6 due to its "stand_down is correct" invitation). Trust-
+            # the-model philosophy: the budget is the cost ceiling, the
+            # ReturnVerdict tool is the model's voluntary completion signal,
+            # the fallback at `if verdict_raw is None` (line ~1530) is the
+            # safety net for the rare in-budget-but-can't-synthesize case.
             nudge: str | None = None
             if clarify_called_this_round:
                 nudge = (
@@ -1502,14 +1528,6 @@ async def invoke_reviewer(
                     "persona-voice summary including the question you asked]', "
                     "confidence='medium') to close this turn. The operator will "
                     "respond on a subsequent turn."
-                )
-            elif _round >= 4:
-                nudge = (
-                    f"You are on round {_round + 1} of {max_rounds}. You must call "
-                    "ReturnVerdict next to close this turn. Synthesize what you've "
-                    "learned from substrate above into a verdict + reasoning. Even "
-                    "if conditions are unclear, ReturnVerdict(stand_down) with your "
-                    "honest assessment is correct."
                 )
 
             if tool_results:
@@ -1632,8 +1650,9 @@ def _summarize_result(result: Any) -> str:
                             identical when summarized by path alone)
       2. proposal_id       (ProposeAction — every proposal is a distinct
                             decision; prefer the proposal identity)
-      3. slug              (FireInvocation + any other slug-bearing result
-                            without an action verb)
+      3. slug              (any slug-bearing result without an action
+                            verb — e.g. FireInvocation in CHAT_PRIMITIVES
+                            per ADR-296 v2 D3, no longer in REVIEWER_PRIMITIVES)
       4. path              (WriteFile etc. — terminal fallback)
 
     Closes Pattern 3 of docs/observations/2026-05-21-005856-wake-duplication-

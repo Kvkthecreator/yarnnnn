@@ -6,6 +6,79 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.21.3] - fix(reviewer-agent): delete round-counter mid-loop nudge + raise budget 12 → 20
+
+### Decision
+
+Closes the round-budget-mis-calibration finding from
+`docs/observations/2026-05-21-014009-reviewer-round-budget-population-
+audit/findings.md`. Population audit (N=28 judgment-mode wakes across
+4 workspaces) showed a sharp discontinuity at `tool_rounds = 6` →
+`tool_rounds = 7`: 70% silent rate at 6, 11% at 7+. Root cause traced
+to `api/agents/reviewer_agent.py:1506` — a mid-loop nudge that fired
+at `_round >= 4` telling the Reviewer that `stand_down` was "correct,
+even if conditions are unclear" — an explicit invitation to early
+termination. The nudge converted the configured 12-round budget into
+an effective 6-round budget by inviting Reviewers on read-heavy hooks
+(e.g. pre-ship-audit reads 8+ files before writing) to stand_down
+before completing the read-then-write cycle.
+
+Fix shape chosen: Option D from the audit's "Fix shape recommendations"
+section — delete the round-counter-based nudge entirely + raise
+`max_rounds` 12 → 20. Aligns with Claude Code's trust-the-model
+philosophy: set the budget as a COST CEILING, let the model decide
+when it's done via ReturnVerdict, rely on the existing fallback at
+`if verdict_raw is None` (line ~1530) as the safety net for the rare
+in-budget-but-can't-synthesize case.
+
+Population evidence supported the structural fix over the conservative
+A+C alternative (raise threshold + soften text): zero wakes reach
+round 11+ in N=28 history, so the runaway-loop class of failure the
+nudge was added to prevent doesn't exist in current production. The
+nudge was solving a problem we don't have while causing the silent-
+wake problem we do have.
+
+### Changed
+
+**`api/agents/reviewer_agent.py:1306`** — `max_rounds = 3 if use_sonnet
+else 12` → `max_rounds = 3 if use_sonnet else 20`. Comment block
+updated to name the population audit + Claude Code-aligned trust-the-
+model philosophy.
+
+**`api/agents/reviewer_agent.py:1506-1513`** — the `elif _round >= 4`
+nudge branch DELETED. The `if clarify_called_this_round` nudge
+survives (signal-based, parallel to Claude Code's "repeated identical
+action" pattern — fires only AFTER the Reviewer voluntarily called
+Clarify in the current round). Comment block expanded to explain why
+the counter-based nudge was removed.
+
+### Expected behavior change
+
+  - Silent-wake rate on read-heavy hooks (pre-ship-audit) should drop
+    from ~71% to ~10% (matching the empirical productive rate at
+    round 7+).
+  - Per-wake cost may rise modestly for read-heavy hooks that
+    previously truncated at round 6 — they'll now complete the audit
+    + write the verdict + standing_intent, consuming the rounds they
+    should have consumed originally.
+  - Per-wake cost should NOT rise on hooks that were already
+    productive — those reached verdict in 7-10 rounds and the budget
+    raise gives head room they don't use.
+  - Per-wake cost may decline on a per-canary basis because Pattern 1
+    dedup (commit fa22788) already caps re-fires to 1 wake per
+    transition; one productive wake is cheaper than the pre-Pattern-1
+    dice-roll of 6 wakes hoping one reaches round 7.
+
+### Out of scope
+
+  - Broader Reviewer prompt-strategy audit (sibling nudges, persona-
+    frame accretion, hard-rules redundancy) — separate session, stub
+    folder forthcoming.
+  - The `clarify_called_this_round` nudge — preserved; the signal-
+    based shape is the correct Claude-Code-aligned pattern.
+
+---
+
 ## [2026.05.21.2] - fix(adr-276 completion): proposal-arrival path routes through canonical envelope helper
 
 ### Decision
