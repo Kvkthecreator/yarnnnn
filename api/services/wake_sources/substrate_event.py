@@ -116,12 +116,17 @@ def parse_hooks(content: str) -> list[dict]:
 
 
 def read_hooks(client: Any, user_id: str) -> list[dict]:
-    """Read the user's /workspace/_hooks.yaml + parse. Returns [] on absence."""
+    """Read the user's /workspace/_hooks.yaml + parse. Returns [] on absence.
+
+    Uses UserMemory.read_sync because read_hooks is a synchronous function
+    called from walk_hooks (async) in a non-await context — same precedent
+    as working_memory.format_compact_index's thread-pool reads.
+    """
     try:
         from services.workspace import UserMemory
         memory = UserMemory(client, user_id)
-        # UserMemory.read uses workspace-relative paths
-        content = memory.read("_hooks.yaml") or ""
+        # UserMemory.read_sync uses workspace-relative paths
+        content = memory.read_sync("_hooks.yaml") or ""
     except Exception as exc:
         logger.warning("[WAKE:substrate] _hooks.yaml read failed: %s", exc)
         return []
@@ -264,10 +269,16 @@ async def walk_hooks(
     # Query recent revisions across all paths the user owns. We then
     # filter in-memory against each hook's glob — cheaper than running
     # one DB query per hook when hook count is small.
+    #
+    # Per ADR-209 Phase 1+, content lives in workspace_blobs keyed by
+    # blob_sha; workspace_file_versions only carries the pointer + metadata.
+    # PostgREST join syntax retrieves the blob inline (same pattern as
+    # services/authored_substrate.py::read_revision).
     try:
         result = (
             client.table("workspace_file_versions")
-            .select("id, path, content, parent_version_id, created_at")
+            .select("id, path, blob_sha, parent_version_id, created_at, "
+                    "workspace_blobs(content)")
             .eq("user_id", user_id)
             .gte("created_at", since_iso)
             .order("created_at", desc=False)
@@ -286,6 +297,11 @@ async def walk_hooks(
     for rev in revisions:
         # Resolve the previous revision's content for the transition guard.
         prev_content = await _get_parent_content(client, rev.get("parent_version_id"))
+
+        # Lift content out of the workspace_blobs join into the top-level
+        # `content` key that _matches_hook reads.
+        blob = rev.get("workspace_blobs") or {}
+        rev["content"] = blob.get("content") if isinstance(blob, dict) else None
 
         for hook in hooks:
             if not _matches_hook(rev, prev_content, hook):
@@ -316,6 +332,7 @@ async def walk_hooks(
 async def _get_parent_content(client: Any, parent_version_id: Optional[str]) -> Optional[str]:
     """Resolve the parent revision's content for the transition guard.
 
+    Per ADR-209 Phase 1+, content lives in workspace_blobs joined via blob_sha.
     Returns None when there is no parent (first revision for the path)
     or on lookup error (treat as no-prior-state — transition fires).
     """
@@ -324,7 +341,7 @@ async def _get_parent_content(client: Any, parent_version_id: Optional[str]) -> 
     try:
         result = (
             client.table("workspace_file_versions")
-            .select("content")
+            .select("blob_sha, workspace_blobs(content)")
             .eq("id", parent_version_id)
             .limit(1)
             .execute()
@@ -332,7 +349,8 @@ async def _get_parent_content(client: Any, parent_version_id: Optional[str]) -> 
         rows = result.data or []
         if not rows:
             return None
-        return rows[0].get("content")
+        blob = rows[0].get("workspace_blobs") or {}
+        return blob.get("content") if isinstance(blob, dict) else None
     except Exception as exc:
         logger.warning(
             "[WAKE:substrate] parent revision lookup failed for %s: %s",
