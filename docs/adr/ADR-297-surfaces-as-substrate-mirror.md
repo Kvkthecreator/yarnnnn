@@ -263,6 +263,50 @@ Operator preferences (future, via `useSurfacePreferences` extension) can overrid
 
 D11 implementation status: **Phases A + B + C Implemented 2026-05-21** (commits `72da5d4` A · `265042b` B · Phase C in this same session). Phase C shipped in the **safer-shape** variant — see "D11 Phase A + B + C — landed 2026-05-21" below for the divergence from the original spec and the explicit Phase C.2 follow-on scope. Phases D + E remain forward horizon.
 
+### D12 — Top-center merged dock-bar (2026-05-21 same-session amendment)
+
+**Supersedes** D5 §Position (Dock at bottom of viewport) + D7 §Top-chrome distribution (brand left, launcher icon + user menu right) + D7 §Bottom-chrome (Dock at bottom). Also supersedes D11 §Layout-policy line *"Dock always mounted in `bottom-floating`"*.
+
+The Dock relocates from `bottom-floating` to `top` and merges with the prior right-side TopBar elements (launcher trigger + user menu) and the prior left-side brand mark into a **single centered top dock-bar**. Bottom-floating chrome dissolves entirely.
+
+**Operator-visible result** — the top of every authenticated surface carries one horizontal strip with this ordering (left to right):
+
+1. **Brand mark** (yarnnn circle icon) — clickable, navigates to last-active home (D6).
+2. **Divider** (subtle vertical separator).
+3. **Launcher trigger** (four-box icon) — opens the Launcher overlay (overlay itself remains in `floating-overlay` region per D11).
+4. **Divider** (subtle vertical separator).
+5. **Pinned surfaces** in pin order (Feed by default per D5's Feed-only commitment; more as the operator pins via the Launcher overlay).
+6. **Divider** (subtle vertical separator).
+7. **User menu** (avatar) — opens the existing UserMenu dropdown.
+
+**Layout-policy revisions** (overrides D11 §Layout-policy defaults):
+- Top bar always mounted in `top` — body is the merged dock-bar (above ordering).
+- Dock kernel surface DELETED from the registry — its responsibility (rendering pinned-surface icons + dispatching `setSurface` on click) absorbs into the top-bar body.
+- Launcher trigger no longer a separate top-right concern — it's slot #3 in the dock-bar.
+- Composer always mounted in `bottom-fixed` (unchanged from D11).
+- Launcher overlay still mounted in `floating-overlay` on summon (only the *trigger* moves; the overlay itself is unaffected).
+- `bottom-floating` layout region survives in the type union (a future chrome surface might use it) but no kernel surface targets it.
+
+**Rationale** — three threads:
+
+1. **Singular Implementation**: pre-D12, two navigator regions (top-right launcher trigger + bottom-floating Dock) did adjacent jobs. D12 collapses to one. The macOS Dock analogy that D5 originally invoked is honored more precisely — macOS Finder sits leftmost in the Dock; here the launcher trigger sits leftmost (after brand) in the relocated Dock. One Navigator surface, one canonical location.
+
+2. **Composer real estate**: ADR-297 D11 added the shell-bottom `ChatComposerSurface`. With the Dock still floating at `fixed bottom-3`, the composer needed an `h-16` breathing-room spacer below it to prevent the Dock overlaying composer controls. That wasted vertical real estate on every authenticated surface. With the Dock relocated to `top`, the composer gets the full bottom region — no spacer, cleaner shape.
+
+3. **Visual hierarchy**: a centered top dock-bar reads as "the workspace navigation surface" — a single recognizable region. The pre-D12 split (brand-left, launcher-right, dock-bottom) scattered navigation cues across three viewport edges. Operators reported (this session, KVK 2026-05-21) the bottom-floating Dock + bottom-fixed composer competed for attention in the same viewport region.
+
+**What D12 does NOT change**:
+- Pinning behavior: operator still pins from the Launcher overlay (D5 mechanic preserved).
+- Default-pinned set: Feed only (D5 commitment preserved).
+- Pin persistence: same `useSurfacePreferences` localStorage path (D5 substrate preserved).
+- D6 last-active-home behavior: brand-mark click still navigates to last-active surface.
+- Launcher overlay shape: type-to-filter, per-row pin toggle, tier grouping — all unchanged.
+- Mobile divergence: a future operator-observed pain point determines mobile shape; the top-center bar is a desktop-first decision. Mobile fallback inherits the desktop bar until mobile-specific operator pressure surfaces.
+
+**Why D12 and not its own ADR**: same rationale as D11 — refinement of the surface-mirrors-substrate principle's layout-policy expression. D12 changes *where* the Dock surface mounts and which surface *owns* the launcher-trigger affordance; it doesn't reopen the axiom that everything is a surface. Same ADR; explicit amendment for trace continuity.
+
+D12 implementation status: **Implemented 2026-05-21** (this session, commit follows this doc-only amendment).
+
 ---
 
 ## Implementation path for D11 — Uniform Compositor
