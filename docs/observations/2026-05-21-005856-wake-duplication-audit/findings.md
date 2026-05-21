@@ -188,6 +188,70 @@ Resolution addendum in this folder captures all three confirmations.
 - ADR-296 v2: [`ADR-296`](../../adr/ADR-296-continuous-judgment-cycle.md)
 - ADR-289 invocation-id taxonomy (the related telemetry layer): [`ADR-289`](../../adr/ADR-289-invocation-id-taxonomy.md)
 
+## Resolution addendum (2026-05-21T01:22Z)
+
+All three Hat-A commits landed in-session under the cross-hat three-commit discipline:
+
+| Commit | What | Pattern | Status |
+|---|---|---|---|
+| `fa22788` | migration 178 + walker dedup + telemetry param + regression test extension | 1 | live 01:08Z (Scheduler), 01:17Z (API) |
+| `bdaff4d` | `_fold_same_path_writes` helper + narrate_reviewer_action folded_count | 2 | live 01:17Z |
+| `a55fcef` | `_summarize_result` reorder + enrich (action+slug first) | 3 | live 01:17Z |
+
+### End-to-end validation (canary v2 at 2026-05-21T01:19:39Z)
+
+Re-fired the same substrate-event canary (status flip-flop on `governance-as-trust/profile.md`, revision_id `7beffd93`). Walker matched at the next scheduler tick.
+
+| Metric | Pre-fix (prior session) | Post-fix (this session) |
+|---|---|---|
+| `execution_events` rows for the canary | 6 | **1** ✓ |
+| Total tokens consumed | 323,035 | 55,340 |
+| Total LLM cost | $1.35 | ~$0.23 |
+| `wake_dedup_key` populated | NULL | `7beffd93-...` ✓ |
+| Walker re-fire across subsequent ticks | Yes (6 over 6 min) | **No** ✓ |
+
+Render-log evidence of the dedup gate firing live in production:
+
+```
+GET /execution_events?wake_source=eq.substrate_event&slug=eq.pre-ship-audit
+    &wake_dedup_key=eq.7beffd93-3795-4e5f-ac1a-f59174afc936&limit=1
+```
+
+The second scheduler tick after the canary consulted migration 178's index and short-circuited before `submit_wake_proposal`. Pattern 1 fix confirmed live.
+
+### Pattern 2 + 3 — validated by unit tests, not the canary
+
+The canary v2 wake produced ZERO `WriteFile` calls and ZERO `Schedule` calls — the Reviewer's loop exhausted its 6-tool-round budget on reads (`ReadFile`, `ListFiles`, `GetSystemState`, `ListRevisions`) before reaching the writeup phase. Pattern 2's fold helper and Pattern 3's summary reorder weren't exercised by this run. They ARE validated by:
+
+- Standalone fold helper test: 2 consecutive same-path writes fold to 1 narration with `(2 revisions)`; different paths don't fold; non-adjacent writes don't fold.
+- Standalone `_summarize_result` test: 7 result shapes covering Schedule (action+slug), ProposeAction (proposal_id), WriteFile (path), FireInvocation (slug), error, non-dict — all render distinctly.
+- Sibling regression gates all green.
+
+When the Reviewer next writes via Pattern-2 / Pattern-3 paths (any future wake that triggers WriteFile iteration or Schedule authoring), the live fixes will engage. The historical May 18 entries showing the duplication-looking-text won't re-render — that's by design (forward-only, substrate per ADR-209 is already correct).
+
+### New surface: Reviewer round-budget exhaustion on read-heavy hooks
+
+Surfaced from the canary v2's observed behavior — Pattern 1 fix confirmed but a separate finding emerges:
+
+- The hook prompt's instruction set requires the Reviewer to read 8+ files (draft + voice + editorial + recurrences + hooks + judgment_log + standing_intent + corpus pieces) before authoring an audit verdict to `judgment_log.md` + updating `standing_intent.md`.
+- The Reviewer's per-wake tool-round budget (currently 6) was fully consumed by reads in this run. Zero writes landed.
+- The wake completed with `status=success`, but produced no substrate writes and no action_records that `surface_reviewer_actions` would narrate. From the operator's perspective: the Reviewer woke, did something for 32 seconds, then went silent.
+
+This is NOT a regression — it's a pre-existing pattern that the duplication-audit fix did not address (because it shouldn't; round-budget is its own concern). Distinct from the parent finding's "hallucinated audit" pattern (different shape: there the Reviewer claimed an audit outcome it didn't perform; here it ran the reads but ran out of rounds before writing the verdict).
+
+**Hat-A recommendation (separate session)**: either (a) raise the per-wake tool-round budget for hook-driven wakes specifically — substrate-event wakes have richer read requirements than cron-tick reflection wakes; or (b) tighten the hook prompt to defer some of the reads ("read draft + voice; if anti-pattern detected, read editorial; otherwise skip"). Don't address in this session; observation-discipline says don't pre-fix something whose surface hasn't been validated against multiple wakes.
+
+### Recommendation status (updated)
+
+| Recommendation | Status |
+|---|---|
+| R1 (Pattern 1 — dedup) | **Done** in commit `fa22788`, validated live |
+| R2 (Pattern 2 — feed fold) | **Done** in commit `bdaff4d`, validated by unit test |
+| R3 (Pattern 3 — summary reorder) | **Done** in commit `a55fcef`, validated by unit test |
+| NEW — Reviewer round-budget for read-heavy hooks | OPEN; needs separate session, multi-wake observation first |
+
+---
+
 ## Capture method (reproducibility)
 
 All findings derived from:
