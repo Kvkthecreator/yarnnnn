@@ -165,6 +165,74 @@ Per Hat-B discipline:
 - yarnnn-author T0 baseline: [`T0`](../2026-05-20-034317-yarnnn-author-autonomy-demonstration-T0/)
 - This folder's setup: [`PLAYBOOK.md`](PLAYBOOK.md)
 
+## 8b. Resolution (addendum 2026-05-21T00:14Z)
+
+Operator (Hat A) chose to ship the fix in the same session rather than gate it
+behind a separate Hat-A pass. Recommendations 1 + 2 landed in commit
+`5364ca7` (`fix(adr-296 v2 d2): substrate-event walker — read_sync + workspace_blobs join`).
+The fix turned out to be two stacked bugs, not one: Recommendation 1 (sync
+API) plus a previously-hidden Bug-2 (schema drift querying
+`workspace_file_versions.content` directly, ADR-209-superseded).
+Bug-2 only surfaced when the regression test exercised the integration path
+end-to-end — the walker's outer `try/except` was catching it as a warning
+log identical to the read_hooks failure mode, so neither was distinguishable
+from the other in production until the test forced isolation.
+
+Deploy `dep-d874ppu7r5hc73f490ig` went live at 00:09:15Z.
+
+**Resolution confirmed at 00:12-00:13Z:**
+
+| Signal | Pre-fix (23:54Z) | Post-fix (00:13Z) |
+|---|---|---|
+| `[SCHED] substrate-event walk failed` log lines | continuous (every tick × every user) | zero post-deploy |
+| `[SCHED] substrate-event walker fired N hook(s)` log lines | never seen in production lifetime | 2 ticks × "fired 1 hook(s) across 9 user(s)" |
+| `execution_events.wake_source='substrate_event'` rows | 0 | 2 (`slug=pre-ship-audit`, `funnel_decision='escalate'`, `mode='judgment'`, `status='success'`) |
+| Reviewer wake on yarnnn-author canary | none | 2 wakes (durations: 64.8s, 22.4s) |
+| Reviewer-authored revisions post-canary | none | 2 `standing_intent.md` writes |
+
+**ADR-296 v2 D2 is live in production for the first time, end-to-end.**
+
+### What also surfaced — the hallucinated-audit pattern is more nuanced than parent finding framed
+
+With the fix deployed, the Reviewer actually ran the `pre-ship-audit` against
+`governance-as-trust`: read the draft, ran the five-check audit, reached an
+"approve" verdict, and updated `standing_intent.md` with calibrated forward
+posture (*"Piece 1 audit complete (May 21, governance-as-trust approved):
+governance-as-trust essay passed all five audit checks: voice clean (zero
+anti-patterns), continuity explicit, anti-slop floor held, editorial
+principles advanced, repo-grounded"*).
+
+But the Reviewer did NOT write the corresponding `--- decision ---` block to
+`/workspace/review/judgment_log.md`. The hook's prompt is explicit:
+
+> Decide and emit one of:
+>   - APPROVE — all checks pass; piece may ship. ...
+>   - DEFER — ... Write specific defect to /workspace/review/judgment_log.md ...
+>   - REJECT — Write structured reasoning to judgment_log.md.
+
+`judgment_log.md` head is still `3a69538e` from 2026-05-19T05:04:02Z. The
+parent finding's "hallucinated-audit pattern" is therefore **more nuanced
+than originally framed**: the Reviewer is genuinely running the audit and
+reaching genuine verdicts — but eliding the `judgment_log.md` write step
+on the approve path. The artifact gap survives the architecture fix.
+
+This is a downstream finding worth a separate Hat-A pass — likely persona-
+frame tightening on the hook prompt (the "write to judgment_log.md" clause
+should be load-bearing on the approve path, not only on defer/reject) or
+prompt-following discipline at the agent layer. Out of scope for this fix;
+documented here as the next surface to attack once the operator gates it.
+
+### Recommendation status
+
+| Original recommendation | Status |
+|---|---|
+| R1 — Fix `read_hooks` async-context-leak | **Done** in commit `5364ca7` (plus discovered + fixed stacked Bug-2 in same commit) |
+| R2 — Add regression test | **Done** in same commit — `api/test_adr296_substrate_event_walker.py` (13 assertions, integration test exercises live DB) |
+| R3 — Scheduler log dedup | Still open. Reduced urgency post-fix (the noise floor is currently zero for `substrate-event walk failed` lines), but the underlying design point — per-user per-tick repeat-warnings buried real signals — survives any class of future walker failure. Separate Hat-A commit when prioritized. |
+| R4 — Bundle-propagation runtime audit | Still open. Less urgent post-fix (the runtime side of D2 now runs), but the discipline principle — "bytes landed" + "bytes consumed" both belong in the bundle-propagation test surface — is the durable take. Worth folding into the next ADR-292 v3 iteration when there's appetite. |
+
+---
+
 ## 9. Capture method (reproducibility)
 
 All findings derived from:
