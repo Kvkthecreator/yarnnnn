@@ -85,6 +85,7 @@ def test_kernel_surfaces_module() -> None:
     # Spot-check critical surfaces exist
     expected_slugs = {
         "feed",
+        "cockpit",  # ADR-297 D1 amendment (same-session 2026-05-21)
         "cadence",
         "delegation",
         "mandate",

@@ -100,6 +100,27 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Operator chat surface and multi-actor narrative timeline.",
     },
     {
+        # ADR-297 D1 amendment (same-session 2026-05-21): cockpit added as
+        # the 13th kernel surface to resolve the /work dissolution. ADR-228
+        # already established cockpit-as-substrate-read (four-face stack:
+        # Mandate / Money truth / Performance / Tracking, plus program-shipped
+        # section overrides per ADR-273). The atomic Cockpit surface hosts
+        # CockpitRenderer intact; no rewrite needed.
+        "slug": "cockpit",
+        "title": "Cockpit",
+        "archetype": "dashboard",
+        "substrate_paths": [
+            "/workspace/context/_shared/MANDATE.md",
+            "/workspace/context/_shared/_autonomy.yaml",
+            "/workspace/context/_shared/_performance.md",
+            "/workspace/context/_shared/_performance_summary.md",
+        ],
+        "icon_key": "layout-dashboard",
+        "default_pinned": False,
+        "route": "/cockpit",  # _route_status: NEW in Phase 2 — replaces /work?tab=dashboard
+        "summary": "Live operating dashboard — mandate, money-truth, performance, tracking + program-shipped sections.",
+    },
+    {
         "slug": "cadence",
         "title": "Cadence",
         "archetype": "dashboard",
