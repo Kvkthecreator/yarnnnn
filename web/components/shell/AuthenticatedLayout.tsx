@@ -27,10 +27,12 @@ import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { NarrativeProvider, useNarrative } from '@/contexts/NarrativeContext';
 import { BreadcrumbProvider } from '@/contexts/BreadcrumbContext';
 import type { DeskSurface } from '@/types/desk';
+import { isKernelSurfaceSlug } from '@/types/desk';
 import { UserMenu } from './UserMenu';
 import { Dock } from './Dock';
 import { Launcher } from './Launcher';
 import { LauncherButton } from './LauncherButton';
+import { SurfaceViewport } from './SurfaceViewport';
 import { useComposition } from '@/lib/compositor/useComposition';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
@@ -114,6 +116,14 @@ function AuthenticatedLayoutInner({
   const pathname = usePathname();
   const { setSurface, setSurfaceWithHandoff } = useDesk();
   const { data: composition } = useComposition();
+
+  // ADR-297 axiom: detect atomic-surface route from pathname. When the
+  // first path segment is a kernel surface slug, the SurfaceViewport
+  // owns the render (mounting the component via SurfaceRegistry from
+  // DeskState). The route file's page render is ignored — it exists
+  // only as a deep-link entry vector.
+  const firstSegment = pathname.split('/').filter(Boolean)[0];
+  const isAtomicRoute = firstSegment ? isKernelSurfaceSlug(firstSegment) : false;
   const { pinned, pin, unpin, recordVisit, lastActive } = useSurfacePreferences();
   const [launcherOpen, setLauncherOpen] = useState(false);
 
@@ -209,9 +219,14 @@ function AuthenticatedLayoutInner({
           </div>
         </header>
 
-        {/* Main content. ADR-167 v2: each surface renders its own <PageHeader />
-            inside the content area — there is no separate breadcrumb bar. */}
-        <main className="flex-1 min-h-0 overflow-hidden">{children}</main>
+        {/* Main content. ADR-297: atomic surfaces mount via SurfaceViewport
+            (DeskState carries surface identity). Legacy routes (settings,
+            connectors, docs, etc.) fall through to children. ADR-167 v2:
+            each surface renders its own <PageHeader /> inside its content
+            area — there is no separate breadcrumb bar. */}
+        <main className="flex-1 min-h-0 overflow-hidden">
+          {isAtomicRoute ? <SurfaceViewport /> : children}
+        </main>
 
         {/* ADR-297 D5: persistent dock of pinned surfaces (bottom). */}
         <Dock surfaces={composition.surfaces || []} pinned={pinned} />

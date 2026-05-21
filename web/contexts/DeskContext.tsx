@@ -278,23 +278,20 @@ export function DeskProvider({ children }: DeskProviderProps) {
     (surface: DeskSurface) => {
       dispatch({ type: 'SET_SURFACE', surface });
 
-      // ADR-297 axiom: setSurface is the canonical action. URL update
-      // is a side effect so deep-links + browser back/forward stay
-      // operator-friendly.
-      //
-      // For atomic surfaces, sync to the per-slug bookmark route
-      // (`/cadence`, `/mandate`, etc. — existing kernel routes per
-      // kernel_surfaces.py's `route` field). Optional params in the
-      // surface bag (task slug, agent slug, file path) become query
-      // params on that route. The route is the deep-link transport;
-      // DeskState is the source of truth.
+      // ADR-297 axiom (2026-05-21 operational fix): setSurface is the
+      // canonical action — pure state change. URL is updated via
+      // window.history.replaceState (no Next.js router navigation, no
+      // page re-mount). The viewport re-renders via SurfaceViewport
+      // mounted in AuthenticatedLayout; the URL is a bookmark-safety
+      // affordance only.
       if (surface.type === 'atomic') {
         const target = `/${surface.slug}`;
-        if (surface.params && Object.keys(surface.params).length > 0) {
-          const qs = new URLSearchParams(surface.params).toString();
-          router.push(`${target}?${qs}`, { scroll: false });
-        } else if (pathname !== target) {
-          router.push(target, { scroll: false });
+        const qs = surface.params && Object.keys(surface.params).length > 0
+          ? `?${new URLSearchParams(surface.params).toString()}`
+          : '';
+        const newUrl = `${target}${qs}`;
+        if (typeof window !== 'undefined' && window.location.pathname + window.location.search !== newUrl) {
+          window.history.replaceState(null, '', newUrl);
         }
         return;
       }
@@ -304,10 +301,12 @@ export function DeskProvider({ children }: DeskProviderProps) {
       if (isHomeRoute(pathname)) {
         const params = surfaceToParams(surface);
         const newUrl = `${pathname}?${params.toString()}`;
-        router.push(newUrl, { scroll: false });
+        if (typeof window !== 'undefined') {
+          window.history.replaceState(null, '', newUrl);
+        }
       }
     },
-    [pathname, router]
+    [pathname]
   );
 
   const clearSurface = useCallback(() => {
@@ -330,15 +329,28 @@ export function DeskProvider({ children }: DeskProviderProps) {
     (surface: DeskSurface, message: string) => {
       dispatch({ type: 'SET_SURFACE_WITH_HANDOFF', surface, handoffMessage: message });
 
-      // Only update URL with surface params when on /dashboard
+      // ADR-297: same non-navigating URL sync as setSurface (above).
+      if (surface.type === 'atomic') {
+        const target = `/${surface.slug}`;
+        const qs = surface.params && Object.keys(surface.params).length > 0
+          ? `?${new URLSearchParams(surface.params).toString()}`
+          : '';
+        const newUrl = `${target}${qs}`;
+        if (typeof window !== 'undefined' && window.location.pathname + window.location.search !== newUrl) {
+          window.history.replaceState(null, '', newUrl);
+        }
+        return;
+      }
+
       if (isHomeRoute(pathname)) {
         const params = surfaceToParams(surface);
         const newUrl = `${pathname}?${params.toString()}`;
-        // Use push instead of replace so browser back/forward works
-        router.push(newUrl, { scroll: false });
+        if (typeof window !== 'undefined') {
+          window.history.replaceState(null, '', newUrl);
+        }
       }
     },
-    [pathname, router]
+    [pathname]
   );
 
   const clearHandoff = useCallback(() => {
