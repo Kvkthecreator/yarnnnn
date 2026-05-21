@@ -205,6 +205,7 @@ async def submit_wake_proposal(
             hook=payload["hook"],
             path=payload.get("path") or "",
             field_change=payload.get("field_change") or {},
+            revision_id=payload.get("revision_id"),
         )
 
     raise ValueError(f"unknown wake source: {source!r}")
@@ -1325,6 +1326,7 @@ async def _invoke_substrate_event_wake(
     hook: dict,
     path: str,
     field_change: dict,
+    revision_id: Optional[str] = None,
 ) -> dict:
     """Invoke the Reviewer with a substrate-event hook's prompt as envelope.
 
@@ -1338,6 +1340,11 @@ async def _invoke_substrate_event_wake(
     are passed into the Reviewer's user-message context as
     `substrate_event_*` fields so the Reviewer can read the transition
     that woke it.
+
+    Migration 178: revision_id (the workspace_file_versions.id that
+    matched the hook) is stamped on every execution_events row as
+    wake_dedup_key, allowing the walker to dedup re-fires of the same
+    matched revision across multiple scheduler ticks.
     """
     started_at = datetime.now(timezone.utc)
     import uuid as _uuid
@@ -1354,6 +1361,7 @@ async def _invoke_substrate_event_wake(
             status="failed", error_reason="empty_hook_prompt",
             wake_source="substrate_event",
             funnel_decision="skip",
+            wake_dedup_key=revision_id,
         )
         return {
             "success": False,
@@ -1378,6 +1386,7 @@ async def _invoke_substrate_event_wake(
             status="failed", error_reason="balance_exhausted",
             wake_source="substrate_event",
             funnel_decision="skip",
+            wake_dedup_key=revision_id,
         )
         return {
             "success": False, "slug": slug, "source": "substrate_event",
@@ -1433,6 +1442,7 @@ async def _invoke_substrate_event_wake(
             envelope_load_ms=_env_ms,
             wake_source="substrate_event",
             funnel_decision="escalate",
+            wake_dedup_key=revision_id,
         )
         return {
             "success": False, "slug": slug, "source": "substrate_event",
@@ -1455,6 +1465,7 @@ async def _invoke_substrate_event_wake(
         tool_rounds=_ro.get("tool_rounds"),
         wake_source="substrate_event",
         funnel_decision="escalate",
+        wake_dedup_key=revision_id,
     )
 
     return {

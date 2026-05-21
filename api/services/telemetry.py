@@ -127,6 +127,7 @@ def record_execution_event(
     envelope_load_ms: Optional[int] = None,
     wake_source: Optional[str] = None,
     funnel_decision: Optional[str] = None,
+    wake_dedup_key: Optional[str] = None,
     agent_run_id: Optional[str] = None,
 ) -> Optional[str]:
     """Write one row to execution_events. Never raises. Returns the row id on
@@ -169,6 +170,13 @@ def record_execution_event(
                             mechanical. NULL for rows predating migration 177
                             + Session B. Population wired in Session C/D when
                             wake_evaluation.evaluate() produces the decision.
+        wake_dedup_key:     Migration 178 — wake-source-specific idempotency
+                            discriminator. For substrate_event = revision_id
+                            of the matched workspace_file_versions row; for
+                            proposal_arrival = action_proposals.id. NULL for
+                            cron_tick / addressed / manual_fire (idempotency-
+                            gated at other layers). Partial unique index
+                            enforces single-fire semantics on populated rows.
         agent_run_id:       agent_runs.id if a row was created (NULL for early exits)
 
     Returns:
@@ -221,6 +229,8 @@ def record_execution_event(
             row["wake_source"] = wake_source
         if funnel_decision is not None:
             row["funnel_decision"] = funnel_decision
+        if wake_dedup_key is not None:
+            row["wake_dedup_key"] = wake_dedup_key
         if agent_run_id is not None:
             row["agent_run_id"] = agent_run_id
 

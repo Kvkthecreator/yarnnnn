@@ -313,6 +313,80 @@ async def run_walk_hooks_integration() -> None:
             )
         _ok("walk_hooks returned exactly 1 outcome")
 
+        # 6. Migration 178 dedup contract: simulate the wake completing
+        # by inserting an execution_events row with wake_dedup_key set to
+        # the transition revision_id. Then walk again — walker should skip.
+        # This is the regression gate for the wake-duplication audit
+        # (docs/observations/2026-05-21-005856-wake-duplication-audit/).
+        transition_revision_id = payload.get("revision_id")
+        if not transition_revision_id:
+            _fail(
+                "payload.revision_id missing",
+                "walker must populate revision_id in payload for dedup to work",
+            )
+        _ok(f"payload.revision_id == {transition_revision_id[:8]}...")
+
+        # Simulate wake completion (what _invoke_substrate_event_wake's
+        # success path does in production).
+        wake_event_id = None
+        try:
+            wake_event_result = (
+                client.table("execution_events")
+                .insert({
+                    "user_id": TEST_USER_ID,
+                    "slug": "test-adr296-walker-hook",
+                    "mode": "judgment",
+                    "trigger_type": "reactive",
+                    "status": "success",
+                    "wake_source": "substrate_event",
+                    "funnel_decision": "escalate",
+                    "wake_dedup_key": transition_revision_id,
+                })
+                .execute()
+            )
+            if wake_event_result.data:
+                wake_event_id = wake_event_result.data[0].get("id")
+            _ok("simulated wake completion (execution_events row inserted)")
+        except Exception as exc:
+            _fail(
+                "execution_events insert (simulating wake completion)",
+                f"could not insert wake event: {exc}",
+            )
+
+        try:
+            # Reset the mock so we count fresh calls.
+            mock_submit.reset_mock()
+
+            # Walk again — same since window, same revisions.
+            with patch("services.wake_sources.substrate_event.submit_wake_proposal", mock_submit):
+                outcomes_2 = await walk_hooks(client, TEST_USER_ID, since=since)
+
+            if mock_submit.call_count != 0:
+                _fail(
+                    "dedup gate: submit_wake_proposal call_count on second walk",
+                    f"expected 0 (dedup gate engaged), got {mock_submit.call_count} "
+                    f"— walker re-fired despite execution_events row with matching "
+                    f"wake_dedup_key={transition_revision_id[:8]}...",
+                )
+            _ok("dedup gate: second walk did NOT re-fire wake (0 submissions)")
+
+            if outcomes_2:
+                _fail(
+                    "dedup gate: walk_hooks outcomes on second walk",
+                    f"expected [], got {len(outcomes_2)} outcomes — dedup should "
+                    f"short-circuit before submit_wake_proposal",
+                )
+            _ok("dedup gate: walk_hooks returned empty outcomes on second walk")
+        finally:
+            # Wipe the simulated wake event so the next test run starts clean.
+            if wake_event_id:
+                try:
+                    client.table("execution_events").delete().eq(
+                        "id", wake_event_id
+                    ).execute()
+                except Exception as exc:
+                    print(f"  WARN  test wake event cleanup failed: {exc}")
+
     finally:
         # Cleanup: wipe scratch profile + restore the prior _hooks.yaml content
         # (or delete if there was none before).
