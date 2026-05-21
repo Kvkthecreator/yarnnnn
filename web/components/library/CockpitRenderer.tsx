@@ -129,7 +129,7 @@ function UnactivatedCockpitCTA({ activeProgramSlug }: { activeProgramSlug: strin
               : 'YARNNN runs your operations through programs — pre-shipped templates that bring a domain-shaped workspace (mandate, agents, recurrences, context structure). Activate one to see your operation rendered here.'}
           </p>
           <Link
-            href="/settings?tab=workspace"
+            href="/program"
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
           >
             {hasActivation ? 'Manage program' : 'Activate a program'}
