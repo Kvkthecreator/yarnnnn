@@ -225,22 +225,122 @@ def is_mirror_refresh_action(action: dict, client: Any, user_id: str) -> bool:
     return action.get("tool", "") in REVIEWER_MIRROR_REFRESH_TOOLS
 
 
-def narrate_reviewer_action(tool: str, summary: str = "") -> str:
+def narrate_reviewer_action(tool: str, summary: str = "", *, folded_count: int = 1) -> str:
     """Compose a System Agent narration line for a Reviewer-directed action.
 
     The narration is honest: it names the tool, attributes the direction to
     the Reviewer, and includes the action summary if available. Used by all
     four trigger paths so the chat conversation reads consistently regardless
     of which trigger fired the Reviewer.
+
+    folded_count > 1 indicates the action represents N consecutive same-path
+    same-tool writes folded into one narration line (closes Pattern 2 of
+    docs/observations/2026-05-21-005856-wake-duplication-audit/). Substrate
+    retains every revision per ADR-209; only the feed-surface noise is
+    collapsed.
     """
     summary_part = f" {summary}" if summary else ""
+    count_part = f" ({folded_count} revisions)" if folded_count > 1 else ""
     # ADR-296 v2 D3: FireInvocation case removed — Reviewer no longer
     # commissions unit-of-work fires; cadence is authored via Schedule.
     if tool == "ProposeAction":
-        return f"Proposal submitted on Reviewer's direction.{summary_part}"
+        return f"Proposal submitted on Reviewer's direction.{summary_part}{count_part}"
     if tool == "WriteFile":
-        return f"Wrote to Reviewer substrate on its direction.{summary_part}"
-    return f"Executed `{tool}` on Reviewer's direction.{summary_part}"
+        return f"Wrote to Reviewer substrate on its direction.{summary_part}{count_part}"
+    return f"Executed `{tool}` on Reviewer's direction.{summary_part}{count_part}"
+
+
+def _fold_same_path_writes(
+    actions_taken: list,
+    client: Any,
+    user_id: str,
+) -> list:
+    """Fold consecutive emit-eligible actions sharing (tool, path) into one.
+
+    "Emit-eligible" = the subset that would have produced narration entries
+    (excludes REVIEWER_COGNITION_TOOLS + REVIEWER_MIRROR_REFRESH_TOOLS,
+    failed actions). The fold operates on the emit-eligible sequence —
+    cognition + mirror-refresh actions are transparently skipped and do
+    NOT break adjacency for fold purposes.
+
+    Returns a NEW list in original order with consecutive same-(tool, path)
+    runs collapsed. The LAST action in each run is retained (representing
+    final substrate state); intermediate actions are dropped. Each surviving
+    action carries `_folded_count` indicating the run length (1 = no fold).
+
+    Path extraction: action["input"]["path"] for the tools we narrate
+    (WriteFile, ManageTask, etc. all carry path; Schedule's path is
+    `/workspace/_recurrences.yaml` derived from the slug, but Schedule's
+    fold scope is governed by slug rather than path — handled in Commit C).
+
+    Used by surface_reviewer_actions to close the iterative-refinement
+    feed-noise pattern surfaced by docs/observations/2026-05-21-005856-
+    wake-duplication-audit/findings.md.
+    """
+    if not actions_taken:
+        return []
+
+    folded: list = []
+
+    # Helper: extract the fold key for an action. Same-key consecutive runs
+    # collapse. Returns None for actions that should never be folded
+    # (failed, cognition, mirror-refresh, missing path).
+    def _fold_key(action: Any) -> Optional[tuple]:
+        if not isinstance(action, dict):
+            return None
+        if not action.get("success", True):
+            return None
+        tool = action.get("tool", "")
+        if tool in REVIEWER_COGNITION_TOOLS:
+            return None
+        if is_mirror_refresh_action(action, client, user_id):
+            return None
+        # Only fold tools whose summary collapses to identical text when
+        # path is the only discriminator. WriteFile is the canonical case.
+        # Schedule has a slug discriminator (separate fix in Commit C);
+        # folding Schedule by path would mask distinct recurrences.
+        # ProposeAction never folds (each proposal is a distinct decision).
+        if tool != "WriteFile":
+            return None
+        inp = action.get("input") or {}
+        if not isinstance(inp, dict):
+            return None
+        path = inp.get("path")
+        if not path:
+            return None
+        return (tool, path)
+
+    for action in actions_taken:
+        key = _fold_key(action)
+        # Look at the previous folded entry to check fold eligibility.
+        # We fold strictly when the previous emit-eligible entry shares
+        # the same key. Cognition/mirror-refresh actions in actions_taken
+        # don't reach `folded` (they're filtered downstream in
+        # surface_reviewer_actions) so adjacency in `folded` matches
+        # adjacency among emit-eligible actions.
+        if (
+            key is not None
+            and folded
+            and isinstance(folded[-1], dict)
+            and _fold_key(folded[-1]) == key
+        ):
+            # Same-key run continues — replace the prior entry with this one
+            # (preserve final state) + bump the count.
+            prior_count = folded[-1].get("_folded_count", 1)
+            # Shallow copy so we don't mutate the caller's action dict.
+            merged = dict(action)
+            merged["_folded_count"] = prior_count + 1
+            folded[-1] = merged
+        else:
+            # New key or non-foldable action — append as-is. Ensure
+            # _folded_count is set to 1 for foldable actions so the
+            # narration template can read it uniformly.
+            if key is not None:
+                action = dict(action)
+                action["_folded_count"] = 1
+            folded.append(action)
+
+    return folded
 
 
 async def surface_reviewer_actions(
@@ -267,8 +367,26 @@ async def surface_reviewer_actions(
     if not session_id:
         return 0
 
+    # Pre-fold: collapse consecutive emit-eligible actions that share
+    # (tool, path) into a single representative action with a count.
+    # Closes Pattern 2 of docs/observations/2026-05-21-005856-wake-
+    # duplication-audit/findings.md — the Reviewer's tool-use loop
+    # iterates on the same file across multiple rounds (legitimate LLM
+    # refinement behavior), but the per-write narration emits one feed
+    # line per revision, producing visual duplication. Substrate is
+    # honest (ADR-209 retains every revision); the feed surfaces
+    # judgment not every keystroke.
+    #
+    # Fold scope: strictly consecutive among the emit-eligible subset
+    # (cognition + mirror-refresh actions are silenced first and don't
+    # break adjacency). The fold preserves the LAST action's invocation_id
+    # + summary (the final substrate state) and exposes the fold count
+    # via `_folded_count` on the action dict so the narration template
+    # can render "Wrote N revisions to ..." instead of N separate lines.
+    folded_actions = _fold_same_path_writes(actions_taken, client, user_id)
+
     written = 0
-    for action in actions_taken:
+    for action in folded_actions:
         if not isinstance(action, dict):
             continue
         if not action.get("success", True):
@@ -285,7 +403,8 @@ async def surface_reviewer_actions(
         if is_mirror_refresh_action(action, client, user_id):
             continue
         summary = action.get("summary", "")
-        body = narrate_reviewer_action(tool, summary)
+        folded_count = action.get("_folded_count", 1)
+        body = narrate_reviewer_action(tool, summary, folded_count=folded_count)
         # Audit-pass-2 DD-4: when the action is ProposeAction, embed
         # the proposal_id in extra_metadata so the FE renders an inline
         # ProposalCard chip on this narration entry instead of plain
