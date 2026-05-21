@@ -538,6 +538,7 @@ You MUST:
 - `workspace_file_versions` — NOT a table; version history uses `/history/` subfolder convention (ADR-119 Resolved Decision #3). On overwrite of high-value files (thesis.md, memory/*.md, AGENT.md), previous version copied to `/agents/{slug}/history/{filename}-v{N}.md`. Implemented in Phase 3.
 - `mcp_oauth_clients` / `mcp_oauth_codes` / `mcp_oauth_access_tokens` / `mcp_oauth_refresh_tokens` — MCP OAuth 2.1 storage (ADR-075, service key only)
 - `render_usage` — per-user render call tracking (ADR-118 D.2); `get_monthly_render_count()` RPC for tier limit enforcement
+- `wake_queue` — **ADR-298 transient compute, not authoritative state** (Phase 1 Implemented 2026-05-22, migration 179). Per-workspace queue for single-lane Reviewer execution with two-lane drain (paced/live). Mechanically reconstructable from filesystem + DB substrate at every moment per Axiom 1; modeled on `tasks` scheduling-index precedent (ADR-231 D4). UNIQUE `(user_id, wake_source, dedup_key)` enforces cross-source dedup at insert time, replacing ADR-272's `execution_events.wake_dedup_key` location (drop migration in ADR-298 Phase 5). Status taxonomy: `pending → locked → completed | failed | dropped`. RLS service-role-only; operators do NOT read queue directly — they read configuration (yaml), outcomes (feed + `execution_events`), and watch-state (`standing_intent.md`). Service helpers in `api/services/wake_queue.py`.
 
 **Removed files** (ADR-064 + ADR-090 + ADR-092):
 - `api/services/extraction.py` — replaced by `memory.py`
@@ -642,7 +643,8 @@ You MUST:
 | Platform API Clients | `api/integrations/core/{slack,notion,github}_client.py` |
 | Landscape Discovery | `api/services/landscape.py` |
 | Tier Limits | `api/services/platform_limits.py` |
-| Agent Scheduler | `api/jobs/unified_scheduler.py` (ADR-231 Phase 3.3: walks recurrence YAML declarations via `services.scheduling.get_due_declarations`; thin `tasks` index gates due-row queries; dispatches via `services.invocation_dispatcher.dispatch(decl)`) |
+| Agent Scheduler | `api/jobs/unified_scheduler.py` (ADR-231 Phase 3.3: walks recurrence YAML declarations via `services.scheduling.get_due_declarations`; thin `tasks` index gates due-row queries; dispatches via `services.invocation_dispatcher.dispatch(decl)`). ADR-298 Phase 3 cutover (forthcoming): refactored to enqueue → drain via `services.wake_queue` rather than direct dispatch. |
+| Wake Queue (ADR-298) | `api/services/wake_queue.py` — single-lane Reviewer execution per workspace, two-lane drain (paced/live), cross-source dedup at insert time. Transient compute per Axiom 1 (migration 179, Phase 1 Implemented 2026-05-22). Service helpers: `enqueue`, `get_next_pending`, `try_lock`, `has_in_flight`, `mark_completed`/`mark_failed`/`mark_dropped`, `reclaim_stale_locks`, `gc_completed`, `queue_depth`. |
 | MCP Server | `api/mcp_server/` (ADR-075 infra + ADR-169 tool surface: 3 intent-shaped tools — `work_on_this`, `pull_context`, `remember_this`; fifth caller of `execute_primitive()` per ADR-164) |
 | MCP Composition | `api/services/mcp_composition.py` (ADR-169: `compose_subject_context`, `compose_active_candidates`, `classify_memory_target` two-branch, `stamp_provenance`, `derive_client_name`, `extract_domain_from_path`) |
 | MCP Feature Docs | `docs/features/mcp/` — `README.md` (entry), `tool-contracts.md`, `workflows.md`, `architecture.md` (ADR-169 canonical product framing) |
