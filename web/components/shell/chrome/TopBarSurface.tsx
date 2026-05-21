@@ -24,7 +24,7 @@
  *   - Active surface highlighted by pathname match.
  */
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { LayoutGrid } from 'lucide-react';
 import { useComposition } from '@/lib/compositor/useComposition';
@@ -42,19 +42,22 @@ export function TopBarSurface() {
   const router = useRouter();
   const pathname = usePathname();
   const { data: composition } = useComposition();
-  const { pinned, lastActive } = useSurfacePreferences();
+  const { pinned, foregrounded, isOpen, foregroundSurface, closeSurface, unpin } =
+    useSurfacePreferences();
   const { setSurface } = useDesk();
   const { userEmail, openLauncher } = useShellChrome();
 
-  // ADR-297 D6: logo click → operator's last-active surface (macOS-
-  // natural). Resolves the slug to a route via the compositor registry;
-  // falls back to HOME_ROUTE if the registry isn't loaded yet or the
-  // slug is unknown.
+  // ADR-297 D13: brand-mark click navigates to the currently
+  // foregrounded surface's route. If nothing is foregrounded (desktop
+  // empty state), the click is a no-op — the operator is already at
+  // the canonical home. Falls back to HOME_ROUTE if the registry isn't
+  // loaded yet.
   const navigateToHome = useCallback(() => {
-    const surface = composition.surfaces?.find((s) => s.slug === lastActive);
+    if (!foregrounded) return; // already on desktop
+    const surface = composition.surfaces?.find((s) => s.slug === foregrounded);
     const target = surface?.route || HOME_ROUTE;
     if (pathname !== target) router.push(target);
-  }, [router, pathname, composition.surfaces, lastActive]);
+  }, [router, pathname, composition.surfaces, foregrounded]);
 
   // Resolve pinned slugs to Surface entries in operator's pin order
   // (D12 — same mechanic the deleted DockSurface used). Surfaces not
@@ -73,6 +76,31 @@ export function TopBarSurface() {
         .filter((s): s is Surface => Boolean(s)),
     [pinned, surfaceBySlug]
   );
+
+  // ADR-297 D13: right-click context menu state. Single slug shown at
+  // a time; click-anywhere or Escape closes. Minimum-viable shape —
+  // one menu item: "Close". Future v2 may add "Unpin", "Move".
+  const [contextMenu, setContextMenu] = useState<
+    { slug: string; x: number; y: number } | null
+  >(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = (e: MouseEvent) => {
+      if (menuRef.current && menuRef.current.contains(e.target as Node)) return;
+      setContextMenu(null);
+    };
+    const closeOnEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setContextMenu(null);
+    };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', closeOnEsc);
+    return () => {
+      document.removeEventListener('mousedown', close);
+      document.removeEventListener('keydown', closeOnEsc);
+    };
+  }, [contextMenu]);
 
   return (
     <header className="h-14 border-b border-border bg-background flex items-center justify-center px-4 shrink-0">
@@ -116,41 +144,104 @@ export function TopBarSurface() {
         <Divider />
 
         {/* Slot 3 — Pinned surfaces row (inherits D5 default-pinned: Feed
-            only). Each icon = setSurface dispatch via DeskContext (the
-            canonical axiom from b5d1a1e — surface = viewport panel,
-            URL is transport). */}
+            only). D13 click semantics:
+              - Click an open surface → foreground it (no remount).
+              - Click a not-yet-open surface → openSurface + foreground
+                in one action (foregroundSurface combines both).
+              - Right-click → context menu with "Close" affordance.
+            Open-state dot indicator shown below icons whose slug is in
+            the open-surfaces registry (macOS Dock convention). */}
         {pinnedSurfaces.length > 0 && (
           <div className="flex items-center gap-0.5">
             {pinnedSurfaces.map((surface) => {
               const Icon = resolveSurfaceIcon(surface.icon_key);
-              const isActive =
-                surface.route &&
-                (pathname === surface.route ||
-                  pathname.startsWith(surface.route + '/'));
+              const isForegrounded = foregrounded === surface.slug;
+              const surfaceIsOpen = isOpen(surface.slug);
               const handleClick = () => {
                 if (isKernelSurfaceSlug(surface.slug)) {
+                  // D13: foregroundSurface opens + foregrounds in one
+                  // action. The legacy setSurface (DeskContext) is
+                  // kept in sync below for any consumers that still
+                  // read DeskState.surface directly.
+                  foregroundSurface(surface.slug);
                   setSurface({ type: 'atomic', slug: surface.slug });
                 }
               };
+              const handleContextMenu = (e: React.MouseEvent) => {
+                e.preventDefault();
+                if (surfaceIsOpen) {
+                  setContextMenu({ slug: surface.slug, x: e.clientX, y: e.clientY });
+                }
+              };
               return (
-                <button
-                  key={surface.slug}
-                  type="button"
-                  onClick={handleClick}
-                  title={surface.title}
-                  aria-label={surface.title}
-                  aria-current={isActive ? 'page' : undefined}
-                  className={cn(
-                    'flex h-9 w-9 items-center justify-center rounded-md transition-colors',
-                    isActive
-                      ? 'bg-foreground text-background'
-                      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                <div key={surface.slug} className="relative flex flex-col items-center">
+                  <button
+                    type="button"
+                    onClick={handleClick}
+                    onContextMenu={handleContextMenu}
+                    title={surface.title}
+                    aria-label={surface.title}
+                    aria-current={isForegrounded ? 'page' : undefined}
+                    className={cn(
+                      'flex h-9 w-9 items-center justify-center rounded-md transition-colors',
+                      isForegrounded
+                        ? 'bg-foreground text-background'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                    )}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </button>
+                  {/* Open-state indicator dot (D13). macOS Dock
+                      convention: small dot under icons whose
+                      corresponding app is currently running. */}
+                  {surfaceIsOpen && (
+                    <div
+                      aria-hidden
+                      className={cn(
+                        'absolute -bottom-0.5 h-1 w-1 rounded-full',
+                        isForegrounded ? 'bg-background' : 'bg-foreground/70'
+                      )}
+                    />
                   )}
-                >
-                  <Icon className="h-4 w-4" />
-                </button>
+                </div>
               );
             })}
+          </div>
+        )}
+
+        {/* D13 right-click context menu — shown when an open pinned
+            surface is right-clicked. Minimum-viable shape: one item
+            ("Close"). Future v2: "Unpin", "Move", etc. */}
+        {contextMenu && (
+          <div
+            ref={menuRef}
+            role="menu"
+            aria-label={`Surface actions for ${contextMenu.slug}`}
+            style={{ top: contextMenu.y, left: contextMenu.x }}
+            className="fixed z-50 min-w-[140px] rounded-md border border-border bg-background shadow-lg py-1"
+          >
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                closeSurface(contextMenu.slug);
+                setContextMenu(null);
+              }}
+              className="block w-full px-3 py-1.5 text-left text-xs text-foreground hover:bg-muted transition-colors"
+            >
+              Close
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                unpin(contextMenu.slug);
+                setContextMenu(null);
+              }}
+              className="block w-full px-3 py-1.5 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+            >
+              Unpin from dock
+            </button>
           </div>
         )}
 

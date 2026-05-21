@@ -17,9 +17,11 @@
  *     it couples auth-shell-level routing (router.push) with the
  *     legacy DeskSurface kinds (agent-list, document-viewer, etc.)
  *     and isn't a surface concern.
- *   - Last-active-surface recording (recordVisit) — same machinery as
- *     D6 home behavior; lives at shell level so every route change is
- *     tracked uniformly.
+ *   - Pathname → foreground surface tracking (D13) — when the URL
+ *     deep-links to an atomic surface, the shell foregrounds it in the
+ *     open-surfaces registry. Replaces the pre-D13 recordVisit/
+ *     lastActive concept with the open-surfaces-registry foreground
+ *     pointer.
  *   - The setup-confirm modal (still mounted at shell level for now).
  *
  * What ShellCompositor owns:
@@ -115,11 +117,14 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { setSurface, setSurfaceWithHandoff } = useDesk();
   const { data: composition } = useComposition();
-  const { recordVisit } = useSurfacePreferences();
+  const { foregroundSurface } = useSurfacePreferences();
 
-  // ADR-297 D6: record visits to drive last-active home behavior.
-  // Resolves the active surface slug by matching the current pathname
-  // against the surface registry's routes (longest-prefix wins).
+  // ADR-297 D13: when the URL deep-links to an atomic kernel surface,
+  // foreground it in the open-surfaces registry (auto-open if not yet
+  // open). Replaces the pre-D13 recordVisit/lastActive flow with the
+  // foreground pointer in the multi-mount registry. Resolves the
+  // active surface slug by matching the current pathname against the
+  // surface registry's routes (longest-prefix wins).
   useEffect(() => {
     if (!composition.surfaces || composition.surfaces.length === 0) return;
     const sorted = [...composition.surfaces].sort(
@@ -128,8 +133,8 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
     const match = sorted.find(
       (s) => s.route && (pathname === s.route || pathname.startsWith(s.route + '/'))
     );
-    if (match) recordVisit(match.slug);
-  }, [pathname, composition.surfaces, recordVisit]);
+    if (match) foregroundSurface(match.slug);
+  }, [pathname, composition.surfaces, foregroundSurface]);
 
   // Handle surface change from TP tool results (NarrativeContext handoff
   // machinery). Stays at shell level because it couples router.push with

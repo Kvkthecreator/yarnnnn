@@ -305,7 +305,56 @@ The Dock relocates from `bottom-floating` to `top` and merges with the prior rig
 
 **Why D12 and not its own ADR**: same rationale as D11 — refinement of the surface-mirrors-substrate principle's layout-policy expression. D12 changes *where* the Dock surface mounts and which surface *owns* the launcher-trigger affordance; it doesn't reopen the axiom that everything is a surface. Same ADR; explicit amendment for trace continuity.
 
-D12 implementation status: **Implemented 2026-05-21** (this session, commit follows this doc-only amendment).
+D12 implementation status: **Implemented 2026-05-21** (commit `f52ac39` enacts the doc-only `bcd8d08`).
+
+### D13 — Surfaces are windows: multi-mount lifecycle, desktop boot, open-state Dock (2026-05-21 same-session amendment)
+
+**Refines** D6 (last-active home — same-session amendment). **Brings forward** D10's "multi-surface main region" partial — the multi-mount lifecycle clause lands; the "split-mode + peek" viewport composition stays forward horizon.
+
+D11 + D12 made the structural claim that *every operator-visible thing is a surface*. D13 takes the metaphor one step further: **surfaces are application windows in a macOS-like Dock metaphor**. Specifically:
+
+- A surface, once opened, **stays mounted** in the React tree (lifecycle decoupled from "currently foregrounded"). Closing is an explicit affordance.
+- The Dock (the top-center dock-bar per D12) shows **open-state indicators** — a small dot under each pinned icon signals "this surface has a live mount." Clicking an open surface's icon **foregrounds** it (brings its mounted tree into the visible viewport). Clicking a not-yet-open surface **mounts** it.
+- **No default surface on cold start**. First-time operators (no surface history) boot to the **desktop** — a deliberately-empty viewport with the top-center dock-bar visible and an empty-state prompt ("click an icon to begin"). Returning operators boot to their last-active foregrounded surface (D6 refined — preserved for the returning-operator path, supplemented for the first-time path).
+
+**Why the metaphor was incomplete before D13**: D5 + D11 + D12 modeled the Dock visually as a macOS Dock, but the behavior under the hood was browser-tab-shaped — `setSurface` dispatch unmounted the prior surface and mounted the new one. Operators reading the Dock metaphor expected window-manager behavior (state persistence, foreground/background, multiple-open simultaneously). The visual cue (Dock with persistent pinned icons) and the runtime behavior (replace-on-dispatch) disagreed. D13 resolves the disagreement by changing the runtime behavior to match the metaphor.
+
+**Concrete commitments**:
+
+1. **Surface-mount lifecycle is multi-mount.** When the operator opens a content surface (Dock click, Launcher selection, or programmatic `setSurface`), the compositor mounts it. The prior foregrounded surface **stays mounted** but is hidden via `display: none` (or `hidden` attribute — TBD at implementation). All open surfaces stay in the React tree until explicitly closed.
+
+2. **Open-surfaces registry.** A new `useOpenSurfaces()` hook (or DeskContext extension) tracks the ordered set of currently-open surface slugs + the foregrounded slug. The compositor reads this registry and renders every open surface in `main`, applying `display: none` to all but the foregrounded one.
+
+3. **Foreground = the visible surface.** Exactly one open surface is foregrounded at any time. `setSurface` semantics change: if the target surface is already open → foreground it (no remount); if not open → open and foreground it.
+
+4. **Close affordance.** Right-click (or long-press) on a Dock icon shows a contextual menu with "Close." Close removes the surface from the open-surfaces registry and unmounts it. If the closed surface was foregrounded, foreground falls through to the next-most-recently-foregrounded open surface; if no other surfaces are open, fall through to the desktop.
+
+5. **Desktop empty state.** When the open-surfaces registry is empty (cold start for first-time operators, or after closing the last open surface), the compositor renders a **desktop surface** in `main`. The desktop is not in the kernel registry — it's the *absence* of any open surface, plus an inviting empty-state prompt anchored to the Dock. A future ADR may promote the desktop to a first-class kernel surface (with operator-customizable wallpaper, pinned-files, etc.); D13 ships the minimal version: empty viewport with the Dock visible and one line of empty-state copy.
+
+6. **D6 refined, not superseded.** Returning operators (with a non-empty open-surfaces registry persisted from prior session) boot to the foregrounded surface from that session. First-time operators (empty registry) boot to the desktop. The "last-active surface" concept survives within the open-surfaces registry — it's the most-recently-foregrounded slug, persisted alongside the registry itself.
+
+7. **Open-state indicator dot in the Dock.** Each pinned Dock icon shows a small dot below it when the corresponding surface is currently in the open-surfaces registry. macOS Dock convention. Visual only — clicking semantics already covered by D5/D12.
+
+8. **Open-but-not-pinned surfaces in the Dock.** A surface can be open without being pinned (operator opened it from the Launcher; didn't pin). Per macOS convention, open-but-not-pinned surfaces appear in the Dock to the right of the pinned set, separated by a divider, until closed. They disappear from the Dock on close. (D13 v1 implementation may defer this to a follow-on tick — minimum-viable D13 ships open-state dots on *pinned* icons only; the open-but-not-pinned tail follows.)
+
+**Persistence**:
+- Open-surfaces registry persists per workspace via `useSurfacePreferences` (extends the localStorage path) — same store as pinned-surfaces and last-active.
+- Each entry stores `{slug, openedAt}`; foreground tracked separately as `foregroundedSlug` for fast resolution.
+- Persistence captures the *fact* that a surface is open; it does NOT capture per-surface transient state (scroll position, form drafts, etc.). Surface state persistence is a per-surface concern — D13 ships the lifecycle plumbing; state retention within a surface is the surface's own job. (For the alpha-1 operator, most surfaces are substrate-backed reads, so state persistence is automatic via re-read.)
+
+**Memory budget**: full macOS-literal multi-mount is bounded by the kernel surface count + a small program-surface contribution (today: 13 + ≤3). React tree of ~15 hidden surfaces is acceptable for desktop browsers; if a surface proves heavy (Cockpit with its 7 trader sections; Files with its tree) we'll add per-surface memoization or virtualization. **No LRU cache, no eviction heuristic** — the open-surfaces registry is operator-authored, not memory-managed. Operators close what they don't want; that's the contract.
+
+**Why D13 and not its own ADR**: same rationale as D11/D12 — refinement of the surface-mirrors-substrate principle's *layout-policy + lifecycle* expression. D13 doesn't reopen the axiom; it refines how the compositor mounts content surfaces (one-at-a-time → multi-mount with foreground/background). Same ADR; explicit amendment for trace continuity.
+
+**What D13 does NOT do**:
+- Does not introduce split-mode / peek layouts in `main` (still single-foregrounded; D10's full multi-surface viewport stays forward horizon).
+- Does not introduce a keyboard switcher (cmd-tab equivalent) — operator demand can pull it forward; not in v1.
+- Does not promote the desktop to a kernel surface with first-class wallpaper/pinned-files affordances — minimum-viable empty state only.
+- Does not change pinning mechanic, Launcher overlay shape, composer surface behavior, or chat composer suppression rules.
+- Does not change atomic-route bookmark-safety (`/cadence`, `/mandate`, etc. still hydrate DeskState on cold load; they just *open* the surface into the open-surfaces registry rather than replacing the prior one).
+- Does not block any surface from being closed (every open surface can be closed; the desktop empty state is a legitimate destination).
+
+D13 implementation status: **Implemented 2026-05-21** (this session, code commit follows this doc).
 
 ---
 
