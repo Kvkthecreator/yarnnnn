@@ -93,7 +93,7 @@ Every program with read-heavy hooks/recurrences will hit this. As more operators
 
 ## Fix shape recommendations (Hat-A action)
 
-The nudge needs to be **read-burden-aware**, not round-count-aware. Three candidate shapes:
+The nudge needs to be **read-burden-aware**, not round-count-aware. Four candidate shapes (Option D added post-operator-discourse 2026-05-21T01:50Z after a Claude-Code comparison surfaced a more structural framing).
 
 ### Option A — Raise the nudge threshold
 
@@ -113,18 +113,41 @@ The nudge currently says *"Even if conditions are unclear, ReturnVerdict(stand_d
 
 **Risk**: looser nudge → more cost on legitimate runaway-loop edge cases. But population data shows zero existing wakes hit round 10+, so the runaway-loop risk seems already low in production.
 
+### Option D — Delete the nudge entirely (Claude Code-aligned) — **RECOMMENDED**
+
+Post-operator-discourse comparison against Claude Code's tool-use loop surfaced a more structural framing. Claude Code's design philosophy:
+
+- Set the **budget** (cost cap), not the **behavior** (mid-loop coaching).
+- Trust the model to decide when it's done based on the system prompt + tool definitions + task progress.
+- Stop conditions are signal-based (repeated identical actions, errors, explicit completion) — not round-counter-based.
+- Mid-loop coaching that tells the model "stopping now is correct" is doing work the model should be doing on its own, and doing it WRONG when the task is incomplete.
+
+Our nudge violates this: it pre-injects permission to give up at round 5+ regardless of task progress, and the text explicitly frames `stand_down` as "correct" even when "conditions are unclear" — an invitation, not a constraint.
+
+**The fix**: delete the `elif _round >= 4` nudge branch entirely. Keep the `clarify_called_this_round` nudge (different shape — fires only AFTER a specific tool call, signal-based not counter-based). Raise `max_rounds` from 12 to 20 to give read-heavy hooks legitimate head room. Rely on the existing fallback at line 1531 (`if verdict_raw is None: ... stand_down + low confidence`) as the safety net for the rare case where the Reviewer truly can't synthesize within budget.
+
+**Risk argument addressed**: the inline comment at line 1494 (`# Loop-shape nudges to prevent runaway tool use`) suggests the nudge was added to prevent agents from spinning on cognition reads forever. Population data shows ZERO wakes reach round 11 or 12 today — the runaway-loop class of failure doesn't exist in current production. The nudge is solving a problem we don't have, while actively causing the silent-wake problem we do have.
+
+**What survives without the nudge**:
+- `max_rounds` cap (cost ceiling, raised to 20)
+- Fallback verdict at exhaustion (line 1531 — `stand_down` with `confidence='low'` if model doesn't ReturnVerdict by round 20)
+- ReturnVerdict tool itself (the model can still call `stand_down` voluntarily when its judgment is "I don't have enough info")
+- Cancellation check per round (operator's Stop button at line 1323)
+- `clarify_called_this_round` nudge (signal-based, fires after Clarify)
+
+**Singular implementation**: delete ~15 LOC (the nudge branch + its conditional message-append), bump `max_rounds`. Add a code comment naming the design philosophy (trust-the-model, Claude-Code-aligned).
+
 ### Recommended sequence
 
 The Hat-A discipline says "don't pre-fix what observation hasn't validated." The population audit IS the observation — N=28 across all workspaces shows the pattern is empirical, not anecdotal. The fix is justified now.
 
-Between A / B / C, I'd recommend **Option C (soften the nudge) + Option A (raise threshold to round >= 7)** combined as a single commit:
+**Recommended direction (operator-confirmed 2026-05-21T01:55Z)**: **Option D — delete the nudge + raise budget to 20.**
 
-1. Move `_round >= 4` → `_round >= 6` (nudge fires at round 7 of 12 — past the empirical threshold where productive wakes consistently complete).
-2. Soften the nudge text to remove the "stand_down is correct" invitation; replace with "continue reading or synthesize toward verdict — your judgment."
+Rationale: A+C is the conservative incremental fix that keeps the safety rail while adjusting calibration. D is the structural fix that aligns with the canonical industry pattern (Claude Code, Anthropic Agent SDK, OpenAI agents SDK) and removes an artifact whose justifying problem (runaway loops) doesn't exist in our production data. Operator chose D after weighing the trust-the-model framing against the conservative-incremental framing.
 
 Both changes target the same artifact (the nudge), can be tested with the same regression mechanism (re-fire the canary, observe whether the wake reaches verdict-write step), and don't require schema changes or new vocabulary.
 
-**Singular implementation discipline**: one nudge edit, one commit, one regression observation.
+**Singular implementation discipline**: one prompt-layer commit covering the nudge deletion + budget raise + CHANGELOG entry + reviewer_agent.py docstring update.
 
 ## What this folder does NOT do
 
