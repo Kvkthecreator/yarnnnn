@@ -28,6 +28,36 @@ This ADR closes all five gaps with one structural principle: **surface shape and
 
 > **Surface shape and surface authorship both mirror substrate.**
 
+### Surface = viewport panel, not URL destination (2026-05-21 same-session amendment)
+
+A surface is a **mountable React component bound to substrate**, addressed
+by surface state (slug + params), rendered into the shell's viewport.
+URLs are *optional addressing transport*, not the surface's identity.
+
+This commits the OS-shell framing of ADR-222 at the frontend layer. A
+surface in YARNNN is structurally analogous to an *app window* in macOS:
+it has state, it mounts into a viewport, it can coexist with other
+surfaces, it persists across navigations within the shell.
+
+The axiom rules out:
+- URL-per-surface as primary identity (browser-page semantics)
+- Next.js route-per-surface as the canonical mounting story
+- Browser back/forward as the surface-switching mechanism (becomes a
+  side effect of surface state, not the driver)
+
+The axiom unlocks (latent capability — implemented when operator demand
+surfaces):
+- Multi-open (two surfaces side-by-side)
+- Peek (transient overlay preview without navigating away)
+- Pinned-content (surface persistently visible, not just an icon)
+- Action mode (launcher executes intent directly into surface state)
+
+Companion mechanism: `DeskContext` (ADR-013 / ADR-022 / ADR-023, never
+deleted, partially buried under URL-route accretion through ADR-244 /
+ADR-251 / ADR-266) is the **surface registry at runtime**. Its
+reducer's `surface` field carries active surface state; URL hash is the
+deep-link adapter, not the primary identity.
+
 The corollaries:
 
 1. **Atomicity** — Substrate is atomic (one concept per file). Surfaces are atomic (one concept per surface). 1:1 mapping between substrate file class and surface.
