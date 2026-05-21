@@ -59,6 +59,7 @@ from services.workspace_paths import (
     SHARED_MANDATE_PATH,
     SHARED_AUTONOMY_PATH,
     SHARED_PREFERENCES_PATH,
+    SPECS_PREFIX,
 )
 
 logger = logging.getLogger(__name__)
@@ -199,7 +200,61 @@ async def load_reviewer_governance_envelope(
         for key, value in zip(program_keys, program_results):
             envelope[key] = value
 
+    # --- Specs inventory (name + title only, no bodies) ---
+    # Program bundles fork capability specs into /workspace/specs/ at activation
+    # (per ADR-261 D6 + ADR-275). The Reviewer's _PERSONA_FRAME tells it specs
+    # exist but doesn't enumerate them — without an inventory, the Reviewer
+    # ends up asking the operator "do those spec files exist?" when it could
+    # have known. The inventory is a name+title list, NOT spec bodies — bodies
+    # are read on demand via ReadFile. Cheap (one indexed query), bounded
+    # (typical bundle ships ~5-10 specs), and respects Derived Principle 19
+    # (substrate read, no LLM-time derivation).
+    envelope["specs_inventory"] = await _inventory_specs(client, user_id)
+
     elapsed_ms = int(
         (datetime.now(timezone.utc) - _started_at).total_seconds() * 1000
     )
     return envelope, elapsed_ms
+
+
+async def _inventory_specs(client: Any, user_id: str) -> str:
+    """List bundle-shipped capability specs under /workspace/specs/.
+
+    Returns a multi-line string, one line per spec:
+        - {path} — {first-heading title or "(no heading)"}
+    Empty string when no specs exist. The Reviewer ReadFiles individual
+    specs on demand; this inventory is the discovery surface.
+    """
+    try:
+        res = (
+            client.table("workspace_files")
+            .select("path, content")
+            .eq("user_id", user_id)
+            .like("path", f"{SPECS_PREFIX}%.md")
+            .order("path")
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning(
+            "[REVIEWER_ENVELOPE] specs inventory read failed for user=%s: %s",
+            user_id[:8], exc,
+        )
+        return ""
+
+    rows = res.data or []
+    if not rows:
+        return ""
+
+    lines: list[str] = []
+    for row in rows:
+        path = row.get("path") or ""
+        content = row.get("content") or ""
+        # Extract first markdown H1 heading; fall back to filename.
+        title = "(no heading)"
+        for line in content.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("# "):
+                title = stripped[2:].strip()
+                break
+        lines.append(f"- {path} — {title}")
+    return "\n".join(lines)

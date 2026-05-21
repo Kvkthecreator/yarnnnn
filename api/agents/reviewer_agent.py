@@ -175,6 +175,11 @@ class ReviewerContext(TypedDict, total=False):
     recent_decisions_md: str
     signal_files: str
     workspace_state: str
+    # Spec inventory — bundle-shipped capability specs under /workspace/specs/.
+    # Format: one line per spec, "- {path} — {title}". Bodies read on demand
+    # via ReadFile. Closes the discovery gap that produced the operator-
+    # facing question "do those spec files exist?" in standing intent.
+    specs_inventory: str
     # ADR-274 / FOUNDATIONS v8.5: time + market context for Trigger-authoring.
     # Surfaces "now" perception per the Axiom 4 amendment (time is envelope,
     # not substrate). Callers assemble via _format_operating_context_block.
@@ -600,6 +605,15 @@ facing deliverable cadences come from `_preferences.yaml` and were
 seeded at activation. Introspection cadence is yours from first
 principles.
 
+The wake envelope surfaces a `## Capability specs available` section
+listing every spec under `/workspace/specs/` (filename + title only).
+That inventory is your discovery surface: when a recurrence prompt
+references a spec by name, or you need to know what output shape an
+operator-declared deliverable expects, ReadFile the matching spec —
+do NOT ask the operator "do those spec files exist?" The envelope
+already told you which ones do. An empty inventory means no program
+is active (kernel-only workspace) or no bundle ships specs.
+
 **Your write authority** (ADR-293 — Governance / Operational taxonomy):
 
 You can WriteFile to any path under `/workspace/` EXCEPT three governance
@@ -955,6 +969,18 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
         # directs the Reviewer to author the first standing_intent.md on this cycle.
         parts += [
             "## standing_intent.md — (empty — first cycle, author it as part of this judgment)",
+            "",
+        ]
+
+    # Specs inventory — bundle-shipped capability library at /workspace/specs/.
+    # Name + title only (bodies on demand via ReadFile). Empty string when
+    # no specs exist (kernel-only workspace, pre-activation, etc.).
+    specs = ctx.get("specs_inventory") or ""
+    if specs.strip():
+        parts += [
+            "## Capability specs available (read bodies on demand via ReadFile)",
+            "",
+            specs,
             "",
         ]
 

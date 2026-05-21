@@ -161,7 +161,7 @@ Rationale: tape → account → balances → tenure → live state → today's d
 Each new section renders an empty-state-with-context when its substrate file is absent (not the cleaner `null`):
 
 - `TraderRegime` absent → "Regime tracker hasn't fired yet — paused or first run pending."
-- `TraderSignals` empty → "No signals evaluated today. Signal evaluator runs at market open."
+- `TraderSignals` empty → conditional on `evaluator_last_run_at` from `tasks.last_run_at` for `signal-evaluation`: when null, "No signals evaluated yet. Signal evaluator runs at market open." When populated, "Evaluator last ran {when} — no signals matched entry conditions." Distinguishes "never run" from "ran, found nothing" — the latter is the steady-state default when entry rules are tight.
 - `TraderExpectancy` empty `by_signal` → "No reconciled outcomes yet — reconciliation runs daily at 05:00 UTC."
 - `TraderPositions` indicators absent for a ticker → renders position row without indicator column; no error.
 

@@ -118,7 +118,7 @@ def work_url(
 def context_path_url(path: str) -> str:
     """Context surface pointing at a specific workspace file.
 
-    Example: context_path_url("/workspace/context/_performance_summary.md")
+    Example: context_path_url("/workspace/context/_money_truth_summary.md")
     """
     # path is URL-encoded to preserve slashes + any unusual chars
     return _build("/context", {"path": path})

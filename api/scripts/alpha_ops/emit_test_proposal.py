@@ -74,7 +74,7 @@ TEST_PROPOSAL = {
         "  Sector concentration (Tech after add): 13.6% (under 40% cap: PASS)\n"
         "  Open positions: 1 (under 6 cap: PASS)\n"
         "  Day-trade: no, hold minimum 1 day (PASS)\n\n"
-        "Check 4 — Signal expectancy (synthesized — no real _performance.md yet):\n"
+        "Check 4 — Signal expectancy (synthesized — no real _money_truth.md yet):\n"
         "  Recent 20-trade expectancy: +0.31R (above -0.5R decay guardrail: PASS)\n"
         "  Recent 40-trade Sharpe: +0.68 (above 0.3 retirement threshold: PASS)\n\n"
         "Check 5 — Position-sizing math:\n"

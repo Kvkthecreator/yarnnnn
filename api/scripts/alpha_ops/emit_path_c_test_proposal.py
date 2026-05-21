@@ -26,7 +26,7 @@ Pass signal:
 
 Defer signal (correct behavior, NOT a failure of the system):
   - reviewer_identity='ai:reviewer-sonnet-v5' but verdict='defer'
-  - Reasoning cites empty _performance.md / thin track record (Check 4
+  - Reasoning cites empty _money_truth.md / thin track record (Check 4
     narrowing per ADR-217 D4)
   - Proposal stays pending, awaits human click
 
@@ -100,13 +100,13 @@ TEST_PROPOSAL = {
         "  Open positions: 0 (after Path B SPY trade is reconciled, may\n"
         "    show 1 — confirm fresh state)\n"
         "  Day-trade: no, hold N/A — this is a validation order\n\n"
-        "Check 4 — Signal expectancy: N/A (no signal, no _performance.md\n"
+        "Check 4 — Signal expectancy: N/A (no signal, no _money_truth.md\n"
         "track record). The Reviewer is being asked to approve a system\n"
         "test, not a thesis-driven trade. Per ADR-217 D4, Check 4 may\n"
         "narrow autonomy when track record is thin — but the operator's\n"
         "explicit AUTONOMY ceiling for paper-validation phase IS the\n"
         "delegation here. Operator authored ceiling_cents=200000 knowing\n"
-        "_performance.md is empty.\n\n"
+        "_money_truth.md is empty.\n\n"
         "Check 5 — Position-sizing math: 1 share, $715 limit, single-leg.\n"
         "No bracket because this is a validation order, not a real entry.\n\n"
         "Check 6 — Portfolio-level diversification: SPY is the broadest\n"
@@ -117,7 +117,7 @@ TEST_PROPOSAL = {
         "as a low-stakes paper-validation order within the operator's\n"
         "explicit delegation ceiling AND approves, the system has closed\n"
         "the loop on autonomous trading capability.\n\n"
-        "If the Reviewer defers citing empty _performance.md (Check 4\n"
+        "If the Reviewer defers citing empty _money_truth.md (Check 4\n"
         "narrowing), that's also a valid Phase B observation: the persona\n"
         "is correctly conservative when track record is thin, but at the\n"
         "cost of never being able to BUILD that track record without\n"

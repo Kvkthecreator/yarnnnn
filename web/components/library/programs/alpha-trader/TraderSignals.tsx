@@ -108,7 +108,9 @@ export function TraderSignals() {
 
       {isEmpty ? (
         <p className="text-sm text-muted-foreground py-3 text-center">
-          No signals evaluated yet. Signal evaluator runs at market open.
+          {data?.evaluator_last_run_at
+            ? `Evaluator last ran ${formatTimestamp(data.evaluator_last_run_at)} — no signals matched entry conditions.`
+            : 'No signals evaluated yet. Signal evaluator runs at market open.'}
         </p>
       ) : (
         <ul className="space-y-1.5">

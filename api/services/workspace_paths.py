@@ -139,6 +139,13 @@ REVIEW_FILES = (
     REVIEW_STANDING_INTENT_PATH,
 )
 
+# Program-bundle-shipped capability library — Claude Code skills.md analog
+# (per ADR-261 D6 + ADR-275). Bundles fork files into this directory at
+# activation. The Reviewer reads individual specs on demand via ReadFile;
+# the wake envelope surfaces a name+title inventory so the Reviewer knows
+# which specs exist without paying the cost of pre-loading their bodies.
+SPECS_PREFIX = "/workspace/specs/"
+
 # ADR-293 (2026-05-19): governance file set — the ONLY paths locked from
 # Reviewer runtime. Pre-ADR-293 this set contained 9 paths derived from a
 # 4-layer composition (kernel defaults + workspace guide path_zones +

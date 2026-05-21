@@ -787,6 +787,7 @@ export const api = {
           } | null;
         }>;
         fallback_reason?: 'no_substrate' | 'read_failed';
+        evaluator_last_run_at?: string | null;
       }>(`/api/cockpit/signals?limit=${limit}`),
   },
 

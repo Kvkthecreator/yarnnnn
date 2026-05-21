@@ -6,6 +6,47 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.21.1] - fix: Reviewer specs discovery via envelope inventory
+
+### Changed
+- `api/services/reviewer_envelope.py`: added `_inventory_specs()` helper +
+  `specs_inventory` envelope key. One-line-per-spec list (path + first
+  `#` heading title) of every `/workspace/specs/*.md` the workspace has.
+  No body content pre-loaded — bodies are read on demand via `ReadFile`.
+  Cheap, bounded (~5-10 specs/bundle), respects Derived Principle 19
+  (substrate read, no LLM-time derivation).
+- `api/agents/reviewer_agent.py`: `ReviewerContext` TypedDict gains the
+  `specs_inventory: str` field. `_build_user_message` renders it as
+  `## Capability specs available` between standing intent and domain
+  substrate. `_PERSONA_FRAME` paragraph on `/workspace/specs/` extended
+  with the discovery rule — when the Reviewer needs to know what a spec
+  contains, `ReadFile` it instead of asking the operator "do those spec
+  files exist?"
+- `api/services/workspace_paths.py`: new `SPECS_PREFIX = "/workspace/specs/"`
+  constant.
+
+### Why
+Live audit of seulkim88 alpha-trader workspace (2026-05-21) found the
+Reviewer's `standing_intent.md` ending with the question "do the spec
+files at `/workspace/specs/{slug}.md` exist?" — when all seven specs
+forked from the alpha-trader bundle were present. The persona-frame
+told the Reviewer specs existed but didn't enumerate them, so the
+Reviewer had to choose between (a) guessing or (b) asking. Envelope
+inventory closes the gap structurally — every wake now includes the
+spec name + title list.
+
+### Expected behavior
+- Reviewer no longer asks operator about spec existence in standing
+  intent or judgment log entries.
+- When a recurrence prompt references a spec by name (e.g., "see
+  `/workspace/specs/falsify-signals.md` for the schema"), Reviewer
+  reads it via `ReadFile` instead of approximating from memory.
+- Empty inventory (kernel-only workspace, pre-activation) renders no
+  `## Capability specs available` section — same graceful-degradation
+  pattern as `mandate_md` / `precedent_md`.
+
+---
+
 ## [2026.05.21.1] - feat(adr-275 D9-D11): bundle-fork honors _preferences.yaml at activation; persona-frame contract simplifies to change-reconciliation
 
 ### Decision

@@ -463,8 +463,10 @@ async def get_signals(auth: UserClient, limit: int = 10) -> Dict:
     signal slug). Closes the gap between "signal evaluator fires" and
     "operator sees what was evaluated and why the reviewer said no."
 
-    Empty-state when no signals folder yet — FE renders "No signals
-    evaluated yet" per ADR-273 D6.
+    Empty-state distinguishes two cases via `evaluator_last_run_at`:
+    `null` means the evaluator has never fired; non-null means it ran
+    but produced no signals (Reviewer escalated, stood down). FE uses
+    this to render an accurate empty-state per ADR-273 D6.
 
     Correlation is best-effort + denormalized: if decisions.md is empty
     or doesn't mention the slug, the entry renders without
@@ -472,6 +474,25 @@ async def get_signals(auth: UserClient, limit: int = 10) -> Dict:
     correlation.
     """
     user_id = auth.user_id
+
+    # Read signal-evaluation's last_run_at from the scheduling index. The
+    # tasks row's last_run_at is the empirical fire timestamp — set by
+    # record_task_run after every successful dispatch (services/scheduling.py).
+    # Used to distinguish "never run" from "ran, found nothing" empty-states.
+    evaluator_last_run_at: Optional[str] = None
+    try:
+        eval_row = (
+            auth.client.table("tasks")
+            .select("last_run_at")
+            .eq("user_id", user_id)
+            .eq("slug", "signal-evaluation")
+            .limit(1)
+            .execute()
+        )
+        if eval_row.data:
+            evaluator_last_run_at = eval_row.data[0].get("last_run_at")
+    except Exception:
+        evaluator_last_run_at = None
 
     # List signal files (LIKE prefix match on path).
     try:
@@ -486,10 +507,20 @@ async def get_signals(auth: UserClient, limit: int = 10) -> Dict:
         )
     except Exception as exc:
         logger.warning(f"[COCKPIT] signals list failed for {user_id[:8]}: {exc}")
-        return {"live": False, "fallback_reason": "read_failed", "signals": []}
+        return {
+            "live": False,
+            "fallback_reason": "read_failed",
+            "signals": [],
+            "evaluator_last_run_at": evaluator_last_run_at,
+        }
 
     if not result.data:
-        return {"live": False, "fallback_reason": "no_substrate", "signals": []}
+        return {
+            "live": False,
+            "fallback_reason": "no_substrate",
+            "signals": [],
+            "evaluator_last_run_at": evaluator_last_run_at,
+        }
 
     # Read decisions.md once for correlation. Best-effort: failures are
     # silent (signals just render without reviewer decision).
@@ -527,7 +558,11 @@ async def get_signals(auth: UserClient, limit: int = 10) -> Dict:
             "reviewer_decision": reviewer_decision,
         })
 
-    return {"live": True, "signals": signals}
+    return {
+        "live": True,
+        "signals": signals,
+        "evaluator_last_run_at": evaluator_last_run_at,
+    }
 
 
 def _extract_reviewer_decision(decisions_md: str, signal_slug: str) -> Optional[Dict[str, Any]]:
