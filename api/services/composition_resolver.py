@@ -40,40 +40,54 @@ _BUNDLE_ROOT = Path(__file__).resolve().parent.parent.parent / "docs" / "program
 
 
 def resolve_workspace_composition(user_id: str, client: Any) -> dict[str, Any]:
-    """The single function the API route calls. Returns the response shape
-    documented in ADR-225 §2.
+    """The single function the API route calls.
 
-    Empty workspace (no platform connections, fresh signup) returns:
-        {
-            "schema_version": 1,
-            "active_bundles": [],
-            "composition": {"tabs": {}, "chat_chips": []},
-        }
+    Returns three top-level keys:
 
-    Single-bundle workspace returns that bundle's resolved composition
-    (with phase overlay applied).
+    - ``active_bundles`` (ADR-225) — metadata for bundles currently active
+      for this workspace.
+    - ``composition`` (ADR-225) — the legacy ``tabs`` composition tree
+      that today's 4-tab frontend consumes. Retained verbatim during
+      ADR-297 Phase 1 (additive change, no consumer breakage). Will be
+      collapsed in ADR-297 Phase 3 when the shell-rebuild PR completes
+      the container-deletion migration.
+    - ``surfaces`` (ADR-297 D3, NEW in Phase 1) — flat registry of every
+      atomic surface available in this workspace, kernel + program +
+      (forward horizon) composed. Each entry declares slug, title,
+      archetype, tier, substrate paths, icon, default-pinned flag, and
+      route. The summon-launcher + dock consume this list as their
+      single source of truth (Phase 2). Phase 1 emits it; no UX change
+      yet.
 
-    Multi-bundle workspace returns the union per ADR-225 §2 multi-bundle
-    rules: pinned_tasks/pinned_shortcuts unioned, middles[] unioned in
-    activation-date order (first match wins), chat_chips unioned and
-    deduplicated.
+    Empty workspace (no platform connections, fresh signup) returns the
+    kernel-only surfaces[] (Feed, Cadence, Delegation, Mandate, etc.)
+    and an empty composition tree.
     """
     from services.bundle_reader import bundles_active_for_workspace
+    from services.kernel_surfaces import kernel_surface_entries
 
     bundles = bundles_active_for_workspace(user_id, client)
+
+    # surfaces[] always begins with the kernel surfaces (universal per
+    # ADR-297 D2). Program surfaces append when bundles are active.
+    surfaces: list[dict[str, Any]] = kernel_surface_entries()
+
     if not bundles:
         return {
             "schema_version": 1,
             "active_bundles": [],
             "composition": {"tabs": {}, "chat_chips": []},
+            "surfaces": surfaces,
         }
 
     active_bundles_meta = [_bundle_metadata(b) for b in bundles]
     composition = _resolve_composition_tree(bundles)
+    surfaces.extend(_resolve_program_surfaces(bundles))
     return {
         "schema_version": 1,
         "active_bundles": active_bundles_meta,
         "composition": composition,
+        "surfaces": surfaces,
     }
 
 
@@ -279,6 +293,73 @@ def _merge_list_or_detail_block(
             result[k] = deepcopy(v)
         # else: first-bundle wins on scalar conflicts (banner, group_default, etc.)
     return result
+
+
+# =============================================================================
+# ADR-297 Phase 1 — surfaces[] registry
+# =============================================================================
+
+
+def _resolve_program_surfaces(bundles: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Build the program-tier portion of the surfaces[] registry.
+
+    Reads each active bundle's optional top-level ``surfaces:`` block in
+    its SURFACES.yaml. Per ADR-297 D2 + D3:
+
+    - Each entry is annotated with ``tier = "program:{slug}"``.
+    - Multiple bundles each contribute independently; bundles are
+      ordered by activation date (the order `bundles_active_for_workspace`
+      returns), so earlier-activated bundles' surfaces appear first.
+    - Same-slug collisions across bundles are preserved as distinct
+      entries — slug ambiguity is a bundle-author bug, not a resolver
+      concern. The FE launcher dedupes display if needed.
+
+    Bundles that omit the top-level ``surfaces:`` block contribute zero
+    program surfaces and the existing ``tabs`` composition tree is the
+    sole surface contribution from that bundle. (Today, all five bundles
+    in `docs/programs/` omit `surfaces:` — they predate ADR-297. They
+    will adopt it during Phase 2/3 migration.)
+
+    Schema-version validation is deliberately permissive: a bundle's
+    ``surfaces:`` block must be a list; entries must be dicts with at
+    least ``slug`` and ``title``; anything else is best-effort. Bad
+    entries are logged and skipped, not raised — kernel surfaces must
+    always be emitted regardless of bundle errors.
+    """
+    program_surfaces: list[dict[str, Any]] = []
+
+    for bundle in bundles:
+        slug = bundle.get("slug", "")
+        if not slug:
+            continue
+        surfaces_yaml = _load_surfaces(slug)
+        if not surfaces_yaml:
+            continue
+        bundle_entries = surfaces_yaml.get("surfaces") or []
+        if not isinstance(bundle_entries, list):
+            logger.warning(
+                f"[COMPOSITION_RESOLVER] Bundle '{slug}' SURFACES.yaml "
+                f"'surfaces:' is not a list; skipping program-tier entries."
+            )
+            continue
+
+        tier = f"program:{slug}"
+        for entry in bundle_entries:
+            if not isinstance(entry, dict):
+                logger.warning(
+                    f"[COMPOSITION_RESOLVER] Bundle '{slug}' has non-dict "
+                    f"entry in surfaces[]; skipping."
+                )
+                continue
+            if not entry.get("slug") or not entry.get("title"):
+                logger.warning(
+                    f"[COMPOSITION_RESOLVER] Bundle '{slug}' has surfaces[] "
+                    f"entry missing slug or title; skipping: {entry!r}"
+                )
+                continue
+            program_surfaces.append({**deepcopy(entry), "tier": tier})
+
+    return program_surfaces
 
 
 def _union_preserve_order(existing: list, incoming: list) -> list:

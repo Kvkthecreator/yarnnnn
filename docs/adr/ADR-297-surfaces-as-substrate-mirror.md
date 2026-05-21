@@ -1,6 +1,6 @@
 # ADR-297 — Surfaces as Substrate Mirror: Atomic Surfaces, Summon Index, Compositor as Registry
 
-> **Status:** Proposed (2026-05-21)
+> **Status:** Phase 1 Implemented (2026-05-21) · Phases 2 + 3 Proposed
 > **Authors:** KVK, Claude
 > **Supersedes:** [ADR-244](ADR-244-workspace-settings-surface.md) (workspace settings surface as container — replaced by atomic kernel surfaces) · [ADR-266](ADR-266-workspace-surface-content-discipline.md) (workspace page-as-container reshape — replaced by atomic + index) · [ADR-243](ADR-243-schedule-surface.md) (Schedule surface as a tab — folds into atomic Cadence surface) · the 4-tab nav portion of [ADR-214](ADR-214-agents-page-consolidation.md) (Feed/Work/Agents/Files framing — dissolves into pinned-surface dock + summon index)
 > **Amends:** [ADR-205](ADR-205-workspace-primitive-collapse.md) F1 (chat-first landing — replaced by last-used home) · [ADR-225](ADR-225-compositor-layer.md) (compositor extended from middle-component-resolver to full surface-registry) · [ADR-198](ADR-198-surface-archetypes.md) (every surface declares its archetype) · [ADR-251](ADR-251-system-agent-reviewer-first-class-surfaces.md) (Reviewer-page tab structure — governance content moves to atomic surfaces, Reviewer page shrinks to Reviewer-substance only)
@@ -186,6 +186,22 @@ This ADR commits to **not blocking** that direction. Specifically: the surface r
 - **Does not change substrate.** Every substrate path and schema preserved. This is purely a frontend reshape.
 - **Does not amend FOUNDATIONS or GLOSSARY.** No new axioms; this is the surface-layer enactment of existing axioms (1 — Substrate; 6 — Channel) and OS framing (ADR-222).
 - **Does not specify cadence-surface design.** The atomic Cadence surface exists per D1's enumeration but its archetype/content/interactions are spec'd in implementation. The `cadence-and-wakes.md` canon doc already provides the substrate map; the surface design follows from it.
+
+---
+
+## Phase 1 Implementation — landed 2026-05-21
+
+Phase 1 (compositor extension) shipped as a backend-only additive change with no UX impact. Specifically:
+
+- **`api/services/kernel_surfaces.py`** (new): declares 12 canonical kernel surfaces (Feed, Cadence, Delegation, Mandate, Principles, Identity, Brand, Files, Agents, Program, Queue, Activity) with slug + title + archetype + substrate_paths + icon_key + default_pinned + route + summary. Two archetypes added to the ADR-198 catalog: `browser` (Files) and `roster` (Agents). `default_pinned: True` set only on Feed per D5.
+- **`api/services/composition_resolver.py`**: `resolve_workspace_composition` extended to emit a new top-level `surfaces[]` field alongside the existing `composition` tree. Kernel surfaces always present (every workspace); program surfaces appended from each active bundle's optional top-level `surfaces:` block in its SURFACES.yaml (currently zero bundles ship the block — they will adopt during Phase 2). Bad bundle entries are logged and skipped, never raised — kernel surfaces always emit. New helper `_resolve_program_surfaces(bundles)` is the single program-tier resolver.
+- **`web/lib/compositor/types.ts`**: new `Surface` + `SurfaceTier` types; `SurfacesResponse` extended with `surfaces: Surface[]`. Type-level only; no consumer migration in Phase 1.
+- **`web/lib/compositor/useComposition.ts`**: `EMPTY_RESPONSE` updated with `surfaces: []` for type compatibility during pre-fetch loading state.
+- **`api/test_adr297_phase1.py`** (new): regression gate, 55/55 passing. Five test groups: kernel-surfaces module hygiene, `kernel_surface_entries()` shape, empty-workspace resolver behavior, program-surface emission + bad-entry skip behavior, schema-version stability canary.
+
+What did NOT change in Phase 1: the existing `composition.tabs` tree still drives the legacy 4-tab nav frontend. The Shell, dock, launcher, atomic-surface routes — all Phase 2 work. The shell-rebuild PR is the next session.
+
+The frontend can read `useComposition().data.surfaces` today, but nothing renders against it yet. Validation that the compositor emits the correct surfaces[] for the operator's active workspace is now possible via direct API call to `GET /api/programs/surfaces`.
 
 ---
 

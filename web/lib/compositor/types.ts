@@ -153,6 +153,40 @@ export interface CompositionTree {
 }
 
 // ---------------------------------------------------------------------------
+// Atomic Surfaces — ADR-297 D3 (Phase 1: type-level only; consumed in Phase 2)
+// ---------------------------------------------------------------------------
+//
+// `Surface` is the registry entry for an atomic operator-facing surface
+// per ADR-297. Mirrors the Python kernel_surfaces.KERNEL_SURFACES entry
+// shape plus a `tier` field added by the resolver.
+//
+// `tier` values:
+//   - "kernel" — universal; present in every workspace (Feed, Cadence,
+//     Delegation, Mandate, Principles, Identity, Brand, Files, Agents,
+//     Program, Queue, Activity)
+//   - "program:{slug}" — contributed by an active program bundle's
+//     SURFACES.yaml surfaces[] block
+//   - "composed" — operator-authored (forward horizon per ADR-297 D10;
+//     no entries today)
+
+export type SurfaceTier =
+  | 'kernel'
+  | `program:${string}`
+  | 'composed';
+
+export interface Surface {
+  slug: string;
+  title: string;
+  archetype: Archetype;
+  substrate_paths: string[];
+  icon_key: string;
+  default_pinned: boolean;
+  route: string;
+  summary: string;
+  tier: SurfaceTier;
+}
+
+// ---------------------------------------------------------------------------
 // API response
 // ---------------------------------------------------------------------------
 
@@ -160,4 +194,14 @@ export interface SurfacesResponse {
   schema_version: 1;
   active_bundles: BundleMetadata[];
   composition: CompositionTree;
+  /**
+   * ADR-297 Phase 1 (additive): flat registry of every atomic surface
+   * available in this workspace. The launcher + dock (Phase 2) consume
+   * this list as their single source of truth. During the transitional
+   * Phase 1 state, `composition` remains the source for the legacy
+   * 4-tab nav and `surfaces` is emitted but not yet rendered by the
+   * shell. Phase 3 collapses `composition` once every consumer has
+   * migrated to `surfaces`.
+   */
+  surfaces: Surface[];
 }

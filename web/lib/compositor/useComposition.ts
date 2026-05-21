@@ -28,6 +28,11 @@ const EMPTY_RESPONSE: SurfacesResponse = {
   schema_version: 1,
   active_bundles: [],
   composition: { tabs: {}, chat_chips: [] },
+  // ADR-297 Phase 1: surfaces[] is empty during the pre-fetch loading state.
+  // The hook's real value (kernel surfaces always present) populates from the
+  // API response. Consumers that need kernel surfaces during loading should
+  // gate on `loading` flag.
+  surfaces: [],
 };
 
 interface UseCompositionResult {
