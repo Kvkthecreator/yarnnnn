@@ -91,6 +91,33 @@ class PaceParseError(PaceError):
     """Raised when _pace.yaml is malformed."""
 
 
+# ─── Pace ordering ──────────────────────────────────────────────────────────
+
+
+def pace_at_least_as_frequent(declared: str, minimum: str) -> bool:
+    """ADR-298 D7 — return True iff ``declared`` pace fires at least as
+    often as ``minimum``. Used by the activation gate to refuse operator
+    pace below the bundle's declared floor.
+
+    Ordering: ``continuous > hourly > daily > weekly`` (more frequent → larger
+    fires_per_day cap). ``continuous`` satisfies any minimum; ``weekly`` only
+    satisfies itself; ``hourly`` satisfies daily + weekly + itself but not
+    continuous; etc.
+
+    Raises :class:`InvalidPaceKindError` on unknown enum values — both args
+    must be in PACE_KINDS.
+    """
+    if declared not in PACE_KINDS:
+        raise InvalidPaceKindError(
+            f"declared pace {declared!r} must be one of {sorted(PACE_KINDS)}"
+        )
+    if minimum not in PACE_KINDS:
+        raise InvalidPaceKindError(
+            f"minimum pace {minimum!r} must be one of {sorted(PACE_KINDS)}"
+        )
+    return PACE_FIRES_PER_DAY[declared] >= PACE_FIRES_PER_DAY[minimum]
+
+
 # ─── Parser ─────────────────────────────────────────────────────────────────
 
 
