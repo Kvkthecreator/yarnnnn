@@ -113,6 +113,14 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   // attachment uploads in flight, etc.). Backdrop and body fade over
   // ~150ms via CSS transition. Eliminates the snap-dim flicker
   // operator-observed (KVK 2026-05-22).
+  //
+  // D18.2 follow-up (2026-05-22): `backdrop-blur-[1px]` removed from the
+  // backdrop element. Chromium drops the GPU compositor layer for
+  // elements at opacity:0 + dimensions, and re-creating a layer with
+  // `backdrop-filter` on the next open caused a paint flash visible
+  // as a 1-frame flicker. The 1px blur was barely perceptible anyway;
+  // a slightly stronger bg dim covers the same intent. Operator-
+  // observed re-open flicker now gone.
 
   return (
     <>
@@ -121,7 +129,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
           in/out over 150ms via opacity transition. */}
       <div
         className={cn(
-          'fixed inset-0 bg-foreground/10 backdrop-blur-[1px] transition-opacity duration-150',
+          'fixed inset-0 bg-foreground/15 transition-opacity duration-150',
           isMobile && 'bg-background',
           open ? 'opacity-100' : 'opacity-0 pointer-events-none',
         )}

@@ -208,15 +208,23 @@ export function WindowFrame({
     [interactive, windowState, onRaise]
   );
 
-  // Click-anywhere-to-raise (D15 §4). Use mousedown so it fires before
-  // any drag/resize handlers and before button clicks inside the body.
-  const handleFrameMouseDown = useCallback(() => {
+  // Click-anywhere-to-raise (D15 §4, robustness fix D18.2 2026-05-22).
+  // Use mousedown in the CAPTURE phase so the raise fires before any
+  // descendant `onMouseDown` handler can `stopPropagation()` or
+  // `preventDefault()` and swallow the event. The bubbling-phase
+  // `onMouseDown` listener (pre-D18.2) was empirically unreliable
+  // against scrollable inner content + nested buttons — operator-
+  // observed (KVK 2026-05-22): "I can only grab the title bar; body
+  // clicks don't raise the window." Capture-phase fires unconditionally
+  // on every mousedown within the frame; matches macOS behavior
+  // (clicking anywhere in a background window raises it).
+  const handleFrameMouseDownCapture = useCallback(() => {
     if (!isForegrounded) onRaise();
   }, [isForegrounded, onRaise]);
 
   return (
     <div
-      onMouseDown={handleFrameMouseDown}
+      onMouseDownCapture={handleFrameMouseDownCapture}
       style={frameStyle}
       className={cn(
         'flex flex-col overflow-hidden rounded-lg border bg-background shadow-sm transition-shadow',

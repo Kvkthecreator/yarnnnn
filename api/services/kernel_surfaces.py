@@ -122,7 +122,14 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Feed",
         "archetype": "stream",
         "substrate_paths": [],  # session_messages DB table
-        "icon_key": "message-circle",
+        # ADR-297 D18.2 (2026-05-22): Feed Dock icon swapped from
+        # message-circle → scroll-text. message-circle was visually
+        # identical to the universal ChatDrawer FAB (also a chat
+        # bubble), causing operator confusion. Feed is a narrative
+        # ledger (every invocation, every wake, append-only) — the
+        # scroll glyph reads as "log / timeline / ledger" without
+        # colliding with the conversation summon.
+        "icon_key": "scroll-text",
         "default_pinned": True,
         "route": "/feed",
         "summary": "Operator chat surface and multi-actor narrative timeline.",

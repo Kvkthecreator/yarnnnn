@@ -21,6 +21,7 @@ import {
   Package,
   Palette,
   Scale,
+  ScrollText,
   ShieldCheck,
   Target,
   UserCircle,
@@ -37,6 +38,10 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   package: Package,
   palette: Palette,
   scale: Scale,
+  // ADR-297 D18.2 (2026-05-22): scroll-text registered for the Feed
+  // surface, disambiguating it from the universal ChatDrawer FAB
+  // (which is hardcoded MessageCircle in Desktop.tsx).
+  'scroll-text': ScrollText,
   'shield-check': ShieldCheck,
   target: Target,
   'user-circle': UserCircle,

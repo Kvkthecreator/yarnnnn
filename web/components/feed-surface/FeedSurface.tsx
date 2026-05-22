@@ -1,33 +1,34 @@
 'use client';
 
 /**
- * FeedSurface — operations timeline (ADR-289 Phase 2 + ADR-297 D16).
+ * FeedSurface — operations timeline (ADR-289 Phase 2 + ADR-297 D16 + D18.2).
  *
- *   <SurfaceIdentityHeader actions={[Filter, Context, Talk]} />
+ *   <SurfaceIdentityHeader actions={[Filter, Context]} />
  *   <FeedTimeline /> ........... operations timeline (invocation cards, etc.)
  *   <WorkspaceContextOverlay /> (pure reads, zero LLM)
  *
  * Pre-D16 /feed owned its own ConversationDrawer slide-over for
  * chat-shaped exchanges. ADR-297 D16 (2026-05-22) collapsed all chat
  * affordances into the universal ChatDrawerSurface mounted in shell
- * chrome. /feed's local drawer + useSuppressShellComposer call DELETED;
- * the "Talk" button + empty-state chip clicks + OperatorEventMarker's
- * "open conversation →" affordance all summon the universal drawer
- * via useShellChrome().openDrawer().
+ * chrome. /feed's local drawer + useSuppressShellComposer call DELETED.
  *
- * Engagement model (post-D16):
- *   - Operator clicks "Talk" → universal drawer opens (same drawer
- *     visible from every other surface).
- *   - FeedTimeline behind shows the operations timeline (typed event
- *     rows, no chat bubbles). Bubbles live in the drawer's
- *     ConversationPanel scoped to pulse='addressed'.
- *   - Autonomous wakes emit narrative rows; the FeedTimeline picks
- *     them up.
+ * D18.2 (2026-05-22 follow-up) deletes the in-header "Talk" button.
+ * The universal FAB (Desktop.tsx D17) summons the drawer from any
+ * surface, so a per-surface Talk button is redundant chrome —
+ * Singular Implementation: one summon path, the FAB. Empty-state
+ * chip clicks + OperatorEventMarker's "open conversation →"
+ * affordance continue to route through useShellChrome().openDrawer().
+ *
+ * Engagement model (post-D18.2):
+ *   - Operator clicks the FAB anywhere → drawer opens.
+ *   - FeedTimeline shows typed event rows, no chat bubbles. Bubbles
+ *     live in the drawer's ConversationPanel scoped to pulse='addressed'.
+ *   - Autonomous wakes emit narrative rows; FeedTimeline picks them up.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { BookOpen, Filter, MessageCircle } from 'lucide-react';
+import { BookOpen, Filter } from 'lucide-react';
 import { FeedTimeline } from '@/components/feed/FeedTimeline';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { useNarrative } from '@/contexts/NarrativeContext';
@@ -39,26 +40,25 @@ import { WorkspaceContextOverlay } from './WorkspaceContextOverlay';
 import { AutonomyHeaderChip } from './AutonomyHeaderChip';
 import { FeedEmptyState } from './FeedEmptyState';
 import { FeedFilterBar, parseChatFilterFromSearch } from './FeedFilterBar';
-import { useReviewerPersona } from '@/lib/reviewer-persona';
 import { useShellChrome } from '@/components/shell/ShellChromeContext';
 import { cn } from '@/lib/utils';
 
 // D16 (2026-05-22): FeedSurface no longer accepts external chat
 // affordance props. Chat is the universal ChatDrawerSurface; FeedSurface
-// is read-only (operations timeline) + the Talk button that summons
-// the universal drawer.
+// is read-only (operations timeline). D18.2 (2026-05-22 follow-up):
+// header Talk button deleted — the FAB is the singular summon path.
 export function FeedSurface() {
   const { messages, sendMessage } = useNarrative();
   const searchParams = useSearchParams();
-  const personaName = useReviewerPersona();
 
   // ADR-297 D16: universal drawer summon (replaces the pre-D16 local
   // drawerOpen state + ConversationDrawer mount). Every "open chat"
   // affordance on this surface now routes through ShellChromeContext.
   const { openDrawer } = useShellChrome();
   const handleOpenDrawer = useCallback(() => openDrawer(), [openDrawer]);
-  // OperatorEventMarker's "open conversation →" affordance — same
-  // dispatch as the Talk button. Scroll-to-invocation deferred.
+  // OperatorEventMarker's "open conversation →" affordance + empty-
+  // state upload-chip click — same dispatch as the deleted Talk button.
+  // Scroll-to-invocation deferred.
   const handleOpenConversation = useCallback(
     (_invocationId: string) => openDrawer(),
     [openDrawer],
@@ -176,20 +176,9 @@ export function FeedSurface() {
     </button>
   );
 
-  // ADR-289 Phase 2: "Talk" button opens the Conversation drawer.
-  // The Feed surface is the operations timeline; engaging a conversation
-  // happens through the drawer (composer lives inside).
-  const talkAction = (
-    <button
-      type="button"
-      onClick={handleOpenDrawer}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
-      title={`Talk to ${personaName ?? 'Reviewer'}`}
-    >
-      <MessageCircle className="w-3.5 h-3.5" />
-      Talk
-    </button>
-  );
+  // ADR-297 D18.2 (2026-05-22): in-header Talk button DELETED. The
+  // universal FAB summons the drawer from any surface; per-surface
+  // Talk chrome is redundant. Singular Implementation: one summon path.
 
   const headerActions = (
     <div className="flex items-center gap-1.5">
@@ -200,7 +189,6 @@ export function FeedSurface() {
       <AutonomyHeaderChip />
       {filterToggleAction}
       {snapshotAction}
-      {talkAction}
     </div>
   );
 
