@@ -652,6 +652,33 @@ Three operator-surfaced interaction bugs (KVK 2026-05-22 follow-up to the D17 sh
 
 D18 implementation status: **Implemented 2026-05-22** (this session, code commit lands together with this doc per the same combined-commit cadence as D14/D15/D16/D17).
 
+### D18.1 — Drawer + Launcher mutex + drawer fade transition (2026-05-22 follow-up patch)
+
+Operator-observed (KVK 2026-05-22, post-D18) cosmetic + interaction follow-ups on the chat drawer:
+
+1. **"There is a flicker going on with the surface (top I assume) when I open the chat drawer"** — the drawer's backdrop snap-mounted at full opacity with `bg-foreground/10 backdrop-blur-[1px]`, instantly dimming + blurring the foregrounded window. No transition; the visual snap read as a flicker on the upmost surface.
+
+2. **"What's the right approach if the chat drawer is open while the launcher" [is also open]?** — pre-D18.1, both shell overlays could coexist; the launcher's `Z_LAUNCHER_OVERLAY = 400` stacked above the drawer's `Z_DRAWER_BODY = 101`. Operator opens drawer, then summons launcher → launcher appears over drawer; closing launcher reveals drawer behind it unexpectedly. Confusing mental model — operator can't tell what's active.
+
+**Decisions** (D18.1):
+
+1. **Drawer + Launcher mutex**: only one shell overlay open at a time. `openDrawer()` auto-closes the launcher; `openLauncher()` auto-closes the drawer. `toggleDrawer()` follows the same rule when transitioning closed → open. Implemented in `ShellChromeContext` so all callers (FAB, launcher trigger, etc.) inherit the behavior. Drawer state (ConversationPanel scroll position, attachment uploads in flight) is preserved across close/re-open because D18.1's render-always pattern keeps the drawer mounted (see decision 2).
+
+2. **Drawer backdrop + body fade-and-slide transition**: drawer wrapper renders always (no `if (!open) return null`); backdrop and body toggle visibility via opacity + transform + `pointer-events-none`. Backdrop: `transition-opacity duration-150` between opacity-0 and opacity-100. Body: `transition-transform duration-150` between `translate-x-full` (off-screen right) and `translate-x-0` (in place). Body slides in from the right (macOS-Sheet-like); backdrop fades. ConversationPanel stays mounted across open/close cycles — no state loss.
+
+3. **Mutex is symmetric in code, asymmetric in operator intent**: pre-decision the operator preferred symmetric mutex (closing-on-both-sides matches the cleanest mental model). The asymmetric "drawer auto-closes on launcher open but not vice versa" option was rejected as too clever — symmetric is easier to predict.
+
+**Files** (~2 changed, no new):
+- `web/components/shell/ShellChromeContext.tsx` — `openDrawer` + `toggleDrawer` close launcher first; `openLauncher` closes drawer first; close handlers unchanged.
+- `web/components/shell/chrome/ChatDrawer.tsx` — `if (!open) return null` removed; backdrop + body always rendered with transition classes that toggle on `open`. `aria-hidden={!open}` added to drawer body for a11y when closed.
+
+**What D18.1 does NOT do**:
+- Does not animate other overlays (Launcher, UserMenu dropdown, TopBar context menu, cap-hit toast). Each could benefit from similar fade-in/out but operator pain was on the drawer specifically; other overlays open/close briefly enough that snap-mount isn't a felt issue.
+- Does not change the drawer's mobile takeover behavior (still full-screen on `<640px`).
+- Does not introduce a focus trap inside the drawer (forward horizon — useful for keyboard navigation but not operator-observed pain yet).
+
+D18.1 implementation status: **Implemented 2026-05-22** (this session, code commit lands together with this patch note).
+
 ---
 
 ## Implementation path for D11 — Uniform Compositor

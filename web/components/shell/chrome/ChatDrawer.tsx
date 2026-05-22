@@ -107,16 +107,23 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
     };
   }, [width, isMobile]);
 
-  if (!open) return null;
+  // D18.1: always render the wrapper; toggle opacity + pointer-events
+  // based on `open`. The drawer body stays mounted across open/close
+  // cycles (preserves ConversationPanel state — scroll position,
+  // attachment uploads in flight, etc.). Backdrop and body fade over
+  // ~150ms via CSS transition. Eliminates the snap-dim flicker
+  // operator-observed (KVK 2026-05-22).
 
   return (
     <>
       {/* Backdrop dims the windows behind (desktop) or fully covers
-          them (mobile, where the drawer takes full-screen). */}
+          them (mobile, where the drawer takes full-screen). Fades
+          in/out over 150ms via opacity transition. */}
       <div
         className={cn(
-          'fixed inset-0 bg-foreground/10 backdrop-blur-[1px]',
-          isMobile && 'bg-background'
+          'fixed inset-0 bg-foreground/10 backdrop-blur-[1px] transition-opacity duration-150',
+          isMobile && 'bg-background',
+          open ? 'opacity-100' : 'opacity-0 pointer-events-none',
         )}
         style={{ zIndex: Z_DRAWER_BACKDROP }}
         onClick={onClose}
@@ -124,11 +131,13 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
       />
       <div
         className={cn(
-          'fixed top-0 right-0 bottom-0 flex bg-background border-l border-border shadow-2xl',
-          isMobile && 'left-0 border-l-0'
+          'fixed top-0 right-0 bottom-0 flex bg-background border-l border-border shadow-2xl transition-transform duration-150',
+          isMobile && 'left-0 border-l-0',
+          open ? 'translate-x-0' : 'translate-x-full pointer-events-none',
         )}
         style={isMobile ? { zIndex: Z_DRAWER_BODY } : { width, zIndex: Z_DRAWER_BODY }}
         role="dialog"
+        aria-hidden={!open}
         aria-label={`Conversation with ${personaName ?? 'Reviewer'}`}
       >
         {/* Drag handle (desktop only) */}
