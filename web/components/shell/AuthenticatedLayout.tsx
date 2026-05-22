@@ -122,7 +122,8 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { setSurface, setSurfaceWithHandoff } = useDesk();
   const { data: composition } = useComposition();
-  const { foregroundSurface } = useSurfacePreferences();
+  const { foregroundSurface, foregrounded, open, closeSurface } =
+    useSurfacePreferences();
 
   // ADR-297 D13: when the URL deep-links to an atomic kernel surface,
   // foreground it in the open-surfaces registry (auto-open if not yet
@@ -130,6 +131,16 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
   // foreground pointer in the multi-mount registry. Resolves the
   // active surface slug by matching the current pathname against the
   // surface registry's routes (longest-prefix wins).
+  //
+  // D18 §5 URL-sync-on-close: pre-D18, closing the foregrounded window
+  // emptied the registry but left the URL at /feed (or whatever
+  // surface), so this effect re-fired and re-foregrounded the just-
+  // closed surface — the empty Desktop was structurally unreachable.
+  // D18 sidesteps via the foregrounded === null + pathname-is-slug
+  // effect below: when no surface is foregrounded but the URL still
+  // points to one, navigate to /desktop. The URL stays in sync with
+  // the registry; this effect's re-foreground fires for legitimate
+  // deep-links only.
   useEffect(() => {
     if (!composition.surfaces || composition.surfaces.length === 0) return;
     const sorted = [...composition.surfaces].sort(
@@ -140,6 +151,44 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
     );
     if (match) foregroundSurface(match.slug);
   }, [pathname, composition.surfaces, foregroundSurface]);
+
+  // D18 §5: URL-sync-on-close. When `foregrounded` becomes null
+  // (operator closed the last window) but the URL still points to a
+  // surface slug, navigate to /desktop so the operator lands on the
+  // empty Desktop instead of bouncing back to the just-closed
+  // surface via the re-foreground effect above.
+  useEffect(() => {
+    if (foregrounded !== null) return;
+    if (open.length > 0) return; // some other surface still open
+    if (pathname === '/desktop') return; // already on Desktop
+    // Only navigate if pathname matches a kernel surface slug —
+    // otherwise (legacy non-atomic route like /settings) leave alone.
+    if (!composition.surfaces || composition.surfaces.length === 0) return;
+    const pathnameMatchesSurface = composition.surfaces.some(
+      (s) =>
+        s.route &&
+        (pathname === s.route || pathname.startsWith(s.route + '/')),
+    );
+    if (pathnameMatchesSurface) {
+      router.push('/desktop');
+    }
+  }, [foregrounded, open.length, pathname, composition.surfaces, router]);
+
+  // D18 §4: ⌘W (macOS) / Ctrl+W (others) closes the foregrounded
+  // window. macOS-standard 'close window' binding. Works regardless
+  // of what's visible (e.g. when the Launcher overlay is open and
+  // intercepting clicks). preventDefault avoids browser's tab-close.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const isCloseKey = (e.metaKey || e.ctrlKey) && e.key === 'w';
+      if (!isCloseKey) return;
+      if (!foregrounded) return; // nothing to close
+      e.preventDefault();
+      closeSurface(foregrounded);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [foregrounded, closeSurface]);
 
   // Handle surface change from TP tool results (NarrativeContext handoff
   // machinery). Stays at shell level because it couples router.push with

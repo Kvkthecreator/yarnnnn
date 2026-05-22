@@ -26,6 +26,7 @@ import { X } from 'lucide-react';
 import { ConversationPanel } from '@/components/tp/ConversationPanel';
 import { useReviewerPersona } from '@/lib/reviewer-persona';
 import { useViewport } from '@/lib/shell/useViewport';
+import { Z_DRAWER_BACKDROP, Z_DRAWER_BODY } from '@/lib/shell/z-tiers';
 import { useDesk } from '@/contexts/DeskContext';
 import { cn } from '@/lib/utils';
 
@@ -114,18 +115,19 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
           them (mobile, where the drawer takes full-screen). */}
       <div
         className={cn(
-          'fixed inset-0 z-40 bg-foreground/10 backdrop-blur-[1px]',
+          'fixed inset-0 bg-foreground/10 backdrop-blur-[1px]',
           isMobile && 'bg-background'
         )}
+        style={{ zIndex: Z_DRAWER_BACKDROP }}
         onClick={onClose}
         aria-hidden="true"
       />
       <div
         className={cn(
-          'fixed top-0 right-0 bottom-0 z-50 flex bg-background border-l border-border shadow-2xl',
+          'fixed top-0 right-0 bottom-0 flex bg-background border-l border-border shadow-2xl',
           isMobile && 'left-0 border-l-0'
         )}
-        style={isMobile ? undefined : { width }}
+        style={isMobile ? { zIndex: Z_DRAWER_BODY } : { width, zIndex: Z_DRAWER_BODY }}
         role="dialog"
         aria-label={`Conversation with ${personaName ?? 'Reviewer'}`}
       >

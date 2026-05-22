@@ -57,6 +57,7 @@ import {
   type WindowState,
   type WindowStateMap,
 } from './surface-preferences';
+import { WINDOW_Z_MAX } from './z-tiers';
 
 export interface SurfacePreferences {
   userId: string | null;
@@ -145,14 +146,38 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   );
 
   // Compute the highest z across all open windows + 1 (raises to top).
+  // D18: capped at WINDOW_Z_MAX. Caller responsible for compaction
+  // when the value reaches cap (see compactWindowZ).
   const computeNextZ = useCallback((states: WindowStateMap, openSlugs: string[]): number => {
     let maxZ = 0;
     openSlugs.forEach((slug) => {
       const s = states[slug];
       if (s && s.z > maxZ) maxZ = s.z;
     });
-    return maxZ + 1;
+    return Math.min(WINDOW_Z_MAX, maxZ + 1);
   }, []);
+
+  // D18: re-rank all open windows' z values from 1..N preserving their
+  // current relative order. Called when computeNextZ would return
+  // WINDOW_Z_MAX — prevents permanent stuck-at-cap drift across all
+  // windows. Returns a new WindowStateMap with compacted z values.
+  const compactWindowZ = useCallback(
+    (states: WindowStateMap, openSlugs: string[]): WindowStateMap => {
+      // Sort open slugs by current z (ascending); preserves relative
+      // ordering. Slugs that exist in `states` but not in `openSlugs`
+      // (rare; cleanup hole) keep their values untouched.
+      const sortable = openSlugs
+        .filter((s) => states[s])
+        .map((s) => ({ slug: s, z: states[s].z }))
+        .sort((a, b) => a.z - b.z);
+      const next: WindowStateMap = { ...states };
+      sortable.forEach((entry, i) => {
+        next[entry.slug] = { ...states[entry.slug], z: i + 1 };
+      });
+      return next;
+    },
+    []
+  );
 
   const keep = useCallback(
     (slug: string) => {
@@ -227,9 +252,16 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
 
       // D15: ensure window has a state entry; cascade-position if new.
       // Always bump z so the foregrounded window sits on top.
+      // D18: when z reaches WINDOW_Z_MAX, compact first so the new z
+      // sits cleanly above the (compacted) set without overflow.
       setWindowStatesState((current) => {
-        const next: WindowStateMap = { ...current };
-        const newZ = computeNextZ(next, nextOpen);
+        let base: WindowStateMap = { ...current };
+        let newZ = computeNextZ(base, nextOpen);
+        if (newZ >= WINDOW_Z_MAX) {
+          base = compactWindowZ(base, nextOpen);
+          newZ = computeNextZ(base, nextOpen);
+        }
+        const next: WindowStateMap = base;
         if (!next[slug]) {
           // Cascade-position a brand-new window. Use viewport
           // dimensions guarded for SSR (fallback to 1280x800).
@@ -266,11 +298,12 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
 
       return true;
     },
-    [userId, open, computeNextZ, persistWindowStates]
+    [userId, open, computeNextZ, compactWindowZ, persistWindowStates]
   );
 
   // D15: raise an already-open window to the foreground without
-  // re-cascading. Bumps z; updates foregrounded slug.
+  // re-cascading. Bumps z; updates foregrounded slug. D18: compact
+  // before bumping if z would hit cap.
   const raiseWindow = useCallback(
     (slug: string) => {
       if (!userId) return;
@@ -278,8 +311,13 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       setForegroundedWrite(userId, slug);
       setForegrounded(slug);
       setWindowStatesState((current) => {
-        const newZ = computeNextZ(current, open);
-        const next: WindowStateMap = { ...current };
+        let base = current;
+        let newZ = computeNextZ(base, open);
+        if (newZ >= WINDOW_Z_MAX) {
+          base = compactWindowZ(base, open);
+          newZ = computeNextZ(base, open);
+        }
+        const next: WindowStateMap = { ...base };
         const existing = next[slug] ?? null;
         if (existing) {
           next[slug] = { ...existing, z: newZ };
@@ -289,7 +327,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
         return current;
       });
     },
-    [userId, open, computeNextZ, persistWindowStates]
+    [userId, open, computeNextZ, compactWindowZ, persistWindowStates]
   );
 
   // D15: hide the currently-foregrounded window without closing it.

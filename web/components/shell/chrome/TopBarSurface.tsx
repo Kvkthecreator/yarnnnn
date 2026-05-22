@@ -39,6 +39,7 @@ import { LayoutGrid } from 'lucide-react';
 import { useComposition } from '@/lib/compositor/useComposition';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
+import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { useDesk } from '@/contexts/DeskContext';
 import { isKernelSurfaceSlug } from '@/types/desk';
 import { HOME_ROUTE } from '@/lib/routes';
@@ -311,8 +312,8 @@ export function TopBarSurface() {
           ref={menuRef}
           role="menu"
           aria-label={`Surface actions for ${contextMenu.slug}`}
-          style={{ top: contextMenu.y, left: contextMenu.x }}
-          className="fixed z-50 min-w-[160px] rounded-md border border-border bg-background shadow-lg py-1"
+          style={{ top: contextMenu.y, left: contextMenu.x, zIndex: Z_POPOVER }}
+          className="fixed min-w-[160px] rounded-md border border-border bg-background shadow-lg py-1"
         >
           {contextMenuItems.map((item, i) => (
             <button
@@ -341,7 +342,10 @@ export function TopBarSurface() {
         a new window because the open-window count reached
         MAX_OPEN_WINDOWS. Centered toast just under the header. */}
     {capHit && (
-      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-50 dark:bg-amber-900/40 px-4 py-2.5 shadow-lg">
+      <div
+        style={{ zIndex: Z_POPOVER }}
+        className="fixed top-16 left-1/2 -translate-x-1/2 flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-50 dark:bg-amber-900/40 px-4 py-2.5 shadow-lg"
+      >
         <div className="text-xs text-amber-900 dark:text-amber-100">
           You have 8 windows open. Close one before opening{' '}
           <span className="font-medium">{capHit}</span>.

@@ -25,6 +25,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Search, X } from 'lucide-react';
 import type { Surface } from '@/lib/compositor/types';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
+import { Z_LAUNCHER_OVERLAY } from '@/lib/shell/z-tiers';
 import { useDesk } from '@/contexts/DeskContext';
 import { isKernelSurfaceSlug } from '@/types/desk';
 
@@ -160,7 +161,8 @@ export function Launcher({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 backdrop-blur-sm pt-[10vh]"
+      className="fixed inset-0 flex items-start justify-center bg-black/40 backdrop-blur-sm pt-[10vh]"
+      style={{ zIndex: Z_LAUNCHER_OVERLAY }}
       onClick={onClose}
       role="dialog"
       aria-modal="true"

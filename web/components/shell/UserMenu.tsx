@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
 import { Settings, LogOut, CreditCard, Sun, Moon, Monitor, Zap, Layers, Link2, Activity } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 
@@ -82,7 +83,10 @@ export function UserMenu({ email }: UserMenuProps) {
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute top-full right-0 mt-1 w-56 bg-background border border-border rounded-lg shadow-lg z-50 py-1">
+        <div
+          style={{ zIndex: Z_POPOVER }}
+          className="absolute top-full right-0 mt-1 w-56 bg-background border border-border rounded-lg shadow-lg py-1"
+        >
           {/* User info + Theme */}
           {email && (
             <div className="px-3 py-2 border-b border-border">

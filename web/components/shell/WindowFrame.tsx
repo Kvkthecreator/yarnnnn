@@ -27,6 +27,7 @@ import {
   WINDOW_MIN_HEIGHT,
   type WindowState,
 } from '@/lib/shell/surface-preferences';
+import { WINDOW_Z_BASE } from '@/lib/shell/z-tiers';
 
 interface WindowFrameProps {
   title: string;
@@ -92,7 +93,7 @@ export function WindowFrame({
         left: windowState.x,
         width: windowState.width,
         height: windowState.height,
-        zIndex: 10 + windowState.z, // z baseline so a stack of 100 windows still < toast z
+        zIndex: WINDOW_Z_BASE + windowState.z, // D18 z-tier baseline; capped via WINDOW_Z_MAX
       }
     : {};
 

@@ -31,6 +31,7 @@
 import { LayoutGrid, MessageCircle } from 'lucide-react';
 import { useShellChrome } from './ShellChromeContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { Z_DESKTOP_FAB } from '@/lib/shell/z-tiers';
 import { cn } from '@/lib/utils';
 
 interface DesktopProps {
@@ -121,13 +122,14 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
         aria-label={drawerOpen ? 'Close conversation' : 'Open conversation'}
         title={drawerOpen ? 'Close conversation' : 'Ask YARNNN'}
         className={cn(
-          'absolute left-1/2 -translate-x-1/2 z-[5] flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all hover:shadow-xl active:scale-95',
+          'absolute left-1/2 -translate-x-1/2 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all hover:shadow-xl active:scale-95',
           drawerOpen
             ? 'bg-foreground text-background hover:bg-foreground/90'
             : 'bg-background text-foreground border border-border hover:bg-muted'
         )}
         style={{
           bottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px) + 0.75rem)',
+          zIndex: Z_DESKTOP_FAB,
         }}
       >
         <MessageCircle className="h-5 w-5" />

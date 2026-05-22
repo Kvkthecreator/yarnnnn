@@ -600,6 +600,58 @@ The audit traced the confusion to two structural issues:
 
 D17 implementation status: **Implemented 2026-05-22** (this session, code commit lands together with this doc per the same combined-commit cadence as D14/D15/D16).
 
+### D18 — Z-tier ladder + inter-surface interaction + URL-sync-on-close (2026-05-22 same-session amendment)
+
+**Refines** D15 (window z-stacking — caps the unbounded `windowState.z` at `WINDOW_Z_MAX = 99` and adds compaction). **Refines** D13/D14 (Dock click semantics — extends to inter-surface interaction on background windows). **Refines** D17 (URL transport — closes the loop so closing the foregrounded window navigates URL to `/desktop`, preventing the AuthenticatedLayout pathname watcher from re-foregrounding the just-closed surface).
+
+Three operator-surfaced interaction bugs (KVK 2026-05-22 follow-up to the D17 ship), all rooted in z-stacking + URL-vs-registry sync gaps:
+
+1. **"Can't click on another window's close when I'm on another surface"** — the Launcher overlay (`z-50`) was getting covered by raised windows whose effective `zIndex` (`10 + windowState.z`) exceeded 50 after multiple click-to-raise events. The reported symptom was actually "can't reach the Launcher" but the more honest framing was "inter-surface accessibility" — clicking the × on a background window's exposed title bar should close it without first requiring a raise.
+
+2. **"The search surface (Launcher) should always be the thing that shows up above everything else"** — direct: the Launcher overlay must be the topmost UI affordance when summoned. The current z-stack had no central source of truth; hardcoded `z-50` values across the codebase (Launcher, ChatDrawer, UserMenu, TopBar context menu, TopBar cap-hit toast) all collide at the same tier. Windows could raise above all of them.
+
+3. **"Can't close out of feed and go to empty desktop"** — D17 ratified Desktop as load-bearing, but closing the foregrounded window left the URL at `/feed` (or whatever surface). AuthenticatedLayout's pathname watcher fired on the unchanged URL → re-foregrounded the just-closed surface. The empty Desktop was structurally unreachable from a surface URL until you manually navigated to `/desktop`.
+
+**Decisions**:
+
+1. **Z-tier ladder**: new `web/lib/shell/z-tiers.ts` constants file declares the canonical z-stack. ONE source of truth; every component imports from here.
+
+   | Tier | Layer | z-index |
+   |---|---|---|
+   | `Z_DESKTOP_FAB` | Desktop layer FAB | 5 |
+   | `WINDOW_Z_BASE` | window z-baseline | 10 |
+   | `WINDOW_Z_MAX` | window z-cap | 99 |
+   | `Z_DRAWER_BACKDROP` | ChatDrawer backdrop | 100 |
+   | `Z_DRAWER_BODY` | ChatDrawer body | 101 |
+   | `Z_POPOVER` | UserMenu / context menu / cap-hit toast | 200 |
+   | `Z_LAUNCHER_OVERLAY` | Launcher search overlay | 400 |
+
+2. **Window z-bump capped + compacted**: `raiseWindow` and `foregroundSurface` enforce `Math.min(WINDOW_Z_MAX, computeNextZ(...))`. When the cap is hit, `compactWindowZ()` re-ranks all open windows from `1..N` so the values don't permanently stick at 99. Compaction preserves order — the window that had the highest z gets the highest post-compaction z. Effective rendered z stays `WINDOW_Z_BASE + z`, never exceeding `WINDOW_Z_BASE + WINDOW_Z_MAX = 109`.
+
+3. **Inter-surface interaction on background windows**:
+   - **Close button on a background window**: clicking the × closes that window without first raising it. Verified by `stopPropagation` on the close button's mousedown (already present; D18 ensures it works reliably and is documented).
+   - **Drag title bar on a background window**: raise AND begin drag in one motion. The drag handler explicitly calls `onRaise()` at session-start (already present in D15); D18 documents this as the contract.
+   - **Resize edges on a background window**: raise AND begin resize in one motion. Same pattern as drag — handler calls `onRaise()` at session-start.
+   - **Click anywhere else on a background window**: raise to foreground (unchanged D15 behavior).
+   - These four behaviors together are the "inter-surface accessibility" contract — operators interact with background windows without the friction of "raise first, then interact."
+
+4. **⌘W keyboard shortcut**: macOS-standard "close current window" binding. Pressing ⌘W (or Ctrl+W on non-Mac) closes the currently-foregrounded window. Listener attached at AuthenticatedLayoutInner level. Fallback for cases where the close button is fully occluded.
+
+5. **URL-sync-on-close**: when `closeSurface(slug)` empties the registry OR closes the slug matching the current pathname, navigate to `/desktop`. The pathname watcher then has nothing to foreground; the operator lands on the empty Desktop. Implementation: the close handler in TopBarSurface's right-click menu, the close button in WindowFrame, and the ⌘W shortcut all check `if pathname matches the closed slug → router.push('/desktop')`. The check happens at the call-site rather than inside `doCloseSurface` because the hook doesn't have access to the router.
+
+6. **Singular Implementation**: every hardcoded `z-50` / `z-40` / `z-60` / `z-[5]` / `zIndex: 10 + …` across shell components is replaced by imports from `z-tiers.ts`. The constants file is the only place a z-value is authored.
+
+**Why D18 and not its own ADR**: continues the D11–D17 pattern of refining the surface-mirrors-substrate principle's interaction-layer expression. D18 doesn't reopen the axiom; it ratifies a structural concept (z-tier ladder) that was already implicit and makes it consistent + bounded. The URL-sync-on-close fix is a coherence patch for D17. Same ADR; explicit amendment for trace continuity.
+
+**What D18 does NOT do**:
+- Does not add per-Dock-icon hover-close affordance (rejected — right-click → Close already exists per D14; ⌘W covers keyboard ergonomics).
+- Does not add cmd-tab keyboard window switcher (still forward horizon).
+- Does not add per-window context menus on the title bar (right-click in D14 is Dock-icon only; window title-bar right-click is forward horizon).
+- Does not change ChatDrawer / Launcher overlay visual design — only their z-stacking.
+- Does not add z-tier enforcement for non-shell components (other parts of the app keep their own z values; the ladder is shell-scoped).
+
+D18 implementation status: **Implemented 2026-05-22** (this session, code commit lands together with this doc per the same combined-commit cadence as D14/D15/D16/D17).
+
 ---
 
 ## Implementation path for D11 — Uniform Compositor
