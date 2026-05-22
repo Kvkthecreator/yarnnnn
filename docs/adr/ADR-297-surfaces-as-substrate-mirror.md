@@ -681,6 +681,123 @@ D18.1 implementation status: **Implemented 2026-05-22** (this session, code comm
 
 ---
 
+### D18.2 — Cockpit polish: feed icon, talk button deletion, raise-on-click, drawer flicker (2026-05-22 follow-up batch)
+
+Operator-observed (KVK 2026-05-22, post-D18.1) four collateral gaps once the multi-window + drawer pattern was in steady use:
+
+1. **Icon collision.** Feed Dock icon and ChatDrawer FAB both rendered as `MessageCircle` — visually identical, two different things. Operator confusion: "the chat FAB button and feed surface icon is the same."
+
+2. **Per-surface "Talk" button is redundant chrome.** Pre-D16, FeedSurface had a "Talk" button in its action row that opened a `/feed`-local ConversationDrawer. D16 generalized chat affordances into the universal FAB-summoned drawer, but the in-header Talk button survived. With the FAB summoning the drawer from every surface, the Talk button is dual-implementation.
+
+3. **Raise-on-click broken in the window body.** Operator-observed: "when clicking on a surface not the primary one, we should make that the main surface displayed. Right now I can only grab it (although when I click on close button, that works)." Diagnosis: `handleFrameMouseDown` was wired on the outer div's bubble-phase `onMouseDown`; empirically unreliable against scrollable inner content + nested handlers. Capture phase fires unconditionally regardless of descendant `stopPropagation`.
+
+4. **Drawer re-open flicker.** Operator-observed: "there is still a flickering aspect when i re-open the chat drawer." Diagnosis: `backdrop-blur-[1px]` on the backdrop transitioning opacity caused Chromium to drop the GPU compositor layer at opacity:0 and recreate it with `backdrop-filter` on next open — visible as a 1-frame paint flash.
+
+**Decisions** (D18.2):
+
+1. **Feed icon swapped `message-circle` → `scroll-text`**. Narrative ledger metaphor matches the surface's actual content shape (every invocation, every wake, append-only). FAB stays as MessageCircle (chat conversation summon). No more icon collision.
+
+2. **In-header Talk button DELETED from FeedSurface**. Singular Implementation: the FAB is the singular summon path. Empty-state chip clicks + OperatorEventMarker's "open conversation →" affordance continue to route through `useShellChrome().openDrawer()`.
+
+3. **WindowFrame raise-on-click switched to `onMouseDownCapture`.** Capture phase fires before any descendant handler can `stopPropagation()`. Matches macOS behavior (clicking anywhere in a background window raises it).
+
+4. **`backdrop-blur-[1px]` removed from the ChatDrawer backdrop.** Replaced with slightly stronger bg dim (`bg-foreground/10` → `bg-foreground/15`). The 1px blur was barely perceptible; the layer stays put across open/close cycles, no paint flash.
+
+**Files**:
+- `api/services/kernel_surfaces.py` — Feed `icon_key` `message-circle` → `scroll-text`.
+- `web/lib/shell/surface-icons.tsx` — `ScrollText` registered.
+- `web/components/feed-surface/FeedSurface.tsx` — Talk button + `personaName` + `useReviewerPersona` + `MessageCircle` import deleted.
+- `web/components/shell/WindowFrame.tsx` — `onMouseDown` → `onMouseDownCapture`; handler renamed `handleFrameMouseDownCapture`.
+- `web/components/shell/chrome/ChatDrawer.tsx` — backdrop `backdrop-blur-[1px]` removed.
+
+D18.2 implementation status: **Implemented 2026-05-22** (commit `ed155c5`).
+
+---
+
+### D18.3 — Close-surface URL-sync race fix (2026-05-22 follow-up patch)
+
+Operator-observed (KVK 2026-05-22, post-D18.2): "I can't close the topmost window and land on an empty desktop." Close × clicked, window briefly disappears, then re-mounts immediately. Pure architectural race; no axiom change.
+
+**Diagnosis**: Two `useEffect`s in `AuthenticatedLayout.tsx` raced. Effect A (pathname → foreground surface) re-fired on every close because `foregroundSurface`'s callback identity changes whenever `open` changes — so closing `feed` while pathname was `/feed` immediately re-opened it. Effect B (foregrounded===null + open===[] → /desktop) was supposed to handle the empty-registry case, but ran *after* Effect A had already resurrected the surface.
+
+Same race in the multi-window case: closing the foregrounded window when others exist falls back to the next-most-recent, but pathname is stale → Effect A re-foregrounds the closed surface.
+
+**Decision** (D18.3): URL sync moves inside `closeSurface` itself in `useSurfacePreferences`. When the foregrounded surface is closed, the registry mutation AND the `router.push` happen in the same React batch — pathname is updated to either `/desktop` (registry empty) or the fallback surface's route. By the time Effects A/B run, pathname matches the new state, no resurrection possible.
+
+Singular Implementation: the duplicate "Effect B" URL-sync-on-close `useEffect` in `AuthenticatedLayout` was DELETED. One URL-sync path now, owned by `closeSurface`.
+
+**Files**:
+- `web/lib/shell/useSurfacePreferences.tsx` — `usePathname` + `useRouter` + `useComposition` wired in; `doCloseSurface` navigates synchronously when closing the foregrounded surface AND pathname matches a kernel surface route.
+- `web/components/shell/AuthenticatedLayout.tsx` — Effect B (URL-sync-on-close) DELETED; `open` removed from destructure (was only used by deleted effect).
+
+D18.3 implementation status: **Implemented 2026-05-22** (commit `07ecec2`).
+
+---
+
+### D19 — Surface internals are window-shaped, not page-shaped (2026-05-22, doc-first)
+
+Operator-observed (KVK 2026-05-22, post-D18.3): "I think there is some confusion on how the launcher and navigation occurs. We have surfaces that should be the central UI UX under desktop. But then, I get re-routed to pages like agents, in which the navigational considerations seem to break."
+
+Diagnosis surfaced an unfinished migration: D11→D17 ratified the Agent-OS metaphor at the shell layer (Desktop + WindowFrame + universal FAB + Dock) and migrated 10 of the 13 atomic surface page.tsx files into thin window-shaped wrappers, but **three surface page.tsx files (`agents`, `cadence`, `context`/files) were never refactored from their pre-ADR-297 page paradigm.** They still:
+
+1. Render `<ThreePanelLayout>` (a workspace-wide outer chrome — but the WindowFrame IS the chrome now).
+2. Call `setBreadcrumb` (page-level concept; windows have title bars, not workspace breadcrumbs).
+3. Use `router.push('/work?agent=X')` for cross-surface navigation (route-replacement metaphor — should be window-opening metaphor per the OS framing).
+
+The legacy three never made the migration because they had the most complex internal state (multi-pane layouts, intra-surface selection, cross-surface deep-links). The other 10 are clean: `feed`, `cockpit`, `delegation`, `mandate`, `principles`, `identity`, `brand`, `queue`, `activity`, `program` — each is a 20-60-line wrapper that imports a `<SurfaceComponent />` and renders it inside the WindowFrame.
+
+The collision: clicking around inside a legacy-shaped surface window feels like the operator has *left* the Desktop paradigm — they're now inside a "page" with its own three-panel chrome, its own breadcrumb, its own router-based navigation. The window framing is structurally present but the *content* doesn't honor the windowed metaphor. Cross-surface `router.push` calls additionally produce the wrong gesture (navigate-to-page instead of open-new-window).
+
+**Operator framing** (KVK): *"Figma on browser is the better metaphor here."* Figma is unambiguously desktop-app-shaped, runs in Chrome, treats URLs as deep-link transports for document state, has no concept of "leaving the canvas to go to a settings page." Settings is a panel/modal *over* the canvas. Browser back/forward is undo-shaped, not page-history-shaped. That's the reference for D19.
+
+**Decisions** (D19):
+
+1. **Surface internals are window-shaped, not page-shaped.** Every component mounted in a `WindowFrame` is content-only — no outer chrome rendered by the surface itself. The window IS the chrome.
+
+2. **`ThreePanelLayout` is dissolved for atomic surfaces** (Singular Implementation): it represented a workspace-wide layout shell from the pre-ADR-297 paradigm. Inside a window, a workspace-wide left tree nav is structurally wrong (the Dock IS the navigation rail). The three current consumers (`agents`, `cadence`, `context`) each refactor:
+   - `agents` + `cadence` already pass `leftPanel` as omitted/optional; the wrapper collapses to its center children. Drop the wrapper entirely.
+   - `context` (Files surface) does carry a legitimate tree (the workspace filesystem tree IS the surface's content). Keep the tree as the surface's *internal* layout, not as outer chrome. The Files surface owns its own two-pane render directly.
+   - `ThreePanelLayout.tsx` DELETED.
+
+3. **Workspace-wide breadcrumb is not set from inside atomic surfaces.** The window's title bar is the breadcrumb. Intra-surface selection (e.g. which agent is selected on `/agents`) is window-internal state — it appears as a sub-label inside the surface's own UI, not as a workspace-level `setBreadcrumb` call. `BreadcrumbContext` is retained as infrastructure for legacy non-atomic routes (settings, docs/[id]) where the page paradigm is honest; atomic surfaces stop writing to it.
+
+4. **Intra-surface URL state stays.** `/agents?agent=reviewer` is fine — it's the window's deep-link state for which agent is selected. Same shape as Figma's `?node-id=X`. The atomic-surface URL plus its query params together identify the surface's complete state.
+
+5. **Cross-surface navigation is window-opening, not route-replacing.** Every `router.push('/{atomic-surface-slug}')` call from inside an atomic surface is converted to `foregroundSurface('{slug}')`. The result: clicking "See this agent's work" from inside Agents opens a new Cadence window alongside the Agents window (macOS multi-app gesture), instead of replacing the Agents content with Cadence content (browser-page gesture). Operator can ⌘W close either independently; the Dock shows both.
+
+6. **`/desktop` is the canonical workspace URL.** Atomic-surface URLs (`/feed`, `/cadence`, etc.) remain as deep-link transports — pasting one opens that surface in a window on the Desktop. They are NOT first-class destinations. The Desktop is the destination; surfaces are windowed apps.
+
+7. **Settings-class pages stay as pages** (Option α per discourse — committed). `/settings`, `/connectors`, `/auth/callback`, `/docs/[id]` etc. are not atomic surfaces. They render outside the Desktop layer via the existing `isLegacyNonAtomicRoute` branch in `SurfaceViewport`. This is the honest boundary: settings ARE pages, surfaces ARE windows, the SurfaceViewport's branch is the structural delimiter. Two paradigms total in the authenticated app — Desktop+windows for everything operational, pages for configuration. macOS-faithful (Preferences in macOS is technically a window but feels like settings; the YARNNN equivalent is a real page route, which is the same cognitive boundary). Option β (everything-is-a-surface, including Settings) was discussed and rejected as more aggressive than the operator-felt pain warranted.
+
+**What D19 enacts (mechanical changes)**:
+
+- Refactor `app/(authenticated)/agents/page.tsx` (~188 lines) → window-shaped `<AgentsSurface />` component. Drop `ThreePanelLayout`. Drop `setBreadcrumb`. Convert cross-surface `router.push` calls to `foregroundSurface`.
+- Refactor `app/(authenticated)/cadence/page.tsx` (~383 lines) → window-shaped `<CadenceSurface />` component. Same migration shape.
+- Refactor `app/(authenticated)/context/page.tsx` (Files) → window-shaped surface component. The internal tree stays as the surface's content; outer `ThreePanelLayout` wrapper dissolved.
+- Delete `web/components/shell/ThreePanelLayout.tsx`.
+- Audit + delete `setBreadcrumb` calls from atomic-surface components (`AgentContentView`, others as found). Surface-internal title display moves into the surface's own header.
+- Convert remaining cross-surface `router.push('/{atomic-slug}')` call sites to `foregroundSurface('{slug}')` via grep. The push-to-self pattern (`router.push('/agents?agent=X')` from within `/agents`) stays — that's intra-surface state, not cross-surface navigation.
+
+**What D19 does NOT do**:
+
+- Does not change the substrate layer. Substrate axioms (Axiom 1, ADR-209) untouched.
+- Does not refactor the 10 already-thin atomic-surface wrappers (`feed`, `cockpit`, etc.). They were already window-shaped; no work needed.
+- Does not move Settings into the Desktop (Option β rejected).
+- Does not introduce window-grouping / spaces / virtual desktops (forward horizon item from D15-D18).
+- Does not change the deep-link URL contract — pasting `/cadence?task=foo` still works (and opens the surface in a window). Bookmarks remain stable.
+- Does not change ⌘W close, drawer summon, FAB position, or any chrome behavior already shipped.
+- Does not refactor `BreadcrumbContext` (keeps it for legacy non-atomic routes where it's load-bearing).
+- Does not delete the per-slug `app/(authenticated)/{slug}/page.tsx` files — they remain as deep-link mount points; their content is now the thin wrapper pattern matching the already-migrated 10.
+
+**Companion canonical doc updates** (same enactment commit):
+
+- `docs/design/SURFACE-MODEL-ATOMIC-VS-CONTAINER.md` — D19 referenced as the post-migration completion.
+- `CLAUDE.md` — atomic-surface internals section gets the window-shape rule.
+
+D19 ratification status: **Proposed 2026-05-22** (doc-first; enactment lands in the follow-on commit).
+
+---
+
 ## Implementation path for D11 — Uniform Compositor
 
 A future session opens with this scoped plan. Each phase ships independently and is TS-clean + regression-gate-green.
