@@ -1,7 +1,11 @@
 'use client';
 
 /**
- * Cadence Page — atomic Cadence surface (ADR-297 D1).
+ * Cadence Page — atomic Cadence surface (ADR-297 D1 + D19).
+ *
+ * D19 (2026-05-22) refactor: window-shaped per the OS metaphor. The
+ * page DELETES its prior outer chrome (ThreePanelLayout + PageHeader +
+ * setBreadcrumb). The WindowFrame is now the chrome.
  *
  * Renamed from /work in the ADR-297 atomic-shell migration. Tab framing
  * fully dissolved — cockpit rendering moved to the dedicated /cockpit
@@ -14,26 +18,20 @@
  *   - Detail mode (`?task={slug}`): kind-aware recurrence detail via
  *     WorkDetail dispatching the middle band on task.output_kind (ADR-166).
  *
- * The `?agent={slug}` query param is preserved as a deep-link shortcut.
- * Stale `?tab=…` query params are silently ignored.
+ * The `?agent={slug}` query param is preserved as a deep-link shortcut
+ * (window-internal state per D19.4 — like Figma's ?node-id=X). Stale
+ * `?tab=…` query params are silently ignored.
  */
 
 import { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { AlertCircle, ArrowLeft, Briefcase, Loader2, MessageCircle, RefreshCw } from 'lucide-react';
+import { AlertCircle, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
-import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { useRecurrenceDetail } from '@/hooks/useRecurrenceDetail';
 import { APIError, api } from '@/lib/api/client';
 import { CadenceList } from '@/components/work/CadenceList';
 import { WorkDetail } from '@/components/work/WorkDetail';
-import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
-import { PageHeader } from '@/components/shell/PageHeader';
-// RecurrenceSetupModal removed — creation via Chat
-import { getAgentSlug } from '@/lib/agent-identity';
-import type { PlusMenuAction } from '@/components/tp/PlusMenu';
-import type { DeskSurface } from '@/types/desk';
 
 type ActionNotice = { kind: 'info' | 'success' | 'error'; text: string } | null;
 
@@ -75,7 +73,6 @@ export default function CadencePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { sendMessage } = useNarrative();
-  const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
   // ADR-219 Commit 4: opt into narrative fetch — Cadence is the surface
   // that renders recent-activity headlines from session_messages.
   const { agents, tasks, narrativeByTask, loading, error, reload } = useAgentsAndRecurrences({ includeNarrative: true });
@@ -103,8 +100,6 @@ export default function CadencePage() {
   const [pendingAction, setPendingAction] = useState<'run' | 'pause' | null>(null);
   const [detailRefreshKey, setDetailRefreshKey] = useState(0);
   const [actionNotice, setActionNotice] = useState<ActionNotice>(null);
-  const [chatDraftSeed, setChatDraftSeed] = useState<{ id: string; text: string } | null>(null);
-  const [chatOpenSignal, setChatOpenSignal] = useState(0);
 
   useEffect(() => {
     if (!actionNotice) return;
@@ -116,54 +111,10 @@ export default function CadencePage() {
     setActionNotice(null);
   }, [taskSlugFromUrl]);
 
-  // Breadcrumb (ADR-180: task-first, no agent middle segment)
-  //
-  // Cadence surface: Cadence › Task Title — tasks are first-class, agents are participants.
-  // Exception: when ?agent= is present the user navigated here from the Agents surface
-  // (via "Manage task" link) — breadcrumb traces actual navigation: Agents › Agent › Task.
-  // Agent-filter-only list mode (no task selected) shows no breadcrumb — the filter chip
-  // in CadenceList already communicates the active filter.
-  useEffect(() => {
-    if (taskSlugFromUrl) {
-      const breadcrumbTask = selectedTask;
-
-      if (agentFilter) {
-        // Came from Agents surface — trace navigation history, not ownership
-        const agent = agents.find(a => getAgentSlug(a) === agentFilter);
-        const agentCrumbLabel = agent?.title ?? agentFilter;
-        setBreadcrumb([
-          { label: 'Agents', href: '/agents', kind: 'surface' },
-          {
-            label: agentCrumbLabel,
-            href: `/agents?agent=${encodeURIComponent(agentFilter)}`,
-            kind: 'agent' as const,
-          },
-          {
-            label: taskNotFound
-              ? 'Task not found'
-              : breadcrumbTask?.title ?? taskSlugFromUrl,
-            href: `/cadence?task=${encodeURIComponent(taskSlugFromUrl)}&agent=${encodeURIComponent(agentFilter)}`,
-            kind: 'task',
-          },
-        ]);
-      } else {
-        // Standard Work navigation — task is the subject, no agent container
-        setBreadcrumb([
-          { label: 'Cadence', href: '/cadence', kind: 'surface' },
-          {
-            label: taskNotFound
-              ? 'Task not found'
-              : breadcrumbTask?.title ?? taskSlugFromUrl,
-            href: `/cadence?task=${encodeURIComponent(taskSlugFromUrl)}`,
-            kind: 'task',
-          },
-        ]);
-      }
-    } else {
-      clearBreadcrumb();
-    }
-    return () => clearBreadcrumb();
-  }, [taskSlugFromUrl, selectedTask?.title, taskNotFound, agentFilter, agents, setBreadcrumb, clearBreadcrumb]);
+  // D19 (2026-05-22): workspace-wide setBreadcrumb removed. The
+  // WindowFrame title bar IS the breadcrumb; intra-surface selection
+  // (which task is selected) is window-internal state rendered inside
+  // the surface body via WorkDetail's own header chrome.
 
   // Actions
   const handleRunTask = useCallback(async (slug: string) => {
@@ -212,11 +163,15 @@ export default function CadencePage() {
     }
   }, [tasks, selectedRecurrenceDetail, reload, reloadRecurrenceDetail]);
 
+  // D19: WorkDetail accepts onOpenChat as an optional callback. The
+  // universal ChatDrawer FAB provides the primary chat affordance now;
+  // this hook routes a prompt through sendMessage so the drawer summons
+  // with a pre-seeded message when the operator clicks an in-surface
+  // "ask about this" chip.
   const handleOpenChatDraft = useCallback((prompt?: string) => {
     if (!prompt) return;
-    setChatDraftSeed({ id: crypto.randomUUID(), text: prompt });
-    setChatOpenSignal((current) => current + 1);
-  }, []);
+    sendMessage(prompt);
+  }, [sendMessage]);
 
   // Click row in list mode → URL transition to detail mode
   const handleSelect = useCallback((slug: string) => {
@@ -240,32 +195,11 @@ export default function CadencePage() {
     router.replace(qs ? `/cadence?${qs}` : '/cadence', { scroll: false });
   }, [router, searchParams]);
 
-  const plusMenuActions: PlusMenuAction[] = useMemo(() => {
-    if (selectedTask) return [];
-    return [
-      {
-        id: 'create-task',
-        label: 'Start new work',
-        icon: Briefcase,
-        verb: 'show' as const,
-        onSelect: () => sendMessage('I want to set up some recurring work — ', chatSurfaceOverride ? { surface: chatSurfaceOverride } : undefined),
-      },
-    ];
-  }, [selectedTask]);
-
-  const chatSurfaceOverride = useMemo<DeskSurface | undefined>(() => {
-    if (!selectedTask) return undefined;
-    return { type: 'task-detail', taskSlug: selectedTask.slug };
-  }, [selectedTask]);
-
-  const chatEmptyState = (
-    <div className="py-2 text-center">
-      <MessageCircle className="mx-auto mb-1.5 h-5 w-5 text-muted-foreground/15" />
-      <p className="text-[11px] text-muted-foreground/40">
-        {selectedTask ? `Ask anything about "${selectedTask.title}"` : 'Ask anything about your work'}
-      </p>
-    </div>
-  );
+  // D19 (2026-05-22): the prior "+menu" PlusMenuAction array and the
+  // chat-panel empty-state block were ThreePanelLayout-side affordances.
+  // The universal ChatDrawer FAB now provides the singular summon
+  // path; operators ask "set up new work" via the drawer instead of
+  // through a per-surface action button.
 
   if (loading && !tasks.length && !agents.length && !taskSlugFromUrl) {
     return (
@@ -277,31 +211,26 @@ export default function CadencePage() {
 
   if (!taskSlugFromUrl && error && !tasks.length && !agents.length) {
     return (
-      <div className="flex h-full">
-        <div className="flex flex-1 flex-col bg-background">
-          <PageHeader defaultLabel="Cadence" />
-          <SurfaceState
-            title="Failed to load work"
-            description="The work index could not be loaded right now. Retry the workspace fetch."
-            action={(
-              <button
-                onClick={() => void reload()}
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
-              >
-                <RefreshCw className="h-3.5 w-3.5" />
-                Retry
-              </button>
-            )}
-          />
-        </div>
+      <div className="flex h-full flex-1 flex-col bg-background">
+        <SurfaceState
+          title="Failed to load work"
+          description="The work index could not be loaded right now. Retry the workspace fetch."
+          action={(
+            <button
+              onClick={() => void reload()}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Retry
+            </button>
+          )}
+        />
       </div>
     );
   }
 
   return (
-    <>
-    <ThreePanelLayout>
-      <PageHeader defaultLabel="Cadence" />
+    <div className="flex h-full flex-1 min-w-0 min-h-0 flex-col overflow-y-auto bg-background">
       {taskSlugFromUrl ? (
         taskDetailLoading && !selectedRecurrenceDetail ? (
           <div className="flex flex-1 items-center justify-center">
@@ -363,21 +292,16 @@ export default function CadencePage() {
         />
         ) : null
       ) : (
-        <div className="flex flex-1 flex-col overflow-y-auto">
-          <CadenceList
-            tasks={tasks}
-            agents={agents}
-            narrativeByTask={narrativeByTask}
-            agentFilter={agentFilter}
-            dataError={error}
-            onClearAgentFilter={handleClearAgentFilter}
-            onSelect={handleSelect}
-          />
-        </div>
+        <CadenceList
+          tasks={tasks}
+          agents={agents}
+          narrativeByTask={narrativeByTask}
+          agentFilter={agentFilter}
+          dataError={error}
+          onClearAgentFilter={handleClearAgentFilter}
+          onSelect={handleSelect}
+        />
       )}
-    </ThreePanelLayout>
-
-    {/* RecurrenceSetupModal removed — all creation via Chat */}
-    </>
+    </div>
   );
 }

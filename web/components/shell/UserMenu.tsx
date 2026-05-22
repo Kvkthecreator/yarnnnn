@@ -11,6 +11,7 @@ import { useTheme } from 'next-themes';
 import { Settings, LogOut, CreditCard, Sun, Moon, Monitor, Zap, Layers, Link2, Activity } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api/client';
 
@@ -23,6 +24,7 @@ export function UserMenu({ email }: UserMenuProps) {
   const [balance, setBalance] = useState<{ balance: number; spend: number; isPro: boolean } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const { foregroundSurface } = useSurfacePreferences();
   const supabase = createClient();
   const { theme, setTheme } = useTheme();
 
@@ -153,10 +155,11 @@ export function UserMenu({ email }: UserMenuProps) {
           <button
             onClick={() => {
               setIsOpen(false);
-              // ADR-297: /workspace container dissolves; Mandate is the
-              // most-touched atomic governance surface and the natural
-              // landing target from the user menu.
-              router.push('/mandate');
+              // ADR-297 D19.5: cross-surface navigation is window-opening,
+              // not route-replacing. Mandate + Activity are atomic
+              // surfaces — open them as windows on the Desktop alongside
+              // whatever's already foregrounded. macOS multi-app gesture.
+              foregroundSurface('mandate');
             }}
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
           >
@@ -167,7 +170,7 @@ export function UserMenu({ email }: UserMenuProps) {
           <button
             onClick={() => {
               setIsOpen(false);
-              router.push('/activity');
+              foregroundSurface('activity');
             }}
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
           >

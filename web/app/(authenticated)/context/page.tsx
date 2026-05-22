@@ -1,9 +1,19 @@
 'use client';
 
 /**
- * Context Surface — Workspace knowledge browser (ADR-180, v12 / ADR-206 / ADR-231).
+ * Files Surface — Workspace knowledge browser (ADR-180, v12 / ADR-206 / ADR-231 / ADR-297 D19).
  *
- * Context answers: "What does my workspace know? What has it produced?"
+ * D19 (2026-05-22) refactor: window-shaped per the OS metaphor. The
+ * page DELETES its prior outer chrome (ThreePanelLayout + PageHeader +
+ * setBreadcrumb). The WindowFrame is now the chrome.
+ *
+ * Files is unique among atomic surfaces in that its content shape IS a
+ * two-pane explorer (tree + viewer). The split-pane is the surface's
+ * own internal layout, not workspace-wide chrome — the surface owns
+ * the tree directly. Tree is collapsible to an icon rail; viewer takes
+ * the remainder.
+ *
+ * Files answers: "What does my workspace know? What has it produced?"
  *
  * Four top-level sections, ordered Intent-first per ADR-206 three-layer view:
  *   Identity  — workspace identity/brand/conventions + domain _operator_profile.md
@@ -20,30 +30,38 @@
  *   ?path={path}   — navigate to any workspace path (incl. /workspace/reports/{slug}/)
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Loader2,
-  MessageCircle,
-  Globe,
-  ListChecks,
   FolderOpen,
+  X,
 } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import { useDesk } from '@/contexts/DeskContext';
-import { useBreadcrumb } from '@/contexts/BreadcrumbContext';
 import { api } from '@/lib/api/client';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
-import { ThreePanelLayout } from '@/components/shell/ThreePanelLayout';
-import { PageHeader } from '@/components/shell/PageHeader';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
-// RecurrenceSetupModal removed — creation via Chat
 import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
 
-import type { PlusMenuAction } from '@/components/tp/PlusMenu';
-
 type TreeNode = import('@/types').WorkspaceTreeNode;
+
+// Internal split-pane sizing (D19: the surface owns its own tree pane;
+// ThreePanelLayout's workspace-wide left panel was deleted).
+const TREE_PANE_KEY = 'yarnnn:files:tree-width';
+const TREE_PANE_DEFAULT = 280;
+const TREE_PANE_MIN = 200;
+const TREE_PANE_MAX = 560;
+
+function loadStoredTreeWidth(): number {
+  if (typeof window === 'undefined') return TREE_PANE_DEFAULT;
+  const raw = window.localStorage.getItem(TREE_PANE_KEY);
+  if (!raw) return TREE_PANE_DEFAULT;
+  const n = parseInt(raw, 10);
+  if (Number.isNaN(n)) return TREE_PANE_DEFAULT;
+  return Math.max(TREE_PANE_MIN, Math.min(TREE_PANE_MAX, n));
+}
 
 const EXPLORER_ROOT_PATH = '/explorer';
 
@@ -285,7 +303,6 @@ export default function ContextPage() {
   const router = useRouter();
   const { loadScopedHistory, sendMessage } = useNarrative();
   const { surface } = useDesk();
-  const { setBreadcrumb, clearBreadcrumb } = useBreadcrumb();
 
   const domainParam = searchParams.get('domain');
   const pathParam = searchParams.get('path');
@@ -294,6 +311,45 @@ export default function ContextPage() {
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
   const [phase, setPhase] = useState<'setup' | 'ready' | 'active' | null>(null);
+
+  // D19 split-pane state — the surface owns its own tree pane.
+  const [treePaneOpen, setTreePaneOpen] = useState(true);
+  const [treeWidth, setTreeWidth] = useState(TREE_PANE_DEFAULT);
+  const treeDragging = useRef(false);
+
+  useEffect(() => {
+    setTreeWidth(loadStoredTreeWidth());
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!treeDragging.current) return;
+      const next = Math.max(TREE_PANE_MIN, Math.min(TREE_PANE_MAX, e.clientX));
+      setTreeWidth(next);
+    };
+    const onUp = () => {
+      if (!treeDragging.current) return;
+      treeDragging.current = false;
+      try {
+        window.localStorage.setItem(TREE_PANE_KEY, String(treeWidth));
+      } catch {}
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, [treeWidth]);
+
+  const onTreeDragStart = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    treeDragging.current = true;
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
 
   const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
 
@@ -407,32 +463,10 @@ export default function ContextPage() {
   const breadcrumbs = selectedNode ? buildBreadcrumbs(virtualRoot, selectedNode.path).filter(n => n.path !== EXPLORER_ROOT_PATH) : [];
 
   // Push breadcrumb path into global header
-  // Virtual top-level folder names (Context, Outputs, Uploads, Settings) are
-  // explorer-only groupings — strip them; the surface root "Context" label is
-  // always the first segment, showing which surface the user is on.
-  useEffect(() => {
-    const TOP_LEVEL_VIRTUAL = new Set(['Context', 'Outputs', 'Uploads', 'Settings']);
-    if (breadcrumbs.length > 0) {
-      const displayBreadcrumbs = TOP_LEVEL_VIRTUAL.has(breadcrumbs[0]?.name ?? '')
-        ? breadcrumbs.slice(1)
-        : breadcrumbs;
-      const segs = displayBreadcrumbs.map((crumb) => ({
-        label: crumb.name,
-        href: `/context?path=${encodeURIComponent(crumb.path)}`,
-        kind: crumb.type === 'file' ? 'context' as const : 'entity' as const,
-      }));
-      setBreadcrumb([
-        { label: 'Context', href: '/context', kind: 'surface' },
-        ...segs,
-      ]);
-    } else {
-      clearBreadcrumb();
-    }
-  }, [selectedPath]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    return () => clearBreadcrumb();
-  }, [clearBreadcrumb]);
+  // D19 (2026-05-22): workspace-wide setBreadcrumb removed. The
+  // WindowFrame title bar IS the breadcrumb. Path-trail breadcrumbs
+  // inside the surface body are rendered via SurfaceIdentityHeader
+  // (intra-surface chrome, not workspace-wide).
 
   const effectiveSurface = selectedNode
     ? { ...surface, type: 'workspace-explorer' as const, path: selectedNode.path, navigation_type: selectedNode.type }
@@ -472,48 +506,12 @@ export default function ContextPage() {
     router.replace(`/context?path=${encodeURIComponent(node.path)}`, { scroll: false });
   }, [router]);
 
-  // ADR-215 R4: the + menu is a modal launcher only. Authored-rules edits
-  // (IDENTITY / BRAND / CONVENTIONS / MANDATE) are substrate per R3 — edit
-  // the file directly on Files. ManageContextModal is retired.
-  const plusMenuActions: PlusMenuAction[] = [
-    { id: 'create-task', label: 'Start new work', icon: ListChecks, verb: 'prompt', onSelect: () => sendMessage('I want to set up some recurring work — ', { surface: effectiveSurface }) },
-    {
-      id: 'web-search',
-      label: 'Web search',
-      icon: Globe,
-      verb: 'prompt',
-      onSelect: () => sendMessage(
-        'Search the web for: ',
-        { surface: effectiveSurface },
-      ),
-    },
-  ];
+  // D19 (2026-05-22): the prior plusMenuActions + chat empty-state
+  // block were ThreePanelLayout-side affordances. Chat affordances
+  // now live in the universal ChatDrawer FAB (singular summon path).
 
-  const emptyState = (
-    <div className="space-y-3">
-      <div className="text-center">
-        <MessageCircle className="w-5 h-5 text-muted-foreground/15 mx-auto mb-1.5" />
-        <p className="text-[11px] text-muted-foreground/40">Ask about your workspace</p>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <button
-          onClick={() => { sendMessage('What context do my agents have?', { surface: effectiveSurface }); }}
-          className="text-left text-[11px] px-3 py-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/50 transition-colors"
-        >
-          What context do my agents have?
-        </button>
-        <button
-          onClick={() => { sendMessage('Update my company information', { surface: effectiveSurface }); }}
-          className="text-left text-[11px] px-3 py-2 rounded-lg border border-border/50 text-muted-foreground hover:text-foreground hover:border-border hover:bg-muted/50 transition-colors"
-        >
-          Update my company information
-        </button>
-      </div>
-    </div>
-  );
-
-  // Left panel content for ThreePanelLayout
-  const leftPanelContent = (
+  // Tree pane content
+  const treePaneContent = (
     <div className="flex-1 overflow-y-auto">
       {fileTreeLoading && treeNodes.length === 0 ? (
         <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
@@ -535,50 +533,82 @@ export default function ContextPage() {
   );
 
   return (
-    <>
-    <ThreePanelLayout
-      leftPanel={{
-        title: 'Explorer',
-        subtitle: 'Workspace context and settings',
-        content: leftPanelContent,
-        collapsedIcon: <FolderOpen className="w-4 h-4" />,
-        collapsedTitle: 'Explorer',
-      }}
-    >
-      <PageHeader defaultLabel="Context" />
-      {selectedNode ? (
-        <div className="flex-1 overflow-auto bg-background flex flex-col">
-          <SurfaceIdentityHeader
-            title={selectedNode.name}
-            metadata={getNodeMetadata(selectedNode)}
+    <div className="flex h-full overflow-hidden">
+      {/* In-surface tree pane (D19: surface owns its own internal layout;
+          ThreePanelLayout dissolved). Collapsible to an icon rail. */}
+      {treePaneOpen ? (
+        <>
+          <div
+            className="shrink-0 border-r border-border flex flex-col bg-background"
+            style={{ width: treeWidth }}
+          >
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
+              <div>
+                <p className="text-sm font-medium text-foreground">Explorer</p>
+                <p className="text-[11px] text-muted-foreground">Workspace context and settings</p>
+              </div>
+              <button
+                onClick={() => setTreePaneOpen(false)}
+                className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded"
+                title="Collapse explorer"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            {treePaneContent}
+          </div>
+          <div
+            onMouseDown={onTreeDragStart}
+            className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
+            title="Drag to resize"
           />
-          <div className="flex-1 overflow-auto">
-            {/* DELIVERABLE recurrence substrate roots render DeliverableMiddle
-                (ADR-180 + ADR-231 D2). Path shape: /workspace/reports/{slug}. */}
-            {/^\/workspace\/reports\/[^/]+\/?$/.test(selectedNode.path) ? (() => {
-              // path = /workspace/reports/{slug}  →  slug at index 3
-              const taskSlug = selectedNode.path.split('/')[3];
-              return <DeliverableMiddle taskSlug={taskSlug} refreshKey={0} />;
-            })() : (
-              <ContentViewer
-                selectedNode={selectedNode}
-                onNavigate={handleExplorerSelect}
-                showHeader={false}
-                onOpenChatDraft={(prompt) => sendMessage(prompt, { surface: effectiveSurface })}
-              />
-            )}
-          </div>
-        </div>
+        </>
       ) : (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center max-w-xs">
-            <FolderOpen className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Select a file or folder from the explorer</p>
-          </div>
+        <div className="w-10 shrink-0 border-r border-border flex flex-col items-center py-2 gap-2 bg-background">
+          <button
+            onClick={() => setTreePaneOpen(true)}
+            className="p-2 rounded-md text-muted-foreground/50 hover:text-foreground hover:bg-muted transition-colors"
+            title="Open explorer"
+          >
+            <FolderOpen className="w-4 h-4" />
+          </button>
         </div>
       )}
-    </ThreePanelLayout>
 
-    </>
+      {/* Center content */}
+      <div className="flex-1 min-w-0 min-h-0 flex flex-col overflow-y-auto bg-background">
+        {selectedNode ? (
+          <div className="flex-1 overflow-auto bg-background flex flex-col">
+            <SurfaceIdentityHeader
+              title={selectedNode.name}
+              metadata={getNodeMetadata(selectedNode)}
+            />
+            <div className="flex-1 overflow-auto">
+              {/* DELIVERABLE recurrence substrate roots render DeliverableMiddle
+                  (ADR-180 + ADR-231 D2). Path shape: /workspace/reports/{slug}. */}
+              {/^\/workspace\/reports\/[^/]+\/?$/.test(selectedNode.path) ? (() => {
+                // path = /workspace/reports/{slug}  →  slug at index 3
+                const taskSlug = selectedNode.path.split('/')[3];
+                return <DeliverableMiddle taskSlug={taskSlug} refreshKey={0} />;
+              })() : (
+                <ContentViewer
+                  selectedNode={selectedNode}
+                  onNavigate={handleExplorerSelect}
+                  showHeader={false}
+                  onOpenChatDraft={(prompt) => sendMessage(prompt, { surface: effectiveSurface })}
+                />
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center max-w-xs">
+              <FolderOpen className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
+              <p className="text-sm text-muted-foreground">Select a file or folder from the explorer</p>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
