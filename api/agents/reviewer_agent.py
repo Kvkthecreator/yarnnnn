@@ -158,6 +158,12 @@ class ReviewerContext(TypedDict, total=False):
     # substrate (not a "remember to ReadFile" side-quest) makes Derived
     # Principle 18's first-wake obligation structural.
     preferences_yaml: str
+    # ADR-298 D11 — operator-declared pace (Trigger-dimension dial of the
+    # Pace + Autonomy + Persona trifecta). Pre-loaded so the Reviewer can
+    # surface Clarify with the actual declared kind when Schedule() returns
+    # pace_exceeded, and so the wake envelope carries the workspace's
+    # current cadence intent.
+    pace_yaml: str
     # ADR-284: seat occupant + standing intent. The canonical envelope helper
     # populates both via `_UNIVERSAL_ENVELOPE_DECLS`; the renderer at
     # `_build_user_message` reads them via `ctx.get(...)`. Declaring them
@@ -949,6 +955,18 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
             "## _preferences.yaml — Operator's deliverable cadence preferences",
             "",
             ctx["preferences_yaml"],
+            "",
+        ]
+    # ADR-298 D11 (Pace + Autonomy + Persona trifecta) — operator pace
+    # declaration. Mid-loop Schedule() calls are pace-gated at declaration
+    # time per D5; this section surfaces the cap to the Reviewer so it can
+    # plan recurrence-authoring within the declared budget rather than
+    # discovering the gate via pace_exceeded errors round-trip.
+    if ctx.get("pace_yaml"):
+        parts += [
+            "## _pace.yaml — Operator's declared pace (recurrence drain rate)",
+            "",
+            ctx["pace_yaml"],
             "",
         ]
     # ADR-284 (2026-05-17): seat-occupant declaration + standing intent are

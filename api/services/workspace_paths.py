@@ -73,6 +73,12 @@ SHARED_PRECEDENT_PATH = "context/_shared/PRECEDENT.md"
 # refinement is operational maintenance, not authority grant.
 SHARED_PREFERENCES_PATH = "context/_shared/_preferences.yaml"
 
+# ADR-298 Phase 2 — operator-authored pace declaration. Pace is the operator's
+# first-class dial for "how often the agent works" (ADR-298 D4 + D11 trifecta).
+# Read at every reviewer wake via the governance envelope (ADR-276) so the
+# Reviewer's Schedule() calls can pace-gate at declaration time per D5.
+SHARED_PACE_PATH = "context/_shared/_pace.yaml"
+
 # ADR-293: Compute-resource governance. Operator declares spending
 # ceilings + recurrence-cadence floors that the scheduler enforces
 # regardless of AUTONOMY mode. The Reviewer reads but cannot author —
@@ -190,4 +196,11 @@ DEFAULT_REVIEWER_WRITE_LOCKS = (
     # (which specified the lock) and the prior code state (which had it
     # unlocked).
     SHARED_PREFERENCES_PATH,
+    # ADR-298 Phase 2: pace is operator-authored only. Reviewer reads pace
+    # at every wake (governance envelope per ADR-276) and the Schedule
+    # primitive pace-gates at declaration time (ADR-298 D5). The Reviewer
+    # surfaces Clarify when its proposed recurrence would exceed the
+    # declared pace; the operator decides whether to pause an existing
+    # recurrence, upgrade pace, or skip. Reviewer never writes pace itself.
+    SHARED_PACE_PATH,
 )

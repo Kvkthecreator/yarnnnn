@@ -223,9 +223,45 @@ async def handle_schedule(auth: Any, input: dict) -> dict:
                 "error": "invalid_mode",
                 "message": f"mode={mode!r} must be one of {list(RECURRENCE_MODES)}",
             }
+        new_schedule = (
+            schedule.strip() if isinstance(schedule, str) and schedule.strip() else None
+        )
+
+        # ADR-298 D5 — pace-population constraint enforced at declaration
+        # time. Only judgment-mode recurrences with concrete cron schedules
+        # contribute to the paced lane's drain budget; mechanical and
+        # reactive recurrences are exempt.
+        if resolved_mode == "judgment" and new_schedule is not None:
+            from services.pace import (
+                check_population_constraint,
+                read_pace,
+            )
+            pace = await read_pace(db_client, user_id)
+            result = check_population_constraint(
+                pace=pace,
+                existing_recurrences=recurrences,
+                new_schedule=new_schedule,
+            )
+            if result.exceeds:
+                return {
+                    "success": False,
+                    "error": "pace_exceeded",
+                    "message": (
+                        f"Adding {slug!r} would exceed the workspace's "
+                        f"declared pace budget. "
+                        f"{result.detail}. Pause an existing recurrence, "
+                        f"upgrade the workspace's pace in `_pace.yaml`, "
+                        f"or skip this addition."
+                    ),
+                    "pace_kind": (pace.kind if pace else None),
+                    "drain_rate_fires_per_day": result.drain_rate_fires_per_day,
+                    "current_fires_per_day": result.current_fires_per_day,
+                    "proposed_fires_per_day": result.proposed_fires_per_day,
+                }
+
         new_rec = Recurrence(
             slug=slug,
-            schedule=(schedule.strip() if isinstance(schedule, str) and schedule.strip() else None),
+            schedule=new_schedule,
             prompt=str(prompt).strip(),
             mode=resolved_mode,
         )
@@ -264,6 +300,64 @@ async def handle_schedule(auth: Any, input: dict) -> dict:
             msg = f"resumed recurrence {slug}"
         elif action == "update":
             applied = []
+            # ADR-298 D5 — pace-population gate fires when `schedule` is in
+            # the changes dict. We compute against the recurrence's *new*
+            # post-update mode (operator may change schedule + mode in
+            # one update) so the check reflects the final shape.
+            if "schedule" in (changes or {}):
+                proposed_schedule_raw = changes["schedule"]
+                proposed_schedule = (
+                    str(proposed_schedule_raw).strip()
+                    if isinstance(proposed_schedule_raw, str) and str(proposed_schedule_raw).strip()
+                    else None
+                )
+                # Resolve effective post-update mode for this check (changes
+                # may include mode too; if not, the recurrence's existing
+                # mode is the effective one).
+                if "mode" in (changes or {}):
+                    proposed_mode_raw = changes["mode"]
+                    if (
+                        isinstance(proposed_mode_raw, str)
+                        and proposed_mode_raw.strip().lower() in {"judgment", "mechanical"}
+                    ):
+                        proposed_mode = proposed_mode_raw.strip().lower()
+                    else:
+                        # Will fail mode validation below; pace check would be
+                        # moot. Skip pace check; mode-validation error wins.
+                        proposed_mode = None
+                else:
+                    proposed_mode = getattr(rec, "mode", "judgment")
+
+                if proposed_mode == "judgment" and proposed_schedule is not None:
+                    from services.pace import (
+                        check_population_constraint,
+                        read_pace,
+                    )
+                    pace = await read_pace(db_client, user_id)
+                    result = check_population_constraint(
+                        pace=pace,
+                        existing_recurrences=recurrences,
+                        new_schedule=proposed_schedule,
+                        replacing_slug=slug,
+                    )
+                    if result.exceeds:
+                        return {
+                            "success": False,
+                            "error": "pace_exceeded",
+                            "message": (
+                                f"Updating {slug!r} schedule to "
+                                f"{proposed_schedule!r} would exceed the "
+                                f"workspace's declared pace budget. "
+                                f"{result.detail}. Pause another recurrence, "
+                                f"upgrade the workspace's pace in `_pace.yaml`, "
+                                f"or skip this update."
+                            ),
+                            "pace_kind": (pace.kind if pace else None),
+                            "drain_rate_fires_per_day": result.drain_rate_fires_per_day,
+                            "current_fires_per_day": result.current_fires_per_day,
+                            "proposed_fires_per_day": result.proposed_fires_per_day,
+                        }
+
             for k, v in (changes or {}).items():
                 if k == "slug":
                     continue  # immutable

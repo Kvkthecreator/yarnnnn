@@ -59,6 +59,7 @@ from services.workspace_paths import (
     SHARED_MANDATE_PATH,
     SHARED_AUTONOMY_PATH,
     SHARED_PREFERENCES_PATH,
+    SHARED_PACE_PATH,
     SPECS_PREFIX,
 )
 
@@ -80,6 +81,13 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     ("mandate_md", SHARED_MANDATE_PATH),
     ("autonomy_md", SHARED_AUTONOMY_PATH),
     ("preferences_yaml", SHARED_PREFERENCES_PATH),
+    # ADR-298 D11: pace is the Trigger-dimension operator dial of the
+    # Pace + Autonomy + Persona trifecta. The Reviewer reads it at every
+    # wake so its Schedule() calls (mid-loop cadence authoring) can land
+    # within the operator's declared pace budget. When read returns empty
+    # (no _pace.yaml authored yet) the helper still yields ("pace_yaml",
+    # "") so the ReviewerContext key is unconditionally present.
+    ("pace_yaml", SHARED_PACE_PATH),
     # — Seat Occupant (ADR-284) — current occupant identity, runtime-truth-aligned
     ("occupant_md", REVIEW_OCCUPANT_PATH),
     # — Standing Intent (ADR-284) — what the Reviewer was watching for last cycle.

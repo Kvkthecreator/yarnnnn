@@ -1,7 +1,7 @@
 # ADR-298 — Reviewer Wake Queue + Pace Dial
 
-**Status**: Phase 1 Implemented 2026-05-22 (schema + service helpers + 41/41 test gate). Phases 2-5 Proposed.
-**Date**: 2026-05-21 (Proposed) · 2026-05-22 (Phase 1 Implemented)
+**Status**: Phases 1+2 Implemented 2026-05-22. Phase 1: schema + service helpers (41/41 test gate). Phase 2: pace substrate + Schedule primitive gate + reviewer envelope (54/54 test gate). Phases 3-5 Proposed.
+**Date**: 2026-05-21 (Proposed) · 2026-05-22 (Phases 1+2 Implemented)
 **Supersedes / amends**: ADR-261 D3 §1–§3 (architectural guarantees on parallel concurrent Reviewer sessions, sub-minute precision, no head-of-line blocking — reversed; see §3 evidence + §4 amendment)
 **Amends**: ADR-272 (`wake_dedup_key` migrates from `execution_events` insert-time check to queue-side dedup at enqueue time), ADR-296 v2 (wake sources enqueue rather than directly dispatch)
 **Builds on**: ADR-209 (Authored Substrate revision chain), ADR-231 D4 (thin scheduling-index precedent), ADR-274 (Reviewer cadence-authoring), ADR-275 (introspection cadence Reviewer-authored from `_preferences.yaml`), ADR-276 (reactive-trigger envelope governance pre-load), ADR-293 (governance-operational substrate taxonomy)
