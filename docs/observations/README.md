@@ -34,6 +34,12 @@ If a finding ever recommends introducing a developer-only concept *into the syst
 
 The autonomy/observability question — *"does the Reviewer act the way we think it does?"* — cannot be answered by unit tests alone. Behavioral validation requires multi-turn interaction under realistic operator pacing, with substrate accumulation, governance gates, capital-action paths, and the back-and-forth of operator-voice nudges all in scope.
 
+**The spec this directory validates against** is one sentence:
+
+> **The Reviewer is a full-substrate-authoring persona-bearing judgment seat — filesystem-native, single-lane queue-serialized, wake-fired, paced by operator-declared pace + autonomy, driven by operator-authored mandate.**
+
+Canonical formalization per [FOUNDATIONS Derived Principle 21](../architecture/FOUNDATIONS.md). Every finding here either confirms a clause of this line behaves as described in live production, or surfaces a contradiction that requires resolution — either a Hat-A code change (the system doesn't yet match the line) or a Hat-B ADR seed (the line needs revision). The clause-to-substrate map lives in [`docs/alpha/ALPHA-1-PLAYBOOK.md` §0](../alpha/ALPHA-1-PLAYBOOK.md#0-the-architectural-success-criterion-the-one-liner); the E2E success criteria live in [`docs/alpha/E2E-EXECUTION-CONTRACT.md` §0 + §6](../alpha/E2E-EXECUTION-CONTRACT.md#0-what-this-contract-validates-the-one-liner).
+
 Ad-hoc observation notes (the pre-ADR-294 pattern) drift. ADR-294 commits observations as first-class artifacts:
 - **Reproducible**: scenario files in `scenarios/` re-run cleanly. The machine-produced artifacts are derived from DB state, not narrative recall.
 - **Interpretable**: `findings.md` is human-written. The point of observation is interpretation, not just data capture.

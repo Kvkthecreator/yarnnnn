@@ -11,6 +11,12 @@ Companion thread: `alpha-trader-autonomy-loop.md` — same shape, capital-lane a
 
 ## North star
 
+**The architectural success criterion this thread validates:**
+
+> **The Reviewer is a full-substrate-authoring persona-bearing judgment seat — filesystem-native, single-lane queue-serialized, wake-fired, paced by operator-declared pace + autonomy, driven by operator-authored mandate.**
+
+Canonical per [FOUNDATIONS Derived Principle 21](../../architecture/FOUNDATIONS.md). This thread validates the line under the **substrate-continuity archetype** — faster feedback (single-scheduler-tick substrate-event hook), no capital surface, primary load on Reviewer-as-quality-judgment on authored corpus. Run this thread first when new system canon needs validation; alpha-trader is the harder capital-lane variant. Clause-to-substrate map: [`docs/alpha/ALPHA-1-PLAYBOOK.md` §0](../../alpha/ALPHA-1-PLAYBOOK.md#0-the-architectural-success-criterion-the-one-liner).
+
 A real operator, on a freshly activated alpha-author workspace, has:
 - Reviewer that wakes naturally (reactive on `ready_for_review` drafts; scheduled on bundle recurrences)
 - Reviewer that reads operator-canon substrate (MANDATE, IDENTITY, _voice.md, _editorial.md, principles.md, _entities.md) and audits drafts against it
@@ -36,7 +42,7 @@ Update this table when a new demo window opens on any persona.
 **Demo window**: 2026-05-20T03:43Z (T0) onwards
 **Next anchored capture**: post-`outcome-reconciliation` (next scheduled 2026-05-20T05:00Z — ~51 min after T0 per the T+~26m liveness check)
 **Subsequent**: post-`corpus-coherence-check` (~2026-05-21T12:00Z, Thu) + T+1week wall-clock (~2026-05-27T03:43Z)
-**`pre-ship-audit` status**: NOT EXPECTED TO FIRE under current bundle declaration — `schedule: null` recurrences are FireInvocation-only handles per FOUNDATIONS Axiom 4, and no upstream wake in the alpha-author bundle currently dispatches it. Pending Hat-A bundle-prompt fix (see findings, Recommendation #1).
+**`pre-ship-audit` status (UPDATED 2026-05-22)**: Now wired via **ADR-296 v2 D2 substrate-event hook** at `/workspace/_hooks.yaml`. Bundle ships the hook (path_match `/workspace/context/authored/*/profile.md`, field_change `status: ready_for_review`). Operator transition `profile.md` `status` `draft` → `ready_for_review` causes next scheduler tick to enqueue a `substrate_event` wake; under ADR-298 Phase 3 the wake routes through `wake_queue` and drains to the Reviewer on `lane=live`. Validated end-to-end on N=1 in [`docs/observations/2026-05-22-020000-canary-v5-adr298-cutover/`](../2026-05-22-020000-canary-v5-adr298-cutover/) — every layer L1→L5 passed; L6 (Reviewer substrate writes) blocked only by negative balance on the test workspace. Pending closure: one observed L6 fire on `yarnnn-author` with positive balance.
 **AUTONOMY mode**: `autonomous`
 **First seeded piece**: `/workspace/context/authored/governance-as-trust/` (status: `ready_for_review`)
 **Latest observation folder**: `docs/observations/2026-05-20-034317-yarnnn-author-autonomy-demonstration-T0/` (interim note + diagnostic audit appended 2026-05-20T04:09Z server-time)

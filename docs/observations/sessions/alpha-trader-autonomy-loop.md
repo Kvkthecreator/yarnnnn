@@ -11,6 +11,12 @@ Companion thread: `alpha-author-autonomy-loop.md` — same shape, substrate-cont
 
 ## North star
 
+**The architectural success criterion this thread validates:**
+
+> **The Reviewer is a full-substrate-authoring persona-bearing judgment seat — filesystem-native, single-lane queue-serialized, wake-fired, paced by operator-declared pace + autonomy, driven by operator-authored mandate.**
+
+Canonical per [FOUNDATIONS Derived Principle 21](../../architecture/FOUNDATIONS.md). This thread validates the line under the **capital-execution archetype** — real (paper) money, real consequences, real reconciliation. Clause-to-substrate map: [`docs/alpha/ALPHA-1-PLAYBOOK.md` §0](../../alpha/ALPHA-1-PLAYBOOK.md#0-the-architectural-success-criterion-the-one-liner).
+
 A real operator, on an activated alpha-trader workspace with Alpaca paper credentials connected, has:
 - Mechanical mirrors (track-account, track-universe, track-regime, track-positions, track-orders) keeping substrate fresh on schedule
 - signal-evaluation recurrence firing at market_open + 15min, detecting matches against operator-declared signals

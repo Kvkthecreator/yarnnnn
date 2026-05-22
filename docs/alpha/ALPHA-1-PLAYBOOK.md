@@ -34,6 +34,32 @@ If an artifact about Alpha-1 doesn't trace back to a section in this playbook, e
 
 ---
 
+## 0. The architectural success criterion (the one-liner)
+
+Alpha-1's job is to validate, end-to-end against real ground truth, that the following one-liner is an honest description of what ships:
+
+> **The Reviewer is a full-substrate-authoring persona-bearing judgment seat — filesystem-native, single-lane queue-serialized, wake-fired, paced by operator-declared pace + autonomy, driven by operator-authored mandate.**
+
+This is the canonical formalization per [FOUNDATIONS Derived Principle 21](../architecture/FOUNDATIONS.md). Every clause maps to substrate, primitive, or mechanism in the live code:
+
+| Clause | Code surface that backs it |
+|---|---|
+| **full-substrate-authoring** | 21-tool `REVIEWER_PRIMITIVES` (WriteFile / ProposeAction / Schedule / ManageHook / DispatchSpecialist / Compose / Clarify / ReturnVerdict + reads) per ADR-258 revised + ADR-296 v2. Lock set is exactly 5 operator dial files: `AUTONOMY.md`, `_autonomy.yaml`, `_token_budget.yaml`, `_preferences.yaml`, `_pace.yaml` per `DEFAULT_REVIEWER_WRITE_LOCKS` (ADR-275 D6 + ADR-293 + ADR-298 Phase 4) |
+| **persona-bearing** | `/workspace/review/IDENTITY.md` — operator-overwritable, persona read at reasoning time per ADR-216 Commit 2; surfaced in feed verdicts per ADR-247 |
+| **judgment seat** | One per workspace; sole systemic persona-bearing Agent per ADR-216; substrate at `/workspace/review/` per ADR-194 v2 + ADR-211; occupant rotates (human / AI / external / impersonation) per ADR-251 |
+| **filesystem-native** | Axiom 1 substrate-as-bus; every Reviewer mutation attributed via Authored Substrate per ADR-209 (`workspace_files` + `workspace_blobs` + `workspace_file_versions`). No parallel DB-resident semantic state |
+| **single-lane queue-serialized** | `wake_queue` table per ADR-298 D1 + D2 enforces one Reviewer cycle in-flight per workspace via CAS try_lock in `services/wake_queue.py::try_lock` |
+| **wake-fired** | Five wake sources (`cron_tick` / `addressed` / `proposal_arrival` / `substrate_event` / `manual_fire`) funnel into one evaluation gate per ADR-296 v2 D1 + Derived Principle 20. Singular invocation gateway: `services/wake.py::submit_wake_proposal()`. `FireInvocation` removed from `REVIEWER_PRIMITIVES` per ADR-296 v2 D3 — Reviewer self-arranges *future* invocations via Schedule + ManageHook + standing_intent, those route THROUGH wake |
+| **paced by operator-declared pace** | `/workspace/context/_shared/_pace.yaml` (Trigger-dimension dial per ADR-298 D11). Pre-loaded in wake envelope per ADR-276. Schedule primitive pace-gates at declaration time per ADR-298 D5. Locked from Reviewer writes |
+| **paced by operator-declared autonomy** | `/workspace/context/_shared/_autonomy.yaml` (Mechanism-dimension dial per ADR-249). `delegation: manual \| bounded \| autonomous` + `ceiling_cents`. `services/review_policy.py::should_auto_apply` gates consequential actions. Locked from Reviewer writes |
+| **driven by operator-authored mandate** | `/workspace/context/_shared/MANDATE.md` — hard-gate on recurrence-creation primitives per ADR-207; pre-loaded in wake envelope per ADR-276; canonical answer to "what is the operation" |
+
+The trifecta the operator controls — **Pace + Autonomy + Persona** — is the envelope inside which the Reviewer operates. Three other operator-authored ceiling files (`_preferences.yaml` deliverable cadence, `_token_budget.yaml` compute budget, MANDATE.md primary intent) complete the operator's authority surface; all are read by the Reviewer at every wake but never written.
+
+Alpha-1 success = a green observation of every clause behaving as described, on a workspace with positive balance and `delegation: autonomous`, in operator-absent runtime. Anything less is architecture-claim, not demonstration. **L6 closure observation 2026-05-22 ([`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md)) validated the line across N=2 substrate-event cycles on yarnnn-author — substrate-continuity branch GREEN; active-branch follow-ons for clauses 4-5 queued.**
+
+---
+
 ## 1. Thesis
 
 ### Why we're doing this
