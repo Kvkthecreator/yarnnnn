@@ -2,13 +2,33 @@
 
 /**
  * TopBarSurface — ADR-297 D11 chrome surface (region: top) +
- * D12 amendment (top-center merged dock-bar) +
+ * D12 (top-center merged dock-bar — superseded by D19.5) +
  * D13 (open-state dots + click foregrounds) +
- * D14 (Dock = kept ∪ open; pin reframed as Keep-in-Dock).
+ * D14 (Dock = kept ∪ open; pin reframed as Keep-in-Dock) +
+ * D19.5 (2026-05-22): three-region macOS-faithful layout.
  *
- * Left-to-right ordering:
+ * D19.5 region structure (left → right):
  *
- *   brand · | · launcher trigger · | · Dock icons · | · user menu
+ *   [ Left:  Pacifico "yarnnn" wordmark ] [ Center: Launcher · Dock icons ] [ Right: UserMenu ]
+ *
+ * Pre-D19.5 the header was a single centered cluster (D12 merged dock-
+ * bar). Operator-felt conflation: brand, launcher, dock, and account
+ * affordance all lived in one row with dividers between, which read
+ * as "navigation chrome" but not as a structured top bar. D19.5
+ * splits into three macOS-faithful regions:
+ *
+ *   - LEFT: brand mark. Pacifico wordmark "yarnnn" (font-brand class,
+ *     same brand mark as Feed surface internal logo + marketing site).
+ *     Click → /desktop (HOME_ROUTE). macOS-equivalent: Apple logo top-
+ *     left. shrink-0 + fixed width.
+ *   - CENTER: Dock cluster. Launcher trigger pinned at the LEFTMOST
+ *     position of the cluster (operator decision Q2 — Launcher is the
+ *     "open more surfaces" affordance, sits with the surface icons,
+ *     not standalone). Dock icons follow in kept-then-open order with
+ *     subtle inner divider. flex-1 min-w-0 lets the cluster claim
+ *     available width and overflow-x scroll on mobile.
+ *   - RIGHT: UserMenu (initials avatar dropdown). Account/settings
+ *     affordance per D19.4. shrink-0 + fixed width.
  *
  * D14 Dock contents: the UNION of kept ∪ open surfaces. Kept surfaces
  * (the macOS "Keep in Dock" semantic) appear in their kept-order. Open
@@ -22,10 +42,12 @@
  *                        kept set by a divider, disappears on close
  *   - Kept + Not-Open  — muted/gray icon, no dot, persists. Click opens.
  *
- * Click semantics (any Dock icon, regardless of kept/open):
- *   - If foregrounded     — no-op (already visible)
- *   - If open + not-foreground — foreground it
- *   - If not open         — open + foreground (foregroundSurface)
+ * Click semantics (any Dock icon, regardless of kept/open) — extended
+ * by D19.3 (minimize-to-Dock semantics):
+ *   - Not open                 — open + foreground (foregroundSurface)
+ *   - Minimized                — restore (foregroundSurface clears minimized + raises)
+ *   - Open + not-foreground    — raise to foreground (raiseWindow)
+ *   - Open + foreground        — minimize (minimizeWindow) — macOS Dock-click-on-active-app
  *
  * Right-click menus (reshaped by D14):
  *   - Open + Kept       — Close / Remove from Dock
@@ -266,59 +288,85 @@ export function TopBarSurface() {
 
   return (
     <>
-    <header className="h-14 border-b border-border bg-background flex items-center justify-center px-4 shrink-0">
-      <nav aria-label="Workspace dock" className="flex items-center gap-1.5">
-        {/* Slot 1 — Brand mark (yarnnn circle). */}
+    {/* D19.5 (2026-05-22) — TopBar three-region layout. Pre-D19.5 the
+        header was a single centered nav cluster (D12 merged dock-bar
+        shape). Operator request KVK 2026-05-22: split into macOS-
+        faithful Left | Center | Right regions.
+          Left   : Pacifico "yarnnn" wordmark (brand mark, click → /desktop)
+          Center : Launcher trigger (fixed left of the cluster) + Dock icons
+                   (kept ∪ open). macOS-Dock-shaped center column.
+          Right  : UserMenu (initials avatar dropdown).
+        Mobile: Center region overflow-x scrolls when icons exceed width;
+        Left + Right stay fixed-width siblings of the scrollable Center. */}
+    <header className="h-14 border-b border-border bg-background flex items-center justify-between gap-2 px-4 shrink-0">
+      {/* Left region — Pacifico wordmark brand mark. macOS convention
+          puts the Apple logo top-left; YARNNN puts its brand here too,
+          but uses the Pacifico wordmark (same as Feed surface internal
+          logo + marketing site) for brand recognition vs Apple's
+          mature-OS minimal icon. Click → /desktop (HOME_ROUTE).
+          shrink-0 + fixed width so it doesn't compress when the
+          center Dock has many icons. */}
+      <div className="flex shrink-0 items-center">
         <button
           onClick={navigateToHome}
-          aria-label="Go to last-active surface"
-          title="Home (last-active surface)"
-          className="flex h-9 w-9 items-center justify-center rounded-md hover:opacity-80 transition-opacity"
+          aria-label="yarnnn — go to Desktop"
+          title="Desktop"
+          className="rounded-md px-2 py-1 transition-opacity hover:opacity-70"
         >
-          <img
-            src="/assets/logos/circleonly_yarnnn_1.svg"
-            alt="yarnnn"
-            className="h-7 w-7"
-          />
+          <span className="font-brand text-2xl text-foreground leading-none">
+            yarnnn
+          </span>
         </button>
+      </div>
 
-        <Divider />
-
-        {/* Slot 2 — Launcher trigger. */}
+      {/* Center region — Dock (Launcher + surface icons). The Launcher
+          trigger is fixed at the leftmost position of the Center
+          cluster (per operator decision Q2). Dock icons follow:
+          kept set, optional inner divider, then open-but-not-kept set.
+          macOS Dock convention.
+          flex-1 min-w-0 lets the region claim available width and
+          overflow-scroll horizontally when icons exceed it (mobile). */}
+      <nav
+        aria-label="Workspace dock"
+        className="flex flex-1 min-w-0 items-center justify-center gap-0.5 overflow-x-auto"
+      >
         <button
           type="button"
           onClick={openLauncher}
           aria-label="Open surface launcher"
           title="Open surface launcher"
-          className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <LayoutGrid className="h-4 w-4" />
         </button>
 
-        <Divider />
-
-        {/* Slot 3 — Dock icons: kept set, then (if any) an inner divider,
-            then open-but-not-kept set. macOS convention. */}
         {hasAnyDockEntries && (
-          <div className="flex items-center gap-0.5">
+          <>
+            <div
+              aria-hidden
+              role="separator"
+              aria-orientation="vertical"
+              className="mx-1 h-4 w-px shrink-0 bg-border/40"
+            />
             {keptSurfaces.map(renderDockIcon)}
             {keptSurfaces.length > 0 && openOnlySurfaces.length > 0 && (
               <div
                 aria-hidden
                 role="separator"
                 aria-orientation="vertical"
-                className="mx-1 h-4 w-px bg-border/40"
+                className="mx-1 h-4 w-px shrink-0 bg-border/40"
               />
             )}
             {openOnlySurfaces.map(renderDockIcon)}
-          </div>
+          </>
         )}
-
-        {hasAnyDockEntries && <Divider />}
-
-        {/* Slot 4 — User menu. */}
-        <UserMenu email={userEmail} />
       </nav>
+
+      {/* Right region — UserMenu. Account/settings affordance per
+          D19.4. shrink-0 + fixed width pinned to viewport right edge. */}
+      <div className="flex shrink-0 items-center">
+        <UserMenu email={userEmail} />
+      </div>
 
       {/* D13 + D14 right-click context menu. */}
       {contextMenu && (
@@ -378,12 +426,3 @@ export function TopBarSurface() {
   );
 }
 
-function Divider() {
-  return (
-    <div
-      role="separator"
-      aria-orientation="vertical"
-      className="h-6 w-px bg-border/60"
-    />
-  );
-}
