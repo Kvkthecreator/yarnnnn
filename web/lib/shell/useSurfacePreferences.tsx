@@ -36,7 +36,9 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
+import { useComposition } from '@/lib/compositor/useComposition';
 import {
   DEFAULT_FOREGROUNDED_SURFACE,
   DEFAULT_KEPT_SURFACES,
@@ -104,6 +106,9 @@ export interface SurfacePreferences {
 const Ctx = createContext<SurfacePreferences | null>(null);
 
 export function SurfacePreferencesProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const { data: composition } = useComposition();
   const [userId, setUserId] = useState<string | null>(null);
   const [kept, setKept] = useState<string[]>(DEFAULT_KEPT_SURFACES);
   const [open, setOpen] = useState<string[]>(DEFAULT_OPEN_SURFACES);
@@ -223,14 +228,52 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       // If we just closed the foregrounded surface, foreground falls
       // through to the tail of the remaining list (most-recently-
       // opened), or null if nothing left.
+      //
+      // D18.2 (2026-05-22) — URL-sync race fix: the foregrounded close
+      // must also navigate the URL synchronously to either the fallback
+      // surface's route OR /desktop. Pre-fix, closing the foregrounded
+      // window left pathname stale (e.g. /feed) while the registry
+      // emptied; AuthenticatedLayout's pathname→foreground effect
+      // (Effect A) then re-fired because `foregroundSurface`'s callback
+      // identity changes when `open` changes, instantly re-opening the
+      // just-closed surface. Operator could not close the topmost
+      // window — the empty Desktop was structurally unreachable
+      // (operator-observed KVK 2026-05-22). Doing the navigate here
+      // means the pathname is updated in the same React batch as the
+      // close, so Effect A's pathname check finds either /desktop or
+      // the fallback route on its next run — no resurrection.
+      //
+      // Only navigate when the current pathname matches a kernel
+      // surface route. Legacy non-atomic routes (/settings, /docs/...)
+      // close their attached surface without touching the URL.
       setForegrounded((current) => {
         if (current !== slug) return current;
         const fallback = next.length > 0 ? next[next.length - 1] : null;
         setForegroundedWrite(userId, fallback);
+
+        // URL-sync. Only fires when current pathname IS a surface route
+        // (the case where the stale URL would otherwise resurrect the
+        // closed surface via Effect A in AuthenticatedLayout).
+        const surfaces = composition.surfaces || [];
+        const pathnameIsSurfaceRoute = surfaces.some(
+          (s) =>
+            s.route &&
+            (pathname === s.route || pathname.startsWith(s.route + '/')),
+        );
+        if (pathnameIsSurfaceRoute) {
+          if (fallback) {
+            const fallbackSurface = surfaces.find((s) => s.slug === fallback);
+            const target = fallbackSurface?.route || '/desktop';
+            if (pathname !== target) router.push(target);
+          } else {
+            if (pathname !== '/desktop') router.push('/desktop');
+          }
+        }
+
         return fallback;
       });
     },
-    [userId]
+    [userId, composition.surfaces, pathname, router]
   );
 
   const foregroundSurface = useCallback(
