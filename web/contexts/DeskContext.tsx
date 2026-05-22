@@ -278,21 +278,19 @@ export function DeskProvider({ children }: DeskProviderProps) {
     (surface: DeskSurface) => {
       dispatch({ type: 'SET_SURFACE', surface });
 
-      // ADR-297 axiom (2026-05-21 operational fix): setSurface is the
-      // canonical action — pure state change. URL is updated via
-      // window.history.replaceState (no Next.js router navigation, no
-      // page re-mount). The viewport re-renders via SurfaceViewport
-      // mounted in AuthenticatedLayout; the URL is a bookmark-safety
-      // affordance only.
+      // D19.2 (2026-05-22): atomic-surface URL-write branch DELETED.
+      // The pre-D19.2 setSurface(atomic) wrote the URL via
+      // window.history.replaceState. Removed because URL is
+      // informational add-on of the workspace, not a tracker of the
+      // foregrounded window — the Dock indicator dot is the canonical
+      // "what's foregrounded" signal. Cold-load deep-link transport
+      // still works because Effect A in AuthenticatedLayout reads
+      // pathname on first paint and calls foregroundSurface(match.slug);
+      // after first paint the URL stays where the cold-load put it
+      // (typically /desktop). Singular Implementation: foregroundSurface
+      // owns "open + foreground"; setSurface owns DeskState for legacy
+      // consumers; no parallel URL-writing mechanism.
       if (surface.type === 'atomic') {
-        const target = `/${surface.slug}`;
-        const qs = surface.params && Object.keys(surface.params).length > 0
-          ? `?${new URLSearchParams(surface.params).toString()}`
-          : '';
-        const newUrl = `${target}${qs}`;
-        if (typeof window !== 'undefined' && window.location.pathname + window.location.search !== newUrl) {
-          window.history.replaceState(null, '', newUrl);
-        }
         return;
       }
 
@@ -329,16 +327,10 @@ export function DeskProvider({ children }: DeskProviderProps) {
     (surface: DeskSurface, message: string) => {
       dispatch({ type: 'SET_SURFACE_WITH_HANDOFF', surface, handoffMessage: message });
 
-      // ADR-297: same non-navigating URL sync as setSurface (above).
+      // D19.2 (2026-05-22): atomic-surface URL-write branch DELETED.
+      // Mirrors setSurface — URL is informational add-on, not a
+      // tracker of the foregrounded window. See setSurface above.
       if (surface.type === 'atomic') {
-        const target = `/${surface.slug}`;
-        const qs = surface.params && Object.keys(surface.params).length > 0
-          ? `?${new URLSearchParams(surface.params).toString()}`
-          : '';
-        const newUrl = `${target}${qs}`;
-        if (typeof window !== 'undefined' && window.location.pathname + window.location.search !== newUrl) {
-          window.history.replaceState(null, '', newUrl);
-        }
         return;
       }
 

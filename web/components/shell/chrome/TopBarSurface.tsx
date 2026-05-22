@@ -40,7 +40,6 @@ import { useComposition } from '@/lib/compositor/useComposition';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
-import { useDesk } from '@/contexts/DeskContext';
 import { isKernelSurfaceSlug } from '@/types/desk';
 import { HOME_ROUTE } from '@/lib/routes';
 import { UserMenu } from '../UserMenu';
@@ -67,7 +66,6 @@ export function TopBarSurface() {
     capHit,
     clearCapHit,
   } = useSurfacePreferences();
-  const { setSurface } = useDesk();
   const { userEmail, openLauncher } = useShellChrome();
 
   // D17 (2026-05-22): brand-mark click navigates to /desktop (the
@@ -150,15 +148,21 @@ export function TopBarSurface() {
       //   - Not open  → open + foreground (cap-checked).
       //   - Open + not-foreground → raise to foreground.
       //   - Open + foreground → hide (macOS Dock-click-on-active-app).
+      //
+      // D19.2 (2026-05-22): pre-D19.2 each branch also called
+      // setSurface({type:'atomic', slug}) which wrote the URL via
+      // window.history.replaceState. Removed — URL is informational
+      // add-on (the Dock indicator dot is the canonical "what's
+      // foregrounded" signal); rewriting URL on every Dock click
+      // produced the operator-felt "redirect" symptom.
       if (!surfaceIsOpen) {
-        const ok = foregroundSurface(surface.slug);
-        if (ok) setSurface({ type: 'atomic', slug: surface.slug });
-        // If !ok, capHit is set; the prompt below handles the UX.
+        foregroundSurface(surface.slug);
+        // If foregroundSurface refused (cap hit), capHit is set; the
+        // prompt below handles the UX.
       } else if (isForegrounded) {
         hideForegrounded();
       } else {
         raiseWindow(surface.slug);
-        setSurface({ type: 'atomic', slug: surface.slug });
       }
     };
     const handleContextMenu = (e: React.MouseEvent) => {
@@ -223,9 +227,10 @@ export function TopBarSurface() {
       items.push({
         label: 'Open',
         action: () => {
+          // D19.2: foregroundSurface is the singular action; URL is
+          // informational add-on, not rewritten on summon.
           if (isKernelSurfaceSlug(contextMenu.slug)) {
             foregroundSurface(contextMenu.slug);
-            setSurface({ type: 'atomic', slug: contextMenu.slug });
           }
         },
       });
@@ -246,7 +251,7 @@ export function TopBarSurface() {
     }
 
     return items;
-  }, [contextMenu, isOpen, isKept, closeSurface, release, keep, foregroundSurface, setSurface]);
+  }, [contextMenu, isOpen, isKept, closeSurface, release, keep, foregroundSurface]);
 
   const hasAnyDockEntries = keptSurfaces.length > 0 || openOnlySurfaces.length > 0;
 

@@ -26,17 +26,16 @@ import { Search, X } from 'lucide-react';
 import type { Surface } from '@/lib/compositor/types';
 import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
 import { Z_LAUNCHER_OVERLAY } from '@/lib/shell/z-tiers';
-import { useDesk } from '@/contexts/DeskContext';
 import { isKernelSurfaceSlug } from '@/types/desk';
 
 interface LauncherProps {
   open: boolean;
   onClose: () => void;
   surfaces: Surface[];
-  /** Open a surface + bring it to the foreground (D13). The pre-D13
-   *  setSurface dispatch is retained as a side-effect inside this
-   *  handler for legacy DeskState consumers; this prop is the D13
-   *  canonical action. */
+  /** Open a surface + bring it to the foreground (D13). Singular
+   *  action; the pre-D19.2 setSurface URL-write side-effect was
+   *  deleted because URL is informational add-on, not a tracker of
+   *  the foregrounded window (D19.2). */
   onForeground: (slug: string) => void;
   bundleTitleBySlug: Record<string, string>;
 }
@@ -92,7 +91,6 @@ export function Launcher({
   onForeground,
   bundleTitleBySlug,
 }: LauncherProps) {
-  const { setSurface } = useDesk();
   const [query, setQuery] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -142,11 +140,17 @@ export function Launcher({
   );
 
   const navigate = (surface: Surface) => {
-    // D13/D14: foregroundSurface opens + foregrounds in one action.
-    // setSurface kept in sync for legacy DeskState consumers.
+    // D19.2 (2026-05-22): foregroundSurface is the SINGULAR action.
+    // Pre-D19.2 we also called setSurface({type:'atomic', slug}) which
+    // wrote the URL via window.history.replaceState — that's what made
+    // clicking a Launcher item feel like a page redirect (operator
+    // observed KVK 2026-05-22). Per the macOS-faithful frame, the URL
+    // is informational add-on of the workspace, not a tracker of the
+    // foregrounded window. The Dock indicator is the canonical
+    // "what's foregrounded" signal. URL stays on /desktop (or whatever
+    // the cold-load was) after first paint.
     if (isKernelSurfaceSlug(surface.slug)) {
       onForeground(surface.slug);
-      setSurface({ type: 'atomic', slug: surface.slug });
     }
     onClose();
   };
