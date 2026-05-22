@@ -29,7 +29,7 @@ All 9 DRIFT findings from the Hat-B catalog received Hat-A edits:
 
 ## Sweep-up incident — Commit 2 boundary lost
 
-**What happened**: Between Hat-B Commit 1 (`d35e28a`, this audit folder) and the moment I attempted to commit the Hat-A sweep, the operator (KVK) committed an unrelated piece of UI work — `b4e8a30 feat(adr-297 d19.1): macOS traffic-lights — minimize · maximize · close`. That commit **swept up all my staged-but-uncommitted Hat-A files** (FOUNDATIONS, GLOSSARY, persona frame, the 3 bundle YAMLs, CHANGELOG, the new regression test) into the same commit as the unrelated traffic-lights work.
+**What happened (symmetric attribution per operator note 2026-05-22)**: Between Hat-B Commit 1 (`d35e28a`, this audit folder) and the moment I attempted to commit the Hat-A sweep, the operator (KVK) was finishing an unrelated piece of UI work — `b4e8a30 feat(adr-297 d19.1): macOS traffic-lights — minimize · maximize · close` — in a parallel session. The operator's `git add` listed only their 4 traffic-lights files; `git status` immediately before their `git commit` showed my 7 Hat-A files as `not staged for commit`. **Yet the resulting commit contains all 12 files**. The most likely mechanism: a hook (`pre-commit` or similar auto-staging path) picked up my unstaged Hat-A files into the index between the operator's `git status` check and the actual commit snapshot. Both sessions saw the same incident from opposite sides — the operator saw extra files appear in their commit; I saw my pending work land under a commit message that describes only UI work.
 
 The commit's stat shows all 12 changed files:
 - 7 of them are Hat-A canon files (this audit's Commit 2 scope)
@@ -38,7 +38,10 @@ The commit's stat shows all 12 changed files:
 
 This is the **`adr239-commit-sweepup-2026-04-29.md` shape** the ADR-236 umbrella explicitly named. The recovery rule from that prior incident applies: don't rewrite operator-authored commits; document the sweep + verify content delivery + name the lesson.
 
-**Why I didn't catch it pre-commit**: I ran `git diff --stat HEAD` to scope Commit 2, saw the extra `web/shell/*` files, recognized them as unrelated in-progress work from session start, and tried to stage only the Hat-A files explicitly via `git add <listed-files>`. By the time `git add` ran, the operator's commit had already landed — `git status` then showed `nothing to commit` because everything had been swept into the prior commit. No diff loss, just no separate Commit 2 with a Hat-A-scoped message.
+**Why neither side caught it pre-commit**:
+- *Operator side*: ran `git status` immediately before `git commit`; the Hat-A files showed as not-staged. The implicit assumption was "not-staged means won't-be-committed." A pre-commit hook between status-check and commit-snapshot violated that assumption.
+- *Hat-A side*: I ran `git diff --stat HEAD` to scope Commit 2, saw the extra `web/shell/*` files, recognized them as unrelated in-progress work from session start, and tried to stage only the Hat-A files explicitly via `git add <listed-files>`. By the time my `git add` ran, the operator's commit had already landed — `git status` showed `nothing to commit` because everything had been swept into the prior commit.
+- **The robust mitigation** (operator's recommendation, adopted): `git diff --cached --stat` between `git add` and `git commit` — the staged-set verification step catches hook-induced staging regardless of which side's perspective. Works for both shapes (race-on-staging like ADR-239's incident, and hook-injected-staging like this one).
 
 **What this means for the audit**:
 - Hat-A content **did land** on `main` (commit `b4e8a30`) and the regression gate confirms it.
@@ -68,11 +71,13 @@ The PLAYBOOK named the success criterion:
 
 ## Lessons
 
-1. **Cross-hat sessions are commit-boundary-sensitive, not session-boundary-sensitive** (per CLAUDE.md §"The Two Hats"). The three-commit shape (observation → fix → resolution) is the discipline; sessions can do all three. But staged-but-uncommitted work from one hat can be swept into a commit authored from a different hat if the operator commits while staging is open. The mitigation is **commit early + commit often** — Commit 2 should have landed atomically the moment the FOUNDATIONS edit was complete, before opening the persona-frame editing block. Pre-commit `git status` is necessary but not sufficient when the operator is also actively committing.
+1. **Cross-hat AND cross-session work is commit-boundary-sensitive in BOTH directions** (per CLAUDE.md §"The Two Hats" + this 2026-05-22 incident). The three-commit shape (observation → fix → resolution) is the discipline. The new failure mode this incident surfaces: parallel sessions racing through `git add` / `git commit` with hooks active create a window where one session's uncommitted work can land in the other session's commit. `git status` reports the index-as-of-now; hooks fire between status-check and commit-snapshot. **The robust mitigation is `git diff --cached --stat` between `git add` and `git commit`** — verifies the actual staged set against the intended scope, immune to both race-on-staging and hook-injected-staging. Adopted going forward in both Hat-A and Hat-B sessions.
 
-2. **Regression gates carry the canon-content invariant independently of commit boundary**. The 8-assertion gate would have caught any future commit that removed Variant F from FOUNDATIONS/GLOSSARY/persona-frame or unbound ReturnVerdict from a judgment prompt — regardless of how the commit was authored. This is the right shape for substrate-level invariants.
+2. **Pre-commit `git status` is necessary but not sufficient** when work is in flight on multiple branches/sessions. The status check confirms what's in the index *at the moment of the check*, not what will be in the commit's snapshot after hooks have run. The post-`git add` / pre-`git commit` `git diff --cached --stat` is the closing-the-gap discipline.
 
-3. **Variant F has the right shape for a canonical sentence**: it composes seven structural claims with zero new architectural commitments. Every claim cites already-ratified canon. This makes it robust to drift — future Reviewer-amending ADRs that contradict any of the seven claims will be visibly inconsistent with DP21, which is exactly the diagnostic shape the operator-stated session goal called for.
+3. **Regression gates carry the canon-content invariant independently of commit boundary**. The 8-assertion gate would have caught any future commit that removed Variant F from FOUNDATIONS/GLOSSARY/persona-frame or unbound ReturnVerdict from a judgment prompt — regardless of how the commit was authored. This is the right shape for substrate-level invariants.
+
+4. **Variant F has the right shape for a canonical sentence**: it composes seven structural claims with zero new architectural commitments. Every claim cites already-ratified canon. This makes it robust to drift — future Reviewer-amending ADRs that contradict any of the seven claims will be visibly inconsistent with DP21, which is exactly the diagnostic shape the operator-stated session goal called for.
 
 ## Cross-references
 
