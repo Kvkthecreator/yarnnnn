@@ -32,6 +32,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from 'react';
@@ -40,15 +41,21 @@ import {
   DEFAULT_FOREGROUNDED_SURFACE,
   DEFAULT_KEPT_SURFACES,
   DEFAULT_OPEN_SURFACES,
+  MAX_OPEN_WINDOWS,
   closeSurface as closeSurfaceWrite,
+  computeDefaultWindowState,
   getForegroundedSurface,
   getKeptSurfaces,
   getOpenSurfaces,
+  getWindowStates,
   keepSurface as keepSurfaceWrite,
   openSurface as openSurfaceWrite,
   releaseSurface as releaseSurfaceWrite,
   setForegroundedSurface as setForegroundedWrite,
   setKeptSurfaces as setKeptWrite,
+  setWindowStates,
+  type WindowState,
+  type WindowStateMap,
 } from './surface-preferences';
 
 export interface SurfacePreferences {
@@ -57,16 +64,40 @@ export interface SurfacePreferences {
   kept: string[];
   /** Currently-open surfaces (D13). */
   open: string[];
-  /** The slug currently visible in main; null = desktop empty state. */
+  /** The slug currently visible / raised-to-top in main; null = desktop. */
   foregrounded: string | null;
+  /** Per-slug window geometry + z-order (D15). */
+  windowStates: WindowStateMap;
   keep: (slug: string) => void;
   release: (slug: string) => void;
   reorder: (slugs: string[]) => void;
   openSurface: (slug: string) => void;
   closeSurface: (slug: string) => void;
-  foregroundSurface: (slug: string) => void;
+  /**
+   * Bring an open surface to the foreground. If not yet open, also
+   * open it. If the soft cap (MAX_OPEN_WINDOWS) is reached when
+   * opening, returns false and surfaces the cap-hit signal via
+   * `capHit` below — caller decides UX (prompt operator to close one).
+   * Returns true on success.
+   */
+  foregroundSurface: (slug: string) => boolean;
   isKept: (slug: string) => boolean;
   isOpen: (slug: string) => boolean;
+  /** D15: update a single window's geometry (called from drag + resize). */
+  setWindowState: (slug: string, state: WindowState) => void;
+  /** D15: raise a window to the top of the z-stack (foreground it
+   *  without re-positioning). Updates foregrounded + bumps z. */
+  raiseWindow: (slug: string) => void;
+  /** D15: hide the currently-foregrounded window (send to background
+   *  but keep it open). foregrounded falls through to the next-most-
+   *  recent open surface; if no others, foreground becomes null. */
+  hideForegrounded: () => void;
+  /** D15: viewport-cap signal — when foregroundSurface refuses to
+   *  open a new window because MAX_OPEN_WINDOWS is reached, this
+   *  carries the attempted slug. Operator UX consumes it to prompt
+   *  "Close another to open this." Caller clears via clearCapHit. */
+  capHit: string | null;
+  clearCapHit: () => void;
 }
 
 const Ctx = createContext<SurfacePreferences | null>(null);
@@ -78,6 +109,12 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   const [foregrounded, setForegrounded] = useState<string | null>(
     DEFAULT_FOREGROUNDED_SURFACE
   );
+  // D15 — window manager state.
+  const [windowStates, setWindowStatesState] = useState<WindowStateMap>({});
+  const [capHit, setCapHit] = useState<string | null>(null);
+  // Monotonic cascade counter — increments per newly-opened window
+  // without prior state. Used to compute cascade x/y offset.
+  const cascadeCounter = useRef(0);
 
   useEffect(() => {
     let mounted = true;
@@ -90,11 +127,31 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
         setKept(getKeptSurfaces(uid));
         setOpen(getOpenSurfaces(uid));
         setForegrounded(getForegroundedSurface(uid));
+        setWindowStatesState(getWindowStates(uid));
       }
     });
     return () => {
       mounted = false;
     };
+  }, []);
+
+  // Persist window-state changes to localStorage.
+  const persistWindowStates = useCallback(
+    (next: WindowStateMap) => {
+      if (!userId) return;
+      setWindowStates(userId, next);
+    },
+    [userId]
+  );
+
+  // Compute the highest z across all open windows + 1 (raises to top).
+  const computeNextZ = useCallback((states: WindowStateMap, openSlugs: string[]): number => {
+    let maxZ = 0;
+    openSlugs.forEach((slug) => {
+      const s = states[slug];
+      if (s && s.z > maxZ) maxZ = s.z;
+    });
+    return maxZ + 1;
   }, []);
 
   const keep = useCallback(
@@ -152,15 +209,132 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   );
 
   const foregroundSurface = useCallback(
-    (slug: string) => {
-      if (!userId) return;
+    (slug: string): boolean => {
+      if (!userId) return false;
+      const alreadyOpen = open.includes(slug);
+
+      // D15 soft cap: only enforced when opening a NEW surface (not
+      // when re-foregrounding an already-open one).
+      if (!alreadyOpen && open.length >= MAX_OPEN_WINDOWS) {
+        setCapHit(slug);
+        return false;
+      }
+
       const nextOpen = openSurfaceWrite(userId, slug);
       setOpen(nextOpen);
       setForegroundedWrite(userId, slug);
       setForegrounded(slug);
+
+      // D15: ensure window has a state entry; cascade-position if new.
+      // Always bump z so the foregrounded window sits on top.
+      setWindowStatesState((current) => {
+        const next: WindowStateMap = { ...current };
+        const newZ = computeNextZ(next, nextOpen);
+        if (!next[slug]) {
+          // Cascade-position a brand-new window. Use viewport
+          // dimensions guarded for SSR (fallback to 1280x800).
+          const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+          const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+          // Desktop padding ≈ TopBar (56) + viewport padding (16) +
+          // composer (~96). Roughly 168px subtracted from useful
+          // height; 32px subtracted from useful width (16 each side).
+          const horizPad = 16;
+          const vertPadTop = 56 + 16; // top bar + desktop padding
+          const vertPadBottom = 96 + 16; // composer + desktop padding
+          const cascadeIndex = cascadeCounter.current++;
+          const computed = computeDefaultWindowState(
+            vw - horizPad * 2,
+            vh - vertPadTop - vertPadBottom,
+            0,
+            cascadeIndex
+          );
+          // Translate by the actual top-left desktop origin so x/y are
+          // viewport-relative.
+          next[slug] = {
+            x: horizPad + computed.x,
+            y: vertPadTop + computed.y,
+            width: computed.width,
+            height: computed.height,
+            z: newZ,
+          };
+        } else {
+          next[slug] = { ...next[slug], z: newZ };
+        }
+        persistWindowStates(next);
+        return next;
+      });
+
+      return true;
     },
-    [userId]
+    [userId, open, computeNextZ, persistWindowStates]
   );
+
+  // D15: raise an already-open window to the foreground without
+  // re-cascading. Bumps z; updates foregrounded slug.
+  const raiseWindow = useCallback(
+    (slug: string) => {
+      if (!userId) return;
+      if (!open.includes(slug)) return;
+      setForegroundedWrite(userId, slug);
+      setForegrounded(slug);
+      setWindowStatesState((current) => {
+        const newZ = computeNextZ(current, open);
+        const next: WindowStateMap = { ...current };
+        const existing = next[slug] ?? null;
+        if (existing) {
+          next[slug] = { ...existing, z: newZ };
+          persistWindowStates(next);
+          return next;
+        }
+        return current;
+      });
+    },
+    [userId, open, computeNextZ, persistWindowStates]
+  );
+
+  // D15: hide the currently-foregrounded window without closing it.
+  // The window stays in `open` (its state is preserved) but
+  // foregrounded falls through to the next-most-recent open slug.
+  const hideForegrounded = useCallback(() => {
+    if (!userId) return;
+    setForegrounded((current) => {
+      if (!current) return current;
+      const others = open.filter((s) => s !== current);
+      // Pick the next-highest-z open window as the new foreground; if
+      // none, foreground becomes null (the foregrounded window stays
+      // open and visible since "hide" semantically requires another
+      // window to take over; if there's no other window, hiding is a
+      // no-op — caller (TopBarSurface) typically closes instead).
+      if (others.length === 0) return current;
+      let nextSlug: string | null = null;
+      let maxZ = -Infinity;
+      others.forEach((s) => {
+        const st = windowStates[s];
+        if (st && st.z > maxZ) {
+          maxZ = st.z;
+          nextSlug = s;
+        }
+      });
+      // Fallback: most-recently-added open slug.
+      if (!nextSlug) nextSlug = others[others.length - 1] ?? null;
+      setForegroundedWrite(userId, nextSlug);
+      return nextSlug;
+    });
+  }, [userId, open, windowStates]);
+
+  // D15: update a single window's geometry (called from drag + resize).
+  const updateWindowState = useCallback(
+    (slug: string, state: WindowState) => {
+      setWindowStatesState((current) => {
+        const next: WindowStateMap = { ...current, [slug]: state };
+        persistWindowStates(next);
+        return next;
+      });
+    },
+    [persistWindowStates]
+  );
+
+  const clearCapHit = useCallback(() => setCapHit(null), []);
 
   const isKept = useCallback((slug: string) => kept.includes(slug), [kept]);
   const isOpen = useCallback((slug: string) => open.includes(slug), [open]);
@@ -171,6 +345,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       kept,
       open,
       foregrounded,
+      windowStates,
       keep,
       release,
       reorder,
@@ -179,12 +354,18 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       foregroundSurface,
       isKept,
       isOpen,
+      setWindowState: updateWindowState,
+      raiseWindow,
+      hideForegrounded,
+      capHit,
+      clearCapHit,
     }),
     [
       userId,
       kept,
       open,
       foregrounded,
+      windowStates,
       keep,
       release,
       reorder,
@@ -193,6 +374,11 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       foregroundSurface,
       isKept,
       isOpen,
+      updateWindowState,
+      raiseWindow,
+      hideForegrounded,
+      capHit,
+      clearCapHit,
     ]
   );
 

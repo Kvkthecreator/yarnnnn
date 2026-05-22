@@ -434,6 +434,63 @@ The Launcher's prop surface shrinks accordingly: `kept`, `onKeep`, `onRelease` p
 
 D14.1 implementation status: **Implemented 2026-05-22** (this session, single commit).
 
+### D15 — Window manager (multi-visible, draggable, resizable, z-stacked) (2026-05-22 same-session amendment)
+
+**Brings forward** D10 §"main region accepts an array of surface declarations, not just one. Default layout: single-active. Split-mode + peek layouts unlock when operator demands" — operator pulled this forward 4 commits after D13. Pre-D15 the multi-mount lifecycle was real but only ONE window was visible at a time; D13+D14 shipped a tabbed shell with window chrome painted on, not a window manager.
+
+D15 ratifies the full macOS/Windows window-manager model: multiple windows visible simultaneously, each independently positioned + sized + z-stacked, with operator-controllable drag + resize + raise-on-click + close.
+
+**Locked decisions** (operator-confirmed in the D15 design discourse, 2026-05-22):
+
+1. **Window arrangement — cascade always.** Every newly-opened window opens at a default size (70% × 70% viewport) and is cascaded +30px right/down from the last-opened window's position. macOS-default. Wraps back to top-left when cascade reaches viewport edge. First window opens at the cascade origin (default offset from desktop top-left, not auto-maximized).
+
+2. **Mobile breakpoint — <640px is single-window.** Phones (<640px) collapse to single-window UX: full-screen current window (within the desktop padding), drag/resize/overlap disabled, switch via Dock click. Tablets (640px+) and desktop get full multi-window. Window chrome (title bar + close ×) still visible at every viewport for consistency.
+
+3. **Performance cap — soft cap at 8 open windows.** Opening a 9th surface (via Launcher or Dock click on a kept-not-open) shows a prompt: "You have 8 windows open. Close one before opening this." Cap is operator-visible — the operator chooses what to close. No automatic LRU eviction (state-loss surprise is worse than explicit cap).
+
+4. **Z-stacking — click anywhere in a window raises it.** macOS-default raise-on-click. Click in any part of any window (body or title bar) → that window becomes foreground (z-index raised to top). The DeskContext `foregrounded` slug updates accordingly.
+
+5. **Window buttons — close × only.** No minimize, no maximize. Rationale: (a) D13 multi-mount already preserves state for hidden windows, so "minimize" would duplicate the concept; (b) maximize is unnecessary in cascade-arrangement where windows already default to 70%×70% — operator can drag to maximize manually if they want full-bleed.
+
+6. **Title-bar = drag handle.** Click anywhere in the title bar (not on the × button) + drag → moves the window. macOS-default.
+
+7. **Resize handles on all four edges + four corners** (8 handles). Cursor-style hints (`ew-resize`, `ns-resize`, `nesw-resize`, `nwse-resize`) on hover. Drag from any edge/corner resizes the window with the opposite edge/corner anchored.
+
+8. **Dock click semantics extend.** Click a Dock icon (kept or open):
+   - If surface is NOT open → open + foreground (cascade-positioned).
+   - If surface IS open and NOT foregrounded → raise it to foreground.
+   - If surface IS open and IS foregrounded → **hide** (send to background; window stays mounted but `display: none`'d). macOS hidden behavior — clicking the active app's Dock icon hides it.
+
+**Window state per surface** (persisted to localStorage alongside open + kept + foregrounded):
+```
+{
+  slug: string;
+  x: number;       // viewport-relative pixel position of top-left corner
+  y: number;
+  width: number;
+  height: number;
+  z: number;       // z-index (relative ordering among open windows)
+}
+```
+- One row per slug in `kept ∪ open` (kept-not-open windows persist their last-used arrangement so Re-Open lands them where they were).
+- Stored in a single localStorage key: `yarnnn:shell:window-state:{userId}`.
+- Initial state: cascade-derived defaults from viewport size.
+
+**Bounds clamping**: window position bounded so the title bar is always at least partially visible (drag past viewport edge → snap-back). Window size bounded by minimum dimensions (320 × 240) and maximum (viewport - 32px padding). Resize past min/max → clamp.
+
+**Why D15 and not its own ADR**: same rationale as D11/D12/D13/D14/D14.1 — refinement of the surface-mirrors-substrate principle's layout-policy expression. D15 doesn't reopen the axiom; it advances the `main` region's mount semantics from "render-N-windows-but-show-1" to "render-N-windows-show-all-at-their-positions." Same ADR; explicit amendment for trace continuity.
+
+**What D15 does NOT do**:
+- Does not introduce snap-to-half / snap-to-quarter productivity gestures. Pure drag/resize only. Future v2 may add snap zones.
+- Does not introduce a maximize button or keyboard shortcut (F-key, ⌘↑, etc.). Operator drags to full-bleed manually.
+- Does not introduce window minimize-to-dock as a distinct state (no minimize button). Hide-via-dock-click of foregrounded window is the lightweight alternative.
+- Does not introduce window-grouping / spaces / virtual desktops. One desktop, N windows.
+- Does not introduce keyboard switcher (cmd-tab equivalent). Mouse + Dock only.
+- Does not introduce window-thumbnail previews (Mission Control). Far forward horizon.
+- Does not implement focus-stealing prevention beyond click-to-raise. New windows raise to top on open (assumed deliberate).
+
+D15 implementation status: **Implemented 2026-05-22** (this session, code commit lands together with this doc per the same combined-commit cadence as D14).
+
 ---
 
 ## Implementation path for D11 — Uniform Compositor

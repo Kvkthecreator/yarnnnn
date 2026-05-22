@@ -31,10 +31,24 @@
 const KEPT_KEY_PREFIX = 'yarnnn:shell:kept-surfaces:';
 const OPEN_KEY_PREFIX = 'yarnnn:shell:open-surfaces:';
 const FOREGROUND_KEY_PREFIX = 'yarnnn:shell:foregrounded-surface:';
+const WINDOW_STATE_KEY_PREFIX = 'yarnnn:shell:window-state:';
 
 export const DEFAULT_KEPT_SURFACES: string[] = ['feed'];
 export const DEFAULT_OPEN_SURFACES: string[] = [];
 export const DEFAULT_FOREGROUNDED_SURFACE: string | null = null;
+
+// D15 — window manager soft cap.
+export const MAX_OPEN_WINDOWS = 8;
+// D15 — mobile breakpoint below which we collapse to single-window UX.
+export const MOBILE_BREAKPOINT_PX = 640;
+// D15 — minimum window dimensions (clamped during resize).
+export const WINDOW_MIN_WIDTH = 320;
+export const WINDOW_MIN_HEIGHT = 240;
+// D15 — cascade offset between newly-opened windows.
+export const CASCADE_OFFSET_PX = 30;
+// D15 — default window dimensions (% of viewport).
+export const DEFAULT_WINDOW_WIDTH_PCT = 0.7;
+export const DEFAULT_WINDOW_HEIGHT_PCT = 0.7;
 
 function isBrowser(): boolean {
   return typeof window !== 'undefined' && typeof localStorage !== 'undefined';
@@ -169,4 +183,111 @@ export function setForegroundedSurface(userId: string, slug: string | null): voi
   } catch {
     // ignore
   }
+}
+
+// ----------------------------------------------------------------------------
+// Window state (D15 — window manager)
+// ----------------------------------------------------------------------------
+//
+// Per-surface window geometry + z-order. Persisted as a single record
+// per userId keyed by slug. Newly-opened surfaces with no prior entry
+// receive a cascade-derived default; closed surfaces retain their
+// last-used arrangement so Re-Open lands them where they were.
+
+export interface WindowState {
+  /** Top-left corner pixel position, viewport-relative. */
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Relative z-order among open windows. Highest = foreground. */
+  z: number;
+}
+
+export type WindowStateMap = Record<string, WindowState>;
+
+export function getWindowStates(userId: string): WindowStateMap {
+  if (!isBrowser() || !userId) return {};
+  try {
+    const raw = localStorage.getItem(key(WINDOW_STATE_KEY_PREFIX, userId));
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return parsed as WindowStateMap;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+export function setWindowStates(userId: string, states: WindowStateMap): void {
+  if (!isBrowser() || !userId) return;
+  try {
+    localStorage.setItem(key(WINDOW_STATE_KEY_PREFIX, userId), JSON.stringify(states));
+  } catch {
+    // ignore
+  }
+}
+
+/** Compute the default geometry for a newly-opened window. Cascades
+ *  +CASCADE_OFFSET_PX from `cascadeAnchor`, wrapping back to top-left
+ *  when the offset reaches the viewport edge. Clamps to viewport. */
+export function computeDefaultWindowState(
+  viewportWidth: number,
+  viewportHeight: number,
+  desktopPaddingPx: number,
+  cascadeIndex: number
+): WindowState {
+  const usableWidth = Math.max(WINDOW_MIN_WIDTH, viewportWidth - desktopPaddingPx * 2);
+  const usableHeight = Math.max(WINDOW_MIN_HEIGHT, viewportHeight - desktopPaddingPx * 2);
+  const width = Math.max(WINDOW_MIN_WIDTH, Math.round(usableWidth * DEFAULT_WINDOW_WIDTH_PCT));
+  const height = Math.max(WINDOW_MIN_HEIGHT, Math.round(usableHeight * DEFAULT_WINDOW_HEIGHT_PCT));
+
+  // Cascade origin sits at the desktop-padding inset; offset by index,
+  // wrapping when the offset would push the window off the desktop.
+  const maxOffsetX = Math.max(0, usableWidth - width);
+  const maxOffsetY = Math.max(0, usableHeight - height);
+  const stride = CASCADE_OFFSET_PX;
+  const xOffset = stride * cascadeIndex;
+  const yOffset = stride * cascadeIndex;
+  const wrappedX = maxOffsetX > 0 ? xOffset % (maxOffsetX + 1) : 0;
+  const wrappedY = maxOffsetY > 0 ? yOffset % (maxOffsetY + 1) : 0;
+
+  return {
+    x: desktopPaddingPx + wrappedX,
+    y: desktopPaddingPx + wrappedY,
+    width,
+    height,
+    z: 0, // caller updates with max-z + 1
+  };
+}
+
+/** Clamp a window's position so the title bar is at least partially
+ *  visible (the operator can always grab the title bar). Clamps size
+ *  to (WINDOW_MIN_*, viewport - 2*padding). */
+export function clampWindowState(
+  state: WindowState,
+  viewportWidth: number,
+  viewportHeight: number,
+  desktopPaddingPx: number,
+  titleBarHeightPx: number = 32
+): WindowState {
+  const maxWidth = Math.max(WINDOW_MIN_WIDTH, viewportWidth - desktopPaddingPx * 2);
+  const maxHeight = Math.max(WINDOW_MIN_HEIGHT, viewportHeight - desktopPaddingPx * 2);
+  const width = Math.min(maxWidth, Math.max(WINDOW_MIN_WIDTH, state.width));
+  const height = Math.min(maxHeight, Math.max(WINDOW_MIN_HEIGHT, state.height));
+
+  // Position bounds: keep at least 80px of the title bar visible on
+  // every edge so the operator can always grab it. y can't go above
+  // the desktop padding (would hide the title bar entirely).
+  const minVisible = 80;
+  const minX = desktopPaddingPx - width + minVisible;
+  const maxX = viewportWidth - desktopPaddingPx - minVisible;
+  const minY = desktopPaddingPx;
+  const maxY = viewportHeight - desktopPaddingPx - titleBarHeightPx;
+  const x = Math.min(maxX, Math.max(minX, state.x));
+  const y = Math.min(maxY, Math.max(minY, state.y));
+
+  return { x, y, width, height, z: state.z };
 }

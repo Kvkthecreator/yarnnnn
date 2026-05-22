@@ -61,6 +61,10 @@ export function TopBarSurface() {
     release,
     foregroundSurface,
     closeSurface,
+    raiseWindow,
+    hideForegrounded,
+    capHit,
+    clearCapHit,
   } = useSurfacePreferences();
   const { setSurface } = useDesk();
   const { userEmail, openLauncher } = useShellChrome();
@@ -135,10 +139,19 @@ export function TopBarSurface() {
     const surfaceIsKept = isKept(surface.slug);
 
     const handleClick = () => {
-      if (isKernelSurfaceSlug(surface.slug)) {
-        foregroundSurface(surface.slug);
-        // Keep DeskContext.surface in sync for any consumer still
-        // reading the legacy DeskState.
+      if (!isKernelSurfaceSlug(surface.slug)) return;
+      // D15 Dock click semantics:
+      //   - Not open  → open + foreground (cap-checked).
+      //   - Open + not-foreground → raise to foreground.
+      //   - Open + foreground → hide (macOS Dock-click-on-active-app).
+      if (!surfaceIsOpen) {
+        const ok = foregroundSurface(surface.slug);
+        if (ok) setSurface({ type: 'atomic', slug: surface.slug });
+        // If !ok, capHit is set; the prompt below handles the UX.
+      } else if (isForegrounded) {
+        hideForegrounded();
+      } else {
+        raiseWindow(surface.slug);
         setSurface({ type: 'atomic', slug: surface.slug });
       }
     };
@@ -232,6 +245,7 @@ export function TopBarSurface() {
   const hasAnyDockEntries = keptSurfaces.length > 0 || openOnlySurfaces.length > 0;
 
   return (
+    <>
     <header className="h-14 border-b border-border bg-background flex items-center justify-center px-4 shrink-0">
       <nav aria-label="Workspace dock" className="flex items-center gap-1.5">
         {/* Slot 1 — Brand mark (yarnnn circle). */}
@@ -317,6 +331,27 @@ export function TopBarSurface() {
         </div>
       )}
     </header>
+
+    {/* D15 soft-cap prompt — surfaces when foregroundSurface refuses
+        a new window because the open-window count reached
+        MAX_OPEN_WINDOWS. Centered toast just under the header. */}
+    {capHit && (
+      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-50 dark:bg-amber-900/40 px-4 py-2.5 shadow-lg">
+        <div className="text-xs text-amber-900 dark:text-amber-100">
+          You have 8 windows open. Close one before opening{' '}
+          <span className="font-medium">{capHit}</span>.
+        </div>
+        <button
+          type="button"
+          onClick={clearCapHit}
+          className="text-xs text-amber-900/70 dark:text-amber-100/70 hover:text-amber-900 dark:hover:text-amber-100 transition-colors"
+          aria-label="Dismiss"
+        >
+          ✕
+        </button>
+      </div>
+    )}
+    </>
   );
 }
 
