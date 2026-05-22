@@ -1,6 +1,6 @@
 # ADR-299: Kernel-Universal Operator-Addressing Capability — `send_operator_email`
 
-**Status**: Proposed 2026-05-22
+**Status**: Phase 1 Implemented 2026-05-22 (kernel module + tool wrap + resolution wiring + regression gate 8/8 PASS). Phases 2-4 deferred per phased roadmap.
 **Date**: 2026-05-22
 **Authors**: KVK, Claude
 **Companion**: [`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md) — surfaced the L6 capital-execution gap on alpha-author that triggered this discourse
@@ -195,9 +195,12 @@ The conglomerate-alpha thesis (per ALPHA-1-PLAYBOOK + ADR-191) keeps its archety
 
 ## Status
 
-**Proposed.** Implementation deferred to follow-up commits per the phased roadmap. Phase 1 is the load-bearing commit (kernel module + tool wrap + regression test); Phases 2-4 follow naturally.
+**Phase 1 Implemented 2026-05-22.** The kernel module (`api/services/kernel_capabilities.py`), tool wrap (`platform_email_send_to_operator` in `EMAIL_TOOLS` + `send_to_operator` branch in `_handle_email_tool`), and resolution wiring (kernel-universal pre-check in `get_platform_tools_for_capabilities`) all shipped. Regression gate `api/test_adr299_kernel_universal_capability.py` 8/8 PASS; sibling reviewer-formalization gate (`test_reviewer_formalization.py`) 8/8 PASS confirming no regression in adjacent canon. Singular Implementation discipline honored — one resolution path, one tool definition, structural addressee pin enforced at three layers (schema absence + handler runtime rejection + source-level test guard).
 
-The 2026-05-22 discourse round validates the architectural claim; the implementation work is normal-engineering-shaped. The ADR is committable as Proposed before Phase 1 ships.
+**Phases 2-4 deferred to follow-up commits**:
+- Phase 2: `_preferences.yaml` schema extension for `operator_notifications:` opt-in block (alpha-author + alpha-trader bundle reference workspaces)
+- Phase 3: `_PERSONA_FRAME` cadence-section nudge for Reviewer awareness of operator-update preferences (with CHANGELOG entry per Prompt Change Protocol)
+- Phase 4: L6 validation observation on alpha-author (operator declares preference, observe natural cycle emit `platform_email_send_to_operator`, capture artifacts → updates `docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/` ADDENDUM with explicit consequential-action gate-fire evidence on alpha-author without audience-bearing capabilities)
 
 ## Cross-references
 

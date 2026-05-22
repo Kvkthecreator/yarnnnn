@@ -863,6 +863,26 @@ EMAIL_TOOLS = [
             "required": ["messages"],
         },
     },
+    # ADR-299 D2: kernel-universal operator-addressing email tool. Addressee is
+    # structurally pinned to the workspace owner's identity (auth.users.email)
+    # — does NOT accept a free-form `to:` field. This is what distinguishes
+    # kernel-universal observability from bundle-specific audience-bearing
+    # writes. Use `platform_email_send` above when the bundle/recurrence
+    # legitimately needs to address a third party / audience and has declared
+    # `write_email` capability in its MANIFEST.
+    {
+        "name": "platform_email_send_to_operator",
+        "description": "Send an observability email to the workspace operator's own inbox. Addressee is structurally pinned to the operator's identity (auth.users.email for the workspace owner) — no `to:` field. Use for daily updates, alert digests, state-change notifications the operator opted into via /workspace/context/_shared/_preferences.yaml. Does NOT route through ExecuteProposal / AUTONOMY gating (per ADR-299 D4 — operator-addressing writes are observability, not consequential action). The wire uses the operator's connected Resend account; if no Resend connection exists, the tool will not appear in your surface.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "subject": {"type": "string", "description": "Email subject line."},
+                "html": {"type": "string", "description": "Email body as HTML."},
+                "reply_to": {"type": "string", "description": "Optional Reply-To header. Defaults to the operator's email if omitted."},
+            },
+            "required": ["subject", "html"],
+        },
+    },
 ]
 
 
@@ -986,7 +1006,10 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
 
     Only returns tools for:
     1. providers the user has connected, and
-    2. providers/actions granted by the agent capability bundle
+    2. providers/actions granted by the agent capability bundle, OR
+    3. capabilities registered in KERNEL_UNIVERSAL_CAPABILITIES (ADR-299),
+       which may apply across all bundle archetypes without MANIFEST
+       declaration — their wire-level connection gate (if any) still applies.
     """
     if not capabilities:
         return []
@@ -1001,6 +1024,19 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
         return []
 
     allowed_tool_names: set[str] = set()
+
+    # ADR-299 D5: kernel-universal capabilities resolve first. Precedence is
+    # one-way — bundles cannot redeclare kernel-universal capability keys to
+    # alter their shape. The wire-level connection gate (when declared in
+    # the kernel-universal registry) still applies, so tools degrade silently
+    # from the surface when the wire isn't connected (preserves operator UX —
+    # no leaking non-functional tools into prompts).
+    from services.kernel_capabilities import get_kernel_universal_tools_for_capabilities
+    allowed_tool_names.update(
+        get_kernel_universal_tools_for_capabilities(capabilities, connected_providers)
+    )
+
+    # Bundle-specific capability resolution (existing path).
     for capability in capabilities:
         provider = CAPABILITY_PROVIDER_MAP.get(capability)
         if not provider or provider not in connected_providers:
@@ -2247,6 +2283,68 @@ async def _handle_email_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             response["warning"] = (
                 "Bulk emails sent from Resend's shared sender. "
                 "Verify a domain in Resend for production sending."
+            )
+        return response
+
+    elif tool == "send_to_operator":
+        # ADR-299 D2: kernel-universal operator-addressing send. Addressee
+        # resolved at send-time from auth.users.email; structurally cannot
+        # address third parties (no `to:` field accepted from LLM). Reply-To
+        # defaults to operator's email so any reply lands back in their inbox.
+        from jobs.unified_scheduler import get_user_email
+
+        operator_email = await get_user_email(auth.client, auth.user_id)
+        if not operator_email:
+            return {
+                "success": False,
+                "error": (
+                    "Operator email unresolvable from auth.users — cannot "
+                    "send operator-addressing email. This is a kernel-level "
+                    "identity-resolution failure, not an operator-fixable "
+                    "preference issue."
+                ),
+            }
+
+        subject = tool_input.get("subject")
+        html = tool_input.get("html")
+        if not subject or not html:
+            return {"success": False, "error": "subject and html are required"}
+
+        # Reject any LLM-supplied addressee field as a structural pin (ADR-299 D2).
+        # send_to_operator's load-bearing property is that addressee resolves
+        # from operator-identity, not from LLM input — so the tool refuses
+        # the field even if the model attempts to supply it.
+        for forbidden in ("to", "cc", "bcc", "from_email", "from_name"):
+            if forbidden in tool_input:
+                return {
+                    "success": False,
+                    "error": (
+                        f"`{forbidden}` is not accepted by send_to_operator "
+                        "(ADR-299 D2: addressee is structurally pinned to "
+                        "the operator's identity). For audience-addressing "
+                        "sends, use platform_email_send with the appropriate "
+                        "bundle capability."
+                    ),
+                }
+
+        result = await resend.send(
+            api_key,
+            to=[operator_email],
+            subject=subject,
+            html=html,
+            from_email=default_from_email,
+            from_name=default_from_name,
+            reply_to=tool_input.get("reply_to") or default_reply_to or operator_email,
+        )
+        if isinstance(result, dict) and result.get("error"):
+            return {"success": False, "error": result["error"], "message": result.get("detail", "")}
+
+        response = {"success": True, "result": result, "addressed_to": operator_email}
+        if not metadata.get("has_verified_domain"):
+            response["warning"] = (
+                "Operator-addressing email sent from Resend's shared sender "
+                "(onboarding@resend.dev). Verify a domain in Resend for "
+                "production-quality sender headers."
             )
         return response
 
