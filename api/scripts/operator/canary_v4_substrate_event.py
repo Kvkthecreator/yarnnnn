@@ -80,8 +80,8 @@ async def main() -> int:
         print(f"     status: ready_for_review")
         print()
         print(f"Canary fired. Expected wake within ~1-2 min of {now2}.")
-        print(f"Watch: execution_events WHERE created_at > '{now2}'")
-        print(f"       wake_dedup_key likely = '{write2['revision_id']}'")
+        print(f"Watch: wake_queue WHERE created_at > '{now2}'")
+        print(f"       dedup_key = '{write2['revision_id']}'")
         return 0
 
 

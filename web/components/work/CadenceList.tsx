@@ -41,6 +41,7 @@ import {
 } from '@/lib/schedule';
 import type { Recurrence, Agent, NarrativeByTaskSlice } from '@/types';
 import { BundleBanner } from '@/components/library/BundleBanner';
+import { PaceBadge } from '@/components/work/PaceBadge';
 import { useComposition, getTab } from '@/lib/compositor';
 
 interface CadenceListProps {
@@ -279,7 +280,7 @@ export function CadenceList({
             context still surfaces on the Cadence list. */}
         <BundleBanner tab="work" />
 
-        {/* Search + agent filter + overflow */}
+        {/* Search + agent filter + pace badge + overflow */}
         <div className="flex items-center gap-2">
           <div className="relative flex-1 min-w-0">
             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground/40" />
@@ -300,6 +301,8 @@ export function CadenceList({
               <X className="w-3 h-3" />
             </button>
           )}
+          {/* ADR-298 Phase 5 — operator pace + queue depth glance. */}
+          <PaceBadge className="shrink-0" />
           <OverflowOptions
             includeSystem={includeSystem}
             includeHistorical={includeHistorical}

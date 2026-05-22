@@ -661,6 +661,20 @@ export const api = {
   // ADR-242 + ADR-243 Phase C: Cockpit live platform reads.
   // Auth-scoped only — endpoints derive user_id from session, no path param.
   cockpit: {
+    // ADR-298 Phase 5 — operator pace + live wake_queue depths.
+    // Pace is the Trigger-dimension dial of the Pace+Autonomy+Persona
+    // trifecta (D11). Queue depths are a thin telemetry surface (per
+    // ADR-298 D2 — the queue itself is not operator-readable substrate;
+    // only the depth aggregate is).
+    pace: () =>
+      request<{
+        pace_kind: 'hourly' | 'daily' | 'weekly' | 'continuous' | null;
+        pace_every_iso: string | null;
+        fires_per_day_cap: number | null;
+        paced_lane_depth: number;
+        live_lane_depth: number;
+      }>('/api/cockpit/pace'),
+
     moneyTruth: () =>
       request<{
         live: boolean;

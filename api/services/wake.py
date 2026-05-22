@@ -1389,10 +1389,11 @@ async def _invoke_substrate_event_wake(
     `substrate_event_*` fields so the Reviewer can read the transition
     that woke it.
 
-    Migration 178: revision_id (the workspace_file_versions.id that
-    matched the hook) is stamped on every execution_events row as
-    wake_dedup_key, allowing the walker to dedup re-fires of the same
-    matched revision across multiple scheduler ticks.
+    ADR-298 Phase 5 cleanup (2026-05-22): the per-record wake_dedup_key
+    stamping on execution_events is DELETED. Cross-source dedup
+    migrated to the wake_queue.dedup_key UNIQUE constraint enforced at
+    enqueue time per ADR-298 D6. Migration 180 drops the column from
+    execution_events.
     """
     started_at = datetime.now(timezone.utc)
     import uuid as _uuid
@@ -1409,7 +1410,6 @@ async def _invoke_substrate_event_wake(
             status="failed", error_reason="empty_hook_prompt",
             wake_source="substrate_event",
             funnel_decision="skip",
-            wake_dedup_key=revision_id,
         )
         return {
             "success": False,
@@ -1434,7 +1434,6 @@ async def _invoke_substrate_event_wake(
             status="failed", error_reason="balance_exhausted",
             wake_source="substrate_event",
             funnel_decision="skip",
-            wake_dedup_key=revision_id,
         )
         return {
             "success": False, "slug": slug, "source": "substrate_event",
@@ -1490,7 +1489,6 @@ async def _invoke_substrate_event_wake(
             envelope_load_ms=_env_ms,
             wake_source="substrate_event",
             funnel_decision="escalate",
-            wake_dedup_key=revision_id,
         )
         return {
             "success": False, "slug": slug, "source": "substrate_event",
@@ -1513,7 +1511,6 @@ async def _invoke_substrate_event_wake(
         tool_rounds=_ro.get("tool_rounds"),
         wake_source="substrate_event",
         funnel_decision="escalate",
-        wake_dedup_key=revision_id,
     )
 
     return {

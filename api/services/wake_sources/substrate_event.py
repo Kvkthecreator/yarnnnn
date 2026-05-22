@@ -308,22 +308,17 @@ async def walk_hooks(
         for hook in hooks:
             if not _matches_hook(rev, prev_content, hook):
                 continue
-            hook_slug = hook.get("slug") or "substrate-event"
-            # Migration 178: dedup the same matched revision across walker
-            # invocations. The walker's 30-minute lookback (the recovery
-            # window for missed scheduler ticks) re-discovers the same
-            # transition revision on every */1 tick; without this guard,
-            # one matched transition becomes up to 30 redundant Reviewer
-            # wakes. The check consults execution_events for the same
-            # (user_id, slug, wake_source='substrate_event', revision_id)
-            # tuple — the partial unique index on (user_id, wake_source,
-            # wake_dedup_key) is the structural backstop.
-            if _already_fired_for(client, user_id, hook_slug, revision_id):
-                logger.debug(
-                    "[WAKE:substrate] skipping already-fired hook=%s revision=%s",
-                    hook_slug, (revision_id or "")[:8],
-                )
-                continue
+            # ADR-298 Phase 5 cleanup (2026-05-22): the legacy execution_events.
+            # wake_dedup_key pre-check is DELETED. Post-cutover the wake_queue
+            # UNIQUE constraint on (user_id, wake_source, dedup_key) at INSERT
+            # time is the singular authoritative gate per ADR-298 D6. Walker
+            # calls submit_wake_proposal unconditionally on every match; if
+            # the same revision_id was already enqueued, the UNIQUE constraint
+            # silently drops the second INSERT and submit_wake_proposal
+            # returns {dedup: True}. The 30-min lookback's repeated re-matches
+            # are absorbed at the queue layer rather than via a pre-SELECT.
+            # Migration 179 + commit 42c9b13 + Phase 5 migration drop of the
+            # execution_events.wake_dedup_key column complete this transition.
             try:
                 outcome = await submit_wake_proposal(
                     client, user_id,
@@ -345,58 +340,6 @@ async def walk_hooks(
             # if multiple hooks match the same revision, all fire.
 
     return outcomes
-
-
-def _already_fired_for(
-    client: Any,
-    user_id: str,
-    hook_slug: str,
-    revision_id: Optional[str],
-) -> bool:
-    """Return True iff execution_events already carries a wake event for this
-    (user_id, hook_slug, revision_id) tuple.
-
-    Migration 178: wake_dedup_key column + partial unique index on
-    (user_id, wake_source, wake_dedup_key). This SELECT is the
-    application-layer dedup; the unique index is the structural backstop
-    that prevents race-window double-inserts.
-
-    Race-window note: there is a theoretical race between this SELECT
-    returning False and the wake's INSERT completing — during the
-    Reviewer's full LLM duration (~20-75s), a second scheduler tick
-    could re-check and also see no prior row. The partial unique index
-    catches that case at INSERT time (the second wake's record_execution_event
-    raises a UNIQUE violation which is caught by the function's try/except
-    and logged as a non-fatal warning). In practice scheduler ticks at
-    */1 cadence are reasonably well-separated relative to LLM duration,
-    and most wakes finish before the next tick reads. If observed races
-    become a problem, the next iteration tightens with INSERT-on-claim
-    (a "claimed" sentinel row written BEFORE the Reviewer fires).
-    """
-    if not revision_id:
-        # No dedup key → don't dedup. This is the safe default for hooks
-        # that lack a revision_id payload (none today, but reserved).
-        return False
-    try:
-        result = (
-            client.table("execution_events")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("wake_source", "substrate_event")
-            .eq("slug", hook_slug)
-            .eq("wake_dedup_key", revision_id)
-            .limit(1)
-            .execute()
-        )
-        return bool(result.data)
-    except Exception as exc:
-        logger.warning(
-            "[WAKE:substrate] dedup check raised (failing open): %s", exc,
-        )
-        # Fail-open: if the dedup query itself fails, allow the wake to
-        # proceed rather than silently swallow legitimate hook matches.
-        # The partial unique index is the backstop for true duplicates.
-        return False
 
 
 async def _get_parent_content(client: Any, parent_version_id: Optional[str]) -> Optional[str]:
