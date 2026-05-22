@@ -226,6 +226,15 @@ export interface WindowState {
    * field). Persisted to localStorage like the rest of WindowState.
    */
   prevGeometry?: { x: number; y: number; width: number; height: number };
+  /**
+   * D19.3 (2026-05-22) — macOS-style minimize. When true, the window
+   * is "sent to the Dock": the WindowFrame is NOT rendered, but the
+   * slug stays in `open` so the Dock icon remains as an open-indicator.
+   * Clicking the Dock icon clears this flag and restores the window.
+   * Geometry is preserved across minimize/restore via the rest of the
+   * fields. When undefined or false, the window is normally rendered.
+   */
+  minimized?: boolean;
 }
 
 export type WindowStateMap = Record<string, WindowState>;
@@ -255,25 +264,39 @@ export function setWindowStates(userId: string, states: WindowStateMap): void {
 }
 
 /** D19.1 — Compute the "maximized" geometry for a window: fill the
- *  available desktop area (viewport minus top bar minus FAB reserved
- *  zone at bottom minus horizontal padding). This is the macOS "zoom"
- *  target — fills the available work area, NOT the entire viewport
- *  (top bar + FAB stay visible). z is excluded; caller preserves it.
+ *  available desktop area inside the Desktop layer. macOS "zoom"
+ *  target — fills the work area, NOT the entire viewport.
+ *
+ *  D19.3 (2026-05-22) — geometry frame correction: windows are
+ *  absolute-positioned inside the Desktop component (which is the
+ *  nearest positioned ancestor); Desktop itself is below the TopBar
+ *  in the flex column. The pre-D19.3 calculation double-counted the
+ *  TopBar height (56px) on top of Desktop padding, producing a
+ *  visible gap between the maximized window's top edge and the
+ *  TopBar's bottom. The correct vertical offset is just the
+ *  Desktop's own padding (16px on sm:p-4); the TopBar's height is
+ *  already handled by the flex layout above Desktop.
+ *
+ *  Bottom: FAB reserved zone (computed from FAB_RESERVED_HEIGHT)
+ *  plus desktop padding, so a maximized window doesn't cover the FAB.
+ *
+ *  Inputs are the viewport's USABLE dimensions (i.e. Desktop's own
+ *  width/height, which the caller passes after subtracting TopBar).
+ *  In practice we read viewport.width/height and subtract here.
  */
 export function computeMaximizedGeometry(
   viewportWidth: number,
   viewportHeight: number
 ): { x: number; y: number; width: number; height: number } {
-  // Match the constants used by the cascade origin in useSurfacePreferences
-  // so cascade-positioned + maximized geometries play by the same rules.
-  const horizPad = 16;
-  const vertPadTop = 56 + 16; // top bar (~56px) + desktop padding (16px)
-  const vertPadBottom = FAB_RESERVED_HEIGHT + 16; // FAB zone + padding
+  const TOP_BAR_PX = 56;       // outside Desktop's coordinate frame
+  const DESKTOP_PAD = 16;      // sm:p-4 — Desktop's own padding
+  const usableHeight = Math.max(WINDOW_MIN_HEIGHT, viewportHeight - TOP_BAR_PX);
+  const bottomReserved = FAB_RESERVED_HEIGHT + DESKTOP_PAD;
   return {
-    x: horizPad,
-    y: vertPadTop,
-    width: Math.max(WINDOW_MIN_WIDTH, viewportWidth - horizPad * 2),
-    height: Math.max(WINDOW_MIN_HEIGHT, viewportHeight - vertPadTop - vertPadBottom),
+    x: DESKTOP_PAD,
+    y: DESKTOP_PAD,
+    width: Math.max(WINDOW_MIN_WIDTH, viewportWidth - DESKTOP_PAD * 2),
+    height: Math.max(WINDOW_MIN_HEIGHT, usableHeight - DESKTOP_PAD - bottomReserved),
   };
 }
 

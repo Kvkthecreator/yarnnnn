@@ -55,6 +55,7 @@ export function TopBarSurface() {
     kept,
     open,
     foregrounded,
+    windowStates,
     isKept,
     isOpen,
     keep,
@@ -62,7 +63,7 @@ export function TopBarSurface() {
     foregroundSurface,
     closeSurface,
     raiseWindow,
-    hideForegrounded,
+    minimizeWindow,
     capHit,
     clearCapHit,
   } = useSurfacePreferences();
@@ -144,23 +145,31 @@ export function TopBarSurface() {
 
     const handleClick = () => {
       if (!isKernelSurfaceSlug(surface.slug)) return;
-      // D15 Dock click semantics:
-      //   - Not open  → open + foreground (cap-checked).
-      //   - Open + not-foreground → raise to foreground.
-      //   - Open + foreground → hide (macOS Dock-click-on-active-app).
+      // Dock click semantics (D15 + D19.3):
+      //   - Not open               → open + foreground (cap-checked)
+      //   - Minimized              → restore (foregroundSurface clears
+      //                              minimized + raises + foregrounds)
+      //   - Open + not-foreground  → raise to foreground
+      //   - Open + foreground      → minimize (macOS Dock-click-on-
+      //                              active-app sends to Dock)
       //
-      // D19.2 (2026-05-22): pre-D19.2 each branch also called
-      // setSurface({type:'atomic', slug}) which wrote the URL via
-      // window.history.replaceState. Removed — URL is informational
-      // add-on (the Dock indicator dot is the canonical "what's
-      // foregrounded" signal); rewriting URL on every Dock click
-      // produced the operator-felt "redirect" symptom.
+      // D19.2 (2026-05-22): URL is not rewritten on Dock click —
+      // informational add-on, not a tracker of the foregrounded
+      // window. D19.3 (2026-05-22): the "send to background" verb
+      // hideForegrounded was replaced by real minimizeWindow on the
+      // foregrounded-click branch; same Dock-click-on-active-app
+      // gesture but now structurally hides the window (the
+      // operator-observed "yellow button doesn't work" bug shared
+      // the same root cause).
+      const isMinimized = !!windowStates[surface.slug]?.minimized;
       if (!surfaceIsOpen) {
         foregroundSurface(surface.slug);
         // If foregroundSurface refused (cap hit), capHit is set; the
         // prompt below handles the UX.
+      } else if (isMinimized) {
+        foregroundSurface(surface.slug); // restore + raise + foreground
       } else if (isForegrounded) {
-        hideForegrounded();
+        minimizeWindow(surface.slug);
       } else {
         raiseWindow(surface.slug);
       }

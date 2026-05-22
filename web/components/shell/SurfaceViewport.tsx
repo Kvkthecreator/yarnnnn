@@ -54,7 +54,7 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
     raiseWindow,
     setWindowState,
     toggleMaximize,
-    hideForegrounded,
+    minimizeWindow,
   } = useSurfacePreferences();
   const { data: composition } = useComposition();
   const viewport = useViewport();
@@ -67,10 +67,16 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
     firstSegment && isKernelSurfaceSlug(firstSegment) ? firstSegment : null;
   const isDesktopRoute = pathname === '/desktop';
 
+  // D19.3 (2026-05-22) — mountSlugs filters minimized windows out of
+  // the render set so they vanish visually while their slugs stay in
+  // the `open` registry (so the Dock icon retains its open-indicator).
+  // Restore via foregroundSurface (Dock-click on minimized icon).
   const mountSlugs: KernelSurfaceSlug[] = (() => {
     const set = new Set<string>(open);
     if (pathnameSlug) set.add(pathnameSlug);
-    return Array.from(set).filter(isKernelSurfaceSlug);
+    return Array.from(set)
+      .filter(isKernelSurfaceSlug)
+      .filter((slug) => !windowStates[slug]?.minimized);
   })();
 
   const visibleSlug: KernelSurfaceSlug | null = (() => {
@@ -157,9 +163,17 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
             onRaise={() => raiseWindow(slug)}
             onClose={() => closeSurface(slug)}
             onMinimize={() => {
-              // D19.1: minimize = hide window, leave open in registry.
-              // Dock icon retains the open-indicator dot; click to restore.
-              if (isVisible) hideForegrounded();
+              // D19.3 (2026-05-22): minimize = set minimized:true on
+              // the window's state. SurfaceViewport then skips
+              // rendering this slug; the Dock icon retains the open-
+              // indicator dot. Click Dock icon to restore (the
+              // foregroundSurface path clears minimized + raises).
+              //
+              // Pre-D19.3 wired to hideForegrounded() which silently
+              // no-op'd when this was the only window — operator
+              // observed "minimize doesn't work at all" (KVK
+              // 2026-05-22). Direct minimizeWindow(slug) always works.
+              minimizeWindow(slug);
             }}
             onMaximize={() => toggleMaximize(slug)}
             windowState={ws}

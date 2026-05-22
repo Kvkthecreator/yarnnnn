@@ -100,10 +100,18 @@ export interface SurfacePreferences {
    *  is a focus gesture). No-op if the window has no entry in
    *  windowStates (e.g. in single-window mobile mode). */
   toggleMaximize: (slug: string) => void;
-  /** D15: hide the currently-foregrounded window (send to background
-   *  but keep it open). foregrounded falls through to the next-most-
-   *  recent open surface; if no others, foreground becomes null. */
-  hideForegrounded: () => void;
+  /** D19.3 (2026-05-22): macOS-style minimize. Sets
+   *  windowStates[slug].minimized = true; SurfaceViewport then
+   *  skips rendering the WindowFrame. Slug stays in `open` so the
+   *  Dock icon persists as an open-indicator. Foreground falls
+   *  through to the next-non-minimized open slug; if none, foreground
+   *  becomes null (Desktop is visible). Restore by calling
+   *  foregroundSurface(slug) — typically via Dock-icon click.
+   *  Replaces the D15 hideForegrounded verb (deleted in D19.3
+   *  because its silent no-op-on-last-window semantic was the
+   *  root cause of "minimize doesn't work" + Dock-click-on-only-
+   *  app-does-nothing). */
+  minimizeWindow: (slug: string) => void;
   /** D15: viewport-cap signal — when foregroundSurface refuses to
    *  open a new window because MAX_OPEN_WINDOWS is reached, this
    *  carries the attempted slug. Operator UX consumes it to prompt
@@ -315,34 +323,41 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
         }
         const next: WindowStateMap = base;
         if (!next[slug]) {
-          // Cascade-position a brand-new window. Use viewport
-          // dimensions guarded for SSR (fallback to 1280x800).
+          // Cascade-position a brand-new window. D19.3 (2026-05-22)
+          // geometry frame correction: windows are absolute-positioned
+          // inside the Desktop component (the nearest positioned
+          // ancestor), which is itself below the TopBar in the flex
+          // column. Coordinates are Desktop-local, NOT viewport-local —
+          // the TopBar offset must NOT be in the y origin (it was
+          // double-counted pre-D19.3, producing a gap between window
+          // top edges and the TopBar bottom most visible on maximize).
           const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
           const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-          // Desktop padding ≈ TopBar (56) + viewport padding (16) +
-          // composer (~96). Roughly 168px subtracted from useful
-          // height; 32px subtracted from useful width (16 each side).
-          const horizPad = 16;
-          const vertPadTop = 56 + 16; // top bar + desktop padding
-          const vertPadBottom = 96 + 16; // composer + desktop padding
+          const TOP_BAR_PX = 56;
+          const DESKTOP_PAD = 16;
+          const FAB_BOTTOM_RESERVED = 96; // FAB column reserved zone
+          const usableW = vw - DESKTOP_PAD * 2;
+          const usableH = vh - TOP_BAR_PX - DESKTOP_PAD - FAB_BOTTOM_RESERVED - DESKTOP_PAD;
           const cascadeIndex = cascadeCounter.current++;
           const computed = computeDefaultWindowState(
-            vw - horizPad * 2,
-            vh - vertPadTop - vertPadBottom,
+            usableW,
+            usableH,
             0,
             cascadeIndex
           );
-          // Translate by the actual top-left desktop origin so x/y are
-          // viewport-relative.
           next[slug] = {
-            x: horizPad + computed.x,
-            y: vertPadTop + computed.y,
+            x: DESKTOP_PAD + computed.x,
+            y: DESKTOP_PAD + computed.y,
             width: computed.width,
             height: computed.height,
             z: newZ,
           };
         } else {
-          next[slug] = { ...next[slug], z: newZ };
+          // D19.3 (2026-05-22): clearing `minimized` is the macOS
+          // restore-from-Dock gesture — clicking a minimized app's
+          // Dock icon un-hides + raises the window. foregroundSurface
+          // is the unified "open + raise + restore-if-minimized" verb.
+          next[slug] = { ...next[slug], z: newZ, minimized: false };
         }
         persistWindowStates(next);
         return next;
@@ -404,6 +419,47 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
     [userId, open, persistWindowStates]
   );
 
+  // D19.3 (2026-05-22) — macOS-style minimize. Sets minimized=true on
+  // the window's state; SurfaceViewport skips rendering when this flag
+  // is set. Slug stays in `open` (Dock keeps showing the open-indicator
+  // dot). Foreground falls through to the next-non-minimized open
+  // slug, or null if nothing remains visible (Desktop shows through).
+  const minimizeWindow = useCallback(
+    (slug: string) => {
+      if (!userId) return;
+      if (!open.includes(slug)) return;
+      setWindowStatesState((current) => {
+        const existing = current[slug];
+        if (!existing) return current;
+        const updated: WindowStateMap = {
+          ...current,
+          [slug]: { ...existing, minimized: true },
+        };
+        persistWindowStates(updated);
+        return updated;
+      });
+      // Foreground falls through to next non-minimized open window.
+      setForegrounded((currentForeground) => {
+        if (currentForeground !== slug) return currentForeground;
+        // Pick next-highest-z open window that isn't itself minimized.
+        const candidates = open.filter((s) => s !== slug);
+        let nextSlug: string | null = null;
+        let maxZ = -Infinity;
+        candidates.forEach((s) => {
+          const st = windowStates[s];
+          if (!st || st.minimized) return;
+          if (st.z > maxZ) {
+            maxZ = st.z;
+            nextSlug = s;
+          }
+        });
+        setForegroundedWrite(userId, nextSlug);
+        return nextSlug;
+      });
+    },
+    [userId, open, windowStates, persistWindowStates]
+  );
+
   // D15: raise an already-open window to the foreground without
   // re-cascading. Bumps z; updates foregrounded slug. D18: compact
   // before bumping if z would hit cap.
@@ -433,35 +489,16 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
     [userId, open, computeNextZ, compactWindowZ, persistWindowStates]
   );
 
-  // D15: hide the currently-foregrounded window without closing it.
-  // The window stays in `open` (its state is preserved) but
-  // foregrounded falls through to the next-most-recent open slug.
-  const hideForegrounded = useCallback(() => {
-    if (!userId) return;
-    setForegrounded((current) => {
-      if (!current) return current;
-      const others = open.filter((s) => s !== current);
-      // Pick the next-highest-z open window as the new foreground; if
-      // none, foreground becomes null (the foregrounded window stays
-      // open and visible since "hide" semantically requires another
-      // window to take over; if there's no other window, hiding is a
-      // no-op — caller (TopBarSurface) typically closes instead).
-      if (others.length === 0) return current;
-      let nextSlug: string | null = null;
-      let maxZ = -Infinity;
-      others.forEach((s) => {
-        const st = windowStates[s];
-        if (st && st.z > maxZ) {
-          maxZ = st.z;
-          nextSlug = s;
-        }
-      });
-      // Fallback: most-recently-added open slug.
-      if (!nextSlug) nextSlug = others[others.length - 1] ?? null;
-      setForegroundedWrite(userId, nextSlug);
-      return nextSlug;
-    });
-  }, [userId, open, windowStates]);
+  // D19.3 (2026-05-22): the prior hideForegrounded verb was DELETED.
+  // It was a "send foregrounded window to background, fall through to
+  // next" semantic from D15 that no-op'd silently when there was only
+  // one open window. That silent no-op was the root cause of two
+  // operator-felt bugs: the minimize yellow button "doesn't work at
+  // all" on the only window, and the Dock-click-on-active-app gesture
+  // doing nothing when there was nothing to fall through to.
+  // Replaced by minimizeWindow(slug) which always works (sets
+  // minimized:true; SurfaceViewport then skips rendering this slug).
+  // Singular Implementation: one minimize verb.
 
   // D15: update a single window's geometry (called from drag + resize).
   const updateWindowState = useCallback(
@@ -498,7 +535,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       setWindowState: updateWindowState,
       raiseWindow,
       toggleMaximize,
-      hideForegrounded,
+      minimizeWindow,
       capHit,
       clearCapHit,
     }),
@@ -519,7 +556,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       updateWindowState,
       raiseWindow,
       toggleMaximize,
-      hideForegrounded,
+      minimizeWindow,
       capHit,
       clearCapHit,
     ]
