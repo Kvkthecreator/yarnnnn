@@ -328,7 +328,14 @@ export function TopBarSurface() {
           overflow-scroll horizontally when icons exceed it (mobile). */}
       <nav
         aria-label="Workspace dock"
-        className="flex flex-1 min-w-0 items-center justify-center gap-0.5 overflow-x-auto"
+        // D19.5.1 (2026-05-22): scrollbar visually hidden. Pacifico
+        // wordmark widened the LEFT region just enough that the
+        // CENTER's overflow-x-auto rendered a 1px scrollbar even at
+        // common viewports. macOS Dock never shows a scrollbar; scroll
+        // capability preserved for mobile (when icon count overflows
+        // available width) but the indicator is suppressed via webkit
+        // + firefox + ms scrollbar-width: none.
+        className="flex flex-1 min-w-0 items-center justify-center gap-0.5 overflow-x-auto [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
       >
         <button
           type="button"

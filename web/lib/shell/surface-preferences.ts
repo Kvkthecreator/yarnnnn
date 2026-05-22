@@ -50,18 +50,15 @@ export const CASCADE_OFFSET_PX = 30;
 export const DEFAULT_WINDOW_WIDTH_PCT = 0.7;
 export const DEFAULT_WINDOW_HEIGHT_PCT = 0.7;
 
-// D17 — FAB reserved zone on the Desktop layer. The FAB lives at the
-// Desktop's bottom-center; windows cannot be positioned or resized
-// such that their bottom edge extends into this zone. Guarantees the
-// FAB stays reachable regardless of window arrangement.
-//
-// Zone shape: centered horizontally at the bottom, FAB_RESERVED_WIDTH
-// wide × FAB_RESERVED_HEIGHT tall. Windows must have their bottom
-// edge AT LEAST `FAB_RESERVED_HEIGHT` above the viewport bottom WHEN
-// their horizontal extent overlaps the central column where the FAB
-// sits. Outside the central column, windows can extend further down.
-export const FAB_RESERVED_WIDTH = 96; // central column width (px)
-export const FAB_RESERVED_HEIGHT = 80; // bottom strip height (px)
+// D19.5.1 (2026-05-22) — FAB_RESERVED_WIDTH + FAB_RESERVED_HEIGHT
+// DELETED. The D17 FAB lived at the Desktop's bottom-CENTER below
+// windows in the z-stack (z=5; windows start at z=10), requiring a
+// reserved column to keep the FAB reachable when windows covered its
+// position. D19.5.1 moves the FAB to viewport-fixed bottom-RIGHT at
+// Z_FAB (150, above windows) — windows can extend across the full
+// bottom edge and the FAB still floats above them. The reserved-zone
+// concept dissolves; window clamping returns to a simple viewport-
+// padded box. Singular Implementation — one window-clamping rule.
 
 function isBrowser(): boolean {
   return typeof window !== 'undefined' && typeof localStorage !== 'undefined';
@@ -277,12 +274,11 @@ export function setWindowStates(userId: string, states: WindowStateMap): void {
  *  Desktop's own padding (16px on sm:p-4); the TopBar's height is
  *  already handled by the flex layout above Desktop.
  *
- *  Bottom: FAB reserved zone (computed from FAB_RESERVED_HEIGHT)
- *  plus desktop padding, so a maximized window doesn't cover the FAB.
- *
- *  Inputs are the viewport's USABLE dimensions (i.e. Desktop's own
- *  width/height, which the caller passes after subtracting TopBar).
- *  In practice we read viewport.width/height and subtract here.
+ *  D19.5.1 (2026-05-22) — FAB reserved zone DELETED. The FAB moved
+ *  from Desktop-fixed bottom-center (z=5, below windows) to viewport-
+ *  fixed bottom-right (Z_FAB=150, above windows). Maximized windows
+ *  can now extend across the full Desktop bottom edge; the FAB still
+ *  floats above. Bottom inset is now just Desktop padding.
  */
 export function computeMaximizedGeometry(
   viewportWidth: number,
@@ -291,12 +287,11 @@ export function computeMaximizedGeometry(
   const TOP_BAR_PX = 56;       // outside Desktop's coordinate frame
   const DESKTOP_PAD = 16;      // sm:p-4 — Desktop's own padding
   const usableHeight = Math.max(WINDOW_MIN_HEIGHT, viewportHeight - TOP_BAR_PX);
-  const bottomReserved = FAB_RESERVED_HEIGHT + DESKTOP_PAD;
   return {
     x: DESKTOP_PAD,
     y: DESKTOP_PAD,
     width: Math.max(WINDOW_MIN_WIDTH, viewportWidth - DESKTOP_PAD * 2),
-    height: Math.max(WINDOW_MIN_HEIGHT, usableHeight - DESKTOP_PAD - bottomReserved),
+    height: Math.max(WINDOW_MIN_HEIGHT, usableHeight - DESKTOP_PAD * 2),
   };
 }
 
@@ -337,12 +332,14 @@ export function computeDefaultWindowState(
  *  visible (the operator can always grab the title bar). Clamps size
  *  to (WINDOW_MIN_*, viewport - 2*padding).
  *
- *  D17 (2026-05-22) — FAB reserved zone: when a window's horizontal
- *  extent overlaps the central FAB_RESERVED_WIDTH-wide column at the
- *  viewport's horizontal center, the window's bottom edge is pushed
- *  up so it doesn't cover the FAB. Windows that don't overlap the
- *  central column are unaffected. Guarantees the FAB stays reachable
- *  regardless of window arrangement. */
+ *  D19.5.1 (2026-05-22) — pre-D19.5.1 the clamp tightened maxY by
+ *  FAB_RESERVED_HEIGHT when a window's horizontal extent overlapped
+ *  the central FAB column (kept the FAB reachable when it lived at
+ *  z=5 below windows). With the D19.5.1 FAB move (viewport-fixed
+ *  bottom-right at Z_FAB=150, above windows), windows can extend
+ *  fully across the bottom edge and the FAB still floats above —
+ *  the overlap check + tightened maxY are now dead logic. Deleted.
+ *  Singular Implementation — one clamp rule, no FAB special case. */
 export function clampWindowState(
   state: WindowState,
   viewportWidth: number,
@@ -362,23 +359,8 @@ export function clampWindowState(
   const minX = desktopPaddingPx - width + minVisible;
   const maxX = viewportWidth - desktopPaddingPx - minVisible;
   const minY = desktopPaddingPx;
-  let maxY = viewportHeight - desktopPaddingPx - titleBarHeightPx;
+  const maxY = viewportHeight - desktopPaddingPx - titleBarHeightPx;
   const x = Math.min(maxX, Math.max(minX, state.x));
-
-  // D17 FAB reserved zone. Compute whether the window (at its
-  // proposed x + width) overlaps the central column where the FAB
-  // lives. If it does, tighten maxY by FAB_RESERVED_HEIGHT so the
-  // window's bottom edge sits above the FAB. The horizontal slot
-  // outside the central column is unaffected.
-  const fabColLeft = (viewportWidth - FAB_RESERVED_WIDTH) / 2;
-  const fabColRight = fabColLeft + FAB_RESERVED_WIDTH;
-  const winLeft = x;
-  const winRight = x + width;
-  const overlapsFabColumn = winRight > fabColLeft && winLeft < fabColRight;
-  if (overlapsFabColumn) {
-    maxY = Math.max(minY, maxY - FAB_RESERVED_HEIGHT);
-  }
-
   const y = Math.min(maxY, Math.max(minY, state.y));
 
   return { x, y, width, height, z: state.z };

@@ -331,13 +331,19 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
           // the TopBar offset must NOT be in the y origin (it was
           // double-counted pre-D19.3, producing a gap between window
           // top edges and the TopBar bottom most visible on maximize).
+          // D19.5.1 (2026-05-22) — FAB_BOTTOM_RESERVED constant
+          // DELETED. Pre-D19.5.1 the FAB lived at Desktop-fixed
+          // bottom-center below windows; cascade reserved bottom
+          // space to keep the FAB visible. With FAB moved to
+          // viewport-fixed bottom-right above windows (Z_FAB=150),
+          // the cascade origin returns to a simple viewport-padded
+          // box. Singular Implementation.
           const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
           const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
           const TOP_BAR_PX = 56;
           const DESKTOP_PAD = 16;
-          const FAB_BOTTOM_RESERVED = 96; // FAB column reserved zone
           const usableW = vw - DESKTOP_PAD * 2;
-          const usableH = vh - TOP_BAR_PX - DESKTOP_PAD - FAB_BOTTOM_RESERVED - DESKTOP_PAD;
+          const usableH = vh - TOP_BAR_PX - DESKTOP_PAD * 2;
           const cascadeIndex = cascadeCounter.current++;
           const computed = computeDefaultWindowState(
             usableW,

@@ -31,7 +31,7 @@
 import { LayoutGrid, MessageCircle } from 'lucide-react';
 import { useShellChrome } from './ShellChromeContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
-import { Z_DESKTOP_FAB } from '@/lib/shell/z-tiers';
+import { Z_FAB } from '@/lib/shell/z-tiers';
 import { cn } from '@/lib/utils';
 
 interface DesktopProps {
@@ -110,26 +110,39 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
           children passed in by SurfaceViewport). */}
       {children}
 
-      {/* ChatFAB — D17 §7: lives on the Desktop layer, NOT viewport-fixed.
-          Z-stack below windows (z 5; windows start at z 10 per D15)
-          so when windows cover the bottom-center area, the FAB is
-          hidden underneath. D15 bounds-clamping reserves a bottom-
-          center strip so the FAB remains reachable even with many
-          open windows. */}
+      {/* ChatFAB — D19.5.1 (2026-05-22):
+            • Position: viewport-fixed bottom-RIGHT (was Desktop-fixed
+              bottom-center pre-D19.5.1). macOS-faithful — matches the
+              Messages compose button shape: floats at viewport-bottom-
+              right regardless of which window is foregrounded.
+            • Z-tier: Z_FAB (150) — above windows + above drawer
+              backdrop. Pre-D19.5.1 the FAB sat at z=5 inside the
+              Desktop layer and got covered by every window. Operator-
+              felt bug ("the floating chat button on the bottom
+              actually isn't floating"). Now genuinely floats.
+            • Hide-when-drawer-open: when drawer is open the FAB is
+              redundant (drawer header has its own X). Hide via
+              opacity-0 + pointer-events-none so clicks on the right
+              edge fall through to whatever's behind. Eliminates the
+              "FAB-covered-by-drawer-body" stacking awkwardness.
+            • FAB_RESERVED reserved-zone in window clamping DELETED
+              (was needed when FAB was Desktop-fixed bottom-center and
+              z=5; with viewport-fixed + z=150 the windows can extend
+              fully and the FAB still wins). Singular Implementation. */}
       <button
         type="button"
         onClick={toggleDrawer}
         aria-label={drawerOpen ? 'Close conversation' : 'Open conversation'}
         title={drawerOpen ? 'Close conversation' : 'Ask YARNNN'}
         className={cn(
-          'absolute left-1/2 -translate-x-1/2 flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all hover:shadow-xl active:scale-95',
-          drawerOpen
-            ? 'bg-foreground text-background hover:bg-foreground/90'
-            : 'bg-background text-foreground border border-border hover:bg-muted'
+          'fixed flex h-12 w-12 items-center justify-center rounded-full shadow-lg transition-all hover:shadow-xl active:scale-95',
+          'bg-foreground text-background hover:bg-foreground/90',
+          drawerOpen && 'opacity-0 pointer-events-none',
         )}
         style={{
+          right: 'max(1.5rem, env(safe-area-inset-right, 0px) + 0.75rem)',
           bottom: 'max(1.5rem, env(safe-area-inset-bottom, 0px) + 0.75rem)',
-          zIndex: Z_DESKTOP_FAB,
+          zIndex: Z_FAB,
         }}
       >
         <MessageCircle className="h-5 w-5" />
