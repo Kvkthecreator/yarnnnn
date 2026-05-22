@@ -98,6 +98,8 @@ The path `/workspace/_recurrences.yaml` is canonical. (Implementation detail —
 
 ### D3 — One scheduler, one job, parallel concurrent Reviewer sessions
 
+> **AMENDED by ADR-298 D1 (2026-05-22)**: §1-§3 architectural guarantees below are REVERSED. ADR-298 commits single-lane Reviewer execution per workspace (one wake at a time) with two-lane drain (paced + live) and pace-bounded drain rate. The reversal is prudentially justified by observed production failure modes (coherence + cross-source dedup + cost-control) rather than axiomatic — see ADR-298 §3 + §4 for the evidence-driven amendment table. The parallel-concurrent shape ADR-261 D3 protected against was never observed in 13 days of production telemetry; the coherence/dedup problems ADR-298 solves were repeatedly observed. Implementation cutover landed in ADR-298 Phase 3 (commit forthcoming this session).
+
 The scheduler's only responsibility is: walk due recurrences and invoke the Reviewer for each. Pseudocode:
 
 ```

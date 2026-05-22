@@ -114,54 +114,52 @@ async def submit_wake_proposal(
     source: WakeSource,
     payload: dict,
 ) -> dict:
-    """Singular wake-proposal entry point per ADR-296 v2 D1.
+    """Singular wake-proposal entry point per ADR-296 v2 D1 + ADR-298 D2.
 
-    Every Reviewer wake originates here. The funnel evaluates whether
-    the wake warrants the Reviewer's full cycle; only on `escalate`
-    does the Reviewer's real-time loop run. Other decisions:
-      - skip          Tier 1 kernel gate (budget exhausted, repeat
-                       capability_missing, etc.) — no Reviewer wake
-      - tier_2_wait   Tier 2 Haiku said wait (no Reviewer wake)
-      - tier_2_observe Tier 2 Haiku said observe (no Reviewer wake)
-      - mechanical    mechanical-mode recurrence bypass (no Reviewer)
+    Post-ADR-298 Phase 3 cutover (2026-05-22):
+    This function enqueues a wake on `wake_queue` and returns immediately.
+    The Reviewer is NOT invoked synchronously by this call. Execution
+    happens later when the drainer (`services.wake_drainer.drain_*`)
+    pulls the pending row, acquires the single-in-flight lock per ADR-298
+    D1, and dispatches to the source-specific Reviewer-invocation body.
+
+    Per ADR-298 D6: per-source dedup_key is derived here from the payload.
+    UNIQUE (user_id, wake_source, dedup_key) on wake_queue enforces
+    cross-source dedup at insert time. Silent dedup-hit returns
+    {success: True, dedup: True} so callers can treat duplicate
+    submission as a no-op.
 
     Args:
-        client: Supabase service client
-        user_id: Workspace owner UUID
-        source: WakeSource taxonomy value naming what proposed the wake
-        payload: source-specific dict. By source:
-            - cron_tick / manual_fire: {"recurrence": Recurrence,
-                                         "context": Optional[str]}
-            - proposal_arrival: {"proposal_row": dict,
-                                  "context_domain": str}
-            - substrate_event: {"hook": dict, "path": str,
-                                 "field_change": dict}
-            - addressed: NOT this entry point — use
-                          stream_addressed_wake() (SSE generator).
+        client: Supabase service client.
+        user_id: Workspace owner UUID.
+        source: WakeSource taxonomy value naming what proposed the wake.
+        payload: source-specific dict.
+          - cron_tick / manual_fire: {"recurrence": Recurrence,
+                                       "context": Optional[str]}
+          - proposal_arrival: {"proposal_row": dict, "context_domain": str}
+          - substrate_event: {"hook": dict, "path": str,
+                               "field_change": dict, "revision_id": str}
+          - addressed: NOT this entry point — use stream_addressed_wake()
+                       (SSE generator with Option-α lock-acquire).
 
-    Returns:
-        WakeOutcome dict: {success, source, funnel_decision, ...}
-        Additional fields per source — recurrence fires return
-        {slug, actions_taken, proposals, ...}.
-
-    The `addressed` source is NOT served by this function — it has its
-    own streaming entry (`stream_addressed_wake`) because the operator's
-    HTTP response is the consumer. Both paths share the same funnel
-    semantics + the same Reviewer invocation primitives.
+    Returns dict with at least `{success, source, queue_id|dedup, lane}`.
+    Recurrence-shaped payloads include `slug` for telemetry continuity.
     """
     if source == "addressed":
         # Architectural invariant: addressed routes through the SSE
-        # generator, not the synchronous entry. Caller error.
+        # generator with Option-α lock-acquire (ADR-298 D3 + addressed-
+        # turn coordination decision). Caller error to come through here.
         raise ValueError(
             "submit_wake_proposal does not serve source='addressed' — "
-            "use stream_addressed_wake() for the SSE-streaming path."
+            "use stream_addressed_wake() for the SSE path."
         )
 
-    # Route to source-specific Reviewer-invocation body. The funnel
-    # decision is computed inline within each body so the kernel gates
-    # (balance / spend / cap / min-interval / capability_missing) can
-    # short-circuit before doing any work and stamp funnel_decision="skip"
-    # at the telemetry call site.
+    from services.wake_queue import enqueue, resolve_lane
+
+    # Per-source payload normalization + dedup_key derivation. The
+    # Recurrence object is not JSON-serializable directly; we project
+    # it to a dict here so the drainer can reconstruct it without
+    # needing live recurrence YAML at drain time.
     if source in ("cron_tick", "manual_fire"):
         recurrence = payload.get("recurrence")
         if not isinstance(recurrence, Recurrence):
@@ -169,46 +167,96 @@ async def submit_wake_proposal(
                 f"wake source {source!r} requires payload['recurrence'] "
                 f"as a Recurrence object; got {type(recurrence).__name__}"
             )
-        return await _invoke_recurrence_wake(
-            client, user_id,
-            recurrence=recurrence,
+        slug = recurrence.slug
+        # ADR-298 D6: dedup key for cron_tick is `<slug>:<scheduled_minute>`
+        # to drop concurrent enqueues of the same recurrence in the same
+        # minute. manual_fire intentionally has no dedup (operator
+        # explicitly bypasses idempotency by clicking "run now" twice).
+        if source == "cron_tick":
+            now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+            dedup_key = f"{slug}:{now.isoformat()}"
+        else:
+            dedup_key = None
+        queue_payload = {
+            "recurrence_data": {
+                "slug": recurrence.slug,
+                "schedule": recurrence.schedule,
+                "prompt": recurrence.prompt,
+                "mode": getattr(recurrence, "mode", "judgment"),
+                "paused": getattr(recurrence, "paused", False),
+                "options": dict(getattr(recurrence, "options", {}) or {}),
+            },
+            "context": payload.get("context"),
+        }
+        queue_id = enqueue(
+            client,
+            user_id=user_id,
             wake_source=source,
-            context=payload.get("context"),
+            payload=queue_payload,
+            dedup_key=dedup_key,
+            slug=slug,
         )
 
-    if source == "proposal_arrival":
-        # Proposal-arrival Reviewer invocation lives in
-        # services/review_proposal_dispatch.py::on_proposal_created.
-        # ADR-296 v2 D1 invariant: the funnel decision (always "escalate"
-        # for proposal arrivals — proposal creation is itself a wake-
-        # warrant) is recorded by the downstream telemetry path. We
-        # dispatch through the existing proposal handler. The handler
-        # returns None (event-driven shape); we wrap into WakeOutcome.
-        from services.review_proposal_dispatch import on_proposal_created
+    elif source == "proposal_arrival":
         proposal_row = payload.get("proposal_row") or {}
         proposal_id = proposal_row.get("id") or payload.get("proposal_id") or ""
-        await on_proposal_created(
-            client, user_id,
-            proposal_id=proposal_id,
-            proposal_row=proposal_row,
+        # ADR-298 D6: proposal_arrival dedup key = proposal_id.
+        queue_payload = {
+            "proposal_row": proposal_row,
+            "proposal_id": proposal_id,
+            "context_domain": payload.get("context_domain"),
+        }
+        queue_id = enqueue(
+            client,
+            user_id=user_id,
+            wake_source="proposal_arrival",
+            payload=queue_payload,
+            dedup_key=str(proposal_id) if proposal_id else None,
+            slug=None,
         )
+
+    elif source == "substrate_event":
+        # ADR-298 D6: substrate_event dedup key = revision_id (the
+        # workspace_file_versions.id that matched the hook). Replaces
+        # ADR-272's execution_events.wake_dedup_key for this source.
+        revision_id = payload.get("revision_id")
+        queue_payload = {
+            "hook": payload.get("hook") or {},
+            "path": payload.get("path") or "",
+            "field_change": payload.get("field_change") or {},
+            "revision_id": revision_id,
+        }
+        hook_slug = (payload.get("hook") or {}).get("slug") or "substrate-event"
+        queue_id = enqueue(
+            client,
+            user_id=user_id,
+            wake_source="substrate_event",
+            payload=queue_payload,
+            dedup_key=str(revision_id) if revision_id else None,
+            slug=hook_slug,
+        )
+
+    else:
+        raise ValueError(f"unknown wake source: {source!r}")
+
+    if queue_id is None:
+        # UNIQUE constraint hit — wake already enqueued for this dedup key.
+        # Silent dedup per ADR-298 D6.
         return {
             "success": True,
-            "source": "proposal_arrival",
-            "proposal_id": proposal_id,
-            "funnel_decision": "escalate",
+            "source": source,
+            "dedup": True,
+            "lane": resolve_lane(source),
+            "message": "duplicate wake suppressed by queue dedup",
         }
 
-    if source == "substrate_event":
-        return await _invoke_substrate_event_wake(
-            client, user_id,
-            hook=payload["hook"],
-            path=payload.get("path") or "",
-            field_change=payload.get("field_change") or {},
-            revision_id=payload.get("revision_id"),
-        )
-
-    raise ValueError(f"unknown wake source: {source!r}")
+    return {
+        "success": True,
+        "source": source,
+        "queue_id": queue_id,
+        "lane": resolve_lane(source),
+        "message": "wake enqueued for drainer",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -1526,11 +1574,94 @@ async def stream_addressed_wake(
         is_mirror_refresh_action,
         narrate_reviewer_action,
     )
+    # ADR-298 Phase 3 (Option α): addressed turns enqueue + acquire the
+    # single-in-flight lock before the Reviewer runs. While waiting for
+    # another lane's mid-flight wake to complete, we emit "queued"
+    # progress events so the operator sees the wait honestly. Lock
+    # release happens after invoke_reviewer completes (mark_completed
+    # transitions wake_queue row pending→completed).
+    from services.wake_queue import (
+        enqueue as _wq_enqueue,
+        try_lock as _wq_try_lock,
+        mark_completed as _wq_mark_completed,
+        mark_failed as _wq_mark_failed,
+    )
+    from services.wake_drainer import (
+        drain_can_acquire_for_user as _wq_can_acquire,
+        instance_id as _wq_instance_id,
+    )
 
     progress_queue: _asyncio.Queue = _asyncio.Queue()
 
     async def _emit_progress(event: dict) -> None:
         await progress_queue.put(event)
+
+    # ADR-298 D1 + D3 (Option α) — enqueue this addressed wake into the
+    # live lane, then wait for the single-in-flight lock. Per ADR-298 D6
+    # the dedup_key is the invocation_id (callers pass a unique uuid per
+    # turn; double-submit of the same id is intentionally suppressed).
+    addressed_payload = {
+        "session_id": session_id,
+        "user_message": user_message[:200],  # truncated — full text held by caller
+        "invocation_id": invocation_id,
+    }
+    queue_id = _wq_enqueue(
+        client,
+        user_id=user_id,
+        wake_source="addressed",
+        payload=addressed_payload,
+        dedup_key=invocation_id,
+        slug=None,
+    )
+    if queue_id is None:
+        # Dedup hit — same invocation_id already in flight. Treat as
+        # caller error; surface an error event.
+        yield {
+            "type": "error",
+            "error": "duplicate_invocation_id",
+            "message": "Addressed wake with this invocation_id already enqueued.",
+        }
+        return
+
+    # Wait for the in-flight lock. Poll every 500ms; emit a single
+    # "queued" event the first time we observe contention so the operator
+    # sees the explanation. Bounded waits — after ~5 min of contention
+    # something is wrong (cron wake should not run that long).
+    wait_emitted = False
+    wait_seconds_max = 300
+    wait_poll_seconds = 0.5
+    waited = 0.0
+    inst = _wq_instance_id()
+    while True:
+        if _wq_can_acquire(client, user_id):
+            if _wq_try_lock(client, queue_id=queue_id, instance_id=inst):
+                break
+            # Lost the CAS — fall through to poll again.
+        if not wait_emitted:
+            yield {
+                "type": "progress",
+                "event": {
+                    "phase": "queued",
+                    "summary": (
+                        "Reviewer is mid-flight on another wake; "
+                        "your turn will start as soon as it completes."
+                    ),
+                },
+            }
+            wait_emitted = True
+        await _asyncio.sleep(wait_poll_seconds)
+        waited += wait_poll_seconds
+        if waited >= wait_seconds_max:
+            _wq_mark_failed(client, queue_id=queue_id)
+            yield {
+                "type": "error",
+                "error": "lock_wait_timeout",
+                "message": (
+                    f"Waited {wait_seconds_max}s for in-flight wake to "
+                    "complete; aborting addressed turn."
+                ),
+            }
+            return
 
     operating_context = build_operating_context_block(client, user_id)
     governance_envelope, _envelope_load_ms = await load_reviewer_governance_envelope(
@@ -1606,22 +1737,40 @@ async def stream_addressed_wake(
                     "narration": narration,
                 }
 
+    # ADR-298 Phase 3: queue lifecycle terminates here regardless of
+    # invoke_reviewer outcome — release the single-in-flight lock so
+    # the next pending wake (or addressed turn) can drain.
+    output: Optional[dict] = None
+    wake_failed = False
     try:
         output = await invoke_task
         if not output or not output.get("reasoning"):
             yield {"type": "error", "error": "Reviewer returned no response"}
-            return
-        response_text = output["reasoning"]
-        actions = output.get("actions_taken") or []
-        yield {
-            "type": "reviewer_response",
-            "text": response_text,
-            "actions": actions,
-            "output": output,  # full ReviewerOutput for the route's telemetry write
-        }
-        yield {"type": "done", "actions": actions}
+            wake_failed = True
+        else:
+            response_text = output["reasoning"]
+            actions = output.get("actions_taken") or []
+            yield {
+                "type": "reviewer_response",
+                "text": response_text,
+                "actions": actions,
+                "output": output,  # full ReviewerOutput for the route's telemetry write
+            }
+            yield {"type": "done", "actions": actions}
     except Exception as exc:
+        wake_failed = True
         yield {"type": "error", "error": str(exc)}
+    finally:
+        try:
+            if wake_failed:
+                _wq_mark_failed(client, queue_id=queue_id)
+            else:
+                _wq_mark_completed(client, queue_id=queue_id)
+        except Exception as exc:
+            logger.warning(
+                "[stream_addressed_wake] queue release failed for %s: %s",
+                queue_id, exc,
+            )
 
 
 __all__ = [

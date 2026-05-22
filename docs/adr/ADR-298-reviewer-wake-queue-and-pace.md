@@ -1,9 +1,9 @@
 # ADR-298 — Reviewer Wake Queue + Pace Dial
 
-**Status**: Phases 1+2 Implemented 2026-05-22. Phase 1: schema + service helpers (41/41 test gate). Phase 2: pace substrate + Schedule primitive gate + reviewer envelope (54/54 test gate). Phases 3-5 Proposed.
-**Date**: 2026-05-21 (Proposed) · 2026-05-22 (Phases 1+2 Implemented)
+**Status**: Phases 1+2+3 Implemented 2026-05-22. Phase 1: schema + service helpers (41/41 test gate). Phase 2: pace substrate + Schedule primitive gate + reviewer envelope (54/54 test gate). Phase 3: cutover — submit_wake_proposal enqueues, wake_drainer dispatches, stream_addressed_wake acquires lock via Option α (39/39 test gate). ADR-261 D3 §1-§3 amendment banner landed in same commit. Phases 4-5 Proposed.
+**Date**: 2026-05-21 (Proposed) · 2026-05-22 (Phases 1+2+3 Implemented)
 **Supersedes / amends**: ADR-261 D3 §1–§3 (architectural guarantees on parallel concurrent Reviewer sessions, sub-minute precision, no head-of-line blocking — reversed; see §3 evidence + §4 amendment)
-**Amends**: ADR-272 (`wake_dedup_key` migrates from `execution_events` insert-time check to queue-side dedup at enqueue time), ADR-296 v2 (wake sources enqueue rather than directly dispatch)
+**Amends**: migration-178-wake-dedup-key (`wake_dedup_key` migrates from `execution_events` insert-time check to queue-side dedup at enqueue time), ADR-296 v2 (wake sources enqueue rather than directly dispatch)
 **Builds on**: ADR-209 (Authored Substrate revision chain), ADR-231 D4 (thin scheduling-index precedent), ADR-274 (Reviewer cadence-authoring), ADR-275 (introspection cadence Reviewer-authored from `_preferences.yaml`), ADR-276 (reactive-trigger envelope governance pre-load), ADR-293 (governance-operational substrate taxonomy)
 **Preserves**: FOUNDATIONS Axioms 0–9, ADR-194 v2 Reviewer substrate, ADR-216 orchestration-vs-judgment vocabulary, Principle 18 (standing intent implies Trigger-authoring authority)
 
@@ -14,7 +14,7 @@ The Reviewer fires **concurrently** across wake sources today. Five sources (`cr
 Since ADR-261 shipped (2026-05-08), production has surfaced concerns the parallel-concurrent guarantee does not address:
 
 - **Concurrent writes producing logically-confused state.** Wake-duplication audit (`bdaff4d`) documented multiple Reviewer sessions writing `standing_intent.md` within seconds — substrate writes serialized correctly via ADR-209, but the *logical content* was two Reviewers thinking past each other in the same minute.
-- **Cross-source dedup gap.** ADR-272's `wake_dedup_key` is per-source (e.g., substrate-event revision-id). No mechanism prevents an `addressed` wake and a `substrate_event` wake firing on the same operator action.
+- **Cross-source dedup gap.** migration-178-wake-dedup-key's `wake_dedup_key` is per-source (e.g., substrate-event revision-id). No mechanism prevents an `addressed` wake and a `substrate_event` wake firing on the same operator action.
 - **Pattern 1 wake-duplication bug** (`fa22788`). Patched substrate-event walker dedup; the underlying architectural pattern (multiple wake sources can fire concurrently with no shared dedup point) remains.
 - **No first-class pace authority.** Operators have no lever for "how often does the agent work?" Pace is bottom-up emergent from individual recurrence schedules; not legible, not enforceable, not budget-bounded.
 - **Operator-facing legibility.** "What is my agent doing today?" has no single-glance answer.
@@ -120,7 +120,7 @@ If total declared frequency exceeds drain rate, the `Schedule()` call fails with
 
 ### D6 — Cross-source dedup at queue layer
 
-The `wake_queue.dedup_key` column with `UNIQUE (user_id, wake_source, dedup_key)` constraint replaces ADR-272's `execution_events.wake_dedup_key`. Every enqueue computes a dedup key per its source's natural identity:
+The `wake_queue.dedup_key` column with `UNIQUE (user_id, wake_source, dedup_key)` constraint replaces migration-178-wake-dedup-key's `execution_events.wake_dedup_key`. Every enqueue computes a dedup key per its source's natural identity:
 
 - `substrate_event` — `<revision_id>` of the matched `workspace_file_versions` row.
 - `cron_tick` — `<slug>:<scheduled_minute>` (drops concurrent fires of the same recurrence in the same minute).
@@ -229,7 +229,7 @@ ADR-261 D3 §"Implementation shape" (per-recurrence Render Cron Jobs / pg_cron /
 ### ADRs amended (status banners + supersede notes)
 
 - ADR-261 D3 §1–§3 — guarantees inverted; amendment table inline (§4 above).
-- ADR-272 — `wake_dedup_key` location moved.
+- migration-178-wake-dedup-key — `wake_dedup_key` location moved.
 - ADR-296 v2 — wake sources enqueue rather than dispatch (load-bearing dispatch path change).
 
 ### Singular implementation discipline
@@ -299,7 +299,7 @@ Combined effect: pace-change is a forward-looking policy change; existing queue 
 
 Database wiped accidentally. `wake_queue` table empty. Scheduler restarts:
 - Walks `_recurrences.yaml` → recomputes due cron-tick wakes since last tick, re-enqueues at paced lane.
-- Walks `_hooks.yaml` + recent `workspace_file_versions` (per ADR-272 walker) → re-enqueues matched substrate-event wakes at live lane.
+- Walks `_hooks.yaml` + recent `workspace_file_versions` (per migration-178-wake-dedup-key walker) → re-enqueues matched substrate-event wakes at live lane.
 - Addressed turns in flight at time of wipe: lost (operator may re-send; meter-priced anyway).
 - Proposal-arrival wakes for pending proposals: re-enqueued from `action_proposals` table state.
 
@@ -330,7 +330,7 @@ Database wiped accidentally. `wake_queue` table empty. Scheduler restarts:
 ## 9. Cross-references
 
 - ADR-261 — recurrences-as-prompts (this ADR amends D3 §1–§3)
-- ADR-272 — substrate-event walker + wake_dedup_key (this ADR migrates dedup_key location)
+- migration-178-wake-dedup-key — substrate-event walker + wake_dedup_key (this ADR migrates dedup_key location)
 - ADR-274 — Reviewer cadence-authoring (preserved; pace adds gating on Schedule calls)
 - ADR-275 — introspection cadence Reviewer-authored from `_preferences.yaml` (preserved; Reviewer-authored recurrences pass through pace gate)
 - ADR-276 — reactive-trigger envelope governance pre-load (preserved; `_pace.yaml` joins the envelope)

@@ -348,6 +348,33 @@ async def run_unified_scheduler():
         logger.warning("[SCHED] substrate-event walker raised: %s", exc)
 
     # -------------------------------------------------------------------------
+    # ADR-298 Phase 3 — Wake queue drain.
+    #
+    # Post-cutover, the wake sources (cron-tick + substrate-event) enqueue
+    # rows to wake_queue rather than dispatching the Reviewer inline.
+    # After walker work, the drainer pulls pending rows per workspace,
+    # acquires the single-in-flight lock per ADR-298 D1, and dispatches
+    # to the Reviewer-invocation body. Paced lane respects pace cap;
+    # live lane drains FIFO. Both share single-in-flight.
+    #
+    # Stale-lock reclaim happens FIRST so any wake stuck-locked from a
+    # crashed prior tick gets reclaimed before this tick attempts drain.
+    # -------------------------------------------------------------------------
+    try:
+        from services.wake_queue import reclaim_stale_locks
+        from services.wake_drainer import drain_all_users_with_pending
+
+        reclaimed = reclaim_stale_locks(supabase)
+        if reclaimed:
+            logger.info(f"[SCHED] reclaimed {reclaimed} stale wake_queue lock(s)")
+
+        drained = await drain_all_users_with_pending(supabase)
+        if drained > 0:
+            logger.info(f"[SCHED] drained {drained} wake(s) from wake_queue")
+    except Exception as exc:
+        logger.warning("[SCHED] wake_queue drain raised: %s", exc)
+
+    # -------------------------------------------------------------------------
     # ADR-260 D4: cron-heartbeat walker deleted. Cron wake-ups fire the
     # `scheduled` trigger via the recurrence walker above
     # (`dispatch_due_invocations`). No second cron use.
