@@ -112,26 +112,27 @@ export function ShellCompositor({ children }: ShellCompositorProps) {
             user menu). */}
         {mountRegion('top')}
 
-        {/* Main region — atomic content surface via SurfaceViewport,
-            with legacy children as fallback */}
+        {/* Main region — atomic content surface(s) via SurfaceViewport
+            (D15: multi-window), with legacy children as fallback for
+            non-atomic routes. */}
         <main className="flex-1 min-h-0 overflow-hidden">
           <SurfaceViewport>{children}</SurfaceViewport>
         </main>
 
-        {/* Bottom-fixed region — ChatComposerSurface (D11 Phase C). */}
-        {mountRegion('bottom-fixed')}
-
-        {/* D12 (2026-05-21): bottom-floating region intentionally NOT
-            mounted. The Dock kernel surface was deleted; its Dock-
-            icon responsibility absorbed into TopBarSurface's body. The
-            `bottom-floating` LayoutRegion survives in the type union
-            (a future chrome surface might target it) but no kernel
-            surface emits there today. */}
+        {/* D12 + D16 (2026-05-21..22): bottom-floating + bottom-fixed
+            regions intentionally NOT mounted.
+              - D12 deleted the Dock kernel surface (responsibility
+                absorbed into TopBarSurface).
+              - D16 deleted the bottom-strip ChatComposerSurface
+                (responsibility absorbed into ChatDrawerSurface in
+                floating-overlay).
+            Both LayoutRegions survive in the type union for future
+            use but no kernel surface targets them today. */}
       </div>
 
-      {/* Floating-overlay region — LauncherSurface. Mounted outside the
-          screen flow because overlays use their own portal-like fixed
-          positioning + z-index stacking. */}
+      {/* Floating-overlay region — LauncherSurface + ChatDrawerSurface
+          (D16). Mounted outside the screen flow because overlays use
+          their own fixed positioning + z-index stacking. */}
       {mountRegion('floating-overlay')}
     </>
   );

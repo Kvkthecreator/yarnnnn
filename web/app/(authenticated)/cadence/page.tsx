@@ -300,19 +300,7 @@ export default function CadencePage() {
 
   return (
     <>
-    <ThreePanelLayout
-      conversation={{
-        surfaceOverride: chatSurfaceOverride,
-        draftSeed: chatDraftSeed,
-        plusMenuActions,
-        placeholder: selectedTask ? `Ask about "${selectedTask.title}"...` : 'Ask anything or type / ...',
-        emptyState: chatEmptyState,
-        showCommandPicker: !selectedTask,
-        contextLabel: selectedTask ? `viewing ${selectedTask.title}` : undefined,
-        defaultOpen: true,
-        openSignal: chatOpenSignal,
-      }}
-    >
+    <ThreePanelLayout>
       <PageHeader defaultLabel="Cadence" />
       {taskSlugFromUrl ? (
         taskDetailLoading && !selectedRecurrenceDetail ? (

@@ -544,12 +544,6 @@ export default function ContextPage() {
         collapsedIcon: <FolderOpen className="w-4 h-4" />,
         collapsedTitle: 'Explorer',
       }}
-      conversation={{
-        surfaceOverride: effectiveSurface,
-        plusMenuActions,
-        emptyState,
-        contextLabel: selectedNode ? `viewing ${selectedNode.name}` : undefined,
-      }}
     >
       <PageHeader defaultLabel="Context" />
       {selectedNode ? (

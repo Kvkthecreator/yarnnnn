@@ -1,52 +1,38 @@
-/**
- * ConversationDrawer — slide-over Conversation surface on /feed (ADR-289).
- *
- * The Feed surface (FeedTimeline) is the operations timeline; engaging
- * a conversation opens this drawer over the timeline. The drawer hosts
- * a ConversationPanel scoped to `pulse='addressed'` exchanges so the
- * operator sees a clean chat-shaped view of the dialogue without the
- * autonomous-wake noise that lives in the timeline.
- *
- * Layout (per ADR-289 design lock-in):
- *   - Desktop: slide-over from the right, dims the timeline behind.
- *     Default width 380px, resizable via drag-handle (matches the
- *     right-panel ConversationPanel pattern on /work, /agents, etc).
- *   - Mobile (<640px): full-screen takeover, no timeline visible.
- *     Same component, breakpoint-conditional chrome.
- *
- * Autonomous wakes that fire while the drawer is open emit narrative
- * rows into session_messages as usual; the FeedTimeline behind picks
- * them up via the realtime subscription. The drawer itself does not
- * surface autonomous activity — that's the noise problem ADR-289
- * structurally solves. Operator sees the new wakes when they close the
- * drawer and return to the full timeline view.
- */
-
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+/**
+ * ChatDrawer — ADR-297 D16 universal chat drawer body.
+ *
+ * The slide-over drawer summoned by the bottom-center FAB. Hosts:
+ *   - Persona header (yarnnn icon + persona name + Conversation
+ *     subtitle + close ×)
+ *   - Scrollable addressed-conversation timeline (ConversationPanel,
+ *     filtered to pulse='addressed' intrinsically)
+ *   - Composer input at the bottom (inside ConversationPanel)
+ *
+ * Drawer width: default 400px, resizable 320–720px via left-edge
+ * drag handle. Persisted per-user to localStorage. Mobile (<640px):
+ * full-screen takeover.
+ *
+ * This component intentionally re-uses the per-`/feed` legacy
+ * ConversationDrawer (web/components/feed/ConversationDrawer.tsx)
+ * pattern verbatim — operators already learned the shape; D16 just
+ * relocates the mount from `/feed`-only to the shell. The legacy
+ * file is DELETED in the same commit; this file is its successor.
+ */
+
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
-import { useReviewerPersona } from '@/lib/reviewer-persona';
 import { ConversationPanel } from '@/components/tp/ConversationPanel';
-import type { PlusMenuAction } from '@/components/tp/PlusMenu';
+import { useReviewerPersona } from '@/lib/reviewer-persona';
+import { useViewport } from '@/lib/shell/useViewport';
+import { useDesk } from '@/contexts/DeskContext';
 import { cn } from '@/lib/utils';
 
-const DRAWER_WIDTH_KEY = 'yarnnn:conversation-drawer-width';
+const DRAWER_WIDTH_KEY = 'yarnnn:shell:chat-drawer-width';
 const DRAWER_MIN = 320;
 const DRAWER_MAX = 720;
-const DRAWER_DEFAULT = 420;
-
-function useIsMobile(): boolean {
-  const [isMobile, setIsMobile] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 639px)');
-    setIsMobile(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
-    mq.addEventListener('change', handler);
-    return () => mq.removeEventListener('change', handler);
-  }, []);
-  return isMobile;
-}
+const DRAWER_DEFAULT = 400;
 
 function loadStoredWidth(): number {
   if (typeof window === 'undefined') return DRAWER_DEFAULT;
@@ -57,26 +43,15 @@ function loadStoredWidth(): number {
   return Math.max(DRAWER_MIN, Math.min(DRAWER_MAX, n));
 }
 
-export interface ConversationDrawerProps {
-  /** Open state. The drawer is controlled by its parent. */
+interface ChatDrawerProps {
   open: boolean;
-  /** Close handler — fired by the X button and Escape key. */
   onClose: () => void;
-  /** Plus-menu actions passed through to the ConversationPanel composer. */
-  plusMenuActions: PlusMenuAction[];
-  /** Make-recurring callback wired through to the ConversationPanel
-   *  for inline graduation of addressed exchanges to recurrences. */
-  onMakeRecurring?: (messageContent: string) => void;
 }
 
-export function ConversationDrawer({
-  open,
-  onClose,
-  plusMenuActions,
-  onMakeRecurring,
-}: ConversationDrawerProps) {
-  const isMobile = useIsMobile();
+export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
+  const { isMobile } = useViewport();
   const personaName = useReviewerPersona();
+  const { surface } = useDesk();
   const [width, setWidth] = useState(DRAWER_DEFAULT);
   const dragging = useRef(false);
 
@@ -96,13 +71,16 @@ export function ConversationDrawer({
   }, [open, onClose]);
 
   // Drag-to-resize (desktop only). Drag left edge of drawer to widen.
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
-    if (isMobile) return;
-    e.preventDefault();
-    dragging.current = true;
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-  }, [isMobile]);
+  const onMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      if (isMobile) return;
+      e.preventDefault();
+      dragging.current = true;
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    },
+    [isMobile]
+  );
 
   useEffect(() => {
     if (isMobile) return;
@@ -116,7 +94,9 @@ export function ConversationDrawer({
       dragging.current = false;
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
-      window.localStorage.setItem(DRAWER_WIDTH_KEY, String(width));
+      try {
+        window.localStorage.setItem(DRAWER_WIDTH_KEY, String(width));
+      } catch {}
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);
@@ -128,13 +108,14 @@ export function ConversationDrawer({
 
   if (!open) return null;
 
-  // Backdrop dims the FeedTimeline behind (desktop) or covers it (mobile).
   return (
     <>
+      {/* Backdrop dims the windows behind (desktop) or fully covers
+          them (mobile, where the drawer takes full-screen). */}
       <div
         className={cn(
           'fixed inset-0 z-40 bg-foreground/10 backdrop-blur-[1px]',
-          isMobile && 'bg-background',
+          isMobile && 'bg-background'
         )}
         onClick={onClose}
         aria-hidden="true"
@@ -142,7 +123,7 @@ export function ConversationDrawer({
       <div
         className={cn(
           'fixed top-0 right-0 bottom-0 z-50 flex bg-background border-l border-border shadow-2xl',
-          isMobile && 'left-0 border-l-0',
+          isMobile && 'left-0 border-l-0'
         )}
         style={isMobile ? undefined : { width }}
         role="dialog"
@@ -161,9 +142,15 @@ export function ConversationDrawer({
           {/* Header */}
           <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background shrink-0">
             <div className="flex items-center gap-2">
-              <img src="/assets/logos/circleonly_yarnnn_1.svg" alt="" className="w-5 h-5" />
+              <img
+                src="/assets/logos/circleonly_yarnnn_1.svg"
+                alt=""
+                className="w-5 h-5"
+              />
               <div className="flex flex-col">
-                <span className="text-sm font-medium">{personaName ?? 'Reviewer'}</span>
+                <span className="text-sm font-medium">
+                  {personaName ?? 'Reviewer'}
+                </span>
                 <span className="text-[10px] text-muted-foreground/60 -mt-0.5">
                   Conversation
                 </span>
@@ -178,15 +165,17 @@ export function ConversationDrawer({
             </button>
           </div>
 
-          {/* Conversation body — ConversationPanel scoped to pulse='addressed'. */}
+          {/* Conversation body — composer + addressed timeline.
+              surfaceOverride flows from DeskContext per D16 §5 so
+              YARNNN knows the operator is "asking about {current
+              surface}" when they summon chat from any window. */}
           <div className="flex-1 min-h-0">
             <ConversationPanel
-              surfaceOverride={{ type: 'chat' }}
-              plusMenuActions={plusMenuActions}
-              placeholder={`Reply to ${personaName ?? 'Reviewer'}…`}
+              surfaceOverride={surface}
+              plusMenuActions={[]}
+              placeholder={`Ask ${personaName ?? 'YARNNN'}…`}
               showCommandPicker={true}
               showInputDivider={true}
-              onMakeRecurring={onMakeRecurring}
             />
           </div>
         </div>

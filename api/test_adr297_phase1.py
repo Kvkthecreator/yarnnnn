@@ -23,14 +23,20 @@ ADR-297 D11 additions (Universal Surface Application):
 - Chrome surfaces are not pinnable (default_pinned == False)
 
 ADR-297 D12 amendments (top-center merged dock-bar):
-- Three chrome surfaces registered (D11 had four; `dock` deleted):
-    `top-bar` (chrome/top) — merged dock-bar body
-    `launcher` (navigator/floating-overlay/summon) — overlay only
-    `chat-composer` (input/bottom-fixed)
-- `dock` slug is GONE from the registry. Its responsibility absorbed
-  into the top-bar body.
-- The `bottom-floating` LayoutRegion survives in the type union but
-  no kernel surface targets it.
+- D12 collapsed the prior 4-entry chrome set to 3 by deleting `dock`.
+
+ADR-297 D16 amendments (universal summon chat drawer):
+- D16 renamed `chat-composer` → `chat-drawer` and flipped its region
+  bottom-fixed → floating-overlay/summon. The bottom-strip composer
+  dissolves into a FAB + slide-over drawer.
+
+Post-D16 chrome surface set (3 entries):
+    `top-bar`    (chrome/top/always)        — merged dock-bar body
+    `launcher`   (navigator/floating-overlay/summon) — overlay
+    `chat-drawer`(input/floating-overlay/summon)    — FAB + drawer
+
+Both `bottom-floating` and `bottom-fixed` LayoutRegions survive in the
+type union but no kernel surface targets them today.
 
 Run: .venv/bin/python api/test_adr297_phase1.py
 """
@@ -116,10 +122,12 @@ def test_kernel_surfaces_module() -> None:
         "program",
         "queue",
         "activity",
-        # ADR-297 D11 chrome surfaces (D12 collapsed `dock` into top-bar)
+        # ADR-297 D11 chrome surfaces (D12 collapsed `dock` into top-bar;
+        # D16 renamed `chat-composer` → `chat-drawer` and flipped its
+        # region bottom-fixed → floating-overlay/summon).
         "top-bar",
         "launcher",
-        "chat-composer",
+        "chat-drawer",
     }
 
     # ADR-297 D12: `dock` slug DELETED from registry. Singular
@@ -127,6 +135,15 @@ def test_kernel_surfaces_module() -> None:
     _assert(
         "dock" not in slugs,
         "D12: `dock` kernel surface absent (responsibilities absorbed into top-bar)",
+    )
+
+    # ADR-297 D16: `chat-composer` slug DELETED from registry.
+    # Singular Implementation regression guard — chat is summon-style
+    # via the universal drawer (chat-drawer slug), not a persistent
+    # bottom-strip composer.
+    _assert(
+        "chat-composer" not in slugs,
+        "D16: `chat-composer` kernel surface absent (replaced by `chat-drawer`)",
     )
     actual = set(slugs)
     missing = expected_slugs - actual
@@ -389,15 +406,18 @@ def test_d11_archetype_catalog() -> None:
 
 
 def test_d11_chrome_surfaces() -> None:
-    print("\n[5b-chrome] ADR-297 D11+D12 chrome-surface contract")
+    print("\n[5b-chrome] ADR-297 D11+D12+D16 chrome-surface contract")
 
-    # The three chrome surfaces (post-D12) and their declared
-    # (archetype, region, visibility). D12 deleted `dock` from this
-    # set — top-bar's body now renders pinned-surface icons inline.
+    # The three chrome surfaces (post-D12, post-D16) and their
+    # declared (archetype, region, visibility).
+    #   D12 deleted `dock` from this set.
+    #   D16 renamed `chat-composer` → `chat-drawer` and flipped its
+    #   region bottom-fixed → floating-overlay/summon (universal
+    #   FAB + slide-over drawer replaces the bottom-strip composer).
     expected_chrome = {
         "top-bar": ("chrome", "top", "always"),
         "launcher": ("navigator", "floating-overlay", "summon"),
-        "chat-composer": ("input", "bottom-fixed", "always"),
+        "chat-drawer": ("input", "floating-overlay", "summon"),
     }
 
     by_slug = {s["slug"]: s for s in KERNEL_SURFACES}

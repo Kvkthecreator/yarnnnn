@@ -322,16 +322,21 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "default_visibility": "summon",
     },
     {
-        "slug": "chat-composer",
-        "title": "Chat Composer",
+        # D16 (2026-05-22): chat-composer renamed → chat-drawer; region
+        # flips bottom-fixed → floating-overlay; visibility flips
+        # always → summon. The pre-D16 bottom-strip composer dissolves
+        # into a FAB + slide-over drawer pattern (universal generalization
+        # of /feed's ADR-289 ConversationDrawer). See ADR-297 §D16.
+        "slug": "chat-drawer",
+        "title": "Chat Drawer",
         "archetype": "input",
         "substrate_paths": [],  # writes session_messages DB table
-        "icon_key": "message-square",
+        "icon_key": "message-circle",
         "default_pinned": False,
-        "route": "",  # not navigable; bottom-fixed input region
-        "summary": "Operator chat composer — writes session_messages; mounted in every authenticated surface.",
-        "default_region": "bottom-fixed",
-        "default_visibility": "always",
+        "route": "",  # not navigable; floating-overlay summon
+        "summary": "Operator chat drawer — FAB at viewport bottom-center summons a slide-over drawer with composer + addressed-conversation timeline.",
+        "default_region": "floating-overlay",
+        "default_visibility": "summon",
     },
 ]
 

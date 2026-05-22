@@ -491,6 +491,67 @@ D15 ratifies the full macOS/Windows window-manager model: multiple windows visib
 
 D15 implementation status: **Implemented 2026-05-22** (this session, code commit lands together with this doc per the same combined-commit cadence as D14).
 
+### D16 — Universal summon chat drawer (2026-05-22 same-session amendment)
+
+**Supersedes** D11 §Layout-policy line *"Composer always mounted in `bottom-fixed` (Input surface — every operator can chat with YARNNN from any surface)"* and **dissolves** D14.1's `useSuppressShellComposer()` machinery in full. Also dissolves the legacy `ConversationDrawer` on /feed (its responsibility absorbs into the universal drawer). Finishes the D11 Phase C.2 follow-on that was outstanding.
+
+D11 through D15 left three distinct chat affordances in the codebase, each operating under different rules:
+- `ChatComposerSurface` at `bottom-fixed` (D11 Phase C universal write path)
+- `ConversationPanel` right panels on /agents /context /cadence via `ThreePanelLayout.conversation` (legacy from ADR-289, preserved under Phase C safer-shape via `useSuppressShellComposer`)
+- `ConversationDrawer` slide-over on /feed (ADR-289)
+
+Operator-observed (KVK 2026-05-22): *"some surfaces seem to show the bottom chat while others don't […] we need a singular, streamlined philosophy."* The fragmentation was real. Three write paths, three places, no predictable behavior across surfaces.
+
+D16 collapses to one. The /feed Talk-button-and-drawer pattern that ADR-289 already proved (the operator already knows the shape; it works on mobile via full-screen takeover; it preserves window real estate when closed) generalizes from `/feed`-only to **universal shell chrome**: one FAB visible on every surface, one drawer that hosts the composer + addressed-conversation timeline.
+
+**Decisions**:
+
+1. **One FAB** at viewport **bottom-center**, fixed position, z-stacked above windows. Reclaims the `bottom-floating` region D12 vacated, for a different purpose (chat-summon, not pinned-surfaces). Icon: `MessageCircle` (lucide), 48px circle with subtle shadow. Filled when the drawer is open; outline-style when closed.
+
+2. **One drawer**, slide-over from the right. Drawer body (top to bottom):
+   - Persona header (yarnnn circle icon + persona name + "Conversation" subtitle + close ×)
+   - Scrollable addressed-conversation timeline (`pulse='addressed'` filter, same as existing ConversationPanel scoping)
+   - Composer input at bottom (textarea + plus menu + send / stop button + command picker `/` prefix + attachments preview)
+   Drawer width: default 400px, resizable 320–720px via left-edge drag handle (persists localStorage key `yarnnn:shell:chat-drawer-width:{userId}`). Mobile (<640px): full-screen takeover.
+
+3. **Universal** — every surface gets the same FAB + drawer. No per-surface variation, no special /feed behavior, no per-window mounting. The drawer floats over whichever window is foregrounded (D15 multi-window unchanged).
+
+4. **`chat-drawer` kernel surface** replaces `chat-composer` in the kernel registry. Archetype: `input`. `default_region: floating-overlay`. `default_visibility: summon`. The compositor mounts it once in the floating-overlay region; the FAB is rendered by the surface itself, the drawer body is rendered conditionally on `drawerOpen` from `ShellChromeContext`.
+
+5. **Per-surface context** flows through DeskContext, not through props. The drawer reads the current `DeskState.surface` (atomic slug + params) and passes a `surfaceOverride: { type: 'atomic', slug }` to the underlying composer so YARNNN knows "the operator is asking about Cadence" when they summon chat from /cadence. The old per-surface `draftSeed` / `pendingActionConfig` / `plusMenuActions` / `contextLabel` props from `ConversationPanel` are NOT re-introduced via DeskContext — they were never essential; they were affordances added per-surface ad-hoc. Operators who want those affordances back can request them and we'll add specific extensions to DeskContext at that time.
+
+6. **Deletions** (Singular Implementation discipline):
+   - `web/components/shell/chrome/ChatComposerSurface.tsx` — DELETED (replaced by `ChatDrawerSurface`)
+   - `web/components/feed/ConversationDrawer.tsx` — DELETED (responsibility absorbed)
+   - `useSuppressShellComposer()` hook + `composerSuppressed` flag in `ShellChromeContext` — DELETED (nothing to suppress)
+   - `ThreePanelLayout.conversation` prop + the right-panel ConversationPanel mount + the inline FAB inside ThreePanelLayout — DELETED
+   - `FeedSurface`'s `drawerOpen` state + `ConversationDrawer` import + chip-click-opens-drawer wiring — DELETED
+   - `bottom-fixed` layout-region mounting in `ShellCompositor` — DELETED (region survives in the type union for future use)
+   - `useSuppressShellComposer` import in FeedSurface — DELETED
+
+7. **What stays unchanged**: `ConversationPanel.tsx` keeps its composer + timeline body — it remains the canonical chat-UI component. The universal drawer mounts a ConversationPanel inside its body, same pattern the legacy `/feed` ConversationDrawer used. NarrativeContext, session_messages, sendMessage all unchanged. D14 Keep/release Dock semantics unchanged. D15 window-manager unchanged.
+
+**Rationale — why FAB + drawer instead of bottom-strip**:
+
+(a) **Window real estate**: the D11 Phase C bottom strip ate ~96px of viewport height on every surface. Cockpit (with its 7 trader sections), Cadence (with its task list), and Files (with its tree) all benefit from getting that height back.
+
+(b) **Architectural consistency with D14.1**: D14.1 collapsed two affordances (Launcher per-row Keep toggle + Dock right-click Keep) into one summon-style affordance (Dock right-click only). D16 applies the same pattern to chat: three persistent-or-semi-persistent composers collapse into one summon-style drawer. The shell's design language becomes consistent — every persistent UI element is justified against "could this be summon-style instead?"
+
+(c) **Mobile-natural**: FAB + slide-over is the canonical mobile pattern. The legacy bottom-strip composer was awkward on mobile (it competed with the OS keyboard for vertical space). The drawer takes full-screen on mobile — dedicated chat surface for the duration the operator is writing.
+
+(d) **/feed-proved**: the FAB + drawer pattern is already in the codebase and operator-tested on /feed via ConversationDrawer. D16 doesn't invent; it generalizes.
+
+**Why D16 and not its own ADR**: refinement of the surface-mirrors-substrate principle's *layout-policy* expression. D16 changes WHERE the Input surface mounts and HOW it's summoned, not WHAT it fundamentally is (still an Input archetype surface). Same ADR; explicit amendment for trace continuity.
+
+**What D16 does NOT do**:
+- Does not add keyboard shortcut to summon (⌘K or similar). FAB-click only. Future ADR may add keyboard summon.
+- Does not add unread-indicator dot on the FAB. Visual signal for "addressed message arrived while drawer was closed" deferred until operator-observed pain.
+- Does not change the chat surface itself (the `feed` kernel surface — read-only timeline). /feed remains a content surface; the conversation drawer is the chat affordance summoned from any surface including /feed.
+- Does not introduce per-window composers (Direction D from the design discourse — rejected as too much complexity for too little gain).
+- Does not preserve the per-message `onMakeRecurring` callback that the legacy `/feed` ConversationDrawer plumbed into ConversationPanel. The in-line "Run this on a schedule" affordance on addressed messages disappears as a temporary regression. Operator can still graduate messages to recurrences via direct chat ("run this on a schedule"). A follow-on may relocate the affordance to a per-message right-click menu (consistent with the D14 Dock right-click pattern) — but D16 leaves the affordance off rather than threading a per-surface prop through the universal drawer (which would re-introduce exactly the per-surface coupling that D16 collapses).
+
+D16 implementation status: **Implemented 2026-05-22** (this session, code commit lands together with this doc per the same combined-commit cadence as D14/D15).
+
 ---
 
 ## Implementation path for D11 — Uniform Compositor

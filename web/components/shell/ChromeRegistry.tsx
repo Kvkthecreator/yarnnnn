@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ChromeRegistry — ADR-297 D11 + D12.
+ * ChromeRegistry — ADR-297 D11 + D12 + D16.
  *
  * Maps each chrome-surface slug (declared in
  * api/services/kernel_surfaces.py with archetype ∈ {chrome, navigator,
@@ -11,34 +11,30 @@
  * Distinct from KERNEL_SURFACE_REGISTRY (SurfaceRegistry.tsx) which
  * maps *content* surfaces — content surfaces are launcher-navigable,
  * dock-pinnable, and mount into `main` via SurfaceViewport. Chrome
- * surfaces are none of those; they mount into top / bottom-fixed /
- * floating-overlay regions and are not pickable from the launcher.
+ * surfaces are none of those; they mount into top / floating-overlay
+ * regions and are not pickable from the launcher.
  *
- * Per ADR-297 D11: chrome-vs-content is not a special case at the
- * architecture layer (both are surfaces; both come from the registry
- * that composition_resolver emits). The two registries here are a
- * pragmatic split — they differ only in WHICH JSX slot the compositor
- * mounts them into, not in WHAT they fundamentally are.
+ * Post-D16 (2026-05-22) chrome set:
+ *   top-bar     — merged dock-bar (D12: brand · launcher · Dock · user)
+ *   launcher    — full surface-index overlay (D4 + D11)
+ *   chat-drawer — FAB + slide-over drawer (D16, replaces chat-composer)
  *
- * ADR-297 D12 (2026-05-21) collapsed the prior 4-entry chrome set
- * (top-bar, dock, launcher, chat-composer) to 3 entries by deleting
- * the `dock` kernel surface; its responsibility (rendering pinned
- * icons + dispatching setSurface) absorbed into TopBarSurface's body.
- * The launcher overlay still lives here as its own surface — only the
- * trigger button moved into TopBarSurface.
+ * D12 collapsed `dock` into top-bar's body.
+ * D16 collapsed `chat-composer` (bottom-fixed strip) into chat-drawer
+ * (FAB + floating-overlay summon).
  */
 
 import type { ComponentType } from 'react';
 import { TopBarSurface } from './chrome/TopBarSurface';
 import { LauncherSurface } from './chrome/LauncherSurface';
-import { ChatComposerSurface } from './chrome/ChatComposerSurface';
+import { ChatDrawerSurface } from './chrome/ChatDrawerSurface';
 
-export type ChromeSurfaceSlug = 'top-bar' | 'launcher' | 'chat-composer';
+export type ChromeSurfaceSlug = 'top-bar' | 'launcher' | 'chat-drawer';
 
 export const CHROME_SURFACE_REGISTRY: Record<ChromeSurfaceSlug, ComponentType> = {
   'top-bar': TopBarSurface,
   launcher: LauncherSurface,
-  'chat-composer': ChatComposerSurface,
+  'chat-drawer': ChatDrawerSurface,
 };
 
 const CHROME_SLUG_SET = new Set<string>(Object.keys(CHROME_SURFACE_REGISTRY));

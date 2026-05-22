@@ -1,27 +1,26 @@
 'use client';
 
 /**
- * ShellChromeContext — ADR-297 D11.
+ * ShellChromeContext — ADR-297 D11 + D14.1 + D16.
  *
- * Lightweight provider for chrome-surface shared state (launcher open/
- * close, current operator email for the top bar). Chrome surfaces
- * registered in ChromeRegistry consume this context instead of
- * receiving props from AuthenticatedLayout, so the compositor can
+ * Lightweight provider for chrome-surface shared state. Chrome
+ * surfaces registered in ChromeRegistry consume this context instead
+ * of receiving props from AuthenticatedLayout, so the compositor can
  * mount them without wiring N props through M JSX slots.
  *
- * Per ADR-297 D11: chrome is not a special case at the architecture
- * layer. Chrome surfaces participate in the same compositor as content
- * surfaces — they just declare different `default_region` /
- * `default_visibility` values. The shared state they need (auth
- * identity, summon toggle) is the price chrome pays for being a
- * Navigator/Chrome/Input archetype rather than a content archetype.
+ * D16 (2026-05-22): chat-composer → chat-drawer. The pre-D16
+ * `composerSuppressed` + `useSuppressShellComposer()` machinery (used
+ * to prevent the bottom-strip composer from doubling with per-surface
+ * ConversationPanel right panels and /feed's drawer) is DELETED
+ * entirely. D16 collapses all chat affordances into one universal
+ * drawer; nothing to suppress. ShellChromeContext gains `drawerOpen`
+ * (mirroring `launcherOpen`) for the FAB → drawer open/close cycle.
  */
 
 import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useState,
   type ReactNode,
@@ -32,20 +31,13 @@ interface ShellChromeContextValue {
   launcherOpen: boolean;
   openLauncher: () => void;
   closeLauncher: () => void;
-  /**
-   * ADR-297 D11 Phase C safer-shape (2026-05-21): surfaces that mount
-   * their own ConversationPanel (today: /agents /context /cadence via
-   * ThreePanelLayout.conversation) call useSuppressShellComposer() to
-   * register themselves; ChatComposerSurface reads this count and
-   * renders null when > 0. Prevents double-composer UX while Phase C.2
-   * (full per-surface migration) is still ahead.
-   *
-   * Count-based so multiple consumers on the same page (rare) don't
-   * fight; suppression lifts when all consumers unmount.
-   */
-  composerSuppressed: boolean;
-  registerComposerSuppression: () => void;
-  unregisterComposerSuppression: () => void;
+  /** ADR-297 D16 — universal chat drawer open/close state.
+   *  Mirrors launcherOpen. The FAB inside ChatDrawerSurface toggles
+   *  this; the drawer body renders conditionally on it. */
+  drawerOpen: boolean;
+  openDrawer: () => void;
+  closeDrawer: () => void;
+  toggleDrawer: () => void;
 }
 
 const Ctx = createContext<ShellChromeContextValue | null>(null);
@@ -57,14 +49,11 @@ interface ShellChromeProviderProps {
 
 export function ShellChromeProvider({ userEmail, children }: ShellChromeProviderProps) {
   const [launcherOpen, setLauncherOpen] = useState(false);
-  const [suppressorCount, setSuppressorCount] = useState(0);
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const registerComposerSuppression = useCallback(() => {
-    setSuppressorCount((n) => n + 1);
-  }, []);
-  const unregisterComposerSuppression = useCallback(() => {
-    setSuppressorCount((n) => Math.max(0, n - 1));
-  }, []);
+  const openDrawer = useCallback(() => setDrawerOpen(true), []);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+  const toggleDrawer = useCallback(() => setDrawerOpen((v) => !v), []);
 
   const value = useMemo<ShellChromeContextValue>(
     () => ({
@@ -72,17 +61,12 @@ export function ShellChromeProvider({ userEmail, children }: ShellChromeProvider
       launcherOpen,
       openLauncher: () => setLauncherOpen(true),
       closeLauncher: () => setLauncherOpen(false),
-      composerSuppressed: suppressorCount > 0,
-      registerComposerSuppression,
-      unregisterComposerSuppression,
+      drawerOpen,
+      openDrawer,
+      closeDrawer,
+      toggleDrawer,
     }),
-    [
-      userEmail,
-      launcherOpen,
-      suppressorCount,
-      registerComposerSuppression,
-      unregisterComposerSuppression,
-    ]
+    [userEmail, launcherOpen, drawerOpen, openDrawer, closeDrawer, toggleDrawer]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
@@ -94,25 +78,4 @@ export function useShellChrome(): ShellChromeContextValue {
     throw new Error('useShellChrome must be used inside <ShellChromeProvider>');
   }
   return ctx;
-}
-
-/**
- * useSuppressShellComposer — surfaces that mount their own composer
- * (Phase C safer shape: /agents /context /cadence via
- * ThreePanelLayout.conversation) call this hook to suppress the
- * shell-bottom ChatComposerSurface for as long as the surface is
- * mounted. Suppression releases on unmount.
- *
- * Phase C.2 follow-on (when ConversationPanel migrates to subscribe
- * to the shell composer): callers of this hook can drop the
- * suppression and rely on the shell composer alone.
- */
-export function useSuppressShellComposer() {
-  const { registerComposerSuppression, unregisterComposerSuppression } = useShellChrome();
-  useEffect(() => {
-    registerComposerSuppression();
-    return () => {
-      unregisterComposerSuppression();
-    };
-  }, [registerComposerSuppression, unregisterComposerSuppression]);
 }

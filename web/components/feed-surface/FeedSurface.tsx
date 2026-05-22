@@ -1,36 +1,35 @@
 'use client';
 
 /**
- * FeedSurface — operations timeline + Conversation drawer (ADR-289 Phase 2).
+ * FeedSurface — operations timeline (ADR-289 Phase 2 + ADR-297 D16).
  *
  *   <SurfaceIdentityHeader actions={[Filter, Context, Talk]} />
  *   <FeedTimeline /> ........... operations timeline (invocation cards, etc.)
- *   <ConversationDrawer /> ..... chat-shaped exchange slide-over (closed by default)
  *   <WorkspaceContextOverlay /> (pure reads, zero LLM)
  *
- * Rewired by ADR-289 Phase 2: the legacy single-panel FeedPanel rendering
- * is split into a typed-event timeline (FeedTimeline) + a slide-over
- * Conversation surface (ConversationDrawer). Bubbles are scoped to the
- * Conversation surface only; the timeline uses typed event rows.
+ * Pre-D16 /feed owned its own ConversationDrawer slide-over for
+ * chat-shaped exchanges. ADR-297 D16 (2026-05-22) collapsed all chat
+ * affordances into the universal ChatDrawerSurface mounted in shell
+ * chrome. /feed's local drawer + useSuppressShellComposer call DELETED;
+ * the "Talk" button + empty-state chip clicks + OperatorEventMarker's
+ * "open conversation →" affordance all summon the universal drawer
+ * via useShellChrome().openDrawer().
  *
- * Engagement model:
- *   - Operator opens the drawer to engage a conversation (composer lives
- *     inside the drawer). Clicking an OperatorEventMarker's "opened
- *     conversation →" affordance also opens the drawer.
- *   - Drawer close returns to full Feed view.
- *   - Autonomous wakes that fire while the drawer is open emit narrative
- *     rows; the FeedTimeline behind picks them up but the drawer stays
- *     focused on the addressed exchange. Per ADR-289 Phase 2 design
- *     lock-in (silent autonomous wakes during drawer).
+ * Engagement model (post-D16):
+ *   - Operator clicks "Talk" → universal drawer opens (same drawer
+ *     visible from every other surface).
+ *   - FeedTimeline behind shows the operations timeline (typed event
+ *     rows, no chat bubbles). Bubbles live in the drawer's
+ *     ConversationPanel scoped to pulse='addressed'.
+ *   - Autonomous wakes emit narrative rows; the FeedTimeline picks
+ *     them up.
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { BookOpen, Filter, MessageCircle } from 'lucide-react';
 import { FeedTimeline } from '@/components/feed/FeedTimeline';
-import { ConversationDrawer } from '@/components/feed/ConversationDrawer';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
-import type { PlusMenuAction } from '@/components/tp/PlusMenu';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import {
   parseSnapshotMeta,
@@ -41,43 +40,34 @@ import { AutonomyHeaderChip } from './AutonomyHeaderChip';
 import { FeedEmptyState } from './FeedEmptyState';
 import { FeedFilterBar, parseChatFilterFromSearch } from './FeedFilterBar';
 import { useReviewerPersona } from '@/lib/reviewer-persona';
-import { useSuppressShellComposer } from '@/components/shell/ShellChromeContext';
+import { useShellChrome } from '@/components/shell/ShellChromeContext';
 import { cn } from '@/lib/utils';
 
-interface FeedSurfaceProps {
-  /** Additional plus-menu actions from the page. FeedSurface prepends its own built-in actions. */
-  plusMenuActions?: PlusMenuAction[];
-}
-
-export function FeedSurface({
-  plusMenuActions = [],
-}: FeedSurfaceProps) {
-  // ADR-297 D11 Phase C safer-shape: /feed is the canonical Conversation
-  // surface (FeedTimeline + ConversationDrawer). Suppress the shell-
-  // bottom composer here — the operator engages chat via the drawer
-  // button, not via a redundant bottom strip.
-  useSuppressShellComposer();
-
+// D16 (2026-05-22): FeedSurface no longer accepts external chat
+// affordance props. Chat is the universal ChatDrawerSurface; FeedSurface
+// is read-only (operations timeline) + the Talk button that summons
+// the universal drawer.
+export function FeedSurface() {
   const { messages, sendMessage } = useNarrative();
   const searchParams = useSearchParams();
   const personaName = useReviewerPersona();
+
+  // ADR-297 D16: universal drawer summon (replaces the pre-D16 local
+  // drawerOpen state + ConversationDrawer mount). Every "open chat"
+  // affordance on this surface now routes through ShellChromeContext.
+  const { openDrawer } = useShellChrome();
+  const handleOpenDrawer = useCallback(() => openDrawer(), [openDrawer]);
+  // OperatorEventMarker's "open conversation →" affordance — same
+  // dispatch as the Talk button. Scroll-to-invocation deferred.
+  const handleOpenConversation = useCallback(
+    (_invocationId: string) => openDrawer(),
+    [openDrawer],
+  );
 
   // --- Context overlay state ---
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [snapshotLead, setSnapshotLead] = useState<SnapshotLead | null>(null);
   const [snapshotReason, setSnapshotReason] = useState<string | null>(null);
-
-  // --- Conversation drawer state (ADR-289 Phase 2) ---
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const handleOpenDrawer = useCallback(() => setDrawerOpen(true), []);
-  const handleCloseDrawer = useCallback(() => setDrawerOpen(false), []);
-  // Open drawer scrolled to a specific invocation (called by an
-  // OperatorEventMarker's "opened conversation →" affordance). The
-  // ConversationPanel inside the drawer renders all addressed rows in
-  // the workspace session — scrolling within is a Phase 2.1 refinement.
-  const handleOpenConversation = useCallback((_invocationId: string) => {
-    setDrawerOpen(true);
-  }, []);
 
   // ADR-219 Commit 5: filter bar visibility (off by default — we
   // toggle from the surface header). The filter itself is parsed from
@@ -94,12 +84,15 @@ export function FeedSurface({
     if (narrativeFilter) setFilterBarOpen(true);
   }, [narrativeFilter]);
 
-  // --- Empty-state chip seed (ADR-190) ---
-  // ADR-289 Phase 2: chips on FeedEmptyState now open the drawer.
-  // Composer-prefill is a drawer-side concern.
-  const handleChipClick = useCallback((_text: string) => {
-    setDrawerOpen(true);
-  }, []);
+  // --- Empty-state chip seed (ADR-190 / ADR-297 D16) ---
+  // Chips on FeedEmptyState summon the universal chat drawer.
+  // Composer-prefill (the chip's `_text`) was a per-surface ad-hoc
+  // affordance that D16 §5 deliberately dropped in favor of the
+  // universal drawer — operator types their prompt from scratch.
+  const handleChipClick = useCallback(
+    (_text: string) => openDrawer(),
+    [openDrawer],
+  );
 
   // Track the last message id we processed for marker directives.
   const [lastProcessedId, setLastProcessedId] = useState<string | null>(null);
@@ -146,26 +139,9 @@ export function FeedSurface({
     [sendMessage],
   );
 
-  // "Run this on a schedule" — seeds chat with a scheduling intent.
-  // All mutation flows through Chat; no modal.
-  const handleMakeRecurring = useCallback(
-    (messageContent: string) => {
-      const trimmed = messageContent.trim();
-      const excerpt = trimmed.length > 280 ? trimmed.slice(0, 280) + '…' : trimmed;
-      sendMessage(
-        `Run this on a schedule — turn the output above into a recurrence. Quoted excerpt: "${excerpt}"`,
-      );
-    },
-    [sendMessage],
-  );
-
-  // Plus-menu: pass through any page-supplied actions. No built-in modal
-  // launcher — "Start new work" is handled by seeding the composer via
-  // FeedEmptyState chips or just talking to YARNNN.
-  const allPlusMenuActions = useMemo<PlusMenuAction[]>(
-    () => [...plusMenuActions],
-    [plusMenuActions],
-  );
+  // D16 (2026-05-22): "Run this on a schedule" affordance on
+  // addressed messages temporarily off — see ADR-297 §D16 "does NOT
+  // do" list. Operator can still graduate via direct chat.
 
   // Context overlay toggle — replaces "Snapshot" button.
   // Label updated to "Context" — more honest about what it shows
@@ -282,17 +258,12 @@ export function FeedSurface({
         </div>
       </div>
 
-      {/* ADR-289 Phase 2: Conversation drawer (slide-over). Hosts the
-          ConversationPanel scoped to `pulse='addressed'`. Composer lives
-          inside. Autonomous wakes that fire while open remain silent in
-          the drawer — they surface in the FeedTimeline behind, visible
-          when the drawer closes. */}
-      <ConversationDrawer
-        open={drawerOpen}
-        onClose={handleCloseDrawer}
-        plusMenuActions={allPlusMenuActions}
-        onMakeRecurring={handleMakeRecurring}
-      />
+      {/* ADR-297 D16: pre-D16 the per-/feed ConversationDrawer mounted
+          here. Now the chat affordance lives in shell chrome
+          (ChatDrawerSurface — bottom-center FAB + universal slide-over
+          drawer). The Talk button + chip clicks + open-conversation
+          marker links all summon that universal drawer via
+          useShellChrome().openDrawer(). */}
 
       {/* Context overlay — 3-section primer (Mandate · Rules · Pulse) per
           2026-05-14 refactor. The legacy `tasks` prop dropped — the Pulse

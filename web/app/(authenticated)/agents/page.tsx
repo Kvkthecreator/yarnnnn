@@ -134,17 +134,7 @@ export default function AgentsPage() {
 
   return (
     <>
-    <ThreePanelLayout
-      conversation={{
-        surfaceOverride,
-        plusMenuActions,
-        placeholder: selectedAgent ? `Ask about ${selectedAgent.title}...` : 'Ask anything or type / ...',
-        emptyState: chatEmptyState,
-        showCommandPicker: !selectedAgent,
-        contextLabel: selectedAgent ? `viewing ${selectedAgent.title}` : undefined,
-        defaultOpen: true,
-      }}
-    >
+    <ThreePanelLayout>
       <PageHeader defaultLabel="Agents" />
       {selectedAgent ? (
         <AgentContentView
