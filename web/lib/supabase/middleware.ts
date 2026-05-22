@@ -4,18 +4,26 @@ import { isAdminEmail } from "@/lib/internal-access";
 import { getCurrentPathWithSearch, getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
 
-// ADR-205 F1 + ADR-214 + ADR-259 cockpit nav: Feed | Work | Agents | Files + /workspace (user menu).
-// HOME_ROUTE is /feed (renamed from /chat per ADR-259 — feed surface is the
-// multi-actor, asynchronous, continuously-updating timeline).
+// ADR-205 F1 + ADR-214 + ADR-259 cockpit nav + ADR-297 D17 boot model:
+//   HOME_ROUTE = /desktop (ADR-297 D17, 2026-05-22). Pre-D17 was /feed.
+//   Login boots to /desktop — the authenticated Desktop layer that restores
+//   last-session windows (open-surfaces registry from D13) or shows the
+//   empty-state welcome copy. Per-slug routes (/feed, /cadence, etc.) survive
+//   as deep-link transports for direct surface mounting.
+//
+// Atomic surface slugs are also top-level URLs: /feed /cockpit /cadence
+// /delegation /mandate /principles /identity /brand /files (→ /context)
+// /agents /program /queue /activity. Each is a protected route + a deep-link
+// transport — cold-load opens that surface in a window.
 // /chat is a redirect stub → /feed (ADR-259 — preserves bookmarks).
 // /overview was absorbed into /work's cockpit zone (F2); ADR-225 Phase 3 made
-// cockpit panes compositor-resolved. The /overview path itself is a redirect
-// stub for old bookmarks.
+// cockpit panes compositor-resolved.
 // /team redirects to /agents per ADR-214 (reverses ADR-201). /review is
 // deleted; Reviewer lives at /agents?agent=reviewer.
 // /schedule is now a redirect stub → /work (ADR-243 folded into Work tabs).
 // /connectors is a user-menu shortcut (same pattern as /workspace).
 const PROTECTED_PREFIXES = [
+  "/desktop", // ADR-297 §D17 — authenticated boot route
   "/feed",
   "/work",
   "/agents",

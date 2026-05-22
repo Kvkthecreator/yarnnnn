@@ -50,6 +50,19 @@ export const CASCADE_OFFSET_PX = 30;
 export const DEFAULT_WINDOW_WIDTH_PCT = 0.7;
 export const DEFAULT_WINDOW_HEIGHT_PCT = 0.7;
 
+// D17 — FAB reserved zone on the Desktop layer. The FAB lives at the
+// Desktop's bottom-center; windows cannot be positioned or resized
+// such that their bottom edge extends into this zone. Guarantees the
+// FAB stays reachable regardless of window arrangement.
+//
+// Zone shape: centered horizontally at the bottom, FAB_RESERVED_WIDTH
+// wide × FAB_RESERVED_HEIGHT tall. Windows must have their bottom
+// edge AT LEAST `FAB_RESERVED_HEIGHT` above the viewport bottom WHEN
+// their horizontal extent overlaps the central column where the FAB
+// sits. Outside the central column, windows can extend further down.
+export const FAB_RESERVED_WIDTH = 96; // central column width (px)
+export const FAB_RESERVED_HEIGHT = 80; // bottom strip height (px)
+
 function isBrowser(): boolean {
   return typeof window !== 'undefined' && typeof localStorage !== 'undefined';
 }
@@ -265,7 +278,14 @@ export function computeDefaultWindowState(
 
 /** Clamp a window's position so the title bar is at least partially
  *  visible (the operator can always grab the title bar). Clamps size
- *  to (WINDOW_MIN_*, viewport - 2*padding). */
+ *  to (WINDOW_MIN_*, viewport - 2*padding).
+ *
+ *  D17 (2026-05-22) — FAB reserved zone: when a window's horizontal
+ *  extent overlaps the central FAB_RESERVED_WIDTH-wide column at the
+ *  viewport's horizontal center, the window's bottom edge is pushed
+ *  up so it doesn't cover the FAB. Windows that don't overlap the
+ *  central column are unaffected. Guarantees the FAB stays reachable
+ *  regardless of window arrangement. */
 export function clampWindowState(
   state: WindowState,
   viewportWidth: number,
@@ -285,8 +305,23 @@ export function clampWindowState(
   const minX = desktopPaddingPx - width + minVisible;
   const maxX = viewportWidth - desktopPaddingPx - minVisible;
   const minY = desktopPaddingPx;
-  const maxY = viewportHeight - desktopPaddingPx - titleBarHeightPx;
+  let maxY = viewportHeight - desktopPaddingPx - titleBarHeightPx;
   const x = Math.min(maxX, Math.max(minX, state.x));
+
+  // D17 FAB reserved zone. Compute whether the window (at its
+  // proposed x + width) overlaps the central column where the FAB
+  // lives. If it does, tighten maxY by FAB_RESERVED_HEIGHT so the
+  // window's bottom edge sits above the FAB. The horizontal slot
+  // outside the central column is unaffected.
+  const fabColLeft = (viewportWidth - FAB_RESERVED_WIDTH) / 2;
+  const fabColRight = fabColLeft + FAB_RESERVED_WIDTH;
+  const winLeft = x;
+  const winRight = x + width;
+  const overlapsFabColumn = winRight > fabColLeft && winLeft < fabColRight;
+  if (overlapsFabColumn) {
+    maxY = Math.max(minY, maxY - FAB_RESERVED_HEIGHT);
+  }
+
   const y = Math.min(maxY, Math.max(minY, state.y));
 
   return { x, y, width, height, z: state.z };

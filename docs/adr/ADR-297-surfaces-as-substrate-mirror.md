@@ -552,6 +552,54 @@ D16 collapses to one. The /feed Talk-button-and-drawer pattern that ADR-289 alre
 
 D16 implementation status: **Implemented 2026-05-22** (this session, code commit lands together with this doc per the same combined-commit cadence as D14/D15).
 
+### D17 — Desktop as load-bearing layer + Agent OS boot model + FAB-on-desktop (2026-05-22 same-session amendment)
+
+**Supersedes** the pre-D11 `HOME_ROUTE = "/feed"` boot convention (auth callback + middleware now redirect to `/desktop`). **Refines** D13 §5 (the prior "Desktop empty state" framing — D17 ratifies Desktop as an always-rendered layer, not just an empty-state component). **Refines** D16 §1 (FAB position — was viewport-fixed `bottom-center`; D17 moves it inside the Desktop wrapper so it lives on the desktop layer, not on top of windows).
+
+Three coupled corrections that fix an architectural confusion the operator surfaced (KVK 2026-05-22): *"I'm confused — shouldn't the FAB be not on the actual surfaces, but on the 'desktop'?"* Followed by: *"What exactly do we call the layout I'm referring as 'desktop' here? Isn't it the empty state where 0 surfaces are 'opened'? Tell me if this is clearly identifiable and do-able in code."* And then: *"Maybe the framing needs to think in terms of what page/redirect we go to when we log in — and thus what IS our Agent OS metaphor that correctly applies this desktop concept."*
+
+The audit traced the confusion to two structural issues:
+
+1. **`HOME_ROUTE = "/feed"` was a relic from the pre-D11 single-page world.** Login auth-callback forced every operator (first-time + returning) onto `/feed` → pathname watcher fired → Feed surface auto-opened into a window. No operator ever saw the empty desktop. The macOS metaphor we ratified in D14/D15 was defeated on Day 1 of every operator's experience.
+
+2. **"Desktop" was two different things in code:** (a) the `<Desktop />` component rendered ONLY when zero windows open, and (b) the padded gray `bg-muted/30 p-3 sm:p-4` wrapper rendered ONLY when ≥1 windows open. ADR prose used "desktop" loosely for both; code had no shared name. The two paths had no continuity — different content, different conditions, never visible simultaneously.
+
+**D17 ratifies the YARNNN Agent OS boot model**: YARNNN is a macOS-window-manager OS. Login boots to the Desktop. Last-session windows restore automatically. The Desktop is a single always-rendered layer that exists at all times; windows float above it. The Desktop is load-bearing.
+
+**Decisions**:
+
+1. **Desktop = the always-rendered persistent background layer of the authenticated viewport.** Visible wherever windows don't cover it. Renders empty-state copy as a conditional child when no windows are open; renders windows as conditional absolute-positioned children on top. ONE wrapper in SurfaceViewport, not two paths.
+
+2. **Authenticated boot URL is `/desktop`.** New `web/app/(authenticated)/desktop/page.tsx` route. `HOME_ROUTE` constant updates from `"/feed"` → `"/desktop"`. Auth callback + middleware redirects target `/desktop`. The marketing landing at `/` stays public (Next.js `app/page.tsx` unchanged).
+
+3. **Per-slug routes survive as deep-link transports.** `/feed`, `/cadence`, `/mandate`, etc. continue to work — cold-load to them opens that surface, foregrounds it (existing AuthenticatedLayout pathname watcher behavior). Bookmark-safety + shareability preserved. Only the **default** boot changes — operator landing on `/desktop` with non-empty registry sees their restored session; operator landing on `/desktop` with empty registry sees the empty Desktop.
+
+4. **Last-session restore is automatic.** The open-surfaces registry persisted by D13 is now actually load-bearing. SurfaceViewport reads `useSurfacePreferences().open` on mount; windows hydrate with their persisted geometry from `windowStates`; the previously-foregrounded slug regains foreground. Operator who had Cockpit + Cadence + Mandate open yesterday sees the same arrangement today.
+
+5. **Context-aware Desktop empty-state copy.**
+   - **First-time operator** (no localStorage entries — `kept`, `open`, `foregrounded`, `windowStates` all default-empty): "Welcome to YARNNN. Click the launcher (grid icon ↑) above to see all surfaces, or click any pinned icon in the top dock." Subtle arrow/indicator pointing at the launcher.
+   - **Returning operator with empty registry** (closed all windows + released all kept): "Nothing open. Click an icon in the top dock to open a surface, or use the launcher to browse."
+   - Detection: first-time = `windowStates` is empty AND `open` is empty AND `kept` matches the default `['feed']` exactly (operator hasn't touched anything). Returning-empty = anything else.
+
+6. **TopBar brand-mark click navigates to `/desktop`.** Pre-D17 it navigated to the foregrounded surface's route (D6 last-active-home semantics, now superseded by D17's "return to desktop" semantics). The macOS-equivalent: click the wallpaper / use Mission Control to show the desktop. The "last-active" concept survives as `foregrounded` in the registry — when you click the brand mark you go to desktop; the foregrounded window is still mounted and reachable via its Dock icon.
+
+7. **FAB moves from viewport-fixed to inside the Desktop layer.** D16 mounted ChatFAB as `fixed left-1/2 bottom-X z-[60]` — on top of windows. D17 mounts it as an absolute-positioned child of the Desktop wrapper inside SurfaceViewport, at the bottom-center of the Desktop layer. Z-stack: FAB has lower z than windows (z-stack 10+). When windows don't cover the Desktop's bottom-center area, FAB is visible there. When windows cover it, FAB is hidden underneath.
+
+8. **D15 window bounds-clamping respects a reserved Desktop strip at bottom-center.** To prevent the FAB from being permanently unreachable (a real concern the operator named), D17 reserves a ~96px-tall × ~120px-wide area at the bottom-center of the Desktop where windows cannot be positioned/resized. The reserved strip ensures the FAB is always reachable — operator can drag/resize windows freely everywhere else, but never into the FAB's home. The window-state clampWindowState helper gains an optional `reservedBottomCenter` zone.
+
+9. **The drawer (D16 ChatDrawer) stays in `floating-overlay` region.** Only the FAB moves. The drawer continues to slide-over from the right when summoned, z-stacked above everything per D16. This split (FAB on Desktop, drawer in floating-overlay) reflects their different natures: the FAB is a desktop-level affordance (a tool sitting on the wallpaper); the drawer is a temporary overlay that covers content.
+
+**Why D17 and not its own ADR**: continues the D11–D16 pattern of refining the surface-mirrors-substrate principle's layout-policy expression. D17 doesn't reopen the axiom (everything is still a surface); it ratifies a structural concept (Desktop) that was already implicit in the implementation and makes it consistent. Same ADR; explicit amendment for trace continuity.
+
+**What D17 does NOT do**:
+- Does not auto-restore window geometry for surfaces that weren't open at last logout but were previously seen. The `windowStates` registry only restores what was open.
+- Does not add a "minimize all windows" / "show desktop" keyboard shortcut (the macOS F11 / cmd-F3 equivalent). Brand-mark click is the only "show desktop" affordance in v1.
+- Does not change first-time operator onboarding beyond the empty-state copy. A richer onboarding flow is a future ADR.
+- Does not change the per-slug routes' rendering behavior (cold-load to `/cadence` still opens Cadence + foregrounds it).
+- Does not change ChatDrawer behavior (drawer width, mobile takeover, persona header, etc.) — only the FAB's mount location changes.
+
+D17 implementation status: **Implemented 2026-05-22** (this session, code commit lands together with this doc per the same combined-commit cadence as D14/D15/D16).
+
 ---
 
 ## Implementation path for D11 — Uniform Compositor

@@ -1,25 +1,32 @@
 'use client';
 
 /**
- * SurfaceViewport — ADR-297 axiom + D13 multi-mount + D14 windows + D15 window manager.
+ * SurfaceViewport — ADR-297 axiom + D13 multi-mount + D14 windows + D15 window manager + D17 unified Desktop.
  *
- * D15 (2026-05-22): full window-manager mode on desktop. Each open
- * surface mounts inside a WindowFrame that's absolutely-positioned at
- * its (x, y, width, height) from windowStates. The foregrounded
- * window has the highest z. All open windows are visually present;
- * pre-D15 'hidden' attribute single-window-at-a-time behavior is
- * dropped on desktop.
+ * D17 (2026-05-22): unifies the prior two code paths (`<Desktop />`
+ * empty-state component vs inline padded wrapper around windows) into
+ * one always-rendered Desktop layer. The Desktop component now owns:
+ *   - padded gray background
+ *   - context-aware empty-state copy (visible when no windows)
+ *   - the ChatFAB (D17 §7 — moved off viewport-fixed)
+ * Windows mount as absolute-positioned children of the Desktop layer.
  *
- * Mobile (<MOBILE_BREAKPOINT_PX): single-window mode preserved. Only
- * the foregrounded window renders; multi-window UX collapses to
- * Dock-as-tab-switcher.
- *
- * Resolution order:
+ * Resolution order (D17):
  *   1. mountSlugs = union of (registry-open) and (pathname-deep-link).
- *   2. Desktop: render every mountSlug absolute-positioned, z-stacked.
- *   3. Mobile: render only the foregrounded mountSlug, full-bleed.
- *   4. Empty registry + non-atomic pathname → legacy children.
- *   5. Empty registry + atomic-or-empty pathname → Desktop empty state.
+ *   2. Desktop layer ALWAYS renders.
+ *   3. Desktop empty-state copy visible iff mountSlugs is empty.
+ *   4. Mobile (<MOBILE_BREAKPOINT_PX): one window full-bleed inside Desktop.
+ *   5. Desktop: all open windows absolute-positioned + z-stacked.
+ *
+ * Pathname behavior (D17):
+ *   - /desktop → no pathnameSlug; Desktop renders + restores
+ *     whatever is in the open-surfaces registry.
+ *   - /{surface-slug} → pathnameSlug = the slug; deep-link transport
+ *     opens that surface in addition to whatever's in the registry.
+ *   - Other authenticated routes (settings, connectors, docs, etc.)
+ *     → not handled here; AuthenticatedLayout's ShellCompositor passes
+ *     their page render through `children` only if mountSlugs is
+ *     empty AND pathname isn't /desktop.
  */
 
 import { type ReactNode } from 'react';
@@ -44,10 +51,13 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
   const { data: composition } = useComposition();
   const viewport = useViewport();
 
-  // Cold-load deep-link fallback (D13).
+  // Cold-load deep-link fallback (D13). Recognize per-slug routes as
+  // transports that open the named surface; the /desktop route itself
+  // produces no pathnameSlug and just shows the Desktop layer.
   const firstSegment = pathname.split('/').filter(Boolean)[0];
   const pathnameSlug: KernelSurfaceSlug | null =
     firstSegment && isKernelSurfaceSlug(firstSegment) ? firstSegment : null;
+  const isDesktopRoute = pathname === '/desktop';
 
   const mountSlugs: KernelSurfaceSlug[] = (() => {
     const set = new Set<string>(open);
@@ -84,46 +94,52 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
       .join(' ');
   };
 
-  if (mountSlugs.length === 0) {
-    if (pathnameSlug === null && firstSegment) {
-      return <>{children}</>;
-    }
-    return <Desktop />;
+  // D17: legacy non-atomic routes (settings, connectors, docs, etc.)
+  // pass through to their page render via `children`. The /desktop
+  // route + per-slug routes both render the Desktop layer (with or
+  // without windows).
+  const isLegacyNonAtomicRoute =
+    !isDesktopRoute && pathnameSlug === null && firstSegment !== undefined;
+  if (isLegacyNonAtomicRoute && mountSlugs.length === 0) {
+    return <>{children}</>;
   }
 
-  // Mobile: single-window mode — render only the foregrounded slug,
-  // full-bleed within the desktop padding.
-  if (viewport.isMobile) {
+  const hasWindows = mountSlugs.length > 0;
+
+  // Mobile single-window mode (D15). Only the foregrounded window
+  // renders, full-bleed inside the Desktop layer.
+  if (viewport.isMobile && hasWindows) {
     const slug = visibleSlug;
-    if (!slug) return <Desktop />;
-    const Component = resolveSurfaceComponent(slug);
-    return (
-      <div className="h-full w-full bg-muted/30 p-2">
-        <WindowFrame
-          title={titleFor(slug)}
-          isForegrounded={true}
-          onRaise={() => raiseWindow(slug)}
-          onClose={() => closeSurface(slug)}
-          interactive={false}
-        >
-          <Component />
-        </WindowFrame>
-      </div>
-    );
+    if (slug) {
+      const Component = resolveSurfaceComponent(slug);
+      return (
+        <Desktop hasWindows={true}>
+          <div className="absolute inset-3 sm:inset-4">
+            <WindowFrame
+              title={titleFor(slug)}
+              isForegrounded={true}
+              onRaise={() => raiseWindow(slug)}
+              onClose={() => closeSurface(slug)}
+              interactive={false}
+            >
+              <Component />
+            </WindowFrame>
+          </div>
+        </Desktop>
+      );
+    }
   }
 
-  // Desktop: full multi-window. Each surface is absolutely-positioned
-  // at its window state. Position-relative parent so absolute children
-  // inherit the viewport coordinate space.
+  // Desktop multi-window mode (D15). All open windows absolute-
+  // positioned + z-stacked on top of the Desktop layer.
   return (
-    <div className="relative h-full w-full bg-muted/30">
+    <Desktop hasWindows={hasWindows}>
       {mountSlugs.map((slug) => {
         const Component = resolveSurfaceComponent(slug);
         const isVisible = slug === visibleSlug;
         const ws = windowStates[slug];
-        // If we don't have window state yet (first paint before the
-        // foregroundSurface effect ran), skip rendering until it does
-        // — prevents flash of un-positioned window at (0,0).
+        // Skip rendering before window state hydrates — prevents flash
+        // of un-positioned window at (0,0).
         if (!ws) return null;
         return (
           <WindowFrame
@@ -142,6 +158,6 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
           </WindowFrame>
         );
       })}
-    </div>
+    </Desktop>
   );
 }

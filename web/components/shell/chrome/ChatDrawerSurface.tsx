@@ -1,28 +1,24 @@
 'use client';
 
 /**
- * ChatDrawerSurface — ADR-297 D16 chrome surface
+ * ChatDrawerSurface — ADR-297 D16 + D17 chrome surface
  * (region: floating-overlay, archetype: input, visibility: summon).
  *
- * The universal chat affordance. Mounts both the persistent FAB
- * (bottom-center, viewport-fixed) and the slide-over drawer body
- * (conditionally rendered on drawerOpen from ShellChromeContext).
+ * D17 (2026-05-22): only the drawer mounts here. The FAB moved into
+ * the Desktop layer (web/components/shell/Desktop.tsx) per D17 §7,9 —
+ * the FAB is a desktop-level affordance (it belongs on the desktop
+ * wallpaper); the drawer is a temporary overlay that covers content.
+ * Different homes; different responsibilities.
  *
- * Replaces the D11 Phase C `ChatComposerSurface` (bottom-strip
- * composer, always visible). D16 §6 enumerates the full set of
- * deletions that accompany this surface; see ADR-297 §D16.
+ * Pre-D17 this surface mounted both ChatFAB + ChatDrawer. Post-D17
+ * ChatFAB.tsx is DELETED (Singular Implementation — body inlined into
+ * Desktop.tsx); ChatDrawerSurface shrinks to drawer-only.
  */
 
-import { ChatFAB } from './ChatFAB';
 import { ChatDrawer } from './ChatDrawer';
 import { useShellChrome } from '../ShellChromeContext';
 
 export function ChatDrawerSurface() {
   const { drawerOpen, closeDrawer } = useShellChrome();
-  return (
-    <>
-      <ChatFAB />
-      <ChatDrawer open={drawerOpen} onClose={closeDrawer} />
-    </>
-  );
+  return <ChatDrawer open={drawerOpen} onClose={closeDrawer} />;
 }

@@ -1,12 +1,16 @@
 // Cockpit nav per ADR-205 Phase 4 F1 (feed-first landing) + ADR-214 (four-tab
-// consolidation, 2026-04-23) + ADR-259 (feed surface rename, 2026-05-08).
+// consolidation, 2026-04-23) + ADR-259 (feed surface rename, 2026-05-08) +
+// ADR-297 D17 (Desktop as load-bearing layer, 2026-05-22).
 // See docs/adr/ADR-214-agents-page-consolidation.md, ADR-198-surface-archetypes,
-// and ADR-259-feed-surface for the surface frame.
+// ADR-259-feed-surface, and ADR-297 §D17 for the surface + boot frame.
 //
-// HOME_ROUTE = /feed. A brand-new workspace has no authored agents and no
-// authored tasks — the user's first meaningful action lands in the feed
-// (continuous multi-actor timeline; operator messages are one entry mode).
-// Landing on /feed re-aligns with ADR-189's authored-team moat.
+// HOME_ROUTE = /desktop (ADR-297 §D17). Pre-D17 this was /feed — a relic from
+// the pre-D11 single-page world where every operator was force-redirected to
+// the Feed surface on login. D17 ratifies the YARNNN Agent OS boot model:
+// login boots to the Desktop layer. Last-session windows restore from the
+// open-surfaces registry (D13). Empty registry → empty Desktop with context-
+// aware welcome copy. Per-slug routes (/feed, /cadence, etc.) survive as
+// deep-link transports.
 //
 // Current nav: Feed | Work | Agents | Files
 // /schedule was a top-level tab (ADR-243) that has been folded into /work as
@@ -47,8 +51,13 @@
 //   /backend       → /activity                         (ADR-265 — operator-readable rename)
 //
 // =============================================================================
-export const HOME_ROUTE = "/feed";
-export const HOME_LABEL = "Feed";
+// ADR-297 §D17 (2026-05-22): HOME_ROUTE flips /feed → /desktop. The
+// authenticated Desktop layer is the canonical landing route; per-slug
+// routes (FEED_ROUTE, /cadence, /mandate, etc.) survive as deep-link
+// transports for direct surface mounting.
+export const HOME_ROUTE = "/desktop";
+export const HOME_LABEL = "Desktop";
+export const DESKTOP_ROUTE = "/desktop";
 export const FEED_ROUTE = "/feed";
 export const WORK_ROUTE = "/work";
 export const AGENTS_ROUTE = "/agents"; // ADR-214 — canonical (reverses ADR-201 /team rename).

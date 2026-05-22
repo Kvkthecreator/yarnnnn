@@ -69,15 +69,20 @@ export function TopBarSurface() {
   const { setSurface } = useDesk();
   const { userEmail, openLauncher } = useShellChrome();
 
-  // D13: brand-mark click navigates to the foregrounded surface's
-  // route. If nothing is foregrounded (desktop empty state), the click
-  // is a no-op — the operator is already at the canonical home.
+  // D17 (2026-05-22): brand-mark click navigates to /desktop (the
+  // authenticated Desktop layer) — the macOS "click the wallpaper /
+  // show desktop" equivalent. Pre-D17 (D6) this navigated to the
+  // foregrounded surface's route; that conflicted with the D17
+  // Desktop ratification (operator should be able to return to
+  // Desktop regardless of which window is foregrounded).
+  //
+  // The foregrounded window stays mounted in the registry — when
+  // operator clicks its Dock icon they're back to it instantly per
+  // D15 click-to-foreground. The brand mark is for "show me the
+  // Desktop layer."
   const navigateToHome = useCallback(() => {
-    if (!foregrounded) return;
-    const surface = composition.surfaces?.find((s) => s.slug === foregrounded);
-    const target = surface?.route || HOME_ROUTE;
-    if (pathname !== target) router.push(target);
-  }, [router, pathname, composition.surfaces, foregrounded]);
+    if (pathname !== HOME_ROUTE) router.push(HOME_ROUTE);
+  }, [router, pathname]);
 
   // Resolve composition.surfaces[] to a slug → Surface map.
   const surfaceBySlug = useMemo(() => {
