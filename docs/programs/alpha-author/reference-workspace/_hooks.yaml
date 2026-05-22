@@ -61,17 +61,29 @@ hooks:
         5. Cadence context (is this on declared cadence, ahead, behind —
            read _preferences.yaml)
 
-      Decide and emit one of:
-        - APPROVE — all checks pass; piece may ship. If _autonomy.yaml
-          delegation is `bounded` AND piece_type matches ceiling_categories,
-          the approve verdict binds publication via ExecuteProposal.
-          Otherwise approve surfaces to operator Queue for click.
-        - DEFER — some checks pass, some need operator iteration. Write
-          specific defect to /workspace/review/judgment_log.md (e.g., "para 3
-          sentence 2: hedge stack 'I think it's worth considering'") and
-          flag draft as deferred. Operator iterates and resubmits.
-        - REJECT — hard rejection rule fires (per /workspace/review/
-          principles.md). Write structured reasoning to judgment_log.md.
+      Decide and emit verdict via ReturnVerdict — the framework requires
+      a ReturnVerdict tool call to close the cycle. Text-only response
+      without ReturnVerdict will be auto-converted to inert stand_down
+      with no substrate write — that is a discipline failure, not a
+      valid cycle close.
+
+        - ReturnVerdict(verdict="approve", reasoning="<persona-voice
+          summary>", confidence="high") — all checks pass; piece may
+          ship. If _autonomy.yaml delegation is `bounded` AND piece_type
+          matches ceiling_categories, this binds publication via
+          ExecuteProposal. Otherwise approve surfaces to operator Queue.
+        - ReturnVerdict(verdict="defer", reasoning="<persona-voice
+          summary including specific defect path:line>",
+          confidence="medium") — some checks pass, some need operator
+          iteration. Also: WriteFile to /workspace/review/judgment_log.md
+          with structured defect (e.g., "para 3 sentence 2: hedge stack
+          'I think it's worth considering'"). Operator iterates and
+          resubmits.
+        - ReturnVerdict(verdict="reject", reasoning="<persona-voice
+          summary citing the violated principles.md rule>",
+          confidence="high") — hard rejection rule fires per
+          principles.md. Also: WriteFile to judgment_log.md with
+          structured reasoning.
 
       Silent stand-down without writing audit reasoning is forbidden.
 

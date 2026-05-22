@@ -69,21 +69,25 @@ recurrences:
       Write findings to /workspace/context/authored/_signal.md (coherence
       slice) per /workspace/specs/corpus-coherence-rollup.md schema.
 
-      When findings cross high-impact thresholds, emit Clarify proposals
+      When findings cross high-impact thresholds: emit Clarify proposals
       to operator surfacing the specific drift/break/missed cadence with
-      pointers to the affected substrate.
+      pointers to the affected substrate, then ReturnVerdict(verdict=
+      "defer", reasoning="<persona-voice naming the specific drift>",
+      confidence="high").
 
-      Stand down silently if no findings cross thresholds —
-      AND update /workspace/review/standing_intent.md with what corpus
-      drift patterns you're watching for per ADR-284 + principles.md
-      "Default posture". Cite specific anti-patterns trending up across
-      recent pieces (e.g., "Watching for cadence drift — last 3 weeks
-      ran on-cadence but interval is widening; 2 more weeks of widening
-      crosses the 2-interval threshold"). The material-outcome gate
-      (ADR-281 §5) decides whether a judgment_log.md entry is rendered;
-      standing_intent.md update is unconditional. Standing down without
-      updating standing_intent leaves the operator with no evidence of
-      forward-looking judgment — only observation.
+      Otherwise: WriteFile /workspace/review/standing_intent.md with
+      what corpus drift patterns you're watching for per ADR-284 +
+      principles.md "Default posture". Cite specific anti-patterns
+      trending up across recent pieces (e.g., "Watching for cadence
+      drift — last 3 weeks ran on-cadence but interval is widening;
+      2 more weeks of widening crosses the 2-interval threshold").
+      THEN ReturnVerdict(verdict="stand_down", reasoning="<persona-voice
+      noting no findings crossed thresholds + what you're watching for>",
+      confidence="medium"). The material-outcome gate (ADR-281 §5)
+      decides whether a judgment_log.md entry is rendered;
+      standing_intent.md update is unconditional. Text-only "no findings"
+      response without ReturnVerdict is forbidden — the cycle does not
+      close cleanly without it.
     display_name: "Corpus Coherence Check"
 
   # ── JUDGMENT — revision audit (long-arc author primary loop) ─────────────
@@ -130,11 +134,17 @@ recurrences:
         5. Update each audited draft's profile.md with last_revision_audit
            timestamp + revision_audit_state verdict.
         6. When verdict is `concerning-drift` (or `notable-changes` if
-           operator opted into surfacing per _preferences.yaml), emit
-           Clarify proposal to operator with specific findings.
+           operator opted into surfacing per _preferences.yaml): emit
+           Clarify proposal to operator with specific findings, then
+           ReturnVerdict(verdict="defer", reasoning="<persona-voice
+           naming the drift trajectory + affected drafts>",
+           confidence="high").
         7. When no drafts have revisions in window: write one-line
            `stand_down: no drafts in window` entry to judgment_log.md,
-           exit silently. No Clarify, no noise.
+           THEN ReturnVerdict(verdict="stand_down", reasoning="<persona-
+           voice noting no drafts active + what you're watching for once
+           authorship resumes>", confidence="medium"). No Clarify, no
+           noise — but ReturnVerdict still required to close the cycle.
 
       Revision audit is observational — it surfaces patterns. It does NOT
       enforce (the gate is pre-ship-audit). It does NOT write to
@@ -149,7 +159,8 @@ recurrences:
       next revision crossing into emotional outburst would contradict
       established arc"). A no-drafts-in-window stand-down still updates
       standing_intent.md with what would be watched once authorship
-      resumes.
+      resumes. Text-only response without ReturnVerdict is forbidden in
+      every exit branch.
     display_name: "Revision Audit"
 
   # ── JUDGMENT — outcome reconciliation ────────────────────────────────────
@@ -194,17 +205,20 @@ recurrences:
       Regenerate /workspace/context/_signal_summary.md as the cross-domain
       rollup the daily-update briefing reads.
 
-      Stand down silently if there were no audit or ship events in the
-      window —
-      AND update /workspace/review/standing_intent.md with what calibration
-      patterns you're watching for per ADR-284 + principles.md "Default
-      posture". Cite specific calibration trajectories (e.g., "Watching
-      voice-audit accuracy 30d trend — current 0.74, drifting down from
-      0.82 a month ago; if it crosses 0.65 the voice-audit thresholds
-      need a Clarify to operator"). The material-outcome gate decides
-      whether feedback.md routing occurs; standing_intent.md update is
-      unconditional. Reconciliation that observes calibration without
-      naming what's being watched for next is not yet a closed cycle.
+      Close the cycle: WriteFile /workspace/review/standing_intent.md with
+      what calibration patterns you're watching for per ADR-284 +
+      principles.md "Default posture". Cite specific calibration
+      trajectories (e.g., "Watching voice-audit accuracy 30d trend —
+      current 0.74, drifting down from 0.82 a month ago; if it crosses
+      0.65 the voice-audit thresholds need a Clarify to operator").
+      THEN ReturnVerdict(verdict="stand_down", reasoning="<persona-voice
+      summary of today's reconciliation + what you're watching for>",
+      confidence="medium") — required even when no audit or ship events
+      fired in the window. The material-outcome gate decides whether
+      feedback.md routing occurs; standing_intent.md update is
+      unconditional; ReturnVerdict is the cycle-close contract. Text-only
+      "no events" response is forbidden — a closed cycle is named, not
+      implied.
     display_name: "Outcome Reconciliation"
 
 # ADR-275: weekly-corpus-review and quarterly-voice-audit (operator

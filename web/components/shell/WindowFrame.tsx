@@ -18,8 +18,8 @@
  * `children` continues to render breadcrumb + actions.
  */
 
-import { useCallback, useEffect, useRef, type CSSProperties } from 'react';
-import { X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { X, Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
   clampWindowState,
@@ -36,6 +36,14 @@ interface WindowFrameProps {
    *  frame (body, title bar, edges) so the window comes to front. */
   onRaise: () => void;
   onClose: () => void;
+  /** D19.1 (2026-05-22): macOS-style traffic-light minimize. Called
+   *  by the yellow button. When omitted, the minimize button is
+   *  hidden (e.g. single-window/mobile mode). */
+  onMinimize?: () => void;
+  /** D19.1: macOS-style traffic-light maximize/zoom toggle. Called
+   *  by the green button. When omitted, the maximize button is
+   *  hidden. */
+  onMaximize?: () => void;
   /** D15 multi-window mode: window geometry to apply (absolute
    *  position + width/height). When omitted, the frame fills its
    *  parent (single-window/mobile mode). */
@@ -76,6 +84,8 @@ export function WindowFrame({
   isForegrounded,
   onRaise,
   onClose,
+  onMinimize,
+  onMaximize,
   windowState,
   viewportWidth,
   viewportHeight,
@@ -84,6 +94,10 @@ export function WindowFrame({
   children,
 }: WindowFrameProps) {
   const dragRef = useRef<DragSession | null>(null);
+  // D19.1: traffic-light hover state — when the operator hovers the
+  // cluster, even background windows light up so they can target the
+  // buttons without raising first (matches macOS).
+  const [trafficHovered, setTrafficHovered] = useState(false);
 
   // Compute style for multi-window (absolute) vs single-window (fill).
   const frameStyle: CSSProperties = windowState && interactive
@@ -233,35 +247,72 @@ export function WindowFrame({
         isForegrounded ? 'border-border shadow-md' : 'border-border/60'
       )}
     >
-      {/* Title bar — drag handle in multi-window mode. */}
+      {/* Title bar — drag handle in multi-window mode. D19.1: macOS-
+          shaped chrome. Traffic-lights (close/minimize/maximize) on the
+          LEFT, title centered. Background windows dim the title text;
+          traffic-lights turn neutral gray unless hovered or the window
+          is foregrounded. */}
       <div
         onMouseDown={(e) => {
           // Only initiate drag when clicking the bar itself, not the
-          // close button (the button has its own stopPropagation).
+          // traffic-light buttons (each button stops propagation).
           if ((e.target as HTMLElement).closest('button')) return;
           startDrag('move', e);
         }}
         className={cn(
-          'flex h-8 shrink-0 items-center justify-between border-b border-border bg-muted/30 px-3',
+          'relative flex h-8 shrink-0 items-center border-b border-border bg-muted/30 px-3',
           interactive && 'cursor-grab active:cursor-grabbing select-none'
         )}
       >
-        <div className="text-xs font-medium text-foreground/80 truncate pointer-events-none">
+        {/* Traffic-lights cluster (LEFT). Each button is 12px circle;
+            cluster total ~46px wide including gaps. Stop both mousedown
+            and click propagation so the cluster doesn't initiate drag. */}
+        <div
+          onMouseEnter={() => setTrafficHovered(true)}
+          onMouseLeave={() => setTrafficHovered(false)}
+          className="flex shrink-0 items-center gap-1.5"
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <TrafficLightButton
+            tone="close"
+            isForegrounded={isForegrounded}
+            isClusterHovered={trafficHovered}
+            label={`Close ${title}`}
+            onClick={onClose}
+            glyph={<X className="h-2 w-2 text-black/70" strokeWidth={2.5} />}
+          />
+          {onMinimize && (
+            <TrafficLightButton
+              tone="minimize"
+              isForegrounded={isForegrounded}
+              isClusterHovered={trafficHovered}
+              label={`Minimize ${title}`}
+              onClick={onMinimize}
+              glyph={<Minus className="h-2 w-2 text-black/70" strokeWidth={2.5} />}
+            />
+          )}
+          {onMaximize && (
+            <TrafficLightButton
+              tone="maximize"
+              isForegrounded={isForegrounded}
+              isClusterHovered={trafficHovered}
+              label={`Zoom ${title}`}
+              onClick={onMaximize}
+              glyph={<Plus className="h-2 w-2 text-black/70" strokeWidth={2.5} />}
+            />
+          )}
+        </div>
+
+        {/* Centered title — absolutely positioned so traffic-lights
+            don't shift it. macOS-shaped. Dims on background windows. */}
+        <div
+          className={cn(
+            'pointer-events-none absolute inset-x-0 text-center text-xs font-medium truncate px-16',
+            isForegrounded ? 'text-foreground/80' : 'text-muted-foreground/50',
+          )}
+        >
           {title}
         </div>
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onClose();
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-          aria-label={`Close ${title}`}
-          title={`Close ${title}`}
-          className="rounded p-0.5 text-muted-foreground/70 transition-colors hover:bg-destructive/15 hover:text-destructive"
-        >
-          <X className="h-3 w-3" />
-        </button>
       </div>
 
       {/* Surface body. */}
@@ -317,5 +368,75 @@ export function WindowFrame({
         </>
       )}
     </div>
+  );
+}
+
+// =============================================================================
+// TrafficLightButton — macOS-style traffic-light (D19.1, 2026-05-22)
+// =============================================================================
+//
+// Three colored 12px circles in the title bar's left cluster: red close,
+// yellow minimize, green maximize. macOS-faithful styling:
+//
+//   - Foregrounded window: full color (red/yellow/green) by default.
+//   - Background window: neutral gray by default; light up to full color
+//     when the operator hovers the cluster (lets them target a button
+//     without raising the window first).
+//   - Hover-on-self: glyph appears (×, −, +). Otherwise just colored
+//     circle with no glyph (matches macOS).
+//   - Click stops propagation so the title-bar drag handler doesn't fire.
+
+type TrafficTone = 'close' | 'minimize' | 'maximize';
+
+const TONE_COLOR: Record<TrafficTone, string> = {
+  close: 'bg-[#ff5f57] hover:bg-[#ff5f57]',
+  minimize: 'bg-[#febc2e] hover:bg-[#febc2e]',
+  maximize: 'bg-[#28c840] hover:bg-[#28c840]',
+};
+
+const TONE_RING: Record<TrafficTone, string> = {
+  close: 'ring-[#ff5f57]/30',
+  minimize: 'ring-[#febc2e]/30',
+  maximize: 'ring-[#28c840]/30',
+};
+
+function TrafficLightButton({
+  tone,
+  isForegrounded,
+  isClusterHovered,
+  label,
+  onClick,
+  glyph,
+}: {
+  tone: TrafficTone;
+  isForegrounded: boolean;
+  isClusterHovered: boolean;
+  label: string;
+  onClick: () => void;
+  glyph: React.ReactNode;
+}) {
+  // Full-color iff foregrounded OR cluster is being hovered (macOS rule).
+  const showColor = isForegrounded || isClusterHovered;
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      aria-label={label}
+      title={label}
+      className={cn(
+        'group flex h-3 w-3 items-center justify-center rounded-full transition-colors ring-1',
+        showColor ? TONE_COLOR[tone] : 'bg-muted-foreground/25',
+        showColor ? TONE_RING[tone] : 'ring-transparent',
+      )}
+    >
+      {/* Glyph only on hover of the button itself (macOS convention). */}
+      <span className="opacity-0 group-hover:opacity-100 transition-opacity">
+        {glyph}
+      </span>
+    </button>
   );
 }

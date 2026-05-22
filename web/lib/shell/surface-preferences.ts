@@ -215,6 +215,17 @@ export interface WindowState {
   height: number;
   /** Relative z-order among open windows. Highest = foreground. */
   z: number;
+  /**
+   * D19.1 (2026-05-22) — macOS-style zoom (maximize). When a window is
+   * zoomed-to-fill-desktop, `prevGeometry` holds the pre-zoom geometry
+   * so the second maximize click restores it. When undefined, the
+   * window is in its normal (un-zoomed) state.
+   *
+   * Geometry shape is the un-zoomed x/y/width/height; z is excluded
+   * (z-order is preserved across maximize/restore via the live `z`
+   * field). Persisted to localStorage like the rest of WindowState.
+   */
+  prevGeometry?: { x: number; y: number; width: number; height: number };
 }
 
 export type WindowStateMap = Record<string, WindowState>;
@@ -241,6 +252,29 @@ export function setWindowStates(userId: string, states: WindowStateMap): void {
   } catch {
     // ignore
   }
+}
+
+/** D19.1 — Compute the "maximized" geometry for a window: fill the
+ *  available desktop area (viewport minus top bar minus FAB reserved
+ *  zone at bottom minus horizontal padding). This is the macOS "zoom"
+ *  target — fills the available work area, NOT the entire viewport
+ *  (top bar + FAB stay visible). z is excluded; caller preserves it.
+ */
+export function computeMaximizedGeometry(
+  viewportWidth: number,
+  viewportHeight: number
+): { x: number; y: number; width: number; height: number } {
+  // Match the constants used by the cascade origin in useSurfacePreferences
+  // so cascade-positioned + maximized geometries play by the same rules.
+  const horizPad = 16;
+  const vertPadTop = 56 + 16; // top bar (~56px) + desktop padding (16px)
+  const vertPadBottom = FAB_RESERVED_HEIGHT + 16; // FAB zone + padding
+  return {
+    x: horizPad,
+    y: vertPadTop,
+    width: Math.max(WINDOW_MIN_WIDTH, viewportWidth - horizPad * 2),
+    height: Math.max(WINDOW_MIN_HEIGHT, viewportHeight - vertPadTop - vertPadBottom),
+  };
 }
 
 /** Compute the default geometry for a newly-opened window. Cascades

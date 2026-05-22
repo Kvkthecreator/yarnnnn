@@ -46,8 +46,16 @@ interface SurfaceViewportProps {
 
 export function SurfaceViewport({ children }: SurfaceViewportProps) {
   const pathname = usePathname();
-  const { open, foregrounded, windowStates, closeSurface, raiseWindow, setWindowState } =
-    useSurfacePreferences();
+  const {
+    open,
+    foregrounded,
+    windowStates,
+    closeSurface,
+    raiseWindow,
+    setWindowState,
+    toggleMaximize,
+    hideForegrounded,
+  } = useSurfacePreferences();
   const { data: composition } = useComposition();
   const viewport = useViewport();
 
@@ -148,6 +156,12 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
             isForegrounded={isVisible}
             onRaise={() => raiseWindow(slug)}
             onClose={() => closeSurface(slug)}
+            onMinimize={() => {
+              // D19.1: minimize = hide window, leave open in registry.
+              // Dock icon retains the open-indicator dot; click to restore.
+              if (isVisible) hideForegrounded();
+            }}
+            onMaximize={() => toggleMaximize(slug)}
             windowState={ws}
             viewportWidth={viewport.width}
             viewportHeight={viewport.height}

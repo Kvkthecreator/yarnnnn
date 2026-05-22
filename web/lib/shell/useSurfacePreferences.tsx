@@ -46,6 +46,7 @@ import {
   MAX_OPEN_WINDOWS,
   closeSurface as closeSurfaceWrite,
   computeDefaultWindowState,
+  computeMaximizedGeometry,
   getForegroundedSurface,
   getKeptSurfaces,
   getOpenSurfaces,
@@ -91,6 +92,14 @@ export interface SurfacePreferences {
   /** D15: raise a window to the top of the z-stack (foreground it
    *  without re-positioning). Updates foregrounded + bumps z. */
   raiseWindow: (slug: string) => void;
+  /** D19.1 (2026-05-22): toggle macOS-style zoom for a window. If the
+   *  window is currently zoomed (windowStates[slug].prevGeometry is
+   *  defined), restore the prior geometry and clear prevGeometry.
+   *  Otherwise save the current geometry into prevGeometry and snap
+   *  to computeMaximizedGeometry(viewport). Raises the window (zoom
+   *  is a focus gesture). No-op if the window has no entry in
+   *  windowStates (e.g. in single-window mobile mode). */
+  toggleMaximize: (slug: string) => void;
   /** D15: hide the currently-foregrounded window (send to background
    *  but keep it open). foregrounded falls through to the next-most-
    *  recent open surface; if no others, foreground becomes null. */
@@ -344,6 +353,57 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
     [userId, open, computeNextZ, compactWindowZ, persistWindowStates]
   );
 
+  // D19.1: toggle macOS-style zoom for a window. Saves prior geometry
+  // on the way up; restores it on the way down. Raises the window
+  // (zoom is a focus gesture).
+  const toggleMaximize = useCallback(
+    (slug: string) => {
+      if (!userId) return;
+      if (!open.includes(slug)) return;
+      setWindowStatesState((current) => {
+        const existing = current[slug];
+        if (!existing) return current;
+        const isZoomed = existing.prevGeometry != null;
+        let next: WindowState;
+        if (isZoomed && existing.prevGeometry) {
+          // Restore. Clear prevGeometry; keep z.
+          next = {
+            x: existing.prevGeometry.x,
+            y: existing.prevGeometry.y,
+            width: existing.prevGeometry.width,
+            height: existing.prevGeometry.height,
+            z: existing.z,
+          };
+        } else {
+          // Zoom. Save current geometry into prevGeometry, snap to max.
+          const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+          const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+          const max = computeMaximizedGeometry(vw, vh);
+          next = {
+            x: max.x,
+            y: max.y,
+            width: max.width,
+            height: max.height,
+            z: existing.z,
+            prevGeometry: {
+              x: existing.x,
+              y: existing.y,
+              width: existing.width,
+              height: existing.height,
+            },
+          };
+        }
+        const updated: WindowStateMap = { ...current, [slug]: next };
+        persistWindowStates(updated);
+        return updated;
+      });
+      // Raise to foreground — zoom is a focus gesture.
+      setForegroundedWrite(userId, slug);
+      setForegrounded(slug);
+    },
+    [userId, open, persistWindowStates]
+  );
+
   // D15: raise an already-open window to the foreground without
   // re-cascading. Bumps z; updates foregrounded slug. D18: compact
   // before bumping if z would hit cap.
@@ -437,6 +497,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       isOpen,
       setWindowState: updateWindowState,
       raiseWindow,
+      toggleMaximize,
       hideForegrounded,
       capHit,
       clearCapHit,
@@ -457,6 +518,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       isOpen,
       updateWindowState,
       raiseWindow,
+      toggleMaximize,
       hideForegrounded,
       capHit,
       clearCapHit,

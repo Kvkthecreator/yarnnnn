@@ -6,6 +6,109 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.22.1] - canon(reviewer): Variant F formalization sweep (FOUNDATIONS DP21 + GLOSSARY + persona frame + bundle prompts)
+
+### Decision
+
+Closes the formalization gap surfaced by the reviewer-formalization audit
+(`docs/observations/2026-05-22-043009-reviewer-formalization-audit/`).
+With the wake-architecture cutover landed (ADR-296 v2 + ADR-298 all
+Implemented), the Reviewer's accumulated prompt surface across ~20+ ADRs
+needed a single canonical sentence to anchor every framing artifact.
+
+**Variant F (ratified before audit, now canonized as FOUNDATIONS DP21):**
+
+> The Reviewer is a full-substrate-authoring persona-bearing judgment
+> seat — filesystem-native, single-lane queue-serialized, wake-fired,
+> paced by operator-declared pace + autonomy, driven by operator-
+> authored mandate.
+
+This commit lands the sentence in three highest-leverage places + tightens
+verdict-emission binding across 6 judgment-mode prompts that had been
+prose-only (the canary-v3 text-only-fallback root cause).
+
+### Changed
+
+- **`docs/architecture/FOUNDATIONS.md`**: added Derived Principle 21
+  ("Reviewer formalization") quoting Variant F + unpacking all seven
+  structural claims with ADR/Axiom citations. Composes with DP20
+  (wake-as-irreducible-unit) and DP18 (standing intent implies Trigger-
+  authoring authority).
+
+- **`docs/architecture/GLOSSARY.md`**: Reviewer entry now opens with
+  `**Canonical formalization (FOUNDATIONS Derived Principle 21):**`
+  followed by Variant F verbatim. New contributors looking up "Reviewer"
+  land on the sentence first; prior elaboration stays as context.
+
+- **`api/agents/reviewer_agent.py::_PERSONA_FRAME`**: new "What you are
+  (FOUNDATIONS Derived Principle 21)" preamble opens the frame with
+  Variant F verbatim. The structural anchor precedes the embodiment
+  register ("You sit in the operator's chair…"). Also added a new
+  "Pace + Autonomy + Persona is the operator's trifecta" paragraph
+  + "Cycles are serialized" paragraph in the cadence section,
+  surfacing the operator-control dials + ADR-298 single-in-flight model
+  that the Reviewer needs to understand for cram-vs-leave-for-next-cycle
+  judgment. Expected behavior: Reviewer reasoning about pace-gated
+  Schedule() calls becomes deliberate (Clarify-on-pace-exceeded rather
+  than retry-fight); cycle-close decisions become less anxious because
+  the queue safely holds concurrent wakes.
+
+- **`docs/programs/alpha-author/reference-workspace/_hooks.yaml`**:
+  `pre-ship-audit` prompt now binds APPROVE/DEFER/REJECT explicitly
+  to `ReturnVerdict(verdict=..., reasoning=..., confidence=...)`. Closes
+  the canary-v3 text-only-fallback root cause. Expected behavior:
+  pre-ship-audit cycles close with substrate writes rather than inert
+  stand_down.
+
+- **`docs/programs/alpha-author/reference-workspace/_recurrences.yaml`**:
+  three judgment-mode prompts (`corpus-coherence-check`,
+  `revision-audit`, `outcome-reconciliation`) gained explicit
+  `ReturnVerdict(...)` binding at every exit branch. Expected behavior:
+  every judgment cycle produces a structured verdict + standing_intent
+  write rather than a text-only "no findings" response.
+
+- **`docs/programs/alpha-trader/reference-workspace/_recurrences.yaml`**:
+  two judgment-mode prompts (`signal-evaluation`, `outcome-reconciliation`)
+  gained explicit `ReturnVerdict(...)` binding. signal-evaluation is the
+  highest-stakes case — capital judgment fires every market open;
+  text-only fallback there would silently bury trade decisions.
+
+- **`api/test_reviewer_formalization.py`** (NEW): 8-assertion regression
+  gate. Validates (1) FOUNDATIONS DP21 carries Variant F verbatim,
+  (2) GLOSSARY Reviewer entry carries Variant F verbatim, (3) persona
+  frame opens with the formalization preamble, (4) no banned pre-cutover
+  phrases ("continuously running" / "self-invoke" / "background process"
+  / "self-pacing process") survive in the persona frame, (5) persona
+  frame names pace + queue-serialization explicitly, (6) REVIEWER_PRIMITIVES
+  matches ADR-296 v2 + ADR-258 revised commitments (FireInvocation out;
+  Schedule + ManageHook + WriteFile + ProposeAction + DispatchSpecialist
+  + Clarify in), (7) DEFAULT_REVIEWER_WRITE_LOCKS contains exactly the
+  5 operator-control paths (AUTONOMY.md + _autonomy.yaml + _token_budget.yaml
+  + _preferences.yaml + _pace.yaml), (8) every judgment-mode prompt in
+  alpha-author + alpha-trader bundles binds verdict-emission structurally
+  to `ReturnVerdict(`. Run: `python api/test_reviewer_formalization.py`
+  or `pytest api/test_reviewer_formalization.py -v`. 8/8 PASS locally.
+
+### Not changed (explicit non-actions per audit findings)
+
+- Text-only fallback at `reviewer_agent.py:1409-1422` left in place — the
+  L5 prompt tightening (above) is the cleaner upstream fix; revisit only
+  if symptom persists post-deploy (L4-F2 in findings).
+- Wake-queue depth not surfaced into wake envelope — kept kernel-internal
+  per L2-F2 OPEN-QUESTION resolution; the persona-frame "trust the queue"
+  prose gives the conceptual model without runtime visibility.
+- No changes to L2/L3/L4 code paths beyond persona-frame edits — those
+  layers were substantively aligned already (the architectural cutover
+  for ADR-296 v2 + ADR-298 left them clean).
+
+### Refs
+
+ADR-194 v2, ADR-209, ADR-216, ADR-258 revised, ADR-274, ADR-275, ADR-293,
+ADR-296 v2, ADR-298. Audit folder:
+`docs/observations/2026-05-22-043009-reviewer-formalization-audit/`.
+
+---
+
 ## [2026.05.21.3] - fix(reviewer-agent): delete round-counter mid-loop nudge + raise budget 12 → 20
 
 ### Decision

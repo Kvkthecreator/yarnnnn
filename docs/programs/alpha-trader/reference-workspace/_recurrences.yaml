@@ -202,9 +202,24 @@ recurrences:
         )
 
       **Silent stand-down on an exit trigger is forbidden** per principles.md.
-      Otherwise, when neither entries nor exits fire, stand down with
-      reasoning. The universal every-cycle standing_intent.md write contract
-      is governed by your kernel persona frame.
+      For exit triggers: emit ProposeAction(action_type="trading.close_position",
+      ...) AND ReturnVerdict(verdict="approve", reasoning="<persona-voice
+      naming the trigger + position>", confidence="high").
+
+      For entries: when a signal fires + sizing passes, emit ProposeAction(
+      action_type="trading.submit_order_paper", ...) AND ReturnVerdict(
+      verdict="approve", reasoning="<persona-voice naming the signal +
+      sizing math>", confidence="high"|"medium").
+
+      Otherwise, when neither entries nor exits fire: WriteFile
+      /workspace/review/standing_intent.md per kernel persona frame, THEN
+      ReturnVerdict(verdict="stand_down", reasoning="<persona-voice noting
+      no entries/exits + what you're watching for in the next cycle>",
+      confidence="medium"). Text-only response without ReturnVerdict is
+      forbidden — the cycle does not close cleanly without it, and a
+      capital-judgment recurrence that fails to close is the worst-shape
+      outcome (worse than approve, worse than stand_down, because the
+      operator has no record of what the judgment was).
     display_name: "Signal Evaluator"
 
   # ── mirror-signal-state — compact substrate for Reviewer wake envelope ──
@@ -281,11 +296,16 @@ recurrences:
         4. Regenerates /workspace/context/_money_truth_summary.md as the
            cross-domain rollup the daily-update briefing reads.
 
-      Stand down if there were no fills in the window — AND update
-      /workspace/review/standing_intent.md noting which open positions you're
-      watching for fills + the next reconciliation window (per ADR-284).
-      Reconciler runs deterministically; your judgment cycle still produces
-      forward-looking substrate even on no-fill cycles.
+      Close the cycle: WriteFile /workspace/review/standing_intent.md
+      noting which open positions you're watching for fills + the next
+      reconciliation window (per ADR-284). THEN ReturnVerdict(verdict=
+      "stand_down", reasoning="<persona-voice summary of today's
+      reconciliation + what you're watching for>", confidence="medium")
+      — required even when no fills occurred in the window. The
+      deterministic reconciler runs regardless; your judgment cycle
+      produces forward-looking substrate AND closes via ReturnVerdict
+      on every fire. Text-only response without ReturnVerdict is
+      forbidden.
     display_name: "Outcome Reconciliation"
 
   # ADR-275: morning-calibration, morning-reflection, proposal-cleanup,
