@@ -798,6 +798,69 @@ D19 ratification status: **Proposed 2026-05-22** (doc-first; enactment lands in 
 
 ---
 
+### D19.4 — Inside the authenticated workspace, every surface is a window (2026-05-22, doc-first)
+
+**Reverses D19.7** (Option α — "settings stays a page"). Same-session reversal after operator surfaced the real architectural cost.
+
+**Operator-observed (KVK 2026-05-22, post-D19.3)**: clicking Settings from the UserMenu **erases the workspace**. The Desktop layer and every open window disappear from the DOM (SurfaceViewport's `isLegacyNonAtomicRoute` branch returns `<>{children}</>`, which renders the page tree alone — no Desktop, no windows). Operator framed it as *"settings get drowned behind existing windows. meaning, in theory, the desktop there can't be things surfacing it breaks the OS concept."*
+
+This is a real axiom violation, not just a perception. macOS Preferences opens *on top of* your existing apps — you can still see Safari, iTerm, etc. behind/around it. The YARNNN equivalent currently REPLACES the workspace with a page; that is the opposite of the OS metaphor.
+
+D19.7 had argued Settings is a legitimate page-shaped thing (long-form preferences, billing tabs, OAuth callbacks). True structurally — Settings IS a tabbed preferences pane — but the *windowed*-ness of macOS Preferences is the load-bearing detail. macOS Preferences is technically a window. The cognitive boundary D19.7 imagined ("settings ARE pages, surfaces ARE windows") was false — in macOS, both are windows, and the only things that aren't windows are unauthenticated routes (login, marketing).
+
+**Decisions** (D19.4):
+
+1. **The new axiom**: *Inside the authenticated workspace, every surface is a window mounted on the Desktop.* Pages survive only at the **authentication boundary** (`/auth/callback`, `/login`) and for **operator-external content** (`/docs/[id]` public viewer, marketing routes `/`, `/pricing`, `/faq`, `/how-it-works`, `/invest`, `/privacy`, `/terms`).
+
+2. **`settings` becomes the 14th kernel surface**. Atomic, window-shaped. Internal tab structure preserved (`?tab=billing` / `?tab=usage` / etc. = window-internal deep-link state per D19.4). The existing `app/(authenticated)/settings/page.tsx` refactors to the thin-wrapper window pattern (same shape as `feed`, `cockpit`, etc.). Settings opens as a window on the Desktop alongside whatever else is open. Operator can ⌘W close it, drag it, resize it, minimize it to the Dock — same chrome as everything else.
+
+3. **`connectors` becomes the 15th kernel surface**. Operator declined the "fold into Settings as a tab" option (which was the simpler-Singular-Implementation move) and chose a separate surface. Reason: integrations are a workspace-level concern (live OAuth state, sync status, per-platform substrate) more than an account-shaped preference. They earn their own atomic surface. `app/(authenticated)/connectors/page.tsx` refactors to thin-wrapper window pattern.
+
+4. **UserMenu shrinks** to: header (email + balance + theme toggle) + "Settings" (`foregroundSurface('settings')`) + "Sign out". The Mandate / Activity / Billing / Connectors menu entries are DELETED. Mandate + Activity are atomic surfaces discoverable via Dock + Launcher — UserMenu doesn't need to be a parallel discovery affordance for them. Billing is a Settings tab — `?tab=billing` is intra-Settings deep-link state, not a separate menu entry. Connectors is its own surface now — operator opens it via Launcher or by adding it to the Dock.
+
+5. **Billing stays as a Settings tab**, not its own surface. Billing is account-state-changing chrome that lives naturally inside the Settings preferences pane; the Settings surface's intra-surface `?tab=billing` deep-link is sufficient. Singular Implementation: one Settings surface, multiple tabs.
+
+6. **`isLegacyNonAtomicRoute` branch tightens** in `SurfaceViewport`. Pre-D19.4 it caught `/settings`, `/connectors`, `/docs/[id]`, plus marketing/auth. Post-D19.4 it catches only `/auth/*`, `/docs/[id]`, and marketing/static routes (`/`, `/pricing`, `/faq`, `/how-it-works`, `/invest`, `/privacy`, `/terms`, `/sitemap.xml`, `/robots.txt`, `/llms.txt`, `/blog/*`). The branch survives at the authentication boundary, not inside it.
+
+7. **Per the D19.5 cross-surface navigation rule**: any code calling `router.push('/settings')` or `router.push('/connectors')` from inside the authenticated workspace converts to `foregroundSurface('settings')` / `foregroundSurface('connectors')`. Grep + audit covers `WorkspaceSection.tsx`, `UserMenu.tsx`, and any other call sites. Marketing pages can still link to `/settings` — first-paint cold-load via Effect A opens the Settings window on the Desktop, just like `/cadence` or `/agents` per D19.2.
+
+**What D19.4 enacts (mechanical)**:
+- `api/services/kernel_surfaces.py`: add two entries — `settings` (icon `settings`, archetype `dashboard`, route `/settings`) + `connectors` (icon `link-2`, archetype `dashboard`, route `/connectors`).
+- `web/lib/shell/surface-icons.tsx`: register `settings` → `Settings` icon, `link-2` → `Link2` icon (both already in lucide-react).
+- `web/types/desk.ts`: extend `KernelSurfaceSlug` union + `KERNEL_SURFACE_SLUGS` array with `'settings'` + `'connectors'`.
+- `web/components/shell/SurfaceRegistry.tsx`: import + register both pages.
+- `web/app/(authenticated)/settings/page.tsx`: refactor to window-shape (drop outer chrome if any — likely already mostly content-only; the `<div>` wrappers + page paddings get the window treatment).
+- `web/app/(authenticated)/connectors/page.tsx`: same window-shape refactor.
+- `web/components/shell/UserMenu.tsx`: shrink to email + balance + theme + Settings + Sign out. Mandate / Activity / Connectors entries deleted; Billing entry deleted (operators reach it via Settings tab nav). The "Settings" entry uses `foregroundSurface('settings')` per D19.2 (no URL rewrite).
+- `web/components/settings/WorkspaceSection.tsx`: the `router.push('/feed')` call sites that operate from inside the Settings page (e.g. on first-paint redirect) convert to `foregroundSurface('feed')`.
+- `api/test_adr297_phase1.py`: increment expected surface count from 16 (13 content + 3 D12 chrome) to 18 (15 content + 3 D12 chrome); add `settings` + `connectors` to expected slug set; assert their declared archetype.
+
+**What D19.4 does NOT do**:
+- Does not move marketing pages (`/`, `/pricing`, `/faq`, etc.) into the workspace. They live outside authentication.
+- Does not move `/auth/callback`, `/login`, etc. into the workspace. They're pre-authenticated.
+- Does not move `/docs/[id]` into the workspace. Operator-external public content.
+- Does not introduce a new "preferences" archetype — Settings + Connectors map to `dashboard` archetype for v1 (read-mostly status boards with action affordances inline). Future ADR can split if pressure surfaces.
+- Does not change Billing's location — stays as Settings tab via `?tab=billing` deep-link. NOT a separate kernel surface.
+- Does not refactor the existing Settings/Connectors page internals beyond the window-shape transform. Tab navigation, OAuth flows, plan upgrade UI all preserved verbatim.
+- Does not change `isLegacyNonAtomicRoute`'s structural role — it survives as the auth-boundary delimiter. The set of routes it catches shrinks.
+
+**Companion canonical doc updates** (same enactment commit):
+- `CLAUDE.md`: the atomic-surface section gains "Settings + Connectors are atomic surfaces" + the new axiom in the OS-framing paragraph.
+
+**Implementation order** (single commit recommended given the locked scope; mirror D19 enactment shape):
+1. Backend: add the two `kernel_surfaces.py` entries + frontend icon registry entry.
+2. Type union: extend `KernelSurfaceSlug` + `KERNEL_SURFACE_SLUGS` + `isKernelSurfaceSlug` will pick up both automatically.
+3. Frontend registry: import both pages into `SurfaceRegistry.tsx`.
+4. Refactor `settings/page.tsx` + `connectors/page.tsx` to window-shape.
+5. Shrink UserMenu.
+6. Sweep `router.push('/settings'|'/connectors')` call sites and convert to `foregroundSurface`.
+7. Update phase1 regression gate.
+8. Validate: tsc + next build + python phase1 gate.
+
+D19.4 ratification status: **Proposed 2026-05-22** (doc-first; enactment lands in the follow-on commit).
+
+---
+
 ## Implementation path for D11 — Uniform Compositor
 
 A future session opens with this scoped plan. Each phase ships independently and is TS-clean + regression-gate-green.
