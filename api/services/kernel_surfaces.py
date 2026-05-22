@@ -282,6 +282,36 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/activity",  # _route_status: NEW in Phase 2 — current /activity is deleted per ADR-163; reinstated as surface-mode
         "summary": "Execution-event log — every wake, every dispatch, every cost.",
     },
+    # ADR-297 D19.4 (2026-05-22) — Settings + Connectors promoted from
+    # legacy pages to atomic kernel surfaces. Reverses D19.7 ("settings
+    # stays a page") after operator surfaced the real axiom violation:
+    # the legacy isLegacyNonAtomicRoute branch in SurfaceViewport
+    # returns <>{children}</>, which REPLACES the Desktop layer + all
+    # open windows when the operator clicks Settings — that's the
+    # opposite of the OS metaphor. macOS Preferences opens ON TOP of
+    # existing apps. Both surfaces are now windowed; intra-surface tabs
+    # (?tab=billing on Settings; per-platform expansion on Connectors)
+    # remain as window-internal deep-link state per D19.4.
+    {
+        "slug": "settings",
+        "title": "Settings",
+        "archetype": "dashboard",
+        "substrate_paths": [],  # account/workspace/billing config — DB + Stripe
+        "icon_key": "settings",
+        "default_pinned": False,
+        "route": "/settings",
+        "summary": "Workspace + account preferences — billing, profile, plan, theme. Tabs for Billing / Usage / Profile preserved as ?tab= intra-surface state.",
+    },
+    {
+        "slug": "connectors",
+        "title": "Connectors",
+        "archetype": "dashboard",
+        "substrate_paths": [],  # platform_connections DB table
+        "icon_key": "link-2",
+        "default_pinned": False,
+        "route": "/connectors",
+        "summary": "OAuth + API-key platform integrations (Slack, Notion, GitHub, Alpaca, Lemon Squeezy, etc.). Live connection state + per-platform substrate.",
+    },
     # =========================================================================
     # ADR-297 D11 — Chrome surfaces (Universal Surface Application)
     # ADR-297 D12 — Top-center merged dock-bar (2026-05-21)

@@ -96,9 +96,9 @@ def test_kernel_surfaces_module() -> None:
     print("\n[1] kernel_surfaces module hygiene")
 
     _assert(
-        len(KERNEL_SURFACES) >= 16,
-        f"At least 16 kernel surfaces declared "
-        f"(13 content + 3 D12 chrome) (found {len(KERNEL_SURFACES)})",
+        len(KERNEL_SURFACES) >= 18,
+        f"At least 18 kernel surfaces declared "
+        f"(15 content + 3 D12 chrome) (found {len(KERNEL_SURFACES)})",
     )
 
     slugs = [s["slug"] for s in KERNEL_SURFACES]
@@ -122,6 +122,11 @@ def test_kernel_surfaces_module() -> None:
         "program",
         "queue",
         "activity",
+        # ADR-297 D19.4 (2026-05-22): settings + connectors promoted
+        # from legacy pages to atomic kernel surfaces. Reverses D19.7.
+        # Inside the authenticated workspace, every surface is a window.
+        "settings",
+        "connectors",
         # ADR-297 D11 chrome surfaces (D12 collapsed `dock` into top-bar;
         # D16 renamed `chat-composer` → `chat-drawer` and flipped its
         # region bottom-fixed → floating-overlay/summon).

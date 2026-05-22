@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
-  Settings,
   AlertTriangle,
   Loader2,
   Check,
@@ -309,10 +308,10 @@ export default function SettingsPage() {
   return (
     <div className="h-full overflow-y-auto">
     <div className="max-w-3xl mx-auto p-6">
-      <div className="flex items-center gap-3 mb-6">
-        <Settings className="w-6 h-6" />
-        <h1 className="text-2xl font-bold">Settings</h1>
-      </div>
+      {/* ADR-297 D19.4 (2026-05-22): outer page-shape title h1 DELETED.
+          Settings is now an atomic kernel surface — the WindowFrame
+          title bar (D14) renders "Settings"; duplicating it inside the
+          body is page-shape chrome that the window paradigm rejects. */}
 
       {/* Subscription Success Banner */}
       {showSubscriptionSuccess && (

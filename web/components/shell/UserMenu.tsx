@@ -1,14 +1,24 @@
 'use client';
 
 /**
- * ADR-014: Top Bar with Minimal Chrome
- * User menu dropdown with settings and logout
+ * UserMenu — account/settings affordance.
+ *
+ * ADR-297 D19.4 (2026-05-22) — shrunk to header (email + balance +
+ * theme) + Settings + Sign out. Pre-D19.4 the menu mixed atomic
+ * surface discovery (Mandate, Activity) with account chrome
+ * (Settings, Billing, Connectors), which was an inconsistent
+ * paradigm. Atomic surfaces are discoverable via Dock + Launcher;
+ * UserMenu doesn't need to be a parallel discovery surface for them.
+ * Billing folds into Settings as a tab (?tab=billing). Connectors
+ * is its own atomic surface (15th content surface, ADR-297 D19.4
+ * §D19.4.2) — operator reaches it via Launcher or by adding it to
+ * the Dock.
  */
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { Settings, LogOut, CreditCard, Sun, Moon, Monitor, Zap, Layers, Link2, Activity } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, Monitor, Zap } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -60,7 +70,10 @@ export function UserMenu({ email }: UserMenuProps) {
 
   const handleSettings = () => {
     setIsOpen(false);
-    router.push('/settings');
+    // ADR-297 D19.4 + D19.5: Settings is an atomic surface; open it
+    // as a window on the Desktop alongside whatever's foregrounded.
+    // No router.push — URL is informational add-on (D19.2).
+    foregroundSurface('settings');
   };
 
   // Get initials from email
@@ -143,61 +156,19 @@ export function UserMenu({ email }: UserMenuProps) {
             </div>
           )}
 
-          {/* Menu items */}
+          {/* Menu items — D19.4 (2026-05-22) shrunk to Settings + Sign
+              out. Mandate / Activity / Connectors / Billing entries
+              DELETED. Mandate + Activity are atomic surfaces reachable
+              via Dock + Launcher. Connectors is now its own atomic
+              surface (15th content surface). Billing is a Settings tab
+              (?tab=billing intra-surface state). UserMenu is the
+              account/settings affordance only. */}
           <button
             onClick={handleSettings}
             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
           >
             <Settings className="w-4 h-4 text-muted-foreground" />
             <span>Settings</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setIsOpen(false);
-              // ADR-297 D19.5: cross-surface navigation is window-opening,
-              // not route-replacing. Mandate + Activity are atomic
-              // surfaces — open them as windows on the Desktop alongside
-              // whatever's already foregrounded. macOS multi-app gesture.
-              foregroundSurface('mandate');
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
-          >
-            <Layers className="w-4 h-4 text-muted-foreground" />
-            <span>Mandate</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setIsOpen(false);
-              foregroundSurface('activity');
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
-          >
-            <Activity className="w-4 h-4 text-muted-foreground" />
-            <span>Activity</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setIsOpen(false);
-              router.push('/connectors');
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
-          >
-            <Link2 className="w-4 h-4 text-muted-foreground" />
-            <span>Connectors</span>
-          </button>
-
-          <button
-            onClick={() => {
-              setIsOpen(false);
-              router.push('/settings?tab=billing');
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2 text-sm text-left hover:bg-muted transition-colors"
-          >
-            <CreditCard className="w-4 h-4 text-muted-foreground" />
-            <span>Billing</span>
           </button>
 
           <div className="border-t border-border my-1" />

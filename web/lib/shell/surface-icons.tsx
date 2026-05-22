@@ -17,11 +17,13 @@ import {
   FolderOpen,
   Inbox,
   LayoutDashboard,
+  Link2,
   MessageCircle,
   Package,
   Palette,
   Scale,
   ScrollText,
+  Settings,
   ShieldCheck,
   Target,
   UserCircle,
@@ -34,6 +36,10 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   folder: FolderOpen,
   inbox: Inbox,
   'layout-dashboard': LayoutDashboard,
+  // ADR-297 D19.4 (2026-05-22): link-2 + settings registered for the
+  // Connectors + Settings surfaces, promoted from pages to atomic
+  // kernel surfaces (windowed inside the workspace, not page-shaped).
+  'link-2': Link2,
   'message-circle': MessageCircle,
   package: Package,
   palette: Palette,
@@ -42,6 +48,7 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // surface, disambiguating it from the universal ChatDrawer FAB
   // (which is hardcoded MessageCircle in Desktop.tsx).
   'scroll-text': ScrollText,
+  settings: Settings,
   'shield-check': ShieldCheck,
   target: Target,
   'user-circle': UserCircle,

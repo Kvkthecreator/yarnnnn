@@ -33,6 +33,13 @@ import QueuePage from '@/app/(authenticated)/queue/page';
 import ActivityPage from '@/app/(authenticated)/activity/page';
 import AgentsPage from '@/app/(authenticated)/agents/page';
 import ContextPage from '@/app/(authenticated)/context/page';
+// ADR-297 D19.4 (2026-05-22) — Settings + Connectors promoted from
+// legacy pages to atomic kernel surfaces. Reverses D19.7. Inside the
+// authenticated workspace, every surface is a window mounted on the
+// Desktop; the legacy isLegacyNonAtomicRoute branch tightens to catch
+// only auth + docs + marketing.
+import SettingsPage from '@/app/(authenticated)/settings/page';
+import ConnectorsPage from '@/app/(authenticated)/connectors/page';
 
 export const KERNEL_SURFACE_REGISTRY: Record<KernelSurfaceSlug, ComponentType> = {
   feed: FeedPage,
@@ -51,6 +58,8 @@ export const KERNEL_SURFACE_REGISTRY: Record<KernelSurfaceSlug, ComponentType> =
   activity: ActivityPage,
   agents: AgentsPage,
   files: ContextPage,
+  settings: SettingsPage,
+  connectors: ConnectorsPage,
 };
 
 export function resolveSurfaceComponent(slug: KernelSurfaceSlug): ComponentType {
