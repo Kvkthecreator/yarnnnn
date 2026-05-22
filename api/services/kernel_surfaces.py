@@ -150,7 +150,16 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
             "/workspace/context/_shared/_performance.md",
             "/workspace/context/_shared/_performance_summary.md",
         ],
-        "icon_key": "layout-dashboard",
+        # ADR-297 D19.5.2 (2026-05-22): icon swapped from layout-dashboard
+        # → square-activity. Operator-observed (KVK 2026-05-22): the
+        # 4-square LayoutDashboard glyph was visually too close to the
+        # Launcher's LayoutGrid (also a 4-square shape) — they read as
+        # the same icon at 16px in the Launcher overlay. square-activity
+        # is a box-with-pulse-line glyph (macOS Activity Monitor shape),
+        # which reads as "live operations monitor" — semantically right
+        # for the Cockpit's role (money-truth + performance + tracking
+        # snapshot) and visually distinct from any other surface icon.
+        "icon_key": "square-activity",
         "default_pinned": False,
         "route": "/cockpit",  # _route_status: NEW in Phase 2 — replaces /work?tab=dashboard
         "summary": "Live operating dashboard — mandate, money-truth, performance, tracking + program-shipped sections.",

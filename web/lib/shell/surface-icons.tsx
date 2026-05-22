@@ -12,11 +12,11 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Activity,
+  ActivitySquare,
   Box,
   Clock,
   FolderOpen,
   Inbox,
-  LayoutDashboard,
   Link2,
   MessageCircle,
   Package,
@@ -35,7 +35,10 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   clock: Clock,
   folder: FolderOpen,
   inbox: Inbox,
-  'layout-dashboard': LayoutDashboard,
+  // ADR-297 D19.5.2 (2026-05-22): layout-dashboard DELETED. Was only
+  // mapped to Cockpit; swapped to square-activity to disambiguate
+  // from Launcher's layout-grid glyph (both rendered as 4-square
+  // shape at 16px). Singular Implementation — no orphan mappings.
   // ADR-297 D19.4 (2026-05-22): link-2 + settings registered for the
   // Connectors + Settings surfaces, promoted from pages to atomic
   // kernel surfaces (windowed inside the workspace, not page-shaped).
@@ -50,6 +53,12 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   'scroll-text': ScrollText,
   settings: Settings,
   'shield-check': ShieldCheck,
+  // ADR-297 D19.5.2 (2026-05-22): Cockpit icon. Box-with-pulse-line
+  // glyph (macOS Activity Monitor shape); distinct from layout-grid.
+  // ActivitySquare is the older lucide name for the same glyph shipped
+  // as SquareActivity in newer versions — pinned to ActivitySquare per
+  // installed lucide-react version.
+  'square-activity': ActivitySquare,
   target: Target,
   'user-circle': UserCircle,
   users: Users,
