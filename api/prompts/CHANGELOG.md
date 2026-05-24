@@ -6,6 +6,56 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.24.2] - canon(reviewer): MANDATE.md citation nudge in standing_intent.md guidance (L6 morning Hat-A Rec 2)
+
+### Decision
+
+Closes the morning's L6 Variant-F clause validation findings (Hat-A
+Recommendation 2 from `docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md`).
+The morning's clause-6 strict reading marked the explicit-MANDATE.md-
+citation branch as 🟡 GREEN-with-caveat — the Reviewer's audit
+structurally tracked MANDATE.md success criteria but didn't cite
+MANDATE.md by name in standing_intent.md evidence-basis blocks. This
+nudge instructs the prompt to cite when load-bearing.
+
+### Changed
+
+- **`api/agents/reviewer_agent.py::_PERSONA_FRAME`** — new paragraph
+  appended to the standing_intent.md guidance section (right after the
+  "Be specific" + schema example). Tells the Reviewer:
+    - When MANDATE.md content is load-bearing in reasoning, cite
+      `MANDATE.md` by name alongside other substrate-evidence files
+    - The mandate→reasoning chain becomes auditable — operator reading
+      standing_intent.md can trace forward-looking judgment back to
+      the declaration that authorized it
+    - Generic "watching for drift" without a mandate-clause anchor
+      (when one would apply) leaves judgment ungrounded
+    - Explicitly closes the clause-6 strict-reading gap from L6
+      morning findings
+
+- **`api/test_reviewer_formalization.py`** — new assertion
+  `test_persona_frame_instructs_mandate_citation` validates: (a) the
+  instruction string is present in persona frame source, (b) the
+  rationale (mandate→reasoning chain auditability) is named in the
+  instruction so it doesn't read as cargo-cult prompt-padding. Gate
+  extends from 8 to 9 tests, 9/9 PASS.
+
+Discipline: the test is source-level (instruction-presence), not
+runtime-level (citation-presence). Runtime citation is conditional
+("when MANDATE.md content is load-bearing") — a runtime-presence test
+would create cargo-cult MANDATE.md citation. Source-level guard
+ensures the prompt teaches the discipline; observational follow-on
+captures runtime adherence.
+
+### Refs
+
+L6 morning findings (`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md`)
+Hat-A Recommendation 2; FOUNDATIONS DP21 clause-6 strict reading;
+ADR-207 (Mandate as load-bearing operator artifact); ADR-284
+(standing_intent.md schema).
+
+---
+
 ## [2026.05.24.1] - canon(reviewer): persona-frame nudge for operator_notifications: opt-ins (ADR-299 Phase 3)
 
 ### Decision

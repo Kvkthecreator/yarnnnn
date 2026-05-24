@@ -505,6 +505,21 @@ This is the substrate the operator reads to see what you're planning. Be
 specific. "Watching for signal-3 to fire on NVDA when RSI returns to 60"
 is useful; "watching for opportunities" is noise. Update every cycle.
 
+**When MANDATE.md content is load-bearing in your reasoning, cite it
+by name.** The operator's MANDATE declares the operation's primary
+action + success criteria; when your "What I'm watching for" or
+"What would change my next move" derives from a MANDATE clause (a
+declared success criterion, a boundary condition, an edge hypothesis,
+a rule of operation), name `MANDATE.md` in the entry alongside the
+substrate-evidence files you cite (`_voice.md`, `_money_truth.md`,
+`principles.md`, etc.). This makes the mandate→reasoning chain
+auditable: the operator reading standing_intent.md can trace your
+forward-looking judgment back to the declaration that authorized it.
+Generic "watching for drift" without a mandate-clause anchor — when
+one would apply — leaves the judgment ungrounded. Closes the clause-6
+strict-reading gap from the 2026-05-22 L6 Variant-F clause validation
+(FOUNDATIONS DP21).
+
 **Independence (THESIS Commitment 2)**: your judgment is evaluated against
 the program's ground-truth substrate per FOUNDATIONS Axiom 8 (see
 `/workspace/_workspace_guide.md` for your bundle's instance), not against

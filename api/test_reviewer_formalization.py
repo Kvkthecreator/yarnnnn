@@ -179,6 +179,31 @@ def test_persona_frame_no_banned_phrases() -> None:
 # Test 5 — Persona frame names pace + queue-serialization explicitly
 # ---------------------------------------------------------------------------
 
+def test_persona_frame_instructs_mandate_citation() -> None:
+    """Persona frame must instruct the Reviewer to cite MANDATE.md when
+    MANDATE content is load-bearing in standing_intent.md reasoning. Closes
+    the clause-6 strict-reading gap surfaced by the 2026-05-22 L6 Variant-F
+    clause validation (FOUNDATIONS DP21)."""
+    path = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
+    content = path.read_text()
+    # Source-level guard: the instruction must be present in the persona
+    # frame body. Doesn't enforce runtime citation (that's observational and
+    # context-conditional); enforces the prompt teaches the Reviewer to do so.
+    assert "When MANDATE.md content is load-bearing" in content, (
+        "_PERSONA_FRAME missing MANDATE.md citation instruction in the "
+        "standing_intent.md guidance section. Closes the clause-6 strict-"
+        "reading caveat from L6 morning findings — the prompt must teach "
+        "Reviewer to cite MANDATE.md by name when MANDATE content drives "
+        "forward-looking judgment."
+    )
+    assert "mandate→reasoning chain" in content or "mandate-clause anchor" in content, (
+        "MANDATE.md citation instruction must name WHY the citation matters "
+        "(auditability of mandate→reasoning chain). Without the rationale, "
+        "the instruction reads as cargo-cult prompt-padding and the Reviewer "
+        "is unlikely to honor it consistently."
+    )
+
+
 def test_persona_frame_names_pace_and_queue() -> None:
     """Persona frame must surface the operator's Pace dial + queue-serialized model."""
     path = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
@@ -345,6 +370,7 @@ if __name__ == "__main__":
         test_glossary_reviewer_entry_quotes_variant_f,
         test_persona_frame_header_quotes_variant_f,
         test_persona_frame_no_banned_phrases,
+        test_persona_frame_instructs_mandate_citation,
         test_persona_frame_names_pace_and_queue,
         test_reviewer_primitives_contract,
         test_default_reviewer_write_locks_contract,
