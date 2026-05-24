@@ -106,6 +106,17 @@ MEMORY_PLAYBOOK_PATH = "memory/_playbook.md"
 MEMORY_STYLE_PATH = "memory/style.md"
 MEMORY_NOTES_PATH = "memory/notes.md"
 
+# ADR-301: Reviewer Pulse envelope substrate. Two mechanically-mirrored files
+# the kernel maintenance phase writes per scheduler tick (diff-aware — most
+# ticks are no-ops). The Reviewer reads them at every wake to reason
+# correctly about its own cadence and recent execution lineage, closing the
+# schedule-hallucination class documented in
+# docs/observations/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/.
+# Kernel-maintenance writes per ADR-209 attribution (`system:mirror-*`); the
+# Reviewer reads them; the Reviewer does not write them.
+MEMORY_SCHEDULE_INDEX_PATH = "memory/_schedule_index.md"
+MEMORY_RECENT_EXECUTION_PATH = "memory/_recent_execution.md"
+
 MEMORY_FILES = (
     MEMORY_AWARENESS_PATH,
     MEMORY_PLAYBOOK_PATH,

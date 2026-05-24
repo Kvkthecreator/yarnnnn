@@ -6,6 +6,58 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.24.4] - canon(reviewer): add Pulse Discipline section (ADR-301)
+
+### Decision
+
+Adds a new "Pulse Discipline" section to `_PERSONA_FRAME` in
+`api/agents/reviewer_agent.py` instructing the Reviewer how to use two new
+kernel-universal envelope entries (ADR-301):
+
+- `_schedule_index.md` — literal schedule + last_run_at + next_run_at for
+  every recurrence in this workspace. Read BEFORE reasoning about cadence.
+- `_recent_execution.md` — what has actually fired in the last 24h with
+  outcomes. Read BEFORE reasoning about recent activity.
+
+Both files are mechanically mirrored per scheduler tick by
+`services.kernel_mirrors` (writes via `MirrorScheduleIndex` +
+`MirrorRecentExecution` primitives). The Reviewer reads them; it does not
+write them.
+
+### Why
+
+Closes the schedule-hallucination class documented in
+`docs/observations/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/`.
+Pre-ADR-301 the Reviewer asserted "signal-evaluation failed to fire 3× RTH
+today" when literal schedule is `@market_open + 15min` = 1 fire per day.
+The Reviewer had no substrate basis for reasoning about its own cadence —
+persona frame named ListRevisions + GetSystemState mid-loop, but under
+bounded tool-round budgets the Reviewer skipped verification and made up
+the schedule literal. With `_schedule_index.md` in the envelope, the
+Reviewer reasons from substrate, not memory.
+
+### Changed
+
+- `api/agents/reviewer_agent.py` — `_PERSONA_FRAME` gains "Pulse Discipline
+  (ADR-301)" section after the existing "Operating Context" reference.
+- `api/agents/reviewer_agent.py::ReviewerContext` — adds
+  `schedule_index_md: str` + `recent_execution_md: str` fields.
+- `api/agents/reviewer_agent.py::_build_user_message` — renders the two
+  new envelope keys with explicit section headings; empty-state hints
+  when the kernel mirror hasn't run yet.
+
+### Expected behavior change
+
+Future Reviewer wakes will perceive both pulse files in the envelope. When
+reasoning about whether a recurrence missed an expected fire, the Reviewer
+will quote the literal schedule string + last_run_at from
+`_schedule_index.md` rather than asserting from memory. When narrating
+recent activity ("the system has been silent for 24h"), the Reviewer will
+ground the claim in `_recent_execution.md`'s fire count or correctly note
+"weekend market-closed quietness" with substrate basis.
+
+---
+
 ## [2026.05.24.3] - canon(reviewer): delete Phase 3 wire-gate clause (ADR-299 Discovery note 2 wire correction)
 
 ### Decision

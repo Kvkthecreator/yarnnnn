@@ -74,7 +74,7 @@ async def paced_lane_eligible_to_drain(client, user_id: str) -> tuple[bool, str]
     Reads `_pace.yaml` to determine the workspace's drain rate.
     `continuous` and absence-of-pace both return eligible=True (no cap).
     """
-    from services.pace import read_pace, PACE_FIRES_PER_DAY
+    from services.pace import read_pace
     from datetime import timedelta
 
     try:
@@ -91,12 +91,10 @@ async def paced_lane_eligible_to_drain(client, user_id: str) -> tuple[bool, str]
     if pace.kind == "continuous":
         return True, "continuous"
 
-    fires_per_day = PACE_FIRES_PER_DAY[pace.kind]
-    if fires_per_day <= 0:
+    # ADR-301 cleanup — singular pace-budget arithmetic via Pace.min_interval_seconds.
+    interval_seconds = pace.min_interval_seconds
+    if interval_seconds <= 0:
         return True, f"pace_kind_{pace.kind}_zero_cap"
-
-    # Minimum interval between paced drains (seconds).
-    interval_seconds = 86400.0 / fires_per_day
     cutoff = datetime.now(timezone.utc) - timedelta(seconds=interval_seconds)
 
     # Look for any paced-lane wake completed since cutoff. We use the

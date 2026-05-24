@@ -69,6 +69,15 @@ from .sync_platform_state import SYNC_PLATFORM_STATE_TOOL, handle_sync_platform_
 # state files into a compact summary substrate file. Mechanical-only
 # (not in any LLM tool surface); dispatched by mechanical-mode recurrences.
 from .mirror_signal_state import handle_mirror_signal_state
+# ADR-301: Reviewer pulse envelope substrate mirrors. Kernel-maintenance
+# primitives that project the workspace's `tasks` scheduling index +
+# `execution_events` ledger into compact substrate files the Reviewer
+# reads at every wake. Dispatched per scheduler tick via
+# services.kernel_mirrors (NOT via @primitive: directives — these are
+# kernel maintenance, not workspace recurrences). Registered here so the
+# canonical HANDLERS map remains the single execute-by-name surface.
+from .mirror_schedule_index import handle_mirror_schedule_index
+from .mirror_recent_execution import handle_mirror_recent_execution
 # ADR-271 Thread A: deterministic trading primitives — dispatched ONLY by the
 # mechanical-mode dispatcher via @primitive: directives. Not in CHAT/HEADLESS/
 # REVIEWER tool surfaces per ADR-264 D3 (operators don't directly invoke
@@ -467,6 +476,11 @@ HANDLERS: dict[str, Callable] = {
     # at prompt-assembly time per Derived Principle 19). Mechanical-only;
     # not in any LLM tool surface.
     "MirrorSignalState": handle_mirror_signal_state,
+    # ADR-301: Reviewer pulse envelope mirrors. Kernel maintenance —
+    # dispatched per scheduler tick via services.kernel_mirrors, not via
+    # @primitive: directives. Not in any LLM tool surface.
+    "MirrorScheduleIndex": handle_mirror_schedule_index,
+    "MirrorRecentExecution": handle_mirror_recent_execution,
     # ADR-271 Thread A: trading-specific deterministic primitives.
     # Fetch-plus-compute pattern that SyncPlatformState's pure-mirror shape
     # doesn't cover (multi-bar walk + derived indicator math). ADR-264

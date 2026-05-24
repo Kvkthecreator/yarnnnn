@@ -61,6 +61,8 @@ from services.workspace_paths import (
     SHARED_PREFERENCES_PATH,
     SHARED_PACE_PATH,
     SPECS_PREFIX,
+    MEMORY_SCHEDULE_INDEX_PATH,
+    MEMORY_RECENT_EXECUTION_PATH,
 )
 
 logger = logging.getLogger(__name__)
@@ -95,12 +97,120 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     # and updates it before standing down. The substrate counterpart to a no-fire
     # judgment is an updated standing_intent.md.
     ("standing_intent_md", REVIEW_STANDING_INTENT_PATH),
+    # — Pulse (ADR-301) — Reviewer's own cadence + recent fires.
+    # Mechanically mirrored from `tasks` (scheduling index) +
+    # `execution_events` (ledger) by `services.kernel_mirrors`, run per
+    # scheduler tick in the maintenance phase. Both files are diff-aware
+    # writes (most ticks produce zero revisions). The Reviewer reads them
+    # to reason correctly about its own pulse — closes the schedule-
+    # hallucination class documented in docs/observations/2026-05-24-
+    # 045348-reviewer-schedule-self-misdiagnosis/findings.md.
+    ("schedule_index_md", MEMORY_SCHEDULE_INDEX_PATH),
+    ("recent_execution_md", MEMORY_RECENT_EXECUTION_PATH),
 ]
 
 
 # ---------------------------------------------------------------------------
 # Envelope assembly — substrate-only, no kernel-side computation
 # ---------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Operating Context block (ADR-274 + ADR-301 consolidation)
+#
+# Per FOUNDATIONS v8.5 Axiom 4 amendment + Derived Principle 18, time is a
+# wake-envelope concern, NOT workspace substrate (mirrors Claude Code's
+# runtime model). The Reviewer perceives `now`, operator timezone, and
+# market state at every wake — load-bearing for Trigger-authoring decisions.
+#
+# Pre-ADR-301 this function lived in `agents/reviewer_agent.py` and was
+# composed by `wake.py` at three call sites. ADR-301 D5 consolidates
+# composition here so the envelope helper is the singular envelope
+# assembly point — one home, one function, one contract. The thin
+# re-export in `agents.reviewer_agent` preserves the ADR-274 import
+# contract for `build_operating_context_block` callers.
+# ---------------------------------------------------------------------------
+
+def build_operating_context_block(client: Any, user_id: str) -> str:
+    """Assemble the Operating Context block injected into the Reviewer's
+    wake envelope. Pulls now + operator timezone + market state from
+    existing services. Pure projection — no new infrastructure.
+
+    Format (~5 lines, ~50 tokens):
+        ## Operating Context (Axiom 4 v8.5)
+
+        **Now**: <UTC ISO> (<weekday>, in tz: <local time>)
+        **Operator timezone**: <tz>
+        **Market state**: <pre-market | RTH | post-market | closed | n/a> (<context>)
+        **Workspace tenure**: <N days> since activation
+    """
+    from services.scheduling import get_user_timezone
+    try:
+        from services.bundle_reader import get_market_context_for_user
+    except Exception:
+        get_market_context_for_user = None  # type: ignore
+
+    now_utc = datetime.now(timezone.utc)
+    try:
+        tz_name = get_user_timezone(client, user_id) or "UTC"
+    except Exception:
+        tz_name = "UTC"
+
+    # Local-time projection without pytz dep (kernel uses zoneinfo)
+    try:
+        from zoneinfo import ZoneInfo
+        local = now_utc.astimezone(ZoneInfo(tz_name))
+        local_str = local.strftime("%a %H:%M %Z")
+    except Exception:
+        local_str = now_utc.strftime("%a %H:%M UTC")
+
+    lines = [
+        "## Operating Context (Axiom 4 v8.5)",
+        "",
+        f"**Now**: {now_utc.strftime('%Y-%m-%dT%H:%M:%SZ')} ({local_str})",
+        f"**Operator timezone**: {tz_name}",
+    ]
+
+    # Market state — only when the workspace has a market-context bundle.
+    if get_market_context_for_user is not None:
+        try:
+            mc = get_market_context_for_user(user_id, client)
+        except Exception:
+            mc = None
+        if mc:
+            mstate = mc.get("state") or mc.get("market_state") or "unknown"
+            mnote = mc.get("note") or ""
+            line = f"**Market state**: {mstate}"
+            if mnote:
+                line += f" ({mnote})"
+            lines.append(line)
+
+    # Workspace tenure
+    try:
+        ws = (
+            client.table("workspaces")
+            .select("created_at")
+            .eq("owner_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if ws.data:
+            ws_created_raw = ws.data[0].get("created_at")
+            if ws_created_raw:
+                try:
+                    ws_created = datetime.fromisoformat(
+                        ws_created_raw.replace("Z", "+00:00")
+                    )
+                    days = (now_utc - ws_created).days
+                    lines.append(
+                        f"**Workspace tenure**: {days} days since activation"
+                    )
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
+    return "\n".join(lines)
+
 
 async def load_reviewer_governance_envelope(
     client: Any, user_id: str
@@ -207,6 +317,16 @@ async def load_reviewer_governance_envelope(
         program_results = await _asyncio.gather(*program_tasks)
         for key, value in zip(program_keys, program_results):
             envelope[key] = value
+
+    # --- Operating Context (ADR-274 + ADR-301 D5 consolidation) ---
+    # Composed here so the envelope helper is the singular envelope
+    # assembly point. Same content as the pre-ADR-301 build_operating_
+    # context_block. Callers no longer need to compose it separately;
+    # the envelope dict carries it through to the Reviewer's user message
+    # renderer alongside every other envelope key.
+    envelope["operating_context_block"] = build_operating_context_block(
+        client, user_id
+    )
 
     # --- Specs inventory (name + title only, no bodies) ---
     # Program bundles fork capability specs into /workspace/specs/ at activation

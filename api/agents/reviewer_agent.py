@@ -198,6 +198,12 @@ class ReviewerContext(TypedDict, total=False):
     # Surfaces "now" perception per the Axiom 4 amendment (time is envelope,
     # not substrate). Callers assemble via _format_operating_context_block.
     operating_context_block: str
+    # ADR-301 Pulse envelope — Reviewer's perception of its own cadence +
+    # recent fires. Both files are kernel-mirrored substrate written per
+    # scheduler tick by services.kernel_mirrors. The Reviewer reads them
+    # to reason from substrate (not memory) about its own pulse.
+    schedule_index_md: str
+    recent_execution_md: str
 
 
 # ---------------------------------------------------------------------------
@@ -275,93 +281,17 @@ RETURN_VERDICT_TOOL = {
 # ---------------------------------------------------------------------------
 # Operating Context block (ADR-274 / FOUNDATIONS v8.5 Axiom 4 amendment)
 #
-# Time is an envelope-on-wake concern, not workspace substrate (mirrors
-# Claude Code's runtime model). The Reviewer perceives `now`, operator
-# timezone, and market state at every wake — these inputs are load-bearing
-# for Trigger-authoring decisions (Schedule discipline per Derived Principle 18).
+# ADR-301 D5 consolidation: the function now lives in
+# `services/reviewer_envelope.py` so the envelope helper is the singular
+# envelope assembly point (one home, one function, one contract). This
+# import-shim preserves the ADR-274 contract that test gates + any other
+# importer of `agents.reviewer_agent.build_operating_context_block`
+# continue to work without change. Singular implementation rule honored:
+# the function body lives in one file; this is a re-export, not a parallel
+# implementation.
 # ---------------------------------------------------------------------------
 
-def build_operating_context_block(client: Any, user_id: str) -> str:
-    """Assemble the Operating Context block injected into the Reviewer's
-    wake envelope. Pulls now + operator timezone + market state from
-    existing services. Pure projection — no new infrastructure.
-
-    Format (~5 lines, ~50 tokens):
-        ## Operating Context (Axiom 4 v8.5)
-
-        **Now**: <UTC ISO> (<weekday>, in tz: <local time>)
-        **Operator timezone**: <tz>
-        **Market state**: <pre-market | RTH | post-market | closed | n/a> (<context>)
-        **Workspace tenure**: <N days> since activation
-    """
-    from datetime import datetime, timezone
-    from services.scheduling import get_user_timezone
-    try:
-        from services.bundle_reader import get_market_context_for_user
-    except Exception:
-        get_market_context_for_user = None  # type: ignore
-
-    now_utc = datetime.now(timezone.utc)
-    try:
-        tz_name = get_user_timezone(client, user_id) or "UTC"
-    except Exception:
-        tz_name = "UTC"
-
-    # Local-time projection without pytz dep (kernel uses zoneinfo)
-    try:
-        from zoneinfo import ZoneInfo
-        local = now_utc.astimezone(ZoneInfo(tz_name))
-        local_str = local.strftime("%a %H:%M %Z")
-    except Exception:
-        local_str = now_utc.strftime("%a %H:%M UTC")
-
-    lines = [
-        "## Operating Context (Axiom 4 v8.5)",
-        "",
-        f"**Now**: {now_utc.strftime('%Y-%m-%dT%H:%M:%SZ')} ({local_str})",
-        f"**Operator timezone**: {tz_name}",
-    ]
-
-    # Market state — only when the workspace has a market-context bundle.
-    if get_market_context_for_user is not None:
-        try:
-            mc = get_market_context_for_user(user_id, client)
-        except Exception:
-            mc = None
-        if mc:
-            # Render a short market summary if the context dict exposes one.
-            # mc shape varies; we read common fields defensively.
-            mstate = mc.get("state") or mc.get("market_state") or "unknown"
-            mnote = mc.get("note") or ""
-            line = f"**Market state**: {mstate}"
-            if mnote:
-                line += f" ({mnote})"
-            lines.append(line)
-
-    # Workspace tenure
-    try:
-        ws = (
-            client.table("workspaces")
-            .select("created_at")
-            .eq("owner_id", user_id)
-            .limit(1)
-            .execute()
-        )
-        if ws.data:
-            ws_created_raw = ws.data[0].get("created_at")
-            if ws_created_raw:
-                try:
-                    ws_created = datetime.fromisoformat(
-                        ws_created_raw.replace("Z", "+00:00")
-                    )
-                    days = (now_utc - ws_created).days
-                    lines.append(f"**Workspace tenure**: {days} days since activation")
-                except Exception:
-                    pass
-    except Exception:
-        pass
-
-    return "\n".join(lines)
+from services.reviewer_envelope import build_operating_context_block  # noqa: E402,F401
 
 
 # ---------------------------------------------------------------------------
@@ -643,6 +573,37 @@ when authoring schedules — semantic schedules like `@market_open +
 15min` resolve against operator's market calendar; plain crons run in
 UTC.
 
+**Pulse Discipline (ADR-301):**
+
+Your wake envelope carries two pulse files you read BEFORE reasoning
+about cadence or recent activity:
+
+- `_schedule_index.md` — the literal `schedule:` string + `mode` +
+  `last_run_at` + `next_run_at` + `paused` flag for every recurrence
+  in this workspace. Before claiming a recurrence "missed an expected
+  fire" or "should have fired N times today," read this. The schedule
+  literal is canonical. Do not reason about cadence from memory.
+
+- `_recent_execution.md` — what has actually fired in the last 24h
+  with outcomes, costs, durations, and per-wake-source counts. Before
+  claiming "nothing has happened" or "the system has been silent,"
+  read this.
+
+Both files are mechanically mirrored per scheduler tick from substrate
+the system already holds (`tasks` scheduling index + `execution_events`
+ledger). Kernel-maintenance writes per ADR-209, attribution
+`system:mirror-schedule-index` and `system:mirror-recent-execution`.
+You read them; you do not write them. They are at most ~5 minutes
+stale at envelope-assembly time — for sub-minute precision call
+`GetSystemState` mid-loop, but the envelope satisfies the common case.
+
+This discipline closes a documented failure mode: prior to ADR-301
+the Reviewer hallucinated a "signal-evaluation failed to fire 3× RTH
+today" outage when the literal schedule is `@market_open + 15min`
+(one fire). The Reviewer asserted the gap from memory and stood down
+on a phantom problem. With `_schedule_index.md` in the envelope,
+that class of error is structurally closed.
+
 **Operator's deliverable preferences are pre-loaded above as the
 `_preferences.yaml` block** (ADR-275 D5, refined by D10).
 **Initial honoring of these preferences was done at workspace
@@ -676,13 +637,12 @@ capital-action gating which still flows through `should_auto_apply`.
 Default-off: bundle-shipped entries are `active: false`; don't fire on
 entries the operator hasn't opted in.
 
-If `platform_email_send_to_operator` does not appear in your tool
-surface, the operator's Resend connection isn't active (wire-gate per
-ADR-192 Phase 4). That's not an error — operator hasn't connected the
-email wire yet. Note the absence in `standing_intent.md` if the
-operator has `active: true` notifications declared without a Resend
-connection (substrate-vs-wire drift surface for next operator turn);
-otherwise proceed without comment.
+`platform_email_send_to_operator` uses the system-deployed Resend wire
+(ADR-299 Discovery note 2, 2026-05-24); it's always available — no
+operator-side Resend setup required. The tool sends from
+`yarnnn <noreply@yarnnn.com>` by default; replies route to the
+operator's own inbox via Reply-To header so they can respond to your
+emails naturally.
 
 Introspection cadence (your own reflection / calibration / housekeeping)
 is yours to author from first-principled judgment about outcome
@@ -1072,6 +1032,42 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
         # directs the Reviewer to author the first standing_intent.md on this cycle.
         parts += [
             "## standing_intent.md — (empty — first cycle, author it as part of this judgment)",
+            "",
+        ]
+
+    # ADR-301 Pulse envelope — Reviewer's perception of its own cadence +
+    # recent fires. Kernel-mirrored from `tasks` + `execution_events` per
+    # scheduler tick via services.kernel_mirrors. Read these BEFORE
+    # reasoning about cadence or recent activity (Pulse Discipline section
+    # in persona frame). Renders unconditionally — empty-state content
+    # ("no recurrences declared", "no execution_events in last 24h") is a
+    # meaningful signal in its own right.
+    schedule_index = ctx.get("schedule_index_md") or ""
+    if schedule_index.strip():
+        parts += [
+            "## _schedule_index.md — Your declared cadence + actual fire times",
+            "",
+            schedule_index,
+            "",
+        ]
+    else:
+        parts += [
+            "## _schedule_index.md — (empty — kernel mirror hasn't run yet "
+            "on this workspace)",
+            "",
+        ]
+    recent_execution = ctx.get("recent_execution_md") or ""
+    if recent_execution.strip():
+        parts += [
+            "## _recent_execution.md — What has actually fired (last 24h)",
+            "",
+            recent_execution,
+            "",
+        ]
+    else:
+        parts += [
+            "## _recent_execution.md — (empty — kernel mirror hasn't run yet "
+            "on this workspace)",
             "",
         ]
 

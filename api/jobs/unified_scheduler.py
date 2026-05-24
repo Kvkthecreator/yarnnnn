@@ -375,6 +375,36 @@ async def run_unified_scheduler():
         logger.warning("[SCHED] wake_queue drain raised: %s", exc)
 
     # -------------------------------------------------------------------------
+    # ADR-301 kernel mirrors — Reviewer pulse envelope substrate.
+    # Per-tick maintenance phase: project tasks scheduling index + recent
+    # execution_events into compact substrate files (_schedule_index.md +
+    # _recent_execution.md under /workspace/memory/) that the Reviewer
+    # reads at every wake. Both mirrors are diff-aware — most ticks write
+    # nothing across most workspaces. Closes the schedule-hallucination
+    # class documented in docs/observations/2026-05-24-045348-reviewer-
+    # schedule-self-misdiagnosis/findings.md.
+    # -------------------------------------------------------------------------
+    try:
+        from services.kernel_mirrors import (
+            mirror_schedule_index_for_all_users,
+            mirror_recent_execution_for_all_users,
+        )
+        si_summary = await mirror_schedule_index_for_all_users(supabase)
+        re_summary = await mirror_recent_execution_for_all_users(supabase)
+        if si_summary["written"] or re_summary["written"]:
+            logger.info(
+                "[SCHED] kernel mirrors: schedule_index wrote %d/%d "
+                "(skip=%d, fail=%d), recent_execution wrote %d/%d "
+                "(skip=%d, fail=%d)",
+                si_summary["written"], si_summary["users_processed"],
+                si_summary["skipped"], si_summary["failed"],
+                re_summary["written"], re_summary["users_processed"],
+                re_summary["skipped"], re_summary["failed"],
+            )
+    except Exception as exc:
+        logger.warning("[SCHED] kernel mirrors raised: %s", exc)
+
+    # -------------------------------------------------------------------------
     # ADR-260 D4: cron-heartbeat walker deleted. Cron wake-ups fire the
     # `scheduled` trigger via the recurrence walker above
     # (`dispatch_due_invocations`). No second cron use.

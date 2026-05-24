@@ -1,7 +1,7 @@
 # Cadence and Wakes — Canonical Synthesis
 
-> **Status:** Canonical (2026-05-21)
-> **Distills:** [ADR-260](../adr/ADR-260-real-time-reviewer-loop.md) · [ADR-261](../adr/ADR-261-recurrences-as-prompts.md) · [ADR-263](../adr/ADR-263-recurrence-mode-mechanical-vs-judgment.md) · [ADR-268](../adr/ADR-268-market-context-aware-recurrences.md) · [ADR-274](../adr/ADR-274-reviewer-cadence-self-awareness.md) · [ADR-275](../adr/ADR-275-introspection-cadence-reviewer-authored.md) · [ADR-276](../adr/ADR-276-reactive-trigger-envelope-governance-preload.md) · [ADR-296 v2](../adr/ADR-296-continuous-judgment-cycle.md)
+> **Status:** Canonical (last extended 2026-05-24 — ADR-301 pulse envelope)
+> **Distills:** [ADR-260](../adr/ADR-260-real-time-reviewer-loop.md) · [ADR-261](../adr/ADR-261-recurrences-as-prompts.md) · [ADR-263](../adr/ADR-263-recurrence-mode-mechanical-vs-judgment.md) · [ADR-268](../adr/ADR-268-market-context-aware-recurrences.md) · [ADR-274](../adr/ADR-274-reviewer-cadence-self-awareness.md) · [ADR-275](../adr/ADR-275-introspection-cadence-reviewer-authored.md) · [ADR-276](../adr/ADR-276-reactive-trigger-envelope-governance-preload.md) · [ADR-284](../adr/ADR-284-standing-intent-substrate-and-occupant-envelope.md) · [ADR-296 v2](../adr/ADR-296-continuous-judgment-cycle.md) · [ADR-298](../adr/ADR-298-reviewer-wake-queue-and-pace.md) · [ADR-301](../adr/ADR-301-reviewer-pulse-envelope.md)
 > **Builds on:** [FOUNDATIONS](FOUNDATIONS.md) Axiom 4 (Trigger) · Derived Principle 18 (Standing intent implies Trigger-authoring authority) · Derived Principle 20 (Wake-as-irreducible-unit) · [ADR-209](../adr/ADR-209-authored-substrate.md) (Authored Substrate)
 > **Purpose:** Single load-bearing reference for how cadence and wakes work in YARNNN. ADRs decide; this synthesizes.
 
@@ -182,22 +182,46 @@ The Reviewer writes (or re-writes) `standing_intent.md` at every judgment cycle 
 
 ## 8. The governance envelope
 
-`services/reviewer_envelope.py::load_reviewer_governance_envelope(client, user_id)` is the singular shared helper for both addressed and reactive triggers (per ADR-276). At every wake that escalates, the Reviewer perceives:
+`services/reviewer_envelope.py::load_reviewer_governance_envelope(client, user_id)` is the singular shared helper for both addressed and reactive triggers (per ADR-276 + ADR-301 D5 — operating context block consolidated into the envelope helper). At every wake that escalates, the Reviewer perceives:
 
+**Governance (kernel-universal — present in every workspace)**:
 - `IDENTITY.md` — Reviewer occupant persona
 - `principles.md` + `_principles.yaml` — judgment framework + thresholds
 - `PRECEDENT.md` — historical decisions
 - `MANDATE.md` — operator's standing intent
 - `_autonomy.yaml` — delegation ceiling
 - `_preferences.yaml` — operator's deliverable cadence preferences
-- `_operator_profile.md` — operator-authored ICP context
-- `_risk.md` — risk envelope declarations
-- `_performance.md` — money-truth substrate
-- signal-files summary — recent substrate-event signals
+- `_pace.yaml` — operator's pace budget (ADR-298 D11)
 
-Plus an `## Operating Context` block injected by `_build_user_message` (ADR-274 D2): now UTC + operator timezone + market state + workspace tenure.
+**Seat continuity (ADR-284 — kernel-universal)**:
+- `OCCUPANT.md` — current seat occupant identity
+- `standing_intent.md` — what the Reviewer was watching for last cycle
+
+**Reviewer pulse (ADR-301 — kernel-universal)**:
+- `_schedule_index.md` — literal `schedule:` string + mode + last_run_at + next_run_at + paused for every recurrence in this workspace
+- `_recent_execution.md` — execution_events rollup for the last 24h with outcomes, costs, durations, per-wake-source counts
+
+Both pulse files are **mechanically mirrored per scheduler tick** by `services.kernel_mirrors` (writes via `services.primitives.mirror_schedule_index` + `mirror_recent_execution`). Diff-aware — most ticks produce zero substrate revisions. Attribution `system:mirror-schedule-index` and `system:mirror-recent-execution` per ADR-209.
+
+**Program substrate (bundle-declared via MANIFEST `substrate_abi.reviewer_wake_envelope`)**:
+- `_operator_profile.md` — operator-authored ICP context (alpha-trader)
+- `_risk.md` — risk envelope declarations (alpha-trader)
+- `_performance.md` — money-truth substrate (alpha-trader)
+- signal-files summary — recent substrate-event signals (alpha-trader)
+
+**Operating context (ADR-274 + ADR-301 D5 — assembled by envelope helper)**:
+- `operating_context_block` — `## Operating Context` block: now UTC + operator timezone + market state + workspace tenure. Composed by `services.reviewer_envelope.build_operating_context_block` (consolidated home post-ADR-301 D5; the prior `agents.reviewer_agent` location preserved as import re-export shim).
+
+**Specs inventory (program-bundled capability library)**:
+- `specs_inventory` — name + title list of `/workspace/specs/*.md` files. Bodies read on demand via `ReadFile`.
 
 Envelope load time is logged on `execution_events.envelope_load_ms` (migration 175) for capacity tuning — zero LLM cost observability.
+
+### 8a. Pulse Discipline (ADR-301)
+
+The Reviewer's persona frame instructs it to read `_schedule_index.md` and `_recent_execution.md` **before** reasoning about cadence or recent activity. This closes a documented failure mode: pre-ADR-301 the Reviewer's only basis for reasoning about its own cadence was memory + the persona-frame instruction to call `ListRevisions` + `GetSystemState` mid-loop. Under bounded tool-round budgets the Reviewer skipped the verification round and made up the schedule literal — see [`docs/observations/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/findings.md`](../observations/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/findings.md) for the empirical case (Reviewer asserted "signal-evaluation failed to fire 3× RTH today" when literal schedule is `@market_open + 15min` = 1 fire).
+
+With the pulse files in the envelope, the Reviewer reasons from substrate, not memory. Schedule-hallucination class is structurally closed.
 
 ---
 

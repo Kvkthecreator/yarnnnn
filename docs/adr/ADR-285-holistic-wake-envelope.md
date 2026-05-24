@@ -1,6 +1,10 @@
 # ADR-285: Holistic Wake Envelope — Kernel-Universal Classes + Bundle-Declared World-Mirror Pattern
 
-**Status**: Proposed
+**Status**: D3 Implemented via [ADR-301](ADR-301-reviewer-pulse-envelope.md) (2026-05-24). D5+ bundle world-mirror entries remain Proposed for separate bundle work (alpha-trader `MirrorTickerSnapshot` + `MirrorPositionState`).
+
+> **Update 2026-05-24** — ADR-301 ratifies D3 (Recent Execution Lineage) and adds a sibling `_schedule_index.md` (the second envelope entry the 2026-05-22 schedule-self-misdiagnosis surfaced as load-bearing). ADR-301 refined D4 by piggybacking on the scheduler-tick maintenance phase (`services.kernel_mirrors`) rather than scaffolding a kernel-universal `_recurrences.yaml` entry at workspace-init. Both mirrors are kernel maintenance, not workspace work — same precedent as `reclaim_stale_locks`. The synthesis canon at [`docs/architecture/cadence-and-wakes.md`](../architecture/cadence-and-wakes.md) §8 is the canonical reference for the resulting envelope shape; this ADR is preserved as historical context for the structural taxonomy + class-discipline rule.
+
+**Original status (preserved for trace)**: Proposed
 **Date**: 2026-05-17
 **Companion docs**: `docs/architecture/FOUNDATIONS.md` (Axiom 1 + Axiom 2 envelope-as-Identity-perception clarification), `docs/adr/ADR-284-standing-intent-substrate-and-occupant-envelope.md` (sibling — substrate scope this ADR consumes), `docs/adr/ADR-281-substrate-canonical-substrate-only-prompts.md` (Derived Principle 19 "kernel does not compute for the prompt" — preserved discipline this ADR honors), `api/services/reviewer_envelope.py` (the mechanism this ADR reshapes)
 **Amends**: `reviewer_envelope.py` (envelope-class accounting becomes explicit, not implicit-in-list-order); bundle MANIFEST `substrate_abi.reviewer_wake_envelope` schema (gains semantic role-tag per entry); alpha-trader MANIFEST + workspace_guide (world-mirror declarations grow to lift per-ticker, per-position state); new mechanical primitive `MirrorRecentExecution`; new mechanical primitive `MirrorTickerSnapshot` (alpha-trader-specific, bundle-shipped)

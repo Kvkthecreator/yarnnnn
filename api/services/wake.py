@@ -523,19 +523,15 @@ async def _invoke_recurrence_wake(
         # the proposal-arrival shape (Sonnet/3-rounds with empty user
         # message → universal stand_down). Bug surfaced 2026-05-13 in
         # the post-ADR-267 audit.
-        # ADR-274 / FOUNDATIONS v8.5: assemble Operating Context block —
-        # time + market state + workspace tenure. Reviewer perceives `now`
-        # on every wake (time is envelope, not substrate per Axiom 4 amendment).
-        from agents.reviewer_agent import build_operating_context_block
-        operating_context = build_operating_context_block(client, user_id)
-
-        # ADR-276: shared governance pre-load — full operator-authored
-        # substrate (IDENTITY + principles + PRECEDENT + MANDATE + AUTONOMY
-        # + _preferences.yaml + _operator_profile + _risk + _performance +
-        # signal_files). Same helper as the addressed-trigger envelope in
-        # routes/feed.py — Singular Implementation per ADR-275 refinement's
-        # empirical learning that prose-named substrate fails to land in
-        # Reviewer behavior; envelope-pre-loaded substrate does.
+        # ADR-276 + ADR-301 D5: shared governance pre-load — full operator-
+        # authored substrate (IDENTITY + principles + PRECEDENT + MANDATE +
+        # AUTONOMY + _preferences.yaml + _pace.yaml + _operator_profile +
+        # _risk + _performance + signal_files + occupant + standing_intent
+        # + schedule_index + recent_execution + operating_context_block).
+        # Same helper as the addressed-trigger envelope in routes/feed.py —
+        # Singular Implementation: one envelope helper, one assembly point.
+        # ADR-301 D5 consolidated operating_context_block composition into
+        # the helper so the envelope dict carries all assembled content.
         from services.reviewer_envelope import load_reviewer_governance_envelope
         governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope(
             client, user_id
@@ -555,8 +551,7 @@ async def _invoke_recurrence_wake(
                 # passes through (or extends) when calling DispatchSpecialist.
                 "recurrence_required_capabilities": list(recurrence.required_capabilities),
                 "options": dict(recurrence.options) if recurrence.options else {},
-                "operating_context_block": operating_context,
-                **governance_envelope,  # ADR-276: 9-file pre-load + signal_files
+                **governance_envelope,  # ADR-276 + ADR-301: full envelope pre-load
             },
         )
     except Exception as exc:
@@ -1443,7 +1438,6 @@ async def _invoke_substrate_event_wake(
     try:
         from agents.reviewer_agent import (
             invoke_reviewer,
-            build_operating_context_block,
         )
         from services.reviewer_envelope import load_reviewer_governance_envelope
     except ImportError as e:
@@ -1454,7 +1448,8 @@ async def _invoke_substrate_event_wake(
         }
 
     try:
-        operating_context = build_operating_context_block(client, user_id)
+        # ADR-301 D5: envelope helper composes operating_context_block + all
+        # other envelope content in one place. No separate build call here.
         governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope(
             client, user_id
         )
@@ -1470,8 +1465,7 @@ async def _invoke_substrate_event_wake(
                 "options": {},
                 "substrate_event_path": path,
                 "substrate_event_field_change": field_change,
-                "operating_context_block": operating_context,
-                **governance_envelope,
+                **governance_envelope,  # ADR-276 + ADR-301
             },
         )
     except Exception as exc:
@@ -1563,7 +1557,6 @@ async def stream_addressed_wake(
     from agents.reviewer_agent import (
         invoke_reviewer,
         REVIEWER_MODEL_IDENTITY,
-        build_operating_context_block,
     )
     from services.reviewer_envelope import load_reviewer_governance_envelope
     from services.reviewer_chat_surfacing import (
@@ -1660,7 +1653,8 @@ async def stream_addressed_wake(
             }
             return
 
-    operating_context = build_operating_context_block(client, user_id)
+    # ADR-301 D5: envelope helper composes operating_context_block alongside
+    # all other envelope content. Singular envelope assembly point.
     governance_envelope, _envelope_load_ms = await load_reviewer_governance_envelope(
         client, user_id
     )
@@ -1670,11 +1664,10 @@ async def stream_addressed_wake(
         trigger="addressed",
         invocation_id=invocation_id,
         context={
-            **governance_envelope,
+            **governance_envelope,  # ADR-276 + ADR-301 — full envelope incl. operating_context_block
             "user_message": user_message,
             "conversation_window": conversation_window,
             "workspace_state": workspace_state_text or "",
-            "operating_context_block": operating_context,
         },
         event_callback=_emit_progress,
     ))

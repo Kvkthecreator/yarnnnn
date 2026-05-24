@@ -75,6 +75,24 @@ class Pace:
         ``continuous`` returns infinity (no cap)."""
         return PACE_FIRES_PER_DAY[self.kind]
 
+    @property
+    def min_interval_seconds(self) -> float:
+        """Minimum seconds between paced-lane drains under this pace.
+
+        Singular implementation (ADR-301 cleanup): drain-side throttle
+        arithmetic and FE display + declaration-time gate all consume
+        this property. Pre-cleanup, the `86400 / fires_per_day` inline
+        was duplicated in `wake_drainer.paced_lane_eligible_to_drain`;
+        post-cleanup it lives only here. `continuous` returns 0 (no
+        interval); zero-cap kinds (defensive) return infinity.
+        """
+        cap = self.fires_per_day_cap
+        if cap == float("inf"):
+            return 0.0
+        if cap <= 0:
+            return float("inf")
+        return 86400.0 / cap
+
 
 # ─── Errors ─────────────────────────────────────────────────────────────────
 

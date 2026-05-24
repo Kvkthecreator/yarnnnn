@@ -210,17 +210,33 @@ def test_all_call_sites_use_shared_helper() -> None:
 
 def test_wake_py_preserves_recurrence_context() -> None:
     """wake.py::dispatch_recurrence preserves recurrence-specific context
-    keys alongside the spread governance envelope."""
+    keys alongside the spread governance envelope.
+
+    ADR-301 D5 update: `operating_context_block` is no longer composed at
+    the wake.py call site — it's assembled inside `load_reviewer_
+    governance_envelope` and flows through the `**governance_envelope`
+    spread. The recurrence-specific keys (`recurrence_prompt` +
+    `recurrence_slug`) still need explicit preservation since the
+    envelope helper has no recurrence context.
+    """
     src = (ROOT / "services" / "wake.py").read_text()
     for key in (
         '"recurrence_prompt": prompt',
         '"recurrence_slug": recurrence.slug',
-        '"operating_context_block": operating_context',
     ):
         if key not in src:
             _bad("wake.py recurrence context preservation", f"missing key: {key}")
             return
-    _ok("wake.py preserves recurrence_prompt + recurrence_slug + operating_context_block alongside spread envelope")
+    # ADR-301: operating_context_block must be assembled by the envelope helper,
+    # not at the call site. Assert the call site does NOT re-compose it (would
+    # be redundant + a Singular Implementation violation).
+    if '"operating_context_block": operating_context' in src:
+        _bad(
+            "wake.py no longer composes operating_context_block at call site",
+            "stale call-site composition still present — ADR-301 D5 incomplete",
+        )
+        return
+    _ok("wake.py preserves recurrence_prompt + recurrence_slug; operating_context_block flows via envelope spread (ADR-301 D5)")
 
 
 # ---------------------------------------------------------------------------
