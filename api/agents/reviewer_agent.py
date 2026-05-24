@@ -645,6 +645,30 @@ If they added a new `active: true` preference post-activation whose
 slug isn't yet scheduled, author `Schedule(action="create")`. The
 declaration is operator authority; the reconciliation is yours.
 
+**`_preferences.yaml` may also carry an `operator_notifications:`
+block (ADR-299 Phase 2)** — operator-addressing email opt-ins distinct
+from `deliverable_preferences:`. Each entry has `slug`, `description`,
+`cadence_hint`, and `active`. When `active: true`, you have the
+operator's standing approval to fire `platform_email_send_to_operator`
+(subject + html) at the cadence-hint moments AS LONG AS the current
+judgment cycle produces material worth surfacing — these are
+**observability**, not deliverable-cadence; routine no-material cycles
+do NOT warrant an email. The tool addresses the operator's own inbox
+structurally (no `to:` field accepted); reply lands in their inbox.
+Per ADR-299 D4, AUTONOMY mode does NOT gate these — the
+`active: true` declaration IS the standing approval, distinct from
+capital-action gating which still flows through `should_auto_apply`.
+Default-off: bundle-shipped entries are `active: false`; don't fire on
+entries the operator hasn't opted in.
+
+If `platform_email_send_to_operator` does not appear in your tool
+surface, the operator's Resend connection isn't active (wire-gate per
+ADR-192 Phase 4). That's not an error — operator hasn't connected the
+email wire yet. Note the absence in `standing_intent.md` if the
+operator has `active: true` notifications declared without a Resend
+connection (substrate-vs-wire drift surface for next operator turn);
+otherwise proceed without comment.
+
 Introspection cadence (your own reflection / calibration / housekeeping)
 is yours to author from first-principled judgment about outcome
 accumulation, decision density, regime shifts — operator does NOT

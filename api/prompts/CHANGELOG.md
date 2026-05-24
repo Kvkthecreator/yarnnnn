@@ -6,6 +6,70 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.24.1] - canon(reviewer): persona-frame nudge for operator_notifications: opt-ins (ADR-299 Phase 3)
+
+### Decision
+
+Closes Phase 3 of ADR-299 (post-Discovery-note shape). Phase 2 (commit
+`50d37a8`) shipped the `operator_notifications:` schema block in
+alpha-author + alpha-trader bundle `_preferences.yaml` reference
+workspaces. Without persona-frame awareness, the Reviewer reads the
+substrate but doesn't know to act on it — Phase 3 closes the loop.
+
+### Changed
+
+- **`api/agents/reviewer_agent.py::_PERSONA_FRAME`** — new paragraph
+  appended to the existing `_preferences.yaml` awareness block
+  (right after the CHANGE RECONCILIATION clause for
+  `deliverable_preferences`). Tells the Reviewer:
+  - `_preferences.yaml` may carry a second top-level block
+    `operator_notifications:` distinct from `deliverable_preferences:`
+  - Each entry has `slug`, `description`, `cadence_hint`, `active`
+  - When `active: true`, the Reviewer has standing approval to fire
+    `platform_email_send_to_operator(subject, html)` at cadence-hint
+    moments — IF the current judgment cycle produced material worth
+    surfacing (these are observability not deliverables; no-material
+    cycles do NOT warrant emails)
+  - Tool addresses operator's own inbox structurally (no `to:` field
+    accepted; reply lands in operator's inbox)
+  - AUTONOMY mode does NOT gate these per ADR-299 D4 (the `active: true`
+    declaration IS standing approval; distinct from capital-action
+    gating which still flows through `should_auto_apply`)
+  - Default-off discipline: bundle entries ship `active: false`; don't
+    fire on entries operator hasn't opted in
+  - Wire-gate handling: if `platform_email_send_to_operator` doesn't
+    appear in tool surface, operator's Resend connection isn't active —
+    that's not an error; note the absence in `standing_intent.md` if
+    relevant substrate-vs-wire drift exists
+
+Expected behavior: the next Reviewer wake on a workspace with
+`active: true` operator_notifications + active Resend connection +
+material cycle output will compose + fire an operator email. The
+existing standing_intent.md substrate-counterpart-to-no-fire contract
+(per ADR-284) survives unchanged.
+
+### Not changed (explicit non-actions)
+
+- No new primitive; reuses `platform_email_send_to_operator` from
+  Phase 1 (commit `3f0cabb` + corrected `50df8b4`).
+- No tool-surface changes; the operator-addressing capability lives
+  in the existing CAPABILITIES dict per the post-Discovery-note shape.
+- No new wake source; the Reviewer fires emails INSIDE existing wake
+  cycles when material warrants — not as a separate wake mechanism.
+- No AUTONOMY routing change; operator-addressing remains observability
+  per ADR-299 D4.
+
+### Refs
+
+ADR-299 Phase 3 + D4 (autonomy-routing-as-observability) + post-
+Discovery-note shape (2026-05-24); ADR-275 (preferences substrate
+convention being extended); ADR-192 Phase 4 (Resend wire-gate).
+Predecessor commits: `9241dfc` (ADR-299 proposal), `3f0cabb` (Phase 1
+implementation), `50df8b4` (Hat-A correction reframing class as
+operator-addressing), `50d37a8` (Phase 2 schema extension).
+
+---
+
 ## [2026.05.22.1] - canon(reviewer): Variant F formalization sweep (FOUNDATIONS DP21 + GLOSSARY + persona frame + bundle prompts)
 
 ### Decision
