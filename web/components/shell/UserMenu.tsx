@@ -13,17 +13,21 @@
  * is its own atomic surface (15th content surface, ADR-297 D19.4
  * §D19.4.2) — operator reaches it via Launcher or by adding it to
  * the Dock.
+ *
+ * ADR-297 D20 (2026-05-24) — balance display deleted from the
+ * dropdown header. Balance now lives in the top-bar agent-OS
+ * SystemStatusCluster (slot 3). Header retains email + theme toggle.
+ * Singular Implementation: one balance indicator in the workspace.
  */
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { Settings, LogOut, Sun, Moon, Monitor, Zap } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, Monitor } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
-import { api } from '@/lib/api/client';
 
 interface UserMenuProps {
   email?: string;
@@ -31,25 +35,15 @@ interface UserMenuProps {
 
 export function UserMenu({ email }: UserMenuProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [balance, setBalance] = useState<{ balance: number; spend: number; isPro: boolean } | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { foregroundSurface } = useSurfacePreferences();
   const supabase = createClient();
   const { theme, setTheme } = useTheme();
 
-  // Fetch balance on mount
-  useEffect(() => {
-    api.integrations.getLimits()
-      .then((data) => {
-        setBalance({
-          balance: data.balance_usd,
-          spend: data.spend_usd,
-          isPro: data.is_subscriber,
-        });
-      })
-      .catch(() => {});
-  }, []);
+  // ADR-297 D20 (2026-05-24): balance display moved from UserMenu
+  // dropdown header to top-bar SystemStatusCluster. Singular
+  // Implementation: one balance indicator, in kernel chrome.
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -102,25 +96,14 @@ export function UserMenu({ email }: UserMenuProps) {
           style={{ zIndex: Z_POPOVER }}
           className="absolute top-full right-0 mt-1 w-56 bg-background border border-border rounded-lg shadow-lg py-1"
         >
-          {/* User info + Theme */}
+          {/* User info + Theme. ADR-297 D20: balance display removed
+              — balance is now in the top-bar SystemStatusCluster
+              (Singular Implementation: one balance indicator). */}
           {email && (
             <div className="px-3 py-2 border-b border-border">
-              <p className="text-sm font-medium truncate">{email}</p>
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-xs text-muted-foreground flex items-center gap-1">
-                  {balance ? (
-                    <>
-                      <Zap className="w-3 h-3" />
-                      ${balance.balance.toFixed(2)} balance
-                      <span className="text-muted-foreground/60">
-                        {balance.isPro ? "· Pro" : ""}
-                      </span>
-                    </>
-                  ) : (
-                    "Loading..."
-                  )}
-                </p>
-                <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium truncate">{email}</p>
+                <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5 shrink-0">
                   <button
                     onClick={() => setTheme('light')}
                     className={cn(

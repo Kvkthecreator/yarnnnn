@@ -864,7 +864,7 @@ D19.4 ratification status: **Proposed 2026-05-22** (doc-first; enactment lands i
 
 ### D20 — Agent-OS menu-bar status cluster (2026-05-24, doc-first)
 
-**Refines** D19.5 (three-region top-bar layout — left brand · center Dock · right UserMenu) by populating a new persistent indicator slot in the Right region. **Consolidates** three scattered FE chrome elements (the AutonomyHeaderChip on Feed per ADR-238 D4, the `balance_usd` line in the UserMenu dropdown header, the PaceBadge on the Cockpit per ADR-300 D5) into a single always-visible status cluster, modeled on the macOS menu-bar status-item cluster (Wi-Fi · battery · clock · volume).
+**Refines** D19.5 (three-region top-bar layout — left brand · center Dock · right UserMenu) by populating a new persistent indicator slot in the Right region. **Consolidates** three scattered FE chrome elements (the AutonomyHeaderChip on Feed per ADR-238 D4, the `balance_usd` line in the UserMenu dropdown header, the PaceBadge on the Cadence list surface per ADR-300 D5) into a single always-visible status cluster, modeled on the macOS menu-bar status-item cluster (Wi-Fi · battery · clock · volume).
 
 **Operator framing**: an agent OS has operator-level standing state — autonomy posture, pace + wake queue depth, runway balance, platform connection reach — that is true regardless of which surface is foregrounded. Pre-D20 this state was scattered (visible on Feed but not on Work; visible in UserMenu dropdown but only after a click; visible on Cockpit but only when the operator was on Cockpit). D20 lifts these signals into the top-bar where they're always glanceable, matching how macOS treats Wi-Fi/battery/clock — operator-level state that earns persistent menu-bar real estate independent of the foreground application.
 
@@ -909,7 +909,7 @@ Mandate is the load-bearing exclusion. Autonomy + pace + balance + connections a
 5. **Singular Implementation deletions** (enacted in the same commit that lands D20):
    - **AutonomyHeaderChip on Feed** (ADR-238 D4) — deleted. The autonomy posture is now in the top-bar cluster, visible on every surface (not just Feed). Two-location render of the same data violates D8. ADR-238 amended with a status note recording the consolidation.
    - **Balance line in UserMenu dropdown header** (`web/components/shell/UserMenu.tsx`) — deleted. Balance is now in the top-bar cluster. The UserMenu retains email + theme toggle + Settings + Sign out per D19.4; the balance display moves out.
-   - **PaceBadge on Cockpit** — already a read-only deep-link per ADR-300 D5; D20 amends to: the deep-link itself is deleted from Cockpit content because the top-bar Pace chip serves the same purpose from a more universal location. The Cockpit's Schedule/Cadence content remains via `/cadence`. ADR-300 amended with a status note recording the consolidation.
+   - **PaceBadge on `/cadence`** (CadenceList header) — already a read-only deep-link per ADR-300 D5; D20 amends to: the badge is deleted from `/cadence` because the top-bar Pace chip serves the same purpose from a more universal location. The `/pace` atomic surface remains the edit location. ADR-300 amended with a status note recording the consolidation. (ADR-300 D5's "PaceBadge on Cockpit" wording was loose — the badge has lived on `/cadence` since the move; the consolidation rationale is unchanged.)
    - **No backwards-compat shim, no flag-gated rollout.** The chips ship; the duplicates ship deleted; one location per signal.
 
 6. **Why D20 and not its own ADR**: continues the D11–D19 pattern of refining the surface-mirrors-substrate principle's chrome-layer expression. D20 doesn't reopen the axiom (everything is still a surface; menu-bar chips are not surfaces, they're *links* to surfaces — same shape as Dock icons). It ratifies a structural concept (kernel-runtime status cluster) that completes the macOS-faithful three-region top-bar. Same ADR; explicit amendment for trace continuity. Precedent: D14, D15, D16, D17, D18, D19 all stayed in-ADR for the same reason.
@@ -939,7 +939,8 @@ Mandate is the load-bearing exclusion. Autonomy + pace + balance + connections a
 - Deletions (Singular Implementation):
   - `web/components/tp/AutonomyHeaderChip.tsx` — delete the file; remove the import + mount from `ChatPanel.tsx` / Feed surface.
   - `web/components/shell/UserMenu.tsx` — delete the balance display line in the dropdown header; remove the `api.integrations.getLimits()` call if no longer needed.
-  - `web/components/work/PaceBadge.tsx` — delete the file (its only call site was Cockpit per ADR-300 D5); remove the import + mount from wherever Cockpit composes it.
+  - `web/components/work/PaceBadge.tsx` — delete the file (its only call site is `CadenceList.tsx`); remove the import + mount from CadenceList.
+  - `web/components/feed-surface/PauseAutonomyModal.tsx` — delete the file (orphaned once AutonomyHeaderChip is deleted; pause/resume now happens on the `/autonomy` atomic surface via AutonomyCard's confirm-modal pattern per WORKSPACE-COMPONENTS.md §"Confirm-modal pattern").
 - `docs/design/WORKSPACE-COMPONENTS.md` — append the kernel-runtime-chrome vs substrate-concept paragraph.
 
 D20 ratification status: **Proposed 2026-05-24** (doc-first; enactment lands in the follow-on commit per the same combined-commit cadence as D14–D19).

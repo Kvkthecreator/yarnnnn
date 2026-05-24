@@ -37,7 +37,6 @@ import {
   type SnapshotLead,
 } from '@/lib/content-shapes/snapshot';
 import { WorkspaceContextOverlay } from './WorkspaceContextOverlay';
-import { AutonomyHeaderChip } from './AutonomyHeaderChip';
 import { FeedEmptyState } from './FeedEmptyState';
 import { FeedFilterBar, parseChatFilterFromSearch } from './FeedFilterBar';
 import { useShellChrome } from '@/components/shell/ShellChromeContext';
@@ -182,11 +181,11 @@ export function FeedSurface() {
 
   const headerActions = (
     <div className="flex items-center gap-1.5">
-      {/* Commit G (2026-05-11): autonomy chip relocated from composer to
-          feed header. Workspace-level posture belongs at the workspace
-          frame, not the operator-input frame. Singular Implementation:
-          one chip, one location — composer chip deleted in same commit. */}
-      <AutonomyHeaderChip />
+      {/* ADR-297 D20 (2026-05-24): autonomy chip relocated from feed
+          header to top-bar SystemStatusCluster. Workspace-level posture
+          is kernel chrome, visible on every surface — Feed header is
+          no longer special. AutonomyHeaderChip + PauseAutonomyModal
+          deleted; pause/resume happens on /autonomy. */}
       {filterToggleAction}
       {snapshotAction}
     </div>

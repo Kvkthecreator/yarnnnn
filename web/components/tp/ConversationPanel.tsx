@@ -33,7 +33,8 @@ import { useNarrative } from '@/contexts/NarrativeContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
 // Commit G (2026-05-11): useAutonomy import retired here — autonomy chip
-// moved to feed header (AutonomyHeaderChip in FeedSurface.tsx).
+// moved to feed header. ADR-297 D20 (2026-05-24): chip moved again to
+// top-bar SystemStatusCluster (kernel chrome, visible on every surface).
 import { cn } from '@/lib/utils';
 import { CommandPicker } from '@/components/tp/CommandPicker';
 import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
@@ -147,8 +148,9 @@ export function ConversationPanel({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Commit G (2026-05-11): autonomy chip + popover relocated to feed
-  // header (AutonomyHeaderChip in FeedSurface.tsx). Composer-side
-  // useAutonomy + popover state retired per Singular Implementation.
+  // header. ADR-297 D20 (2026-05-24): chip moved again to top-bar
+  // SystemStatusCluster — kernel chrome, every surface. Composer-side
+  // useAutonomy + popover state remains retired (Singular Implementation).
 
   // Accept action card from parent
   useEffect(() => {
@@ -374,7 +376,8 @@ export function ConversationPanel({
 
             {/* Bottom toolbar row — mirrors Claude Code: + / … [send|stop].
                 Commit G (2026-05-11): autonomy chip relocated to feed
-                header (AutonomyHeaderChip in FeedSurface.tsx).
+                header. ADR-297 D20 (2026-05-24): chip moved to top-bar
+                SystemStatusCluster (kernel chrome).
                 Commit H (2026-05-11): send button toggles to stop button
                 while a Reviewer Loop is in flight (operator's own stream
                 OR autonomous wake within ~30s realtime window). */}

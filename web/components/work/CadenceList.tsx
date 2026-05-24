@@ -41,7 +41,6 @@ import {
 } from '@/lib/schedule';
 import type { Recurrence, Agent, NarrativeByTaskSlice } from '@/types';
 import { BundleBanner } from '@/components/library/BundleBanner';
-import { PaceBadge } from '@/components/work/PaceBadge';
 import { useComposition, getTab } from '@/lib/compositor';
 
 interface CadenceListProps {
@@ -301,8 +300,9 @@ export function CadenceList({
               <X className="w-3 h-3" />
             </button>
           )}
-          {/* ADR-298 Phase 5 — operator pace + queue depth glance. */}
-          <PaceBadge className="shrink-0" />
+          {/* ADR-297 D20 (2026-05-24): PaceBadge deleted — pace + queue
+              depth glance lives in the top-bar SystemStatusCluster
+              (slot 2). Singular Implementation: one pace indicator. */}
           <OverflowOptions
             includeSystem={includeSystem}
             includeHistorical={includeHistorical}
