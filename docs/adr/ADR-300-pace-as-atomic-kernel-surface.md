@@ -98,6 +98,8 @@ After `/pace` ships, the `PaceBadge` component on Cockpit becomes **read-only wi
 
 If the badge currently has any edit hooks, they are removed in the same commit that ships `/pace`. The "Edit via chat" subtitle on PaceBadge updates to "Tune on /pace" or equivalent deep-link copy.
 
+> **Amendment (2026-05-24, ADR-297 D20)**: D5's "PaceBadge becomes a read-only deep-link" was the intermediate Singular-Implementation step. ADR-297 D20 advances this to: **the PaceBadge is deleted from the Cockpit entirely**, and pace state (kind + queue depth + next wake) surfaces instead as one chip in the agent-OS menu-bar status cluster mounted in the top-bar Right region. The cluster is universal (visible on every surface, not only Cockpit), so the per-Cockpit badge becomes redundant. The chip's popover footer links to `/pace` exactly as the badge did. Singular Implementation tightens: one pace indicator in the workspace, in kernel chrome, with `/pace` as the sole edit location.
+
 ## 3. Implementation scope
 
 **Pivot at implementation time** (recorded for trace continuity): the original spec proposed a dedicated `PUT /api/cockpit/pace` endpoint with server-side merge. Implementation pivoted to FE-side serialize via `writeShape('pace', ...)` — same pattern as `DelegationCard`/`autonomy.ts`, honoring ADR-245 D5 WRITE_CONTRACT enforcement and Singular Implementation (one write path per configuration shape). The pivot also avoids creating a parallel HTTP surface for what is structurally identical to every other operator-edited configuration shape.

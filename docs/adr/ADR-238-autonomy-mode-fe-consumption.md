@@ -221,3 +221,13 @@ Single commit, sized small (~250 line diff total including the ADR doc). The dep
 ADR-238 is the smallest legitimate substrate-read landing under ADR-236 Rule 8. It extracts an existing parser into a shared module, adds one new helper (`resolveEffectiveLevel`), wires one new consumer (chat composer chip), and codifies the test gate via a Python regression script. The deliberate refusal to introduce confirmation modals, grey-outs, or a global provider is what makes Round 1 land cleanly without prejudicing Round 2 (ADR-237's role grammar) — the next sub-ADR consumes data this one already exposes, rather than re-defining vocabulary it would be wrong to predate.
 
 The composition note at the top of this ADR records, in advance, how ADR-237 and ADR-240 will compose with `@/lib/autonomy`. Future-me reading those ADRs later will find a clear citation back to this one, satisfying Rule 8's `Builds on:` discipline.
+
+---
+
+## Amendment (2026-05-24) — D4 AutonomyHeaderChip consolidated into top-bar status cluster
+
+ADR-297 D20 lands the agent-OS menu-bar status cluster in the Right region of the top bar — four kernel-general indicator chips (Autonomy, Pace, Balance, Connections), each with a read-only popover and a deep-link to the corresponding atomic surface. The autonomy chip in the cluster reads through the same `useAutonomy()` hook this ADR introduced (D2 unchanged) and consolidates the autonomy posture surface into a single always-visible location.
+
+Consequence for ADR-238 D4: the **AutonomyHeaderChip mounted above the chat composer is deleted** in the same commit that lands D20. The hook + parser + `resolveEffectiveLevel` helper from D1–D3 remain canonical — they are now consumed by `web/components/shell/system-status/AutonomyStatusItem.tsx` instead of by `web/components/tp/AutonomyHeaderChip.tsx`. Singular Implementation is preserved: one autonomy posture indicator in the workspace, lifted from per-surface chrome (Feed-only) to kernel chrome (every surface).
+
+The `/autonomy` atomic surface (ADR-297 D1) is the unchanged edit location. D20's popover footer link routes there.

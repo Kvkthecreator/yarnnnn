@@ -862,6 +862,90 @@ D19.4 ratification status: **Proposed 2026-05-22** (doc-first; enactment lands i
 
 ---
 
+### D20 — Agent-OS menu-bar status cluster (2026-05-24, doc-first)
+
+**Refines** D19.5 (three-region top-bar layout — left brand · center Dock · right UserMenu) by populating a new persistent indicator slot in the Right region. **Consolidates** three scattered FE chrome elements (the AutonomyHeaderChip on Feed per ADR-238 D4, the `balance_usd` line in the UserMenu dropdown header, the PaceBadge on the Cockpit per ADR-300 D5) into a single always-visible status cluster, modeled on the macOS menu-bar status-item cluster (Wi-Fi · battery · clock · volume).
+
+**Operator framing**: an agent OS has operator-level standing state — autonomy posture, pace + wake queue depth, runway balance, platform connection reach — that is true regardless of which surface is foregrounded. Pre-D20 this state was scattered (visible on Feed but not on Work; visible in UserMenu dropdown but only after a click; visible on Cockpit but only when the operator was on Cockpit). D20 lifts these signals into the top-bar where they're always glanceable, matching how macOS treats Wi-Fi/battery/clock — operator-level state that earns persistent menu-bar real estate independent of the foreground application.
+
+**First-principles cut** (what earns a slot, what does not):
+
+A signal earns a menu-bar slot when it satisfies all four:
+1. **Always relevant**, regardless of foregrounded surface (Wi-Fi matters in Mail and in Xcode).
+2. **Status, not content** (a state to read at a glance, not information to consume).
+3. **Affects the system's capacity to do work** (battery=runway, Wi-Fi=reach, volume=channel).
+4. **Operator-actionable** (click leads somewhere the operator can act).
+
+Applied to agent-OS signals — four indicators qualify; one near-miss is explicitly rejected:
+
+| Indicator | Always-relevant? | Status not content? | Affects capacity? | Operator-actionable? | Verdict |
+|---|---|---|---|---|---|
+| **Autonomy** (level + ceiling + paused?) | governs every Reviewer wake | "Bounded · $X" is state | defines what agent *can* do | click → `/autonomy` | **YES** |
+| **Pace + wake queue** (kind + paced/live depth) | governs every cron fire | "Daily · 3 pending" is state | defines what agent *will* do soon | click → `/pace` | **YES** |
+| **Balance** (`balance_usd`) | hard stop at zero | runway state | defines runway (battery analog) | click → `/settings?tab=billing` | **YES** |
+| **Connections** (platform reach + capability gaps) | tool/data reach | "3/4" is state | defines tool reach (Wi-Fi analog) | click → `/connectors` | **YES** |
+| **Mandate** | content, not state — it's a constitution | document, not posture | indirectly (autonomy/pace follow *from* mandate) | edit via chat/Files | **NO** — synthesis-level, lives in concept-card surfaces, not menu-bar chrome |
+
+Mandate is the load-bearing exclusion. Autonomy + pace + balance + connections are *consequences* of Mandate; putting Mandate in the menu bar is the macOS-equivalent of putting "macOS version" there — true but wrong category.
+
+**Decisions** (D20):
+
+1. **Four-slot cluster, in this order**: Autonomy · Pace · Balance · Connections. The order is intentional — kernel governance (autonomy) first, kernel tempo (pace) second, kernel runway (balance) third, kernel reach (connections) fourth. Right-region placement, between the Dock and the UserMenu, with a small horizontal gap. Each slot is **icon-only** (not icon+label) at all viewport widths — matches the macOS Wi-Fi pattern where the menu-bar item is the triangle, not "Wi-Fi · La Dolce Vita".
+
+2. **Click → popover, not navigation**. Each chip opens a popover anchored to the chip (macOS Control Center pattern, screenshot-confirmed). The popover renders rich current state — current value + brief secondary context (e.g., autonomy ceiling + actions used today; pace kind + queue depth + next wake; balance + burn rate + runway days; per-platform connection status + capability gaps). The popover footer carries a single `→ Settings…`-style link to the corresponding atomic surface for editing. **Popovers are read-only.** Every mutation routes to the atomic surface (`/autonomy` per ADR-297 D1, `/pace` per ADR-300, `/settings?tab=billing`, `/connectors` per D19.4). This honors ADR-297 D1 (atomic surfaces own their substrate's edit affordance) and ADR-300 D5 (Singular Implementation — one edit location per shape).
+
+3. **Data sources** — all existing, no new endpoints:
+   - Autonomy → `useAutonomy()` hook per ADR-238 D2 (reads `/workspace/context/_shared/_autonomy.yaml`)
+   - Pace + queue → `api.cockpit.pace()` per ADR-298/ADR-300 (`pace_kind`, `paced_lane_depth`, `live_lane_depth`)
+   - Balance → `api.integrations.getLimits()` returns `balance_usd`
+   - Connections → `api.workspace.state()` per ADR-244 returns `capability_gaps`
+   - **No new API routes, no new substrate, no new write helpers.** Pure FE chrome consolidation.
+
+4. **Responsive collapse** — two breakpoints:
+   - **`md+` (≥768px)**: all four icon chips inline in the Right region, with a small gap between them.
+   - **`<md`**: a single rollup chip (`Cpu` or `Activity` icon) replaces the cluster. Clicking it opens a popover that lists all four indicators stacked vertically with the same rich state + per-row deep-link footer. Mirrors macOS Control Center collapse on small displays. The Right region stays narrow enough that the Dock + UserMenu remain visible.
+   - Icon-only chip means no label-vs-icon-only breakpoint is needed — the chip shape is constant at all widths; only the cluster's *count* collapses.
+
+5. **Singular Implementation deletions** (enacted in the same commit that lands D20):
+   - **AutonomyHeaderChip on Feed** (ADR-238 D4) — deleted. The autonomy posture is now in the top-bar cluster, visible on every surface (not just Feed). Two-location render of the same data violates D8. ADR-238 amended with a status note recording the consolidation.
+   - **Balance line in UserMenu dropdown header** (`web/components/shell/UserMenu.tsx`) — deleted. Balance is now in the top-bar cluster. The UserMenu retains email + theme toggle + Settings + Sign out per D19.4; the balance display moves out.
+   - **PaceBadge on Cockpit** — already a read-only deep-link per ADR-300 D5; D20 amends to: the deep-link itself is deleted from Cockpit content because the top-bar Pace chip serves the same purpose from a more universal location. The Cockpit's Schedule/Cadence content remains via `/cadence`. ADR-300 amended with a status note recording the consolidation.
+   - **No backwards-compat shim, no flag-gated rollout.** The chips ship; the duplicates ship deleted; one location per signal.
+
+6. **Why D20 and not its own ADR**: continues the D11–D19 pattern of refining the surface-mirrors-substrate principle's chrome-layer expression. D20 doesn't reopen the axiom (everything is still a surface; menu-bar chips are not surfaces, they're *links* to surfaces — same shape as Dock icons). It ratifies a structural concept (kernel-runtime status cluster) that completes the macOS-faithful three-region top-bar. Same ADR; explicit amendment for trace continuity. Precedent: D14, D15, D16, D17, D18, D19 all stayed in-ADR for the same reason.
+
+**What D20 does NOT do**:
+- Does not introduce program-shaped status indicators. The four chips are kernel-general; programs do not declare additional status items via `SURFACES.yaml`. (If pressure surfaces, a future ADR can extend `SURFACES.yaml` with a `chrome.status_cluster:` block — but D20 ships the kernel four only.)
+- Does not allow inline mutations from the popover. Every popover is read-only; every edit happens on the atomic surface. Operators do not toggle autonomy from the popover, do not switch pace kind from the popover, do not reconnect a platform from the popover. The popover's footer link is the only outbound action.
+- Does not introduce new substrate. The cluster reads what's already authored; no new files, no new YAML keys.
+- Does not introduce a new component registry pattern. The cluster mounts as a fixed-shape FE module (`web/components/shell/system-status/`); contents are not pluggable.
+- Does not change the Dock semantics. The Dock continues to host surface launchers (D14 kept ∪ open); the status cluster is a separate concern in a separate region.
+- Does not add Reviewer occupant name, active program slug, or sync error indicators to the cluster. Reviewer occupant is covered by the autonomy popover's secondary text; active program lives near the brand wordmark (deferred to a follow-on patch if desired); sync error rolls into the Connections popover's per-platform state.
+
+**Companion canonical doc updates** (same enactment commit):
+- ADR-238 — status-header amendment recording the AutonomyHeaderChip deletion.
+- ADR-300 — status-header amendment recording the PaceBadge deletion (refines D5 — "deep-link to `/pace`" was the original Singular Implementation; D20 advances to "indicator lives in top-bar cluster, Cockpit doesn't surface pace at all" because the cluster is more universal).
+- `docs/design/WORKSPACE-COMPONENTS.md` — one-paragraph note in the concept-registry preamble distinguishing kernel-runtime chrome (this cluster) from substrate-concept components (the L2-parser + L3-component pattern that registry governs). The cluster does NOT use the L2/L3 pattern; it reads runtime state via hooks + API calls, not via content-shape parsers.
+
+**Implementation outline** (single commit):
+- `web/components/shell/system-status/` — new directory.
+  - `SystemStatusCluster.tsx` — orchestrator, renders the four chips + responsive collapse to rollup chip.
+  - `StatusItemPopover.tsx` — shared popover shell (anchor, framing, footer-link slot).
+  - `AutonomyStatusItem.tsx` — chip + popover (consumes `useAutonomy()`).
+  - `PaceStatusItem.tsx` — chip + popover (consumes `api.cockpit.pace()`).
+  - `BalanceStatusItem.tsx` — chip + popover (consumes `api.integrations.getLimits()`).
+  - `ConnectionsStatusItem.tsx` — chip + popover (consumes `api.workspace.state()`).
+- `web/components/shell/chrome/TopBarSurface.tsx` — mount `<SystemStatusCluster />` in the Right region between Dock and UserMenu; add the appropriate gap.
+- Deletions (Singular Implementation):
+  - `web/components/tp/AutonomyHeaderChip.tsx` — delete the file; remove the import + mount from `ChatPanel.tsx` / Feed surface.
+  - `web/components/shell/UserMenu.tsx` — delete the balance display line in the dropdown header; remove the `api.integrations.getLimits()` call if no longer needed.
+  - `web/components/work/PaceBadge.tsx` — delete the file (its only call site was Cockpit per ADR-300 D5); remove the import + mount from wherever Cockpit composes it.
+- `docs/design/WORKSPACE-COMPONENTS.md` — append the kernel-runtime-chrome vs substrate-concept paragraph.
+
+D20 ratification status: **Proposed 2026-05-24** (doc-first; enactment lands in the follow-on commit per the same combined-commit cadence as D14–D19).
+
+---
+
 ## Implementation path for D11 — Uniform Compositor
 
 A future session opens with this scoped plan. Each phase ships independently and is TS-clean + regression-gate-green.

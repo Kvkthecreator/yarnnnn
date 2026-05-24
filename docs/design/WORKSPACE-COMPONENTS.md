@@ -66,6 +66,8 @@ renders it conditionally.
 
 ## Concept registry
 
+> **Scope note (2026-05-24, ADR-297 D20)**: This registry catalogs **substrate-concept components** — L3 React components rendering authored workspace substrate via L2 content-shape parsers (the L1/L2/L3 architecture per ADR-245). It does **not** catalog kernel-runtime chrome — the agent-OS menu-bar status cluster (top-bar `SystemStatusCluster` per ADR-297 D20: Autonomy · Pace · Balance · Connections chips) reads runtime state through hooks + API calls, not through content-shape parsers, and renders as fixed-shape FE chrome rather than `variant`-prop concept cards. Mandate / Autonomy / Principles / Identity+Brand / Pace below are substrate-backed concepts; the status cluster's four chips are runtime indicators that *link to* the corresponding atomic surfaces where these concepts live.
+
 ### 1. Mandate
 
 **File:** `/workspace/context/_shared/MANDATE.md`
