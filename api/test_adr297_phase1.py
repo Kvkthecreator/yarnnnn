@@ -96,9 +96,9 @@ def test_kernel_surfaces_module() -> None:
     print("\n[1] kernel_surfaces module hygiene")
 
     _assert(
-        len(KERNEL_SURFACES) >= 18,
-        f"At least 18 kernel surfaces declared "
-        f"(15 content + 3 D12 chrome) (found {len(KERNEL_SURFACES)})",
+        len(KERNEL_SURFACES) >= 19,
+        f"At least 19 kernel surfaces declared "
+        f"(16 content + 3 D12 chrome) (found {len(KERNEL_SURFACES)})",
     )
 
     slugs = [s["slug"] for s in KERNEL_SURFACES]
@@ -112,7 +112,8 @@ def test_kernel_surfaces_module() -> None:
         "feed",
         "cockpit",  # ADR-297 D1 amendment (same-session 2026-05-21)
         "cadence",
-        "delegation",
+        "pace",  # ADR-300 (2026-05-22) — atomic Pace surface
+        "autonomy",  # 2026-05-24 design polish — renamed from "delegation"
         "mandate",
         "principles",
         "identity",

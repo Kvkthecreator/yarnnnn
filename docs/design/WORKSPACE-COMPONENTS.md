@@ -1,9 +1,14 @@
 # Workspace Concept Components
 
-**Version:** v1.1 (2026-05-11)
+**Version:** v1.2 (2026-05-24)
 **Status:** Canonical
 **Principle:** Render meaning from substrate, not the substrate itself.
 
+> **v1.2 changes (2026-05-24 design polish):**
+> (1) `DelegationCard` renamed to `AutonomyCard`; `/delegation` route renamed to `/autonomy` (redirect stub preserves bookmarks). Operator-surface label aligns with `_autonomy.yaml`. Schema field `default_delegation` kept — precise data-layer term.
+> (2) New §5 Pace concept component (ADR-300) documenting `PaceCard` + `/pace` atomic surface.
+> (3) New top-level §"Confirm-modal pattern for high-stakes dials" — `AutonomyCard` and `PaceCard` full variants now gate every mutation behind `ConfirmDialChange`. Single-click optimistic commits were too easy to flip accidentally.
+>
 > **v1.1 changes (ADR-266):** schema discipline locked in for `MANDATE.md`
 > (one-sentence Primary Action); render contract closed for L3-on-L2-output
 > via `web/lib/content-shapes/_render.ts`; per-card "Updated X by Y"
@@ -16,11 +21,11 @@
 
 ## Why this doc exists
 
-The workspace files (`MANDATE.md`, `AUTONOMY.md`, `IDENTITY.md`, `BRAND.md`,
-`principles.md`) are kernel substrate — they exist for every workspace regardless
-of program. The operator should never see file paths, state badges derived from
-file format, or raw markdown dumps. They should see **what the files mean** in
-their vocabulary.
+The workspace files (`MANDATE.md`, `_autonomy.yaml`, `_pace.yaml`,
+`IDENTITY.md`, `BRAND.md`, `principles.md`) are kernel substrate — they exist
+for every workspace regardless of program. The operator should never see file
+paths, state badges derived from file format, or raw markdown dumps. They
+should see **what the files mean** in their vocabulary.
 
 These files are rendered in multiple surfaces (the `/workspace` config page, the
 chat context overlay, cockpit faces). Each surface assembles the same concept
@@ -107,31 +112,36 @@ a bordered scroll region.
 
 ---
 
-### 2. Autonomy mode
+### 2. Autonomy
 
+**Surface:** `/autonomy` (atomic kernel surface — renamed from `/delegation` 2026-05-24)
 **File:** `/workspace/context/_shared/_autonomy.yaml` (machine-parsed, ADR-254)
 **Prose doc:** `/workspace/context/_shared/AUTONOMY.md` (human/LLM reading only)
 **L2 parser:** `web/lib/content-shapes/autonomy.ts` — reads `_autonomy.yaml`, strips tier frontmatter
-**L3 component:** `web/components/workspace-concepts/DelegationCard.tsx`
-**Write contract:** `configuration` (Direct mutation via `setLevel()` — no chat needed, writes `_autonomy.yaml`)
+**L3 component:** `web/components/workspace-concepts/AutonomyCard.tsx`
+**Write contract:** `configuration` (Direct mutation via `setLevel()` — no chat needed, writes `_autonomy.yaml`; **full variant gates every mutation behind a confirm modal — see §"Confirm-modal pattern for high-stakes dials"**)
+
+> **Naming note (2026-05-24):** the operator surface is "Autonomy" — aligned with the substrate file `_autonomy.yaml` and the operator's mental model. The schema field `default_delegation: bounded` is **kept** in the YAML — it's the precise data-layer term for the delegated level. The two terms compose: *autonomy* is the broader concept (the dial system), *delegation* is the specific level value. At the operator surface they read as synonyms because at the operator's level of abstraction they are.
 
 **What the operator needs to see:**
-- Current delegation level (one of four: Manual / Assisted / Bounded / Autonomous)
+- Current autonomy level (one of three per Commit F: Manual / Bounded / Autonomous)
 - What that level means behaviorally (one sentence)
-- Ability to change it inline (Direct control — the only concept with a Direct mutation)
+- The one-line consequence of switching levels (surfaced inside the confirm modal)
+- Ability to change it inline with a confirm gate (Direct control — the only concept with Direct mutation)
 
 **Variants:**
 | Variant | Used on | Shows |
 |---|---|---|
-| `full` | `/workspace` page | Four-option control (radio/segment), behavioral description, ceiling if bounded |
+| `full` | `/autonomy` page | Three-option control (radio), behavioral description, ceiling if bounded, **confirm modal on switch** |
 | `compact` | context overlay | Current level name + one-line description + change link |
-| `chip` | chat composer | Level badge only (read-only, links to `/workspace`) |
+| `chip` | chat composer | Level badge only (read-only, links to `/autonomy`) |
 
-**Level descriptions (operator language):**
+**Level descriptions (operator language, Commit F 2026-05-11):**
 - `manual` → "Every action waits for your approval before executing."
-- `assisted` → "YARNNN can prepare and stage; you approve before consequences."
-- `bounded_autonomous` → "Acts autonomously within your declared ceiling. Flags above it."
+- `bounded` → "Acts autonomously within your declared ceiling. Flags above it."
 - `autonomous` → "Full delegation within declared boundaries. You review outcomes."
+
+> **Commit F (2026-05-11)** retired `assisted` (no backend semantics distinct from `manual`) and collapsed `bounded_autonomous` → `bounded`. Three values, matching backend `_VALID_DELEGATION_LEVELS` in `api/services/review_policy.py`.
 
 ---
 
@@ -179,6 +189,72 @@ separate components at that point.
 |---|---|---|
 | `full` | `/workspace` page | Identity excerpt + brand voice excerpt + "Refine in chat" per file |
 | `compact` | context overlay | Single-line summary: "Identity: set · Brand: skeleton" |
+
+---
+
+### 5. Pace
+
+**Surface:** `/pace` (atomic kernel surface — ADR-300)
+**File:** `/workspace/context/_shared/_pace.yaml` (machine-parsed, operator-only — path in `DEFAULT_REVIEWER_WRITE_LOCKS`)
+**L2 parser:** `web/lib/content-shapes/pace.ts` — reads `_pace.yaml`, strips tier frontmatter, round-trip-preserves `every` + `monthly_budget_usd`
+**L3 component:** `web/components/workspace-concepts/PaceCard.tsx`
+**Write contract:** `configuration` (Direct mutation via `setKind()` — routes through `writeShape('pace', ...)` per ADR-245 D5; **full variant gates every mutation behind a confirm modal — see §"Confirm-modal pattern for high-stakes dials"**)
+
+**What the operator needs to see:**
+- Current pace kind (one of four: Weekly / Daily / Hourly / Continuous)
+- What that kind means behaviorally — drain frequency cap (one sentence)
+- One-line consequence of switching kinds (surfaced inside the confirm modal — cost implications front-and-center)
+- Secondary fields if present (`every`, `monthly_budget_usd`) — read-only display, edit-via-chat per ADR-300 D2
+- Ability to change it inline with a confirm gate
+
+**Variants:**
+| Variant | Used on | Shows |
+|---|---|---|
+| `full` | `/pace` page | Four-option control (radio), description, secondary fields if present, **confirm modal on switch** |
+| `compact` | context overlay (not yet wired) | Current kind + one-line summary + change link |
+| `chip` | not yet wired (reserved for future composer chip) | Kind badge only, deep-link to `/pace` |
+
+**Kind descriptions (operator language):**
+- `weekly` → "Reviewer wakes ~7×/week. Lowest cost; longest latency for paced work."
+- `daily` → "Reviewer wakes ~24×/day. Default for most operators."
+- `hourly` → "Reviewer wakes ~168×/day. Higher cost; supports time-sensitive workflows."
+- `continuous` → "No drain cap — paced lane drains as fast as it accumulates. Highest cost ceiling."
+
+> **The PaceBadge** (`web/components/work/PaceBadge.tsx`) is the **read-only deep-link to `/pace`** mounted on the Cockpit — not an L3 concept-card variant. It surfaces kind + queue depth at-a-glance and clicks through to the atomic surface for edits. Per ADR-300 D5: edit affordances live at `/pace` only, never on the badge.
+
+---
+
+## Confirm-modal pattern for high-stakes dials (2026-05-24)
+
+`AutonomyCard` and `PaceCard` full variants share a UX discipline: **every mutation pops a confirm modal before commit.** The original Direct-mutation pattern (single click → optimistic write) was too easy to trigger accidentally for dials whose consequences are capital (autonomy) or cost (pace). Operator feedback surfaced the gap; this section codifies the pattern.
+
+**Component:** `web/components/workspace-concepts/ConfirmDialChange.tsx` — shared confirm modal wrapping `InteractiveModal`. Takes:
+
+- `dialName` — short label (e.g. "autonomy", "pace")
+- `fromLabel` / `toLabel` — current and proposed level labels
+- `consequence` — one-line operator-facing summary of what changes (the consumer owns this copy — knows its dial better)
+- `onCancel` / `onConfirm` — handlers; `onConfirm` is async because consumers run a workspace write
+
+**Discipline rules:**
+
+1. **Per-option `consequence` copy lives next to the option's `value` + `label` + `description` in the LEVELS / KIND_OPTIONS array** in the card. Singular source of truth — the radio surfaces description; the confirm modal surfaces consequence; both come from the same record.
+2. **Phrased as outcome, not definition.** "The Reviewer will auto-execute every action up to the ceiling without first checking in. You review outcomes after the fact." — what changes about behavior, not what the dial "means."
+3. **No confirm pop on selecting the already-active level.** Click handler early-returns when `lvl.value === currentLevel`. Avoids confirm-on-no-op annoyance.
+4. **Symmetric across raise/lower.** Confirm fires equally on Manual→Autonomous (escalation) and Autonomous→Manual (de-escalation). The point isn't to gate dangerous moves only — it's to make every dial mutation deliberate.
+5. **Modal closes on backdrop click + Escape via `InteractiveModal`.** Submitting state disables Cancel + Confirm + backdrop close while the write is in flight.
+6. **Compact + chip variants never mutate, so no confirm gate.** Confirm modal is full-variant only; compact + chip are display-only or delegate to chat.
+
+**What this pattern is NOT:**
+
+- Not a generic two-step apply (no "Save" button — radios still feel like radios). The radio click is the staging step; the modal is the commit step.
+- Not a tiered gate (no "confirm only on dangerous escalations"). The rejected alternative would have created an asymmetric UX that's harder to reason about. Confirm-on-every-switch is simpler and equally protective.
+- Not extensible to `compact` or `chip` variants. Those variants exist for read-mostly contexts; mutations there route through deep-link to the full-variant surface.
+
+**Adding a confirm gate to a new high-stakes dial:** 
+1. Extend the card's options array with a `consequence: string` field per value.
+2. Replace direct `onClick={() => void setX(value)}` with a `setPending(value)` state hook + early-return on `value === currentValue`.
+3. Mount `<ConfirmDialChange>` at the end of the full variant's render with `pendingMeta` / `currentMeta` lookups + `onConfirm` that calls the actual mutation.
+4. Document the `consequence` copy alongside the option in the card source — never split.
 
 ---
 
@@ -266,13 +342,19 @@ available — graceful degradation.
 
 | Surface | Components used | Variant |
 |---|---|---|
-| `/workspace` page | Mandate + Autonomy mode + Principles + IdentityBrand | `full` (data props from setup-bundle) |
-| `/agents?agent=reviewer&tab=autonomy` | Autonomy mode + cadence panel | `full` (self-fetch) |
-| `/agents?agent=reviewer&tab=principles` | Principles | `full` (self-fetch) |
-| Chat context overlay | Mandate + Principles + Recent (non-component) | `compact` |
-| Chat composer chip | Autonomy mode | `chip` |
-| Cockpit Mandate face | Mandate | `headline` |
-| Cockpit Tracking face | Principles (threshold summary) | `headline` |
+| `/autonomy` page (atomic) | AutonomyCard | `full` (self-fetch + confirm modal) |
+| `/pace` page (atomic, ADR-300) | PaceCard | `full` (self-fetch + confirm modal) |
+| `/mandate` page (atomic) | MandateCard | `full` (self-fetch) |
+| `/principles` page (atomic) | PrinciplesCard | `full` (self-fetch) |
+| `/identity` page (atomic, also serves `/brand`) | IdentityBrandCard | `full` (self-fetch) |
+| `/workspace` legacy bundled page | Mandate + Autonomy + Principles + IdentityBrand | `full` (data props from setup-bundle) |
+| `/agents?agent=reviewer&tab=autonomy` | AutonomyCard + cadence panel | `full` (self-fetch) |
+| `/agents?agent=reviewer&tab=principles` | PrinciplesCard | `full` (self-fetch) |
+| Chat context overlay | MandateCard + PrinciplesCard + AutonomyCard + Recent | `compact` |
+| Chat composer chip | AutonomyCard | `chip` |
+| Cockpit header | PaceBadge (read-only deep-link to `/pace`) | n/a (badge, not card variant) |
+| Cockpit Mandate face | MandateCard | `headline` |
+| Cockpit Tracking face | PrinciplesCard (threshold summary) | `headline` |
 
 ---
 
@@ -280,9 +362,11 @@ available — graceful degradation.
 
 - `WorkspaceFileView` used for Mandate and Principles in `WorkspaceContextOverlay` — raw markdown dump, file-path visible, no structure
 - `ConfigFileCard` with `<pre>` blocks in `WorkspaceConfigSection` — expand-to-read raw content
-- `MandateTab` / `AutonomyTab` / `PrinciplesTab` on the YARNNN agent detail — **deleted**. Replaced by `DelegationCard` and `PrinciplesCard` directly in `ReviewerDetail` tabs.
+- `MandateTab` / `AutonomyTab` / `PrinciplesTab` on the YARNNN agent detail — **deleted**. Replaced by `AutonomyCard` and `PrinciplesCard` directly in `ReviewerDetail` tabs.
 - **v1.1**: per-card independent file fetches on `/workspace` mount (7 round-trips) — replaced by single `getSetupBundle()` call (ADR-266 D8). Self-fetch path retained as fallback for `/agents` reuse only.
 - **v1.1**: raw `{data?.field}` rendering in MandateCard / PrinciplesCard / IdentityBrandCard / cockpit MandateFace — replaced by `cleanProse()` helper (ADR-266 D5). No more leaking `**bold**` or backtick-wrapped paths.
+- **2026-05-24**: `DelegationCard` component → **renamed** `AutonomyCard`. `/delegation` route → **redirect stub** to `/autonomy`. Singular Implementation — old component file deleted, no dual-export shim. Operator surface label aligns with substrate file `_autonomy.yaml`. Schema field `default_delegation` kept (precise data-layer term).
+- **2026-05-24**: optimistic single-click commit on `AutonomyCard` and `PaceCard` full variants → **replaced** by confirm modal on every mutation (see §"Confirm-modal pattern for high-stakes dials"). Operator feedback: capital-impact + cost-impact dials were too easy to flip by accident.
 
 ---
 

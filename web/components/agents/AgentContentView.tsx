@@ -734,8 +734,8 @@ function AgentTabBar({
 // ---------------------------------------------------------------------------
 
 // ADR-297: Autonomy + Principles tabs DELETED. Operator-authored
-// governance (delegation ceiling + judgment principles) lives on atomic
-// surfaces (/delegation, /principles). Reviewer page shrinks to
+// governance (autonomy level + judgment principles) lives on atomic
+// surfaces (/autonomy, /principles). Reviewer page shrinks to
 // Reviewer-substance only — who occupies the seat, what it can do, what
 // it did. URL params ?tab=autonomy and ?tab=principles fail the
 // validTab check below and gracefully fall through to 'identity'.

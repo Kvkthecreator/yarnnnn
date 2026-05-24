@@ -15,7 +15,7 @@
  *      MandateCard variant=compact. Reads /workspace/context/_shared/MANDATE.md.
  *
  *   2. **Rules** — how the system judges + how much it acts on its own.
- *      PrinciplesCard variant=compact + DelegationCard variant=compact.
+ *      PrinciplesCard variant=compact + AutonomyCard variant=compact.
  *      Reads /workspace/review/principles.md + _autonomy.yaml.
  *
  *   3. **Pulse** — one-line "is the system alive?" + "what demands my
@@ -55,7 +55,7 @@ import { X, Activity, ArrowRight, Inbox } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { MandateCard } from '@/components/workspace-concepts/MandateCard';
 import { PrinciplesCard } from '@/components/workspace-concepts/PrinciplesCard';
-import { DelegationCard } from '@/components/workspace-concepts/DelegationCard';
+import { AutonomyCard } from '@/components/workspace-concepts/AutonomyCard';
 import type { SnapshotLead } from '@/lib/content-shapes/snapshot';
 
 interface WorkspaceContextOverlayProps {
@@ -153,10 +153,10 @@ export function WorkspaceContextOverlay({
               <MandateCard variant="compact" onEdit={editAndClose} />
             </div>
 
-            {/* 2. Rules — judgment framework + delegation posture */}
+            {/* 2. Rules — judgment framework + autonomy posture */}
             <div ref={rulesRef} className="px-5 py-5 space-y-4">
               <PrinciplesCard variant="compact" onEdit={editAndClose} />
-              <DelegationCard variant="compact" onOpen={() => editAndClose(
+              <AutonomyCard variant="compact" onOpen={() => editAndClose(
                 'I want to review my autonomy posture and what each level means for how YARNNN acts.'
               )} />
             </div>

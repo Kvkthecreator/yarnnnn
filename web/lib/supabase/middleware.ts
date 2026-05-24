@@ -12,9 +12,10 @@ import { HOME_ROUTE } from "@/lib/routes";
 //   as deep-link transports for direct surface mounting.
 //
 // Atomic surface slugs are also top-level URLs: /feed /cockpit /cadence
-// /delegation /mandate /principles /identity /brand /files (→ /context)
+// /pace /autonomy /mandate /principles /identity /brand /files (→ /context)
 // /agents /program /queue /activity. Each is a protected route + a deep-link
 // transport — cold-load opens that surface in a window.
+// /delegation is a redirect stub → /autonomy (2026-05-24 surface rename).
 // /chat is a redirect stub → /feed (ADR-259 — preserves bookmarks).
 // /overview was absorbed into /work's cockpit zone (F2); ADR-225 Phase 3 made
 // cockpit panes compositor-resolved.

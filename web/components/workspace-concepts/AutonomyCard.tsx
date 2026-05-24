@@ -1,31 +1,41 @@
 'use client';
 
 /**
- * DelegationCard — L3 component for /workspace/context/_shared/AUTONOMY.md.
+ * AutonomyCard — L3 component for /workspace/context/_shared/_autonomy.yaml.
  *
- * The only concept component with a Direct mutation — setLevel() writes
+ * Renamed from DelegationCard (2026-05-24) to align with the substrate file
+ * (_autonomy.yaml) and the operator's mental model. The schema field
+ * `default_delegation` stays — it's the precise data-layer term for the
+ * delegated level. At the operator surface the broader concept is Autonomy.
+ *
+ * The only concept component with a Direct mutation — `setLevel()` writes
  * the file without going through chat (it's a discrete config value,
- * not authored prose).
+ * not authored prose). Per the 2026-05-24 design polish: the full variant
+ * gates every mutation behind a confirm modal because switching autonomy
+ * level has capital impact and one-click commits were too easy to trigger
+ * accidentally.
  *
  * Variants:
- *   full    — /workspace page (four-option control + description)
+ *   full    — /autonomy page (four-option control + description + confirm modal)
  *   compact — context overlay (current level + one-line description)
  *   chip    — chat composer (level badge only, read-only)
  *
- * See docs/design/WORKSPACE-COMPONENTS.md.
+ * See docs/design/WORKSPACE-COMPONENTS.md §2.
  */
 
+import { useState } from 'react';
 import { ShieldCheck, ArrowRight } from 'lucide-react';
 import { useAutonomy, type AutonomyLevel } from '@/lib/content-shapes/autonomy';
 import { cn } from '@/lib/utils';
 import type { WorkspaceRevisionSummary } from '@/types';
 import { RevisionFootnote } from './RevisionFootnote';
+import { ConfirmDialChange } from './ConfirmDialChange';
 
-export type DelegationVariant = 'full' | 'compact' | 'chip';
+export type AutonomyVariant = 'full' | 'compact' | 'chip';
 
-interface DelegationCardProps {
-  variant?: DelegationVariant;
-  /** For chip variant: click opens /workspace */
+interface AutonomyCardProps {
+  variant?: AutonomyVariant;
+  /** For chip variant: click opens /autonomy */
   onOpen?: () => void;
   /** ADR-266 D8: pre-fetched _autonomy.yaml content (from setup-bundle).
    *  When supplied, useAutonomy primes from this and skips its self-fetch. */
@@ -40,32 +50,48 @@ interface DelegationCardProps {
 // `assisted` was retired — it had no backend semantics distinct from
 // `manual` and was silently treated as manual by should_auto_execute_verdict.
 // `bounded_autonomous` collapsed to `bounded` (Singular Implementation).
-const LEVELS: { value: AutonomyLevel; label: string; description: string }[] = [
+//
+// `consequence` is the one-line operator-facing summary surfaced by the
+// confirm modal on switch attempts (2026-05-24 design polish). Phrased in
+// terms of what changes about the Reviewer's authority, not what the dial
+// "means."
+const LEVELS: {
+  value: AutonomyLevel;
+  label: string;
+  description: string;
+  consequence: string;
+}[] = [
   {
     value: 'manual',
     label: 'Manual',
     description: 'Every action waits for your approval before executing.',
+    consequence: 'Every Reviewer action will pause for your approval. You become the bottleneck on every decision.',
   },
   {
     value: 'bounded',
     label: 'Bounded',
     description: 'Acts autonomously within your declared ceiling. Flags above it.',
+    consequence: 'The Reviewer will auto-execute actions within your declared ceiling. Higher-impact actions will still wait for approval.',
   },
   {
     value: 'autonomous',
     label: 'Autonomous',
     description: 'Full delegation within declared boundaries. You review outcomes.',
+    consequence: 'The Reviewer will auto-execute every action up to the ceiling without first checking in. You review outcomes after the fact.',
   },
 ];
 
-export function DelegationCard({
+export function AutonomyCard({
   variant = 'full',
   onOpen,
   initialContent,
   lastRevision,
   className,
-}: DelegationCardProps) {
+}: AutonomyCardProps) {
   const { meta, loading, effectiveLevel, summary, setLevel } = useAutonomy({ initialContent });
+
+  // Confirm-modal state (full variant only — compact + chip never mutate).
+  const [pendingLevel, setPendingLevel] = useState<AutonomyLevel | null>(null);
 
   if (variant === 'chip') {
     if (loading || !effectiveLevel) return null;
@@ -79,7 +105,7 @@ export function DelegationCard({
           'bg-muted/60 text-muted-foreground hover:text-foreground transition-colors',
           className,
         )}
-        title="Autonomy mode — click to manage"
+        title="Autonomy — click to manage"
       >
         <ShieldCheck className="w-3 h-3" />
         {levelMeta?.label ?? effectiveLevel}
@@ -93,7 +119,7 @@ export function DelegationCard({
       <div className={cn('space-y-1.5', className)}>
         <div className="flex items-center gap-1.5">
           <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Autonomy mode</h3>
+          <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Autonomy</h3>
         </div>
         {loading ? (
           <p className="text-xs text-muted-foreground/40">Loading…</p>
@@ -119,12 +145,14 @@ export function DelegationCard({
 
   // full
   const currentLevel = effectiveLevel ?? 'manual';
+  const pendingMeta = pendingLevel ? LEVELS.find(l => l.value === pendingLevel) : null;
+  const currentMeta = LEVELS.find(l => l.value === currentLevel);
 
   return (
     <div className={cn('space-y-3', className)}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold">Autonomy mode</p>
+          <p className="text-sm font-semibold">Autonomy</p>
           <p className="text-xs text-muted-foreground mt-0.5">How much YARNNN decides without asking first.</p>
         </div>
         <RevisionFootnote revision={lastRevision ?? null} className="shrink-0 pt-1" />
@@ -140,7 +168,12 @@ export function DelegationCard({
               <button
                 key={lvl.value}
                 type="button"
-                onClick={() => void setLevel(lvl.value)}
+                onClick={() => {
+                  // No-op on selecting the already-active level (avoids
+                  // pointless confirm-modal pops).
+                  if (lvl.value === currentLevel) return;
+                  setPendingLevel(lvl.value);
+                }}
                 className={cn(
                   'w-full text-left rounded-lg border px-4 py-3 transition-colors',
                   isActive
@@ -167,6 +200,21 @@ export function DelegationCard({
           )}
         </div>
       )}
+
+      <ConfirmDialChange
+        open={pendingLevel !== null && pendingMeta !== undefined}
+        dialName="autonomy"
+        fromLabel={currentMeta?.label ?? 'current'}
+        toLabel={pendingMeta?.label ?? ''}
+        consequence={pendingMeta?.consequence ?? ''}
+        onCancel={() => setPendingLevel(null)}
+        onConfirm={async () => {
+          if (!pendingLevel) return;
+          const next = pendingLevel;
+          setPendingLevel(null);
+          await setLevel(next);
+        }}
+      />
     </div>
   );
 }

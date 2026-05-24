@@ -181,11 +181,11 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     {
         # ADR-300 (2026-05-22) — pace promoted from cockpit-tab section
         # (ADR-298 D5 original) to atomic kernel surface. Document archetype,
-        # operator-only edit, mirrors /delegation's shape. Slotted between
-        # /cadence and /delegation to keep Trigger-dimension surfaces
+        # operator-only edit, mirrors /autonomy's shape. Slotted between
+        # /cadence and /autonomy to keep Trigger-dimension surfaces
         # (Cadence + Pace) adjacent before transitioning into Mechanism
-        # (Delegation) and Identity (Identity / Brand / Principles) per
-        # axiom order.
+        # (Autonomy) and Identity (Identity / Brand / Principles) per
+        # axiom order. (/autonomy was renamed from /delegation 2026-05-24.)
         "slug": "pace",
         "title": "Pace",
         "archetype": "document",
@@ -198,16 +198,22 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Workspace rhythm — how often the agent works. Edit kind on the surface; complex fields via chat.",
     },
     {
-        "slug": "delegation",
-        "title": "Delegation",
+        # 2026-05-24 design polish: renamed from "delegation" to "autonomy"
+        # to align with the substrate file (_autonomy.yaml) and the
+        # operator's mental model. The schema field `default_delegation`
+        # stays — it's the precise data-layer term for the delegated
+        # level. At the operator surface the broader concept is Autonomy.
+        # /delegation kept as a redirect stub for bookmark safety.
+        "slug": "autonomy",
+        "title": "Autonomy",
         "archetype": "document",
         "substrate_paths": [
             "/workspace/context/_shared/_autonomy.yaml",
         ],
         "icon_key": "shield-check",
         "default_pinned": False,
-        "route": "/delegation",  # _route_status: NEW in Phase 2
-        "summary": "Autonomy ceiling — how much the Reviewer can execute without operator approval.",
+        "route": "/autonomy",  # _route_status: NEW 2026-05-24 (renamed from /delegation)
+        "summary": "How much the Reviewer can execute without operator approval. Switching levels requires confirmation.",
     },
     {
         "slug": "mandate",

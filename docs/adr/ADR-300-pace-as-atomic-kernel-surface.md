@@ -1,5 +1,7 @@
 # ADR-300 — Pace as Atomic Kernel Surface
 
+> **Same-day vocabulary note (2026-05-24 design polish):** the "Delegation" surface this ADR references throughout — `/delegation`, `DelegationCard`, `[ Delegation ]` launcher position — was renamed to "Autonomy" / `/autonomy` / `AutonomyCard` to align with the substrate file `_autonomy.yaml`. Schema field `default_delegation` is **kept** (precise data-layer term — the delegated level value). `/delegation` route survives as a redirect stub to `/autonomy` for bookmark safety. The architectural decision (atomic kernel surface for pace) is unchanged; only the neighbor surface's operator-facing label moved. See `docs/design/CHANGELOG.md` 2026-05-24 entry.
+
 **Status:** Implemented (2026-05-22)
 **Date:** 2026-05-22
 **Supersedes:** [ADR-298](ADR-298-reviewer-wake-queue-and-pace.md) D5 §"New: cockpit Schedule tab section" (pace rendering site)

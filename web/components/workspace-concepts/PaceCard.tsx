@@ -4,15 +4,19 @@
  * PaceCard — L3 component for /workspace/context/_shared/_pace.yaml.
  *
  * ADR-300 (2026-05-22): pace promoted to atomic kernel surface. PaceCard
- * mirrors DelegationCard's shape — Direct mutation (setKind() writes the
- * file without going through chat, same as DelegationCard.setLevel()).
+ * mirrors AutonomyCard's shape — Direct mutation (setKind() writes the
+ * file without going through chat, same as AutonomyCard.setLevel()). Per
+ * the 2026-05-24 design polish (see docs/design/WORKSPACE-COMPONENTS.md
+ * §6), the full variant gates every mutation behind a confirm modal —
+ * pace changes have cost impact (switching to Continuous removes the
+ * drain cap) and one-click commits were too easy to trigger accidentally.
  *
  * V1 edit scope is kind-only per ADR-300 D2. Secondary fields (`pace.every`,
  * `monthly_budget_usd`) display when present but route through chat for
  * edits (the escape hatch documented in ADR-300 D2).
  *
  * Variants:
- *   full    — /pace atomic surface (four-option control + description + secondary-field display)
+ *   full    — /pace atomic surface (four-option control + confirm modal + secondary-field display)
  *   compact — context overlay (current kind + summary line)
  *   chip    — chat composer (kind badge only, read-only; deep-links to /pace)
  *
@@ -20,6 +24,7 @@
  * write it (path in DEFAULT_REVIEWER_WRITE_LOCKS).
  */
 
+import { useState } from 'react';
 import { Gauge, ArrowRight } from 'lucide-react';
 import {
   useCockpitPace,
@@ -29,6 +34,7 @@ import {
 import { cn } from '@/lib/utils';
 import type { WorkspaceRevisionSummary } from '@/types';
 import { RevisionFootnote } from './RevisionFootnote';
+import { ConfirmDialChange } from './ConfirmDialChange';
 
 export type PaceVariant = 'full' | 'compact' | 'chip';
 
@@ -46,26 +52,39 @@ interface PaceCardProps {
 
 // Display order intentionally mirrors PACE_KINDS in the content-shape module
 // (slowest → fastest). Continuous is the most permissive — no drain cap.
-const KIND_OPTIONS: { value: PaceKind; label: string; description: string }[] = [
+//
+// `consequence` is the one-line operator-facing summary surfaced by the
+// confirm modal on switch attempts (2026-05-24 design polish). Phrased in
+// terms of what changes about the drain behavior, not what the kind "means."
+const KIND_OPTIONS: {
+  value: PaceKind;
+  label: string;
+  description: string;
+  consequence: string;
+}[] = [
   {
     value: 'weekly',
     label: 'Weekly',
     description: 'Reviewer wakes ~7×/week. Lowest cost; longest latency for paced work.',
+    consequence: 'Paced recurrences will fire at most ~7 times per week. Any cron declared above this rate will be refused at create-time.',
   },
   {
     value: 'daily',
     label: 'Daily',
     description: 'Reviewer wakes ~24×/day. Default for most operators.',
+    consequence: 'Paced recurrences will fire at most ~24 times per day. Existing recurrences above this rate will fail their next pace check.',
   },
   {
     value: 'hourly',
     label: 'Hourly',
     description: 'Reviewer wakes ~168×/day. Higher cost; supports time-sensitive workflows.',
+    consequence: 'Paced recurrences can fire up to ~168 times per day. Daily costs will increase materially.',
   },
   {
     value: 'continuous',
     label: 'Continuous',
     description: 'No drain cap — paced lane drains as fast as it accumulates. Highest cost ceiling.',
+    consequence: 'The paced lane will drain without a rate ceiling — every cron-tick wake fires regardless of total frequency. Cost is bounded only by your monthly budget.',
   },
 ];
 
@@ -77,6 +96,9 @@ export function PaceCard({
   className,
 }: PaceCardProps) {
   const { meta, loading, kind, summary, setKind } = useCockpitPace({ initialContent });
+
+  // Confirm-modal state (full variant only — compact + chip never mutate).
+  const [pendingKind, setPendingKind] = useState<PaceKind | null>(null);
 
   if (variant === 'chip') {
     if (loading || !kind) return null;
@@ -133,6 +155,8 @@ export function PaceCard({
 
   // full
   const currentKind = kind;
+  const pendingMeta = pendingKind ? KIND_OPTIONS.find(o => o.value === pendingKind) : null;
+  const currentMeta = currentKind ? KIND_OPTIONS.find(o => o.value === currentKind) : null;
 
   return (
     <div className={cn('space-y-3', className)}>
@@ -140,7 +164,7 @@ export function PaceCard({
         <div>
           <p className="text-sm font-semibold">Workspace pace</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            How often the Reviewer wakes through the paced lane. Trigger-dimension dial of the Pace + Delegation + Identity trifecta (ADR-298 D11).
+            How often the Reviewer wakes through the paced lane. Trigger-dimension dial of the Pace + Autonomy + Identity trifecta (ADR-298 D11).
           </p>
         </div>
         <RevisionFootnote revision={lastRevision ?? null} className="shrink-0 pt-1" />
@@ -156,7 +180,11 @@ export function PaceCard({
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => void setKind(opt.value)}
+                onClick={() => {
+                  // No-op when selecting already-active kind.
+                  if (opt.value === currentKind) return;
+                  setPendingKind(opt.value);
+                }}
                 className={cn(
                   'w-full text-left rounded-lg border px-4 py-3 transition-colors',
                   isActive
@@ -204,6 +232,21 @@ export function PaceCard({
           )}
         </div>
       )}
+
+      <ConfirmDialChange
+        open={pendingKind !== null && pendingMeta !== undefined}
+        dialName="pace"
+        fromLabel={currentMeta?.label ?? 'unset'}
+        toLabel={pendingMeta?.label ?? ''}
+        consequence={pendingMeta?.consequence ?? ''}
+        onCancel={() => setPendingKind(null)}
+        onConfirm={async () => {
+          if (!pendingKind) return;
+          const next = pendingKind;
+          setPendingKind(null);
+          await setKind(next);
+        }}
+      />
     </div>
   );
 }

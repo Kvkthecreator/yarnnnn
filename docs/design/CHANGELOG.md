@@ -4,6 +4,43 @@ Track changes to design documentation structure and active principles.
 
 ---
 
+## 2026-05-24 — WORKSPACE-COMPONENTS v1.2: Autonomy rename + confirm-modal pattern
+
+**No governing ADR** — operator-feedback-driven design polish, captured directly in `docs/design/WORKSPACE-COMPONENTS.md` per the "design polish ≠ architectural decision" principle. Two changes shipped together because they both touch the same family of high-stakes operator-dial cards.
+
+**1. Component + route rename: `DelegationCard` → `AutonomyCard`, `/delegation` → `/autonomy`.**
+
+The substrate file is `_autonomy.yaml`. The Reviewer detail tab is "Autonomy". The component had been called `DelegationCard` since ADR-241 (2026-04-30) — a surface-rename that never propagated to the substrate name or the tab label. Operator's mental model was muddled.
+
+Singular Implementation honored — old component file deleted, no dual-export shim. The schema field `default_delegation` stays in `_autonomy.yaml` — it's the precise data-layer term (the delegated level value). The two compose: autonomy = the dial system; delegation = the specific level value. At the operator surface they read as synonyms because at the operator's level of abstraction they are.
+
+`/delegation` route preserved as a redirect stub to `/autonomy` for bookmark safety, same pattern as `/overview` → `/work`, `/chat` → `/feed`.
+
+**2. New confirm-modal pattern for high-stakes dial mutations.**
+
+`AutonomyCard` and `PaceCard` full variants previously committed on single-click optimistic radio-flip. Operator feedback surfaced the gap: switching Autonomy to "Autonomous" or Pace to "Continuous" has capital + cost impact, and accidental clicks were too easy.
+
+New shared component `ConfirmDialChange` (wraps existing `InteractiveModal`) gates every radio mutation behind a "Switch X to Y? <one-line consequence>" confirm step. Per-option `consequence` copy lives next to `label` and `description` in the card's options array — singular source of truth. Symmetric across raise/lower (no asymmetric "confirm only on dangerous escalations" — simpler + equally protective).
+
+Compact + chip variants unchanged — they're read-mostly or delegate to chat; no mutation, no confirm gate.
+
+**Files touched (10):**
+- `docs/design/WORKSPACE-COMPONENTS.md` v1.1 → v1.2: §2 rewritten (rename + 3-level enum + confirm-modal note); new §5 Pace concept component entry; new top-level §"Confirm-modal pattern for high-stakes dials"; surface assembly map + "What this replaces" updated.
+- `docs/design/WORKSPACE.md`: 2 references `DelegationCard` → `AutonomyCard`.
+- `web/components/workspace-concepts/AutonomyCard.tsx`: new (replaces DelegationCard).
+- `web/components/workspace-concepts/ConfirmDialChange.tsx`: new (shared confirm modal).
+- `web/components/workspace-concepts/DelegationCard.tsx`: DELETED.
+- `web/components/workspace-concepts/PaceCard.tsx`: confirm-modal wiring + `consequence` copy per kind.
+- `web/app/(authenticated)/autonomy/page.tsx`: new atomic surface page.
+- `web/app/(authenticated)/delegation/page.tsx`: redirect stub.
+- `web/components/shell/SurfaceRegistry.tsx`, `web/types/desk.ts`, `api/services/kernel_surfaces.py`: slug + route + component reference renames.
+- `web/components/library/CockpitHeader.tsx`, `web/components/feed-surface/WorkspaceContextOverlay.tsx`, `web/components/agents/AgentContentView.tsx`, `web/lib/supabase/middleware.ts`: call-site + comment updates.
+- `api/test_adr297_phase1.py`: kernel slug expectation `delegation` → `autonomy` + content-surface count 15 → 16.
+
+**Tests:** ADR-297 phase 1 (122/122 PASS), ADR-300 pace surface (12/12 PASS).
+
+---
+
 ## 2026-04-29 — SURFACE-CONTRACTS v2.1: ADR-231 substrate-vocabulary alignment
 
 **Governing ADR:** [ADR-231](../adr/ADR-231-task-abstraction-sunset.md) — Task Abstraction Sunset (FULLY IMPLEMENTED across Phases 3.2.a → 3.10).

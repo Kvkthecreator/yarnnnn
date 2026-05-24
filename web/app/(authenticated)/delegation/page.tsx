@@ -1,25 +1,22 @@
-'use client';
-
 /**
- * /delegation — atomic Delegation surface (ADR-297 D1).
+ * /delegation — redirect stub (2026-05-24 surface rename).
  *
- * Renders /workspace/context/_shared/_autonomy.yaml via the kernel-library
- * DelegationCard (full variant; self-fetches per ADR-266 D8). Delegation
- * is what was historically called "Autonomy" on the Reviewer page tab —
- * the operator-authored governance ceiling.
+ * The surface renamed to /autonomy to align with the substrate file
+ * (_autonomy.yaml) and the operator's mental model. The schema field
+ * `default_delegation` stays — it's the precise data-layer term for the
+ * delegated level. At the operator surface the broader concept is Autonomy.
+ *
+ * This stub preserves existing bookmarks + deep-links pointing to
+ * /delegation; the route itself is no longer part of the launcher /
+ * surface registry (see web/components/shell/SurfaceRegistry.tsx +
+ * api/services/kernel_surfaces.py).
+ *
+ * Same pattern as /overview, /workfloor, /orchestrator, /tasks legacy
+ * stubs.
  */
 
-import { SurfacePage } from '@/components/shell/SurfacePage';
-import { DelegationCard } from '@/components/workspace-concepts/DelegationCard';
+import { redirect } from 'next/navigation';
 
-export default function DelegationPage() {
-  return (
-    <SurfacePage
-      iconKey="shield-check"
-      title="Delegation"
-      summary="How much the Reviewer can execute without operator approval. Edit via chat."
-    >
-      <DelegationCard variant="full" />
-    </SurfacePage>
-  );
+export default function DelegationRedirect() {
+  redirect('/autonomy');
 }
