@@ -1,6 +1,6 @@
 # ADR-299: Operator-Addressing Capability — `send_operator_email`
 
-**Status**: Phase 1 Implemented 2026-05-22; corrected in-place 2026-05-24 (Discovery note below). Class renamed from "kernel-universal" to "operator-addressing"; parallel registry deleted; send_operator_email merged into existing CAPABILITIES dict. Regression gate 8/8 PASS post-correction; sibling reviewer-formalization gate 8/8 PASS. Phases 2-4 deferred per phased roadmap.
+**Status**: Phase 1 Implemented 2026-05-22; corrected twice in-place 2026-05-24 (Discovery note 1 + Discovery note 2 below). Phase 2 + 3 Implemented 2026-05-24 (after Discovery note 1). After Discovery note 2: capability runtime corrected from `external:email` → `kernel`; wire-gate removed (was `platform_connection_requirement: {platform: 'email', ...}` → now `None`); handler rewired from per-user OAuth Resend (`integrations/core/resend_client.py`) to system-keyed Resend (`api/jobs/email.py`); resolution path consults kernel CAPABILITIES dict no-wire-gate branch instead of CAPABILITY_PROVIDER_MAP per-user gate; Phase 3 persona-frame wire-gate-handling clause deleted (no wire-gate exists). Regression gate 9/9 PASS post-correction; sibling reviewer-formalization gate 9/9 PASS. Phase 4 (L6 validation observation) deferred.
 **Date**: 2026-05-22
 **Authors**: KVK, Claude
 **Companion**: [`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md) — surfaced the L6 capital-execution gap on alpha-author that triggered this discourse
@@ -250,3 +250,52 @@ D1 collapsed (1) and (3) under one banner, but (1) already existed. The actual n
 **Architectural takeaway**: the kernel/bundle boundary (ADR-224) was already correctly designed for capabilities that operate across all archetypes. The error was introducing a new architectural class when a new field on the existing class would have sufficed. The lesson generalizes: when proposing a new architectural class, the first check is whether the existing class has space for a new field that captures the genuine novelty. If yes, prefer the new field over the new class. New classes are expensive (parallel registries, parallel resolution paths, doc churn); new fields are cheap (additive metadata on existing entries).
 
 This patch supersedes the affected sections in place per Singular Implementation. No v1/v2; the corrected text is the ADR.
+
+## Discovery note 2 — wire redundancy correction (2026-05-24)
+
+This ADR was patched again in place on 2026-05-24 after operator-prompted re-review during pre-flight for Phase 4 testing surfaced a second-order redundancy Discovery note 1 missed.
+
+**The redundancy**: YARNNN has two existing Resend wires today, and Phase 1 (commit `3f0cabb`) wired `platform_email_send_to_operator` on the wrong one. Yesterday's class-naming correction (commit `50df8b4`) correctly renamed the class to "operator-addressing" but did not re-verify the wire underneath — leaving the operator-addressing capability built on audience-addressing infrastructure.
+
+**The two existing wires:**
+
+| Wire | Path | Operator setup | Purpose |
+|---|---|---|---|
+| **System-keyed** (ADR-040 + ADR-202) | `api/jobs/email.py::send_email` reads `RESEND_API_KEY` env var | None — built-in, deployed | Operator-addressing — `services/notifications.py` (agent-ready / agent-failed alerts) + `services/daily_update_email.py` (ADR-202 daily-update pointer emails) |
+| **Per-user OAuth** (ADR-192 Phase 4) | `api/integrations/core/resend_client.py` reads `platform_connections.platform='email'.credentials_encrypted` (Fernet-encrypted) | Operator connects via Settings → Integrations → Email | Audience-addressing — `platform_email_send` + `platform_email_send_bulk` for commerce-archetype customer/newsletter sends |
+
+ADR-299 Phase 1 attached `platform_email_send_to_operator` to the per-user OAuth wire — meaning the operator-addressing capability required operator Resend OAuth ceremony to activate, when the correct operator-addressing wire (system Resend) was already deployed and required zero operator action.
+
+**Recursive discipline lesson**: when correcting an architectural-class redundancy, also verify the wire each class member points at. Renaming the class without re-verifying the implementation collapses to a relabel-only correction that leaves the structural bug intact. Same shape as Discovery note 1's lesson, recursing one level deeper.
+
+**The corrections in this second patch**:
+
+- **D2 reframed (wire)**: the tool implementation rewires to system Resend via `api/jobs/email.py::send_email`. Handler refactored to early-return at top of `_handle_email_tool` before the per-user `platform_connections` fetch (which is for the audience-addressing wire only). The `send_to_operator` branch:
+  - Resolves operator email via `get_user_email(auth.client, auth.user_id)` from `auth.users.email` at send-time (unchanged from prior shape — addressee resolution discipline preserved)
+  - Rejects LLM-supplied addressee fields (`to`, `cc`, `bcc`, `from_email`, `from_name`) with clear errors (structural pin preserved at three layers: schema absence + runtime rejection + source-level test guard)
+  - Calls `system_send_email(to=operator_email, subject=..., html=..., reply_to=...)` instead of `resend.send(api_key, ...)` — system wire, no per-user API key
+- **D2 reframed (runtime + wire-gate)**: kernel `CAPABILITIES` dict entry for `send_operator_email`:
+  - `runtime` changed from `"external:email"` → `"kernel"` (system wire is environment-deployed kernel infrastructure, not external provider)
+  - `platform_connection_requirement` changed from `{platform: "email", status: "active"}` → `None` (no per-user OAuth gate)
+- **D5 reframed (resolution path)**: `get_platform_tools_for_capabilities` extended to consult kernel `CAPABILITIES` dict for no-wire-gate capabilities (`platform_connection_requirement is None`) BEFORE the `CAPABILITY_PROVIDER_MAP` per-user gate check. When such a capability is requested, its tools surface unconditionally — no `connected_providers` check, since the wire is environment-deployed. Singular Implementation honored: one resolution function, two source layers (kernel CAPABILITIES dict for no-wire-gate + CAPABILITY_PROVIDER_MAP for wire-gated), one return list. `send_operator_email` removed from `CAPABILITY_PROVIDER_MAP` (was pointing at `"email"` provider, which is the audience-addressing surface).
+- **Phase 3 persona-frame wire-gate clause deleted**: the prose teaching the Reviewer to note substrate-vs-wire drift in `standing_intent.md` when `platform_email_send_to_operator` is absent from the tool surface — that clause was correct for the wrong wire. The corrected wire has no wire-gate; the tool is always available. Replaced with a single-paragraph note that `platform_email_send_to_operator` uses the system-deployed Resend wire, no operator-side setup required, and sends from `yarnnn <noreply@yarnnn.com>` by default with Reply-To routing replies to operator's inbox.
+- **D3 stands unchanged**: ADR-283 D7 clarification still holds — audience-addressing rejection stands; operator-addressing was the conflated-away exception.
+- **D4 stands unchanged**: operator-addressing writes are observability, not consequential action; gated by `_preferences.yaml` opt-in.
+- **D6 reframed**: kernel-universal placement justification stands; the specific implementation housing changes from "wrapping per-user OAuth wire in EMAIL_TOOLS" to "early-return on system wire before per-user OAuth fetch path."
+- **D7 stands unchanged**: scope limits all hold.
+
+**Files affected by this second correction**:
+- AMENDED: `api/services/platform_tools.py::_handle_email_tool` — `send_to_operator` branch moved to top of function as early return; calls `system_send_email` (alias for `api/jobs/email.py::send_email`) instead of `resend.send(api_key, ...)`; removed reliance on per-user `platform_connections` fetch.
+- AMENDED: `api/services/orchestration.py::CAPABILITIES["send_operator_email"]` — `runtime: "kernel"`; `platform_connection_requirement: None`.
+- AMENDED: `api/services/platform_tools.py::CAPABILITY_PROVIDER_MAP` — `send_operator_email` entry removed (no longer provider-gated).
+- AMENDED: `api/services/platform_tools.py::get_platform_tools_for_capabilities` — extended with kernel `CAPABILITIES` dict no-wire-gate branch that surfaces tools unconditionally when `platform_connection_requirement is None`. Singular Implementation per the lesson from Discovery note 1: one function, lookup-source distinction (kernel-dict vs provider-map) is internal, not a parallel runtime code path.
+- AMENDED: `api/agents/reviewer_agent.py::_PERSONA_FRAME` — Phase 3 wire-gate clause deleted; replaced with one-paragraph system-wire note.
+- AMENDED: `api/test_adr299_kernel_universal_capability.py` — runtime assertion, `platform_connection_requirement` assertion, handler-shape assertions, resolution-path assertions all updated. New test `test_resolution_surfaces_send_operator_email_unconditionally` validates the kernel-dict branch in resolution. 9/9 PASS.
+- AMENDED: `api/prompts/CHANGELOG.md` — entry `[2026.05.24.3]` documenting the Phase 3 prose update.
+- AMENDED: this ADR (in-place per Singular Implementation; no v1/v2/v3).
+
+**Net impact on Phase 4 validation**: Phase 4 becomes immediate-testable. No operator Resend connect ceremony required. Operator opts in to one notification (flip `active: false → true` in `_preferences.yaml`) via chat or direct edit; next natural Reviewer wake or substrate-event canary fires the email via system wire; operator receives email from `noreply@yarnnn.com` with Reply-To set to their own inbox. The L6 capital-execution branch on alpha-author can now close on its own substrate without requiring audience-bearing capabilities.
+
+**Architectural takeaway (recursive)**: yesterday's Discovery note 1 named the lesson "prefer new field on existing class over new class when novelty fits, and verify load-bearing facts before designing on top of delegated research." Today's Discovery note 2 adds: **when correcting a class-naming redundancy, verify the wire each class member points at**. The class-vs-wire distinction is structurally orthogonal — naming the class correctly doesn't guarantee the implementation reaches the right wire. Both checks are now codified in the corrected regression gate (runtime + wire-gate + handler-shape assertions).
+
+This patch supersedes the affected sections in place per Singular Implementation. No v1/v2/v3; the corrected text is the ADR.

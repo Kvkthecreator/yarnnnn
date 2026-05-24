@@ -6,6 +6,48 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.24.3] - canon(reviewer): delete Phase 3 wire-gate clause (ADR-299 Discovery note 2 wire correction)
+
+### Decision
+
+Closes the prose-side of ADR-299 Discovery note 2 (2026-05-24). Phase 3
+of ADR-299 (commit `0248b56`, CHANGELOG entry `[2026.05.24.1]`) added a
+"wire-gate handling" clause to the persona-frame `_preferences.yaml`
+awareness block, instructing the Reviewer to note substrate-vs-wire
+drift in `standing_intent.md` when `platform_email_send_to_operator`
+didn't appear in the tool surface. That clause was correct for the
+*wrong wire* — the per-user OAuth Resend (ADR-192 Phase 4) that ADR-299
+Phase 1 had mistakenly wrapped. Discovery note 2's wire correction
+rewires `platform_email_send_to_operator` to the system-deployed Resend
+(`api/jobs/email.py`, ADR-040 + ADR-202 wire), which has no wire-gate
+— the tool is always available. The Phase 3 clause becomes obsolete.
+
+### Changed
+
+- **`api/agents/reviewer_agent.py::_PERSONA_FRAME`** — the second
+  paragraph of the `operator_notifications:` awareness block (the
+  "wire-gate handling" clause teaching substrate-vs-wire drift
+  detection) DELETED. Replaced with a one-paragraph note that
+  `platform_email_send_to_operator` uses the system-deployed Resend
+  wire (ADR-299 Discovery note 2), no operator-side Resend setup
+  required, sends from `yarnnn <noreply@yarnnn.com>` by default with
+  Reply-To routing replies to operator's inbox.
+
+The first paragraph of the awareness block (naming the tool, the
+trigger condition, the structural addressee pin, the AUTONOMY-as-
+observability discipline, the default-off discipline) is preserved
+unchanged — those clauses are wire-agnostic.
+
+### Refs
+
+ADR-299 Discovery note 2 (wire redundancy correction); ADR-040
+(Notifications original operator-addressing wire); ADR-202 (Daily-
+Update Email Pointer Template — operator-addressing wire usage);
+predecessor CHANGELOG entries `[2026.05.24.1]` (Phase 3 original)
++ `[2026.05.24.2]` (MANDATE nudge, unaffected).
+
+---
+
 ## [2026.05.24.2] - canon(reviewer): MANDATE.md citation nudge in standing_intent.md guidance (L6 morning Hat-A Rec 2)
 
 ### Decision

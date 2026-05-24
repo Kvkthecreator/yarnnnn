@@ -964,9 +964,13 @@ CAPABILITY_PROVIDER_MAP = {
     "write_trading": "trading",
     # ADR-192 Phase 4: email has no read capability (send-only in this phase)
     "write_email": "email",
-    # ADR-299: operator-addressing email (per Discovery note correcting
-    # earlier parallel-registry design — uses existing resolution path)
-    "send_operator_email": "email",
+    # ADR-299 Discovery note 2 (2026-05-24): send_operator_email is NOT in
+    # this map. It's a no-wire-gate kernel-universal capability per the
+    # corrected wire shape (uses system Resend via api/jobs/email.py, not
+    # per-user OAuth). get_platform_tools_for_capabilities checks the kernel
+    # CAPABILITIES dict for entries with platform_connection_requirement is
+    # None and surfaces their tools unconditionally — that's the singular
+    # resolution path for kernel-universal-no-wire-gate capabilities.
 }
 
 
@@ -1015,16 +1019,28 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
     """
     Get platform tools allowed by explicit provider-native capabilities.
 
-    Only returns tools for:
-    1. providers the user has connected, and
-    2. providers/actions granted by the agent capability bundle (or by the
-       kernel CAPABILITIES dict at services/orchestration.py:1129 for
-       operator-addressing capabilities like `send_operator_email` per
-       ADR-299, which use the same resolution path — kernel-vs-bundle is
-       a lookup-source per ADR-224, not a parallel runtime code path).
+    Resolution discipline (per ADR-224 + ADR-299 Discovery note 2):
+      1. **Wire-gated capabilities** route through CAPABILITY_PROVIDER_MAP
+         (provider) + platform_connections (active connection) — example:
+         read_trading needs Alpaca OAuth connection.
+      2. **No-wire-gate kernel capabilities** (kernel CAPABILITIES dict at
+         services/orchestration.py:1129 entries where
+         `platform_connection_requirement is None`) surface their tools
+         unconditionally — the wire is environment-deployed infrastructure
+         (e.g., send_operator_email uses system Resend via env var, not
+         per-user OAuth). Example: send_operator_email surfaces whenever
+         the recurrence requests it, regardless of platform_connections.
+
+    Singular Implementation per ADR-224: one resolution function, one
+    return list. The kernel-vs-bundle distinction is a lookup-source
+    layer (kernel CAPABILITIES dict checked before per-user OAuth gate
+    for no-wire-gate capabilities); not a parallel runtime code path.
     """
     if not capabilities:
         return []
+
+    # Import kernel CAPABILITIES lazily to avoid circular import.
+    from services.orchestration import CAPABILITIES as KERNEL_CAPABILITIES
 
     try:
         result = auth.client.table("platform_connections").select(
@@ -1036,7 +1052,24 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
         return []
 
     allowed_tool_names: set[str] = set()
+    kernel_universal_tools_to_surface: set[str] = set()
+
     for capability in capabilities:
+        # ADR-299 Discovery note 2: no-wire-gate kernel capabilities
+        # surface unconditionally. Check kernel CAPABILITIES dict for
+        # entries with platform_connection_requirement is None — their
+        # tools surface regardless of platform_connections state, because
+        # the wire (e.g., system Resend) is environment-deployed.
+        kernel_decl = KERNEL_CAPABILITIES.get(capability)
+        if kernel_decl is not None and kernel_decl.get("platform_connection_requirement") is None:
+            tools_for_cap = PLATFORM_TOOLS_BY_CAPABILITY.get(capability, [])
+            if tools_for_cap:
+                kernel_universal_tools_to_surface.update(tools_for_cap)
+                allowed_tool_names.update(tools_for_cap)
+                continue  # no provider-gate check needed; tool surfaces unconditionally
+
+        # Wire-gated capabilities: route through CAPABILITY_PROVIDER_MAP +
+        # platform_connections gate (existing path, unchanged).
         provider = CAPABILITY_PROVIDER_MAP.get(capability)
         if not provider or provider not in connected_providers:
             continue
@@ -1046,14 +1079,31 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
         return []
 
     tools = []
+    seen: set[str] = set()
+
+    # First: kernel-universal tools (surface unconditionally — look them up
+    # in PLATFORM_TOOLS_BY_PROVIDER across all providers since their tool
+    # definition lives there for cataloging convenience).
+    if kernel_universal_tools_to_surface:
+        for provider_tools in PLATFORM_TOOLS_BY_PROVIDER.values():
+            for tool in provider_tools:
+                tool_name = tool.get("name")
+                if tool_name in kernel_universal_tools_to_surface and tool_name not in seen:
+                    tools.append(tool)
+                    seen.add(tool_name)
+
+    # Then: wire-gated tools (route through connected_providers).
     for provider in sorted(connected_providers):
         for tool in PLATFORM_TOOLS_BY_PROVIDER.get(provider, []):
-            if tool.get("name") in allowed_tool_names:
+            tool_name = tool.get("name")
+            if tool_name in allowed_tool_names and tool_name not in seen:
                 tools.append(tool)
+                seen.add(tool_name)
 
     logger.info(
-        "[PLATFORM-TOOLS] Capability-scoped tool load: %s tool(s) from %s",
+        "[PLATFORM-TOOLS] Capability-scoped tool load: %s tool(s) (%s kernel-universal, providers: %s)",
         len(tools),
+        len(kernel_universal_tools_to_surface),
         sorted(connected_providers),
     )
     return tools
@@ -2205,7 +2255,94 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
 
 
 async def _handle_email_tool(auth: Any, tool: str, tool_input: dict) -> dict:
-    """Handle email (Resend) platform tools (ADR-192 Phase 4)."""
+    """Handle email tools.
+
+    Two distinct wires per ADR-299 Discovery note 2 (2026-05-24):
+      - send_to_operator → system-keyed Resend via api/jobs/email.py
+        (ADR-040 + ADR-202 wire; no per-user OAuth; addressee resolved
+        from auth.users.email). Handled FIRST as early return.
+      - send / send_bulk → per-user OAuth Resend via
+        integrations/core/resend_client.py (ADR-192 Phase 4 wire;
+        audience-addressing; requires platform_connections row).
+    """
+    # =====================================================================
+    # send_to_operator — kernel-universal operator-addressing wire
+    # (ADR-299 D2 corrected per Discovery note 2, 2026-05-24)
+    # =====================================================================
+    # Operator-addressing emails use the system-keyed Resend wire
+    # (api/jobs/email.py reads RESEND_API_KEY env var) — same wire
+    # ADR-040 notifications + ADR-202 daily-update emails use. Does NOT
+    # depend on per-user platform_connections row; the system Resend is
+    # deployed environment infrastructure, available to every workspace
+    # without operator setup ceremony.
+    #
+    # Early return BEFORE the platform_connections fetch below — that
+    # fetch is for the per-user audience-addressing wire (ADR-192 Phase 4)
+    # used by send + send_bulk. send_to_operator does NOT need it.
+    if tool == "send_to_operator":
+        from jobs.unified_scheduler import get_user_email
+        from jobs.email import send_email as system_send_email
+
+        operator_email = await get_user_email(auth.client, auth.user_id)
+        if not operator_email:
+            return {
+                "success": False,
+                "error": (
+                    "Operator email unresolvable from auth.users — cannot "
+                    "send operator-addressing email. This is a kernel-level "
+                    "identity-resolution failure, not an operator-fixable "
+                    "preference issue."
+                ),
+            }
+
+        subject = tool_input.get("subject")
+        html = tool_input.get("html")
+        if not subject or not html:
+            return {"success": False, "error": "subject and html are required"}
+
+        # Reject any LLM-supplied addressee field as a structural pin (ADR-299 D2).
+        # send_to_operator's load-bearing property is that addressee resolves
+        # from operator-identity, not from LLM input — so the tool refuses
+        # the field even if the model attempts to supply it.
+        for forbidden in ("to", "cc", "bcc", "from_email", "from_name"):
+            if forbidden in tool_input:
+                return {
+                    "success": False,
+                    "error": (
+                        f"`{forbidden}` is not accepted by send_to_operator "
+                        "(ADR-299 D2: addressee is structurally pinned to "
+                        "the operator's identity). For audience-addressing "
+                        "sends, use platform_email_send with the appropriate "
+                        "bundle capability."
+                    ),
+                }
+
+        # System Resend wire — RESEND_API_KEY env var; from_email defaults to
+        # RESEND_FROM_EMAIL env var (canonically `yarnnn <noreply@yarnnn.com>`).
+        # Reply-To pinned to operator's own email so any reply lands in their inbox.
+        result = await system_send_email(
+            to=operator_email,
+            subject=subject,
+            html=html,
+            reply_to=tool_input.get("reply_to") or operator_email,
+        )
+        if not result.success:
+            return {
+                "success": False,
+                "error": result.error or "Email send failed",
+            }
+
+        return {
+            "success": True,
+            "result": {"message_id": result.message_id},
+            "addressed_to": operator_email,
+            "wire": "system_resend",
+        }
+
+    # =====================================================================
+    # send / send_bulk — per-user OAuth audience-addressing wire
+    # (ADR-192 Phase 4)
+    # =====================================================================
     from integrations.core.resend_client import get_resend_client
 
     # Fetch credentials + metadata
@@ -2285,67 +2422,12 @@ async def _handle_email_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             )
         return response
 
-    elif tool == "send_to_operator":
-        # ADR-299 D2: kernel-universal operator-addressing send. Addressee
-        # resolved at send-time from auth.users.email; structurally cannot
-        # address third parties (no `to:` field accepted from LLM). Reply-To
-        # defaults to operator's email so any reply lands back in their inbox.
-        from jobs.unified_scheduler import get_user_email
-
-        operator_email = await get_user_email(auth.client, auth.user_id)
-        if not operator_email:
-            return {
-                "success": False,
-                "error": (
-                    "Operator email unresolvable from auth.users — cannot "
-                    "send operator-addressing email. This is a kernel-level "
-                    "identity-resolution failure, not an operator-fixable "
-                    "preference issue."
-                ),
-            }
-
-        subject = tool_input.get("subject")
-        html = tool_input.get("html")
-        if not subject or not html:
-            return {"success": False, "error": "subject and html are required"}
-
-        # Reject any LLM-supplied addressee field as a structural pin (ADR-299 D2).
-        # send_to_operator's load-bearing property is that addressee resolves
-        # from operator-identity, not from LLM input — so the tool refuses
-        # the field even if the model attempts to supply it.
-        for forbidden in ("to", "cc", "bcc", "from_email", "from_name"):
-            if forbidden in tool_input:
-                return {
-                    "success": False,
-                    "error": (
-                        f"`{forbidden}` is not accepted by send_to_operator "
-                        "(ADR-299 D2: addressee is structurally pinned to "
-                        "the operator's identity). For audience-addressing "
-                        "sends, use platform_email_send with the appropriate "
-                        "bundle capability."
-                    ),
-                }
-
-        result = await resend.send(
-            api_key,
-            to=[operator_email],
-            subject=subject,
-            html=html,
-            from_email=default_from_email,
-            from_name=default_from_name,
-            reply_to=tool_input.get("reply_to") or default_reply_to or operator_email,
-        )
-        if isinstance(result, dict) and result.get("error"):
-            return {"success": False, "error": result["error"], "message": result.get("detail", "")}
-
-        response = {"success": True, "result": result, "addressed_to": operator_email}
-        if not metadata.get("has_verified_domain"):
-            response["warning"] = (
-                "Operator-addressing email sent from Resend's shared sender "
-                "(onboarding@resend.dev). Verify a domain in Resend for "
-                "production-quality sender headers."
-            )
-        return response
+    # ADR-299 D2 corrected per Discovery note 2 (2026-05-24): the
+    # send_to_operator branch was moved to top of function as early
+    # return — it uses the system Resend wire (api/jobs/email.py), not
+    # the per-user OAuth wire reached via the platform_connections fetch
+    # above. Singular Implementation: one handler per (tool, wire) pair,
+    # no dual branches.
 
     return {"success": False, "error": f"Unknown email tool: {tool}"}
 

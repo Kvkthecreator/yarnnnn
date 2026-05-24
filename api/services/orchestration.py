@@ -1216,17 +1216,25 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "platform_connection_requirement": None,
     },
 
-    # -- Operator-addressing (ADR-299) — capability addresses operator-identity
-    # (auth.users.email for workspace owner) rather than third party / audience.
-    # Distinguished by `addressee_class: "operator"` field; AUTONOMY-posture
-    # "observability" (per ADR-299 D4: routes through `_preferences.yaml`
-    # opt-in, NOT through should_auto_apply consequential-action gating).
-    # Available to all bundle archetypes without MANIFEST declaration.
-    # Wire still requires Resend connection (per ADR-192 Phase 4).
+    # -- Operator-addressing (ADR-299, corrected per Discovery note 2 2026-05-24)
+    # Capability addresses operator-identity (auth.users.email for workspace
+    # owner) rather than third party / audience. Distinguished by
+    # `addressee_class: "operator"` field; AUTONOMY-posture "observability"
+    # (per ADR-299 D4: routes through `_preferences.yaml` opt-in, NOT
+    # through should_auto_apply consequential-action gating). Available
+    # to all bundle archetypes without MANIFEST declaration.
+    #
+    # **No wire-gate** (corrected): uses system-keyed Resend via
+    # api/jobs/email.py (RESEND_API_KEY env var); same wire ADR-040
+    # notifications + ADR-202 daily-update pointer emails use. No per-user
+    # OAuth required; no operator setup ceremony. The audience-addressing
+    # wire (ADR-192 Phase 4 per-user OAuth) is a separate concern used by
+    # platform_email_send / platform_email_send_bulk for commerce-archetype
+    # customer/newsletter sends.
     "send_operator_email": {
-        "category": "tool", "runtime": "external:email",
+        "category": "tool", "runtime": "kernel",
         "tools": ["platform_email_send_to_operator"],
-        "platform_connection_requirement": {"platform": "email", "status": "active"},
+        "platform_connection_requirement": None,
         "addressee_class": "operator",
         "autonomy_posture": "observability",
     },

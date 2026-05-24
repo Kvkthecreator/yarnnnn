@@ -65,7 +65,15 @@ def test_send_operator_email_in_capabilities_dict() -> None:
     )
     cap = CAPABILITIES["send_operator_email"]
     assert cap["category"] == "tool"
-    assert cap["runtime"] == "external:email"
+    # ADR-299 Discovery note 2 (2026-05-24): runtime is "kernel" (not
+    # "external:email") because the system Resend wire is environment-
+    # deployed kernel infrastructure, not a per-user external provider.
+    assert cap["runtime"] == "kernel", (
+        f"send_operator_email runtime must be 'kernel' per ADR-299 "
+        f"Discovery note 2 — system Resend wire is kernel infrastructure, "
+        f"not 'external:email' (which was the pre-correction shape pointing "
+        f"at the per-user OAuth wire). Got: {cap['runtime']}"
+    )
     assert cap.get("addressee_class") == "operator", (
         "addressee_class='operator' is the distinguishing field for the "
         "operator-addressing capability class per ADR-299 D1 (corrected). "
@@ -76,11 +84,20 @@ def test_send_operator_email_in_capabilities_dict() -> None:
         "_preferences.yaml opt-in (operator standing approval), NOT through "
         "should_auto_apply consequential-action gating per ADR-299 D4."
     )
+    # ADR-299 Discovery note 2 (2026-05-24): NO wire-gate. The capability
+    # uses the system-keyed Resend wire (api/jobs/email.py reads
+    # RESEND_API_KEY env var) — environment-deployed, no operator setup
+    # ceremony. The pre-correction shape required a per-user
+    # platform_connections row, which pointed at the audience-addressing
+    # wire (ADR-192 Phase 4); the correction removes that.
     req = cap.get("platform_connection_requirement")
-    assert req == {"platform": "email", "status": "active"}, (
-        f"send_operator_email wire-gate must require platform_connections."
-        f"platform='email' active per ADR-299 D2 implementation clarification. "
-        f"Got: {req}"
+    assert req is None, (
+        f"send_operator_email must have platform_connection_requirement: None "
+        f"per ADR-299 Discovery note 2. The system Resend wire requires no "
+        f"per-user connection. Got: {req!r}. If this assertion fails, the "
+        f"correction has been reverted and the capability is back on the "
+        f"wrong wire (audience-addressing OAuth instead of operator-"
+        f"addressing system Resend)."
     )
     assert "platform_email_send_to_operator" in cap.get("tools", [])
 
@@ -138,9 +155,27 @@ def test_handler_refuses_llm_supplied_addressee_fields() -> None:
 
     source = inspect.getsource(platform_tools._handle_email_tool)
 
-    assert 'elif tool == "send_to_operator":' in source, (
-        "send_to_operator branch missing from _handle_email_tool — "
-        "ADR-299 D2 handler wrap not registered."
+    # ADR-299 Discovery note 2 (2026-05-24): send_to_operator is now an EARLY
+    # RETURN at the top of _handle_email_tool (uses system Resend wire, NOT
+    # the per-user OAuth wire reached via platform_connections fetch below).
+    # The if-branch shape distinguishes it from the elif branches for
+    # send/send_bulk which use the audience-addressing wire.
+    assert 'if tool == "send_to_operator":' in source, (
+        "send_to_operator branch missing from _handle_email_tool, OR not "
+        "structured as an early-return `if` at top of function. ADR-299 "
+        "Discovery note 2 requires the early-return shape because the "
+        "platform_connections fetch below is for the audience-addressing "
+        "wire only — send_to_operator must skip it."
+    )
+
+    # ADR-299 Discovery note 2: handler uses system_send_email (alias for
+    # api.jobs.email.send_email), not get_resend_client / resend.send.
+    assert "system_send_email" in source or "from jobs.email import send_email" in source, (
+        "Handler does NOT import the system Resend wire (api/jobs/email.py "
+        "send_email) — ADR-299 Discovery note 2 (2026-05-24) requires the "
+        "system wire, not the per-user OAuth wire (get_resend_client). "
+        "If this fails, the correction has been reverted and the handler "
+        "is back on the wrong wire."
     )
 
     forbidden_at_runtime = ("to", "cc", "bcc", "from_email", "from_name")
@@ -155,35 +190,68 @@ def test_handler_refuses_llm_supplied_addressee_fields() -> None:
         "ADR-299 D2 addressee-resolution-at-send-time discipline violated."
     )
 
-    assert "to=[operator_email]" in source, (
-        "Handler does NOT pin Resend.send to operator_email — addressee could "
-        "still come from LLM input. ADR-299 D2 structural pin violated."
+    # ADR-299 Discovery note 2: addressee pinned to operator_email when
+    # calling system_send_email. The exact call shape is
+    # `system_send_email(to=operator_email, ...)` (single recipient, not
+    # the [operator_email] list shape the prior wire required).
+    assert "to=operator_email" in source, (
+        "Handler does NOT pin system_send_email to operator_email — "
+        "addressee could still come from LLM input. ADR-299 D2 structural "
+        "pin violated."
     )
 
 
-def test_resolution_wires_send_operator_email_through_existing_path() -> None:
-    """ADR-299 D5 (corrected): send_operator_email resolves through the
-    existing CAPABILITY_PROVIDER_MAP + PLATFORM_TOOLS_BY_CAPABILITY path —
-    no parallel resolution code in get_platform_tools_for_capabilities."""
+def test_resolution_send_operator_email_not_in_provider_map() -> None:
+    """ADR-299 Discovery note 2 (2026-05-24): send_operator_email is NOT in
+    CAPABILITY_PROVIDER_MAP. It's a no-wire-gate kernel-universal capability
+    resolved via the kernel CAPABILITIES dict branch in
+    get_platform_tools_for_capabilities. Wiring it into CAPABILITY_PROVIDER_MAP
+    would re-introduce the per-user-OAuth-wire bug the correction fixes."""
     from services.platform_tools import (
         CAPABILITY_PROVIDER_MAP,
         PLATFORM_TOOLS_BY_CAPABILITY,
     )
 
-    # CAPABILITY_PROVIDER_MAP must route send_operator_email to email provider
-    assert CAPABILITY_PROVIDER_MAP.get("send_operator_email") == "email", (
-        "send_operator_email not wired into CAPABILITY_PROVIDER_MAP — "
-        "the existing resolution path won't surface its tool. Per ADR-299 "
-        "Discovery note (2026-05-24), the entry must use the same resolution "
-        "path as other capabilities (no parallel pre-check)."
+    assert "send_operator_email" not in CAPABILITY_PROVIDER_MAP, (
+        "send_operator_email is in CAPABILITY_PROVIDER_MAP — the correction "
+        "has been reverted. The capability must resolve via the kernel "
+        "CAPABILITIES dict no-wire-gate branch, not via the provider-map "
+        "gate that requires platform_connections."
     )
 
-    # PLATFORM_TOOLS_BY_CAPABILITY must list the operator-addressing tool
+    # PLATFORM_TOOLS_BY_CAPABILITY entry stays — the tool name list is used by
+    # the kernel-universal resolution branch in get_platform_tools_for_capabilities.
     tools_for_cap = PLATFORM_TOOLS_BY_CAPABILITY.get("send_operator_email") or []
     assert "platform_email_send_to_operator" in tools_for_cap, (
         "platform_email_send_to_operator not listed under send_operator_email "
-        "in PLATFORM_TOOLS_BY_CAPABILITY — tool surface won't include it even "
-        "when capability is requested + email connection active."
+        "in PLATFORM_TOOLS_BY_CAPABILITY — kernel-universal resolution branch "
+        "looks up tools here when the kernel CAPABILITIES dict entry has "
+        "platform_connection_requirement: None."
+    )
+
+
+def test_resolution_surfaces_send_operator_email_unconditionally() -> None:
+    """ADR-299 Discovery note 2: get_platform_tools_for_capabilities surfaces
+    platform_email_send_to_operator whenever the capability is requested,
+    regardless of platform_connections state. The system Resend wire is
+    environment-deployed; no per-user OAuth required."""
+    import inspect
+    from services import platform_tools
+
+    source = inspect.getsource(platform_tools.get_platform_tools_for_capabilities)
+
+    # The function must consult kernel CAPABILITIES dict for no-wire-gate
+    # capabilities BEFORE the CAPABILITY_PROVIDER_MAP provider-gate check.
+    assert "KERNEL_CAPABILITIES" in source or "from services.orchestration import CAPABILITIES" in source, (
+        "get_platform_tools_for_capabilities does NOT consult kernel "
+        "CAPABILITIES dict — ADR-299 Discovery note 2 requires the function "
+        "to surface no-wire-gate kernel capabilities (entries with "
+        "platform_connection_requirement is None) unconditionally."
+    )
+    assert "platform_connection_requirement" in source and "is None" in source, (
+        "get_platform_tools_for_capabilities does NOT check "
+        "platform_connection_requirement is None branch — the kernel-"
+        "universal-no-wire-gate path is missing from resolution."
     )
 
 
@@ -257,7 +325,8 @@ if __name__ == "__main__":
         test_kernel_capabilities_module_does_not_exist,
         test_email_tools_exposes_send_to_operator_with_constrained_schema,
         test_handler_refuses_llm_supplied_addressee_fields,
-        test_resolution_wires_send_operator_email_through_existing_path,
+        test_resolution_send_operator_email_not_in_provider_map,
+        test_resolution_surfaces_send_operator_email_unconditionally,
         test_resolution_does_not_have_parallel_kernel_universal_precheck,
         test_bundle_capability_resolution_not_regressed,
         test_addressee_class_distinguishes_operator_from_audience,
