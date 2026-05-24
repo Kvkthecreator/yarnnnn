@@ -117,4 +117,61 @@ This is the third architectural-discipline lesson today's session has surfaced (
 
 ## Status
 
-**Mostly closed.** The wire correction is functional and shipped. One prose follow-up (Commit 2b: persona-frame wire-gate clause deletion) is deferred to avoid sweep-up with parallel ADR-301 work in the same file; my paragraph swap remains in working-tree state ready to commit when the parallel session's reviewer_agent.py changes land on main. No functional bug from the delay; the Reviewer's behavior post-correction is correct regardless of whether the persona-frame still teaches the (now non-firing) wire-gate-detection discipline.
+**Closed.** Wire correction shipped + persona-frame paragraph swap shipped (via sweep-up, addendum below). Both regression gates 9/9 PASS post-everything. See addendum for the Commit 2b resolution.
+
+## Addendum — Commit 2b landed via sweep-up (2026-05-24, later same session)
+
+The persona-frame paragraph swap I deferred from Commit 2a to avoid sweep-up with parallel ADR-301 work **was swept up anyway** — into the parallel session's `fa733f8` (`feat(adr-301): reviewer pulse envelope`), committed by KVK after my working-tree edit was already in place.
+
+### What happened
+
+- Commit 2a (`f1f77e6`) shipped at 04:55 UTC excluding `api/agents/reviewer_agent.py` deliberately. My paragraph swap remained in the working tree alongside the parallel session's substantial ADR-301 changes to the same file.
+- Commit 3 (`b5de4da`, this folder's RESOLUTION.md original text above) shipped at 05:00 UTC documenting the deferral.
+- Parallel session continued ADR-301 work; their `git commit` at ~14:30 UTC swept up `reviewer_agent.py`'s full working-tree state — including their ADR-301 changes AND my persona-frame paragraph swap.
+- Commit message for `fa733f8` describes ADR-301 work + lists "Cleanups bundled in this commit" but **does not name my paragraph swap explicitly**. The content is correct on `main`; the audit trail attribution is muddled.
+
+### What's actually true on main
+
+- ✅ Old "wire-gate handling" paragraph is deleted (zero matches for `"operator's Resend connection isn't active"`)
+- ✅ New "system-deployed Resend wire" paragraph is present (`reviewer_agent.py:640-641`)
+- ✅ CHANGELOG entry `[2026.05.24.3]` is on main with full Discovery-note-2 attribution
+- ✅ Both regression gates 9/9 PASS
+
+The persona-frame is in the correct post-correction state. The Reviewer reads the system-deployed-Resend prose, not the obsolete wire-gate-detection clause.
+
+### The sweep-up pattern this surfaces
+
+This is the **third sweep-up of the session** — and it reveals a structural limit of the verify-staged-set discipline:
+
+| Incident | Direction | Verify-staged-set discipline catches it? |
+|---|---|---|
+| 2026-05-22 `b4e8a30` | Their commit swept up my staged files | No (their `git status` showed my files unstaged; hooks injected them) |
+| 2026-05-24 `f1f77e6` (the one I avoided) | Would have swept up their unstaged file changes | **Yes** — caught pre-commit via `git diff --cached --stat` showing unexpected scope |
+| 2026-05-24 `fa733f8` (this) | Their commit swept up my unstaged working-tree edits | **No** — discipline only protects the committing side; the other side's working-tree edits are invisible to their `git diff --cached --stat` |
+
+**The honest takeaway**: parallel-session work on the same file is structurally unsafe regardless of which side does discipline-correct staging. Whoever commits first sweeps. The verify-staged-set discipline catches the **outbound** sweep-up risk (you sweeping up their work) but cannot catch the **inbound** sweep-up risk (them sweeping up your work). Mitigation when you intentionally stage scope-narrow to defer a file edit: either revert your working-tree edit to that file (lose your edit; re-apply later) or accept that your edit may end up in someone else's commit.
+
+In this incident I chose to leave my working-tree edit in place (deliberate per Commit 2a's deferral note); the parallel session's commit happened during the natural completion of their independent ADR-301 work, so the sweep was unintentional on their side. Net outcome is correct content on main with imperfect commit boundary attribution — preferable to losing the edit by reverting it.
+
+### Recommended discipline addition for future-Claude
+
+When deferring a file edit out of a commit to avoid sweep-up:
+1. **Either**: revert the working-tree edit fully (`git checkout HEAD -- <file>` after stashing parallel changes elsewhere) and re-apply later as a clean commit
+2. **Or**: leave the edit in working-tree AND accept that it may get swept by the parallel session's next commit — document the acceptance explicitly in the deferral note so future readers understand the audit-trail muddiness was anticipated
+
+This Commit 2b incident chose path (2) implicitly. Future similar situations should make the choice explicit upfront in the deferral commit's message so the muddied audit trail is named-and-accepted rather than surprising.
+
+### Commit-boundary cleanup
+
+No commit history rewrite is needed (or appropriate, since `main` is shared). This addendum is the audit-trail repair: future readers traversing from `b5de4da` ("Commit 2b deferred") to find the actual landing will read this addendum and see the swept-via-`fa733f8` outcome.
+
+### Status update
+
+**Wire-redundancy correction arc is closed.** Three logical commits, two physical attributions:
+- `0f80355` — Hat-B observation (logical Commit 1)
+- `f1f77e6` — Hat-A wire correction scope-narrow (logical Commit 2a)
+- `fa733f8` — parallel session, swept up my persona-frame paragraph swap (logical Commit 2b, attribution: KVK + parallel-session ADR-301)
+- `b5de4da` — Hat-B resolution naming the 2b deferral (logical Commit 3)
+- *(this addendum, follows in the next commit)* — Hat-B resolution-addendum naming the swept-up landing of 2b
+
+The next observable behavior change requires no further code work — the Reviewer's post-correction prose is live on the deployed services. Phase 4 (operator opts in + observe natural wake) remains the next operator-side validation step.

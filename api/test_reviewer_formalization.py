@@ -226,6 +226,59 @@ def test_persona_frame_names_pace_and_queue() -> None:
     )
 
 
+def test_persona_frame_system_resend_wire_prose_post_adr299_discovery_note_2() -> None:
+    """Persona frame must teach the system-deployed Resend wire shape for
+    platform_email_send_to_operator (ADR-299 Discovery note 2, 2026-05-24).
+
+    Two assertions:
+      1. The OBSOLETE wire-gate-detection prose from Phase 3 original
+         (commit 0248b56) must NOT survive. The clause taught the Reviewer
+         to note substrate-vs-wire drift when the tool was absent from its
+         surface; post-Discovery-note-2 the tool is ALWAYS available (no
+         wire-gate), so the clause is misleading.
+      2. The NEW system-deployed Resend prose MUST be present, naming
+         that the tool uses the system wire (no operator-side Resend
+         setup), sender defaults, and Reply-To routing.
+
+    This guard catches any future regression that re-introduces the
+    obsolete wire-gate-detection discipline OR loses the system-wire
+    framing.
+    """
+    path = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
+    content = path.read_text()
+
+    # OBSOLETE clause from Phase 3 original (must NOT be present)
+    obsolete_markers = (
+        "operator's Resend connection isn't active",
+        "substrate-vs-wire drift",
+    )
+    leaks: list[str] = []
+    for marker in obsolete_markers:
+        if marker in content:
+            leaks.append(marker)
+    assert not leaks, (
+        f"Obsolete wire-gate-detection prose leaked back into _PERSONA_FRAME: "
+        f"{leaks}. Post-ADR-299 Discovery note 2 (2026-05-24), the tool uses "
+        f"the system-deployed Resend wire (api/jobs/email.py) — there is no "
+        f"wire-gate to detect drift against. Re-introducing the obsolete "
+        f"clause would teach the Reviewer to note a substrate-vs-wire drift "
+        f"that the post-correction architecture never produces."
+    )
+
+    # NEW system-wire prose (MUST be present)
+    assert "system-deployed Resend wire" in content, (
+        "_PERSONA_FRAME missing the post-Discovery-note-2 system-wire "
+        "framing. The clause must name 'system-deployed Resend wire' so "
+        "the Reviewer knows platform_email_send_to_operator is always "
+        "available (no operator-side Resend setup ceremony)."
+    )
+    assert "ADR-299 Discovery note 2" in content, (
+        "_PERSONA_FRAME missing the ADR-299 Discovery note 2 citation. "
+        "The system-wire framing should cite its canonical source so future "
+        "readers can trace the correction shape."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Test 6 — REVIEWER_PRIMITIVES contract holds
 # ---------------------------------------------------------------------------
@@ -372,6 +425,7 @@ if __name__ == "__main__":
         test_persona_frame_no_banned_phrases,
         test_persona_frame_instructs_mandate_citation,
         test_persona_frame_names_pace_and_queue,
+        test_persona_frame_system_resend_wire_prose_post_adr299_discovery_note_2,
         test_reviewer_primitives_contract,
         test_default_reviewer_write_locks_contract,
         test_judgment_prompts_bind_return_verdict,
