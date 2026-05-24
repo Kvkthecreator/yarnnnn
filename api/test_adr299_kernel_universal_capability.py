@@ -1,90 +1,101 @@
-"""ADR-299 Phase 1 regression gate — kernel-universal capability class +
+"""ADR-299 regression gate — operator-addressing capability class +
 `send_operator_email` first instance.
 
-Asserts the four load-bearing properties per ADR-299 D2 + D5 + D7:
+Tests the corrected shape per the 2026-05-24 Discovery note (see
+docs/observations/2026-05-24-042952-adr299-class-naming-redundancy/findings.md).
+The original "kernel-universal" framing duplicated the existing CAPABILITIES
+dict pattern; the corrected framing names the genuine novelty as
+**operator-addressing** (capability whose addressee resolves from
+auth.users.email regardless of wire-gate presence) and houses
+send_operator_email in the existing CAPABILITIES dict with a new
+`addressee_class` field.
 
-  1. KERNEL_UNIVERSAL_CAPABILITIES registry contains send_operator_email with
-     the canonical shape (no LLM-supplied addressee surface in the tool schema,
-     addressee_class='operator', autonomy_posture='observability', wire-gate
-     declared via requires_connection='email').
+Asserts the load-bearing properties per ADR-299 D2 + D5 (corrected) + D7:
 
-  2. EMAIL_TOOLS exposes platform_email_send_to_operator with a constrained
-     input schema — `subject` + `html` required, no `to`/`cc`/`bcc`/`from_*`
-     accepted from LLM.
+  1. CAPABILITIES dict contains send_operator_email with the canonical shape
+     (category=tool, addressee_class='operator', autonomy_posture='observability',
+     platform_connection_requirement={platform: 'email', status: 'active'}).
 
-  3. _handle_email_tool's send_to_operator branch refuses any LLM-supplied
-     addressee fields with a clear structural error, even when they're
-     syntactically valid (per ADR-299 D2 structural-pin discipline).
+  2. EMAIL_TOOLS exposes platform_email_send_to_operator with constrained
+     input schema — `subject` + `html` required, no `to`/`cc`/`bcc`/`from_*`.
 
-  4. get_platform_tools_for_capabilities exposes platform_email_send_to_operator
-     when the email connection is active AND the recurrence requests
-     send_operator_email — WITHOUT requiring the capability to appear in any
-     bundle MANIFEST (this is the kernel-universal payoff).
+  3. _handle_email_tool's send_to_operator branch refuses LLM-supplied
+     addressee fields with clear structural error (defense-in-depth alongside
+     schema absence).
 
-  5. The wire-level connection gate is honored: when no email connection exists,
-     send_operator_email's tool degrades silently from the surface (no leak of
-     non-functional tool into agent prompt per ADR-299 D2 implementation
-     clarification).
+  4. Existing resolution path (CAPABILITY_PROVIDER_MAP +
+     PLATFORM_TOOLS_BY_CAPABILITY) wires send_operator_email correctly so
+     get_platform_tools_for_capabilities surfaces the tool when email
+     connection is active.
 
-  6. Bundle-specific capability resolution is NOT regressed — read_trading
-     still resolves through the existing CAPABILITY_PROVIDER_MAP path when
-     trading connection is active.
+  5. Wire-level connection gate is honored: when no email connection exists,
+     send_operator_email's tool degrades silently from the surface.
 
-  7. Helper API contract: is_kernel_universal_capability + is_kernel_universal_tool
-     return the expected predicates.
+  6. Bundle-specific capability resolution is NOT regressed (read_trading
+     still works through bundle MANIFEST fallthrough).
 
-  8. Singular Implementation: kernel-universal capabilities cannot be redeclared
-     by bundles to alter shape — precedence is one-way (verified by checking
-     the resolution order in get_platform_tools_for_capabilities).
+  7. Singular Implementation: no parallel registry exists; the architectural
+     class lives in the existing CAPABILITIES dict (no api/services/kernel_capabilities.py).
+
+  8. The addressee_class field distinguishes operator-addressing capabilities
+     from audience-addressing ones at the registry level — write_email
+     (audience-addressing) does NOT carry addressee_class='operator'.
 
 Run: python api/test_adr299_kernel_universal_capability.py
 Or:  python -m pytest api/test_adr299_kernel_universal_capability.py -v
 """
 from __future__ import annotations
 
-import asyncio
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "api"))
 
 
-def test_kernel_universal_registry_contains_send_operator_email() -> None:
-    """ADR-299 D2: send_operator_email is registered as kernel-universal."""
-    from services.kernel_capabilities import (
-        KERNEL_UNIVERSAL_CAPABILITIES,
-        is_kernel_universal_capability,
-    )
+def test_send_operator_email_in_capabilities_dict() -> None:
+    """ADR-299 D2 (corrected): send_operator_email lives in CAPABILITIES dict
+    with the canonical operator-addressing shape — not in a parallel registry."""
+    from services.orchestration import CAPABILITIES
 
-    assert "send_operator_email" in KERNEL_UNIVERSAL_CAPABILITIES, (
-        "send_operator_email missing from KERNEL_UNIVERSAL_CAPABILITIES — "
-        "ADR-299 D2's first instance is the load-bearing entry."
+    assert "send_operator_email" in CAPABILITIES, (
+        "send_operator_email missing from CAPABILITIES dict — ADR-299 D2 "
+        "(corrected) requires the entry in services/orchestration.py:CAPABILITIES, "
+        "not in a parallel registry."
     )
-    decl = KERNEL_UNIVERSAL_CAPABILITIES["send_operator_email"]
-    assert decl["key"] == "send_operator_email"
-    assert decl["category"] == "tool"
-    assert decl["runtime"] == "kernel"
-    assert decl["requires_connection"] == "email", (
-        "send_operator_email's wire-level gate must be 'email' per ADR-299 D2 "
-        "implementation clarification — the capability declaration is universal "
-        "but the underlying Resend wire still needs a connection."
+    cap = CAPABILITIES["send_operator_email"]
+    assert cap["category"] == "tool"
+    assert cap["runtime"] == "external:email"
+    assert cap.get("addressee_class") == "operator", (
+        "addressee_class='operator' is the distinguishing field for the "
+        "operator-addressing capability class per ADR-299 D1 (corrected). "
+        "Without this field, the genuine architectural novelty is lost."
     )
-    assert decl["addressee_class"] == "operator", (
-        "addressee_class must be 'operator' — this is the distinguishing test "
-        "for kernel-universal vs bundle-specific per ADR-299 D1."
+    assert cap.get("autonomy_posture") == "observability", (
+        "autonomy_posture='observability' marks the capability as routed via "
+        "_preferences.yaml opt-in (operator standing approval), NOT through "
+        "should_auto_apply consequential-action gating per ADR-299 D4."
     )
-    assert decl["autonomy_posture"] == "observability", (
-        "autonomy_posture must be 'observability' per ADR-299 D4 — operator-"
-        "addressing writes are NOT consequential actions and do NOT route "
-        "through should_auto_apply."
+    req = cap.get("platform_connection_requirement")
+    assert req == {"platform": "email", "status": "active"}, (
+        f"send_operator_email wire-gate must require platform_connections."
+        f"platform='email' active per ADR-299 D2 implementation clarification. "
+        f"Got: {req}"
     )
-    assert "platform_email_send_to_operator" in decl["tools"]
+    assert "platform_email_send_to_operator" in cap.get("tools", [])
 
-    assert is_kernel_universal_capability("send_operator_email") is True
-    assert is_kernel_universal_capability("read_trading") is False  # bundle-specific
-    assert is_kernel_universal_capability("nonexistent") is False
+
+def test_kernel_capabilities_module_does_not_exist() -> None:
+    """ADR-299 D5 (corrected): the parallel registry module
+    api/services/kernel_capabilities.py must NOT exist. Singular Implementation
+    discipline — the architectural class lives in the existing CAPABILITIES
+    dict, not in a separate module."""
+    target = REPO_ROOT / "api" / "services" / "kernel_capabilities.py"
+    assert not target.exists(), (
+        f"Parallel registry module survives at {target} — ADR-299 Discovery "
+        "note (2026-05-24) requires deletion. The architectural class lives "
+        "in the existing CAPABILITIES dict at services/orchestration.py:1129."
+    )
 
 
 def test_email_tools_exposes_send_to_operator_with_constrained_schema() -> None:
@@ -114,205 +125,142 @@ def test_email_tools_exposes_send_to_operator_with_constrained_schema() -> None:
         assert field not in schema_props, (
             f"`{field}` exposed in platform_email_send_to_operator schema — "
             "ADR-299 D2 requires addressee to be structurally pinned to "
-            "the operator's identity; tool schema must not surface "
-            f"the field. (Found `{field}` in input_schema.properties.)"
+            "the operator's identity; tool schema must not surface the field."
         )
 
 
 def test_handler_refuses_llm_supplied_addressee_fields() -> None:
     """ADR-299 D2: handler refuses `to`/`cc`/`bcc`/`from_*` even at runtime
-    (defense-in-depth — schema absence + handler rejection).
-
-    Source-level check: the handler's send_to_operator branch contains the
-    forbidden-field loop that rejects every operator-addressee-violating
-    input shape. Source-level inspection avoids loading the full async
-    handler import chain (which pulls in `jobs.unified_scheduler` →
-    `sentry_sdk` in deployed environments; not always present in local dev
-    venvs). The runtime behavior is exercised by integration tests when
-    Phase 4 lands; this gate enforces that the structural pin is present
-    in the handler body so it cannot silently regress."""
+    (defense-in-depth — schema absence + handler rejection). Source-level
+    check avoids loading the full async handler import chain."""
     import inspect
     from services import platform_tools
 
     source = inspect.getsource(platform_tools._handle_email_tool)
 
-    # The send_to_operator branch must exist
     assert 'elif tool == "send_to_operator":' in source, (
         "send_to_operator branch missing from _handle_email_tool — "
         "ADR-299 D2 handler wrap not registered."
     )
 
-    # The structural-pin loop must reject every forbidden addressee field
     forbidden_at_runtime = ("to", "cc", "bcc", "from_email", "from_name")
     for field in forbidden_at_runtime:
         assert f'"{field}"' in source, (
             f"Handler send_to_operator branch missing rejection for `{field}` — "
-            f"ADR-299 D2 structural pin gap. Must reject every LLM-supplied "
-            f"addressee-shape field with a clear error."
+            "ADR-299 D2 structural pin gap."
         )
 
-    # The handler must source addressee from auth.users.email, not from input
     assert "get_user_email" in source, (
         "Handler send_to_operator branch does NOT call get_user_email — "
-        "ADR-299 D2 addressee-resolution-at-send-time discipline violated. "
-        "Addressee must resolve from auth.users.email, never from LLM input "
-        "or cached substrate."
+        "ADR-299 D2 addressee-resolution-at-send-time discipline violated."
     )
 
-    # Reject any reference to a `to:` field assignment from tool_input that
-    # would let LLM-supplied addressee leak through
-    bad_patterns = [
-        "tool_input.get(\"to\")",
-        "tool_input.get('to')",
-    ]
-    for pattern in bad_patterns:
-        # Allow the pattern in OTHER branches (send, send_bulk) but ensure
-        # the send_to_operator branch (everything after `elif tool == "send_to_operator":`)
-        # never assigns from tool_input["to"] without rejection.
-        # Practical check: the branch's `to=` keyword must come from operator_email,
-        # not tool_input. Substring check is sufficient as defense-in-depth alongside
-        # the explicit rejection loop above.
-        pass  # rejection-loop check above is the load-bearing assertion
-
-    # The send call inside send_to_operator must pass operator_email as the to:
-    # (not tool_input-derived)
     assert "to=[operator_email]" in source, (
         "Handler does NOT pin Resend.send to operator_email — addressee could "
         "still come from LLM input. ADR-299 D2 structural pin violated."
     )
 
 
-def test_resolution_exposes_tool_with_active_email_connection_no_manifest() -> None:
-    """ADR-299 D5: kernel-universal capability resolves without bundle MANIFEST
-    declaration. Operator has connected email; recurrence declares
-    send_operator_email; tool surface includes platform_email_send_to_operator."""
-    from services.kernel_capabilities import get_kernel_universal_tools_for_capabilities
-
-    # Simulate operator with email connected
-    connected = {"email"}
-    tools = get_kernel_universal_tools_for_capabilities(
-        ["send_operator_email"], connected
-    )
-    assert "platform_email_send_to_operator" in tools, (
-        "Kernel-universal resolution did NOT surface "
-        "platform_email_send_to_operator despite email connection active — "
-        "the kernel-universal payoff (no MANIFEST required) is regressed."
-    )
-
-
-def test_wire_gate_degrades_silently_when_email_not_connected() -> None:
-    """ADR-299 D2: tool degrades silently from surface when wire-level gate
-    fails (no Resend connection). Prevents leaking non-functional tool into
-    agent prompt."""
-    from services.kernel_capabilities import get_kernel_universal_tools_for_capabilities
-
-    # Simulate operator with NO email connection (trading only)
-    connected = {"trading"}
-    tools = get_kernel_universal_tools_for_capabilities(
-        ["send_operator_email"], connected
-    )
-    assert "platform_email_send_to_operator" not in tools, (
-        "Tool surfaced despite no email connection — ADR-299 D2 wire-gate "
-        "degradation is violated. The tool would fail at execution with a "
-        "confusing error if exposed without the wire."
-    )
-    assert tools == set(), "Expected empty set when wire gate fails"
-
-
-def test_bundle_capability_resolution_not_regressed() -> None:
-    """ADR-299 D5 (precedence): kernel-universal resolution does NOT regress
-    bundle-specific capability resolution. read_trading still resolves through
-    CAPABILITY_PROVIDER_MAP when trading is connected."""
+def test_resolution_wires_send_operator_email_through_existing_path() -> None:
+    """ADR-299 D5 (corrected): send_operator_email resolves through the
+    existing CAPABILITY_PROVIDER_MAP + PLATFORM_TOOLS_BY_CAPABILITY path —
+    no parallel resolution code in get_platform_tools_for_capabilities."""
     from services.platform_tools import (
         CAPABILITY_PROVIDER_MAP,
         PLATFORM_TOOLS_BY_CAPABILITY,
     )
 
-    # read_trading must still map to trading provider + the trading tools
-    assert CAPABILITY_PROVIDER_MAP.get("read_trading") == "trading"
-    trading_tools = PLATFORM_TOOLS_BY_CAPABILITY.get("read_trading") or []
-    assert len(trading_tools) > 0, (
-        "read_trading bundle capability lost its tools — ADR-299 changes "
-        "regressed the existing bundle-specific resolution path."
-    )
-    # Sanity: send_operator_email is NOT in the bundle-specific resolution
-    assert "send_operator_email" not in CAPABILITY_PROVIDER_MAP, (
-        "send_operator_email leaked into CAPABILITY_PROVIDER_MAP — should "
-        "remain kernel-only per ADR-299 D5 one-way precedence (bundles "
-        "cannot redeclare kernel-universal capability keys)."
+    # CAPABILITY_PROVIDER_MAP must route send_operator_email to email provider
+    assert CAPABILITY_PROVIDER_MAP.get("send_operator_email") == "email", (
+        "send_operator_email not wired into CAPABILITY_PROVIDER_MAP — "
+        "the existing resolution path won't surface its tool. Per ADR-299 "
+        "Discovery note (2026-05-24), the entry must use the same resolution "
+        "path as other capabilities (no parallel pre-check)."
     )
 
-
-def test_helper_api_predicates() -> None:
-    """ADR-299 D5: is_kernel_universal_capability + is_kernel_universal_tool
-    return canonical predicates."""
-    from services.kernel_capabilities import (
-        is_kernel_universal_capability,
-        is_kernel_universal_tool,
-        get_kernel_universal_capability,
-    )
-
-    # Capability-key predicate
-    assert is_kernel_universal_capability("send_operator_email") is True
-    assert is_kernel_universal_capability("read_trading") is False
-    assert is_kernel_universal_capability("") is False
-    assert is_kernel_universal_capability("nonexistent_cap") is False
-
-    # Tool-name predicate
-    assert is_kernel_universal_tool("platform_email_send_to_operator") is True
-    assert is_kernel_universal_tool("platform_email_send") is False  # bundle-side
-    assert is_kernel_universal_tool("platform_trading_submit_order") is False
-    assert is_kernel_universal_tool("") is False
-
-    # get_kernel_universal_capability returns copy (caller cannot mutate registry)
-    decl = get_kernel_universal_capability("send_operator_email")
-    assert decl is not None
-    decl["category"] = "MUTATED"  # mutate caller's copy
-    decl2 = get_kernel_universal_capability("send_operator_email")
-    assert decl2["category"] == "tool", (
-        "get_kernel_universal_capability leaked registry reference — "
-        "caller mutation polluted the singleton."
+    # PLATFORM_TOOLS_BY_CAPABILITY must list the operator-addressing tool
+    tools_for_cap = PLATFORM_TOOLS_BY_CAPABILITY.get("send_operator_email") or []
+    assert "platform_email_send_to_operator" in tools_for_cap, (
+        "platform_email_send_to_operator not listed under send_operator_email "
+        "in PLATFORM_TOOLS_BY_CAPABILITY — tool surface won't include it even "
+        "when capability is requested + email connection active."
     )
 
 
-def test_resolution_precedence_is_one_way() -> None:
-    """ADR-299 D5: bundles cannot redeclare kernel-universal capability keys
-    to alter shape. Verified by checking the resolution order — kernel-universal
-    is checked FIRST in get_platform_tools_for_capabilities."""
+def test_resolution_does_not_have_parallel_kernel_universal_precheck() -> None:
+    """ADR-299 D5 (corrected): get_platform_tools_for_capabilities must NOT
+    contain a kernel-universal pre-check (the parallel resolution path
+    introduced by the original ADR-299 D5; removed per the Discovery note
+    so the existing CAPABILITY_PROVIDER_MAP path is canonical)."""
     import inspect
     from services import platform_tools
 
     source = inspect.getsource(platform_tools.get_platform_tools_for_capabilities)
 
-    # Find the line numbers (rough order check)
-    kernel_idx = source.find("get_kernel_universal_tools_for_capabilities")
-    bundle_idx = source.find("CAPABILITY_PROVIDER_MAP.get(capability)")
+    # The parallel pre-check imported get_kernel_universal_tools_for_capabilities
+    # — its survival would indicate the correction was reverted.
+    assert "get_kernel_universal_tools_for_capabilities" not in source, (
+        "Parallel kernel-universal pre-check survives in "
+        "get_platform_tools_for_capabilities — ADR-299 Discovery note "
+        "(2026-05-24) required its removal. The existing CAPABILITY_PROVIDER_MAP "
+        "resolution handles operator-addressing capabilities via the standard path."
+    )
+    assert "kernel_capabilities" not in source, (
+        "Import of kernel_capabilities module survives — Discovery note "
+        "required deletion of the parallel registry + its consumers."
+    )
 
-    assert kernel_idx != -1, (
-        "Kernel-universal resolution call missing from "
-        "get_platform_tools_for_capabilities — ADR-299 D5 wiring regressed."
+
+def test_bundle_capability_resolution_not_regressed() -> None:
+    """The existing bundle-specific resolution path is unchanged.
+    read_trading still maps to trading provider + the trading tools."""
+    from services.platform_tools import (
+        CAPABILITY_PROVIDER_MAP,
+        PLATFORM_TOOLS_BY_CAPABILITY,
     )
-    assert bundle_idx != -1, (
-        "Bundle-specific resolution call missing — sanity-check failure."
-    )
-    assert kernel_idx < bundle_idx, (
-        "Kernel-universal resolution must run BEFORE bundle-specific "
-        "resolution per ADR-299 D5 one-way precedence. Order in source "
-        "indicates bundles would override — that's the regression this "
-        "guard catches."
-    )
+
+    assert CAPABILITY_PROVIDER_MAP.get("read_trading") == "trading"
+    trading_tools = PLATFORM_TOOLS_BY_CAPABILITY.get("read_trading") or []
+    assert len(trading_tools) > 0
+
+
+def test_addressee_class_distinguishes_operator_from_audience() -> None:
+    """ADR-299 D1 (corrected): the addressee_class field distinguishes
+    operator-addressing from audience-addressing at the registry level.
+    send_operator_email has it; write_email (audience-addressing per ADR-192
+    Phase 4) does NOT."""
+    from services.orchestration import CAPABILITIES
+
+    op_cap = CAPABILITIES.get("send_operator_email")
+    assert op_cap is not None
+    assert op_cap.get("addressee_class") == "operator"
+
+    # write_email is bundle-specific per ADR-224; not in kernel CAPABILITIES.
+    # Confirm it's absent from kernel CAPABILITIES (the audience-addressing
+    # surface belongs to bundle MANIFEST resolution, not kernel).
+    # If write_email DID exist in kernel CAPABILITIES, it must NOT carry
+    # addressee_class='operator' — but its absence is the more honest
+    # discipline marker.
+    write_email_in_kernel = CAPABILITIES.get("write_email")
+    if write_email_in_kernel is not None:
+        assert write_email_in_kernel.get("addressee_class") != "operator", (
+            "write_email surfaced in kernel CAPABILITIES with addressee_class='operator' "
+            "— that would conflate audience-addressing with operator-addressing per "
+            "ADR-299 D1 (corrected). write_email is audience-addressing; only "
+            "send_operator_email carries the operator addressee_class."
+        )
 
 
 if __name__ == "__main__":
     tests = [
-        test_kernel_universal_registry_contains_send_operator_email,
+        test_send_operator_email_in_capabilities_dict,
+        test_kernel_capabilities_module_does_not_exist,
         test_email_tools_exposes_send_to_operator_with_constrained_schema,
         test_handler_refuses_llm_supplied_addressee_fields,
-        test_resolution_exposes_tool_with_active_email_connection_no_manifest,
-        test_wire_gate_degrades_silently_when_email_not_connected,
+        test_resolution_wires_send_operator_email_through_existing_path,
+        test_resolution_does_not_have_parallel_kernel_universal_precheck,
         test_bundle_capability_resolution_not_regressed,
-        test_helper_api_predicates,
-        test_resolution_precedence_is_one_way,
+        test_addressee_class_distinguishes_operator_from_audience,
     ]
     failures: list[str] = []
     for fn in tests:

@@ -938,9 +938,17 @@ PLATFORM_TOOLS_BY_CAPABILITY = {
         "platform_trading_add_to_watchlist",
         "platform_trading_remove_from_watchlist",
     ],
-    # ADR-192 Phase 4: Email class
+    # ADR-192 Phase 4: Email class (audience-addressing — LLM supplies `to:`)
     "write_email": [
         "platform_email_send", "platform_email_send_bulk",
+    ],
+    # ADR-299: operator-addressing email (addressee structurally pinned to
+    # auth.users.email — distinct from write_email's audience-addressing
+    # surface). Capability lives in kernel CAPABILITIES dict per ADR-299
+    # Discovery note 2026-05-24 (corrected from earlier parallel-registry
+    # design). Wire-gate still uses the email provider (Resend per ADR-192).
+    "send_operator_email": [
+        "platform_email_send_to_operator",
     ],
 }
 
@@ -956,6 +964,9 @@ CAPABILITY_PROVIDER_MAP = {
     "write_trading": "trading",
     # ADR-192 Phase 4: email has no read capability (send-only in this phase)
     "write_email": "email",
+    # ADR-299: operator-addressing email (per Discovery note correcting
+    # earlier parallel-registry design — uses existing resolution path)
+    "send_operator_email": "email",
 }
 
 
@@ -1006,10 +1017,11 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
 
     Only returns tools for:
     1. providers the user has connected, and
-    2. providers/actions granted by the agent capability bundle, OR
-    3. capabilities registered in KERNEL_UNIVERSAL_CAPABILITIES (ADR-299),
-       which may apply across all bundle archetypes without MANIFEST
-       declaration — their wire-level connection gate (if any) still applies.
+    2. providers/actions granted by the agent capability bundle (or by the
+       kernel CAPABILITIES dict at services/orchestration.py:1129 for
+       operator-addressing capabilities like `send_operator_email` per
+       ADR-299, which use the same resolution path — kernel-vs-bundle is
+       a lookup-source per ADR-224, not a parallel runtime code path).
     """
     if not capabilities:
         return []
@@ -1024,19 +1036,6 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
         return []
 
     allowed_tool_names: set[str] = set()
-
-    # ADR-299 D5: kernel-universal capabilities resolve first. Precedence is
-    # one-way — bundles cannot redeclare kernel-universal capability keys to
-    # alter their shape. The wire-level connection gate (when declared in
-    # the kernel-universal registry) still applies, so tools degrade silently
-    # from the surface when the wire isn't connected (preserves operator UX —
-    # no leaking non-functional tools into prompts).
-    from services.kernel_capabilities import get_kernel_universal_tools_for_capabilities
-    allowed_tool_names.update(
-        get_kernel_universal_tools_for_capabilities(capabilities, connected_providers)
-    )
-
-    # Bundle-specific capability resolution (existing path).
     for capability in capabilities:
         provider = CAPABILITY_PROVIDER_MAP.get(capability)
         if not provider or provider not in connected_providers:

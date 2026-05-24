@@ -1216,6 +1216,21 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "platform_connection_requirement": None,
     },
 
+    # -- Operator-addressing (ADR-299) — capability addresses operator-identity
+    # (auth.users.email for workspace owner) rather than third party / audience.
+    # Distinguished by `addressee_class: "operator"` field; AUTONOMY-posture
+    # "observability" (per ADR-299 D4: routes through `_preferences.yaml`
+    # opt-in, NOT through should_auto_apply consequential-action gating).
+    # Available to all bundle archetypes without MANIFEST declaration.
+    # Wire still requires Resend connection (per ADR-192 Phase 4).
+    "send_operator_email": {
+        "category": "tool", "runtime": "external:email",
+        "tools": ["platform_email_send_to_operator"],
+        "platform_connection_requirement": {"platform": "email", "status": "active"},
+        "addressee_class": "operator",
+        "autonomy_posture": "observability",
+    },
+
     # PM coordination capabilities removed — PM/project architecture dissolved
 }
 

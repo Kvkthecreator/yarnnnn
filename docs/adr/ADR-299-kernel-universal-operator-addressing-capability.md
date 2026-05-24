@@ -1,6 +1,6 @@
-# ADR-299: Kernel-Universal Operator-Addressing Capability — `send_operator_email`
+# ADR-299: Operator-Addressing Capability — `send_operator_email`
 
-**Status**: Phase 1 Implemented 2026-05-22 (kernel module + tool wrap + resolution wiring + regression gate 8/8 PASS). Phases 2-4 deferred per phased roadmap.
+**Status**: Phase 1 Implemented 2026-05-22; corrected in-place 2026-05-24 (Discovery note below). Class renamed from "kernel-universal" to "operator-addressing"; parallel registry deleted; send_operator_email merged into existing CAPABILITIES dict. Regression gate 8/8 PASS post-correction; sibling reviewer-formalization gate 8/8 PASS. Phases 2-4 deferred per phased roadmap.
 **Date**: 2026-05-22
 **Authors**: KVK, Claude
 **Companion**: [`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md) — surfaced the L6 capital-execution gap on alpha-author that triggered this discourse
@@ -205,9 +205,48 @@ The conglomerate-alpha thesis (per ALPHA-1-PLAYBOOK + ADR-191) keeps its archety
 ## Cross-references
 
 - 2026-05-22 L6 validation observation: [`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/)
+- 2026-05-24 architectural-class-naming redundancy finding (motivated the Discovery note below): [`docs/observations/2026-05-24-042952-adr299-class-naming-redundancy/`](../observations/2026-05-24-042952-adr299-class-naming-redundancy/)
 - alpha-author bundle ADR: [ADR-283](ADR-283-alpha-author-bundle.md) (D7 + Discovery Note 2)
 - Resend integration: ADR-192 Phase 4 (`api/integrations/core/resend_client.py`)
 - Existing platform tools: `api/services/platform_tools.py` (EMAIL_TOOLS at line 809)
 - Capability flow: ADR-269 (`get_platform_tools_for_agent`)
 - AUTONOMY gating: ADR-217 + ADR-249
+- Existing CAPABILITIES dict (where send_operator_email now lives post-correction): `api/services/orchestration.py:1129`
 - FOUNDATIONS DP21 (Variant F): the canonical Reviewer formalization this ADR completes for the substrate-continuity archetype
+
+## Discovery note — architectural-class-naming redundancy correction (2026-05-24)
+
+This ADR was patched in place on 2026-05-24 after operator-prompted re-review surfaced a redundancy in D1 + D5: the introduced "kernel-universal capability" class was a renaming of an existing pattern, and D5's parallel registry duplicated existing infrastructure.
+
+**The redundancy**: `api/services/orchestration.py:1129` already shipped a `CAPABILITIES` dict (pre-ADR-299) with 15 entries carrying `platform_connection_requirement: None` — the structural property D1 named as the distinguishing test for "kernel-universal." The `_resolve_capability` fallthrough (ADR-224) already handled the kernel-vs-bundle distinction. D5's parallel `KERNEL_UNIVERSAL_CAPABILITIES` registry in new module `api/services/kernel_capabilities.py` introduced a second registry doing what the existing single registry already did.
+
+**The genuine novelty** in `send_operator_email` is NOT "kernel-universal" (existing class) but **operator-addressing** — a capability whose addressee resolves from `auth.users.email` for the workspace owner, regardless of wire-gate presence. Three patterns sit in the existing CAPABILITIES dict, not two:
+
+1. **No-wire-gate kernel** (15 existing entries): `summarize`, `web_search`, `chart`, etc. No external API; addressee is N/A.
+2. **Wire-gated audience-addressing bundle** (existing): `write_slack`, `write_notion`. External API + LLM-supplied addressee → third-party / audience surface.
+3. **Wire-gated operator-addressing** (NEW, the actual novelty): `send_operator_email`. External API + addressee structurally pinned to operator identity → operator surface.
+
+D1 collapsed (1) and (3) under one banner, but (1) already existed. The actual novel axis is the **addressee-class distinction** — operator-identity vs third-party — not the kernel-vs-bundle housing.
+
+**Why the redundancy escaped initial drafting**: pre-ADR-299 research delegated to a general-purpose agent reported *"no explicit `CAPABILITIES = {} dict currently visible (capabilities are embedded in role definitions + bundle MANIFESTs)."* This was incorrect — the dict was at line 1129, ~110 lines below where the agent looked. Discipline lesson: delegate research to subagents, but verify load-bearing facts before designing on top of them.
+
+**The corrections in this patch**:
+
+- **D1 reframed**: category renamed from "kernel-universal capability" (existing pattern) to **operator-addressing capability** (the genuine novelty). The distinguishing test is now sharpened to: *does this capability address operator-identity (operator-addressing) or a third party / audience / external counterparty (audience-addressing or third-party-addressing)?* The addressee class is the load-bearing axis, not the kernel-vs-bundle housing.
+- **D5 reframed**: parallel registry decision retracted. `send_operator_email` lives in the existing `CAPABILITIES` dict at `services/orchestration.py:1129` with a new `addressee_class: "operator"` field. The existing `_resolve_capability` + `CAPABILITY_PROVIDER_MAP` + `PLATFORM_TOOLS_BY_CAPABILITY` resolution path handles surface assembly — no parallel pre-check in `get_platform_tools_for_capabilities`. Singular Implementation honored.
+- **D2 stands unchanged**: the tool wrap (`platform_email_send_to_operator` + `send_to_operator` branch in `_handle_email_tool` + structural addressee pin) is genuinely new and correct.
+- **D3 stands unchanged**: the ADR-283 D7 clarification is still load-bearing — audience-addressing rejection holds; operator-addressing was the conflated-away exception.
+- **D4 stands unchanged**: operator-addressing writes are observability, not consequential action; gated by `_preferences.yaml` opt-in not per-action AUTONOMY click.
+- **D6 reframed**: kernel-universal placement justification (over per-bundle re-declaration) survives in spirit — operator-addressing capabilities sit in the kernel `CAPABILITIES` dict, available to all bundles via the existing fallthrough path. The reasoning was right; the implementation housing (parallel registry vs existing dict) was wrong.
+- **D7 stands unchanged**: scope limits (no audience-bearing email, no SMS/push, no new email provider, etc.) all hold.
+
+**Files affected by the correction** (single Hat-A commit, three-commit cross-hat shape per CLAUDE.md §"The Two Hats"):
+- DELETED: `api/services/kernel_capabilities.py` (parallel registry)
+- AMENDED: `api/services/orchestration.py` — `send_operator_email` entry added to `CAPABILITIES` dict with `addressee_class: "operator"` + `autonomy_posture: "observability"` fields
+- AMENDED: `api/services/platform_tools.py` — `send_operator_email` wired into `CAPABILITY_PROVIDER_MAP` + `PLATFORM_TOOLS_BY_CAPABILITY`; parallel kernel-universal pre-check in `get_platform_tools_for_capabilities` deleted
+- AMENDED: `api/test_adr299_kernel_universal_capability.py` — rewritten to test corrected shape (8/8 PASS post-correction)
+- AMENDED: this ADR (in-place per Singular Implementation; no v1/v2)
+
+**Architectural takeaway**: the kernel/bundle boundary (ADR-224) was already correctly designed for capabilities that operate across all archetypes. The error was introducing a new architectural class when a new field on the existing class would have sufficed. The lesson generalizes: when proposing a new architectural class, the first check is whether the existing class has space for a new field that captures the genuine novelty. If yes, prefer the new field over the new class. New classes are expensive (parallel registries, parallel resolution paths, doc churn); new fields are cheap (additive metadata on existing entries).
+
+This patch supersedes the affected sections in place per Singular Implementation. No v1/v2; the corrected text is the ADR.
