@@ -1,11 +1,16 @@
 /**
- * PaceBadge — operator-facing pace + queue-depth badge (ADR-298 Phase 5).
+ * PaceBadge — operator-facing pace + queue-depth badge (ADR-298 Phase 5,
+ * ADR-300 deep-link simplification).
  *
  * Surfaces the operator's declared workspace pace (Trigger-dimension dial
- * of the Pace + Autonomy + Persona trifecta per ADR-298 D11) alongside
+ * of the Pace + Delegation + Identity trifecta per ADR-298 D11) alongside
  * the live wake_queue depths so the operator can see at a glance:
  *
  *   "What rhythm does this agent work at, and how much is pending?"
+ *
+ * ADR-300 D5 (2026-05-22): edit affordances live on the atomic /pace
+ * surface. PaceBadge is read-only display + deep-link — clicking opens
+ * /pace. The badge no longer carries any edit semantics.
  *
  * Self-contained: fetches from /api/cockpit/pace on mount + on a refresh
  * tick. Drop-in anywhere in the cockpit; no surface coupling.
@@ -20,6 +25,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Activity, Loader2 } from 'lucide-react';
 
 import { cn } from '@/lib/utils';
@@ -115,10 +121,13 @@ export function PaceBadge({ className, refreshIntervalMs = 30_000 }: PaceBadgePr
   const totalPending = state.paced_lane_depth + state.live_lane_depth;
   const kind = state.pace_kind;
 
+  // ADR-300 D5: badge deep-links to atomic /pace surface; the edit
+  // affordance lives there, not here.
   return (
-    <span
+    <Link
+      href="/pace"
       className={cn(
-        'inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium',
+        'inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-90',
         kind ? PACE_TINT[kind] : 'bg-slate-500/10 text-slate-600',
         className,
       )}
@@ -129,8 +138,9 @@ export function PaceBadge({ className, refreshIntervalMs = 30_000 }: PaceBadgePr
             (state.fires_per_day_cap !== null
               ? ` — drains ≤ ${state.fires_per_day_cap.toFixed(2)} cron-tick wake(s)/day`
               : ' — uncapped') +
-            `\nPending: ${state.paced_lane_depth} paced · ${state.live_lane_depth} live`
-          : 'No pace declared — paced lane uncapped (operator authoring _pace.yaml controls this)'
+            `\nPending: ${state.paced_lane_depth} paced · ${state.live_lane_depth} live` +
+            '\nClick to tune pace'
+          : 'No pace declared — click to choose'
       }
     >
       <Activity className="h-3 w-3" />
@@ -140,6 +150,6 @@ export function PaceBadge({ className, refreshIntervalMs = 30_000 }: PaceBadgePr
           · {totalPending} pending
         </span>
       )}
-    </span>
+    </Link>
   );
 }

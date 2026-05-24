@@ -10,7 +10,7 @@
 // =============================================================================
 
 // ADR-297 axiom (2026-05-21): surface = viewport panel, not URL
-// destination. KernelSurfaceSlug enumerates the 15 atomic surfaces
+// destination. KernelSurfaceSlug enumerates the 16 atomic surfaces
 // declared by api/services/kernel_surfaces.py.
 // D19.4 (2026-05-22): settings + connectors promoted from legacy
 // pages to atomic kernel surfaces — reverses D19.7. Inside the
@@ -19,6 +19,7 @@ export type KernelSurfaceSlug =
   | 'feed'
   | 'cockpit'
   | 'cadence'
+  | 'pace'
   | 'delegation'
   | 'mandate'
   | 'principles'
@@ -55,7 +56,7 @@ export type DeskSurface =
   | { type: 'idle' };
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
-  'feed', 'cockpit', 'cadence', 'delegation', 'mandate', 'principles',
+  'feed', 'cockpit', 'cadence', 'pace', 'delegation', 'mandate', 'principles',
   'identity', 'brand', 'files', 'agents', 'program', 'queue', 'activity',
   'settings', 'connectors',
 ] as const;

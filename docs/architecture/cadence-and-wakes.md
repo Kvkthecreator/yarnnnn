@@ -271,6 +271,17 @@ A workspace with high cadence (many recurrences, low min-intervals, broad hook m
 
 **The implication for operator transparency:** cadence visibility is at least as important as autonomy visibility in the operator UI. Today (2026-05-21) the cockpit shows autonomy at `/workspace` Delegation card; cadence visibility is fragmented across `/schedule` (recurrence list, no attribution), `/work` (deliverable runs), and `execution_events` (DB-only, not surfaced). Closing that gap is downstream work — see [`docs/design/SURFACE-MODEL-ATOMIC-VS-CONTAINER.md`](../design/SURFACE-MODEL-ATOMIC-VS-CONTAINER.md) for the parked surface-model discussion.
 
+### Pace as the workspace-wide rhythm budget (ADR-298 D11 + ADR-300)
+
+Inside the cadence/cost gate above, **pace** is the workspace-wide budget that bounds total wake frequency. Pace is the Trigger-dimension dial of the **Pace + Delegation + Identity** operator trifecta (canonized by [ADR-298 D11](../adr/ADR-298-reviewer-wake-queue-and-pace.md)). The operator picks one of `hourly | daily | weekly | continuous`; the Schedule primitive pace-gates every new recurrence at declaration time (ADR-298 D5), refusing any creation that would push the total declared fire-frequency past the budget.
+
+The atomic operator-facing edit surface for pace is **`/pace`** (Document archetype, 16th kernel surface — [ADR-300](../adr/ADR-300-pace-as-atomic-kernel-surface.md)). `PaceBadge` on the cockpit is a read-only deep-link to it. Pace is distinct from:
+
+- **Cadence** — the per-recurrence taxonomy (`recurring | reactive`) surfaced on `/cadence`.
+- **Schedule** — the per-recurrence cron string field on a recurrence YAML.
+
+All three are Trigger-dimension concepts (Axiom 4) at different scopes. Pace is workspace-wide; Cadence is per-recurrence framing; Schedule is per-recurrence timing.
+
 ---
 
 ## 13. Substrate locations — definitive map
@@ -282,6 +293,7 @@ A workspace with high cadence (many recurrences, low min-intervals, broad hook m
 | `/workspace/context/_shared/_preferences.yaml` | Operator only (bundle fork seeds initial) | Reviewer (governance envelope; reconciles changes) | Operator's deliverable cadence intent; Reviewer-write-locked |
 | `/workspace/review/standing_intent.md` | Reviewer (cycle terminus) | Reviewer (next wake, Tier 2 envelope) | Reviewer's forward-looking state |
 | `/workspace/context/_shared/_autonomy.yaml` | Operator only | `should_auto_execute_verdict()` gate; governance envelope | Delegation ceiling + paused state |
+| `/workspace/context/_shared/_pace.yaml` | Operator only (path in `DEFAULT_REVIEWER_WRITE_LOCKS`); bundle fork at activation seeds initial | `Schedule` primitive pace-gate (ADR-298 D5); governance envelope; `/pace` atomic surface | Workspace-wide rhythm budget — `kind` is the only operator-edited field on the surface; secondary fields routed through chat |
 | `execution_events` (DB, migration 177) | `services/wake.py` (every wake) | Operator queries, telemetry | Wake source + funnel decision + cost + duration |
 | `workspace_file_versions` (DB, ADR-209) | Every substrate write | Hook walker, ListRevisions/ReadRevision primitives | Attributed revision chain — provenance of every cadence change |
 

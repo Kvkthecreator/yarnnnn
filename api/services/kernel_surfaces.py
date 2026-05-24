@@ -179,6 +179,25 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Recurrences, substrate-event hooks, standing intent, and wake telemetry.",
     },
     {
+        # ADR-300 (2026-05-22) — pace promoted from cockpit-tab section
+        # (ADR-298 D5 original) to atomic kernel surface. Document archetype,
+        # operator-only edit, mirrors /delegation's shape. Slotted between
+        # /cadence and /delegation to keep Trigger-dimension surfaces
+        # (Cadence + Pace) adjacent before transitioning into Mechanism
+        # (Delegation) and Identity (Identity / Brand / Principles) per
+        # axiom order.
+        "slug": "pace",
+        "title": "Pace",
+        "archetype": "document",
+        "substrate_paths": [
+            "/workspace/context/_shared/_pace.yaml",
+        ],
+        "icon_key": "gauge",
+        "default_pinned": False,
+        "route": "/pace",  # _route_status: NEW in ADR-300
+        "summary": "Workspace rhythm — how often the agent works. Edit kind on the surface; complex fields via chat.",
+    },
+    {
         "slug": "delegation",
         "title": "Delegation",
         "archetype": "document",

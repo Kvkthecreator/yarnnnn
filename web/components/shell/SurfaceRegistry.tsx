@@ -24,6 +24,7 @@ import type { KernelSurfaceSlug } from '@/types/desk';
 import FeedPage from '@/app/(authenticated)/feed/page';
 import CockpitPage from '@/app/(authenticated)/cockpit/page';
 import CadencePage from '@/app/(authenticated)/cadence/page';
+import PacePage from '@/app/(authenticated)/pace/page';
 import DelegationPage from '@/app/(authenticated)/delegation/page';
 import MandatePage from '@/app/(authenticated)/mandate/page';
 import PrinciplesPage from '@/app/(authenticated)/principles/page';
@@ -45,6 +46,7 @@ export const KERNEL_SURFACE_REGISTRY: Record<KernelSurfaceSlug, ComponentType> =
   feed: FeedPage,
   cockpit: CockpitPage,
   cadence: CadencePage,
+  pace: PacePage,
   delegation: DelegationPage,
   // Brand co-renders inside IdentityPage (per ADR-297 D1 — the
   // IdentityBrandCard hosts both). The Brand slug maps to the same
