@@ -37,3 +37,48 @@ deliverable_preferences:
     cadence: "0 18 31 3,6,9,12 *"   # Quarter-end at 18:00 UTC
     description: "Quarter-end voice fingerprint audit — does the declared _voice.md still match the corpus, or has voice evolved enough that the declaration needs operator-authored update?"
     active: true
+
+
+# =============================================================================
+# operator_notifications — operator-addressing email opt-ins (ADR-299)
+# =============================================================================
+#
+# Operator-addressing capabilities (per ADR-299 D1, operator-addressing class)
+# differ from deliverable_preferences above in three ways:
+#   - Addressee is the operator's own inbox (auth.users.email), not third-
+#     party / audience. Tool `platform_email_send_to_operator` enforces this
+#     structurally — addressee resolves at send-time, no `to:` field accepted.
+#   - Routing is observability (per ADR-299 D4), NOT consequential action.
+#     `_preferences.yaml` opt-in IS the standing operator authorization;
+#     AUTONOMY `delegation: manual` does NOT block these (operator already
+#     approved by declaring the preference).
+#   - Wire-gate still applies: requires an active Resend connection per
+#     ADR-192 Phase 4. When Resend isn't connected, the
+#     `platform_email_send_to_operator` tool degrades silently from the
+#     Reviewer's surface — no leak of non-functional tool into prompts.
+#
+# Each entry shape:
+#   - slug:        stable identifier (e.g. daily_corpus_state_update)
+#   - description: what the Reviewer composes + sends
+#   - cadence_hint: when the Reviewer should consider sending. The Reviewer
+#                   does NOT auto-fire on cadence — it sends when the
+#                   judgment cycle produces material worth surfacing AND
+#                   the cadence hint is honored. Operator-tunable.
+#   - active:      false to pause without deleting the preference
+#
+# Default-off discipline: each entry ships `active: false` so the bundle
+# default does NOT spam any operator. The operator flips `active: true`
+# on the preferences they want, per workspace. Multi-workspace operators
+# tune notifications independently to avoid email fatigue (per ADR-299
+# Scenario 9 stress-test).
+
+operator_notifications:
+  - slug: daily_corpus_state_update
+    description: "Daily morning email summarizing yesterday's audit verdicts, drafts pending review, voice-drift signals from the last 24h, and pieces awaiting publication. Reviewer composes from /workspace/review/judgment_log.md + /workspace/review/standing_intent.md."
+    cadence_hint: "Daily at 07:00 UTC (operator-tunable)"
+    active: false
+
+  - slug: pre_ship_audit_summary
+    description: "Email sent immediately after a pre-ship-audit fires on a draft transitioning to ready_for_review — operator gets the Reviewer's verdict (approve / defer / reject) + reasoning summary while context is fresh, so they can iterate quickly on a deferred draft."
+    cadence_hint: "Event-driven — fires when pre-ship-audit hook resolves"
+    active: false

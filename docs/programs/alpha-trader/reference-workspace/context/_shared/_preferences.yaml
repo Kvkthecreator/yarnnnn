@@ -46,3 +46,54 @@ deliverable_preferences:
     cadence: "0 18 31 3,6,9,12 *"
     description: "Quarter-end signal discipline audit at 18:00 UTC on quarter-end day"
     active: true
+
+
+# =============================================================================
+# operator_notifications — operator-addressing email opt-ins (ADR-299)
+# =============================================================================
+#
+# Operator-addressing capabilities (per ADR-299 D1, operator-addressing class)
+# differ from deliverable_preferences above in three ways:
+#   - Addressee is the operator's own inbox (auth.users.email), not third-
+#     party / audience. Tool `platform_email_send_to_operator` enforces this
+#     structurally — addressee resolves at send-time, no `to:` field accepted.
+#   - Routing is observability (per ADR-299 D4), NOT consequential action.
+#     `_preferences.yaml` opt-in IS the standing operator authorization;
+#     AUTONOMY `delegation: manual` does NOT block these (operator already
+#     approved by declaring the preference). Distinct from capital-action
+#     gating which still flows through should_auto_apply.
+#   - Wire-gate still applies: requires an active Resend connection per
+#     ADR-192 Phase 4. When Resend isn't connected, the
+#     `platform_email_send_to_operator` tool degrades silently from the
+#     Reviewer's surface — no leak of non-functional tool into prompts.
+#
+# Each entry shape:
+#   - slug:        stable identifier (e.g. daily_pnl_reconciliation)
+#   - description: what the Reviewer composes + sends
+#   - cadence_hint: when the Reviewer should consider sending. The Reviewer
+#                   does NOT auto-fire on cadence — it sends when the
+#                   judgment cycle produces material worth surfacing AND
+#                   the cadence hint is honored. Operator-tunable.
+#   - active:      false to pause without deleting the preference
+#
+# Default-off discipline: each entry ships `active: false` so the bundle
+# default does NOT spam any operator. The operator flips `active: true`
+# on the preferences they want, per workspace. Multi-workspace operators
+# tune notifications independently to avoid email fatigue (per ADR-299
+# Scenario 9 stress-test).
+
+operator_notifications:
+  - slug: daily_pnl_reconciliation
+    description: "End-of-day email summarizing today's outcome-reconciliation: realized + unrealized P&L, fills count, signal attribution, calibration deltas vs declared expectancy. Reviewer composes from /workspace/context/trading/_money_truth.md after the @market_close + 1h outcome-reconciliation fire."
+    cadence_hint: "Daily at @market_close + 90min (after outcome-reconciliation settles)"
+    active: false
+
+  - slug: signal_fire_alert
+    description: "Email sent when signal-evaluation fires a high-confidence ProposeAction — operator gets the proposal summary + sizing math + Reviewer reasoning even before they next open the cockpit Queue. Useful when operator is operating remotely or wants out-of-band capital-action awareness."
+    cadence_hint: "Event-driven — fires when ProposeAction emits with confidence >= signal-specific threshold"
+    active: false
+
+  - slug: regime_state_change_alert
+    description: "Email sent when track-regime detects a VIX-regime flip (Signal 5 transition) — operator gets the alert that portfolio scalar has changed, sized positions are now 0.5x or 1x effective starting next entry. Material for risk-aware operators."
+    cadence_hint: "Event-driven — fires when /workspace/context/trading/_regime.yaml vix_regime_active transitions"
+    active: false
