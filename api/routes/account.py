@@ -902,3 +902,72 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
     except Exception as e:
         logger.error(f"[ACCOUNT] Failed to deactivate account for {user_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to deactivate account")
+
+
+# =============================================================================
+# Email Wire Smoke Test
+# =============================================================================
+# Self-serve operator health check for the system Resend wire (api/jobs/email.py).
+# Bypasses Reviewer + notifications.py + delivery.py + recurrence pipeline so a
+# failure here unambiguously isolates to: RESEND_API_KEY misconfigured, Resend
+# API outage, or the wire code itself. Useful after env-var rotations, Resend
+# plan changes, or any "did the canary email get sent?" investigation that
+# wants the Reviewer-shaped variables removed.
+#
+# Origin: ADR-299 Discovery 4 Path A canary v4 RED — when the Reviewer chose
+# stand_down and no email landed, distinguishing "tool not in surface" from
+# "wire broken" required an isolation test. See
+# docs/observations/2026-05-25-042346-adr299-always-surface-resolution/
+# for the surrounding diagnostic arc.
+
+
+class EmailSmokeTestResult(BaseModel):
+    """Result of a system Resend wire smoke test."""
+
+    success: bool
+    recipient: Optional[str] = None
+    message_id: Optional[str] = None
+    error: Optional[str] = None
+
+
+@router.post("/account/test-email")
+async def send_test_email_to_operator(auth: UserClient) -> EmailSmokeTestResult:
+    """Send a test email to the authenticated operator's account email.
+
+    Direct exercise of the system Resend wire (`jobs.email.send_test_email`)
+    with no Reviewer, no notifications routing, no delivery pipeline, no
+    recurrence — just: resolve operator's auth email → send → return result
+    (including Resend message_id on success).
+
+    Returns 200 with `success=False` and an `error` string when the wire
+    fails so the operator can see Resend's error response directly (e.g.,
+    `RESEND_API_KEY not configured`, `Resend API error: 422 - ...`).
+    Returns 200 with `success=True` + `message_id` on success.
+    """
+    user_id = auth.user_id
+    try:
+        from jobs.email import send_test_email
+        from jobs.unified_scheduler import get_user_email
+
+        service_client = get_service_client()
+        recipient = await get_user_email(service_client, user_id)
+        if not recipient:
+            return EmailSmokeTestResult(
+                success=False,
+                error=f"Could not resolve auth email for user {user_id}",
+            )
+
+        result = await send_test_email(to=recipient)
+        logger.info(
+            f"[ACCOUNT] test-email to={recipient} success={result.success} "
+            f"message_id={result.message_id} error={result.error}"
+        )
+        return EmailSmokeTestResult(
+            success=result.success,
+            recipient=recipient,
+            message_id=result.message_id,
+            error=result.error,
+        )
+    except Exception as e:
+        logger.error(f"[ACCOUNT] test-email failed for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Test email failed: {e}")
