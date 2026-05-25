@@ -72,23 +72,9 @@ Developer-hat discipline:
 
 ### Crossing hats inside one session
 
-Two hats, two **commit shapes**, NOT necessarily two sessions. The discipline is preserved by commit boundaries, not session boundaries — same principle `docs/observations/README.md` §"The Hat We Wear" already names: *"the 'hat' is operational, not ontological."* When the same session does both — Hat-B surfaces a finding, Hat-A lands the fix — the discipline holds as a **three-commit shape**:
+The hat distinction is directional, not ceremonial. The discipline that matters is **substrate-receipts under every load-bearing claim** — revision_ids, execution_event ids, wake_queue ids, reproducible queries. A claim without a receipt is narrative, not evidence; that's the drift the discipline exists to prevent.
 
-1. **Commit 1 (Hat B)**: author + commit the observation folder (`PLAYBOOK.md` + `findings.md`) with the recommendation written as if the fix is for someone else's session. No code changes.
-2. **Commit 2 (Hat A)**: land the system-canon fix in a separate commit. Reference the observation folder by path in the commit message; system vocabulary throughout; no new observation framing.
-3. **Commit 3 (Hat B coda)**: append a resolution addendum to `findings.md` (or open a new follow-up observation folder if the resolution surfaces new substrate evidence worth its own capture). Commit separately.
-
-Three commits, three hat-labels visible in `git log`, zero session-boundary required. The observation folder is never mutated to include canon edits; the canon-edit commit is never mutated to include new observation framing. That preserves what the session-boundary rule was protecting (don't blur the discovery from the response) without throwing away substrate continuity (same session knows the bug + the codebase + the validation path).
-
-When NOT to cross hats inside one session:
-- The fix is non-trivial (>~50 LOC, touches >1 module, or needs ADR amendment) — those benefit from operator sign-off between the finding and the fix.
-- The finding's recommendation surfaces multiple possible fixes that need design discussion — Hat-B captures the finding, operator chooses the direction, Hat-A executes in a fresh session with that direction as input.
-- The observation has not yet been operator-acknowledged — operator may want to redirect or decline the recommendation before it becomes a fix.
-
-When TO cross hats inside one session:
-- The fix is small + obvious + has an in-canon precedent the recommendation can cite (the substrate-event walker fix is the canonical example: ~5 lines, 2 method swaps with named existing precedent).
-- The validation requires the same context that produced the observation (re-loading bug context in a fresh session wastes 5-10 min for a 30-line change).
-- The operator is in-loop and authorizes the cross.
+When the same session both surfaces a finding and lands the fix: use whichever commit shape produces honest commits. Small + obvious + named in-canon precedent → cross-over in a single commit is fine. Anything that benefits from operator sign-off, multi-module changes, or design discussion → separate commits. The goal is not single-author optimism (same author finds the bug and validates the fix as one indivisible motion); the goal is not commit-counting ceremony either.
 
 ### Why the hats matter for autonomy
 
