@@ -6,6 +6,84 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.25.2] - surface(reviewer): Clarify surfaces to Feed as role='reviewer' (clarify-silenced-from-feed fix)
+
+### Decision
+
+The Reviewer's `Clarify(question=..., options=...)` calls now surface to
+the operator's Feed as `role='reviewer'` (persona bubble), not silently.
+Closes the gap documented in
+`docs/observations/2026-05-25-042827-clarify-silenced-from-feed/findings.md`:
+15/15 Reviewer Clarify wakes over the past 7 days across 5 of 6 active
+workspaces produced zero `session_messages` rows — operators had no signal
+the Reviewer was asking them anything.
+
+### Why
+
+ADR-247 line 139 classifies `Clarify` as "Ask operator for input." But
+`Clarify` was lumped into `REVIEWER_COGNITION_TOOLS` (silenced) with
+no-side-effect substrate reads, and the `_summarize_result` helper had no
+Clarify branch (returned "ok"), and `reviewer_audit.py`'s lineage gate
+read a `clarify_alert` input field that doesn't exist on the
+`CLARIFY_TOOL` schema (dead code). Four cascading gaps; one cohesive fix.
+
+### Changed
+
+- `api/services/reviewer_chat_surfacing.py::REVIEWER_COGNITION_TOOLS`
+  — `"Clarify"` removed; 15 genuine cognition tools remain.
+- `api/services/reviewer_chat_surfacing.py::narrate_reviewer_action`
+  — Clarify branch returns the question bare (no "Executed Clarify..."
+  prefix). The Reviewer IS the asker; the operator reads the question.
+- `api/agents/reviewer_agent.py::_summarize_result` — Clarify branch
+  extracts `question` (and `[options]` when present) from the result
+  dict so `action_record["summary"]` carries the operator-facing payload.
+- `api/services/reviewer_chat_surfacing.py::surface_reviewer_actions`
+  — Clarify rows written with `role="reviewer"` + metadata
+  (`clarify_question`, `clarify_options`) for future FE response
+  affordances (inline button strip). Other tools unchanged
+  (`role="system_agent"`).
+- `api/services/wake.py::stream_addressed_wake` — `agent_narration`
+  event carries a `role` field (Clarify→reviewer, default→system_agent)
+  plus `clarify_question` / `clarify_options` for the addressed path.
+- `api/routes/feed.py::_dispatch_reviewer_turn` — agent_narration
+  handler reads `event.get("role", "system_agent")` instead of
+  hardcoding; propagates clarify metadata.
+- `api/services/reviewer_audit.py::_detect_outcome_kind` — dead
+  `clarify_alert` input-flag gate replaced with simple presence check
+  (`tool_name == "Clarify"` → `lineage_kind = "clarify"`). Operator-
+  acknowledgment requests are operation-shaping moments; they belong
+  in `judgment_log.md`.
+
+### Expected behavior change
+
+Future Reviewer Clarify wakes will produce one `session_messages` row
+with `role='reviewer'`, body = the question text, metadata carrying
+`clarify_question` + `clarify_options`. The operator sees the question
+in the Reviewer persona bubble on the Feed surface. The Reviewer's
+post-Clarify stand_down verdict is unchanged (per the persona-frame
+nudge at `reviewer_agent.py:1614-1622`); the new row precedes the
+verdict reasoning in the timeline.
+
+`judgment_log.md` for Clarify-only cycles now carries a `clarify`
+outcome_kind entry instead of skipping the cycle entirely.
+
+No ADR amendment required — ADR-289's 3-bucket taxonomy never named
+Clarify; ADR-247 already classifies Clarify as operator-addressed;
+ADR-258 D1 role taxonomy already supports the differentiation. The
+fix honors all three.
+
+### Tests
+
+`api/test_clarify_surfacing.py` 29/29 PASS covering all 7 surfaces:
+cognition exclusion, narration branch, summarize branch, event role
+propagation, feed-route role honor, surface_reviewer_actions role +
+metadata, reviewer_audit presence-gate + dead-code removal.
+
+Sibling gates all green: ADR-274, ADR-275, ADR-276, ADR-281, ADR-298,
+ADR-299, ADR-301, reviewer_formalization.
+
+---
+
 ## [2026.05.25.1] - tool(reviewer): EMAIL_SEND_TO_OPERATOR_TOOL added to REVIEWER_PRIMITIVES (ADR-299 Discovery notes 3 + 4)
 
 ### Decision

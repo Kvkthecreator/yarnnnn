@@ -53,7 +53,7 @@ Entry formats:
   trigger: reactive
   reviewer_identity: ai:reviewer-sonnet-v8
   outcome_kind: propose_action | schedule_create | schedule_update | schedule_archive
-              | write_operator_canon | clarify_alert | meta_verdict
+              | write_operator_canon | clarify | meta_verdict
   ---
   <free-form Reviewer verdict + reasoning, markdown-allowed>
 """
@@ -88,7 +88,10 @@ Decision = Literal["approve", "reject", "defer"]
 #   1. ProposeAction was called (proposal awaiting review)
 #   2. Schedule was called with action ∈ {create, update, archive}
 #   3. WriteFile was called against an operator-canon substrate path
-#   4. Clarify was emitted carrying an operator-relevant alert
+#   4. Clarify was called (operator-acknowledgment requested — 2026-05-25
+#      simplification per docs/observations/2026-05-25-042827-clarify-
+#      silenced-from-feed/. Pre-2026-05-25 the gate read a clarify_alert
+#      tool-input field that doesn't exist on CLARIFY_TOOL — dead code.)
 #   5. ReturnVerdict.verdict ∈ {pause_autonomy, narrow, relax, character_note}
 #
 # Stand-downs with no material outcome leave the wake's existence in
@@ -182,10 +185,18 @@ def _detect_outcome_kind(reviewer_output: dict) -> str | None:
                 if any(path.startswith(p) for p in operator_canon_prefixes):
                     write_to_operator_canon = True
 
-        # Condition 4: Clarify with operator-alert flag.
+        # Condition 4: Clarify was called. The Reviewer asking the
+        # operator for input is operation-shaping — the operator's
+        # answer (or non-answer) directly shapes the next cycle. Pre-
+        # 2026-05-25 this branch read tool_input.get('clarify_alert')
+        # which doesn't exist on the CLARIFY_TOOL schema (registry.py:
+        # 127-148) — the gate was structurally unreachable. Fix
+        # documented in docs/observations/2026-05-25-042827-clarify-
+        # silenced-from-feed/findings.md Gap 3. Simplification to
+        # presence-based gate matches the operator-acknowledgment
+        # rationale: any Clarify is lineage-worthy.
         if tool_name == "Clarify":
-            if tool_input.get("clarify_alert") is True:
-                clarify_alert = True
+            clarify_alert = True
 
     if proposed:
         return "propose_action"
@@ -194,7 +205,7 @@ def _detect_outcome_kind(reviewer_output: dict) -> str | None:
     if write_to_operator_canon:
         return "write_operator_canon"
     if clarify_alert:
-        return "clarify_alert"
+        return "clarify"
     return None
 
 

@@ -1756,6 +1756,20 @@ def _summarize_result(result: Any) -> str:
         return "ok"
     if result.get("success") is False:
         return f"error: {result.get('error') or 'unknown'}"
+    # 2026-05-25 Clarify branch (per
+    # docs/observations/2026-05-25-042827-clarify-silenced-from-feed/):
+    # Clarify returns {success, question, options, ui_action}. The
+    # question is the operator-facing payload — it becomes the narration
+    # body for the Reviewer-bubble Feed entry. Without this branch the
+    # helper falls through to "ok" and the question is lost.
+    if "question" in result:
+        question = (result.get("question") or "").strip()
+        options = result.get("options") or []
+        if question:
+            if options:
+                opts_str = ", ".join(str(o) for o in options if o)
+                return f"{question} [{opts_str}]"
+            return question
     # Slug + action verb together — the strongest discriminator for
     # lifecycle primitives (Schedule / ManageHook). Two distinct slugs
     # at the same path render with distinct summaries.

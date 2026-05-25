@@ -1694,12 +1694,29 @@ async def stream_addressed_wake(
                 and not is_mirror_refresh_action(_action_synth, client, user_id)
             ):
                 narration = narrate_reviewer_action(tool_name, summary)
-                yield {
+                # 2026-05-25 clarify-silenced-from-feed: per-tool role.
+                # Clarify is the Reviewer asking the operator — render in
+                # the Reviewer persona bubble (role='reviewer' per
+                # ADR-247 + ADR-258 D1), not as System Agent narration.
+                # Caller (routes/feed.py) reads event['role'].
+                row_role = "reviewer" if tool_name == "Clarify" else "system_agent"
+                event_out: dict = {
                     "type": "agent_narration",
                     "tool": tool_name,
                     "summary": summary,
                     "narration": narration,
+                    "role": row_role,
                 }
+                if tool_name == "Clarify":
+                    cinp = _action_synth.get("input") or {}
+                    if isinstance(cinp, dict):
+                        cq = cinp.get("question")
+                        co = cinp.get("options")
+                        if cq:
+                            event_out["clarify_question"] = cq
+                        if isinstance(co, list) and co:
+                            event_out["clarify_options"] = list(co)
+                yield event_out
 
     # Drain any remaining queued events.
     while not progress_queue.empty():
@@ -1720,12 +1737,29 @@ async def stream_addressed_wake(
                 and not is_mirror_refresh_action(_action_synth, client, user_id)
             ):
                 narration = narrate_reviewer_action(tool_name, summary)
-                yield {
+                # 2026-05-25 clarify-silenced-from-feed: per-tool role.
+                # Clarify is the Reviewer asking the operator — render in
+                # the Reviewer persona bubble (role='reviewer' per
+                # ADR-247 + ADR-258 D1), not as System Agent narration.
+                # Caller (routes/feed.py) reads event['role'].
+                row_role = "reviewer" if tool_name == "Clarify" else "system_agent"
+                event_out: dict = {
                     "type": "agent_narration",
                     "tool": tool_name,
                     "summary": summary,
                     "narration": narration,
+                    "role": row_role,
                 }
+                if tool_name == "Clarify":
+                    cinp = _action_synth.get("input") or {}
+                    if isinstance(cinp, dict):
+                        cq = cinp.get("question")
+                        co = cinp.get("options")
+                        if cq:
+                            event_out["clarify_question"] = cq
+                        if isinstance(co, list) and co:
+                            event_out["clarify_options"] = list(co)
+                yield event_out
 
     # ADR-298 Phase 3: queue lifecycle terminates here regardless of
     # invoke_reviewer outcome — release the single-in-flight lock so

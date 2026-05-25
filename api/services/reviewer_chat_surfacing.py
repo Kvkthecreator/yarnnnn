@@ -171,11 +171,21 @@ async def write_reviewer_message(
 # paths emit the same shape: Reviewer bubble + zero-or-more System Agent
 # narration bubbles, one per consequential successful action.
 
+# 2026-05-25: Clarify removed per docs/observations/2026-05-25-042827-
+# clarify-silenced-from-feed/findings.md. Clarify is the structural
+# opposite of cognition — its sole purpose is operator-facing
+# communication with a side effect (operator's attention). ADR-247
+# line 139 classifies it as "Ask operator for input." ADR-289's 3-bucket
+# taxonomy comment never named Clarify; it was misclassified by the
+# original frozenset construction. The fix surfaces Clarify with
+# role='reviewer' (persona attribution, not System Agent narration);
+# see narrate_reviewer_action's Clarify branch + the role-aware emission
+# path in surface_reviewer_actions + wake.py::stream_addressed_wake.
 REVIEWER_COGNITION_TOOLS = frozenset({
     "ReadFile", "ListFiles", "SearchFiles", "ListRevisions",
     "ReadRevision", "DiffRevisions", "GetSystemState", "SearchEntities",
     "LookupEntity", "list_integrations", "WebSearch", "QueryKnowledge",
-    "DiscoverAgents", "ReadAgentFile", "ListEntities", "Clarify",
+    "DiscoverAgents", "ReadAgentFile", "ListEntities",
 })
 
 # ADR-289 Phase 2a (2026-05-20) + ADR-296 v2 D3 (2026-05-20): 3-bucket
@@ -247,6 +257,12 @@ def narrate_reviewer_action(tool: str, summary: str = "", *, folded_count: int =
         return f"Proposal submitted on Reviewer's direction.{summary_part}{count_part}"
     if tool == "WriteFile":
         return f"Wrote to Reviewer substrate on its direction.{summary_part}{count_part}"
+    # 2026-05-25 Clarify branch: the Reviewer IS the asker. Render the
+    # question bare (no "Executed Clarify..." prefix). Caller writes the
+    # row with role='reviewer' so the FE renders it in the Reviewer
+    # persona bubble (ADR-247 three-party model + ADR-258 D1).
+    if tool == "Clarify":
+        return summary or "Reviewer asked for clarification."
     return f"Executed `{tool}` on Reviewer's direction.{summary_part}{count_part}"
 
 
@@ -419,18 +435,37 @@ async def surface_reviewer_actions(
         proposal_id = action.get("proposal_id")
         if tool == "ProposeAction" and proposal_id:
             meta["proposal_id"] = proposal_id
+        # 2026-05-25 (clarify-silenced-from-feed): per-tool role +
+        # extra_metadata for Clarify. The Reviewer IS the asker — the row
+        # belongs in the Reviewer persona bubble (role='reviewer' per
+        # ADR-247 + ADR-258 D1), not System Agent narration. Structured
+        # question + options stamped on metadata so a future FE
+        # response-affordance can render inline buttons without re-parsing
+        # the body text.
+        if tool == "Clarify":
+            row_role = "reviewer"
+            clarify_input = action.get("input") or {}
+            if isinstance(clarify_input, dict):
+                cq = clarify_input.get("question")
+                co = clarify_input.get("options")
+                if cq:
+                    meta["clarify_question"] = cq
+                if isinstance(co, list) and co:
+                    meta["clarify_options"] = list(co)
+        else:
+            row_role = "system_agent"
         # ADR-289 D5: read invocation_id off the action record (Reviewer
         # stamps it on every action_record per ADR-289 D4) and pass through
         # to the narrative envelope. FE groups rows sharing invocation_id
         # into one invocation card on the Feed surface.
         action_invocation_id = action.get("invocation_id")
         try:
-            # weight=material — System Agent is a participant in the
-            # conversation, full chat-bubble visual weight.
+            # weight=material — both System Agent narration and Reviewer
+            # Clarify questions are full chat-bubble visual weight.
             write_narrative_entry(
                 client,
                 session_id,
-                role="system_agent",
+                role=row_role,
                 summary=body[:200],
                 body=body,
                 pulse="reactive",

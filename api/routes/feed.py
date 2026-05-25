@@ -1199,11 +1199,26 @@ async def global_chat(
                 elif etype == "agent_narration":
                     tool_name = event.get("tool", "?")
                     narration = event.get("narration", "")
-                    await append_message(auth.client, session_id, "system_agent", narration, {
+                    # 2026-05-25 clarify-silenced-from-feed: wake source
+                    # declares the row role per-tool (Clarify → 'reviewer'
+                    # for persona attribution; default → 'system_agent').
+                    # Honor that decision here instead of hardcoding.
+                    row_role = event.get("role", "system_agent")
+                    meta_out: dict = {
                         "tools_used": [tool_name], "tool_history": [],
                         "pulse": "addressed", "weight": "material", "reviewer_directed": True,
                         "invocation_id": invocation_id,
-                    })
+                    }
+                    # Pass through Clarify structured payload so future FE
+                    # response affordances (inline button strip) have
+                    # canonical data without re-parsing narration text.
+                    cq = event.get("clarify_question")
+                    co = event.get("clarify_options")
+                    if cq:
+                        meta_out["clarify_question"] = cq
+                    if isinstance(co, list) and co:
+                        meta_out["clarify_options"] = co
+                    await append_message(auth.client, session_id, row_role, narration, meta_out)
                     yield f"data: {json.dumps({'content': narration})}\n\n"
 
                 elif etype == "reviewer_response":
