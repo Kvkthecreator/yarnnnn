@@ -67,17 +67,16 @@ docs/observations/
     cold-start-governance-self-amend.yaml
     post-refusal-self-amendment-probe.yaml
     ...
+  archive/                             # archived observation folders (work landed OR superseded)
+    YYYY-MM-DDTHHMMSS-{slug}/
 
-  YYYY-MM-DDTHHMMSS-{slug}/            # one folder per observation run (time-bounded capture)
-    README.md                          # 1-line summary + metadata
+  YYYY-MM-DDTHHMMSS-{slug}/            # ACTIVE observation folders only (kept ≤ ~5–8)
     PLAYBOOK.md                        # scenario or REPL session metadata
-    transcript.md                      # operator–Reviewer dialog (session_messages slice)
-    substrate-diff.md                  # files touched + revision chain + authored_by
-    decisions.md                       # Reviewer decisions during the window
-    proposals.md                       # action_proposals created + their fate
-    token-usage.md                     # execution_events grouped by caller_identity
-    findings.md                        # HUMAN-WRITTEN interpretation (initially a stub)
+    findings.md                        # the interpretation — cite substrate receipts (revision_ids, execution_event ids)
+    [optional: transcript.md, substrate-diff.md, decisions.md, proposals.md, token-usage.md]
 ```
+
+**Active set is small by design.** Once a folder's work has landed (RESOLUTION.md exists or its recommendation flows into shipped canon) OR it's been superseded by a later capture OR it's > ~5 days old without being cited from `sessions/{thread}.md` or an open ADR draft, move it to `archive/` via `git mv`. The reading burden for a cold-entering session should stay manageable: `sessions/{thread}.md` + 3–8 active folders, not the full history. Archive preserves receipts (revision_ids, queries, telemetry pointers) for future cross-session verification.
 
 ## Workflow
 
@@ -101,17 +100,21 @@ Produces a timestamped observation folder with all 8 files. `findings.md` is a s
 
 ## Discipline rules
 
-1. **Every >1-turn operator-proxy session produces an observation folder.** Forgetting to capture is failing to learn. Scenario runs auto-capture; REPL captures on `/capture` command.
+These rules trade off two failure modes: optimistic single-author summaries that drift from substrate (the failure the discipline exists to prevent) vs. ceremonial overhead that pollutes the active surface (the failure the lighter defaults exist to prevent). The receipts-and-verification habit is load-bearing; the folder-per-observation ceremony is not.
 
-2. **`findings.md` is human-written, not Claude-written.** Claude may draft, human signs off. Drafts are marked as such until reviewed.
+1. **A folder is the right shape only when the capture earns one.** A folder is right when (a) a future cold-entering session needs to re-enter the moment with full receipts, or (b) the finding will hand off to a separate commit (Hat-A fix, ADR draft, persona-frame edit). Otherwise: a one-line note in `sessions/{thread}.md` + a psql query reproducible from substrate is enough. Default to lighter capture; reach for a folder when you can name what future reader needs it.
 
-3. **Machine-produced artifacts are append-only.** Don't edit `transcript.md` or `substrate-diff.md` after capture — they're records. To add interpretation, edit `findings.md`.
+2. **`findings.md` cites substrate receipts.** Every load-bearing claim names a revision_id, execution_event id, wake_queue id, or a query that reproduces from the live DB. "The Reviewer wrote standing_intent.md" without a revision_id is narrative, not evidence. The discipline against drift is receipt-citation, not vocabulary.
 
-4. **Scenarios are versioned.** Once `cold-start-governance-self-amend.yaml` is committed, changes to it should be intentional + ADR-amend-worthy if they change observed behavior shape.
+3. **Machine-produced artifacts are append-only.** Don't edit `transcript.md` or `substrate-diff.md` after capture — they're records. Interpretation goes in `findings.md`.
 
-5. **Cross-link with ADRs.** When an observation contradicts an ADR's claim, the next commit is either an ADR amendment or a new ADR documenting the contradiction. Don't let observations drift away from the canon.
+4. **Scenarios are versioned.** Once `cold-start-governance-self-amend.yaml` is committed, changes are intentional + ADR-amend-worthy if they change observed behavior shape.
 
-6. **One scenario, one folder, one finding.** Don't accumulate multiple scenario runs in one folder. Each capture gets its own timestamped folder.
+5. **Cross-link with ADRs.** When an observation contradicts an ADR's claim, the next commit is either an ADR amendment or a new ADR documenting the contradiction. Don't let observations drift away from canon.
+
+6. **Cross-hat commit shape is opt-in, not default.** When the same session both surfaces a finding (Hat-B) and lands the fix (Hat-A): if the fix is small + obvious + has named in-canon precedent, cross-over in a single commit is acceptable and preferred over ceremony. The three-commit shape (observation → fix → resolution addendum) is reserved for fixes that need operator sign-off, multi-module changes, or design discussion. The discipline is about preventing single-author optimism (the same author who finds the bug fixes it and validates the fix as one indivisible motion), not about counting commits.
+
+7. **Archive aggressively when work lands or supersession happens.** Active folders that no current session/ADR cites + no in-flight work depends on belong in `archive/`. `git mv` preserves history. Future verification can grep across active + archive without penalty. The cost of an unarchived folder is reading-burden on every cold session; the cost of archiving is approximately zero.
 
 ## Evaluation Checklist: Reviewer Self-Amendment Behavior (ADR-295 Phase B)
 

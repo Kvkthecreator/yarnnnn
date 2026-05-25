@@ -44,7 +44,7 @@ Update this table when a new demo window opens or AUTONOMY mode shifts on any pe
 
 **Persona under active observation**: `kvk`
 **Demo window**: 2026-05-20T04:13Z (T0) onwards
-**Latest observation folder**: `docs/observations/2026-05-20-040500-kvk-autonomy-demonstration-T0/`
+**Latest observation folder**: `docs/observations/2026-05-26-134500-signal-evaluation-tuesday-rth/` (staging PLAYBOOK for Tuesday signal-evaluation observation). T0 baseline preserved at `docs/observations/archive/2026-05-20-040500-kvk-autonomy-demonstration-T0/`.
 **AUTONOMY mode**: `autonomous`, `ceiling_cents: 5000000`, `never_auto: [close_position_market, cancel_other_orders]`
 **Active probe-residue caveat**: `_operator_profile.md` Reviewer-edit from post-refusal-self-amendment-probe (commit `72f775b`) still at revision-chain head. Hat-A cleanup may be needed before next-RTH window for clean attribution. See T0 PLAYBOOK §"Probe-residue named explicitly".
 
@@ -187,7 +187,7 @@ Don't blur 2 and 4. The discipline is what makes the boundary real.
 
 ## Capital-lane-specific risks to watch
 
-- **Stale `_money_truth.md` narrative vs live `_account.yaml`**: Reviewer must size against live mirror, not historical narrative. Warm-start v3 (`docs/observations/2026-05-20-013632-warm-start-auto-execute/`) surfaced this as risk-gate violation #4. If repeated, the fix is in the Reviewer's reasoning (prompt-level) not in `_risk.md` (anti-pattern #4).
+- **Stale `_money_truth.md` narrative vs live `_account.yaml`**: Reviewer must size against live mirror, not historical narrative. Warm-start v3 (`docs/observations/2026-05-20-013632-warm-start-auto-execute/`) surfaced this as risk-gate violation #4 — the warm-start v3 capture stays active as the load-bearing capital-loop validation; if repeated, the fix is in the Reviewer's reasoning (prompt-level) not in `_risk.md` (anti-pattern #4).
 - **Off-hours wake firing capital path**: `trading_hours_only: true` in `_risk.md` is the safety floor. If a proposal comes in off-hours, risk-gate correctly refuses. Don't disable. Wait for RTH.
 - **Round-budget defer on cold-start workspaces**: the 3-round Sonnet budget on proposal-trigger wakes is tight. The 2026-05-20 prompt fix (commit `9ddfb05`) reordered standing_intent.md write after ReturnVerdict. Verify this still holds in any new demo window.
 - **risk_gate cascade rejection**: when Alpaca submission is refused, the rejection_reason in `execution_result.message` is the load-bearing signal. Read it carefully; don't blame Reviewer for envelope-correct refusals.
