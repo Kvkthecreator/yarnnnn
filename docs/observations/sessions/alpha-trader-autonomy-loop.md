@@ -44,7 +44,7 @@ Update this table when a new demo window opens or AUTONOMY mode shifts on any pe
 
 **Persona under active observation**: `kvk`
 **Demo window**: 2026-05-20T04:13Z (T0) onwards
-**Latest observation folder**: `docs/observations/2026-05-26-134500-signal-evaluation-tuesday-rth/` (staging PLAYBOOK for Tuesday signal-evaluation observation). T0 baseline preserved at `docs/observations/archive/2026-05-20-040500-kvk-autonomy-demonstration-T0/`.
+**Latest observation folder**: `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/` (load-bearing — N=27 judgment-shape wakes characterization, 48% persona-frame adherence, 0 action_proposals across 4 days × 3 trader personas since cutover; the 0-proposal count may be by-design selectivity OR silent-wake stand-downs, undistinguishable from substrate alone — Tuesday signal-evaluation will inform). Tuesday staging: `docs/observations/2026-05-26-134500-signal-evaluation-tuesday-rth/`. T0 baseline preserved at `docs/observations/archive/2026-05-20-040500-kvk-autonomy-demonstration-T0/`.
 **AUTONOMY mode**: `autonomous`, `ceiling_cents: 5000000`, `never_auto: [close_position_market, cancel_other_orders]`
 **Active probe-residue caveat**: `_operator_profile.md` Reviewer-edit from post-refusal-self-amendment-probe (commit `72f775b`) still at revision-chain head. Hat-A cleanup may be needed before next-RTH window for clean attribution. See T0 PLAYBOOK §"Probe-residue named explicitly".
 

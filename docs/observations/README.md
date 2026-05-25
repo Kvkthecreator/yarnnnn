@@ -80,15 +80,17 @@ docs/observations/
 
 ## Workflow
 
-**Scripted scenario:**
+Three capture shapes are supported. Choose the one that matches the question.
+
+**Scripted scenario** — when validating a specific Reviewer behavior under controlled conditions:
 ```bash
 .venv/bin/python -m api.scripts.operator.run_scenario \
     --scenario docs/observations/scenarios/warm-start-auto-execute.yaml \
     --caller scenario-runner
 ```
-Produces a timestamped observation folder with all 8 files. `findings.md` is a stub — edit it after reading the artifacts.
+Produces a timestamped observation folder with the 8-artifact set (PLAYBOOK + findings + transcript + substrate-diff + decisions + proposals + token-usage). `findings.md` is a stub — edit it after reading the artifacts.
 
-**Interactive REPL:**
+**Interactive REPL** — when probing a Reviewer behavior turn-by-turn:
 ```bash
 .venv/bin/python -m api.scripts.operator.loop \
     --persona alpha-trader-2 --caller claude-sonnet-4-7
@@ -97,6 +99,9 @@ Produces a timestamped observation folder with all 8 files. `findings.md` is a s
 > /feed
 > /capture                # snapshot
 ```
+
+**Population audit** — when characterizing a behavior class across all wakes / personas / a time window:
+The substrate already answers most behavioral questions. Run psql queries against `execution_events`, `workspace_file_versions`, `wake_queue`, and `action_proposals` directly. Folder shape is one `findings.md` (no PLAYBOOK because there's no captured-window narrative). Each load-bearing claim carries its SQL inline so future sessions can re-run the audit verbatim. The canonical example is [`2026-05-25-053951-reviewer-behavior-population-audit/findings.md`](2026-05-25-053951-reviewer-behavior-population-audit/findings.md) — A1–A8 each backed by a re-runnable query. Use this shape when the question is "what does the substrate say across N wakes" rather than "what happened in this one capture."
 
 ## Discipline rules
 

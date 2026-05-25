@@ -274,11 +274,19 @@ sent rows in 90 days. This is a 90-day broader issue, not Tuesday-blocking.
 
 ## Status
 
-**RESOLVED for verification scope, OPEN for follow-on items.** Three brief
-claims verified, contradicted, or refined per receipts. Two recommendations
-queue against operator action (seulkim88 contradiction, email channel). No
-code changes recommended from this finding. Tuesday's signal-evaluation
-observation remains the next anchor capture.
+**RESOLVED for verification scope. SUPERSEDED IN SCOPE by broader population audit.**
+Three brief claims verified, contradicted, or refined per receipts. The
+"canary-RED is a one-shot anomaly" framing this finding gave was later
+substantiated as wrong by population audit
+`2026-05-25-053951-reviewer-behavior-population-audit/findings.md`, which
+characterized N=27 judgment-shape wakes since ADR-298 cutover and surfaced
+the canary-RED as one of 11 silent wakes (not an outlier). Read this
+finding for the verification-of-brief-claims work and the seulkim88
+framework-contradiction surfacing; read the population audit for the
+broader behavioral characterization the canary-RED was a sample from.
+Two recommendations here (seulkim88 contradiction, email channel) remain
+open and are subsumed into the population audit's R2 (persona-frame
+disambiguation) and R4 (RESEND_API_KEY) respectively.
 
 ## Cross-references
 

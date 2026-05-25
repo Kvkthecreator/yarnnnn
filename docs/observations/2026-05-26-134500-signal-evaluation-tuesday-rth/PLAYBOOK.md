@@ -10,6 +10,12 @@
 expectations + capture protocol so the post-fire findings.md can score cleanly against
 declared expectations.
 
+**Related: population audit context** — `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`
+characterized N=27 judgment-shape wakes since cutover and found 48% persona-frame adherence
++ 11 silent wakes + 0 action_proposals across trader personas. Tuesday's signal-evaluation
+adds N=3 to that population. Score Tuesday's outcome both against architecture claims (this
+PLAYBOOK's surprise enumeration) AND against the population baseline (the audit's findings).
+
 ## Why this observation
 
 Tuesday 2026-05-26T13:45Z is the **next natural signal-evaluation fire across all three
@@ -55,17 +61,26 @@ ADR-298 + ADR-301:
 
 ## What would surprise (would surface as findings)
 
+**Reframing note (post population audit 2026-05-25-053951)**: signal-evaluation
+specifically has shown 1-of-1 silent on cron_tick at 2026-05-22T13:46Z (kvk persona).
+Across all judgment-shape recurrences the population shows ~43% cron_tick adherence
+to standing_intent.md writes. Tuesday's wakes adding to the population, not validating
+a clean baseline. Each persona's outcome is one row added to N=27→N=30. The
+"surprises" below are framed against architecture claims, not against revised
+empirical expectations.
+
 **Surprise 1 — Cadence skip on a non-holiday Tuesday.** If `next_run_at` advances past
 Tuesday 13:45Z without an `execution_events` row, the scheduler missed the fire.
 
 **Surprise 2 — funnel_decision='skip'.** Would indicate the wake routed through Tier 1
 mechanical gating and bailed pre-judgment. Unexpected for a judgment-mode recurrence.
 
-**Surprise 3 — Zero `reviewer:*` substrate writes despite a `success`-status
-execution_events row.** This is the canary-RED pattern (2026-05-24T05:38Z). If it
-recurs on a real signal-evaluation wake, it escalates from "one-shot anomaly" to
-"reproducing regression" and warrants Hat-A investigation per the predecessor
-observation's Recommendation 1.
+**Surprise 3 (REFRAMED) — All three personas produce clean substrate writes** (the
+INVERTED surprise direction). Per population audit, signal-evaluation has 33% adherence
+on N=3. If Tuesday's N=3 all produce substrate writes, that's a 6/6 cluster suggesting
+the pattern is reproducing or pace-of-improvement is faster than the audit captured.
+Conversely, if all three silent, that's a 1/6 cluster firming up the silent-wake
+hypothesis.
 
 **Surprise 4 — seulkim88 evaluates Signal-1 or Signal-3 anyway.** Would indicate the
 2026-05-24T18:11Z `_operator_profile.md` retirement did not actually de-list the
@@ -83,6 +98,13 @@ needs operator-cleanup before next clean autonomy demo.
 appears.** Would suggest ADR-301 kernel-mirror plumbing broke under signal-evaluation
 load (it only has substrate_event evidence to date, plus the predecessor
 weekly-corpus-review at 2026-05-24T18:12Z).
+
+**Surprise 7 (NEW) — A signal actually matches and `action_proposals` row appears.**
+Population audit shows ZERO action_proposals across 4 days × 3 trader personas. If
+Tuesday produces a proposal, that resolves the A4 ambiguity (selectivity vs silent
+stand-down) toward selectivity — signals were genuinely not matching, the engine works
+when they do. If zero proposals AND the live universe had matchable bars, A4 firms
+toward silent stand-down.
 
 ## What is NOT expected to fire (and would surprise if it did)
 
