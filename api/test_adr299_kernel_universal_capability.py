@@ -255,26 +255,41 @@ def test_resolution_surfaces_send_operator_email_unconditionally() -> None:
     )
 
 
-def test_reviewer_primitives_includes_send_operator_email() -> None:
-    """ADR-299 Discovery note 4 (2026-05-25): platform_email_send_to_operator
-    MUST be in REVIEWER_PRIMITIVES. The Reviewer's tool surface is built
-    from REVIEWER_PRIMITIVES directly per reviewer_agent.py:1373, NOT via
-    get_platform_tools_for_capabilities. Without explicit inclusion here,
-    the Reviewer cannot call the tool regardless of operator opt-in,
-    regardless of resolution-path always-surface fix.
+def test_reviewer_primitives_excludes_send_operator_email_path_a_revert() -> None:
+    """ADR-299 Discovery 4 REVERTED — Path A isolation (2026-05-25).
 
-    This guard prevents the structural bug that caused canary v3 to render
-    a textbook REJECT verdict but never fire the email — the tool wasn't
-    in the Reviewer's surface at all."""
+    Discovery 4 added EMAIL_SEND_TO_OPERATOR_TOOL to REVIEWER_PRIMITIVES so the
+    Reviewer's tool surface (built directly from REVIEWER_PRIMITIVES per
+    reviewer_agent.py:1373) would include the operator-addressing channel.
+    Canary v4 fired post-Discovery-3+4 with intentional voice issues; the
+    Reviewer chose `stand_down` (silently — no judgment_log, no standing_intent,
+    no email). Diagnosis showed v4 ran 4 LLM rounds vs v3's 10 (significantly
+    less context-gathering before deciding).
+
+    Path A revert removes the tool from REVIEWER_PRIMITIVES to isolate the
+    tool-perturbation variable. If a v5 canary now produces defer/reject again,
+    tool addition was perturbing judgment toward stand_down. If v5 still
+    stand_downs, the cause is elsewhere (e.g. prompt-coverage gap).
+
+    Discovery 3's always-surface pass in get_platform_tools_for_capabilities
+    is NOT reverted — kernel-universal capabilities still flow through the
+    agent path for non-Reviewer callers (covered by
+    test_resolution_surfaces_send_operator_email_unconditionally above).
+
+    Re-introduction (if v5 confirms tool was innocent) requires:
+      1. Adding EMAIL_SEND_TO_OPERATOR_TOOL back to REVIEWER_PRIMITIVES
+      2. Updating this test to assert presence (the inverse of below)
+      3. Citing the validating canary in the commit + ADR Discovery note
+    """
     from services.primitives.registry import REVIEWER_PRIMITIVES
 
     tool_names = [t.get("name") for t in REVIEWER_PRIMITIVES]
-    assert "platform_email_send_to_operator" in tool_names, (
-        "platform_email_send_to_operator missing from REVIEWER_PRIMITIVES — "
-        "ADR-299 Discovery note 4 requires explicit inclusion. The Reviewer's "
-        "tool surface (reviewer_agent.py:1373) is built from REVIEWER_PRIMITIVES; "
-        "the kernel CAPABILITIES dict + agent-path resolution don't reach it. "
-        "Add EMAIL_SEND_TO_OPERATOR_TOOL to REVIEWER_PRIMITIVES in registry.py."
+    assert "platform_email_send_to_operator" not in tool_names, (
+        "platform_email_send_to_operator is present in REVIEWER_PRIMITIVES — "
+        "Path A revert (2026-05-25) removed it. Either Discovery 4 was "
+        "re-introduced (in which case invert this assertion + cite the "
+        "validating canary in the same commit) or the revert was reverted "
+        "by accident."
     )
 
 
@@ -350,7 +365,7 @@ if __name__ == "__main__":
         test_handler_refuses_llm_supplied_addressee_fields,
         test_resolution_send_operator_email_not_in_provider_map,
         test_resolution_surfaces_send_operator_email_unconditionally,
-        test_reviewer_primitives_includes_send_operator_email,
+        test_reviewer_primitives_excludes_send_operator_email_path_a_revert,
         test_resolution_does_not_have_parallel_kernel_universal_precheck,
         test_bundle_capability_resolution_not_regressed,
         test_addressee_class_distinguishes_operator_from_audience,

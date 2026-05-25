@@ -6,6 +6,53 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.25.3] - tool(reviewer): EMAIL_SEND_TO_OPERATOR_TOOL REVERTED from REVIEWER_PRIMITIVES (ADR-299 Discovery 4 Path A revert)
+
+### Decision
+
+ADR-299 Discovery 4 (entry `[2026.05.25.1]` below) added
+`EMAIL_SEND_TO_OPERATOR_TOOL` to `REVIEWER_PRIMITIVES` so the Reviewer's
+22-tool surface would include the operator-addressing channel directly.
+Canary v4 fired post-deploy with intentional voice issues and the Reviewer
+chose `stand_down` silently — no judgment_log, no standing_intent, no email.
+4 LLM rounds vs canary v3's 10. Path A reverts the inclusion to isolate
+whether tool addition perturbed Reviewer judgment toward `stand_down`.
+
+Discovery 3's always-surface fix in `get_platform_tools_for_capabilities`
+remains in place — kernel-universal capabilities still flow through the
+agent path for non-Reviewer callers. Only the Reviewer-side inclusion is
+reverted.
+
+### Changes
+
+- **api/services/primitives/registry.py** — `EMAIL_SEND_TO_OPERATOR_TOOL`
+  import removed. Tool removed from `REVIEWER_PRIMITIVES` list. Comment
+  block documents the revert rationale + re-introduction protocol. Tool
+  count back to 21.
+- **api/test_adr299_kernel_universal_capability.py** —
+  `test_reviewer_primitives_includes_send_operator_email` renamed to
+  `test_reviewer_primitives_excludes_send_operator_email_path_a_revert`
+  and assertion inverted. Now guards against silent re-introduction.
+- **docs/adr/ADR-299-kernel-universal-operator-addressing-capability.md**
+  — Status banner updated; Discovery 4 Path A revert addendum appended.
+
+### Expected behavior change
+
+The Reviewer no longer has direct access to `platform_email_send_to_operator`.
+ChatAgent + non-Reviewer headless callers retain access via the standard
+agent-path resolution (Discovery 3 always-surface preserved). If canary v5
+re-fires the substrate-event hook with intentional voice issues and the
+Reviewer now produces defer/reject (instead of v4's silent stand_down),
+hypothesis A (tool perturbation) is confirmed; if v5 still stand_downs,
+hypothesis B (prompt-coverage gap) is the next investigation.
+
+### Test gate
+
+`api/test_adr299_kernel_universal_capability.py` 10/10 PASS post-revert
+with inverted assertion.
+
+---
+
 ## [2026.05.25.2] - surface(reviewer): Clarify surfaces to Feed as role='reviewer' (clarify-silenced-from-feed fix)
 
 ### Decision

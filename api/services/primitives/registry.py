@@ -92,12 +92,6 @@ from .propose_action import (
 )
 from services.platform_tools import (
     is_platform_tool, handle_platform_tool, get_platform_tools_for_agent,
-    # ADR-299 Discovery note 4 (2026-05-25): operator-addressing email
-    # tool surfaced to Reviewer via REVIEWER_PRIMITIVES inclusion below.
-    # The Reviewer's tool surface is built from REVIEWER_PRIMITIVES per
-    # reviewer_agent.py:1373, not via get_platform_tools_for_capabilities,
-    # so the tool requires explicit inclusion here.
-    EMAIL_SEND_TO_OPERATOR_TOOL,
 )
 
 # ---------------------------------------------------------------------------
@@ -429,11 +423,20 @@ REVIEWER_PRIMITIVES = [
     # researcher / analyst / writer / tracker / designer / reporting roles
     # for production work the Reviewer's context shouldn't carry.
     DISPATCH_SPECIALIST_TOOL,
-    # ADR-299 Discovery note 4 (2026-05-25): operator-addressing email tool.
-    # Kernel-universal capability — always in the Reviewer's surface, gated
-    # at use-time by operator's _preferences.yaml::operator_notifications opt-in
-    # per ADR-299 D4. Wire is system-deployed Resend (api/jobs/email.py).
-    EMAIL_SEND_TO_OPERATOR_TOOL,
+    # ADR-299 Discovery note 4 REVERTED (2026-05-25, Path A):
+    # EMAIL_SEND_TO_OPERATOR_TOOL was added here per Discovery 4 to give the
+    # Reviewer kernel-universal access to the operator-addressing channel.
+    # Canary v4 fired post-Discovery-3+4 with intentional voice issues and
+    # the Reviewer chose `stand_down` (silently — no judgment_log, no
+    # standing_intent, no email). This Path A revert isolates the tool-
+    # perturbation variable: re-fire substrate-event hook with the same
+    # piece shape but the smaller (21-tool) surface to test whether tool
+    # addition shifted Reviewer judgment toward stand_down. Discovery 3's
+    # always-surface pass in get_platform_tools_for_capabilities remains in
+    # place — kernel-universal capabilities still flow through the agent
+    # path for non-Reviewer callers. See observation at
+    # docs/observations/2026-05-25-042346-adr299-always-surface-resolution/
+    # RESOLUTION.md §"Path A revert".
     # Substrate refresh (ADR-264) — rare mid-loop case where the Reviewer
     # needs to refresh external state into substrate before judging.
     # Primary use is dispatched by mechanical-mode recurrences; LLM-callable
@@ -441,7 +444,7 @@ REVIEWER_PRIMITIVES = [
     SYNC_PLATFORM_STATE_TOOL,
     # Conversation
     CLARIFY_TOOL,
-]  # 21 tools — ADR-296 v2 D2 added ManageHook (substrate-event hook authoring as standing-intent authority)
+]  # 21 tools — ADR-296 v2 D2 added ManageHook; ADR-299 Discovery 4 reverted Path A 2026-05-25
 
 
 # =============================================================================

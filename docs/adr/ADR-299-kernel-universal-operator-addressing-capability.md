@@ -1,6 +1,6 @@
 # ADR-299: Operator-Addressing Capability — `send_operator_email`
 
-**Status**: Phase 1 Implemented 2026-05-22; corrected FOUR times in-place across 2026-05-24 and 2026-05-25 (Discovery notes 1-4 below). Phase 2 + 3 Implemented 2026-05-24. After Discovery note 4 (the final correction): resolution path always-surfaces kernel-universal-no-wire-gate capabilities AND `EMAIL_SEND_TO_OPERATOR_TOOL` is explicitly registered in `REVIEWER_PRIMITIVES` (the Reviewer's tool surface registry is separate from the agent-path resolution that was corrected by Discovery notes 2 + 3). Regression gate 10/10 PASS post-correction; sibling reviewer-formalization gate 10/10 PASS. Phase 4 (L6 validation observation) ready for canary v4 — the structural bug chain that caused canary v1-v3 to fail end-to-end is now fully corrected.
+**Status**: Phase 1 Implemented 2026-05-22; corrected FOUR times in-place across 2026-05-24 and 2026-05-25 (Discovery notes 1-4 below). Phase 2 + 3 Implemented 2026-05-24. Discovery 4 **REVERTED Path A 2026-05-25** post-canary-v4 RED — see Discovery 4 Path A addendum at the end of this ADR. Discovery 3's always-surface fix remains in place (kernel-universal capabilities still flow through the agent path for non-Reviewer callers); only the Reviewer-side `REVIEWER_PRIMITIVES` inclusion was reverted to isolate the tool-perturbation variable. Regression gate 10/10 PASS post-revert with inverted assertion. Canary v5 pending to validate whether tool addition was perturbing Reviewer judgment toward `stand_down`.
 **Date**: 2026-05-22
 **Authors**: KVK, Claude
 **Companion**: [`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md) — surfaced the L6 capital-execution gap on alpha-author that triggered this discourse
@@ -376,3 +376,38 @@ After Discovery note 4:
 Canary v4 should produce the full chain green: REJECT verdict + email landed in operator inbox.
 
 This patch supersedes the affected sections in place per Singular Implementation. No v1/v2/v3/v4; the corrected text is the ADR.
+
+## Discovery 4 Path A — REVIEWER_PRIMITIVES revert + isolation test (2026-05-25)
+
+Canary v4 fired 4 min after the Discovery 3+4 deploy (commit 7147aa7 deployed 04:38:19 UTC, canary fired 04:42:39). The substrate-event hook fired correctly, the Reviewer wake envelope assembled correctly, and the cycle completed with `execution_events.status='success'`. But zero substrate writes landed:
+
+- No `/workspace/review/judgment_log.md` update
+- No `/workspace/review/standing_intent.md` update
+- No email sent to operator inbox
+- No narrative entry in `session_messages`
+
+The Reviewer ran 4 LLM rounds (vs canary v3's 10), made 8 read-only tool calls (`ReadFile` × 7, `ListFiles` × 1), and emitted `ReturnVerdict(verdict='stand_down', …)` in round 4. `stand_down` is structurally a valid verdict — the hook prompt's `WriteFile` requirement is conditional on `defer` or `reject` only — so the cycle exited cleanly without writes. But the hook prompt's intent ("Silent stand-down without writing audit reasoning is forbidden") was violated in spirit: the test piece had intentional voice issues (list-of-three openers, "at the end of the day", "absolutely pivotal", intensifier adverbs, "in conclusion") that should have produced defer/reject.
+
+**Two candidate root causes** for the verdict shift:
+
+| Hypothesis | Mechanism | Test |
+|---|---|---|
+| A: Tool-perturbation | Adding `platform_email_send_to_operator` to `REVIEWER_PRIMITIVES` shifted Reviewer attention budget — v4 ran 4 rounds vs v3's 10, suggesting tool-list change perturbed judgment process | Revert Discovery 4 only; re-fire substrate-event hook with same piece shape; observe whether v5 returns to defer/reject |
+| B: Prompt-coverage gap | Hook prompt has explicit branches for `approve / defer / reject` but admits `stand_down` as an escape hatch via the global Reviewer prompt | Patch hook prompt with "stand_down is not valid for pre-ship-audit"; fix forward |
+
+**Path A chosen by operator 2026-05-25** to isolate variable A first. Per Singular Implementation, the revert is the single source of truth — no parallel "both versions live" state.
+
+**Path A revert details**:
+- `api/services/primitives/registry.py` — `EMAIL_SEND_TO_OPERATOR_TOOL` import removed; tool removed from `REVIEWER_PRIMITIVES`. Tool count back to 21. Comment block documents the revert rationale + re-introduction path.
+- `api/test_adr299_kernel_universal_capability.py` — `test_reviewer_primitives_includes_send_operator_email` renamed to `test_reviewer_primitives_excludes_send_operator_email_path_a_revert` and assertion inverted. The test now guards Path A: it fails loud if Discovery 4 silently regresses or if revert is accidentally undone.
+- Discovery 3's always-surface fix in `get_platform_tools_for_capabilities` **NOT reverted** — kernel-universal capabilities still flow through the agent path for non-Reviewer callers (`test_resolution_surfaces_send_operator_email_unconditionally` continues to PASS).
+
+**Re-introduction protocol** (if v5 canary confirms tool was structurally innocent):
+1. Re-add `EMAIL_SEND_TO_OPERATOR_TOOL` to `REVIEWER_PRIMITIVES` in `registry.py`
+2. Invert the test assertion back to `assert "platform_email_send_to_operator" in tool_names`
+3. Both in the same commit; cite the validating v5 canary observation by path
+4. Add a Path B follow-on Discovery note documenting whatever prompt-coverage gap remains
+
+**If v5 still produces `stand_down`** with the smaller (21-tool) surface, hypothesis A is falsified and hypothesis B (or a third yet-unidentified cause) is the next investigation. Path A revert stays in place pending the diagnosis. The structural completeness Discovery 4 added (kernel-universal capability registered + wire correct + agent-path surfaces it + persona-frame teaches it) is preserved by Discovery 3 + the kernel `CAPABILITIES` dict + the handler + the persona-frame prose. The only thing the revert removes is the Reviewer's ability to *call* the tool directly — the rest of the architecture is intact.
+
+This addendum supersedes the "Canary v4 should produce the full chain green" prediction immediately above. v4 did not produce the predicted chain. v5 is pending.
