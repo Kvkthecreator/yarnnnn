@@ -12,6 +12,15 @@
  * menu to an always-visible chip in kernel chrome. Macros (battery
  * analog): runway state is operator-critical, deserves persistent
  * visibility.
+ *
+ * Icon discipline (ADR-297 D20 amendment 2026-05-25): unlike the other
+ * three chips, Balance has NO atomic kernel surface — its edit target
+ * is /settings?tab=billing (intra-surface deep-link). Lucide's `Zap`
+ * (lightning/battery analog) is the local canonical glyph, registered
+ * inline here rather than via the kernel surface-icons registry. If a
+ * future ADR promotes Balance to its own atomic surface, the icon
+ * declaration moves to kernel_surfaces.py + surface-icons.tsx and this
+ * chip refactors to resolveSurfaceIcon() like the other three.
  */
 
 import { useEffect, useState } from 'react';

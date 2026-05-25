@@ -12,11 +12,17 @@
  * Operator-critical when the active program declares required
  * platforms that aren't connected (capability_gaps with connected:
  * false). Chip turns warn-tone when any declared capability is unmet.
+ *
+ * Icon discipline (ADR-297 D20 amendment 2026-05-25): the chip icon is
+ * the canonical /connectors surface icon resolved via
+ * `resolveSurfaceIcon('link-2')` — same glyph as the Dock and Launcher
+ * render. Singular Implementation: one icon per surface.
  */
 
 import { useEffect, useState } from 'react';
-import { Link2, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
 import { StatusItemPopover, type StatusTone } from './StatusItemPopover';
 
 type WorkspaceState = Awaited<ReturnType<typeof api.workspace.getState>>;
@@ -62,6 +68,10 @@ export function ConnectionsStatusItem() {
   const tone: StatusTone =
     totalDeclared === 0 ? 'muted' : unmet > 0 ? 'warn' : 'ok';
 
+  // ADR-297 D20 amendment: canonical surface icon for /connectors
+  // (resolved from kernel_surfaces.icon_key = "link-2").
+  const ConnectionsIcon = resolveSurfaceIcon('link-2');
+
   const tooltip =
     totalDeclared === 0
       ? 'No platforms declared by active program'
@@ -69,7 +79,7 @@ export function ConnectionsStatusItem() {
 
   const popoverHeader = (
     <div className="flex items-center gap-2">
-      <Link2 className="w-3.5 h-3.5 shrink-0" />
+      <ConnectionsIcon className="w-3.5 h-3.5 shrink-0" />
       <span className="text-sm font-medium">
         {totalDeclared === 0
           ? 'No connections required'
@@ -110,7 +120,7 @@ export function ConnectionsStatusItem() {
 
   return (
     <StatusItemPopover
-      icon={Link2}
+      icon={ConnectionsIcon}
       tooltip={tooltip}
       tone={tone}
       ariaLabel="Platform connections"

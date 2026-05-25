@@ -11,10 +11,17 @@
  * indicator moves from Feed-only chrome to kernel chrome (every
  * surface). PauseAutonomyModal also deleted — pause/resume happens on
  * /autonomy via AutonomyCard's confirm-modal pattern.
+ *
+ * Icon discipline (ADR-297 D20 amendment 2026-05-25): the default chip
+ * icon is the canonical /autonomy surface icon resolved via
+ * `resolveSurfaceIcon('shield-check')` — same glyph as the Dock and
+ * Launcher render. State-specific overrides (Pause when paused) are
+ * the only deviation. Singular Implementation: one icon per surface.
  */
 
-import { ShieldCheck, ShieldAlert, Pause } from 'lucide-react';
+import { Pause } from 'lucide-react';
 import { useAutonomy, type AutonomyDelegation } from '@/lib/content-shapes/autonomy';
+import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
 import { StatusItemPopover, type StatusTone } from './StatusItemPopover';
 
 function delegationLabel(d: AutonomyDelegation | null): string {
@@ -62,7 +69,11 @@ export function AutonomyStatusItem() {
         ? 'ok'
         : 'muted';
 
-  const Icon = isPaused ? Pause : effectiveDelegation === 'autonomous' ? ShieldCheck : ShieldAlert;
+  // ADR-297 D20 amendment: canonical surface icon for /autonomy
+  // (resolved from kernel_surfaces.icon_key = "shield-check"). Paused
+  // state is the only state-specific override.
+  const AutonomyIcon = resolveSurfaceIcon('shield-check');
+  const Icon = isPaused ? Pause : AutonomyIcon;
   const label = delegationLabel(effectiveDelegation);
   const ceilingCents = meta?.default_ceiling_cents;
   const ceilingLabel =

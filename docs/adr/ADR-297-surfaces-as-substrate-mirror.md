@@ -945,6 +945,29 @@ Mandate is the load-bearing exclusion. Autonomy + pace + balance + connections a
 
 D20 ratification status: **Proposed 2026-05-24** (doc-first; enactment lands in the follow-on commit per the same combined-commit cadence as D14–D19).
 
+#### D20 amendment (2026-05-25) — Canonical-icon discipline + `gauge` registry repair
+
+**Operator-observed**: post-D20 enactment, the Pace chip in the SystemStatusCluster rendered an `Activity` glyph while the `/pace` Dock icon rendered the generic `Box` fallback. Two divergent icons for the same surface, visible side-by-side on the top bar.
+
+**Root cause** (two bugs, one fix):
+1. `kernel_surfaces.py::pace.icon_key = "gauge"` was declared, but `surface-icons.tsx::ICON_REGISTRY` had no `gauge` entry — `resolveSurfaceIcon('gauge')` fell through to the `Box` safe-fallback. Every consumer of the canonical resolver (Dock, Launcher) rendered Box.
+2. The SystemStatusCluster's four chips (`AutonomyStatusItem`, `PaceStatusItem`, `ConnectionsStatusItem`) imported lucide icons directly instead of consuming `resolveSurfaceIcon()`. Cluster icons were chosen independently of the canonical icon-key registry, opening the door to drift between Dock/Launcher and the cluster.
+
+**Amendment ratifies the discipline that should have been ratified in D20 §6 but was implicit**:
+
+> **A surface has exactly one canonical icon, declared in `kernel_surfaces.py::icon_key` and resolved via `surface-icons.tsx::resolveSurfaceIcon()`. Every chrome consumer of that surface — Dock, Launcher, SystemStatusCluster chip, future surface-list affordances — renders the same icon by calling the same resolver. State-specific overrides on a chip (e.g., autonomy showing `Pause` when paused) are the only allowed deviation, and they override the default only for that specific state.**
+
+This is the Singular Implementation principle (D8) applied to the icon layer. The icon-key registry is the single source of truth; every other render path is a consumer.
+
+**Enacted in same commit as this amendment**:
+- `surface-icons.tsx` — `Gauge` imported from lucide-react; `gauge: Gauge` added to `ICON_REGISTRY`. Closes the Box-fallback bug for `/pace`.
+- `AutonomyStatusItem.tsx` — `ShieldCheck`/`ShieldAlert` direct imports deleted; uses `resolveSurfaceIcon('shield-check')` as the default chip icon. `Pause` override retained for the paused state only.
+- `PaceStatusItem.tsx` — `Activity` direct import deleted; uses `resolveSurfaceIcon('gauge')`. Chip + popover header now show the canonical Gauge glyph.
+- `ConnectionsStatusItem.tsx` — `Link2` direct import deleted; uses `resolveSurfaceIcon('link-2')`. Same glyph as before (Link2 was the right one), now sourced through the canonical resolver.
+- `BalanceStatusItem.tsx` — UNCHANGED. Balance has no atomic kernel surface (edit target is `/settings?tab=billing` intra-surface deep-link). `Zap` is the local canonical glyph; docstring updated to record the rule that if Balance ever earns its own atomic surface, the icon declaration relocates to `kernel_surfaces.py` + `surface-icons.tsx` and this chip refactors to `resolveSurfaceIcon()` like the other three.
+
+**Why this is an amendment paragraph and not a new D-number**: the discipline is the *natural* reading of D20 §6 ("complete the macOS-faithful three-region top-bar") + D8 (Singular Implementation). The amendment makes the implicit explicit after the operator caught the drift; no new architectural concept lands. Same ADR, recorded amendment for trace continuity.
+
 ---
 
 ## Implementation path for D11 — Uniform Compositor

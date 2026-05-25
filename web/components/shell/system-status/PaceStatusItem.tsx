@@ -12,11 +12,17 @@
  *
  * Per ADR-298 D2 the queue itself is NOT operator-readable substrate;
  * only the aggregate depth is surfaced.
+ *
+ * Icon discipline (ADR-297 D20 amendment 2026-05-25): the chip icon is
+ * the canonical /pace surface icon resolved via
+ * `resolveSurfaceIcon('gauge')` — same glyph as the Dock and Launcher
+ * render. Singular Implementation: one icon per surface.
  */
 
 import { useEffect, useState } from 'react';
-import { Activity, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { resolveSurfaceIcon } from '@/lib/shell/surface-icons';
 import { StatusItemPopover, type StatusTone } from './StatusItemPopover';
 
 type PaceKind = 'hourly' | 'daily' | 'weekly' | 'continuous';
@@ -85,6 +91,10 @@ export function PaceStatusItem() {
   const totalPending = (state?.paced_lane_depth ?? 0) + (state?.live_lane_depth ?? 0);
   const tone: StatusTone = !kind ? 'muted' : totalPending > 0 ? 'ok' : 'muted';
 
+  // ADR-297 D20 amendment: canonical surface icon for /pace
+  // (resolved from kernel_surfaces.icon_key = "gauge").
+  const PaceIcon = resolveSurfaceIcon('gauge');
+
   const kindLabel = kind ? PACE_LABEL[kind] : 'Not set';
   const tooltip = kind
     ? `Pace: ${kindLabel}${totalPending > 0 ? ` · ${totalPending} pending` : ''}`
@@ -92,7 +102,7 @@ export function PaceStatusItem() {
 
   const popoverHeader = (
     <div className="flex items-center gap-2">
-      <Activity className="w-3.5 h-3.5 shrink-0" />
+      <PaceIcon className="w-3.5 h-3.5 shrink-0" />
       <span className="text-sm font-medium">
         {kindLabel}
         {totalPending > 0 && (
@@ -128,7 +138,7 @@ export function PaceStatusItem() {
 
   return (
     <StatusItemPopover
-      icon={Activity}
+      icon={PaceIcon}
       tooltip={tooltip}
       tone={tone}
       ariaLabel="Pace and wake queue"
