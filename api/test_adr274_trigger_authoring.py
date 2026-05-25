@@ -258,39 +258,90 @@ def test_execution_router_pause_resume_authored_by() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 9. invocation_dispatcher wires operating_context_block on recurrence fires
+# 9. reviewer_envelope composes operating_context_block (ADR-301 D5 update)
 # ---------------------------------------------------------------------------
+# Pre-ADR-301: composition lived at three wake.py call sites + the helper
+# in agents/reviewer_agent.py.  ADR-301 D5 consolidated composition into
+# services/reviewer_envelope.py — Singular Implementation, one envelope
+# assembly point.  The wake-source modules consume it via the
+# **governance_envelope dict-spread; ADR-276 already pre-loads the rest
+# of the envelope through the same helper.  These two tests now assert
+# the post-ADR-301 contract: composition in the envelope helper +
+# spread-consumption at every reactive + addressed call site.
+#
+# `services/invocation_dispatcher.py` was deleted in the ADR-261 cleanup;
+# reactive dispatch lives in services/wake.py::dispatch_recurrence.  The
+# test target updates accordingly — Singular Implementation discipline
+# applied to the test gate same as the code.
 
 def test_invocation_dispatcher_wires_operating_context() -> None:
-    src = (ROOT / "services" / "invocation_dispatcher.py").read_text()
+    """Post-ADR-301 D5: reactive wake path consumes the envelope helper's
+    operating_context_block via dict-spread, not call-site composition.
+    Test target updated from the deleted invocation_dispatcher.py to the
+    canonical reactive entry point in services/wake.py::dispatch_recurrence.
+    """
+    env_src = (ROOT / "services" / "reviewer_envelope.py").read_text()
     if (
-        "build_operating_context_block" in src
-        and '"operating_context_block": operating_context' in src
+        "def build_operating_context_block" in env_src
+        and 'envelope["operating_context_block"] = build_operating_context_block' in env_src
     ):
-        _ok("invocation_dispatcher imports + wires operating_context_block")
+        _ok("reviewer_envelope.py composes operating_context_block (ADR-301 D5)")
     else:
         _bad(
-            "invocation_dispatcher wiring",
-            "Expected build_operating_context_block import + context-bag assignment",
+            "reviewer_envelope.py composes operating_context_block",
+            "Expected build_operating_context_block defined + assigned into envelope dict",
         )
+    wake_src = (ROOT / "services" / "wake.py").read_text()
+    # Reactive wake site (dispatch_recurrence) must consume the envelope.
+    if (
+        "load_reviewer_governance_envelope" in wake_src
+        and "**governance_envelope" in wake_src
+    ):
+        _ok("services/wake.py reactive path consumes envelope via **governance_envelope spread")
+    else:
+        _bad(
+            "services/wake.py reactive envelope consumption",
+            "Expected load_reviewer_governance_envelope + **governance_envelope spread",
+        )
+    # Anti-regression: stale call-site composition pattern must be gone.
+    if '"operating_context_block": operating_context' in wake_src:
+        _bad(
+            "stale operating_context_block call-site composition in wake.py",
+            "ADR-301 D5 deleted call-site composition; re-introducing it would be a regression",
+        )
+    else:
+        _ok("services/wake.py no longer composes operating_context_block at call sites (ADR-301 D5)")
 
 
 # ---------------------------------------------------------------------------
-# 10. routes/feed.py wires operating_context_block on addressed turns
+# 10. routes/feed.py addressed-path wires operating_context_block via envelope spread (ADR-301 D5)
 # ---------------------------------------------------------------------------
 
 def test_feed_route_wires_operating_context() -> None:
-    src = (ROOT / "routes" / "feed.py").read_text()
-    if (
-        "build_operating_context_block" in src
-        and '"operating_context_block": operating_context' in src
-    ):
-        _ok("routes/feed.py imports + wires operating_context_block")
+    """Post-ADR-301 D5: addressed path consumes the envelope helper via
+    services/wake.py::stream_addressed_wake.  The route layer
+    (routes/feed.py) consumes the wake source's typed event stream and
+    no longer composes operating_context_block directly.  Verify the
+    addressed wake source itself consumes the envelope.
+    """
+    src = (ROOT / "services" / "wake.py").read_text()
+    # The stream_addressed_wake function must consume the envelope.
+    if "stream_addressed_wake" in src and "load_reviewer_governance_envelope" in src:
+        _ok("wake.py::stream_addressed_wake consumes load_reviewer_governance_envelope")
     else:
         _bad(
-            "routes/feed.py wiring",
-            "Expected build_operating_context_block import + context-bag assignment",
+            "wake.py addressed envelope consumption",
+            "Expected stream_addressed_wake + load_reviewer_governance_envelope in wake.py",
         )
+    # Anti-regression: routes/feed.py no longer composes operating_context_block.
+    feed_src = (ROOT / "routes" / "feed.py").read_text()
+    if "build_operating_context_block" in feed_src:
+        _bad(
+            "stale build_operating_context_block import in routes/feed.py",
+            "ADR-301 D5 moved composition into reviewer_envelope.py; routes/feed.py should not import it",
+        )
+    else:
+        _ok("routes/feed.py no longer composes operating_context_block (ADR-301 D5)")
 
 
 # ---------------------------------------------------------------------------
