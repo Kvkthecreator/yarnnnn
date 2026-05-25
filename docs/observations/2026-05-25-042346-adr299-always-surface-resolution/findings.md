@@ -107,9 +107,73 @@ Each lesson generalizes one level above the previous. The honest meta-lesson:
 
 The morning's Discovery note 2 named "verify load-bearing facts before designing on top of them" — that lesson was correct but scoped to research-on-existing-code. This session's evidence extends it: **verify load-bearing facts BIDIRECTIONALLY through the full execution chain**, not just the layer being corrected.
 
+## Addendum — fourth-recursion discovery mid-fix (2026-05-25)
+
+While implementing the Hat-A always-surface fix in `get_platform_tools_for_capabilities`, a **fourth-recursion redundancy** surfaced. The fix as originally scoped (Path Y operator-approved) **would not have made canary v4 close green either**, because:
+
+**Discovery 4**: The Reviewer's tool surface is NOT built via `get_platform_tools_for_capabilities`. `api/agents/reviewer_agent.py:1373` reads:
+
+```python
+tools = list(REVIEWER_PRIMITIVES) + [RETURN_VERDICT_TOOL]
+```
+
+The Reviewer gets exactly `REVIEWER_PRIMITIVES` from `services/primitives/registry.py:394`, plus `RETURN_VERDICT_TOOL`. **Platform tools like `platform_email_send_to_operator` are NOT in `REVIEWER_PRIMITIVES`** and never were.
+
+So ADR-299 Phase 1's wire-up was structurally incomplete from day one:
+- ✅ Tool added to `EMAIL_TOOLS` (agent-path platform tools list)
+- ✅ Capability registered in kernel `CAPABILITIES` dict
+- ✅ Handler branch added to `_handle_email_tool`
+- ✅ Resolution path extended (Discovery note 2)
+- ❌ **Tool NEVER added to `REVIEWER_PRIMITIVES`** — the registry the Reviewer's surface is built from
+
+**The Reviewer never had access to `platform_email_send_to_operator` at all**, regardless of operator opt-in, regardless of wire correctness, regardless of resolution-path always-surface fix. Four cascading corrections all addressing the wrong layer.
+
+### Revised fix scope (Hat-A Commit 2)
+
+Two changes, both load-bearing:
+
+1. **`api/services/platform_tools.py`** — lift `platform_email_send_to_operator` tool definition out of the `EMAIL_TOOLS` list literal as a named module-level constant `EMAIL_SEND_TO_OPERATOR_TOOL`, declared BEFORE `EMAIL_TOOLS` so the list can reference it without forward-reference issues. Also update the tool description to reflect the system Resend wire (was still saying "operator's connected Resend account" — Discovery note 2 prose).
+
+2. **`api/services/primitives/registry.py::REVIEWER_PRIMITIVES`** — add `EMAIL_SEND_TO_OPERATOR_TOOL` to the list. Tool count goes 21 → 22.
+
+3. **Plus the always-surface fix** in `get_platform_tools_for_capabilities` from earlier work — KEEP it. Structurally correct for the agent path even if not the Reviewer-specific bug. Prevents the same class of bug from affecting agent tool surfaces in the future.
+
+### Why this finally closes the Reviewer canary
+
+After this fix:
+- Reviewer's tool surface includes `platform_email_send_to_operator` (always, regardless of recurrence/hook capabilities request)
+- Dispatch chain unchanged: `is_platform_tool("platform_email_send_to_operator")` returns True → routes to `handle_platform_tool` → routes to `_handle_email_tool::send_to_operator` early-return branch → `system_send_email` via deployed RESEND_API_KEY
+- Operator's `pre_ship_audit_summary active: true` in `_preferences.yaml` is the standing approval per ADR-299 D4
+- Persona-frame Phase 3 prose teaches the Reviewer to call the tool when judgment cycle produces material worth surfacing
+
+Canary v4 with a fresh test piece (similar to canary v3's pattern) should now produce: REJECT verdict in judgment_log.md AND a fired `platform_email_send_to_operator` call AND an email in operator's inbox.
+
+### Updated recursion-lesson table
+
+| Depth | Lesson | This-session example |
+|---|---|---|
+| 1 | Class-naming redundancy: prefer new field on existing class over new class | Yesterday's `KERNEL_UNIVERSAL_CAPABILITIES` parallel registry → merged into existing `CAPABILITIES` dict |
+| 2 | Wire-pointing: when correcting class, verify the wire each member points at | Today AM's per-user OAuth wire → corrected to system Resend wire |
+| 3 | Resolution-path always-surface: when correcting class + wire, verify the resolution path actually surfaces the capability | This finding's `get_platform_tools_for_capabilities` always-include kernel-universal pass |
+| **4** | **Tool surface for non-agent actors has DIFFERENT registries**: verify each actor-specific tool registry includes the capability separately | This addendum: `REVIEWER_PRIMITIVES` is the Reviewer's surface, NOT `get_platform_tools_for_capabilities` output |
+
+### Meta-meta-lesson (the discipline rule named more precisely)
+
+The morning's "walk the full chain" lesson stated: *"registry → wire → resolution → tool surface → prompt awareness → behavior."* That was correct in spirit but the **"tool surface" link is plural** — different actors have different surface-assembly paths:
+
+- Agent's tool surface: `get_platform_tools_for_agent` → `get_platform_tools_for_capabilities` (kernel CAPABILITIES dict + bundle MANIFEST + platform_connections)
+- Reviewer's tool surface: `REVIEWER_PRIMITIVES` (curated subset from `services/primitives/registry.py`)
+- ChatAgent's tool surface: `CHAT_PRIMITIVES` (similar shape to REVIEWER_PRIMITIVES)
+- Sub-LLM specialist (DispatchSpecialist): `HEADLESS_PRIMITIVES` or role-specific subset
+
+**Adding a kernel-universal capability requires explicit inclusion in EACH actor's surface registry — they don't auto-flow from kernel `CAPABILITIES` dict to actor surfaces.**
+
+This generalizes the morning's discipline rule to its load-bearing precise form:
+> Verify the capability is in EVERY actor's surface that should be able to call it. The kernel `CAPABILITIES` dict is the registry of "what exists"; per-actor surface registries (REVIEWER_PRIMITIVES, CHAT_PRIMITIVES, HEADLESS_PRIMITIVES, role-bundles) are the registries of "what each actor can call." A capability registered in the former without inclusion in the relevant latter is structurally unreachable from that actor.
+
 ## Status
 
-**OPEN** — Hat-A correction commit follows next; Hat-B resolution + canary v4 validation after.
+**OPEN** — Hat-A correction commit follows next (combines: (a) lift tool to named constant, (b) always-surface in resolution path, (c) add to REVIEWER_PRIMITIVES, (d) update tests, (e) ADR-299 Discovery notes 3 + 4 in-place); Hat-B resolution + canary v4 validation after.
 
 ## Cross-references
 

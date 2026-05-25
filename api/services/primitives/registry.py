@@ -92,6 +92,12 @@ from .propose_action import (
 )
 from services.platform_tools import (
     is_platform_tool, handle_platform_tool, get_platform_tools_for_agent,
+    # ADR-299 Discovery note 4 (2026-05-25): operator-addressing email
+    # tool surfaced to Reviewer via REVIEWER_PRIMITIVES inclusion below.
+    # The Reviewer's tool surface is built from REVIEWER_PRIMITIVES per
+    # reviewer_agent.py:1373, not via get_platform_tools_for_capabilities,
+    # so the tool requires explicit inclusion here.
+    EMAIL_SEND_TO_OPERATOR_TOOL,
 )
 
 # ---------------------------------------------------------------------------
@@ -423,6 +429,11 @@ REVIEWER_PRIMITIVES = [
     # researcher / analyst / writer / tracker / designer / reporting roles
     # for production work the Reviewer's context shouldn't carry.
     DISPATCH_SPECIALIST_TOOL,
+    # ADR-299 Discovery note 4 (2026-05-25): operator-addressing email tool.
+    # Kernel-universal capability — always in the Reviewer's surface, gated
+    # at use-time by operator's _preferences.yaml::operator_notifications opt-in
+    # per ADR-299 D4. Wire is system-deployed Resend (api/jobs/email.py).
+    EMAIL_SEND_TO_OPERATOR_TOOL,
     # Substrate refresh (ADR-264) — rare mid-loop case where the Reviewer
     # needs to refresh external state into substrate before judging.
     # Primary use is dispatched by mechanical-mode recurrences; LLM-callable

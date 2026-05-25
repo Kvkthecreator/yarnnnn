@@ -806,6 +806,53 @@ TRADING_WRITE_TOOLS = [
 # =============================================================================
 # ADR-192 Phase 4: Email platform class (Resend)
 # =============================================================================
+
+# ADR-299 D2 (corrected per Discovery notes 2 + 4, 2026-05-25): operator-
+# addressing email tool, defined ABOVE EMAIL_TOOLS so REVIEWER_PRIMITIVES
+# can import it as a named constant. Addressee structurally pinned to the
+# workspace owner's identity (auth.users.email) — does NOT accept a free-
+# form `to:` field. Distinguishes kernel-universal observability from
+# bundle-specific audience-bearing writes (use `platform_email_send` for
+# audience sends).
+#
+# Wire: system-deployed Resend via api/jobs/email.py (RESEND_API_KEY env
+# var); same wire ADR-040 notifications + ADR-202 daily-update emails
+# use. NO per-user OAuth required — tool is ALWAYS in the Reviewer's
+# surface (via REVIEWER_PRIMITIVES inclusion in registry.py) and the
+# agent surface (via always-surface kernel-universal pass in
+# get_platform_tools_for_capabilities). Per ADR-299 D4 the operator's
+# `_preferences.yaml::operator_notifications.{slug}.active: true`
+# declaration IS the standing approval to actually use the tool.
+EMAIL_SEND_TO_OPERATOR_TOOL = {
+    "name": "platform_email_send_to_operator",
+    "description": (
+        "Send an observability email to the workspace operator's own inbox. "
+        "Addressee is structurally pinned to the operator's identity "
+        "(auth.users.email for the workspace owner) — no `to:` field. Use "
+        "for daily updates, alert digests, state-change notifications the "
+        "operator opted into via "
+        "/workspace/context/_shared/_preferences.yaml::operator_notifications. "
+        "Does NOT route through ExecuteProposal / AUTONOMY gating (per "
+        "ADR-299 D4 — operator-addressing writes are observability, not "
+        "consequential action). The wire is system-deployed Resend "
+        "(api/jobs/email.py); always available, no operator Resend setup "
+        "required."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "subject": {"type": "string", "description": "Email subject line."},
+            "html": {"type": "string", "description": "Email body as HTML."},
+            "reply_to": {
+                "type": "string",
+                "description": "Optional Reply-To header. Defaults to the operator's email if omitted.",
+            },
+        },
+        "required": ["subject", "html"],
+    },
+}
+
+
 EMAIL_TOOLS = [
     {
         "name": "platform_email_send",
@@ -863,26 +910,12 @@ EMAIL_TOOLS = [
             "required": ["messages"],
         },
     },
-    # ADR-299 D2: kernel-universal operator-addressing email tool. Addressee is
-    # structurally pinned to the workspace owner's identity (auth.users.email)
-    # — does NOT accept a free-form `to:` field. This is what distinguishes
-    # kernel-universal observability from bundle-specific audience-bearing
-    # writes. Use `platform_email_send` above when the bundle/recurrence
-    # legitimately needs to address a third party / audience and has declared
-    # `write_email` capability in its MANIFEST.
-    {
-        "name": "platform_email_send_to_operator",
-        "description": "Send an observability email to the workspace operator's own inbox. Addressee is structurally pinned to the operator's identity (auth.users.email for the workspace owner) — no `to:` field. Use for daily updates, alert digests, state-change notifications the operator opted into via /workspace/context/_shared/_preferences.yaml. Does NOT route through ExecuteProposal / AUTONOMY gating (per ADR-299 D4 — operator-addressing writes are observability, not consequential action). The wire uses the operator's connected Resend account; if no Resend connection exists, the tool will not appear in your surface.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "subject": {"type": "string", "description": "Email subject line."},
-                "html": {"type": "string", "description": "Email body as HTML."},
-                "reply_to": {"type": "string", "description": "Optional Reply-To header. Defaults to the operator's email if omitted."},
-            },
-            "required": ["subject", "html"],
-        },
-    },
+    # ADR-299 Discovery note 4 (2026-05-25): named constant declared above
+    # the EMAIL_TOOLS list so REVIEWER_PRIMITIVES can import it directly
+    # without duplication. Reviewer's tool surface is built from
+    # REVIEWER_PRIMITIVES per reviewer_agent.py:1373, not via
+    # get_platform_tools_for_capabilities.
+    EMAIL_SEND_TO_OPERATOR_TOOL,
 ]
 
 
@@ -1019,26 +1052,33 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
     """
     Get platform tools allowed by explicit provider-native capabilities.
 
-    Resolution discipline (per ADR-224 + ADR-299 Discovery note 2):
-      1. **Wire-gated capabilities** route through CAPABILITY_PROVIDER_MAP
-         (provider) + platform_connections (active connection) — example:
-         read_trading needs Alpaca OAuth connection.
-      2. **No-wire-gate kernel capabilities** (kernel CAPABILITIES dict at
-         services/orchestration.py:1129 entries where
-         `platform_connection_requirement is None`) surface their tools
-         unconditionally — the wire is environment-deployed infrastructure
-         (e.g., send_operator_email uses system Resend via env var, not
-         per-user OAuth). Example: send_operator_email surfaces whenever
-         the recurrence requests it, regardless of platform_connections.
+    Resolution discipline (per ADR-224 + ADR-299 Discovery notes 2 + 3):
+
+      1. **Kernel-universal no-wire-gate capabilities** (kernel CAPABILITIES
+         dict at services/orchestration.py:1129 entries where
+         `platform_connection_requirement is None`) **ALWAYS surface** —
+         regardless of the explicitly-requested `capabilities` list. Per
+         ADR-299 Discovery note 3 (2026-05-25), these are "always available"
+         by definition: their wire is environment-deployed (e.g.,
+         `send_operator_email` uses system Resend via env var). The
+         architectural commitment from Discovery note 2 ("operator-addressing
+         capabilities are always available; opt-in via `_preferences.yaml`
+         IS the standing approval") is enforced here at the resolution layer
+         — not gated by recurrence/hook `required_capabilities` opt-in.
+
+      2. **Wire-gated capabilities** (kernel-CAPABILITIES with declared
+         `platform_connection_requirement`, OR bundle MANIFEST capabilities
+         routed through CAPABILITY_PROVIDER_MAP) require BOTH explicit
+         request in `capabilities` AND active platform_connections row.
+         These remain opt-in per-recurrence because they affect third
+         parties / audiences / external counterparties — operator authority
+         on each request is structurally important.
 
     Singular Implementation per ADR-224: one resolution function, one
     return list. The kernel-vs-bundle distinction is a lookup-source
-    layer (kernel CAPABILITIES dict checked before per-user OAuth gate
-    for no-wire-gate capabilities); not a parallel runtime code path.
+    layer (kernel CAPABILITIES dict checked first); not a parallel
+    runtime code path.
     """
-    if not capabilities:
-        return []
-
     # Import kernel CAPABILITIES lazily to avoid circular import.
     from services.orchestration import CAPABILITIES as KERNEL_CAPABILITIES
 
@@ -1054,19 +1094,30 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
     allowed_tool_names: set[str] = set()
     kernel_universal_tools_to_surface: set[str] = set()
 
-    for capability in capabilities:
-        # ADR-299 Discovery note 2: no-wire-gate kernel capabilities
-        # surface unconditionally. Check kernel CAPABILITIES dict for
-        # entries with platform_connection_requirement is None — their
-        # tools surface regardless of platform_connections state, because
-        # the wire (e.g., system Resend) is environment-deployed.
+    # ADR-299 Discovery note 3 (2026-05-25): ALWAYS-SURFACE pass for
+    # kernel-universal-no-wire-gate capabilities. Loop over the kernel
+    # CAPABILITIES dict (not the caller-requested capabilities list) so
+    # these tools surface even when `capabilities=[]` (e.g., substrate-
+    # event wakes that hardcode required_capabilities to empty). Per
+    # ADR-299 D1 + D4: kernel-universal operator-addressing capabilities
+    # are "always available"; runtime now honors that architectural
+    # commitment.
+    for cap_name, cap_decl in KERNEL_CAPABILITIES.items():
+        if cap_decl.get("platform_connection_requirement") is None:
+            cap_tools = PLATFORM_TOOLS_BY_CAPABILITY.get(cap_name)
+            if cap_tools:
+                kernel_universal_tools_to_surface.update(cap_tools)
+                allowed_tool_names.update(cap_tools)
+
+    # Explicitly-requested capabilities pass (wire-gated branch).
+    # Kernel-no-wire-gate capabilities in this list are already in
+    # allowed_tool_names from the always-surface pass above — they
+    # short-circuit at the kernel-dict check below without duplication.
+    for capability in (capabilities or []):
         kernel_decl = KERNEL_CAPABILITIES.get(capability)
         if kernel_decl is not None and kernel_decl.get("platform_connection_requirement") is None:
-            tools_for_cap = PLATFORM_TOOLS_BY_CAPABILITY.get(capability, [])
-            if tools_for_cap:
-                kernel_universal_tools_to_surface.update(tools_for_cap)
-                allowed_tool_names.update(tools_for_cap)
-                continue  # no provider-gate check needed; tool surfaces unconditionally
+            # Already surfaced via always-surface pass; no-op.
+            continue
 
         # Wire-gated capabilities: route through CAPABILITY_PROVIDER_MAP +
         # platform_connections gate (existing path, unchanged).

@@ -255,6 +255,29 @@ def test_resolution_surfaces_send_operator_email_unconditionally() -> None:
     )
 
 
+def test_reviewer_primitives_includes_send_operator_email() -> None:
+    """ADR-299 Discovery note 4 (2026-05-25): platform_email_send_to_operator
+    MUST be in REVIEWER_PRIMITIVES. The Reviewer's tool surface is built
+    from REVIEWER_PRIMITIVES directly per reviewer_agent.py:1373, NOT via
+    get_platform_tools_for_capabilities. Without explicit inclusion here,
+    the Reviewer cannot call the tool regardless of operator opt-in,
+    regardless of resolution-path always-surface fix.
+
+    This guard prevents the structural bug that caused canary v3 to render
+    a textbook REJECT verdict but never fire the email — the tool wasn't
+    in the Reviewer's surface at all."""
+    from services.primitives.registry import REVIEWER_PRIMITIVES
+
+    tool_names = [t.get("name") for t in REVIEWER_PRIMITIVES]
+    assert "platform_email_send_to_operator" in tool_names, (
+        "platform_email_send_to_operator missing from REVIEWER_PRIMITIVES — "
+        "ADR-299 Discovery note 4 requires explicit inclusion. The Reviewer's "
+        "tool surface (reviewer_agent.py:1373) is built from REVIEWER_PRIMITIVES; "
+        "the kernel CAPABILITIES dict + agent-path resolution don't reach it. "
+        "Add EMAIL_SEND_TO_OPERATOR_TOOL to REVIEWER_PRIMITIVES in registry.py."
+    )
+
+
 def test_resolution_does_not_have_parallel_kernel_universal_precheck() -> None:
     """ADR-299 D5 (corrected): get_platform_tools_for_capabilities must NOT
     contain a kernel-universal pre-check (the parallel resolution path
@@ -327,6 +350,7 @@ if __name__ == "__main__":
         test_handler_refuses_llm_supplied_addressee_fields,
         test_resolution_send_operator_email_not_in_provider_map,
         test_resolution_surfaces_send_operator_email_unconditionally,
+        test_reviewer_primitives_includes_send_operator_email,
         test_resolution_does_not_have_parallel_kernel_universal_precheck,
         test_bundle_capability_resolution_not_regressed,
         test_addressee_class_distinguishes_operator_from_audience,

@@ -6,6 +6,59 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.25.1] - tool(reviewer): EMAIL_SEND_TO_OPERATOR_TOOL added to REVIEWER_PRIMITIVES (ADR-299 Discovery notes 3 + 4)
+
+### Decision
+
+Closes the cascading-redundancy chain that prevented ADR-299 Phase 4 from
+closing across canaries v1-v3. Canary v3 (2026-05-25 04:13 UTC) produced
+a textbook REJECT verdict in judgment_log.md but did not fire
+platform_email_send_to_operator. Root cause traced to a fourth-recursion
+discovery: the Reviewer's tool surface is built from REVIEWER_PRIMITIVES
+directly (reviewer_agent.py:1373), NOT via get_platform_tools_for_capabilities.
+The tool was never in REVIEWER_PRIMITIVES; ADR-299 Phase 1 was structurally
+incomplete from day one.
+
+### Changed
+
+- **api/services/platform_tools.py** — EMAIL_SEND_TO_OPERATOR_TOOL lifted
+  as named module-level constant before EMAIL_TOOLS list. Tool description
+  rewritten to reflect system-deployed Resend wire (Discovery note 2 prose
+  was still describing per-user OAuth; now accurate). EMAIL_TOOLS list
+  references the named constant.
+
+- **api/services/platform_tools.py::get_platform_tools_for_capabilities**
+  (Discovery note 3) — extended with always-surface pass for
+  kernel-universal-no-wire-gate capabilities. Operator-addressing
+  capabilities (per ADR-299 D1 + D4 "always available") now surface
+  regardless of caller's required_capabilities list. Wire-gated
+  capabilities (third-party-affecting) still require explicit per-recurrence
+  opt-in.
+
+- **api/services/primitives/registry.py** (Discovery note 4) —
+  EMAIL_SEND_TO_OPERATOR_TOOL imported from services.platform_tools and
+  added to REVIEWER_PRIMITIVES. Tool count goes 21 → 22. The Reviewer's
+  tool surface is built from REVIEWER_PRIMITIVES directly; kernel-universal
+  capabilities must be explicitly included here separately from agent-path
+  resolution.
+
+- **api/test_adr299_kernel_universal_capability.py** — new assertion
+  test_reviewer_primitives_includes_send_operator_email. Gate count
+  9 → 10. All 10 PASS.
+
+- **docs/adr/ADR-299** — Discovery notes 3 + 4 added in-place. Status
+  banner updated to FOUR recursive corrections.
+
+### Refs
+
+ADR-299 Discovery notes 3 + 4 (2026-05-25); Hat-B observation folder
+`docs/observations/2026-05-25-042346-adr299-always-surface-resolution/`;
+canary v3 evidence (REJECT verdict in judgment_log.md, zero email fired);
+predecessor CHANGELOG entries [2026.05.24.3] (Discovery note 2 wire
+correction) + [2026.05.24.1] (Phase 3 original persona-frame nudge).
+
+---
+
 ## [2026.05.24.4] - canon(reviewer): add Pulse Discipline section (ADR-301)
 
 ### Decision

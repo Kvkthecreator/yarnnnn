@@ -1,6 +1,6 @@
 # ADR-299: Operator-Addressing Capability — `send_operator_email`
 
-**Status**: Phase 1 Implemented 2026-05-22; corrected twice in-place 2026-05-24 (Discovery note 1 + Discovery note 2 below). Phase 2 + 3 Implemented 2026-05-24 (after Discovery note 1). After Discovery note 2: capability runtime corrected from `external:email` → `kernel`; wire-gate removed (was `platform_connection_requirement: {platform: 'email', ...}` → now `None`); handler rewired from per-user OAuth Resend (`integrations/core/resend_client.py`) to system-keyed Resend (`api/jobs/email.py`); resolution path consults kernel CAPABILITIES dict no-wire-gate branch instead of CAPABILITY_PROVIDER_MAP per-user gate; Phase 3 persona-frame wire-gate-handling clause deleted (no wire-gate exists). Regression gate 9/9 PASS post-correction; sibling reviewer-formalization gate 9/9 PASS. Phase 4 (L6 validation observation) deferred.
+**Status**: Phase 1 Implemented 2026-05-22; corrected FOUR times in-place across 2026-05-24 and 2026-05-25 (Discovery notes 1-4 below). Phase 2 + 3 Implemented 2026-05-24. After Discovery note 4 (the final correction): resolution path always-surfaces kernel-universal-no-wire-gate capabilities AND `EMAIL_SEND_TO_OPERATOR_TOOL` is explicitly registered in `REVIEWER_PRIMITIVES` (the Reviewer's tool surface registry is separate from the agent-path resolution that was corrected by Discovery notes 2 + 3). Regression gate 10/10 PASS post-correction; sibling reviewer-formalization gate 10/10 PASS. Phase 4 (L6 validation observation) ready for canary v4 — the structural bug chain that caused canary v1-v3 to fail end-to-end is now fully corrected.
 **Date**: 2026-05-22
 **Authors**: KVK, Claude
 **Companion**: [`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md) — surfaced the L6 capital-execution gap on alpha-author that triggered this discourse
@@ -299,3 +299,80 @@ ADR-299 Phase 1 attached `platform_email_send_to_operator` to the per-user OAuth
 **Architectural takeaway (recursive)**: yesterday's Discovery note 1 named the lesson "prefer new field on existing class over new class when novelty fits, and verify load-bearing facts before designing on top of delegated research." Today's Discovery note 2 adds: **when correcting a class-naming redundancy, verify the wire each class member points at**. The class-vs-wire distinction is structurally orthogonal — naming the class correctly doesn't guarantee the implementation reaches the right wire. Both checks are now codified in the corrected regression gate (runtime + wire-gate + handler-shape assertions).
 
 This patch supersedes the affected sections in place per Singular Implementation. No v1/v2/v3; the corrected text is the ADR.
+
+## Discovery note 3 — resolution-path always-surface correction (2026-05-25)
+
+ADR-299 Phase 4 canary attempt revealed a third-order redundancy: after Discovery notes 1 + 2 corrected the class + wire, the runtime resolution path still required explicit recurrence/hook `required_capabilities` opt-in to surface kernel-universal capabilities. Operator-addressing capabilities were described in canon as "always available" (D1 + D4) but treated by the runtime as opt-in-per-recurrence (same as bundle-specific wire-gated capabilities).
+
+**Root cause**: `api/services/platform_tools.py::get_platform_tools_for_capabilities` looped ONLY over the caller-supplied `capabilities` list. When the substrate-event wake path called with `capabilities=[]` (hardcoded at `api/services/wake.py:1464`), no capabilities resolved — including kernel-universal ones. The capability was correctly registered + correctly wired + correctly the right shape, but the runtime resolution never reached it from substrate-event wakes.
+
+**Correction**: extended `get_platform_tools_for_capabilities` with an always-surface pass that loops over the kernel `CAPABILITIES` dict and surfaces every entry with `platform_connection_requirement is None` — regardless of whether it appears in the caller-supplied `capabilities` list. The explicitly-requested-capabilities pass survives for wire-gated capabilities (which DO need per-recurrence opt-in, because they affect third parties / audiences).
+
+**Files corrected by Discovery note 3**:
+- `api/services/platform_tools.py::get_platform_tools_for_capabilities` — added the always-surface pass before the explicitly-requested-capabilities loop; removed the early-exit on empty `capabilities` (since kernel-universal still surfaces).
+- `api/test_adr299_kernel_universal_capability.py` — `test_resolution_surfaces_send_operator_email_unconditionally` extended to assert the always-surface branch exists.
+
+**This patch supersedes Discovery note 2's D5 reframe in place per Singular Implementation. No v3/v4; the corrected text is the ADR.**
+
+## Discovery note 4 — REVIEWER_PRIMITIVES inclusion correction (2026-05-25)
+
+While implementing Discovery note 3's always-surface fix, a fourth-order redundancy surfaced: **the Reviewer's tool surface is NOT built via `get_platform_tools_for_capabilities` at all.** `api/agents/reviewer_agent.py:1373` reads:
+
+```python
+tools = list(REVIEWER_PRIMITIVES) + [RETURN_VERDICT_TOOL]
+```
+
+The Reviewer gets exactly `REVIEWER_PRIMITIVES` from `api/services/primitives/registry.py:394`. Platform tools (including `platform_email_send_to_operator`) were not in that list and never were. ADR-299 Phase 1's wire-up was structurally incomplete from day one:
+
+- ✅ Tool added to `EMAIL_TOOLS` (the agent-path platform tools list)
+- ✅ Capability registered in kernel `CAPABILITIES` dict
+- ✅ Handler branch added to `_handle_email_tool`
+- ✅ Resolution path extended (Discovery note 2 + 3)
+- ❌ **Tool NEVER added to `REVIEWER_PRIMITIVES`** — the registry the Reviewer's surface is actually built from
+
+The Reviewer never had access to `platform_email_send_to_operator` at all, regardless of operator opt-in, regardless of wire correctness, regardless of resolution-path correction. Four cascading corrections all addressing the wrong layer.
+
+**Correction**: lift the tool definition out of the `EMAIL_TOOLS` list literal as a named module-level constant `EMAIL_SEND_TO_OPERATOR_TOOL` in `platform_tools.py`, and add it to `REVIEWER_PRIMITIVES` in `registry.py`. Tool count goes 21 → 22.
+
+**Files corrected by Discovery note 4**:
+- `api/services/platform_tools.py` — `EMAIL_SEND_TO_OPERATOR_TOOL` lifted as named module-level constant before `EMAIL_TOOLS`; `EMAIL_TOOLS` now references the constant. Tool description updated to reflect system Resend wire (was still describing per-user OAuth — Discovery note 2 prose).
+- `api/services/primitives/registry.py` — imports `EMAIL_SEND_TO_OPERATOR_TOOL` from `services.platform_tools`; added to `REVIEWER_PRIMITIVES` list.
+- `api/test_adr299_kernel_universal_capability.py` — new assertion `test_reviewer_primitives_includes_send_operator_email`.
+
+### The fourth-recursion lesson (named precisely)
+
+Different actors in the system have different tool-surface assembly paths:
+
+- **Agent's tool surface**: `get_platform_tools_for_agent` → `get_platform_tools_for_capabilities` (kernel CAPABILITIES dict + bundle MANIFEST + platform_connections)
+- **Reviewer's tool surface**: `REVIEWER_PRIMITIVES` (curated subset)
+- **ChatAgent's tool surface**: `CHAT_PRIMITIVES` (similar shape to REVIEWER_PRIMITIVES)
+- **Sub-LLM specialist (DispatchSpecialist)**: `HEADLESS_PRIMITIVES` or role-specific subset
+
+**Adding a kernel-universal capability requires explicit inclusion in EACH actor's surface registry — they don't auto-flow from kernel `CAPABILITIES` dict to actor surfaces.** The kernel `CAPABILITIES` dict is the registry of "what exists"; per-actor surface registries (`REVIEWER_PRIMITIVES`, `CHAT_PRIMITIVES`, `HEADLESS_PRIMITIVES`, role bundles) are the registries of "what each actor can call." A capability registered in the former without inclusion in the relevant latter is structurally unreachable from that actor.
+
+### Updated recursion-lesson table (final form for this session)
+
+| Depth | Lesson |
+|---|---|
+| 1 | Class-naming redundancy: prefer new field on existing class over new class |
+| 2 | Wire-pointing: verify the wire each class member points at, not just the class |
+| 3 | Resolution-path always-surface: verify the resolution path actually surfaces the capability to callers that should have it |
+| 4 | **Per-actor surface registries**: verify each actor-specific tool registry (REVIEWER_PRIMITIVES / CHAT_PRIMITIVES / HEADLESS_PRIMITIVES / role bundles) includes the capability separately — kernel CAPABILITIES is "what exists," per-actor surfaces are "what each actor can call" |
+
+### Why this finally closes the chain
+
+After Discovery note 4:
+- Tool definition: ✅ (`EMAIL_SEND_TO_OPERATOR_TOOL` named constant, system-wire description)
+- Capability registered in kernel: ✅ (`CAPABILITIES["send_operator_email"]`, no-wire-gate, addressee_class=operator)
+- Wire correct: ✅ (system Resend via `api/jobs/email.py`)
+- Resolution path always-surfaces: ✅ (Discovery note 3 fix)
+- Reviewer's tool surface includes: ✅ (Discovery note 4 fix — added to `REVIEWER_PRIMITIVES`)
+- Agent's tool surface includes: ✅ (Discovery note 3 fix — always-surface in `get_platform_tools_for_capabilities`)
+- Dispatch chain: ✅ (`is_platform_tool` → `handle_platform_tool` → `_handle_email_tool::send_to_operator` early-return → `system_send_email`)
+- Operator opt-in: ✅ (`_preferences.yaml::operator_notifications.{slug}.active: true` is standing approval per D4)
+- Persona-frame teaches it: ✅ (Phase 3 prose update)
+- AUTONOMY routing as observability: ✅ (D4 commitment honored by handler — no `should_auto_apply` call)
+
+Canary v4 should produce the full chain green: REJECT verdict + email landed in operator inbox.
+
+This patch supersedes the affected sections in place per Singular Implementation. No v1/v2/v3/v4; the corrected text is the ADR.
