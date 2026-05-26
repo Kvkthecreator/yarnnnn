@@ -6,6 +6,96 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.26.3] - reviewer(persona-frame): migrate to typed section registry + delete Gen 1 contradiction + fix Gen 3 misstatement + template lock-set from code constant (ADR-302 Phase 2)
+
+### Decision
+
+Phase 2 of ADR-302 lands the structural remediation pass on the Reviewer
+persona-frame. `_PERSONA_FRAME` (single ~500-line string) replaced by
+`_PERSONA_FRAME_SECTIONS` (list of 12 named `PersonaFrameSection` objects)
+consumed via `resolve_persona_frame_sections()`. Phase 1 infrastructure
+(commit a5066ac) is now used.
+
+Three textual corrections landed in the same commit (singular implementation
+discipline applied at the prompt-text layer per ADR-302 D1):
+
+1. **Gen 1 contradiction DELETED.** Pre-ADR-293 paragraph claiming "When
+   you can't write directly to operator-authored substrate (MANDATE,
+   AUTONOMY, IDENTITY, BRAND, CONVENTIONS, PRECEDENT, _operator_profile,
+   _risk — the operator's declarations), do not attempt it as a write."
+   Outdated since ADR-293 inverted the policy — most of those files are
+   writable. Verified absent from rendered body.
+
+2. **Gen 3 misstatement FIXED.** Old trifecta paragraph claimed "Persona
+   (IDENTITY.md + principles.md) is in DEFAULT_REVIEWER_WRITE_LOCKS" —
+   factually wrong. The actual constant locks AUTONOMY.md + _autonomy.yaml
+   + _token_budget.yaml + _preferences.yaml + _pace.yaml. IDENTITY.md and
+   principles.md are NOT locked; Persona evolution is the axis on which
+   the Reviewer self-improves under self-amendment discipline (ADR-295).
+   New trifecta paragraph names Persona explicitly as "operator-authored
+   but NOT locked — you may amend under discipline."
+
+3. **Write-authority lock-set TEMPLATED from code constant (ADR-302 D2).**
+   New `_compute_write_authority()` reads `DEFAULT_REVIEWER_WRITE_LOCKS`
+   at module load and templates the locked-files list into the prompt
+   body. Drift between prompt text and code constant becomes
+   structurally impossible. The stale "three governance files" phrase
+   (which was wrong even before ADR-275 added _preferences.yaml and
+   ADR-298 added _pace.yaml — 5 locked paths, not 3) replaced by the
+   live enumeration.
+
+Plus mechanical: anti-pattern (5) updated from "Touch the three governance
+files (AUTONOMY.md, _autonomy.yaml, _token_budget.yaml)" to "Touch any
+locked file listed in your write-authority section above" — cites the
+canonical declaration per ADR-302 D3 (concern-separation: anti-patterns
+cite, don't restate).
+
+### Changes
+
+- **api/agents/reviewer_agent.py** — `_PERSONA_FRAME` string DELETED
+  (~507 lines), replaced by 12 `_compute_*` functions + the
+  `_PERSONA_FRAME_SECTIONS` registry list. `_build_system_prompt()`
+  updated to resolve the registry via `resolve_persona_frame_sections()`.
+
+### Expected behavior change
+
+- Reviewer model receives logically equivalent guidance to the prior
+  persona-frame, minus the three corrections above. No new instructions
+  added; just the contradictions resolved.
+- Failed-WriteFile pattern on author-class personas (`korea-thriller-shorts`,
+  `netflix-script-author`) observed in `docs/evaluations/2026-05-26-152500-
+  failed-action-substrate-blindspot/` predicted to drop at source because
+  the canon contradiction driving attempted-locked-writes is resolved.
+  Verification: post-deploy population audit re-run per
+  `docs/evaluations/2026-05-26-163000-posture-criterion-declaration/` §4.
+- Rendered persona-frame: 12 sections, ~27K chars (slight increase from
+  explicit section structure + lock-set enumeration; offset by deletion
+  of Gen 1 paragraph + stale phrasing).
+- Token-cost: neutral. Prompt cache discount preserved (all sections
+  cached per ADR-302 D6 boundary).
+
+### Verification
+
+- Sanity check (Python script via runtime resolver): 12 sections, all 5
+  paths in DEFAULT_REVIEWER_WRITE_LOCKS present in rendered body, Gen 1
+  paragraph absent, Gen 3 misstatement absent, "three governance files"
+  phrase absent. PASS.
+- Phase 1 contract test (`api/test_adr302_phase1_section_registry.py`):
+  10/10 PASS post-migration (no regression on dataclass + resolver).
+- AST syntax check: PASS.
+
+### Related
+
+- ADR-302 §2 D1, D2, D3, D5, D6, D7
+- Phase 1 infrastructure: commit a5066ac
+- Driving evidence: `docs/evaluations/2026-05-26-152500-failed-action-
+  substrate-blindspot/` + `docs/evaluations/2026-05-25-053951-reviewer-
+  behavior-population-audit/`
+- Source-grounded refinement: `docs/analysis/claude-code-prompt-discipline-
+  comparison-2026-05-26.md`
+
+---
+
 ## [2026.05.26.2] - REVERT [2026.05.26.1] reviewer silent-exit substrate-honoring fallback
 
 ### Decision
