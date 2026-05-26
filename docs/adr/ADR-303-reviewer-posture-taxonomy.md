@@ -60,33 +60,46 @@ Each cell MUST produce at minimum one operator-readable substrate artifact. The 
 
 This is a deliberate departure from the substrate-honoring fallback hotfix `9e7c1c7` (reverted in same session, see CHANGELOG `[2026.05.26.2]`). That fallback attributed silent-exit substrate as `reviewer:{model}` — falsely conflating model authorship with mechanical dispatch. This ADR's substrate uses a distinct `dispatcher:...` attribution class so the operator and future evaluations can distinguish authored intent from mechanical safety-net writes.
 
-### D3 — Failed-action narrative surfacing relaxation
+### D3 — Failed-action narrative surfacing: visibility-first default with explicit noise denylist (source-grounded refinement, 2026-05-26)
 
-The `success=True` filter in `services/reviewer_chat_surfacing.py::surface_reviewer_actions:408` is uniformly success-biased. The per-cell contracts in D2 require this to relax along a structured boundary:
+The `success=True` filter in `services/reviewer_chat_surfacing.py::surface_reviewer_actions:408` is uniformly success-biased. It is inverted: **default-surface for all failures; explicit denylist for known-noise classes.**
 
-- **Failed action is operator-relevant when**: the failure surfaces a substrate constraint or capability gap (e.g., WriteFile-refused-by-lock, ProposeAction-refused-by-schema, SyncPlatformState-refused-by-platform-not-connected). Surface these.
-- **Failed action is noise when**: the failure is transient (rate-limit, retry-able network), or the model fat-fingered an argument and a retry succeeded in the same cycle.
+This is the first-principles position derived from Claude Code's tool-error handling (`docs/analysis/src_claudeCC/query.ts:140`, where every tool failure produces a `tool_result` with `is_error: true` and is surfaced to the user without filter). The principle the source enacts: all tool outcomes are operator-visible because the operator's judgment requires the substrate-receipt of *what actually happened*, not a curated view of *what succeeded*.
 
-The discriminator is **whether the failure carries operator-actionable information**. Concretely:
+YARNNN's prior success-bias filter was a design choice that didn't survive contact with the failed-WriteFile pattern. Operator-visible Reviewer cognition is non-negotiable per Derived Principle 21 ("full-substrate-authoring … paced by operator-declared pace + autonomy"). A filter that hides cognition contradicts the canon.
 
+Concretely:
+
+```python
+# api/services/reviewer_chat_surfacing.py — replacing the success=True filter
+
+# Default: every Reviewer action — success OR failure — produces narrative.
+# Failures explicitly listed in SILENCE_FAILURE_REASONS are filtered as
+# known-noise; ALL other outcomes surface to the feed.
+
+SILENCE_FAILURE_REASONS: frozenset[str] = frozenset({
+    "rate_limited",                   # transient platform-API throttle
+    "transient_network",              # retriable network failure
+    "retried_successfully_in_cycle",  # superseded by a same-tool same-args success in same wake
+})
+
+def should_surface_action(action: dict) -> bool:
+    if not isinstance(action, dict):
+        return False
+    if action.get("success", True):
+        # successful actions surface per existing folding logic (D2 P1 contract)
+        return True
+    reason = (action.get("failure_reason") or "").strip()
+    if reason in SILENCE_FAILURE_REASONS:
+        return False
+    return True  # visibility-first default
 ```
-SURFACE_FAILURE_REASONS = {
-    "path_locked",                  # WriteFile to locked path — operator may want to relax lock
-    "capability_required_missing",  # tool called for platform op without connection — operator may want to connect
-    "schema_validation_failed",     # ProposeAction with invalid shape — operator may want to amend principles
-    "permission_denied",            # any explicit operator-policy refusal
-}
 
-SILENCE_FAILURE_REASONS = {
-    "rate_limited",
-    "transient_network",
-    "retried_successfully_in_cycle",  # only count if a same-tool same-args success follows
-}
-```
+Failed actions that surface produce narrative entries with a new event-kind `reviewer_action_blocked` carrying tool + path/target + failure_reason + the model's prose context if available. The narrative entry is authored as `dispatcher:reviewer_action_blocked` per D6 attribution discipline (the dispatcher reports the failure; the Reviewer didn't author the report).
 
-Failures with reasons in `SURFACE_FAILURE_REASONS` produce narrative entries with a new event-kind `reviewer_action_blocked` carrying tool + path/target + reason + the model's prose context if available. Failures with reasons in `SILENCE_FAILURE_REASONS` continue to be filtered at the surfacing layer.
+The asymmetry favoring surfacing is structural: the cost of false-surfacing is one extra feed entry the operator can ignore. The cost of false-filtering is invisible Reviewer cognition that the operator can't react to. The denylist grows only when a specific noise class is identified through observation — never preemptively.
 
-Failures with unknown reasons default to **surface** (visibility-first; operator can mute classes via future policy if noise emerges). The cost of false-surfacing is one extra feed entry; the cost of false-filtering is invisible Reviewer cognition. The asymmetry favors surfacing.
+**Failure-reason taxonomy is open at this ADR**: tools produce failures with reasons that are not yet structurally enumerated. Phase 4 implementation surfaces the natural taxonomy from production; the denylist may expand from the initial three entries above as transient-noise classes are identified. Operator-relevant classes (path_locked, capability_required_missing, schema_validation_failed, permission_denied, etc.) NEVER enter the denylist — they are exactly the substrate signals the operator needs.
 
 ### D4 — Posture-frame disambiguation in persona-frame
 
@@ -154,6 +167,7 @@ The same principle applies to D3 failed-action narratives: they're authored by `
   - `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md` (the 48% adherence measurement)
   - `docs/observations/2026-05-26-145500-silent-wake-hypothesis-verification/findings.md` (text-only-fallback confirmed)
   - `docs/observations/2026-05-26-152500-failed-action-substrate-blindspot/findings.md` (two structural blindspots named)
+- Source-grounded refinement basis: `docs/analysis/src_claudeCC/query.ts:140` (Claude Code's `is_error: true` always-surface pattern) + `docs/analysis/src_claudeCC/query.ts:674` (`toolChoice: undefined` validating no-in-loop-intervention stance) — first-principles compatibility documented in `docs/analysis/claude-code-prompt-discipline-comparison-2026-05-26.md`
 - Sibling ADR: ADR-302 (prompt-envelope discipline) — drafted same session
 - Reverted hotfix: commit `9e7c1c7` + CHANGELOG `[2026.05.26.2]` (revert rationale)
 - Related canon: ADR-194 v2 (Reviewer substrate), ADR-258 revised (REVIEWER_PRIMITIVES + narration), ADR-289 D4 (judgment_log substrate-of-record), ADR-293 (write-authority), ADR-295 (self-amendment evidence patterns), ADR-298 (trifecta), ADR-302 (prompt discipline)
@@ -161,7 +175,7 @@ The same principle applies to D3 failed-action narratives: they're authored by `
 
 ## 8. Open questions
 
-- **Failure-reason taxonomy completeness**: D3's `SURFACE_FAILURE_REASONS` enumeration starts with four entries derived from observation. Real coverage requires Phase 4 sampling to discover unmentioned reasons. ADR amendment expected within ~2 weeks of Phase 4 landing.
+- **Failure-reason denylist evolution**: D3's `SILENCE_FAILURE_REASONS` starts with three known transient-noise classes (rate_limited, transient_network, retried_successfully_in_cycle). The denylist may expand if Phase 4 observation surfaces other natural noise classes. Operator-relevant failure reasons NEVER enter the denylist — they are exactly the substrate signals the operator needs. ADR amendment expected only if a noise class is identified that the initial three don't cover.
 - **Operator-side noise tolerance**: D3 surfaces all failed actions by default with operator-side filtering deferred. If real-world feed becomes too noisy post-Phase-4, a per-operator suppress mechanism may be needed. Deferred until evidence justifies.
 - **Cell P5 detection**: P5 ("genuinely confused") is currently indistinguishable from P4 ("budget-exhausted") at exit. Differentiating at re-occurrence pattern requires substrate-level telemetry that doesn't yet exist. Deferred to operator-driven future work if the distinction becomes load-bearing.
 - **Whether the substrate-honoring "dispatcher write" approach IS itself a hotfix in disguise**: arguable. The structural alternative would be in-loop intervention (force ReturnVerdict on terminal rounds, or push system-message reminder when model exits text-only). The dispatcher-write approach is chosen because it preserves model autonomy in-loop (no behavioral pressure) while honoring operator visibility — but is functionally similar to the rejected hotfix `9e7c1c7` at the substrate-result layer. The honest distinction: this ADR's dispatcher writes have explicit `dispatcher:` attribution + are grounded in a per-cell taxonomy where they slot into a defined posture rather than papering over a uniform contract. If this distinction proves too thin in practice, future ADR revisits.

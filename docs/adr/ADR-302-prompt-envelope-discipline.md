@@ -69,19 +69,85 @@ Singular Implementation discipline applied at the prompt-authoring layer. When c
 
 CHANGELOG entry in `api/prompts/CHANGELOG.md` records what was deleted + what replaces it. The CHANGELOG is the historical artifact; the persona-frame is the current canon.
 
-### D5 — Remediation pass on the current `_PERSONA_FRAME`
+### D5 — Section registry with cache-aware typing (source-grounded refinement, 2026-05-26)
 
-A targeted edit pass (separate commit from this ADR's landing) brings the existing persona-frame into compliance:
+Singular Implementation at the prompt-authoring layer is enforced through a **typed section registry**, not through prose discipline. Inspired by Claude Code's `constants/systemPromptSections.ts` pattern (read at `docs/analysis/src_claudeCC/constants/systemPromptSections.ts`) but derived for YARNNN's substrate model — the underlying first-principle is the same: drift between concerns is closed by making each section a structured, named, cache-tagged object rather than a position in a string.
+
+The persona-frame source becomes a list of registered sections:
+
+```python
+# api/agents/reviewer_agent_sections.py (new module)
+
+@dataclass(frozen=True)
+class PersonaFrameSection:
+    name: str               # canonical identifier; one per concern
+    compute: Callable[[], str]  # computes section content
+    cache_break: bool       # True = recomputed every wake; default False
+
+def persona_frame_section(name: str, compute: Callable[[], str]) -> PersonaFrameSection:
+    """Cached section. Computed once at module load."""
+    return PersonaFrameSection(name=name, compute=compute, cache_break=False)
+
+def DANGEROUS_uncached_persona_frame_section(
+    name: str,
+    compute: Callable[[], str],
+    reason: str,  # required — explains why cache-break is necessary
+) -> PersonaFrameSection:
+    """Volatile section. Recomputed every wake. Use only when justified.
+
+    The DANGEROUS_ prefix is intentional friction: the author must consciously
+    opt in. The mandatory `reason` argument documents the justification in
+    code so future reviewers can audit whether the cache-break is still
+    warranted.
+    """
+    return PersonaFrameSection(name=name, compute=compute, cache_break=True)
+```
+
+`_PERSONA_FRAME` is rewritten as `_PERSONA_FRAME_SECTIONS: list[PersonaFrameSection]`. Assembly at module load time resolves each section's `compute()` once and concatenates. Volatile sections (e.g., the operating-context block per ADR-274) use the DANGEROUS_ variant and document why per-wake recomputation is necessary.
+
+**Why this is structurally important** (the singular-implementation move): with sections as plain prose blocks in a string, "one canonical place per concern" is an authoring convention enforced only by reviewer attention. With sections as named registered objects, **adding a second section with the same concern requires either renaming one or making the contradiction obvious in the registry**. The Type system + naming + registry collectively close the drift surface the way `DEFAULT_REVIEWER_WRITE_LOCKS` as a Python constant closes the lock-set drift surface.
+
+### D6 — Static / dynamic boundary discipline
+
+Persona-frame sections partition into two cache tiers, separated by an explicit boundary marker. Static sections (axiom citations, write-authority declaration, anti-pattern enumeration, persona identity) are cached at module load and stable across wakes. Dynamic sections (operating-context block, recent-execution summary, schedule-index) recompute per wake.
+
+```python
+_PERSONA_FRAME_SECTIONS: list[PersonaFrameSection] = [
+    # --- Static content (cacheable, stable across wakes) ---
+    persona_frame_section("identity", _compute_identity),
+    persona_frame_section("write_authority", _compute_write_authority),
+    persona_frame_section("self_amendment_evidence", _compute_self_amendment),
+    persona_frame_section("anti_patterns", _compute_anti_patterns),
+    # === BOUNDARY MARKER - DO NOT MOVE OR REMOVE ===
+    # All sections below recompute per wake; cache-aware code may treat
+    # the boundary as a cache-scope break point.
+    # --- Dynamic content (volatile per wake) ---
+    DANGEROUS_uncached_persona_frame_section(
+        "operating_context",
+        _compute_operating_context_block,
+        reason="Per ADR-274: now/timezone/market-state changes every wake; "
+               "must reflect the wake's actual operating context.",
+    ),
+    # additional dynamic sections...
+]
+```
+
+The boundary marker is a deliberate refactoring friction. A future edit that moves a dynamic section above the boundary or a static section below it has to consciously delete the marker comment — making the discipline violation visible at code-review time.
+
+### D7 — Remediation pass on the current `_PERSONA_FRAME`
+
+A targeted edit pass (separate commit from this ADR's landing) brings the existing persona-frame into compliance with D1–D6:
 
 1. **Delete §493–§499** — the Gen 1 "cannot write directly to operator-authored substrate" paragraph. Outdated since ADR-293.
 2. **Tighten §668–§698** — replace the prose enumeration of locked files with a template-from-constant pattern. The persona-frame source becomes a Python f-string or similar mechanism that injects `DEFAULT_REVIEWER_WRITE_LOCKS` contents at module load.
 3. **Update §526–§534 trifecta paragraph** — fix the factual misstatement that "Persona (IDENTITY.md + principles.md) is in DEFAULT_REVIEWER_WRITE_LOCKS." IDENTITY.md and principles.md are NOT locked per the actual constant. Trifecta framing remains; the lock-set claim about Persona dial is removed (replaced by an axiom-level statement about why Persona evolution happens via the self-amendment evidence pattern in §739, not via lock).
 4. **Anti-pattern enumeration §775–§799** — each anti-pattern is preserved but rewritten to cite "the lock-set listed in §write-authority above" rather than re-enumerating which files are locked.
 5. **§531 "you read them at every wake but never write them"** — rewritten to be specifically about the trifecta dials (Pace + Autonomy + token-budget), not the broader "operator-authored substrate" category, since the latter is Gen-2-writable per ADR-293.
+6. **Rewrite `_PERSONA_FRAME` as `_PERSONA_FRAME_SECTIONS` per D5** — the structural refactor that makes D1–D4 enforceable. This is the load-bearing part of remediation; the textual edits above are necessary but the structural refactor closes the drift surface long-term.
 
-Net diff: smaller persona-frame (fewer LOC), but structurally consistent and machine-extracted-from-canon at the load-bearing capability claim.
+Net diff: smaller per-section content (fewer LOC of prose), but a new module (`reviewer_agent_sections.py`) carrying the registry. Architecturally cleaner: prompt-authoring discipline becomes a structural property of the codebase, not an authoring convention.
 
-### D6 — This discipline applies forward to every prompt artifact, not just the Reviewer persona-frame
+### D8 — This discipline applies forward to every prompt artifact, not just the Reviewer persona-frame
 
 The same drift pattern can recur in:
 - `api/agents/prompts/chat/workspace.py` and other YARNNN prompt profiles (ADR-186)
@@ -89,7 +155,7 @@ The same drift pattern can recur in:
 - Tool definitions in `api/services/primitives/*.py` (description fields are LLM-facing prompts)
 - Activation overlays (ADR-226)
 
-The three axioms (D1 / D2 / D3) apply to all of them. The remediation pass (D5) scopes only the Reviewer persona-frame because that's where the failed-WriteFile pattern was observed; analogous passes for the other prompt artifacts follow when their respective drift surfaces in observation findings.
+The five axioms (D1–D3 content discipline + D5–D6 structural discipline) apply to all of them. The remediation pass (D7) scopes only the Reviewer persona-frame because that's where the failed-WriteFile pattern was observed; analogous passes for the other prompt artifacts follow when their respective drift surfaces in observation findings.
 
 ## 3. What this ADR does NOT do
 
@@ -125,19 +191,22 @@ ADR-302 reduces the canon-vs-code contradiction class. ADR-303 defines per-cell 
 ## 7. Implementation phases
 
 - **Phase 1**: ratify this ADR (the proposal itself).
-- **Phase 2**: D5 remediation pass on `_PERSONA_FRAME`. Single commit. CHANGELOG entry per D4. Diff is text-only — no behavioral code changes.
-- **Phase 3**: prompt-assembly code change to template `DEFAULT_REVIEWER_WRITE_LOCKS` into the prompt at module load (D2 mechanism). Small Python edit in `reviewer_agent.py` module-load path.
-- **Phase 4**: re-run population audit to measure adherence shift. If failed-WriteFile rate on author-class personas does not drop, ADR-302 is necessary-but-insufficient and ADR-303 carries the rest.
+- **Phase 2**: D5 + D6 structural refactor — create `api/agents/reviewer_agent_sections.py` with the section-registry typing + boundary-marker discipline. Migrate `_PERSONA_FRAME` to `_PERSONA_FRAME_SECTIONS`. CHANGELOG entry per D4. This is the load-bearing structural change; D7 textual edits follow naturally because each section's content becomes a discrete `_compute_*` function easier to edit cleanly.
+- **Phase 3**: D7 remediation textual pass — delete outdated Gen 1, fix Gen 3 misstatements, replace prose enumeration with template-from-constant per D2. Most of the diff is removing duplicated capability claims now that each concern has one canonical section.
+- **Phase 4**: prompt-assembly code change to template `DEFAULT_REVIEWER_WRITE_LOCKS` into the prompt at module load (D2 mechanism). Small Python edit in `reviewer_agent_sections.py::_compute_write_authority`.
+- **Phase 5**: re-run population audit to measure adherence shift. If failed-WriteFile rate on author-class personas does not drop, ADR-302 is necessary-but-insufficient and ADR-303 carries the rest.
 
 ## 8. Open questions
 
-- **Does D2's template-from-constant mechanism extend to bundle-supplied lock additions?** Operator-authored `_locks.yaml` adds paths to the lock-set at runtime. If the persona-frame templates from the constant only, operator-added locks won't appear in the prompt text. Options: (a) merge at prompt-assembly time (runtime), (b) accept that operator-added locks are runtime-discovered via WriteFile-refused-with-reason, (c) surface to operator via Clarify on first hit. Resolved at Phase 3 implementation.
-- **What's the right place to surface the canonical write-authority section in the prompt order?** Currently it's mid-prompt (§668). Closer to the decision-point ("when you're about to write") would be better but conflicts with the current sectioning that puts foundational framing first. Resolved at Phase 2 remediation.
+- **Does D2's template-from-constant mechanism extend to bundle-supplied lock additions?** Operator-authored `_locks.yaml` adds paths to the lock-set at runtime. If the persona-frame templates from the constant only, operator-added locks won't appear in the prompt text. Options: (a) merge at prompt-assembly time (runtime — but breaks the cache, see D6), (b) accept that operator-added locks are runtime-discovered via WriteFile-refused-with-reason, (c) surface to operator via Clarify on first hit. Path (b) preserves caching but reduces in-prompt operator visibility; path (a) requires DANGEROUS_uncached treatment for the write-authority section. Resolved at Phase 4 implementation.
+- **What's the right place to surface the canonical write-authority section in the prompt order?** Currently it's mid-prompt (§668). Closer to the decision-point ("when you're about to write") would be better but conflicts with the current sectioning that puts foundational framing first. Resolved at Phase 3 remediation.
+- **Should the section registry persist sections across model versions?** As underlying LLMs change (Haiku 4.5 → Haiku 5, etc.), some sections may need per-model variants (e.g., terser phrasing for smaller-context models). Defer to a later ADR if the question becomes load-bearing.
 
 ## 9. Cross-references
 
 - Predecessor finding: `docs/observations/2026-05-26-152500-failed-action-substrate-blindspot/findings.md`
 - Population audit: `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`
+- Source-grounded refinement basis: `docs/analysis/src_claudeCC/constants/systemPromptSections.ts` (Claude Code's typed section registry) + `docs/analysis/src_claudeCC/constants/prompts.ts:560-577` (boundary marker discipline) — first-principles compatibility documented in `docs/analysis/claude-code-prompt-discipline-comparison-2026-05-26.md`
 - Related canon: ADR-186 (prompt profiles), ADR-258 revised (Reviewer surface), ADR-274 / ADR-275 / ADR-276 (cadence + envelope), ADR-293 (governance taxonomy), ADR-295 (self-amendment evidence patterns), ADR-298 (Pace + Autonomy + Persona trifecta)
 - Lock-set source: `api/services/workspace_paths.py::DEFAULT_REVIEWER_WRITE_LOCKS`
 - Persona-frame source: `api/agents/reviewer_agent.py::_PERSONA_FRAME`
