@@ -6,6 +6,95 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.26.6] - reviewer(persona-frame): rewrite standing_intent section in posture-cell language (ADR-303 Phase 5 — closes the arc)
+
+### Decision
+
+Phase 5 closes the implementation arc by rewriting the persona-frame's
+standing_intent contract section in ADR-303 D1 posture-cell language.
+The model now reads explicit per-cell descriptions instead of the over-
+broad "every reactive recurrence cycle produces a standing_intent.md
+write" rule the predecessor population audit measured ~48% adherence
+against. That criterion is now retired in canon; per-cell substrate
+side-effect contracts (Phases 3 + 4 in code) are the new contract the
+model is informed about.
+
+The persona-frame now describes:
+1. Five posture cells (P1 fired-correctly, P2 decided-nothing-material,
+   P3 tried-was-gated, P4 budget-exhausted, P5 confused) with per-cell
+   substrate contracts naming what the model must author vs what the
+   dispatcher synthesizes on its behalf.
+2. Attribution discipline (ADR-303 D6) making the `reviewer:` vs
+   `dispatcher:silent_exit_fallback` distinction explicit so the model
+   understands the safety net does NOT absolve it of authoring intent
+   itself when warranted.
+3. The schema for self-authored standing_intent.md preserved verbatim
+   (operator-facing contract unchanged).
+4. The MANDATE-citation discipline preserved verbatim.
+
+### Changes
+
+- **api/agents/reviewer_agent.py** — `_compute_standing_intent_contract()`
+  function rewritten. New structure: substrate-home framing → five
+  posture cells with per-cell contracts → attribution discipline section
+  → schema → mandate-citation discipline. Section name in registry
+  unchanged (`"standing_intent_contract"`) so the canonical-place-per-
+  concern discipline (ADR-302 D1) is preserved.
+
+### Expected behavior change
+
+- The model now reasons about its own cycle exit shape against an
+  explicit five-cell taxonomy rather than a one-size-fits-all rule.
+  P2 (decided-nothing-material) is named as a legitimate posture, NOT
+  a failure — closes the conflation that drove the false-failure
+  signal in the predecessor population audit.
+- The model is informed of P4 + P5 dispatcher safety nets — but told
+  explicitly the safety net does NOT absolve it of authoring intent.
+  Predicted effect: model attempts P1 / P2 authoring more deliberately
+  knowing the alternative is dispatcher-attributed substrate (which
+  the operator distinguishes via attribution).
+- The model is informed of P3 (tried-was-gated) and told the failed
+  action will surface to operator via the new
+  `reviewer_action_blocked` event-kind (Phase 4). Predicted effect:
+  model treats constraint hits as operator-actionable events worth
+  Clarifying about, not as silent failures.
+- Combined with Phases 1-4 code changes, all five posture cells now
+  have both (a) operator-visible substrate (Phases 3 + 4) AND (b)
+  explicit canon describing what each cell should produce (this phase).
+  The persona-frame contract and the code-side substrate contract are
+  aligned for the first time.
+
+### Verification
+
+- Sanity check via runtime resolver: all five posture cells present in
+  rendered body, attribution discipline section present, stale
+  "every cycle produces standing_intent" rule absent, Phase 2
+  invariants (lock-set templating, Gen 1 deleted, stale phrasing
+  removed) all preserved.
+- No-regression: Phase 1 (10) + Phase 3 (8) + Phase 4 (15) = **33/33
+  PASS** post-rewrite.
+- AST syntax check PASS.
+- Rendered persona-frame: 12 sections, ~31K chars (Phase 2 baseline
+  was ~27K; ~4K added by per-cell explanations).
+
+### Related
+
+- ADR-303 §2 D1 (five posture cells), D2 (per-cell substrate contracts),
+  D4 (persona-frame posture-cell rewrite), D6 (dispatcher attribution
+  discipline)
+- Predecessor: docs/evaluations/2026-05-25-053951-reviewer-behavior-
+  population-audit/ (the audit that measured against the now-retired
+  one-size-fits-all rule)
+- Driving structural finding: docs/evaluations/2026-05-26-152500-
+  failed-action-substrate-blindspot/
+- Cumulative arc commits (10): 84f75c9 → 644388c → 23b59e7 → 6a3161d
+  → 4f1f128 → 03e1809 → a5066ac → 5c36421 → f2d63d5 → fca7c01 → (this)
+- Post-deploy verification: re-run population audit per
+  docs/evaluations/2026-05-26-163000-posture-criterion-declaration/ §4
+  after ≥1 week of fresh substrate accumulation.
+
+---
+
 ## [2026.05.26.5] - reviewer(surfacing): visibility-first invert + reviewer_action_blocked event-kind (ADR-303 Phase 4)
 
 ### Decision
