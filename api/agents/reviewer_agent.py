@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, Optional, TypedDict
 
 from services.anthropic import chat_completion_with_tools
 # ADR-291: token_usage substrate sunset — cost ledger writes flow through
@@ -397,7 +397,12 @@ warm-start observation, 2026-05-20):
   judgment is an updated standing intent. "No action" without an updated
   standing intent is not a real judgment, it's drift. Author the forward-
   looking intent via `WriteFile(scope="workspace", path="review/standing_intent.md", ...)`,
-  then close the cycle.
+  then close the cycle. Infrastructure now enforces this contract: if you
+  exit the loop without writing standing_intent.md (text-only response or
+  budget exhaustion), the dispatcher writes a silent-exit fallback entry
+  carrying your last prose snippet + the exit class so the operator sees
+  the trace. The fallback closes the substrate gap mechanically — do not
+  rely on it as a substitute for authoring intent yourself.
 
 - **Proposal-trigger wakes (a proposal is shown above)**: the verdict IS the
   substrate-of-record — infrastructure renders it into `judgment_log.md` from
@@ -1480,12 +1485,29 @@ async def invoke_reviewer(
                 messages.append({"role": "assistant", "content": assistant_content})
 
             if not tool_uses:
-                # Text-only response — fallback to stand_down with the text as reasoning
+                # Text-only response — fallback to stand_down with the text as reasoning.
+                # ADR-302 silent-exit substrate contract (2026-05-26): honor the
+                # persona-frame "every reactive recurrence cycle produces a
+                # standing_intent.md write" rule even on this fallback path, so
+                # the operator sees what the Reviewer was thinking at exit time
+                # rather than an invisible-to-substrate silent wake. Population
+                # audit 2026-05-25-053951 identified ~41% of judgment-shape
+                # wakes were silent at substrate (zero reviewer-attributed
+                # writes) — this branch was the unguarded path.
                 text_fallback = (response.text or "").strip()
                 if text_fallback:
                     logger.warning(
                         "[REVIEWER] text-only response round %d trigger=%s user=%s",
                         _round, trigger, user_id[:8],
+                    )
+                    await _write_silent_exit_standing_intent(
+                        auth=auth,
+                        exit_round=rounds_used,
+                        max_rounds=max_rounds,
+                        prose=text_fallback,
+                        trigger=trigger,
+                        slug=context.get("recurrence_slug") if isinstance(context, dict) else None,
+                        exit_class="text_only_mid_loop",
                     )
                     verdict_raw = {
                         "verdict": "stand_down",
@@ -1654,12 +1676,26 @@ async def invoke_reviewer(
                 "[REVIEWER] no ReturnVerdict after %d rounds trigger=%s user=%s",
                 max_rounds, trigger, user_id[:8],
             )
+            # ADR-302 silent-exit substrate contract (2026-05-26): same rule as
+            # the text-only-mid-loop branch above — budget-exhausted exits
+            # honor the standing_intent.md contract so the operator sees the
+            # last-text trace instead of a silent wake.
+            fallback_reasoning = last_text or (
+                "I was unable to reach a verdict within my round budget. "
+                "Substrate may need refresh — fire track-universe or signal-evaluation."
+            )
+            await _write_silent_exit_standing_intent(
+                auth=auth,
+                exit_round=rounds_used,
+                max_rounds=max_rounds,
+                prose=fallback_reasoning,
+                trigger=trigger,
+                slug=context.get("recurrence_slug") if isinstance(context, dict) else None,
+                exit_class="budget_exhausted",
+            )
             verdict_raw = {
                 "verdict": "stand_down",
-                "reasoning": last_text or (
-                    "I was unable to reach a verdict within my round budget. "
-                    "Substrate may need refresh — fire track-universe or signal-evaluation."
-                ),
+                "reasoning": fallback_reasoning,
                 "confidence": "low",
             }
 
@@ -1727,6 +1763,82 @@ async def invoke_reviewer(
             trigger, user_id[:8] if user_id else "?", exc,
         )
         return None
+
+
+async def _write_silent_exit_standing_intent(
+    auth: SimpleNamespace,
+    exit_round: int,
+    max_rounds: int,
+    prose: str,
+    trigger: str,
+    slug: Optional[str],
+    exit_class: str,
+) -> None:
+    """ADR-302: substrate-honoring fallback for silent-wake exits.
+
+    Population audit 2026-05-25-053951 found ~41% of judgment-shape wakes
+    produced zero reviewer-attributed substrate writes — the model exhausted
+    tool rounds (or returned text-only mid-loop) and the existing fallback
+    paths constructed `stand_down` verdicts without writing standing_intent.md.
+    Result: the persona-frame contract (every reactive-recurrence cycle
+    produces a standing_intent.md write) was held at ~48% adherence.
+
+    This helper closes the substrate gap. On any silent-exit path the
+    Reviewer's last prose snippet + exit-round metadata are written to
+    /workspace/review/standing_intent.md via the canonical primitive,
+    attributed with the same reviewer caller_identity as in-loop writes.
+    Failures here are logged but never raised — the parent fallback must
+    still produce a verdict so the wake completes cleanly at the queue.
+    """
+    from datetime import datetime, timezone
+    from services.primitives.registry import execute_primitive
+
+    timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    snippet = (prose or "").strip()
+    if len(snippet) > 600:
+        snippet = snippet[:600] + "…"
+    slug_line = f"trigger={trigger} slug={slug or '<n/a>'}"
+    body = (
+        f"---\n"
+        f"as_of: {timestamp}\n"
+        f"horizon: short — until next wake\n"
+        f"silent_exit: {exit_class}\n"
+        f"exit_round: {exit_round}\n"
+        f"max_rounds: {max_rounds}\n"
+        f"---\n\n"
+        f"# Standing intent — silent-exit fallback\n\n"
+        f"## Context\n"
+        f"- {slug_line}\n"
+        f"- This cycle exited via the silent-exit fallback path "
+        f"(class: `{exit_class}`) at round {exit_round}/{max_rounds}.\n"
+        f"- The Reviewer did not call `ReturnVerdict`; the dispatcher "
+        f"constructed a `stand_down` verdict using the last-text snippet below.\n\n"
+        f"## Last-text snippet (preserved verbatim, truncated to 600 chars)\n\n"
+        f"```\n{snippet or '<no text returned>'}\n```\n\n"
+        f"## What I'm watching for\n"
+        f"- Next wake on this slug should re-evaluate. If silent-exit "
+        f"recurs on the same slug + trigger pattern, the persona-frame for "
+        f"this recurrence shape may need sharpening, or the substrate the "
+        f"Reviewer was reading may need refresh.\n"
+    )
+
+    try:
+        await execute_primitive(
+            auth,
+            "WriteFile",
+            {
+                "scope": "workspace",
+                "path": "review/standing_intent.md",
+                "content": body,
+                "mode": "overwrite",
+                "message": f"silent-exit fallback ({exit_class} @ round {exit_round}/{max_rounds})",
+            },
+        )
+    except Exception as exc:
+        logger.warning(
+            "[REVIEWER] silent-exit standing_intent write failed user=%s exit_class=%s: %s",
+            (auth.user_id or "?")[:8], exit_class, exc,
+        )
 
 
 def _summarize_result(result: Any) -> str:

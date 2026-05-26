@@ -6,6 +6,78 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.26.1] - reviewer(silent-exit): substrate-honoring fallback writes standing_intent.md on text-only-exit + budget-exhaustion paths
+
+### Decision
+
+Hat-B Render-trace verification (2026-05-26) confirmed the audit hypothesis
+from `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`:
+~41% of judgment-shape Reviewer wakes were exiting via the "text-only response"
+fallback path (or via budget exhaustion without ReturnVerdict), and both
+fallback paths constructed a `stand_down` verdict in code but wrote ZERO
+reviewer-attributed substrate. The persona-frame contract "every reactive
+recurrence cycle produces a standing_intent.md write" was held at ~48%
+adherence because behavioral compliance alone could not enforce it on the
+silent-exit class.
+
+Render trace receipts:
+- `c4f250f2-d26f-4c1b-9013-0c80854319f7` (yarnnn-author / pre-ship-audit /
+  substrate_event): logged `WARNING:agents.reviewer_agent:[REVIEWER]
+  text-only response round 7 trigger=reactive user=0b7a852d` at
+  2026-05-24T05:39:11Z, then telemetry emitted `success` with cost=$0.2573
+  and zero reviewer substrate writes.
+- `68534e54-9c39-4478-978e-cf810bc1516e` (kvk / signal-evaluation /
+  cron_tick): same WARNING at round 8, 2026-05-22T13:46:17Z, after 18
+  tool actions (several ReadFile/ListFiles + 3 failed ProposeActions +
+  one Clarify). Exited text-only without ReturnVerdict.
+- `35ac5712-f01c-4bc1-a59c-6a2d8b05e898` (korea-shorts /
+  outcome-reconciliation / cron_tick): similar pattern, 61s, zero
+  reviewer-attributed substrate writes.
+
+Fix lands at both fallback sites in `agents/reviewer_agent.py::invoke_reviewer`
+via new helper `_write_silent_exit_standing_intent` which writes
+`/workspace/review/standing_intent.md` through the canonical primitive
+registry with `caller_identity=f"reviewer:{REVIEWER_MODEL_IDENTITY}"`. The
+write carries: exit class (`text_only_mid_loop` or `budget_exhausted`),
+exit round, max rounds, trigger, slug, and a 600-char-truncated snippet
+of the last prose. Failures during the fallback write are logged but
+never raised — the verdict still flows so the wake completes at the queue.
+
+### Changes
+
+- **api/agents/reviewer_agent.py** — `Optional` added to typing import.
+  New helper `_write_silent_exit_standing_intent` (~70 LOC) inserted above
+  `_summarize_result`. Two existing fallback sites (text-only mid-loop +
+  budget-exhausted) now `await` the helper before constructing `verdict_raw`.
+  Persona-frame standing_intent section gains a paragraph naming the
+  infrastructural enforcement contract so the model knows silent exits
+  surface to the operator regardless.
+
+### Expected behavior change
+
+- Silent-exit class wakes (~41% of judgment-shape population pre-fix) will
+  now produce reviewer-attributed `standing_intent.md` writes carrying
+  diagnostic metadata + last-prose snippet. Feed + cockpit will surface
+  these as ordinary reviewer substrate updates.
+- Persona-frame contract adherence target: 95%+ on A1 re-run after one
+  week (vs ~48% pre-fix). Re-run query in
+  `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`
+  §A1.
+- Cost neutral: one additional `WriteFile` per silent-exit wake (~0
+  LLM tokens, ~10ms DB).
+- No behavioral pressure on in-loop model decisions — Reviewer is not
+  forced to choose any specific verdict; the fix only converts silent
+  exits to visible exits.
+
+### Related
+
+- Audit: `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md` R1+R2
+- Hat-B verification: `docs/observations/2026-05-26-145500-silent-wake-hypothesis-verification/findings.md` (to be authored alongside this commit)
+- Persona-frame: `api/agents/reviewer_agent.py::_PERSONA_FRAME` standing_intent section
+- Related canon: FOUNDATIONS Derived Principle 21 (full-substrate-authoring Reviewer)
+
+---
+
 ## [2026.05.25.3] - tool(reviewer): EMAIL_SEND_TO_OPERATOR_TOOL REVERTED from REVIEWER_PRIMITIVES (ADR-299 Discovery 4 Path A revert)
 
 ### Decision
