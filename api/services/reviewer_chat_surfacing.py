@@ -217,6 +217,86 @@ REVIEWER_MIRROR_REFRESH_TOOLS = frozenset({
 })
 
 
+# ADR-303 D3 (2026-05-26) — visibility-first failure-surfacing invert.
+#
+# Pre-this commit, ALL failed Reviewer actions were filtered out of
+# narrative substrate (the unguarded `success=True` gate at
+# surface_reviewer_actions:408 + _fold_key:307). The operator could not
+# see the model's failed-WriteFile attempts, failed ProposeAction
+# submissions, failed substrate refreshes — even though those failures
+# carry operator-actionable information (e.g., "model attempted write
+# to locked path; consider relaxing the lock").
+#
+# ADR-303 D3 inverts: visibility-first default; explicit denylist for
+# known transient noise. Surfaces a `reviewer_action_blocked` narrative
+# entry (new event-kind) for failed actions whose failure_reason is
+# operator-relevant. The denylist is intentionally narrow — operator-
+# relevant failure reasons NEVER enter the denylist by design.
+#
+# Aligned with Claude Code's first-principles position
+# (docs/analysis/src_claudeCC/query.ts:140 — every tool failure surfaces
+# with is_error: true, no allowlist filter). See
+# docs/analysis/claude-code-prompt-discipline-comparison-2026-05-26.md §4.
+SILENCE_FAILURE_REASONS: frozenset[str] = frozenset({
+    # Transient infrastructure noise; not operator-actionable.
+    "rate_limited",
+    "transient_network",
+    # Self-superseded — a same-tool same-args success followed in cycle.
+    # Currently no upstream code stamps this reason; reserved for the
+    # _fold_same_path_writes pass to identify when implemented (separate
+    # commit). Listed here for completeness of the denylist contract.
+    "retried_successfully_in_cycle",
+})
+
+
+def should_surface_failed_action(action: dict) -> bool:
+    """ADR-303 D3 visibility-first default. Returns True if the failed
+    action carries operator-actionable information that should reach
+    the feed. Returns False ONLY for explicit known-noise failure
+    reasons. Unknown reasons default to True (visibility-first)."""
+    if not isinstance(action, dict):
+        return False
+    reason = (action.get("failure_reason") or "").strip()
+    if not reason:
+        # No failure reason captured — default to surface (visibility-first).
+        # The narrative entry will explain the action failed without a
+        # specific reason; operator can decide if it warrants follow-up.
+        return True
+    return reason not in SILENCE_FAILURE_REASONS
+
+
+def narrate_reviewer_action_blocked(
+    tool: str,
+    summary: str = "",
+    *,
+    failure_reason: Optional[str] = None,
+    inp: Optional[dict] = None,
+) -> str:
+    """Compose a System Agent narration line for a FAILED Reviewer action.
+
+    ADR-303 D3 + D6: dispatcher-attributed `reviewer_action_blocked`
+    event. Honest narration: names the tool, names the failure reason if
+    captured, includes the path/target if extractable from input. The
+    operator reads this and decides whether to relax a lock, fix a
+    schema mismatch, connect a capability, etc.
+    """
+    reason_part = f" — reason: {failure_reason}" if failure_reason else ""
+    summary_part = f" ({summary})" if summary else ""
+    # Extract path/target from input if useful — common across WriteFile,
+    # ReadFile, Schedule, ProposeAction (each has different input shape).
+    target_part = ""
+    if isinstance(inp, dict):
+        for key in ("path", "slug", "target", "to", "name"):
+            val = inp.get(key)
+            if isinstance(val, str) and val:
+                target_part = f" target={val}"
+                break
+    return (
+        f"Reviewer attempted {tool}{target_part} but was blocked"
+        f"{reason_part}.{summary_part}"
+    )
+
+
 def is_mirror_refresh_action(action: dict, client: Any, user_id: str) -> bool:
     """Phase 2a 3-bucket taxonomy classifier — should this action be
     surfaced as a narrative entry, or is it substrate-mirror refresh
@@ -300,12 +380,20 @@ def _fold_same_path_writes(
 
     # Helper: extract the fold key for an action. Same-key consecutive runs
     # collapse. Returns None for actions that should never be folded
-    # (failed, cognition, mirror-refresh, missing path).
+    # (cognition, mirror-refresh, missing path, OR failed actions filtered
+    # by ADR-303 D3 denylist).
+    #
+    # ADR-303 D3 (2026-05-26): failed actions can also fold (consecutive
+    # same-path same-tool failures collapse into one narration line) but
+    # the fold key carries a "failed" discriminator so a success-then-
+    # failure sequence doesn't merge. Failures filtered by the denylist
+    # (SILENCE_FAILURE_REASONS) return None — no narration, no folding.
     def _fold_key(action: Any) -> Optional[tuple]:
         if not isinstance(action, dict):
             return None
-        if not action.get("success", True):
-            return None
+        success = action.get("success", True)
+        if not success and not should_surface_failed_action(action):
+            return None  # denylisted-noise failure — silenced
         tool = action.get("tool", "")
         if tool in REVIEWER_COGNITION_TOOLS:
             return None
@@ -313,9 +401,8 @@ def _fold_same_path_writes(
             return None
         # Only fold tools whose summary collapses to identical text when
         # path is the only discriminator. WriteFile is the canonical case.
-        # Schedule has a slug discriminator (separate fix in Commit C);
-        # folding Schedule by path would mask distinct recurrences.
-        # ProposeAction never folds (each proposal is a distinct decision).
+        # Schedule has a slug discriminator; folding by path would mask
+        # distinct recurrences. ProposeAction never folds.
         if tool != "WriteFile":
             return None
         inp = action.get("input") or {}
@@ -324,7 +411,10 @@ def _fold_same_path_writes(
         path = inp.get("path")
         if not path:
             return None
-        return (tool, path)
+        # Discriminate success vs failure folds so the operator sees
+        # "Wrote 5 revisions to X" and "Reviewer attempted X but blocked"
+        # as separate narration lines, not merged.
+        return (tool, path, "success" if success else "failed")
 
     for action in actions_taken:
         key = _fold_key(action)
@@ -405,8 +495,6 @@ async def surface_reviewer_actions(
     for action in folded_actions:
         if not isinstance(action, dict):
             continue
-        if not action.get("success", True):
-            continue
         tool = action.get("tool", "?")
         if tool in REVIEWER_COGNITION_TOOLS:
             continue
@@ -418,9 +506,32 @@ async def surface_reviewer_actions(
         # branch dissolved when FireInvocation left REVIEWER_PRIMITIVES.
         if is_mirror_refresh_action(action, client, user_id):
             continue
+        # ADR-303 D3 (2026-05-26) visibility-first invert: failed actions
+        # surface UNLESS the failure_reason is in SILENCE_FAILURE_REASONS
+        # (known transient noise). The prior `success=True` filter was the
+        # success-bias that hid operator-relevant constraint hits like
+        # WriteFile-refused-by-lock — see
+        # docs/evaluations/2026-05-26-152500-failed-action-substrate-blindspot/
+        # §Finding-1. Aligned with Claude Code's tool_result is_error
+        # always-surface pattern (query.ts:140).
+        success = action.get("success", True)
+        if not success and not should_surface_failed_action(action):
+            continue  # denylisted-noise failure — silenced
         summary = action.get("summary", "")
         folded_count = action.get("_folded_count", 1)
-        body = narrate_reviewer_action(tool, summary, folded_count=folded_count)
+        # Dispatch to success-narration or blocked-narration based on
+        # action outcome. Blocked narration carries failure_reason + the
+        # action input so the operator can see what was attempted and why
+        # it was refused (operator-actionable diagnostic).
+        if success:
+            body = narrate_reviewer_action(tool, summary, folded_count=folded_count)
+        else:
+            body = narrate_reviewer_action_blocked(
+                tool,
+                summary,
+                failure_reason=action.get("failure_reason"),
+                inp=action.get("input"),
+            )
         # Audit-pass-2 DD-4: when the action is ProposeAction, embed
         # the proposal_id in extra_metadata so the FE renders an inline
         # ProposalCard chip on this narration entry instead of plain
@@ -432,6 +543,16 @@ async def surface_reviewer_actions(
             "tools_used": [tool],
             "reviewer_directed": True,
         }
+        # ADR-303 D3 (2026-05-26): event-kind metadata for failed actions
+        # so the FE can render a distinct visual treatment for blocked
+        # actions (warning-shaped, not action-shaped). `event_kind` is
+        # also the canonical hook for future operator-side filtering
+        # (e.g., a "show me only blocked actions" cockpit filter).
+        if not success:
+            meta["event_kind"] = "reviewer_action_blocked"
+            failure_reason = action.get("failure_reason")
+            if failure_reason:
+                meta["failure_reason"] = failure_reason
         proposal_id = action.get("proposal_id")
         if tool == "ProposeAction" and proposal_id:
             meta["proposal_id"] = proposal_id

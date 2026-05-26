@@ -6,6 +6,115 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.26.5] - reviewer(surfacing): visibility-first invert + reviewer_action_blocked event-kind (ADR-303 Phase 4)
+
+### Decision
+
+Phase 4 of ADR-303 inverts the `success=True` filter at
+`surface_reviewer_actions:408` from allowlist (silence-by-default,
+surface-by-explicit-allowlist) to denylist (surface-by-default, silence-
+by-explicit-noise-list).
+
+Pre-this commit, ALL failed Reviewer actions were structurally invisible
+to operator surfaces. Failed WriteFile-to-locked-path, failed
+ProposeAction-with-bad-schema, failed platform-tool-when-capability-not-
+connected — operator never saw them. The model attempted the work, the
+tokens were spent, the constraint was hit, and the operator surface
+showed nothing. ~41% of judgment-shape wakes had a substantial chunk of
+this invisible cognition per
+`docs/evaluations/2026-05-26-152500-failed-action-substrate-blindspot/`
+§Finding-1.
+
+This commit makes failed-but-operator-relevant actions structurally
+visible. Operator-actionable failures (path_locked, schema_validation_
+failed, capability_required_missing, permission_denied, plus any
+unknown failure_reason — visibility-first default) surface as a new
+`reviewer_action_blocked` event-kind. Known transient noise
+(rate_limited, transient_network) is filtered via SILENCE_FAILURE_
+REASONS — explicitly narrow by design.
+
+Aligned with Claude Code's tool_result is_error always-surface pattern
+(`docs/analysis/src_claudeCC/query.ts:140`). See cross-comparison at
+`docs/analysis/claude-code-prompt-discipline-comparison-2026-05-26.md` §4.
+
+### Changes
+
+- **api/services/reviewer_chat_surfacing.py**:
+  - New constant `SILENCE_FAILURE_REASONS` (frozenset of 3 entries:
+    rate_limited, transient_network, retried_successfully_in_cycle).
+    Documented as narrow-by-design; expands only through observation.
+  - New helper `should_surface_failed_action(action)` — visibility-first
+    default (return True unless reason in denylist).
+  - New helper `narrate_reviewer_action_blocked(tool, summary, *,
+    failure_reason, inp)` — composes informative blocked-action narrative
+    extracting target from input shape (path | slug | target | to | name).
+  - `_fold_key()` updated: failed actions now fold (consecutive same-
+    path same-tool failures collapse) but the fold key carries a
+    "failed" discriminator so success/failure sequences don't merge.
+  - `surface_reviewer_actions()` main loop: `success=True` filter
+    DELETED. Dispatch on `success` flag: success → `narrate_reviewer_
+    action`; failure → `narrate_reviewer_action_blocked` (when
+    should_surface_failed_action returns True). New `event_kind:
+    reviewer_action_blocked` + `failure_reason: <reason>` metadata
+    fields stamped on blocked-action narrative entries so the FE can
+    render distinct visual treatment + filter by reason.
+
+- **api/agents/reviewer_agent.py**:
+  - `action_record` now captures `failure_reason` from the primitive's
+    result dict's `error` key (primitives uniformly carry `error` codes
+    on failure per the grep across api/services/primitives/). This feeds
+    the new should_surface_failed_action helper at the surfacing layer.
+
+### Expected behavior change
+
+- Failed Reviewer actions previously invisible now surface as
+  `reviewer_action_blocked` narrative entries when failure_reason is
+  not in the denylist.
+- Specific class operators will now see for the first time: the
+  failed-WriteFile-to-`_autonomy.yaml` pattern documented at
+  `docs/evaluations/2026-05-26-152500-...` §Finding-3. Even though
+  ADR-302 Phase 2 (commit 5c36421) resolved the canon contradiction
+  driving most attempts, the residual P3 class (model tries-and-gets-
+  gated for legitimate constraint reasons) becomes visible to the
+  operator who can react.
+- Operator-visibility ratio (per
+  `docs/evaluations/2026-05-26-163000-posture-criterion-declaration/`
+  §3) predicted to rise materially with this commit — combined with
+  Phase 3's P4/P5 dispatcher writes, all five posture cells per
+  ADR-303 D1 now have operator-visible substrate.
+- Surfacing is opt-out, not opt-in: future denylist entries require
+  evidence (transient-noise pattern surfaced in observation) — not
+  speculation.
+
+### Verification
+
+- Contract test `api/test_adr303_phase4_visibility_first.py` — 15/15
+  PASS. Covers: denylist narrowness; visibility-first default for
+  unknown/missing/empty/whitespace failure_reason; transient noise
+  silenced (rate_limited, transient_network); operator-relevant
+  failures surface (path_locked, capability_required_missing,
+  schema_validation_failed, permission_denied); narration composes
+  informative messages with tool + target + failure_reason; success
+  path unaffected by the invert.
+- No-regression across all phase test gates:
+  Phase 1 (10) + Phase 3 (8) + Phase 4 (15) = **33/33 PASS**.
+- AST syntax check PASS.
+
+### Related
+
+- ADR-303 §2 D3 (visibility-first invert), D6 (event-kind metadata)
+- Driving finding: docs/evaluations/2026-05-26-152500-failed-action-
+  substrate-blindspot/ §Finding-1 (the `success=True` filter at
+  surface_reviewer_actions:408 was the gap this commit closes)
+- Source-grounded refinement: docs/analysis/claude-code-prompt-
+  discipline-comparison-2026-05-26.md §4 (Claude Code's
+  is_error: true always-surface pattern at query.ts:140)
+- Prior phases: a5066ac (Phase 1), 5c36421 (Phase 2), f2d63d5 (Phase 3)
+- Cumulative arc commit chain: 84f75c9 → 644388c → 23b59e7 → 6a3161d →
+  4f1f128 → 03e1809 → a5066ac → 5c36421 → f2d63d5 → (this commit)
+
+---
+
 ## [2026.05.26.4] - reviewer(silent-exit): dispatcher-attributed substrate fallback for P4/P5 posture cells (ADR-303 Phase 3)
 
 ### Decision

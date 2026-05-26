@@ -1672,10 +1672,27 @@ async def invoke_reviewer(
                 # Pre-2026-05-11, narration was plain-text and operators had
                 # to mentally stitch from the feed entry to the cockpit Queue
                 # to find the proposal — mental-thread broken.
+                # ADR-303 D3 (2026-05-26): capture failure_reason on the
+                # action record so the visibility-first surfacing layer
+                # (services/reviewer_chat_surfacing.py::surface_reviewer_actions)
+                # can apply its denylist (SILENCE_FAILURE_REASONS) without
+                # re-parsing the result dict. Primitives uniformly carry
+                # `error` keys on failure (see grep across api/services/
+                # primitives/); we surface that as `failure_reason` on the
+                # action record. `None` when success is True or when
+                # the primitive didn't set an error code — both flow to
+                # default-surface per the visibility-first invert.
+                _success = bool(result.get("success", True)) if isinstance(result, dict) else True
+                _failure_reason: Optional[str] = None
+                if not _success and isinstance(result, dict):
+                    err = result.get("error")
+                    if isinstance(err, str) and err.strip():
+                        _failure_reason = err.strip()
                 action_record: dict = {
                     "tool": name,
                     "input": inp,
-                    "success": bool(result.get("success", True)) if isinstance(result, dict) else True,
+                    "success": _success,
+                    "failure_reason": _failure_reason,
                     "summary": _summarize_result(result),
                     # ADR-289 D4: stamp the invocation atom id on every
                     # action record. Downstream surfacing (surface_reviewer_actions)
