@@ -6,75 +6,64 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.05.26.1] - reviewer(silent-exit): substrate-honoring fallback writes standing_intent.md on text-only-exit + budget-exhaustion paths
+## [2026.05.26.2] - REVERT [2026.05.26.1] reviewer silent-exit substrate-honoring fallback
 
 ### Decision
 
-Hat-B Render-trace verification (2026-05-26) confirmed the audit hypothesis
-from `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`:
-~41% of judgment-shape Reviewer wakes were exiting via the "text-only response"
-fallback path (or via budget exhaustion without ReturnVerdict), and both
-fallback paths constructed a `stand_down` verdict in code but wrote ZERO
-reviewer-attributed substrate. The persona-frame contract "every reactive
-recurrence cycle produces a standing_intent.md write" was held at ~48%
-adherence because behavioral compliance alone could not enforce it on the
-silent-exit class.
+Reverted same-session, ~20 minutes after the commit landed. Operator review
+identified the fix as a workaround for an under-specified problem: the
+predecessor audit measured `standing_intent.md` write rate (substrate-visible)
+and treated <100% as a failure, but never examined whether the criterion
+itself was correct. Several legitimate Reviewer postures (nothing-changed,
+substrate-already-answers, immaterial-trigger, no-op-cell) could rationally
+exit without writing standing_intent.md — in which case ~48% adherence is
+not a discipline gap but the model correctly distinguishing material from
+immaterial wakes against an over-broad criterion.
 
-Render trace receipts:
-- `c4f250f2-d26f-4c1b-9013-0c80854319f7` (yarnnn-author / pre-ship-audit /
-  substrate_event): logged `WARNING:agents.reviewer_agent:[REVIEWER]
-  text-only response round 7 trigger=reactive user=0b7a852d` at
-  2026-05-24T05:39:11Z, then telemetry emitted `success` with cost=$0.2573
-  and zero reviewer substrate writes.
-- `68534e54-9c39-4478-978e-cf810bc1516e` (kvk / signal-evaluation /
-  cron_tick): same WARNING at round 8, 2026-05-22T13:46:17Z, after 18
-  tool actions (several ReadFile/ListFiles + 3 failed ProposeActions +
-  one Clarify). Exited text-only without ReturnVerdict.
-- `35ac5712-f01c-4bc1-a59c-6a2d8b05e898` (korea-shorts /
-  outcome-reconciliation / cron_tick): similar pattern, 61s, zero
-  reviewer-attributed substrate writes.
-
-Fix lands at both fallback sites in `agents/reviewer_agent.py::invoke_reviewer`
-via new helper `_write_silent_exit_standing_intent` which writes
-`/workspace/review/standing_intent.md` through the canonical primitive
-registry with `caller_identity=f"reviewer:{REVIEWER_MODEL_IDENTITY}"`. The
-write carries: exit class (`text_only_mid_loop` or `budget_exhausted`),
-exit round, max rounds, trigger, slug, and a 600-char-truncated snippet
-of the last prose. Failures during the fallback write are logged but
-never raised — the verdict still flows so the wake completes at the queue.
+The substrate-honoring fallback was the kind of "log it and move on" patch
+the execution-discipline hooks explicitly warn against. Reverting before
+posture taxonomy is canonized is the right move; otherwise the fallback
+substrate would calcify as Reviewer-attributed writes that aren't actually
+the Reviewer's authored intent, contaminating future evaluation data.
 
 ### Changes
 
-- **api/agents/reviewer_agent.py** — `Optional` added to typing import.
-  New helper `_write_silent_exit_standing_intent` (~70 LOC) inserted above
-  `_summarize_result`. Two existing fallback sites (text-only mid-loop +
-  budget-exhausted) now `await` the helper before constructing `verdict_raw`.
-  Persona-frame standing_intent section gains a paragraph naming the
-  infrastructural enforcement contract so the model knows silent exits
-  surface to the operator regardless.
+- **api/agents/reviewer_agent.py** — `_write_silent_exit_standing_intent`
+  helper deleted. Two call sites at the fallback paths restored to their
+  pre-`9e7c1c7` shape. `Optional` typing import reverted. Persona-frame
+  standing_intent section's infrastructural-enforcement paragraph reverted
+  (the contract is once again behavioral-only, pending posture taxonomy).
+- Net diff: returns `reviewer_agent.py` to its `ea912e3` shape.
 
 ### Expected behavior change
 
-- Silent-exit class wakes (~41% of judgment-shape population pre-fix) will
-  now produce reviewer-attributed `standing_intent.md` writes carrying
-  diagnostic metadata + last-prose snippet. Feed + cockpit will surface
-  these as ordinary reviewer substrate updates.
-- Persona-frame contract adherence target: 95%+ on A1 re-run after one
-  week (vs ~48% pre-fix). Re-run query in
-  `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`
-  §A1.
-- Cost neutral: one additional `WriteFile` per silent-exit wake (~0
-  LLM tokens, ~10ms DB).
-- No behavioral pressure on in-loop model decisions — Reviewer is not
-  forced to choose any specific verdict; the fix only converts silent
-  exits to visible exits.
+- Silent-exit wakes return to their pre-fix shape: text-only mid-loop and
+  budget-exhausted paths construct `stand_down` verdicts but write no
+  reviewer-attributed substrate. The ~48% audit adherence number stands
+  as the baseline measurement against the (now-suspect) criterion.
+
+### What replaces this
+
+A posture-taxonomy ADR draft is the next step (see todo). It will define
+expected Reviewer posture per (slug, wake_source, substrate-delta) cell,
+classify what counts as material vs immaterial, and define what substrate
+side-effect each posture requires. Only after canon defines the right
+criterion does the question "is the model failing or correctly being
+selective?" become answerable. Any code change that follows lands grounded
+in the cell-level analysis, not as a blanket silent-exit-class fix.
+
+The `docs/observations/2026-05-26-145500-silent-wake-hypothesis-verification/`
+folder retains a STATUS banner naming this revert + redirecting forward to
+the posture-taxonomy work; the Render-trace receipts captured there remain
+load-bearing evidence for the upcoming posture analysis even though the
+"recommended fix" portion is superseded.
 
 ### Related
 
-- Audit: `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md` R1+R2
-- Hat-B verification: `docs/observations/2026-05-26-145500-silent-wake-hypothesis-verification/findings.md` (to be authored alongside this commit)
-- Persona-frame: `api/agents/reviewer_agent.py::_PERSONA_FRAME` standing_intent section
-- Related canon: FOUNDATIONS Derived Principle 21 (full-substrate-authoring Reviewer)
+- Reverts: `9e7c1c7` (this changelog entry replaces `[2026.05.26.1]`)
+- Predecessor audit: `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`
+- Verification folder (retained, status-updated): `docs/observations/2026-05-26-145500-silent-wake-hypothesis-verification/findings.md`
+- Forthcoming: posture-taxonomy ADR + `docs/observations/` → `docs/evaluations/` rename
 
 ---
 

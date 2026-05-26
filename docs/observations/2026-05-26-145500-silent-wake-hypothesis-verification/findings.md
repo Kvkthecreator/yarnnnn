@@ -1,4 +1,34 @@
-# Silent-wake hypothesis verification — text-only-fallback CONFIRMED, Hat-A fix landed in same commit
+# Silent-wake hypothesis verification — text-only-fallback CONFIRMED; recommended fix SUPERSEDED
+
+> **STATUS BANNER (added 2026-05-26 ~12:25Z, same session):** The Hat-A fix
+> recommended in §V4 + landed in commit `9e7c1c7` was REVERTED ~20 minutes
+> after landing in commit (this commit, see git log). Operator review identified
+> the fix as a workaround for an under-specified problem. The criterion that
+> the predecessor population audit measured against ("every reactive recurrence
+> cycle produces a standing_intent.md write") is suspect — several legitimate
+> Reviewer postures (nothing-changed, substrate-already-answers, immaterial-
+> trigger, no-op cell) could rationally exit without writing standing_intent.
+> Before any code change, posture taxonomy must be canonized — define expected
+> Reviewer behavior per (slug, wake_source, substrate-delta) cell, classify
+> material vs immaterial wakes, declare what substrate side-effect each
+> posture requires. See CHANGELOG `[2026.05.26.2]` for the revert rationale.
+>
+> **What survives from this folder:** §V1 Render-trace receipts (three target
+> wakes with the `WARNING:agents.reviewer_agent:[REVIEWER] text-only response
+> round N` log line) remain load-bearing evidence for the posture-taxonomy
+> work. The model IS exiting via text-only-fallback on those wakes; what
+> needs canonical work is whether that's a failure or a correct selectivity.
+>
+> **What is superseded:** §V4 "Hat-A fix shape" + §V5 "Verification protocol"
+> (which assumed the fix would land). Adherence target framing was wrong-shaped.
+>
+> **Forward link:** posture-taxonomy ADR draft (forthcoming) +
+> `docs/observations/` → `docs/evaluations/` rename + criterion-declaration
+> discipline rewrite.
+
+---
+
+# Silent-wake hypothesis verification — text-only-fallback CONFIRMED, Hat-A fix landed in same commit (ORIGINAL TEXT BELOW, retained for trace continuity)
 
 **Captured**: 2026-05-26T14:55Z. Hat-B observation.
 
