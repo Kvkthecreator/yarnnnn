@@ -227,12 +227,14 @@ def test_capture_artifact_filenames():
 
 
 # ---------------------------------------------------------------------------
-# 7. Observation README documents the canonical set
+# 7. Evaluations README documents the canonical set
+# (renamed from "observations" 2026-05-26 — see docs/evaluations/README.md
+# §"Why 'evaluations' and not 'observations'" for the discipline rationale)
 # ---------------------------------------------------------------------------
 
-def test_observations_readme_documents_canon():
-    readme = _REPO_ROOT / "docs" / "observations" / "README.md"
-    assert readme.is_file(), "docs/observations/README.md missing"
+def test_evaluations_readme_documents_canon():
+    readme = _REPO_ROOT / "docs" / "evaluations" / "README.md"
+    assert readme.is_file(), "docs/evaluations/README.md missing"
     text = readme.read_text()
 
     # Canonical artifact set must be documented
@@ -244,11 +246,13 @@ def test_observations_readme_documents_canon():
         "token-usage.md",
         "findings.md",
     ):
-        assert filename in text, f"observations README missing canonical artifact ref: {filename}"
+        assert filename in text, f"evaluations README missing canonical artifact ref: {filename}"
 
     # Caller-identity discipline must be documented
-    assert "operator-proxy:" in text, "observations README missing caller-identity discipline"
-    assert "ADR-294" in text, "observations README missing ADR-294 reference"
+    assert "operator-proxy:" in text, "evaluations README missing caller-identity discipline"
+    assert "ADR-294" in text, "evaluations README missing ADR-294 reference"
+    # Criterion-declaration discipline introduced 2026-05-26 must be documented
+    assert "criterion-declaration" in text.lower(), "evaluations README missing criterion-declaration discipline"
 
 
 # ---------------------------------------------------------------------------

@@ -1,8 +1,12 @@
-"""ADR-294 D7 — Observation capture.
+"""ADR-294 D7 — Evaluation capture.
 
 Snapshots a workspace's state at session start + end, diffs them, and
-writes machine-produced artifacts under docs/observations/{folder}/.
+writes machine-produced artifacts under docs/evaluations/{folder}/.
 Findings.md is left as a human-written stub.
+
+Renamed from "observation" to "evaluation" on 2026-05-26 — see
+docs/evaluations/README.md §"Why 'evaluations' and not 'observations'"
+for the criterion-declaration discipline rationale.
 
 Capture artifacts:
     README.md           — 1-line summary + persona + outcome
@@ -60,7 +64,7 @@ class CaptureSession:
         self.scenario_name = scenario_name
         self.baseline: Optional[CaptureSnapshot] = None
         self.endpoint: Optional[CaptureSnapshot] = None
-        self.metadata: dict[str, Any] = {}  # caller can stash arbitrary observation context
+        self.metadata: dict[str, Any] = {}  # caller can stash arbitrary evaluation context
 
     @classmethod
     async def start(
@@ -140,7 +144,7 @@ class CaptureSession:
         if not findings.exists():
             findings.write_text(
                 "# Findings\n\n"
-                "*Operator interpretation of this observation. What did the Reviewer do? "
+                "*Operator interpretation of this evaluation. State the criterion (canon clause + operationalization) BEFORE reporting adherence. What did the Reviewer do? "
                 "What surprised us? What does this validate or contradict in the canon?*\n\n"
                 "(Draft this section after reading the machine-produced artifacts.)\n"
             )

@@ -435,7 +435,7 @@ REVIEWER_PRIMITIVES = [
     # always-surface pass in get_platform_tools_for_capabilities remains in
     # place — kernel-universal capabilities still flow through the agent
     # path for non-Reviewer callers. See observation at
-    # docs/observations/2026-05-25-042346-adr299-always-surface-resolution/
+    # docs/evaluations/2026-05-25-042346-adr299-always-surface-resolution/
     # RESOLUTION.md §"Path A revert".
     # Substrate refresh (ADR-264) — rare mid-loop case where the Reviewer
     # needs to refresh external state into substrate before judging.

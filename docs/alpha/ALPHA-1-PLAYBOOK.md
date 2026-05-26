@@ -56,7 +56,7 @@ This is the canonical formalization per [FOUNDATIONS Derived Principle 21](../ar
 
 The trifecta the operator controls — **Pace + Autonomy + Persona** — is the envelope inside which the Reviewer operates. Three other operator-authored ceiling files (`_preferences.yaml` deliverable cadence, `_token_budget.yaml` compute budget, MANDATE.md primary intent) complete the operator's authority surface; all are read by the Reviewer at every wake but never written.
 
-Alpha-1 success = a green observation of every clause behaving as described, on a workspace with positive balance and `delegation: autonomous`, in operator-absent runtime. Anything less is architecture-claim, not demonstration. **L6 closure observation 2026-05-22 ([`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md)) validated the line across N=2 substrate-event cycles on yarnnn-author — substrate-continuity branch GREEN; active-branch follow-ons for clauses 4-5 queued.**
+Alpha-1 success = a green observation of every clause behaving as described, on a workspace with positive balance and `delegation: autonomous`, in operator-absent runtime. Anything less is architecture-claim, not demonstration. **L6 closure observation 2026-05-22 ([`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md)) validated the line across N=2 substrate-event cycles on yarnnn-author — substrate-continuity branch GREEN; active-branch follow-ons for clauses 4-5 queued.**
 
 ---
 

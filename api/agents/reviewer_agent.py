@@ -1390,7 +1390,7 @@ async def invoke_reviewer(
         verdict_raw: dict | None = None
 
         # ADR-260 D8 + ADR-263 + 2026-05-21 population audit
-        # (docs/observations/2026-05-21-014009-reviewer-round-budget-population-
+        # (docs/evaluations/2026-05-21-014009-reviewer-round-budget-population-
         # audit/): round bound varies by sub-shape.
         # - Proposal-arrival reactive (Sonnet) is a discrete decision call → 3 rounds.
         # - Recurrence-fire reactive (Haiku) needs room for read-heavy hook
@@ -1593,7 +1593,7 @@ async def invoke_reviewer(
                 break
 
             # Loop-shape nudge (signal-based, not counter-based per 2026-05-21
-            # population audit docs/observations/2026-05-21-014009-reviewer-
+            # population audit docs/evaluations/2026-05-21-014009-reviewer-
             # round-budget-population-audit/):
             #
             # After Clarify the operator's question has been surfaced and the
@@ -1746,7 +1746,7 @@ def _summarize_result(result: Any) -> str:
                             per ADR-296 v2 D3, no longer in REVIEWER_PRIMITIVES)
       4. path              (WriteFile etc. — terminal fallback)
 
-    Closes Pattern 3 of docs/observations/2026-05-21-005856-wake-duplication-
+    Closes Pattern 3 of docs/evaluations/2026-05-21-005856-wake-duplication-
     audit/findings.md — pre-fix the helper checked `path` first, collapsing
     distinct Schedule calls (weekly-corpus-review vs quarterly-voice-audit)
     to identical `path=/workspace/_recurrences.yaml` summaries that looked
@@ -1757,7 +1757,7 @@ def _summarize_result(result: Any) -> str:
     if result.get("success") is False:
         return f"error: {result.get('error') or 'unknown'}"
     # 2026-05-25 Clarify branch (per
-    # docs/observations/2026-05-25-042827-clarify-silenced-from-feed/):
+    # docs/evaluations/2026-05-25-042827-clarify-silenced-from-feed/):
     # Clarify returns {success, question, options, ui_action}. The
     # question is the operator-facing payload — it becomes the narration
     # body for the Reviewer-bubble Feed entry. Without this branch the

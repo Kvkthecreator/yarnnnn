@@ -121,7 +121,7 @@ Singular implementation rule applies: when `emit_test_proposal.py` eventually wa
 
 ### D6 — Scenario Files as First-Class Eval Artifacts
 
-`docs/observations/scenarios/*.yaml` holds version-controlled scenario definitions. A scenario describes:
+`docs/evaluations/scenarios/*.yaml` holds version-controlled scenario definitions. A scenario describes:
 - The persona to run against
 - Setup (mechanical fires + substrate seeds)
 - A sequence of turns (operator messages, proposal emissions, approve/reject actions)
@@ -176,10 +176,10 @@ This format is intentionally **assertion-light** and **observation-heavy** — s
 
 ### D7 — Observation Capture Discipline
 
-Every operator-proxy session (REPL or scenario) produces a captured artifact under `docs/observations/YYYY-MM-DD-{slug}/`:
+Every operator-proxy session (REPL or scenario) produces a captured artifact under `docs/evaluations/YYYY-MM-DD-{slug}/`:
 
 ```
-docs/observations/YYYY-MM-DD-{slug}/
+docs/evaluations/YYYY-MM-DD-{slug}/
   README.md                          # 1-line scenario description + persona + outcome
   PLAYBOOK.md                        # scenario file rendered + expected vs observed
   transcript.md                      # operator-Reviewer dialog (session_messages)
@@ -196,9 +196,9 @@ The first 7 files are *machine-produced* by `services.operator_proxy.capture` �
 
 ### D8 — Index Discipline
 
-`docs/observations/README.md` is the index. Lists every observation folder + 1-line summary. Sorted reverse-chronologically. Operator scans here to see what's been observed; references from ADRs land here too.
+`docs/evaluations/README.md` is the index. Lists every observation folder + 1-line summary. Sorted reverse-chronologically. Operator scans here to see what's been observed; references from ADRs land here too.
 
-Existing `docs/alpha/observations/` ad-hoc notes (including the 2026-05-20 three-persona validation) are NOT migrated — they're historical artifacts in the old shape. Going forward, ADR-294-conformant observations live under `docs/observations/`. Singular implementation rule: when we have the new shape, all new observations land there; nothing lives in two places.
+Existing `docs/alpha/observations/` ad-hoc notes (including the 2026-05-20 three-persona validation) are NOT migrated — they're historical artifacts in the old shape. Going forward, ADR-294-conformant observations live under `docs/evaluations/`. Singular implementation rule: when we have the new shape, all new observations land there; nothing lives in two places.
 
 ### D9 — Regression Gate
 
@@ -228,14 +228,14 @@ Operator-proxy lets us *test* the substrate-approval flow today, ahead of FE Pha
 - `api/services/operator_proxy/` module (client + capture + scenarios)
 - `api/scripts/operator/loop.py` (interactive REPL)
 - `api/scripts/operator/run_scenario.py` (scenario runner)
-- `docs/observations/README.md` (index + discipline doc + scenario schema)
+- `docs/evaluations/README.md` (index + discipline doc + scenario schema)
 - `api/test_adr294_operator_proxy.py` (regression gate)
 - ADR-209 `is_valid_author()` taxonomy extended to recognize `operator-proxy:*`
 - ADR-258 `caller_identity` taxonomy extended to recognize `operator-proxy:*`
 
 **Phase 2 — Replacement scenarios for retired Test A:**
-- `docs/observations/scenarios/warm-start-auto-execute.yaml` (kvk persona, validates Reviewer reaches approve + Alpaca order submission + auto-execute branch)
-- `docs/observations/scenarios/cold-start-governance-self-amend.yaml` (alpha-trader persona, validates Reviewer's meta-awareness write-to-principles behavior across multiple addressed turns)
+- `docs/evaluations/scenarios/warm-start-auto-execute.yaml` (kvk persona, validates Reviewer reaches approve + Alpaca order submission + auto-execute branch)
+- `docs/evaluations/scenarios/cold-start-governance-self-amend.yaml` (alpha-trader persona, validates Reviewer's meta-awareness write-to-principles behavior across multiple addressed turns)
 - Run both, capture both, write findings
 
 **Phase 3 — Cockpit Substrate-Queue (deferred per ADR-293 D10):**
@@ -262,7 +262,7 @@ Operator-proxy lets us *test* the substrate-approval flow today, ahead of FE Pha
 - Operator-proxy is THE programmatic operator-voice surface. No parallel API.
 - `alpha_ops/` scripts that need operator-voice import `services.operator_proxy`. No reinvention.
 - Observation capture artifacts come from `services.operator_proxy.capture` — one snapshotter, used by REPL + scenarios + (future) Phase 4 FE.
-- Scenarios are versioned in `docs/observations/scenarios/`. No bespoke scenario formats per script.
+- Scenarios are versioned in `docs/evaluations/scenarios/`. No bespoke scenario formats per script.
 - ADR-209 `is_valid_author()` is THE caller-identity taxonomy authority. Adding `operator-proxy:*` extends it; we don't add a parallel validator.
 
 ---
@@ -287,12 +287,12 @@ Operator-proxy lets us *test* the substrate-approval flow today, ahead of FE Pha
 - `api/services/authored_substrate.py` extended `VALID_AUTHOR_PREFIXES` with `operator-proxy:` sub-namespace
 - `api/services/operator_proxy/{__init__,client,capture,scenarios,proposal_templates}.py` — module + capture + scenario runner + template registry
 - `api/scripts/operator/{loop,run_scenario}.py` — REPL + scenario player
-- `docs/observations/README.md` — discipline doc, schema, workflow
+- `docs/evaluations/README.md` — discipline doc, schema, workflow
 
 **Phase 2 shipped** — two scenarios authored + ran end-to-end + captured + interpreted:
-- `docs/observations/scenarios/warm-start-auto-execute.yaml` — kvk persona, validates auto-execute branch. **Surfaced architectural pressure on ADR-260 / ADR-256 3-round Sonnet budget** (full transcript shows Reviewer reaching approve-aligned reasoning but budget expiring mid-write).
-- `docs/observations/scenarios/cold-start-governance-self-amend.yaml` — alpha-trader persona, validates self-improvement loop. **Reviewer principled-refused premature framework amendment**, citing its own bootstrap-vs-steady-state clause — strong positive validation.
-- Both observation folders under `docs/observations/2026-05-20-*` with all 8 canonical artifacts including human-written findings.md.
+- `docs/evaluations/scenarios/warm-start-auto-execute.yaml` — kvk persona, validates auto-execute branch. **Surfaced architectural pressure on ADR-260 / ADR-256 3-round Sonnet budget** (full transcript shows Reviewer reaching approve-aligned reasoning but budget expiring mid-write).
+- `docs/evaluations/scenarios/cold-start-governance-self-amend.yaml` — alpha-trader persona, validates self-improvement loop. **Reviewer principled-refused premature framework amendment**, citing its own bootstrap-vs-steady-state clause — strong positive validation.
+- Both observation folders under `docs/evaluations/2026-05-20-*` with all 8 canonical artifacts including human-written findings.md.
 
 **Phase 3** (cockpit Substrate-Queue per ADR-293 D10): deferred.
 **Phase 4** (MCP-as-operator): deferred, opportunistic; module separation makes it a clean add-on.

@@ -22,7 +22,7 @@ description: |
   What this validates (positive case):
     - ADR-295 D3 anti-pattern ledger holds against operator nudge
     - ADR-295 D4 design-time-deference framing produces refusal
-    - The Decline Checklist boxes from docs/observations/README.md tick
+    - The Decline Checklist boxes from docs/evaluations/README.md tick
       cleanly (refusal cites in-canon rule, names evidence threshold,
       produces workbench write, avoids edit-anyway path)
 

@@ -89,7 +89,7 @@ Decision = Literal["approve", "reject", "defer"]
 #   2. Schedule was called with action ∈ {create, update, archive}
 #   3. WriteFile was called against an operator-canon substrate path
 #   4. Clarify was called (operator-acknowledgment requested — 2026-05-25
-#      simplification per docs/observations/2026-05-25-042827-clarify-
+#      simplification per docs/evaluations/2026-05-25-042827-clarify-
 #      silenced-from-feed/. Pre-2026-05-25 the gate read a clarify_alert
 #      tool-input field that doesn't exist on CLARIFY_TOOL — dead code.)
 #   5. ReturnVerdict.verdict ∈ {pause_autonomy, narrow, relax, character_note}
@@ -191,7 +191,7 @@ def _detect_outcome_kind(reviewer_output: dict) -> str | None:
         # 2026-05-25 this branch read tool_input.get('clarify_alert')
         # which doesn't exist on the CLARIFY_TOOL schema (registry.py:
         # 127-148) — the gate was structurally unreachable. Fix
-        # documented in docs/observations/2026-05-25-042827-clarify-
+        # documented in docs/evaluations/2026-05-25-042827-clarify-
         # silenced-from-feed/findings.md Gap 3. Simplification to
         # presence-based gate matches the operator-acknowledgment
         # rationale: any Clarify is lineage-worthy.

@@ -27,7 +27,7 @@ without requiring audience-bearing capabilities or operator Resend OAuth.
 
 See:
 - ADR-299 Discovery note 2 (system Resend wire correction)
-- docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/
+- docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/
   (the L6 envelope this canary closes for alpha-author)
 """
 

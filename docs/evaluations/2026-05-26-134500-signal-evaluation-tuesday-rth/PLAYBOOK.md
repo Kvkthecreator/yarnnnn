@@ -10,7 +10,7 @@
 expectations + capture protocol so the post-fire findings.md can score cleanly against
 declared expectations.
 
-**Related: population audit context** — `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`
+**Related: population audit context** — `docs/evaluations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`
 characterized N=27 judgment-shape wakes since cutover and found 48% persona-frame adherence
 + 11 silent wakes + 0 action_proposals across trader personas. Tuesday's signal-evaluation
 adds N=3 to that population. Score Tuesday's outcome both against architecture claims (this
@@ -205,9 +205,9 @@ in the finding — receipts, not narrative.
 - ADR-301 (substrate mirrors `_schedule_index.md` + `_recent_execution.md`)
 - FOUNDATIONS Derived Principle 21 (the one-liner)
 - ALPHA-1-PLAYBOOK §0 (clause-to-substrate map)
-- Session-start guide: `docs/observations/sessions/alpha-trader-autonomy-loop.md`
-- Predecessor canary-RED: `docs/observations/2026-05-24-054214-adr299-phase4-canary-red/findings.md`
-- Predecessor ADR-301 deploy: `docs/observations/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/RESOLUTION.md`
+- Session-start guide: `docs/evaluations/sessions/alpha-trader-autonomy-loop.md`
+- Predecessor canary-RED: `docs/evaluations/2026-05-24-054214-adr299-phase4-canary-red/findings.md`
+- Predecessor ADR-301 deploy: `docs/evaluations/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/RESOLUTION.md`
 - seulkim88 Signal-1/3 retirement to verify in Tuesday context: `workspace_file_versions.id = 'dd8ef7a4-41b9-4bda-a4a9-30ac631dd99d'` (path = `/workspace/context/trading/_operator_profile.md`)
 
 ## Last updated

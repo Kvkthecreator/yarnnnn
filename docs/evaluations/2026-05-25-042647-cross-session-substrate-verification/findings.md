@@ -111,7 +111,7 @@ tighter prompt-shape work the morning-L6 findings deferred should be reopened.
 ## Evidence — seulkim88 Signal-1/3 retirement contradicts cold-start discipline
 
 **Cold-start observation** (2026-05-20T01:50Z, addressed-turn probe;
-`docs/observations/2026-05-20-011700-cold-start-governance-self-amend/findings.md` line 18):
+`docs/evaluations/2026-05-20-011700-cold-start-governance-self-amend/findings.md` line 18):
 
 > "Signal-1 and Signal-3 are in Bootstrap phase (< 20 reconciled trades each), not
 > Steady-state. My principles explicitly govern this: propose on fire within hard
@@ -158,7 +158,7 @@ other (no acknowledgment of the framework-contradiction in the 18:11Z message).
   the calibration was operationally meaningful.
 
 **Recommended action**: this is an ADR-295 self-amendment discipline observation
-worth scoring against the Edit Checklist in `docs/observations/README.md`. The
+worth scoring against the Edit Checklist in `docs/evaluations/README.md`. The
 retirement edit:
 - Box A (evidence pattern): ✅ Cites specific source substrate paths +
   per-signal expectancy + sample sizes
@@ -222,7 +222,7 @@ required.
   different failure mode, not schedule-related)
 - Tuesday 2026-05-26 signal-evaluation infrastructure — verified scheduled
   across all three alpha-trader personas; staging PLAYBOOK authored at
-  `docs/observations/2026-05-26-134500-signal-evaluation-tuesday-rth/PLAYBOOK.md`
+  `docs/evaluations/2026-05-26-134500-signal-evaluation-tuesday-rth/PLAYBOOK.md`
 - Weekly batch fires (2026-05-24T18:00Z) — 6 recurrences across 2 programs, all
   `success/escalate`, total cost $1.79; brief's claim verified
 
@@ -290,10 +290,10 @@ disambiguation) and R4 (RESEND_API_KEY) respectively.
 
 ## Cross-references
 
-- Predecessor canary-RED: `docs/observations/2026-05-24-054214-adr299-phase4-canary-red/findings.md`
-- Predecessor ADR-301 RESOLUTION: `docs/observations/archive/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/RESOLUTION.md`
-- seulkim88 cold-start: `docs/observations/2026-05-20-011700-cold-start-governance-self-amend/findings.md` (kept active as load-bearing precedent for the framework-contradiction finding)
-- Tuesday staging: `docs/observations/2026-05-26-134500-signal-evaluation-tuesday-rth/PLAYBOOK.md`
+- Predecessor canary-RED: `docs/evaluations/2026-05-24-054214-adr299-phase4-canary-red/findings.md`
+- Predecessor ADR-301 RESOLUTION: `docs/evaluations/archive/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/RESOLUTION.md`
+- seulkim88 cold-start: `docs/evaluations/2026-05-20-011700-cold-start-governance-self-amend/findings.md` (kept active as load-bearing precedent for the framework-contradiction finding)
+- Tuesday staging: `docs/evaluations/2026-05-26-134500-signal-evaluation-tuesday-rth/PLAYBOOK.md`
 - ALPHA-1-PLAYBOOK §0 (DP21 one-liner): `docs/alpha/ALPHA-1-PLAYBOOK.md`
 - Substrate receipts in this finding:
   - canary-RED execution_event: `c4f250f2-d26f-4c1b-9013-0c80854319f7`

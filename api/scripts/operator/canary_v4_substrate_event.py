@@ -11,7 +11,7 @@ Both writes authored via operator-proxy per ADR-294 D2:
 Then prints the wall-clock so the operator can correlate to the next
 Scheduler tick (every minute on the Scheduler cron).
 
-See: docs/observations/2026-05-21-044500-canary-v4-substrate-event-revalidation/PLAYBOOK.md
+See: docs/evaluations/2026-05-21-044500-canary-v4-substrate-event-revalidation/PLAYBOOK.md
 """
 
 from __future__ import annotations

@@ -6,7 +6,7 @@ must reach the operator's Feed surface with role='reviewer' attribution
 clarify_question + clarify_options metadata for future FE affordances.
 
 Closes the silenced-Clarify class documented in
-docs/observations/2026-05-25-042827-clarify-silenced-from-feed/findings.md
+docs/evaluations/2026-05-25-042827-clarify-silenced-from-feed/findings.md
 (15/15 Reviewer Clarify wakes over 7 days produced zero session_messages
 rows; operators had no signal that the Reviewer was asking for input).
 

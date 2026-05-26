@@ -28,7 +28,7 @@ seven structural claims by:
       structurally to ReturnVerdict (regression-source for the canary v3
       text-only-fallback symptom)
 
-Audit folder: docs/observations/2026-05-22-043009-reviewer-formalization-audit/
+Audit folder: docs/evaluations/2026-05-22-043009-reviewer-formalization-audit/
 
 Run via:
     python -m pytest api/test_reviewer_formalization.py -v
@@ -88,7 +88,7 @@ def test_foundations_dp21_quotes_variant_f() -> None:
         "FOUNDATIONS DP21 missing — Variant F anchor must live in canon "
         "as a Derived Principle (drift recommendation: re-add the "
         "principle, do not delete it). See "
-        "docs/observations/2026-05-22-043009-reviewer-formalization-audit/"
+        "docs/evaluations/2026-05-22-043009-reviewer-formalization-audit/"
     )
     normalized_content = " ".join(content.split())
     normalized_variant_f = " ".join(VARIANT_F.split())
@@ -409,7 +409,7 @@ def test_judgment_prompts_bind_return_verdict() -> None:
         f"Prose-only verdict requests fall through to the text-only "
         f"fallback at reviewer_agent.py:1409-1422, producing inert "
         f"stand_down with no substrate write — the canary v3 root cause. "
-        f"See docs/observations/2026-05-22-043009-reviewer-formalization-audit/findings.md §L5."
+        f"See docs/evaluations/2026-05-22-043009-reviewer-formalization-audit/findings.md §L5."
     )
 
 

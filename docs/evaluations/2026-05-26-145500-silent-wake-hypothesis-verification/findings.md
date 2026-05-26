@@ -23,7 +23,7 @@
 > (which assumed the fix would land). Adherence target framing was wrong-shaped.
 >
 > **Forward link:** posture-taxonomy ADR draft (forthcoming) +
-> `docs/observations/` → `docs/evaluations/` rename + criterion-declaration
+> `docs/evaluations/` → `docs/evaluations/` rename + criterion-declaration
 > discipline rewrite.
 
 ---
@@ -38,7 +38,7 @@ the substrate-honoring fallback. This folder records the verification half; the
 canon-side fix lands at `api/agents/reviewer_agent.py` per CHANGELOG entry
 `[2026.05.26.1]`.
 
-**Predecessor**: `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`
+**Predecessor**: `docs/evaluations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`
 R1 ("Pull Render Scheduler trace logs for 2–3 specific silent wakes... Confirm
 text-only-fallback hypothesis empirically — did the model emit prose without
 wrapping in tool calls?").

@@ -1,12 +1,16 @@
 """ADR-294 — Scripted scenario player.
 
-Reads a YAML scenario file under docs/observations/scenarios/, executes
-it via OperatorProxy + ScenarioRunner, and writes a captured observation
-folder under docs/observations/.
+Reads a YAML scenario file under docs/evaluations/scenarios/, executes
+it via OperatorProxy + ScenarioRunner, and writes a captured evaluation
+folder under docs/evaluations/.
+
+Renamed from "observations" to "evaluations" on 2026-05-26 — see
+docs/evaluations/README.md §"Why 'evaluations' and not 'observations'"
+for the criterion-declaration discipline that motivated the rename.
 
 Usage:
     .venv/bin/python -m api.scripts.operator.run_scenario \\
-        --scenario docs/observations/scenarios/warm-start-auto-execute.yaml \\
+        --scenario docs/evaluations/scenarios/warm-start-auto-execute.yaml \\
         [--caller scenario-runner]
 """
 
@@ -33,28 +37,28 @@ load_dotenv(_API_ROOT / ".env.alpha-ops")
 load_dotenv(REPO_ROOT / ".env")
 
 
-def _observation_folder(scenario_slug: str) -> Path:
+def _evaluation_folder(scenario_slug: str) -> Path:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
-    return REPO_ROOT / "docs" / "observations" / f"{now}-{scenario_slug}"
+    return REPO_ROOT / "docs" / "evaluations" / f"{now}-{scenario_slug}"
 
 
 async def run_scenario(scenario_path: Path, caller: str) -> int:
     from services.operator_proxy.scenarios import Scenario, ScenarioRunner
 
     scenario = Scenario.from_file(scenario_path)
-    obs_folder = _observation_folder(scenario.slug)
+    eval_folder = _evaluation_folder(scenario.slug)
 
     print(f"scenario: {scenario.slug}")
     print(f"persona:  {scenario.persona}")
     print(f"caller:   {caller}")
-    print(f"output:   {obs_folder}")
+    print(f"output:   {eval_folder}")
     print()
 
     runner = ScenarioRunner(scenario, caller=caller)
-    result = await runner.run(obs_folder)
+    result = await runner.run(eval_folder)
 
     print(f"\nturns_executed: {result['turns_executed']}")
-    print(f"observation folder: {result['observation_folder']}")
+    print(f"evaluation folder: {result['evaluation_folder']}")
     print("(edit findings.md to record your interpretation)")
     return 0
 

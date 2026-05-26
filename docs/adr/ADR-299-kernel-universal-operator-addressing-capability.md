@@ -3,7 +3,7 @@
 **Status**: Phase 1 Implemented 2026-05-22; corrected FOUR times in-place across 2026-05-24 and 2026-05-25 (Discovery notes 1-4 below). Phase 2 + 3 Implemented 2026-05-24. Discovery 4 **REVERTED Path A 2026-05-25** post-canary-v4 RED — see Discovery 4 Path A addendum at the end of this ADR. Discovery 3's always-surface fix remains in place (kernel-universal capabilities still flow through the agent path for non-Reviewer callers); only the Reviewer-side `REVIEWER_PRIMITIVES` inclusion was reverted to isolate the tool-perturbation variable. Regression gate 10/10 PASS post-revert with inverted assertion. Canary v5 pending to validate whether tool addition was perturbing Reviewer judgment toward `stand_down`.
 **Date**: 2026-05-22
 **Authors**: KVK, Claude
-**Companion**: [`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md) — surfaced the L6 capital-execution gap on alpha-author that triggered this discourse
+**Companion**: [`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md) — surfaced the L6 capital-execution gap on alpha-author that triggered this discourse
 **Depends on**: ADR-118 (Skills as Capability Layer), ADR-176 (Work-First Agent Model), ADR-192 (Resend integration), ADR-217 (AUTONOMY gating), ADR-222 (OS framing), ADR-224 (Kernel/Program Boundary), ADR-227 (Task Capability Tool Augmentation), ADR-269 (Capability Flow Wiring), ADR-283 (alpha-author bundle)
 **Amends**: ADR-283 D7 (alpha-author capability menu) — clarifies that the bundle-rejection of audience-bearing platform writes does NOT preclude kernel-universal operator-addressing writes
 **Preserves**: Singular Implementation discipline, kernel/program boundary, ADR-283's archetype shape
@@ -12,7 +12,7 @@
 
 ADR-283 D7 + Discovery Note 2 (2026-05-17, operator-authored) established that alpha-author's bundle does NOT ship audience-bearing platform writes — *"alpha-author's loop is 'audit a body of work that compounds' → zero external writes are bundle-required."* Discovery Note 2 explicitly listed *"LinkedIn / X / newsletter publishing-platform writes, commerce reads/writes, and email writes"* as out-of-archetype.
 
-The 2026-05-22 L6 Variant-F clause validation observation ([`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/)) surfaced a follow-on question: how does alpha-author exercise FOUNDATIONS DP21 clause 5's "physical-platform-write" sub-branch if the bundle has no external writes? The natural answer per ADR-283 was "it doesn't — alpha-trader is the only surface for that branch, by design." That's true for *audience-bearing* writes (LinkedIn, newsletter publishing, X posts).
+The 2026-05-22 L6 Variant-F clause validation observation ([`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/)) surfaced a follow-on question: how does alpha-author exercise FOUNDATIONS DP21 clause 5's "physical-platform-write" sub-branch if the bundle has no external writes? The natural answer per ADR-283 was "it doesn't — alpha-trader is the only surface for that branch, by design." That's true for *audience-bearing* writes (LinkedIn, newsletter publishing, X posts).
 
 But the discourse round on 2026-05-22 surfaced an architectural distinction Discovery Note 2 collapsed: **email-to-operator-own-inbox and email-to-audience-list use the same wire protocol (SMTP via Resend) but are structurally different surfaces**. The first is observability — the Reviewer telling the operator about workspace state. The second is publication — the Reviewer addressing the operator's audience. Discovery Note 2 was correct to reject the second; it accidentally also rejected the first by collapsing them under one "email writes" line.
 
@@ -160,7 +160,7 @@ Each phase lands as its own commit with its own validation gate.
 - Wait for next natural Reviewer wake (substrate-event or cron_tick)
 - Observe Reviewer emit `platform_email_send_to_operator` call → operator receives email
 - Capture artifacts: `execution_events` row with funnel decision + the email itself + Reviewer reasoning in `judgment_log.md`
-- Update [`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/) ADDENDUM with the consequential-action gate-fire evidence on alpha-author (closing clause 5 active-branch on alpha-author without requiring audience-bearing capabilities)
+- Update [`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/) ADDENDUM with the consequential-action gate-fire evidence on alpha-author (closing clause 5 active-branch on alpha-author without requiring audience-bearing capabilities)
 
 ## Stress-test scenarios validated against the proposed shape
 
@@ -200,12 +200,12 @@ The conglomerate-alpha thesis (per ALPHA-1-PLAYBOOK + ADR-191) keeps its archety
 **Phases 2-4 deferred to follow-up commits**:
 - Phase 2: `_preferences.yaml` schema extension for `operator_notifications:` opt-in block (alpha-author + alpha-trader bundle reference workspaces)
 - Phase 3: `_PERSONA_FRAME` cadence-section nudge for Reviewer awareness of operator-update preferences (with CHANGELOG entry per Prompt Change Protocol)
-- Phase 4: L6 validation observation on alpha-author (operator declares preference, observe natural cycle emit `platform_email_send_to_operator`, capture artifacts → updates `docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/` ADDENDUM with explicit consequential-action gate-fire evidence on alpha-author without audience-bearing capabilities)
+- Phase 4: L6 validation observation on alpha-author (operator declares preference, observe natural cycle emit `platform_email_send_to_operator`, capture artifacts → updates `docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/` ADDENDUM with explicit consequential-action gate-fire evidence on alpha-author without audience-bearing capabilities)
 
 ## Cross-references
 
-- 2026-05-22 L6 validation observation: [`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/)
-- 2026-05-24 architectural-class-naming redundancy finding (motivated the Discovery note below): [`docs/observations/2026-05-24-042952-adr299-class-naming-redundancy/`](../observations/2026-05-24-042952-adr299-class-naming-redundancy/)
+- 2026-05-22 L6 validation observation: [`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/)
+- 2026-05-24 architectural-class-naming redundancy finding (motivated the Discovery note below): [`docs/evaluations/2026-05-24-042952-adr299-class-naming-redundancy/`](../observations/2026-05-24-042952-adr299-class-naming-redundancy/)
 - alpha-author bundle ADR: [ADR-283](ADR-283-alpha-author-bundle.md) (D7 + Discovery Note 2)
 - Resend integration: ADR-192 Phase 4 (`api/integrations/core/resend_client.py`)
 - Existing platform tools: `api/services/platform_tools.py` (EMAIL_TOOLS at line 809)

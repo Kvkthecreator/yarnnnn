@@ -1,9 +1,13 @@
 """ADR-294 D6 — Scenario YAML parser + runner.
 
 Scenarios are first-class versioned eval artifacts under
-docs/observations/scenarios/. Assertion-light, observation-heavy —
+docs/evaluations/scenarios/. Assertion-light, evaluation-heavy —
 the runner logs what happened and lets capture.py snapshot the
 artifact. `expect:` clauses are interpretation hints, not pass/fail gates.
+
+Renamed from "observations" to "evaluations" on 2026-05-26 — see
+docs/evaluations/README.md §"Why 'evaluations' and not 'observations'"
+for the criterion-declaration discipline rationale.
 
 Schema (v1):
     scenario: <slug>
@@ -109,28 +113,28 @@ class Scenario:
 class ScenarioRunner:
     """Executes a Scenario against a workspace via OperatorProxy + capture.
 
-    Discipline: every observation is logged, never fail-hard on expect:
+    Discipline: every evaluation is logged, never fail-hard on expect:
     mismatches. Scenarios validate behavior shape; humans interpret.
     """
 
     def __init__(self, scenario: Scenario, *, caller: str = "scenario-runner"):
         self.scenario = scenario
         self.caller = caller
-        self.observations: list[dict] = []   # ordered log of {turn, expect, observed}
+        self.evaluations: list[dict] = []   # ordered log of {turn, expect, observed} — note: "observed" is the verb of seeing, retained per FOUNDATIONS vocabulary
 
-    async def run(self, observation_folder: Path) -> dict:
+    async def run(self, evaluation_folder: Path) -> dict:
         """Execute scenario. Returns summary dict + writes capture artifacts."""
         from .client import OperatorProxy
         from .capture import CaptureSession
 
-        observation_folder.mkdir(parents=True, exist_ok=True)
+        evaluation_folder.mkdir(parents=True, exist_ok=True)
         proxy = OperatorProxy.from_persona(self.scenario.persona, caller=self.caller)
         # Mint JWT + fetch user_id resolution via the proxy's config.
         user_id = proxy.config.user_id
 
         capture = await CaptureSession.start(
             user_id,
-            observation_folder,
+            evaluation_folder,
             scenario_name=self.scenario.slug,
         )
         capture.metadata = {
@@ -148,16 +152,16 @@ class ScenarioRunner:
             # Turn phase — operator-voice sequence
             for i, turn in enumerate(self.scenario.turns):
                 obs = await self._execute_turn(proxy, turn, turn_index=i)
-                self.observations.append(obs)
+                self.evaluations.append(obs)
 
-        capture.metadata["observations"] = self.observations
+        capture.metadata["evaluations"] = self.evaluations
         await capture.snapshot()
 
         return {
             "scenario": self.scenario.slug,
             "persona": self.scenario.persona,
-            "turns_executed": len(self.observations),
-            "observation_folder": str(observation_folder),
+            "turns_executed": len(self.evaluations),
+            "evaluation_folder": str(evaluation_folder),
         }
 
     # ----- step executors -----
@@ -168,7 +172,7 @@ class ScenarioRunner:
             slug = step["fire"]
             # Invoke manual_fire path directly via dispatch.
             await _manual_fire(proxy.config.user_id, slug)
-            self.observations.append({
+            self.evaluations.append({
                 "phase": "setup",
                 "action": "fire",
                 "slug": slug,
@@ -188,7 +192,7 @@ class ScenarioRunner:
                 authored_by=authored_by,
                 message=f"Setup write for scenario {self.scenario.slug}",
             )
-            self.observations.append({
+            self.evaluations.append({
                 "phase": "setup",
                 "action": "write_substrate",
                 "path": path,
@@ -198,7 +202,7 @@ class ScenarioRunner:
             return
 
         # Unknown setup step — log and continue (assertion-light).
-        self.observations.append({
+        self.evaluations.append({
             "phase": "setup",
             "action": "unknown",
             "raw": step,

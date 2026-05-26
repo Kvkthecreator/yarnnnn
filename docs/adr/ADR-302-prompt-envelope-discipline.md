@@ -10,7 +10,7 @@
 
 ## 1. Problem statement
 
-The Reviewer persona-frame at `api/agents/reviewer_agent.py::_PERSONA_FRAME` carries 64 cross-mentions of operator-substrate files (MANDATE, IDENTITY, BRAND, CONVENTIONS, PRECEDENT, AUTONOMY, _autonomy.yaml, _operator_profile, _risk, principles.md, _pace.yaml, _preferences.yaml, _recurrences.yaml, _token_budget.yaml). Grep of the persona-frame surfaces ~30 mentions specifically about autonomy/lock semantics. Population audit `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md` measured ~48% adherence to the persona-frame standing_intent contract; structural finding at `docs/observations/2026-05-26-152500-failed-action-substrate-blindspot/findings.md` traced the failed-WriteFile concentration on author-class personas to a canon-vs-code contradiction in the persona-frame's write-capability claims.
+The Reviewer persona-frame at `api/agents/reviewer_agent.py::_PERSONA_FRAME` carries 64 cross-mentions of operator-substrate files (MANDATE, IDENTITY, BRAND, CONVENTIONS, PRECEDENT, AUTONOMY, _autonomy.yaml, _operator_profile, _risk, principles.md, _pace.yaml, _preferences.yaml, _recurrences.yaml, _token_budget.yaml). Grep of the persona-frame surfaces ~30 mentions specifically about autonomy/lock semantics. Population audit `docs/evaluations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md` measured ~48% adherence to the persona-frame standing_intent contract; structural finding at `docs/evaluations/2026-05-26-152500-failed-action-substrate-blindspot/findings.md` traced the failed-WriteFile concentration on author-class personas to a canon-vs-code contradiction in the persona-frame's write-capability claims.
 
 The persona-frame has accumulated **three generations of guidance stacked on top of each other** about whether the Reviewer can write to operator-substrate files. They are mutually inconsistent:
 
@@ -204,8 +204,8 @@ ADR-302 reduces the canon-vs-code contradiction class. ADR-303 defines per-cell 
 
 ## 9. Cross-references
 
-- Predecessor finding: `docs/observations/2026-05-26-152500-failed-action-substrate-blindspot/findings.md`
-- Population audit: `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`
+- Predecessor finding: `docs/evaluations/2026-05-26-152500-failed-action-substrate-blindspot/findings.md`
+- Population audit: `docs/evaluations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`
 - Source-grounded refinement basis: `docs/analysis/src_claudeCC/constants/systemPromptSections.ts` (Claude Code's typed section registry) + `docs/analysis/src_claudeCC/constants/prompts.ts:560-577` (boundary marker discipline) — first-principles compatibility documented in `docs/analysis/claude-code-prompt-discipline-comparison-2026-05-26.md`
 - Related canon: ADR-186 (prompt profiles), ADR-258 revised (Reviewer surface), ADR-274 / ADR-275 / ADR-276 (cadence + envelope), ADR-293 (governance taxonomy), ADR-295 (self-amendment evidence patterns), ADR-298 (Pace + Autonomy + Persona trifecta)
 - Lock-set source: `api/services/workspace_paths.py::DEFAULT_REVIEWER_WRITE_LOCKS`

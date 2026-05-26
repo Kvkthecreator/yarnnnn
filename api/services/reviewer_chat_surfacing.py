@@ -171,7 +171,7 @@ async def write_reviewer_message(
 # paths emit the same shape: Reviewer bubble + zero-or-more System Agent
 # narration bubbles, one per consequential successful action.
 
-# 2026-05-25: Clarify removed per docs/observations/2026-05-25-042827-
+# 2026-05-25: Clarify removed per docs/evaluations/2026-05-25-042827-
 # clarify-silenced-from-feed/findings.md. Clarify is the structural
 # opposite of cognition — its sole purpose is operator-facing
 # communication with a side effect (operator's attention). ADR-247
@@ -245,7 +245,7 @@ def narrate_reviewer_action(tool: str, summary: str = "", *, folded_count: int =
 
     folded_count > 1 indicates the action represents N consecutive same-path
     same-tool writes folded into one narration line (closes Pattern 2 of
-    docs/observations/2026-05-21-005856-wake-duplication-audit/). Substrate
+    docs/evaluations/2026-05-21-005856-wake-duplication-audit/). Substrate
     retains every revision per ADR-209; only the feed-surface noise is
     collapsed.
     """
@@ -290,7 +290,7 @@ def _fold_same_path_writes(
     fold scope is governed by slug rather than path — handled in Commit C).
 
     Used by surface_reviewer_actions to close the iterative-refinement
-    feed-noise pattern surfaced by docs/observations/2026-05-21-005856-
+    feed-noise pattern surfaced by docs/evaluations/2026-05-21-005856-
     wake-duplication-audit/findings.md.
     """
     if not actions_taken:
@@ -385,7 +385,7 @@ async def surface_reviewer_actions(
 
     # Pre-fold: collapse consecutive emit-eligible actions that share
     # (tool, path) into a single representative action with a count.
-    # Closes Pattern 2 of docs/observations/2026-05-21-005856-wake-
+    # Closes Pattern 2 of docs/evaluations/2026-05-21-005856-wake-
     # duplication-audit/findings.md — the Reviewer's tool-use loop
     # iterates on the same file across multiple rounds (legitimate LLM
     # refinement behavior), but the per-write narration emits one feed

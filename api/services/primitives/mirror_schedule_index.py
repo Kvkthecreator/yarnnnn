@@ -4,7 +4,7 @@ MirrorScheduleIndex Primitive — ADR-301
 Projects the workspace's `tasks` scheduling index (slug + schedule + mode +
 last_run_at + next_run_at + paused) into a compact substrate file the
 Reviewer reads at every wake. Closes the schedule-hallucination class
-documented in docs/observations/2026-05-24-045348-reviewer-schedule-self-
+documented in docs/evaluations/2026-05-24-045348-reviewer-schedule-self-
 misdiagnosis/findings.md.
 
 The Reviewer perceives time (ADR-274 Operating Context block) and standing

@@ -917,7 +917,7 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
 # Origin: ADR-299 Discovery 4 Path A canary v4 RED — when the Reviewer chose
 # stand_down and no email landed, distinguishing "tool not in surface" from
 # "wire broken" required an isolation test. See
-# docs/observations/2026-05-25-042346-adr299-always-surface-resolution/
+# docs/evaluations/2026-05-25-042346-adr299-always-surface-resolution/
 # for the surrounding diagnostic arc.
 
 

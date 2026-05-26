@@ -252,7 +252,7 @@ This is the easiest gap to close. Not a primitive redesign; a coverage extension
 |---|---|---|
 | Cost telemetry per cycle | `execution_events` columns: input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, model, tool_rounds, envelope_load_ms, duration_ms. Full per-cycle cost telemetry shipped. | **A** |
 | Worldview-read latency observability | `envelope_load_ms` column added per ADR-276 hardening (2026-05-15). | **A** |
-| Action-origination observability | Reviewer `actions_taken` array in `ReviewerOutput`; `judgment_log.md` lineage entries per ADR-281 §5.D2; bundle-level observation framework via Hat-B `docs/observations/`. | **A** |
+| Action-origination observability | Reviewer `actions_taken` array in `ReviewerOutput`; `judgment_log.md` lineage entries per ADR-281 §5.D2; bundle-level observation framework via Hat-B `docs/evaluations/`. | **A** |
 
 ### Verdict on T7
 

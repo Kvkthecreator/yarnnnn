@@ -7,7 +7,7 @@ frame must instruct the Reviewer how to use them ("Pulse Discipline"
 section). The scheduler tick must invoke the kernel mirrors per-tick.
 
 Closes the schedule-hallucination class documented in
-docs/observations/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/.
+docs/evaluations/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/.
 
 Run:
     python -m api.test_adr301_reviewer_pulse_envelope

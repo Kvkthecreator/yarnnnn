@@ -63,7 +63,7 @@ ship_self_check: pending
 Auto-seeded by canary_phase4_v3_fresh_piece.py for ADR-299 Phase 4
 validation. Intentional voice-quality issues are present so the
 Reviewer has material to surface via the operator_notifications email
-opt-in. See docs/observations/2026-05-24-054214-adr299-phase4-canary-red/
+opt-in. See docs/evaluations/2026-05-24-054214-adr299-phase4-canary-red/
 for the test arc this completes.
 """
 

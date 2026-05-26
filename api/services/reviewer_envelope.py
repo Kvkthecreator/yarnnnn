@@ -103,7 +103,7 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     # scheduler tick in the maintenance phase. Both files are diff-aware
     # writes (most ticks produce zero revisions). The Reviewer reads them
     # to reason correctly about its own pulse — closes the schedule-
-    # hallucination class documented in docs/observations/2026-05-24-
+    # hallucination class documented in docs/evaluations/2026-05-24-
     # 045348-reviewer-schedule-self-misdiagnosis/findings.md.
     ("schedule_index_md", MEMORY_SCHEDULE_INDEX_PATH),
     ("recent_execution_md", MEMORY_RECENT_EXECUTION_PATH),

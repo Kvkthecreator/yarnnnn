@@ -52,7 +52,7 @@ criterion does the question "is the model failing or correctly being
 selective?" become answerable. Any code change that follows lands grounded
 in the cell-level analysis, not as a blanket silent-exit-class fix.
 
-The `docs/observations/2026-05-26-145500-silent-wake-hypothesis-verification/`
+The `docs/evaluations/2026-05-26-145500-silent-wake-hypothesis-verification/`
 folder retains a STATUS banner naming this revert + redirecting forward to
 the posture-taxonomy work; the Render-trace receipts captured there remain
 load-bearing evidence for the upcoming posture analysis even though the
@@ -61,9 +61,9 @@ load-bearing evidence for the upcoming posture analysis even though the
 ### Related
 
 - Reverts: `9e7c1c7` (this changelog entry replaces `[2026.05.26.1]`)
-- Predecessor audit: `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`
-- Verification folder (retained, status-updated): `docs/observations/2026-05-26-145500-silent-wake-hypothesis-verification/findings.md`
-- Forthcoming: posture-taxonomy ADR + `docs/observations/` → `docs/evaluations/` rename
+- Predecessor audit: `docs/evaluations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`
+- Verification folder (retained, status-updated): `docs/evaluations/2026-05-26-145500-silent-wake-hypothesis-verification/findings.md`
+- Forthcoming: posture-taxonomy ADR + `docs/evaluations/` → `docs/evaluations/` rename
 
 ---
 
@@ -121,7 +121,7 @@ with inverted assertion.
 The Reviewer's `Clarify(question=..., options=...)` calls now surface to
 the operator's Feed as `role='reviewer'` (persona bubble), not silently.
 Closes the gap documented in
-`docs/observations/2026-05-25-042827-clarify-silenced-from-feed/findings.md`:
+`docs/evaluations/2026-05-25-042827-clarify-silenced-from-feed/findings.md`:
 15/15 Reviewer Clarify wakes over the past 7 days across 5 of 6 active
 workspaces produced zero `session_messages` rows — operators had no signal
 the Reviewer was asking them anything.
@@ -238,7 +238,7 @@ incomplete from day one.
 ### Refs
 
 ADR-299 Discovery notes 3 + 4 (2026-05-25); Hat-B observation folder
-`docs/observations/2026-05-25-042346-adr299-always-surface-resolution/`;
+`docs/evaluations/2026-05-25-042346-adr299-always-surface-resolution/`;
 canary v3 evidence (REJECT verdict in judgment_log.md, zero email fired);
 predecessor CHANGELOG entries [2026.05.24.3] (Discovery note 2 wire
 correction) + [2026.05.24.1] (Phase 3 original persona-frame nudge).
@@ -266,7 +266,7 @@ write them.
 ### Why
 
 Closes the schedule-hallucination class documented in
-`docs/observations/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/`.
+`docs/evaluations/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/`.
 Pre-ADR-301 the Reviewer asserted "signal-evaluation failed to fire 3× RTH
 today" when literal schedule is `@market_open + 15min` = 1 fire per day.
 The Reviewer had no substrate basis for reasoning about its own cadence —
@@ -344,7 +344,7 @@ predecessor CHANGELOG entries `[2026.05.24.1]` (Phase 3 original)
 ### Decision
 
 Closes the morning's L6 Variant-F clause validation findings (Hat-A
-Recommendation 2 from `docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md`).
+Recommendation 2 from `docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md`).
 The morning's clause-6 strict reading marked the explicit-MANDATE.md-
 citation branch as 🟡 GREEN-with-caveat — the Reviewer's audit
 structurally tracked MANDATE.md success criteria but didn't cite
@@ -382,7 +382,7 @@ captures runtime adherence.
 
 ### Refs
 
-L6 morning findings (`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md`)
+L6 morning findings (`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md`)
 Hat-A Recommendation 2; FOUNDATIONS DP21 clause-6 strict reading;
 ADR-207 (Mandate as load-bearing operator artifact); ADR-284
 (standing_intent.md schema).
@@ -458,7 +458,7 @@ operator-addressing), `50d37a8` (Phase 2 schema extension).
 ### Decision
 
 Closes the formalization gap surfaced by the reviewer-formalization audit
-(`docs/observations/2026-05-22-043009-reviewer-formalization-audit/`).
+(`docs/evaluations/2026-05-22-043009-reviewer-formalization-audit/`).
 With the wake-architecture cutover landed (ADR-296 v2 + ADR-298 all
 Implemented), the Reviewer's accumulated prompt surface across ~20+ ADRs
 needed a single canonical sentence to anchor every framing artifact.
@@ -552,7 +552,7 @@ prose-only (the canary-v3 text-only-fallback root cause).
 
 ADR-194 v2, ADR-209, ADR-216, ADR-258 revised, ADR-274, ADR-275, ADR-293,
 ADR-296 v2, ADR-298. Audit folder:
-`docs/observations/2026-05-22-043009-reviewer-formalization-audit/`.
+`docs/evaluations/2026-05-22-043009-reviewer-formalization-audit/`.
 
 ---
 
@@ -561,7 +561,7 @@ ADR-296 v2, ADR-298. Audit folder:
 ### Decision
 
 Closes the round-budget-mis-calibration finding from
-`docs/observations/2026-05-21-014009-reviewer-round-budget-population-
+`docs/evaluations/2026-05-21-014009-reviewer-round-budget-population-
 audit/findings.md`. Population audit (N=28 judgment-mode wakes across
 4 workspaces) showed a sharp discontinuity at `tool_rounds = 6` →
 `tool_rounds = 7`: 70% silent rate at 6, 11% at 7+. Root cause traced
@@ -803,7 +803,7 @@ spec name + title list.
 ### Decision
 
 ADR-275 D9–D11 amendment closes a contract-shape mismatch surfaced by the
-2026-05-20 substrate contract audit (`docs/observations/2026-05-20-235100-
+2026-05-20 substrate contract audit (`docs/evaluations/2026-05-20-235100-
 substrate-contract-audit/findings.md`):
 
   `_preferences.yaml` is operator-declaration-shape (operator names what
@@ -930,7 +930,7 @@ as the structurally correct fix. This amendment lands the fix.
 ### Decision
 
 ADR-292 v3 amendment closes two structural drift classes surfaced by the
-2026-05-20 pre-e2e readiness audit (`docs/observations/2026-05-20-100309-
+2026-05-20 pre-e2e readiness audit (`docs/evaluations/2026-05-20-100309-
 pre-e2e-readiness-audit-adr296-v2/findings.md`):
 
 **Gap A** — Checkpoint 2 modified bundle reference-workspace files for
@@ -1026,7 +1026,7 @@ structurally resolved.
 
 ADR-296 v2 Checkpoint 2 (commit `37426c5`, 2026-05-20T07:45Z) was the
 exemplar of Gap A — bundle changes without version bump, both alpha-trader
-+ alpha-author affected. The pre-e2e audit at `docs/observations/2026-05-
++ alpha-author affected. The pre-e2e audit at `docs/evaluations/2026-05-
 20-100309-pre-e2e-readiness-audit-adr296-v2/` documented the substrate
 evidence; operator confirmed sustainable-fix direction at 2026-05-20T10:50Z;
 v3 amendment lands as the structural close.
@@ -1380,10 +1380,10 @@ Phase D of ADR-295 implementation: `post-refusal-self-amendment-probe.yaml`
 scenario under ADR-294 observation discipline. Probe is intended to
 surface whether the Reviewer follows D1-D4 discipline OR reflexively
 edits in response to operator-proxy nudge. Findings will live in
-docs/observations/ and feed back to ADR-295 amendments if drift surfaces.
+docs/evaluations/ and feed back to ADR-295 amendments if drift surfaces.
 
 The validation discipline (developer-side checklist for evaluating
-self-amendment behavior) lives in docs/observations/README.md per
+self-amendment behavior) lives in docs/evaluations/README.md per
 FOUNDATIONS v8.6 system-vs-developer boundary. This CHANGELOG entry
 documents the SYSTEM CANON change (persona frame + bundle principles).
 Developer-side checklist is separate.
@@ -1403,7 +1403,7 @@ Sonnet budget for capital-review (ADR-260 / ADR-256), this exhausted the
 budget mid-write and produced a low-confidence `defer` fallback even when
 the Reviewer's actual reasoning had reached approve.
 
-Operator-signed-off findings.md at `docs/observations/2026-05-20-011340-warm-start-auto-execute/`
+Operator-signed-off findings.md at `docs/evaluations/2026-05-20-011340-warm-start-auto-execute/`
 captured the smoking-gun transcript: Reviewer explicitly concluded "All hard
 rules pass. Sizing math verified. Regime scalar correctly applied. Signal
 conditions met. EV positive." then announced "Now I'll write my

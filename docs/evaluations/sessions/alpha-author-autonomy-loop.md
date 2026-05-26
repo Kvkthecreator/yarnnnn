@@ -45,13 +45,13 @@ Update this table when a new demo window opens on any persona.
 **`pre-ship-audit` status (UPDATED 2026-05-22)**: Now wired via **ADR-296 v2 D2 substrate-event hook** at `/workspace/_hooks.yaml`. Bundle ships the hook (path_match `/workspace/context/authored/*/profile.md`, field_change `status: ready_for_review`). Operator transition `profile.md` `status` `draft` → `ready_for_review` causes next scheduler tick to enqueue a `substrate_event` wake; under ADR-298 Phase 3 the wake routes through `wake_queue` and drains to the Reviewer on `lane=live`. Validated end-to-end on N=1 in [`archive/2026-05-22-020000-canary-v5-adr298-cutover/`](../archive/2026-05-22-020000-canary-v5-adr298-cutover/) — every layer L1→L5 passed; L6 (Reviewer substrate writes) blocked only by negative balance on the test workspace. L6 closure subsequently observed and validated across multiple wakes (3-of-4 substrate_event reactive wakes since 2026-05-22 produced clean Reviewer writes; the lone outlier was the 2026-05-24T05:38Z canary-RED, see `2026-05-24-054214-adr299-phase4-canary-red/`).
 **AUTONOMY mode**: `autonomous`
 **First seeded piece**: `/workspace/context/authored/governance-as-trust/` (status: `ready_for_review`)
-**Latest observation folder**: `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/` (load-bearing — N=27 judgment-shape wakes characterization, 48% persona-frame adherence, 11 silent wakes reproducing canary-RED pattern; engagement set R1–R5 queued for operator decision). Earlier: `docs/observations/2026-05-25-042827-clarify-silenced-from-feed/` (Clarify silenced from Feed surface — Hat-B finding) + `docs/observations/2026-05-25-042647-cross-session-substrate-verification/` (cross-session substrate verification). T0 baseline preserved at `docs/observations/archive/2026-05-20-034317-yarnnn-author-autonomy-demonstration-T0/`.
+**Latest observation folder**: `docs/evaluations/2026-05-25-053951-reviewer-behavior-population-audit/` (load-bearing — N=27 judgment-shape wakes characterization, 48% persona-frame adherence, 11 silent wakes reproducing canary-RED pattern; engagement set R1–R5 queued for operator decision). Earlier: `docs/evaluations/2026-05-25-042827-clarify-silenced-from-feed/` (Clarify silenced from Feed surface — Hat-B finding) + `docs/evaluations/2026-05-25-042647-cross-session-substrate-verification/` (cross-session substrate verification). T0 baseline preserved at `docs/evaluations/archive/2026-05-20-034317-yarnnn-author-autonomy-demonstration-T0/`.
 
 ## Cold-start checklist (when you open a new Claude session for this thread)
 
 Read these in order before doing anything else:
 1. **This file** — orientation
-2. **`docs/observations/README.md`** — observation discipline + Edit Checklist for evaluating Reviewer self-amendment behavior
+2. **`docs/evaluations/README.md`** — observation discipline + Edit Checklist for evaluating Reviewer self-amendment behavior
 3. **The latest observation folder for this thread** (see "Current state" above) — `PLAYBOOK.md` + `findings.md` from prior captures
 4. **ADR-294** — observation discipline canon
 5. **ADR-295** — Reviewer self-amendment discipline (what the demo is testing)
@@ -98,7 +98,7 @@ For an active demo window:
   - post-`pre-ship-audit` (reactive, fires on `status: ready_for_review` substrate change) — capture as soon as you see a `pre-ship-audit` row in `execution_events` post-T0
 - **T+1week wall-clock snapshot**: the demo-defining artifact. After a full week of operator-absent operation, snapshot + diff against T0. This is the capture that answers "did the autonomous loop produce coherent behavior over real time."
 
-Snapshot folder naming: `docs/observations/{YYYY-MM-DD-HHMMSS}-{persona-slug}-autonomy-demonstration-{T0|post-{recurrence-slug}|T+1week}/`.
+Snapshot folder naming: `docs/evaluations/{YYYY-MM-DD-HHMMSS}-{persona-slug}-autonomy-demonstration-{T0|post-{recurrence-slug}|T+1week}/`.
 
 **Why event-anchored over wall-clock intervals**: a fixed wall-clock window (e.g., T+24h) lands at an arbitrary point in the scheduler's cycle and produces mostly dead air. An event-anchored snapshot is taken when the system is supposed to have done something, so silence at that point is a *signal*, not a sampling artifact.
 
@@ -127,7 +127,7 @@ When reading the captured artifacts at T+24h / T+48h:
 - For each fired: check `execution_events` table + corresponding substrate writes
 
 **Did the Reviewer attempt any operator-canon edits?**
-- If yes: apply the **Edit Checklist** from `docs/observations/README.md` §"Evaluation Checklist". All four boxes (A: evidence pattern, B: message format, C: anti-patterns avoided, D: design-time deference) should tick clean.
+- If yes: apply the **Edit Checklist** from `docs/evaluations/README.md` §"Evaluation Checklist". All four boxes (A: evidence pattern, B: message format, C: anti-patterns avoided, D: design-time deference) should tick clean.
 - If yes and ANY box fails: surface as system-canon recommendation. Hat-A fix needed.
 - If no: most likely outcome at low-tenure workspaces. Acceptable; **decline = principled refusal** per the cold-start observation pattern.
 
@@ -139,8 +139,8 @@ When reading the captured artifacts at T+24h / T+48h:
 
 ## Cross-references to active discipline
 
-- **Edit Checklist (Reviewer self-amendment evaluation)**: `docs/observations/README.md` §"Evaluation Checklist"
-- **Decline Checklist (principled refusal evaluation)**: `docs/observations/README.md` §"Decline Checklist"
+- **Edit Checklist (Reviewer self-amendment evaluation)**: `docs/evaluations/README.md` §"Evaluation Checklist"
+- **Decline Checklist (principled refusal evaluation)**: `docs/evaluations/README.md` §"Decline Checklist"
 - **ADR-295 D1 thresholds (per-program numeric)**: alpha-author = 20 published pieces with audience-response data, 8 distinct audits / 2 weeks persistence
 - **ADR-295 D3 anti-pattern ledger**: six anti-patterns that Reviewer must NOT do even when capability permits
 - **ADR-294 D2 caller-identity discipline**: `operator-proxy:{caller}:acting-as-{persona-slug}` — used during setup-time substrate seeds only; should NOT appear in ongoing-demo revisions

@@ -2,7 +2,7 @@
 `send_operator_email` first instance.
 
 Tests the corrected shape per the 2026-05-24 Discovery note (see
-docs/observations/2026-05-24-042952-adr299-class-naming-redundancy/findings.md).
+docs/evaluations/2026-05-24-042952-adr299-class-naming-redundancy/findings.md).
 The original "kernel-universal" framing duplicated the existing CAPABILITIES
 dict pattern; the corrected framing names the genuine novelty as
 **operator-addressing** (capability whose addressee resolves from

@@ -140,7 +140,7 @@ Recovery from a regression in either path is `git revert + redeploy`, affecting 
 
 ## v3 amendment (2026-05-20) — content-vs-prose taxonomy + CI version-bump gate
 
-The 2026-05-20 audit of kvk's alpha-trader and yarnnn-author workspaces ([docs/observations/2026-05-20-100309-pre-e2e-readiness-audit-adr296-v2](/Users/macbook/yarnnn/docs/observations/2026-05-20-100309-pre-e2e-readiness-audit-adr296-v2/findings.md)) surfaced two structural gaps in the v2 mechanism:
+The 2026-05-20 audit of kvk's alpha-trader and yarnnn-author workspaces ([docs/evaluations/2026-05-20-100309-pre-e2e-readiness-audit-adr296-v2](/Users/macbook/yarnnn/docs/evaluations/2026-05-20-100309-pre-e2e-readiness-audit-adr296-v2/findings.md)) surfaced two structural gaps in the v2 mechanism:
 
 **Gap A — version-bump dependency on author discipline.** ADR-296 v2 Checkpoint 2 (commit `37426c5`, 2026-05-20T07:45Z) modified bundle reference-workspace files (`_recurrences.yaml`, `_hooks.yaml`, `review/principles.md`) for both alpha-trader and alpha-author **without bumping `version:` in either `MANIFEST.yaml`**. Both bundles still declared `version: 2026-05-18.1`. Live workspaces had no path to detect the update because `bundle_update_available()` compares version strings and both matched. Result: code shipped at deploy; bundles did not propagate.
 

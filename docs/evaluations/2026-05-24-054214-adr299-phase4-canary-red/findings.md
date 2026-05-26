@@ -6,7 +6,7 @@
 
 **Trigger**: Phase 4 validation canary (operator-proxy substrate-write to flip `pre_ship_audit_summary` `active: true` + substrate-event canary on `governance-as-trust profile.md` to fire `pre-ship-audit` hook) — fired at 05:38:13 UTC, wake completed at 05:39:11 UTC, **email did NOT land in operator inbox**.
 
-**Predecessor**: [`docs/observations/2026-05-24-050631-adr299-wire-redundancy/`](../2026-05-24-050631-adr299-wire-redundancy/) — Path X correction that rewired `platform_email_send_to_operator` to system Resend wire. This Phase 4 was the validation observation for that correction.
+**Predecessor**: [`docs/evaluations/2026-05-24-050631-adr299-wire-redundancy/`](../2026-05-24-050631-adr299-wire-redundancy/) — Path X correction that rewired `platform_email_send_to_operator` to system Resend wire. This Phase 4 was the validation observation for that correction.
 
 ## Headline
 
@@ -140,10 +140,10 @@ The morning's two corrections + tonight's third are all the same shape at differ
 ## Cross-references
 
 - ADR-299 (post-Discovery-note-2 shape): [`docs/adr/ADR-299-...md`](../../adr/ADR-299-kernel-universal-operator-addressing-capability.md)
-- Predecessor wire-redundancy resolution: [`docs/observations/2026-05-24-050631-adr299-wire-redundancy/`](../2026-05-24-050631-adr299-wire-redundancy/) (where the Path X correction was decided)
-- Morning L6 findings (L4-F2 text-only-fallback caveat that Finding 1 may be recurring): [`docs/observations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md`](../2026-05-22-052244-l6-variant-f-clause-validation/findings.md)
+- Predecessor wire-redundancy resolution: [`docs/evaluations/2026-05-24-050631-adr299-wire-redundancy/`](../2026-05-24-050631-adr299-wire-redundancy/) (where the Path X correction was decided)
+- Morning L6 findings (L4-F2 text-only-fallback caveat that Finding 1 may be recurring): [`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/findings.md`](../2026-05-22-052244-l6-variant-f-clause-validation/findings.md)
 - Phase 4 canary script: `api/scripts/operator/canary_phase4_operator_email.py` (committed in this session's todo flow)
-- Canary v4 precedent: [`docs/observations/2026-05-21-044500-canary-v4-substrate-event-revalidation/`](../2026-05-21-044500-canary-v4-substrate-event-revalidation/)
+- Canary v4 precedent: [`docs/evaluations/2026-05-21-044500-canary-v4-substrate-event-revalidation/`](../2026-05-21-044500-canary-v4-substrate-event-revalidation/)
 - wake_queue row: `c90af350-0dc2-401c-96b5-ae40bc7c3e3a` (substrate_event, live lane, completed)
 - execution_events row: `c4f250f2-d26f-4c1b-9013-0c80854319f7` (43s, $0.26, success)
 - Substrate writes by canary:

@@ -44,7 +44,7 @@ Update this table when a new demo window opens or AUTONOMY mode shifts on any pe
 
 **Persona under active observation**: `kvk`
 **Demo window**: 2026-05-20T04:13Z (T0) onwards
-**Latest observation folder**: `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/` (load-bearing — N=27 judgment-shape wakes characterization, 48% persona-frame adherence, 0 action_proposals across 4 days × 3 trader personas since cutover; the 0-proposal count may be by-design selectivity OR silent-wake stand-downs, undistinguishable from substrate alone — Tuesday signal-evaluation will inform). Tuesday staging: `docs/observations/2026-05-26-134500-signal-evaluation-tuesday-rth/`. T0 baseline preserved at `docs/observations/archive/2026-05-20-040500-kvk-autonomy-demonstration-T0/`.
+**Latest observation folder**: `docs/evaluations/2026-05-25-053951-reviewer-behavior-population-audit/` (load-bearing — N=27 judgment-shape wakes characterization, 48% persona-frame adherence, 0 action_proposals across 4 days × 3 trader personas since cutover; the 0-proposal count may be by-design selectivity OR silent-wake stand-downs, undistinguishable from substrate alone — Tuesday signal-evaluation will inform). Tuesday staging: `docs/evaluations/2026-05-26-134500-signal-evaluation-tuesday-rth/`. T0 baseline preserved at `docs/evaluations/archive/2026-05-20-040500-kvk-autonomy-demonstration-T0/`.
 **AUTONOMY mode**: `autonomous`, `ceiling_cents: 5000000`, `never_auto: [close_position_market, cancel_other_orders]`
 **Active probe-residue caveat**: `_operator_profile.md` Reviewer-edit from post-refusal-self-amendment-probe (commit `72f775b`) still at revision-chain head. Hat-A cleanup may be needed before next-RTH window for clean attribution. See T0 PLAYBOOK §"Probe-residue named explicitly".
 
@@ -72,7 +72,7 @@ Triggered by KVK's session-start question. Confirmed by reading bundle `_recurre
 
 ### Past alpha-trader activity (recent)
 
-- 2026-05-20 three-persona validation observation (`docs/observations/2026-05-20-adr293-three-persona-validation.md`)
+- 2026-05-20 three-persona validation observation (`docs/evaluations/2026-05-20-adr293-three-persona-validation.md`)
 - 2026-05-20 warm-start auto-execute v1/v2/v3 + post-refusal-self-amendment-probe scenarios (operator-proxy-driven; superseded as the validation pattern by the autonomy-demonstration shift)
 - 2026-05-20 risk_gate.py schema drift fix (Hat A — commit `601d78f`)
 
@@ -80,7 +80,7 @@ Triggered by KVK's session-start question. Confirmed by reading bundle `_recurre
 
 Read these in order before doing anything else:
 1. **This file** — orientation
-2. **`docs/observations/README.md`** — observation discipline + Edit Checklist for evaluating Reviewer self-amendment behavior
+2. **`docs/evaluations/README.md`** — observation discipline + Edit Checklist for evaluating Reviewer self-amendment behavior
 3. **The latest alpha-trader observation folder** if a demo is active — `PLAYBOOK.md` + `findings.md` from prior captures
 4. **ADR-294** — observation discipline canon
 5. **ADR-295** — Reviewer self-amendment discipline (what the demo is testing)
@@ -130,7 +130,7 @@ For an active demo window:
 
 The capital lane is **observational over weeks**, not hours. Plan accordingly.
 
-Snapshot folder naming: `docs/observations/{YYYY-MM-DD-HHMMSS}-{persona-slug}-autonomy-demonstration-{T0|T+24h|T+5d|T+4w}/`.
+Snapshot folder naming: `docs/evaluations/{YYYY-MM-DD-HHMMSS}-{persona-slug}-autonomy-demonstration-{T0|T+24h|T+5d|T+4w}/`.
 
 ## How to interpret findings against canon
 
@@ -157,7 +157,7 @@ Snapshot folder naming: `docs/observations/{YYYY-MM-DD-HHMMSS}-{persona-slug}-au
 
 **Did the Reviewer attempt operator-canon edits?**
 - At low trade volume: very unlikely. ADR-295 D1 alpha-trader thresholds = 40 reconciled trades for calibration-drift, 10 distinct wakes / 5 days for near-miss-accumulation
-- If YES at high volume: apply the Edit Checklist (`docs/observations/README.md` §"Evaluation Checklist"). Pay special attention to ADR-295 D3 anti-pattern (3) "don't loosen risk under recent drawdown" — capital-lane is where this anti-pattern bites most.
+- If YES at high volume: apply the Edit Checklist (`docs/evaluations/README.md` §"Evaluation Checklist"). Pay special attention to ADR-295 D3 anti-pattern (3) "don't loosen risk under recent drawdown" — capital-lane is where this anti-pattern bites most.
 
 **Were there system errors?**
 - risk_gate substrate-pathing issues (already fixed in commit `601d78f`)
@@ -166,8 +166,8 @@ Snapshot folder naming: `docs/observations/{YYYY-MM-DD-HHMMSS}-{persona-slug}-au
 
 ## Cross-references to active discipline
 
-- **Edit Checklist (Reviewer self-amendment evaluation)**: `docs/observations/README.md` §"Evaluation Checklist"
-- **Decline Checklist (principled refusal evaluation)**: `docs/observations/README.md` §"Decline Checklist"
+- **Edit Checklist (Reviewer self-amendment evaluation)**: `docs/evaluations/README.md` §"Evaluation Checklist"
+- **Decline Checklist (principled refusal evaluation)**: `docs/evaluations/README.md` §"Decline Checklist"
 - **ADR-295 D1 thresholds (per-program numeric)**: alpha-trader = 40 reconciled trades, 10 distinct wakes / 5 days persistence
 - **ADR-295 D3 anti-pattern ledger**: six anti-patterns. In capital-lane especially watch (1) safety-floor disabling, (3) loosening risk under drawdown, (4) widening ceilings for stale-data proposals.
 - **ADR-293 D4 uniform AUTONOMY gate**: `should_auto_apply(action_class="capital", ...)` is the single decision surface
@@ -187,7 +187,7 @@ Don't blur 2 and 4. The discipline is what makes the boundary real.
 
 ## Capital-lane-specific risks to watch
 
-- **Stale `_money_truth.md` narrative vs live `_account.yaml`**: Reviewer must size against live mirror, not historical narrative. Warm-start v3 (`docs/observations/2026-05-20-013632-warm-start-auto-execute/`) surfaced this as risk-gate violation #4 — the warm-start v3 capture stays active as the load-bearing capital-loop validation; if repeated, the fix is in the Reviewer's reasoning (prompt-level) not in `_risk.md` (anti-pattern #4).
+- **Stale `_money_truth.md` narrative vs live `_account.yaml`**: Reviewer must size against live mirror, not historical narrative. Warm-start v3 (`docs/evaluations/2026-05-20-013632-warm-start-auto-execute/`) surfaced this as risk-gate violation #4 — the warm-start v3 capture stays active as the load-bearing capital-loop validation; if repeated, the fix is in the Reviewer's reasoning (prompt-level) not in `_risk.md` (anti-pattern #4).
 - **Off-hours wake firing capital path**: `trading_hours_only: true` in `_risk.md` is the safety floor. If a proposal comes in off-hours, risk-gate correctly refuses. Don't disable. Wait for RTH.
 - **Round-budget defer on cold-start workspaces**: the 3-round Sonnet budget on proposal-trigger wakes is tight. The 2026-05-20 prompt fix (commit `9ddfb05`) reordered standing_intent.md write after ReturnVerdict. Verify this still holds in any new demo window.
 - **risk_gate cascade rejection**: when Alpaca submission is refused, the rejection_reason in `execution_result.message` is the load-bearing signal. Read it carefully; don't blame Reviewer for envelope-correct refusals.

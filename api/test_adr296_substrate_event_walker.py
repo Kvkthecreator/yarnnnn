@@ -317,7 +317,7 @@ async def run_walk_hooks_integration() -> None:
         # by inserting an execution_events row with wake_dedup_key set to
         # the transition revision_id. Then walk again — walker should skip.
         # This is the regression gate for the wake-duplication audit
-        # (docs/observations/2026-05-21-005856-wake-duplication-audit/).
+        # (docs/evaluations/2026-05-21-005856-wake-duplication-audit/).
         transition_revision_id = payload.get("revision_id")
         if not transition_revision_id:
             _fail(

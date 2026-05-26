@@ -381,7 +381,7 @@ async def run_unified_scheduler():
     # _recent_execution.md under /workspace/memory/) that the Reviewer
     # reads at every wake. Both mirrors are diff-aware — most ticks write
     # nothing across most workspaces. Closes the schedule-hallucination
-    # class documented in docs/observations/2026-05-24-045348-reviewer-
+    # class documented in docs/evaluations/2026-05-24-045348-reviewer-
     # schedule-self-misdiagnosis/findings.md.
     # -------------------------------------------------------------------------
     try:

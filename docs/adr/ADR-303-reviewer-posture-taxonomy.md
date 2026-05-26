@@ -10,9 +10,9 @@
 
 ## 1. Problem statement
 
-The Reviewer persona-frame asserts: *"Reactive recurrence fires + addressed turns + heartbeats: every cycle produces a standing_intent.md write."* (`_PERSONA_FRAME` §395). Population audit at `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md` measured ~48% adherence (N=27 judgment-shape wakes, range 33%–67% by slug class). The audit treated <100% as a discipline gap. Operator review identified that the criterion itself is under-specified: several legitimate Reviewer postures could rationally exit without writing standing_intent.md, in which case ~48% is the model correctly distinguishing material from immaterial wakes against an over-broad criterion.
+The Reviewer persona-frame asserts: *"Reactive recurrence fires + addressed turns + heartbeats: every cycle produces a standing_intent.md write."* (`_PERSONA_FRAME` §395). Population audit at `docs/evaluations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md` measured ~48% adherence (N=27 judgment-shape wakes, range 33%–67% by slug class). The audit treated <100% as a discipline gap. Operator review identified that the criterion itself is under-specified: several legitimate Reviewer postures could rationally exit without writing standing_intent.md, in which case ~48% is the model correctly distinguishing material from immaterial wakes against an over-broad criterion.
 
-Render Scheduler trace verification at `docs/observations/2026-05-26-145500-silent-wake-hypothesis-verification/findings.md` confirmed the silent-exit failure mode at code-log level (`WARNING:agents.reviewer_agent:[REVIEWER] text-only response round N`). Structural deepening at `docs/observations/2026-05-26-152500-failed-action-substrate-blindspot/findings.md` surfaced **two distinct substrate-surfacing blindspots**:
+Render Scheduler trace verification at `docs/evaluations/2026-05-26-145500-silent-wake-hypothesis-verification/findings.md` confirmed the silent-exit failure mode at code-log level (`WARNING:agents.reviewer_agent:[REVIEWER] text-only response round N`). Structural deepening at `docs/evaluations/2026-05-26-152500-failed-action-substrate-blindspot/findings.md` surfaced **two distinct substrate-surfacing blindspots**:
 
 1. Failed Reviewer actions are filtered out of narrative substrate at `services/reviewer_chat_surfacing.py::surface_reviewer_actions:408` (`if not action.get("success", True): continue`). Every failed WriteFile, ProposeAction, SyncPlatformState is invisible to operator surfaces — even though the Reviewer DID try, DID spend tokens, DID encounter substrate constraints worth knowing about.
 2. The Reviewer's final prose at silent-exit is captured in memory inside `invoke_reviewer` as `verdict_raw.reasoning` but never reaches canonical substrate (only `ReturnVerdict`-sourced verdicts land in `judgment_log.md`). Prose exists transiently in Render logs (capped retention) and nowhere persistent.
@@ -164,9 +164,9 @@ The same principle applies to D3 failed-action narratives: they're authored by `
 ## 7. Cross-references
 
 - Predecessor finding chain:
-  - `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md` (the 48% adherence measurement)
-  - `docs/observations/2026-05-26-145500-silent-wake-hypothesis-verification/findings.md` (text-only-fallback confirmed)
-  - `docs/observations/2026-05-26-152500-failed-action-substrate-blindspot/findings.md` (two structural blindspots named)
+  - `docs/evaluations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md` (the 48% adherence measurement)
+  - `docs/evaluations/2026-05-26-145500-silent-wake-hypothesis-verification/findings.md` (text-only-fallback confirmed)
+  - `docs/evaluations/2026-05-26-152500-failed-action-substrate-blindspot/findings.md` (two structural blindspots named)
 - Source-grounded refinement basis: `docs/analysis/src_claudeCC/query.ts:140` (Claude Code's `is_error: true` always-surface pattern) + `docs/analysis/src_claudeCC/query.ts:674` (`toolChoice: undefined` validating no-in-loop-intervention stance) — first-principles compatibility documented in `docs/analysis/claude-code-prompt-discipline-comparison-2026-05-26.md`
 - Sibling ADR: ADR-302 (prompt-envelope discipline) — drafted same session
 - Reverted hotfix: commit `9e7c1c7` + CHANGELOG `[2026.05.26.2]` (revert rationale)

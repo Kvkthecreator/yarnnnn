@@ -111,7 +111,7 @@ MEMORY_NOTES_PATH = "memory/notes.md"
 # ticks are no-ops). The Reviewer reads them at every wake to reason
 # correctly about its own cadence and recent execution lineage, closing the
 # schedule-hallucination class documented in
-# docs/observations/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/.
+# docs/evaluations/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/.
 # Kernel-maintenance writes per ADR-209 attribution (`system:mirror-*`); the
 # Reviewer reads them; the Reviewer does not write them.
 MEMORY_SCHEDULE_INDEX_PATH = "memory/_schedule_index.md"

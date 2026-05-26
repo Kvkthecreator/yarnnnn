@@ -207,7 +207,7 @@ The Claude Code source snapshot is from March 2026; patterns may have evolved up
 ## Cross-references
 
 - Source snapshot: `docs/analysis/src_claudeCC/`
-- Driving findings: `docs/observations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`, `docs/observations/2026-05-26-152500-failed-action-substrate-blindspot/findings.md`
+- Driving findings: `docs/evaluations/2026-05-25-053951-reviewer-behavior-population-audit/findings.md`, `docs/evaluations/2026-05-26-152500-failed-action-substrate-blindspot/findings.md`
 - ADRs ratifying refinements: `docs/adr/ADR-302-prompt-envelope-discipline.md` (D5 + D6 refinements added per this comparison), `docs/adr/ADR-303-reviewer-posture-taxonomy.md` (D3 invert per this comparison)
 - Future ADR candidate (not yet drafted): substrate-staleness signaling — provisional ADR-304+
 

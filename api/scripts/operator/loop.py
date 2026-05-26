@@ -12,7 +12,7 @@ Commands inside the REPL:
     > /reject <id> <reason>        — reject a proposal
     > /read <path>                 — read a workspace file
     > /recurrences                 — list recurrences
-    > /capture                     — snapshot current session into docs/observations/
+    > /capture                     — snapshot current session into docs/evaluations/
     > /quit                        — exit
 """
 
@@ -39,10 +39,10 @@ load_dotenv(_API_ROOT / ".env.alpha-ops")
 load_dotenv(REPO_ROOT / ".env")
 
 
-def _observation_folder(scenario_name: str) -> Path:
+def _evaluation_folder(scenario_name: str) -> Path:
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
     slug = scenario_name.replace(" ", "-").lower()
-    return REPO_ROOT / "docs" / "observations" / f"{now}-{slug}"
+    return REPO_ROOT / "docs" / "evaluations" / f"{now}-{slug}"
 
 
 HELP_TEXT = """
@@ -54,7 +54,7 @@ Commands:
   /reject <id> <reason>   reject a proposal
   /read <path>            read a workspace file
   /recurrences            list recurrences (scheduling index)
-  /capture                snapshot session into docs/observations/<date>-<slug>/
+  /capture                snapshot session into docs/evaluations/<date>-<slug>/
   /help                   show this help
   /quit                   exit
 """
@@ -156,7 +156,7 @@ async def run_repl(persona_slug: str, caller: str) -> None:
 
             if raw == "/capture":
                 if capture_session is None:
-                    folder = _observation_folder(f"repl-{persona_slug}")
+                    folder = _evaluation_folder(f"repl-{persona_slug}")
                     capture_session = await CaptureSession.start(
                         proxy.config.user_id,
                         folder,

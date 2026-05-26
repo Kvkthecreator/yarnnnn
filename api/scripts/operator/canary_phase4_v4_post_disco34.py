@@ -59,7 +59,7 @@ validation. Tests the cumulative correction chain (Discovery notes
 1-4). Intentional voice-quality issues present so the Reviewer has
 material to surface via operator_notifications email opt-in.
 
-See docs/observations/2026-05-25-042346-adr299-always-surface-resolution/
+See docs/evaluations/2026-05-25-042346-adr299-always-surface-resolution/
 findings.md for the discovery arc this canary closes.
 """
 

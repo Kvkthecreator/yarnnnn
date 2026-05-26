@@ -11,7 +11,7 @@ Singular Implementation discipline:
 - No direct service imports for action paths. The proxy is a *client*
   of the YARNNN API, not a backend bypass.
 - Exception: substrate reads (read_file, list_files) may use the direct
-  service-key client for efficiency on observation capture; writes
+  service-key client for efficiency on evaluation capture; writes
   always go through the typed API.
 """
 
