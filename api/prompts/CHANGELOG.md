@@ -6,6 +6,105 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.26.4] - reviewer(silent-exit): dispatcher-attributed substrate fallback for P4/P5 posture cells (ADR-303 Phase 3)
+
+### Decision
+
+Phase 3 of ADR-303 lands the dispatcher-write contract for P4 (budget-
+exhausted) and P5 (text-only-mid-loop) posture cells per ADR-303 D1 + D2.
+
+Pre-this commit, the two fallback paths in `invoke_reviewer` constructed
+`stand_down` verdicts in code but wrote NO operator-readable substrate.
+The model's last prose lived in memory only; substrate was silent. This
+was the root visibility gap behind the operator's "true autonomy not
+realized" experience — ~41% of judgment-shape wakes were structurally
+invisible by design.
+
+This commit synthesizes the per-cell substrate side-effect contract
+specified by ADR-303 D2: `standing_intent.md` revision with exit_class
+metadata (text_only_mid_loop / budget_exhausted), exit_round, max_rounds,
+trigger, slug, and the model's last-prose snippet (truncated to 600
+chars).
+
+**Critical attribution discipline (ADR-303 D6):** dispatcher writes
+attributed `dispatcher:silent_exit_fallback`, NOT `reviewer:...`. This
+is the distinction the reverted hotfix 9e7c1c7 conflated. The
+dispatcher synthesizes the substrate on the Reviewer's behalf when
+the model exited without authoring it — but the attribution layer
+must preserve "who actually authored" so future evaluations can tell
+model-authored intent from dispatcher-slot-filled fallback.
+
+### Changes
+
+- **api/services/authored_substrate.py** — added `dispatcher:` to
+  `VALID_AUTHOR_PREFIXES`. Comment documents the ADR-303 D2/D6 rationale.
+- **api/agents/reviewer_agent.py** — added `Optional` to typing import.
+  New helper `_dispatcher_write_silent_exit_standing_intent` (~90 LOC)
+  inserted above `_summarize_result`. Both existing fallback sites
+  (text-only mid-loop at the `if not tool_uses:` branch + budget-
+  exhausted at the `if verdict_raw is None:` branch) now invoke the
+  helper before constructing `verdict_raw`.
+
+The helper is async-shaped (call sites await it) but uses sync
+`write_revision`; future asyncification of write_revision needs no
+caller changes.
+
+Failures during the dispatcher write are logged but never raised —
+the parent fallback still produces a verdict so the wake completes
+cleanly at the queue.
+
+### Expected behavior change
+
+- Silent-exit wakes (P4 + P5 per ADR-303 D1, ~41% of judgment-shape
+  population per the predecessor population audit) will now produce
+  dispatcher-attributed substrate carrying diagnostic metadata + last-
+  prose snippet. Operator surfaces will see these as ordinary substrate
+  updates with `dispatcher:` authored_by (distinct visual treatment vs
+  `reviewer:...`).
+- Operator-visibility ratio (per docs/evaluations/2026-05-26-163000-
+  posture-criterion-declaration §3) predicted to rise from baseline
+  55.5% toward 95%+ target. Verification: post-deploy population audit
+  re-run per that evaluation's §4.
+- Per-cell partition becomes substrate-visible: post-deploy, the
+  combined silent class (44.4% pre-fix) can be disambiguated into P4
+  (budget_exhausted) vs P5 (text_only_mid_loop) via exit_class metadata
+  in standing_intent.md revisions.
+- No behavioral pressure on in-loop model decisions. The model is not
+  forced to choose any verdict, not forced to call any tool. The fix
+  only converts silent exits into visible exits via dispatcher
+  synthesis.
+- Cost: ~10ms DB write per silent-exit wake; zero additional LLM
+  tokens. Cost-neutral vs the silent-exit baseline.
+
+### Verification
+
+- Contract test: `api/test_adr303_phase3_dispatcher_writes.py` — 8/8 PASS.
+  Covers: (T1) `dispatcher:` prefix valid in taxonomy; (T2) prefix
+  distinct from `reviewer:` (the load-bearing distinction); helper uses
+  `dispatcher:silent_exit_fallback` attribution for both
+  text_only_mid_loop AND budget_exhausted; substrate body carries
+  exit_class + posture_cell metadata; revision message distinguishes
+  exit_classes; long prose truncated to 600 chars + ellipsis; helper
+  never raises on write_revision failure.
+- No-regression: Phase 1 contract test (10 tests) + Phase 3 (8 tests) =
+  18/18 PASS together.
+- AST syntax check PASS.
+
+### Related
+
+- ADR-303 §2 D1 (posture cells), D2 (per-cell substrate contract), D6
+  (dispatcher attribution discipline)
+- Predecessor: reverted hotfix 9e7c1c7 (CHANGELOG [2026.05.26.2]) is the
+  attribution-conflation this commit explicitly preserves the distinction
+  against.
+- Driving evidence:
+  - docs/evaluations/2026-05-26-152500-failed-action-substrate-blindspot/
+  - docs/evaluations/2026-05-26-163000-posture-criterion-declaration/
+- Phase 1 + Phase 2 (ADR-302 prompt discipline) shipped in commits
+  a5066ac + 5c36421.
+
+---
+
 ## [2026.05.26.3] - reviewer(persona-frame): migrate to typed section registry + delete Gen 1 contradiction + fix Gen 3 misstatement + template lock-set from code constant (ADR-302 Phase 2)
 
 ### Decision

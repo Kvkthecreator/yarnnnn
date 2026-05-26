@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, Optional, TypedDict
 
 from services.anthropic import chat_completion_with_tools
 # ADR-291: token_usage substrate sunset — cost ledger writes flow through
@@ -1598,12 +1598,28 @@ async def invoke_reviewer(
                 messages.append({"role": "assistant", "content": assistant_content})
 
             if not tool_uses:
-                # Text-only response — fallback to stand_down with the text as reasoning
+                # P5 (text-only-mid-loop) per ADR-303 D1. The model emitted
+                # prose without wrapping in a tool call mid-budget. The
+                # dispatcher synthesizes the substrate side-effect contract
+                # for this cell per ADR-303 D2 — `standing_intent.md` write
+                # attributed `dispatcher:silent_exit_fallback` (distinct from
+                # `reviewer:...` so model-authored vs dispatcher-slot-filled
+                # substrate remains distinguishable per ADR-303 D6).
                 text_fallback = (response.text or "").strip()
                 if text_fallback:
                     logger.warning(
                         "[REVIEWER] text-only response round %d trigger=%s user=%s",
                         _round, trigger, user_id[:8],
+                    )
+                    await _dispatcher_write_silent_exit_standing_intent(
+                        client=client,
+                        user_id=user_id,
+                        exit_class="text_only_mid_loop",
+                        exit_round=rounds_used,
+                        max_rounds=max_rounds,
+                        trigger=trigger,
+                        slug=context.get("recurrence_slug") if isinstance(context, dict) else None,
+                        prose=text_fallback,
                     )
                     verdict_raw = {
                         "verdict": "stand_down",
@@ -1756,7 +1772,12 @@ async def invoke_reviewer(
         # `execution_events` row is now the sole authoritative record.
 
         if verdict_raw is None:
-            # Loop exhausted without ReturnVerdict — construct fallback from last text
+            # P4 (budget-exhausted) per ADR-303 D1. The model worked through
+            # the full round budget without calling ReturnVerdict. The
+            # dispatcher synthesizes the substrate side-effect contract for
+            # this cell per ADR-303 D2 — `standing_intent.md` write attributed
+            # `dispatcher:silent_exit_fallback` (distinct from `reviewer:...`
+            # per ADR-303 D6).
             last_text = ""
             for m in reversed(messages):
                 if m.get("role") != "assistant":
@@ -1772,12 +1793,23 @@ async def invoke_reviewer(
                 "[REVIEWER] no ReturnVerdict after %d rounds trigger=%s user=%s",
                 max_rounds, trigger, user_id[:8],
             )
+            fallback_reasoning = last_text or (
+                "I was unable to reach a verdict within my round budget. "
+                "Substrate may need refresh — fire track-universe or signal-evaluation."
+            )
+            await _dispatcher_write_silent_exit_standing_intent(
+                client=client,
+                user_id=user_id,
+                exit_class="budget_exhausted",
+                exit_round=rounds_used,
+                max_rounds=max_rounds,
+                trigger=trigger,
+                slug=context.get("recurrence_slug") if isinstance(context, dict) else None,
+                prose=fallback_reasoning,
+            )
             verdict_raw = {
                 "verdict": "stand_down",
-                "reasoning": last_text or (
-                    "I was unable to reach a verdict within my round budget. "
-                    "Substrate may need refresh — fire track-universe or signal-evaluation."
-                ),
+                "reasoning": fallback_reasoning,
                 "confidence": "low",
             }
 
@@ -1845,6 +1877,103 @@ async def invoke_reviewer(
             trigger, user_id[:8] if user_id else "?", exc,
         )
         return None
+
+
+async def _dispatcher_write_silent_exit_standing_intent(
+    *,
+    client: Any,
+    user_id: str,
+    exit_class: str,
+    exit_round: int,
+    max_rounds: int,
+    trigger: str,
+    slug: Optional[str],
+    prose: str,
+) -> None:
+    """ADR-303 D2 + D6 — dispatcher-attributed substrate fallback for the
+    P4 (budget-exhausted) and P5 (text-only-mid-loop) posture cells.
+
+    Per ADR-303 D1, the Reviewer's possible cycle-exit shapes are exhaustively
+    enumerated as five cells. P1 (fired-correctly) and P2 (decided-nothing-
+    material) produce substrate via model-authored ReturnVerdict + WriteFile.
+    P4 + P5 exit without authoring any operator-readable substrate. Pre-
+    this commit, those exits left the operator with no visibility into
+    what the Reviewer was thinking — even though the model's last prose
+    was captured in memory.
+
+    This helper writes a structured `standing_intent.md` revision carrying:
+    - exit_class (`budget_exhausted` for P4, `text_only_mid_loop` for P5)
+    - exit_round + max_rounds (where in the budget the exit occurred)
+    - trigger + slug (which wake produced the silent exit)
+    - the last prose snippet (truncated to 600 chars, preserved verbatim)
+
+    Attribution is `dispatcher:silent_exit_fallback` per ADR-303 D6 — explicitly
+    distinct from `reviewer:{model}` so the operator and future evaluations
+    can tell model-authored intent from dispatcher-slot-filled fallback.
+
+    This is the load-bearing distinction that the reverted hotfix 9e7c1c7
+    failed to make. That hotfix attributed silent-exit substrate as
+    `reviewer:...`, contaminating the model-authorship signal. This helper
+    preserves the distinction at the attribution layer.
+
+    Failures during the dispatcher write are logged but never raised — the
+    parent fallback must still produce a verdict so the wake completes
+    cleanly at the queue.
+    """
+    from datetime import datetime, timezone
+    from services.authored_substrate import write_revision
+
+    timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    snippet = (prose or "").strip()
+    if len(snippet) > 600:
+        snippet = snippet[:600] + "…"
+    slug_line = f"trigger={trigger} slug={slug or '<n/a>'}"
+    posture_cell = "P4 (budget-exhausted)" if exit_class == "budget_exhausted" else "P5 (text-only-mid-loop)"
+    body = (
+        f"---\n"
+        f"as_of: {timestamp}\n"
+        f"horizon: short — until next wake\n"
+        f"silent_exit: {exit_class}\n"
+        f"posture_cell: {posture_cell}\n"
+        f"exit_round: {exit_round}\n"
+        f"max_rounds: {max_rounds}\n"
+        f"---\n\n"
+        f"# Standing intent — silent-exit fallback ({posture_cell})\n\n"
+        f"## Context\n"
+        f"- {slug_line}\n"
+        f"- This cycle exited via the silent-exit fallback path at "
+        f"round {exit_round}/{max_rounds}.\n"
+        f"- The Reviewer did not call `ReturnVerdict`; the dispatcher "
+        f"synthesized a `stand_down` verdict using the last-prose snippet "
+        f"below. This revision is dispatcher-authored, NOT reviewer-"
+        f"authored — distinguish via `authored_by` when reading.\n\n"
+        f"## Last-prose snippet (preserved verbatim, truncated to 600 chars)\n\n"
+        f"```\n{snippet or '<no text returned>'}\n```\n\n"
+        f"## What I'm watching for\n"
+        f"- Next wake on this slug should re-evaluate. If silent-exit "
+        f"recurs on the same slug + trigger pattern, the persona-frame "
+        f"or capability surface for this recurrence shape may need "
+        f"sharpening, or the substrate the Reviewer was reading may "
+        f"need refresh.\n"
+    )
+
+    try:
+        # write_revision is sync — first positional arg is db_client.
+        # See api/services/authored_substrate.py:264.
+        write_revision(
+            client,
+            user_id=user_id,
+            path="/workspace/review/standing_intent.md",
+            content=body,
+            authored_by="dispatcher:silent_exit_fallback",
+            message=f"silent-exit fallback ({exit_class} @ round {exit_round}/{max_rounds})",
+        )
+    except Exception as exc:
+        logger.warning(
+            "[REVIEWER] dispatcher silent-exit standing_intent write failed "
+            "user=%s exit_class=%s: %s",
+            (user_id or "?")[:8], exit_class, exc,
+        )
 
 
 def _summarize_result(result: Any) -> str:

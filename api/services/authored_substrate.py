@@ -85,6 +85,15 @@ VALID_AUTHOR_PREFIXES = (
     "specialist:",
     "reviewer:",
     "system:",
+    # ADR-303 D2/D6 (2026-05-26): dispatcher-synthesized substrate writes
+    # that fill posture-cell side-effect contracts on the Reviewer's
+    # behalf when the model exits without producing the substrate itself
+    # (P3 tried-was-gated narrative entries, P4 budget-exhausted
+    # standing_intent, P5 text-only-mid-loop standing_intent). Distinct
+    # from `reviewer:` so future evaluations can tell model-authored
+    # substrate from dispatcher-slot-filled substrate at the attribution
+    # layer — the distinction the reverted hotfix 9e7c1c7 conflated.
+    "dispatcher:",
 )
 
 
