@@ -423,20 +423,21 @@ REVIEWER_PRIMITIVES = [
     # researcher / analyst / writer / tracker / designer / reporting roles
     # for production work the Reviewer's context shouldn't carry.
     DISPATCH_SPECIALIST_TOOL,
-    # ADR-299 Discovery note 4 REVERTED (2026-05-25, Path A):
-    # EMAIL_SEND_TO_OPERATOR_TOOL was added here per Discovery 4 to give the
-    # Reviewer kernel-universal access to the operator-addressing channel.
-    # Canary v4 fired post-Discovery-3+4 with intentional voice issues and
-    # the Reviewer chose `stand_down` (silently — no judgment_log, no
-    # standing_intent, no email). This Path A revert isolates the tool-
-    # perturbation variable: re-fire substrate-event hook with the same
-    # piece shape but the smaller (21-tool) surface to test whether tool
-    # addition shifted Reviewer judgment toward stand_down. Discovery 3's
-    # always-surface pass in get_platform_tools_for_capabilities remains in
-    # place — kernel-universal capabilities still flow through the agent
-    # path for non-Reviewer callers. See observation at
-    # docs/evaluations/2026-05-25-042346-adr299-always-surface-resolution/
-    # RESOLUTION.md §"Path A revert".
+    # ADR-299 (rewrite 2026-05-27): EMAIL_SEND_TO_OPERATOR_TOOL is
+    # deliberately NOT in REVIEWER_PRIMITIVES. Under the rewrite,
+    # `platform_email_send_to_operator` is operator-addressing system
+    # infrastructure (the system Resend wire, exposed as an LLM-invokable
+    # tool via SYSTEM_INFRASTRUCTURE_TOOLS in platform_tools.py). The
+    # agent path surfaces it unconditionally via the
+    # get_platform_tools_for_capabilities merge; the Reviewer path gates
+    # it through REVIEWER_PRIMITIVES (this list). The question of whether
+    # the Reviewer should invoke system infrastructure that speaks *as the
+    # system* to the operator-identity is open pending the v5 canary
+    # outcome — see ADR-299 §"Reviewer authority — open question."
+    # Tool absence here is the Path A revert (2026-05-25, Canary v4
+    # produced `stand_down` instead of expected `defer`/`reject` —
+    # hypothesis A: tool perturbation). If v5 confirms hypothesis A,
+    # re-introduction protocol is documented in ADR-299 D8.
     # Substrate refresh (ADR-264) — rare mid-loop case where the Reviewer
     # needs to refresh external state into substrate before judging.
     # Primary use is dispatched by mechanical-mode recurrences; LLM-callable

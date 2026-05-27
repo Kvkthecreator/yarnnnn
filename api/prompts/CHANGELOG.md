@@ -6,6 +6,135 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.27.1] - tool+persona-frame(reviewer): ADR-299 wholesale rewrite — operator-addressing system infrastructure
+
+### Decision
+
+ADR-299 rewritten in full (2026-05-27). The previous "kernel-universal
+capability" framing collapsed two distinct architectural categories
+(workspace capabilities vs. system infrastructure) into one. The
+rewrite separates them: `send_operator_email` is now correctly classed
+as operator-addressing system infrastructure (the system Resend wire —
+the same wire ADR-040 notifications + ADR-202 daily-update emails
+already use), exposed as an LLM-invokable tool via the new
+`SYSTEM_INFRASTRUCTURE_TOOLS` registry in `services/platform_tools.py`,
+NOT registered in workspace `CAPABILITIES`.
+
+The pattern (system Resend wire for operator-addressing observability)
+has existed implicitly since ADR-040 + ADR-202; ADR-299 names it
+explicitly and adds the first LLM-invokable surface to it. The four
+Discovery notes from the prior shape (class name, wire choice,
+resolution path, Reviewer surface) all addressed the wrong layer —
+each correctly identified a misalignment but treated the intent as
+fixed and the implementation as needing patching. The intent itself
+was the bug.
+
+### Changed
+
+- **api/services/orchestration.py**: deleted `send_operator_email`
+  entry from `CAPABILITIES` dict. The `runtime: "kernel"` sentinel
+  value disappears from the codebase; `runtime` values reduce to
+  actual workspace-work dispatch targets (internal | python_render |
+  external:slack | external:notion | external:github).
+- **api/services/platform_tools.py**:
+  - Added `SYSTEM_INFRASTRUCTURE_TOOLS = [EMAIL_SEND_TO_OPERATOR_TOOL]`
+    constant with discipline-rule documentation block.
+  - Deleted `"send_operator_email": ["platform_email_send_to_operator"]`
+    from `PLATFORM_TOOLS_BY_CAPABILITY`.
+  - `CAPABILITY_PROVIDER_MAP` comment updated; `send_operator_email`
+    was already absent from this map.
+  - Rewrote `get_platform_tools_for_capabilities`: deleted the loop-
+    over-`CAPABILITIES` always-surface filter pass; replaced with
+    explicit `SYSTEM_INFRASTRUCTURE_TOOLS` merge before workspace-
+    capability resolution. Lazy import of `KERNEL_CAPABILITIES`
+    deleted (no longer needed).
+  - `get_platform_tools_for_user` also merges `SYSTEM_INFRASTRUCTURE_TOOLS`
+    unconditionally — system infrastructure surfaces to every LLM-
+    invokable agent path by definition.
+  - Tool comment block above `EMAIL_SEND_TO_OPERATOR_TOOL` rewritten
+    under the new framing.
+- **api/services/primitives/registry.py**: Reviewer-side comment about
+  Path A revert rewritten under the new framing. `EMAIL_SEND_TO_OPERATOR_TOOL`
+  remains absent from `REVIEWER_PRIMITIVES` (Path A preserved). Reviewer
+  authority question stays open pending v5 canary — see ADR-299
+  §"Reviewer authority — open question."
+- **api/agents/reviewer_agent.py**: `_PERSONA_FRAME_SECTIONS` operator-
+  notifications subsection rewritten:
+  - Frames the channel as operator-addressing system infrastructure
+    (not workspace capability).
+  - Cites ADR-040 + ADR-202 as the precedent so the Reviewer perceives
+    this as established infrastructure, not a novel surface.
+  - Acknowledges Path A revert explicitly: the Reviewer reads the
+    persona-frame and understands `platform_email_send_to_operator`
+    is currently outside its surface, so it does NOT plan to fire a
+    tool it doesn't have. The agent path handles delivery.
+- **docs/programs/alpha-author/.../\_preferences.yaml** and
+  **docs/programs/alpha-trader/.../\_preferences.yaml**:
+  `operator_notifications:` comment blocks rewritten. Fixes the
+  stale "Wire-gate still applies: requires an active Resend
+  connection per ADR-192 Phase 4" claim, which contradicted the
+  live code (the wire is the system Resend wire, no
+  `platform_connections` required). YAML shape under the comments
+  unchanged.
+- **api/test_adr299_kernel_universal_capability.py**: filename preserved
+  as stable URL (six Hat-B evaluation findings reference this path). All
+  11 tests rewritten under the new framing:
+  - `test_send_operator_email_not_in_capabilities_dict` (inverted from
+    pre-rewrite assertion)
+  - `test_runtime_kernel_sentinel_deleted_from_capabilities` (new)
+  - `test_system_infrastructure_tools_contains_email_send_to_operator` (new)
+  - `test_email_send_to_operator_tool_schema_constrained`
+  - `test_handler_refuses_llm_supplied_addressee_fields`
+  - `test_send_operator_email_not_in_capability_resolution_maps`
+  - `test_resolution_uses_system_infrastructure_tools_merge` (renamed)
+  - `test_user_tools_surfacing_includes_system_infrastructure` (new)
+  - `test_reviewer_primitives_excludes_send_operator_email_path_a_revert` (preserved)
+  - `test_bundle_capability_resolution_not_regressed`
+  - `test_kernel_capabilities_module_stays_deleted`
+  - 11/11 PASS.
+- **api/test_reviewer_formalization.py**: persona-frame test renamed
+  `test_persona_frame_operator_addressing_system_infrastructure_prose`;
+  assertions updated for the new framing (system infrastructure
+  language + ADR-040/202 precedent + Path A acknowledgment).
+- **docs/adr/ADR-299-kernel-universal-operator-addressing-capability.md**:
+  full rewrite. Filename preserved as stable URL. H1 title is the
+  canonical name: "Operator-Addressing System Infrastructure —
+  `send_operator_email`". The four Discovery notes' content folds
+  into an "Implementation history (superseded)" appendix. The H1
+  title's word "Capability" is now historical artifact of the
+  filename URL; the rewrite explicitly removes the capability
+  classification.
+
+### Expected behavior
+
+- Agent path (non-Reviewer LLM tool-use loops via
+  `get_platform_tools_for_capabilities` or `get_platform_tools_for_user`)
+  gets `platform_email_send_to_operator` unconditionally in its tool
+  list — no `_preferences.yaml` check at the merge layer (that's the
+  LLM's judgment per persona-frame discipline), no `platform_connections`
+  gate (the wire is kernel-deployed).
+- Reviewer path remains unable to invoke `platform_email_send_to_operator`
+  directly (Path A revert preserved). The persona-frame teaches the
+  Reviewer why and what to do instead.
+- AUTONOMY gating behavior unchanged for capital actions
+  (`should_auto_apply` still applies).
+- Bundle authors cannot redeclare `send_operator_email` — the
+  capability key no longer exists; bundle MANIFEST validation rejects
+  unknown capability keys.
+- No env-var changes; no Render parity concerns. `RESEND_API_KEY` and
+  `RESEND_FROM_EMAIL` already deployed for ADR-040 + ADR-202.
+
+### Open question (preserved from prior ADR)
+
+Whether the Reviewer should have direct access to system infrastructure
+that speaks *as the system* to the operator-identity is a Reviewer-
+authority question separable from this taxonomy rewrite. Path A v5
+canary remains pending. If v5 confirms hypothesis A (tool perturbation
+shifted attention budget toward `stand_down`), re-introduction
+protocol is documented in ADR-299 D8.
+
+---
+
 ## [2026.05.26.6] - reviewer(persona-frame): rewrite standing_intent section in posture-cell language (ADR-303 Phase 5 — closes the arc)
 
 ### Decision

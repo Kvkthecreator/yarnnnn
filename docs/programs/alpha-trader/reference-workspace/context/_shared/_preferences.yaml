@@ -49,23 +49,29 @@ deliverable_preferences:
 
 
 # =============================================================================
-# operator_notifications — operator-addressing email opt-ins (ADR-299)
+# operator_notifications — operator-addressing observability opt-ins (ADR-299)
 # =============================================================================
 #
-# Operator-addressing capabilities (per ADR-299 D1, operator-addressing class)
-# differ from deliverable_preferences above in three ways:
-#   - Addressee is the operator's own inbox (auth.users.email), not third-
-#     party / audience. Tool `platform_email_send_to_operator` enforces this
-#     structurally — addressee resolves at send-time, no `to:` field accepted.
-#   - Routing is observability (per ADR-299 D4), NOT consequential action.
-#     `_preferences.yaml` opt-in IS the standing operator authorization;
-#     AUTONOMY `delegation: manual` does NOT block these (operator already
-#     approved by declaring the preference). Distinct from capital-action
-#     gating which still flows through should_auto_apply.
-#   - Wire-gate still applies: requires an active Resend connection per
-#     ADR-192 Phase 4. When Resend isn't connected, the
-#     `platform_email_send_to_operator` tool degrades silently from the
-#     Reviewer's surface — no leak of non-functional tool into prompts.
+# Per ADR-299 (rewrite 2026-05-27), `platform_email_send_to_operator` is
+# operator-addressing system infrastructure — the system Resend wire
+# (api/jobs/email.py, RESEND_API_KEY env var), the same wire ADR-040
+# notifications + ADR-202 daily-update emails already use, exposed as an
+# LLM-invokable tool. It is NOT a workspace capability and does NOT
+# require operator Resend OAuth setup. The infrastructure is environment-
+# deployed; the tool is always available to the agent path.
+#
+# Differs from deliverable_preferences above in three ways:
+#   - Addressee is the operator's own inbox (auth.users.email at send-time),
+#     not third-party / audience. The tool enforces this structurally —
+#     no `to`, `cc`, `bcc`, `from_email`, `from_name` fields accepted.
+#   - Authorization is observability (ADR-299 D5), NOT consequential
+#     action. The opt-in below IS the standing approval; AUTONOMY
+#     `delegation: manual` does NOT block these. AUTONOMY scoping is for
+#     third-party-affecting writes only (capital actions for alpha-trader
+#     still flow through should_auto_apply) — same model ADR-040 and
+#     ADR-202 already use for the operator-addressing channel.
+#   - No platform_connections gate. The system Resend wire is kernel
+#     plumbing; operators do not connect Resend to receive these emails.
 #
 # Each entry shape:
 #   - slug:        stable identifier (e.g. daily_pnl_reconciliation)
@@ -79,8 +85,7 @@ deliverable_preferences:
 # Default-off discipline: each entry ships `active: false` so the bundle
 # default does NOT spam any operator. The operator flips `active: true`
 # on the preferences they want, per workspace. Multi-workspace operators
-# tune notifications independently to avoid email fatigue (per ADR-299
-# Scenario 9 stress-test).
+# tune notifications independently to avoid email fatigue.
 
 operator_notifications:
   - slug: daily_pnl_reconciliation

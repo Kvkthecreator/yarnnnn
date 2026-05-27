@@ -1,45 +1,66 @@
-"""ADR-299 regression gate — operator-addressing capability class +
-`send_operator_email` first instance.
+"""ADR-299 regression gate — operator-addressing system infrastructure.
 
-Tests the corrected shape per the 2026-05-24 Discovery note (see
-docs/evaluations/2026-05-24-042952-adr299-class-naming-redundancy/findings.md).
-The original "kernel-universal" framing duplicated the existing CAPABILITIES
-dict pattern; the corrected framing names the genuine novelty as
-**operator-addressing** (capability whose addressee resolves from
-auth.users.email regardless of wire-gate presence) and houses
-send_operator_email in the existing CAPABILITIES dict with a new
-`addressee_class` field.
+Tests the rewrite shape per ADR-299 (2026-05-27). Under the rewrite,
+`send_operator_email` is NOT a workspace capability — it is system
+infrastructure (the system Resend wire, exposed as an LLM-invokable tool
+via `SYSTEM_INFRASTRUCTURE_TOOLS` in `services/platform_tools.py`). The
+pattern already existed implicitly via ADR-040 (operator notifications)
+and ADR-202 (daily-update emails) firing from kernel code paths; ADR-299
+names the pattern explicitly and adds the first LLM-invokable surface
+to it.
 
-Asserts the load-bearing properties per ADR-299 D2 + D5 (corrected) + D7:
+The filename `test_adr299_kernel_universal_capability.py` is preserved as
+a stable URL — the ADR-299 file path is the canonical reference path
+across 6 Hat-B evaluation findings. The H1 title of ADR-299 is the
+canonical name; this filename is historical artifact of the original
+framing.
 
-  1. CAPABILITIES dict contains send_operator_email with the canonical shape
-     (category=tool, addressee_class='operator', autonomy_posture='observability',
-     platform_connection_requirement={platform: 'email', status: 'active'}).
+Asserts the load-bearing properties per ADR-299 D1–D8 (rewrite):
 
-  2. EMAIL_TOOLS exposes platform_email_send_to_operator with constrained
-     input schema — `subject` + `html` required, no `to`/`cc`/`bcc`/`from_*`.
+  1. CAPABILITIES dict does NOT contain `send_operator_email`. The entry
+     was DELETED — workspace capabilities are a single-axis taxonomy
+     (`platform_connection_requirement` yes/no); system infrastructure
+     lives in `SYSTEM_INFRASTRUCTURE_TOOLS`, not here.
 
-  3. _handle_email_tool's send_to_operator branch refuses LLM-supplied
-     addressee fields with clear structural error (defense-in-depth alongside
-     schema absence).
+  2. The `runtime: "kernel"` sentinel value is DELETED from the codebase.
+     `runtime` values reduce to actual workspace-work dispatch targets
+     (internal | python_render | external:slack | external:notion |
+     external:github). The sentinel existed only to mark
+     `send_operator_email` as "not really a workspace capability"; with
+     the entry deleted, the sentinel is unused.
 
-  4. Existing resolution path (CAPABILITY_PROVIDER_MAP +
-     PLATFORM_TOOLS_BY_CAPABILITY) wires send_operator_email correctly so
-     get_platform_tools_for_capabilities surfaces the tool when email
-     connection is active.
+  3. `SYSTEM_INFRASTRUCTURE_TOOLS` exists in `services/platform_tools.py`
+     and contains `EMAIL_SEND_TO_OPERATOR_TOOL`. Single entry today;
+     documented registry for future LLM-invokable system-infrastructure
+     surfaces.
 
-  5. Wire-level connection gate is honored: when no email connection exists,
-     send_operator_email's tool degrades silently from the surface.
+  4. `EMAIL_SEND_TO_OPERATOR_TOOL` schema is constrained — `subject` +
+     `html` required, no `to`/`cc`/`bcc`/`from_*` fields (D6 structural
+     pin).
 
-  6. Bundle-specific capability resolution is NOT regressed (read_trading
-     still works through bundle MANIFEST fallthrough).
+  5. `_handle_email_tool` `send_to_operator` branch refuses LLM-supplied
+     addressee fields and pins addressee to operator-identity via
+     `get_user_email` + early return on system Resend wire (D6).
 
-  7. Singular Implementation: no parallel registry exists; the architectural
-     class lives in the existing CAPABILITIES dict (no api/services/kernel_capabilities.py).
+  6. `CAPABILITY_PROVIDER_MAP` does NOT contain `send_operator_email`.
+     `PLATFORM_TOOLS_BY_CAPABILITY` does NOT contain `send_operator_email`.
+     The tool surfaces via `SYSTEM_INFRASTRUCTURE_TOOLS` merge in
+     `get_platform_tools_for_capabilities`, not via capability resolution.
 
-  8. The addressee_class field distinguishes operator-addressing capabilities
-     from audience-addressing ones at the registry level — write_email
-     (audience-addressing) does NOT carry addressee_class='operator'.
+  7. `get_platform_tools_for_capabilities` merges `SYSTEM_INFRASTRUCTURE_TOOLS`
+     unconditionally and does NOT contain a loop-over-`CAPABILITIES`
+     always-surface pass (D3 explicit-merge replaces the previous filter
+     mechanism).
+
+  8. The Reviewer surface (`REVIEWER_PRIMITIVES`) does NOT include
+     `platform_email_send_to_operator`. Path A revert (2026-05-25)
+     preserved — see ADR-299 §"Reviewer authority — open question."
+
+  9. Bundle capability resolution NOT regressed (`read_trading` still
+     maps to trading provider).
+
+ 10. The deleted parallel registry `api/services/kernel_capabilities.py`
+     stays deleted (Singular Implementation guard).
 
 Run: python api/test_adr299_kernel_universal_capability.py
 Or:  python -m pytest api/test_adr299_kernel_universal_capability.py -v
@@ -53,273 +74,271 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "api"))
 
 
-def test_send_operator_email_in_capabilities_dict() -> None:
-    """ADR-299 D2 (corrected): send_operator_email lives in CAPABILITIES dict
-    with the canonical operator-addressing shape — not in a parallel registry."""
+def test_send_operator_email_not_in_capabilities_dict() -> None:
+    """ADR-299 rewrite D1+D2: send_operator_email is NOT a workspace
+    capability. The entry must be absent from kernel CAPABILITIES.
+    Inversion of the pre-rewrite assertion — the entry was deleted
+    because the entity is system infrastructure, not a capability."""
     from services.orchestration import CAPABILITIES
 
-    assert "send_operator_email" in CAPABILITIES, (
-        "send_operator_email missing from CAPABILITIES dict — ADR-299 D2 "
-        "(corrected) requires the entry in services/orchestration.py:CAPABILITIES, "
-        "not in a parallel registry."
-    )
-    cap = CAPABILITIES["send_operator_email"]
-    assert cap["category"] == "tool"
-    # ADR-299 Discovery note 2 (2026-05-24): runtime is "kernel" (not
-    # "external:email") because the system Resend wire is environment-
-    # deployed kernel infrastructure, not a per-user external provider.
-    assert cap["runtime"] == "kernel", (
-        f"send_operator_email runtime must be 'kernel' per ADR-299 "
-        f"Discovery note 2 — system Resend wire is kernel infrastructure, "
-        f"not 'external:email' (which was the pre-correction shape pointing "
-        f"at the per-user OAuth wire). Got: {cap['runtime']}"
-    )
-    assert cap.get("addressee_class") == "operator", (
-        "addressee_class='operator' is the distinguishing field for the "
-        "operator-addressing capability class per ADR-299 D1 (corrected). "
-        "Without this field, the genuine architectural novelty is lost."
-    )
-    assert cap.get("autonomy_posture") == "observability", (
-        "autonomy_posture='observability' marks the capability as routed via "
-        "_preferences.yaml opt-in (operator standing approval), NOT through "
-        "should_auto_apply consequential-action gating per ADR-299 D4."
-    )
-    # ADR-299 Discovery note 2 (2026-05-24): NO wire-gate. The capability
-    # uses the system-keyed Resend wire (api/jobs/email.py reads
-    # RESEND_API_KEY env var) — environment-deployed, no operator setup
-    # ceremony. The pre-correction shape required a per-user
-    # platform_connections row, which pointed at the audience-addressing
-    # wire (ADR-192 Phase 4); the correction removes that.
-    req = cap.get("platform_connection_requirement")
-    assert req is None, (
-        f"send_operator_email must have platform_connection_requirement: None "
-        f"per ADR-299 Discovery note 2. The system Resend wire requires no "
-        f"per-user connection. Got: {req!r}. If this assertion fails, the "
-        f"correction has been reverted and the capability is back on the "
-        f"wrong wire (audience-addressing OAuth instead of operator-"
-        f"addressing system Resend)."
-    )
-    assert "platform_email_send_to_operator" in cap.get("tools", [])
-
-
-def test_kernel_capabilities_module_does_not_exist() -> None:
-    """ADR-299 D5 (corrected): the parallel registry module
-    api/services/kernel_capabilities.py must NOT exist. Singular Implementation
-    discipline — the architectural class lives in the existing CAPABILITIES
-    dict, not in a separate module."""
-    target = REPO_ROOT / "api" / "services" / "kernel_capabilities.py"
-    assert not target.exists(), (
-        f"Parallel registry module survives at {target} — ADR-299 Discovery "
-        "note (2026-05-24) requires deletion. The architectural class lives "
-        "in the existing CAPABILITIES dict at services/orchestration.py:1129."
+    assert "send_operator_email" not in CAPABILITIES, (
+        "send_operator_email is present in CAPABILITIES — ADR-299 rewrite "
+        "(2026-05-27) DELETED the entry. The entity is system infrastructure "
+        "(the system Resend wire), registered in SYSTEM_INFRASTRUCTURE_TOOLS "
+        "in services/platform_tools.py — not a workspace capability."
     )
 
 
-def test_email_tools_exposes_send_to_operator_with_constrained_schema() -> None:
-    """ADR-299 D2: tool refuses LLM-supplied addressee fields via schema."""
-    from services.platform_tools import EMAIL_TOOLS
+def test_runtime_kernel_sentinel_deleted_from_capabilities() -> None:
+    """ADR-299 rewrite D2: `runtime: "kernel"` was the sentinel value
+    indicating an entry didn't fit the workspace-capability taxonomy.
+    With send_operator_email moved to SYSTEM_INFRASTRUCTURE_TOOLS, the
+    sentinel is unused and must not reappear. `runtime` values reduce
+    to actual workspace-work dispatch targets."""
+    from services.orchestration import CAPABILITIES
 
-    tool = next(
-        (t for t in EMAIL_TOOLS if t["name"] == "platform_email_send_to_operator"),
-        None,
-    )
-    assert tool is not None, (
-        "platform_email_send_to_operator missing from EMAIL_TOOLS — "
-        "ADR-299 D2 tool wrap not registered."
+    valid_runtimes = {
+        "internal",
+        "python_render",
+        "external:slack",
+        "external:notion",
+        "external:github",
+    }
+    for cap_name, cap_decl in CAPABILITIES.items():
+        runtime = cap_decl.get("runtime")
+        if runtime is None:
+            continue
+        assert runtime != "kernel", (
+            f"CAPABILITIES['{cap_name}'].runtime == 'kernel' — the sentinel "
+            "value was deleted by the ADR-299 rewrite. If a new entry needs "
+            "to mark itself as 'not really a workspace capability,' the "
+            "correct relocation is to SYSTEM_INFRASTRUCTURE_TOOLS, not a new "
+            "kernel sentinel in CAPABILITIES."
+        )
+        assert runtime in valid_runtimes, (
+            f"CAPABILITIES['{cap_name}'].runtime == {runtime!r} — not in the "
+            f"valid set {sorted(valid_runtimes)}. Either the taxonomy has "
+            "drifted or a new runtime needs to be added explicitly to this "
+            "test's allow-list."
+        )
+
+
+def test_system_infrastructure_tools_contains_email_send_to_operator() -> None:
+    """ADR-299 rewrite D2+D3: SYSTEM_INFRASTRUCTURE_TOOLS exists in
+    platform_tools.py and contains EMAIL_SEND_TO_OPERATOR_TOOL. Single
+    entry today; the registry exists so future LLM-invokable system-
+    infrastructure surfaces have a documented home."""
+    from services.platform_tools import (
+        SYSTEM_INFRASTRUCTURE_TOOLS,
+        EMAIL_SEND_TO_OPERATOR_TOOL,
     )
 
-    schema_props = tool["input_schema"]["properties"]
-    required = tool["input_schema"]["required"]
+    assert isinstance(SYSTEM_INFRASTRUCTURE_TOOLS, list)
+    assert len(SYSTEM_INFRASTRUCTURE_TOOLS) >= 1
+    tool_names = [t.get("name") for t in SYSTEM_INFRASTRUCTURE_TOOLS]
+    assert "platform_email_send_to_operator" in tool_names, (
+        "platform_email_send_to_operator missing from SYSTEM_INFRASTRUCTURE_TOOLS "
+        "— ADR-299 rewrite D2+D3 requires the tool to be registered here."
+    )
+
+    # The constant in the list IS the tool definition (not a copy).
+    assert EMAIL_SEND_TO_OPERATOR_TOOL in SYSTEM_INFRASTRUCTURE_TOOLS, (
+        "EMAIL_SEND_TO_OPERATOR_TOOL not in SYSTEM_INFRASTRUCTURE_TOOLS "
+        "by identity — registry should include the constant directly, not "
+        "a duplicate definition."
+    )
+
+
+def test_email_send_to_operator_tool_schema_constrained() -> None:
+    """ADR-299 rewrite D6: tool schema enforces the addressee structural pin
+    — `subject` + `html` required, no `to`/`cc`/`bcc`/`from_*` fields."""
+    from services.platform_tools import EMAIL_SEND_TO_OPERATOR_TOOL
+
+    schema_props = EMAIL_SEND_TO_OPERATOR_TOOL["input_schema"]["properties"]
+    required = EMAIL_SEND_TO_OPERATOR_TOOL["input_schema"]["required"]
 
     # Allowed fields
     assert "subject" in schema_props and "subject" in required
     assert "html" in schema_props and "html" in required
     assert "reply_to" in schema_props  # optional override
 
-    # Structurally absent fields (ADR-299 D2 structural pin)
+    # Structurally absent fields (D6 structural pin)
     forbidden_at_schema_level = ("to", "cc", "bcc", "from_email", "from_name")
     for field in forbidden_at_schema_level:
         assert field not in schema_props, (
             f"`{field}` exposed in platform_email_send_to_operator schema — "
-            "ADR-299 D2 requires addressee to be structurally pinned to "
+            "ADR-299 D6 requires the addressee to be structurally pinned to "
             "the operator's identity; tool schema must not surface the field."
         )
 
 
 def test_handler_refuses_llm_supplied_addressee_fields() -> None:
-    """ADR-299 D2: handler refuses `to`/`cc`/`bcc`/`from_*` even at runtime
-    (defense-in-depth — schema absence + handler rejection). Source-level
-    check avoids loading the full async handler import chain."""
+    """ADR-299 rewrite D6: handler refuses `to`/`cc`/`bcc`/`from_*` even at
+    runtime (defense-in-depth — schema absence + handler rejection).
+
+    The handler shape is unchanged from the pre-rewrite implementation —
+    early return on `send_to_operator` branch, system Resend wire via
+    `system_send_email`, addressee resolved from `get_user_email`. The
+    rewrite changed the entity's architectural classification, not its
+    wire or handler implementation."""
     import inspect
     from services import platform_tools
 
     source = inspect.getsource(platform_tools._handle_email_tool)
 
-    # ADR-299 Discovery note 2 (2026-05-24): send_to_operator is now an EARLY
-    # RETURN at the top of _handle_email_tool (uses system Resend wire, NOT
-    # the per-user OAuth wire reached via platform_connections fetch below).
-    # The if-branch shape distinguishes it from the elif branches for
-    # send/send_bulk which use the audience-addressing wire.
+    # Early-return shape (skip the per-user OAuth platform_connections fetch
+    # below — that fetch is for the audience-addressing wire only).
     assert 'if tool == "send_to_operator":' in source, (
         "send_to_operator branch missing from _handle_email_tool, OR not "
-        "structured as an early-return `if` at top of function. ADR-299 "
-        "Discovery note 2 requires the early-return shape because the "
-        "platform_connections fetch below is for the audience-addressing "
-        "wire only — send_to_operator must skip it."
+        "structured as an early-return `if` at top of function. The handler "
+        "uses the system Resend wire; the platform_connections fetch below "
+        "is for the audience-addressing wire only — send_to_operator must "
+        "skip it."
     )
 
-    # ADR-299 Discovery note 2: handler uses system_send_email (alias for
-    # api.jobs.email.send_email), not get_resend_client / resend.send.
+    # System Resend wire (NOT the per-user OAuth wire).
     assert "system_send_email" in source or "from jobs.email import send_email" in source, (
         "Handler does NOT import the system Resend wire (api/jobs/email.py "
-        "send_email) — ADR-299 Discovery note 2 (2026-05-24) requires the "
-        "system wire, not the per-user OAuth wire (get_resend_client). "
-        "If this fails, the correction has been reverted and the handler "
-        "is back on the wrong wire."
+        "send_email). ADR-299 rewrite preserves the system-wire choice from "
+        "Discovery note 2. If this fails, the wire reverted to per-user "
+        "OAuth (the audience-addressing surface)."
     )
 
+    # Structural pin: rejection of LLM-supplied addressee fields.
     forbidden_at_runtime = ("to", "cc", "bcc", "from_email", "from_name")
     for field in forbidden_at_runtime:
         assert f'"{field}"' in source, (
             f"Handler send_to_operator branch missing rejection for `{field}` — "
-            "ADR-299 D2 structural pin gap."
+            "ADR-299 D6 structural pin gap."
         )
 
+    # Addressee resolved from auth.users at send-time, never substrate-cached.
     assert "get_user_email" in source, (
         "Handler send_to_operator branch does NOT call get_user_email — "
-        "ADR-299 D2 addressee-resolution-at-send-time discipline violated."
+        "ADR-299 D6 addressee-resolution-at-send-time discipline violated."
     )
 
-    # ADR-299 Discovery note 2: addressee pinned to operator_email when
-    # calling system_send_email. The exact call shape is
-    # `system_send_email(to=operator_email, ...)` (single recipient, not
-    # the [operator_email] list shape the prior wire required).
+    # Addressee pinned to operator_email in system_send_email call.
     assert "to=operator_email" in source, (
         "Handler does NOT pin system_send_email to operator_email — "
-        "addressee could still come from LLM input. ADR-299 D2 structural "
+        "addressee could still come from LLM input. ADR-299 D6 structural "
         "pin violated."
     )
 
 
-def test_resolution_send_operator_email_not_in_provider_map() -> None:
-    """ADR-299 Discovery note 2 (2026-05-24): send_operator_email is NOT in
-    CAPABILITY_PROVIDER_MAP. It's a no-wire-gate kernel-universal capability
-    resolved via the kernel CAPABILITIES dict branch in
-    get_platform_tools_for_capabilities. Wiring it into CAPABILITY_PROVIDER_MAP
-    would re-introduce the per-user-OAuth-wire bug the correction fixes."""
+def test_send_operator_email_not_in_capability_resolution_maps() -> None:
+    """ADR-299 rewrite D3: send_operator_email is absent from
+    PLATFORM_TOOLS_BY_CAPABILITY and CAPABILITY_PROVIDER_MAP. The tool
+    surfaces via SYSTEM_INFRASTRUCTURE_TOOLS merge in
+    get_platform_tools_for_capabilities, not via capability resolution."""
     from services.platform_tools import (
         CAPABILITY_PROVIDER_MAP,
         PLATFORM_TOOLS_BY_CAPABILITY,
     )
 
     assert "send_operator_email" not in CAPABILITY_PROVIDER_MAP, (
-        "send_operator_email is in CAPABILITY_PROVIDER_MAP — the correction "
-        "has been reverted. The capability must resolve via the kernel "
-        "CAPABILITIES dict no-wire-gate branch, not via the provider-map "
-        "gate that requires platform_connections."
+        "send_operator_email is in CAPABILITY_PROVIDER_MAP — the rewrite "
+        "deleted the capability; provider-map should not reference it."
     )
 
-    # PLATFORM_TOOLS_BY_CAPABILITY entry stays — the tool name list is used by
-    # the kernel-universal resolution branch in get_platform_tools_for_capabilities.
-    tools_for_cap = PLATFORM_TOOLS_BY_CAPABILITY.get("send_operator_email") or []
-    assert "platform_email_send_to_operator" in tools_for_cap, (
-        "platform_email_send_to_operator not listed under send_operator_email "
-        "in PLATFORM_TOOLS_BY_CAPABILITY — kernel-universal resolution branch "
-        "looks up tools here when the kernel CAPABILITIES dict entry has "
-        "platform_connection_requirement: None."
+    assert "send_operator_email" not in PLATFORM_TOOLS_BY_CAPABILITY, (
+        "send_operator_email is in PLATFORM_TOOLS_BY_CAPABILITY — the rewrite "
+        "deleted the capability; this lookup table should not reference it. "
+        "The tool surfaces via SYSTEM_INFRASTRUCTURE_TOOLS merge instead."
     )
 
 
-def test_resolution_surfaces_send_operator_email_unconditionally() -> None:
-    """ADR-299 Discovery note 2: get_platform_tools_for_capabilities surfaces
-    platform_email_send_to_operator whenever the capability is requested,
-    regardless of platform_connections state. The system Resend wire is
-    environment-deployed; no per-user OAuth required."""
+def test_resolution_uses_system_infrastructure_tools_merge() -> None:
+    """ADR-299 rewrite D3: get_platform_tools_for_capabilities merges
+    SYSTEM_INFRASTRUCTURE_TOOLS unconditionally and does NOT contain a
+    loop-over-CAPABILITIES always-surface filter (the previous mechanism
+    that leaked the misclassification into runtime)."""
     import inspect
     from services import platform_tools
 
     source = inspect.getsource(platform_tools.get_platform_tools_for_capabilities)
 
-    # The function must consult kernel CAPABILITIES dict for no-wire-gate
-    # capabilities BEFORE the CAPABILITY_PROVIDER_MAP provider-gate check.
-    assert "KERNEL_CAPABILITIES" in source or "from services.orchestration import CAPABILITIES" in source, (
-        "get_platform_tools_for_capabilities does NOT consult kernel "
-        "CAPABILITIES dict — ADR-299 Discovery note 2 requires the function "
-        "to surface no-wire-gate kernel capabilities (entries with "
-        "platform_connection_requirement is None) unconditionally."
+    # Explicit merge of SYSTEM_INFRASTRUCTURE_TOOLS — the new mechanism.
+    assert "SYSTEM_INFRASTRUCTURE_TOOLS" in source, (
+        "get_platform_tools_for_capabilities does NOT reference "
+        "SYSTEM_INFRASTRUCTURE_TOOLS — ADR-299 rewrite D3 requires the "
+        "function to merge that registry unconditionally."
     )
-    assert "platform_connection_requirement" in source and "is None" in source, (
-        "get_platform_tools_for_capabilities does NOT check "
-        "platform_connection_requirement is None branch — the kernel-"
-        "universal-no-wire-gate path is missing from resolution."
+
+    # The pre-rewrite filter mechanism MUST be deleted (Singular
+    # Implementation: one resolution mechanism, not two).
+    assert "KERNEL_CAPABILITIES" not in source, (
+        "get_platform_tools_for_capabilities still imports KERNEL_CAPABILITIES "
+        "for an always-surface filter loop — the rewrite deleted this "
+        "mechanism. SYSTEM_INFRASTRUCTURE_TOOLS merge is the singular path."
+    )
+
+    # The parallel registry from the original ADR-299 stays deleted.
+    assert "kernel_universal_tools_to_surface" not in source, (
+        "Vestigial kernel-universal filter variable survives in "
+        "get_platform_tools_for_capabilities — the rewrite required it to "
+        "be deleted along with the always-surface pass."
+    )
+
+    assert "from services.orchestration import CAPABILITIES" not in source, (
+        "get_platform_tools_for_capabilities still imports CAPABILITIES "
+        "from orchestration — the filter-over-CAPABILITIES mechanism was "
+        "deleted; this import is now unused and should be removed."
+    )
+
+
+def test_user_tools_surfacing_includes_system_infrastructure() -> None:
+    """ADR-299 rewrite D3: get_platform_tools_for_user also merges
+    SYSTEM_INFRASTRUCTURE_TOOLS — system infrastructure surfaces to every
+    LLM-invokable agent path, by definition."""
+    import inspect
+    from services import platform_tools
+
+    source = inspect.getsource(platform_tools.get_platform_tools_for_user)
+
+    assert "SYSTEM_INFRASTRUCTURE_TOOLS" in source, (
+        "get_platform_tools_for_user does NOT reference "
+        "SYSTEM_INFRASTRUCTURE_TOOLS — the rewrite requires both agent-path "
+        "tool-surfacing functions to merge system-infrastructure tools "
+        "unconditionally (it's part of the kernel's operating surface)."
     )
 
 
 def test_reviewer_primitives_excludes_send_operator_email_path_a_revert() -> None:
-    """ADR-299 Discovery 4 REVERTED — Path A isolation (2026-05-25).
+    """ADR-299 rewrite D8 — Path A revert preserved.
 
-    Discovery 4 added EMAIL_SEND_TO_OPERATOR_TOOL to REVIEWER_PRIMITIVES so the
-    Reviewer's tool surface (built directly from REVIEWER_PRIMITIVES per
-    reviewer_agent.py:1373) would include the operator-addressing channel.
-    Canary v4 fired post-Discovery-3+4 with intentional voice issues; the
-    Reviewer chose `stand_down` (silently — no judgment_log, no standing_intent,
-    no email). Diagnosis showed v4 ran 4 LLM rounds vs v3's 10 (significantly
-    less context-gathering before deciding).
+    Under the rewrite, the question of whether the Reviewer should invoke
+    system infrastructure that speaks *as the system* to the operator-
+    identity is a Reviewer-authority question, separate from the taxonomy
+    question the rewrite resolves. The Path A revert from 2026-05-25
+    (`EMAIL_SEND_TO_OPERATOR_TOOL` removed from `REVIEWER_PRIMITIVES`) is
+    structurally preserved.
 
-    Path A revert removes the tool from REVIEWER_PRIMITIVES to isolate the
-    tool-perturbation variable. If a v5 canary now produces defer/reject again,
-    tool addition was perturbing judgment toward stand_down. If v5 still
-    stand_downs, the cause is elsewhere (e.g. prompt-coverage gap).
+    Canary v4 produced `stand_down` instead of expected `defer`/`reject`
+    with the tool included; hypothesis A (tool perturbation) chosen for
+    isolation. v5 canary remains pending.
 
-    Discovery 3's always-surface pass in get_platform_tools_for_capabilities
-    is NOT reverted — kernel-universal capabilities still flow through the
-    agent path for non-Reviewer callers (covered by
-    test_resolution_surfaces_send_operator_email_unconditionally above).
-
-    Re-introduction (if v5 confirms tool was innocent) requires:
-      1. Adding EMAIL_SEND_TO_OPERATOR_TOOL back to REVIEWER_PRIMITIVES
-      2. Updating this test to assert presence (the inverse of below)
-      3. Citing the validating canary in the commit + ADR Discovery note
+    Re-introduction protocol (if v5 confirms tool was structurally
+    innocent) is documented in ADR-299 D8:
+      1. Re-add EMAIL_SEND_TO_OPERATOR_TOOL to REVIEWER_PRIMITIVES
+      2. Invert this assertion to `in tool_names`
+      3. Both in the same commit; cite the validating v5 canary
     """
     from services.primitives.registry import REVIEWER_PRIMITIVES
 
     tool_names = [t.get("name") for t in REVIEWER_PRIMITIVES]
     assert "platform_email_send_to_operator" not in tool_names, (
         "platform_email_send_to_operator is present in REVIEWER_PRIMITIVES — "
-        "Path A revert (2026-05-25) removed it. Either Discovery 4 was "
-        "re-introduced (in which case invert this assertion + cite the "
-        "validating canary in the same commit) or the revert was reverted "
-        "by accident."
-    )
-
-
-def test_resolution_does_not_have_parallel_kernel_universal_precheck() -> None:
-    """ADR-299 D5 (corrected): get_platform_tools_for_capabilities must NOT
-    contain a kernel-universal pre-check (the parallel resolution path
-    introduced by the original ADR-299 D5; removed per the Discovery note
-    so the existing CAPABILITY_PROVIDER_MAP path is canonical)."""
-    import inspect
-    from services import platform_tools
-
-    source = inspect.getsource(platform_tools.get_platform_tools_for_capabilities)
-
-    # The parallel pre-check imported get_kernel_universal_tools_for_capabilities
-    # — its survival would indicate the correction was reverted.
-    assert "get_kernel_universal_tools_for_capabilities" not in source, (
-        "Parallel kernel-universal pre-check survives in "
-        "get_platform_tools_for_capabilities — ADR-299 Discovery note "
-        "(2026-05-24) required its removal. The existing CAPABILITY_PROVIDER_MAP "
-        "resolution handles operator-addressing capabilities via the standard path."
-    )
-    assert "kernel_capabilities" not in source, (
-        "Import of kernel_capabilities module survives — Discovery note "
-        "required deletion of the parallel registry + its consumers."
+        "Path A revert (2026-05-25, preserved through ADR-299 rewrite) "
+        "requires it absent. Either Discovery 4 was re-introduced (in which "
+        "case invert this assertion + cite the validating v5 canary in the "
+        "same commit per ADR-299 D8) or the revert was reverted by accident."
     )
 
 
 def test_bundle_capability_resolution_not_regressed() -> None:
-    """The existing bundle-specific resolution path is unchanged.
-    read_trading still maps to trading provider + the trading tools."""
+    """The workspace-capability resolution path is unchanged by the rewrite.
+    read_trading still maps to trading provider + its tools."""
     from services.platform_tools import (
         CAPABILITY_PROVIDER_MAP,
         PLATFORM_TOOLS_BY_CAPABILITY,
@@ -330,45 +349,34 @@ def test_bundle_capability_resolution_not_regressed() -> None:
     assert len(trading_tools) > 0
 
 
-def test_addressee_class_distinguishes_operator_from_audience() -> None:
-    """ADR-299 D1 (corrected): the addressee_class field distinguishes
-    operator-addressing from audience-addressing at the registry level.
-    send_operator_email has it; write_email (audience-addressing per ADR-192
-    Phase 4) does NOT."""
-    from services.orchestration import CAPABILITIES
-
-    op_cap = CAPABILITIES.get("send_operator_email")
-    assert op_cap is not None
-    assert op_cap.get("addressee_class") == "operator"
-
-    # write_email is bundle-specific per ADR-224; not in kernel CAPABILITIES.
-    # Confirm it's absent from kernel CAPABILITIES (the audience-addressing
-    # surface belongs to bundle MANIFEST resolution, not kernel).
-    # If write_email DID exist in kernel CAPABILITIES, it must NOT carry
-    # addressee_class='operator' — but its absence is the more honest
-    # discipline marker.
-    write_email_in_kernel = CAPABILITIES.get("write_email")
-    if write_email_in_kernel is not None:
-        assert write_email_in_kernel.get("addressee_class") != "operator", (
-            "write_email surfaced in kernel CAPABILITIES with addressee_class='operator' "
-            "— that would conflate audience-addressing with operator-addressing per "
-            "ADR-299 D1 (corrected). write_email is audience-addressing; only "
-            "send_operator_email carries the operator addressee_class."
-        )
+def test_kernel_capabilities_module_stays_deleted() -> None:
+    """ADR-299 Discovery note 1 (2026-05-24): the parallel registry
+    `api/services/kernel_capabilities.py` was deleted. The rewrite
+    preserves this — Singular Implementation guard against the parallel-
+    registry pattern reappearing."""
+    target = REPO_ROOT / "api" / "services" / "kernel_capabilities.py"
+    assert not target.exists(), (
+        f"Parallel registry module reappeared at {target} — Singular "
+        "Implementation discipline violated. System-infrastructure tools "
+        "live in SYSTEM_INFRASTRUCTURE_TOOLS in services/platform_tools.py "
+        "alongside the existing platform tools; do not introduce a parallel "
+        "registry module."
+    )
 
 
 if __name__ == "__main__":
     tests = [
-        test_send_operator_email_in_capabilities_dict,
-        test_kernel_capabilities_module_does_not_exist,
-        test_email_tools_exposes_send_to_operator_with_constrained_schema,
+        test_send_operator_email_not_in_capabilities_dict,
+        test_runtime_kernel_sentinel_deleted_from_capabilities,
+        test_system_infrastructure_tools_contains_email_send_to_operator,
+        test_email_send_to_operator_tool_schema_constrained,
         test_handler_refuses_llm_supplied_addressee_fields,
-        test_resolution_send_operator_email_not_in_provider_map,
-        test_resolution_surfaces_send_operator_email_unconditionally,
+        test_send_operator_email_not_in_capability_resolution_maps,
+        test_resolution_uses_system_infrastructure_tools_merge,
+        test_user_tools_surfacing_includes_system_infrastructure,
         test_reviewer_primitives_excludes_send_operator_email_path_a_revert,
-        test_resolution_does_not_have_parallel_kernel_universal_precheck,
         test_bundle_capability_resolution_not_regressed,
-        test_addressee_class_distinguishes_operator_from_audience,
+        test_kernel_capabilities_module_stays_deleted,
     ]
     failures: list[str] = []
     for fn in tests:

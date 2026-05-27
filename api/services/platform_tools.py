@@ -807,22 +807,29 @@ TRADING_WRITE_TOOLS = [
 # ADR-192 Phase 4: Email platform class (Resend)
 # =============================================================================
 
-# ADR-299 D2 (corrected per Discovery notes 2 + 4, 2026-05-25): operator-
-# addressing email tool, defined ABOVE EMAIL_TOOLS so REVIEWER_PRIMITIVES
-# can import it as a named constant. Addressee structurally pinned to the
-# workspace owner's identity (auth.users.email) — does NOT accept a free-
-# form `to:` field. Distinguishes kernel-universal observability from
-# bundle-specific audience-bearing writes (use `platform_email_send` for
-# audience sends).
+# ADR-299 (rewrite 2026-05-27): `platform_email_send_to_operator` is
+# operator-addressing system infrastructure — the system Resend wire
+# (api/jobs/email.py, RESEND_API_KEY env var) exposed as an LLM-invokable
+# tool. Same wire ADR-040 notifications + ADR-202 daily-update emails
+# use; ADR-299 names the pattern explicitly and adds the first LLM-
+# invoked surface to it. The tool is registered in
+# SYSTEM_INFRASTRUCTURE_TOOLS below, NOT in workspace CAPABILITIES.
 #
-# Wire: system-deployed Resend via api/jobs/email.py (RESEND_API_KEY env
-# var); same wire ADR-040 notifications + ADR-202 daily-update emails
-# use. NO per-user OAuth required — tool is ALWAYS in the Reviewer's
-# surface (via REVIEWER_PRIMITIVES inclusion in registry.py) and the
-# agent surface (via always-surface kernel-universal pass in
-# get_platform_tools_for_capabilities). Per ADR-299 D4 the operator's
+# Addressee structurally pinned to the workspace owner's identity
+# (auth.users.email) — does NOT accept `to`, `cc`, `bcc`, `from_email`,
+# or `from_name` fields (D6). Handler enforces at runtime; schema
+# enforces at LLM-call shape. Distinguishes operator-addressing
+# observability from bundle-specific audience-bearing writes (use
+# `platform_email_send` for audience sends per ADR-192 Phase 4).
+#
+# Agent surface: always surfaced via SYSTEM_INFRASTRUCTURE_TOOLS merge
+# in get_platform_tools_for_capabilities (D3). Reviewer surface: NOT
+# included in REVIEWER_PRIMITIVES — Path A revert from 2026-05-25 stays
+# in place per the open question in ADR-299 §"Reviewer authority."
+#
+# Per ADR-299 D5 the operator's
 # `_preferences.yaml::operator_notifications.{slug}.active: true`
-# declaration IS the standing approval to actually use the tool.
+# declaration IS the standing approval to use the tool.
 EMAIL_SEND_TO_OPERATOR_TOOL = {
     "name": "platform_email_send_to_operator",
     "description": (
@@ -910,11 +917,45 @@ EMAIL_TOOLS = [
             "required": ["messages"],
         },
     },
-    # ADR-299 Discovery note 4 (2026-05-25): named constant declared above
-    # the EMAIL_TOOLS list so REVIEWER_PRIMITIVES can import it directly
-    # without duplication. Reviewer's tool surface is built from
-    # REVIEWER_PRIMITIVES per reviewer_agent.py:1373, not via
-    # get_platform_tools_for_capabilities.
+    # ADR-299 (rewrite 2026-05-27): EMAIL_SEND_TO_OPERATOR_TOOL is included
+    # in EMAIL_TOOLS for cataloging convenience but its load-bearing surface
+    # registration is in SYSTEM_INFRASTRUCTURE_TOOLS below (the merge path in
+    # get_platform_tools_for_capabilities reads from SYSTEM_INFRASTRUCTURE_TOOLS,
+    # not from this list). Membership here keeps the email-related tool
+    # definitions co-located in the source file.
+    EMAIL_SEND_TO_OPERATOR_TOOL,
+]
+
+
+# =============================================================================
+# ADR-299 (rewrite 2026-05-27): System Infrastructure Tools
+# =============================================================================
+#
+# LLM-invokable surfaces over environment-shared kernel infrastructure where
+# the addressee / target is determined OUTSIDE workspace declaration. Not
+# workspace capabilities — these are the system speaking *as itself* through
+# its own plumbing.
+#
+# The pattern already existed implicitly via ADR-040 (operator notification
+# emails fired from services/notifications.py) and ADR-202 (daily-update
+# pointer emails fired from services/daily_update_email.py). Both use the
+# system Resend wire (RESEND_API_KEY env var). Both fire from kernel code
+# paths. Neither was registered as a capability. ADR-299 names the pattern
+# and adds the first LLM-invoked entry to it (operator/Reviewer/agent
+# decides whether to send, vs ADR-040 / ADR-202 firing deterministically
+# on triggers).
+#
+# Inclusion discipline (D2): only LLM-invokable surfaces over environment-
+# shared infrastructure where the addressee/target is determined outside
+# workspace declaration. Direct call sites (ADR-040, ADR-202) stay direct;
+# they don't surface to any LLM, so registry inclusion would be ceremony
+# without purpose. New entries require ADR amendment.
+#
+# Surfacing path: get_platform_tools_for_capabilities merges these tools
+# unconditionally into the returned tool list — no `_preferences.yaml`
+# check at the merge layer (that's the LLM's judgment per persona-frame
+# guidance), no `platform_connections` gate (the wire is kernel-deployed).
+SYSTEM_INFRASTRUCTURE_TOOLS: list[dict] = [
     EMAIL_SEND_TO_OPERATOR_TOOL,
 ]
 
@@ -975,14 +1016,13 @@ PLATFORM_TOOLS_BY_CAPABILITY = {
     "write_email": [
         "platform_email_send", "platform_email_send_bulk",
     ],
-    # ADR-299: operator-addressing email (addressee structurally pinned to
-    # auth.users.email — distinct from write_email's audience-addressing
-    # surface). Capability lives in kernel CAPABILITIES dict per ADR-299
-    # Discovery note 2026-05-24 (corrected from earlier parallel-registry
-    # design). Wire-gate still uses the email provider (Resend per ADR-192).
-    "send_operator_email": [
-        "platform_email_send_to_operator",
-    ],
+    # ADR-299 (rewrite 2026-05-27): `send_operator_email` is no longer a
+    # workspace capability. The tool `platform_email_send_to_operator` is
+    # operator-addressing system infrastructure, registered in
+    # SYSTEM_INFRASTRUCTURE_TOOLS above. The merge in
+    # get_platform_tools_for_capabilities reads from that list directly;
+    # there is no capability key to look up in PLATFORM_TOOLS_BY_CAPABILITY
+    # for this tool.
 }
 
 CAPABILITY_PROVIDER_MAP = {
@@ -997,13 +1037,10 @@ CAPABILITY_PROVIDER_MAP = {
     "write_trading": "trading",
     # ADR-192 Phase 4: email has no read capability (send-only in this phase)
     "write_email": "email",
-    # ADR-299 Discovery note 2 (2026-05-24): send_operator_email is NOT in
-    # this map. It's a no-wire-gate kernel-universal capability per the
-    # corrected wire shape (uses system Resend via api/jobs/email.py, not
-    # per-user OAuth). get_platform_tools_for_capabilities checks the kernel
-    # CAPABILITIES dict for entries with platform_connection_requirement is
-    # None and surfaces their tools unconditionally — that's the singular
-    # resolution path for kernel-universal-no-wire-gate capabilities.
+    # ADR-299 (rewrite 2026-05-27): send_operator_email is no longer a
+    # capability and is correctly absent from this map. Its tool surfaces
+    # via SYSTEM_INFRASTRUCTURE_TOOLS merge in
+    # get_platform_tools_for_capabilities, not via provider lookup.
 }
 
 
@@ -1015,17 +1052,31 @@ async def get_platform_tools_for_user(auth: Any) -> list[dict]:
     """
     Get platform tools for a user based on their connected integrations.
 
+    Per ADR-299 (2026-05-27): system-infrastructure tools (the
+    SYSTEM_INFRASTRUCTURE_TOOLS list) surface unconditionally — they are
+    kernel plumbing the system uses regardless of workspace declaration,
+    not workspace capabilities. Workspace platform tools surface based on
+    active platform_connections rows.
+
     Args:
         auth: Auth context with user_id and client
 
     Returns:
-        List of tool definitions for connected platforms
+        List of tool definitions: SYSTEM_INFRASTRUCTURE_TOOLS first,
+        then per-provider workspace tools for active connections.
     """
-    tools = []
-    seen_names: set[str] = set()  # Dedupe by tool name
+    tools: list[dict] = []
+    seen_names: set[str] = set()
+
+    # ADR-299: system infrastructure surfaces unconditionally.
+    for tool in SYSTEM_INFRASTRUCTURE_TOOLS:
+        tool_name = tool.get("name")
+        if tool_name and tool_name not in seen_names:
+            tools.append(tool)
+            seen_names.add(tool_name)
 
     try:
-        # Get user's active integrations
+        # Workspace platform tools: gated by active platform_connections.
         result = auth.client.table("platform_connections").select(
             "platform, status"
         ).eq("user_id", auth.user_id).eq("status", "active").execute()
@@ -1040,7 +1091,12 @@ async def get_platform_tools_for_user(auth: Any) -> list[dict]:
                     tools.append(tool)
                     seen_names.add(tool_name)
 
-        logger.info(f"[PLATFORM-TOOLS] User has {len(tools)} platform tools from {connected_providers}")
+        logger.info(
+            "[PLATFORM-TOOLS] User has %s tool(s) (%s system-infrastructure + workspace tools from %s)",
+            len(tools),
+            len(SYSTEM_INFRASTRUCTURE_TOOLS),
+            connected_providers,
+        )
 
     except Exception as e:
         logger.error(f"[PLATFORM-TOOLS] Error loading tools: {e}")
@@ -1050,38 +1106,31 @@ async def get_platform_tools_for_user(auth: Any) -> list[dict]:
 
 async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]) -> list[dict]:
     """
-    Get platform tools allowed by explicit provider-native capabilities.
+    Get platform tools for an agent path.
 
-    Resolution discipline (per ADR-224 + ADR-299 Discovery notes 2 + 3):
+    Resolution discipline (per ADR-299 rewrite 2026-05-27):
 
-      1. **Kernel-universal no-wire-gate capabilities** (kernel CAPABILITIES
-         dict at services/orchestration.py:1129 entries where
-         `platform_connection_requirement is None`) **ALWAYS surface** —
-         regardless of the explicitly-requested `capabilities` list. Per
-         ADR-299 Discovery note 3 (2026-05-25), these are "always available"
-         by definition: their wire is environment-deployed (e.g.,
-         `send_operator_email` uses system Resend via env var). The
-         architectural commitment from Discovery note 2 ("operator-addressing
-         capabilities are always available; opt-in via `_preferences.yaml`
-         IS the standing approval") is enforced here at the resolution layer
-         — not gated by recurrence/hook `required_capabilities` opt-in.
+      1. **System infrastructure** (SYSTEM_INFRASTRUCTURE_TOOLS) surfaces
+         unconditionally. These are LLM-invokable surfaces over environment-
+         shared kernel infrastructure (the system Resend wire today;
+         future entries follow the discipline rule documented above the
+         SYSTEM_INFRASTRUCTURE_TOOLS constant). Not workspace-declared,
+         not capability-gated, not provider-gated. The agent path always
+         gets them; the Reviewer path has separate authority gating via
+         REVIEWER_PRIMITIVES (Path A revert preserved — see ADR-299
+         §"Reviewer authority").
 
-      2. **Wire-gated capabilities** (kernel-CAPABILITIES with declared
-         `platform_connection_requirement`, OR bundle MANIFEST capabilities
-         routed through CAPABILITY_PROVIDER_MAP) require BOTH explicit
-         request in `capabilities` AND active platform_connections row.
-         These remain opt-in per-recurrence because they affect third
+      2. **Workspace capabilities** (kernel CAPABILITIES + bundle MANIFEST
+         capabilities routed through CAPABILITY_PROVIDER_MAP) require BOTH
+         explicit request in `capabilities` AND active platform_connections
+         row. These remain opt-in per-recurrence because they affect third
          parties / audiences / external counterparties — operator authority
          on each request is structurally important.
 
-    Singular Implementation per ADR-224: one resolution function, one
-    return list. The kernel-vs-bundle distinction is a lookup-source
-    layer (kernel CAPABILITIES dict checked first); not a parallel
-    runtime code path.
+    Singular Implementation: one resolution function, two source layers
+    (system infrastructure + workspace capabilities), one return list.
+    No `runtime: "kernel"` sentinel; no loop-over-CAPABILITIES filter.
     """
-    # Import kernel CAPABILITIES lazily to avoid circular import.
-    from services.orchestration import CAPABILITIES as KERNEL_CAPABILITIES
-
     try:
         result = auth.client.table("platform_connections").select(
             "platform, status"
@@ -1091,70 +1140,35 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
         logger.error(f"[PLATFORM-TOOLS] Error loading connected providers: {e}")
         return []
 
-    allowed_tool_names: set[str] = set()
-    kernel_universal_tools_to_surface: set[str] = set()
+    tools: list[dict] = []
+    seen: set[str] = set()
 
-    # ADR-299 Discovery note 3 (2026-05-25): ALWAYS-SURFACE pass for
-    # kernel-universal-no-wire-gate capabilities. Loop over the kernel
-    # CAPABILITIES dict (not the caller-requested capabilities list) so
-    # these tools surface even when `capabilities=[]` (e.g., substrate-
-    # event wakes that hardcode required_capabilities to empty). Per
-    # ADR-299 D1 + D4: kernel-universal operator-addressing capabilities
-    # are "always available"; runtime now honors that architectural
-    # commitment.
-    for cap_name, cap_decl in KERNEL_CAPABILITIES.items():
-        if cap_decl.get("platform_connection_requirement") is None:
-            cap_tools = PLATFORM_TOOLS_BY_CAPABILITY.get(cap_name)
-            if cap_tools:
-                kernel_universal_tools_to_surface.update(cap_tools)
-                allowed_tool_names.update(cap_tools)
+    # Layer 1: system infrastructure — always surfaced (ADR-299).
+    for tool in SYSTEM_INFRASTRUCTURE_TOOLS:
+        tool_name = tool.get("name")
+        if tool_name and tool_name not in seen:
+            tools.append(tool)
+            seen.add(tool_name)
 
-    # Explicitly-requested capabilities pass (wire-gated branch).
-    # Kernel-no-wire-gate capabilities in this list are already in
-    # allowed_tool_names from the always-surface pass above — they
-    # short-circuit at the kernel-dict check below without duplication.
+    # Layer 2: workspace capabilities — explicit request + provider gate.
+    allowed_workspace_tool_names: set[str] = set()
     for capability in (capabilities or []):
-        kernel_decl = KERNEL_CAPABILITIES.get(capability)
-        if kernel_decl is not None and kernel_decl.get("platform_connection_requirement") is None:
-            # Already surfaced via always-surface pass; no-op.
-            continue
-
-        # Wire-gated capabilities: route through CAPABILITY_PROVIDER_MAP +
-        # platform_connections gate (existing path, unchanged).
         provider = CAPABILITY_PROVIDER_MAP.get(capability)
         if not provider or provider not in connected_providers:
             continue
-        allowed_tool_names.update(PLATFORM_TOOLS_BY_CAPABILITY.get(capability, []))
+        allowed_workspace_tool_names.update(PLATFORM_TOOLS_BY_CAPABILITY.get(capability, []))
 
-    if not allowed_tool_names:
-        return []
-
-    tools = []
-    seen: set[str] = set()
-
-    # First: kernel-universal tools (surface unconditionally — look them up
-    # in PLATFORM_TOOLS_BY_PROVIDER across all providers since their tool
-    # definition lives there for cataloging convenience).
-    if kernel_universal_tools_to_surface:
-        for provider_tools in PLATFORM_TOOLS_BY_PROVIDER.values():
-            for tool in provider_tools:
-                tool_name = tool.get("name")
-                if tool_name in kernel_universal_tools_to_surface and tool_name not in seen:
-                    tools.append(tool)
-                    seen.add(tool_name)
-
-    # Then: wire-gated tools (route through connected_providers).
     for provider in sorted(connected_providers):
         for tool in PLATFORM_TOOLS_BY_PROVIDER.get(provider, []):
             tool_name = tool.get("name")
-            if tool_name in allowed_tool_names and tool_name not in seen:
+            if tool_name in allowed_workspace_tool_names and tool_name not in seen:
                 tools.append(tool)
                 seen.add(tool_name)
 
     logger.info(
-        "[PLATFORM-TOOLS] Capability-scoped tool load: %s tool(s) (%s kernel-universal, providers: %s)",
+        "[PLATFORM-TOOLS] Capability-scoped tool load: %s tool(s) (%s system-infrastructure, providers: %s)",
         len(tools),
-        len(kernel_universal_tools_to_surface),
+        len(SYSTEM_INFRASTRUCTURE_TOOLS),
         sorted(connected_providers),
     )
     return tools

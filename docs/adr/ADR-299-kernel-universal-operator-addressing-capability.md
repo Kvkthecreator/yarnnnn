@@ -1,413 +1,279 @@
-# ADR-299: Operator-Addressing Capability — `send_operator_email`
+# ADR-299: Operator-Addressing System Infrastructure — `send_operator_email`
 
-**Status**: Phase 1 Implemented 2026-05-22; corrected FOUR times in-place across 2026-05-24 and 2026-05-25 (Discovery notes 1-4 below). Phase 2 + 3 Implemented 2026-05-24. Discovery 4 **REVERTED Path A 2026-05-25** post-canary-v4 RED — see Discovery 4 Path A addendum at the end of this ADR. Discovery 3's always-surface fix remains in place (kernel-universal capabilities still flow through the agent path for non-Reviewer callers); only the Reviewer-side `REVIEWER_PRIMITIVES` inclusion was reverted to isolate the tool-perturbation variable. Regression gate 10/10 PASS post-revert with inverted assertion. Canary v5 pending to validate whether tool addition was perturbing Reviewer judgment toward `stand_down`.
-**Date**: 2026-05-22
+**Status**: Proposed 2026-05-27 — wholesale rewrite of the prior framing.
+
+**Date**: 2026-05-27 (rewrite). Original ADR 2026-05-22, corrected four times in Discovery notes 1–4 (2026-05-24 / 2026-05-25), then Discovery 4 Path A reverted 2026-05-25.
+
 **Authors**: KVK, Claude
-**Companion**: [`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/ADDENDUM.md) — surfaced the L6 capital-execution gap on alpha-author that triggered this discourse
-**Depends on**: ADR-118 (Skills as Capability Layer), ADR-176 (Work-First Agent Model), ADR-192 (Resend integration), ADR-217 (AUTONOMY gating), ADR-222 (OS framing), ADR-224 (Kernel/Program Boundary), ADR-227 (Task Capability Tool Augmentation), ADR-269 (Capability Flow Wiring), ADR-283 (alpha-author bundle)
-**Amends**: ADR-283 D7 (alpha-author capability menu) — clarifies that the bundle-rejection of audience-bearing platform writes does NOT preclude kernel-universal operator-addressing writes
-**Preserves**: Singular Implementation discipline, kernel/program boundary, ADR-283's archetype shape
 
-## Context
+**Depends on**: ADR-040 (operator notification emails), ADR-118 (Skills as Capability Layer), ADR-192 (Resend integration), ADR-202 (External Channel Discipline / daily-update emails), ADR-217 (AUTONOMY gating), ADR-222 (OS framing), ADR-224 (Kernel/Program Boundary), ADR-269 (Capability Flow Wiring), ADR-275 (operator-authored `_preferences.yaml`), ADR-283 (alpha-author bundle)
 
-ADR-283 D7 + Discovery Note 2 (2026-05-17, operator-authored) established that alpha-author's bundle does NOT ship audience-bearing platform writes — *"alpha-author's loop is 'audit a body of work that compounds' → zero external writes are bundle-required."* Discovery Note 2 explicitly listed *"LinkedIn / X / newsletter publishing-platform writes, commerce reads/writes, and email writes"* as out-of-archetype.
+**Amends**: ADR-283 D7 (audience-bearing rejection still holds; operator-addressing system infrastructure is a separate surface)
 
-The 2026-05-22 L6 Variant-F clause validation observation ([`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/)) surfaced a follow-on question: how does alpha-author exercise FOUNDATIONS DP21 clause 5's "physical-platform-write" sub-branch if the bundle has no external writes? The natural answer per ADR-283 was "it doesn't — alpha-trader is the only surface for that branch, by design." That's true for *audience-bearing* writes (LinkedIn, newsletter publishing, X posts).
+**Preserves**: Singular Implementation discipline, kernel/program boundary, FOUNDATIONS Axiom 1, ADR-118 capability layer semantics
 
-But the discourse round on 2026-05-22 surfaced an architectural distinction Discovery Note 2 collapsed: **email-to-operator-own-inbox and email-to-audience-list use the same wire protocol (SMTP via Resend) but are structurally different surfaces**. The first is observability — the Reviewer telling the operator about workspace state. The second is publication — the Reviewer addressing the operator's audience. Discovery Note 2 was correct to reject the second; it accidentally also rejected the first by collapsing them under one "email writes" line.
+**Supersedes**: All four Discovery notes from the prior shape of this ADR, the "kernel-universal capability" framing, and the parallel registry / always-surface-pass-over-CAPABILITIES implementation. The prose around what each layer should look like under the new framing is in §"Implementation" below. The Path A revert (Reviewer-side tool exclusion pending hypothesis-A v5 canary) is preserved verbatim under the new vocabulary as §"Reviewer authority — open question."
 
-Cross-archetype stress-test (10 scenarios across alpha-author/yarnnn-author, alpha-author/netflix-script-author, alpha-trader/kvk, hypothetical alpha-commerce, edge cases) confirms that operator-addressing email writes generalize cleanly across every alpha workspace and don't require bundle-level capability declarations because they're not archetype-specific — they're OS-level observability.
+---
 
-This ADR proposes the first **kernel-universal capability** as an architectural class distinct from bundle-specific capabilities: capabilities that apply to every program bundle regardless of archetype, gated by AUTONOMY and operator preferences rather than by `platform_connections`.
+## The previous framing was wrong. The rewrite is in the title.
+
+`send_operator_email` was registered as a **capability** ("kernel-universal capability" — a new class introduced by the original ADR-299). That framing collapsed two distinct architectural categories:
+
+1. **Workspace capabilities** — declarative metadata describing work the workspace can declare it needs. Cognitive descriptors (`summarize`, `data_analysis`), internal-tool surfaces (`web_search`), asset-production dispatches (`chart`, `mermaid`, `image`, `video_render`), platform-integration surfaces (`read_slack`, `write_notion`). All live in `CAPABILITIES`. All describe **work being done *for* the workspace** — rendered, queried, summarized, written, dispatched.
+2. **System infrastructure** — internal plumbing the kernel uses to operate. The Postgres database. The LLM API client. The yarnnn-render Docker service. The substrate filesystem. The cron scheduler. **The system Resend wire** — already in use for ADR-040 notifications and ADR-202 daily-update emails, both of which are called directly from kernel code paths and were never in `CAPABILITIES`.
+
+`send_operator_email` is system infrastructure, not a workspace capability. The work being done is **the system speaking *as itself* to the operator-identity** — using environment-shared infrastructure (the system Resend wire, identical to ADR-040 + ADR-202) with the addressee structurally resolved to `auth.users.email` for the workspace owner. The wire and the addressee are both determined outside any workspace declaration. It does not describe work done for the workspace; it describes the system addressing its operator.
+
+The only reason `send_operator_email` ended up in `CAPABILITIES` and not alongside ADR-040 + ADR-202 was the **invocation pattern**: the Reviewer/agent's decision to send is an LLM-judgment moment rather than a kernel-deterministic trigger. ADR-040 fires automatically on notification events; ADR-202 fires automatically from the daily-update task pipeline; ADR-299 fires when an agent decides to call a tool. Identical infrastructure, identical wire, identical addressee resolution discipline — different invocation shape.
+
+The previous framing's misclassification produced four cascading Discovery-note corrections (class name, wire choice, resolution path, Reviewer surface) that all addressed the wrong layer. Each note correctly identified that the *implementation* was misaligned with the *intent*, but treated the intent as fixed and the implementation as needing patching. The intent itself was the bug. The rewrite below relocates the entity to its correct architectural home and removes the resulting layer cascade in one motion.
 
 ## Decision
 
-### D1. Architectural class: kernel-universal capability
+### D1. Taxonomy: workspace capability vs. system infrastructure
 
-Capabilities split into two structural classes:
+The kernel registers two distinct categories of LLM-invokable surfaces:
 
-**Bundle-specific capabilities** (existing, unchanged):
-- Declared in `docs/programs/{slug}/MANIFEST.yaml::capabilities[]`
-- Gated by `requires_connection: <platform>` against active `platform_connections`
-- Archetype-specific — `write_trading` only makes sense for trading-bearing operations
-- Examples: `read_trading`, `write_trading`, `write_slack`, `read_notion`, `read_commerce`
-- Resolved by `services/bundle_reader.py::bundles_active_for_workspace`
+**Workspace capabilities** — `CAPABILITIES` in `api/services/orchestration.py`. Declarative metadata describing work the workspace can declare it needs. Bundles list capability keys in `MANIFEST.yaml::capabilities`; tasks list them in TASK.md `## Required Capabilities`. The kernel's job is to honor those declarations during dispatch. Single axis of variation: **does this capability require an operator-connected third-party account (`platform_connection_requirement: {platform: ..., status: active}`) or not (`None`)?** Connection-required entries flow through `platform_connections` gating; no-connection entries surface directly. All entries describe work *for* the workspace.
 
-**Kernel-universal capabilities** (NEW, this ADR):
-- Declared in kernel code (no MANIFEST entry required)
-- Not gated by `platform_connections` (no `requires_connection`)
-- Available to every program bundle regardless of archetype
-- Gated instead by AUTONOMY posture (ADR-217) + operator preferences (`_preferences.yaml`)
-- The first instance: `send_operator_email` (this ADR)
-- Future instances expected: cross-workspace operator status digests, calendar-event reminders, anything where the load-bearing addressee is *the operator's own identity*
+**System infrastructure** — kernel plumbing the system uses to operate. Not registered in `CAPABILITIES`. Not bundle-declared. Not capability-gated. Already in production at multiple call sites: the Postgres connection (every primitive), the LLM API client (every agent / Reviewer / specialist invocation), the yarnnn-render Docker service (RuntimeDispatch dispatch), the **system Resend wire** (ADR-040 notifications, ADR-202 daily-update emails, this ADR's `send_operator_email`), the cron scheduler, the substrate filesystem. System infrastructure is invoked from kernel code paths — sometimes deterministically (notification triggers, daily-update cron), sometimes by LLM judgment (`send_operator_email`). The invocation shape is orthogonal to the architectural classification.
 
-The distinguishing test: **does this capability address operator-identity (kernel-universal) or does it address a third party / audience / external counterparty (bundle-specific)?** If the addressee is `auth.users.email` for the workspace's owner, it's kernel-universal. If the addressee is anyone else, it's bundle-specific.
+The distinguishing question for any new LLM-invokable surface is:
 
-### D2. First instance: `send_operator_email` capability
+> **Does this describe work being done *for* the workspace (declared, dispatched, gated by workspace state), or is it the system speaking *as itself* through environment-shared infrastructure (kernel-owned wire, addressee determined outside workspace declaration)?**
 
-**Capability key**: `send_operator_email`
+If for-the-workspace → `CAPABILITIES`. If system-as-itself → system infrastructure.
 
-**Shape** (parallels existing MANIFEST capability shape from `alpha-trader/MANIFEST.yaml`, but lives in kernel code not in any bundle):
+### D2. `SYSTEM_INFRASTRUCTURE_TOOLS` — explicit registry naming the existing pattern
+
+The kernel has been using system-Resend-via-`RESEND_API_KEY` since ADR-040 + ADR-202, but those call sites are direct (function call from notification trigger / daily-update task) and the pattern was never named. ADR-299 introduces an LLM-invoked surface over the same infrastructure, and that makes the pattern explicit enough to need a registry.
+
+**New constant** in `api/services/platform_tools.py`:
 
 ```python
-# api/services/capabilities.py (or similar kernel location — see D5)
-KERNEL_UNIVERSAL_CAPABILITIES = {
-    "send_operator_email": {
-        "category": "tool",
-        "runtime": "kernel",            # not external:provider — kernel-mediated
-        "requires_connection": None,    # NOT platform-gated
-        "tools": ["platform_email_send_to_operator"],
-        "addressee_resolution": "auth.users.email",  # at send-time, never cached
-        "autonomy_posture": "observability",  # see D4
-    }
-}
+SYSTEM_INFRASTRUCTURE_TOOLS: list[dict] = [
+    EMAIL_SEND_TO_OPERATOR_TOOL,
+]
 ```
 
-**Tool**: `platform_email_send_to_operator(subject: str, html: str, cc_list?: list[str])`
-- Tool resolves operator's email at send-time from `auth.users.email` for the workspace owner
-- Never accepts a free-form `to:` parameter — the addressee is structurally fixed to the operator
-- `cc_list` allows operator-declared carbon-copies (e.g., operator's secondary email) but those addresses are sourced from operator-authored substrate (`_preferences.yaml` field), not LLM-supplied
-- Wraps existing `platform_email_send` infrastructure from ADR-192 Phase 4 (`api/integrations/core/resend_client.py`); does NOT introduce a new email provider
-- The wrap is the load-bearing thing: the existing `platform_email_send` accepts any addressee and is bundle-capability-gated. `platform_email_send_to_operator` is kernel-universal, structurally cannot address third parties, and uses the same Resend wire underneath
+Single entry today. The registry exists so future LLM-invokable system-infrastructure surfaces have a documented home and a discipline rule for what belongs: **only LLM-invokable surfaces over environment-shared infrastructure where the addressee/target is determined outside workspace declaration.** Direct call sites (ADR-040 notifications, ADR-202 daily-update emails) stay direct — they don't surface to any LLM, so registry inclusion would be ceremony without purpose.
 
-**Why a new tool rather than re-using `platform_email_send`**: the addressee constraint is structural, not policy. `platform_email_send` (per ADR-192 Phase 4) is shaped for audience-bearing use cases — the LLM supplies the `to:` field. A kernel-universal "send to operator" tool that took a `to:` parameter would re-introduce the audience-bearing surface this ADR explicitly does NOT ship. By wrapping with addressee-resolution baked in (operator-identity from `auth.users`), we get the "operator inbox" semantic without LLM-controlled audience targeting.
+The registry's responsibility is **surfacing** to LLM tool-use loops. ADR-040 and ADR-202 share the *infrastructure* (system Resend wire) but not the *surface* (they're not in any LLM's tool list); inclusion in `SYSTEM_INFRASTRUCTURE_TOOLS` is gated on the latter.
 
-### D3. Bundle-vs-kernel boundary clarification (amends ADR-283 D7)
+### D3. Tool surfacing path — `SYSTEM_INFRASTRUCTURE_TOOLS` merged explicitly, not derived
 
-ADR-283 D7 Discovery Note 2's rejection list (*"LinkedIn / X / newsletter publishing-platform writes, commerce reads/writes, and email writes"*) stands, with a clarification: **the rejection is of *audience-bearing* writes**, not of operator-addressing writes via the same wire.
+`get_platform_tools_for_capabilities` is rewritten. The previous "loop over kernel `CAPABILITIES` dict and surface entries with `platform_connection_requirement is None`" always-surface pass is deleted — that filter was the mechanism by which the misclassification leaked into runtime. Without it, kernel `CAPABILITIES` entries like `summarize` or `chart` would be incorrectly surfaced unconditionally to every agent on every wake.
 
-The corrected framing:
+New shape:
 
-| Capability | Class | ADR-283 D7 verdict |
+```python
+async def get_platform_tools_for_capabilities(auth, capabilities):
+    # Workspace capabilities — explicit declaration required, gated on platform_connections
+    tools_from_capabilities = []
+    for cap in (capabilities or []):
+        provider = CAPABILITY_PROVIDER_MAP.get(cap)
+        if provider and provider in connected_providers:
+            tools_from_capabilities.extend(PLATFORM_TOOLS_BY_CAPABILITY.get(cap, []))
+
+    # System infrastructure — always surfaced, no declaration required
+    tools_from_infrastructure = list(SYSTEM_INFRASTRUCTURE_TOOLS)
+
+    return _dedup_preserving_order(tools_from_infrastructure + tools_from_capabilities)
+```
+
+Two source layers, one resolution function, one return list. Each layer's inclusion criterion is explicit and structural: workspace capabilities require declaration + provider gate; system infrastructure surfaces unconditionally because it's part of the kernel's operating surface.
+
+`runtime: "kernel"` as a value on the `CAPABILITIES` dict is deleted. That sentinel was the mechanism by which `send_operator_email` declared "I'm not really a workspace capability"; now that it has its own home, the sentinel becomes unused, and `runtime` values reduce to the actual runtimes that dispatch workspace work (`internal | python_render | external:slack | external:notion | external:github`).
+
+### D4. `_preferences.yaml::operator_notifications:` schema unchanged; comment rationale rewritten
+
+The bundle reference workspaces' `operator_notifications:` block shape is correct under the new framing. Each entry's `slug` / `description` / `cadence_hint` / `active` carries the operator's standing approval to fire `platform_email_send_to_operator` for that notification class. The opt-in IS the authorization (per the framework below in D5).
+
+The schema's comment block, however, was written under the prior framing and contains two stale claims that contradict the live code:
+
+1. *"Operator-addressing capabilities (per ADR-299 D1, operator-addressing class)"* — the entity is no longer classified as a capability.
+2. *"Wire-gate still applies: requires an active Resend connection per ADR-192 Phase 4. When Resend isn't connected, the tool degrades silently"* — the live code uses the system Resend wire (`RESEND_API_KEY` env var); no `platform_connections` row required; the tool never degrades on "missing connection."
+
+Both bundle reference workspaces (`alpha-author`, `alpha-trader`) get their comment blocks rewritten in the same commit as the code rewrite. The YAML shape under the comments stays exactly as-is.
+
+### D5. Authorization model: `_preferences.yaml` opt-in is observability authorization
+
+System infrastructure that addresses the operator-identity does **not** route through the AUTONOMY ceiling (ADR-217 + ADR-249). AUTONOMY gates *consequential actions* — third-party-affecting writes that move capital, change external-counterparty state, bind publication. Operator-self-addressing observability sends do not move capital and do not bind publication.
+
+The authorization model:
+
+- The operator declares `operator_notifications.{slug}.active: true` in `_preferences.yaml` — that declaration **is** the standing approval to fire `platform_email_send_to_operator` for that notification class. Per ADR-275, operator authority on `_preferences.yaml` is structural; reviewer reconciles cadence preferences via `Schedule()` calls but does not author the preferences themselves.
+- AUTONOMY `delegation: manual` does NOT block these — the operator already approved them by declaring the preference. AUTONOMY scoping is for third-party-affecting writes only.
+- Default-off: bundle-shipped entries ship `active: false` to avoid spamming any operator before they've consented. The operator flips `active: true` per workspace.
+- Absent `_preferences.yaml::operator_notifications` block → the Reviewer/agent should not fire `platform_email_send_to_operator`. The system surface is available but unused. (The Reviewer's persona-frame teaches this discipline per D7 below.)
+
+This authorization model is identical in spirit to how ADR-040 + ADR-202 already operate — both fire emails to the operator without per-action AUTONOMY click, both gated by operator-side configuration (notification subscriptions for ADR-040; daily-update task active state for ADR-202). The pattern was already canonical; ADR-299 names it.
+
+### D6. Addressee structurally pinned to operator-identity
+
+`platform_email_send_to_operator` accepts `subject` and `html`. It does **not** accept `to`, `cc`, `bcc`, `from_email`, or `from_name` — any LLM attempt to supply these returns a structured error.
+
+The addressee resolves at send-time from `auth.users.email` for the workspace owner via `get_user_email(auth.client, auth.user_id)`. Never cached, never substrate-stored, never LLM-supplied. The structural pin is the load-bearing property that distinguishes `send_operator_email` from audience-bearing email surfaces (`platform_email_send`, `platform_email_send_bulk` in bundle-specific commerce capabilities per ADR-192 Phase 4): operator-addressing infrastructure cannot be abused to address third parties, by tool-schema construction.
+
+The `Reply-To` header is pinned to the operator's own email so any reply lands in their inbox naturally; `From` defaults to `yarnnn <noreply@yarnnn.com>` via the `RESEND_FROM_EMAIL` env var (canonical with ADR-040 + ADR-202).
+
+### D7. Persona-frame teaches the system-infrastructure framing
+
+The Reviewer's persona-frame (`api/agents/reviewer_agent.py::_PERSONA_FRAME`) section currently introducing the tool gets rewritten under the new framing. The shape of the rewrite:
+
+- Names `platform_email_send_to_operator` as **operator-addressing system infrastructure** — distinguishing it from substrate writes (where the Reviewer speaks as itself), capital actions (third-party-affecting, AUTONOMY-gated), and audience-bearing email (bundle-specific commerce capability).
+- Cites the system Resend wire's existing call sites (ADR-040, ADR-202) so the Reviewer perceives this as established infrastructure, not a novel surface.
+- Names `_preferences.yaml::operator_notifications.{slug}.active: true` as the operator's standing approval — distinct from AUTONOMY gating.
+- Reaffirms the discipline rule: observability sends fire when the cycle produces material worth surfacing; routine no-material cycles do not warrant an email even if cadence_hint moment is right.
+
+Persona-frame rewrite is bundled in the same commit as the code rewrite per Singular Implementation + the Prompt Change Protocol (CHANGELOG entry required).
+
+### D8. The Reviewer surface stays under Path A revert pending v5 canary
+
+The Reviewer's tool surface is built from `REVIEWER_PRIMITIVES` in `api/services/primitives/registry.py`, not from `get_platform_tools_for_capabilities`. The Path A revert from 2026-05-25 (`EMAIL_SEND_TO_OPERATOR_TOOL` removed from `REVIEWER_PRIMITIVES`) is structurally **preserved by this rewrite**.
+
+The rationale under the new framing is the same as the rationale under the old framing, reframed: whether the Reviewer should be able to invoke system infrastructure that **speaks as the system to the operator** is a Reviewer-authority question, separate from the taxonomy question this ADR resolves. The v5 canary remains pending. See §"Reviewer authority — open question" below.
+
+The agent path (non-Reviewer LLM tool-use) **does** surface `platform_email_send_to_operator` unconditionally via the new `SYSTEM_INFRASTRUCTURE_TOOLS` merge in `get_platform_tools_for_capabilities` (D3) — so the rest of the architecture is structurally complete from the agent perspective. Only the Reviewer's direct access is gated by the v5 outcome.
+
+## Implementation
+
+Singular Implementation discipline: this rewrite lands as **one atomic commit**. No dual paths, no backwards-compat shim, no parallel registries. The four Discovery notes' code is the legacy being replaced.
+
+### Code rewrite
+
+1. **`api/services/orchestration.py`** — delete the `send_operator_email` entry from `CAPABILITIES` dict (lines 1234–1240). The `runtime: "kernel"` value disappears from the codebase. No replacement; the entry's content moves to `EMAIL_SEND_TO_OPERATOR_TOOL` (where it already lives) and the merge logic in `SYSTEM_INFRASTRUCTURE_TOOLS`.
+
+2. **`api/services/platform_tools.py`** —
+   - Delete `"send_operator_email": ["platform_email_send_to_operator"]` from `PLATFORM_TOOLS_BY_CAPABILITY` (line ~983–984).
+   - Add `SYSTEM_INFRASTRUCTURE_TOOLS = [EMAIL_SEND_TO_OPERATOR_TOOL]` constant after the `EMAIL_TOOLS` list (with explanatory header comment).
+   - Rewrite `get_platform_tools_for_capabilities`:
+     - Delete the "always-surface pass" that loops over kernel `CAPABILITIES` (lines ~1095–1115).
+     - Replace with explicit `SYSTEM_INFRASTRUCTURE_TOOLS` merge before the wire-gated capabilities pass.
+     - Final return: `SYSTEM_INFRASTRUCTURE_TOOLS` tools first (sorted by tool name for determinism), then wire-gated workspace capability tools.
+   - Tool definition comment block at line ~813–825 rewritten to reflect system-infrastructure framing.
+
+3. **`api/services/primitives/registry.py`** — comment block at line ~427 documenting the Path A revert is rewritten to cite the new ADR-299 framing (§"Reviewer authority — open question" below). `EMAIL_SEND_TO_OPERATOR_TOOL` import remains absent; `REVIEWER_PRIMITIVES` count remains 21.
+
+4. **`api/agents/reviewer_agent.py`** — `_PERSONA_FRAME` section at lines 758–790 rewritten per D7 above.
+
+5. **`api/test_adr299_kernel_universal_capability.py`** — every test renamed + assertion + docstring rewritten:
+   - File NOT renamed (filename is a stable URL; the H1 title is canonical; reference path stays consistent with the 6 Hat-B evaluation citations).
+   - Module docstring rewritten under the new framing.
+   - `test_send_operator_email_in_capabilities_dict` → `test_send_operator_email_not_in_capabilities_dict` with **inverted assertion** — the new shape requires `"send_operator_email" not in CAPABILITIES`.
+   - `test_email_tools_exposes_send_to_operator_with_constrained_schema` survives verbatim (the tool definition shape is unchanged).
+   - `test_handler_refuses_llm_supplied_addressee_fields` survives verbatim (the handler shape is unchanged — D6).
+   - `test_resolution_send_operator_email_not_in_provider_map` survives verbatim (the entry was never in `CAPABILITY_PROVIDER_MAP`).
+   - `test_resolution_surfaces_send_operator_email_unconditionally` rewritten to assert surfacing happens via `SYSTEM_INFRASTRUCTURE_TOOLS` merge (not via always-surface over `CAPABILITIES`).
+   - `test_reviewer_primitives_excludes_send_operator_email_path_a_revert` survives verbatim — Path A guard intact (D8).
+   - `test_resolution_does_not_have_parallel_kernel_universal_precheck` → `test_resolution_uses_system_infrastructure_tools_merge` — the parallel-pre-check guard is reframed as a positive assertion that the merge path is the one resolution mechanism.
+   - `test_bundle_capability_resolution_not_regressed` survives verbatim.
+   - `test_addressee_class_distinguishes_operator_from_audience` rewritten under the new vocabulary — the operator/audience distinction is now expressed structurally (system infrastructure vs workspace capability), not via an `addressee_class` field that no longer exists.
+   - New test: `test_runtime_kernel_sentinel_deleted_from_capabilities` — guards against the `runtime: "kernel"` value reappearing.
+
+6. **`docs/programs/alpha-author/reference-workspace/context/_shared/_preferences.yaml`** — comment block at lines 41–73 rewritten per D4.
+
+7. **`docs/programs/alpha-trader/reference-workspace/context/_shared/_preferences.yaml`** — comment block at lines 50–83 rewritten per D4.
+
+8. **`api/test_reviewer_formalization.py`** — two docstring prose mentions at lines 231 + 272 updated to the new framing (no assertion changes; docstrings only).
+
+9. **`api/prompts/CHANGELOG.md`** — new entry `[2026.05.27.N]` documenting the persona-frame rewrite per Prompt Change Protocol.
+
+### What does NOT change
+
+- The tool's wire (system Resend via `api/jobs/email.py::send_email`) — unchanged. Discovery 2's wire correction is structurally correct under the new framing.
+- The tool's handler (`_handle_email_tool` `send_to_operator` branch at line ~2334) — unchanged. Early return + addressee resolution from `auth.users.email` + LLM-supplied addressee rejection all preserved.
+- The tool's name (`platform_email_send_to_operator`) — unchanged. The `platform_*` prefix is now slightly imprecise (this is system infrastructure, not a platform integration), but renaming the tool would cascade across persona-frame + CHANGELOG history + Hat-B evaluation references for negligible benefit. The prefix is grandfathered in the same spirit as the `services/platform_tools.py` filename.
+- `_preferences.yaml::operator_notifications:` schema shape — unchanged.
+- ADR-040 + ADR-202 call sites — unchanged. They were already correct.
+- Render service env vars — unchanged. `RESEND_API_KEY` + `RESEND_FROM_EMAIL` are already deployed for ADR-040 + ADR-202; this rewrite does not add any new env vars.
+- Database schema — unchanged. No migration needed.
+
+### Validation gate
+
+`python api/test_adr299_kernel_universal_capability.py` — all 11 tests (10 surviving + 1 new) pass. Adjacent gates that must continue passing: `api/test_reviewer_formalization.py`, `api/test_adr276_reactive_envelope.py`, `api/test_adr301_reviewer_pulse_envelope.py`. No env-var change → no Render parity check needed.
+
+## Stress-test against the rewrite
+
+The framing was stress-tested by walking each `platform_connection_requirement: None` entry in `CAPABILITIES` and asking the D1 distinguishing question. Results:
+
+| Entry | Category | Stays in CAPABILITIES? |
 |---|---|---|
-| `write_linkedin` (LinkedIn API post) | Audience-bearing, bundle-specific | ❌ Out of alpha-author archetype (correct) |
-| `write_x` (X API post) | Audience-bearing, bundle-specific | ❌ Out of alpha-author archetype (correct) |
-| `platform_email_send` to newsletter list | Audience-bearing, bundle-specific | ❌ Out of alpha-author archetype (correct) |
-| `send_operator_email` (operator's own inbox) | Operator-addressing, kernel-universal | ✅ NOT covered by D7 rejection; available to all bundles per this ADR |
+| `summarize`, `detect_change`, `alert`, `cross_reference`, `data_analysis`, `investigate`, `produce_markdown` | Cognitive descriptors — declarative metadata, no tool | **Yes.** Bundles declare cognitive shapes their work needs; team composition matches. |
+| `web_search`, `read_workspace`, `search_knowledge` | Declarative pointers to LLM primitives (`WebSearch`, `ReadFile`, `QueryKnowledge`) — actual surfacing happens via `CHAT_PRIMITIVES`/`HEADLESS_PRIMITIVES`/`REVIEWER_PRIMITIVES` | **Yes.** Bundle/task declaration metadata, not load-bearing for runtime surfacing. (Flagged as a follow-up: these entries may be vestigial declarations worth simplifying, but the simplification is independent of this rewrite.) |
+| `chart`, `mermaid`, `image`, `video_render` | Asset-production dispatches → `RuntimeDispatch` → yarnnn-render service | **Yes.** The yarnnn-render *service* is system infrastructure (Docker deployment); the *capability to dispatch chart-rendering for the workspace's deliverable* is workspace-shaped work. |
+| `compose_html` | Post-generation pipeline step (ADR-213), no tool, automatic | **Yes** (but flagged as possibly vestigial — nothing dispatches to it as a tool; the entry may be inert metadata). Out of scope for this rewrite. |
+| `send_operator_email` | System infrastructure: system speaks as itself to operator-identity via environment-shared Resend wire | **No.** Moves to `SYSTEM_INFRASTRUCTURE_TOOLS`. |
 
-This is not a supersession of ADR-283 D7 — it's a clarification that D7's collapsed framing of "email writes" obscured a structural distinction that the 2026-05-22 stress-test made explicit. The audience-bearing-vs-operator-addressing class boundary becomes canonical going forward.
+`send_operator_email` is the lone outlier. The taxonomy split is sharp and well-populated on the workspace-capability side; the system-infrastructure side has one entry today and a documented home for future entries.
 
-### D4. AUTONOMY routing: operator-addressing writes are observability, not consequential action
+The orthogonal precedent — ADR-040 notifications and ADR-202 daily-update emails — confirms the framing. Both use the same Resend wire, both fire from kernel code paths, neither is registered as a capability. ADR-299's contribution is naming the pattern explicitly and adding the first LLM-invokable surface to it.
 
-Per ADR-217, the AUTONOMY ceiling gates **consequential actions** — writes that move capital, change external-counterparty state, bind publication to an audience. The Reviewer's verdicts on capital actions route through `should_auto_apply` → `handle_execute_proposal` (manual queues; bounded queues above ceiling; autonomous binds within ceiling).
+## Reviewer authority — open question
 
-**Operator-addressing writes do NOT route through this flow.** They are observability — the Reviewer telling the operator about workspace state via the operator's preferred out-of-band channel. The architectural commitment:
+Whether the Reviewer should have direct access to system infrastructure that speaks *as the system* to the operator is a Reviewer-authority question separable from the taxonomy question this ADR resolves. Under the previous framing, this question was framed as "tool inclusion in `REVIEWER_PRIMITIVES`." Under the new framing, the question sharpens:
 
-- A `send_operator_email` call from any Reviewer cycle fires directly when the workspace's `_preferences.yaml` declares operator-update emails as active
-- The `_preferences.yaml` declaration is the operator's standing approval (authored once, applies continuously) — analogous to how operator-authored cadence preferences are honored via Schedule reconciliation per ADR-275
-- AUTONOMY `delegation: manual` does NOT block operator-addressing writes — the operator already approved them by declaring the preference. AUTONOMY scoping is for *third-party-affecting* writes, not for *operator-self-addressing* writes.
-- If `_preferences.yaml` has no entry for operator-update emails, the capability is available but unused — Reviewer doesn't fire emails the operator hasn't asked for
+> When the Reviewer invokes `platform_email_send_to_operator`, the system Resend wire fires an email from `yarnnn <noreply@yarnnn.com>` to the operator's inbox. The Reviewer is *not* speaking as itself in the way it does when writing to `/workspace/review/judgment_log.md` — it is causing the system to speak as itself. That delegation is structurally different from substrate authorship.
 
-**Discipline rule**: operator-addressing writes inherit operator authorization from `_preferences.yaml` declarations, not from per-action AUTONOMY gating. This keeps the AUTONOMY surface focused on the consequential-action class it was designed for (ADR-217 + ADR-249) and prevents observability noise from clogging the operator's Queue.
+The Path A revert from 2026-05-25 (`EMAIL_SEND_TO_OPERATOR_TOOL` excluded from `REVIEWER_PRIMITIVES`) was triggered by Canary v4 producing `stand_down` instead of expected `defer`/`reject` — 4 LLM rounds vs Canary v3's 10. Two candidate root causes remain:
 
-### D5. Capability registration location
+- **Hypothesis A (tool perturbation)**: Adding the tool to the Reviewer's surface shifted attention budget; tool-list change perturbed the judgment process. Path A revert isolates the variable.
+- **Hypothesis B (prompt-coverage gap)**: `stand_down` is an escape hatch in the global Reviewer prompt; the hook prompt's explicit branches for `approve`/`defer`/`reject` didn't close the escape. Fix-forward by patching the hook prompt.
 
-**Decision**: register kernel-universal capabilities in a new module `api/services/kernel_capabilities.py` (parallel to `api/services/orchestration.py::PRODUCTION_ROLES` for production roles, but specific to capabilities — not roles).
+**Path A v5 canary remains pending.** If v5 produces the expected `defer`/`reject` with the smaller 21-tool surface, hypothesis A is confirmed and the re-introduction protocol (D8 plus a Path B follow-on Discovery note documenting any prompt-coverage gap) triggers. If v5 still produces `stand_down`, hypothesis A is falsified and the next investigation is hypothesis B (or a third unidentified cause).
 
-**Why a new module**:
-- `services/orchestration.py` is dense with role definitions, registry helpers, and runtime resolution; adding a new top-level dict would obscure the new architectural class
-- Putting the kernel-universal capabilities in their own file makes the "kernel-universal vs bundle-specific" distinction visible at file-organization level
-- Naming the file `kernel_capabilities.py` makes its scope explicit
-- Future kernel-universal capabilities land in this file by convention; bundle-specific capabilities continue to live in MANIFESTs
+Either outcome, the **agent path** (non-Reviewer LLM tool-use) already surfaces `platform_email_send_to_operator` via the D3 `SYSTEM_INFRASTRUCTURE_TOOLS` merge — so the rest of the architecture is structurally complete. The Reviewer-side inclusion question is a delta on a structurally-complete base.
 
-**Resolution path** (parallels bundle capability resolution per ADR-269):
-- `get_platform_tools_for_agent(agent, task_required_capabilities)` is extended to also merge kernel-universal capabilities into the agent's tool surface
-- When a recurrence declares `required_capabilities: [send_operator_email]` in its YAML, the dispatcher:
-  - Checks `KERNEL_UNIVERSAL_CAPABILITIES` first (no `requires_connection` gate)
-  - Falls through to bundle MANIFEST capabilities (with `platform_connections` gate)
-  - Merges resolved tool list and exposes to the agent's prompt
-- Singular Implementation: the dispatcher uses one resolution path; the kernel-vs-bundle distinction is a lookup-table source, not a parallel runtime code path
-
-### D6. Why operator-addressing capability is kernel-universal not per-bundle
-
-The case for kernel-universal placement (over re-declaring `send_operator_email` in every bundle's MANIFEST):
-
-1. **It generalizes across every alpha workspace by construction** — every workspace has an operator with an email address; that's true for alpha-trader, alpha-author, alpha-commerce, every hypothetical future bundle
-2. **Per-bundle re-declaration would re-leak the archetype-conflation D7 corrected** — saying "alpha-author has email capability" risks operators interpreting it as the audience-bearing variant. Saying "kernel provides operator-addressing observability to every workspace" is structurally cleaner
-3. **It's the structurally OS-level surface** — operator-self-addressing notifications are the canonical "OS sends a notification to the user" pattern; not a vertical-specific capability
-4. **It avoids capability-menu drift** — without kernel-universal placement, alpha-trader would need to add `send_operator_email` to its MANIFEST too (for daily trade summary emails), and alpha-commerce would too, and so on. Each addition risks subtle variation; the kernel-universal version is one definition forever
-
-### D7. What this ADR explicitly does NOT do
-
-- **Does not add audience-bearing email** — `send_operator_email` is structurally constrained to the workspace owner's inbox. Operator's-audience-list emails (newsletter sends to subscribers) remain off-archetype for alpha-author per ADR-283 D7 and would require their own bundle (per Singular Implementation)
-- **Does not generalize to SMS/push channels** — those are deferred; their authorization shape (phone-number verification ceremony, push-token management) is different enough to warrant separate ADR discourse. Future channels come back through additional ADR amendments, not silent extension under this capability
-- **Does not introduce a new email provider** — wraps existing Resend integration from ADR-192 Phase 4. No new env vars on Render services
-- **Does not modify the AUTONOMY routing for consequential actions** — operator-addressing writes follow `_preferences.yaml` opt-in; capital actions still flow through `should_auto_apply` unchanged
-- **Does not modify alpha-trader bundle** — alpha-trader inherits the new capability without MANIFEST changes; existing alpha-trader workspaces gain operator-update emails by declaring the preference in `_preferences.yaml`
-- **Does not modify ADR-283 D7 strictly** — clarifies the audience-bearing-vs-operator-addressing distinction D7's collapsed list obscured; D7's rejection of audience-bearing writes stands
-
-## Implementation roadmap (phased)
-
-Each phase lands as its own commit with its own validation gate.
-
-### Phase 1 — Kernel capability registration + tool wrap (~2 hours)
-- New module `api/services/kernel_capabilities.py` declaring `KERNEL_UNIVERSAL_CAPABILITIES` dict with `send_operator_email` entry
-- New tool `platform_email_send_to_operator` registered in `api/services/platform_tools.py` — wraps existing Resend client with structural addressee resolution from `auth.users.email`
-- Capability resolution in `get_platform_tools_for_agent` extended to check kernel-universal capabilities before bundle MANIFEST
-- Regression test `api/test_adr299_kernel_universal_capability.py` validates: (a) `send_operator_email` resolvable on workspace with no MANIFEST capabilities, (b) tool refuses LLM-supplied `to:` field (structurally pinned to operator), (c) bundle capability gate still works for bundle-specific capabilities (no regression)
-
-### Phase 2 — `_preferences.yaml` schema extension (~1 hour)
-- Bundle reference-workspaces (`alpha-author`, `alpha-trader`) extend their `_preferences.yaml` template with a new `operator_notifications:` block declaring opt-in / opt-out per notification type
-- Reviewer reads this section on every wake (part of the existing `_preferences.yaml` envelope per ADR-275 D5)
-- Empty/absent block = no operator-update emails fire (default-off)
-
-### Phase 3 — Reviewer prompt nudge for operator-update awareness (~30 min)
-- `_PERSONA_FRAME` cadence section extended: when operator has declared operator-update preferences AND the cycle has substrate-worth-reporting, the Reviewer should compose and send via `platform_email_send_to_operator`
-- CHANGELOG entry per Prompt Change Protocol
-
-### Phase 4 — L6 capital-execution branch validation on alpha-author (~observation; cost: ~$0.30 LLM tokens)
-- Operator declares `operator_notifications: {daily_corpus_state_update: true}` in yarnnn-author's `_preferences.yaml`
-- Wait for next natural Reviewer wake (substrate-event or cron_tick)
-- Observe Reviewer emit `platform_email_send_to_operator` call → operator receives email
-- Capture artifacts: `execution_events` row with funnel decision + the email itself + Reviewer reasoning in `judgment_log.md`
-- Update [`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/) ADDENDUM with the consequential-action gate-fire evidence on alpha-author (closing clause 5 active-branch on alpha-author without requiring audience-bearing capabilities)
-
-## Stress-test scenarios validated against the proposed shape
-
-The 2026-05-22 discourse round stress-tested this against 10 scenarios across alpha-author, alpha-trader, and hypothetical alpha-commerce workspaces. Headline:
-
-- **Symmetric fit across both alpha-author workspaces** (yarnnn-author founder-content + netflix-script-author screenplay): operator-addressing emails work for both without bundle changes
-- **Natural fit for alpha-trader** (daily after-hours P&L summaries): bonus capability that no existing bundle MANIFEST declares, gained for free under kernel-universal placement
-- **Future alpha-commerce inherits without authoring work** — confirms the kernel-universal placement payoff
-- **Surfaced the audience-vs-operator distinction** that D7's collapsed framing obscured (Scenario 5: newsletter sends to subscribers ≠ daily update to operator's own inbox)
-- **Surfaced the channel-agnostic question** (Scenario 6: SMS/push) and resolved in favor of email-specific naming for v1 to keep the architectural commitment narrow
-- **Surfaced the AUTONOMY-routing question** (Scenario 8: should operator-update emails require manual click under `delegation: manual`?) and resolved in favor of `_preferences.yaml` opt-in as the standing authorization
-- **Surfaced the identity-resolution discipline** (Scenario 10: operator changes email mid-workspace) — addressee resolved at send-time, never substrate-cached
-- **Surfaced spam-pattern risk** (Scenario 9: operator with N workspaces gets N daily emails) but bounded as downstream product-design problem, not a capability-shape problem
-
-Full stress-test reasoning trace lives in the 2026-05-22 session log; the load-bearing decisions are crystallized in D2-D4 above.
+This rewrite **does not pre-judge** the Reviewer authority question. If v5 confirms hypothesis A, a follow-up commit re-includes the tool in `REVIEWER_PRIMITIVES` under the new framing (the test rename guards both the current revert state and the re-introduction protocol). If v5 falsifies it, hypothesis B is the next round.
 
 ## Risks + mitigations
 
 | Risk | Mitigation |
 |---|---|
-| Operator-update emails become noise, get marked-as-read, loop breaks | Default-off via `_preferences.yaml`. Operator opts in per workspace. No platform-default subscriptions. |
-| Tool gets re-used as audience-bearing surface (someone passes operator's friend's email as `cc_list`) | `cc_list` only accepts addresses sourced from operator-authored substrate (`_preferences.yaml` field), not LLM-supplied. Structural pin. |
-| Per-workspace operator-email duplication when operator runs multiple workspaces | Downstream product-design problem (digest roll-up, subject-line prefixing); capability ships unchanged; UX iteration handles spam-fatigue |
-| Kernel-universal class accidentally becomes a dumping ground | Discipline rule (D1): kernel-universal class is for *operator-identity-addressing* capabilities only. Anything addressing third parties / audiences / external counterparties is bundle-specific. ADR amendments enforce this filter. |
-| Capability resolution becomes ambiguous when both kernel-universal and bundle declarations name overlapping capabilities | Kernel-universal wins by precedence in `get_platform_tools_for_agent` resolution order. Documented in code + this ADR. Bundle authors cannot redeclare kernel-universal capabilities (the resolution is one-way). |
-
-## What this changes about the L6 validation envelope
-
-Once Phase 4 lands, alpha-author exercises the consequential-action gate-fire branch (clause 5 of FOUNDATIONS DP21) on its own substrate — no longer architecturally-deferred-to-alpha-trader-only.
-
-The conglomerate-alpha thesis (per ALPHA-1-PLAYBOOK + ADR-191) keeps its archetype separation: alpha-trader still validates **capital-execution** (Alpaca paper orders → real fills → reconciliation), alpha-author validates **substrate-continuity** (corpus state → operator-update emails → operator-read-back). Both archetypes now exercise consequential-action gate-fire on substrate that matches their archetype's value-creating loop.
-
-## Status
-
-**Phase 1 Implemented 2026-05-22.** The kernel module (`api/services/kernel_capabilities.py`), tool wrap (`platform_email_send_to_operator` in `EMAIL_TOOLS` + `send_to_operator` branch in `_handle_email_tool`), and resolution wiring (kernel-universal pre-check in `get_platform_tools_for_capabilities`) all shipped. Regression gate `api/test_adr299_kernel_universal_capability.py` 8/8 PASS; sibling reviewer-formalization gate (`test_reviewer_formalization.py`) 8/8 PASS confirming no regression in adjacent canon. Singular Implementation discipline honored — one resolution path, one tool definition, structural addressee pin enforced at three layers (schema absence + handler runtime rejection + source-level test guard).
-
-**Phases 2-4 deferred to follow-up commits**:
-- Phase 2: `_preferences.yaml` schema extension for `operator_notifications:` opt-in block (alpha-author + alpha-trader bundle reference workspaces)
-- Phase 3: `_PERSONA_FRAME` cadence-section nudge for Reviewer awareness of operator-update preferences (with CHANGELOG entry per Prompt Change Protocol)
-- Phase 4: L6 validation observation on alpha-author (operator declares preference, observe natural cycle emit `platform_email_send_to_operator`, capture artifacts → updates `docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/` ADDENDUM with explicit consequential-action gate-fire evidence on alpha-author without audience-bearing capabilities)
+| `SYSTEM_INFRASTRUCTURE_TOOLS` becomes a dumping ground | Discipline rule (D2): LLM-invokable surfaces only; environment-shared infrastructure only; addressee/target determined outside workspace declaration. Direct call sites stay direct. New entries require ADR amendment. |
+| Operator-addressing emails become noise, get marked-as-read, loop breaks | Default-off via `_preferences.yaml::operator_notifications.{slug}.active: false`. Operator opts in per workspace per notification class. No platform-default subscriptions. |
+| Tool gets re-used as audience-bearing surface | Schema enforces structural pin (no `to`, `cc`, `bcc`, `from_email`, `from_name` fields accepted — D6). Handler rejects at runtime. Source-level test guards against schema drift. |
+| Per-workspace operator-email duplication when operator runs multiple workspaces | Downstream product-design problem (digest roll-up, subject-line prefixing); capability ships unchanged; UX iteration handles spam-fatigue. |
+| Bundle MANIFEST authors try to redeclare `send_operator_email` | The capability key no longer exists in `CAPABILITIES`; bundle MANIFEST validation will reject the unknown capability at activation time. Documentation steers bundle authors to declare only audience-bearing email capabilities (bundle-specific). |
 
 ## Cross-references
 
-- 2026-05-22 L6 validation observation: [`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/)
-- 2026-05-24 architectural-class-naming redundancy finding (motivated the Discovery note below): [`docs/evaluations/2026-05-24-042952-adr299-class-naming-redundancy/`](../observations/2026-05-24-042952-adr299-class-naming-redundancy/)
-- alpha-author bundle ADR: [ADR-283](ADR-283-alpha-author-bundle.md) (D7 + Discovery Note 2)
-- Resend integration: ADR-192 Phase 4 (`api/integrations/core/resend_client.py`)
-- Existing platform tools: `api/services/platform_tools.py` (EMAIL_TOOLS at line 809)
-- Capability flow: ADR-269 (`get_platform_tools_for_agent`)
-- AUTONOMY gating: ADR-217 + ADR-249
-- Existing CAPABILITIES dict (where send_operator_email now lives post-correction): `api/services/orchestration.py:1129`
-- FOUNDATIONS DP21 (Variant F): the canonical Reviewer formalization this ADR completes for the substrate-continuity archetype
+- **Existing system Resend wire call sites**: ADR-040 (`services/notifications.py`), ADR-202 (`services/daily_update_email.py`). Both fire from kernel code paths; both use `RESEND_API_KEY` env var; neither is registered as a capability. This rewrite makes the pattern they established explicit.
+- **Resend integration ADR**: ADR-192 Phase 4 (`api/integrations/core/resend_client.py`) — the *per-user OAuth* audience-bearing wire, distinct from the system wire `send_operator_email` uses.
+- **Capability flow**: ADR-269 (`get_platform_tools_for_agent`) — the agent-path resolution entry point that this rewrite touches.
+- **AUTONOMY gating**: ADR-217 + ADR-249 — gates consequential actions (third-party-affecting); operator-self-addressing observability is structurally outside this gate per D5.
+- **Bundle MANIFEST schema**: ADR-118, ADR-224 — bundle capabilities + kernel/program boundary discipline.
+- **Operator preferences substrate**: ADR-275 — operator authority on `_preferences.yaml`; Reviewer reconciles cadence preferences via `Schedule()` but does not author the preferences.
+- **Path A revert observation**: [`docs/evaluations/2026-05-25-042346-adr299-always-surface-resolution/`](../observations/2026-05-25-042346-adr299-always-surface-resolution/) — Hat-B finding that triggered the revert.
+- **L6 capital-execution validation** (substrate-continuity branch on alpha-author): [`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/) — the discourse that originally motivated this ADR. Closure of the substrate-continuity branch still requires the Reviewer to invoke `platform_email_send_to_operator`, which is conditional on the Path A v5 canary outcome (§"Reviewer authority — open question").
+- **alpha-author bundle**: ADR-283 D7 + Discovery Note 2 — audience-bearing email rejection holds; operator-addressing system infrastructure is a separate surface inheritable by every bundle without MANIFEST declaration.
 
-## Discovery note — architectural-class-naming redundancy correction (2026-05-24)
+## Implementation history (superseded)
 
-This ADR was patched in place on 2026-05-24 after operator-prompted re-review surfaced a redundancy in D1 + D5: the introduced "kernel-universal capability" class was a renaming of an existing pattern, and D5's parallel registry duplicated existing infrastructure.
+The original ADR-299 (2026-05-22) framed `send_operator_email` as a "kernel-universal capability" — a new architectural class introduced alongside existing workspace capabilities. Four Discovery notes corrected layers of the resulting cascade:
 
-**The redundancy**: `api/services/orchestration.py:1129` already shipped a `CAPABILITIES` dict (pre-ADR-299) with 15 entries carrying `platform_connection_requirement: None` — the structural property D1 named as the distinguishing test for "kernel-universal." The `_resolve_capability` fallthrough (ADR-224) already handled the kernel-vs-bundle distinction. D5's parallel `KERNEL_UNIVERSAL_CAPABILITIES` registry in new module `api/services/kernel_capabilities.py` introduced a second registry doing what the existing single registry already did.
+- **Discovery note 1** (2026-05-24): Class-name redundancy. The "kernel-universal" name was reused without checking the existing `CAPABILITIES` dict structure; the genuine novelty was the addressee-class distinction (operator-identity vs audience), not the kernel-vs-bundle housing. Class renamed "operator-addressing." Parallel registry `KERNEL_UNIVERSAL_CAPABILITIES` deleted.
+- **Discovery note 2** (2026-05-24): Wire redundancy. Phase 1 had wired the tool to the per-user OAuth Resend (ADR-192 Phase 4) when the correct wire (system Resend, ADR-040 + ADR-202) was already deployed. Wire rewired; `runtime: "kernel"` sentinel added to `CAPABILITIES` entry; `platform_connection_requirement: None`.
+- **Discovery note 3** (2026-05-25): Resolution-path gap. The runtime never surfaced the capability to substrate-event wakes (which hardcode `capabilities=[]`). Always-surface pass added that looped over kernel `CAPABILITIES` filtering by `platform_connection_requirement is None`.
+- **Discovery note 4** (2026-05-25): Reviewer-surface gap. The Reviewer's tool surface is `REVIEWER_PRIMITIVES`, not `get_platform_tools_for_capabilities`; the tool was never in `REVIEWER_PRIMITIVES`. Tool added. Path A revert followed same-day (next entry).
+- **Discovery 4 Path A revert** (2026-05-25): Canary v4 produced `stand_down` instead of `defer`/`reject`; hypothesis A (tool perturbation) chosen for isolation. `EMAIL_SEND_TO_OPERATOR_TOOL` removed from `REVIEWER_PRIMITIVES`. Discovery 3's always-surface fix kept.
 
-**The genuine novelty** in `send_operator_email` is NOT "kernel-universal" (existing class) but **operator-addressing** — a capability whose addressee resolves from `auth.users.email` for the workspace owner, regardless of wire-gate presence. Three patterns sit in the existing CAPABILITIES dict, not two:
+The 2026-05-27 rewrite supersedes the entire "kernel-universal capability" framing and the parallel-registry-then-always-surface-pass implementation. The four Discovery notes' lessons fold into one structural insight: **the original ADR was correctly identifying that the entity didn't fit the existing capability layer, but it relocated within the capability layer instead of relocating out of it.** The correct relocation is to system infrastructure (a category that already existed implicitly via ADR-040 + ADR-202; this ADR names it).
 
-1. **No-wire-gate kernel** (15 existing entries): `summarize`, `web_search`, `chart`, etc. No external API; addressee is N/A.
-2. **Wire-gated audience-addressing bundle** (existing): `write_slack`, `write_notion`. External API + LLM-supplied addressee → third-party / audience surface.
-3. **Wire-gated operator-addressing** (NEW, the actual novelty): `send_operator_email`. External API + addressee structurally pinned to operator identity → operator surface.
+What's preserved from the prior shape:
+- D2 (tool wrap with structural addressee pin) → D6 in the rewrite.
+- D3 (audience-vs-operator distinction) → still load-bearing; lives in §"Decision" framing.
+- D4 (observability authorization model) → D5 in the rewrite.
+- Discovery 2's wire choice (system Resend) → §"Decision" assumes this throughout.
+- Discovery 4 Path A revert → D8 in the rewrite + §"Reviewer authority — open question."
 
-D1 collapsed (1) and (3) under one banner, but (1) already existed. The actual novel axis is the **addressee-class distinction** — operator-identity vs third-party — not the kernel-vs-bundle housing.
+What's superseded:
+- D1 (kernel-universal capability class) → DELETED. Workspace capabilities are a single-axis taxonomy; system infrastructure is a separate category.
+- D5 (parallel registry, then in-place CAPABILITIES entry) → DELETED. Entry moves to `SYSTEM_INFRASTRUCTURE_TOOLS`.
+- D6 (per-bundle vs kernel-universal placement argument) → DELETED. System infrastructure is not bundle-declared at all; the kernel-vs-bundle axis doesn't apply.
+- D7 (scope limits) → folded into §"Risks + mitigations" + §"Decision" framing.
+- Discovery 3's always-surface-over-CAPABILITIES pass → DELETED. Replaced by explicit `SYSTEM_INFRASTRUCTURE_TOOLS` merge.
+- `runtime: "kernel"` sentinel value → DELETED. Was a code-level signal that the entry didn't fit; entry's correct home doesn't need a sentinel.
 
-**Why the redundancy escaped initial drafting**: pre-ADR-299 research delegated to a general-purpose agent reported *"no explicit `CAPABILITIES = {} dict currently visible (capabilities are embedded in role definitions + bundle MANIFESTs)."* This was incorrect — the dict was at line 1129, ~110 lines below where the agent looked. Discipline lesson: delegate research to subagents, but verify load-bearing facts before designing on top of them.
-
-**The corrections in this patch**:
-
-- **D1 reframed**: category renamed from "kernel-universal capability" (existing pattern) to **operator-addressing capability** (the genuine novelty). The distinguishing test is now sharpened to: *does this capability address operator-identity (operator-addressing) or a third party / audience / external counterparty (audience-addressing or third-party-addressing)?* The addressee class is the load-bearing axis, not the kernel-vs-bundle housing.
-- **D5 reframed**: parallel registry decision retracted. `send_operator_email` lives in the existing `CAPABILITIES` dict at `services/orchestration.py:1129` with a new `addressee_class: "operator"` field. The existing `_resolve_capability` + `CAPABILITY_PROVIDER_MAP` + `PLATFORM_TOOLS_BY_CAPABILITY` resolution path handles surface assembly — no parallel pre-check in `get_platform_tools_for_capabilities`. Singular Implementation honored.
-- **D2 stands unchanged**: the tool wrap (`platform_email_send_to_operator` + `send_to_operator` branch in `_handle_email_tool` + structural addressee pin) is genuinely new and correct.
-- **D3 stands unchanged**: the ADR-283 D7 clarification is still load-bearing — audience-addressing rejection holds; operator-addressing was the conflated-away exception.
-- **D4 stands unchanged**: operator-addressing writes are observability, not consequential action; gated by `_preferences.yaml` opt-in not per-action AUTONOMY click.
-- **D6 reframed**: kernel-universal placement justification (over per-bundle re-declaration) survives in spirit — operator-addressing capabilities sit in the kernel `CAPABILITIES` dict, available to all bundles via the existing fallthrough path. The reasoning was right; the implementation housing (parallel registry vs existing dict) was wrong.
-- **D7 stands unchanged**: scope limits (no audience-bearing email, no SMS/push, no new email provider, etc.) all hold.
-
-**Files affected by the correction** (single Hat-A commit, three-commit cross-hat shape per CLAUDE.md §"The Two Hats"):
-- DELETED: `api/services/kernel_capabilities.py` (parallel registry)
-- AMENDED: `api/services/orchestration.py` — `send_operator_email` entry added to `CAPABILITIES` dict with `addressee_class: "operator"` + `autonomy_posture: "observability"` fields
-- AMENDED: `api/services/platform_tools.py` — `send_operator_email` wired into `CAPABILITY_PROVIDER_MAP` + `PLATFORM_TOOLS_BY_CAPABILITY`; parallel kernel-universal pre-check in `get_platform_tools_for_capabilities` deleted
-- AMENDED: `api/test_adr299_kernel_universal_capability.py` — rewritten to test corrected shape (8/8 PASS post-correction)
-- AMENDED: this ADR (in-place per Singular Implementation; no v1/v2)
-
-**Architectural takeaway**: the kernel/bundle boundary (ADR-224) was already correctly designed for capabilities that operate across all archetypes. The error was introducing a new architectural class when a new field on the existing class would have sufficed. The lesson generalizes: when proposing a new architectural class, the first check is whether the existing class has space for a new field that captures the genuine novelty. If yes, prefer the new field over the new class. New classes are expensive (parallel registries, parallel resolution paths, doc churn); new fields are cheap (additive metadata on existing entries).
-
-This patch supersedes the affected sections in place per Singular Implementation. No v1/v2; the corrected text is the ADR.
-
-## Discovery note 2 — wire redundancy correction (2026-05-24)
-
-This ADR was patched again in place on 2026-05-24 after operator-prompted re-review during pre-flight for Phase 4 testing surfaced a second-order redundancy Discovery note 1 missed.
-
-**The redundancy**: YARNNN has two existing Resend wires today, and Phase 1 (commit `3f0cabb`) wired `platform_email_send_to_operator` on the wrong one. Yesterday's class-naming correction (commit `50df8b4`) correctly renamed the class to "operator-addressing" but did not re-verify the wire underneath — leaving the operator-addressing capability built on audience-addressing infrastructure.
-
-**The two existing wires:**
-
-| Wire | Path | Operator setup | Purpose |
-|---|---|---|---|
-| **System-keyed** (ADR-040 + ADR-202) | `api/jobs/email.py::send_email` reads `RESEND_API_KEY` env var | None — built-in, deployed | Operator-addressing — `services/notifications.py` (agent-ready / agent-failed alerts) + `services/daily_update_email.py` (ADR-202 daily-update pointer emails) |
-| **Per-user OAuth** (ADR-192 Phase 4) | `api/integrations/core/resend_client.py` reads `platform_connections.platform='email'.credentials_encrypted` (Fernet-encrypted) | Operator connects via Settings → Integrations → Email | Audience-addressing — `platform_email_send` + `platform_email_send_bulk` for commerce-archetype customer/newsletter sends |
-
-ADR-299 Phase 1 attached `platform_email_send_to_operator` to the per-user OAuth wire — meaning the operator-addressing capability required operator Resend OAuth ceremony to activate, when the correct operator-addressing wire (system Resend) was already deployed and required zero operator action.
-
-**Recursive discipline lesson**: when correcting an architectural-class redundancy, also verify the wire each class member points at. Renaming the class without re-verifying the implementation collapses to a relabel-only correction that leaves the structural bug intact. Same shape as Discovery note 1's lesson, recursing one level deeper.
-
-**The corrections in this second patch**:
-
-- **D2 reframed (wire)**: the tool implementation rewires to system Resend via `api/jobs/email.py::send_email`. Handler refactored to early-return at top of `_handle_email_tool` before the per-user `platform_connections` fetch (which is for the audience-addressing wire only). The `send_to_operator` branch:
-  - Resolves operator email via `get_user_email(auth.client, auth.user_id)` from `auth.users.email` at send-time (unchanged from prior shape — addressee resolution discipline preserved)
-  - Rejects LLM-supplied addressee fields (`to`, `cc`, `bcc`, `from_email`, `from_name`) with clear errors (structural pin preserved at three layers: schema absence + runtime rejection + source-level test guard)
-  - Calls `system_send_email(to=operator_email, subject=..., html=..., reply_to=...)` instead of `resend.send(api_key, ...)` — system wire, no per-user API key
-- **D2 reframed (runtime + wire-gate)**: kernel `CAPABILITIES` dict entry for `send_operator_email`:
-  - `runtime` changed from `"external:email"` → `"kernel"` (system wire is environment-deployed kernel infrastructure, not external provider)
-  - `platform_connection_requirement` changed from `{platform: "email", status: "active"}` → `None` (no per-user OAuth gate)
-- **D5 reframed (resolution path)**: `get_platform_tools_for_capabilities` extended to consult kernel `CAPABILITIES` dict for no-wire-gate capabilities (`platform_connection_requirement is None`) BEFORE the `CAPABILITY_PROVIDER_MAP` per-user gate check. When such a capability is requested, its tools surface unconditionally — no `connected_providers` check, since the wire is environment-deployed. Singular Implementation honored: one resolution function, two source layers (kernel CAPABILITIES dict for no-wire-gate + CAPABILITY_PROVIDER_MAP for wire-gated), one return list. `send_operator_email` removed from `CAPABILITY_PROVIDER_MAP` (was pointing at `"email"` provider, which is the audience-addressing surface).
-- **Phase 3 persona-frame wire-gate clause deleted**: the prose teaching the Reviewer to note substrate-vs-wire drift in `standing_intent.md` when `platform_email_send_to_operator` is absent from the tool surface — that clause was correct for the wrong wire. The corrected wire has no wire-gate; the tool is always available. Replaced with a single-paragraph note that `platform_email_send_to_operator` uses the system-deployed Resend wire, no operator-side setup required, and sends from `yarnnn <noreply@yarnnn.com>` by default with Reply-To routing replies to operator's inbox.
-- **D3 stands unchanged**: ADR-283 D7 clarification still holds — audience-addressing rejection stands; operator-addressing was the conflated-away exception.
-- **D4 stands unchanged**: operator-addressing writes are observability, not consequential action; gated by `_preferences.yaml` opt-in.
-- **D6 reframed**: kernel-universal placement justification stands; the specific implementation housing changes from "wrapping per-user OAuth wire in EMAIL_TOOLS" to "early-return on system wire before per-user OAuth fetch path."
-- **D7 stands unchanged**: scope limits all hold.
-
-**Files affected by this second correction**:
-- AMENDED: `api/services/platform_tools.py::_handle_email_tool` — `send_to_operator` branch moved to top of function as early return; calls `system_send_email` (alias for `api/jobs/email.py::send_email`) instead of `resend.send(api_key, ...)`; removed reliance on per-user `platform_connections` fetch.
-- AMENDED: `api/services/orchestration.py::CAPABILITIES["send_operator_email"]` — `runtime: "kernel"`; `platform_connection_requirement: None`.
-- AMENDED: `api/services/platform_tools.py::CAPABILITY_PROVIDER_MAP` — `send_operator_email` entry removed (no longer provider-gated).
-- AMENDED: `api/services/platform_tools.py::get_platform_tools_for_capabilities` — extended with kernel `CAPABILITIES` dict no-wire-gate branch that surfaces tools unconditionally when `platform_connection_requirement is None`. Singular Implementation per the lesson from Discovery note 1: one function, lookup-source distinction (kernel-dict vs provider-map) is internal, not a parallel runtime code path.
-- AMENDED: `api/agents/reviewer_agent.py::_PERSONA_FRAME` — Phase 3 wire-gate clause deleted; replaced with one-paragraph system-wire note.
-- AMENDED: `api/test_adr299_kernel_universal_capability.py` — runtime assertion, `platform_connection_requirement` assertion, handler-shape assertions, resolution-path assertions all updated. New test `test_resolution_surfaces_send_operator_email_unconditionally` validates the kernel-dict branch in resolution. 9/9 PASS.
-- AMENDED: `api/prompts/CHANGELOG.md` — entry `[2026.05.24.3]` documenting the Phase 3 prose update.
-- AMENDED: this ADR (in-place per Singular Implementation; no v1/v2/v3).
-
-**Net impact on Phase 4 validation**: Phase 4 becomes immediate-testable. No operator Resend connect ceremony required. Operator opts in to one notification (flip `active: false → true` in `_preferences.yaml`) via chat or direct edit; next natural Reviewer wake or substrate-event canary fires the email via system wire; operator receives email from `noreply@yarnnn.com` with Reply-To set to their own inbox. The L6 capital-execution branch on alpha-author can now close on its own substrate without requiring audience-bearing capabilities.
-
-**Architectural takeaway (recursive)**: yesterday's Discovery note 1 named the lesson "prefer new field on existing class over new class when novelty fits, and verify load-bearing facts before designing on top of delegated research." Today's Discovery note 2 adds: **when correcting a class-naming redundancy, verify the wire each class member points at**. The class-vs-wire distinction is structurally orthogonal — naming the class correctly doesn't guarantee the implementation reaches the right wire. Both checks are now codified in the corrected regression gate (runtime + wire-gate + handler-shape assertions).
-
-This patch supersedes the affected sections in place per Singular Implementation. No v1/v2/v3; the corrected text is the ADR.
-
-## Discovery note 3 — resolution-path always-surface correction (2026-05-25)
-
-ADR-299 Phase 4 canary attempt revealed a third-order redundancy: after Discovery notes 1 + 2 corrected the class + wire, the runtime resolution path still required explicit recurrence/hook `required_capabilities` opt-in to surface kernel-universal capabilities. Operator-addressing capabilities were described in canon as "always available" (D1 + D4) but treated by the runtime as opt-in-per-recurrence (same as bundle-specific wire-gated capabilities).
-
-**Root cause**: `api/services/platform_tools.py::get_platform_tools_for_capabilities` looped ONLY over the caller-supplied `capabilities` list. When the substrate-event wake path called with `capabilities=[]` (hardcoded at `api/services/wake.py:1464`), no capabilities resolved — including kernel-universal ones. The capability was correctly registered + correctly wired + correctly the right shape, but the runtime resolution never reached it from substrate-event wakes.
-
-**Correction**: extended `get_platform_tools_for_capabilities` with an always-surface pass that loops over the kernel `CAPABILITIES` dict and surfaces every entry with `platform_connection_requirement is None` — regardless of whether it appears in the caller-supplied `capabilities` list. The explicitly-requested-capabilities pass survives for wire-gated capabilities (which DO need per-recurrence opt-in, because they affect third parties / audiences).
-
-**Files corrected by Discovery note 3**:
-- `api/services/platform_tools.py::get_platform_tools_for_capabilities` — added the always-surface pass before the explicitly-requested-capabilities loop; removed the early-exit on empty `capabilities` (since kernel-universal still surfaces).
-- `api/test_adr299_kernel_universal_capability.py` — `test_resolution_surfaces_send_operator_email_unconditionally` extended to assert the always-surface branch exists.
-
-**This patch supersedes Discovery note 2's D5 reframe in place per Singular Implementation. No v3/v4; the corrected text is the ADR.**
-
-## Discovery note 4 — REVIEWER_PRIMITIVES inclusion correction (2026-05-25)
-
-While implementing Discovery note 3's always-surface fix, a fourth-order redundancy surfaced: **the Reviewer's tool surface is NOT built via `get_platform_tools_for_capabilities` at all.** `api/agents/reviewer_agent.py:1373` reads:
-
-```python
-tools = list(REVIEWER_PRIMITIVES) + [RETURN_VERDICT_TOOL]
-```
-
-The Reviewer gets exactly `REVIEWER_PRIMITIVES` from `api/services/primitives/registry.py:394`. Platform tools (including `platform_email_send_to_operator`) were not in that list and never were. ADR-299 Phase 1's wire-up was structurally incomplete from day one:
-
-- ✅ Tool added to `EMAIL_TOOLS` (the agent-path platform tools list)
-- ✅ Capability registered in kernel `CAPABILITIES` dict
-- ✅ Handler branch added to `_handle_email_tool`
-- ✅ Resolution path extended (Discovery note 2 + 3)
-- ❌ **Tool NEVER added to `REVIEWER_PRIMITIVES`** — the registry the Reviewer's surface is actually built from
-
-The Reviewer never had access to `platform_email_send_to_operator` at all, regardless of operator opt-in, regardless of wire correctness, regardless of resolution-path correction. Four cascading corrections all addressing the wrong layer.
-
-**Correction**: lift the tool definition out of the `EMAIL_TOOLS` list literal as a named module-level constant `EMAIL_SEND_TO_OPERATOR_TOOL` in `platform_tools.py`, and add it to `REVIEWER_PRIMITIVES` in `registry.py`. Tool count goes 21 → 22.
-
-**Files corrected by Discovery note 4**:
-- `api/services/platform_tools.py` — `EMAIL_SEND_TO_OPERATOR_TOOL` lifted as named module-level constant before `EMAIL_TOOLS`; `EMAIL_TOOLS` now references the constant. Tool description updated to reflect system Resend wire (was still describing per-user OAuth — Discovery note 2 prose).
-- `api/services/primitives/registry.py` — imports `EMAIL_SEND_TO_OPERATOR_TOOL` from `services.platform_tools`; added to `REVIEWER_PRIMITIVES` list.
-- `api/test_adr299_kernel_universal_capability.py` — new assertion `test_reviewer_primitives_includes_send_operator_email`.
-
-### The fourth-recursion lesson (named precisely)
-
-Different actors in the system have different tool-surface assembly paths:
-
-- **Agent's tool surface**: `get_platform_tools_for_agent` → `get_platform_tools_for_capabilities` (kernel CAPABILITIES dict + bundle MANIFEST + platform_connections)
-- **Reviewer's tool surface**: `REVIEWER_PRIMITIVES` (curated subset)
-- **ChatAgent's tool surface**: `CHAT_PRIMITIVES` (similar shape to REVIEWER_PRIMITIVES)
-- **Sub-LLM specialist (DispatchSpecialist)**: `HEADLESS_PRIMITIVES` or role-specific subset
-
-**Adding a kernel-universal capability requires explicit inclusion in EACH actor's surface registry — they don't auto-flow from kernel `CAPABILITIES` dict to actor surfaces.** The kernel `CAPABILITIES` dict is the registry of "what exists"; per-actor surface registries (`REVIEWER_PRIMITIVES`, `CHAT_PRIMITIVES`, `HEADLESS_PRIMITIVES`, role bundles) are the registries of "what each actor can call." A capability registered in the former without inclusion in the relevant latter is structurally unreachable from that actor.
-
-### Updated recursion-lesson table (final form for this session)
-
-| Depth | Lesson |
-|---|---|
-| 1 | Class-naming redundancy: prefer new field on existing class over new class |
-| 2 | Wire-pointing: verify the wire each class member points at, not just the class |
-| 3 | Resolution-path always-surface: verify the resolution path actually surfaces the capability to callers that should have it |
-| 4 | **Per-actor surface registries**: verify each actor-specific tool registry (REVIEWER_PRIMITIVES / CHAT_PRIMITIVES / HEADLESS_PRIMITIVES / role bundles) includes the capability separately — kernel CAPABILITIES is "what exists," per-actor surfaces are "what each actor can call" |
-
-### Why this finally closes the chain
-
-After Discovery note 4:
-- Tool definition: ✅ (`EMAIL_SEND_TO_OPERATOR_TOOL` named constant, system-wire description)
-- Capability registered in kernel: ✅ (`CAPABILITIES["send_operator_email"]`, no-wire-gate, addressee_class=operator)
-- Wire correct: ✅ (system Resend via `api/jobs/email.py`)
-- Resolution path always-surfaces: ✅ (Discovery note 3 fix)
-- Reviewer's tool surface includes: ✅ (Discovery note 4 fix — added to `REVIEWER_PRIMITIVES`)
-- Agent's tool surface includes: ✅ (Discovery note 3 fix — always-surface in `get_platform_tools_for_capabilities`)
-- Dispatch chain: ✅ (`is_platform_tool` → `handle_platform_tool` → `_handle_email_tool::send_to_operator` early-return → `system_send_email`)
-- Operator opt-in: ✅ (`_preferences.yaml::operator_notifications.{slug}.active: true` is standing approval per D4)
-- Persona-frame teaches it: ✅ (Phase 3 prose update)
-- AUTONOMY routing as observability: ✅ (D4 commitment honored by handler — no `should_auto_apply` call)
-
-Canary v4 should produce the full chain green: REJECT verdict + email landed in operator inbox.
-
-This patch supersedes the affected sections in place per Singular Implementation. No v1/v2/v3/v4; the corrected text is the ADR.
-
-## Discovery 4 Path A — REVIEWER_PRIMITIVES revert + isolation test (2026-05-25)
-
-Canary v4 fired 4 min after the Discovery 3+4 deploy (commit 7147aa7 deployed 04:38:19 UTC, canary fired 04:42:39). The substrate-event hook fired correctly, the Reviewer wake envelope assembled correctly, and the cycle completed with `execution_events.status='success'`. But zero substrate writes landed:
-
-- No `/workspace/review/judgment_log.md` update
-- No `/workspace/review/standing_intent.md` update
-- No email sent to operator inbox
-- No narrative entry in `session_messages`
-
-The Reviewer ran 4 LLM rounds (vs canary v3's 10), made 8 read-only tool calls (`ReadFile` × 7, `ListFiles` × 1), and emitted `ReturnVerdict(verdict='stand_down', …)` in round 4. `stand_down` is structurally a valid verdict — the hook prompt's `WriteFile` requirement is conditional on `defer` or `reject` only — so the cycle exited cleanly without writes. But the hook prompt's intent ("Silent stand-down without writing audit reasoning is forbidden") was violated in spirit: the test piece had intentional voice issues (list-of-three openers, "at the end of the day", "absolutely pivotal", intensifier adverbs, "in conclusion") that should have produced defer/reject.
-
-**Two candidate root causes** for the verdict shift:
-
-| Hypothesis | Mechanism | Test |
-|---|---|---|
-| A: Tool-perturbation | Adding `platform_email_send_to_operator` to `REVIEWER_PRIMITIVES` shifted Reviewer attention budget — v4 ran 4 rounds vs v3's 10, suggesting tool-list change perturbed judgment process | Revert Discovery 4 only; re-fire substrate-event hook with same piece shape; observe whether v5 returns to defer/reject |
-| B: Prompt-coverage gap | Hook prompt has explicit branches for `approve / defer / reject` but admits `stand_down` as an escape hatch via the global Reviewer prompt | Patch hook prompt with "stand_down is not valid for pre-ship-audit"; fix forward |
-
-**Path A chosen by operator 2026-05-25** to isolate variable A first. Per Singular Implementation, the revert is the single source of truth — no parallel "both versions live" state.
-
-**Path A revert details**:
-- `api/services/primitives/registry.py` — `EMAIL_SEND_TO_OPERATOR_TOOL` import removed; tool removed from `REVIEWER_PRIMITIVES`. Tool count back to 21. Comment block documents the revert rationale + re-introduction path.
-- `api/test_adr299_kernel_universal_capability.py` — `test_reviewer_primitives_includes_send_operator_email` renamed to `test_reviewer_primitives_excludes_send_operator_email_path_a_revert` and assertion inverted. The test now guards Path A: it fails loud if Discovery 4 silently regresses or if revert is accidentally undone.
-- Discovery 3's always-surface fix in `get_platform_tools_for_capabilities` **NOT reverted** — kernel-universal capabilities still flow through the agent path for non-Reviewer callers (`test_resolution_surfaces_send_operator_email_unconditionally` continues to PASS).
-
-**Re-introduction protocol** (if v5 canary confirms tool was structurally innocent):
-1. Re-add `EMAIL_SEND_TO_OPERATOR_TOOL` to `REVIEWER_PRIMITIVES` in `registry.py`
-2. Invert the test assertion back to `assert "platform_email_send_to_operator" in tool_names`
-3. Both in the same commit; cite the validating v5 canary observation by path
-4. Add a Path B follow-on Discovery note documenting whatever prompt-coverage gap remains
-
-**If v5 still produces `stand_down`** with the smaller (21-tool) surface, hypothesis A is falsified and hypothesis B (or a third yet-unidentified cause) is the next investigation. Path A revert stays in place pending the diagnosis. The structural completeness Discovery 4 added (kernel-universal capability registered + wire correct + agent-path surfaces it + persona-frame teaches it) is preserved by Discovery 3 + the kernel `CAPABILITIES` dict + the handler + the persona-frame prose. The only thing the revert removes is the Reviewer's ability to *call* the tool directly — the rest of the architecture is intact.
-
-This addendum supersedes the "Canary v4 should produce the full chain green" prediction immediately above. v4 did not produce the predicted chain. v5 is pending.
+The Hat-B evaluation findings that referenced the prior shape are historical artifacts and remain accurate to their moment per the Two-Hats discipline. Their file paths to ADR-299 stay correct (the filename is the stable URL; the H1 title is the canonical name).

@@ -226,23 +226,27 @@ def test_persona_frame_names_pace_and_queue() -> None:
     )
 
 
-def test_persona_frame_system_resend_wire_prose_post_adr299_discovery_note_2() -> None:
-    """Persona frame must teach the system-deployed Resend wire shape for
-    platform_email_send_to_operator (ADR-299 Discovery note 2, 2026-05-24).
+def test_persona_frame_operator_addressing_system_infrastructure_prose() -> None:
+    """Persona frame must teach the operator-addressing system infrastructure
+    framing for platform_email_send_to_operator (ADR-299 rewrite 2026-05-27).
 
-    Two assertions:
+    Three assertions:
       1. The OBSOLETE wire-gate-detection prose from Phase 3 original
          (commit 0248b56) must NOT survive. The clause taught the Reviewer
          to note substrate-vs-wire drift when the tool was absent from its
-         surface; post-Discovery-note-2 the tool is ALWAYS available (no
-         wire-gate), so the clause is misleading.
-      2. The NEW system-deployed Resend prose MUST be present, naming
-         that the tool uses the system wire (no operator-side Resend
-         setup), sender defaults, and Reply-To routing.
+         surface; under the system Resend wire there is no wire-gate to
+         detect drift against.
+      2. The system infrastructure framing MUST be present, naming the
+         operator-addressing channel as system infrastructure (not a
+         workspace capability) and citing the precedent (ADR-040,
+         ADR-202).
+      3. The Reviewer-side Path A revert MUST be acknowledged so the
+         Reviewer reads the persona-frame and does NOT plan to fire a
+         tool it doesn't have access to.
 
-    This guard catches any future regression that re-introduces the
-    obsolete wire-gate-detection discipline OR loses the system-wire
-    framing.
+    This guard catches future regressions that re-introduce obsolete
+    discipline OR lose the system-infrastructure framing OR teach the
+    Reviewer to call a tool that's currently outside its surface.
     """
     path = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
     content = path.read_text()
@@ -258,24 +262,39 @@ def test_persona_frame_system_resend_wire_prose_post_adr299_discovery_note_2() -
             leaks.append(marker)
     assert not leaks, (
         f"Obsolete wire-gate-detection prose leaked back into _PERSONA_FRAME: "
-        f"{leaks}. Post-ADR-299 Discovery note 2 (2026-05-24), the tool uses "
-        f"the system-deployed Resend wire (api/jobs/email.py) — there is no "
-        f"wire-gate to detect drift against. Re-introducing the obsolete "
+        f"{leaks}. Under the system Resend wire (api/jobs/email.py) there is "
+        f"no wire-gate to detect drift against. Re-introducing the obsolete "
         f"clause would teach the Reviewer to note a substrate-vs-wire drift "
-        f"that the post-correction architecture never produces."
+        f"that the architecture never produces."
     )
 
-    # NEW system-wire prose (MUST be present)
-    assert "system-deployed Resend wire" in content, (
-        "_PERSONA_FRAME missing the post-Discovery-note-2 system-wire "
-        "framing. The clause must name 'system-deployed Resend wire' so "
-        "the Reviewer knows platform_email_send_to_operator is always "
-        "available (no operator-side Resend setup ceremony)."
+    # System infrastructure framing (MUST be present). Whitespace-tolerant
+    # match: the phrase may span a line break in the persona-frame literal.
+    normalized = " ".join(content.split())
+    assert "operator-addressing system infrastructure" in normalized, (
+        "_PERSONA_FRAME missing the operator-addressing system infrastructure "
+        "framing. ADR-299 rewrite (2026-05-27) requires the persona-frame to "
+        "name the channel as system infrastructure (not workspace capability) "
+        "so the Reviewer understands the system is speaking *as itself* to "
+        "the operator-identity, not on behalf of the workspace."
     )
-    assert "ADR-299 Discovery note 2" in content, (
-        "_PERSONA_FRAME missing the ADR-299 Discovery note 2 citation. "
-        "The system-wire framing should cite its canonical source so future "
-        "readers can trace the correction shape."
+
+    # Precedent citation (MUST be present so the Reviewer understands this
+    # is established infrastructure, not a novel surface).
+    assert "ADR-040" in content and "ADR-202" in content, (
+        "_PERSONA_FRAME missing the ADR-040 + ADR-202 precedent citation. "
+        "The Reviewer should perceive the operator-addressing channel as "
+        "the same wire ADR-040 notifications + ADR-202 daily-update emails "
+        "already use — not novel infrastructure."
+    )
+
+    # Reviewer-side Path A revert acknowledgment (MUST be present)
+    assert "Path A revert" in content or "Reviewer-side tool access is currently paused" in content, (
+        "_PERSONA_FRAME missing the Path A revert acknowledgment. ADR-299 D8 "
+        "preserves the Reviewer's exclusion of platform_email_send_to_operator "
+        "from REVIEWER_PRIMITIVES pending v5 canary; the persona-frame must "
+        "acknowledge this so the Reviewer doesn't plan to fire a tool it "
+        "doesn't currently have access to."
     )
 
 
