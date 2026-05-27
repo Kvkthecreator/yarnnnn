@@ -241,6 +241,38 @@ The 2026-05-27 first-pass rewrite of this ADR mistakenly preserved a pre-resolut
 
 **Discipline for future Reviewer surface changes** (per [RESOLUTION.md §"Discipline lesson"](../observations/2026-05-25-042346-adr299-always-surface-resolution/RESOLUTION.md)): structural reachability is not sufficient justification for tool inclusion. Verdict-quality regression must be measured against the baseline tool surface via N≥3 canaries before any addition is accepted. The default for Reviewer surface changes is "no" until verdict-quality evidence supports otherwise. The 21→22 transition's measured 74% output collapse is the canonical demonstration of why this discipline exists.
 
+## Post-judgment dispatcher integration — DEFERRED
+
+The architectural commitment in D8 + §"Reviewer authority — RESOLVED" names a **post-judgment dispatcher hook** as the correct integration path for operator-addressing notifications tied to Reviewer verdicts. Implementation of that hook is **deferred** as of 2026-05-27 pending a broader strategic discussion.
+
+**Deferral rationale**. The ADR-299 design exercise produced two generalizable architectural lessons that extend beyond email:
+
+1. **Two-class agent surface distinction** (D8) — task-bearing vs judgment-bearing agents have qualitatively different tolerances for tool-list size. Tool surfacing decisions for any new integration must respect this distinction, not just email.
+2. **System infrastructure vs workspace capability** (D1) — environment-deployed kernel plumbing exposed as LLM tools is a distinct architectural class from bundle-declared workspace capabilities. The taxonomy applies to any new infrastructure exposure, not just email.
+
+The natural next discussion these lessons inform is **the broader question of how the Reviewer's verdicts reach operators across multiple delivery channels** — email being one, but Notion / Slack workspace integrations being structurally similar (operator-addressing channels, environment-deployed wires, post-judgment delivery). Designing the email dispatcher in isolation would either (a) prematurely lock in a v1 design the broader discussion would supersede, or (b) require a v2 refactor that defeats Singular Implementation.
+
+The deferral is not a gap in canon — D8 + §"Reviewer authority — RESOLVED" are the load-bearing architectural commitments and they stand without the dispatcher implementation. The L6 capital-execution branch on alpha-author per the original [2026-05-22 motivating evaluation](../observations/2026-05-22-052244-l6-variant-f-clause-validation/) closes whenever the broader operator-channel-integration discussion concludes and the dispatcher (or its multi-channel successor) ships.
+
+**What stays out of scope under this deferral**:
+
+- New module `services/reviewer_email_dispatch.py` or equivalent
+- Match logic for `_preferences.yaml::operator_notifications` against Reviewer verdict events
+- Per-channel fan-out beyond email (Notion, Slack, etc.)
+- Composition templates for verdict-derived notification content
+- Match-criteria schema extensions (e.g., per-entry `triggers_on:` field)
+
+**What stays in scope and shipped under this ADR**:
+
+- Workspace-capability vs system-infrastructure taxonomy (D1)
+- `SYSTEM_INFRASTRUCTURE_TOOLS` registry + agent-path surfacing (D2, D3)
+- Operator-identity addressee structural pin (D6)
+- `_preferences.yaml::operator_notifications` schema in both bundles (D4) — opt-in shape is stable; the consumers can grow without schema churn
+- Reviewer-side exclusion from `SYSTEM_INFRASTRUCTURE_TOOLS` (D8) — v5-canary-evidence-confirmed architectural commitment
+- Future Reviewer surface change discipline (verdict-quality canary protocol)
+
+When the broader operator-channel-integration discussion concludes, the dispatcher implementation lands as its own ADR (or as a substantive §"Implementation" addition to this ADR), referencing back to this deferral note. Until then, operator-addressing notifications tied to Reviewer verdicts are observable in substrate (`/workspace/review/judgment_log.md`, surfaced in the cockpit Stream archetype per ADR-198) and via the existing cockpit surfaces — out-of-band channel delivery is the deliberate gap.
+
 ## Risks + mitigations
 
 | Risk | Mitigation |
