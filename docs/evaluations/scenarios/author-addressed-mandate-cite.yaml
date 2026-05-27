@@ -1,0 +1,57 @@
+scenario_schema_version: 1
+scenario: author-addressed-mandate-cite
+description: |
+  Validate that the Reviewer cites MANDATE.md when prompted to summarize
+  current posture via an operator-voice addressed turn (no substrate-event
+  wake; pure addressed-trigger wake).
+
+  Tests the mandate-coherence criterion's M7 cell: decline-with-reasoning
+  + explicit mandate cite. The Reviewer should respond with a stand-down
+  + standing_intent.md update that explicitly references MANDATE Primary
+  Action / Success Criteria — not just framework-internal reasoning
+  (_voice.md, principles.md) without mandate grounding.
+
+  This eval probes the wake-envelope MANDATE-distance hypothesis
+  (Candidate 7 in docs/analysis/alpha-trader-playbook-audit-2026-05-27.md):
+  is the wake-envelope MANDATE.md preamble structurally adjacent enough
+  to the standing-intent write moment that the Reviewer cites it
+  reliably? Operator-voice asking for a posture summary is the cleanest
+  test of this — no substrate-event distraction.
+
+  Eval-suite dimensions targeted:
+    - Behavior: P2 (decided-nothing-material) — stand-down with
+      standing_intent.md update; no action proposal, no substrate
+      mutation beyond standing_intent
+    - Posture: M7 — mandate-cite explicit; standing_intent references
+      MANDATE.md by name OR quotes a MANDATE clause (Primary Action,
+      Success Criteria, Boundary Conditions)
+    - Substrate usage: trace-completeness ≥ 0.8 — standing_intent
+      content cites which substrate files were read to compose it
+    - Cost: ≤ $1 per eval
+
+persona: yarnnn-author
+
+setup: []
+
+turns:
+  - send_message: |
+      Reviewer, give me a brief posture update. What's your current
+      read on the corpus state — anything you're watching for, any
+      tension between current substrate and the MANDATE's success
+      criteria, anything you'd flag if you were authoring a status
+      note for the operator?
+
+      Keep it focused; the response is for cockpit-glance reading,
+      not a deep audit.
+    expect:
+      - addressed_wake_within_1min
+      - reviewer_responded
+      - standing_intent_md_updated
+      - standing_intent_cites_mandate_md_by_name_OR_quotes_mandate_clause
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages

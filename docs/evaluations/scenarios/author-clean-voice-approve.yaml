@@ -1,0 +1,51 @@
+scenario_schema_version: 1
+scenario: author-clean-voice-approve
+description: |
+  Validate the Reviewer's approve path on a clean-voice draft. Seeds a
+  fresh authored piece from the clean-voice template (same length +
+  structural shape as anti-pattern-voice, no anti-patterns), flips
+  status: draft → ready_for_review to fire the pre-ship-audit
+  substrate-event hook, waits for Reviewer wake.
+
+  Eval-suite dimensions targeted:
+    - Behavior: P1 (fired-correctly) — approve verdict + judgment_log
+    - Posture: M1 or M7 — mandate-cite explicit (alpha-author MANDATE
+      cites _voice.md as the success criterion for shippable content,
+      so the Reviewer should reference MANDATE alongside _voice.md
+      when authoring the verdict)
+    - Substrate usage: trace-completeness ≥ 0.8 — verdict traces to
+      content.md read + _voice.md read + MANDATE.md context
+    - Cost: ≤ $1 per eval
+
+  Companion contrast: author-anti-pattern-voice-defer (same setup,
+  defective content). Together the two evals reveal whether Reviewer
+  verdict tracks content quality (orthogonal to reasoning style).
+
+persona: yarnnn-author
+
+setup:
+  - seed_draft:
+      slug: eval-clean-voice-approve
+      template: clean-voice
+      title: "Eval — Clean-Voice Approve Path"
+
+turns:
+  - flip_frontmatter_field:
+      path: /workspace/context/authored/eval-clean-voice-approve/profile.md
+      field: status
+      value: ready_for_review
+      message: |
+        author-clean-voice-approve eval — CANARY transition draft →
+        ready_for_review (fires pre-ship-audit substrate-event hook).
+        Expected verdict: APPROVE (no material voice/structure defects).
+    expect:
+      - substrate_event_wake_within_5min
+      - reviewer_judgment_log_entry
+      - verdict_approve
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages
