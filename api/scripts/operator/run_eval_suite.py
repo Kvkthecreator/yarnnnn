@@ -457,6 +457,32 @@ def _verdict_pass_marker() -> str:
     return "_(human-read — verify after reading raw/)_"
 
 
+def _parse_iso8601_lenient(raw: str) -> datetime:
+    """Parse an ISO 8601 timestamp with tolerance for non-6-digit microseconds.
+
+    Python 3.9's datetime.fromisoformat rejects microsecond fields with
+    fewer than 6 digits (Postgres returns variable precision: 5 digits
+    when the trailing zero is stripped). Python 3.11+ handles this
+    natively; until our runtime upgrades, we pad/normalize first.
+
+    Also normalizes trailing 'Z' to '+00:00' since Python 3.9 doesn't
+    accept the 'Z' UTC marker in fromisoformat.
+
+    Surfaced by the 2026-05-27 yarnnn-author-baseline run (commit
+    850db5a) which crashed in render_session_md with:
+        ValueError: Invalid isoformat string: '2026-05-27T06:50:37.70178+00:00'
+    """
+    import re
+    normalized = raw.replace("Z", "+00:00")
+    # Pad microseconds: match `.NNNNN[N]` (1-5 digits) before timezone offset,
+    # zero-pad to exactly 6 digits.
+    match = re.match(r"^(.+\.)(\d{1,5})((?:[+-]\d{2}:\d{2})?)$", normalized)
+    if match:
+        prefix, micros, tz = match.groups()
+        normalized = f"{prefix}{micros.ljust(6, '0')}{tz}"
+    return datetime.fromisoformat(normalized)
+
+
 _EVAL_SHAPE_ABBREVIATIONS = {
     "behavioral": "B",
     "red-team": "R",
@@ -648,14 +674,14 @@ def render_session_md(
     # Map eval cost windows to per-eval rows by matching slug → wakes within eval's started_at/finished_at
     raw_rows = cost_rollup["raw_rows"]
     for r in eval_results:
-        eval_start = datetime.fromisoformat(r["started_at"])
-        eval_end = datetime.fromisoformat(r["finished_at"])
+        eval_start = _parse_iso8601_lenient(r["started_at"])
+        eval_end = _parse_iso8601_lenient(r["finished_at"])
         # Add a ±2-min pad to catch reactive wakes that fire just after a turn write
         from datetime import timedelta
         pad = timedelta(minutes=2)
         eval_rows = [
             row for row in raw_rows
-            if eval_start - pad <= datetime.fromisoformat(row["created_at"].replace("Z", "+00:00")) <= eval_end + pad
+            if eval_start - pad <= _parse_iso8601_lenient(row["created_at"]) <= eval_end + pad
         ]
         eval_cost = sum((row.get("cost_usd") or 0) for row in eval_rows)
         within = "YES" if eval_cost <= per_eval_budget else "NO"
