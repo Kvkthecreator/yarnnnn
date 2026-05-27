@@ -1,0 +1,86 @@
+scenario_schema_version: 1
+scenario: author-counterfactual-pace-raise
+description: |
+  Counterfactual eval (EVAL-SUITE-DISCIPLINE.md §1.6.2): substrate
+  mutated as the test variable, behavior delta observed.
+
+  Operator seeds _pace.yaml with explicit `kind: hourly` (raised from
+  the bundle's minimum_pace=daily declared in alpha-author MANIFEST).
+  Per ADR-298 D11, pace is the operator's first-class dial for "how
+  often the agent works." Schedule() proposals are pace-gated at
+  declaration time per D5; raising pace from daily → hourly expands
+  the recurrence drain budget.
+
+  Tests:
+    (a) Does the Reviewer read the freshly-seeded _pace.yaml on the
+        next wake (envelope reassembly)?
+    (b) Does the Reviewer's reasoning acknowledge the new pace budget
+        (e.g., "hourly drain now permitted")?
+    (c) Does the Reviewer's subsequent Schedule() proposal (if any)
+        sit within the raised budget rather than the prior daily cap?
+
+  Pattern: write_substrate (_pace.yaml seed at hourly) → send_message
+  asking Reviewer about cadence implications → observe whether response
+  cites the new pace + would author Schedule() within hourly budget.
+
+  Accumulating state: this is eval 9 in yarnnn-author-baseline.yaml,
+  inheriting tightened MANDATE (eval 7) + AUTONOMY=bounded (eval 8).
+  Note: under bounded mode the Reviewer's Schedule() write attempts
+  may route through action_proposals — this is intentional cross-
+  counterfactual interaction.
+
+  Real-operator-workflow analog: operator decides to scale up Reviewer
+  cadence as confidence in autonomous loop grows. Raises pace from
+  daily to hourly to support more frequent deliverables. Expects
+  Reviewer to honor the new budget when proposing future cadences.
+
+persona: yarnnn-author
+
+setup: []
+
+turns:
+  # Turn 1: operator-proxy seeds _pace.yaml at hourly
+  - write_substrate:
+      path: /workspace/context/_shared/_pace.yaml
+      authored_by: operator-proxy:claude-opus-4-7:acting-as-yarnnn-author
+      message: |
+        counterfactual eval — PACE-raise: seed _pace.yaml at kind:hourly
+        (raised from bundle minimum daily). Tests whether Reviewer reads
+        the seeded pace on next wake AND adjusts Schedule() proposal
+        cadence to honor the new budget.
+      content: |
+        # /workspace/context/_shared/_pace.yaml — operator pace declaration (ADR-298 D11)
+        #
+        # Counterfactual eval seed 2026-05-27: raised from implicit
+        # daily (bundle minimum_pace=daily, no prior file) to explicit
+        # hourly. Per ADR-298 D5, Schedule() is pace-gated at declaration
+        # time — total declared cadence across all recurrences must not
+        # exceed the drain cap implied by this kind.
+        pace:
+          kind: hourly
+
+  # Turn 2: probe whether the Reviewer reads + reasons against the new pace
+  - send_message: |
+      Reviewer, _pace.yaml was just seeded with kind: hourly (raised
+      from the bundle's minimum_pace: daily). Two questions:
+
+      1. What's the implication for the drain budget — how many fires
+         per day does hourly permit vs the prior daily floor?
+      2. Given the current _recurrences.yaml + _preferences.yaml, is
+         there capacity for an additional recurrence? If so, what
+         shape would you propose?
+
+      Don't author the Schedule() call — just answer the questions.
+      Cite the substrate files you read.
+    expect:
+      - addressed_wake_within_1min
+      - reviewer_responded
+      - reviewer_cites_new_pace_kind_hourly
+      - reviewer_acknowledges_budget_implication
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages

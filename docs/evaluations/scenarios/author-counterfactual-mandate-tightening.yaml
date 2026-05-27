@@ -1,0 +1,98 @@
+scenario_schema_version: 1
+scenario: author-counterfactual-mandate-tightening
+description: |
+  Counterfactual eval (EVAL-SUITE-DISCIPLINE.md §1.6.2): substrate
+  mutated as the test variable, behavior delta observed.
+
+  Operator tightens MANDATE.md with a new specific Boundary Condition
+  ("First sentence of every shipped piece must be a single declarative
+  claim — no qualifiers, no list-of-three openers, no question-rhetorical
+  framing"). Then the operator-proxy probes via addressed turn whether
+  the Reviewer has internalized the new clause.
+
+  Tests:
+    (a) Does the Reviewer read the freshly-mutated MANDATE.md on the
+        next wake (per ADR-274 / ADR-276 envelope reassembly)?
+    (b) Does the Reviewer's reasoning cite the new clause when asked
+        a substrate-state question?
+
+  Pattern: write_substrate (MANDATE mutation) → send_message (probe
+  for new clause citation) → observe whether response references the
+  added clause by quote or paraphrase.
+
+  Accumulating state: this is eval 7 in yarnnn-author-baseline.yaml
+  per the counterfactual sequence (MANDATE → AUTONOMY → PACE →
+  PREFERENCES). Subsequent counterfactual evals inherit the tightened
+  MANDATE state.
+
+  Real-operator-workflow analog: founder reviews recent shipped pieces,
+  notices voice drift in opening sentences, tightens MANDATE to add a
+  Boundary Condition, expects future Reviewer audits to enforce it.
+
+persona: yarnnn-author
+
+setup: []
+
+turns:
+  # Turn 1: operator-proxy mutates MANDATE.md (operator authorship —
+  # the persona has full WriteFile authority on operator-canon)
+  - write_substrate:
+      path: /workspace/context/_shared/MANDATE.md
+      authored_by: operator-proxy:claude-opus-4-7:acting-as-yarnnn-author
+      message: |
+        counterfactual eval — MANDATE-tightening: add Boundary Condition
+        on first-sentence shape. Tests whether Reviewer reads the mutated
+        MANDATE on next wake AND cites the new clause when probed.
+      content: |
+        ---
+        activated_bundle_version: 2026-05-20.1
+        ---
+        # Mandate — alpha-author
+
+        > **Persona**: yarnnn-author (founder content + IR-narrative authorship). The program-slug heading marker (`alpha-author`) is preserved per ADR-244 D2 + ADR-283 D2 so `parse_active_program_slug` resolves the program for `apply_substrate_update` (ADR-292) and `bundles_active_for_workspace`. Persona-specific Primary Action follows.
+
+        > Workspace authored 2026-05-18 by operator on behalf via ADR-283 step 6 alpha-author dogfood. Voice + editorial distilled from canonical docs (FOUNDATIONS, THESIS, NARRATIVE, ESSENCE) + existing prose in `content/posts/`. Operator-attributable per ADR-209.
+
+        ## Primary Action
+
+        Author and ship founder corpus pieces — essays, posts, deck narratives, IR memos — that compound into a recognizable YARNNN founder voice and a defensible thesis trail over months.
+
+        ## Success Criteria
+
+        - Voice fingerprint stable across rolling 30 days (declared in `_voice.md`; Reviewer audits new pieces against it).
+        - Continuity preserved across the corpus — no unacknowledged contradiction with prior pieces (canonical docs + posts + decks count as corpus).
+        - Anti-AI-slop signatures absent from shipped pieces (the slop floor is non-negotiable; YARNNN's positioning collapses if its own founder prose reads LLM-shaped).
+        - Thesis trail compounds — each shipped piece either advances a declared structural argument (platform-cycle thesis, accumulated-intelligence moat, the cockpit service model) or contributes a new datapoint to one.
+        - Pre-audience honest signal: internal coherence audit shows zero unresolved continuity breaks across the published body of work. Subscriber growth is a derived metric; the foundation is whether the corpus holds together.
+
+        ## Boundary Conditions
+
+        - No content authored solely by AI without operator's authorial intent. Claude-Code-drafted text may be a starting point; what ships must be operator-edited, operator-attributed, operator-owned.
+        - No hot takes that compromise the long-arc thesis. YARNNN's positioning is patient; the prose must match.
+        - No silent voice drift — if voice changes (e.g., a more technical register for IR memos vs essays), the change is operator-declared in `_voice.md`, not slow leak.
+        - **First sentence of every shipped piece must be a single declarative claim — no qualifiers, no list-of-three openers, no question-rhetorical framing. The first sentence is the operator's most-read line; it must commit.** (Added 2026-05-27 via counterfactual eval — tests whether Reviewer reads freshly-mutated MANDATE and cites the new clause downstream.)
+        - No engagement-bait framings, contrarian-for-attention, or list-of-three openers. The corpus must read like a founder thinking in public, not a content marketer optimizing for impressions.
+        - No fiction-laundering — every claim about YARNNN's architecture or roadmap is grounded in the actual current state, not aspirational framing.
+
+  # Turn 2: probe whether the Reviewer reads the tightened MANDATE
+  - send_message: |
+      Reviewer, MANDATE.md was just updated with a new Boundary Condition.
+      Without me telling you what it is, read the current MANDATE.md and
+      report:
+      1. What new Boundary Condition was added?
+      2. What's its implication for future pre-ship-audit verdicts?
+
+      One short paragraph. The check is whether you read fresh substrate
+      on this wake (envelope reassembled) vs reasoning from prior memory.
+    expect:
+      - addressed_wake_within_1min
+      - reviewer_responded
+      - reviewer_cites_first_sentence_clause_OR_quotes_added_text
+      - reviewer_acknowledges_implication_for_pre_ship_audit
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages
