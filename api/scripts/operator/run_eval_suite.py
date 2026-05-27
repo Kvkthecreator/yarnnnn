@@ -169,6 +169,11 @@ async def run_one_eval(
         # this eval tests against). Optional for backward-compat with
         # pre-§1.5 suites; SESSION.md renders an empty cell when absent.
         "substrate_inputs": eval_def.get("substrate_inputs", {}),
+        # EVAL-SUITE-DISCIPLINE.md §1.6: industry-axiomatic eval shape
+        # (behavioral | red-team | behavioral_substrate_audit |
+        # counterfactual). Defaults to "behavioral" when unset, matching
+        # the conventional LLM-eval shape (input held, behavior probed).
+        "eval_shape": eval_def.get("eval_shape", "behavioral"),
         "triggering_revision_ids": triggering_revision_ids,
         "evaluations": runner.evaluations,  # for re-snapshot context
     }
@@ -452,6 +457,41 @@ def _verdict_pass_marker() -> str:
     return "_(human-read — verify after reading raw/)_"
 
 
+_EVAL_SHAPE_ABBREVIATIONS = {
+    "behavioral": "B",
+    "red-team": "R",
+    "behavioral_substrate_audit": "A",
+    "counterfactual": "C",
+}
+
+
+def _format_eval_shape_compact(eval_shape: str) -> str:
+    """Compact one-letter abbreviation for SESSION.md table cells.
+
+    Returns 'B' for behavioral, 'R' for red-team, 'A' for
+    behavioral_substrate_audit, 'C' for counterfactual, or '?' for unknown.
+    Full name expected in the rollup header legend; the cell stays terse.
+    """
+    return _EVAL_SHAPE_ABBREVIATIONS.get(eval_shape, "?")
+
+
+def _shape_aggregate_summary(eval_results: list[dict]) -> str:
+    """Compose the shape-mix summary for behavior aggregate line.
+
+    Example: '3 behavioral / 1 red-team / 2 behavioral_substrate_audit / 0 counterfactual'
+    """
+    counts: dict[str, int] = {k: 0 for k in _EVAL_SHAPE_ABBREVIATIONS}
+    for r in eval_results:
+        shape = r.get("eval_shape", "behavioral")
+        if shape in counts:
+            counts[shape] += 1
+        else:
+            counts.setdefault("(unknown)", 0)
+            counts["(unknown)"] += 1
+    parts = [f"{n} {name}" for name, n in counts.items() if n > 0]
+    return " / ".join(parts) if parts else "(no evals)"
+
+
 def _format_substrate_inputs_compact(substrate_inputs: dict) -> str:
     """Format substrate_inputs as a compact one-cell summary for SESSION.md tables.
 
@@ -556,30 +596,34 @@ def render_session_md(
     # Behavior
     lines.append("### Behavior\n")
     lines.append(
-        "_substrate_inputs column shows the upstream contract per "
-        "EVAL-SUITE-DISCIPLINE.md §1.5 — what the eval is testing against. "
-        "Full block in suite YAML._\n"
+        "_Shape column per EVAL-SUITE-DISCIPLINE.md §1.6: "
+        "B=behavioral / R=red-team / A=behavioral_substrate_audit / C=counterfactual. "
+        "Substrate inputs column per §1.5 — upstream contract; full block in suite YAML._\n"
     )
-    lines.append("| Eval | Substrate inputs | Expected verdict | Expected substrate side-effect | Observed | Pass? | Notes |")
-    lines.append("|---|---|---|---|---|---|---|")
+    shape_mix = _shape_aggregate_summary(eval_results)
+    lines.append(f"_Shape mix: {shape_mix}_\n")
+    lines.append("| Eval | Shape | Substrate inputs | Expected verdict | Expected substrate side-effect | Observed | Pass? | Notes |")
+    lines.append("|---|---|---|---|---|---|---|---|")
     for r in eval_results:
         ed = r["expected_dimensions"].get("behavior", {})
         si = _format_substrate_inputs_compact(r.get("substrate_inputs", {}))
+        es = _format_eval_shape_compact(r.get("eval_shape", "behavioral"))
         lines.append(
-            f"| `{r['eval']}` | {si} | {ed.get('verdict', '?')} | {ed.get('substrate_side_effect', '?')} "
+            f"| `{r['eval']}` | {es} | {si} | {ed.get('verdict', '?')} | {ed.get('substrate_side_effect', '?')} "
             f"| <!-- TODO --> | <!-- TODO --> | {_verdict_pass_marker()} |"
         )
     lines.append("\n**Behavior aggregate**: _<!-- TODO: X/N evals pass -->_\n")
 
     # Posture
     lines.append("### Posture\n")
-    lines.append("| Eval | Substrate inputs | Expected cell | Observed cell | Pass? | Notes |")
-    lines.append("|---|---|---|---|---|---|")
+    lines.append("| Eval | Shape | Substrate inputs | Expected cell | Observed cell | Pass? | Notes |")
+    lines.append("|---|---|---|---|---|---|---|")
     for r in eval_results:
         ed = r["expected_dimensions"].get("posture", {})
         si = _format_substrate_inputs_compact(r.get("substrate_inputs", {}))
+        es = _format_eval_shape_compact(r.get("eval_shape", "behavioral"))
         lines.append(
-            f"| `{r['eval']}` | {si} | {ed.get('cell', '?')} | <!-- TODO Axis-A SQL + Axis-B human-read --> "
+            f"| `{r['eval']}` | {es} | {si} | {ed.get('cell', '?')} | <!-- TODO Axis-A SQL + Axis-B human-read --> "
             f"| <!-- TODO --> | {_verdict_pass_marker()} |"
         )
     lines.append(f"\n**Posture aggregate**: _<!-- TODO: X/N evals in expected cell. M6-DRIFT count: Y (ceiling: {suite['budget']['m6_drift_ceiling']}). -->_\n")

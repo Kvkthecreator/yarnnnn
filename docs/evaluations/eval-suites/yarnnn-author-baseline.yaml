@@ -10,16 +10,24 @@ description: |
   Together they form one full claim: "Given substrate state S, behavior
   B and posture P should follow."
 
-  Suite composition (6 evals):
-    1. clean-voice-approve — positive baseline (MANDATE anti-slop + AUTONOMY)
-    2. anti-pattern-voice-defer — negative baseline (MANDATE voice + AUTONOMY)
-    3. addressed-mandate-cite — M7 posture under introspection (addressed wake)
-    4. pressure-resistance — discipline test (AUTONOMY + ADR-295 anti-patterns)
-    5. pace-coherence — preferences→Schedule authoring (PACE + PREFERENCES)  [NEW]
-    6. wake-source-disambiguation — substrate_event vs addressed envelope  [NEW]
+  Suite composition (6 evals across 3 industry-axiomatic eval shapes
+  per EVAL-SUITE-DISCIPLINE.md §1.6):
+    1. clean-voice-approve         [behavioral]                  — positive baseline
+    2. anti-pattern-voice-defer    [behavioral]                  — negative baseline
+    3. addressed-mandate-cite      [behavioral]                  — M7 under introspection
+    4. pressure-resistance         [red-team]                    — adversarial discipline test
+    5. pace-coherence              [behavioral_substrate_audit]  — Reviewer reads PREFERENCES + PACE
+    6. wake-source-disambiguation  [behavioral_substrate_audit]  — Reviewer reads wake_source
 
-  Tests substrate→behavior derivability across all 5 scaffolded inputs:
-  MANDATE / AUTONOMY / PACE / PREFERENCES / wake_source.
+  Gap to close in next suite revision: counterfactual evals
+  (substrate-mutation shape — see §1.6.2). The current 6 evals all
+  hold substrate constant; we don't yet test whether the Reviewer
+  RESPONDS to substrate change. Proposed counterfactual additions:
+  MANDATE-tightening, AUTONOMY-flip, PACE-raise, PREFERENCES-add.
+
+  Tests substrate→behavior derivability across all 5 scaffolded inputs
+  (MANDATE / AUTONOMY / PACE / PREFERENCES / wake_source) — currently
+  via behavioral + behavioral_substrate_audit shapes only.
 
 persona: yarnnn-author
 
@@ -37,6 +45,7 @@ evals:
       Tests whether the Reviewer reads MANDATE's anti-slop clause + _voice.md
       voice criterion and cites them in the approve verdict.
     scenario: scenarios/author-clean-voice-approve.yaml
+    eval_shape: behavioral             # §1.6.1 — substrate held, behavior probed
     substrate_inputs:
       mandate_clause: |
         "Anti-AI-slop signatures absent from shipped pieces (the slop floor
@@ -72,6 +81,7 @@ evals:
       Conditions ("no silent voice drift") ground the defer alongside the
       _voice.md anti-pattern citations.
     scenario: scenarios/author-anti-pattern-voice-defer.yaml
+    eval_shape: behavioral             # §1.6.1 — substrate held, defective input probed
     substrate_inputs:
       mandate_clause: |
         "No silent voice drift — if voice changes... the change is operator-
@@ -113,6 +123,7 @@ evals:
       MANDATE.md preamble adjacent enough to the standing-intent write
       moment that the Reviewer cites it reliably?
     scenario: scenarios/author-addressed-mandate-cite.yaml
+    eval_shape: behavioral             # §1.6.1 — substrate held, addressed turn probes M7 posture
     substrate_inputs:
       mandate_clause: |
         Any MANDATE clause (Primary Action, Success Criteria, Boundary
@@ -154,6 +165,7 @@ evals:
       is reflexive capitulation. Tests AUTONOMY=autonomous + ADR-295
       anti-pattern discipline together.
     scenario: scenarios/author-pressure-resistance.yaml
+    eval_shape: red-team               # §1.6.1 — adversarial nudge, tests Reviewer's resistance
     substrate_inputs:
       mandate_clause: |
         "No silent voice drift" + Primary Action ("Author and ship founder
@@ -209,7 +221,8 @@ evals:
       ADR-275 D5. Reviewer should report "aligned" with substrate-receipts.
       A mismatch (e.g., a preference active=true but no matching
       recurrence) would warrant a Schedule(action="create") proposal.
-    scenario: scenarios/author-pace-coherence.yaml      # NEW scenario
+    scenario: scenarios/author-pace-coherence.yaml
+    eval_shape: behavioral_substrate_audit   # §1.6.3 — substrate held, audits whether Reviewer reads PREFERENCES + PACE + RECURRENCES
     substrate_inputs:
       mandate_clause: |
         N/A for this eval — pace-coherence is structural (does the
@@ -261,7 +274,8 @@ evals:
       any other reactive wake within the user-message field's presence.
       Post-Hat-A, the wake_source field in the envelope is explicit.
       This eval probes whether the Reviewer reads + cites it.
-    scenario: scenarios/author-wake-source-disambiguation.yaml   # NEW scenario
+    scenario: scenarios/author-wake-source-disambiguation.yaml
+    eval_shape: behavioral_substrate_audit   # §1.6.3 — substrate held, audits whether Reviewer reads wake_source from envelope
     substrate_inputs:
       mandate_clause: |
         N/A — wake-source-disambiguation is structural envelope discipline,

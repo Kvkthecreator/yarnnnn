@@ -24,6 +24,25 @@ This compresses the measurement loop from weeks to sessions:
 
 Eval suites are NOT a replacement for passive observation — the alpha-trader and alpha-author observation threads (`sessions/{thread}.md`) continue to capture what the system does on its own clock. Eval suites are the **active-engagement** companion to that **passive-observation** discipline: when the operator needs to confirm posture quickly, run a suite; when the operator needs to know what natural operating-load looks like, read the observation threads.
 
+## §1.4 Industry alignment (foundations are conventional, domain is the novel layer)
+
+This framework is structurally a **standard LLM eval suite** in the style of OpenAI Evals, Anthropic's internal eval patterns, Inspect AI (UK AISI), LangSmith, and Braintrust. The building blocks are industry-axiomatic:
+
+| Industry pattern | Where it appears here | Reference |
+|---|---|---|
+| **Eval suite** as a declared collection of evals run together with shared rollup | This entire framework | OpenAI Evals, Anthropic internal, Inspect AI |
+| **Per-eval contract** (declared inputs + expected outputs) | `substrate_inputs:` + `expected_dimensions:` blocks | Standard LLM eval pattern; structurally Given/Then from BDD |
+| **Behavioral eval** (input held; behavior probed) | §1.6 below — most of our existing 4 evals | Standard behavioral testing |
+| **Red-team eval** (adversarial probe; resistance test) | §1.6 below — `pressure-resistance` is structurally red-team | Industry adversarial-eval pattern |
+| **Counterfactual eval** (input varied; behavior delta observed) | §1.6 below — substrate-mutation evals (proposed) | ML/RL counterfactual evaluation; LLM counterfactual prompting literature |
+| **Rubric-dimensional scoring** | The 4 dimensions (behavior / posture / substrate-usage / cost) | HELM (Stanford), LangSmith multi-metric, Anthropic internal rubrics |
+| **Human evaluation** for fields automated scoring can't reach | Axis-B posture tagging is a human-read column | Standard practice; automated alternative = LLM-as-judge (v2 path) |
+| **Cost as a first-class eval dimension** | §2.4 below | Increasingly standard in production LLM eval tools |
+
+**The novel layer is the agent class, not the framework.** What's specific to YARNNN — and what's worth being honest about — is that we apply this conventional eval discipline to an unusual class of agent: a **substrate-driven, stateful, file-native LLM agent** (the Reviewer). The agent's prompt envelope is *constructed from* operator-authored substrate files at wake-time; its behavior is supposed to be a function of substrate state. That class of agent is not yet a standard target for LLM-eval frameworks; the substrate-as-prompt + substrate-driven-behavior framing in §1.5 is the domain specialization.
+
+**This ordering matters.** Stable foundations come from what's already proven; experimental layers ride on top. The eval-suite shape, the per-eval contract, the behavioral/counterfactual distinction, and the rubric-dimensional scoring are all axiomatic. The substrate-driven-agent specialization (the five scaffolded inputs, the substrate→envelope→behavior mapping, the M1-M9 mandate-coherence cells) is the experimental layer that may evolve. When you describe this framework externally (blog, talk, GTM material), lead with the conventional vocabulary; the domain specialization explains why YARNNN's framework looks slightly different from a typical LLM eval suite.
+
 ## §1.5 The substrate→envelope→behavior mapping (the load-bearing thesis)
 
 **Eval suites test whether Reviewer behavior is a function of the scaffolded workspace substrate.** This is the load-bearing thesis — without it, evals devolve into "did the system produce some output" telemetry rather than "did the system reason the way canon claims it should given what the substrate declares."
@@ -90,6 +109,8 @@ Each eval declares its substrate inputs in a block parallel to `expected_dimensi
 
 The `substrate_inputs` block is the **upstream half** of the eval's contract. `expected_dimensions` is the **downstream half**. Together they form one full claim: *"Given substrate state S, the Reviewer's behavior B and posture P should follow."*
 
+This pairing is structurally **Given/Then from BDD** (Behavior-Driven Development) applied to LLM agents — `substrate_inputs` = Given, the scenario's turns = When, `expected_dimensions` = Then. The vocabulary is domain-specific because substrate-as-prompt isn't standard BDD vocabulary, but the contract shape is conventional.
+
 ### §1.5.3 SESSION.md surfaces the mapping
 
 The runner emits per-eval rows in SESSION.md that show substrate inputs alongside expected/observed. Operator reading the rollup sees not just "expected M1 / observed ?" but:
@@ -97,6 +118,49 @@ The runner emits per-eval rows in SESSION.md that show substrate inputs alongsid
 > Eval clean-voice-approve: expected M1 because MANDATE clause "anti-AI-slop" + AUTONOMY=autonomous + _voice.md voice criterion + wake_source=substrate_event on profile.md transition. Observed: ?
 
 The substrate-inputs row in SESSION.md is the operator's diagnostic surface — if observed != expected, the substrate_inputs column points at which input to inspect first.
+
+## §1.6 Two eval shapes: behavioral + counterfactual
+
+Industry-axiomatic distinction. Both shapes are valid; a healthy suite contains both. Each eval declares its shape via the `eval_shape:` field (see §3 schema).
+
+### §1.6.1 Behavioral eval (input held; behavior probed)
+
+The conventional LLM eval shape. Substrate state held constant; the eval probes "what does the Reviewer do given this fixed state + this scenario action?" The 4 original evals in `yarnnn-author-baseline.yaml` (clean-voice-approve, anti-pattern-voice-defer, addressed-mandate-cite, pressure-resistance) are behavioral evals.
+
+`eval_shape: behavioral` is the default — if unset, the runner assumes behavioral. Used when the question is "given a known substrate state, does the Reviewer judge correctly?"
+
+**Red-team evals are a subset of behavioral evals** specifically designed to test resistance to adversarial input. `pressure-resistance` is a red-team eval: the operator-proxy nudges the Reviewer to violate its own discipline (per ADR-295 D3 anti-patterns), and the eval observes whether the Reviewer holds the line. Declare these as `eval_shape: red-team` so the suite surface distinguishes adversarial from cooperative probes.
+
+### §1.6.2 Counterfactual eval (input varied; behavior delta observed)
+
+The substrate-driven-agent specialization. Substrate state is *mutated* as the test variable; the eval observes whether Reviewer behavior tracks the substrate change. Tests not "did the Reviewer judge correctly" but "did the system respond to substrate change correctly."
+
+`eval_shape: counterfactual` declares this shape. Pattern: write_substrate (mutating MANDATE / AUTONOMY / PACE / PREFERENCES) → fire_wake → observe whether the Reviewer's behavior reflects the mutation.
+
+Examples (proposed; not yet in yarnnn-author-baseline.yaml):
+- **MANDATE tightening counterfactual**: rewrite MANDATE mid-suite from generic ("ship founder corpus") to specific ("first sentence must be a single declarative claim; verdicts approve only if structure matches"); observe whether the next pre-ship-audit verdict shifts. Tests whether MANDATE specificity translates to Reviewer specificity.
+- **AUTONOMY mode counterfactual**: flip `_autonomy.yaml::delegation` from `autonomous` to `bounded` mid-suite; observe whether the Reviewer's next substrate write changes shape (proposes via action_proposals instead of writing directly). Tests AUTONOMY binding through dispatch.
+- **PACE counterfactual**: raise `_pace.yaml::kind` from `daily` to `hourly` mid-suite; observe whether the Reviewer's next Schedule() proposal cadence shifts to honor the new budget. Tests pace-gate responsiveness.
+- **PREFERENCES counterfactual**: add a 3rd deliverable preference with declared cadence mid-suite; observe whether the Reviewer authors a matching Schedule() within ~1-2 wakes per ADR-275 D5. Tests preferences→Schedule() loop tightness.
+
+**Counterfactual evals require reset discipline.** If eval 3 mutates MANDATE, eval 4 cannot observe the original-MANDATE behavior — the substrate is gone. Either each counterfactual eval is self-contained (mutate + observe + revert in the same scenario), OR the suite explicitly accumulates substrate changes and later evals factor that in. Per discipline rule E4 (sessions accumulate substrate), the default is accumulation; counterfactual evals that need revert should declare it explicitly in the scenario.
+
+### §1.6.3 Behavioral-substrate-audit eval (the weak counterfactual middle ground)
+
+A third intermediate shape worth naming. Tests whether the Reviewer **reads** a specific scaffolded substrate input (without mutating it). Substrate is held constant; the eval probes via addressed turn whether the Reviewer cites the substrate file in its reasoning.
+
+`eval_shape: behavioral_substrate_audit` declares this shape. The 2 new evals added 2026-05-27 (`pace-coherence`, `wake-source-disambiguation`) are this shape — they probe whether the Reviewer reads `_preferences.yaml` / `_pace.yaml` / `wake_source` from the envelope, not whether it responds to mutations.
+
+This shape is structurally a behavioral eval (input held) with a substrate-audit purpose. Naming it distinctly clarifies that a passing behavioral-substrate-audit eval does NOT prove the Reviewer responds correctly to substrate changes — only that it reads the substrate at all. The full responsiveness test is the counterfactual eval shape.
+
+### §1.6.4 Shape selection guidance
+
+- Probing whether the Reviewer judges correctly under known substrate → **behavioral** eval
+- Probing whether the Reviewer resists adversarial operator pressure → **red-team** eval (subset of behavioral)
+- Probing whether the Reviewer reads a specific substrate input → **behavioral_substrate_audit** eval
+- Probing whether the Reviewer responds to substrate mutation → **counterfactual** eval
+
+A healthy yarnnn-author-baseline suite should mix shapes: e.g., 3 behavioral + 1 red-team + 1 behavioral_substrate_audit + 2 counterfactual = 7 evals covering both fixed-substrate judgment and substrate-responsiveness. The current baseline (6 evals: 3 behavioral + 1 red-team + 2 behavioral_substrate_audit) is missing counterfactual coverage — closing this gap is the next suite-evolution step.
 
 ## §2 The four dimensions
 
@@ -162,6 +226,10 @@ evals:                            # required; ordered list
     description: |
       What this single eval probes.
     scenario: <scenario-yaml-path-relative-to-docs-evaluations>
+    eval_shape: behavioral | red-team | behavioral_substrate_audit | counterfactual
+                                   # NEW (2026-05-27 §1.6 amendment) — declares
+                                   # which industry-axiomatic eval shape this is.
+                                   # Default: behavioral. See §1.6 for definitions.
     substrate_inputs:              # NEW (2026-05-27 §1.5 amendment) — upstream contract
       mandate_clause: |
         Quote or paraphrase the specific MANDATE clause this eval tests against.
@@ -229,14 +297,14 @@ The operator reads this paragraph first.
 ## §2 Per-dimension scores
 
 ### Behavior
-| Eval | Substrate inputs (mandate/autonomy/pace/wake_source) | Expected verdict | Observed | Pass? | Notes |
-|---|---|---|---|---|---|
+| Eval | Shape | Substrate inputs (mandate/autonomy/pace/wake_source) | Expected verdict | Observed | Pass? | Notes |
+|---|---|---|---|---|---|---|
 | ... |
-**Behavior aggregate**: X/N evals pass.
+**Behavior aggregate**: X/N evals pass. Mix: B behavioral / R red-team / A behavioral_substrate_audit / C counterfactual.
 
 ### Posture
-| Eval | Substrate inputs | Expected cell | Observed cell | Pass? | Notes |
-|---|---|---|---|---|---|
+| Eval | Shape | Substrate inputs | Expected cell | Observed cell | Pass? | Notes |
+|---|---|---|---|---|---|---|
 | ... |
 **Posture aggregate**: X/N evals in expected cell. M6-DRIFT count: Y (ceiling: Z).
 
