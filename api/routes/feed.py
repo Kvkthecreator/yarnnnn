@@ -1249,8 +1249,12 @@ async def global_chat(
                         (datetime.now(_tz.utc) - addressed_started_at).total_seconds() * 1000
                     )
                     out = captured_output or {}
+                    # ADR-298: execution_events has SELECT-only user-JWT RLS;
+                    # INSERTs require service client. Use the same wake_client
+                    # constructed above for the wake_addressed_stream call —
+                    # symmetric with the wake_queue write path.
                     record_execution_event(
-                        auth.client, user_id=auth.user_id, slug="addressed",
+                        wake_client, user_id=auth.user_id, slug="addressed",
                         id=invocation_id,
                         mode="judgment", trigger_type="addressed",
                         status="success", duration_ms=addressed_duration_ms,
@@ -1277,8 +1281,9 @@ async def global_chat(
             addressed_duration_ms = int(
                 (datetime.now(_tz.utc) - addressed_started_at).total_seconds() * 1000
             )
+            # ADR-298: service client for execution_events INSERT (RLS gate).
             record_execution_event(
-                auth.client, user_id=auth.user_id, slug="addressed",
+                wake_client, user_id=auth.user_id, slug="addressed",
                 id=invocation_id,
                 mode="judgment", trigger_type="addressed",
                 status="failed", error_reason="exception",
