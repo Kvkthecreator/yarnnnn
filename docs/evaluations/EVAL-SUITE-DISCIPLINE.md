@@ -24,6 +24,80 @@ This compresses the measurement loop from weeks to sessions:
 
 Eval suites are NOT a replacement for passive observation — the alpha-trader and alpha-author observation threads (`sessions/{thread}.md`) continue to capture what the system does on its own clock. Eval suites are the **active-engagement** companion to that **passive-observation** discipline: when the operator needs to confirm posture quickly, run a suite; when the operator needs to know what natural operating-load looks like, read the observation threads.
 
+## §1.5 The substrate→envelope→behavior mapping (the load-bearing thesis)
+
+**Eval suites test whether Reviewer behavior is a function of the scaffolded workspace substrate.** This is the load-bearing thesis — without it, evals devolve into "did the system produce some output" telemetry rather than "did the system reason the way canon claims it should given what the substrate declares."
+
+The mapping chain:
+
+```
+scaffolded substrate files     →  prompt envelope assembly         →  Reviewer behavior + posture
+{MANDATE, AUTONOMY, _pace,        ReviewerContext fields rendered     {verdict, substrate writes,
+ _preferences, principles,        into user message by                  tool calls, mandate-cite,
+ IDENTITY} + wake_source +        _build_user_message + envelope        cell distribution per
+ operating_context                helper per ADR-274 / ADR-276}         ADR-303 D1 posture cells}
+```
+
+Each eval declares **which scaffolded inputs it tests against** + **what behavior the substrate state implies**. A failed eval is evidence of one of four causes, each pointing at a different fix:
+
+| Failure cause | Diagnostic signal | Fix location |
+|---|---|---|
+| (a) Substrate doesn't say what we thought | Re-reading the declared file shows different content than assumed | Substrate edit (operator or Reviewer self-amendment per ADR-295) |
+| (b) Reviewer doesn't read it canon way | Substrate present in envelope, but Reviewer's reasoning ignores it | Persona-frame discipline tightening (Hat-A) |
+| (c) Prompt envelope doesn't deliver it | File on disk but not in `_UNIVERSAL_ENVELOPE_DECLS` / `ReviewerContext` / `_build_user_message` | Envelope plumbing fix (Hat-A) |
+| (d) Canon itself is mis-specified | Substrate, envelope, Reviewer all working as designed but produce wrong outcome | ADR amendment (Hat-A canon work) |
+
+Without the substrate→envelope→behavior mapping declared per eval, a failure surfaces as "the system didn't pass" with no diagnostic vector. With the mapping declared, the eval narrows the fix location automatically.
+
+### §1.5.1 The five scaffolded substrate inputs
+
+Per FOUNDATIONS + ADR-194 v2 / ADR-274 / ADR-275 / ADR-298 / ADR-296 v2, the five operator-authored substrate inputs that shape Reviewer behavior:
+
+| Input | File / source | Canon | Plumbing layer |
+|---|---|---|---|
+| **MANDATE** | `/workspace/context/_shared/MANDATE.md` | ADR-194 v2, ADR-207 | `mandate_md` field on `ReviewerContext`, rendered into user message |
+| **AUTONOMY** | `/workspace/context/_shared/_autonomy.yaml` + `AUTONOMY.md` | ADR-254, ADR-293 | `autonomy_md` field, rendered; binding via `should_auto_apply` in dispatch |
+| **PACE** | `/workspace/context/_shared/_pace.yaml` | ADR-298 D11 | `pace_yaml` field, rendered; enforced via `Schedule()` primitive pace-gate |
+| **PREFERENCES** | `/workspace/context/_shared/_preferences.yaml` | ADR-275 | `preferences_yaml` field, rendered; Reviewer authors `Schedule()` per declared cadences |
+| **wake-source** | (no scaffolded file; ADR-296 v2 taxonomy) | ADR-296 v2 | `wake_source` + `triggering_path` + `triggering_revision_id` fields on `ReviewerContext`, rendered as `## Wake context` block |
+
+(Plus `principles.md`, `IDENTITY.md`, `OCCUPANT.md`, `PRECEDENT.md`, `_operator_profile.md`, `_risk.md` — these inform how the Reviewer reasons but are not Trigger/Identity/Purpose dial inputs in the same sense.)
+
+### §1.5.2 Per-eval `substrate_inputs:` declaration
+
+Each eval declares its substrate inputs in a block parallel to `expected_dimensions:`. Schema extension (see §3):
+
+```yaml
+- eval: <slug>
+  substrate_inputs:
+    mandate_clause: |
+      Quote or paraphrase the specific MANDATE clause this eval probes.
+      Example: "Anti-AI-slop signatures absent from shipped pieces"
+    autonomy_mode_required: autonomous | bounded | manual
+    pace_relevant: true | false                   # does pace bear on this eval?
+    wake_source: cron_tick | substrate_event | proposal_arrival | manual_fire | addressed
+    prompt_envelope_files:                        # which files must be in the rendered envelope
+      - MANDATE.md
+      - _voice.md
+      - _autonomy.yaml
+      - principles.md
+  expected_dimensions:
+    behavior: { ... }
+    posture: { ... }
+    substrate_usage: { ... }
+    cost: { ... }
+```
+
+The `substrate_inputs` block is the **upstream half** of the eval's contract. `expected_dimensions` is the **downstream half**. Together they form one full claim: *"Given substrate state S, the Reviewer's behavior B and posture P should follow."*
+
+### §1.5.3 SESSION.md surfaces the mapping
+
+The runner emits per-eval rows in SESSION.md that show substrate inputs alongside expected/observed. Operator reading the rollup sees not just "expected M1 / observed ?" but:
+
+> Eval clean-voice-approve: expected M1 because MANDATE clause "anti-AI-slop" + AUTONOMY=autonomous + _voice.md voice criterion + wake_source=substrate_event on profile.md transition. Observed: ?
+
+The substrate-inputs row in SESSION.md is the operator's diagnostic surface — if observed != expected, the substrate_inputs column points at which input to inspect first.
+
 ## §2 The four dimensions
 
 Every eval-suite session scores against four dimensions. Each dimension declares its own criterion per the criterion-declaration discipline (`README.md` §"The criterion-declaration discipline"). Dimensions are orthogonal — a single eval can pass on one and fail on another; the rollup makes the asymmetry visible.
@@ -88,14 +162,25 @@ evals:                            # required; ordered list
     description: |
       What this single eval probes.
     scenario: <scenario-yaml-path-relative-to-docs-evaluations>
-    expected_dimensions:
+    substrate_inputs:              # NEW (2026-05-27 §1.5 amendment) — upstream contract
+      mandate_clause: |
+        Quote or paraphrase the specific MANDATE clause this eval tests against.
+      autonomy_mode_required: autonomous | bounded | manual
+      pace_relevant: true | false
+      wake_source: cron_tick | substrate_event | proposal_arrival | manual_fire | addressed
+      prompt_envelope_files:       # files that must be in the rendered envelope
+        - MANDATE.md
+        - _voice.md                # example — bundle-specific
+        - _autonomy.yaml
+        - principles.md
+    expected_dimensions:           # downstream contract — what substrate_inputs predict
       behavior:
         verdict: approve | defer | reject | stand_down
         substrate_side_effect: judgment_log | standing_intent | action_proposal | dispatcher_fallback | none
       posture:
         cell: M1 | M2 | M3 | M4 | M5 | M6 | M7 | M8 | M9
         rationale: |
-          Why this cell is the expected posture for this eval shape.
+          Why this cell is the expected posture given the substrate_inputs above.
       substrate_usage:
         trace_completeness_min: 0.8
       cost:
@@ -144,14 +229,14 @@ The operator reads this paragraph first.
 ## §2 Per-dimension scores
 
 ### Behavior
-| Eval | Expected verdict | Observed | Pass? | Notes |
-|---|---|---|---|---|
+| Eval | Substrate inputs (mandate/autonomy/pace/wake_source) | Expected verdict | Observed | Pass? | Notes |
+|---|---|---|---|---|---|
 | ... |
 **Behavior aggregate**: X/N evals pass.
 
 ### Posture
-| Eval | Expected cell | Observed cell | Pass? | Notes |
-|---|---|---|---|---|
+| Eval | Substrate inputs | Expected cell | Observed cell | Pass? | Notes |
+|---|---|---|---|---|---|
 | ... |
 **Posture aggregate**: X/N evals in expected cell. M6-DRIFT count: Y (ceiling: Z).
 
@@ -189,6 +274,8 @@ The rollup is the operator's read; the `raw/` folder is the substrate-receipt fo
 ## §5 Discipline rules
 
 These extend `README.md` §"Discipline rules" with eval-suite-specific additions:
+
+**E0. Substrate inputs declared per eval, before run** (NEW 2026-05-27 §1.5 amendment). The `substrate_inputs` block names the upstream half of the eval's contract — which scaffolded substrate inputs (mandate / autonomy / pace / wake-source / envelope files) the eval is testing against. An eval with declared substrate_inputs + expected_dimensions makes one full claim: *"Given substrate state S, behavior B and posture P should follow."* Without substrate_inputs, an eval failure surfaces as "the system didn't pass" with no diagnostic vector at which to apply the fix. This rule is **load-bearing** for the eval suite producing useful findings.
 
 **E1. Expected dimensions declared per eval, before run.** The suite manifest's `expected_dimensions` blocks are the criterion declarations per the existing rule 0. A suite with under-specified expected dimensions cannot produce honest pass/fail readouts; the session findings would surface that as the load-bearing finding.
 

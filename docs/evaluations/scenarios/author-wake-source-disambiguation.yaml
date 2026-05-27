@@ -1,0 +1,63 @@
+scenario_schema_version: 1
+scenario: author-wake-source-disambiguation
+description: |
+  Validate that the Reviewer reads + cites wake_source from the envelope
+  per the Hat-A commit 05773fa (wake_source as first-class envelope input
+  per ADR-296 v2 taxonomy).
+
+  Pre-Hat-A, the fine-grained wake_source (cron_tick | substrate_event |
+  proposal_arrival | manual_fire | addressed) collapsed to the coarse
+  `trigger` parameter (reactive | addressed) before reaching the
+  Reviewer. Within `reactive`, the Reviewer could not distinguish a
+  cron-tick fire from a substrate-event fire from a proposal-arrival.
+  Post-Hat-A, the envelope carries the fine-grained source AND the
+  persona-frame's wake-context discipline section names how to cite it.
+
+  Probe shape: single addressed-turn asking the Reviewer what its
+  current wake context is. The Reviewer should cite wake_source
+  explicitly ("I was woken by an addressed message") rather than
+  narrating from memory or assuming the trigger from substrate-state
+  alone.
+
+  Eval-suite dimensions targeted (yarnnn-author-baseline.yaml eval:
+  wake-source-disambiguation):
+    - Behavior: stand_down with standing_intent.md update naming
+      wake context
+    - Posture: M7 — stand-down with explicit wake_source cite
+    - Substrate usage: trace-completeness ≥ 0.8 — Reviewer cites
+      wake_source field from envelope
+    - Cost: ≤ $1 per eval
+
+  Companion to author-addressed-mandate-cite — that eval tests
+  MANDATE-cite under addressed turn; this eval tests wake_source-cite
+  under addressed turn. Both probe the same wake shape (addressed),
+  different posture axes.
+
+persona: yarnnn-author
+
+setup: []
+
+turns:
+  - send_message: |
+      Reviewer, quick wake-context check: what was the wake_source on
+      this current cycle? Cite the value from your envelope (cron_tick
+      | substrate_event | proposal_arrival | manual_fire | addressed).
+
+      If your envelope's "## Wake context" block carries
+      triggering_path or triggering_revision_id, cite those too.
+
+      One-sentence response is enough — this is a meta-check on whether
+      you perceive your own wake context, not a substrate-evaluation
+      request.
+    expect:
+      - addressed_wake_within_1min
+      - reviewer_responded
+      - reviewer_cites_wake_source_equals_addressed
+      - standing_intent_md_updated_OR_addressed_response_carries_wake_cite
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages

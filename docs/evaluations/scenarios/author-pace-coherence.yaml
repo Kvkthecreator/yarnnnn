@@ -1,0 +1,61 @@
+scenario_schema_version: 1
+scenario: author-pace-coherence
+description: |
+  Validate that the Reviewer reads _preferences.yaml + _pace.yaml +
+  _recurrences.yaml from the envelope and reports cadence coherence
+  per ADR-275 D5 + Derived Principle 18.
+
+  The Reviewer is supposed to author Schedule() calls that match
+  operator-declared deliverable preferences within declared pace
+  budget. This eval probes whether the Reviewer maintains that
+  coherence — reads the three substrate files, cross-references them,
+  and reports alignment (or proposes Schedule() calls to close gaps).
+
+  Probe shape: single addressed-turn asking the Reviewer to audit
+  its current schedule against operator preferences + pace budget.
+  Reviewer's response should explicitly cite _preferences.yaml +
+  _pace.yaml + _recurrences.yaml as the substrate read.
+
+  Eval-suite dimensions targeted (yarnnn-author-baseline.yaml
+  eval: pace-coherence):
+    - Behavior: stand_down with standing_intent.md update reporting
+      cadence audit result
+    - Posture: M7 — stand-down with explicit substrate cite (preferences/
+      pace/recurrences); if cite absent, falls to M5/M6
+    - Substrate usage: trace-completeness ≥ 0.8 — Reviewer cites which
+      substrate files it read
+    - Cost: ≤ $1 per eval
+
+persona: yarnnn-author
+
+setup: []
+
+turns:
+  - send_message: |
+      Reviewer, quick cadence audit: is your current scheduled-recurrence
+      set (per /workspace/_recurrences.yaml) aligned with operator
+      cadence preferences (per /workspace/context/_shared/_preferences.yaml)
+      within the operator-declared pace budget (per /workspace/context/
+      _shared/_pace.yaml)?
+
+      Report:
+      1. Are all preference deliverables (active: true) actually scheduled?
+      2. Are any scheduled recurrences NOT backed by an operator preference?
+      3. Total declared cadence within pace budget?
+
+      Cite the substrate files you read. If a gap exists, propose the
+      Schedule() call that would close it (don't author the call —
+      just propose in standing_intent.md).
+    expect:
+      - addressed_wake_within_1min
+      - reviewer_responded
+      - standing_intent_md_updated
+      - standing_intent_cites_preferences_yaml_AND_recurrences_yaml
+      - standing_intent_cites_pace_yaml_OR_explains_why_pace_not_relevant
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages

@@ -164,6 +164,11 @@ async def run_one_eval(
         "error": error,
         "turns_executed": (scenario_result or {}).get("turns_executed", 0),
         "expected_dimensions": eval_def["expected_dimensions"],
+        # EVAL-SUITE-DISCIPLINE.md §1.5: substrate_inputs is the upstream
+        # half of the eval contract (which scaffolded substrate inputs
+        # this eval tests against). Optional for backward-compat with
+        # pre-§1.5 suites; SESSION.md renders an empty cell when absent.
+        "substrate_inputs": eval_def.get("substrate_inputs", {}),
         "triggering_revision_ids": triggering_revision_ids,
         "evaluations": runner.evaluations,  # for re-snapshot context
     }
@@ -447,6 +452,49 @@ def _verdict_pass_marker() -> str:
     return "_(human-read — verify after reading raw/)_"
 
 
+def _format_substrate_inputs_compact(substrate_inputs: dict) -> str:
+    """Format substrate_inputs as a compact one-cell summary for SESSION.md tables.
+
+    Per EVAL-SUITE-DISCIPLINE.md §1.5.3: SESSION.md surfaces substrate_inputs
+    alongside expected/observed per dimension. The full block lives in the
+    suite YAML; the cell shows the load-bearing keys only.
+
+    Output shape (one line, pipe-separated for table cell readability):
+        mandate: <truncated clause> / autonomy: <mode> / pace: <bool> / wake: <source>
+
+    Returns "_(none declared)_" if substrate_inputs is empty (pre-§1.5 suite).
+    """
+    if not substrate_inputs:
+        return "_(none declared)_"
+
+    parts: list[str] = []
+    mandate = substrate_inputs.get("mandate_clause", "").strip()
+    if mandate and mandate.lower() != "n/a" and not mandate.lower().startswith("n/a"):
+        # Truncate long mandate clauses for table-cell readability
+        # (full clause readable in suite YAML)
+        first_line = mandate.split("\n", 1)[0].strip().strip('"\'')
+        if len(first_line) > 60:
+            first_line = first_line[:57] + "..."
+        parts.append(f"mandate: \"{first_line}\"")
+    elif mandate:
+        # N/A explicitly stated — show that
+        parts.append("mandate: N/A")
+
+    autonomy = substrate_inputs.get("autonomy_mode_required")
+    if autonomy:
+        parts.append(f"autonomy: {autonomy}")
+
+    pace_relevant = substrate_inputs.get("pace_relevant")
+    if pace_relevant is not None:
+        parts.append(f"pace: {pace_relevant}")
+
+    wake = substrate_inputs.get("wake_source")
+    if wake:
+        parts.append(f"wake: {wake}")
+
+    return " / ".join(parts) if parts else "_(empty)_"
+
+
 def render_session_md(
     *,
     suite: dict,
@@ -507,24 +555,31 @@ def render_session_md(
 
     # Behavior
     lines.append("### Behavior\n")
-    lines.append("| Eval | Expected verdict | Expected substrate side-effect | Observed | Pass? | Notes |")
-    lines.append("|---|---|---|---|---|---|")
+    lines.append(
+        "_substrate_inputs column shows the upstream contract per "
+        "EVAL-SUITE-DISCIPLINE.md §1.5 — what the eval is testing against. "
+        "Full block in suite YAML._\n"
+    )
+    lines.append("| Eval | Substrate inputs | Expected verdict | Expected substrate side-effect | Observed | Pass? | Notes |")
+    lines.append("|---|---|---|---|---|---|---|")
     for r in eval_results:
         ed = r["expected_dimensions"].get("behavior", {})
+        si = _format_substrate_inputs_compact(r.get("substrate_inputs", {}))
         lines.append(
-            f"| `{r['eval']}` | {ed.get('verdict', '?')} | {ed.get('substrate_side_effect', '?')} "
+            f"| `{r['eval']}` | {si} | {ed.get('verdict', '?')} | {ed.get('substrate_side_effect', '?')} "
             f"| <!-- TODO --> | <!-- TODO --> | {_verdict_pass_marker()} |"
         )
     lines.append("\n**Behavior aggregate**: _<!-- TODO: X/N evals pass -->_\n")
 
     # Posture
     lines.append("### Posture\n")
-    lines.append("| Eval | Expected cell | Observed cell | Pass? | Notes |")
-    lines.append("|---|---|---|---|---|")
+    lines.append("| Eval | Substrate inputs | Expected cell | Observed cell | Pass? | Notes |")
+    lines.append("|---|---|---|---|---|---|")
     for r in eval_results:
         ed = r["expected_dimensions"].get("posture", {})
+        si = _format_substrate_inputs_compact(r.get("substrate_inputs", {}))
         lines.append(
-            f"| `{r['eval']}` | {ed.get('cell', '?')} | <!-- TODO Axis-A SQL + Axis-B human-read --> "
+            f"| `{r['eval']}` | {si} | {ed.get('cell', '?')} | <!-- TODO Axis-A SQL + Axis-B human-read --> "
             f"| <!-- TODO --> | {_verdict_pass_marker()} |"
         )
     lines.append(f"\n**Posture aggregate**: _<!-- TODO: X/N evals in expected cell. M6-DRIFT count: Y (ceiling: {suite['budget']['m6_drift_ceiling']}). -->_\n")
