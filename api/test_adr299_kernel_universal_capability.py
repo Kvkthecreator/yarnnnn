@@ -53,8 +53,9 @@ Asserts the load-bearing properties per ADR-299 D1–D8 (rewrite):
      mechanism).
 
   8. The Reviewer surface (`REVIEWER_PRIMITIVES`) does NOT include
-     `platform_email_send_to_operator`. Path A revert (2026-05-25)
-     preserved — see ADR-299 §"Reviewer authority — open question."
+     `platform_email_send_to_operator`. Architectural commitment per
+     ADR-299 D8 — evidence-confirmed by the 2026-05-25 v5 canary
+     (RESOLUTION.md), NOT a deferred decision.
 
   9. Bundle capability resolution NOT regressed (`read_trading` still
      maps to trading provider).
@@ -304,35 +305,43 @@ def test_user_tools_surfacing_includes_system_infrastructure() -> None:
     )
 
 
-def test_reviewer_primitives_excludes_send_operator_email_path_a_revert() -> None:
-    """ADR-299 rewrite D8 — Path A revert preserved.
+def test_reviewer_primitives_excludes_send_operator_email() -> None:
+    """ADR-299 D8 — Reviewer-side exclusion is the architectural commitment.
 
-    Under the rewrite, the question of whether the Reviewer should invoke
-    system infrastructure that speaks *as the system* to the operator-
-    identity is a Reviewer-authority question, separate from the taxonomy
-    question the rewrite resolves. The Path A revert from 2026-05-25
-    (`EMAIL_SEND_TO_OPERATOR_TOOL` removed from `REVIEWER_PRIMITIVES`) is
-    structurally preserved.
+    The Reviewer is judgment-bearing; task-bearing agents (YARNNN chat,
+    headless specialists) get `platform_email_send_to_operator` via the
+    SYSTEM_INFRASTRUCTURE_TOOLS merge. The Reviewer does NOT — by design.
 
-    Canary v4 produced `stand_down` instead of expected `defer`/`reject`
-    with the tool included; hypothesis A (tool perturbation) chosen for
-    isolation. v5 canary remains pending.
+    Evidence (2026-05-25 v5 canary, RESOLUTION.md):
+      v3 (21 tools, no email tool): 10 rounds,  6,139 tokens, reject verdict
+      v4 (22 tools, with email):     4 rounds,  1,577 tokens, stand_down
+      v5 (21 tools, reverted):      12 rounds, 14,615 tokens, reject_publication
 
-    Re-introduction protocol (if v5 confirms tool was structurally
-    innocent) is documented in ADR-299 D8:
-      1. Re-add EMAIL_SEND_TO_OPERATOR_TOOL to REVIEWER_PRIMITIVES
-      2. Invert this assertion to `in tool_names`
-      3. Both in the same commit; cite the validating v5 canary
+    The 21→22 transition collapsed Reviewer output by ~74% and produced
+    the `stand_down` escape verdict with zero substrate writes. Reverting
+    restored substantive judgment (2.4x v3 baseline output). The
+    mechanism: a 22nd tool with strong "explicit action" framing shifts
+    attention budget away from substrate evaluation toward tool-selection
+    meta-reasoning. This effect is qualitatively different from the
+    task-bearing agent paths' tolerance for tool-list growth.
+
+    The exclusion is the architectural commitment, not a deferred experiment.
+    Discipline for future Reviewer surface additions per RESOLUTION.md
+    §"Discipline lesson": measure verdict-quality regression against the
+    baseline tool surface via N≥3 canaries; default is "no" until
+    verdict-quality evidence supports otherwise.
     """
     from services.primitives.registry import REVIEWER_PRIMITIVES
 
     tool_names = [t.get("name") for t in REVIEWER_PRIMITIVES]
     assert "platform_email_send_to_operator" not in tool_names, (
         "platform_email_send_to_operator is present in REVIEWER_PRIMITIVES — "
-        "Path A revert (2026-05-25, preserved through ADR-299 rewrite) "
-        "requires it absent. Either Discovery 4 was re-introduced (in which "
-        "case invert this assertion + cite the validating v5 canary in the "
-        "same commit per ADR-299 D8) or the revert was reverted by accident."
+        "ADR-299 D8 architectural commitment violated. The Reviewer surface "
+        "is judgment-bearing; the v5 canary (2026-05-25) confirmed that "
+        "tool-list size at the 21→22 transition collapses judgment quality "
+        "by ~74%. If you genuinely need to add this tool (or any other) to "
+        "the Reviewer surface, run N≥3 canaries measuring verdict-quality "
+        "regression first and update this test only with the evidence trail."
     )
 
 
@@ -374,7 +383,7 @@ if __name__ == "__main__":
         test_send_operator_email_not_in_capability_resolution_maps,
         test_resolution_uses_system_infrastructure_tools_merge,
         test_user_tools_surfacing_includes_system_infrastructure,
-        test_reviewer_primitives_excludes_send_operator_email_path_a_revert,
+        test_reviewer_primitives_excludes_send_operator_email,
         test_bundle_capability_resolution_not_regressed,
         test_kernel_capabilities_module_stays_deleted,
     ]

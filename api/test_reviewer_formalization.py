@@ -228,10 +228,11 @@ def test_persona_frame_names_pace_and_queue() -> None:
 
 def test_persona_frame_operator_addressing_system_infrastructure_prose() -> None:
     """Persona frame must teach the operator-addressing system infrastructure
-    framing for platform_email_send_to_operator (ADR-299 rewrite 2026-05-27).
+    framing for platform_email_send_to_operator (ADR-299 D8, second-pass
+    rewrite 2026-05-27).
 
     Three assertions:
-      1. The OBSOLETE wire-gate-detection prose from Phase 3 original
+      1. The OBSOLETE wire-gate-detection prose from the original Phase 3
          (commit 0248b56) must NOT survive. The clause taught the Reviewer
          to note substrate-vs-wire drift when the tool was absent from its
          surface; under the system Resend wire there is no wire-gate to
@@ -240,13 +241,14 @@ def test_persona_frame_operator_addressing_system_infrastructure_prose() -> None
          operator-addressing channel as system infrastructure (not a
          workspace capability) and citing the precedent (ADR-040,
          ADR-202).
-      3. The Reviewer-side Path A revert MUST be acknowledged so the
-         Reviewer reads the persona-frame and does NOT plan to fire a
-         tool it doesn't have access to.
+      3. The persona-frame MUST acknowledge the Reviewer-side exclusion
+         as an architectural commitment (not a pending experiment) so
+         the Reviewer reads the prose and does NOT plan to fire a tool
+         that's permanently outside its surface by design.
 
     This guard catches future regressions that re-introduce obsolete
-    discipline OR lose the system-infrastructure framing OR teach the
-    Reviewer to call a tool that's currently outside its surface.
+    discipline, lose the system-infrastructure framing, or revert the
+    architectural-commitment framing to "pending" or "open" language.
     """
     path = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
     content = path.read_text()
@@ -288,13 +290,45 @@ def test_persona_frame_operator_addressing_system_infrastructure_prose() -> None
         "already use — not novel infrastructure."
     )
 
-    # Reviewer-side Path A revert acknowledgment (MUST be present)
-    assert "Path A revert" in content or "Reviewer-side tool access is currently paused" in content, (
-        "_PERSONA_FRAME missing the Path A revert acknowledgment. ADR-299 D8 "
-        "preserves the Reviewer's exclusion of platform_email_send_to_operator "
-        "from REVIEWER_PRIMITIVES pending v5 canary; the persona-frame must "
-        "acknowledge this so the Reviewer doesn't plan to fire a tool it "
-        "doesn't currently have access to."
+    # Reviewer-side architectural-commitment acknowledgment (MUST be present).
+    # ADR-299 D8 commits the Reviewer's exclusion of
+    # platform_email_send_to_operator from REVIEWER_PRIMITIVES as
+    # architectural design (v5 canary 2026-05-25 evidence-confirmed
+    # hypothesis A), not as a pending revert.
+    normalized_lower = normalized.lower()
+    has_by_design = "by design" in normalized_lower or "architectural commitment" in normalized_lower or "architectural design" in normalized_lower
+    has_not_in_surface = "not in your tool surface" in normalized_lower or "is not in your" in normalized_lower
+    assert has_by_design and has_not_in_surface, (
+        "_PERSONA_FRAME missing the architectural-commitment acknowledgment. "
+        "ADR-299 D8 commits the Reviewer's exclusion of "
+        "platform_email_send_to_operator from REVIEWER_PRIMITIVES as a "
+        "permanent architectural design (v5 canary 2026-05-25 evidence-"
+        "confirmed). The persona-frame must teach this as a structural "
+        "design property, not as a pending revert — so the Reviewer "
+        "doesn't plan to fire a tool that's permanently outside its "
+        "surface by design."
+    )
+
+    # Guard against regression to pre-resolution "pending" / "open question"
+    # framing. The architectural commitment is evidence-confirmed; framing
+    # it as deferred misrepresents canon.
+    pending_markers = (
+        "path a revert pending",
+        "pending v5 canary",
+        "pending the v5",
+        "v5 canary remains pending",
+        "v5 canary outcome",
+        "reviewer authority — open question",
+        "reviewer-side tool access is currently paused",
+    )
+    pending_leaks = [m for m in pending_markers if m in normalized_lower]
+    assert not pending_leaks, (
+        f"_PERSONA_FRAME contains pre-resolution 'pending' framing: "
+        f"{pending_leaks}. The v5 canary RESOLVED on 2026-05-25; ADR-299 "
+        f"D8 commits the exclusion as architectural design. Re-introducing "
+        f"'pending' framing reverts canon to a state the evidence trail "
+        f"superseded — see docs/evaluations/2026-05-25-042346-adr299-"
+        f"always-surface-resolution/RESOLUTION.md."
     )
 
 

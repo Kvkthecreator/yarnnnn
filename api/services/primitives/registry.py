@@ -423,21 +423,37 @@ REVIEWER_PRIMITIVES = [
     # researcher / analyst / writer / tracker / designer / reporting roles
     # for production work the Reviewer's context shouldn't carry.
     DISPATCH_SPECIALIST_TOOL,
-    # ADR-299 (rewrite 2026-05-27): EMAIL_SEND_TO_OPERATOR_TOOL is
-    # deliberately NOT in REVIEWER_PRIMITIVES. Under the rewrite,
+    # ADR-299 D8 (second-pass rewrite 2026-05-27): EMAIL_SEND_TO_OPERATOR_TOOL
+    # is deliberately NOT in REVIEWER_PRIMITIVES and will not be added —
+    # this is the architectural commitment, evidence-confirmed.
+    #
     # `platform_email_send_to_operator` is operator-addressing system
-    # infrastructure (the system Resend wire, exposed as an LLM-invokable
-    # tool via SYSTEM_INFRASTRUCTURE_TOOLS in platform_tools.py). The
-    # agent path surfaces it unconditionally via the
-    # get_platform_tools_for_capabilities merge; the Reviewer path gates
-    # it through REVIEWER_PRIMITIVES (this list). The question of whether
-    # the Reviewer should invoke system infrastructure that speaks *as the
-    # system* to the operator-identity is open pending the v5 canary
-    # outcome — see ADR-299 §"Reviewer authority — open question."
-    # Tool absence here is the Path A revert (2026-05-25, Canary v4
-    # produced `stand_down` instead of expected `defer`/`reject` —
-    # hypothesis A: tool perturbation). If v5 confirms hypothesis A,
-    # re-introduction protocol is documented in ADR-299 D8.
+    # infrastructure (system Resend wire, exposed via SYSTEM_INFRASTRUCTURE_TOOLS
+    # in platform_tools.py). Task-bearing agent paths (YARNNN chat, headless
+    # specialists, headless task pipeline) get it unconditionally via the
+    # SYSTEM_INFRASTRUCTURE_TOOLS merge. The Reviewer — a judgment-bearing
+    # agent — is structurally different: tool-list size is empirically
+    # corrosive to judgment quality for this surface.
+    #
+    # Evidence: 2026-05-25 v5 canary RESOLVED hypothesis A. Adding this
+    # tool to REVIEWER_PRIMITIVES (canary v4, 22-tool surface) collapsed
+    # output by ~74% vs the 21-tool baseline (v3) and produced
+    # `stand_down` with zero substrate writes. Reverting (v5) restored
+    # substantive judgment (14,615 output tokens, reject_publication
+    # verdict). See docs/evaluations/2026-05-25-042346-adr299-always-
+    # surface-resolution/RESOLUTION.md.
+    #
+    # Operator notifications tied to Reviewer verdicts should reach
+    # operators via a post-judgment dispatcher hook (reads /workspace/
+    # review/judgment_log.md + standing_intent.md + operator
+    # _preferences.yaml, dispatches out-of-band) — same shape as
+    # services/notifications.py ADR-040 pattern. NOT here.
+    #
+    # Future tool additions to REVIEWER_PRIMITIVES: discipline per
+    # RESOLUTION.md §"Discipline lesson" — verdict-quality regression
+    # must be measured against the baseline tool surface via N≥3 canaries
+    # before any addition. Default is "no" until verdict-quality evidence
+    # supports otherwise.
     # Substrate refresh (ADR-264) — rare mid-loop case where the Reviewer
     # needs to refresh external state into substrate before judging.
     # Primary use is dispatched by mechanical-mode recurrences; LLM-callable

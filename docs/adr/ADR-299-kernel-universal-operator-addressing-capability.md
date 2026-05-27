@@ -1,8 +1,8 @@
 # ADR-299: Operator-Addressing System Infrastructure — `send_operator_email`
 
-**Status**: Proposed 2026-05-27 — wholesale rewrite of the prior framing.
+**Status**: Implemented 2026-05-27 (second-pass rewrite incorporates the 2026-05-25 v5 canary resolution as D8 architectural commitment; Reviewer-side exclusion is permanent by design, no pending experiment).
 
-**Date**: 2026-05-27 (rewrite). Original ADR 2026-05-22, corrected four times in Discovery notes 1–4 (2026-05-24 / 2026-05-25), then Discovery 4 Path A reverted 2026-05-25.
+**Date**: 2026-05-27 (second-pass rewrite). Original ADR 2026-05-22, corrected four times in Discovery notes 1–4 (2026-05-24 / 2026-05-25), Discovery 4 Path A reverted 2026-05-25 with same-day v5 canary confirming hypothesis A. First-pass rewrite 2026-05-27 carried forward pre-resolution "open question" framing in error; second-pass rewrite (this) corrects it.
 
 **Authors**: KVK, Claude
 
@@ -12,7 +12,7 @@
 
 **Preserves**: Singular Implementation discipline, kernel/program boundary, FOUNDATIONS Axiom 1, ADR-118 capability layer semantics
 
-**Supersedes**: All four Discovery notes from the prior shape of this ADR, the "kernel-universal capability" framing, and the parallel registry / always-surface-pass-over-CAPABILITIES implementation. The prose around what each layer should look like under the new framing is in §"Implementation" below. The Path A revert (Reviewer-side tool exclusion pending hypothesis-A v5 canary) is preserved verbatim under the new vocabulary as §"Reviewer authority — open question."
+**Supersedes**: All four Discovery notes from the prior shape of this ADR, the "kernel-universal capability" framing, the parallel registry / always-surface-pass-over-CAPABILITIES implementation, AND the "Reviewer authority — open question" framing that the 2026-05-27 first-pass rewrite preserved unnecessarily. The 2026-05-25 v5 canary [evaluation finding](../observations/2026-05-25-042346-adr299-always-surface-resolution/RESOLUTION.md) had already confirmed hypothesis A (tool perturbation collapses Reviewer judgment quality) and recommended permanent exclusion of `platform_email_send_to_operator` from the Reviewer's tool surface; the first-pass rewrite carried forward the pre-resolution framing in error. This rewrite incorporates the v5 finding as the architectural commitment in D8.
 
 ---
 
@@ -129,13 +129,34 @@ The Reviewer's persona-frame (`api/agents/reviewer_agent.py::_PERSONA_FRAME`) se
 
 Persona-frame rewrite is bundled in the same commit as the code rewrite per Singular Implementation + the Prompt Change Protocol (CHANGELOG entry required).
 
-### D8. The Reviewer surface stays under Path A revert pending v5 canary
+### D8. The Reviewer is permanently excluded from `SYSTEM_INFRASTRUCTURE_TOOLS` by architectural design
 
-The Reviewer's tool surface is built from `REVIEWER_PRIMITIVES` in `api/services/primitives/registry.py`, not from `get_platform_tools_for_capabilities`. The Path A revert from 2026-05-25 (`EMAIL_SEND_TO_OPERATOR_TOOL` removed from `REVIEWER_PRIMITIVES`) is structurally **preserved by this rewrite**.
+The Reviewer's tool surface is built from `REVIEWER_PRIMITIVES` in `api/services/primitives/registry.py`, not from `get_platform_tools_for_capabilities`. `EMAIL_SEND_TO_OPERATOR_TOOL` is **not in `REVIEWER_PRIMITIVES` and will not be added** — this is the load-bearing architectural commitment, not a deferred decision.
 
-The rationale under the new framing is the same as the rationale under the old framing, reframed: whether the Reviewer should be able to invoke system infrastructure that **speaks as the system to the operator** is a Reviewer-authority question, separate from the taxonomy question this ADR resolves. The v5 canary remains pending. See §"Reviewer authority — open question" below.
+**The evidence**: the 2026-05-25 v5 canary ([RESOLUTION.md](../observations/2026-05-25-042346-adr299-always-surface-resolution/RESOLUTION.md)) ran the structural variable isolation across three cycles on the same substrate, hook, and prompt — only the tool count varied. The comparison:
 
-The agent path (non-Reviewer LLM tool-use) **does** surface `platform_email_send_to_operator` unconditionally via the new `SYSTEM_INFRASTRUCTURE_TOOLS` merge in `get_platform_tools_for_capabilities` (D3) — so the rest of the architecture is structurally complete from the agent perspective. Only the Reviewer's direct access is gated by the v5 outcome.
+| Cycle | Tool surface size | LLM rounds | Output tokens | Substrate writes | Verdict |
+|---|---|---|---|---|---|
+| v3 baseline | 21 (no tool) | 10 | 6,139 | judgment_log + standing_intent | reject |
+| v4 with tool | 22 (with tool) | 4 | 1,577 | **none** | **stand_down** |
+| v5 reverted | 21 (no tool) | 12 | 14,615 | judgment_log + standing_intent | reject_publication |
+
+Adding the 22nd tool — particularly one carrying strong "explicit action with consequence" framing — collapsed Reviewer output by ~74% and produced an escape-hatch `stand_down` verdict with zero substrate writes. Reverting restored substantive judgment (in fact exceeded v3 baseline by 2.4x output). Substrate receipts: `execution_events` rows v3 `252e75f6`, v4 `58d325df`, v5 `1e9ac22c`.
+
+**The architectural distinction**: there are two structurally different classes of LLM-invocable agent surfaces in the system, and they have different tolerances for tool-list size:
+
+| Class | Agents | Primary task | Tool-list sensitivity |
+|---|---|---|---|
+| **Task-bearing** | YARNNN chat, headless specialists (researcher/writer/analyst/tracker/designer/reporting), headless task pipeline | Tool-use IS the work (dialogue, production, action) | Low — adding tools is in-distribution |
+| **Judgment-bearing** | Reviewer | Substrate evaluation under judgment-shaped prompt; tool-use is corrosive to the primary task | High — empirically validated; v4 evidence shows the 21→22 transition is load-bearing for this surface |
+
+`SYSTEM_INFRASTRUCTURE_TOOLS` surfaces unconditionally to task-bearing agents because tool-use IS their work. The Reviewer is judgment-bearing; tool-use degrades its primary task. The curated `REVIEWER_PRIMITIVES` design from ADR-258 revised was made for this reason, and the v4/v5 data confirms the rationale empirically.
+
+**Operator-addressing notifications tied to Reviewer verdicts** belong on a post-judgment dispatcher hook, not in the Reviewer's tool surface. The pattern already exists: `services/notifications.py` fires on `action_proposals` arrivals (per ADR-040); the same shape applied to Reviewer verdict landing in substrate would read `/workspace/review/judgment_log.md` + `/workspace/review/standing_intent.md` + the operator's `_preferences.yaml::operator_notifications` block and dispatch out-of-band. Out of scope for this ADR but explicitly named as the correct integration path for that use case.
+
+**Re-introduction guardrail**: should a future architectural need genuinely require the Reviewer to invoke an additional tool (operator-addressing or otherwise), the discipline from [RESOLUTION.md §"Discipline lesson"](../observations/2026-05-25-042346-adr299-always-surface-resolution/RESOLUTION.md) applies — measure verdict-quality regression against the baseline tool surface via N≥3 canaries before the addition is accepted as net-positive. A capability's structural reachability is not sufficient justification for inclusion; verdict-quality preservation is the load-bearing constraint.
+
+The agent path (non-Reviewer LLM tool-use) **does** surface `platform_email_send_to_operator` unconditionally via the `SYSTEM_INFRASTRUCTURE_TOOLS` merge in `get_platform_tools_for_capabilities` and `get_platform_tools_for_user` (D3). The architecture is structurally complete across all four agent surfaces.
 
 ## Implementation
 
@@ -154,7 +175,7 @@ Singular Implementation discipline: this rewrite lands as **one atomic commit**.
      - Final return: `SYSTEM_INFRASTRUCTURE_TOOLS` tools first (sorted by tool name for determinism), then wire-gated workspace capability tools.
    - Tool definition comment block at line ~813–825 rewritten to reflect system-infrastructure framing.
 
-3. **`api/services/primitives/registry.py`** — comment block at line ~427 documenting the Path A revert is rewritten to cite the new ADR-299 framing (§"Reviewer authority — open question" below). `EMAIL_SEND_TO_OPERATOR_TOOL` import remains absent; `REVIEWER_PRIMITIVES` count remains 21.
+3. **`api/services/primitives/registry.py`** — comment block at line ~426 documenting the Reviewer-side exclusion is rewritten to cite D8's architectural-commitment framing. `EMAIL_SEND_TO_OPERATOR_TOOL` import remains absent; `REVIEWER_PRIMITIVES` count remains 21.
 
 4. **`api/agents/reviewer_agent.py`** — `_PERSONA_FRAME` section at lines 758–790 rewritten per D7 above.
 
@@ -166,7 +187,7 @@ Singular Implementation discipline: this rewrite lands as **one atomic commit**.
    - `test_handler_refuses_llm_supplied_addressee_fields` survives verbatim (the handler shape is unchanged — D6).
    - `test_resolution_send_operator_email_not_in_provider_map` survives verbatim (the entry was never in `CAPABILITY_PROVIDER_MAP`).
    - `test_resolution_surfaces_send_operator_email_unconditionally` rewritten to assert surfacing happens via `SYSTEM_INFRASTRUCTURE_TOOLS` merge (not via always-surface over `CAPABILITIES`).
-   - `test_reviewer_primitives_excludes_send_operator_email_path_a_revert` survives verbatim — Path A guard intact (D8).
+   - `test_reviewer_primitives_excludes_send_operator_email` (renamed from `_path_a_revert` suffix — the exclusion is no longer a revert, it's the architectural commitment per D8) — guards Reviewer surface exclusion.
    - `test_resolution_does_not_have_parallel_kernel_universal_precheck` → `test_resolution_uses_system_infrastructure_tools_merge` — the parallel-pre-check guard is reframed as a positive assertion that the merge path is the one resolution mechanism.
    - `test_bundle_capability_resolution_not_regressed` survives verbatim.
    - `test_addressee_class_distinguishes_operator_from_audience` rewritten under the new vocabulary — the operator/audience distinction is now expressed structurally (system infrastructure vs workspace capability), not via an `addressee_class` field that no longer exists.
@@ -210,22 +231,15 @@ The framing was stress-tested by walking each `platform_connection_requirement: 
 
 The orthogonal precedent — ADR-040 notifications and ADR-202 daily-update emails — confirms the framing. Both use the same Resend wire, both fire from kernel code paths, neither is registered as a capability. ADR-299's contribution is naming the pattern explicitly and adding the first LLM-invokable surface to it.
 
-## Reviewer authority — open question
+## Reviewer authority — RESOLVED
 
-Whether the Reviewer should have direct access to system infrastructure that speaks *as the system* to the operator is a Reviewer-authority question separable from the taxonomy question this ADR resolves. Under the previous framing, this question was framed as "tool inclusion in `REVIEWER_PRIMITIVES`." Under the new framing, the question sharpens:
+The 2026-05-25 v5 canary ([RESOLUTION.md](../observations/2026-05-25-042346-adr299-always-surface-resolution/RESOLUTION.md)) confirmed hypothesis A (tool perturbation) and the architectural commitment is now load-bearing in D8 above: the Reviewer is permanently excluded from `SYSTEM_INFRASTRUCTURE_TOOLS` because the judgment-bearing surface is qualitatively more sensitive to tool-list size than task-bearing surfaces. This is not a deferred question; it is an evidence-confirmed structural design.
 
-> When the Reviewer invokes `platform_email_send_to_operator`, the system Resend wire fires an email from `yarnnn <noreply@yarnnn.com>` to the operator's inbox. The Reviewer is *not* speaking as itself in the way it does when writing to `/workspace/review/judgment_log.md` — it is causing the system to speak as itself. That delegation is structurally different from substrate authorship.
+The 2026-05-27 first-pass rewrite of this ADR mistakenly preserved a pre-resolution "open question" framing — the v5 canary had already run and confirmed hypothesis A on 2026-05-25, but the rewrite carried forward the pre-resolution paragraph unchanged. That framing is now retired. The pre-existing exclusion of `EMAIL_SEND_TO_OPERATOR_TOOL` from `REVIEWER_PRIMITIVES` is the architectural commitment, not a pending experiment.
 
-The Path A revert from 2026-05-25 (`EMAIL_SEND_TO_OPERATOR_TOOL` excluded from `REVIEWER_PRIMITIVES`) was triggered by Canary v4 producing `stand_down` instead of expected `defer`/`reject` — 4 LLM rounds vs Canary v3's 10. Two candidate root causes remain:
+**Operator-addressing notifications tied to Reviewer verdicts**, when needed, belong on a post-judgment dispatcher hook that reads the verdict from substrate (`/workspace/review/judgment_log.md` + `/workspace/review/standing_intent.md`) and the operator's `_preferences.yaml::operator_notifications` block. The pattern already exists at `services/notifications.py` for `action_proposals` arrivals (ADR-040). Out of scope for this ADR but explicitly named as the correct integration path. The L6 capital-execution branch on alpha-author per the original [2026-05-22 motivating evaluation](../observations/2026-05-22-052244-l6-variant-f-clause-validation/) closes via this post-judgment hook design, not via Reviewer tool invocation.
 
-- **Hypothesis A (tool perturbation)**: Adding the tool to the Reviewer's surface shifted attention budget; tool-list change perturbed the judgment process. Path A revert isolates the variable.
-- **Hypothesis B (prompt-coverage gap)**: `stand_down` is an escape hatch in the global Reviewer prompt; the hook prompt's explicit branches for `approve`/`defer`/`reject` didn't close the escape. Fix-forward by patching the hook prompt.
-
-**Path A v5 canary remains pending.** If v5 produces the expected `defer`/`reject` with the smaller 21-tool surface, hypothesis A is confirmed and the re-introduction protocol (D8 plus a Path B follow-on Discovery note documenting any prompt-coverage gap) triggers. If v5 still produces `stand_down`, hypothesis A is falsified and the next investigation is hypothesis B (or a third unidentified cause).
-
-Either outcome, the **agent path** (non-Reviewer LLM tool-use) already surfaces `platform_email_send_to_operator` via the D3 `SYSTEM_INFRASTRUCTURE_TOOLS` merge — so the rest of the architecture is structurally complete. The Reviewer-side inclusion question is a delta on a structurally-complete base.
-
-This rewrite **does not pre-judge** the Reviewer authority question. If v5 confirms hypothesis A, a follow-up commit re-includes the tool in `REVIEWER_PRIMITIVES` under the new framing (the test rename guards both the current revert state and the re-introduction protocol). If v5 falsifies it, hypothesis B is the next round.
+**Discipline for future Reviewer surface changes** (per [RESOLUTION.md §"Discipline lesson"](../observations/2026-05-25-042346-adr299-always-surface-resolution/RESOLUTION.md)): structural reachability is not sufficient justification for tool inclusion. Verdict-quality regression must be measured against the baseline tool surface via N≥3 canaries before any addition is accepted. The default for Reviewer surface changes is "no" until verdict-quality evidence supports otherwise. The 21→22 transition's measured 74% output collapse is the canonical demonstration of why this discipline exists.
 
 ## Risks + mitigations
 
@@ -246,7 +260,7 @@ This rewrite **does not pre-judge** the Reviewer authority question. If v5 confi
 - **Bundle MANIFEST schema**: ADR-118, ADR-224 — bundle capabilities + kernel/program boundary discipline.
 - **Operator preferences substrate**: ADR-275 — operator authority on `_preferences.yaml`; Reviewer reconciles cadence preferences via `Schedule()` but does not author the preferences.
 - **Path A revert observation**: [`docs/evaluations/2026-05-25-042346-adr299-always-surface-resolution/`](../observations/2026-05-25-042346-adr299-always-surface-resolution/) — Hat-B finding that triggered the revert.
-- **L6 capital-execution validation** (substrate-continuity branch on alpha-author): [`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/) — the discourse that originally motivated this ADR. Closure of the substrate-continuity branch still requires the Reviewer to invoke `platform_email_send_to_operator`, which is conditional on the Path A v5 canary outcome (§"Reviewer authority — open question").
+- **L6 capital-execution validation** (substrate-continuity branch on alpha-author): [`docs/evaluations/2026-05-22-052244-l6-variant-f-clause-validation/`](../observations/2026-05-22-052244-l6-variant-f-clause-validation/) — the discourse that originally motivated this ADR. Closure of the substrate-continuity branch is no longer gated on Reviewer tool invocation (per D8 + §"Reviewer authority — RESOLVED"); the correct integration path is the post-judgment dispatcher hook reading verdict substrate + operator preferences. Scope of that integration is out of scope for this ADR but the path is explicitly named.
 - **alpha-author bundle**: ADR-283 D7 + Discovery Note 2 — audience-bearing email rejection holds; operator-addressing system infrastructure is a separate surface inheritable by every bundle without MANIFEST declaration.
 
 ## Implementation history (superseded)
@@ -257,7 +271,7 @@ The original ADR-299 (2026-05-22) framed `send_operator_email` as a "kernel-univ
 - **Discovery note 2** (2026-05-24): Wire redundancy. Phase 1 had wired the tool to the per-user OAuth Resend (ADR-192 Phase 4) when the correct wire (system Resend, ADR-040 + ADR-202) was already deployed. Wire rewired; `runtime: "kernel"` sentinel added to `CAPABILITIES` entry; `platform_connection_requirement: None`.
 - **Discovery note 3** (2026-05-25): Resolution-path gap. The runtime never surfaced the capability to substrate-event wakes (which hardcode `capabilities=[]`). Always-surface pass added that looped over kernel `CAPABILITIES` filtering by `platform_connection_requirement is None`.
 - **Discovery note 4** (2026-05-25): Reviewer-surface gap. The Reviewer's tool surface is `REVIEWER_PRIMITIVES`, not `get_platform_tools_for_capabilities`; the tool was never in `REVIEWER_PRIMITIVES`. Tool added. Path A revert followed same-day (next entry).
-- **Discovery 4 Path A revert** (2026-05-25): Canary v4 produced `stand_down` instead of `defer`/`reject`; hypothesis A (tool perturbation) chosen for isolation. `EMAIL_SEND_TO_OPERATOR_TOOL` removed from `REVIEWER_PRIMITIVES`. Discovery 3's always-surface fix kept.
+- **Discovery 4 Path A revert + v5 resolution** (2026-05-25): Canary v4 produced `stand_down` instead of `defer`/`reject`; hypothesis A (tool perturbation) chosen for isolation. `EMAIL_SEND_TO_OPERATOR_TOOL` removed from `REVIEWER_PRIMITIVES`. Discovery 3's always-surface fix kept. The same-day v5 canary on the 21-tool surface produced `reject_publication` with 14,615 output tokens — hypothesis A CONFIRMED (full evidence trail in [RESOLUTION.md](../observations/2026-05-25-042346-adr299-always-surface-resolution/RESOLUTION.md)). What was framed as a "revert pending validation" became the architectural commitment within the same day. The 2026-05-27 first-pass rewrite of this ADR carried forward the pre-resolution "open question" framing in error; the second-pass rewrite incorporates the v5 finding as D8.
 
 The 2026-05-27 rewrite supersedes the entire "kernel-universal capability" framing and the parallel-registry-then-always-surface-pass implementation. The four Discovery notes' lessons fold into one structural insight: **the original ADR was correctly identifying that the entity didn't fit the existing capability layer, but it relocated within the capability layer instead of relocating out of it.** The correct relocation is to system infrastructure (a category that already existed implicitly via ADR-040 + ADR-202; this ADR names it).
 
@@ -266,7 +280,7 @@ What's preserved from the prior shape:
 - D3 (audience-vs-operator distinction) → still load-bearing; lives in §"Decision" framing.
 - D4 (observability authorization model) → D5 in the rewrite.
 - Discovery 2's wire choice (system Resend) → §"Decision" assumes this throughout.
-- Discovery 4 Path A revert → D8 in the rewrite + §"Reviewer authority — open question."
+- Discovery 4 Path A revert + 2026-05-25 v5 canary resolution → D8 (architectural commitment) + §"Reviewer authority — RESOLVED."
 
 What's superseded:
 - D1 (kernel-universal capability class) → DELETED. Workspace capabilities are a single-axis taxonomy; system infrastructure is a separate category.

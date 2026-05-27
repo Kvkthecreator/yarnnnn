@@ -6,6 +6,107 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.27.2] - persona-frame(reviewer): ADR-299 D8 architectural-commitment framing (second-pass rewrite incorporates v5 canary resolution)
+
+### Decision
+
+The 2026-05-27 first-pass ADR-299 rewrite ([2026.05.27.1]) preserved a
+pre-resolution "Reviewer authority — open question" framing in error.
+The 2026-05-25 v5 canary had already RESOLVED hypothesis A on the
+Reviewer-side exclusion: adding `platform_email_send_to_operator` to
+`REVIEWER_PRIMITIVES` collapsed Reviewer judgment output by ~74% on the
+21→22 tool transition (v4: 1,577 tokens, `stand_down`, zero substrate
+writes vs v3 baseline 6,139 tokens, reject). Reverting (v5) restored
+substantive judgment (14,615 tokens, reject_publication — 2.4x v3
+baseline). The evidence is unambiguous: tool-list size is a load-bearing
+variable for judgment-bearing agent surfaces.
+
+This second-pass rewrite incorporates the v5 finding as ADR-299 D8's
+architectural commitment: the Reviewer is permanently excluded from
+`SYSTEM_INFRASTRUCTURE_TOOLS` by design, not pending experiment.
+Operator notifications tied to Reviewer verdicts route via a post-
+judgment dispatcher hook reading verdict substrate + operator
+`_preferences.yaml`, NOT via the Reviewer's tool surface.
+
+### Changed
+
+- **docs/adr/ADR-299-kernel-universal-operator-addressing-capability.md**:
+  - Status: Proposed → Implemented (architectural commitment, not
+    deferred).
+  - Supersedes block extended to name the "open question" framing as
+    the prior error.
+  - D8 rewritten: "The Reviewer is permanently excluded from
+    SYSTEM_INFRASTRUCTURE_TOOLS by architectural design." Includes the
+    v3/v4/v5 comparison table with substrate receipts (`execution_events`
+    row IDs `252e75f6`, `58d325df`, `1e9ac22c`). Names the two-class
+    distinction explicitly (task-bearing vs judgment-bearing agent
+    surfaces). Re-introduction guardrail: future Reviewer surface
+    additions require N≥3 verdict-quality canaries before acceptance.
+  - §"Reviewer authority — open question" → §"Reviewer authority —
+    RESOLVED". Pre-resolution language retired. Names the post-judgment
+    dispatcher hook as the correct integration path for operator
+    notifications tied to Reviewer verdicts.
+  - Implementation-history Discovery 4 entry extended to note the
+    same-day v5 resolution.
+
+- **api/agents/reviewer_agent.py** `_PERSONA_FRAME_SECTIONS`
+  operator-notifications subsection:
+  - "Reviewer-side tool access is currently paused" → "is not in your
+    tool surface — by design." Frames the exclusion as architectural
+    commitment, not pending state.
+  - Cites the 21→22 transition's 74% output collapse as evidence so
+    the Reviewer perceives this as established empirical finding.
+  - Names the post-judgment dispatcher hook as the delivery path for
+    operator notifications tied to verdicts.
+
+- **api/services/primitives/registry.py** Reviewer-exclusion comment
+  block rewritten under the architectural-commitment framing. Cites
+  the v5 evidence directly + RESOLUTION.md path + discipline rule for
+  future tool additions.
+
+- **api/services/platform_tools.py**:
+  - EMAIL_SEND_TO_OPERATOR_TOOL comment block: removes "Path A revert"
+    language; replaces with "by architectural design" + v5 evidence
+    summary.
+  - `get_platform_tools_for_capabilities` docstring: clarifies that
+    task-bearing agents get system infrastructure unconditionally;
+    Reviewer does NOT, by ADR-299 D8 architectural design.
+
+- **api/test_adr299_kernel_universal_capability.py**:
+  - `test_reviewer_primitives_excludes_send_operator_email_path_a_revert`
+    renamed to `test_reviewer_primitives_excludes_send_operator_email`.
+    Docstring rewritten with the v3/v4/v5 evidence table. Assertion
+    message reframed: discipline rule for future Reviewer surface
+    additions is N≥3 verdict-quality canaries.
+  - Module docstring item 8 reframed: "Architectural commitment per
+    ADR-299 D8 — evidence-confirmed by the 2026-05-25 v5 canary"
+    (replaces "Path A revert preserved — see ADR-299 §'Reviewer
+    authority — open question'").
+
+- **api/test_reviewer_formalization.py**
+  `test_persona_frame_operator_addressing_system_infrastructure_prose`:
+  - Persona-frame assertion updated: requires both
+    "architectural commitment / design / by design" language AND
+    "not in your tool surface" / "is not in your" language present.
+  - New negative-guard assertion: REJECTS pre-resolution markers
+    (e.g., "path a revert pending", "v5 canary remains pending",
+    "Reviewer authority — open question") so any future regression
+    to deferred framing fails loud.
+
+### Expected behavior
+
+- Reviewer behavior unchanged at runtime (no tool surface change vs
+  [2026.05.27.1]) — only the persona-frame prose evolves to teach the
+  exclusion as architectural design rather than as a deferred decision.
+- Doc + test surface no longer carry the contradiction between the
+  evidence-confirmed v5 finding and the pending-experiment framing
+  the first-pass rewrite preserved.
+- Future tool additions to `REVIEWER_PRIMITIVES` are explicitly
+  governed by the verdict-quality-canary discipline; structural
+  reachability alone is insufficient justification.
+
+---
+
 ## [2026.05.27.1] - tool+persona-frame(reviewer): ADR-299 wholesale rewrite — operator-addressing system infrastructure
 
 ### Decision

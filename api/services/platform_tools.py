@@ -822,10 +822,15 @@ TRADING_WRITE_TOOLS = [
 # observability from bundle-specific audience-bearing writes (use
 # `platform_email_send` for audience sends per ADR-192 Phase 4).
 #
-# Agent surface: always surfaced via SYSTEM_INFRASTRUCTURE_TOOLS merge
-# in get_platform_tools_for_capabilities (D3). Reviewer surface: NOT
-# included in REVIEWER_PRIMITIVES — Path A revert from 2026-05-25 stays
-# in place per the open question in ADR-299 §"Reviewer authority."
+# Task-bearing agent surfaces (YARNNN chat, headless specialists,
+# headless task pipeline): always surfaced via SYSTEM_INFRASTRUCTURE_TOOLS
+# merge in get_platform_tools_for_capabilities + _for_user (D3).
+# Judgment-bearing Reviewer surface: NOT included in REVIEWER_PRIMITIVES
+# per ADR-299 D8 architectural commitment (v5 canary 2026-05-25
+# confirmed tool-list size collapses Reviewer judgment quality —
+# 21→22 surface caused 74% output drop). Operator notifications tied
+# to Reviewer verdicts route via a post-judgment dispatcher hook, not
+# this tool.
 #
 # Per ADR-299 D5 the operator's
 # `_preferences.yaml::operator_notifications.{slug}.active: true`
@@ -1111,14 +1116,14 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
     Resolution discipline (per ADR-299 rewrite 2026-05-27):
 
       1. **System infrastructure** (SYSTEM_INFRASTRUCTURE_TOOLS) surfaces
-         unconditionally. These are LLM-invokable surfaces over environment-
-         shared kernel infrastructure (the system Resend wire today;
-         future entries follow the discipline rule documented above the
-         SYSTEM_INFRASTRUCTURE_TOOLS constant). Not workspace-declared,
-         not capability-gated, not provider-gated. The agent path always
-         gets them; the Reviewer path has separate authority gating via
-         REVIEWER_PRIMITIVES (Path A revert preserved — see ADR-299
-         §"Reviewer authority").
+         unconditionally to task-bearing agent paths. These are LLM-
+         invokable surfaces over environment-shared kernel infrastructure
+         (the system Resend wire today; future entries follow the
+         discipline rule documented above the SYSTEM_INFRASTRUCTURE_TOOLS
+         constant). Not workspace-declared, not capability-gated, not
+         provider-gated. The Reviewer (judgment-bearing) does NOT receive
+         these tools by architectural design (ADR-299 D8) — it consumes
+         REVIEWER_PRIMITIVES directly, not via this function.
 
       2. **Workspace capabilities** (kernel CAPABILITIES + bundle MANIFEST
          capabilities routed through CAPABILITY_PROVIDER_MAP) require BOTH
