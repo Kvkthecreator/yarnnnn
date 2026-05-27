@@ -489,6 +489,17 @@ You MUST:
 
 ## Key Architecture References
 
+### Reviewer seat — substrate canon + partition-discipline canon
+
+**Two canonical homes; do not re-derive, look them up first.** If a session would benefit from understanding what `principles.md` is for, what `IDENTITY.md` carries, what the persona-frame owns, what the seat's six files are, or where the content boundaries live — these are the singular references:
+
+- **[`docs/architecture/reviewer-substrate.md`](docs/architecture/reviewer-substrate.md)** — the technical canon for the Reviewer seat. Six seat files, occupant rotation protocol, calibration trail semantics, prospective-attribution contract with chat surfaces. Referenced from ADR-194, 195, 211, 212, 253, 280, 282, 284, 285 + FOUNDATIONS Derived Principle 14.
+- **[`docs/architecture/agent-composition.md`](docs/architecture/agent-composition.md) §3.2.1** — **the singular enforcement home for the partition between `principles.md` (the rule-set the persona applies) and the persona-frame `_compute_*` sections in `api/agents/reviewer_agent.py` (the reasoning posture).** Names the four-field rule shape, the bright-line list of content that does NOT belong in `principles.md` (self-amendment discipline, anti-patterns, fiduciary principle, posture taxonomy, standing-intent contract, cadence-trifecta, wake-context discipline, write authority, voice/narration — all in persona-frame), the conflict-resolution rule (PRECEDENT > principles; persona-frame > principles for reasoning-posture; AUTONOMY ceiling > principles for delegation widening), and a diagnostic test for uncertain content.
+
+**When to consult §3.2.1**: before editing any `docs/programs/{slug}/reference-workspace/review/principles.md` (bundle template); before drafting an ADR that prescribes principles.md content; before adding a `_compute_*` section to `api/agents/reviewer_agent.py`; when auditing whether a workspace's `principles.md` has drifted to multi-purpose. Future ADRs that reshape principles.md content **must update §3.2.1 in the same commit** — the partition discipline is enforced at the canon layer, not by re-derivation.
+
+The one-line statement (canonized at `agent-composition.md` §4.2 + §3.2.1): **persona is *how to reason*; mandate is *why we exist*; autonomy is *how far decisions bind*; principles is *what the rules of judgment are*.**
+
 ### ADR-064: Unified Memory Service (updated by ADR-156, post-ADR-235)
 
 **Memory is in-session** — YARNNN writes facts proactively via `WriteFile(scope="workspace", path="memory/notes.md", content="...", mode="append")` during conversation. Follows the Claude Code model: memory happens in the moment of learning, not as a batch job. (Pre-ADR-235 used `UpdateContext(target="memory")`.)

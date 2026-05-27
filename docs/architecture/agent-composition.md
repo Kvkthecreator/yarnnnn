@@ -150,6 +150,54 @@ The Reviewer agent does NOT read AUTONOMY.md directly. The dispatcher enforces t
 
 ---
 
+#### 3.2.1 Partition discipline: what belongs in `principles.md` vs. persona-frame
+
+> **This subsection is the singular enforcement home for the principles ↔ persona-frame partition.** When you are about to add content to `/workspace/review/principles.md` (in a bundle template, in a per-workspace seed, or in a doc that prescribes principles content), this is the test. When you are about to add content to a `_compute_*` section of `api/agents/reviewer_agent.py`'s persona-frame, this is the test. Other canon files (`reviewer-substrate.md`, ADR-194 v2, ADR-217, ADR-293, ADR-295, ADR-303) defer to this clause on the partition question — they describe the seat, the autonomy gating, the self-amendment capability, the posture taxonomy, but the *content boundary between principles.md and the persona-frame* is governed here.
+
+**The one-line statement** (already canonized at §4.2 line 227 and §3.2 substrate table):
+> **`principles.md` is the rule-set the persona applies.** Persona is *how to reason*; mandate is *why we exist*; autonomy is *how far decisions bind*; principles is *what the rules of judgment are*.
+
+**The four-field rule shape.** Every rule declared in `principles.md` must have:
+
+1. **Name** — a stable identifier for the rule (e.g. `voice-fingerprint-match`, `anti-slop`, `text-continuity`, `entity-continuity`, `cadence-on-pace`).
+2. **Substrate it reads against** — the file path or signal the rule evaluates (`_voice.md`, `entities/{slug}.md::What's been established`, `_preferences.yaml::cadence` × `_signal.md::last-ship-date`, etc.). A rule with no substrate-anchor is floating; it does not belong here — it belongs in the persona-frame as reasoning posture.
+3. **Pass condition** — what state of that substrate means the rule passes.
+4. **Verdict on fail** — `approve` (the rule isn't load-bearing for this verdict shape) / `defer` (with directive shape — what the operator-facing directive should contain) / `reject` (unconditional) / `propose` (Reviewer must emit an action_proposal).
+
+A `principles.md` rule that does not fit this shape is mis-placed content — it belongs elsewhere per the boundary below.
+
+**What does NOT belong in `principles.md` — bright-line content boundary.** All of the following describe *how the Reviewer reasons*, not *what rules it applies when judging*. They live in `api/agents/reviewer_agent.py` persona-frame `_compute_*` sections — single home, code-local:
+
+| Concern | Persona-frame home | Belongs in `principles.md`? |
+|---|---|---|
+| When the Reviewer may amend operator-canon (evidence thresholds for self-edits) | `_compute_self_amendment_discipline` (ADR-295) | **No.** Numeric thresholds per program are config; tune them via `_principles.yaml` (ADR-254) which sits alongside principles.md but is machine-parsed, not prose. The *capability* and its *anti-patterns* are persona-frame. |
+| Anti-patterns — when NOT to amend operator-canon even when capability + AUTONOMY-mode would permit | `_compute_anti_patterns` (ADR-295 D3) | No. |
+| Fiduciary principle + counterweight (active-vs-passive meta-reasoning) | `_compute_self_amendment_discipline` / `_compute_anti_patterns` (ADR-295 D4) | No. |
+| Posture taxonomy (P1 fired-correctly / P2 decided-nothing-material / P3 tried-was-gated / P4 budget-exhausted / P5 confused) | `_compute_standing_intent_contract` (ADR-303 D1) | No. The cycle-exit shape is a runtime concern between Reviewer and dispatcher, not a rule of judgment. |
+| Standing-intent authoring contract ("every cycle authors standing_intent.md") | `_compute_standing_intent_contract` (ADR-284) | No. |
+| Calibration loop (how verdict outcomes feed back over time) | `_compute_self_amendment_discipline` + ADR-195 reconciler task | No. The *loop's existence* is canon; the principles file doesn't re-declare it. |
+| Cadence-trifecta (Pace + Autonomy + Persona dial reading) | `_compute_cadence_trifecta` (ADR-298) | No. |
+| Wake-context discipline (reading wake_source + triggering_path) | `_compute_wake_context_discipline` (ADR-274) | No. |
+| Write authority + locks | `_compute_write_authority` | No. |
+| Voice and narration | `_compute_voice_and_narration` | No. |
+| Workspace-lifecycle phase gates (bootstrap → mature) | `AUTONOMY.md` "Phase progression" section + per-program tuning | No. Phase progression is operator-declared lifecycle policy; if a rule is *gated by phase*, that's a property of the rule's pass condition (#3 above), not a separate philosophy section. |
+
+**Conflict-resolution rule.** When two reads disagree on a verdict:
+
+1. `PRECEDENT.md` > `principles.md` — operator-declared durable interpretations override the framework (already at §3.2 substrate table line 97).
+2. Persona-frame > `principles.md` *for reasoning-posture content that drifted into principles*. If `principles.md` carries (e.g.) a self-amendment threshold clause, the persona-frame's `_compute_self_amendment_discipline` is authoritative; the principles clause is mis-placed content scheduled for migration to the appropriate `_compute_*` section.
+3. `AUTONOMY.md` ceiling > `principles.md` *for delegation widening*. Principles can narrow delegation (add defer conditions) but never widen (ADR-217 D4).
+
+**Bundle-template + per-workspace audit checklist.** Before editing a `docs/programs/{slug}/reference-workspace/review/principles.md` or before forking it into a workspace:
+
+- Every section in the file declares either (a) a rule with the four-field shape, (b) the conflict-resolution rule, or (c) a brief workspace-lifecycle phase pointer that the rules' pass conditions reference. If a section doesn't fit one of those three, it is mis-placed.
+- Numeric thresholds (e.g. amendment-evidence sample sizes, ceiling categories) live in `_principles.yaml` (ADR-254 machine-parsed sibling). Prose declarations of the *categories* may live in principles.md; the *numbers* per program live in yaml.
+- No section in the file describes "the Reviewer's reasoning posture", "when the Reviewer should be active vs passive", "what the Reviewer should write to standing_intent". Those are persona-frame concerns.
+
+**Diagnostic test** (use this when uncertain): *If I removed this content from `principles.md`, would the Reviewer still apply the same rules to the same substrate?* If yes (because the content is reasoning-posture and lives in the persona-frame), it doesn't belong here. If no (because the content names a specific rule, its substrate-anchor, and its verdict), it belongs here.
+
+---
+
 ### 3.3 User-authored domain Agents (instance persona-bearing Agents)
 
 **Purpose**: operator-authored specialists for domain-scoped work (e.g. "competitive-intel researcher", "weekly-report writer"). Zero-to-many per workspace. Dispatched by tasks that name them in their `## Team` section.
@@ -224,7 +272,7 @@ Both YARNNN (orchestration) and Reviewer (judgment) read these. They are the ope
 | File | ADR | Author | Content |
 |------|-----|--------|---------|
 | IDENTITY.md | ADR-216 | Operator | The persona the seat embodies. |
-| principles.md | ADR-194 v2 + ADR-217 | Operator | The framework the persona applies. |
+| principles.md | ADR-194 v2 + ADR-217 | Operator | The framework the persona applies — the rule-set, not the reasoning posture. See §3.2.1 for the partition-discipline clause (singular enforcement home). |
 | OCCUPANT.md | ADR-194 v2 Phase 2b | Rotation primitive | Who currently fills the seat. |
 | handoffs.md | ADR-194 v2 Phase 2b | Rotation primitive | Rotation history (append-only). |
 | decisions.md | ADR-194 v2 | Reviewer itself | Verdict trail (append-only). |
@@ -249,6 +297,8 @@ The Reviewer's seat substrate under `/workspace/review/` is **read by the Review
 Domain Agent substrate under `/agents/{slug}/` is **read by task pipeline when dispatching that agent**. Operator writes AGENT.md via chat; agent writes its own memory during runs.
 
 **The invariant that makes this work**: file placement follows authorship + scope. Operator-authored workspace-scoped = `_shared/`. Operator-authored seat-bound = `/workspace/review/IDENTITY.md` + `/workspace/review/principles.md`. Operator-authored agent-bound = `/agents/{slug}/AGENT.md`. Seat-generated = decisions + calibration + rotation files. Agent-generated = agent memory.
+
+**Content boundary within the seat-bound files** (the partition that companion §3.2.1 enforces): `IDENTITY.md` = persona (how the seat reasons); `principles.md` = rule-set the persona applies (the framework). Reasoning-posture content (self-amendment discipline, anti-patterns, fiduciary principle, posture taxonomy, standing-intent contract, cadence-trifecta, wake-context discipline, write authority, voice/narration) lives in `api/agents/reviewer_agent.py` persona-frame `_compute_*` sections — single home, code-local. The seat-bound prose files describe *who* and *what rules*; the persona-frame describes *how to reason*. See §3.2.1 for the four-field rule shape and the diagnostic test.
 
 ---
 

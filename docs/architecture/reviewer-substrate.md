@@ -56,15 +56,17 @@ When the occupant rotates, `OCCUPANT.md` is overwritten and a handoff entry appe
 
 ### `principles.md` — operator-declared judgment framework
 
-The operator's stated preferences for how judgment should be rendered in this workspace. Seeded with sensible defaults at scaffold. Operator-editable at any time via Context surface or chat with YARNNN.
+The rule-set the persona applies — *what rules of judgment* the Reviewer evaluates substrate against. Seeded with sensible defaults at scaffold. Operator-editable at any time via Context surface or chat with YARNNN. Independent of the occupant class.
 
-Principles include (non-exhaustive):
-- Capital horizons that matter (daily / weekly / quarterly / multi-year)
-- Reversibility thresholds and framework-level defer rules
-- Ambiguity resolution posture (prefer defer, prefer reject, prefer approve-with-note)
-- Narrowing conditions that sit on top of AUTONOMY.md's raw delegation ceiling
+> **Partition-discipline canon is at [`agent-composition.md`](agent-composition.md) §3.2.1 — the singular enforcement home for the content boundary between `principles.md` (rule-set) and the persona-frame `_compute_*` sections in `api/agents/reviewer_agent.py` (reasoning posture).** That section names: the four-field rule shape every `principles.md` entry must take (name + substrate-read + pass-condition + verdict-on-fail), the bright-line list of content that does NOT belong in `principles.md` (self-amendment discipline, anti-patterns, fiduciary principle, posture taxonomy, standing-intent contract, cadence-trifecta, wake-context discipline, write authority, voice/narration — all in persona-frame), the conflict-resolution rule (PRECEDENT > principles; persona-frame > principles for reasoning-posture content; AUTONOMY ceiling > principles for delegation widening), and a diagnostic test for uncertain content. **Future ADRs that reshape principles.md content must update §3.2.1 in the same commit.** This document describes the substrate file's role in the seat; §3.2.1 describes the content boundary within it.
 
-This file is the operator's authored intent on *how* they want to be judged on behalf of. It is read by every occupant of the seat. It is independent of the occupant class.
+Examples of rules that fit the four-field shape (illustrative, per-program tuning in bundle templates):
+- Capital horizons that matter (daily / weekly / quarterly / multi-year) — substrate-anchor: `_money_truth.md`-derived rolling window.
+- Reversibility thresholds and framework-level defer rules — substrate-anchor: proposal `reversibility` field × declared threshold.
+- Ambiguity resolution posture (prefer defer / reject / approve-with-note) as the verdict-on-fail shape per rule.
+- Narrowing conditions that add defer conditions on top of AUTONOMY.md's raw delegation ceiling (never widen — ADR-217 D4).
+
+Numeric thresholds per program live in `_principles.yaml` (ADR-254 machine-parsed sibling); prose declarations of the *categories* may live here.
 
 *Written by*: operator.
 
