@@ -54,31 +54,41 @@ def get_all_prompt_versions() -> dict:
 # Tool Definitions (Anthropic format)
 # =============================================================================
 
-SLACK_TOOLS = [
-    {
-        "name": "platform_slack_send_message",
-        "description": """Send a message to a Slack DM (direct message to self).
+# ADR-304 D1 (2026-05-27): platform_slack_send_message is operator-addressing
+# system infrastructure (lifted to named module-level constant
+# SLACK_SEND_MESSAGE_TOOL below alongside EMAIL_SEND_TO_OPERATOR_TOOL).
+# Addressee structurally pinned to the operator's own Slack DM
+# (authed_user_id from integration metadata). NOT a workspace capability;
+# registered in SYSTEM_INFRASTRUCTURE_TOOLS, not PLATFORM_TOOLS_BY_CAPABILITY.
+# Reads (list_channels, get_channel_history) remain in SLACK_TOOLS below as
+# they are operator-addressable workspace reads gated by read_slack capability.
+SLACK_SEND_MESSAGE_TOOL = {
+    "name": "platform_slack_send_message",
+    "description": """Send a message to a Slack DM (direct message to self).
 
 PRIMARY USE: Send to user's own DM so they own the output.
 1. Call list_integrations to get authed_user_id
 2. Use that user ID as channel_id
 
 The user's authed_user_id is in integration metadata. Always send to self unless explicitly asked for a channel.""",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "channel_id": {
-                    "type": "string",
-                    "description": "User ID for DM (U...). Get from list_integrations authed_user_id"
-                },
-                "text": {
-                    "type": "string",
-                    "description": "Message text"
-                }
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "channel_id": {
+                "type": "string",
+                "description": "User ID for DM (U...). Get from list_integrations authed_user_id"
             },
-            "required": ["channel_id", "text"]
-        }
-    },
+            "text": {
+                "type": "string",
+                "description": "Message text"
+            }
+        },
+        "required": ["channel_id", "text"]
+    }
+}
+
+
+SLACK_TOOLS = [
     {
         "name": "platform_slack_list_channels",
         "description": """List channels in the Slack workspace. Returns channel IDs and names.
@@ -134,6 +144,41 @@ Parameters:
     },
 ]
 
+# ADR-304 D1 (2026-05-27): platform_notion_create_comment is operator-
+# addressing system infrastructure (lifted to named module-level constant
+# NOTION_CREATE_COMMENT_TOOL below alongside SLACK_SEND_MESSAGE_TOOL +
+# EMAIL_SEND_TO_OPERATOR_TOOL). Addressee structurally pinned to the
+# operator's designated Notion page (designated_page_id from integration
+# metadata). NOT a workspace capability; registered in
+# SYSTEM_INFRASTRUCTURE_TOOLS, not PLATFORM_TOOLS_BY_CAPABILITY. Reads
+# (search, get_page) remain in NOTION_TOOLS below as they are workspace
+# reads gated by read_notion capability.
+NOTION_CREATE_COMMENT_TOOL = {
+    "name": "platform_notion_create_comment",
+    "description": """Add a comment to a Notion page.
+
+PRIMARY USE: Add to user's designated page so they own the output.
+1. Call list_integrations to get designated_page_id
+2. Use that page ID as the target
+
+The user's designated_page_id is in integration metadata. Use it unless user explicitly asks for a different page.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "page_id": {
+                "type": "string",
+                "description": "Page ID (UUID). Get from list_integrations designated_page_id or search"
+            },
+            "content": {
+                "type": "string",
+                "description": "Comment text"
+            }
+        },
+        "required": ["page_id", "content"]
+    }
+}
+
+
 NOTION_TOOLS = [
     {
         "name": "platform_notion_search",
@@ -171,30 +216,9 @@ Returns the page title and its text content as plain text blocks. Do NOT use Rea
             "required": ["page_id"]
         }
     },
-    {
-        "name": "platform_notion_create_comment",
-        "description": """Add a comment to a Notion page.
-
-PRIMARY USE: Add to user's designated page so they own the output.
-1. Call list_integrations to get designated_page_id
-2. Use that page ID as the target
-
-The user's designated_page_id is in integration metadata. Use it unless user explicitly asks for a different page.""",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "page_id": {
-                    "type": "string",
-                    "description": "Page ID (UUID). Get from list_integrations designated_page_id or search"
-                },
-                "content": {
-                    "type": "string",
-                    "description": "Comment text"
-                }
-            },
-            "required": ["page_id", "content"]
-        }
-    },
+    # ADR-304 D1 + D2: platform_notion_create_comment lifted to
+    # NOTION_CREATE_COMMENT_TOOL and registered in SYSTEM_INFRASTRUCTURE_TOOLS.
+    # Singular Implementation: tool defined once at module level.
 ]
 
 # ADR-131: Gmail and Calendar tools removed (sunset)
@@ -933,35 +957,59 @@ EMAIL_TOOLS = [
 
 
 # =============================================================================
-# ADR-299 (rewrite 2026-05-27): System Infrastructure Tools
+# ADR-299 + ADR-304: System Infrastructure Tools
 # =============================================================================
 #
 # LLM-invokable surfaces over environment-shared kernel infrastructure where
 # the addressee / target is determined OUTSIDE workspace declaration. Not
 # workspace capabilities — these are the system speaking *as itself* through
-# its own plumbing.
+# its own plumbing to the operator's identity.
+#
+# Three current entries (operator-addressing writes per ADR-299 D1 +
+# ADR-304 D1 distinguishing test — addressee structurally pinned to
+# operator-identity, never LLM-supplied):
+#
+#   EMAIL_SEND_TO_OPERATOR_TOOL — system Resend wire to auth.users.email
+#     (operator's workspace-owner email). Shipped via ADR-299.
+#
+#   SLACK_SEND_MESSAGE_TOOL — operator's own Slack DM (authed_user_id
+#     from integration metadata). Reclassified from `write_slack`
+#     workspace capability by ADR-304 D2.
+#
+#   NOTION_CREATE_COMMENT_TOOL — operator's designated Notion page
+#     (designated_page_id from integration metadata). Reclassified from
+#     `write_notion` workspace capability by ADR-304 D2.
 #
 # The pattern already existed implicitly via ADR-040 (operator notification
 # emails fired from services/notifications.py) and ADR-202 (daily-update
 # pointer emails fired from services/daily_update_email.py). Both use the
 # system Resend wire (RESEND_API_KEY env var). Both fire from kernel code
-# paths. Neither was registered as a capability. ADR-299 names the pattern
-# and adds the first LLM-invoked entry to it (operator/Reviewer/agent
-# decides whether to send, vs ADR-040 / ADR-202 firing deterministically
-# on triggers).
+# paths. Neither was registered as a capability. ADR-299 named the pattern
+# and added the first LLM-invoked entry to it; ADR-304 generalized to
+# Slack DM + Notion comment.
 #
-# Inclusion discipline (D2): only LLM-invokable surfaces over environment-
-# shared infrastructure where the addressee/target is determined outside
-# workspace declaration. Direct call sites (ADR-040, ADR-202) stay direct;
-# they don't surface to any LLM, so registry inclusion would be ceremony
-# without purpose. New entries require ADR amendment.
+# Inclusion discipline (ADR-299 D2 + ADR-304 D1): only LLM-invokable
+# surfaces over environment-shared infrastructure where the addressee /
+# target is determined OUTSIDE workspace declaration (operator-identity
+# pinned structurally at runtime). Direct call sites (ADR-040, ADR-202)
+# stay direct; they don't surface to any LLM, so registry inclusion
+# would be ceremony without purpose. Audience-addressing extensions
+# (channel-sends, page-creates) are workspace capabilities, NOT system
+# infrastructure — they declare via bundle MANIFEST per ADR-304 D5. New
+# system-infrastructure entries require ADR amendment.
 #
-# Surfacing path: get_platform_tools_for_capabilities merges these tools
-# unconditionally into the returned tool list — no `_preferences.yaml`
-# check at the merge layer (that's the LLM's judgment per persona-frame
-# guidance), no `platform_connections` gate (the wire is kernel-deployed).
+# Surfacing path:
+#   - get_platform_tools_for_capabilities (headless): merges these tools
+#     unconditionally before workspace-capability resolution.
+#   - get_platform_tools_for_user (YARNNN chat): merges these tools as
+#     Layer 1 unconditionally, then Layer 2 reads bundle MANIFEST
+#     declarations per ADR-304 D3.
+#   - REVIEWER_PRIMITIVES (Reviewer): does NOT include these per
+#     ADR-299 D8 — judgment-bearing surface preserved.
 SYSTEM_INFRASTRUCTURE_TOOLS: list[dict] = [
     EMAIL_SEND_TO_OPERATOR_TOOL,
+    SLACK_SEND_MESSAGE_TOOL,
+    NOTION_CREATE_COMMENT_TOOL,
 ]
 
 
@@ -977,9 +1025,18 @@ PLATFORM_TOOLS_BY_PROVIDER = {
 
 PLATFORM_TOOLS_BY_CAPABILITY = {
     "read_slack": ["platform_slack_list_channels", "platform_slack_get_channel_history"],
-    "write_slack": ["platform_slack_send_message"],
+    # ADR-304 D2: `write_slack` (operator DM) reclassified to
+    # SYSTEM_INFRASTRUCTURE_TOOLS as SLACK_SEND_MESSAGE_TOOL. The capability
+    # name is reserved for audience-addressing extensions per ADR-304 D5
+    # (e.g., a future platform_slack_send_to_channel tool would declare
+    # `write_slack` here, pointing to the new tool, NOT to
+    # platform_slack_send_message).
     "read_notion": ["platform_notion_search", "platform_notion_get_page"],
-    "write_notion": ["platform_notion_create_comment"],
+    # ADR-304 D2: `write_notion` (operator-designated-page comment)
+    # reclassified to SYSTEM_INFRASTRUCTURE_TOOLS as NOTION_CREATE_COMMENT_TOOL.
+    # The capability name is reserved for audience-addressing extensions
+    # per ADR-304 D5 (e.g., future platform_notion_create_page,
+    # platform_notion_append_block).
     "read_github": [
         "platform_github_list_repos", "platform_github_get_issues",
         "platform_github_get_repo_metadata", "platform_github_get_readme",
@@ -1032,9 +1089,13 @@ PLATFORM_TOOLS_BY_CAPABILITY = {
 
 CAPABILITY_PROVIDER_MAP = {
     "read_slack": "slack",
-    "write_slack": "slack",
+    # ADR-304 D2: write_slack removed — operator-DM send is system
+    # infrastructure (SLACK_SEND_MESSAGE_TOOL). The key is reserved for
+    # future audience-addressing extensions per D5.
     "read_notion": "notion",
-    "write_notion": "notion",
+    # ADR-304 D2: write_notion removed — operator-page comment is system
+    # infrastructure (NOTION_CREATE_COMMENT_TOOL). The key is reserved for
+    # future audience-addressing extensions per D5.
     "read_github": "github",
     "read_commerce": "commerce",
     "write_commerce": "commerce",
@@ -1055,56 +1116,93 @@ CAPABILITY_PROVIDER_MAP = {
 
 async def get_platform_tools_for_user(auth: Any) -> list[dict]:
     """
-    Get platform tools for a user based on their connected integrations.
+    Get platform tools for the YARNNN chat-mode agent.
 
-    Per ADR-299 (2026-05-27): system-infrastructure tools (the
-    SYSTEM_INFRASTRUCTURE_TOOLS list) surface unconditionally — they are
-    kernel plumbing the system uses regardless of workspace declaration,
-    not workspace capabilities. Workspace platform tools surface based on
-    active platform_connections rows.
+    Per ADR-304 D3 (2026-05-27): YARNNN chat honors bundle MANIFEST
+    capability declarations. Tools surface in two layers:
+
+      Layer 1 — System infrastructure (SYSTEM_INFRASTRUCTURE_TOOLS):
+        Unconditional. Operator-addressing kernel plumbing per ADR-299
+        D1 + ADR-304 D1 — addressee structurally pinned to operator-
+        identity. Surfaces regardless of bundle activation or platform
+        connections.
+
+      Layer 2 — Workspace capabilities declared by active program bundles:
+        Reads `list_bundle_capabilities()` (union of capability
+        declarations from all active program bundles per
+        `bundles_active_for_workspace`), gates on `platform_connections`
+        via the kernel's _resolve_capability path. Tools surface because
+        the bundle DECLARES the capability, NOT because the operator
+        happens to have an OAuth connection to the provider.
+
+    This matches the headless gating semantics (`get_platform_tools_for_
+    capabilities` reads explicit capability declarations + provider
+    gate). Pre-ADR-304 behavior — iterating raw `platform_connections`
+    rows and surfacing every tool of every connected provider — is
+    DELETED per Singular Implementation. No dual paths.
+
+    Pre-activation workspaces (no active program bundle) see Layer 1
+    only — system infrastructure is the kernel surface every workspace
+    gets. To unlock workspace tools, the operator activates a program
+    whose MANIFEST declares the needed capabilities (ADR-226).
 
     Args:
         auth: Auth context with user_id and client
 
     Returns:
         List of tool definitions: SYSTEM_INFRASTRUCTURE_TOOLS first,
-        then per-provider workspace tools for active connections.
+        then bundle-MANIFEST-declared workspace capability tools whose
+        platform_connection_requirement is satisfied.
     """
     tools: list[dict] = []
     seen_names: set[str] = set()
 
-    # ADR-299: system infrastructure surfaces unconditionally.
+    # Layer 1 — system infrastructure surfaces unconditionally.
     for tool in SYSTEM_INFRASTRUCTURE_TOOLS:
         tool_name = tool.get("name")
         if tool_name and tool_name not in seen_names:
             tools.append(tool)
             seen_names.add(tool_name)
 
+    # Layer 2 — bundle MANIFEST capability declarations.
+    # Lazy imports to avoid circular import + to keep zero-bundle
+    # workspaces from paying any cost.
+    bundle_capability_count = 0
+    declared_capabilities: list[str] = []
     try:
-        # Workspace platform tools: gated by active platform_connections.
-        result = auth.client.table("platform_connections").select(
-            "platform, status"
-        ).eq("user_id", auth.user_id).eq("status", "active").execute()
+        from services.bundle_reader import list_bundle_capabilities
+        from services.orchestration import capability_available
 
-        connected_providers = [i["platform"] for i in (result.data or [])]
-
-        for provider in connected_providers:
-            provider_tools = PLATFORM_TOOLS_BY_PROVIDER.get(provider, [])
-            for tool in provider_tools:
-                tool_name = tool.get("name")
-                if tool_name and tool_name not in seen_names:
-                    tools.append(tool)
-                    seen_names.add(tool_name)
+        bundle_caps = list_bundle_capabilities()
+        for cap_name in bundle_caps.keys():
+            if not capability_available(auth.user_id, cap_name, auth.client):
+                continue
+            declared_capabilities.append(cap_name)
+            for tool_name in PLATFORM_TOOLS_BY_CAPABILITY.get(cap_name, []):
+                if tool_name in seen_names:
+                    continue
+                # Find the tool definition across PLATFORM_TOOLS_BY_PROVIDER.
+                for provider_tools in PLATFORM_TOOLS_BY_PROVIDER.values():
+                    for tool in provider_tools:
+                        if tool.get("name") == tool_name:
+                            tools.append(tool)
+                            seen_names.add(tool_name)
+                            bundle_capability_count += 1
+                            break
+                    if tool_name in seen_names:
+                        break
 
         logger.info(
-            "[PLATFORM-TOOLS] User has %s tool(s) (%s system-infrastructure + workspace tools from %s)",
+            "[PLATFORM-TOOLS] YARNNN chat tools: %s total "
+            "(%s system-infrastructure + %s bundle-declared from caps %s)",
             len(tools),
             len(SYSTEM_INFRASTRUCTURE_TOOLS),
-            connected_providers,
+            bundle_capability_count,
+            sorted(declared_capabilities),
         )
 
     except Exception as e:
-        logger.error(f"[PLATFORM-TOOLS] Error loading tools: {e}")
+        logger.error(f"[PLATFORM-TOOLS] Error loading bundle-declared tools: {e}")
 
     return tools
 

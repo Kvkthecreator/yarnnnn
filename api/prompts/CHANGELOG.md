@@ -6,6 +6,143 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.27.3] - tool-surface(yarnnn chat + system infrastructure): ADR-304 generalizes ADR-299 to Slack DM + Notion comment; YARNNN chat honors bundle MANIFEST
+
+### Decision
+
+ADR-304 generalizes ADR-299's operator-addressing-system-infrastructure
+taxonomy beyond email to the two other operator-addressing writes the
+audit surfaced: `platform_slack_send_message` (operator's own Slack DM)
+and `platform_notion_create_comment` (operator's designated Notion
+page). Both pass ADR-299 D1's distinguishing test — addressee
+structurally pinned to operator-identity, never LLM-supplied. They
+were previously mis-registered as `write_slack` / `write_notion`
+workspace capabilities; they reclassify into `SYSTEM_INFRASTRUCTURE_TOOLS`.
+
+ADR-304 also closes the YARNNN-chat-vs-bundle-MANIFEST gap the audit
+surfaced as architectural pressure point #2: `get_platform_tools_for_user`
+previously surfaced every tool of every connected provider
+unconditionally, ignoring bundle MANIFEST capability declarations.
+Rewritten to honor bundle declarations — same gating semantics as
+the headless path's `get_platform_tools_for_capabilities`. Pre-rewrite
+raw-provider iteration is DELETED per Singular Implementation.
+
+The audit also surfaced (and the rewrite refuses) the
+specialist-narrowing instinct: ADR-272's Specialist Survival Test
+already dissolved researcher/analyst/writer/tracker/reporting into
+the Reviewer's inline tool surface; this ADR explicitly does NOT
+re-introduce platform-targeted specialists.
+
+### Changed
+
+- **api/services/platform_tools.py**:
+  - **NEW** `SLACK_SEND_MESSAGE_TOOL` named module-level constant
+    (lifted from `SLACK_TOOLS` list literal). Singular Implementation —
+    tool defined once.
+  - **NEW** `NOTION_CREATE_COMMENT_TOOL` named module-level constant
+    (lifted from `NOTION_TOOLS` list literal).
+  - **EXTENDED** `SYSTEM_INFRASTRUCTURE_TOOLS` from 1 entry (email) to
+    3 entries (email + Slack DM + Notion comment). Single source of
+    truth for operator-addressing system infrastructure.
+  - **DELETED** `platform_slack_send_message` entry from `SLACK_TOOLS`
+    list (which now contains only read tools).
+  - **DELETED** `platform_notion_create_comment` entry from `NOTION_TOOLS`
+    list (which now contains only read tools).
+  - **DELETED** `"write_slack"` and `"write_notion"` keys from
+    `PLATFORM_TOOLS_BY_CAPABILITY`. Reserved comment block explains
+    that the keys remain reserved for future audience-addressing
+    extensions per ADR-304 D5.
+  - **DELETED** `"write_slack"` and `"write_notion"` keys from
+    `CAPABILITY_PROVIDER_MAP`.
+  - **REWRITTEN** `get_platform_tools_for_user`: pre-rewrite
+    "for provider in connected_providers" raw-provider iteration
+    DELETED. Replaced by two-layer model (Layer 1 system infrastructure
+    unconditional; Layer 2 bundle MANIFEST capability declarations
+    gated through `capability_available`).
+
+- **api/services/orchestration.py**: DELETED `"write_slack"` and
+  `"write_notion"` entries from `CAPABILITIES` dict. Replaced with
+  comment blocks citing ADR-304 D2.
+
+- **docs/programs/alpha-author/MANIFEST.yaml**: DELETED `write_notion`
+  agent-level capability declaration (line 75) and the `capabilities[]`
+  entry (lines 187-196). Replaced with comment blocks explaining
+  reclassification to system infrastructure + reservation of the key
+  for future audience-addressing extensions per ADR-304 D5.
+
+- **docs/programs/alpha-author/README.md**: capability-inventory section
+  rewritten to reflect the new shape — bundle-declared workspace
+  capabilities (reads only today) + system-infrastructure availability
+  (operator-addressing writes via kernel) + future audience-bearing
+  extensions (workspace capabilities at ADR-283 step 2).
+
+- **api/test_adr299_kernel_universal_capability.py**:
+  - **RENAMED** `test_system_infrastructure_tools_contains_email_send_to_operator` →
+    `test_system_infrastructure_tools_contains_operator_addressing_writes`;
+    asserts all 3 tools present.
+  - **NEW** `test_slack_send_message_lifted_out_of_slack_tools` — guards
+    SLACK_TOOLS contains only reads.
+  - **NEW** `test_notion_create_comment_lifted_out_of_notion_tools` —
+    guards NOTION_TOOLS contains only reads.
+  - **NEW** `test_write_slack_and_write_notion_not_in_capabilities` —
+    guards capability key deletion.
+  - **NEW** `test_write_slack_and_write_notion_not_in_resolution_maps` —
+    guards resolution-map cleanup.
+  - **RENAMED** `test_reviewer_primitives_excludes_send_operator_email` →
+    `test_reviewer_primitives_excludes_all_system_infrastructure_tools`;
+    asserts Reviewer exclusion applies to ALL system-infrastructure tools
+    (set-intersection check, future-proof against new additions).
+  - 15/15 PASS.
+
+- **NEW api/test_adr304_yarnnn_chat_honors_bundle_manifest.py**:
+  - Source-level guards that `get_platform_tools_for_user` does not
+    iterate raw `connected_providers`, reads `list_bundle_capabilities`,
+    gates on `capability_available`, surfaces SYSTEM_INFRASTRUCTURE_TOOLS
+    as Layer 1 before bundle-capability Layer 2.
+  - Headless-parity assertion — both YARNNN chat + headless paths
+    merge `SYSTEM_INFRASTRUCTURE_TOOLS`.
+  - 5/5 PASS.
+
+- **NEW docs/adr/ADR-304-operator-addressing-writes-generalization.md** —
+  full ADR with D1-D7 architectural commitments.
+
+- **docs/adr/ADR-299-kernel-universal-operator-addressing-capability.md**:
+  append §"Generalization landed in ADR-304" subsection pointing forward.
+
+### Expected behavior
+
+- **Pre-activation workspace** (no active program bundle): YARNNN chat
+  sees 3 system-infrastructure tools, zero workspace-capability tools.
+  Pre-rewrite: same workspace saw every tool of every connected provider.
+  Post-rewrite: structurally correct — no declared workspace shape →
+  no declared workspace tools.
+- **alpha-trader operator** with Slack + trading connected: YARNNN chat
+  sees 3 system-infrastructure + read_trading + write_trading tools.
+  Slack read tools no longer surface to chat (alpha-trader MANIFEST
+  doesn't declare them); if needed, add `read_slack` to alpha-trader
+  MANIFEST as an additive bundle change.
+- **Headless path unchanged** — `get_platform_tools_for_agent` and
+  `get_platform_tools_for_capabilities` continue to gate on declared
+  capability sets per ADR-227. ADR-304 D3 brings YARNNN chat into
+  parity, doesn't change headless.
+- **Reviewer surface unchanged** — REVIEWER_PRIMITIVES count remains 21,
+  excludes all 3 system-infrastructure tools per ADR-299 D8 + ADR-304 D6
+  generalization.
+- **Bundle authors** declare audience-addressing extensions via MANIFEST
+  as workspace capabilities per ADR-304 D5. The `write_slack` /
+  `write_notion` capability keys are reserved for these extensions;
+  bundles point them at NEW tools (not at the system-infrastructure
+  tools that ADR-304 D2 reclassified).
+
+### Tests
+
+- `python api/test_adr299_kernel_universal_capability.py` → 15/15 PASS
+- `python api/test_adr304_yarnnn_chat_honors_bundle_manifest.py` → 5/5 PASS
+- Adjacent gates (test_reviewer_formalization, test_adr276, test_adr301)
+  unchanged in scope; expect same as prior commit.
+
+---
+
 ## [2026.05.27.2] - persona-frame(reviewer): ADR-299 D8 architectural-commitment framing (second-pass rewrite incorporates v5 canary resolution)
 
 ### Decision

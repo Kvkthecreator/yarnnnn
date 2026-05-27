@@ -1147,21 +1147,28 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "tools": ["platform_slack_list_channels", "platform_slack_get_channel_history"],
         "platform_connection_requirement": {"platform": "slack", "status": "active"},
     },
-    "write_slack": {
-        "category": "tool", "runtime": "external:slack",
-        "tools": ["platform_slack_send_message"],
-        "platform_connection_requirement": {"platform": "slack", "status": "active"},
-    },
+    # ADR-304 D2 (2026-05-27): `write_slack` (operator DM send) DELETED
+    # from kernel CAPABILITIES. The operator-DM send (platform_slack_send_message)
+    # is operator-addressing system infrastructure under ADR-299 D1 + ADR-304 D1's
+    # distinguishing test (addressee structurally pinned to operator's own
+    # Slack DM, never LLM-supplied). It now lives in
+    # SYSTEM_INFRASTRUCTURE_TOOLS as SLACK_SEND_MESSAGE_TOOL. The
+    # `write_slack` capability key is reserved for future audience-
+    # addressing extensions per ADR-304 D5 (e.g., a future channel-send
+    # tool would re-declare write_slack here pointing to the new tool).
     "read_notion": {
         "category": "tool", "runtime": "external:notion",
         "tools": ["platform_notion_search", "platform_notion_get_page"],
         "platform_connection_requirement": {"platform": "notion", "status": "active"},
     },
-    "write_notion": {
-        "category": "tool", "runtime": "external:notion",
-        "tools": ["platform_notion_create_comment"],
-        "platform_connection_requirement": {"platform": "notion", "status": "active"},
-    },
+    # ADR-304 D2 (2026-05-27): `write_notion` (operator-designated-page
+    # comment) DELETED from kernel CAPABILITIES. The comment write
+    # (platform_notion_create_comment) is operator-addressing system
+    # infrastructure — addressee structurally pinned to operator's
+    # designated_page_id from integration metadata. It now lives in
+    # SYSTEM_INFRASTRUCTURE_TOOLS as NOTION_CREATE_COMMENT_TOOL. The
+    # `write_notion` capability key is reserved for future audience-
+    # addressing extensions per ADR-304 D5 (page-create, block-append).
     "read_github": {
         "category": "tool", "runtime": "external:github",
         "tools": ["platform_github_list_repos", "platform_github_get_issues"],

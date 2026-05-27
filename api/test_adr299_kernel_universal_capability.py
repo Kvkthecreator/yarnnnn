@@ -124,30 +124,108 @@ def test_runtime_kernel_sentinel_deleted_from_capabilities() -> None:
         )
 
 
-def test_system_infrastructure_tools_contains_email_send_to_operator() -> None:
-    """ADR-299 rewrite D2+D3: SYSTEM_INFRASTRUCTURE_TOOLS exists in
-    platform_tools.py and contains EMAIL_SEND_TO_OPERATOR_TOOL. Single
-    entry today; the registry exists so future LLM-invokable system-
-    infrastructure surfaces have a documented home."""
+def test_system_infrastructure_tools_contains_operator_addressing_writes() -> None:
+    """ADR-299 D2+D3 + ADR-304 D1+D2: SYSTEM_INFRASTRUCTURE_TOOLS contains
+    all three operator-addressing writes — email (ADR-299), Slack DM and
+    Notion comment (ADR-304 generalization). Each constant is included
+    by identity (no duplicate definitions)."""
     from services.platform_tools import (
         SYSTEM_INFRASTRUCTURE_TOOLS,
         EMAIL_SEND_TO_OPERATOR_TOOL,
+        SLACK_SEND_MESSAGE_TOOL,
+        NOTION_CREATE_COMMENT_TOOL,
     )
 
     assert isinstance(SYSTEM_INFRASTRUCTURE_TOOLS, list)
-    assert len(SYSTEM_INFRASTRUCTURE_TOOLS) >= 1
+    assert len(SYSTEM_INFRASTRUCTURE_TOOLS) >= 3
     tool_names = [t.get("name") for t in SYSTEM_INFRASTRUCTURE_TOOLS]
-    assert "platform_email_send_to_operator" in tool_names, (
-        "platform_email_send_to_operator missing from SYSTEM_INFRASTRUCTURE_TOOLS "
-        "— ADR-299 rewrite D2+D3 requires the tool to be registered here."
+
+    expected = {
+        "platform_email_send_to_operator",
+        "platform_slack_send_message",
+        "platform_notion_create_comment",
+    }
+    for name in expected:
+        assert name in tool_names, (
+            f"{name} missing from SYSTEM_INFRASTRUCTURE_TOOLS — ADR-304 D1+D2 "
+            f"requires all three operator-addressing writes registered here."
+        )
+
+    # Each constant is in the list by identity (Singular Implementation —
+    # no duplicate definitions across module-level constant + per-provider list).
+    for const in (EMAIL_SEND_TO_OPERATOR_TOOL, SLACK_SEND_MESSAGE_TOOL, NOTION_CREATE_COMMENT_TOOL):
+        assert const in SYSTEM_INFRASTRUCTURE_TOOLS, (
+            f"{const['name']} not in SYSTEM_INFRASTRUCTURE_TOOLS by identity — "
+            "registry should include the constant directly, not a duplicate."
+        )
+
+
+def test_slack_send_message_lifted_out_of_slack_tools() -> None:
+    """ADR-304 D2: platform_slack_send_message MUST NOT survive in
+    SLACK_TOOLS (which is now read-tools only). Singular Implementation —
+    tool defined once at module level as SLACK_SEND_MESSAGE_TOOL."""
+    from services.platform_tools import SLACK_TOOLS
+
+    slack_tool_names = [t.get("name") for t in SLACK_TOOLS]
+    assert "platform_slack_send_message" not in slack_tool_names, (
+        "platform_slack_send_message survives in SLACK_TOOLS — ADR-304 D2 "
+        "lifted it to SLACK_SEND_MESSAGE_TOOL + SYSTEM_INFRASTRUCTURE_TOOLS. "
+        "SLACK_TOOLS should contain only read tools."
     )
 
-    # The constant in the list IS the tool definition (not a copy).
-    assert EMAIL_SEND_TO_OPERATOR_TOOL in SYSTEM_INFRASTRUCTURE_TOOLS, (
-        "EMAIL_SEND_TO_OPERATOR_TOOL not in SYSTEM_INFRASTRUCTURE_TOOLS "
-        "by identity — registry should include the constant directly, not "
-        "a duplicate definition."
+
+def test_notion_create_comment_lifted_out_of_notion_tools() -> None:
+    """ADR-304 D2: platform_notion_create_comment MUST NOT survive in
+    NOTION_TOOLS (which is now read-tools only). Singular Implementation."""
+    from services.platform_tools import NOTION_TOOLS
+
+    notion_tool_names = [t.get("name") for t in NOTION_TOOLS]
+    assert "platform_notion_create_comment" not in notion_tool_names, (
+        "platform_notion_create_comment survives in NOTION_TOOLS — ADR-304 "
+        "D2 lifted it to NOTION_CREATE_COMMENT_TOOL + SYSTEM_INFRASTRUCTURE_TOOLS. "
+        "NOTION_TOOLS should contain only read tools."
     )
+
+
+def test_write_slack_and_write_notion_not_in_capabilities() -> None:
+    """ADR-304 D2: write_slack + write_notion capability keys DELETED
+    from kernel CAPABILITIES. They are reserved for future audience-
+    addressing extensions per ADR-304 D5; today's operator-addressing
+    writes live in SYSTEM_INFRASTRUCTURE_TOOLS."""
+    from services.orchestration import CAPABILITIES
+
+    for cap_name in ("write_slack", "write_notion"):
+        assert cap_name not in CAPABILITIES, (
+            f"{cap_name} is present in CAPABILITIES — ADR-304 D2 deleted "
+            f"the capability registration. The operator-addressing tool "
+            f"this used to reference is now SYSTEM_INFRASTRUCTURE_TOOLS. "
+            f"If a bundle needs an audience-addressing {cap_name} extension, "
+            f"the capability declaration lives in the BUNDLE MANIFEST, "
+            f"not in kernel CAPABILITIES."
+        )
+
+
+def test_write_slack_and_write_notion_not_in_resolution_maps() -> None:
+    """ADR-304 D2: PLATFORM_TOOLS_BY_CAPABILITY + CAPABILITY_PROVIDER_MAP
+    must NOT contain write_slack or write_notion entries. The maps are
+    free of the deleted capability keys."""
+    from services.platform_tools import (
+        PLATFORM_TOOLS_BY_CAPABILITY,
+        CAPABILITY_PROVIDER_MAP,
+    )
+
+    for cap_name in ("write_slack", "write_notion"):
+        assert cap_name not in PLATFORM_TOOLS_BY_CAPABILITY, (
+            f"{cap_name} is present in PLATFORM_TOOLS_BY_CAPABILITY — "
+            f"ADR-304 D2 deleted it. Audience-addressing extensions under "
+            f"this key would need to register a NEW tool, not reuse the "
+            f"existing operator-addressing tool that's now in "
+            f"SYSTEM_INFRASTRUCTURE_TOOLS."
+        )
+        assert cap_name not in CAPABILITY_PROVIDER_MAP, (
+            f"{cap_name} is present in CAPABILITY_PROVIDER_MAP — "
+            f"ADR-304 D2 deleted it."
+        )
 
 
 def test_email_send_to_operator_tool_schema_constrained() -> None:
@@ -305,12 +383,13 @@ def test_user_tools_surfacing_includes_system_infrastructure() -> None:
     )
 
 
-def test_reviewer_primitives_excludes_send_operator_email() -> None:
-    """ADR-299 D8 — Reviewer-side exclusion is the architectural commitment.
+def test_reviewer_primitives_excludes_all_system_infrastructure_tools() -> None:
+    """ADR-299 D8 + ADR-304 D6 — Reviewer-side exclusion is the architectural
+    commitment, applies to ALL system-infrastructure tools.
 
     The Reviewer is judgment-bearing; task-bearing agents (YARNNN chat,
-    headless specialists) get `platform_email_send_to_operator` via the
-    SYSTEM_INFRASTRUCTURE_TOOLS merge. The Reviewer does NOT — by design.
+    headless specialists) get all SYSTEM_INFRASTRUCTURE_TOOLS via the
+    merge. The Reviewer does NOT — by design.
 
     Evidence (2026-05-25 v5 canary, RESOLUTION.md):
       v3 (21 tools, no email tool): 10 rounds,  6,139 tokens, reject verdict
@@ -332,15 +411,21 @@ def test_reviewer_primitives_excludes_send_operator_email() -> None:
     verdict-quality evidence supports otherwise.
     """
     from services.primitives.registry import REVIEWER_PRIMITIVES
+    from services.platform_tools import SYSTEM_INFRASTRUCTURE_TOOLS
 
-    tool_names = [t.get("name") for t in REVIEWER_PRIMITIVES]
-    assert "platform_email_send_to_operator" not in tool_names, (
-        "platform_email_send_to_operator is present in REVIEWER_PRIMITIVES — "
-        "ADR-299 D8 architectural commitment violated. The Reviewer surface "
-        "is judgment-bearing; the v5 canary (2026-05-25) confirmed that "
-        "tool-list size at the 21→22 transition collapses judgment quality "
-        "by ~74%. If you genuinely need to add this tool (or any other) to "
-        "the Reviewer surface, run N≥3 canaries measuring verdict-quality "
+    reviewer_tool_names = {t.get("name") for t in REVIEWER_PRIMITIVES}
+    system_infra_names = {t.get("name") for t in SYSTEM_INFRASTRUCTURE_TOOLS}
+
+    overlap = reviewer_tool_names & system_infra_names
+    assert not overlap, (
+        f"Reviewer surface includes system-infrastructure tools: {overlap}. "
+        "ADR-299 D8 + ADR-304 D6 architectural commitment violated — the "
+        "Reviewer is judgment-bearing and the v5 canary (2026-05-25) "
+        "confirmed that tool-list size at the 21→22 transition collapses "
+        "judgment quality by ~74%. The commitment generalizes: ALL system-"
+        "infrastructure tools (current + future) are excluded from "
+        "REVIEWER_PRIMITIVES. If you genuinely need to add any tool to the "
+        "Reviewer surface, run N≥3 canaries measuring verdict-quality "
         "regression first and update this test only with the evidence trail."
     )
 
@@ -377,13 +462,17 @@ if __name__ == "__main__":
     tests = [
         test_send_operator_email_not_in_capabilities_dict,
         test_runtime_kernel_sentinel_deleted_from_capabilities,
-        test_system_infrastructure_tools_contains_email_send_to_operator,
+        test_system_infrastructure_tools_contains_operator_addressing_writes,
+        test_slack_send_message_lifted_out_of_slack_tools,
+        test_notion_create_comment_lifted_out_of_notion_tools,
+        test_write_slack_and_write_notion_not_in_capabilities,
+        test_write_slack_and_write_notion_not_in_resolution_maps,
         test_email_send_to_operator_tool_schema_constrained,
         test_handler_refuses_llm_supplied_addressee_fields,
         test_send_operator_email_not_in_capability_resolution_maps,
         test_resolution_uses_system_infrastructure_tools_merge,
         test_user_tools_surfacing_includes_system_infrastructure,
-        test_reviewer_primitives_excludes_send_operator_email,
+        test_reviewer_primitives_excludes_all_system_infrastructure_tools,
         test_bundle_capability_resolution_not_regressed,
         test_kernel_capabilities_module_stays_deleted,
     ]

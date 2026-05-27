@@ -323,3 +323,7 @@ What's superseded:
 - `runtime: "kernel"` sentinel value → DELETED. Was a code-level signal that the entry didn't fit; entry's correct home doesn't need a sentinel.
 
 The Hat-B evaluation findings that referenced the prior shape are historical artifacts and remain accurate to their moment per the Two-Hats discipline. Their file paths to ADR-299 stay correct (the filename is the stable URL; the H1 title is the canonical name).
+
+## Generalization landed in ADR-304
+
+The taxonomy this ADR established (system infrastructure vs workspace capability + Reviewer judgment-bearing exclusion per D8) was generalized to two other operator-addressing writes on 2026-05-27 via [ADR-304](ADR-304-operator-addressing-writes-generalization.md). `platform_slack_send_message` (operator's own Slack DM) and `platform_notion_create_comment` (operator's designated Notion page) both pass the D1 distinguishing test — addressee structurally pinned to operator-identity — and reclassify from workspace capabilities (`write_slack` / `write_notion`) into `SYSTEM_INFRASTRUCTURE_TOOLS`. ADR-304 also closes the YARNNN-chat-vs-bundle-MANIFEST gap the audit surfaced (chat now honors bundle capability declarations the same way the headless path does). ADR-299 stays the canonical email-specific ADR + taxonomy framing source; ADR-304 generalizes the pattern. Future operator-addressing channel additions (push, SMS, etc.) follow the same shape per ADR-304 D5 + D6.

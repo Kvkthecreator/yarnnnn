@@ -72,7 +72,14 @@ dependencies:
     - adr: ADR-283          # alpha-author bundle scope-lock
     - capability: read_uploads
     - capability: websearch
-    - capability: write_notion             # kernel-inherited, comment-only — Reviewer may annotate operator's Notion drafts; page-write extension is off-archetype per ADR-283 D7
+    # ADR-304 D2 (2026-05-27): write_notion capability declaration removed.
+    # The operator-comment Notion write (platform_notion_create_comment) is
+    # now operator-addressing system infrastructure per ADR-304 D1 —
+    # available to every workspace via SYSTEM_INFRASTRUCTURE_TOOLS,
+    # no bundle declaration required. The `write_notion` capability key
+    # is reserved for future audience-addressing extensions (page creates,
+    # block appends to shared workspace pages) per ADR-304 D5; alpha-author
+    # may declare those when ADR-283 step 2 (write_notion_pages) ships.
   lean: []
     # ADR-283 Discovery note 2 (2026-05-17): the original `dependencies.lean`
     # list of platform-write capability extensions (write_notion_pages,
@@ -184,16 +191,15 @@ capabilities:
     tools:
       - websearch
 
-  # Notion writes (comment-only today; page-write extension deferred to
-  # step 2). Declared as available capability even at current comment-only
-  # state — operators who draft in Notion can have agents comment on
-  # drafts without page-write capability.
-  - key: write_notion
-    category: tool
-    runtime: external:notion
-    requires_connection: notion
-    tools:
-      - platform_notion_create_comment
+  # ADR-304 D2 (2026-05-27): write_notion capability declaration removed.
+  # The operator-comment Notion write (platform_notion_create_comment) is
+  # now operator-addressing system infrastructure per ADR-304 D1, registered
+  # in api/services/platform_tools.py::SYSTEM_INFRASTRUCTURE_TOOLS. It
+  # surfaces to YARNNN chat + headless paths unconditionally (does not
+  # require this bundle declaration). The `write_notion` capability key is
+  # reserved here for future audience-addressing extensions per ADR-304 D5
+  # (page creates, block appends to shared workspace pages); ADR-283 step 2
+  # tracks the deferred write_notion_pages extension under this namespace.
 
 # ADR-280: Substrate ABI — alpha-author's contract with the kernel for
 # substrate topology. Mirrors alpha-trader's MANIFEST shape; declares

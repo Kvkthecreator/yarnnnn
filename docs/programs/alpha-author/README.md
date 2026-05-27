@@ -72,11 +72,11 @@ The OS provides the cockpit shell, narrative substrate, primitive surface. The p
 What the program brings to a workspace, beyond what the OS scaffolds at signup. Machine-readable in [MANIFEST.yaml](MANIFEST.yaml).
 
 ### Capability bundles
-- **Kernel-side (shipped)**: `read_uploads`, `websearch`, `write_notion` (comment-only today)
-- **Kernel-side (deferred to ADR-283 step 2)**: `write_notion_pages` (extend Notion writes beyond comment), `write_email` (Resend; for newsletter operators with API access)
-- **Bundle-declared (deferred to ADR-283 step 2)**: `write_linkedin_post`, `write_x_post`, `write_newsletter` — publishing-platform writes specific to alpha-author's surface needs
+- **Bundle-declared workspace capabilities**: `read_uploads`, `websearch`
+- **Available via system infrastructure** (ADR-304 D1, no bundle declaration needed): operator-addressing writes — operator email (`platform_email_send_to_operator`), operator Slack DM (`platform_slack_send_message`), operator Notion comment (`platform_notion_create_comment`). These surface to every workspace through `SYSTEM_INFRASTRUCTURE_TOOLS` regardless of bundle activation.
+- **Audience-bearing capabilities (deferred to ADR-283 step 2)**: `write_notion_pages` (Notion page creates / block appends beyond operator-comment), `write_email` (Resend audience-list send for newsletter operators), `write_linkedin_post`, `write_x_post`, `write_newsletter` — publishing-platform writes specific to alpha-author's surface needs, declared as workspace capabilities via MANIFEST when shipped (per ADR-304 D5).
 
-The bundle is **activatable today in knowledge-only mode** (reads + comments + drafts in Notion + lived-attention via uploads + websearch). Audience-bearing capabilities (publishing-platform writes) ship in step 2 and unlock the audience signal slice of `_signal.md`.
+The bundle is **activatable today in knowledge-only mode** (uploads + websearch as workspace reads; operator-addressing writes via system infrastructure). Audience-bearing capabilities (publishing-platform writes) ship in step 2 and unlock the audience signal slice of `_signal.md`.
 
 ### Context domains
 - `/workspace/context/authored/` — per-piece entities (one folder per draft or published piece). Operator authors `_voice.md` (declared voice fingerprint + anti-patterns) and `_editorial.md` (what gets shipped, what doesn't). `_signal.md` accumulates corpus-coherence audit results.
