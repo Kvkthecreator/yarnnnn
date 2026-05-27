@@ -298,11 +298,23 @@ capture:
 | Shape | Effect |
 |---|---|
 | `{send_message: "..."}` | Operator-voice chat message via `/api/feed`. Reviewer wakes addressed-trigger. |
-| `{emit_proposal: {template: <name>}}` | Stub — currently logs intent; wires into `emit_test_proposal.py` when needed. |
+| `{emit_proposal: {template: <name>}}` | Resolves template via `services/operator_proxy/proposal_templates.TEMPLATES`; calls `handle_propose_action`. Reviewer wakes proposal-trigger. |
 | `{approve_proposal: {id, reasoning}}` | POSTs `/api/proposals/{id}/approve`. |
 | `{reject_proposal: {id, reason}}` | POSTs `/api/proposals/{id}/reject`. |
+| `{write_substrate: {path, content, [message], [authored_by]}}` | Mid-scenario substrate write through `write_revision`. Interleaves with chat turns. Required for author-shape probes that transition substrate AFTER an operator-voice nudge. |
+| `{flip_frontmatter_field: {path, field, value, [message]}}` | Convenience: read file → regex-replace single YAML frontmatter line → write back. Extracts the canary-script `status: draft → ready_for_review` pattern (see `api/scripts/operator/canary_phase4_*.py` for historical pure-Python variants). Generic over field name. |
+
+### Setup shapes
+
+| Shape | Effect |
+|---|---|
+| `{fire: <slug>}` | `manual_fire` a recurrence by slug. |
+| `{write_substrate: {path, content, authored_by}}` | Setup-attributed substrate write through `write_revision`. |
+| `{seed_draft: {slug, template, [title], [authored_by]}}` | Author-shape convenience: compose profile.md + content.md from a named template under `services/operator_proxy/draft_templates.TEMPLATES`; writes both with setup attribution. Available templates: `anti-pattern-voice`, `clean-voice`. |
 
 `expect:` clauses are **interpretation hints**, not pass/fail assertions. The runner logs what was expected + observed; humans interpret the diff in `findings.md`.
+
+**Schema lineage**: write_substrate-as-turn, flip_frontmatter_field, and seed_draft landed 2026-05-27 per `docs/analysis/evaluation-infrastructure-audit-2026-05-27.md`. Pre-2026-05-27, the only mid-scenario substrate-mutation path was pure-Python canary scripts at `api/scripts/operator/canary_phase4_*.py` because the YAML schema couldn't express the seed → flip → wait probe shape. The 5 historical canary scripts remain in the repository as substrate-receipts of the ADR-299 investigation arc; new author-shape probes should be authored as YAML scenarios per the singular-implementation discipline (one canonical scenario authoring path).
 
 ## Caller-identity discipline (ADR-294 D2)
 

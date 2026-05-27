@@ -9,6 +9,13 @@ Renamed from "observations" to "evaluations" on 2026-05-26 — see
 docs/evaluations/README.md §"Why 'evaluations' and not 'observations'"
 for the criterion-declaration discipline rationale.
 
+2026-05-27 evaluation-infrastructure consolidation: turn-shape vocabulary
+extended with `write_substrate`, `flip_frontmatter_field`, and `seed_draft`
+(author-shape probes — formerly required pure-Python canary scripts). See
+docs/analysis/evaluation-infrastructure-audit-2026-05-27.md for the
+rationale + the singular-implementation discipline that motivated the
+consolidation.
+
 Schema (v1):
     scenario: <slug>
     description: |
@@ -21,6 +28,10 @@ Schema (v1):
           authored_by: operator-proxy:scenario-runner:acting-as-<persona>
           content: |
             ...
+      - seed_draft:                          # convenience: author-shape probe
+          slug: <piece-slug>
+          template: anti-pattern-voice      # from draft_templates.TEMPLATES
+          title: "Optional override title"  # otherwise derived from template
     turns:
       - send_message: "..."                 # operator-voice chat
         expect:                              # interpretation hints (logged, never fail-hard)
@@ -30,9 +41,22 @@ Schema (v1):
           template: signal-2-nvda          # uses existing emit_test_proposal logic
         expect:
           - reviewer_verdict_in: [approve, reject]
-      - if_approved:
-          expect:
-            - alpaca_order_submitted
+      - write_substrate:                     # mid-scenario substrate write
+          path: <workspace-relative>
+          content: |
+            ...
+          message: "Optional revision message"  # defaults to scenario-derived
+      - flip_frontmatter_field:              # convenience: read + regex-replace + write
+          path: <workspace-relative>
+          field: status                      # YAML frontmatter field name
+          value: ready_for_review            # new value
+          message: "Optional revision message"
+      - approve_proposal:
+          id: "{{previous_proposal_id}}"    # NOTE: template var resolution is operator-side
+          reasoning: "..."
+      - reject_proposal:
+          id: "..."
+          reason: "..."
     capture:
       - revision_chain
       - decisions_md
@@ -44,7 +68,9 @@ Schema (v1):
 from __future__ import annotations
 
 import asyncio
+import re
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -201,6 +227,30 @@ class ScenarioRunner:
             })
             return
 
+        if "seed_draft" in step:
+            # Author-shape convenience: compose profile.md + content.md from a
+            # named template under services/operator_proxy/draft_templates.py.
+            # Equivalent to two write_substrate steps but reads the template
+            # once + applies common boilerplate (slug, title, created_at_iso).
+            sub = step["seed_draft"]
+            revisions = await _seed_draft_from_template(
+                proxy.config.user_id,
+                slug=sub["slug"],
+                template_name=sub["template"],
+                title=sub.get("title"),
+                authored_by=sub.get("authored_by") or proxy.config.caller_identity,
+                scenario_slug=self.scenario.slug,
+            )
+            self.evaluations.append({
+                "phase": "setup",
+                "action": "seed_draft",
+                "piece_slug": sub["slug"],
+                "template": sub["template"],
+                "profile_revision_id": revisions.get("profile_revision_id"),
+                "content_revision_id": revisions.get("content_revision_id"),
+            })
+            return
+
         # Unknown setup step — log and continue (assertion-light).
         self.evaluations.append({
             "phase": "setup",
@@ -261,6 +311,64 @@ class ScenarioRunner:
             obs["proposal_id"] = proposal_id
             result = await proxy.reject_proposal(proposal_id, reason=reason)
             obs["result"] = result
+            return obs
+
+        if "write_substrate" in turn:
+            # Mid-scenario substrate write — same shape as setup `write_substrate`
+            # but executed in turn sequence so it can interleave with send_message
+            # / emit_proposal / etc. Required for author-shape probes that
+            # transition substrate AFTER an operator-voice nudge.
+            sub = turn["write_substrate"]
+            path = sub["path"]
+            content = sub["content"]
+            authored_by = sub.get("authored_by") or proxy.config.caller_identity
+            message = sub.get("message") or f"Turn write for scenario {self.scenario.slug}"
+            obs["action"] = "write_substrate"
+            obs["path"] = path
+            obs["authored_by"] = authored_by
+            result = await _write_substrate_with_author(
+                proxy.config.user_id,
+                path,
+                content,
+                authored_by=authored_by,
+                message=message,
+            )
+            obs["revision_id"] = result.get("revision_id")
+            return obs
+
+        if "flip_frontmatter_field" in turn:
+            # Convenience: read file, replace single YAML frontmatter line via
+            # regex, write back with revision message. The canary-script pattern
+            # extracted from canary_phase4_v3/v4/v5 (status: draft →
+            # ready_for_review). Generic over field name + value.
+            sub = turn["flip_frontmatter_field"]
+            path = sub["path"]
+            field = sub["field"]
+            new_value = sub["value"]
+            message = sub.get("message") or (
+                f"Scenario {self.scenario.slug} flip {field} → {new_value}"
+            )
+            authored_by = sub.get("authored_by") or proxy.config.caller_identity
+            obs["action"] = "flip_frontmatter_field"
+            obs["path"] = path
+            obs["field"] = field
+            obs["new_value"] = new_value
+            try:
+                current = await proxy.read_file(path)
+                if current is None:
+                    obs["error"] = f"file not found: {path}"
+                    return obs
+                updated = _replace_yaml_frontmatter_field(current, field, new_value)
+                result = await _write_substrate_with_author(
+                    proxy.config.user_id,
+                    path,
+                    updated,
+                    authored_by=authored_by,
+                    message=message,
+                )
+                obs["revision_id"] = result.get("revision_id")
+            except Exception as exc:
+                obs["error"] = f"{type(exc).__name__}: {exc}"
             return obs
 
         # Unknown turn shape — log and continue.
@@ -336,3 +444,77 @@ async def _write_substrate_with_author(
         ),
     )
     return {"revision_id": revision_id, "path": path}
+
+
+async def _seed_draft_from_template(
+    user_id: str,
+    *,
+    slug: str,
+    template_name: str,
+    title: str | None,
+    authored_by: str,
+    scenario_slug: str,
+) -> dict:
+    """Compose profile.md + content.md from a named draft template and write
+    both as setup-attributed substrate revisions.
+
+    Returns dict with `profile_revision_id` and `content_revision_id` for
+    the scenario evaluation log.
+    """
+    from .draft_templates import get_template
+
+    template = get_template(template_name)
+    resolved_title = title or f"Scenario {scenario_slug} — {template_name}"
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    profile_md = template["profile"].format(
+        slug=slug,
+        title=resolved_title,
+        created_at_iso=now_iso,
+        description=template.get("description", ""),
+    )
+
+    profile_path = f"/workspace/context/authored/{slug}/profile.md"
+    content_path = f"/workspace/context/authored/{slug}/content.md"
+
+    profile_result = await _write_substrate_with_author(
+        user_id,
+        profile_path,
+        profile_md,
+        authored_by=authored_by,
+        message=(
+            f"Scenario {scenario_slug} seed_draft: profile.md for piece "
+            f"{slug!r} from template {template_name!r}"
+        ),
+    )
+    content_result = await _write_substrate_with_author(
+        user_id,
+        content_path,
+        template["content"],
+        authored_by=authored_by,
+        message=(
+            f"Scenario {scenario_slug} seed_draft: content.md for piece "
+            f"{slug!r} from template {template_name!r}"
+        ),
+    )
+    return {
+        "profile_revision_id": profile_result.get("revision_id"),
+        "content_revision_id": content_result.get("revision_id"),
+    }
+
+
+def _replace_yaml_frontmatter_field(content: str, field_name: str, new_value: str) -> str:
+    """Replace a single YAML frontmatter field's value on its own line.
+
+    Operates on the standard `{field}: {value}` line shape that
+    profile.md frontmatter uses. Raises ValueError if the field is not
+    found — caller's intent is unambiguous, missing-field means broken
+    scenario rather than no-op tolerance.
+    """
+    pattern = re.compile(rf"^{re.escape(field_name)}:\s*\S+", re.MULTILINE)
+    if not pattern.search(content):
+        raise ValueError(
+            f"Field {field_name!r} not found in YAML frontmatter "
+            "(expected a `{field}: {value}` line at start of line)"
+        )
+    return pattern.sub(f"{field_name}: {new_value}", content, count=1)
