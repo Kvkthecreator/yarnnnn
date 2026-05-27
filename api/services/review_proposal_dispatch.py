@@ -376,6 +376,14 @@ async def _run_ai_reviewer(
         context={
             **governance_envelope,  # ADR-276 + ADR-281 D2 (this commit closes the third instance)
             "proposal_row": proposal_row,
+            # 2026-05-27 Hat-A parity fix: explicit wake_source so the Reviewer
+            # perceives proposal_arrival as a distinct reactive sub-class within
+            # trigger=reactive. The proposal_row already names the anchor; the
+            # triggering_path/revision_id are empty strings (the proposal is the
+            # anchor, not a workspace_file revision).
+            "wake_source": "proposal_arrival",
+            "triggering_path": "",
+            "triggering_revision_id": "",
         },
     )
     # ADR-258 (revised): surface any consequential actions the Reviewer took

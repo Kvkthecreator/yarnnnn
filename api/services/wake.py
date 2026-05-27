@@ -551,6 +551,14 @@ async def _invoke_recurrence_wake(
                 # passes through (or extends) when calling DispatchSpecialist.
                 "recurrence_required_capabilities": list(recurrence.required_capabilities),
                 "options": dict(recurrence.options) if recurrence.options else {},
+                # 2026-05-27 Hat-A parity fix: pre-load fine-grained wake_source
+                # so the Reviewer can disambiguate cron_tick vs manual_fire
+                # within the coarse trigger=reactive class. Empty triggering
+                # path/revision for recurrence-fire wakes (the recurrence.slug
+                # already names the wake's anchor).
+                "wake_source": wake_source,
+                "triggering_path": "",
+                "triggering_revision_id": "",
                 **governance_envelope,  # ADR-276 + ADR-301: full envelope pre-load
             },
         )
@@ -1465,6 +1473,16 @@ async def _invoke_substrate_event_wake(
                 "options": {},
                 "substrate_event_path": path,
                 "substrate_event_field_change": field_change,
+                # 2026-05-27 Hat-A parity fix: pre-load wake_source + triggering
+                # anchor so the Reviewer perceives "the operator just transitioned
+                # THIS file" rather than inferring it from substrate reads. Empty
+                # triggering_revision_id if the caller didn't pass one (the wake
+                # body still works without it; only the envelope display is
+                # affected — operator-visibility regresses to "wake was substrate-
+                # event but anchor unknown" which is itself honest).
+                "wake_source": "substrate_event",
+                "triggering_path": path or "",
+                "triggering_revision_id": revision_id or "",
                 **governance_envelope,  # ADR-276 + ADR-301
             },
         )
@@ -1668,6 +1686,12 @@ async def stream_addressed_wake(
             "user_message": user_message,
             "conversation_window": conversation_window,
             "workspace_state": workspace_state_text or "",
+            # 2026-05-27 Hat-A parity fix: explicit wake_source so the Reviewer
+            # perceives "operator directly addressed me" as a first-class envelope
+            # input (was previously implicit via the user_message field's presence).
+            "wake_source": "addressed",
+            "triggering_path": "",
+            "triggering_revision_id": "",
         },
         event_callback=_emit_progress,
     ))

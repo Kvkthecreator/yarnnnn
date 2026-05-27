@@ -204,6 +204,30 @@ class ReviewerContext(TypedDict, total=False):
     # to reason from substrate (not memory) about its own pulse.
     schedule_index_md: str
     recent_execution_md: str
+    # Wake context (ADR-296 v2 wake source taxonomy + 2026-05-27 Hat-A
+    # parity fix). Pre-loaded so the Reviewer perceives WHY it was woken,
+    # not just that it was woken. Pre-this-field, the fine-grained
+    # wake_source (cron_tick | substrate_event | proposal_arrival |
+    # manual_fire | addressed) collapsed to the coarse `trigger` parameter
+    # (reactive | addressed) before reaching the Reviewer. The eval-suite
+    # framework surfaced this as the "wake-source-disambiguation" gap:
+    # within trigger=reactive, the Reviewer could not distinguish a cron
+    # fire from a substrate-event fire from a proposal arrival, even
+    # though those are structurally different reasoning contexts.
+    #
+    # All four scaffolded substrate inputs (MANDATE + AUTONOMY + PACE +
+    # PREFERENCES) had file→loader→envelope→renderer parity; wake_source
+    # was the missing fifth input. This field closes the gap.
+    #
+    # `wake_source` is the ADR-296 v2 taxonomy value. `triggering_revision_id`
+    # populated for substrate_event wakes (the workspace_file_versions row
+    # whose creation fired the hook). `triggering_path` populated for
+    # substrate_event wakes (the workspace_files path that transitioned).
+    # Both `triggering_*` fields are empty strings for non-substrate_event
+    # wakes (cron_tick / proposal_arrival / manual_fire / addressed).
+    wake_source: str
+    triggering_revision_id: str
+    triggering_path: str
 
 
 # ---------------------------------------------------------------------------
@@ -741,6 +765,58 @@ on a phantom problem. With `_schedule_index.md` in the envelope,
 that class of error is structurally closed."""
 
 
+def _compute_wake_context_discipline() -> str:
+    return """\
+**Wake-context discipline (ADR-296 v2 wake-source taxonomy + 2026-05-27
+envelope parity fix):**
+
+Your wake envelope's `## Wake context` block names exactly WHY you
+were woken. Five wake sources, each with structurally different
+implicit operator-context:
+
+- **`cron_tick`**: a scheduled recurrence fired because its schedule
+  said so. No recent operator action context. Anchor: `recurrence_slug`
+  in your envelope. Reason about what the schedule was designed to
+  produce; don't infer operator urgency.
+
+- **`substrate_event`**: a `_hooks.yaml`-bound transition just fired
+  because the operator (or another writer) changed a watched file
+  matching a hook's `path_match` + `field_change` declaration. The
+  envelope's `triggering_path` + `triggering_revision_id` name the
+  exact transition. The operator's action is the wake reason —
+  reason against THAT change first, not against general substrate state.
+  Anchor your judgment_log entry to the triggering revision_id.
+
+- **`proposal_arrival`**: a `ProposeAction` row just landed. The
+  envelope's `proposal_row` carries it. Your job is to evaluate that
+  proposal against MANDATE + principles + ground-truth substrate.
+  Cite the proposal explicitly in judgment_log.
+
+- **`manual_fire`**: the operator clicked Fire Now on a specific
+  recurrence. Treat as `cron_tick` + explicit operator intent ("the
+  operator wants this cycle to run now"). Don't second-guess the
+  request; execute the recurrence's prompt with awareness that the
+  operator is watching.
+
+- **`addressed`**: the operator (or a chat-surface caller) sent you
+  a direct message. The envelope's `user_message` carries it. Respond
+  to the message; cite MANDATE + substrate as warranted.
+
+**Cite wake_source in your reasoning when it matters.** A judgment
+that begins with "given the substrate_event on _voice.md just now..."
+is auditable; one that begins with "looking at the corpus state..."
+on the same wake leaves the operator guessing whether you saw the
+triggering transition.
+
+**Pre-this-block, the fine-grained wake_source collapsed to the
+coarse `trigger` parameter (reactive | addressed) before reaching
+you.** Within `reactive`, you could not distinguish cron_tick from
+substrate_event from proposal_arrival — even though each is a
+structurally different reasoning context. The eval-suite framework
+(`docs/evaluations/EVAL-SUITE-DISCIPLINE.md`) surfaced this gap.
+The envelope now carries the fine-grained source; use it."""
+
+
 def _compute_preferences_and_notifications() -> str:
     return """\
 **Operator's deliverable preferences are pre-loaded above as the
@@ -761,27 +837,32 @@ slug isn't yet scheduled, author `Schedule(action="create")`. The
 declaration is operator authority; the reconciliation is yours.
 
 **`_preferences.yaml` may also carry an `operator_notifications:`
-block (ADR-299 Phase 2)** — operator-addressing email opt-ins distinct
+block (ADR-299)** — operator-addressing observability opt-ins distinct
 from `deliverable_preferences:`. Each entry has `slug`, `description`,
-`cadence_hint`, and `active`. When `active: true`, you have the
-operator's standing approval to fire `platform_email_send_to_operator`
-(subject + html) at the cadence-hint moments AS LONG AS the current
-judgment cycle produces material worth surfacing — these are
-**observability**, not deliverable-cadence; routine no-material cycles
-do NOT warrant an email. The tool addresses the operator's own inbox
-structurally (no `to:` field accepted); reply lands in their inbox.
-Per ADR-299 D4, AUTONOMY mode does NOT gate these — the
-`active: true` declaration IS the standing approval, distinct from
-capital-action gating which still flows through `should_auto_apply`.
-Default-off: bundle-shipped entries are `active: false`; don't fire on
-entries the operator hasn't opted in.
+`cadence_hint`, and `active`. The channel is **operator-addressing
+system infrastructure** — the system Resend wire (the same wire ADR-040
+notifications + ADR-202 daily-update emails already use), exposed as an
+LLM-invokable tool `platform_email_send_to_operator`. The tool addresses
+the workspace operator's own inbox structurally (no `to:` field
+accepted); the system speaks *as itself* to the operator-identity, not
+on behalf of the workspace. Per ADR-299 D5, AUTONOMY does NOT gate
+these — the `active: true` declaration IS the operator's standing
+authorization. AUTONOMY scoping is for third-party-affecting writes
+only; capital actions still flow through `should_auto_apply`.
 
-`platform_email_send_to_operator` uses the system-deployed Resend wire
-(ADR-299 Discovery note 2, 2026-05-24); it's always available — no
-operator-side Resend setup required. The tool sends from
-`yarnnn <noreply@yarnnn.com>` by default; replies route to the
-operator's own inbox via Reply-To header so they can respond to your
-emails naturally.
+**Reviewer-side tool access is currently paused** (ADR-299 D8, Path A
+revert 2026-05-25). `platform_email_send_to_operator` is NOT in your
+tool surface today; the agent path has unconditional access via
+`SYSTEM_INFRASTRUCTURE_TOOLS` merge but your `REVIEWER_PRIMITIVES`
+surface excludes it pending the v5 canary outcome (hypothesis: tool
+inclusion was perturbing your attention budget toward `stand_down`).
+What this means in practice: when you read an `active: true`
+operator_notifications entry, do NOT plan to fire the email yourself.
+Surface the operator's configured observability intent in your
+judgment_log if it's load-bearing for the cycle's reasoning; the agent
+path handles delivery. If a v5 canary confirms the Reviewer should
+have direct access again, a future ADR amendment will re-add the tool
+to your surface and update this persona-frame block.
 
 Introspection cadence (your own reflection / calibration / housekeeping)
 is yours to author from first-principled judgment about outcome
@@ -987,6 +1068,7 @@ _PERSONA_FRAME_SECTIONS: list[PersonaFrameSection] = [
     persona_frame_section("production_default", _compute_production_default),
     persona_frame_section("cadence_trifecta", _compute_cadence_trifecta),
     persona_frame_section("pulse_discipline", _compute_pulse_discipline),
+    persona_frame_section("wake_context_discipline", _compute_wake_context_discipline),
     persona_frame_section("preferences_and_notifications", _compute_preferences_and_notifications),
     persona_frame_section("write_authority", _compute_write_authority),
     persona_frame_section("self_amendment_discipline", _compute_self_amendment_discipline),
@@ -1158,6 +1240,28 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
     op_ctx = ctx.get("operating_context_block")
     if op_ctx:
         parts += [op_ctx, ""]
+
+    # Wake context (ADR-296 v2 + 2026-05-27 Hat-A parity fix). Pre-loaded
+    # so the Reviewer perceives WHY it was woken, not just that it was
+    # woken. The fine-grained wake_source disambiguates within the
+    # coarse trigger param (reactive vs addressed). For substrate_event
+    # wakes, the triggering revision_id + path give the Reviewer concrete
+    # anchor to "the operator just changed THIS file" — closing the
+    # implicit-context gap where pre-this-block the Reviewer had to infer
+    # the triggering action from substrate reads.
+    wake_source = ctx.get("wake_source")
+    if wake_source:
+        wake_lines = [
+            "## Wake context",
+            "",
+            f"- wake_source: {wake_source}",
+        ]
+        if ctx.get("triggering_path"):
+            wake_lines.append(f"- triggering_path: {ctx['triggering_path']}")
+        if ctx.get("triggering_revision_id"):
+            wake_lines.append(f"- triggering_revision_id: {ctx['triggering_revision_id']}")
+        wake_lines.append("")
+        parts += wake_lines
 
     # Persona — always first
     parts += [
