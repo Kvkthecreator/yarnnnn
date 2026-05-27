@@ -1141,10 +1141,19 @@ async def global_chat(
         """
         from agents.reviewer_agent import REVIEWER_MODEL_IDENTITY
         from services.reviewer_chat_surfacing import write_reviewer_message
+        from services.supabase import get_service_client
         from services.telemetry import record_execution_event
         from services.wake_sources.addressed import stream as wake_addressed_stream
         from datetime import timezone as _tz
         addressed_started_at = datetime.now(_tz.utc)
+
+        # ADR-298: wake_queue is service-role-only per RLS. The addressed-wake
+        # stream enqueues into wake_queue (single-lane serialization). Pass
+        # a service client, not the request-scoped auth.client, otherwise the
+        # INSERT silently fails with "new row violates row-level security
+        # policy" mid-stream and the Reviewer cycle never starts.
+        # Per addressed.stream() docstring §"Args: client: Supabase service client".
+        wake_client = get_service_client()
 
         # Assemble route-layer inputs: conversation_window + workspace_state.
         # The wake source assembles the rest (governance envelope, operating
@@ -1176,7 +1185,7 @@ async def global_chat(
         try:
             captured_output: dict | None = None
             async for event in wake_addressed_stream(
-                auth.client, auth.user_id,
+                wake_client, auth.user_id,
                 session_id=session_id,
                 invocation_id=invocation_id,
                 user_message=request.content,

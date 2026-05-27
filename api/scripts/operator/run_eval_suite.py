@@ -114,7 +114,14 @@ async def run_one_eval(
     raw_folder: Path,
     caller: str,
 ) -> dict:
-    """Execute a single eval via the existing ScenarioRunner; return per-eval result dict."""
+    """Execute a single eval via the existing ScenarioRunner; return per-eval result dict.
+
+    The first snapshot fires inside ScenarioRunner.run() with whatever
+    substrate exists at that moment (typically incomplete because Reviewer
+    wakes are still pending). The suite runner re-snapshots per eval after
+    the completion gate (see _resnapshot_eval) so the captured artifacts
+    reflect the post-wake state, not the moment-of-write state.
+    """
     from services.operator_proxy.scenarios import Scenario, ScenarioRunner
 
     eval_slug = eval_def["eval"]
@@ -124,7 +131,7 @@ async def run_one_eval(
     scenario = Scenario.from_file(scen_path)
     runner = ScenarioRunner(scenario, caller=caller)
 
-    print(f"\n=== Eval {eval_index + 1}/{len(eval_def)} — {eval_slug} ===")
+    print(f"\n=== Eval {eval_index + 1} — {eval_slug} ===")
     print(f"    scenario: {scenario.slug}")
     print(f"    capture:  {eval_folder}")
 
@@ -140,10 +147,16 @@ async def run_one_eval(
         print(f"    FAIL: {error}")
     finished_at = datetime.now(timezone.utc)
 
+    # Extract revision_ids written during this eval's turns so the suite
+    # runner's completion gate can poll wake_queue for matching dedup_keys
+    # (substrate-event wakes are dedup'd by triggering revision_id).
+    triggering_revision_ids = _extract_triggering_revision_ids(runner.evaluations)
+
     return {
         "eval": eval_slug,
         "scenario": scenario.slug,
         "folder": str(eval_folder.relative_to(raw_folder.parent)),
+        "eval_folder_abs": str(eval_folder),
         "started_at": started_at.isoformat(),
         "finished_at": finished_at.isoformat(),
         "duration_sec": int((finished_at - started_at).total_seconds()),
@@ -151,7 +164,216 @@ async def run_one_eval(
         "error": error,
         "turns_executed": (scenario_result or {}).get("turns_executed", 0),
         "expected_dimensions": eval_def["expected_dimensions"],
+        "triggering_revision_ids": triggering_revision_ids,
+        "evaluations": runner.evaluations,  # for re-snapshot context
     }
+
+
+def _extract_triggering_revision_ids(evaluations: list[dict]) -> list[str]:
+    """Pull revision_ids from runner.evaluations that should trigger Reviewer wakes.
+
+    Substrate writes via flip_frontmatter_field on /workspace/context/authored/*
+    fire the alpha-author bundle's pre-ship-audit substrate-event hook. The
+    revision_id becomes the wake_queue dedup_key per ADR-298 D6.
+
+    Seed_draft writes don't trigger wakes (the substrate_event hook is bound to
+    status field transitions, not initial seed writes — first seed has no prior
+    state to transition from). Excluded from the polling set.
+    """
+    revs: list[str] = []
+    for ev in evaluations:
+        # Turn-phase flip_frontmatter_field is the canonical hook-triggering write
+        if ev.get("phase") == "turn" and ev.get("action") == "flip_frontmatter_field":
+            rev_id = ev.get("revision_id")
+            if rev_id:
+                revs.append(rev_id)
+        # Turn-phase write_substrate may also trigger if path matches a bound hook
+        if ev.get("phase") == "turn" and ev.get("action") == "write_substrate":
+            rev_id = ev.get("revision_id")
+            if rev_id:
+                revs.append(rev_id)
+    return revs
+
+
+# ---------------------------------------------------------------------------
+# Completion gate (Option 1 — poll wake_queue + execution_events until
+# triggered wakes settle, with bounded timeout)
+# ---------------------------------------------------------------------------
+
+
+COMPLETION_GATE_TIMEOUT_SEC = 600   # 10 min — max wall-clock to wait for wakes
+COMPLETION_GATE_POLL_SEC = 10       # poll cadence
+
+
+async def wait_for_completion(
+    user_id: str,
+    eval_results: list[dict],
+    session_started_at: datetime,
+) -> dict:
+    """Poll wake_queue + execution_events until all triggered wakes settle.
+
+    Returns dict with completion stats. Times out gracefully after
+    COMPLETION_GATE_TIMEOUT_SEC; partial completion is reported in the
+    rollup rather than crashing the run.
+
+    Triggered wakes tracked:
+      - substrate_event: dedup_key matches one of the revision_ids returned
+        from the eval's flip_frontmatter_field / write_substrate turns
+      - addressed: wake_source='addressed' execution_events row whose
+        created_at is within the session window
+    """
+    from services.supabase import get_service_client
+
+    # Collect expected triggers across all evals
+    expected_revs: set[str] = set()
+    addressed_turn_count = 0
+    for r in eval_results:
+        for rev in r.get("triggering_revision_ids", []) or []:
+            expected_revs.add(rev)
+        for ev in r.get("evaluations", []) or []:
+            if ev.get("phase") == "turn" and ev.get("action") == "send_message":
+                addressed_turn_count += 1
+
+    print(f"    expected substrate_event wakes: {len(expected_revs)}")
+    print(f"    expected addressed wakes: {addressed_turn_count}")
+
+    if not expected_revs and addressed_turn_count == 0:
+        print("    no Reviewer wakes expected; skipping completion gate")
+        return {
+            "elapsed_sec": 0,
+            "substrate_event_settled": 0,
+            "substrate_event_pending": 0,
+            "addressed_settled": 0,
+            "timed_out": False,
+        }
+
+    client = get_service_client()
+    loop = asyncio.get_running_loop()
+    started_at = datetime.now(timezone.utc)
+
+    def query_substrate_event_status() -> dict[str, str]:
+        """Map dedup_key → status for our triggered substrate_event wakes."""
+        if not expected_revs:
+            return {}
+        resp = (
+            client.table("wake_queue")
+            .select("dedup_key, status")
+            .eq("user_id", user_id)
+            .eq("wake_source", "substrate_event")
+            .in_("dedup_key", list(expected_revs))
+            .execute()
+        )
+        return {row["dedup_key"]: row["status"] for row in (resp.data or [])}
+
+    def query_addressed_count() -> int:
+        resp = (
+            client.table("execution_events")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("wake_source", "addressed")
+            .gte("created_at", session_started_at.isoformat())
+            .execute()
+        )
+        return len(resp.data or [])
+
+    timed_out = False
+    while True:
+        elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
+        if elapsed >= COMPLETION_GATE_TIMEOUT_SEC:
+            timed_out = True
+            break
+
+        substrate_status = await loop.run_in_executor(None, query_substrate_event_status)
+        addressed_count = await loop.run_in_executor(None, query_addressed_count)
+
+        substrate_settled = sum(1 for s in substrate_status.values() if s in ("completed", "failed", "dropped"))
+        substrate_pending = sum(1 for s in substrate_status.values() if s in ("pending", "locked"))
+        substrate_missing = len(expected_revs) - len(substrate_status)
+        # missing rows = wake hasn't been enqueued yet (scheduler tick lag)
+
+        addressed_done = addressed_count >= addressed_turn_count
+
+        all_substrate_done = (substrate_settled == len(expected_revs))
+        all_addressed_done = addressed_done
+
+        print(f"    [{int(elapsed):3d}s] substrate_event: {substrate_settled}/{len(expected_revs)} settled "
+              f"({substrate_pending} pending, {substrate_missing} not-yet-queued); "
+              f"addressed: {addressed_count}/{addressed_turn_count}")
+
+        if all_substrate_done and all_addressed_done:
+            break
+
+        await asyncio.sleep(COMPLETION_GATE_POLL_SEC)
+
+    elapsed = int((datetime.now(timezone.utc) - started_at).total_seconds())
+    final_substrate = await loop.run_in_executor(None, query_substrate_event_status)
+    final_addressed = await loop.run_in_executor(None, query_addressed_count)
+
+    return {
+        "elapsed_sec": elapsed,
+        "substrate_event_settled": sum(1 for s in final_substrate.values() if s in ("completed", "failed", "dropped")),
+        "substrate_event_pending": sum(1 for s in final_substrate.values() if s in ("pending", "locked")),
+        "substrate_event_expected": len(expected_revs),
+        "addressed_settled": final_addressed,
+        "addressed_expected": addressed_turn_count,
+        "timed_out": timed_out,
+    }
+
+
+async def resnapshot_eval(user_id: str, eval_result: dict) -> None:
+    """Re-snapshot the eval's capture folder after the completion gate.
+
+    The first snapshot (inside ScenarioRunner.run) fired before Reviewer
+    wakes completed, producing empty transcripts. Re-running CaptureSession
+    against the same folder overwrites the artifacts with post-wake state.
+    """
+    from services.operator_proxy.capture import CaptureSession
+
+    folder = Path(eval_result["eval_folder_abs"])
+    # Use eval's started_at as the baseline reference so the diff captures
+    # only what landed during + after the eval
+    session = CaptureSession(user_id, folder, scenario_name=eval_result["scenario"])
+
+    # Construct a synthetic baseline at the eval's start (zero diff anchor)
+    # via _take_snapshot equivalent — read from substrate at the eval's
+    # started_at timestamp. CaptureSession doesn't expose a time-anchored
+    # baseline directly, so re-baseline at eval_started_at - 1 sec by
+    # taking a fresh baseline + immediately snapshotting (the diff captures
+    # everything currently present). Acceptable approximation: the eval's
+    # folder will show ALL post-baseline substrate, which is what we want
+    # for the rollup.
+    eval_started_at = datetime.fromisoformat(eval_result["started_at"])
+    # Re-baseline = snapshot baseline at the eval's start_at, but practically
+    # we just want the endpoint snapshot to overwrite the artifacts. So:
+    session.baseline = await _baseline_at_time(user_id, eval_started_at)
+    await session.snapshot()
+
+
+async def _baseline_at_time(user_id: str, baseline_at: datetime) -> "CaptureSnapshot":
+    """Construct a baseline snapshot reflecting workspace state at a given moment."""
+    from services.operator_proxy.capture import CaptureSnapshot
+    from services.supabase import get_service_client
+
+    client = get_service_client()
+    loop = asyncio.get_running_loop()
+
+    def query():
+        rev_resp = client.table("workspace_file_versions").select("id").eq("user_id", user_id).lt("created_at", baseline_at.isoformat()).execute()
+        msg_resp = client.table("session_messages").select("id, session_id").lt("created_at", baseline_at.isoformat()).execute()
+        # session_messages doesn't have user_id; filter via session_id below
+        prop_resp = client.table("action_proposals").select("id").eq("user_id", user_id).lt("created_at", baseline_at.isoformat()).execute()
+        ee_resp = client.table("execution_events").select("id").eq("user_id", user_id).lt("created_at", baseline_at.isoformat()).execute()
+        return rev_resp, msg_resp, prop_resp, ee_resp
+
+    rev_resp, msg_resp, prop_resp, ee_resp = await loop.run_in_executor(None, query)
+    return CaptureSnapshot(
+        user_id=user_id,
+        captured_at=baseline_at.isoformat(),
+        revision_ids={r["id"] for r in (rev_resp.data or [])},
+        proposal_ids={r["id"] for r in (prop_resp.data or [])},
+        message_ids={r["id"] for r in (msg_resp.data or [])},
+        execution_event_ids={r["id"] for r in (ee_resp.data or [])},
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -232,6 +454,7 @@ def render_session_md(
     user_email: str,
     eval_results: list[dict],
     cost_rollup: dict,
+    completion: dict,
     session_started_at: datetime,
     session_finished_at: datetime,
     session_folder_path: Path,
@@ -254,6 +477,20 @@ def render_session_md(
     lines.append(f"**Duration**: {duration_min} min wall-clock")
     lines.append(f"**Session cost**: ${session_total_usd:.4f} (budget: ${per_session_budget:.2f})")
     lines.append(f"**Cost within budget**: {'YES' if cost_within_budget else 'NO — exceeds budget'}\n")
+
+    # Completion gate stats — surface whether all triggered wakes settled
+    if completion["substrate_event_expected"] > 0 or completion["addressed_expected"] > 0:
+        gate_ok = (
+            not completion["timed_out"]
+            and completion["substrate_event_settled"] == completion["substrate_event_expected"]
+            and completion["addressed_settled"] >= completion["addressed_expected"]
+        )
+        gate_label = "all settled" if gate_ok else "PARTIAL / TIMED OUT"
+        lines.append(
+            f"**Completion gate**: {gate_label} (elapsed {completion['elapsed_sec']}s, "
+            f"substrate_event {completion['substrate_event_settled']}/{completion['substrate_event_expected']}, "
+            f"addressed {completion['addressed_settled']}/{completion['addressed_expected']})\n"
+        )
     lines.append("---\n")
 
     # §1 Headline
@@ -430,6 +667,22 @@ async def run_suite(suite_path: Path, caller: str) -> int:
         result = await run_one_eval(eval_def, i, raw_folder, caller)
         eval_results.append(result)
 
+    write_phase_finished_at = datetime.now(timezone.utc)
+    print(f"\n=== Write phase complete in {int((write_phase_finished_at - session_started_at).total_seconds())}s ===")
+    print(f"=== Completion gate: polling wake_queue + execution_events ===")
+    completion = await wait_for_completion(user_id, eval_results, session_started_at)
+    print(f"    completion gate: elapsed {completion['elapsed_sec']}s, timed_out={completion['timed_out']}")
+
+    print("\n=== Re-snapshotting per-eval captures (post-wake state) ===")
+    for r in eval_results:
+        if r["outcome"] != "completed":
+            continue
+        try:
+            await resnapshot_eval(user_id, r)
+            print(f"    re-snapshotted: {r['eval']}")
+        except Exception as exc:
+            print(f"    re-snapshot FAILED for {r['eval']}: {type(exc).__name__}: {exc}")
+
     session_finished_at = datetime.now(timezone.utc)
 
     print("\n=== Composing cost rollup ===")
@@ -446,6 +699,7 @@ async def run_suite(suite_path: Path, caller: str) -> int:
         user_email=user_email,
         eval_results=eval_results,
         cost_rollup=cost_rollup,
+        completion=completion,
         session_started_at=session_started_at,
         session_finished_at=session_finished_at,
         session_folder_path=folder,
