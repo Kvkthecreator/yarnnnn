@@ -1,32 +1,50 @@
 ---
 tier: authored
-prompt: "What are your machine-enforced editorial thresholds? high_impact_threshold_routes_value crosses outcome events to feedback.md routing per ADR-181."
+prompt: "Set the machine-parsed Reviewer threshold for routing high-impact outcomes to task feedback.md (ADR-181). Only fields that the runtime actually reads belong here — prose rules live in principles.md."
 ---
-# _principles.yaml — machine-parsed review thresholds (ADR-254)
+# _principles.yaml — machine-parsed Reviewer thresholds (ADR-254 + ADR-181)
 # Read by review_policy.load_principles() via yaml.safe_load.
-# For the Reviewer's full reasoning framework, see principles.md.
+# For the Reviewer's full rule-set + reasoning framework, see principles.md.
 #
-# NOTE: ceiling_categories was folded into _autonomy.yaml per ADR-261 D5.
-# Don't add execution gating here — read from _autonomy.yaml.
+# ---
+# Runtime contract (per api/services/review_policy.py::load_principles +
+# _validate_principles_block, verified 2026-05-28):
+#
+#   - Loaded as domain-keyed dict; only `high_impact_threshold_cents` is
+#     extracted per domain (cast to int).
+#   - All other keys are loaded into the parsed dict but consumed by NO
+#     downstream caller in api/.
+#
+# Per ADR-305 §8 + the rewrite posture: this file holds ONLY the runtime
+# contract. Rule-level numeric thresholds (sample sizes for ship-binding
+# bootstrap, drift % for voice-fingerprint-corpus-drift, intervals for
+# cadence-on-pace, etc.) live INLINE in principles.md rule declarations
+# until e2e measurement (ADR-305 Piece 3) shows whether prose-inline is
+# sufficient or whether moving them to yaml + an envelope-plumbing change
+# is warranted.
+#
+# That choice is downstream of measurement, not paper-design. Don't
+# pre-populate this file with thresholds that no code reads — the dead
+# substrate that triggered the rewrite in the first place was a file
+# carrying values it called itself authoritative on that nothing read.
+# ---
 
-authored:
-  # High-impact threshold for routing outcome events to task feedback.md
-  # per ADR-181. For alpha-author, "high-impact" means corpus events the
-  # operator should personally see — e.g., a corpus-level voice-drift
-  # signal across 4+ recent pieces, a continuity-break detected post-hoc,
-  # or a publication outcome with unusual audience response.
-  high_impact_voice_drift_recent_pieces: 4          # 4+ recent pieces flagged for same drift → high-impact
-  high_impact_continuity_break_detected_posthoc: true  # any post-hoc continuity break → high-impact
-  high_impact_cadence_intervals_missed: 2           # 2+ missed intervals → high-impact
-  high_impact_audience_signal_zscore: 2.0           # audience response 2σ from rolling mean (when audience-bearing) → high-impact
-
-audience:
-  # When audience-bearing capabilities are connected (ADR-283 step 2),
-  # high-impact thresholds for audience-signal slices of _signal.md.
-  high_impact_engagement_zscore: 2.0    # engagement event 2σ from rolling mean → high-impact
-  high_impact_churn_threshold_pct: 3.0  # weekly churn ≥ 3% → high-impact
-
-# Per-category sample-size thresholds before auto-approve auto-promotes
-# (Phase 1+). Operator can tune per-category once they've watched the
-# bootstrap-window calibration data.
-sample_size_minimum_for_bounded_promotion: 10
+default:
+  # ADR-181 high-impact outcome routing threshold for alpha-author.
+  # Format: cents (ADR-254 numeric discipline — int, not string).
+  #
+  # Loop-cycle reasoning (per ADR-305 D2 M5 cite-the-loop-cycle
+  # discipline): alpha-author is a slow ship-loop (operator publishes
+  # 1-2 pieces per week in steady state). Each ship-decision produces
+  # at most one direct revenue-attributable outcome event (when audience-
+  # bearing) plus the operator's own ship/hold telemetry. "High-impact"
+  # at this loop-cycle is an outcome event the operator should
+  # personally see — a $50 capital-equivalent threshold is appropriate
+  # for distinguishing background-noise outcomes from operator-attention-
+  # worthy ones at this program's economic scale. (Numeric placeholder
+  # until the program's actual outcome distribution accumulates enough
+  # to calibrate against; first revision when operator has >=10 ship-
+  # decisions with outcome data accrued.)
+  #
+  # last-recalibrated: 2026-05-28 (initial bundle value)
+  high_impact_threshold_cents: 5000
