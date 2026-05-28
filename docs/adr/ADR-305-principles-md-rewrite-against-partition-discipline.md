@@ -87,43 +87,21 @@ The methodology, declared canonically here:
 
 This ADR does NOT prescribe specific numeric values for alpha-author or alpha-trader. The values are downstream Piece 2 + Piece 4 work, derived from this methodology against each program's actual cycle data. Per-program numeric values are reviewable as bundle-template diffs, not as canon amendments.
 
-### D3 — Auto-approve binding under AUTONOMY=autonomous is decoupled from the amendment threshold
+### D3 — Specific reshapings are emergent from Piece 2 + validated by Piece 3, not pre-committed in canon
 
-The session's load-bearing finding was that the 10-audit sample-size floor (current `principles.md` line 59 — *"first 10 audits are all `manual` regardless of `_autonomy.yaml` configuration"*) gates the **ship-binding** path. Independent of that, the Reviewer also has the capability to author `Schedule()` calls for declared `_preferences.yaml` cadences per ADR-275 (the lowest-bar amendment per the ADR-295 categories — "cadence-driven"). The cadence-driven path is **not** sample-size gated and **should** bind under autonomous mode from the first wake the preference is detected.
+The session diagnosis surfaced specific shapes the rewrite *might* take to address observed gaps — separating ship-binding from cadence-binding from operator-canon-binding (because the current file collapses all three under one sample-size gate), moving bootstrap behavior inside each rule (because the parallel meta-section duplicates concerns), relocating anti-pattern enumeration from `principles.md` to `_voice.md` (single source of truth). Each of these is a plausible reshaping. **This ADR does NOT pre-commit to any of them.**
 
-Post-rewrite, `principles.md`'s auto-approve clause reads as:
+The reason: each is a bug-fix-shaped reasoning derived from a single session's measurement. A one-shot rewrite that pre-commits to specific reshapings risks (a) over-fitting to symptoms the session exposed rather than to the underlying partition discipline, (b) locking downstream work into shapes that the actual rewrite + the eval re-run may invalidate, and (c) adding ADR ceremony without adding signal — since the partition canon (`d8d0e57`) plus the calibration methodology (D2) already constrain the rewrite's shape sufficiently to prevent drift.
 
-- **Ship-binding** (auto-approve a draft on Reviewer's approve verdict): sample-size-gated per program (yaml-tuned). Bootstrap-clause exception applies for first-N audits per M3.
-- **Cadence-binding** (author `Schedule()` for an operator-declared preference): NOT sample-size-gated. Under `autonomous`, Reviewer authors the recurrence directly; under `bounded`, routes through `action_proposals` for operator click.
-- **Operator-canon-binding** (edit `_voice.md`, `_editorial.md`, etc.): evidence-threshold-gated per `_principles.yaml`. Persona-frame's `_compute_self_amendment_discipline` is the discipline; principles.md declares the substrate anchor for the threshold (it lives in yaml; principles.md cites the yaml path).
+The discipline this ADR commits to instead:
 
-The three binding paths are distinct rules with distinct gating; the current `principles.md` collapses them under one "Audit-EV thresholds" section that effectively gates *all* binding behind the ship-loop sample size. The rewrite separates them.
+- **Piece 2 (alpha-author rewrite)** is an exploration informed by D1's four-field shape, D2's calibration methodology, D6's conflict-resolution preservation, and D7's re-fork boundary. It is NOT an execution of a specific spec declared in this ADR. The rewrite's author (operator + collaborator) discovers the appropriate shaping by applying the partition canon to the actual current content and asking the §3.2.1 diagnostic test of each section.
+- **Piece 3 (eval re-run against the rewritten alpha-author bundle)** is the validation instrument. If the eval re-run measures operator-visible substrate writes under `AUTONOMY=autonomous` (closing the strong-autonomy gap the c51c44f session named), the reshapings Piece 2 chose are validated. If the gap persists, the reshapings need iteration — either via Piece 2 amendment, or via persona-frame `_compute_*` edits (cause b territory), or via further partition-canon refinement.
+- **Reshapings that prove load-bearing across programs after Piece 3 + Piece 4** may be amended into this ADR as D9/D10/etc. via subsequent commits to ADR-305. The ADR is a living methodology declaration, not a frozen spec.
 
-### D4 — Bootstrap clause is per-rule, not file-wide
+What this decision does NOT defer: the partition itself (D1 + D6 + §3.2.1), the calibration methodology (D2 M1-M5), the operational boundary on production-workspace migration (D7), the eval-rubric impact acknowledgment (D8). Those are stable canon-shaped commitments that should not change session-to-session.
 
-Today's `principles.md` has a separate "Bootstrap clause" section (lines 52–59) that describes what happens when `_signal.md` is empty. Per M3, bootstrap behavior is part of each rule's declaration, not a separate section. Post-rewrite: each rule that has bootstrap behavior names it inline in field #3 (Pass condition).
-
-Example rewritten rule:
-
-```
-### Rule: voice-fingerprint-match
-
-- **Substrate read**: `/workspace/context/authored/_voice.md` (positive patterns) + draft's prose
-- **Pass condition (steady-state)**: draft matches ≥1 positive pattern AND zero anti-pattern violations.
-  Steady-state activates when `_signal.md` has ≥3 prior audit outcomes for this workspace.
-- **Pass condition (bootstrap)**: `_signal.md` has <3 prior audits. Draft passes if zero anti-pattern
-  violations (positive-pattern match is waived; the positive declaration calibrates against ship outcomes
-  per M2, which haven't accumulated yet).
-- **Verdict on fail**: `reject` (unconditional — voice is a hard floor per MANDATE's anti-AI-slop clause).
-```
-
-Bootstrap-state and steady-state are both rules-of-judgment; they belong inside the rule, not in a parallel meta-section.
-
-### D5 — Anti-AI-slop hard-rejection list stays in `principles.md` (rules), moves anti-pattern enumeration to `_voice.md` (substrate)
-
-Today's `principles.md` lines 18–24 enumerate anti-slop patterns (list-of-three openers, "in conclusion", etc.). Per the partition: the **rule** ("anti-slop hard-rejects on ≥1 violation") belongs in `principles.md`; the **enumeration of which patterns count** belongs in `_voice.md` as substrate (the operator's authored voice declaration). The rule reads against `_voice.md`'s anti-pattern list; operators tune the list without editing principles.md.
-
-This is a substrate-anchor cleanup, not a behavioral change. Today's enumeration is duplicated (it lives in both `principles.md` AND `_voice.md::anti-patterns`); post-rewrite, principles.md cites `_voice.md::anti-patterns` as the substrate, single source of truth.
+What this decision does defer: specific structural reshapings (binding-path separation, bootstrap-state location, anti-pattern enumeration home) that are bug-fix-shaped derivations from the c51c44f session. Those emerge from the e2e loop's iteration; they earn ADR-amendment status by surviving Piece 3's measurement, not by being plausible-looking at paper-design time.
 
 ### D6 — Conflict-resolution clause is preserved verbatim from §3.2.1
 
@@ -149,41 +127,45 @@ This is correct per ADR-209 and is named explicitly here so future ADRs don't ha
 
 **Operator-side path for adopting the rewrite in an existing workspace**: operator reads the bundle's updated `principles.md` + `_principles.yaml` template; chooses to `WriteFile` the new content over the workspace's current content via UpdateContext or chat-mediated edit; the workspace's revision chain captures the change with `authored_by="operator"` per ADR-209. The system does not push the rewrite to existing workspaces.
 
-### D8 — Re-interpretation of eval-4 (pressure-resistance) rubric
+### D8 — Eval-rubric citation-target impact acknowledgment
 
-The `yarnnn-author-baseline.yaml` eval-4 expected rubric cites *"ADR-295 D3 anti-pattern (1) AND/OR MANDATE Boundary Conditions"* as the authority the Reviewer's amendment-refusal is grounded in. Post-rewrite:
+Whatever specific reshapings Piece 2 chooses (per D3, those emerge from the rewrite + e2e loop), at least one likely effect is a shift in where eval rubrics cite for authority on Reviewer behavior. For example, today's `yarnnn-author-baseline.yaml` eval-4 (pressure-resistance) expected rubric cites *"ADR-295 D3 anti-pattern (1) AND/OR MANDATE Boundary Conditions"* — if the rewrite removes the duplicated anti-pattern enumeration from `principles.md`, the rubric citation target shifts toward MANDATE Boundary Conditions + the persona-frame's `_compute_anti_patterns` section.
 
-- The ADR-295 D3 anti-patterns (the six "do NOT amend operator-canon" cases) live **exclusively** in `_compute_anti_patterns` in persona-frame.
-- `principles.md` carries the **rule** ("operator-canon amendment is gated; persona-frame discipline applies") with a citation pointer to the persona-frame's home for the discipline.
-- The rubric's citation target shifts: the Reviewer's refusal cites MANDATE Boundary Conditions (rules of judgment) AND/OR cites the persona-frame discipline by name ("per my self-amendment discipline anti-pattern #2 — amend on single-wake friction"). The rubric remains a `M1` or `M2` posture cell; the trace from refusal to authority still passes.
-
-Eval-suite YAML changes are NOT in this ADR's scope (Hat-B work, deferred to Piece 3 of the sequence). The ADR names the citation-target shift so Piece 3 can update the rubric in the same session as the re-run.
+The ADR acknowledges this likely impact so Piece 3's session author knows to verify rubric citation chains as part of the re-run interpretation. **Specific YAML updates are NOT in this ADR's scope** (Hat-B work, in Piece 3's session). The ADR's commitment is: any eval whose rubric cited content that the rewrite moved gets re-interpreted in Piece 3, with the rubric YAML edit landing in the same session commit.
 
 ## 3. Application — what the rewrite produces (shape, not content)
 
-Post-application of D1–D7 to `docs/programs/alpha-author/reference-workspace/review/principles.md`, the file's section structure becomes:
+Post-application of D1, D2, D6, D7 to `docs/programs/alpha-author/reference-workspace/review/principles.md`, the file's section structure is shaped by **the partition canon (§3.2.1) + the calibration methodology (D2)**, not by a pre-declared section list in this ADR. Per D3, the specific section breakdown emerges from Piece 2's rewrite informed by the §3.2.1 diagnostic test applied to each current section of the file.
 
-1. **§1 Purpose** — one paragraph naming the file as the rule-set the persona applies; pointer to `agent-composition.md` §3.2.1 as the partition-discipline canon.
-2. **§2 Rules** — N named rules, each in the four-field shape. For alpha-author, expected rules (illustrative, finalized in Piece 2): `voice-fingerprint-match`, `anti-slop`, `text-continuity`, `entity-continuity`, `voice-declaration-present`, `engagement-bait-refusal`, `hot-take-refusal`, `cadence-on-pace`. Each rule has bootstrap + steady-state pass conditions per D4.
-3. **§3 Auto-approve binding** — declares the three binding paths (ship, cadence, operator-canon) per D3, citing yaml-tuned thresholds.
-4. **§4 Conflict resolution** — ratification per D6, no new content.
-5. **§5 What this file is NOT** — short pointer list to persona-frame `_compute_*` sections + AUTONOMY.md + MANDATE.md + IDENTITY.md for the concerns that don't live here.
+What the rewrite is constrained by:
 
-Expected length: 70–100 lines (vs. current 169). Numeric thresholds live in `_principles.yaml` per D2; the prose file cites the yaml.
+- **Every retained section declares either** (a) a rule in the four-field shape (name + substrate-read + pass-condition + verdict-on-fail), (b) the conflict-resolution clause per D6, or (c) a brief workspace-lifecycle phase pointer that a rule's pass condition references. If a current section doesn't fit one of those three, it migrates to persona-frame `_compute_*` (the destination per §3.2.1's bright-line content list) or to another substrate file (`_voice.md`, `_principles.yaml`, etc.) as the rewrite's exploration determines appropriate.
+- **Numeric thresholds live in `_principles.yaml`** per D2 M4. Prose-declared categories may live in `principles.md`; the numbers per program live in yaml with cite-the-loop-cycle comments per M5.
+- **Re-fork is bundle-only** per D7. Existing production workspaces preserved per ADR-209.
 
-The shape for alpha-trader's rewrite is **structurally identical** (D1's four-field shape, D2's calibration methodology, D3's three binding paths, D4's per-rule bootstrap, D6's conflict-resolution ratification); the **rules in §2 differ per program** (capital-EV rules for alpha-trader vs. corpus-coherence rules for alpha-author), and **the yaml numbers differ per program** (D2's methodology applied to each program's loop-cycle).
+What the rewrite explicitly does NOT pre-commit to (per D3):
+
+- Specific section count or section names
+- Specific shape of the auto-approve / binding clause (whether one section, multiple sections, or attached to individual rules)
+- Specific location of bootstrap-state handling (per-rule field, separate section, or some other emergent shape)
+- Specific home for anti-pattern enumeration (principles.md, `_voice.md`, or both with one citing the other)
+
+These are Piece 2 discoveries, validated by Piece 3 measurement.
+
+The shape for alpha-trader's rewrite (Piece 4) is constrained by the same D1 + D2 + D6 + D7 + §3.2.1 inputs, but the **specific reshapings alpha-trader's rewrite chooses may differ from alpha-author's** — and that's fine. The partition canon governs the constraint; the per-program rewrite explores within it. If reshapings prove load-bearing across programs (i.e., both rewrites converge on the same answer), they earn ADR-305 amendment as D9/D10/etc. via subsequent commits. Until then, per-program divergence is honest, not drift.
 
 ## 4. What this ADR does NOT do
 
 - **Does not rewrite the bundle templates.** That's Piece 2 (alpha-author) + Piece 4 (alpha-trader) of the sequence. This ADR is paper-design declaring the partition application + calibration methodology; the rewrite is a separate doc-change commit per program.
 - **Does not declare specific numeric thresholds** for either program's `_principles.yaml`. Per D2 M4, the numbers are downstream of the methodology and are reviewable as bundle-template diffs in their respective rewrite commits.
+- **Does not pre-commit to specific structural reshapings** per D3 (binding-path separation, bootstrap-state location, anti-pattern enumeration home, section structure). Those are Piece 2 explorations informed by §3.2.1's diagnostic test + D2's methodology; they are validated by Piece 3's e2e measurement. Reshapings that prove load-bearing across programs earn ADR-305 amendment as D9/D10/etc. after Piece 3 + Piece 4.
 - **Does not migrate production workspaces.** Per D7, the rewrite is bundle-template-only; existing operator-authored content is preserved per ADR-209.
 - **Does not change envelope plumbing.** `reviewer_envelope.py::_UNIVERSAL_ENVELOPE_DECLS` continues to yield `principles_md` unconditionally; the file's role in the wake envelope is unchanged.
 - **Does not change ADR-295's persona-frame canon.** The amendment-discipline categories (calibration-driven / near-miss-driven / substrate-gap-driven / cadence-driven / persona-developmental) survive as the universal taxonomy in `_compute_self_amendment_discipline`; only the per-program numeric tuning moves to `_principles.yaml` per M4. ADR-295's status note about "v2 amendment expected" is partially closed by this ADR — the methodology piece is here; the numerics land per program in their respective rewrites.
-- **Does not change ADR-303's posture-cell taxonomy.** P1–P5 cells survive in `_compute_standing_intent_contract`; the cell that previously had ambiguous overlap with principles.md ("every cycle authors standing_intent.md") is unambiguously persona-frame post-rewrite.
-- **Does not change `_compute_*` persona-frame sections.** This ADR establishes that those sections are the **destination** for the absorbed reasoning-posture content; it does not edit them. If the audit of the persona-frame against the post-rewrite `principles.md` reveals gaps (e.g., a reasoning-posture concept that lived in principles.md and doesn't yet have a `_compute_*` home), that's a separate follow-up ADR.
-- **Does not change eval-suite YAML.** Per D8, the rubric re-interpretation happens in Piece 3 (eval re-run) as part of the SESSION.md authoring; no eval YAML changes ship with this ADR.
-- **Does not address the eval-9 hallucination root cause (§1 cause (b)).** That's a separate persona-frame discipline edit ("re-read envelope when standing_intent contradicts current substrate") tracked in the c51c44f SESSION.md §4 recommendation 2; out of scope for this ADR.
+- **Does not change ADR-303's posture-cell taxonomy.** P1–P5 cells survive in `_compute_standing_intent_contract`.
+- **Does not change `_compute_*` persona-frame sections.** This ADR establishes that those sections are the **destination** for absorbed reasoning-posture content; it does not edit them. If Piece 2's rewrite or Piece 3's measurement surfaces reasoning-posture concepts without a `_compute_*` home, that's a separate follow-up ADR.
+- **Does not change eval-suite YAML.** Per D8, the rubric re-interpretation happens in Piece 3 (eval re-run) as part of the SESSION.md authoring; eval YAML edits land in the same Piece 3 commit, not in this ADR.
+- **Does not address the eval-9 hallucination root cause (§1 cause (b)).** That's a separate persona-frame discipline edit ("re-read envelope when standing_intent contradicts current substrate") tracked in the c51c44f SESSION.md §4 recommendation 2; out of scope for this ADR. May surface as an independent Piece 5 if Piece 3 measurement shows the partition rewrite alone doesn't close the strong-autonomy gap.
 
 ## 5. Singular Implementation compliance
 
@@ -195,23 +177,46 @@ The shape for alpha-trader's rewrite is **structurally identical** (D1's four-fi
 ## 6. Risks + Open Questions
 
 - **R1 — alpha-trader's existing `principles.md` may already conform to the four-field shape.** If so, the alpha-trader rewrite in Piece 4 is a smaller edit (mostly methodology citation + yaml separation), not a full rewrite. Audit needed before Piece 4 commences.
-- **R2 — The "cadence-binding NOT sample-size-gated" decision (D3) may be wrong if operators want a probationary period before any Reviewer-authored Schedule writes.** The current ADR-275 D5 implementation assumes Reviewer authors Schedule() from first wake the preference is detected. If operator probation is desirable, that's a per-program tuning in `_principles.yaml` (e.g., `cadence_binding_probation_wakes: 3`), not an ADR-level decision. Flagged for Piece 2 review.
-- **R3 — Some reasoning-posture content currently in `principles.md` may not yet have a persona-frame `_compute_*` home.** Per §4 "Does not change `_compute_*` persona-frame sections", the audit happens post-rewrite. Expected destinations: self-amendment evidence-threshold categories → `_compute_self_amendment_discipline`; bootstrap calibration meta → `_compute_self_amendment_discipline` (it's the same concern, viewed from a different angle); fiduciary principle → `_compute_self_amendment_discipline` D4. If a concern has no home, that's a flag for a `_compute_*` extension ADR.
-- **R4 — Workspace-lifecycle phase progression** is currently partially in `AUTONOMY.md` ("Phase 0 / Phase 1 / Phase 2 / Phase 3") and partially in `principles.md` ("first 10 audits are all manual"). The two should not drift. Per D4, phase-gating belongs in each rule's pass condition (rules-side), with AUTONOMY.md declaring the lifecycle phases as a stable enum. The rewrite normalizes against this.
-- **R5 — Eval-suite re-run (Piece 3) may surface that the rewrite alone is insufficient** — i.e., even with the partition applied, the Reviewer still doesn't bind operator-visible action. That would point at the eval-9 hallucination root cause (cause b, §1) or at an envelope-distance issue not yet diagnosed. The session's SESSION.md §4 has the recommendations queued; if Piece 3 reproduces the "zero operator-visible writes" finding, those persona-frame edits become priority Piece 5.
+- **R2 — Some reasoning-posture content currently in `principles.md` may not yet have a persona-frame `_compute_*` home.** Per §4 "Does not change `_compute_*` persona-frame sections", this is discovered during Piece 2's rewrite. Expected destinations: self-amendment evidence-threshold categories → `_compute_self_amendment_discipline`; bootstrap calibration meta → same (it's the same concern, viewed from a different angle); fiduciary principle → `_compute_self_amendment_discipline` D4. If a concern has no home, that's a flag for a `_compute_*` extension ADR — landed as an independent commit, not bundled with the rewrite.
+- **R3 — Workspace-lifecycle phase progression** is currently partially in `AUTONOMY.md` ("Phase 0 / Phase 1 / Phase 2 / Phase 3") and partially in `principles.md` ("first 10 audits are all manual"). The two should not drift. Piece 2 will discover whether the right shape is phase-gating per rule (rules-side), AUTONOMY.md owning the lifecycle phase enum alone, or some hybrid. The rewrite normalizes whichever shape Piece 3 measurement validates.
+- **R4 — Eval-suite re-run (Piece 3) may surface that the rewrite alone is insufficient** — i.e., even with the partition applied, the Reviewer still doesn't bind operator-visible action. That would point at the eval-9 hallucination root cause (cause b, §1) or at an envelope-distance issue not yet diagnosed. The session's SESSION.md §4 has the recommendations queued; if Piece 3 reproduces the "zero operator-visible writes" finding, those persona-frame edits become priority Piece 5. Per the e2e discipline named in §8, this is the expected shape of progress — one-shot resolution is not the design intent; iterative measurement is.
+- **R5 — Per-program reshapings may diverge.** Alpha-author's rewrite and alpha-trader's rewrite may land on different specific shapes (different section breakdowns, different binding-clause structure, different bootstrap-handling). Per D3, this is acceptable until reshapings prove load-bearing across both programs — at which point they earn ADR-305 amendment. Until then, per-program divergence is honest, not drift.
 
 ## 7. Phased Implementation
 
-This ADR is paper-design. The phased implementation referenced is the **sequence laid out in session `2026-05-27` post-`d8d0e57`**:
+This ADR is paper-design. The phased implementation is the **sequence laid out in session `2026-05-27` post-`d8d0e57`**, with the iterative discipline named in §8:
 
-- **Piece 1 (this ADR)** — paper-design ADR-305. Proposed → operator review → Implemented status flip when ratified.
-- **Piece 2** — alpha-author bundle rewrite. Touches `docs/programs/alpha-author/reference-workspace/review/principles.md` + `_principles.yaml` only. Cites ADR-305.
-- **Piece 3** — eval-suite re-run against a freshly-forked alpha-author workspace. Touches `docs/evaluations/` only. Cites Piece 2's commit; produces a new SESSION.md.
-- **Piece 4** — alpha-trader bundle rewrite. Touches `docs/programs/alpha-trader/reference-workspace/review/principles.md` + `_principles.yaml` only. Cites ADR-305 + Piece 2 + Piece 3.
+- **Piece 1 (this ADR)** — paper-design ADR-305. Proposed → operator review → Ratified status flip when reviewed. Status flips to `Implemented` only after Pieces 2 + 3 land + Piece 3 measurement validates the partition application closes (or productively informs) the strong-autonomy gap.
+- **Piece 2** — alpha-author bundle rewrite. Touches `docs/programs/alpha-author/reference-workspace/review/principles.md` + `_principles.yaml` only. Cites ADR-305. Per D3, the rewrite is an exploration informed by §3.2.1 + D2, not an execution of a specific spec. Operator review of the bundle diff is the right place to challenge specific reshaping choices.
+- **Piece 3** — eval-suite re-run against a freshly-forked alpha-author workspace. Touches `docs/evaluations/` only. Cites Piece 2's commit; produces a new SESSION.md. **This piece is the validation instrument** — see §8. Eval YAML edits (D8 citation-target shifts) land in this commit.
+- **Piece 4** — alpha-trader bundle rewrite. Touches `docs/programs/alpha-trader/reference-workspace/review/principles.md` + `_principles.yaml` only. Cites ADR-305 + Piece 2 + Piece 3. If R1's audit finds alpha-trader already conforms, this piece is small. If Piece 3 surfaces persona-frame edits as priority (R4), Piece 4 may be deferred behind a Piece 5 persona-frame edit ADR.
 
-The sequencing is order-dependent. Each piece's commit explicitly cites the prior piece's commit hash in its body. This ADR's status doesn't flip to `Implemented` until all four pieces land — `Implemented` here means "the partition is applied across both program bundles + validated against eval re-run."
+The sequencing is order-dependent. Each piece's commit explicitly cites the prior piece's commit hash in its body. **Per D3 + §8, "Implemented" status for ADR-305 does NOT mean "all four pieces landed exactly as described in this ADR" — it means "the partition is applied across both program bundles AND the e2e loop has measured an outcome that either validates the rewrite shape or surfaces the next priority work."** The ADR's job is to declare canon-shaped commitments (partition, methodology, operational boundaries); the sequence's job is to validate them iteratively. Both are honest in different ways.
 
-## 8. Substrate-receipts
+## 8. The e2e loop is the validation instrument
+
+This ADR is deliberately under-specified about specific structural reshapings per D3, and the reason is named here explicitly so future sessions don't re-litigate it:
+
+**The eval-suite + observation-thread loop (built across sessions `2026-05-26` through `2026-05-27`) is the validation instrument for whether Reviewer behavior matches canon claims.** It is not paper-design that validates; it is substrate-receipts under measurement that validates. A canon edit's correctness is tested by whether re-running the loop against the edited substrate produces the predicted Reviewer behavior. One-shot improvement against a complex partition-content gap is unlikely; iterative measurement is the design intent.
+
+The consequence: ADR-305's downstream pieces (2-4) are **discovery work informed by canon**, not **execution of a canon-declared spec**. Each piece's commit body should report:
+
+- What the rewrite/re-run found (substrate-receipts: queries + their results)
+- What that finding suggests about the partition application's adequacy (validated / surfaces new gap / inconclusive)
+- What the next priority work is (continue the sequence / pivot to persona-frame edits / amend ADR-305 with newly-load-bearing learnings)
+
+This shape honors what the c51c44f session demonstrated: the load-bearing question (did the Reviewer ever bind operator-visible action?) was answered by the **substrate-receipts query**, not by any prose ADR. The e2e loop produced a definitive `0 rows` answer to a definitive question. That is the canon-validation shape this ADR's downstream pieces inherit.
+
+What this means in practice:
+
+- **Piece 2's rewrite is not held to a pre-declared section structure.** It explores the application of §3.2.1 + D2 against the actual current `principles.md` content, makes specific reshaping decisions, ships them. Operator review of the bundle diff is the right scrutiny layer; this ADR is not.
+- **Piece 3's eval re-run is the truth-teller.** If it measures operator-visible substrate writes under `AUTONOMY=autonomous`, the rewrite shape is validated. If not, the next priority work is named in Piece 3's SESSION.md §4 — possibly persona-frame edits (cause b territory from §1), possibly further partition-canon refinement, possibly something not yet diagnosed.
+- **Piece 4 (alpha-trader rewrite) is conditional on Piece 3.** If Piece 3 invalidates the rewrite shape, Piece 4 either uses the iterated shape OR is deferred behind a persona-frame edit ADR. Order matters.
+- **ADR-305 amendments are valid commits.** If Piece 3 measurement surfaces a reshaping that proves load-bearing, the ADR gets a D9/D10/etc. amendment commit — the ADR is a living methodology declaration, not a frozen spec.
+
+This is the same discipline `docs/evaluations/EVAL-SUITE-DISCIPLINE.md` §E3 already declares for eval-suite sessions: *"A failed eval is a finding to interpret, not a CI break."* This ADR extends that to the rewrite-loop's pieces: a rewrite is an exploration informed by canon, not an execution of canon. Canon-as-spec is the failure mode; canon-as-constraint-on-exploration is the success mode.
+
+## 9. Substrate-receipts
 
 - Session folder: `docs/evaluations/2026-05-27-064722-yarnnn-author-baseline-session/`
 - Populated rollup: `docs/evaluations/2026-05-27-064722-yarnnn-author-baseline-session/SESSION.md` (commit `c51c44f`)
@@ -222,8 +227,8 @@ The sequencing is order-dependent. Each piece's commit explicitly cites the prio
 
 ## Status
 
-**Proposed 2026-05-27** — paper-design only. No bundle/code changes ship with this ADR. Operator review pending; on ratification, Status flips to `Implemented` after Pieces 2–4 land.
+**Proposed 2026-05-27** — paper-design only. No bundle/code changes ship with this ADR. **Tightened 2026-05-28** to Option A shape per operator feedback: D3+D4+D5 (specific structural reshapings derived from c51c44f bug-fix-shaped reasoning) replaced by D3 (open-shaping with reshapings emergent from Piece 2 + validated by Piece 3); §8 added naming the e2e loop as validation instrument. Status flips to `Implemented` only after Pieces 2 + 3 land AND Piece 3 measurement validates the partition application closes (or productively informs) the strong-autonomy gap. Per §8, "Implemented" means the e2e loop measured an outcome, not that pieces landed exactly as paper-described.
 
 ## Last updated
 
-2026-05-27 — initial draft. Authored against the partition-discipline canon hardened in commit `d8d0e57` and the eval-session diagnosis in commit `c51c44f`.
+2026-05-28 — Option A tightening. Decisions reduced from 8 to 6 (D1 / D2 / D3 / D6 / D7 / D8); D3 reframed to commit to iterative discovery rather than pre-declared reshapings; §8 added naming the e2e loop as validation instrument. Original 2026-05-27 draft: initial paper-design against the partition-discipline canon hardened in commit `d8d0e57` and the eval-session diagnosis in commit `c51c44f`.
