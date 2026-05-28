@@ -460,6 +460,18 @@ Every workspace file has exactly one primary consumer. Format follows the consum
 - **Underscore prefix = machine-parsed.** All `_*.yaml` files are machine-parsed config or state. Human edits these to configure; Python reads them at runtime.
 - **Integer fields in `.yaml` are ints, not strings.** `ceiling_cents: 20000` not `ceiling_cents: "20000"`. `load_autonomy()` and `load_principles()` now coerce and log on mismatch.
 
+### 10. MCP Servers (Local Setup)
+
+Project-scoped MCP servers wired in `.mcp.json` at the repo root. The file itself contains no secrets — tokens flow in via `${VAR}` shell-env interpolation, so the file is safe to commit.
+
+| Server | Transport | Required env var (parent shell) | Scopes |
+|--------|-----------|---------------------------------|--------|
+| `sentry` | stdio (`npx @sentry/mcp-server`) | `SENTRY_AUTH_TOKEN` | `org:read`, `project:read`, `event:read`, `team:read` |
+
+- **Token setup**: mint at https://sentry.io/settings/account/api/auth-tokens/, `export SENTRY_AUTH_TOKEN=...` in `~/.zshrc`, `source` it, restart Claude Code.
+- **Never paste the token into chat, JSON, or git.** If it leaks, revoke immediately and mint a fresh one — Sentry tokens are shown once at creation.
+- **Restart required**: `.mcp.json` changes are read at Claude Code startup, not hot-reloaded.
+
 ---
 
 ## Prompt Change Protocol
