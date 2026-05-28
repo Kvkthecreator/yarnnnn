@@ -1,6 +1,7 @@
 "use client";
 
-import { Shader, Swirl, ChromaFlow } from "shaders/react";
+import { Swirl, ChromaFlow } from "shaders/react";
+import { ShaderCanvas } from "./ShaderCanvas";
 
 export function ShaderBackground() {
   return (
@@ -10,7 +11,7 @@ export function ShaderBackground() {
         contain: "strict",
       }}
     >
-      <Shader className="h-full w-full">
+      <ShaderCanvas className="h-full w-full">
         {/* Base fluid animation - warm light tones with orange */}
         <Swirl
           colorA="#f5ebe0"
@@ -32,7 +33,7 @@ export function ShaderBackground() {
           maskType="alpha"
           opacity={0.95}
         />
-      </Shader>
+      </ShaderCanvas>
       {/* Subtle light overlay for text readability */}
       <div className="absolute inset-0 bg-white/10" />
     </div>
