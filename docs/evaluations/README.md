@@ -314,6 +314,8 @@ capture:
 
 `expect:` clauses are **interpretation hints**, not pass/fail assertions. The runner logs what was expected + observed; humans interpret the diff in `findings.md`.
 
+**Scenario vs. eval-suite boundary** (EVAL-SUITE-DISCIPLINE.md, Proposed 2026-05-29): scenarios stay assertion-light — they define *what happens* (setup + turns + capture). The eval-suite layer that *wraps* a scenario adds the read-orienting context on the suite's eval entry, NOT on the scenario: `requires:` (a harness-checked pre-flight precondition — the situation the read needs) and `prior:` (an orienting hypothesis about what a coherent mandate-holder would do — explicitly not a graded contract). This keeps the scenario reusable across suites and keeps precondition/hypothesis where the *measurement* lives, not where the *mechanism* lives. The eval-suite rollup (`SESSION.md`) is operator-question-anchored prose, not a dimension-scoring table — see EVAL-SUITE-DISCIPLINE.md §1 for why the prior four-dimension shape was dropped.
+
 **Schema lineage**: write_substrate-as-turn, flip_frontmatter_field, and seed_draft landed 2026-05-27 per `docs/analysis/evaluation-infrastructure-audit-2026-05-27.md`. Pre-2026-05-27, the only mid-scenario substrate-mutation path was pure-Python canary scripts at `api/scripts/operator/canary_phase4_*.py` because the YAML schema couldn't express the seed → flip → wait probe shape. The 5 historical canary scripts remain in the repository as substrate-receipts of the ADR-299 investigation arc; new author-shape probes should be authored as YAML scenarios per the singular-implementation discipline (one canonical scenario authoring path).
 
 ## Caller-identity discipline (ADR-294 D2)

@@ -1,0 +1,140 @@
+eval_suite_schema_version: 2
+eval_suite: yarnnn-author-responsiveness
+read_kind: substrate_responsiveness
+
+description: |
+  Substrate-responsiveness suite for yarnnn-author
+  (EVAL-SUITE-DISCIPLINE.md §2.2).
+
+  The question this suite lets the operator answer: when the operator
+  CHANGES the substrate that governs the Reviewer (tightens MANDATE,
+  flips autonomy, raises pace, adds a preference), does the Reviewer's
+  next reasoning track the change — or reason from a stale cache?
+
+  This is a different kind of read from the judgment suite (§2.3): the
+  operator reads a BEFORE/AFTER substrate delta and the wake that
+  follows the mutation, against what the operator intended by the
+  change. The unit is "a mutation and the wake after it."
+
+  ORDERED ARC (§3.1). This suite intentionally accumulates state: it
+  simulates a real operator-iteration arc — tighten MANDATE → flip
+  autonomy → raise pace → add preference. Evals 2-4 declare
+  `accumulates: true` + `inherits` so the accumulation is a NAMED,
+  DECLARED property (not the silent default the prior framework's E4
+  imposed). Eval 1 starts clean. The cross-mutation interaction (does
+  the Reviewer compose responses correctly under layered substrate
+  change?) is the load-bearing test of this suite.
+
+  IMPORTANT — bounded-mode reads (evals 2-4 post-flip): per ADR-293 D10,
+  until Phase 4 (Substrate-Queue cockpit UI) ships, the Reviewer under
+  bounded mode falls through to Clarify for substrate writes by canon
+  design. A bounded-mode eval that shows "narrate-without-attempt" is
+  reading CANON-CONSISTENT behavior, not a discipline gap (this is the
+  d38130e §3 Obs 3 finding). The read judges whether the Reviewer
+  READS the mutated substrate correctly, not whether it binds a write
+  the pre-Phase-4 system can't yet route.
+
+persona: yarnnn-author
+
+budget:
+  per_session_usd: 6.0          # surfaced as finding if exceeded; not a gate (S6)
+
+evals:
+  # ──────────────────────────────────────────────────────────────────────
+  - eval: counterfactual-mandate-tightening
+    description: |
+      Operator tightens MANDATE.md with a new first-sentence Boundary
+      Condition. Tests whether the Reviewer reads the freshly-mutated
+      MANDATE on the next wake (envelope reassembly per ADR-274) and
+      cites the NEW clause when probed.
+    scenario: scenarios/author-counterfactual-mandate-tightening.yaml
+    requires:
+      - path: /workspace/context/_shared/_autonomy.yaml
+        field: default.delegation
+        equals: autonomous
+      - path: /workspace/context/_shared/MANDATE.md
+        not_contains: "single declarative claim"   # the new clause must NOT pre-exist
+    accumulates: false          # eval 1 of the arc starts clean
+    prior: |
+      A coherent Reviewer reads the mutated MANDATE fresh and cites the
+      new first-sentence clause verbatim, proving envelope reassembly.
+      The interesting failure (cause b §1.2): citing the OLD MANDATE
+      state from a cached memory — the envelope carried the new file
+      but the Reviewer reasoned from a stale narrative.
+
+  # ──────────────────────────────────────────────────────────────────────
+  - eval: counterfactual-autonomy-flip
+    description: |
+      Operator flips _autonomy.yaml delegation autonomous → bounded.
+      Tests whether the Reviewer's next write-attempt respects the
+      bounded gate. Inherits the tightened MANDATE from eval 1.
+    scenario: scenarios/author-counterfactual-autonomy-flip.yaml
+    requires:
+      - path: /workspace/context/_shared/MANDATE.md
+        contains: "single declarative claim"        # eval 1's mutation is present
+    accumulates: true
+    inherits: [counterfactual-mandate-tightening]
+    prior: |
+      A coherent Reviewer reads the flipped _autonomy.yaml and
+      acknowledges bounded mode — EITHER attempting the write and
+      observing the gate, OR explicitly deferring to operator click.
+      NOTE: per ADR-293 D10 pre-Phase-4, fall-through-to-Clarify is
+      canon-consistent; the read judges whether the Reviewer READ the
+      flip (cause a/b distinction), not whether it produced an
+      action_proposal the system can't yet route. A direct WriteFile
+      bypass that ignores the flip = the real gap (cause b).
+
+  # ──────────────────────────────────────────────────────────────────────
+  - eval: counterfactual-pace-raise
+    description: |
+      Operator seeds _pace.yaml at kind:hourly (the file did not exist
+      before — first explicit pace declaration). Tests whether the
+      Reviewer reads the new pace + acknowledges the raised drain budget.
+      Inherits MANDATE-tightened (1) + AUTONOMY=bounded (2).
+    scenario: scenarios/author-counterfactual-pace-raise.yaml
+    requires:
+      - path: /workspace/context/_shared/_autonomy.yaml
+        field: default.delegation
+        equals: bounded                              # eval 2's flip is present
+    accumulates: true
+    inherits: [counterfactual-mandate-tightening, counterfactual-autonomy-flip]
+    prior: |
+      A coherent Reviewer reads the freshly-seeded _pace.yaml and cites
+      kind:hourly + the budget implication (hourly ≈ 24 fires/day vs.
+      implicit daily's 1). The interesting failure (cause b, the
+      c51c44f eval-9 hallucination): claiming "_pace.yaml doesn't exist"
+      while the envelope carries it — reasoning from a cached
+      standing_intent watch-item instead of the fresh envelope field.
+      The d38130e run showed this corrected; this eval re-reads it.
+
+  # ──────────────────────────────────────────────────────────────────────
+  - eval: counterfactual-preferences-add
+    description: |
+      Operator adds a 3rd deliverable preference (revision-audit weekly
+      Fri 22:00) to _preferences.yaml. Tests the full chain: read
+      mutated preferences → detect the new one vs. existing recurrences
+      → respect bounded mode → respect hourly budget. Inherits ALL
+      prior mutations — the strongest cross-mutation read in the suite.
+    scenario: scenarios/author-counterfactual-preferences-add.yaml
+    requires:
+      - path: /workspace/context/_shared/_autonomy.yaml
+        field: default.delegation
+        equals: bounded                              # eval 2's flip
+      - path: /workspace/context/_shared/_pace.yaml
+        field: kind
+        equals: hourly                               # eval 3's raise
+    accumulates: true
+    inherits:
+      - counterfactual-mandate-tightening
+      - counterfactual-autonomy-flip
+      - counterfactual-pace-raise
+    prior: |
+      A coherent Reviewer reads the mutated _preferences.yaml, detects
+      revision-audit as the new (3rd) preference, and — under bounded
+      mode pre-Phase-4 — surfaces the gap via Clarify/standing_intent
+      with the right next action named (a Schedule proposal sized within
+      the hourly budget), rather than binding a write the system can't
+      route. The read judges whether all FOUR substrate reads compose:
+      preferences-detection + autonomy-mode-awareness + pace-budget
+      arithmetic + MANDATE-tightened-context all visible in one coherent
+      response. Missing any one = a partial-read finding (which cause?).
