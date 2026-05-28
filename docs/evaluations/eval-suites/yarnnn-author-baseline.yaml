@@ -10,12 +10,8 @@ description: |
   Together they form one full claim: "Given substrate state S, behavior
   B and posture P should follow."
 
-  Suite composition (11 evals — 1 setup-only counterfactual + 10
-  measurement evals — across all 4 industry-axiomatic eval shapes per
-  EVAL-SUITE-DISCIPLINE.md §1.6):
-
-  Setup eval (added 2026-05-28 for ADR-305 Piece 3):
-    0. apply-principles-rewrite         [counterfactual, setup-only]  — applies Piece 2 bundle rewrite to yarnnn-author before evals 1-10 fire
+  Suite composition (10 evals across all 4 industry-axiomatic eval
+  shapes per EVAL-SUITE-DISCIPLINE.md §1.6):
 
 
   Behavioral evals (1-6 — substrate held, behavior probed):
@@ -51,58 +47,11 @@ persona: yarnnn-author
 
 budget:
   per_eval_usd: 1.0
-  per_session_usd: 10.0                # 11 evals total (1 setup-only + 10 measurement); setup eval is ~$0 (no LLM)
+  per_session_usd: 10.0                # raised from 6.0 — 10 evals not 6
   trace_completeness_floor: 0.8
-  m6_drift_ceiling: 2                  # max M6-DRIFT cells across the 10 measurement evals (raised from 1 — more evals = wider tolerance)
+  m6_drift_ceiling: 2                  # max M6-DRIFT cells across the 10 evals (raised from 1 — more evals = wider tolerance)
 
 evals:
-  # ──────────────────────────────────────────────────────────────────────
-  # ADR-305 PIECE 3 SETUP EVAL (added 2026-05-28) — applies the Piece 2
-  # bundle rewrite of /workspace/review/principles.md + _principles.yaml
-  # to yarnnn-author as a substrate setup step. Evals 1-10 below then run
-  # against the rewritten state per E4 (sessions accumulate substrate).
-  #
-  # Per ADR-305 §8, the suite IS the validation instrument for whether
-  # the rewrite closes the strong-autonomy gap the c51c44f session named.
-  # This eval has no probe turn — it is a pure substrate-state-change
-  # step. expected_dimensions are mostly N/A; the load-bearing measurement
-  # is in evals 1-10 below.
-  # ──────────────────────────────────────────────────────────────────────
-  - eval: apply-principles-rewrite
-    description: |
-      Setup-only eval. Applies the ADR-305 Piece 2 bundle rewrite
-      (commit 83c277b) of principles.md + _principles.yaml to the
-      yarnnn-author workspace before evals 1-10 fire. No probe turn;
-      substrate writes are the only action.
-    scenario: scenarios/author-apply-principles-rewrite.yaml
-    eval_shape: counterfactual          # §1.6.2 — substrate mutated as test variable
-    substrate_inputs:
-      mandate_clause: |
-        N/A — this eval is the substrate mutation itself, not a behavioral
-        probe of a mandate clause. Per ADR-305 D3 + §8 the load-bearing
-        measurement is in evals 1-10 below, against the post-mutation state.
-      autonomy_mode_required: bounded      # inherited from c51c44f session's eval-8 mutation
-      pace_relevant: false
-      wake_source: manual_fire             # no wake fires; setup-only
-      prompt_envelope_files:
-        - principles.md                    # the file being rewritten
-    expected_dimensions:
-      behavior:
-        verdict: stand_down               # N/A — no probe turn, no verdict produced
-        substrate_side_effect: none        # 2 operator-proxy writes; no Reviewer-attributed side-effects
-      posture:
-        cell: M7                          # N/A — no posture observable (no wake)
-        rationale: |
-          No probe turn fires; this eval is the setup write itself. Posture
-          is observed in evals 1-10 against the post-mutation state. Cell
-          declared as M7 for schema completeness; the measurement target
-          is the comparison of evals 1-10's observed cells against the
-          c51c44f baseline.
-      substrate_usage:
-        trace_completeness_min: 0.8       # operator-proxy writes are traceable via revision_id
-      cost:
-        per_eval_usd_max: 0.10            # no LLM cost — pure substrate writes
-
   # ──────────────────────────────────────────────────────────────────────
   - eval: clean-voice-approve
     description: |
