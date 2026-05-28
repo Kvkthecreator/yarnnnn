@@ -1,0 +1,57 @@
+scenario_schema_version: 1
+scenario: author-apply-principles-rewrite
+description: |
+  Setup-only scenario (no turns). Applies the ADR-305 Piece 2 bundle
+  rewrite of /workspace/review/principles.md + _principles.yaml as a
+  substrate setup step against the yarnnn-author workspace. Content
+  loaded from the alpha-author bundle reference-workspace files
+  (single source of truth — no embedded copy in this scenario YAML).
+
+  Purpose (per ADR-305 §8 — the e2e loop is the validation instrument):
+  the yarnnn-author production workspace carries pre-Piece-2 substrate
+  per ADR-209 attribution. To measure whether the partition-discipline
+  rewrite addresses the strong-autonomy gap the c51c44f session named,
+  the suite needs the rewrite present in the workspace before evals 1-10
+  run. This scenario sits as the first eval in the suite (eval-0) and
+  applies the rewrite via operator-proxy substrate writes. The suite
+  then runs evals 1-10 against the rewritten state per E4 (sessions
+  accumulate substrate).
+
+  Substrate written:
+    - /workspace/review/principles.md (from
+      docs/programs/alpha-author/reference-workspace/review/principles.md
+      — 147 lines, four-field-shape rule-set per agent-composition.md §3.2.1)
+    - /workspace/review/_principles.yaml (from
+      docs/programs/alpha-author/reference-workspace/review/_principles.yaml
+      — runtime-contract-only surface: default.high_impact_threshold_cents
+      per ADR-181 routing)
+
+  No turns. The substrate-receipts are the two revision_ids produced by
+  the operator-proxy writes; downstream evals (1-10) inherit the
+  rewritten state when they fire.
+
+persona: yarnnn-author
+
+setup:
+  - write_substrate_from_file:
+      path: /workspace/review/principles.md
+      source: docs/programs/alpha-author/reference-workspace/review/principles.md
+      authored_by: operator-proxy:claude-opus-4-7:acting-as-yarnnn-author
+      message: |
+        ADR-305 Piece 3 setup — apply Piece 2 bundle rewrite of principles.md
+        (commit 83c277b) to yarnnn-author workspace. Measurement against this
+        rewritten state is the Piece 3 validation per ADR-305 §8.
+  - write_substrate_from_file:
+      path: /workspace/review/_principles.yaml
+      source: docs/programs/alpha-author/reference-workspace/review/_principles.yaml
+      authored_by: operator-proxy:claude-opus-4-7:acting-as-yarnnn-author
+      message: |
+        ADR-305 Piece 3 setup — apply Piece 2 bundle rewrite of _principles.yaml
+        (commit 83c277b) to yarnnn-author workspace. Runtime-contract-only
+        surface; rule-level numerics live inline in principles.md per the Piece 2
+        posture.
+
+turns: []
+
+capture:
+  - revision_chain

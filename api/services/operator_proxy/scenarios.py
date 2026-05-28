@@ -28,6 +28,11 @@ Schema (v1):
           authored_by: operator-proxy:scenario-runner:acting-as-<persona>
           content: |
             ...
+      - write_substrate_from_file:           # single-source-of-truth variant:
+          path: <workspace-relative>         # load content from repo-relative file
+          source: <repo-relative path>       # avoids dual-source drift when applying
+          authored_by: ...                   # versioned bundle/template content
+          message: "Optional revision message"
       - seed_draft:                          # convenience: author-shape probe
           slug: <piece-slug>
           template: anti-pattern-voice      # from draft_templates.TEMPLATES
@@ -222,6 +227,49 @@ class ScenarioRunner:
                 "phase": "setup",
                 "action": "write_substrate",
                 "path": path,
+                "authored_by": authored_by,
+                "revision_id": result.get("revision_id"),
+            })
+            return
+
+        if "write_substrate_from_file" in step:
+            # Single-source-of-truth variant of write_substrate: load `content`
+            # from a repo-relative file path instead of embedding it inline in
+            # the scenario YAML. Used when applying a bundle template file (or
+            # any other versioned-in-repo artifact) as a setup step — avoids
+            # the dual-source-of-truth drift hazard of duplicating bundle
+            # content inside a scenario YAML. Added 2026-05-28 for ADR-305
+            # Piece 3 (apply Piece 2's principles.md rewrite as substrate
+            # setup before re-running the full eval suite).
+            #
+            # `source` is resolved as: (a) absolute path as-is, or (b)
+            # repo-relative — parent of the api/ directory where scenarios.py
+            # lives (so paths like `docs/programs/.../principles.md` resolve
+            # regardless of the runner's invocation cwd).
+            sub = step["write_substrate_from_file"]
+            target_path = sub["path"]
+            source_raw = sub["source"]
+            authored_by = sub.get("authored_by") or proxy.config.caller_identity
+            message = sub.get("message") or f"Setup write from {source_raw} for scenario {self.scenario.slug}"
+            source_path = Path(source_raw)
+            if not source_path.is_absolute():
+                # Repo root = parent of api/ (this file is api/services/operator_proxy/scenarios.py
+                # → parents[3] is the repo root).
+                repo_root = Path(__file__).resolve().parents[3]
+                source_path = repo_root / source_raw
+            content = source_path.read_text()
+            result = await _write_substrate_with_author(
+                proxy.config.user_id,
+                target_path,
+                content,
+                authored_by=authored_by,
+                message=message,
+            )
+            self.evaluations.append({
+                "phase": "setup",
+                "action": "write_substrate_from_file",
+                "path": target_path,
+                "source": source_path,
                 "authored_by": authored_by,
                 "revision_id": result.get("revision_id"),
             })
