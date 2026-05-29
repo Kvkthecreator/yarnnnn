@@ -518,6 +518,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
     - filesystem_documents (cascades filesystem_chunks via FK)
     - notifications
     - event_trigger_log (ADR-040 cooldown tracking)
+    - wake_queue (ADR-298 transient wake compute — no auth cascade, purged explicitly)
     - mcp_oauth_codes/access_tokens/refresh_tokens (MCP sessions)
 
     Preserved (L2 invariant):
@@ -539,8 +540,13 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         per ADR-207 are capability bundles bound to platform_connections,
         not agent rows)
       * Reviewer substrate at /workspace/review/ (ADR-194)
-      * _shared/ workspace skeletons (MANDATE, IDENTITY, BRAND, AUTONOMY,
-        PRECEDENT per ADR-206; CONVENTIONS.md is program-scoped, not seeded)
+      * Kernel-universal _shared/ skeletons ONLY (ADR-286 Single-Writer Per
+        Path): PRECEDENT.md + _token_budget.yaml. MANDATE / IDENTITY / BRAND /
+        AUTONOMY / _autonomy.yaml are bundle-owned — written by Phase 5
+        fork_reference_workspace, NOT by the kernel. A no-program reinit
+        therefore lands with those paths ABSENT (honest "unconfigured"
+        semantic); the operator authors them through chat. CONVENTIONS.md is
+        also program-scoped, not seeded.
       * Memory skeletons under /workspace/memory/
       * Workspace narrative session (ADR-219)
       * Bundle re-fork if `active_program_slug` was captured pre-purge (ADR-244 D4)
@@ -603,6 +609,12 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         # are purged via the workspace_files cascade below (user_id scoped delete)
         # Notifications scoped to this user
         deleted["notifications"] = _delete_rows(client, "notifications", user_id, optional=True)
+        # ADR-298 wake queue — transient Reviewer-execution compute. `user_id` is
+        # NOT FK-cascaded to auth.users (RLS service-role-only, transient by design),
+        # so it survives a workspace wipe unless purged explicitly. Stale `pending`
+        # rows would otherwise drain a Reviewer wake against substrate that no
+        # longer exists after reinit.
+        deleted["wake_queue"] = _delete_rows(client, "wake_queue", user_id, optional=True)
         # MCP OAuth tokens — user's active MCP sessions should not survive a workspace clear
         for table in ("mcp_oauth_codes", "mcp_oauth_access_tokens", "mcp_oauth_refresh_tokens"):
             deleted[table] = _delete_rows(client, table, user_id, optional=True)
@@ -747,7 +759,8 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         a reset is a true fresh start.
       - Task / agent state: tasks, agents, agent_runs (cascaded from agents).
       - Interaction: chat_sessions (cascades session_messages), activity_log,
-        notifications, execution_events (ADR-291 cost ledger).
+        notifications, execution_events (ADR-291 cost ledger),
+        wake_queue (ADR-298 transient wake compute — no auth cascade).
       - Integrations: platform_connections, sync_registry, integration_sync_config,
         export_log, destination_delivery_log, event_trigger_log.
       - Uploads: filesystem_documents (cascades filesystem_chunks).
@@ -807,6 +820,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
             "platform_connections",
             "sync_registry",
             "execution_events",           # ADR-291 unified cost ledger
+            "wake_queue",                 # ADR-298 transient wake compute — no auth cascade, must purge explicitly
             "user_admin_flags",           # ADR-194 v2 Phase 2b admin scope
             "user_notification_preferences",
         ]
@@ -879,6 +893,8 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         _null_head_version_pointers(service_client, user_id)
         deleted["workspace_file_versions"] = _delete_rows(service_client, "workspace_file_versions", user_id, optional=True)
         deleted["workspace_files"] = _delete_workspace_files(service_client, user_id)
+        # ADR-298 wake queue has no auth.users FK cascade — wipe before auth delete.
+        deleted["wake_queue"] = _delete_rows(service_client, "wake_queue", user_id, optional=True)
         for table in ("mcp_oauth_codes", "mcp_oauth_access_tokens", "mcp_oauth_refresh_tokens"):
             deleted[table] = _delete_rows(service_client, table, user_id, optional=True)
 
