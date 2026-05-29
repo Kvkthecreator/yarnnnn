@@ -1,6 +1,6 @@
 # ADR-306: Persona-Frame Collapse — The System Prompt Carries Only the Model↔Runtime Interface Contract
 
-**Status**: Proposed (Phases A + B Implemented 2026-05-29; Phases C–F pending — see §Implementation)
+**Status**: **Implemented + validated** 2026-05-29 (Phases A–F all landed; commit `e881a3e` + validation `c60ed86`; falsifiable prediction held on all four dimensions — see §Implementation + the [validation finding](../evaluations/2026-05-29-persona-frame-collapse-VALIDATION.md))
 **Date**: 2026-05-29
 **Deciders**: KVK (operator) + Claude (collaborator)
 **Hat**: A (system canon — real-operator-facing)
@@ -75,10 +75,10 @@ Each phase is a separable commit. The load-bearing risk — autonomy-safety regr
 
 - **Phase A (Implemented 2026-05-29)**: `reviewer_agent.py` persona-frame → `_compute_minimal_frame` (single section, ~3.5K chars). Prompt assembles; action-grammar + anti-confabulation + principal-shift invariants present.
 - **Phase B (Implemented 2026-05-29)**: §3.2.1 + §3.2.2 inverted; alpha-author `principles.md` gains §3.5 (self-amendment + anti-patterns + independence, migrated); both bundles' persona-frame pointers flipped. (alpha-trader principles.md already carried the rules.)
-- **Phase C (pending)**: migrate substrate-pedagogy (cadence/wake-source/pulse/preferences/workbench semantics) into `_workspace_guide.md` (both bundles).
-- **Phase D (pending)**: FOUNDATIONS amendment — the D5 anti-rebloat Derived Principle.
-- **Phase E (pending)**: update stale persona-frame tests (section-presence asserts now wrong) + `api/prompts/CHANGELOG.md` + smoke test.
-- **Phase F (pending)**: commit + push + deploy + full re-validation against alpha-trader (the eval suite + the confabulation wake against the collapsed frame). Keep if the §6 ablation prediction holds; revert Phase A if not.
+- **Phase C (Implemented 2026-05-29)**: substrate-pedagogy (wake envelope, wake-source taxonomy, pulse discipline, cadence-trifecta, serialized cycles, preferences/notifications, standing-intent workbench) migrated into both bundles' `_workspace_guide.md` (~206/208 lines each).
+- **Phase D (Implemented 2026-05-29)**: FOUNDATIONS Derived Principle 22 (the anti-rebloat constraint) + v8.7 header/version-table entry.
+- **Phase E (Implemented 2026-05-29)**: 9 collapse-consequence tests re-pointed to the content's new home (principles.md / workspace-guide / code / minimal-frame contract) — none weakened. Found + hardened a 10th test (`test_adr301::test_persona_frame_pulse_discipline`) that was *false-passing* via an `_ok/_bad`+try/except-ImportError shape. Added a when-to-Clarify rule to both bundles' principles.md (closes the §5-pointer migration gap). `CHANGELOG [2026.05.29.2]`. 2 pre-existing failures (envelope-count drift + Py3.9 union-syntax) left untouched, proven independent.
+- **Phase F (Implemented + PASS 2026-05-29)**: committed as one revertable commit `e881a3e`, pushed, deployed live (`dep-d8cfuv7aqgkc73d4mcjg`, 02:54:50Z). Re-validated via the confabulation wake against the collapsed frame (yarnnn-author / alpha-author program). The prediction below HELD on all four dimensions with full substrate receipts — confabulation absent (real WriteFile attempt → `substrate_write_requires_autonomous` gate → receipt-matching narration), non-assistant posture preserved, autonomy-safety preserved (0 writes/proposals landed), mandate-coherence equal-or-better (cited its own ADR-284 contract). **Collapse KEPT; no revert.** A harness false-empty-capture bug (the prior session's INCONCLUSIVE cause) was diagnosed + fixed in the same validation pass (`c60ed86`). Full receipts: [validation finding](../evaluations/2026-05-29-persona-frame-collapse-VALIDATION.md).
 
 ## The falsifiable prediction (Phase F judges this)
 
