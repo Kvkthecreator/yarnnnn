@@ -198,6 +198,39 @@ A `principles.md` rule that does not fit this shape is mis-placed content — it
 
 ---
 
+#### 3.2.2 The composite prompt-governing substrate + composed-coherence discipline
+
+> **This subsection names a category §3.2.1 does not cover.** §3.2.1 governs *partition* — the boundary between two members of the set so they don't overlap. This subsection governs *composed coherence* — whether the **assembled whole** tells one consistent story about what the Reviewer is and where its agency ends, **consistent with FOUNDATIONS**. Partition is "does each piece stay in its lane?"; composed coherence is "does the lane-respecting whole still hold together against the axioms?" A document set can pass §3.2.1 and fail §3.2.2: every piece in its lane, yet the assembled frame contradicts canon.
+
+**The category.** The Reviewer's runtime behavior is governed not by one document but by a **dispersed set** — the operator's "CLAUDE.md, split intentionally across substrate." It is one auditable category with one owned property (coherence). Its members:
+
+| Member | Authored by | Home | Class |
+|---|---|---|---|
+| `MANDATE.md` | operator | `context/_shared/` | operator-canon (why we exist) |
+| `AUTONOMY.md` + `_autonomy.yaml` | operator | `context/_shared/` | operator-canon (how far decisions bind) |
+| `_pace.yaml` | operator | `context/_shared/` | operator-canon (Trigger budget) |
+| `_preferences.yaml` | operator | `context/_shared/` | operator-canon (deliverable cadence) |
+| `IDENTITY.md` | operator (overwritable) | `review/` | persona (how to reason — character) |
+| `principles.md` (+ `_principles.yaml`) | operator (overwritable) | `review/` | framework (what rules of judgment — §3.2.1) |
+| `PRECEDENT.md` | operator | `context/_shared/` | operator-canon (durable interpretations) |
+| program-specific (e.g. `_voice.md`, `_risk.md`, `_operator_profile.md`) | operator | program domain dirs | operator-canon (domain rules) |
+| persona-frame `_compute_*` sections | **system** (kernel) | `api/agents/reviewer_agent.py` | reasoning posture (how to reason — runtime) |
+
+The last row is load-bearing and easy to forget: the **system-authored persona-frame is a member of the composite set**, assembled into the same effective prompt as the operator-authored documents. A coherence audit that reads only the operator's files misses half the composite.
+
+**The composed-coherence property (what someone must own).** The assembled prompt must not contradict FOUNDATIONS. The two clauses most prone to violation, because they describe *what the Reviewer is and how it acts*:
+
+- **Axiom 2** — the Reviewer is an **Agent** (judgment-bearing); execution machinery is **Orchestration**. The composite must not tell the Reviewer it *is* the executor.
+- **Axiom 1 §4** — the Reviewer **directs**; the runtime **executes**; the **substrate revision is the channel** between them; the next wake reads what this wake wrote. The composite must not tell the Reviewer it performs-and-inline-observes an execution step the architecture routes elsewhere.
+
+**Diagnostic test for composed coherence** (use when editing any member of the set): *Read the assembled frame as one document. Does it tell a single consistent story about (a) what the Reviewer is, (b) how it acts, (c) where its agency ends — and is that story consistent with Axiom 1 §4 + Axiom 2?* If two members imply different action-grammars (one says "you direct," another says "you execute / your hands / write directly"), the composite is incoherent even if each member individually respects §3.2.1's partition. The model will resolve the contradiction toward the more vivid/repeated grammar — usually the wrong one.
+
+**Why this clause exists** (substrate-receipt): the 2026-05-29 finding [`docs/evaluations/2026-05-29-reviewer-action-grammar-framing-gap.md`](../evaluations/2026-05-29-reviewer-action-grammar-framing-gap.md) traced a Reviewer confabulation ("I attempted the write, it was gated, it queued" — with zero substrate-receipt) to exactly this failure: `_compute_voice_and_narration` already said "narrate your **direction**" (coherent), while `_compute_identity_and_purpose` said "the System Agent is your **hands**… Decide. Act." and `_compute_write_authority` said "write **directly**" (executor self-model). Each section passed §3.2.1; the **assembled** frame held two contradictory action-grammars, and the model role-played the executor one against the architecture. The fix reconciled all sections to the directs-not-executes grammar consistent with Axiom 1 §4 + Axiom 2.
+
+**Maintenance rule.** Any edit to a member of the composite set — operator-canon *or* the system-authored persona-frame — must be checked against the composed-coherence diagnostic, not only against §3.2.1's partition diagnostic. The two are complementary gates; passing one does not imply the other. Future ADRs that reshape any composite member **must run the composed-coherence test in the same commit** — the discipline is enforced here, not re-derived.
+
+---
+
 ### 3.3 User-authored domain Agents (instance persona-bearing Agents)
 
 **Purpose**: operator-authored specialists for domain-scoped work (e.g. "competitive-intel researcher", "weekly-report writer"). Zero-to-many per workspace. Dispatched by tasks that name them in their `## Team` section.

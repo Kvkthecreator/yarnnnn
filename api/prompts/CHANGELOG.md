@@ -6,6 +6,58 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.29.1] - reviewer persona-frame: action-grammar = directs-not-executes + anti-confabulation rule
+
+### Decision
+
+Hat-A fix for the framing gap diagnosed in
+`docs/evaluations/2026-05-29-reviewer-action-grammar-framing-gap.md`. The
+Reviewer persona-frame held two contradictory action-grammars: `_compute_
+voice_and_narration` already said "narrate your **direction**" (coherent with
+FOUNDATIONS Axiom 1 §4 + Axiom 2), while `_compute_identity_and_purpose` said
+"the System Agent is your **hands** … Decide. Act." and `_compute_write_
+authority` said "write **directly**" (executor self-model). Each section passed
+the §3.2.1 partition test; the **assembled** frame was incoherent, and the
+model role-played the executor grammar — confabulating "I attempted the write,
+it was gated, it queued" with zero substrate-receipt (validated d38130e
+session, eval-8/9/10).
+
+### Changed
+
+- `api/agents/reviewer_agent.py::_compute_identity_and_purpose` — replaced
+  "the System Agent is your hands / they delegated the doing / Decide. Act."
+  with the directs-not-executes grammar: "a tool call IS your action … you
+  direct; the substrate revision is the channel; the runtime is the hands that
+  execute. Never claim to have done something you only intended." Anti-passivity
+  + capital-EV reasoning preserved (those are canon-correct).
+- `api/agents/reviewer_agent.py::_compute_write_authority` — bounded/manual mode
+  now leads with ACTUAL current behavior (pre-Phase-4: no queue exists; surface
+  a Clarify, do not narrate a queue) instead of leading with the unbuilt Phase-4
+  queue mechanism. Added the **anti-confabulation rule**: "Describe only what
+  your tool calls actually returned … a tidy 'I tried X and the gate caught it'
+  story that no tool call produced is a fabrication, not a report."
+- `_compute_voice_and_narration` — unchanged (already correct; now the rest of
+  the frame matches it).
+
+### Expected behavior change
+
+On bounded/manual-mode wakes where the Reviewer is asked to write substrate, it
+should (a) NOT claim to have attempted a write it didn't call, (b) NOT narrate a
+non-existent queue/gate, (c) either make the WriteFile call and report the real
+tool result, or surface a Clarify naming the edit. On autonomous-mode wakes,
+behavior is unchanged (writes apply; report the result). Confabulation of
+execution outcomes should stop.
+
+### Related
+
+- Diagnosis: `docs/evaluations/2026-05-29-reviewer-action-grammar-framing-gap.md`
+- Canon: FOUNDATIONS Axiom 1 §4 (substrate is the bus; Reviewer directs, System
+  Agent executes) + Axiom 2 (Agent vs Orchestration)
+- New composed-coherence discipline this fix is the first application of:
+  `docs/architecture/agent-composition.md` §3.2.2
+
+---
+
 ## [2026.05.27.3] - tool-surface(yarnnn chat + system infrastructure): ADR-304 generalizes ADR-299 to Slack DM + Notion comment; YARNNN chat honors bundle MANIFEST
 
 ### Decision

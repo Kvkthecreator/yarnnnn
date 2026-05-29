@@ -208,27 +208,44 @@ def test_principles_md_lifecycle_section_names_both_phases():
     )
 
 
-def test_principles_md_bootstrap_active_commissioning_clause():
-    """D2-followup (2026-05-18): principles.md Bootstrap-phase action archetype
-    must declare the active-commissioning clause that closes the MANDATE's
-    "active principal" posture against the persona-frame's "answer is almost
-    always an action" reasoning. Pre-fix, the Reviewer interpreted "scheduler
-    shows no heartbeat" as a reason to wait; post-fix, principles.md
-    explicitly directs FireInvocation when upstream substrate is missing
-    AND the Reviewer would otherwise stand down waiting for it.
+def test_principles_md_bootstrap_active_principal_clause():
+    """D2-followup (2026-05-18), AMENDED 2026-05-29 for ADR-296 v2 D3 supersession.
+
+    The Bootstrap-phase action archetype must close the passive-observation gap
+    (Reviewer interprets "scheduler shows no heartbeat" as a reason to wait) by
+    declaring the active-principal posture. ORIGINAL D2-followup phrased the
+    mechanism as "Commission substrate via FireInvocation" — but ADR-296 v2 D3
+    (2026-05-20) REMOVED FireInvocation from REVIEWER_PRIMITIVES: the Reviewer's
+    authority is over cadence preference + standing intent, NOT over invoking
+    upstream recurrences directly. The original assertion is retired here (it
+    would re-introduce the action-grammar overreach that ADR-296 + the 2026-05-29
+    composite-coherence fix correct — see agent-composition.md §3.2.2). The
+    alpha-trader bundle was already updated to the ADR-296-coherent mechanism;
+    this test now asserts THAT canon.
     """
     src = _read(_bundle("review", "principles.md"))
-    # Positive: active-commissioning clause
-    assert "Commission substrate via FireInvocation when upstream substrate is missing" in src, (
-        "Bootstrap-phase action archetype must declare the active-commissioning "
-        "clause per the active-principal MANDATE posture. The clause closes the "
-        "passive-observation gap surfaced by the 2026-05-18 wake validation."
+    # Positive: active-principal clause, ADR-296-coherent mechanism (cadence +
+    # standing intent, NOT FireInvocation-commissioning).
+    assert "Author cadence + standing intent when upstream substrate is missing" in src, (
+        "Bootstrap-phase action archetype must declare the active-principal "
+        "clause via the ADR-296 v2 D3 mechanism — author cadence + standing "
+        "intent (NOT FireInvocation). The clause closes the passive-observation "
+        "gap while honoring that the Reviewer authors cadence, does not "
+        "commission unit-of-work fires directly."
     )
-    # Positive: anti-pattern callout
+    # Negative: the retired FireInvocation-commissioning mechanism must be ABSENT
+    # (re-introducing it would violate ADR-296 v2 D3 + composite-coherence §3.2.2).
+    assert "Commission substrate via FireInvocation" not in src, (
+        "alpha-trader principles.md must NOT teach FireInvocation-commissioning "
+        "(ADR-296 v2 D3 removed it from Reviewer authority). If this string "
+        "reappears it is a regression to pre-ADR-296 action-grammar overreach."
+    )
+    # Positive: anti-pattern callout (survives — passivity-is-failure is canon,
+    # independent of the retired mechanism).
     assert "Anti-pattern" in src and "passive observation, not judgment" in src, (
         "Principles.md must explicitly name passive-observation-while-substrate-"
-        "is-missing as an anti-pattern. This is the behavior the active-"
-        "commissioning clause corrects."
+        "is-missing as an anti-pattern. This survives ADR-296 — only the "
+        "mechanism (cadence-authoring, not FireInvocation) changed."
     )
 
 
@@ -269,9 +286,10 @@ def main() -> int:
          test_principles_md_lifecycle_section_names_both_phases),
         ("D3: Bootstrap clause section preserved (reorganization not deletion)",
          test_principles_md_bootstrap_clause_preserved),
-        # 2026-05-18 follow-up — active commissioning clause
-        ("D3+: Bootstrap-phase active-commissioning clause",
-         test_principles_md_bootstrap_active_commissioning_clause),
+        # 2026-05-18 follow-up — active-principal clause
+        # (amended 2026-05-29: ADR-296 v2 D3 supersedes FireInvocation mechanism)
+        ("D3+: Bootstrap-phase active-principal clause (ADR-296-coherent)",
+         test_principles_md_bootstrap_active_principal_clause),
     ]
 
     passed = 0

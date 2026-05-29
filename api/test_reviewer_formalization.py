@@ -150,19 +150,18 @@ def test_persona_frame_header_quotes_variant_f() -> None:
 # ---------------------------------------------------------------------------
 
 def test_persona_frame_no_banned_phrases() -> None:
-    """Persona frame must not regress to pre-ADR-296-v2 framing."""
-    path = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
-    content = path.read_text()
+    """Persona frame must not regress to pre-ADR-296-v2 framing.
 
-    # Isolate the persona-frame body so we don't flag intentional
-    # historical-reference comments elsewhere in the file.
-    match = re.search(
-        r'_PERSONA_FRAME\s*=\s*"""\\?\n(.*?)"""',
-        content,
-        re.DOTALL,
+    Post-ADR-302 D6 the frame is assembled from _PERSONA_FRAME_SECTIONS via
+    resolve_persona_frame_sections(), not a monolithic _PERSONA_FRAME
+    constant. Scan the live composed body (the same text that reaches the
+    LLM) rather than a dead regex against a constant that no longer exists.
+    """
+    from agents.reviewer_agent import (
+        _PERSONA_FRAME_SECTIONS,
+        resolve_persona_frame_sections,
     )
-    assert match, "Could not locate _PERSONA_FRAME body for scanning."
-    frame_body = match.group(1)
+    frame_body = resolve_persona_frame_sections(_PERSONA_FRAME_SECTIONS)
 
     leaks: list[str] = []
     for phrase in BANNED_PERSONA_PHRASES:
