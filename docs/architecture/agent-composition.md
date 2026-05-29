@@ -160,41 +160,52 @@ The Reviewer agent does NOT read AUTONOMY.md directly. The dispatcher enforces t
 **The four-field rule shape.** Every rule declared in `principles.md` must have:
 
 1. **Name** — a stable identifier for the rule (e.g. `voice-fingerprint-match`, `anti-slop`, `text-continuity`, `entity-continuity`, `cadence-on-pace`).
-2. **Substrate it reads against** — the file path or signal the rule evaluates (`_voice.md`, `entities/{slug}.md::What's been established`, `_preferences.yaml::cadence` × `_signal.md::last-ship-date`, etc.). A rule with no substrate-anchor is floating; it does not belong here — it belongs in the persona-frame as reasoning posture.
+2. **Substrate it reads against** — the file path or signal the rule evaluates (`_voice.md`, `entities/{slug}.md::What's been established`, `_preferences.yaml::cadence` × `_signal.md::last-ship-date`, etc.). A rule with no substrate-anchor is floating. Note (post-2026-05-29 collapse): "floating" no longer means "move it to the persona-frame" — the frame holds only principal-shift + action-grammar. A floating clause is either a model-runtime-interface concern (→ minimal frame) or substrate pedagogy (→ `_workspace_guide.md`); it is not reasoning-posture-for-the-frame, because that category was retired.
 3. **Pass condition** — what state of that substrate means the rule passes.
 4. **Verdict on fail** — `approve` (the rule isn't load-bearing for this verdict shape) / `defer` (with directive shape — what the operator-facing directive should contain) / `reject` (unconditional) / `propose` (Reviewer must emit an action_proposal).
 
 A `principles.md` rule that does not fit this shape is mis-placed content — it belongs elsewhere per the boundary below.
 
-**What does NOT belong in `principles.md` — bright-line content boundary.** All of the following describe *how the Reviewer reasons*, not *what rules it applies when judging*. They live in `api/agents/reviewer_agent.py` persona-frame `_compute_*` sections — single home, code-local:
+**What belongs in `principles.md` vs. the minimal frame — bright-line content boundary (INVERTED 2026-05-29 by the persona-frame collapse, ADR-306).**
 
-| Concern | Persona-frame home | Belongs in `principles.md`? |
+> **Prior framing (pre-2026-05-29), now superseded**: an earlier version of this boundary placed self-amendment discipline, anti-patterns, the fiduciary principle, the posture taxonomy, cadence-trifecta, wake-context discipline, write-authority, and voice in the persona-frame `_compute_*` sections, treating them all as "reasoning posture" that did NOT belong in principles.md. The persona-frame collapse (`2026-05-29-persona-frame-collapse-ablation.md`) found that most of those are either **rules of judgment** (they fit the four-field shape → they ARE principles.md content) or **substrate pedagogy** (→ `_workspace_guide.md`, ADR-281) or **code-enforced** (→ no prose needed). The system-authored frame collapsed to the MINIMAL two-thing shape below. The boundary is re-stated accordingly.
+
+The system-authored **minimal frame** (`api/agents/reviewer_agent.py::_compute_minimal_frame`, ~3.5K chars) carries ONLY two things — neither of which is the operator's to declare:
+
+| In the minimal frame (system-authored, irreducible) | Why it cannot live in substrate |
+|---|---|
+| **Principal-shift** — "you are installed judgment acting on behalf, not an assistant awaiting instruction" | Corrects the *model's trained assistant prior*. A model reading IDENTITY.md through its assistant prior becomes "a helpful assistant playing the persona." This is a property of installing judgment over an assistant-trained model — not an operator declaration. |
+| **Action-grammar** — tool-call-IS-action + anti-confabulation + read-fresh-not-cached + close-cycle-with-verdict-or-standing-intent | The agent↔runtime interface contract (how tool calls relate to reality), not data the agent reasons over. The cc8e0ab fix, proven load-bearing. |
+
+**Everything else is `principles.md` (rules of judgment) or `_workspace_guide.md` (substrate pedagogy) or code (gates):**
+
+| Concern | Canonical home (post-collapse) | Why |
 |---|---|---|
-| When the Reviewer may amend operator-canon (evidence thresholds for self-edits) | `_compute_self_amendment_discipline` (ADR-295) | **No.** Numeric thresholds per program are config; tune them via `_principles.yaml` (ADR-254) which sits alongside principles.md but is machine-parsed, not prose. The *capability* and its *anti-patterns* are persona-frame. |
-| Anti-patterns — when NOT to amend operator-canon even when capability + AUTONOMY-mode would permit | `_compute_anti_patterns` (ADR-295 D3) | No. |
-| Fiduciary principle + counterweight (active-vs-passive meta-reasoning) | `_compute_self_amendment_discipline` / `_compute_anti_patterns` (ADR-295 D4) | No. |
-| Posture taxonomy (P1 fired-correctly / P2 decided-nothing-material / P3 tried-was-gated / P4 budget-exhausted / P5 confused) | `_compute_standing_intent_contract` (ADR-303 D1) | No. The cycle-exit shape is a runtime concern between Reviewer and dispatcher, not a rule of judgment. |
-| Standing-intent authoring contract ("every cycle authors standing_intent.md") | `_compute_standing_intent_contract` (ADR-284) | No. |
-| Calibration loop (how verdict outcomes feed back over time) | `_compute_self_amendment_discipline` + ADR-195 reconciler task | No. The *loop's existence* is canon; the principles file doesn't re-declare it. |
-| Cadence-trifecta (Pace + Autonomy + Persona dial reading) | `_compute_cadence_trifecta` (ADR-298) | No. |
-| Wake-context discipline (reading wake_source + triggering_path) | `_compute_wake_context_discipline` (ADR-274) | No. |
-| Write authority + locks | `_compute_write_authority` | No. |
-| Voice and narration | `_compute_voice_and_narration` | No. |
-| Workspace-lifecycle phase gates (bootstrap → mature) | `AUTONOMY.md` "Phase progression" section + per-program tuning | No. Phase progression is operator-declared lifecycle policy; if a rule is *gated by phase*, that's a property of the rule's pass condition (#3 above), not a separate philosophy section. |
+| When the Reviewer may amend operator-canon (the four evidence patterns) | **`principles.md`** | A rule of judgment: name (calibration-drift / near-miss / substrate-gap / cadence), substrate-anchor (ground-truth file), pass-condition (threshold met), verdict (amend / defer). Numeric thresholds in `_principles.yaml` (ADR-254). |
+| Anti-patterns — when NOT to amend operator-canon | **`principles.md`** | Rules of judgment (when NOT to act). The autonomy-safety discipline lives here, rendered every wake under "## principles.md". |
+| Fiduciary principle + counterweight | **`principles.md`** | The active-vs-passive judgment rule. |
+| Independence (judgment vs producer-agreement) + reason-before-autonomy-filter + precedent-hierarchy | **`principles.md`** (posture) + **code** (the dispatcher applies AUTONOMY post-verdict regardless of prose) | Independence is a rule of judgment; the AUTONOMY-application mechanism is code-enforced. |
+| When to Clarify vs decide | **`principles.md`** | A rule of judgment. (The anti-enumerate-options sliver — fighting the assistant prior — is the one bit in the minimal frame.) |
+| Posture taxonomy (P1–P5) + standing-intent every-cycle contract | **code** (dispatcher synthesizes P4/P5 fallback) + **minimal frame** (the model-facing rule compresses to "close every cycle with a verdict or a standing_intent write") | The cycle-exit shape is a Reviewer↔dispatcher runtime concern; the dispatcher half is code, the model half is one line in the frame's action-grammar. |
+| Cadence-trifecta / wake-context / pulse-files / preferences semantics | **`_workspace_guide.md`** (ADR-281 substrate pedagogy) + **the envelope's labeled headers** | The model reads `_pace.yaml`/`_autonomy.yaml`/`## Wake context` from the envelope under their own headers; the workspace guide teaches what each is for. The frame does not re-narrate them. |
+| Write authority + locks | **code** (`DEFAULT_REVIEWER_WRITE_LOCKS` + `_is_path_locked_for_reviewer`) | Enforced by the lock-set; the tool result reports a lock. No prose enumeration needed (one sentence in the frame notes locks exist). |
+| Voice and narration | **minimal frame** (action-grammar) | First-person + narrate-your-direction is part of the interface contract. |
+| Calibration loop | **`principles.md`** (the loop's rule) + ADR-195 reconciler (the mechanism) | |
+| Workspace-lifecycle phase gates | **`AUTONOMY.md`** + per-program tuning | Operator-declared lifecycle policy. |
 
 **Conflict-resolution rule.** When two reads disagree on a verdict:
 
-1. `PRECEDENT.md` > `principles.md` — operator-declared durable interpretations override the framework (already at §3.2 substrate table line 97).
-2. Persona-frame > `principles.md` *for reasoning-posture content that drifted into principles*. If `principles.md` carries (e.g.) a self-amendment threshold clause, the persona-frame's `_compute_self_amendment_discipline` is authoritative; the principles clause is mis-placed content scheduled for migration to the appropriate `_compute_*` section.
-3. `AUTONOMY.md` ceiling > `principles.md` *for delegation widening*. Principles can narrow delegation (add defer conditions) but never widen (ADR-217 D4).
+1. `PRECEDENT.md` > `principles.md` — operator-declared durable interpretations override the framework.
+2. **`principles.md` is authoritative for rules of judgment** (including self-amendment evidence-patterns + anti-patterns + independence). The minimal frame does NOT carry these — it carries only principal-shift + action-grammar — so there is no frame-vs-principles conflict on rules of judgment to resolve (the prior framing's "persona-frame > principles for reasoning-posture" rule is retired; the frame no longer holds reasoning-posture content).
+3. `AUTONOMY.md` ceiling > `principles.md` *for delegation widening*. Principles can narrow delegation (add defer conditions) but never widen (ADR-217 D4). The ceiling is code-enforced.
 
-**Bundle-template + per-workspace audit checklist.** Before editing a `docs/programs/{slug}/reference-workspace/review/principles.md` or before forking it into a workspace:
+**Bundle-template + per-workspace audit checklist.** Before editing a `docs/programs/{slug}/reference-workspace/review/principles.md` or forking it:
 
-- Every section in the file declares either (a) a rule with the four-field shape, (b) the conflict-resolution rule, or (c) a brief workspace-lifecycle phase pointer that the rules' pass conditions reference. If a section doesn't fit one of those three, it is mis-placed.
-- Numeric thresholds (e.g. amendment-evidence sample sizes, ceiling categories) live in `_principles.yaml` (ADR-254 machine-parsed sibling). Prose declarations of the *categories* may live in principles.md; the *numbers* per program live in yaml.
-- No section in the file describes "the Reviewer's reasoning posture", "when the Reviewer should be active vs passive", "what the Reviewer should write to standing_intent". Those are persona-frame concerns.
+- Every section declares either (a) a rule with the four-field shape (now INCLUDING the self-amendment evidence-patterns + anti-patterns + independence + fiduciary rules), (b) the conflict-resolution rule, or (c) a brief workspace-lifecycle phase pointer. If it doesn't fit, it's mis-placed.
+- Numeric thresholds live in `_principles.yaml` (ADR-254). Prose category declarations may live in principles.md; the numbers per program live in yaml.
+- No section describes the **principal-shift** or the **action-grammar** — those are the minimal frame's two irreducible things. (This is the inverse of the prior checklist item.)
 
-**Diagnostic test** (use this when uncertain): *If I removed this content from `principles.md`, would the Reviewer still apply the same rules to the same substrate?* If yes (because the content is reasoning-posture and lives in the persona-frame), it doesn't belong here. If no (because the content names a specific rule, its substrate-anchor, and its verdict), it belongs here.
+**Diagnostic test** (use this when uncertain): *Is this content (a) correcting the model's assistant prior, or (b) the agent↔runtime interface contract?* If yes → minimal frame. Otherwise: *does it name a rule with a substrate-anchor + pass-condition + verdict?* If yes → `principles.md`. *Does it teach what a substrate file is for?* → `_workspace_guide.md`. *Is it enforced by a gate?* → code, no prose. The persona-frame is NOT a home for anything that fits the latter three — that is the anti-rebloat constraint (FOUNDATIONS Derived Principle, added by the collapse).
 
 ---
 
@@ -214,9 +225,9 @@ A `principles.md` rule that does not fit this shape is mis-placed content — it
 | `principles.md` (+ `_principles.yaml`) | operator (overwritable) | `review/` | framework (what rules of judgment — §3.2.1) |
 | `PRECEDENT.md` | operator | `context/_shared/` | operator-canon (durable interpretations) |
 | program-specific (e.g. `_voice.md`, `_risk.md`, `_operator_profile.md`) | operator | program domain dirs | operator-canon (domain rules) |
-| persona-frame `_compute_*` sections | **system** (kernel) | `api/agents/reviewer_agent.py` | reasoning posture (how to reason — runtime) |
+| minimal frame `_compute_minimal_frame` | **system** (kernel) | `api/agents/reviewer_agent.py` | the two irreducible things — principal-shift (corrects the model's assistant prior) + action-grammar (agent↔runtime interface contract). NOT reasoning posture (that's principles.md post-2026-05-29 collapse). |
 
-The last row is load-bearing and easy to forget: the **system-authored persona-frame is a member of the composite set**, assembled into the same effective prompt as the operator-authored documents. A coherence audit that reads only the operator's files misses half the composite.
+The last row is load-bearing and easy to forget: the **system-authored minimal frame is a member of the composite set**, assembled into the same effective prompt as the operator-authored documents. A coherence audit that reads only the operator's files misses the frame. Post-collapse the frame carries only principal-shift + action-grammar (~3.5K chars, down from ~36K); the rules of judgment it used to duplicate now live solely in `principles.md` (§3.2.1 inverted boundary).
 
 **The composed-coherence property (what someone must own).** The assembled prompt must not contradict FOUNDATIONS. The two clauses most prone to violation, because they describe *what the Reviewer is and how it acts*:
 

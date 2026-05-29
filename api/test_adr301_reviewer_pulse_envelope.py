@@ -260,27 +260,35 @@ def test_build_user_message_reads_new_keys() -> None:
 # ---------------------------------------------------------------------------
 
 def test_persona_frame_pulse_discipline() -> None:
-    print("\n[9] _PERSONA_FRAME contains 'Pulse Discipline (ADR-301)' section")
-    try:
-        from agents.reviewer_agent import _PERSONA_FRAME
-    except ImportError as e:
-        _bad("_PERSONA_FRAME import", str(e))
-        return
-    if "Pulse Discipline (ADR-301)" in _PERSONA_FRAME:
-        _ok("'Pulse Discipline (ADR-301)' marker in _PERSONA_FRAME")
-    else:
-        _bad(
-            "'Pulse Discipline (ADR-301)' marker",
-            "not found in _PERSONA_FRAME",
+    """Post-ADR-306 collapse: Pulse Discipline is substrate pedagogy (ablation
+    §3 row 8 — `pulse_discipline` DELETE-REDUNDANT) and relocates from the
+    persona frame to `_workspace_guide.md` (ADR-281's home, Phase C). The
+    Reviewer reads the guide every wake; the discipline (read pulse files
+    before reasoning about cadence) is preserved, only its home moved.
+
+    Hardened to a real `assert` (the prior `_ok`/`_bad`+try/except shape
+    false-passed once `_PERSONA_FRAME` was deleted — pytest collected the
+    ImportError branch as a pass).
+    """
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parent.parent
+    for bundle in ("alpha-trader", "alpha-author"):
+        guide = (
+            repo_root
+            / "docs" / "programs" / bundle / "reference-workspace"
+            / "_workspace_guide.md"
+        ).read_text(encoding="utf-8")
+        assert "Pulse Discipline (ADR-301)" in guide, (
+            f"{bundle} _workspace_guide.md must carry the 'Pulse Discipline "
+            "(ADR-301)' section (relocated from the persona frame per ADR-306 D3)"
         )
-    if "_schedule_index.md" in _PERSONA_FRAME:
-        _ok("_PERSONA_FRAME names _schedule_index.md")
-    else:
-        _bad("_PERSONA_FRAME names _schedule_index.md", "not found")
-    if "_recent_execution.md" in _PERSONA_FRAME:
-        _ok("_PERSONA_FRAME names _recent_execution.md")
-    else:
-        _bad("_PERSONA_FRAME names _recent_execution.md", "not found")
+        assert "_schedule_index.md" in guide, (
+            f"{bundle} _workspace_guide.md pulse section must name _schedule_index.md"
+        )
+        assert "_recent_execution.md" in guide, (
+            f"{bundle} _workspace_guide.md pulse section must name _recent_execution.md"
+        )
 
 
 # ---------------------------------------------------------------------------

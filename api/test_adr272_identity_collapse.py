@@ -242,28 +242,34 @@ def test_record_task_run_preserves_activation_arming_on_capability_missing():
 
 
 def test_reviewer_prompt_defaults_to_inline():
-    """ADR-272 Phase 2 follow-up: Reviewer system prompt must explicitly
-    instruct inline-default for non-asset production work. Without this,
-    the Reviewer reaches for DispatchSpecialist(role='designer') when
-    work is analyst/research-shaped — a semantic misroute observed live
-    on 2026-05-14.
+    """ADR-272 inline-default, post-ADR-306 collapse: the inline-default
+    discipline is no longer system prose (ablation §3 row 6: `production_default`
+    is DELETE-REDUNDANT / code-enforced — "the model uses the tools it has").
+    The discipline is now STRUCTURAL: the Reviewer's curated tool surface
+    (`REVIEWER_PRIMITIVES`) carries the inline production tools directly, and
+    `DispatchSpecialist`'s role enum is narrowed to `designer` (asserted by
+    the sibling test_dispatch_specialist_tool_enum_narrowed). The model
+    reaches for inline tools because those are the tools it has; designer
+    dispatch is the one narrow exception encoded in the enum.
     """
-    from agents.reviewer_agent import _PERSONA_FRAME
+    from services.primitives.registry import REVIEWER_PRIMITIVES
+
+    names = {t["name"] for t in REVIEWER_PRIMITIVES}
+
+    # Inline production tools present → inline IS the default by tool surface.
+    for tool in ("WriteFile", "ReadFile", "SearchFiles", "WebSearch", "QueryKnowledge"):
+        assert_true(
+            tool in names,
+            f"REVIEWER_PRIMITIVES must carry inline production tool {tool!r} "
+            "(structural inline-default per ADR-272, replacing the deleted "
+            "production_default prose per ADR-306 D3)",
+        )
+    # DispatchSpecialist is the one escape hatch (designer-only, enforced by
+    # the enum in test_dispatch_specialist_tool_enum_narrowed).
     assert_true(
-        "INLINE execution" in _PERSONA_FRAME or "inline execution" in _PERSONA_FRAME.lower(),
-        "Reviewer prompt explicitly names inline-default discipline",
-    )
-    assert_true(
-        "ADR-272" in _PERSONA_FRAME,
-        "Reviewer prompt cites ADR-272 as the source of the inline-default discipline",
-    )
-    assert_true(
-        "asset rendering" in _PERSONA_FRAME.lower(),
-        "Reviewer prompt names 'asset rendering' as the test for designer dispatch",
-    )
-    assert_true(
-        "designer" in _PERSONA_FRAME,
-        "Reviewer prompt names `designer` as the surviving specialist role",
+        "DispatchSpecialist" in names,
+        "REVIEWER_PRIMITIVES must carry DispatchSpecialist (the narrow "
+        "designer-dispatch exception to inline-default)",
     )
 
 

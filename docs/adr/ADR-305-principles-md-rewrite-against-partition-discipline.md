@@ -1,5 +1,7 @@
 # ADR-305: `principles.md` Rewrite Against Partition Discipline — Methodology for Per-Program Calibration
 
+> **⚠ Amended by ADR-306 (2026-05-29 persona-frame collapse).** This ADR repeatedly names the persona-frame `_compute_self_amendment_discipline` / `_compute_anti_patterns` sections as the authoritative home for the self-amendment evidence-patterns + anti-patterns ("the categories survive in the persona-frame…"). ADR-306 inverted that boundary: those rules-of-judgment now live in `principles.md` (the frame collapsed to principal-shift + action-grammar only). The *methodology* this ADR establishes (per-program calibration; numerics in `_principles.yaml`; the partition diagnostic) survives; only the "authoritative home is the persona-frame" statements are superseded — read them as "authoritative home is principles.md." See ADR-306 + `agent-composition.md` §3.2.1 inverted boundary.
+
 **Status**: Proposed 2026-05-27 — paper-design only, no bundle/code changes until ratified.
 
 **Date**: 2026-05-27

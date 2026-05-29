@@ -275,25 +275,34 @@ def test_persona_frame_references_preferences() -> None:
     The frame should still cite the file + the contract, but it is no
     longer the *vehicle* for delivery — pre-load is.
     """
-    from agents.reviewer_agent import _PERSONA_FRAME
+    # Post-ADR-306 collapse: preferences semantics is substrate pedagogy
+    # (ablation §3 row 10) and relocates from the persona frame to
+    # `_workspace_guide.md` (ADR-281's home, Phase C). The Reviewer reads the
+    # guide every wake; the preference-reconciliation contract is preserved,
+    # only its home moved from system prose to bundle substrate.
+    import re
+    from pathlib import Path
 
+    repo_root = Path(__file__).resolve().parent.parent
     needles = [
         "_preferences.yaml",       # named as the substrate
-        "pre-loaded",              # frame names the structural delivery mechanism
+        "pre-loaded",              # the structural delivery mechanism
         "active: true",            # the active-flag contract
         "Schedule",                # the primitive to call
         "Bundles ship",            # the bundle-vs-Reviewer split
     ]
-    # Case-insensitive
-    lower = _PERSONA_FRAME.lower()
-    missing = []
-    for n in needles:
-        if n.lower() not in lower:
-            missing.append(n)
-    if not missing:
-        _ok("persona frame names _preferences.yaml as pre-loaded + Schedule contract (refined to ~10 lines)")
-    else:
-        _bad("persona frame ADR-275 section", f"missing markers: {missing}")
+    for bundle in ("alpha-trader", "alpha-author"):
+        raw = (
+            repo_root
+            / "docs" / "programs" / bundle / "reference-workspace"
+            / "_workspace_guide.md"
+        ).read_text(encoding="utf-8")
+        guide = re.sub(r"\s+", " ", raw).lower()
+        missing = [n for n in needles if n.lower() not in guide]
+        assert not missing, (
+            f"{bundle} _workspace_guide.md preferences section missing markers "
+            f"(relocated from persona frame per ADR-306 D3): {missing}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -301,32 +310,26 @@ def test_persona_frame_references_preferences() -> None:
 # ---------------------------------------------------------------------------
 
 def test_persona_frame_first_wake_guardrail_updated() -> None:
-    from agents.reviewer_agent import _PERSONA_FRAME
+    """Negative invariant, post-ADR-306 collapse: the minimal frame must not
+    carry the stale ADR-274 'scaffold cadence is in place' guardrail nor the
+    verbose run-1 first-wake narrative. Both are trivially absent post-collapse
+    (the frame is ~3.5K of principal-shift + action-grammar only). Asserted by
+    source-text inspection since `_PERSONA_FRAME` no longer exists.
+    """
+    from pathlib import Path
 
-    # ADR-274's old "scaffold cadence is in place" guardrail must be gone
-    # (post-ADR-275 there is no scaffold judgment cadence to observe).
-    if "scaffold cadence is in place" not in _PERSONA_FRAME:
-        _ok("legacy ADR-274 'scaffold cadence is in place' phrasing removed")
-    else:
-        _bad(
-            "persona frame first-wake guardrail",
-            "still contains contradictory 'scaffold cadence is in place'",
-        )
+    src = (
+        Path(__file__).resolve().parent / "agents" / "reviewer_agent.py"
+    ).read_text(encoding="utf-8")
 
-    # ADR-275-refinement: the long narrative "first-wake bootstrap" /
-    # "ADR-275 in plain terms" paragraphs are collapsed. The persona
-    # frame is no longer the *vehicle* for telling the Reviewer about
-    # _preferences.yaml — pre-loading is. So phrases like "First wake
-    # after workspace activation: there is no scaffold judgment cadence"
-    # from the run-1 verbose version should NOT be there.
-    long_run1_phrase = "First wake after workspace activation"
-    if long_run1_phrase not in _PERSONA_FRAME:
-        _ok("verbose run-1 first-wake narrative collapsed (delivery via pre-load, not prose)")
-    else:
-        _bad(
-            "persona frame collapse",
-            "still contains verbose run-1 'First wake after workspace activation' narrative",
-        )
+    assert "scaffold cadence is in place" not in src, (
+        "Minimal frame must not contain the contradictory ADR-274 'scaffold "
+        "cadence is in place' phrasing"
+    )
+    assert "First wake after workspace activation" not in src, (
+        "Minimal frame must not contain the verbose run-1 'First wake after "
+        "workspace activation' narrative (collapsed per ADR-306)"
+    )
 
 
 # ---------------------------------------------------------------------------

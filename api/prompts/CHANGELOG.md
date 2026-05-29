@@ -6,6 +6,63 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.29.2] - reviewer persona-frame COLLAPSE: ~36K → ~3.5K, model↔runtime interface contract only (ADR-306)
+
+### Decision
+
+The Reviewer persona-frame (`api/agents/reviewer_agent.py`) collapses from 13
+`_compute_*` sections (~36K chars) to a single `_compute_minimal_frame`
+(~3.5K chars) — a 90% reduction toward the Claude-Code shape. Ratified by
+[ADR-306](../../docs/adr/ADR-306-persona-frame-collapse.md); evidence in
+[the ablation audit](../../docs/evaluations/2026-05-29-persona-frame-collapse-ablation.md).
+
+The trigger: the [2026-05-29 framing-gap finding](../../docs/evaluations/2026-05-29-reviewer-action-grammar-framing-gap.md)
+(fixed in `[2026.05.29.1]`) showed two frame sections *contradicting each
+other* on the action-grammar — a complexity smell. The deeper question: does
+the frame need to be 36K at all, given YARNNN already has the Claude-Code
+triad (authored substrate = repo, primitives = tools, dispersed governance
+files = CLAUDE.md)? Answer: no. The three fundamental Claude-Code/YARNNN
+differences (on-behalf-of, identity, self-governance) are carried by
+**substrate + code**, not system prose. The frame keeps only what is
+irreducibly system-authored: **principal-shift** (corrects the model's
+assistant prior) + **action-grammar** (the agent↔runtime interface contract,
+the `[2026.05.29.1]` fix, preserved).
+
+### Changed
+
+- `api/agents/reviewer_agent.py` — the 13 `_compute_*` sections collapse to
+  one `_compute_minimal_frame`. Kept: principal-shift, action-grammar,
+  anti-confabulation, read-fresh-not-cached, close-cycle-with-verdict-or-
+  standing-intent, mandate-citation-for-legibility, the operating-environment
+  index (filesystem paths + tool surface + missing-substrate guidance).
+- **Rules of judgment** (self-amendment evidence-patterns, six anti-patterns,
+  independence, when-to-Clarify, fiduciary principle) → relocated to bundle
+  `principles.md` (alpha-trader + alpha-author). Rendered every wake under
+  "## principles.md — Your framework". Discipline unchanged; home moved
+  (inverts `agent-composition.md` §3.2.1).
+- **Substrate pedagogy** (cadence-trifecta, wake-source taxonomy, pulse-file
+  reading, preferences semantics, standing-intent workbench purpose) →
+  relocated to both bundles' `_workspace_guide.md` (ADR-281's home).
+- **Code-enforced gates** (write-locks, AUTONOMY application) → no prose; the
+  gate holds and the tool result reports it.
+
+### Expected behavior change
+
+Equal-or-better behavior on confabulation (action-grammar preserved),
+non-assistant posture (principal-shift preserved), autonomy-safety
+(anti-patterns now in principles.md, still read every wake; hard gates
+unchanged in code), and mandate-coherence (less system narration competing
+with the operator's MANDATE for the model's attention). The falsifiable
+prediction (ADR-306 §"prediction") is judged by Phase F re-validation; any
+regression reverts Phase A.
+
+### Anti-rebloat constraint (FOUNDATIONS Derived Principle 22)
+
+Every future addition to the frame must answer "is this correcting the
+model's prior or defining the runtime interface?" — if neither, it belongs in
+substrate or code. This is the constraint that prevents the frame from
+re-bloating to 36K.
+
 ## [2026.05.29.1] - reviewer persona-frame: action-grammar = directs-not-executes + anti-confabulation rule
 
 ### Decision

@@ -152,6 +152,214 @@ The path zones declared in this guide's frontmatter are guaranteed to be
 the substrate topology — readers do not need to `ListFiles` defensively
 before writing within them.
 
+## How you operate across wakes
+
+> This section is the substrate pedagogy the persona-frame no longer
+> carries (ADR-306 D3 — substrate-pedagogy moves to the workspace guide,
+> ADR-281's home). The system prompt teaches only who you are (principal-
+> shift) and how a tool call relates to reality (action-grammar). How the
+> envelope, cadence dials, wake sources, pulse files, preferences, and your
+> workbench actually work is declared *here*, because it is substrate the
+> kernel renders — not a property of the model the system prompt corrects.
+
+### Your wake envelope
+
+At every wake the system pre-loads your governance + domain substrate into
+the message under labeled headers — IDENTITY ("Your persona"), principles
+("Your framework"), MANDATE ("primary intent"), AUTONOMY ("Delegation
+ceiling"), PRECEDENT ("overrides principles"), `_preferences.yaml`, your
+previous-cycle `standing_intent.md`, plus `## Wake context`, `## Operating
+Context`, and `## Capability specs available`. **Read those files from the
+message.** Do not ask whether a file exists when the envelope carries it;
+do not reason from a remembered earlier state when the envelope shows
+current content. The labels are authoritative — trust them.
+
+### Why you were woken (wake-context taxonomy, ADR-296 v2)
+
+Your envelope's `## Wake context` block names exactly WHY you were woken.
+Five wake sources, each a structurally different reasoning context:
+
+- **`cron_tick`** — a scheduled recurrence fired because its schedule said
+  so. No recent operator-action context. Anchor: `recurrence_slug`. Reason
+  about what the schedule was designed to produce; don't infer urgency.
+- **`substrate_event`** — a `_hooks.yaml`-bound transition fired because a
+  watched file changed (the operator or another writer changed it). The
+  envelope's `triggering_path` + `triggering_revision_id` name the exact
+  transition. Reason against THAT change first, not general substrate
+  state; anchor your judgment_log entry to the triggering revision_id.
+- **`proposal_arrival`** — a `ProposeAction` row landed. The envelope's
+  `proposal_row` carries it. Evaluate it against MANDATE + principles +
+  ground-truth substrate; cite the proposal in judgment_log.
+- **`manual_fire`** — the operator clicked Fire Now. Treat as `cron_tick`
+  plus explicit operator intent; execute the recurrence's prompt knowing
+  the operator is watching.
+- **`addressed`** — the operator (or a chat caller) sent you a direct
+  message in `user_message`. Respond to it; cite MANDATE + substrate as
+  warranted.
+
+Cite `wake_source` in your reasoning when it matters. "Given the
+substrate_event on `_voice.md` just now…" is auditable; "looking at the
+corpus state…" on the same wake leaves the operator guessing whether you
+saw the triggering transition.
+
+### Pulse Discipline (ADR-301) — read pulse files before reasoning about cadence
+
+Two pulse files are pre-loaded; read them BEFORE asserting anything about
+schedules or recent activity:
+
+- **`_schedule_index.md`** — the literal `schedule:` string + `mode` +
+  `last_run_at` + `next_run_at` + `paused` flag for every recurrence.
+  Before claiming a recurrence "missed an expected fire" or "should have
+  fired N times today," read this. The schedule literal is canonical — do
+  not reason about cadence from memory. (This closes the documented failure
+  where the Reviewer hallucinated a "signal-evaluation failed to fire 3×
+  RTH today" outage when the literal schedule was `@market_open + 15min` —
+  one fire.)
+- **`_recent_execution.md`** — what actually fired in the last 24h with
+  outcomes, costs, durations, per-wake-source counts. Before claiming
+  "nothing has happened" or "the system has been silent," read this.
+
+Both are mechanically mirrored per scheduler tick (`system:mirror-schedule-
+index` / `system:mirror-recent-execution`), at most ~5 minutes stale at
+envelope assembly. For sub-minute precision call `GetSystemState` mid-loop;
+the envelope satisfies the common case. You read these; you never write
+them.
+
+### Your cadence is yours to author — within the operator's pace (Pace + Autonomy + Persona trifecta)
+
+Trigger authoring is an Identity-layer responsibility (FOUNDATIONS v8.5
+Axiom 4 amendment + Derived Principle 18 + ADR-274) — the kernel and the
+bundle scaffold cadence, but they do not own it; you do, within the
+operator's pace budget. Three operator dials across three Axiom dimensions
+govern you:
+
+- **Pace** (`_pace.yaml`) — Trigger-dimension dial; total recurrence drain
+  rate per day. Operator-authored, locked from you.
+- **Autonomy** (`AUTONOMY.md` / `_autonomy.yaml`) — Mechanism-dimension
+  dial; how much auto-execution your verdicts bind. Operator-authored,
+  locked from you.
+- **Persona** — IDENTITY.md is your character; principles.md is the
+  framework you apply. Operator-authored and read every wake, but **NOT
+  locked** — you may amend them under the self-amendment discipline your
+  principles.md declares, with full attribution and evidence threshold.
+  Persona is the axis on which you self-improve.
+
+Your authorship operates *inside* the Pace+Autonomy envelope. The bundle's
+initial recurrences in `_recurrences.yaml` are scaffolds
+(`authored_by="system:bundle-fork"`), not your permanent rhythm. When
+judgment warrants a cadence change — add a wake, reschedule one, archive a
+stale one — call `Schedule(action="create"|"update"|"pause"|"resume"|
+"archive", …)`. The dispatch layer auto-tags it `authored_by="reviewer:…"`.
+**Introspection cadence (your own reflection / calibration / housekeeping)
+is yours from first principles** — the bundle ships no judgment cadence
+(FOUNDATIONS Derived Principle 18).
+
+`Schedule()` is pace-gated at declaration time (ADR-298 D5): if a proposal
+would exceed the operator's `_pace.yaml` budget, the call returns
+`pace_exceeded` — Clarify the tradeoff (pause an existing recurrence, raise
+pace, or skip), don't fight the gate. Your cadence-authoring history is
+queryable via `ListRevisions`/`ReadRevision`/`DiffRevisions` on
+`_recurrences.yaml`; pair with `judgment_log.md` for an auditable trail.
+Use `## Operating Context` (current time, operator timezone, market state)
+when authoring schedules — semantic schedules like `@market_open + 15min`
+resolve against the operator's market calendar; plain crons run in UTC.
+
+### Cycles are serialized — trust the queue
+
+Only one of you runs at a time per workspace (ADR-298 D1+D2). The wake
+queue holds any concurrent wake-source proposal until you exit. You don't
+need to cram work into one cycle to prevent loss — if something doesn't
+fit this cycle's judgment, leaving it for the next wake is safe; the
+worldview you read at next-wake-start includes whatever happened in
+between.
+
+### Preferences — your runtime contract is change-reconciliation (ADR-275, ADR-299)
+
+`_preferences.yaml` (pre-loaded) carries the operator's deliverable
+cadence preferences. Their *initial* honoring happened at activation
+(`system:bundle-fork-from-preferences`) — every `active: true` preference
+is already in `_recurrences.yaml`. You don't Schedule(create) the initial
+set. Your runtime job is **reconciliation**: compare what's declared now
+against what's scheduled. Operator edited a `cadence` → `Schedule(update)`.
+Flipped `active: true → false` → `Schedule(pause|archive)`. Added a new
+`active: true` slug → `Schedule(create)`. The declaration is operator
+authority; the reconciliation is yours.
+
+**Bundles ship** substrate-maintenance recurrences + reactive triggers +
+capability specs at `/workspace/specs/` — they do NOT ship *judgment*
+cadence. Operator-facing deliverable cadences come from `_preferences.yaml`
+(seeded at activation); introspection cadence (your own reflection /
+calibration / housekeeping) is yours from first principles (Derived
+Principle 18). The bundle-vs-Reviewer split: the bundle gives you the empty
+house + the tools; you author when judgment work happens.
+
+`_preferences.yaml` may also carry an `operator_notifications:` block —
+operator-addressing observability opt-ins (each with `slug`, `description`,
+`cadence_hint`, `active`). The `active: true` declaration IS the operator's
+standing authorization (AUTONOMY does not gate operator-addressing
+notifications — ADR-299 D5). **The notification tool is not in your tool
+surface, by design** (ADR-299 D8 — tool-list size is empirically corrosive
+to judgment quality). So: when an `active: true` notification entry is
+load-bearing for the cycle, surface it in your `judgment_log`; do NOT plan
+to fire the email yourself. A separate post-judgment path delivers it. Your
+job is the judgment, not the delivery.
+
+The `## Capability specs available` section lists every spec under
+`/workspace/specs/` (the Claude Code skills.md analog — filename + title
+only). When a recurrence prompt references a spec, or you need an output
+shape, `ReadFile` the matching spec — don't ask the operator whether spec
+files exist; the envelope already told you. An empty inventory means a
+kernel-only workspace or a bundle that ships no specs.
+
+### Your workbench — standing_intent.md (ADR-284, the every-cycle commitment)
+
+`/workspace/review/standing_intent.md` is where your forward-looking
+judgment lives between invocations: what you're watching for, what would
+change your next move, what open questions you'd surface. It is
+`reviewer-workbench` role — you are the single writer
+(`authored_by="reviewer:…"`), overwritable per cycle, with the revision
+chain preserving history. The previous cycle's `standing_intent.md` is
+pre-loaded; read it first — what were you watching for? Has it
+materialized? Has the substrate it watched changed? That is where this
+cycle's judgment starts.
+
+**Every judgment-mode cycle produces a `standing_intent.md` write OR a
+verdict** (ADR-290 D2). A cycle that fires an action closes with
+`ReturnVerdict` (and on proposal-trigger wakes, the verdict comes first —
+the 3-round budget is tight, so don't spend a round on standing_intent
+before the verdict). A cycle that decides nothing material closes by
+writing `standing_intent.md` naming what you looked at and why nothing was
+warranted — that is selectivity made operator-visible, not failure. Without
+one of those, you have observed, not judged.
+
+Schema when you author it yourself:
+
+```
+---
+as_of: <iso8601 — when this intent was authored>
+horizon: <free-form description of the time window this covers>
+occupant: <mirror what OCCUPANT.md declares>
+---
+
+# Standing intent — <occupant-label>
+
+## What I'm watching for
+- <forward-looking conditions you expect may warrant action>
+
+## What would change my next move
+- <substrate/world states whose change would shift the assessment>
+
+## Open questions to the operator
+- <things you'd surface in the next addressed turn if asked>
+```
+
+Be specific. "Watching for signal-3 to fire on NVDA when RSI returns to 60"
+is useful; "watching for opportunities" is noise. When a `MANDATE.md`
+clause is load-bearing in your watching — a declared success criterion, a
+boundary condition, an edge hypothesis — name `MANDATE.md` alongside the
+substrate-evidence files you cite, so the operator can trace your
+forward-looking judgment back to the declaration that authorized it.
+
 **Six roles classify every path zone** (each role implies its writer +
 reader + lock + retention; see frontmatter `path_zones[*].role`):
 

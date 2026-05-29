@@ -60,24 +60,42 @@ def test_kernel_persona_frame_no_signal_fired_bullet():
 
 
 def test_kernel_persona_frame_clarify_rare_universal_bullets_preserved():
-    """D1 invariant preservation: the universal bullets in the Clarify-rare
-    list (data stale, track record thin, unsure-between-two-actions) must
-    remain. Only the bundle-specific 'signal hasn't fired' bullet was deleted.
+    """Post-ADR-306 collapse: the when-to-Clarify universal bullets (data
+    stale, track record thin, unsure-between-two-actions) are a *rule of
+    judgment* and relocate from the persona-frame to `principles.md` (both
+    bundles), per `agent-composition.md` §3.2.1 inverted boundary. The
+    reasoning shapes are preserved — only their home moved from system prose
+    to operator/bundle substrate (rendered every wake under "## principles.md
+    — Your framework").
+
+    The frame keeps only the compressed action-grammar line ("Close every
+    cycle with a verdict or a standing_intent write"); the discipline that
+    governs *when to Clarify rather than decide* now lives in principles.md.
     """
-    src = _read(_file("agents", "reviewer_agent.py"))
-    # Positive assertions — universal reasoning shapes preserved
-    assert "data is stale" in src, (
-        "'data is stale' bullet must remain in Clarify-rare list "
-        "(universal Identity-layer reasoning shape)."
-    )
-    assert "track record is thin" in src, (
-        "'track record is thin' bullet must remain in Clarify-rare list "
-        "(universal Identity-layer reasoning shape)."
-    )
-    assert "unsure between two reasonable actions" in src, (
-        "'unsure between two reasonable actions' bullet must remain "
-        "in Clarify-rare list (universal Identity-layer reasoning shape)."
-    )
+    bundles = {
+        "alpha-trader": _bundle("review", "principles.md"),
+        # alpha-author lives under a sibling bundle dir; resolve from repo root
+        "alpha-author": REPO_ROOT.joinpath(
+            "docs", "programs", "alpha-author", "reference-workspace",
+            "review", "principles.md",
+        ),
+    }
+    for name, path in bundles.items():
+        src = _read(path).lower()
+        assert "data is stale" in src, (
+            f"{name} principles.md must carry the 'data is stale' Clarify-rare "
+            "trigger (universal reasoning shape relocated from the persona "
+            "frame per ADR-306)."
+        )
+        assert "track record is thin" in src, (
+            f"{name} principles.md must carry the 'track record is thin' "
+            "Clarify-rare trigger (relocated from the persona frame per ADR-306)."
+        )
+        assert "unsure between two reasonable actions" in src, (
+            f"{name} principles.md must carry the 'unsure between two "
+            "reasonable actions' Clarify-rare trigger (relocated from the "
+            "persona frame per ADR-306)."
+        )
 
 
 # -----------------------------------------------------------------------------
@@ -85,22 +103,44 @@ def test_kernel_persona_frame_clarify_rare_universal_bullets_preserved():
 # -----------------------------------------------------------------------------
 
 def test_kernel_persona_frame_carries_standing_intent_contract():
-    """D2 positive: the canonical declaration of the every-cycle standing-intent
-    write contract must live in the kernel persona frame. The kernel is the
-    sole authoritative declaration site per ADR-290 D2.
+    """D2 positive, post-ADR-306 collapse: the canonical declaration of the
+    standing-intent substrate-home + every-cycle write contract is substrate
+    pedagogy and relocates from the persona frame to `_workspace_guide.md`
+    (ADR-281's home, Phase C). Single-instance is preserved — the verbose
+    contract has exactly ONE home (the guide), the negative tests below still
+    enforce zero restatement in IDENTITY.md / principles.md / recurrences.yaml.
+
+    The frame retains only the compressed action-grammar line ("Close every
+    cycle with a verdict or a standing_intent write") — the runtime-interface
+    residue, not the substrate pedagogy.
     """
+    guides = {
+        "alpha-trader": REPO_ROOT.joinpath(
+            "docs", "programs", "alpha-trader", "reference-workspace",
+            "_workspace_guide.md",
+        ),
+        "alpha-author": REPO_ROOT.joinpath(
+            "docs", "programs", "alpha-author", "reference-workspace",
+            "_workspace_guide.md",
+        ),
+    }
+    for name, path in guides.items():
+        guide = _read(path)
+        assert "is where your forward-looking" in guide, (
+            f"{name} _workspace_guide.md must carry the standing-intent "
+            "substrate-home declaration (relocated from the persona frame "
+            "per ADR-306 D3 — substrate pedagogy lives in the workspace guide)."
+        )
+        assert "Every judgment-mode cycle produces a `standing_intent.md` write" in guide, (
+            f"{name} _workspace_guide.md must carry the every-judgment-mode-"
+            "cycle commitment (relocated from the persona frame per ADR-306)."
+        )
+    # The frame keeps only the compressed close-cycle action-grammar line.
     src = _read(_file("agents", "reviewer_agent.py"))
-    # The kernel persona frame's "Your standing intent has a substrate home"
-    # section + the four-section schema must be present.
-    assert "Your standing intent has a substrate home" in src, (
-        "Kernel persona frame must carry the canonical 'Your standing "
-        "intent has a substrate home' declaration (ADR-290 D2 — single-"
-        "instance authoritative source)."
-    )
-    # The every-judgment-mode-cycle commitment statement
-    assert "Every judgment-mode cycle produces a standing_intent.md write" in src, (
-        "Kernel persona frame must carry the every-judgment-mode-cycle "
-        "commitment statement (ADR-290 D2)."
+    assert "Close every cycle with a verdict or a standing_intent write" in src, (
+        "Minimal frame must retain the compressed close-cycle action-grammar "
+        "line (the runtime-interface residue of the standing-intent contract, "
+        "ADR-306 D2)."
     )
 
 

@@ -128,25 +128,60 @@ def test_envelope_docstring_documents_new_entries() -> None:
 # -----------------------------------------------------------------------------
 
 def test_persona_frame_includes_standing_intent_section() -> None:
+    """Post-ADR-306 collapse: the verbose 'standing intent has a substrate
+    home' SECTION is substrate pedagogy and relocates to `_workspace_guide.md`
+    (ADR-281's home). The minimal frame still NAMES standing_intent.md as the
+    close-cycle channel (action-grammar) and cites ADR-284's substrate file —
+    but the pedagogy of what the file is for lives in the guide.
+
+    ADR-284 D5 ("standing intent has a substrate home") is preserved and
+    sharpened: the home is the file + the guide teaches its purpose.
+    """
+    # Frame still names the file (action-grammar close-cycle channel) + cites ADR-284.
     src = _read_api("agents/reviewer_agent.py")
-    assert "Your standing intent has a substrate home" in src, (
-        "_PERSONA_FRAME must include the 'standing intent has a substrate "
-        "home' section per ADR-284 D5"
-    )
     assert "standing_intent.md" in src, (
-        "_PERSONA_FRAME must name standing_intent.md as the canonical file"
+        "Minimal frame must still name standing_intent.md as the close-cycle "
+        "channel (action-grammar residue per ADR-306 D2)"
     )
     assert "ADR-284" in src, (
-        "_PERSONA_FRAME standing-intent section must cite ADR-284"
+        "Minimal frame must still cite ADR-284 (standing_intent substrate home)"
     )
+    # The substrate-home pedagogy lives in the workspace guides (both bundles).
+    for bundle in ("alpha-trader", "alpha-author"):
+        guide = _read_repo(
+            f"docs/programs/{bundle}/reference-workspace/_workspace_guide.md"
+        )
+        assert "is where your forward-looking" in guide, (
+            f"{bundle} _workspace_guide.md must carry the standing-intent "
+            "substrate-home pedagogy (relocated from the persona frame per "
+            "ADR-306 D3 + ADR-284 D5)"
+        )
+        assert "ADR-284" in guide, (
+            f"{bundle} _workspace_guide.md standing-intent section must cite ADR-284"
+        )
 
 
 def test_persona_frame_enforces_every_cycle_write_contract() -> None:
+    """Post-ADR-306 collapse: the verbose every-cycle write contract relocates
+    to `_workspace_guide.md` (substrate pedagogy). The frame keeps only the
+    compressed action-grammar line. Single-instance preserved.
+    """
+    # Frame keeps the compressed action-grammar close-cycle line.
     src = _read_api("agents/reviewer_agent.py")
-    assert "Every judgment-mode cycle produces a standing_intent.md write" in src, (
-        "_PERSONA_FRAME must declare the every-cycle write contract — including "
-        "no-fire cycles (per ADR-284 D2 + D5)"
+    assert "Close every cycle with a verdict or a standing_intent write" in src, (
+        "Minimal frame must retain the compressed close-cycle action-grammar "
+        "line (ADR-306 D2)"
     )
+    # The verbose every-cycle commitment lives in the workspace guides.
+    for bundle in ("alpha-trader", "alpha-author"):
+        guide = _read_repo(
+            f"docs/programs/{bundle}/reference-workspace/_workspace_guide.md"
+        )
+        assert "Every judgment-mode cycle produces a `standing_intent.md` write" in guide, (
+            f"{bundle} _workspace_guide.md must declare the every-cycle write "
+            "contract including no-fire cycles (relocated per ADR-306 D3, "
+            "ADR-284 D2 + D5)"
+        )
 
 
 def test_build_user_message_renders_occupant_envelope_key() -> None:

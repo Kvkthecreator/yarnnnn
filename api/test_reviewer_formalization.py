@@ -282,131 +282,71 @@ def test_persona_frame_instructs_mandate_citation() -> None:
     )
 
 
-def test_persona_frame_names_pace_and_queue() -> None:
-    """Persona frame must surface the operator's Pace dial + queue-serialized model."""
-    path = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
-    content = path.read_text()
-    assert "_pace.yaml" in content, (
-        "_PERSONA_FRAME does not name _pace.yaml. Pace is the operator's "
-        "Trigger-dimension dial (ADR-298 D11) and is locked from "
-        "Reviewer writes — the Reviewer needs to know."
-    )
-    assert "Cycles are serialized" in content or "single-lane" in content, (
-        "_PERSONA_FRAME does not name the single-lane queue-serialized "
-        "model (ADR-298 D1+D2). The Reviewer's cram-vs-leave-for-next-"
-        "cycle reasoning depends on knowing the queue holds concurrent "
-        "wakes safely."
-    )
-    assert "Pace + Autonomy + Persona" in content, (
-        "_PERSONA_FRAME does not name the operator-control trifecta "
-        "(Pace + Autonomy + Persona). Variant F's claim #6 depends on "
-        "the Reviewer understanding which dials the operator turns."
-    )
+def test_persona_frame_names_what_it_is() -> None:
+    """The minimal frame must carry the Variant-F 'what you are' identity line +
+    the pace/autonomy dial vocabulary (single-lane, paced).
 
-
-def test_persona_frame_operator_addressing_system_infrastructure_prose() -> None:
-    """Persona frame must teach the operator-addressing system infrastructure
-    framing for platform_email_send_to_operator (ADR-299 D8, second-pass
-    rewrite 2026-05-27).
-
-    Three assertions:
-      1. The OBSOLETE wire-gate-detection prose from the original Phase 3
-         (commit 0248b56) must NOT survive. The clause taught the Reviewer
-         to note substrate-vs-wire drift when the tool was absent from its
-         surface; under the system Resend wire there is no wire-gate to
-         detect drift against.
-      2. The system infrastructure framing MUST be present, naming the
-         operator-addressing channel as system infrastructure (not a
-         workspace capability) and citing the precedent (ADR-040,
-         ADR-202).
-      3. The persona-frame MUST acknowledge the Reviewer-side exclusion
-         as an architectural commitment (not a pending experiment) so
-         the Reviewer reads the prose and does NOT plan to fire a tool
-         that's permanently outside its surface by design.
-
-    This guard catches future regressions that re-introduce obsolete
-    discipline, lose the system-infrastructure framing, or revert the
-    architectural-commitment framing to "pending" or "open" language.
+    REWRITTEN by ADR-306 (2026-05-29 collapse). The prior version asserted the
+    full cadence-trifecta prose ("Pace + Autonomy + Persona", "Cycles are
+    serialized") in the frame. That substrate-pedagogy moved to
+    _workspace_guide.md; the dial-by-dial explanation is no longer the frame's
+    job (the model reads _pace.yaml / _autonomy.yaml from the envelope under
+    their own headers). The frame keeps only the Variant-F identity line, which
+    names the dials at the vocabulary level (paced, single-lane, wake-fired).
     """
-    path = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
-    content = path.read_text()
-
-    # OBSOLETE clause from Phase 3 original (must NOT be present)
-    obsolete_markers = (
-        "operator's Resend connection isn't active",
-        "substrate-vs-wire drift",
+    from agents.reviewer_agent import (
+        _PERSONA_FRAME_SECTIONS,
+        resolve_persona_frame_sections,
     )
-    leaks: list[str] = []
-    for marker in obsolete_markers:
-        if marker in content:
-            leaks.append(marker)
-    assert not leaks, (
-        f"Obsolete wire-gate-detection prose leaked back into _PERSONA_FRAME: "
-        f"{leaks}. Under the system Resend wire (api/jobs/email.py) there is "
-        f"no wire-gate to detect drift against. Re-introducing the obsolete "
-        f"clause would teach the Reviewer to note a substrate-vs-wire drift "
-        f"that the architecture never produces."
+    frame = resolve_persona_frame_sections(_PERSONA_FRAME_SECTIONS)
+    # The Variant-F identity sentence (FOUNDATIONS DP21) names the dials at
+    # vocabulary level: paced by pace + autonomy, single-lane, wake-fired.
+    assert "single-lane queue-serialized" in frame, (
+        "Minimal frame missing the Variant-F 'single-lane queue-serialized' "
+        "identity vocabulary. Post-collapse the frame names the dials at the "
+        "identity-line level; the dial-by-dial pedagogy lives in "
+        "_workspace_guide.md."
+    )
+    assert "paced by" in frame and "pace" in frame.lower(), (
+        "Minimal frame missing the pace/autonomy dial vocabulary in the "
+        "Variant-F identity line."
     )
 
-    # System infrastructure framing (MUST be present). Whitespace-tolerant
-    # match: the phrase may span a line break in the persona-frame literal.
-    normalized = " ".join(content.split())
-    assert "operator-addressing system infrastructure" in normalized, (
-        "_PERSONA_FRAME missing the operator-addressing system infrastructure "
-        "framing. ADR-299 rewrite (2026-05-27) requires the persona-frame to "
-        "name the channel as system infrastructure (not workspace capability) "
-        "so the Reviewer understands the system is speaking *as itself* to "
-        "the operator-identity, not on behalf of the workspace."
-    )
 
-    # Precedent citation (MUST be present so the Reviewer understands this
-    # is established infrastructure, not a novel surface).
-    assert "ADR-040" in content and "ADR-202" in content, (
-        "_PERSONA_FRAME missing the ADR-040 + ADR-202 precedent citation. "
-        "The Reviewer should perceive the operator-addressing channel as "
-        "the same wire ADR-040 notifications + ADR-202 daily-update emails "
-        "already use — not novel infrastructure."
-    )
+def test_reviewer_email_tool_excluded_by_code_not_prose() -> None:
+    """ADR-299 D8 Reviewer-side exclusion of platform_email_send_to_operator
+    is enforced by CODE (absence from REVIEWER_PRIMITIVES), not by persona-
+    frame prose.
 
-    # Reviewer-side architectural-commitment acknowledgment (MUST be present).
-    # ADR-299 D8 commits the Reviewer's exclusion of
-    # platform_email_send_to_operator from REVIEWER_PRIMITIVES as
-    # architectural design (v5 canary 2026-05-25 evidence-confirmed
-    # hypothesis A), not as a pending revert.
-    normalized_lower = normalized.lower()
-    has_by_design = "by design" in normalized_lower or "architectural commitment" in normalized_lower or "architectural design" in normalized_lower
-    has_not_in_surface = "not in your tool surface" in normalized_lower or "is not in your" in normalized_lower
-    assert has_by_design and has_not_in_surface, (
-        "_PERSONA_FRAME missing the architectural-commitment acknowledgment. "
-        "ADR-299 D8 commits the Reviewer's exclusion of "
-        "platform_email_send_to_operator from REVIEWER_PRIMITIVES as a "
-        "permanent architectural design (v5 canary 2026-05-25 evidence-"
-        "confirmed). The persona-frame must teach this as a structural "
-        "design property, not as a pending revert — so the Reviewer "
-        "doesn't plan to fire a tool that's permanently outside its "
-        "surface by design."
-    )
+    REWRITTEN by ADR-306 (2026-05-29 persona-frame collapse). The prior
+    version of this test asserted ~5 prose clauses in the persona-frame
+    teaching the operator-addressing-infrastructure framing + the by-design
+    exclusion. ADR-306 collapsed the frame to principal-shift + action-grammar
+    only; "code-enforced needs no prose" (the Reviewer cannot call a tool it
+    doesn't have). The exclusion is the same — its enforcement is now asserted
+    at the genuinely load-bearing layer (the tool surface) rather than at a
+    narration of it. This is a STRONGER test: it verifies the gate, not the
+    description of the gate.
+    """
+    from services.primitives.registry import REVIEWER_PRIMITIVES
 
-    # Guard against regression to pre-resolution "pending" / "open question"
-    # framing. The architectural commitment is evidence-confirmed; framing
-    # it as deferred misrepresents canon.
-    pending_markers = (
-        "path a revert pending",
-        "pending v5 canary",
-        "pending the v5",
-        "v5 canary remains pending",
-        "v5 canary outcome",
-        "reviewer authority — open question",
-        "reviewer-side tool access is currently paused",
+    names = {
+        (t["name"] if isinstance(t, dict) else getattr(t, "name", str(t)))
+        for t in REVIEWER_PRIMITIVES
+    }
+    assert "platform_email_send_to_operator" not in names, (
+        "platform_email_send_to_operator must NOT be in REVIEWER_PRIMITIVES "
+        "(ADR-299 D8 — operator-addressing system infrastructure is excluded "
+        "from the judgment-bearing Reviewer surface by design; v5 canary "
+        "2026-05-25 evidence-confirmed). Post-ADR-306 this exclusion is "
+        "code-enforced, not narrated in the persona-frame — the Reviewer "
+        "literally cannot call a tool absent from its surface."
     )
-    pending_leaks = [m for m in pending_markers if m in normalized_lower]
-    assert not pending_leaks, (
-        f"_PERSONA_FRAME contains pre-resolution 'pending' framing: "
-        f"{pending_leaks}. The v5 canary RESOLVED on 2026-05-25; ADR-299 "
-        f"D8 commits the exclusion as architectural design. Re-introducing "
-        f"'pending' framing reverts canon to a state the evidence trail "
-        f"superseded — see docs/evaluations/2026-05-25-042346-adr299-"
-        f"always-surface-resolution/RESOLUTION.md."
+    # No email-send tool of any shape leaks into the Reviewer surface.
+    assert not any("email_send" in str(n).lower() for n in names), (
+        "An email-send tool leaked into REVIEWER_PRIMITIVES. Operator-"
+        "addressing email is system infrastructure (SYSTEM_INFRASTRUCTURE_TOOLS, "
+        "task-bearing agents only), never the Reviewer's."
     )
 
 
@@ -554,9 +494,10 @@ if __name__ == "__main__":
         test_glossary_reviewer_entry_quotes_variant_f,
         test_persona_frame_header_quotes_variant_f,
         test_persona_frame_no_banned_phrases,
+        test_persona_frame_action_grammar_coherence,
         test_persona_frame_instructs_mandate_citation,
-        test_persona_frame_names_pace_and_queue,
-        test_persona_frame_system_resend_wire_prose_post_adr299_discovery_note_2,
+        test_persona_frame_names_what_it_is,
+        test_reviewer_email_tool_excluded_by_code_not_prose,
         test_reviewer_primitives_contract,
         test_default_reviewer_write_locks_contract,
         test_judgment_prompts_bind_return_verdict,

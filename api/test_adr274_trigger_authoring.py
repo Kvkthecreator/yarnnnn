@@ -135,10 +135,21 @@ def test_operating_context_block_helper() -> None:
 # ---------------------------------------------------------------------------
 
 def test_reviewer_persona_includes_cadence_authoring() -> None:
-    from agents.reviewer_agent import _PERSONA_FRAME
+    """Post-ADR-306 collapse: cadence-authoring discipline is substrate
+    pedagogy (ablation §3 row 7 — cadence-trifecta) and relocates from the
+    persona frame to `_workspace_guide.md` (ADR-281's home, Phase C). The
+    Reviewer reads the guide every wake; the discipline is preserved, only
+    its home moved from system prose to bundle substrate.
 
+    Trigger-authoring authority (Axiom 4 amendment + ADR-274) is the
+    canonical provenance and is cited in the guide's cadence section.
+    """
+    import re
+    from pathlib import Path
+
+    repo_root = Path(__file__).resolve().parent.parent
     needles = [
-        "operating cadence is yours to author",
+        "cadence is yours to author",
         "FOUNDATIONS v8.5 Axiom 4",
         "Derived Principle 18",
         "ADR-274",
@@ -148,13 +159,19 @@ def test_reviewer_persona_includes_cadence_authoring() -> None:
         "ListRevisions",
         "Operating Context",
     ]
-    missing = [n for n in needles if n not in _PERSONA_FRAME]
-    if not missing:
-        _ok("Reviewer persona frame names cadence-authoring discipline (9 markers)")
-    else:
-        _bad(
-            "Reviewer persona cadence-authoring section",
-            f"Missing markers: {missing!r}",
+    for bundle in ("alpha-trader", "alpha-author"):
+        raw = (
+            repo_root
+            / "docs" / "programs" / bundle / "reference-workspace"
+            / "_workspace_guide.md"
+        ).read_text(encoding="utf-8")
+        # Prose is line-wrapped; collapse whitespace so multi-word needles
+        # match across line breaks (content-presence test, not layout test).
+        guide = re.sub(r"\s+", " ", raw)
+        missing = [n for n in needles if n not in guide]
+        assert not missing, (
+            f"{bundle} _workspace_guide.md cadence section missing markers "
+            f"(relocated from persona frame per ADR-306 D3): {missing!r}"
         )
 
 
