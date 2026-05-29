@@ -229,6 +229,13 @@ The last row is load-bearing and easy to forget: the **system-authored persona-f
 
 **Maintenance rule.** Any edit to a member of the composite set — operator-canon *or* the system-authored persona-frame — must be checked against the composed-coherence diagnostic, not only against §3.2.1's partition diagnostic. The two are complementary gates; passing one does not imply the other. Future ADRs that reshape any composite member **must run the composed-coherence test in the same commit** — the discipline is enforced here, not re-derived.
 
+**Operational enforcement (layered — structural + behavioral).** The composed-coherence diagnostic is backed by two gates so it cannot silently drift back to prose-only diligence (which the 2026-05-29 finding proved insufficient — the confabulation survived into a *validated* session):
+
+1. **Structural gate (Hat-A, every commit)** — `api/test_reviewer_formalization.py::test_persona_frame_action_grammar_coherence` scans the assembled persona frame (`resolve_persona_frame_sections(_PERSONA_FRAME_SECTIONS)`) for the executor-self-model contradiction class. **Paired assertion**: banned executor grammar ("your hands", "write directly", "the doing") absent AND the directs-not-executes grammar present (so a *removed* fix fails too, not just an *added* regression). This catches structural reappearance of the contradiction in source. It does NOT — and cannot — judge prose coherence in general; it pins one named, axiom-anchored contradiction class.
+2. **Behavioral gate (Hat-B, periodic)** — the eval suite's **confabulation cross-check** (`docs/evaluations/EVAL-SUITE-DISCIPLINE.md` §6.2): for every action the Reviewer *narrates having taken*, verify a substrate-receipt; a narrated action with no receipt is a confabulation finding. This catches behavioral reappearance even if the structural grammar is clean. Only a live wake + transcript-vs-receipt read can do this; it is not expressible as a code gate.
+
+The two are complementary: structural is cheap and runs on every commit but only catches known-grammar regressions; behavioral is expensive and periodic but catches novel confabulation the grammar scan would miss. Neither subsumes the other.
+
 ---
 
 ### 3.3 User-authored domain Agents (instance persona-bearing Agents)

@@ -76,6 +76,25 @@ BANNED_PERSONA_PHRASES = (
 )
 
 
+# Executor-self-model phrases — the action-grammar contradiction class.
+# These collapse the Reviewer-directs / runtime-executes separation that
+# FOUNDATIONS Axiom 1 §4 + Axiom 2 mandate, and were the root cause of the
+# 2026-05-29 confabulation (the Reviewer narrated "I attempted the write, it
+# was gated, it queued" with zero substrate-receipt — role-playing an
+# executor self-model the frame had handed it). See
+# docs/evaluations/2026-05-29-reviewer-action-grammar-framing-gap.md and the
+# composed-coherence discipline at docs/architecture/agent-composition.md
+# §3.2.2. These are the structural (Hat-A) half of the layered gate; the
+# behavioral half (narrated-action-without-receipt) is the eval suite's
+# confabulation cross-check (the finding's Rec-3).
+BANNED_EXECUTOR_GRAMMAR = (
+    "is your hands",          # "the System Agent is your hands"
+    "are your hands",
+    "write directly",        # executor self-model — Reviewer directs, doesn't write directly
+    "the doing",             # "they delegated the deciding AND the doing"
+)
+
+
 # ---------------------------------------------------------------------------
 # Test 1 — Variant F appears verbatim in FOUNDATIONS Derived Principle 21
 # ---------------------------------------------------------------------------
@@ -171,6 +190,66 @@ def test_persona_frame_no_banned_phrases() -> None:
         f"Banned pre-cutover phrases leaked into _PERSONA_FRAME: "
         f"{leaks}. The Reviewer is wake-fired (ADR-296 v2 D1), not "
         f"continuously running. Self-invocation was removed per D3."
+    )
+
+
+def test_persona_frame_action_grammar_coherence() -> None:
+    """Composed-coherence gate for the action-grammar contradiction class.
+
+    Structural (Hat-A) half of the layered gate from the 2026-05-29 finding.
+    The persona frame must describe the Reviewer's agency as Axiom 1 §4 +
+    Axiom 2 mandate: the Reviewer *directs*; the runtime *executes*; the
+    substrate revision is the channel. It must NOT carry the executor
+    self-model ("your hands", "write directly", "the doing") that produced
+    the confabulation where the Reviewer narrated an inline execute-and-
+    observe step it never performed.
+
+    Paired assertion — a banned-phrase scan alone cannot catch a *removed*
+    fix (a commit could delete the corrected grammar without re-adding the
+    banned grammar). So we assert BOTH: executor grammar is absent AND the
+    directs-not-executes grammar is present.
+
+    The behavioral half (narrated-action-without-substrate-receipt) lives in
+    the eval suite's confabulation cross-check (the finding's Rec-3) — only a
+    live wake + transcript-vs-receipt read can catch behavioral regression.
+    This gate catches structural regression on every commit.
+
+    Canon: docs/architecture/agent-composition.md §3.2.2 (composed-coherence
+    discipline); FOUNDATIONS Axiom 1 §4 + Axiom 2; finding at
+    docs/evaluations/2026-05-29-reviewer-action-grammar-framing-gap.md.
+    """
+    from agents.reviewer_agent import (
+        _PERSONA_FRAME_SECTIONS,
+        resolve_persona_frame_sections,
+    )
+    frame_body = resolve_persona_frame_sections(_PERSONA_FRAME_SECTIONS)
+    normalized = " ".join(frame_body.lower().split())
+
+    # (1) Executor self-model must be absent.
+    leaks = [p for p in BANNED_EXECUTOR_GRAMMAR if p in normalized]
+    assert not leaks, (
+        f"Executor-self-model grammar leaked into the persona frame: {leaks}. "
+        f"The Reviewer DIRECTS; the runtime EXECUTES; the substrate revision "
+        f"is the channel (FOUNDATIONS Axiom 1 §4 + Axiom 2). This grammar "
+        f"collapses that separation and reproduces the 2026-05-29 "
+        f"confabulation. See agent-composition.md §3.2.2."
+    )
+
+    # (2) The directs-not-executes grammar must be present (catches a removed
+    #     fix, not just an added regression). At least one phrase from each
+    #     of the two load-bearing ideas must appear.
+    directs_anchors = ("you direct", "the runtime is the hands", "the runtime applies it")
+    channel_anchors = ("substrate revision is the channel", "the channel")
+    assert any(a in normalized for a in directs_anchors), (
+        "Persona frame is MISSING the directs-not-executes anchor. The frame "
+        "must state that the Reviewer directs and the runtime executes (e.g. "
+        "'you direct', 'the runtime is the hands'). Absence means the "
+        "2026-05-29 fix was removed. See agent-composition.md §3.2.2."
+    )
+    assert any(a in normalized for a in channel_anchors), (
+        "Persona frame is MISSING the substrate-as-channel anchor. The frame "
+        "must state the substrate revision is the channel between Reviewer "
+        "(directs) and runtime (executes) per Axiom 1 §4."
     )
 
 
