@@ -213,7 +213,23 @@ class OperatorProxy:
                     continue
                 events.append(evt)
                 if isinstance(evt, dict):
+                    # The live /api/feed SSE stream is event-shaped, NOT
+                    # type-tagged: the Reviewer's final answer arrives as a
+                    # `reviewer_response` event (judgment turns) or a `content`
+                    # event (Clarify/system turns); legacy `type=='text'`
+                    # chunks may also appear. Capture all three into `text` so
+                    # callers see the actual response. (Diagnosed 2026-05-29 —
+                    # the prior parser only read `type=='text'`, which the
+                    # judgment-turn stream never emits, producing a false-empty
+                    # `text` and a false-negative validation. See
+                    # docs/evaluations/2026-05-29-persona-frame-collapse-VALIDATION.md.)
                     if evt.get("type") == "text":
+                        text_chunks.append(evt.get("content") or "")
+                    if evt.get("reviewer_response"):
+                        text_chunks.append(evt["reviewer_response"])
+                    elif "content" in evt and "phase" not in evt and "type" not in evt:
+                        # bare {"content": ...} event (e.g. Clarify body);
+                        # exclude reviewer_progress tool events (they carry `phase`).
                         text_chunks.append(evt.get("content") or "")
                     if evt.get("type") == "reviewer_verdict":
                         reviewer_verdict = evt.get("verdict") or evt
