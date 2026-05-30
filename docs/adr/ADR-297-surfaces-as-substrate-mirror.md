@@ -795,7 +795,7 @@ The collision: clicking around inside a legacy-shaped surface window feels like 
 - `docs/design/SURFACE-MODEL-ATOMIC-VS-CONTAINER.md` — D19 referenced as the post-migration completion.
 - `CLAUDE.md` — atomic-surface internals section gets the window-shape rule.
 
-D19 ratification status: **Proposed 2026-05-22** (doc-first; enactment lands in the follow-on commit).
+D19 ratification status: **Enacting 2026-05-30** (was Proposed 2026-05-22; the follow-on enactment was deferred and the call-site migration never landed — audit found 6/61 navigation calls on the canonical `foregroundSurface` gesture, the rest still `router.push`. Enactment is now tracked + sequenced in [`docs/design/ADR-297-NAVIGATION-ENACTMENT-PLAN.md`](../design/ADR-297-NAVIGATION-ENACTMENT-PLAN.md); flips to **Implemented** when that plan's Definition of Done is met).
 
 ---
 
@@ -858,7 +858,7 @@ D19.7 had argued Settings is a legitimate page-shaped thing (long-form preferenc
 7. Update phase1 regression gate.
 8. Validate: tsc + next build + python phase1 gate.
 
-D19.4 ratification status: **Proposed 2026-05-22** (doc-first; enactment lands in the follow-on commit).
+D19.4 ratification status: **Enacting 2026-05-30** (was Proposed 2026-05-22; enactment tracked in [`docs/design/ADR-297-NAVIGATION-ENACTMENT-PLAN.md`](../design/ADR-297-NAVIGATION-ENACTMENT-PLAN.md) — Settings/Connectors page-push → `foregroundSurface` conversions are part of that plan's Phase 2; flips to **Implemented** at the plan's Definition of Done).
 
 ---
 
@@ -943,7 +943,7 @@ Mandate is the load-bearing exclusion. Autonomy + pace + balance + connections a
   - `web/components/feed-surface/PauseAutonomyModal.tsx` — delete the file (orphaned once AutonomyHeaderChip is deleted; pause/resume now happens on the `/autonomy` atomic surface via AutonomyCard's confirm-modal pattern per WORKSPACE-COMPONENTS.md §"Confirm-modal pattern").
 - `docs/design/WORKSPACE-COMPONENTS.md` — append the kernel-runtime-chrome vs substrate-concept paragraph.
 
-D20 ratification status: **Proposed 2026-05-24** (doc-first; enactment lands in the follow-on commit per the same combined-commit cadence as D14–D19).
+D20 ratification status: **Proposed 2026-05-24** (doc-first; enactment lands in the follow-on commit per the same combined-commit cadence as D14–D19). *Note (2026-05-30): the menu-bar status-cluster deletions (AutonomyHeaderChip, UserMenu balance line, PaceBadge) are independent of the navigation enactment and are NOT in scope of [`ADR-297-NAVIGATION-ENACTMENT-PLAN.md`](../design/ADR-297-NAVIGATION-ENACTMENT-PLAN.md); D20 remains Proposed on its own track.*
 
 #### D20 amendment (2026-05-25) — Canonical-icon discipline + `gauge` registry repair
 

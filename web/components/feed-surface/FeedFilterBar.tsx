@@ -104,7 +104,12 @@ export function FeedFilterBar() {
     } else {
       params.set(key, Array.from(existing).join(','));
     }
-    router.replace(`/chat${params.toString() ? '?' + params.toString() : ''}`);
+    // Intra-surface filter state — writes the Feed surface's own query
+    // params. Stays router.replace per ADR-297 D19.4 (window-internal
+    // deep-link state, not cross-surface navigation). Route literal
+    // corrected /chat → /feed (the Feed surface's canonical route;
+    // /chat is a stale redirect stub).
+    router.replace(`/feed${params.toString() ? '?' + params.toString() : ''}`);
   };
 
   const clearAll = () => {
@@ -114,7 +119,7 @@ export function FeedFilterBar() {
   const clearTaskSlug = () => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete('task');
-    router.replace(`/chat${params.toString() ? '?' + params.toString() : ''}`);
+    router.replace(`/feed${params.toString() ? '?' + params.toString() : ''}`);
   };
 
   return (

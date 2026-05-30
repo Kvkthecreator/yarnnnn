@@ -85,6 +85,27 @@ export interface SurfacePreferences {
    * Returns true on success.
    */
   foregroundSurface: (slug: string) => boolean;
+  /**
+   * ADR-297 D19.5 (navigation enactment, 2026-05-30): the SINGLE
+   * sanctioned cross-surface navigation verb. Components MUST use this
+   * instead of `router.push('/{slug}')` — the compositor (window
+   * manager) owns navigation; the browser router is transport, not
+   * control (ADR-222: compositor IS the window manager).
+   *
+   * Behaviour:
+   *   - bare slug: foregroundSurface(slug). URL stays as-is per D19.2
+   *     (the Dock indicator dot is the canonical "what's foregrounded"
+   *     signal, not the URL).
+   *   - with params: foregroundSurface(slug) AND write the URL
+   *     (`/{route}?k=v`). Required because atomic surfaces read their
+   *     deep-link state from `useSearchParams()` (cadence reads
+   *     `?task=`, agents reads `?agent=`), NOT from window-manager
+   *     state — so the param only reaches the target window via the URL.
+   *
+   * Returns foregroundSurface's boolean (false if the open soft-cap was
+   * hit — caller consumes `capHit` for UX).
+   */
+  navigateToSurface: (slug: string, params?: Record<string, string>) => boolean;
   isKept: (slug: string) => boolean;
   isOpen: (slug: string) => boolean;
   /** D15: update a single window's geometry (called from drag + resize). */
@@ -374,6 +395,33 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
     [userId, open, computeNextZ, compactWindowZ, persistWindowStates]
   );
 
+  // ADR-297 D19.5 (navigation enactment, 2026-05-30): the single
+  // sanctioned cross-surface navigation verb. Wraps foregroundSurface;
+  // adds URL-param transport when params are present (atomic surfaces
+  // read deep-link state from useSearchParams, so params must reach
+  // the URL to land in the target window). See interface docstring.
+  const navigateToSurface = useCallback(
+    (slug: string, params?: Record<string, string>): boolean => {
+      const ok = foregroundSurface(slug);
+      // Only write the URL when there are params to deliver. Bare
+      // navigation leaves the URL as-is per D19.2 (Dock dot is the
+      // canonical foreground signal, not the URL).
+      if (ok && params && Object.keys(params).length > 0) {
+        const surfaces = composition.surfaces || [];
+        const target = surfaces.find((s) => s.slug === slug);
+        const route = target?.route || `/${slug}`;
+        const sp = new URLSearchParams();
+        Object.entries(params).forEach(([k, v]) => {
+          if (v != null && v !== '') sp.set(k, v);
+        });
+        const qs = sp.toString();
+        router.push(qs ? `${route}?${qs}` : route);
+      }
+      return ok;
+    },
+    [foregroundSurface, composition.surfaces, router]
+  );
+
   // D19.1: toggle macOS-style zoom for a window. Saves prior geometry
   // on the way up; restores it on the way down. Raises the window
   // (zoom is a focus gesture).
@@ -536,6 +584,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       openSurface: doOpenSurface,
       closeSurface: doCloseSurface,
       foregroundSurface,
+      navigateToSurface,
       isKept,
       isOpen,
       setWindowState: updateWindowState,
@@ -557,6 +606,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       doOpenSurface,
       doCloseSurface,
       foregroundSurface,
+      navigateToSurface,
       isKept,
       isOpen,
       updateWindowState,

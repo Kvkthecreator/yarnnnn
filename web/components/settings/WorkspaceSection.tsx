@@ -39,6 +39,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 
 type WorkspaceState = Awaited<ReturnType<typeof api.workspace.getState>>;
 type ProgramItem = WorkspaceState['available_programs'][number];
@@ -64,6 +65,7 @@ const FILE_PATHS: Record<keyof WorkspaceState['substrate_status'], string> = {
 
 export function WorkspaceSection() {
   const router = useRouter();
+  const { navigateToSurface } = useSurfacePreferences();
   const searchParams = useSearchParams();
   const isFirstRun = searchParams.get('first_run') === '1';
 
@@ -126,7 +128,11 @@ export function WorkspaceSection() {
   };
 
   const handleContinueToChat = () => {
-    router.push('/feed');
+    // ADR-297 D19.4 — cross-surface navigation is window-opening, not
+    // route-replacing. Foreground the Feed surface (opens it as a window
+    // on the Desktop) instead of router.push (which would erase the
+    // workspace and break the OS metaphor).
+    navigateToSurface('feed');
   };
 
   // ─── Loading / error states ──────────────────────────────────────────

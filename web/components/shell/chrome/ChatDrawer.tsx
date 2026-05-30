@@ -27,7 +27,8 @@ import { ConversationPanel } from '@/components/tp/ConversationPanel';
 import { useReviewerPersona } from '@/lib/reviewer-persona';
 import { useViewport } from '@/lib/shell/useViewport';
 import { Z_DRAWER_BACKDROP, Z_DRAWER_BODY } from '@/lib/shell/z-tiers';
-import { useDesk } from '@/contexts/DeskContext';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useComposition } from '@/lib/compositor/useComposition';
 import { cn } from '@/lib/utils';
 
 const DRAWER_WIDTH_KEY = 'yarnnn:shell:chat-drawer-width';
@@ -52,7 +53,22 @@ interface ChatDrawerProps {
 export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   const { isMobile } = useViewport();
   const personaName = useReviewerPersona();
-  const { surface } = useDesk();
+  // ADR-297 D16 §5 + navigation enactment (2026-05-30): the surface the
+  // operator is viewing is the WINDOW MANAGER's foregrounded slug — not
+  // the legacy DeskContext surface. One source feeds both the agent's
+  // context payload (surfaceOverride → sendMessage) AND the visible
+  // "Viewing: X" label, so operator ↔ agent ↔ surface share meta-
+  // awareness through the chat channel by construction.
+  const { foregrounded } = useSurfacePreferences();
+  const { data: composition } = useComposition();
+  const viewingTitle = foregrounded
+    ? composition.surfaces.find((s) => s.slug === foregrounded)?.title ?? null
+    : null;
+  // The override handed to the agent: the atomic surface the operator is
+  // looking at. Undefined when on the Desktop (no foregrounded surface).
+  const surfaceOverride = foregrounded
+    ? { type: 'atomic' as const, slug: foregrounded }
+    : undefined;
   const [width, setWidth] = useState(DRAWER_DEFAULT);
   const dragging = useRef(false);
 
@@ -171,7 +187,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
                   {personaName ?? 'Reviewer'}
                 </span>
                 <span className="text-[10px] text-muted-foreground/60 -mt-0.5">
-                  Conversation
+                  {viewingTitle ? `Viewing: ${viewingTitle}` : 'Desktop'}
                 </span>
               </div>
             </div>
@@ -185,12 +201,14 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
           </div>
 
           {/* Conversation body — composer + addressed timeline.
-              surfaceOverride flows from DeskContext per D16 §5 so
-              YARNNN knows the operator is "asking about {current
-              surface}" when they summon chat from any window. */}
+              surfaceOverride flows from the window manager's foregrounded
+              surface per D16 §5 + navigation enactment, so YARNNN knows
+              the operator is "asking about {current surface}" when they
+              summon chat from any window. Same signal drives the
+              "Viewing: X" header above — shared meta-awareness. */}
           <div className="flex-1 min-h-0">
             <ConversationPanel
-              surfaceOverride={surface}
+              surfaceOverride={surfaceOverride}
               plusMenuActions={[]}
               placeholder={`Ask ${personaName ?? 'YARNNN'}…`}
               showCommandPicker={true}

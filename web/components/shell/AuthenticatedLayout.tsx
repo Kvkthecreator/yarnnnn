@@ -122,7 +122,7 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { setSurface, setSurfaceWithHandoff } = useDesk();
   const { data: composition } = useComposition();
-  const { foregroundSurface, foregrounded, closeSurface } =
+  const { foregroundSurface, navigateToSurface, foregrounded, closeSurface } =
     useSurfacePreferences();
 
   // ADR-297 D13: when the URL deep-links to an atomic kernel surface,
@@ -170,45 +170,51 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
   }, [foregrounded, closeSurface]);
 
   // Handle surface change from TP tool results (NarrativeContext handoff
-  // machinery). Stays at shell level because it couples router.push with
-  // the legacy DeskSurface kinds (agent-list, document-viewer, etc.).
+  // machinery — when the agent says "I opened Cadence for you", it emits
+  // a DeskSurface here).
+  //
+  // ADR-297 D19.5 (navigation enactment): the legacy DeskSurface kinds
+  // map to atomic kernel surfaces via navigateToSurface — window-opening,
+  // not router.push route-replacement. The task-detail → 'cadence' slug
+  // corrects the prior wrong mapping (it pushed to /agents, a relic from
+  // before /work dissolved into Cadence per ADR-297 D1).
   const handleSurfaceChange = useCallback(
     (newSurface: DeskSurface, handoffMessage?: string) => {
       switch (newSurface.type) {
         case 'agent-list':
-          router.push('/agents');
+          navigateToSurface('agents');
           return;
         case 'agent-detail':
-          router.push(`/agents?agent=${newSurface.agentId}`);
-          return;
-        case 'document-list':
-          router.push('/context');
-          return;
-        case 'document-viewer':
-          router.push(`/docs/${newSurface.documentId}`);
-          return;
-        case 'platform-list':
-          router.push('/context');
-          return;
-        case 'platform-detail':
-          router.push(`/context/${newSurface.platform}`);
-          return;
-        case 'context-browser':
-          router.push('/context');
+          navigateToSurface('agents', { agent: newSurface.agentId });
           return;
         case 'task-detail':
-          router.push(`/agents`);
+          navigateToSurface('cadence', { task: newSurface.taskSlug });
+          return;
+        case 'document-list':
+        case 'platform-list':
+        case 'context-browser':
+          navigateToSurface('files');
+          return;
+        case 'platform-detail':
+          navigateToSurface('files', { platform: newSurface.platform });
+          return;
+        case 'document-viewer':
+          // /docs/{id} is an operator-external public page (D19.4), not a
+          // kernel surface — stays a route push (transport, not nav).
+          router.push(`/docs/${newSurface.documentId}`);
           return;
       }
 
-      // For remaining surfaces, use surface system
+      // Atomic + idle surfaces flow through the legacy DeskState setter
+      // (still consumed by handoff-message display). Phase 3 collapses
+      // this onto the window manager fully.
       if (handoffMessage) {
         setSurfaceWithHandoff(newSurface, handoffMessage);
       } else {
         setSurface(newSurface);
       }
     },
-    [setSurface, setSurfaceWithHandoff, router]
+    [setSurface, setSurfaceWithHandoff, navigateToSurface, router]
   );
 
   return (

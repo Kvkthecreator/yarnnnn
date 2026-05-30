@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   Check,
   ExternalLink,
@@ -40,7 +39,6 @@ export function ConnectedIntegrationsSection({
   children,
   redirectTo,
 }: ConnectedIntegrationsSectionProps) {
-  const router = useRouter();
 
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [platformStatuses, setPlatformStatuses] = useState<Record<string, string>>({});
@@ -219,12 +217,6 @@ export function ConnectedIntegrationsSection({
                               "Disconnect"
                             )}
                           </button>
-                          <button
-                            onClick={() => router.push("/work?task=daily-slack-activity")}
-                            className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
-                          >
-                            Manage
-                          </button>
                         </>
                       ) : (
                         <button
@@ -297,12 +289,6 @@ export function ConnectedIntegrationsSection({
                               "Disconnect"
                             )}
                           </button>
-                          <button
-                            onClick={() => router.push("/work?task=notion-digest")}
-                            className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
-                          >
-                            Manage
-                          </button>
                         </>
                       ) : (
                         <button
@@ -363,12 +349,6 @@ export function ConnectedIntegrationsSection({
                             ) : (
                               "Reconnect"
                             )}
-                          </button>
-                          <button
-                            onClick={() => router.push("/work?task=github-digest")}
-                            className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
-                          >
-                            Manage
                           </button>
                           <button
                             onClick={() => handleDisconnectIntegration(githubIntegration.provider)}
@@ -432,12 +412,6 @@ export function ConnectedIntegrationsSection({
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
                       {commerceIntegration ? (
                         <>
-                          <button
-                            onClick={() => router.push("/work?task=commerce-digest")}
-                            className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
-                          >
-                            Manage
-                          </button>
                           <button
                             onClick={() => handleDisconnectIntegration("commerce")}
                             disabled={disconnectingProvider === "commerce"}
@@ -528,12 +502,6 @@ export function ConnectedIntegrationsSection({
                     <div className="flex items-center gap-2 mt-3 flex-wrap">
                       {tradingIntegration ? (
                         <>
-                          <button
-                            onClick={() => router.push("/work?task=trading-digest")}
-                            className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
-                          >
-                            Manage
-                          </button>
                           <button
                             onClick={() => handleDisconnectIntegration("trading")}
                             disabled={disconnectingProvider === "trading"}
