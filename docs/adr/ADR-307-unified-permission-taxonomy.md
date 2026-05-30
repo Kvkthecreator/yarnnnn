@@ -1,6 +1,6 @@
 # ADR-307: Unified Permission Taxonomy — One Gate, One Queue, All Consequential Primitives
 
-**Status**: **Implemented** 2026-05-30 (Phases 1–4). Phase 1 uniform gate (`6925927`); D4 revised to generic-queue shape (`c197c40`); Phase 2 backend (`b7865a1`) + FE (`2f640cb`); Phase 3 full-primitive gate (`442f595`); Phase 4 canon (this commit). Migration 181 applied. End-to-end validation pending (the bounded-substrate-write wake).
+**Status**: **Implemented + validated** 2026-05-30 (Phases 1–4). Phase 1 uniform gate (`6925927`); D4 revised to generic-queue shape (`c197c40`); Phase 2 backend (`b7865a1`) + FE (`2f640cb`); Phase 3 full-primitive gate (`442f595`); Phase 4 canon (`afcb91c`). Migration 181 applied. **End-to-end validation PASS** (2026-05-30, live `dep-d8d68n7lk1mc73dbdvr0`): a bounded-mode Reviewer `WriteFile` returned `success=True, proposal_id=…` — QUEUED as `family='substrate', primitive='WriteFile', status='pending', source='reviewer:ai:reviewer-sonnet-v8', decision_context={diff,message,path,mode,gate_reason}` — NOT the old `substrate_write_requires_autonomous` error. Self-wake guard held: `proposal_arrival` re-wakes = 0 (the `source='reviewer:%'` skip fired); exactly one addressed `execution_events` row, `status=success`. The Reviewer narrated the queue honestly (no confabulation). The falsifiable check below is satisfied.
 **Date**: 2026-05-30
 **Deciders**: KVK (operator) + Claude (collaborator)
 **Hat**: A (system canon — real-operator-facing)
