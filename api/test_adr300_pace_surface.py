@@ -2,8 +2,9 @@
 
 Validates that pace is registered as the sixteenth atomic kernel surface
 per ADR-297 D1, that the content-shape registry covers it per ADR-245 D3,
-that the FE PaceCard + /pace page exist, and that PaceBadge has been
-simplified to a read-only deep-link per ADR-300 D5.
+that the FE PaceCard + /pace page exist, and that the pace indicator (the
+top-bar PaceStatusItem after ADR-297 D20 consolidated the old PaceBadge)
+is a read-only deep-link to /pace per ADR-300 D5.
 
 Pure-Python script per ADR-236 Rule 3 (no JS test runner). Run with:
     python -m api.test_adr300_pace_surface
@@ -31,7 +32,13 @@ CONTENT_SHAPES_INDEX = REPO_ROOT / "web" / "lib" / "content-shapes" / "index.ts"
 PACE_SHAPE_MODULE = REPO_ROOT / "web" / "lib" / "content-shapes" / "pace.ts"
 PACE_CARD = REPO_ROOT / "web" / "components" / "workspace-concepts" / "PaceCard.tsx"
 PACE_PAGE = REPO_ROOT / "web" / "app" / "(authenticated)" / "pace" / "page.tsx"
-PACE_BADGE = REPO_ROOT / "web" / "components" / "work" / "PaceBadge.tsx"
+# ADR-297 D20 (commit b32015b): PaceBadge on /cadence was deleted and the
+# pace indicator consolidated into the top-bar status cluster as a read-only
+# deep-link. The assertion below was updated to track PaceStatusItem; the
+# original intent (read-only, links to /pace, no edit semantics) is preserved.
+PACE_STATUS_ITEM = (
+    REPO_ROOT / "web" / "components" / "shell" / "system-status" / "PaceStatusItem.tsx"
+)
 
 
 # ─── Assertions ────────────────────────────────────────────────────────────
@@ -168,14 +175,20 @@ def assertion_11_pace_page_mounts_card():
     assert "iconKey=\"gauge\"" in src, "/pace page must use gauge icon (matches kernel_surfaces.py)"
 
 
-def assertion_12_pace_badge_is_link_not_span():
-    """PaceBadge simplified to read-only deep-link to /pace per ADR-300 D5."""
-    assert PACE_BADGE.exists(), f"missing: {PACE_BADGE}"
-    src = PACE_BADGE.read_text()
-    assert "import Link from 'next/link'" in src, "PaceBadge must import next/link"
-    assert 'href="/pace"' in src, "PaceBadge must deep-link to /pace"
-    # Anti-assertion: no edit hooks
-    assert "setKind" not in src, "PaceBadge must NOT carry edit semantics (lives on /pace)"
+def assertion_12_pace_indicator_is_readonly_deeplink():
+    """Pace indicator is a read-only deep-link to /pace; edit lives on /pace.
+
+    ADR-297 D20 consolidated the standalone PaceBadge into the top-bar
+    status cluster as PaceStatusItem — a read-only popover whose footer
+    deep-links to the /pace atomic surface. The original intent survives:
+    pace surfaces read-only, the deep-link target is /pace, no edit hooks.
+    """
+    assert PACE_STATUS_ITEM.exists(), f"missing: {PACE_STATUS_ITEM}"
+    src = PACE_STATUS_ITEM.read_text()
+    # Read-only deep-link to the /pace surface via the popover footer.
+    assert "slug: 'pace'" in src, "PaceStatusItem footer must deep-link to the /pace surface"
+    # Anti-assertion: no edit hooks (mutations live on /pace per ADR-300 D1).
+    assert "setKind" not in src, "PaceStatusItem must NOT carry edit semantics (lives on /pace)"
 
 
 # ─── Runner ────────────────────────────────────────────────────────────────
@@ -193,7 +206,7 @@ ASSERTIONS = [
     assertion_9_pace_shape_module_well_formed,
     assertion_10_pace_card_full_variant,
     assertion_11_pace_page_mounts_card,
-    assertion_12_pace_badge_is_link_not_span,
+    assertion_12_pace_indicator_is_readonly_deeplink,
 ]
 
 

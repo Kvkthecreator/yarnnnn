@@ -334,6 +334,95 @@ def test_no_dead_nav_targets() -> None:
 
 
 # =============================================================================
+# Group 5 — FE ↔ BE kernel-surface slug sync (the navigable contract)
+# =============================================================================
+#
+# The navigable kernel surfaces are declared in THREE places that must agree:
+#   1. BE: api/services/kernel_surfaces.py — KERNEL_SURFACES with route != "".
+#   2. FE: web/types/desk.ts — the `KernelSurfaceSlug` TYPE UNION.
+#   3. FE: web/types/desk.ts — the `KERNEL_SURFACE_SLUGS` RUNTIME ARRAY
+#          (what isKernelSurfaceSlug() checks; drives the pathname watcher).
+#
+# Chrome surfaces (route == "" — top-bar/launcher/chat-drawer) are
+# deliberately excluded from the FE navigable union: they have no route and
+# never foreground via deep-link. They live in ChromeRegistry, not here.
+#
+# These are hand-maintained string lists across a Python↔TS boundary the
+# type-checker cannot span. Without this guard, adding a 17th content
+# surface to the backend silently leaves the FE union short — the new
+# route's deep-link would be rejected by isKernelSurfaceSlug() and the
+# surface would not foreground on cold-load. No compile error, no other
+# test failure. This guard makes the boundary self-enforcing: the moment
+# the three sets diverge, CI fails with the exact slug delta.
+#
+# Design note (why a guard, not codegen): at ~16 slugs the drift-elimination
+# of build-time codegen isn't worth its maintenance surface (a generated
+# file + a "did you regenerate?" failure mode). isKernelSurfaceSlug also
+# runs synchronously in the cold-load pathname watcher, so a runtime API
+# fetch is the wrong shape. A set-equality guard gives ~95% of the safety
+# at ~10% of the cost and matches the dead-target guard's philosophy:
+# catch the class, not the instance.
+
+
+def _be_navigable_slugs() -> set[str]:
+    """Backend navigable kernel surfaces (kernel_surfaces.py, route != '')."""
+    sys.path.insert(0, str(REPO_ROOT / "api"))
+    from services.kernel_surfaces import KERNEL_SURFACES
+
+    return {s["slug"] for s in KERNEL_SURFACES if s.get("route")}
+
+
+def _fe_slug_union() -> set[str]:
+    """FE `KernelSurfaceSlug` type union members from types/desk.ts."""
+    src = (WEB / "types" / "desk.ts").read_text()
+    m = re.search(
+        r"export type KernelSurfaceSlug\s*=\s*(.*?);", src, re.DOTALL
+    )
+    return set(re.findall(r"'([a-z][a-z0-9-]*)'", m.group(1))) if m else set()
+
+
+def _fe_slug_array() -> set[str]:
+    """FE `KERNEL_SURFACE_SLUGS` runtime array from types/desk.ts."""
+    src = (WEB / "types" / "desk.ts").read_text()
+    m = re.search(
+        r"export const KERNEL_SURFACE_SLUGS[^=]*=\s*\[(.*?)\]", src, re.DOTALL
+    )
+    return set(re.findall(r"'([a-z][a-z0-9-]*)'", m.group(1))) if m else set()
+
+
+def test_fe_be_slug_sync() -> None:
+    print("\n[5] FE ↔ BE kernel-surface slug sync (navigable contract)")
+
+    be = _be_navigable_slugs()
+    fe_union = _fe_slug_union()
+    fe_array = _fe_slug_array()
+
+    _assert(be != set(), "BE navigable kernel slugs parsed (non-empty)")
+    _assert(fe_union != set(), "FE KernelSurfaceSlug union parsed (non-empty)")
+    _assert(fe_array != set(), "FE KERNEL_SURFACE_SLUGS array parsed (non-empty)")
+
+    # The load-bearing assertion: all three agree.
+    def _delta(a: set[str], b: set[str]) -> str:
+        only_a = sorted(a - b)
+        only_b = sorted(b - a)
+        return f"(BE-only: {only_a or 'none'} | FE-only: {only_b or 'none'})"
+
+    _assert(
+        be == fe_union,
+        f"BE navigable set == FE KernelSurfaceSlug union {_delta(be, fe_union)}",
+    )
+    _assert(
+        be == fe_array,
+        f"BE navigable set == FE KERNEL_SURFACE_SLUGS array {_delta(be, fe_array)}",
+    )
+    _assert(
+        fe_union == fe_array,
+        f"FE union == FE array (self-consistency) "
+        f"{_delta(fe_union, fe_array)}",
+    )
+
+
+# =============================================================================
 # Run
 # =============================================================================
 
@@ -341,6 +430,8 @@ if __name__ == "__main__":
     test_legacy_desk_system_deleted()
     test_navigation_primitive_exists()
     test_no_bare_cross_surface_router_push()
+    test_no_dead_nav_targets()
+    test_fe_be_slug_sync()
     test_no_dead_nav_targets()
 
     print(f"\n{'='*60}")
