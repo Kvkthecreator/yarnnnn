@@ -662,6 +662,26 @@ async def establish_substrate(
             if removed:
                 deleted.append(assertion["path"])
 
+    # 1b. Establish field/equals preconditions on dial files (§3.1 reset-to-clean).
+    #     When a `requires` asserts a field value (e.g. _autonomy.yaml
+    #     default.delegation == autonomous), establishing that exact state IS the
+    #     clean starting state — the assertion and the establishment are the SAME
+    #     declaration, so there is no out-of-band drift (the c51c44f anti-pattern).
+    #     We read the current file, set the dotted body field, preserve everything
+    #     else (frontmatter + other fields), and rewrite as an operator-proxy
+    #     revision. The subsequent check_preconditions then reads what we wrote.
+    for assertion in requires or []:
+        if "field" in assertion and "equals" in assertion and assertion.get("path"):
+            established = await _establish_field_equals(
+                user_id,
+                path=assertion["path"],
+                field=assertion["field"],
+                value=assertion["equals"],
+                authored_by=authored_by,
+            )
+            if established:
+                wrote.append(established)
+
     # 2. Apply substrate-establishment setup steps. Only the substrate-shaped
     #    steps are handled here; turn-shaped setup runs inside ScenarioRunner.
     for step in setup or []:
@@ -681,6 +701,83 @@ async def establish_substrate(
                 deleted.append(path)
 
     return {"deleted": deleted, "wrote": wrote}
+
+
+async def _establish_field_equals(
+    user_id: str,
+    *,
+    path: str,
+    field: str,
+    value,
+    authored_by: str,
+) -> dict | None:
+    """Set a dotted body field on a frontmatter-bearing dial file to `value`,
+    preserving the frontmatter block + all other fields, and write it as an
+    operator-proxy revision. Returns the write record, or None if the field
+    is already at `value` (idempotent — no wasted revision).
+
+    Used by establish_substrate to honor a `requires: [{field, equals}]`
+    precondition (§3.1). The frontmatter (`--- tier: ... ---`) is preserved
+    verbatim; only the YAML body is re-serialized with the field set. Comments
+    in the body are decorative on a machine-parsed dial file and are dropped on
+    rewrite — the same shape a real operator dial-edit produces.
+    """
+    import re
+    import yaml as _y
+
+    from services.review_policy import load_workspace_yaml
+    from services.supabase import get_service_client
+
+    norm = path if path.startswith("/workspace/") else f"/workspace/{path.lstrip('/')}"
+    client = get_service_client()
+    loop = asyncio.get_running_loop()
+
+    def _read() -> str | None:
+        resp = (client.table("workspace_files").select("content")
+                .eq("user_id", user_id).eq("path", norm).limit(1).execute())
+        rows = resp.data or []
+        return rows[0]["content"] if rows else None
+
+    content = await loop.run_in_executor(None, _read)
+    if content is None:
+        # File absent — can't establish a field on a nonexistent dial file here.
+        # (A `setup: write_substrate` step is the right tool to create one.)
+        return None
+
+    body = load_workspace_yaml(content)
+    if not isinstance(body, dict):
+        body = {}
+
+    # Already at the target value → idempotent no-op (no wasted revision, ADR-209).
+    cur = body
+    segs = field.split(".")
+    for s in segs[:-1]:
+        cur = cur.get(s, {}) if isinstance(cur, dict) else {}
+    if isinstance(cur, dict) and cur.get(segs[-1]) == value:
+        return None
+
+    # Set the dotted field, creating intermediate dicts as needed.
+    cur = body
+    for s in segs[:-1]:
+        nxt = cur.get(s)
+        if not isinstance(nxt, dict):
+            nxt = {}
+            cur[s] = nxt
+        cur = nxt
+    cur[segs[-1]] = value
+
+    # Preserve the frontmatter block verbatim; re-serialize only the body.
+    fm_match = re.match(r"^(---\s*\n.*?\n---\s*\n)", content, re.DOTALL)
+    frontmatter = fm_match.group(1) if fm_match else ""
+    new_body = _y.safe_dump(body, default_flow_style=False, sort_keys=False)
+    new_content = frontmatter + new_body
+
+    res = await _write_substrate_with_author(
+        user_id, norm, new_content,
+        authored_by=authored_by,
+        message=f"eval-suite pre-flight: establish {field}={value} (§3.1 reset-to-clean)",
+    )
+    return {"path": res["path"], "revision_id": res.get("revision_id"), "field": field, "value": value}
 
 
 async def _seed_draft_from_template(
