@@ -33,7 +33,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { NarrativeProvider, useNarrative } from '@/contexts/NarrativeContext';
 import { BreadcrumbProvider } from '@/contexts/BreadcrumbContext';
 import type { DeskSurface } from '@/types/desk';
@@ -103,24 +102,22 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
 
   return (
     <BreadcrumbProvider>
-      <DeskProvider>
-        <SurfacePreferencesProvider>
-          <ShellChromeProvider userEmail={userEmail}>
-            <AuthenticatedLayoutInner>{children}</AuthenticatedLayoutInner>
-          </ShellChromeProvider>
-        </SurfacePreferencesProvider>
-      </DeskProvider>
+      <SurfacePreferencesProvider>
+        <ShellChromeProvider userEmail={userEmail}>
+          <AuthenticatedLayoutInner>{children}</AuthenticatedLayoutInner>
+        </ShellChromeProvider>
+      </SurfacePreferencesProvider>
     </BreadcrumbProvider>
   );
 }
 
-// Inner component runs inside DeskProvider so it can dispatch surface
-// changes; runs inside ShellChromeProvider so chrome surfaces (TopBar)
-// can read userEmail + launcher state.
+// Inner component runs inside SurfacePreferencesProvider (the window
+// manager — ADR-297 Phase 3 deleted the legacy DeskProvider) so it can
+// foreground surfaces; runs inside ShellChromeProvider so chrome
+// surfaces (TopBar) can read userEmail + launcher state.
 function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { setSurface, setSurfaceWithHandoff } = useDesk();
   const { data: composition } = useComposition();
   const { foregroundSurface, navigateToSurface, foregrounded, closeSurface } =
     useSurfacePreferences();
@@ -203,18 +200,18 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
           // kernel surface — stays a route push (transport, not nav).
           router.push(`/docs/${newSurface.documentId}`);
           return;
+        case 'atomic':
+          // TP handed off an atomic surface directly — open it.
+          navigateToSurface(newSurface.slug, newSurface.params);
+          return;
       }
-
-      // Atomic + idle surfaces flow through the legacy DeskState setter
-      // (still consumed by handoff-message display). Phase 3 collapses
-      // this onto the window manager fully.
-      if (handoffMessage) {
-        setSurfaceWithHandoff(newSurface, handoffMessage);
-      } else {
-        setSurface(newSurface);
-      }
+      // idle / unhandled kinds: no-op. ADR-297 Phase 3 deleted the legacy
+      // DeskState setSurface fallback — its handoff-message display sink
+      // was never read by SurfaceViewport (which renders from the window
+      // manager), so the fallback was dead. handoffMessage is dropped;
+      // the navigation itself is the live effect.
     },
-    [setSurface, setSurfaceWithHandoff, navigateToSurface, router]
+    [navigateToSurface, router]
   );
 
   return (

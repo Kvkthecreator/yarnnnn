@@ -38,7 +38,7 @@ import {
   X,
 } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
-import { useDesk } from '@/contexts/DeskContext';
+import type { DeskSurface } from '@/types/desk';
 import { api } from '@/lib/api/client';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
@@ -302,7 +302,6 @@ export default function ContextPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { loadScopedHistory, sendMessage } = useNarrative();
-  const { surface } = useDesk();
 
   const domainParam = searchParams.get('domain');
   const pathParam = searchParams.get('path');
@@ -468,9 +467,13 @@ export default function ContextPage() {
   // inside the surface body are rendered via SurfaceIdentityHeader
   // (intra-surface chrome, not workspace-wide).
 
-  const effectiveSurface = selectedNode
-    ? { ...surface, type: 'workspace-explorer' as const, path: selectedNode.path, navigation_type: selectedNode.type }
-    : surface;
+  // ADR-297 Phase 3: surface context for chat drafts derives from this
+  // surface's own identity (Files), not the deleted DeskContext. When a
+  // node is selected, overlay the explorer path so the agent knows what
+  // the operator is looking at.
+  const effectiveSurface: DeskSurface = selectedNode
+    ? { type: 'workspace-explorer', path: selectedNode.path, navigation_type: selectedNode.type }
+    : { type: 'atomic', slug: 'files' };
 
   useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
 

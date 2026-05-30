@@ -30,7 +30,6 @@ import {
   Square,
 } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
-import { useDesk } from '@/contexts/DeskContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
 // Commit G (2026-05-11): useAutonomy import retired here — autonomy chip
 // moved to feed header. ADR-297 D20 (2026-05-24): chip moved again to
@@ -138,8 +137,11 @@ export function ConversationPanel({
     loopActive,
     stopActiveLoop,
   } = useNarrative();
-  const { surface: deskSurface } = useDesk();
-  const surface = surfaceOverride || deskSurface;
+  // ADR-297 Phase 3: surface context is supplied by the caller via
+  // surfaceOverride (sourced from the window manager's foregrounded
+  // surface — see ChatDrawer). The legacy DeskContext fallback is
+  // deleted; callers that need surface context pass it explicitly.
+  const surface = surfaceOverride ?? { type: 'idle' as const };
 
   const [input, setInput] = useState('');
   const [commandPickerOpen, setCommandPickerOpen] = useState(false);

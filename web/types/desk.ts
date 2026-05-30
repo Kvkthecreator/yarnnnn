@@ -66,18 +66,6 @@ export function isKernelSurfaceSlug(s: string): s is KernelSurfaceSlug {
 }
 
 // =============================================================================
-// Attention Queue
-// =============================================================================
-
-export interface AttentionItem {
-  type: 'agent-staged';
-  agentId: string;
-  runId: string;
-  title: string;
-  stagedAt: string;
-}
-
-// =============================================================================
 // TP (Thinking Partner)
 // =============================================================================
 
@@ -222,31 +210,6 @@ export interface Todo {
 }
 
 // =============================================================================
-// Desk State
-// =============================================================================
-
-export interface DeskState {
-  surface: DeskSurface;
-  attention: AttentionItem[];
-  isLoading: boolean;
-  error: string | null;
-  /** Message from TP shown briefly at top of surface after navigation */
-  handoffMessage: string | null;
-}
-
-export type DeskAction =
-  | { type: 'SET_SURFACE'; surface: DeskSurface }
-  | { type: 'SET_SURFACE_WITH_HANDOFF'; surface: DeskSurface; handoffMessage: string }
-  | { type: 'SET_ATTENTION'; items: AttentionItem[] }
-  | { type: 'ADD_ATTENTION'; item: AttentionItem }
-  | { type: 'REMOVE_ATTENTION'; runId: string }
-  | { type: 'CLEAR_SURFACE' }
-  | { type: 'CLEAR_HANDOFF' }
-  | { type: 'NEXT_ATTENTION' }
-  | { type: 'SET_LOADING'; isLoading: boolean }
-  | { type: 'SET_ERROR'; error: string | null };
-
-// =============================================================================
 // TP State
 // =============================================================================
 
@@ -350,126 +313,4 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
     default:
       return null;
   }
-}
-
-/**
- * Serialize surface to URL params
- */
-export function surfaceToParams(surface: DeskSurface): URLSearchParams {
-  const params = new URLSearchParams();
-  params.set('surface', surface.type);
-
-  switch (surface.type) {
-    case 'atomic':
-      // ADR-297: slug identifies the surface; optional params carry
-      // deep-link state (task slug, agent slug, file path, etc.).
-      params.set('slug', surface.slug);
-      if (surface.params) {
-        for (const [k, v] of Object.entries(surface.params)) {
-          if (v) params.set(k, v);
-        }
-      }
-      break;
-    case 'agent-review':
-      params.set('did', surface.agentId);
-      params.set('vid', surface.runId);
-      break;
-    case 'agent-detail':
-      params.set('did', surface.agentId);
-      break;
-    case 'agent-list':
-      if (surface.status) params.set('status', surface.status);
-      break;
-    case 'task-detail':
-      params.set('taskSlug', surface.taskSlug);
-      break;
-    case 'context-browser':
-      params.set('scope', surface.scope);
-      if (surface.scopeId) params.set('scopeId', surface.scopeId);
-      break;
-    case 'context-editor':
-      params.set('mid', surface.memoryId);
-      break;
-    case 'document-viewer':
-      params.set('docId', surface.documentId);
-      break;
-    case 'platform-detail':
-      params.set('platform', surface.platform);
-      break;
-  }
-
-  return params;
-}
-
-/**
- * Parse URL params to surface
- */
-export function paramsToSurface(params: URLSearchParams): DeskSurface {
-  const surfaceType = params.get('surface');
-
-  switch (surfaceType) {
-    case 'atomic': {
-      const slug = params.get('slug');
-      if (slug && isKernelSurfaceSlug(slug)) {
-        // Collect non-canonical params as the atomic surface's params bag.
-        const bag: Record<string, string> = {};
-        params.forEach((v, k) => {
-          if (k !== 'surface' && k !== 'slug' && v) bag[k] = v;
-        });
-        return {
-          type: 'atomic',
-          slug,
-          params: Object.keys(bag).length > 0 ? bag : undefined,
-        };
-      }
-      break;
-    }
-    case 'agent-review': {
-      const did = params.get('did');
-      const vid = params.get('vid');
-      if (did && vid) return { type: 'agent-review', agentId: did, runId: vid };
-      break;
-    }
-    case 'agent-detail': {
-      const did = params.get('did');
-      if (did) return { type: 'agent-detail', agentId: did };
-      break;
-    }
-    case 'agent-list':
-      return { type: 'agent-list', status: (params.get('status') as 'active' | 'paused' | 'archived') || undefined };
-    case 'task-detail': {
-      const tSlug = params.get('taskSlug');
-      if (tSlug) return { type: 'task-detail', taskSlug: tSlug };
-      break;
-    }
-    case 'context-browser':
-      return {
-        type: 'context-browser',
-        scope: (params.get('scope') as 'user' | 'agent') || 'user',
-        scopeId: params.get('scopeId') || undefined,
-      };
-    case 'context-editor': {
-      const mid = params.get('mid');
-      if (mid) return { type: 'context-editor', memoryId: mid };
-      break;
-    }
-    case 'document-viewer': {
-      const docId = params.get('docId');
-      if (docId) return { type: 'document-viewer', documentId: docId };
-      break;
-    }
-    case 'document-list':
-      return { type: 'document-list' };
-    case 'platform-list':
-      return { type: 'platform-list' };
-    case 'platform-detail': {
-      const platform = params.get('platform');
-      if (platform && ['slack', 'notion'].includes(platform)) {
-        return { type: 'platform-detail', platform: platform as 'slack' | 'notion' };
-      }
-      break;
-    }
-  }
-
-  return { type: 'idle' };
 }
