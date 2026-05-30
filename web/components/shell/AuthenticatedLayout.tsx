@@ -9,14 +9,14 @@
  * a registered surface, the compositor reads default_region from the
  * surface registry, and the shell becomes structural only.
  *
- * What this file owns after D11:
+ * What this file owns after D11 (+ Phase 3 legacy-desk deletion):
  *   - Auth check + loading state
- *   - Provider stack (BreadcrumbProvider · DeskProvider · NarrativeProvider
- *     · ShellChromeProvider)
- *   - The NarrativeContext.onSurfaceChange handoff machinery, because
- *     it couples auth-shell-level routing (router.push) with the
- *     legacy DeskSurface kinds (agent-list, document-viewer, etc.)
- *     and isn't a surface concern.
+ *   - Provider stack (BreadcrumbProvider · SurfacePreferencesProvider
+ *     · ShellChromeProvider). The legacy DeskProvider was deleted in
+ *     ADR-297 Phase 3 — the window manager (SurfacePreferencesProvider)
+ *     is the sole surface-state source of truth.
+ *   - The NarrativeContext.onSurfaceChange handoff machinery, which maps
+ *     TP-emitted DeskSurface kinds to navigateToSurface (window-opening).
  *   - Pathname → foreground surface tracking (D13) — when the URL
  *     deep-links to an atomic surface, the shell foregrounds it in the
  *     open-surfaces registry. Replaces the pre-D13 recordVisit/
