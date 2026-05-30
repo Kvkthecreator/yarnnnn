@@ -101,7 +101,7 @@ export function TraderRegime() {
           </span>
         </div>
         <Link
-          href="/work?task=track-regime"
+          href="/cadence?task=track-regime"
           className="text-[11px] text-muted-foreground/70 underline-offset-4 hover:text-foreground hover:underline"
         >
           View tracker →

@@ -172,7 +172,7 @@ export function ReviewerCapabilitiesPanel() {
                     <span key={rslug}>
                       {idx > 0 && <span className="text-muted-foreground/30 mx-1">·</span>}
                       <Link
-                        href={`/work?task=${encodeURIComponent(rslug)}`}
+                        href={`/cadence?task=${encodeURIComponent(rslug)}`}
                         className="font-mono hover:text-foreground hover:underline underline-offset-4"
                       >
                         {rslug}

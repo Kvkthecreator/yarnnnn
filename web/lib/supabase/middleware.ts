@@ -26,13 +26,12 @@ import { HOME_ROUTE } from "@/lib/routes";
 const PROTECTED_PREFIXES = [
   "/desktop", // ADR-297 §D17 — authenticated boot route
   "/feed",
-  "/work",
+  "/cadence", // ADR-297 — absorbed /work (recurrence list + task detail)
   "/agents",
   "/context",
-  "/workspace",
   "/activity",
   "/connectors",
-  "/operation", // redirect stub → /workspace
+  "/operation", // redirect stub → /mandate
   "/memory",
   "/system",
   "/settings",

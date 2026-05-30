@@ -795,7 +795,7 @@ The collision: clicking around inside a legacy-shaped surface window feels like 
 - `docs/design/SURFACE-MODEL-ATOMIC-VS-CONTAINER.md` — D19 referenced as the post-migration completion.
 - `CLAUDE.md` — atomic-surface internals section gets the window-shape rule.
 
-D19 ratification status: **Enacting 2026-05-30** (was Proposed 2026-05-22; the follow-on enactment was deferred and the call-site migration never landed — audit found 6/61 navigation calls on the canonical `foregroundSurface` gesture, the rest still `router.push`. Enactment is now tracked + sequenced in [`docs/design/ADR-297-NAVIGATION-ENACTMENT-PLAN.md`](../design/ADR-297-NAVIGATION-ENACTMENT-PLAN.md); flips to **Implemented** when that plan's Definition of Done is met).
+D19 ratification status: **Implemented 2026-05-30** (was Proposed 2026-05-22 → Enacting; the call-site migration landed via [`docs/design/ADR-297-NAVIGATION-ENACTMENT-PLAN.md`](../design/ADR-297-NAVIGATION-ENACTMENT-PLAN.md). `navigateToSurface` is the single cross-surface verb; the legacy Supervisor Desk (`DeskContext`) is deleted; regression guard at `api/test_adr297_navigation_enactment.py` enforces the boundary. Commits `fbfcb02` / `9c66bdc` / `70b2b86` + Phase 5.).
 
 ---
 
@@ -858,7 +858,7 @@ D19.7 had argued Settings is a legitimate page-shaped thing (long-form preferenc
 7. Update phase1 regression gate.
 8. Validate: tsc + next build + python phase1 gate.
 
-D19.4 ratification status: **Enacting 2026-05-30** (was Proposed 2026-05-22; enactment tracked in [`docs/design/ADR-297-NAVIGATION-ENACTMENT-PLAN.md`](../design/ADR-297-NAVIGATION-ENACTMENT-PLAN.md) — Settings/Connectors page-push → `foregroundSurface` conversions are part of that plan's Phase 2; flips to **Implemented** at the plan's Definition of Done).
+D19.4 ratification status: **Implemented 2026-05-30** (was Proposed 2026-05-22 → Enacting; Settings/WorkspaceSection page-pushes converted to `navigateToSurface` per [`docs/design/ADR-297-NAVIGATION-ENACTMENT-PLAN.md`](../design/ADR-297-NAVIGATION-ENACTMENT-PLAN.md) Phase 2).
 
 ---
 

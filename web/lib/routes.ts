@@ -42,12 +42,11 @@
 //   /chat          → /feed                             (ADR-259 — surface rename)
 //   /orchestrator  → /feed                             (ADR-163, ADR-205 F1)
 //   /team          → /agents                           (ADR-214 — reverses ADR-201)
-//   /overview      → /work                             (ADR-205 F2, ADR-225 Phase 3)
+//   /overview      → /cadence                          (ADR-205 F2; ADR-297 dissolved /work → Cadence)
 //   /workfloor     → /feed                             (ADR-163)
 //   /memory        → /context?path=...IDENTITY.md      (ADR-215 R3)
 //   /system        → /settings                         (system tab removed 2026-05-02)
-//   /schedule      → /work                             (ADR-243 folded into Work tabs)
-//   /operation     → /workspace                         (renamed before launch)
+//   /operation     → /mandate                          (ADR-297 — atomic surface; routes.ts doc corrected 2026-05-30)
 //   /backend       → /activity                         (ADR-265 — operator-readable rename)
 //
 // =============================================================================
@@ -59,10 +58,17 @@ export const HOME_ROUTE = "/desktop";
 export const HOME_LABEL = "Desktop";
 export const DESKTOP_ROUTE = "/desktop";
 export const FEED_ROUTE = "/feed";
-export const WORK_ROUTE = "/work";
+// ADR-297: /work dissolved — recurrence list + task detail folded into
+// the Cadence surface. WORK_ROUTE repointed to /cadence so the surviving
+// deep-links (`?task=`) resolve to the live surface. Both consumers
+// (AgentContentView task links, /overview redirect stub) heal via this
+// single repoint.
+export const WORK_ROUTE = "/cadence";
 export const AGENTS_ROUTE = "/agents"; // ADR-214 — canonical (reverses ADR-201 /team rename).
 export const CONTEXT_ROUTE = "/context";
-export const WORKSPACE_CONFIG_ROUTE = "/workspace"; // Workspace-level config (mandate, autonomy, principles, programs).
+// WORKSPACE_CONFIG_ROUTE ("/workspace") deleted 2026-05-30 — ADR-297
+// dissolved the /workspace container into atomic surfaces (mandate,
+// autonomy, principles, etc.); the constant had zero consumers.
 export const ACTIVITY_ROUTE = "/activity";           // Workspace-wide activity ledger (execution_events, ADR-250 + ADR-265).
 export const CONNECTORS_ROUTE = "/connectors"; // Platform connections — Slack, Notion, GitHub, Lemon Squeezy, Alpaca.
 // ADR-272: System Agent dissolved as a cockpit entity (ADR-251 reversed).

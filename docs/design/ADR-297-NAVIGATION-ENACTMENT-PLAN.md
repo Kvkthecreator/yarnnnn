@@ -110,9 +110,21 @@ Once nothing produces `DeskSurface` for navigation:
 
 ### Phase 5 — Stale-route cleanup (independent, can land anytime)
 
-- The ~8 legacy redirect stubs (`chat`, `workfloor`, `orchestrator`, `overview`, `operation`, `team`, `system`, `memory`) — confirm each still has an inbound need (bookmark safety) or delete. Several may be deletable now.
+**Audit outcome (2026-05-30):** the redirect stubs are *governed infrastructure* per the formal Redirect Stub Policy (ADR-236 Item 5 in `lib/routes.ts`) — kept until (a) originating ADR Implemented ≥ one release cycle AND (b) no known inbound links. So blanket deletion was wrong. The real finding: **ADR-297's `/work` dissolution left dead links** (the stubs/links pointed at the dissolved `/work` + `/workspace` surfaces). Fixed by repointing to the live `/cadence` surface that absorbed `/work`:
 
-**Gate:** grep for inbound links to each stub before deleting. **Risk:** low.
+- `WORK_ROUTE` constant `/work → /cadence` (single repoint heals `/overview` stub + AgentContentView task links).
+- Hardcoded dead `href="/work?..."` in `ReviewerCapabilitiesPanel`, `TraderRegime`, `WorkspaceContextOverlay` → `/cadence`.
+- `middleware.ts` protected prefixes: dead `/work` + `/workspace` removed, `/cadence` added.
+- Unused `WORKSPACE_CONFIG_ROUTE = "/workspace"` constant deleted (zero consumers).
+- `lib/routes.ts` stub-list doc corrected (`/overview → /cadence`, `/operation → /mandate`, stale `/schedule` line removed).
+
+**Gate:** tsc clean + nav guard 13/13. The governed stubs themselves (chat, workfloor, orchestrator, team, etc.) stay per policy. **Risk:** low.
+
+---
+
+## Status: all phases Implemented (2026-05-30)
+
+Commits: `fbfcb02` (P0–P2b) · `9c66bdc` (P3) · `70b2b86` (P4) · Phase 5 + validation following. ADR-297 D19/D19.4 → Implemented.
 
 ---
 
