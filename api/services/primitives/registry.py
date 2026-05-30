@@ -576,6 +576,25 @@ async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
             "available": list(HANDLERS.keys()),
         }
 
+    # ADR-307 D1: the single uniform permission gate, above all primitives.
+    # Resolves apply / queue / deny from (autonomy × read_only × action_class ×
+    # locks) at this one chokepoint — no primitive gates itself. Phase 1 is
+    # behavior-preserving: read-only primitives short-circuit APPLY; the
+    # capital/substrate queue-vs-error outcomes still resolve in their existing
+    # sites (review_proposal_dispatch / handle_write_file). Phase 2+ moves the
+    # QUEUE realization for substrate writes into the gate.
+    from .permission import resolve_permission, PermissionDecision
+    decision, reason = await resolve_permission(auth, name, input)
+    if decision == PermissionDecision.DENY:
+        return {
+            "success": False,
+            "error": "governance_locked",
+            "message": f"Primitive {name} blocked by governance lock: {reason}",
+            "primitive": name,
+        }
+    # APPLY and (Phase 2+) QUEUE fall through to the handler; QUEUE realization
+    # is introduced in Phase 2 within the gate, not here.
+
     try:
         return await handler(auth, input)
     except Exception as e:
