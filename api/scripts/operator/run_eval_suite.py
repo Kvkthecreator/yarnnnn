@@ -317,11 +317,16 @@ def _detect_empty_responses(evaluations: list[dict]) -> int:
     for ev in evaluations:
         if ev.get("phase") != "turn" or ev.get("action") != "send_message":
             continue
-        # The scenario runner records the response text/length under varying
-        # keys depending on capture version; check the common ones.
-        text = ev.get("response_text") or ev.get("text") or ""
-        resp = ev.get("response") if isinstance(ev.get("response"), dict) else {}
-        text = text or (resp.get("text") or "")
+        # The scenario runner records the SSE-decoded Reviewer response under
+        # `response_text_preview` (ScenarioRunner._execute_turn). It is the
+        # proxy's send_message `text` (the 2026-05-29 SSE-fix output), truncated
+        # to 500 chars — fine for a length check. H1 (2026-05-30): the prior
+        # version of this guard read `response_text`/`text`/`response.text`, none
+        # of which the eval-record carries, so it flagged EVERY addressed turn as
+        # near-empty (false INCONCLUSIVE) while session_messages showed 493–745
+        # char responses. The canonical record is session_messages(role=reviewer);
+        # the eval-record preview is the in-process mirror of it. Read the preview.
+        text = ev.get("response_text_preview") or ""
         if len(text.strip()) < EMPTY_RESPONSE_CHAR_THRESHOLD:
             count += 1
     return count
@@ -415,15 +420,29 @@ async def wait_for_completion(
         )
         return len(resp.data or [])
 
+    # H3 (2026-05-30): a transient httpx.ConnectError (DNS blip) on a single
+    # poll must NOT crash the gate — it skipped the re-snapshot + SESSION.md
+    # render entirely in the first live run. Wrap each poll query so a transient
+    # network error logs-and-continues; the next poll retries. Only a persistent
+    # failure across the whole timeout window degrades to "couldn't settle".
+    async def _safe(query_fn, fallback):
+        try:
+            return await loop.run_in_executor(None, query_fn)
+        except Exception as exc:  # noqa: BLE001 — transient net errors must not crash the gate
+            print(f"    [poll] transient query error ({type(exc).__name__}: {str(exc)[:60]}) — retrying next poll")
+            return fallback
+
     timed_out = False
+    substrate_status: dict[str, str] = {}
+    addressed_count = 0
     while True:
         elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
         if elapsed >= COMPLETION_GATE_TIMEOUT_SEC:
             timed_out = True
             break
 
-        substrate_status = await loop.run_in_executor(None, query_substrate_event_status)
-        addressed_count = await loop.run_in_executor(None, query_addressed_count)
+        substrate_status = await _safe(query_substrate_event_status, substrate_status)
+        addressed_count = await _safe(query_addressed_count, addressed_count)
 
         substrate_settled = sum(1 for s in substrate_status.values() if s in ("completed", "failed", "dropped"))
         substrate_pending = sum(1 for s in substrate_status.values() if s in ("pending", "locked"))
@@ -442,8 +461,8 @@ async def wait_for_completion(
         await asyncio.sleep(COMPLETION_GATE_POLL_SEC)
 
     elapsed = int((datetime.now(timezone.utc) - started_at).total_seconds())
-    final_substrate = await loop.run_in_executor(None, query_substrate_event_status)
-    final_addressed = await loop.run_in_executor(None, query_addressed_count)
+    final_substrate = await _safe(query_substrate_event_status, substrate_status)
+    final_addressed = await _safe(query_addressed_count, addressed_count)
 
     return {
         "elapsed_sec": elapsed,
@@ -866,8 +885,23 @@ async def run_suite(suite_path: Path, caller: str) -> int:
     write_phase_finished_at = datetime.now(timezone.utc)
     print(f"\n=== Write phase complete in {int((write_phase_finished_at - session_started_at).total_seconds())}s ===")
     print(f"=== Completion gate: polling wake_queue + execution_events ===")
-    completion = await wait_for_completion(user_id, eval_results, session_started_at)
-    print(f"    completion gate: elapsed {completion['elapsed_sec']}s, timed_out={completion['timed_out']}")
+    # H3 (2026-05-30): the completion gate must NOT be able to destroy the run's
+    # output. Even with per-poll _safe wrapping, belt-and-suspenders: if the gate
+    # raises, degrade to a "gate-crashed" completion dict and STILL proceed to
+    # re-snapshot + render, so the SESSION.md artifact always lands from whatever
+    # settled. In the first live run a gate crash skipped render entirely; the
+    # read had to be reconstructed from substrate by hand.
+    try:
+        completion = await wait_for_completion(user_id, eval_results, session_started_at)
+        print(f"    completion gate: elapsed {completion['elapsed_sec']}s, timed_out={completion['timed_out']}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"    completion gate CRASHED ({type(exc).__name__}: {str(exc)[:80]}) — "
+              f"proceeding to render from settled state (H3 finally-discipline)")
+        completion = {
+            "elapsed_sec": 0, "substrate_event_settled": 0, "substrate_event_pending": 0,
+            "substrate_event_expected": 0, "addressed_settled": 0, "addressed_expected": 0,
+            "timed_out": False, "gate_crashed": f"{type(exc).__name__}: {str(exc)[:120]}",
+        }
 
     print("\n=== Re-snapshotting per-eval captures + shape receipts (post-wake) ===")
     for r in eval_results:
