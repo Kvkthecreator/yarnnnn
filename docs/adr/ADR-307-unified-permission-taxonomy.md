@@ -1,6 +1,6 @@
 # ADR-307: Unified Permission Taxonomy — One Gate, One Queue, All Consequential Primitives
 
-**Status**: Phase 1 Implemented (commit `6925927`); D4 revised to the generic-queue shape 2026-05-30 (first-principles consumer audit); Phases 2–4 implementation in progress.
+**Status**: **Implemented** 2026-05-30 (Phases 1–4). Phase 1 uniform gate (`6925927`); D4 revised to generic-queue shape (`c197c40`); Phase 2 backend (`b7865a1`) + FE (`2f640cb`); Phase 3 full-primitive gate (`442f595`); Phase 4 canon (this commit). Migration 181 applied. End-to-end validation pending (the bounded-substrate-write wake).
 **Date**: 2026-05-30
 **Deciders**: KVK (operator) + Claude (collaborator)
 **Hat**: A (system canon — real-operator-facing)

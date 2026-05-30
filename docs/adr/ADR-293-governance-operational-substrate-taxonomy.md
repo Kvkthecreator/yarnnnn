@@ -314,6 +314,9 @@ through consistent good judgment captured in the revision chain.
 
 ### D10 — Substrate-Queue UI surface (deferred to Phase 4)
 
+> **⚠ D10 + D13 WITHDRAWN by ADR-307 (2026-05-30).** The substrate-Queue *intent* (bounded/manual Reviewer substrate writes await operator approval) is **preserved and fulfilled** — but NOT via a separate `queued_for_operator` flag + parallel cockpit surface as D10/D13 planned. ADR-307 generalized the existing `action_proposals` queue into a generic gated-action queue (keyed on `primitive` + `inputs` + family-shaped `decision_context`); a gated substrate write becomes a `family='substrate'` proposal in the ONE queue, rendered by the existing cockpit Queue (diff card). The D13 "Phase 1 blocks with a clear error" stopgap is replaced by real queuing. ADR-293 D1 (governance/operational taxonomy) + D2 (governance lock = the gate's bypass-immune DENY tier) + D4 (`should_auto_apply` uniform decision function) are **preserved**; only the second-queue *mechanism* in D10/D13 is withdrawn. See ADR-307 D4.
+
+
 New cockpit affordance parallel to today's proposal Queue. Shows Reviewer-authored substrate edits awaiting operator click under `bounded`. Each queue entry:
 
 - File path + diff preview (old → new content side-by-side or unified)

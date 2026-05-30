@@ -6,6 +6,44 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.05.30.1] - unified permission taxonomy: one gate, one queue (ADR-307)
+
+### Decision
+
+The permission gate (apply/queue/deny) is unified at a single chokepoint
+(`execute_primitive`) and completed across all consequential primitives; the
+`action_proposals` queue is generalized from capital-specific to a generic
+gated-action queue. Ratified by ADR-307; cross-checked against Claude Code's
+permission architecture. Triggered by the ADR-306 validation surfacing a
+Reviewer WriteFile that hard-errored under bounded autonomy instead of queuing.
+
+### Changed (LLM-facing tool behavior)
+
+- `services/primitives/permission.py` (NEW): the uniform gate. A Reviewer
+  consequential call resolves apply / queue / deny. Under bounded/manual, a
+  WriteFile/Schedule/RuntimeDispatch/DispatchSpecialist/ManageHook/ManageAgent/
+  ManageDomains call now returns `{queued: True, proposal_id, message}` instead
+  of applying — the operator approves from the cockpit; the call replays on
+  approve. Under autonomous it applies (subject to each primitive's resource
+  ceiling). Governance-locked paths → `governance_locked` (bypass-immune).
+- **Expected behavior change**: the Reviewer, under bounded/manual, will see
+  its substrate writes + cadence/specialist/asset calls return a "queued for
+  approval" result rather than applying or hard-erroring. It should narrate
+  "I've queued X for your approval" (not "I attempted X and it was gated" —
+  that confabulation class is the ADR-306 action-grammar's target; the queue
+  result is a real receipt to narrate honestly).
+- `ProposeAction` tool: `action_type` is now a capital-family naming arg
+  resolved to the platform primitive at insert (ACTION_DISPATCH_MAP deleted;
+  ExecuteProposal replays the stored primitive directly).
+- `WriteFile`: no longer carries an inline autonomy gate (the gate moved up to
+  `execute_primitive` — the handler is the pure execution arm).
+
+### Migration
+
+- 181_generic_action_queue.sql: action_proposals action_type→primitive,
+  +decision_context jsonb, +family text; 8 live rows backfilled to
+  family='capital'. id PK + inputs untouched (reconciler round-trip preserved).
+
 ## [2026.05.29.2] - reviewer persona-frame COLLAPSE: ~36K → ~3.5K, model↔runtime interface contract only (ADR-306)
 
 ### Decision
