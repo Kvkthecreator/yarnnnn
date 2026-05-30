@@ -569,8 +569,6 @@ async def check_preconditions(user_id: str, requires: list[dict]) -> dict:
     refuses to fire an eval whose preconditions are not satisfied (§3, S2).
     No tokens are spent on a measurement that cannot honor its own contract.
     """
-    import yaml as _yaml
-
     from services.supabase import get_service_client
 
     client = get_service_client()
@@ -604,16 +602,18 @@ async def check_preconditions(user_id: str, requires: list[dict]) -> dict:
             if content is None:
                 ok, detail = False, "file absent (expected field match)"
             else:
-                try:
-                    parsed = _yaml.safe_load(content) or {}
-                    # YAML files in this codebase may carry frontmatter or be
-                    # whole-file YAML; safe_load on whole-file YAML is correct
-                    # for _autonomy.yaml / _pace.yaml (the `requires` targets).
-                    val = _dotted_get(parsed if isinstance(parsed, dict) else {}, assertion["field"])
-                    ok = (val is not _MISSING) and (val == assertion["equals"])
-                    detail = f"{assertion['field']}={val!r} (expected {assertion['equals']!r})"
-                except Exception as exc:
-                    ok, detail = False, f"yaml parse error: {exc}"
+                # _autonomy.yaml / _pace.yaml carry a `--- tier: ... ---`
+                # frontmatter header (the grandfathered machine-config-with-
+                # frontmatter exception, CLAUDE.md §9). The canonical
+                # frontmatter-aware, never-raises loader is load_workspace_yaml
+                # in review_policy — reuse it (CLAUDE.md §9: no hand-rolled
+                # frontmatter parsers). The real config lives in the BODY after
+                # the frontmatter, not in the frontmatter.
+                from services.review_policy import load_workspace_yaml
+                parsed = load_workspace_yaml(content)
+                val = _dotted_get(parsed if isinstance(parsed, dict) else {}, assertion["field"])
+                ok = (val is not _MISSING) and (val == assertion["equals"])
+                detail = f"{assertion['field']}={val!r} (expected {assertion['equals']!r})"
         elif "contains" in assertion:
             ok = content is not None and assertion["contains"] in content
             detail = "contains" if ok else f"missing substring {assertion['contains']!r}"
