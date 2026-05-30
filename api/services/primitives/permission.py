@@ -122,11 +122,27 @@ def action_class_for(name: str) -> str:
 
 # Primitives whose QUEUE realization the gate owns directly (ADR-307 D4/D5).
 # A Reviewer call to one of these under bounded/manual is enqueued as a
-# family='substrate' proposal by execute_primitive. WriteFile is the Phase-2
-# member; Phase 3 adds Schedule/RuntimeDispatch/ManageHook/etc.
+# family='substrate' proposal by execute_primitive; under autonomous it
+# applies (subject to each primitive's own orthogonal resource ceiling —
+# Schedule's pace cap, RuntimeDispatch/DispatchSpecialist's token budget —
+# which remain additive checks, not replaced by the autonomy gate).
+#
+# WriteFile is path-addressed (governance lock + diff). The others are
+# substrate-mutating but not path-addressed; for them the gate applies only
+# the delegation decision (manual/bounded → queue, autonomous → apply).
 GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
     "WriteFile",
+    "Schedule",
+    "ManageHook",
+    "ManageAgent",
+    "ManageDomains",
+    "RuntimeDispatch",
+    "DispatchSpecialist",
 })
+
+#: Subset of GATE_QUEUEABLE_PRIMITIVES that are path-addressed (governance-lock
+#: + diff apply). Only WriteFile today.
+_PATH_ADDRESSED_QUEUEABLE: frozenset[str] = frozenset({"WriteFile"})
 
 
 async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[PermissionDecision, str]:
@@ -163,31 +179,36 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
     if name not in GATE_QUEUEABLE_PRIMITIVES:
         return PermissionDecision.APPLY, f"consequential:{action_class_for(name)}:not_gate_owned"
 
-    # Gate-owned consequential primitive (WriteFile) authored by the Reviewer.
-    # Resolve governance lock + autonomy decision.
+    # Gate-owned consequential primitive authored by the Reviewer. Resolve the
+    # autonomy decision (+ governance lock for path-addressed primitives).
     try:
         from services.review_policy import (
             load_autonomy, autonomy_for_domain, should_auto_apply,
         )
-        from services.primitives.workspace import _resolve_workspace_path_for_gate
 
-        path = _resolve_workspace_path_for_gate(input)
-        if path is None:
-            # Non-workspace-scope write (agent/context scope) — not an
-            # operator-shared substrate write; not autonomy-gated here.
-            return PermissionDecision.APPLY, "non_workspace_scope"
+        substrate_path = ""
+        if name in _PATH_ADDRESSED_QUEUEABLE:
+            # Path-addressed (WriteFile): resolve the target path; non-workspace
+            # scope is not autonomy-gated; governance lock → bypass-immune DENY.
+            from services.primitives.workspace import (
+                _resolve_workspace_path_for_gate, _is_path_locked_for_reviewer,
+            )
+            path = _resolve_workspace_path_for_gate(input)
+            if path is None:
+                return PermissionDecision.APPLY, "non_workspace_scope"
+            if await _is_path_locked_for_reviewer(auth, path):
+                return PermissionDecision.DENY, f"governance_locked:{path}"
+            substrate_path = path
 
-        # Governance lock (bypass-immune — DENY even under autonomous).
-        from services.primitives.workspace import _is_path_locked_for_reviewer
-        if await _is_path_locked_for_reviewer(auth, path):
-            return PermissionDecision.DENY, f"governance_locked:{path}"
-
+        # Delegation decision (manual/bounded → queue; autonomous → apply).
+        # For non-path-addressed primitives substrate_path="" — never_auto
+        # path-matching simply doesn't match; the delegation gate still fires.
         autonomy = load_autonomy(auth.client, auth.user_id)
         autonomy_policy = autonomy_for_domain(autonomy, "")
         allowed, gate_reason = should_auto_apply(
             autonomy_policy=autonomy_policy,
             action_class="substrate",
-            substrate_path=path,
+            substrate_path=substrate_path,
             caller_identity=getattr(auth, "caller_identity", "") or "",
         )
     except Exception as exc:  # fail closed — queue rather than apply

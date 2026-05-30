@@ -234,6 +234,51 @@ def test_substrate_family_resolves_to_verdict_path():
     assert _resolve_context_domain("platform_email_send", "capital") is None
 
 
+# ---------------------------------------------------------------------------
+# Phase 3 — complete the gate across all consequential primitives (D5)
+# ---------------------------------------------------------------------------
+
+def test_gate_covers_all_consequential_primitives():
+    """ADR-307 D5: Schedule/RuntimeDispatch/DispatchSpecialist/ManageHook/
+    ManageAgent/ManageDomains pass through the uniform gate (queue under
+    bounded/manual, apply under autonomous)."""
+    from services.primitives.permission import GATE_QUEUEABLE_PRIMITIVES
+    for name in ("WriteFile", "Schedule", "ManageHook", "ManageAgent",
+                 "ManageDomains", "RuntimeDispatch", "DispatchSpecialist"):
+        assert name in GATE_QUEUEABLE_PRIMITIVES, (
+            f"{name} must be gate-queueable per ADR-307 D5"
+        )
+
+
+def test_only_writefile_is_path_addressed():
+    """ADR-307: WriteFile is the only path-addressed queueable (governance
+    lock + diff). The others gate on delegation alone (no path)."""
+    from services.primitives.permission import _PATH_ADDRESSED_QUEUEABLE
+    assert _PATH_ADDRESSED_QUEUEABLE == frozenset({"WriteFile"})
+
+
+def test_non_path_primitive_gates_on_delegation_only():
+    """A Reviewer Schedule() under bounded QUEUEs (delegation gate fires with
+    empty substrate_path — no governance-lock path-resolution)."""
+    import asyncio
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    from services.primitives.permission import resolve_permission, PermissionDecision
+
+    auth = SimpleNamespace(reviewer_caller=True, user_id="u", client=None,
+                           caller_identity="reviewer:test")
+    # bounded → QUEUE
+    with patch("services.review_policy.load_autonomy", return_value={}), \
+         patch("services.review_policy.autonomy_for_domain", return_value={"delegation": "bounded"}):
+        decision, _ = asyncio.run(resolve_permission(auth, "Schedule", {"action": "create"}))
+        assert decision == PermissionDecision.QUEUE
+    # autonomous → APPLY
+    with patch("services.review_policy.load_autonomy", return_value={}), \
+         patch("services.review_policy.autonomy_for_domain", return_value={"delegation": "autonomous"}):
+        decision, _ = asyncio.run(resolve_permission(auth, "Schedule", {"action": "create"}))
+        assert decision == PermissionDecision.APPLY
+
+
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-q"]))
