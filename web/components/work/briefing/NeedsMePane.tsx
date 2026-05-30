@@ -170,16 +170,16 @@ function NeedsMePaneBody({
 // a 3-line shared module. If a third caller emerges, hoist to a shared
 // helper.
 function adaptProposalForModal(p: Proposal): import('@/components/tp/ProposalCard').ProposalData {
+  // ADR-307: generic gated-action queue shape (primitive + family +
+  // decision_context). ProposalCard normalizes decision_context per family.
   return {
     id: p.id,
-    action_type: p.action_type,
-    rationale: p.rationale ?? '',
-    expected_effect: p.expected_effect ?? '',
-    reversibility: p.reversibility,
-    risk_warnings: p.risk_warnings ?? [],
+    primitive: p.primitive,
+    family: p.family,
+    decision_context: p.decision_context ?? undefined,
     expires_at: p.expires_at,
     status: p.status,
-    inputs: p.inputs,  // DD-6: pass through structured payload
+    inputs: p.inputs,
   };
 }
 
@@ -213,18 +213,25 @@ function InlineProposalRow({
   onOpen: () => void;
 }) {
   const ttl = formatTTL(proposal.expires_at);
-  const irreversible = proposal.reversibility === 'irreversible';
+  const dc = (proposal.decision_context ?? {}) as Record<string, unknown>;
+  // ADR-307: reversibility lives in capital decision_context; substrate writes
+  // are reversible via the revision chain (never flagged irreversible).
+  const irreversible = proposal.family === 'capital' && dc.reversibility === 'irreversible';
+  const label = formatProposalLabel(proposal);
+  const summary = proposal.family === 'substrate'
+    ? (dc.message as string) || ''
+    : (dc.rationale as string) || '';
 
   return (
     <button
       type="button"
       onClick={onOpen}
-      aria-label={`Open ${formatActionType(proposal.action_type)} proposal`}
+      aria-label={`Open ${label} proposal`}
       className="w-full rounded-md border border-border bg-card px-3 py-2 text-left transition-colors hover:border-foreground/40 hover:bg-muted/30 focus:outline-none focus:ring-1 focus:ring-foreground/40"
     >
       <div className="flex items-center gap-2">
         <span className="text-xs font-medium text-foreground">
-          {formatActionType(proposal.action_type)}
+          {label}
         </span>
         {irreversible && (
           <span className="inline-flex items-center gap-1 rounded-sm bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium uppercase text-destructive">
@@ -237,9 +244,9 @@ function InlineProposalRow({
           {ttl}
         </span>
       </div>
-      {proposal.rationale && (
+      {summary && (
         <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
-          {proposal.rationale}
+          {summary}
         </p>
       )}
       <p className="mt-1.5 text-[10px] uppercase tracking-wide text-muted-foreground/60">
@@ -249,11 +256,18 @@ function InlineProposalRow({
   );
 }
 
-function formatActionType(action: string): string {
-  const [provider, ...rest] = action.split('.');
-  if (!provider || rest.length === 0) return action;
-  const tool = rest.join('.').replace(/_/g, ' ');
-  return `${capitalize(provider)} · ${capitalize(tool)}`;
+// ADR-307: human label from (primitive, family). Substrate → target path;
+// capital → provider · tool.
+function formatProposalLabel(p: Proposal): string {
+  if (p.family === 'substrate') {
+    const dc = (p.decision_context ?? {}) as Record<string, unknown>;
+    const path = (dc.path as string) ?? ((dc.diff as { path?: string })?.path) ?? '';
+    return path ? `Write · ${path}` : 'Substrate write';
+  }
+  const prim = p.primitive.replace(/^platform_/, '');
+  const [provider, ...rest] = prim.split('_');
+  if (!provider || rest.length === 0) return prim;
+  return `${capitalize(provider)} · ${capitalize(rest.join(' '))}`;
 }
 
 function capitalize(s: string): string {

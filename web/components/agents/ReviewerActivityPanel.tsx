@@ -60,13 +60,15 @@ interface RunRow {
 
 interface ActionRow {
   id: string;
-  action_type: string;
+  // ADR-307: generic queue shape.
+  primitive: string;
+  family: 'capital' | 'substrate';
+  decision_context: Record<string, unknown> | null;
   status: string;          // pending | approved | rejected | executed | expired | rejected_at_execution
-  expected_effect: string | null;
   approved_at: string | null;
   executed_at: string | null;
-  approved_by: string | null;   // 'user' | 'auto_reversible' | null
-  source: string | null;        // 'reviewer_periodic' | 'reviewer_heartbeat' | etc.
+  approved_by: string | null;   // 'user' | null
+  source: string | null;        // 'reviewer:<occupant>'
   created_at: string;
 }
 
@@ -109,8 +111,13 @@ function relativeTime(iso: string | null | undefined): string {
 }
 
 function shortAction(a: ActionRow): string {
-  const tail = a.action_type.split('.').slice(-1)[0] || a.action_type;
-  return a.expected_effect || tail;
+  // ADR-307: derive a short label from the family-shaped decision_context,
+  // falling back to the primitive name.
+  const dc = (a.decision_context ?? {}) as Record<string, unknown>;
+  if (a.family === 'substrate') {
+    return (dc.message as string) || (dc.path as string) || a.primitive;
+  }
+  return (dc.expected_effect as string) || a.primitive.replace(/^platform_/, '');
 }
 
 function actionBadge(a: ActionRow): { label: string; tone: 'green' | 'amber' | 'red' | 'muted' } {

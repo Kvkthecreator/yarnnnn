@@ -223,9 +223,12 @@ function PulseSection({ onAskTP }: { onAskTP: (prompt: string) => void }) {
 
         const pendingRows = proposals.status === 'fulfilled' ? proposals.value.proposals || [] : [];
         const pendingTitles = pendingRows.slice(0, 3).map((p) => {
-          // Best-effort short label
-          const tail = p.action_type.split('.').slice(-1)[0] || p.action_type;
-          return p.expected_effect || tail;
+          // ADR-307: best-effort short label from the generic queue shape.
+          const dc = (p.decision_context ?? {}) as Record<string, unknown>;
+          if (p.family === 'substrate') {
+            return (dc.message as string) || (dc.path as string) || p.primitive;
+          }
+          return (dc.expected_effect as string) || p.primitive.replace(/^platform_/, '');
         });
 
         let livenessLine = 'Reviewer not configured';

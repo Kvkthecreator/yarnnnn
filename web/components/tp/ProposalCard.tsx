@@ -27,22 +27,61 @@ import { InteractiveModal } from './InteractiveModal';
 // Types
 // ---------------------------------------------------------------------------
 
+/** ADR-307: the generic gated-action queue row. `family` discriminates the
+ * decision_context shape; the cockpit renders by family (capital → order
+ * ticket; substrate → diff). */
 export interface ProposalData {
   id: string;
-  action_type: string;
-  rationale: string;
-  expected_effect: string;
-  reversibility: 'reversible' | 'soft-reversible' | 'irreversible';
-  risk_warnings: string[];
+  /** ADR-307: the primitive replayed on approve (e.g. 'WriteFile',
+   * 'platform_trading_submit_order'). Replaces action_type. */
+  primitive: string;
+  /** ADR-307: 'capital' | 'substrate' — render discriminator. */
+  family: 'capital' | 'substrate';
+  /** ADR-307: family-shaped operator decision context.
+   * capital: {rationale, expected_effect, reversibility, risk_warnings}.
+   * substrate: {diff:{path,before,after}, message, path, mode}. */
+  decision_context?: Record<string, unknown>;
   expires_at: string;
   status: string;
   reviewer_identity?: string;
   reviewer_reasoning?: string;
-  /** Audit-pass-2 DD-6: structured action inputs (ticker/qty/limit-price
-   * for trading.submit_order; product/discount params for commerce.*;
-   * page_id/properties for notion.write_page). Shape varies by
-   * action_type. Rendered by `ProposalInputs` component below. */
+  /** Structured inputs — the actual payload replayed on approve. Shape varies
+   * by primitive. Rendered by `ProposalInputs` (family-dispatched). */
   inputs?: Record<string, unknown>;
+}
+
+/** ADR-307: normalize a proposal's family-shaped decision_context into the
+ * flat display fields the card renders. Capital reads its 4 fields; substrate
+ * derives a one-line summary + exposes the diff. Single place the family
+ * shape is unpacked. */
+interface NormalizedProposal {
+  rationale: string;
+  expected_effect: string;
+  reversibility?: string;
+  risk_warnings: string[];
+  diff?: { path: string; before: string; after: string };
+}
+
+function normalizeProposal(p: ProposalData): NormalizedProposal {
+  const dc = (p.decision_context ?? {}) as Record<string, unknown>;
+  if (p.family === 'substrate') {
+    const diff = dc.diff as { path: string; before: string; after: string } | undefined;
+    const path = (dc.path as string) ?? diff?.path ?? '';
+    return {
+      rationale: (dc.message as string) || `Write to ${path}`,
+      expected_effect: path ? `Updates ${path} (${(dc.mode as string) ?? 'overwrite'}).` : '',
+      reversibility: 'reversible', // substrate writes revert via the revision chain (ADR-209)
+      risk_warnings: [],
+      diff,
+    };
+  }
+  // capital family
+  return {
+    rationale: (dc.rationale as string) ?? '',
+    expected_effect: (dc.expected_effect as string) ?? '',
+    reversibility: dc.reversibility as string | undefined,
+    risk_warnings: (dc.risk_warnings as string[]) ?? [],
+  };
 }
 
 interface ProposalResult {
@@ -64,10 +103,20 @@ type ReviewerPosture = 'approve_advisory' | 'defer' | 'rejected' | 'none';
 // Helpers
 // ---------------------------------------------------------------------------
 
-function formatActionType(action: string): string {
-  const [provider, ...rest] = action.split('.');
-  const tool = rest.join('.').replace(/_/g, ' ');
-  return `${provider.charAt(0).toUpperCase()}${provider.slice(1)} · ${tool.charAt(0).toUpperCase()}${tool.slice(1)}`;
+/** ADR-307: human label from (primitive, family). Substrate writes show the
+ * target path; capital actions show provider · tool. */
+function formatProposalLabel(p: ProposalData): string {
+  if (p.family === 'substrate') {
+    const dc = (p.decision_context ?? {}) as Record<string, unknown>;
+    const path = (dc.path as string) ?? ((dc.diff as { path?: string })?.path) ?? '';
+    return path ? `Write · ${path}` : 'Substrate write';
+  }
+  // capital: primitive is a platform tool name (platform_trading_submit_order)
+  const prim = p.primitive.replace(/^platform_/, '');
+  const [provider, ...rest] = prim.split('_');
+  const tool = rest.join(' ');
+  const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+  return tool ? `${cap(provider)} · ${cap(tool)}` : cap(prim);
 }
 
 function formatExpiresAt(iso: string): string {
@@ -81,7 +130,8 @@ function formatExpiresAt(iso: string): string {
   return `in ${mins}m`;
 }
 
-function reversibilityLabel(r: string): string {
+function reversibilityLabel(r?: string): string {
+  if (!r) return '';
   if (r === 'reversible') return 'Reversible';
   if (r === 'soft-reversible') return 'Soft-reversible';
   if (r === 'irreversible') return 'Irreversible';
@@ -115,11 +165,32 @@ function deriveReviewerPosture(
 // (ticker/qty/price for trading; product/discount params for commerce);
 // the fallback shows all keys formatted so unknown types are never silent.
 
-function ProposalInputs({ actionType, inputs }: { actionType: string; inputs?: Record<string, unknown> }) {
+function SubstrateDiff({ diff }: { diff?: { path: string; before: string; after: string } }) {
+  if (!diff) return null;
+  return (
+    <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 space-y-1">
+      <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+        Pending write · <span className="font-mono">{diff.path}</span>
+      </div>
+      {diff.before ? (
+        <pre className="text-[11px] font-mono text-rose-700/80 dark:text-rose-400/80 whitespace-pre-wrap break-all max-h-32 overflow-y-auto">
+          {diff.before}
+        </pre>
+      ) : (
+        <div className="text-[11px] text-muted-foreground italic">new file</div>
+      )}
+      <pre className="text-[11px] font-mono text-emerald-700/90 dark:text-emerald-400/90 whitespace-pre-wrap break-all max-h-48 overflow-y-auto border-t border-border/40 pt-1">
+        {diff.after}
+      </pre>
+    </div>
+  );
+}
+
+function ProposalInputs({ primitive, inputs }: { primitive: string; inputs?: Record<string, unknown> }) {
   if (!inputs || Object.keys(inputs).length === 0) return null;
 
-  // Trading actions: surface the order ticket fields prominently
-  if (actionType.startsWith('trading.')) {
+  // Trading primitives: surface the order ticket fields prominently
+  if (primitive.startsWith('platform_trading_')) {
     const symbol = inputs.symbol ?? inputs.ticker;
     const qty = inputs.qty ?? inputs.quantity;
     const side = inputs.side;
@@ -241,10 +312,10 @@ function ProposalChip({ proposal, reviewerPosture, personaName, terminalStatus, 
           Proposal
         </span>
         <span className="text-xs text-muted-foreground/70 truncate flex-1">
-          {formatActionType(proposal.action_type)}
+          {formatProposalLabel(proposal)}
         </span>
         <span className="text-[10px] text-muted-foreground/40 shrink-0">
-          {reversibilityLabel(proposal.reversibility)}
+          {reversibilityLabel(normalizeProposal(proposal).reversibility)}
         </span>
       </div>
       {(reviewerLine || terminalLine) && (
@@ -332,23 +403,28 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
     reviewerPosture === 'defer' ? 'Proceed anyway' :
     'Approve';
 
+  const norm = normalizeProposal(liveProposal);
+
   return (
     <div className="space-y-3">
       {/* Rationale */}
-      {liveProposal.rationale && (
-        <p className="text-sm">{liveProposal.rationale}</p>
+      {norm.rationale && (
+        <p className="text-sm">{norm.rationale}</p>
       )}
-      {liveProposal.expected_effect && (
+      {norm.expected_effect && (
         <p className="text-xs text-muted-foreground border-l-2 border-border pl-2">
-          {liveProposal.expected_effect}
+          {norm.expected_effect}
         </p>
       )}
 
-      {/* Audit-pass-2 DD-6: structured inputs (the actual payload being
-          approved — ticker/qty/limit-price for trading; product params
-          for commerce; etc). Operator sees what they're binding before
-          confirming, not just the prose summary. */}
-      <ProposalInputs actionType={liveProposal.action_type} inputs={liveProposal.inputs} />
+      {/* ADR-307: family-dispatched decision context. substrate → diff card;
+          capital → order-ticket / generic inputs. Operator sees exactly what
+          they're approving before confirming. */}
+      {liveProposal.family === 'substrate' ? (
+        <SubstrateDiff diff={norm.diff} />
+      ) : (
+        <ProposalInputs primitive={liveProposal.primitive} inputs={liveProposal.inputs} />
+      )}
 
       {/* Reviewer verdict */}
       {liveProposal.reviewer_reasoning && (
@@ -377,12 +453,12 @@ function ProposalDetail({ proposal, onClose }: ProposalDetailProps) {
         </div>
       )}
 
-      {/* Risk warnings */}
-      {liveProposal.risk_warnings && liveProposal.risk_warnings.length > 0 && (
+      {/* Risk warnings (capital family) */}
+      {norm.risk_warnings.length > 0 && (
         <div className="flex items-start gap-1.5 rounded border border-border/60 bg-muted/30 px-2.5 py-2">
           <ShieldAlert className="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
           <div className="text-xs text-muted-foreground space-y-0.5">
-            {liveProposal.risk_warnings.map((w, i) => <div key={i}>{w}</div>)}
+            {norm.risk_warnings.map((w, i) => <div key={i}>{w}</div>)}
           </div>
         </div>
       )}
@@ -479,7 +555,7 @@ export function ProposalCard({ result }: ProposalCardProps) {
         isOpen={open}
         onClose={() => setOpen(false)}
         title="Proposal"
-        subtitle={formatActionType(proposal.action_type)}
+        subtitle={formatProposalLabel(proposal)}
       >
         <ProposalDetail proposal={proposal} onClose={() => setOpen(false)} />
       </InteractiveModal>
@@ -554,16 +630,14 @@ export function InlineProposalChipById({ proposalId }: { proposalId: string }) {
       if (res?.proposal) {
         setProposal({
           id: res.proposal.id,
-          action_type: res.proposal.action_type,
-          rationale: res.proposal.rationale ?? '',
-          expected_effect: res.proposal.expected_effect ?? '',
-          reversibility: res.proposal.reversibility,
-          risk_warnings: res.proposal.risk_warnings ?? [],
+          primitive: res.proposal.primitive,
+          family: res.proposal.family,
+          decision_context: res.proposal.decision_context ?? undefined,
           expires_at: res.proposal.expires_at,
           status: res.proposal.status,
           reviewer_identity: res.proposal.reviewer_identity ?? undefined,
           reviewer_reasoning: res.proposal.reviewer_reasoning ?? undefined,
-          inputs: res.proposal.inputs,  // DD-6: pass through structured payload
+          inputs: res.proposal.inputs,  // structured payload replayed on approve
         });
       } else {
         setFailed(true);
@@ -612,7 +686,7 @@ export function useProposalModal(opts: UseProposalModalOpts = {}): UseProposalMo
       isOpen={true}
       onClose={handleClose}
       title="Proposal"
-      subtitle={formatActionType(active.action_type)}
+      subtitle={formatProposalLabel(active)}
     >
       <ProposalDetail proposal={active} onClose={handleClose} />
     </InteractiveModal>

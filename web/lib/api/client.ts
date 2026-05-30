@@ -485,9 +485,11 @@ export const api = {
         }>;
         actions: Array<{
           id: string;
-          action_type: string;
+          // ADR-307: generic queue shape.
+          primitive: string;
+          family: "capital" | "substrate";
+          decision_context: Record<string, unknown> | null;
           status: string;
-          expected_effect: string | null;
           approved_at: string | null;
           executed_at: string | null;
           approved_by: string | null;
@@ -1597,15 +1599,15 @@ export const api = {
       request<{
         proposals: Array<{
           id: string;
-          action_type: string;
+          // ADR-307: generic gated-action queue shape.
+          primitive: string;
+          family: "capital" | "substrate";
           inputs: Record<string, unknown>;
-          rationale: string | null;
-          expected_effect: string | null;
-          reversibility: "reversible" | "soft-reversible" | "irreversible";
+          decision_context: Record<string, unknown> | null;
           status: string;
           task_slug: string | null;
           agent_slug: string | null;
-          risk_warnings: string[] | null;
+          source: string | null;
           expires_at: string;
           created_at: string;
           approved_at: string | null;
@@ -1639,15 +1641,14 @@ export const api = {
       request<{
         proposal: {
           id: string;
-          action_type: string;
+          // ADR-307: generic gated-action queue shape.
+          primitive: string;
+          family: "capital" | "substrate";
           inputs: Record<string, unknown>;
-          rationale: string | null;
-          expected_effect: string | null;
-          reversibility: "reversible" | "soft-reversible" | "irreversible";
+          decision_context: Record<string, unknown> | null;
           status: string;
           expires_at: string;
           created_at: string;
-          risk_warnings: string[] | null;
           reviewer_identity?: string | null;
           reviewer_reasoning?: string | null;
         };
