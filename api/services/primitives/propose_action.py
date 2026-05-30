@@ -68,7 +68,17 @@ def build_trading_expected_effect(action_type: str, inputs: dict) -> str:
     return f"Execute {action_type} on {ticker} ({side}, {qty} shares)."
 
 
-ACTION_DISPATCH_MAP: dict[str, str] = {
+# ADR-307 D4/D6: ACTION_DISPATCH_MAP DELETED. The queue stores the `primitive`
+# directly; ExecuteProposal replays execute_primitive(primitive, inputs) — no
+# dispatch-time map. The dead `task.create → ManageTask` entry (ManageTask
+# deleted by ADR-231) is gone with it, along with `_maybe_inject_manage_task_action`.
+#
+# `ACTION_TYPE_TO_PRIMITIVE` survives ONLY as a propose-time naming convenience
+# for the capital family: the LLM/risk-gate caller proposes with a semantic
+# `action_type` (e.g. "trading.submit_order"), which resolves once at insert to
+# the platform-tool `primitive` stored on the row. This is naming, not dispatch
+# authority — handle_execute_proposal reads the stored `primitive`, never this.
+ACTION_TYPE_TO_PRIMITIVE: dict[str, str] = {
     # Trading (ADR-187 + ADR-192)
     "trading.submit_order":                 "platform_trading_submit_order",
     "trading.submit_bracket_order":         "platform_trading_submit_bracket_order",
@@ -80,7 +90,6 @@ ACTION_DISPATCH_MAP: dict[str, str] = {
     "trading.partial_close":                "platform_trading_partial_close",
     "trading.add_to_watchlist":             "platform_trading_add_to_watchlist",
     "trading.remove_from_watchlist":        "platform_trading_remove_from_watchlist",
-
     # Commerce (ADR-183 + ADR-192)
     "commerce.create_product":              "platform_commerce_create_product",
     "commerce.update_product":              "platform_commerce_update_product",
@@ -90,38 +99,10 @@ ACTION_DISPATCH_MAP: dict[str, str] = {
     "commerce.bulk_update_variant_prices":  "platform_commerce_bulk_update_variant_prices",
     "commerce.create_variant":              "platform_commerce_create_variant",
     "commerce.update_customer":             "platform_commerce_update_customer",
-
     # Email (ADR-192 Phase 4)
     "email.send":                           "platform_email_send",
     "email.send_bulk":                      "platform_email_send_bulk",
-
-    # Workspace task lifecycle (ADR-229 D2 — Reviewer's generative-defer
-    # follow-up may propose a research/observation task as recursion to
-    # gather substrate before re-evaluating an original deferred proposal).
-    # Dispatches via ManageTask(action="create"); kept reversible since
-    # task creation is reversible by archive/delete and capital-neutral.
-    # The dispatch merges {"action": "create"} into merged_inputs at
-    # execution time — see _maybe_inject_manage_task_action below.
-    "task.create":                          "ManageTask",
 }
-
-
-def _maybe_inject_manage_task_action(action_type: str, merged_inputs: dict) -> dict:
-    """ADR-229 D2 dispatch helper: when a `<verb>.<noun>` action_type is
-    routed to the ManageTask primitive, inject the corresponding `action`
-    field into the inputs the primitive receives. Keeps the proposal
-    schema clean (caller writes `action_type: "task.create"`, primitive
-    receives `action: "create"`) without forcing every caller to know
-    about the ManageTask shape.
-
-    Currently only `task.*` is mapped this way; extended in future ADRs
-    if other multi-action primitives gain proposal dispatch.
-    """
-    if action_type == "task.create":
-        merged = dict(merged_inputs)
-        merged.setdefault("action", "create")
-        return merged
-    return merged_inputs
 
 
 # =============================================================================
@@ -160,8 +141,8 @@ Creates a persisted proposal with rationale + expected effect + reversibility. U
 approve/modify/reject card inline in chat. Returns proposal_id for narrative reference.
 
 Args:
-  action_type: namespaced action string matching ACTION_DISPATCH_MAP
-    (e.g., "commerce.issue_refund", "trading.submit_bracket_order")
+  action_type: namespaced capital action string (e.g., "commerce.issue_refund",
+    "trading.submit_bracket_order") — resolves to the platform primitive at insert
   inputs: dict of kwargs that would pass to the platform tool
   rationale: why you're proposing this (short; 1-2 sentences)
   expected_effect: human-readable preview of what would happen on approval
@@ -210,8 +191,77 @@ Args:
 }
 
 
+async def enqueue_gated_action(
+    auth: Any,
+    *,
+    primitive: str,
+    inputs: dict,
+    family: str,
+    decision_context: dict,
+    source: Optional[str] = None,
+    task_slug: Optional[str] = None,
+    agent_slug: Optional[str] = None,
+    ttl_hours: int = 24,
+) -> dict:
+    """ADR-307 D4: insert a generic gated-action queue row.
+
+    The single insert path for ANY family. `handle_propose_action` (capital,
+    LLM-facing) and the permission gate (substrate, when a Reviewer WriteFile
+    must queue) both funnel here. Stores (primitive, inputs) + family-shaped
+    decision_context; ExecuteProposal replays execute_primitive(primitive,
+    inputs) on approve.
+
+    `source` (ADR-252 D5 / ADR-307 D6): set to "reviewer:<...>" for
+    Reviewer-authored proposals so the reactive dispatcher skips re-judging
+    them (closes the self-wake loop).
+    """
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
+    row = {
+        "user_id": auth.user_id,
+        "primitive": primitive,
+        "inputs": inputs,
+        "family": family,
+        "decision_context": decision_context or {},
+        "task_slug": task_slug,
+        "agent_slug": agent_slug,
+        "expires_at": expires_at.isoformat(),
+        "status": "pending",
+        "source": source or None,
+    }
+    result = auth.client.table("action_proposals").insert(row).execute()
+    if not result.data:
+        return {"success": False, "error": "insert_failed"}
+    created = result.data[0]
+    proposal_id = created.get("id")
+    logger.info(
+        f"[QUEUE] {str(auth.user_id)[:8]} enqueued family={family} "
+        f"primitive={primitive} (expires {ttl_hours}h, "
+        f"id={proposal_id[:8] if proposal_id else '?'}, source={source or 'none'})"
+    )
+    # Reactive Reviewer wake on proposal arrival (ADR-296 v2 D1). The
+    # dispatcher's source-skip (ADR-252 D5) prevents self-judgment when
+    # source startswith "reviewer:".
+    if proposal_id:
+        try:
+            from services.wake_sources.proposal_arrival import on_created
+            await on_created(auth.client, auth.user_id, proposal_id, created)
+        except Exception as dispatch_exc:  # noqa: BLE001
+            logger.warning(
+                "[QUEUE] reviewer dispatch failed for %s: %s",
+                proposal_id, dispatch_exc,
+            )
+    return {"success": True, "proposal_id": proposal_id, "proposal": created}
+
+
 async def handle_propose_action(auth: Any, input: dict) -> dict:
-    """Create a new action_proposals row."""
+    """Create a capital-family action_proposals row (ADR-193 + ADR-307 D4).
+
+    The LLM/risk-gate caller proposes with a semantic `action_type`
+    (e.g. "trading.submit_order"), resolved once here to the platform-tool
+    `primitive`. rationale/expected_effect/reversibility/risk_warnings fold
+    into the capital-family `decision_context`. Substrate-family proposals are
+    NOT created here — the permission gate creates them via enqueue_gated_action.
+    """
     action_type = input.get("action_type", "")
     inputs = input.get("inputs", {})
     rationale = input.get("rationale", "")
@@ -221,11 +271,12 @@ async def handle_propose_action(auth: Any, input: dict) -> dict:
     # Validation
     if not action_type:
         return {"success": False, "error": "action_type is required"}
-    if action_type not in ACTION_DISPATCH_MAP:
+    primitive = ACTION_TYPE_TO_PRIMITIVE.get(action_type)
+    if not primitive:
         return {
             "success": False,
             "error": "unsupported_action_type",
-            "message": f"action_type '{action_type}' not in ACTION_DISPATCH_MAP. Supported: {sorted(ACTION_DISPATCH_MAP.keys())}",
+            "message": f"action_type '{action_type}' not proposable. Supported: {sorted(ACTION_TYPE_TO_PRIMITIVE.keys())}",
         }
     if not isinstance(inputs, dict):
         return {"success": False, "error": "inputs must be a dict"}
@@ -236,7 +287,8 @@ async def handle_propose_action(auth: Any, input: dict) -> dict:
             "message": f"reversibility must be one of {VALID_REVERSIBILITY}",
         }
 
-    # TTL
+    # TTL (capital family: reversibility-keyed, per ADR-307 risk #3 — the
+    # reversibility-keyed TTL stays inside the capital family only).
     ttl_hours = input.get("expires_in_hours") or DEFAULT_TTL_HOURS[reversibility]
     try:
         ttl_hours = int(ttl_hours)
@@ -244,80 +296,39 @@ async def handle_propose_action(auth: Any, input: dict) -> dict:
             raise ValueError("expires_in_hours must be positive")
     except (TypeError, ValueError):
         return {"success": False, "error": "expires_in_hours must be a positive integer"}
-    expires_at = datetime.now(timezone.utc) + timedelta(hours=ttl_hours)
 
-    # Insert
-    row = {
-        "user_id": auth.user_id,
-        "action_type": action_type,
-        "inputs": inputs,
+    # Capital-family decision_context (ADR-307 D4).
+    decision_context = {
         "rationale": rationale,
         "expected_effect": expected_effect,
         "reversibility": reversibility,
         "risk_warnings": input.get("risk_warnings") or [],
-        "task_slug": input.get("task_slug"),
-        "agent_slug": input.get("agent_slug"),
-        "expires_at": expires_at.isoformat(),
-        "status": "pending",
-        # ADR-252 D5: source field distinguishes proposal origin so the
-        # reactive Reviewer dispatcher can skip re-invocation when the
-        # Reviewer already judged. NULL / absent = production_agent path.
-        "source": input.get("source") or None,
     }
 
     try:
-        result = auth.client.table("action_proposals").insert(row).execute()
-        if not result.data:
-            return {"success": False, "error": "insert_failed"}
-        created = result.data[0]
-        proposal_id = created.get("id")
-
-        logger.info(
-            f"[PROPOSE_ACTION] {auth.user_id[:8]} proposed {action_type} "
-            f"({reversibility}, expires in {ttl_hours}h, id={proposal_id[:8] if proposal_id else '?'})"
+        enq = await enqueue_gated_action(
+            auth,
+            primitive=primitive,
+            inputs=inputs,
+            family="capital",
+            decision_context=decision_context,
+            source=input.get("source"),
+            task_slug=input.get("task_slug"),
+            agent_slug=input.get("agent_slug"),
+            ttl_hours=ttl_hours,
         )
-
-        # ADR-194 v2 Phase 2b: reactive Reviewer-layer observation.
-        # Per FOUNDATIONS v6.0 Axiom 4 (Trigger — reactive sub-shape),
-        # proposal creation is an event that fires the Reviewer layer.
-        # Current behavior: seat defers to human; writes an observation
-        # entry to /workspace/review/judgment_log.md so the Stream surface
-        # (ADR-198 archetype) records every proposal the Reviewer saw,
-        # even those awaiting human decision. Phase 3 replaces the
-        # defer with AI Reviewer reasoning.
-        #
-        # Never blocks. Dispatch failures log and the proposal is still
-        # returned to the caller.
-        if proposal_id:
-            try:
-                # ADR-296 v2 D1: proposal-arrival wake source routes through
-                # the singular wake gateway. The funnel auto-escalates
-                # (proposal creation is itself a wake-warrant per D1).
-                from services.wake_sources.proposal_arrival import on_created
-                await on_created(
-                    auth.client, auth.user_id, proposal_id, created,
-                )
-            except Exception as dispatch_exc:  # noqa: BLE001
-                logger.warning(
-                    "[PROPOSE_ACTION] reviewer dispatch failed for %s: %s",
-                    proposal_id[:8], dispatch_exc,
-                )
-
-            # ADR-261 D6 §4: lazy back-office materialization deleted.
-            # Proposal cleanup is a bundle-seeded recurrence in
-            # /workspace/_recurrences.yaml; operators without a bundle
-            # opt in via Schedule(action='create', ...).
-
+        if not enq.get("success"):
+            return enq
+        created = enq["proposal"]
+        proposal_id = enq["proposal_id"]
         return {
             "success": True,
             "proposal_id": proposal_id,
             "proposal": {
                 "id": proposal_id,
-                "action_type": action_type,
-                "reversibility": reversibility,
-                "rationale": rationale,
-                "expected_effect": expected_effect,
-                "risk_warnings": row["risk_warnings"],
+                "primitive": primitive,
+                "family": "capital",
+                "decision_context": decision_context,
                 "expires_at": created.get("expires_at"),
                 "status": "pending",
             },
@@ -436,25 +447,29 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
         logger.warning(f"[EXECUTE_PROPOSAL] expires_at parse failed: {e}")
         # Continue; don't block on parse error
 
-    # Resolve tool name from action_type
-    action_type = proposal["action_type"]
-    tool_name = ACTION_DISPATCH_MAP.get(action_type)
+    # ADR-307 D4: the primitive to replay is stored on the row. No map.
+    tool_name = proposal["primitive"]
     if not tool_name:
         return {
             "success": False,
-            "error": "unsupported_action_type",
-            "message": f"action_type '{action_type}' not in ACTION_DISPATCH_MAP",
+            "error": "missing_primitive",
+            "message": f"proposal {proposal_id} has no primitive to replay",
         }
+    # decision_context carries family-shaped operator context (capital:
+    # rationale/expected_effect/reversibility/risk_warnings; substrate:
+    # diff/message). action_type/reversibility no longer columns — derive
+    # display values from decision_context for the audit trail.
+    decision_context = proposal.get("decision_context") or {}
+    family = proposal.get("family") or "capital"
+    # `action_type`-shaped label for audit/log continuity (the reconciler keys
+    # on id + inputs, not this label).
+    action_type = f"{family}:{tool_name}"
 
     # Merge inputs
     merged_inputs = dict(proposal["inputs"] or {})
     modified = input.get("modified_inputs")
     if isinstance(modified, dict):
         merged_inputs.update(modified)
-
-    # ADR-229 D2: inject `action` field for multi-action primitives
-    # (e.g., task.create → ManageTask({action: "create", ...})).
-    merged_inputs = _maybe_inject_manage_task_action(action_type, merged_inputs)
 
     # P&L unification (2026-05-12): inject proposal.id as underscore-prefixed
     # `_proposal_id` so platform-specific handlers can round-trip it to the
@@ -497,7 +512,7 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
         (reviewer_reasoning + "\n\n" if reviewer_reasoning else "")
         + "Operator confirmed; dispatching to execution layer."
     )
-    reversibility_pre = proposal.get("reversibility")
+    reversibility_pre = decision_context.get("reversibility")
     await append_decision(
         auth.client, auth.user_id,
         proposal_id=proposal_id,
@@ -685,13 +700,16 @@ async def handle_reject_proposal(auth: Any, input: dict) -> dict:
                 "message": "Proposal may not exist, belong to another user, or already be approved/rejected/executed.",
             }
 
-        # Fetch action_type + reversibility for the audit entry.
+        # ADR-307: derive audit labels from primitive + family-shaped
+        # decision_context (action_type/reversibility are no longer columns).
         action_type = None
         reversibility = None
         try:
             proposal_row = result.data[0]
-            action_type = proposal_row.get("action_type")
-            reversibility = proposal_row.get("reversibility")
+            _family = proposal_row.get("family") or "capital"
+            _prim = proposal_row.get("primitive") or "unknown"
+            action_type = f"{_family}:{_prim}"
+            reversibility = (proposal_row.get("decision_context") or {}).get("reversibility")
         except Exception:
             pass
 

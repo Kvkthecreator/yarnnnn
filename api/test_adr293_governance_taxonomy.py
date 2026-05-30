@@ -340,34 +340,38 @@ def test_workspace_init_seeds_token_budget():
 # D14 — Phase 1.d Reviewer substrate write gating
 # -----------------------------------------------------------------------------
 
-def test_handle_write_file_has_autonomy_gate():
-    """D14: handle_write_file routes Reviewer substrate writes through
-    should_auto_apply with action_class='substrate'."""
-    src = _read(_file("services", "primitives", "workspace.py"))
-    # The Reviewer-caller branch must invoke should_auto_apply
+def test_substrate_autonomy_gate_lives_at_permission_layer():
+    """ADR-293 D14's substrate gate (should_auto_apply, action_class='substrate')
+    is PRESERVED but RELOCATED by ADR-307: it moved out of handle_write_file
+    (which is now the pure execution arm) UP into the uniform permission gate
+    (services/primitives/permission.py, consulted by execute_primitive). The
+    bounded/manual outcome changed from a hard error to QUEUE (ADR-307 D4)."""
+    src = _read(_file("services", "primitives", "permission.py"))
     assert "should_auto_apply" in src, (
-        "handle_write_file must invoke should_auto_apply for Reviewer "
-        "substrate writes per ADR-293 D14"
+        "the permission gate must invoke should_auto_apply for Reviewer "
+        "substrate writes (relocated from handle_write_file per ADR-307)"
     )
     assert 'action_class="substrate"' in src, (
-        "handle_write_file must specify action_class='substrate' for "
-        "Reviewer writes per ADR-293 D14"
+        "the permission gate must specify action_class='substrate'"
     )
-    # The structured error code per D14
-    assert "substrate_write_requires_autonomous" in src, (
-        "handle_write_file must return structured error "
-        "substrate_write_requires_autonomous when AUTONOMY blocks the write"
+    # ADR-307: the inline error is gone; bounded/manual now QUEUEs.
+    wf_src = _read(_file("services", "primitives", "workspace.py"))
+    assert "substrate_write_requires_autonomous" not in wf_src, (
+        "handle_write_file must NOT carry the inline gate/error any longer "
+        "(moved to the permission layer; bounded/manual now QUEUEs per ADR-307)"
     )
 
 
-def test_handle_write_file_governance_error_distinct():
-    """D14: governance-locked rejection uses governance_locked error code,
-    distinct from substrate_write_requires_autonomous (D14 operational gate)."""
-    src = _read(_file("services", "primitives", "workspace.py"))
-    assert "governance_locked" in src, (
-        "handle_write_file must return governance_locked error for the "
-        "3-file governance set per ADR-293 D2"
+def test_governance_lock_is_deny_tier_at_permission_layer():
+    """ADR-293 D2 governance lock PRESERVED, relocated by ADR-307: the
+    governance-locked path is the bypass-immune DENY tier resolved by the
+    permission gate. _is_path_locked_for_reviewer remains the lock check."""
+    perm_src = _read(_file("services", "primitives", "permission.py"))
+    assert "_is_path_locked_for_reviewer" in perm_src, (
+        "the permission gate must consult _is_path_locked_for_reviewer for the "
+        "DENY (governance-lock) tier per ADR-293 D2 + ADR-307 D1"
     )
+    assert "DENY" in perm_src
 
 
 # -----------------------------------------------------------------------------

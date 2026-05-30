@@ -550,6 +550,79 @@ _CHAT_TOOL_NAMES = {t["name"] for t in CHAT_PRIMITIVES}
 _HEADLESS_TOOL_NAMES = {t["name"] for t in HEADLESS_PRIMITIVES}
 
 
+async def _enqueue_substrate_proposal(auth: Any, name: str, input: dict, reason: str) -> dict:
+    """ADR-307 D4: a Reviewer consequential call the gate ruled QUEUE becomes a
+    family='substrate' action_proposals row. The operator approves later; on
+    approve, ExecuteProposal replays execute_primitive(name, input).
+
+    decision_context is family-shaped (substrate): {diff, message}. The diff
+    previews the pending change (best-effort — current vs proposed content for a
+    WriteFile); the message is the write's intent. The Reviewer's full reasoning
+    lives in its concurrent judgment_log/standing_intent; reversibility is a
+    property of the substrate layer (ADR-209 retains every revision), not a
+    per-action field.
+
+    source="reviewer:<occupant>" so the reactive dispatcher skips re-judging
+    the Reviewer's own queued write (ADR-307 D6 — closes the self-wake loop).
+    """
+    from .propose_action import enqueue_gated_action
+
+    # Build the substrate decision_context. For WriteFile, preview a diff.
+    decision_context: dict = {"gate_reason": reason}
+    message = input.get("message") or f"Reviewer {name}"
+    if name == "WriteFile":
+        from .workspace import _resolve_workspace_path_for_gate
+        path = _resolve_workspace_path_for_gate(input) or input.get("path", "")
+        proposed = input.get("content", "")
+        current = ""
+        try:
+            from services.workspace import UserMemory
+            current = await UserMemory(auth.client, auth.user_id).read(path) or ""
+        except Exception:
+            current = ""
+        decision_context.update({
+            "path": path,
+            "mode": input.get("mode", "overwrite"),
+            "diff": {
+                "path": path,
+                "before": current,
+                "after": (current + ("\n" if current else "") + proposed)
+                          if input.get("mode") == "append" else proposed,
+            },
+            "message": message,
+        })
+    else:
+        decision_context["message"] = message
+
+    caller_identity = getattr(auth, "caller_identity", "") or "reviewer:unknown"
+    source = caller_identity if caller_identity.startswith("reviewer:") else "reviewer:unknown"
+
+    enq = await enqueue_gated_action(
+        auth,
+        primitive=name,
+        inputs=input,
+        family="substrate",
+        decision_context=decision_context,
+        source=source,
+        task_slug=getattr(auth, "task_slug", None),
+        agent_slug=getattr(auth, "agent_slug", None),
+        ttl_hours=72,  # substrate writes: fixed family TTL (ADR-307 risk #3)
+    )
+    if not enq.get("success"):
+        return {"success": False, "error": "queue_failed", "message": str(enq), "primitive": name}
+    return {
+        "success": True,
+        "queued": True,
+        "proposal_id": enq["proposal_id"],
+        "message": (
+            f"{name} requires operator approval under the current autonomy mode "
+            f"({reason}). Queued as a proposal — the operator approves it from "
+            f"the cockpit. The write applies on approval."
+        ),
+        "primitive": name,
+    }
+
+
 async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
     """
     Execute a primitive by name.
@@ -578,22 +651,26 @@ async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
 
     # ADR-307 D1: the single uniform permission gate, above all primitives.
     # Resolves apply / queue / deny from (autonomy × read_only × action_class ×
-    # locks) at this one chokepoint — no primitive gates itself. Phase 1 is
-    # behavior-preserving: read-only primitives short-circuit APPLY; the
-    # capital/substrate queue-vs-error outcomes still resolve in their existing
-    # sites (review_proposal_dispatch / handle_write_file). Phase 2+ moves the
-    # QUEUE realization for substrate writes into the gate.
+    # locks) at this one chokepoint — no primitive gates itself.
     from .permission import resolve_permission, PermissionDecision
     decision, reason = await resolve_permission(auth, name, input)
     if decision == PermissionDecision.DENY:
         return {
             "success": False,
             "error": "governance_locked",
-            "message": f"Primitive {name} blocked by governance lock: {reason}",
+            "message": (
+                f"{name} to a governance-locked path is not permitted "
+                f"regardless of autonomy mode ({reason}). The operator authors "
+                f"governance directly; surface a Clarify if you need the change."
+            ),
             "primitive": name,
         }
-    # APPLY and (Phase 2+) QUEUE fall through to the handler; QUEUE realization
-    # is introduced in Phase 2 within the gate, not here.
+    if decision == PermissionDecision.QUEUE:
+        # ADR-307 D4: enqueue the gated call as a family='substrate' proposal
+        # instead of running it. The operator approves later; on approve,
+        # ExecuteProposal replays execute_primitive(name, inputs) with
+        # operator/execution auth (not reviewer_caller → no re-gate, no loop).
+        return await _enqueue_substrate_proposal(auth, name, input, reason)
 
     try:
         return await handler(auth, input)

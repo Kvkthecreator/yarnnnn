@@ -631,9 +631,8 @@ async def get_reviewer_activity(auth: UserClient) -> dict:
     from datetime import datetime as _dt, timezone as _tz, timedelta as _td
 
     RECURRENCES_PATH = "/workspace/_recurrences.yaml"
-    REVIEWER_PROPOSAL_SOURCES = [
-        "reviewer_periodic", "reviewer_heartbeat", "reviewer_addressed",
-    ]
+    # ADR-307: Reviewer-authored proposals carry source 'reviewer:<occupant>'
+    # (matched via like below); the legacy exact-value list is retired.
     LOOKBACK = _dt.now(_tz.utc) - _td(days=7)
 
     # --- 1. Parse judgment-mode recurrences from canonical substrate ---
@@ -723,42 +722,24 @@ async def get_reviewer_activity(auth: UserClient) -> dict:
     # proposals (any status). Union covers both "Reviewer did something" cases.
     actions: list[dict] = []
     try:
-        # Auto-approved proposals
-        auto_result = (
-            auth.client.table("action_proposals")
-            .select(
-                "id, action_type, status, expected_effect, "
-                "approved_at, executed_at, approved_by, source, created_at"
-            )
-            .eq("user_id", auth.user_id)
-            .eq("approved_by", "auto_reversible")
-            .gte("created_at", LOOKBACK.isoformat())
-            .order("created_at", desc=True)
-            .limit(20)
-            .execute()
-        )
-        seen_ids: set[str] = set()
-        for row in auto_result.data or []:
-            seen_ids.add(row.get("id"))
-            actions.append(row)
-
-        # Reviewer-originated proposals (regardless of approval)
+        # ADR-307: Reviewer-originated proposals (source 'reviewer:<occupant>').
+        # The dead `approved_by='auto_reversible'` query (no live writer — only
+        # 'user' is ever written) is removed. Columns: primitive + family +
+        # decision_context replace action_type + expected_effect.
         reviewer_result = (
             auth.client.table("action_proposals")
             .select(
-                "id, action_type, status, expected_effect, "
+                "id, primitive, family, decision_context, status, "
                 "approved_at, executed_at, approved_by, source, created_at"
             )
             .eq("user_id", auth.user_id)
-            .in_("source", REVIEWER_PROPOSAL_SOURCES)
+            .like("source", "reviewer:%")
             .gte("created_at", LOOKBACK.isoformat())
             .order("created_at", desc=True)
             .limit(20)
             .execute()
         )
         for row in reviewer_result.data or []:
-            if row.get("id") in seen_ids:
-                continue
             actions.append(row)
 
         actions.sort(key=lambda a: a.get("created_at") or "", reverse=True)

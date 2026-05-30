@@ -80,12 +80,12 @@ logger = logging.getLogger(__name__)
 #: Functions as "seat saw the proposal, waiting for occupant" marker.
 _REVIEWER_OBSERVATION_IDENTITY = "reviewer-layer:observed"
 
-#: Prefix for all action_type values that map to context_domain="trading".
-#: Used to locate the right _money_truth.md and to decide whether to
-#: load _risk.md.
-_TRADING_ACTION_PREFIX = "trading."
-#: Prefix for commerce actions — map to context_domain="revenue".
-_COMMERCE_ACTION_PREFIX = "commerce."
+# ADR-307: proposals store `primitive` (platform tool name) + `family`, not
+# action_type. Domain resolution keys on the primitive prefix.
+#: platform primitives that map to context_domain="trading".
+_TRADING_PRIMITIVE_PREFIX = "platform_trading_"
+#: platform primitives that map to context_domain="revenue".
+_COMMERCE_PRIMITIVE_PREFIX = "platform_commerce_"
 
 # ADR-253 D2: propose_followup allow-list DELETED.
 # propose_followup (ADR-229 D2) replaced by directives.
@@ -116,26 +116,31 @@ async def on_proposal_created(
     before.
     """
     try:
-        action_type = proposal_row.get("action_type") or "unknown"
+        primitive = proposal_row.get("primitive") or "unknown"
+        family = proposal_row.get("family") or "capital"
+        # action_type-shaped label for logs/audit continuity.
+        action_type = f"{family}:{primitive}"
 
-        # ADR-252 D5: skip reactive Reviewer when the Reviewer already judged
-        # this proposal. source='reviewer_periodic' → Reviewer generated the
-        # proposal from reflection; source='reviewer_addressed' → Reviewer
-        # assessed it in addressed mode. In both cases, invoking the Reviewer
-        # again would be a self-judgment loop. The AUTONOMY gate still applies
+        # ADR-252 D5 + ADR-307 D6: skip reactive Reviewer when the Reviewer
+        # ITSELF authored this proposal — re-invoking would be a self-judgment
+        # loop (and, for substrate writes the gate queues, a self-WAKE loop).
+        # The gate stamps source="reviewer:<occupant>" on Reviewer-authored
+        # proposals (enqueue_gated_action). The AUTONOMY gate still applies
         # downstream (auto-execute or queue for operator click).
         source = proposal_row.get("source") or ""
-        if source in ("reviewer_periodic", "reviewer_addressed", "reviewer_heartbeat"):
-            # ADR-252 D5/ADR-253 D5: Reviewer already judged — skip reactive re-invocation.
+        if source.startswith("reviewer:") or source in (
+            "reviewer_periodic", "reviewer_addressed", "reviewer_heartbeat",
+        ):
             logger.info(
-                "[REVIEW_DISPATCH] skipping reactive Reviewer for source=%r proposal=%s",
+                "[REVIEW_DISPATCH] skipping reactive Reviewer for source=%r proposal=%s "
+                "(Reviewer self-authored — closes self-wake loop)",
                 source,
                 (proposal_id or "?")[:8],
             )
             return
 
-        # 1. Resolve context_domain from action_type
-        context_domain = _resolve_context_domain(action_type)
+        # 1. Resolve context_domain from (primitive, family)
+        context_domain = _resolve_context_domain(primitive, family)
 
         # 2. Determine whether this domain has reviewable substrate.
         #    Without ANY of {principles.md, _money_truth.md, _operator_profile.md},
@@ -175,19 +180,23 @@ async def on_proposal_created(
 # ---------------------------------------------------------------------------
 
 
-def _resolve_context_domain(action_type: str) -> str | None:
-    """Map action_type → context_domain slug used for _money_truth.md lookup.
+def _resolve_context_domain(primitive: str, family: str = "capital") -> str | None:
+    """Map (primitive, family) → context_domain slug for substrate lookup.
 
-    Mirrors the domain assignment in OutcomeProvider implementations:
-      - trading.*  → "trading"
-      - commerce.* → "revenue"
-    Returns None for action_types without a tracked domain (e.g., email.*
-    which doesn't yet have a performance domain; falls through to
-    observe-only).
+    ADR-307: keys on the stored `primitive` + `family`.
+      - platform_trading_*  → "trading"   (capital)
+      - platform_commerce_* → "revenue"   (capital)
+      - family='substrate'  → "_shared"   (workspace-scope; the substrate-write
+        proposal reaches the Reviewer's verdict path against workspace
+        governance, NOT observe-only — risk #5)
+    Returns None only for capital primitives without a tracked domain (e.g.
+    platform_email_*), which fall through to observe-only.
     """
-    if action_type.startswith(_TRADING_ACTION_PREFIX):
+    if family == "substrate":
+        return "_shared"
+    if primitive.startswith(_TRADING_PRIMITIVE_PREFIX):
         return "trading"
-    if action_type.startswith(_COMMERCE_ACTION_PREFIX):
+    if primitive.startswith(_COMMERCE_PRIMITIVE_PREFIX):
         return "revenue"
     return None
 
@@ -238,10 +247,14 @@ async def _write_observation(
     """Write the observe-only decisions.md entry. Seat awaits operator-in-real-time occupant
     (per FOUNDATIONS v8.4 Axiom 2 two-embodiments — neither embodiment is a separate party,
     the seat is simply waiting for the human embodiment to render judgment)."""
-    action_type = proposal_row.get("action_type") or "unknown"
-    reversibility = proposal_row.get("reversibility")
+    # ADR-307: derive from primitive + family-shaped decision_context.
+    _family = proposal_row.get("family") or "capital"
+    _prim = proposal_row.get("primitive") or "unknown"
+    action_type = f"{_family}:{_prim}"
+    _dc = proposal_row.get("decision_context") or {}
+    reversibility = _dc.get("reversibility")
     expires_at = proposal_row.get("expires_at")
-    rationale = (proposal_row.get("rationale") or "").strip()
+    rationale = (_dc.get("rationale") or "").strip()
 
     # Framing per ADR-249 D3: Reviewer is the operator's judgment function.
     # Observe-only = no reviewable substrate yet, so the judgment seat cannot
@@ -336,8 +349,11 @@ async def _run_ai_reviewer(
     # narrative grouping first, audit-row coverage second).
     invocation_id = str(_uuid.uuid4())
 
-    action_type = proposal_row.get("action_type") or "unknown"
-    reversibility = proposal_row.get("reversibility")
+    # ADR-307: derive from primitive + family-shaped decision_context.
+    _prim = proposal_row.get("primitive") or "unknown"
+    _family = proposal_row.get("family") or "capital"
+    action_type = f"{_family}:{_prim}"
+    reversibility = (proposal_row.get("decision_context") or {}).get("reversibility")
 
     # ADR-276 implementation completion (2026-05-21): use canonical
     # `load_reviewer_governance_envelope` helper rather than hand-rolling

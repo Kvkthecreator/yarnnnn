@@ -429,6 +429,31 @@ def _default_file_scope(auth: Any) -> str:
     return "agent" if getattr(auth, "agent", None) else "workspace"
 
 
+def _resolve_workspace_path_for_gate(input: dict) -> Optional[str]:
+    """ADR-307: normalize a WriteFile input to its workspace-relative path for
+    the permission gate, or None when the write is not an operator-shared
+    workspace-scope write (agent/context scope → not autonomy-gated here).
+
+    Mirrors the scope + path normalization in handle_write_file so the gate
+    (at execute_primitive) and the handler agree on the path. Single source of
+    truth for "which path does this write target."
+    """
+    scope = input.get("scope")
+    # Default scope inference needs the auth; the gate only owns workspace-scope
+    # Reviewer writes, and the Reviewer always passes scope explicitly or
+    # defaults to workspace (no agent attached). Treat absent scope as workspace.
+    if scope not in (None, "workspace"):
+        return None
+    path = input.get("path", "") or ""
+    if not path:
+        return None
+    if path.startswith("/workspace/"):
+        path = path[len("/workspace/"):]
+    elif path.startswith("workspace/"):
+        path = path[len("workspace/"):]
+    return path
+
+
 # ---------------------------------------------------------------------------
 # Activity-log path recognition (ADR-235 D1.b)
 # ---------------------------------------------------------------------------
@@ -540,77 +565,14 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
         elif path.startswith("workspace/"):
             path = path[len("workspace/"):]
 
-        # ADR-293: when caller is Reviewer, apply governance + AUTONOMY-mode
-        # gating. Two-tier check:
-        #   (1) Governance lock — three files (AUTONOMY.md, _autonomy.yaml,
-        #       _token_budget.yaml) are immutable from Reviewer runtime
-        #       regardless of AUTONOMY mode. These declare the Reviewer's
-        #       authority structure; Reviewer-edit would grant unauthorized
-        #       authority. Reject hard.
-        #   (2) AUTONOMY-mode gate (Phase 1.d per ADR-293 D14) — for
-        #       operational paths, call should_auto_apply(action_class=
-        #       'substrate'). Under `autonomous`: apply immediately. Under
-        #       `bounded`/`manual`: reject with structured error prompting
-        #       Clarify. Phase 4 will replace the bounded/manual branch
-        #       with queueing logic (ADR-293 D10 + D13).
-        if getattr(auth, "reviewer_caller", False):
-            blocked_by_governance = await _is_path_locked_for_reviewer(auth, path)
-            if blocked_by_governance:
-                return {
-                    "success": False,
-                    "error": "governance_locked",
-                    "message": (
-                        f"Path /{path} is a governance file (ADR-293 D2). "
-                        f"Reviewer cannot author its own authority declaration "
-                        f"(AUTONOMY.md, _autonomy.yaml) or compute-resource "
-                        f"ceiling (_token_budget.yaml). Surface a Clarify to "
-                        f"the operator; they edit governance directly."
-                    ),
-                    "path": f"/workspace/{path}",
-                }
-
-            # Operational path — apply AUTONOMY-mode gate.
-            try:
-                from services.review_policy import (
-                    load_autonomy,
-                    autonomy_for_domain,
-                    should_auto_apply,
-                )
-                autonomy = load_autonomy(auth.client, auth.user_id)
-                # Operational substrate writes are workspace-scoped, not
-                # domain-scoped; use the default policy view (no domain).
-                autonomy_policy = autonomy_for_domain(autonomy, "")
-                allowed, gate_reason = should_auto_apply(
-                    autonomy_policy=autonomy_policy,
-                    action_class="substrate",
-                    substrate_path=path,
-                    caller_identity=getattr(auth, "caller_identity", "") or "",
-                )
-            except Exception as exc:
-                logger.warning(
-                    "[WRITEFILE] AUTONOMY gate evaluation failed for Reviewer "
-                    "substrate write to %s: %s. Failing closed (block write).",
-                    path, exc,
-                )
-                allowed = False
-                gate_reason = f"autonomy_gate_error: {exc}"
-
-            if not allowed:
-                return {
-                    "success": False,
-                    "error": "substrate_write_requires_autonomous",
-                    "message": (
-                        f"Reviewer substrate write to /{path} requires "
-                        f"AUTONOMY=autonomous. Current gate: {gate_reason}. "
-                        f"Phase 1 ships autonomous-mode write authority only "
-                        f"(ADR-293 D14); bounded/manual queueing arrives in "
-                        f"Phase 4. Surface a Clarify to the operator OR ask "
-                        f"the operator to elect autonomous AUTONOMY mode."
-                    ),
-                    "path": f"/workspace/{path}",
-                    "next_action": "clarify",
-                }
-
+        # ADR-307: the permission gate moved UP to execute_primitive (the
+        # single uniform chokepoint). A Reviewer substrate write under
+        # bounded/manual is enqueued as a family='substrate' proposal by the
+        # gate BEFORE this handler runs; a governance-locked path is DENY'd
+        # there. By the time handle_write_file executes, the write is
+        # authorized (autonomous, or operator-approved on proposal replay).
+        # No inline gate here — the handler is the pure execution arm
+        # (Claude-Code shape: tools don't gate themselves).
         um = UserMemory(auth.client, auth.user_id)
 
         if mode == "append":

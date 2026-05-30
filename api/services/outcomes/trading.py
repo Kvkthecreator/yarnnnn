@@ -359,7 +359,10 @@ def _build_proposal_lookup(
     try:
         result = (
             client.table("action_proposals")
-            .select("id, inputs, action_type, task_slug")
+            # ADR-307: action_type column removed; reconciler keys on id +
+            # inputs (signal_id) + task_slug. The emitted candidate's
+            # action_type label is set by this module, not read from the row.
+            .select("id, inputs, primitive, family, task_slug")
             .eq("user_id", user_id)
             .in_("id", proposal_ids)
             .execute()

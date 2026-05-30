@@ -120,41 +120,83 @@ def action_class_for(name: str) -> str:
     return "substrate"
 
 
+# Primitives whose QUEUE realization the gate owns directly (ADR-307 D4/D5).
+# A Reviewer call to one of these under bounded/manual is enqueued as a
+# family='substrate' proposal by execute_primitive. WriteFile is the Phase-2
+# member; Phase 3 adds Schedule/RuntimeDispatch/ManageHook/etc.
+GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
+    "WriteFile",
+})
+
+
 async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[PermissionDecision, str]:
     """The single permission gate (ADR-307 D1). Called by execute_primitive
     BEFORE dispatching to a handler.
 
-    Returns (decision, reason). The caller acts on the decision:
+    Returns (decision, reason):
       APPLY → run the handler
-      QUEUE → route the action to action_proposals (Phase 2+)
-      DENY  → return a governance_locked error
+      QUEUE → execute_primitive enqueues a family='substrate' proposal instead
+              of running the handler (operator approves later)
+      DENY  → governance-locked; bypass-immune
 
-    Phase 1 (this commit) is BEHAVIOR-PRESERVING: it classifies read-only vs
-    consequential and resolves the autonomy decision through this one function,
-    but the per-handler outcomes for capital + substrate are unchanged (capital
-    still queues at the dispatch layer; substrate still errors inside
-    handle_write_file). Phase 2 moves the substrate QUEUE realization here.
+    The gate engages only for Reviewer-authored consequential calls (ADR-293
+    scopes the autonomy gate to Reviewer-runtime writes; operator + headless
+    callers authorize via their own paths). Read-only primitives and
+    non-Reviewer callers resolve APPLY.
 
-    The gate only engages for Reviewer-authored calls (the operator and
-    headless production callers have their own authorization paths — ADR-293
-    scopes the autonomy gate to Reviewer-runtime writes). Non-Reviewer callers
-    and read-only primitives resolve APPLY.
+    For a Reviewer WriteFile (the Phase-2 queueable primitive): the governance
+    lock → DENY (bypass-immune); the autonomy decision → APPLY under
+    `autonomous`, QUEUE under `bounded`/`manual`. The capital path's gate stays
+    at review_proposal_dispatch (verdict + estimated_cents known there).
     """
     # Read-only / narration → never gates (ADR-307 D2).
     if is_read_only(name):
         return PermissionDecision.APPLY, "read_only"
 
-    # The autonomy gate is scoped to Reviewer-runtime consequential writes
-    # (ADR-293). Operator-chat and headless callers authorize via their own
-    # paths and are not autonomy-gated here.
+    # Autonomy gate scoped to Reviewer-runtime calls (ADR-293).
     if not getattr(auth, "reviewer_caller", False):
         return PermissionDecision.APPLY, "non_reviewer_caller"
 
-    # Consequential + Reviewer caller → resolve the autonomy decision.
-    # NOTE (Phase 1): the substrate-write path still resolves its own gate
-    # inside handle_write_file (preserved behavior); this function returns the
-    # advisory classification so execute_primitive can short-circuit reads and
-    # so Phase 2/3 can move QUEUE realization here without a second decision
-    # site. The capital path resolves at review_proposal_dispatch.
-    action_class = action_class_for(name)
-    return PermissionDecision.APPLY, f"consequential:{action_class}:phase1_passthrough"
+    # Capital actions gate at the proposal-dispatch layer (verdict + cents),
+    # not here. They reach execute_primitive only via ExecuteProposal on
+    # approve — already operator-authorized.
+    if name not in GATE_QUEUEABLE_PRIMITIVES:
+        return PermissionDecision.APPLY, f"consequential:{action_class_for(name)}:not_gate_owned"
+
+    # Gate-owned consequential primitive (WriteFile) authored by the Reviewer.
+    # Resolve governance lock + autonomy decision.
+    try:
+        from services.review_policy import (
+            load_autonomy, autonomy_for_domain, should_auto_apply,
+        )
+        from services.primitives.workspace import _resolve_workspace_path_for_gate
+
+        path = _resolve_workspace_path_for_gate(input)
+        if path is None:
+            # Non-workspace-scope write (agent/context scope) — not an
+            # operator-shared substrate write; not autonomy-gated here.
+            return PermissionDecision.APPLY, "non_workspace_scope"
+
+        # Governance lock (bypass-immune — DENY even under autonomous).
+        from services.primitives.workspace import _is_path_locked_for_reviewer
+        if await _is_path_locked_for_reviewer(auth, path):
+            return PermissionDecision.DENY, f"governance_locked:{path}"
+
+        autonomy = load_autonomy(auth.client, auth.user_id)
+        autonomy_policy = autonomy_for_domain(autonomy, "")
+        allowed, gate_reason = should_auto_apply(
+            autonomy_policy=autonomy_policy,
+            action_class="substrate",
+            substrate_path=path,
+            caller_identity=getattr(auth, "caller_identity", "") or "",
+        )
+    except Exception as exc:  # fail closed — queue rather than apply
+        logger.warning(
+            "[PERMISSION] gate evaluation failed for %s: %s — failing closed (QUEUE).",
+            name, exc,
+        )
+        return PermissionDecision.QUEUE, f"gate_error:{exc}"
+
+    if allowed:
+        return PermissionDecision.APPLY, f"autonomy_allows:{gate_reason}"
+    return PermissionDecision.QUEUE, f"autonomy_requires_approval:{gate_reason}"
