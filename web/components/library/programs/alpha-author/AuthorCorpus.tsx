@@ -364,7 +364,7 @@ export function AuthorCorpus() {
           Audience signal: <span className="text-muted-foreground">internal-coherence only</span>
         </span>
         <Link
-          href={`/files?path=${encodeURIComponent(SIGNAL_PATH)}`}
+          href={`/context?path=${encodeURIComponent(SIGNAL_PATH)}`}
           className="text-muted-foreground/70 hover:text-foreground hover:underline"
         >
           Open signal →

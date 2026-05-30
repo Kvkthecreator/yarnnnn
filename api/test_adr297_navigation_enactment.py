@@ -254,6 +254,86 @@ def test_no_bare_cross_surface_router_push() -> None:
 
 
 # =============================================================================
+# Group 4 — every internal nav target resolves to a live route
+# =============================================================================
+
+# Non-directory routes that are legitimate destinations but have no
+# `app/{seg}/` dir of their own (or are intentionally not page-backed).
+# These are NOT dead — they're allowlisted live destinations.
+ALLOWLIST_LIVE_NON_DIR = {
+    # Next.js special / static public files served without a route dir.
+    "llms.txt", "sitemap.xml", "robots.txt",
+}
+
+
+def _live_route_segments() -> set[str]:
+    """First path-segments of every live Next.js route under web/app.
+
+    A target `/{seg}` or `/{seg}/...` is live iff `app/(authenticated)/{seg}/`
+    or `app/{seg}/` exists (the dir holds page.tsx + any dynamic [id] subroute).
+    """
+    app = WEB / "app"
+    live: set[str] = set(ALLOWLIST_LIVE_NON_DIR)
+    auth = app / "(authenticated)"
+    if auth.is_dir():
+        live |= {p.name for p in auth.iterdir() if p.is_dir()}
+    for p in app.iterdir():
+        if p.is_dir() and p.name not in ("(authenticated)", "api"):
+            live.add(p.name)
+    return live
+
+
+# Patterns that capture an internal route target's first segment.
+_TARGET_PATTERNS = [
+    re.compile(
+        r"""(?:router\.(?:push|replace)|redirect)\(\s*[`'"](/[a-z][a-z0-9-]*)"""
+    ),
+    re.compile(r"""href=\{?[`'"](/[a-z][a-z0-9-]*)"""),
+]
+
+
+def test_no_dead_nav_targets() -> None:
+    print("\n[4] every internal nav target resolves to a live route")
+
+    live = _live_route_segments()
+    dead: dict[str, list[str]] = {}
+
+    for path in WEB.rglob("*"):
+        if path.suffix not in (".tsx", ".ts"):
+            continue
+        if "node_modules" in path.parts or ".next" in path.parts:
+            continue
+        try:
+            for i, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+                s = line.strip()
+                if s.startswith("//") or s.startswith("*"):
+                    continue
+                for pat in _TARGET_PATTERNS:
+                    for m in pat.finditer(line):
+                        seg = m.group(1).split("/")[1]
+                        if seg not in live:
+                            rel = str(path.relative_to(WEB))
+                            dead.setdefault(seg, []).append(f"{rel}:{i}")
+        except (OSError, UnicodeDecodeError):
+            continue
+
+    detail = ""
+    if dead:
+        detail = " Dead targets:\n      " + "\n      ".join(
+            f"/{seg} ({len(locs)}): {locs[0]}"
+            + (f" +{len(locs)-1} more" if len(locs) > 1 else "")
+            for seg, locs in sorted(dead.items())
+        )
+    _assert(
+        not dead,
+        "Every internal nav target resolves to a live route dir "
+        "(no dead /work, /files, /tasks, etc.)." + detail
+        if dead
+        else "Every internal nav target resolves to a live route (clean)",
+    )
+
+
+# =============================================================================
 # Run
 # =============================================================================
 
@@ -261,6 +341,7 @@ if __name__ == "__main__":
     test_legacy_desk_system_deleted()
     test_navigation_primitive_exists()
     test_no_bare_cross_surface_router_push()
+    test_no_dead_nav_targets()
 
     print(f"\n{'='*60}")
     print(

@@ -173,7 +173,7 @@ export function AuthorMandate() {
           </span>
         </span>
         <Link
-          href={`/files?path=${encodeURIComponent(MANDATE_PATH)}`}
+          href={`/context?path=${encodeURIComponent(MANDATE_PATH)}`}
           className="text-muted-foreground/70 hover:text-foreground hover:underline"
         >
           Open mandate →
