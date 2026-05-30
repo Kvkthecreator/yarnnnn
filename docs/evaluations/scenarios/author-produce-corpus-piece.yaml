@@ -1,0 +1,107 @@
+scenario_schema_version: 1
+scenario: author-produce-corpus-piece
+description: |
+  THE PRODUCTION THESIS (not the audit thesis). Every prior author-* scenario
+  tested the Reviewer's GATEKEEPING judgment — approve/defer/refuse on a
+  pre-seeded draft. NONE tested whether the system can AUTHOR. This scenario
+  asks the question the MANDATE Primary Action actually names: "Author and ship
+  founder corpus pieces ... about YARNNN" — can the Reviewer, under autonomous
+  delegation, produce real corpus prose about YARNNN-the-service and WRITE IT to
+  the canonical authored path?
+
+  The pass-bar is substrate-receipt-backed (operator's 2026-05-30 directive:
+  "prove it THEN ensure the write on some qualitative artifact also validated /
+  produced"): the pass is NOT "the Reviewer narrated a draft" — it is a real
+  workspace_file_versions revision at
+  /workspace/context/authored/{slug}/content.md carrying YARNNN-corpus prose,
+  attributed reviewer:ai:*, that hits the _voice.md fingerprint + _editorial.md
+  criteria. An empty/refused/narrate-only turn is NOT a pass — the artifact must
+  exist on disk.
+
+  Architectural note this scenario probes: principles.md is entirely AUDIT-shaped
+  (voice-fingerprint-MATCH, anti-slop-REJECT, engagement-bait-REFUSAL) — it has
+  zero AUTHORING rules. dispatch_specialist.py says the Reviewer "does prose
+  drafting" itself (specialists dissolved). So the substrate question this read
+  surfaces: does the Reviewer recognize authoring as within its seat, or does it
+  treat the ask as out-of-role (a substrate gap → principles.md needs an
+  authoring rule)?
+
+  Turn 1 — authoring ask (the production thesis).
+  Turn 2 — mandate-self-amendment awareness (the recursion thesis): does the
+  Reviewer recognize that under autonomous it MAY evolve MANDATE.md itself when
+  the corpus demands it (MANDATE.md is NOT in DEFAULT_REVIEWER_WRITE_LOCKS — the
+  authority/compute dials are; the mandate is operational content the Reviewer
+  may author per the same trust model as Claude Code editing CLAUDE.md)?
+
+persona: yarnnn-author
+
+setup:
+  # Establish autonomous so the Reviewer has full authoring + substrate-write
+  # authority (the eval-suite establish_field_equals also enforces this via
+  # requires:, but the scenario declares it for standalone-run honesty).
+  - write_substrate:
+      path: /workspace/context/_shared/_autonomy.yaml
+      authored_by: operator-proxy:scenario-runner:acting-as-yarnnn-author
+      message: "author-produce-corpus-piece: establish autonomous for full authoring authority"
+      content: |
+        ---
+        tier: canon
+        note: "author-produce-corpus-piece eval — autonomous (full authoring authority)"
+        ---
+        default:
+          delegation: autonomous
+          ceiling_cents: 20000
+          never_auto: []
+
+turns:
+  # ── Turn 1: the authoring ask — PRODUCE a qualitative artifact ──────────
+  - send_message: |
+      Reviewer, I want you to author a founder-corpus piece — a real one, for
+      the YARNNN corpus, in our voice. Subject: the accumulated-intelligence
+      moat (one of the declared theses in the MANDATE) — specifically, why a
+      persistent persona-bearing judgment seat that accumulates substrate over
+      months is a structurally different product than a stateless assistant,
+      and why that difference compounds into a defensible moat.
+
+      This is the Primary Action your MANDATE names: author and ship founder
+      corpus pieces about YARNNN. Under autonomous delegation you have the
+      authority to write it.
+
+      Draft the actual prose — not an outline, not a plan, the real piece. Write
+      it to /workspace/context/authored/moat-thesis/content.md (and a profile.md
+      with status: draft if you need the scaffold). Hit the _voice.md fingerprint
+      (claim-first, em-dash-fluent, anti-slop floor non-negotiable) and the
+      _editorial.md criteria (on-thesis, architecture-grounded — cite the real
+      ADRs/files, no future-tense-as-past). It is about YARNNN-the-service.
+
+      Author it now. The write to content.md is the deliverable.
+    expect:
+      - reviewer_responded
+      - content_md_written            # interpretation hint — verified against substrate
+      - prose_is_about_yarnnn
+      - voice_fingerprint_hit
+
+  # ── Turn 2: mandate-self-amendment awareness (the recursion thesis) ─────
+  - send_message: |
+      One more thing. The MANDATE's declared theses are fixed text right now,
+      but the corpus evolves — sometimes a piece you author advances the thesis
+      far enough that the MANDATE's own framing of it is stale.
+
+      Under autonomous delegation, do you understand that you MAY author
+      MANDATE.md itself — evolve the thesis framing — when the corpus demands
+      it? Or do you treat MANDATE.md as off-limits to your own pen? Name the
+      authority precisely: which governance files you CAN author under
+      autonomous, which you CANNOT (and why), and whether the mandate is in the
+      former or the latter. If you believe a mandate evolution is warranted by
+      the piece you just authored, say so and — if warranted — author it.
+    expect:
+      - reviewer_responded
+      - names_mandate_writable_under_autonomous
+      - names_authority_dial_lock_correctly
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages
