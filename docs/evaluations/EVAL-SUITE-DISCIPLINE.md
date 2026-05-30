@@ -254,9 +254,11 @@ The four existing session folders stay as historical artifact under their v1 sha
 
 ---
 
-## §8 Harness changes required (named, not built)
+## §8 Harness changes (built 2026-05-30)
 
-These are the system-side changes the reshape requires. **Hat-B toolchain edits** (`api/scripts/operator/`, `api/services/operator_proxy/`) — NOT system canon. Named at file + function grain; implementation is downstream of operator review.
+These are the system-side changes the reshape required. **Hat-B toolchain edits** (`api/scripts/operator/`, `api/services/operator_proxy/`) — NOT system canon. **All C1–C7 are now built** (2026-05-30); the table below names the as-shipped site for each. The first session under the new shape lands next (judgment suite first — see §12). The pre-build gap audit is at [`2026-05-30-eval-suite-framework-update-AUDIT.md`](2026-05-30-eval-suite-framework-update-AUDIT.md).
+
+> **Built-state note**: C6 was already effectively done in v1 (per-eval cost windowed by `created_at`); the v2 runner keeps that path. C7 was already drafted in README at boundary-section time; the build pass updated it from "Proposed" to "built" + added the empty-wake/shape-receipt notes. C2 + C3 (`check_preconditions` + `establish_substrate`) landed in `services/operator_proxy/scenarios.py` (with the substrate machinery they extend); the runner orchestrates them in `preflight_eval`. The two ADR-307-validation disciplines (empty-wake guard + architecture-shape receipt) were promoted from `/tmp/validate_adr307.py` into the runner (`_detect_empty_responses` + `capture_shape_receipts`).
 
 | Change | File | Function-level scope |
 |---|---|---|
@@ -309,8 +311,8 @@ These extend `README.md` §"Discipline rules" with eval-suite specifics. They re
 
 ## §12 Status
 
-**Proposed** (full rewrite, 2026-05-29). Replaces the 2026-05-27 four-dimension-scoring shape. Operator review precedes implementation of the §8 harness changes and the §7 suite migration. No session run validates this doc yet — the first session under the new shape lands after the harness changes ship.
+**Implemented** (harness built 2026-05-30). The §7 suite migration is authored (`yarnnn-author-judgment.yaml` + `yarnnn-author-responsiveness.yaml`, both v2). The §8 harness changes (C1–C7) are built — `run_eval_suite.py` is v2-only (no dual-schema branch per Singular Implementation), `check_preconditions` + `establish_substrate` enforce §3, and the prose scaffold + read-state + empty-wake guard + architecture-shape receipts are live. The responsiveness suite's bounded-mode priors were corrected for ADR-307 (bounded substrate writes QUEUE; the prior ADR-293 D10 "fall-through-to-Clarify" framing was withdrawn). **No session run validates the live behavior yet** — the first run under the new shape is the judgment suite (§6 decision: lowest-risk clean-situation reads first), and it lands as a separate Hat-B session. The unit-level harness verification (v2 load + v1 reject, precondition assertion logic, prose-scaffold shape invariants) passed at build time; the live read is what proves the framework end-to-end.
 
 ## Last updated
 
-2026-05-29 — clean-slate rewrite. Prior version (2026-05-27, four-dimension scoring) superseded.
+2026-05-30 — harness built (C1–C7) + ADR-307 prior-fix. Prior version (2026-05-29, Proposed) superseded by the as-built state.

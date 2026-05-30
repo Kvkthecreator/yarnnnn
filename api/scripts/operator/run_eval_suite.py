@@ -1,24 +1,35 @@
-"""Eval-suite session runner — multi-eval, multi-dimension measurement.
+"""Eval-suite session runner (v2) — operator-question prose reads.
 
-Codified by docs/evaluations/EVAL-SUITE-DISCIPLINE.md (2026-05-27). One
-session = one suite manifest → N evals run sequentially against the
-same workspace → one rollup at SESSION.md scoring all four dimensions
-(behavior, posture, substrate-usage, cost).
+Codified by docs/evaluations/EVAL-SUITE-DISCIPLINE.md (2026-05-29 rewrite).
+One session = one suite manifest → N evals run sequentially against the
+same workspace → one SESSION.md the OPERATOR writes (the runner emits a
+prose scaffold; the read is human, by design — §1).
 
-The runner orchestrates existing ScenarioRunner invocations; it does
-NOT introduce a parallel scenario-execution path. Per-eval captures
-land at {session-folder}/raw/eval-N-{slug}/ using the standard
-8-artifact scenario capture shape.
+What the runner does honestly (and ONLY this):
+  - Pre-flight `requires:` check per eval (§3, C2). An eval whose
+    precondition is not satisfied is NOT fired — the c51c44f
+    fire-against-violated-state class is structurally impossible.
+  - Pre-flight `setup:` / reset-to-clean establishment (§3.1, C3).
+  - Orchestrate the existing ScenarioRunner (no parallel scenario path).
+  - Capture per-eval receipts to raw/ (revisions, proposals WITH family,
+    execution_events WITH wake_source/status) so the human can check
+    *architecture-shape*, not just outcome (§5 of the audit).
+  - Emit the cost appendix — the one honest automated number (C6).
+  - Flag empty/near-empty Reviewer responses as INCONCLUSIVE, never a
+    pass, and require an execution_events receipt before a turn counts
+    as a real wake (the empty-wake-guard, §6.2 / S1).
+
+What the runner does NOT do: score dimensions, fill Pass? cells,
+auto-classify the read. There are no cells (§1.3, §10).
 
 Usage:
     .venv/bin/python -m api.scripts.operator.run_eval_suite \\
-        --suite docs/evaluations/eval-suites/yarnnn-author-baseline.yaml \\
+        --suite docs/evaluations/eval-suites/yarnnn-author-judgment.yaml \\
         [--caller eval-suite-runner]
 
-After session lands, SESSION.md is a draft — edit per-eval Observed
-columns + dimension aggregates after reading the captured artifacts +
-running the human-read steps (Axis-B posture tag, trace-completeness
-review). Substrate-receipts in raw/ enable verification.
+v1 is removed entirely (no dual-schema branch — Singular Implementation).
+The four pre-v2 session folders stay as frozen historical artifact (§7.4);
+they are read as markdown, never re-run.
 """
 
 from __future__ import annotations
@@ -26,7 +37,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import yaml
@@ -43,17 +54,28 @@ load_dotenv(_API_ROOT / ".env.alpha-ops")
 load_dotenv(REPO_ROOT / ".env")
 
 
-SUITE_SCHEMA_VERSION = 1
+# v2 = the 2026-05-29 clean-slate rewrite (read_kind, requires, prior,
+# accumulates; no expected_dimensions, no qualitative scoring).
+SUITE_SCHEMA_VERSION = 2
+
+# Cost is the only automated number, surfaced as a finding, never a gate (S6).
+# The v1 qualitative floors (per_eval_usd / trace_completeness_floor /
+# m6_drift_ceiling) are deleted — the qualitative read no longer resolves to
+# numbers, so its floors have no meaning.
 DEFAULT_BUDGET = {
-    "per_eval_usd": 1.0,
-    "per_session_usd": 5.0,
-    "trace_completeness_floor": 0.8,
-    "m6_drift_ceiling": 1,
+    "per_session_usd": 6.0,
 }
+
+# Below this char count a Reviewer response carries no narration to read —
+# the empty-wake false-negative trap (§6.2). Sub-threshold → INCONCLUSIVE,
+# never a pass.
+EMPTY_RESPONSE_CHAR_THRESHOLD = 40
+
+VALID_READ_KINDS = {"judgment_coherence", "substrate_responsiveness"}
 
 
 # ---------------------------------------------------------------------------
-# Suite loading + validation
+# Suite loading + validation (C1)
 # ---------------------------------------------------------------------------
 
 
@@ -68,38 +90,55 @@ def load_suite(path: Path) -> dict:
     version = int(raw.get("eval_suite_schema_version", SUITE_SCHEMA_VERSION))
     if version != SUITE_SCHEMA_VERSION:
         raise SuiteError(
-            f"Unsupported eval_suite_schema_version {version}; runner only supports v{SUITE_SCHEMA_VERSION}"
+            f"Unsupported eval_suite_schema_version {version}; runner only supports "
+            f"v{SUITE_SCHEMA_VERSION} (the 2026-05-29 prose-read rewrite). v1 suites are "
+            f"frozen historical artifact and are not re-run."
         )
-    for required in ("eval_suite", "persona", "evals"):
+    for required in ("eval_suite", "read_kind", "persona", "evals"):
         if required not in raw:
             raise SuiteError(f"Suite manifest missing required field: {required!r}")
+    if raw["read_kind"] not in VALID_READ_KINDS:
+        raise SuiteError(
+            f"read_kind must be one of {sorted(VALID_READ_KINDS)}; got {raw['read_kind']!r}"
+        )
     if not isinstance(raw["evals"], list) or not raw["evals"]:
         raise SuiteError("Suite manifest 'evals' must be a non-empty list")
 
-    # Defensive defaults
     raw.setdefault("description", "")
     raw.setdefault("budget", {})
     for k, v in DEFAULT_BUDGET.items():
         raw["budget"].setdefault(k, v)
 
-    # Resolve scenario paths to absolute + verify each exists
     docs_evals_root = REPO_ROOT / "docs" / "evaluations"
+    eval_slugs: set[str] = set()
     for i, eval_def in enumerate(raw["evals"]):
-        for required in ("eval", "scenario", "expected_dimensions"):
+        for required in ("eval", "scenario"):
             if required not in eval_def:
                 raise SuiteError(f"Eval[{i}] missing required field: {required!r}")
-        scen_rel = eval_def["scenario"]
-        # Scenario paths are relative to docs/evaluations/
-        scen_abs = docs_evals_root / scen_rel
+        slug = eval_def["eval"]
+        if slug in eval_slugs:
+            raise SuiteError(f"Duplicate eval slug within suite: {slug!r}")
+        eval_slugs.add(slug)
+        scen_abs = docs_evals_root / eval_def["scenario"]
         if not scen_abs.is_file():
-            raise SuiteError(f"Eval[{i}] {eval_def['eval']!r} scenario not found: {scen_abs}")
+            raise SuiteError(f"Eval[{i}] {slug!r} scenario not found: {scen_abs}")
         eval_def["_scenario_abs"] = scen_abs
+
+        # v2 optional fields with safe defaults.
+        eval_def.setdefault("requires", [])
+        eval_def.setdefault("prior", "")
+        eval_def.setdefault("accumulates", False)
+        eval_def.setdefault("inherits", [])
+        # Validate inherits references resolve within the suite.
+        for inh in eval_def["inherits"]:
+            if inh not in eval_slugs and inh not in {e["eval"] for e in raw["evals"]}:
+                raise SuiteError(f"Eval {slug!r} inherits unknown eval {inh!r}")
 
     return raw
 
 
 # ---------------------------------------------------------------------------
-# Session folder + per-eval execution
+# Session folder
 # ---------------------------------------------------------------------------
 
 
@@ -108,32 +147,119 @@ def session_folder(suite_slug: str) -> Path:
     return REPO_ROOT / "docs" / "evaluations" / f"{now}-{suite_slug}-session"
 
 
+# ---------------------------------------------------------------------------
+# Pre-flight (C2 check + C3 establish)
+# ---------------------------------------------------------------------------
+
+
+async def preflight_eval(
+    user_id: str,
+    eval_def: dict,
+    *,
+    persona_slug: str,
+) -> dict:
+    """Establish clean state (unless accumulates), then check preconditions.
+
+    Returns {fired_ok: bool, established: {...}, precondition: {...}}. When
+    fired_ok is False the eval is NOT fired (§3, S2): a read against a
+    violated precondition cannot be trusted, so no tokens are spent.
+
+    Order matters: establish FIRST (writes declared setup + deletes
+    absent-files), THEN check (so the check reads the established state).
+    For accumulating evals we still check (the precondition asserts the
+    inherited state is what the arc expects) but do NOT reset.
+    """
+    from services.operator_proxy.scenarios import (
+        Scenario,
+        check_preconditions,
+        establish_substrate,
+    )
+
+    authored_by = f"operator-proxy:eval-suite-runner:acting-as-{persona_slug}"
+    requires = eval_def.get("requires", [])
+
+    established = {"deleted": [], "wrote": [], "skipped_reset": False}
+    if eval_def.get("accumulates"):
+        # Ordered-arc eval — inherit prior state; do NOT reset. Still honor
+        # explicit setup writes (the scenario's own setup runs in the runner;
+        # here we only apply suite-level absent-deletes, which an accumulating
+        # eval normally has none of).
+        established["skipped_reset"] = True
+    else:
+        # Default reset-to-clean: delete absent-files + apply the scenario's
+        # substrate-shaped setup so the situation is known and independent.
+        scenario = Scenario.from_file(eval_def["_scenario_abs"])
+        setup = list(getattr(scenario, "setup", []) or [])
+        established = await establish_substrate(
+            user_id,
+            requires=requires,
+            setup=[s for s in setup if "write_substrate" in s or "delete_substrate" in s],
+            authored_by=authored_by,
+        )
+        established["skipped_reset"] = False
+
+    precondition = await check_preconditions(user_id, requires)
+    return {
+        "fired_ok": precondition["satisfied"],
+        "established": established,
+        "precondition": precondition,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Per-eval execution
+# ---------------------------------------------------------------------------
+
+
 async def run_one_eval(
     eval_def: dict,
     eval_index: int,
     raw_folder: Path,
     caller: str,
+    *,
+    user_id: str,
+    persona_slug: str,
 ) -> dict:
-    """Execute a single eval via the existing ScenarioRunner; return per-eval result dict.
-
-    The first snapshot fires inside ScenarioRunner.run() with whatever
-    substrate exists at that moment (typically incomplete because Reviewer
-    wakes are still pending). The suite runner re-snapshots per eval after
-    the completion gate (see _resnapshot_eval) so the captured artifacts
-    reflect the post-wake state, not the moment-of-write state.
-    """
+    """Pre-flight, then (if preconditions hold) execute via ScenarioRunner."""
     from services.operator_proxy.scenarios import Scenario, ScenarioRunner
 
     eval_slug = eval_def["eval"]
     scen_path = eval_def["_scenario_abs"]
     eval_folder = raw_folder / f"eval-{eval_index + 1}-{eval_slug}"
 
+    print(f"\n=== Eval {eval_index + 1} — {eval_slug} ===")
+    print(f"    scenario: {Scenario.from_file(scen_path).slug}")
+    print(f"    capture:  {eval_folder}")
+
+    # --- pre-flight (C2 + C3) ---
+    pf = await preflight_eval(user_id, eval_def, persona_slug=persona_slug)
+    if not pf["fired_ok"]:
+        failed = [c for c in pf["precondition"]["checks"] if not c["ok"]]
+        detail = "; ".join(f"{c['assertion'].get('path')}: {c['detail']}" for c in failed)
+        print(f"    REFUSED (precondition violation): {detail}")
+        return {
+            "eval": eval_slug,
+            "scenario": Scenario.from_file(scen_path).slug,
+            "folder": str(eval_folder.relative_to(raw_folder.parent)),
+            "eval_folder_abs": str(eval_folder),
+            "fired": False,
+            "outcome": "refused",
+            "preflight": pf,
+            "prior": eval_def.get("prior", ""),
+            "description": eval_def.get("description", ""),
+            "accumulates": eval_def.get("accumulates", False),
+            "inherits": eval_def.get("inherits", []),
+            "started_at": datetime.now(timezone.utc).isoformat(),
+            "finished_at": datetime.now(timezone.utc).isoformat(),
+            "duration_sec": 0,
+            "turns_executed": 0,
+            "triggering_revision_ids": [],
+            "evaluations": [],
+            "response_inconclusive": False,
+        }
+
     scenario = Scenario.from_file(scen_path)
     runner = ScenarioRunner(scenario, caller=caller)
-
-    print(f"\n=== Eval {eval_index + 1} — {eval_slug} ===")
-    print(f"    scenario: {scenario.slug}")
-    print(f"    capture:  {eval_folder}")
 
     started_at = datetime.now(timezone.utc)
     try:
@@ -147,58 +273,71 @@ async def run_one_eval(
         print(f"    FAIL: {error}")
     finished_at = datetime.now(timezone.utc)
 
-    # Extract revision_ids written during this eval's turns so the suite
-    # runner's completion gate can poll wake_queue for matching dedup_keys
-    # (substrate-event wakes are dedup'd by triggering revision_id).
     triggering_revision_ids = _extract_triggering_revision_ids(runner.evaluations)
+
+    # Empty-wake guard (§6.2 / S1): flag near-empty Reviewer responses. A
+    # send_message turn that returned sub-threshold text carries no narration
+    # to read — INCONCLUSIVE, never a clean read.
+    response_inconclusive = _detect_empty_responses(runner.evaluations)
+    if response_inconclusive:
+        print(f"    WARN: {response_inconclusive} near-empty response(s) — flagged INCONCLUSIVE")
 
     return {
         "eval": eval_slug,
         "scenario": scenario.slug,
         "folder": str(eval_folder.relative_to(raw_folder.parent)),
         "eval_folder_abs": str(eval_folder),
+        "fired": True,
         "started_at": started_at.isoformat(),
         "finished_at": finished_at.isoformat(),
         "duration_sec": int((finished_at - started_at).total_seconds()),
         "outcome": outcome,
         "error": error,
         "turns_executed": (scenario_result or {}).get("turns_executed", 0),
-        "expected_dimensions": eval_def["expected_dimensions"],
-        # EVAL-SUITE-DISCIPLINE.md §1.5: substrate_inputs is the upstream
-        # half of the eval contract (which scaffolded substrate inputs
-        # this eval tests against). Optional for backward-compat with
-        # pre-§1.5 suites; SESSION.md renders an empty cell when absent.
-        "substrate_inputs": eval_def.get("substrate_inputs", {}),
-        # EVAL-SUITE-DISCIPLINE.md §1.6: industry-axiomatic eval shape
-        # (behavioral | red-team | behavioral_substrate_audit |
-        # counterfactual). Defaults to "behavioral" when unset, matching
-        # the conventional LLM-eval shape (input held, behavior probed).
-        "eval_shape": eval_def.get("eval_shape", "behavioral"),
+        "preflight": pf,
+        "prior": eval_def.get("prior", ""),
+        "description": eval_def.get("description", ""),
+        "accumulates": eval_def.get("accumulates", False),
+        "inherits": eval_def.get("inherits", []),
         "triggering_revision_ids": triggering_revision_ids,
-        "evaluations": runner.evaluations,  # for re-snapshot context
+        "evaluations": runner.evaluations,
+        "response_inconclusive": response_inconclusive,
     }
 
 
+def _detect_empty_responses(evaluations: list[dict]) -> int:
+    """Count send_message turns whose Reviewer response was sub-threshold.
+
+    The empty-wake false-negative trap (§6.2): a zero-or-near-zero-char
+    response contains no narration to check, so "no confabulation found" is
+    trivially true and is NOT a pass. Returns the count of near-empty
+    responses so the runner can flag the eval INCONCLUSIVE.
+    """
+    count = 0
+    for ev in evaluations:
+        if ev.get("phase") != "turn" or ev.get("action") != "send_message":
+            continue
+        # The scenario runner records the response text/length under varying
+        # keys depending on capture version; check the common ones.
+        text = ev.get("response_text") or ev.get("text") or ""
+        resp = ev.get("response") if isinstance(ev.get("response"), dict) else {}
+        text = text or (resp.get("text") or "")
+        if len(text.strip()) < EMPTY_RESPONSE_CHAR_THRESHOLD:
+            count += 1
+    return count
+
+
 def _extract_triggering_revision_ids(evaluations: list[dict]) -> list[str]:
-    """Pull revision_ids from runner.evaluations that should trigger Reviewer wakes.
+    """Pull revision_ids that should trigger Reviewer substrate-event wakes.
 
-    Substrate writes via flip_frontmatter_field on /workspace/context/authored/*
-    fire the alpha-author bundle's pre-ship-audit substrate-event hook. The
-    revision_id becomes the wake_queue dedup_key per ADR-298 D6.
-
-    Seed_draft writes don't trigger wakes (the substrate_event hook is bound to
-    status field transitions, not initial seed writes — first seed has no prior
-    state to transition from). Excluded from the polling set.
+    flip_frontmatter_field / write_substrate turns on hook-bound paths fire
+    the bundle's substrate-event hook; the revision_id becomes the wake_queue
+    dedup_key (ADR-298 D6). Seed_draft first-writes don't transition status,
+    so they don't trigger — excluded.
     """
     revs: list[str] = []
     for ev in evaluations:
-        # Turn-phase flip_frontmatter_field is the canonical hook-triggering write
-        if ev.get("phase") == "turn" and ev.get("action") == "flip_frontmatter_field":
-            rev_id = ev.get("revision_id")
-            if rev_id:
-                revs.append(rev_id)
-        # Turn-phase write_substrate may also trigger if path matches a bound hook
-        if ev.get("phase") == "turn" and ev.get("action") == "write_substrate":
+        if ev.get("phase") == "turn" and ev.get("action") in ("flip_frontmatter_field", "write_substrate"):
             rev_id = ev.get("revision_id")
             if rev_id:
                 revs.append(rev_id)
@@ -206,13 +345,13 @@ def _extract_triggering_revision_ids(evaluations: list[dict]) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Completion gate (Option 1 — poll wake_queue + execution_events until
-# triggered wakes settle, with bounded timeout)
+# Completion gate — poll wake_queue + execution_events until wakes settle
+# (read-kind-agnostic; survives the v2 reshape unchanged)
 # ---------------------------------------------------------------------------
 
 
-COMPLETION_GATE_TIMEOUT_SEC = 600   # 10 min — max wall-clock to wait for wakes
-COMPLETION_GATE_POLL_SEC = 10       # poll cadence
+COMPLETION_GATE_TIMEOUT_SEC = 600
+COMPLETION_GATE_POLL_SEC = 10
 
 
 async def wait_for_completion(
@@ -220,24 +359,13 @@ async def wait_for_completion(
     eval_results: list[dict],
     session_started_at: datetime,
 ) -> dict:
-    """Poll wake_queue + execution_events until all triggered wakes settle.
-
-    Returns dict with completion stats. Times out gracefully after
-    COMPLETION_GATE_TIMEOUT_SEC; partial completion is reported in the
-    rollup rather than crashing the run.
-
-    Triggered wakes tracked:
-      - substrate_event: dedup_key matches one of the revision_ids returned
-        from the eval's flip_frontmatter_field / write_substrate turns
-      - addressed: wake_source='addressed' execution_events row whose
-        created_at is within the session window
-    """
     from services.supabase import get_service_client
 
-    # Collect expected triggers across all evals
     expected_revs: set[str] = set()
     addressed_turn_count = 0
     for r in eval_results:
+        if not r.get("fired"):
+            continue
         for rev in r.get("triggering_revision_ids", []) or []:
             expected_revs.add(rev)
         for ev in r.get("evaluations", []) or []:
@@ -253,7 +381,9 @@ async def wait_for_completion(
             "elapsed_sec": 0,
             "substrate_event_settled": 0,
             "substrate_event_pending": 0,
+            "substrate_event_expected": 0,
             "addressed_settled": 0,
+            "addressed_expected": 0,
             "timed_out": False,
         }
 
@@ -262,7 +392,6 @@ async def wait_for_completion(
     started_at = datetime.now(timezone.utc)
 
     def query_substrate_event_status() -> dict[str, str]:
-        """Map dedup_key → status for our triggered substrate_event wakes."""
         if not expected_revs:
             return {}
         resp = (
@@ -299,18 +428,15 @@ async def wait_for_completion(
         substrate_settled = sum(1 for s in substrate_status.values() if s in ("completed", "failed", "dropped"))
         substrate_pending = sum(1 for s in substrate_status.values() if s in ("pending", "locked"))
         substrate_missing = len(expected_revs) - len(substrate_status)
-        # missing rows = wake hasn't been enqueued yet (scheduler tick lag)
-
         addressed_done = addressed_count >= addressed_turn_count
 
         all_substrate_done = (substrate_settled == len(expected_revs))
-        all_addressed_done = addressed_done
 
         print(f"    [{int(elapsed):3d}s] substrate_event: {substrate_settled}/{len(expected_revs)} settled "
               f"({substrate_pending} pending, {substrate_missing} not-yet-queued); "
               f"addressed: {addressed_count}/{addressed_turn_count}")
 
-        if all_substrate_done and all_addressed_done:
+        if all_substrate_done and addressed_done:
             break
 
         await asyncio.sleep(COMPLETION_GATE_POLL_SEC)
@@ -330,37 +456,22 @@ async def wait_for_completion(
     }
 
 
-async def resnapshot_eval(user_id: str, eval_result: dict) -> None:
-    """Re-snapshot the eval's capture folder after the completion gate.
+# ---------------------------------------------------------------------------
+# Re-snapshot per-eval captures after the completion gate (post-wake state)
+# ---------------------------------------------------------------------------
 
-    The first snapshot (inside ScenarioRunner.run) fired before Reviewer
-    wakes completed, producing empty transcripts. Re-running CaptureSession
-    against the same folder overwrites the artifacts with post-wake state.
-    """
+
+async def resnapshot_eval(user_id: str, eval_result: dict) -> None:
     from services.operator_proxy.capture import CaptureSession
 
     folder = Path(eval_result["eval_folder_abs"])
-    # Use eval's started_at as the baseline reference so the diff captures
-    # only what landed during + after the eval
     session = CaptureSession(user_id, folder, scenario_name=eval_result["scenario"])
-
-    # Construct a synthetic baseline at the eval's start (zero diff anchor)
-    # via _take_snapshot equivalent — read from substrate at the eval's
-    # started_at timestamp. CaptureSession doesn't expose a time-anchored
-    # baseline directly, so re-baseline at eval_started_at - 1 sec by
-    # taking a fresh baseline + immediately snapshotting (the diff captures
-    # everything currently present). Acceptable approximation: the eval's
-    # folder will show ALL post-baseline substrate, which is what we want
-    # for the rollup.
     eval_started_at = datetime.fromisoformat(eval_result["started_at"])
-    # Re-baseline = snapshot baseline at the eval's start_at, but practically
-    # we just want the endpoint snapshot to overwrite the artifacts. So:
     session.baseline = await _baseline_at_time(user_id, eval_started_at)
     await session.snapshot()
 
 
 async def _baseline_at_time(user_id: str, baseline_at: datetime) -> "CaptureSnapshot":
-    """Construct a baseline snapshot reflecting workspace state at a given moment."""
     from services.operator_proxy.capture import CaptureSnapshot
     from services.supabase import get_service_client
 
@@ -370,7 +481,6 @@ async def _baseline_at_time(user_id: str, baseline_at: datetime) -> "CaptureSnap
     def query():
         rev_resp = client.table("workspace_file_versions").select("id").eq("user_id", user_id).lt("created_at", baseline_at.isoformat()).execute()
         msg_resp = client.table("session_messages").select("id, session_id").lt("created_at", baseline_at.isoformat()).execute()
-        # session_messages doesn't have user_id; filter via session_id below
         prop_resp = client.table("action_proposals").select("id").eq("user_id", user_id).lt("created_at", baseline_at.isoformat()).execute()
         ee_resp = client.table("execution_events").select("id").eq("user_id", user_id).lt("created_at", baseline_at.isoformat()).execute()
         return rev_resp, msg_resp, prop_resp, ee_resp
@@ -387,7 +497,88 @@ async def _baseline_at_time(user_id: str, baseline_at: datetime) -> "CaptureSnap
 
 
 # ---------------------------------------------------------------------------
-# Cost rollup (post-session SQL)
+# Architecture-shape receipt capture (§5 of the audit) — per-eval
+# ---------------------------------------------------------------------------
+
+
+async def capture_shape_receipts(user_id: str, eval_result: dict) -> dict:
+    """Capture the rows that let a human check architecture-SHAPE, not just
+    outcome (the ADR-307 transferable lesson): action_proposals WITH family,
+    execution_events WITH wake_source/status, and the self-wake count. Written
+    to raw/{eval}/shape-receipts.md so shape-correctness is checkable inline.
+    """
+    from services.supabase import get_service_client
+
+    if not eval_result.get("fired"):
+        return {"proposals": [], "events": [], "self_wakes": 0}
+
+    client = get_service_client()
+    loop = asyncio.get_running_loop()
+    start = eval_result["started_at"]
+    end = eval_result["finished_at"]
+    # pad for reactive wakes that land just after a turn write
+    end_padded = (_parse_iso8601_lenient(end) + timedelta(minutes=5)).isoformat()
+
+    def query():
+        props = (
+            client.table("action_proposals")
+            .select("id, primitive, family, status, source, decision_context, created_at")
+            .eq("user_id", user_id).gte("created_at", start).lte("created_at", end_padded)
+            .order("created_at").execute()
+        )
+        events = (
+            client.table("execution_events")
+            .select("id, slug, trigger_type, wake_source, mode, status, created_at")
+            .eq("user_id", user_id).gte("created_at", start).lte("created_at", end_padded)
+            .order("created_at").execute()
+        )
+        return props.data or [], events.data or []
+
+    proposals, events = await loop.run_in_executor(None, query)
+    # self-wake = a proposal_arrival execution_event on the Reviewer's OWN
+    # queued write (source='reviewer:*'). ADR-307 closed this; capturing the
+    # count makes the closure checkable per-eval.
+    reviewer_sourced_ids = {p["id"] for p in proposals if str(p.get("source") or "").startswith("reviewer:")}
+    self_wakes = sum(1 for e in events if e.get("wake_source") == "proposal_arrival") if reviewer_sourced_ids else 0
+
+    receipts = {"proposals": proposals, "events": events, "self_wakes": self_wakes}
+    _write_shape_receipts_md(eval_result, receipts)
+    return receipts
+
+
+def _write_shape_receipts_md(eval_result: dict, receipts: dict) -> None:
+    folder = Path(eval_result["eval_folder_abs"])
+    folder.mkdir(parents=True, exist_ok=True)
+    lines = [f"# Shape receipts — {eval_result['eval']}\n",
+             "_Architecture-shape evidence (not just outcome). Per the ADR-307 "
+             "lesson: check the action landed in the architecturally-correct "
+             "shape — family, status, source, self-wake count._\n"]
+    lines.append("## action_proposals in window")
+    if receipts["proposals"]:
+        lines.append("| id | family | primitive | status | source | dc_keys |")
+        lines.append("|---|---|---|---|---|---|")
+        for p in receipts["proposals"]:
+            dc = sorted((p.get("decision_context") or {}).keys())
+            lines.append(f"| `{p['id'][:8]}` | {p.get('family')} | {p.get('primitive')} | "
+                         f"{p.get('status')} | {p.get('source')} | {dc} |")
+    else:
+        lines.append("_(none)_")
+    lines.append("\n## execution_events in window")
+    if receipts["events"]:
+        lines.append("| created_at | trigger | wake_source | mode | status |")
+        lines.append("|---|---|---|---|---|")
+        for e in receipts["events"]:
+            lines.append(f"| {e.get('created_at')} | {e.get('trigger_type')} | "
+                         f"{e.get('wake_source')} | {e.get('mode')} | {e.get('status')} |")
+    else:
+        lines.append("_(none)_")
+    lines.append(f"\n## Self-wake count (Reviewer re-waking on its own queued write)")
+    lines.append(f"**{receipts['self_wakes']}** — should be 0 (ADR-307 source-skip guard).")
+    (folder / "shape-receipts.md").write_text("\n".join(lines) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# Cost rollup (C6 — windowed by created_at, the one honest number)
 # ---------------------------------------------------------------------------
 
 
@@ -396,22 +587,18 @@ async def compose_cost_rollup(
     session_started_at: datetime,
     session_finished_at: datetime,
 ) -> dict:
-    """Pull execution_events for the session window; return aggregate + per-slug breakdown."""
     from services.supabase import get_service_client
 
     client = get_service_client()
     loop = asyncio.get_running_loop()
 
     def query():
-        # Pad the window by ±2 min to catch wakes that fire just after a turn writes
-        start = (session_started_at).isoformat()
-        end = (session_finished_at).isoformat()
         return (
             client.table("execution_events")
             .select("id, slug, mode, wake_source, status, tool_rounds, input_tokens, output_tokens, cache_read_tokens, cache_create_tokens, cost_usd, duration_ms, created_at")
             .eq("user_id", user_id)
-            .gte("created_at", start)
-            .lte("created_at", end)
+            .gte("created_at", session_started_at.isoformat())
+            .lte("created_at", session_finished_at.isoformat())
             .order("created_at")
             .execute()
         )
@@ -448,34 +635,11 @@ async def compose_cost_rollup(
     }
 
 
-# ---------------------------------------------------------------------------
-# SESSION.md rollup composition
-# ---------------------------------------------------------------------------
-
-
-def _verdict_pass_marker() -> str:
-    return "_(human-read — verify after reading raw/)_"
-
-
 def _parse_iso8601_lenient(raw: str) -> datetime:
-    """Parse an ISO 8601 timestamp with tolerance for non-6-digit microseconds.
-
-    Python 3.9's datetime.fromisoformat rejects microsecond fields with
-    fewer than 6 digits (Postgres returns variable precision: 5 digits
-    when the trailing zero is stripped). Python 3.11+ handles this
-    natively; until our runtime upgrades, we pad/normalize first.
-
-    Also normalizes trailing 'Z' to '+00:00' since Python 3.9 doesn't
-    accept the 'Z' UTC marker in fromisoformat.
-
-    Surfaced by the 2026-05-27 yarnnn-author-baseline run (commit
-    850db5a) which crashed in render_session_md with:
-        ValueError: Invalid isoformat string: '2026-05-27T06:50:37.70178+00:00'
-    """
+    """Parse ISO 8601 with tolerance for non-6-digit microseconds + 'Z'
+    (Python 3.9 fromisoformat is strict)."""
     import re
     normalized = raw.replace("Z", "+00:00")
-    # Pad microseconds: match `.NNNNN[N]` (1-5 digits) before timezone offset,
-    # zero-pad to exactly 6 digits.
     match = re.match(r"^(.+\.)(\d{1,5})((?:[+-]\d{2}:\d{2})?)$", normalized)
     if match:
         prefix, micros, tz = match.groups()
@@ -483,82 +647,10 @@ def _parse_iso8601_lenient(raw: str) -> datetime:
     return datetime.fromisoformat(normalized)
 
 
-_EVAL_SHAPE_ABBREVIATIONS = {
-    "behavioral": "B",
-    "red-team": "R",
-    "behavioral_substrate_audit": "A",
-    "counterfactual": "C",
-}
-
-
-def _format_eval_shape_compact(eval_shape: str) -> str:
-    """Compact one-letter abbreviation for SESSION.md table cells.
-
-    Returns 'B' for behavioral, 'R' for red-team, 'A' for
-    behavioral_substrate_audit, 'C' for counterfactual, or '?' for unknown.
-    Full name expected in the rollup header legend; the cell stays terse.
-    """
-    return _EVAL_SHAPE_ABBREVIATIONS.get(eval_shape, "?")
-
-
-def _shape_aggregate_summary(eval_results: list[dict]) -> str:
-    """Compose the shape-mix summary for behavior aggregate line.
-
-    Example: '3 behavioral / 1 red-team / 2 behavioral_substrate_audit / 0 counterfactual'
-    """
-    counts: dict[str, int] = {k: 0 for k in _EVAL_SHAPE_ABBREVIATIONS}
-    for r in eval_results:
-        shape = r.get("eval_shape", "behavioral")
-        if shape in counts:
-            counts[shape] += 1
-        else:
-            counts.setdefault("(unknown)", 0)
-            counts["(unknown)"] += 1
-    parts = [f"{n} {name}" for name, n in counts.items() if n > 0]
-    return " / ".join(parts) if parts else "(no evals)"
-
-
-def _format_substrate_inputs_compact(substrate_inputs: dict) -> str:
-    """Format substrate_inputs as a compact one-cell summary for SESSION.md tables.
-
-    Per EVAL-SUITE-DISCIPLINE.md §1.5.3: SESSION.md surfaces substrate_inputs
-    alongside expected/observed per dimension. The full block lives in the
-    suite YAML; the cell shows the load-bearing keys only.
-
-    Output shape (one line, pipe-separated for table cell readability):
-        mandate: <truncated clause> / autonomy: <mode> / pace: <bool> / wake: <source>
-
-    Returns "_(none declared)_" if substrate_inputs is empty (pre-§1.5 suite).
-    """
-    if not substrate_inputs:
-        return "_(none declared)_"
-
-    parts: list[str] = []
-    mandate = substrate_inputs.get("mandate_clause", "").strip()
-    if mandate and mandate.lower() != "n/a" and not mandate.lower().startswith("n/a"):
-        # Truncate long mandate clauses for table-cell readability
-        # (full clause readable in suite YAML)
-        first_line = mandate.split("\n", 1)[0].strip().strip('"\'')
-        if len(first_line) > 60:
-            first_line = first_line[:57] + "..."
-        parts.append(f"mandate: \"{first_line}\"")
-    elif mandate:
-        # N/A explicitly stated — show that
-        parts.append("mandate: N/A")
-
-    autonomy = substrate_inputs.get("autonomy_mode_required")
-    if autonomy:
-        parts.append(f"autonomy: {autonomy}")
-
-    pace_relevant = substrate_inputs.get("pace_relevant")
-    if pace_relevant is not None:
-        parts.append(f"pace: {pace_relevant}")
-
-    wake = substrate_inputs.get("wake_source")
-    if wake:
-        parts.append(f"wake: {wake}")
-
-    return " / ".join(parts) if parts else "_(empty)_"
+# ---------------------------------------------------------------------------
+# SESSION.md prose scaffold (C4 + C5) — the runner emits prompts; the
+# operator writes the read. NO Pass? cells, NO dimension tables (§1.3).
+# ---------------------------------------------------------------------------
 
 
 def render_session_md(
@@ -571,178 +663,155 @@ def render_session_md(
     completion: dict,
     session_started_at: datetime,
     session_finished_at: datetime,
-    session_folder_path: Path,
 ) -> str:
-    """Compose the SESSION.md rollup markdown."""
     duration_min = int((session_finished_at - session_started_at).total_seconds() / 60)
     session_total_usd = cost_rollup["total_cost_usd"]
     per_session_budget = suite["budget"]["per_session_usd"]
-    per_eval_budget = suite["budget"]["per_eval_usd"]
-
-    cost_within_budget = session_total_usd <= per_session_budget
+    fired = [r for r in eval_results if r.get("fired")]
+    refused = [r for r in eval_results if not r.get("fired")]
 
     lines: list[str] = []
     lines.append(f"# Eval-suite session — {suite['eval_suite']}\n")
-    lines.append(f"**Captured**: {session_started_at.isoformat()}")
-    lines.append(f"**Persona**: {suite['persona']}")
-    lines.append(f"**Workspace**: `{user_id[:8]}` ({user_email})")
+    lines.append(f"**Captured**: {session_started_at.isoformat()}   "
+                 f"**Persona**: {suite['persona']}   "
+                 f"**Workspace**: `{user_id[:8]}` ({user_email})")
+    lines.append(f"**Read kind**: {suite['read_kind']}")
     lines.append(f"**Suite**: `docs/evaluations/eval-suites/{suite['eval_suite']}.yaml`")
-    lines.append(f"**Evals run**: {len(eval_results)} of {len(suite['evals'])}")
+    lines.append(f"**Evals fired**: {len(fired)} of {len(suite['evals'])}"
+                 + (f"   ({len(refused)} REFUSED pre-flight — see §Preconditions)" if refused else ""))
     lines.append(f"**Duration**: {duration_min} min wall-clock")
-    lines.append(f"**Session cost**: ${session_total_usd:.4f} (budget: ${per_session_budget:.2f})")
-    lines.append(f"**Cost within budget**: {'YES' if cost_within_budget else 'NO — exceeds budget'}\n")
+    cost_label = "within" if session_total_usd <= per_session_budget else "EXCEEDS"
+    lines.append(f"**Session cost**: ${session_total_usd:.4f} (budget ${per_session_budget:.2f}) — {cost_label}\n")
 
-    # Completion gate stats — surface whether all triggered wakes settled
     if completion["substrate_event_expected"] > 0 or completion["addressed_expected"] > 0:
         gate_ok = (
             not completion["timed_out"]
             and completion["substrate_event_settled"] == completion["substrate_event_expected"]
             and completion["addressed_settled"] >= completion["addressed_expected"]
         )
-        gate_label = "all settled" if gate_ok else "PARTIAL / TIMED OUT"
         lines.append(
-            f"**Completion gate**: {gate_label} (elapsed {completion['elapsed_sec']}s, "
+            f"**Completion gate**: {'all settled' if gate_ok else 'PARTIAL / TIMED OUT'} "
+            f"(elapsed {completion['elapsed_sec']}s, "
             f"substrate_event {completion['substrate_event_settled']}/{completion['substrate_event_expected']}, "
             f"addressed {completion['addressed_settled']}/{completion['addressed_expected']})\n"
         )
     lines.append("---\n")
 
-    # §1 Headline
-    lines.append("## §1 Headline\n")
-    lines.append(
-        "_To be filled in after reading raw/ artifacts. One paragraph: "
-        "did the system pass on all four dimensions? Where did it fail?_\n"
-    )
-    lines.append("<!-- TODO operator: write the headline paragraph -->\n")
+    # §Preconditions (automated)
+    lines.append("## §Preconditions (automated)\n")
+    lines.append("Per-eval `requires:` check at fire time. An eval that failed pre-flight did NOT fire (§3, S2).\n")
+    lines.append("| Eval | requires | satisfied? | fired? |")
+    lines.append("|---|---|---|---|")
+    for r in eval_results:
+        pf = r.get("preflight", {})
+        checks = pf.get("precondition", {}).get("checks", [])
+        if checks:
+            req_summary = "; ".join(
+                f"{c['assertion'].get('path', '?').split('/')[-1]}: {c['detail']}" for c in checks
+            )
+            satisfied = "YES" if pf.get("fired_ok") else "NO"
+        else:
+            req_summary = "_(none)_"
+            satisfied = "n/a"
+        fired_label = "yes" if r.get("fired") else "**REFUSED**"
+        lines.append(f"| `{r['eval']}` | {req_summary} | {satisfied} | {fired_label} |")
+    lines.append("")
+    # Show establishment detail for transparency.
+    est_lines = []
+    for r in eval_results:
+        est = r.get("preflight", {}).get("established", {})
+        if est.get("deleted") or est.get("wrote"):
+            est_lines.append(f"- `{r['eval']}`: deleted {est.get('deleted', [])}, "
+                             f"wrote {[w['path'] for w in est.get('wrote', [])]}")
+        elif est.get("skipped_reset"):
+            est_lines.append(f"- `{r['eval']}`: accumulates — no reset (inherits prior state)")
+    if est_lines:
+        lines.append("**Establishment** (C3 reset-to-clean / accumulation):")
+        lines.extend(est_lines)
+        lines.append("")
     lines.append("---\n")
 
-    # §2 Per-dimension scores
-    lines.append("## §2 Per-dimension scores\n")
+    # §The read — runner leaves blank; operator writes (§6.1)
+    lines.append("## §The read   ← operator writes this; runner leaves it blank\n")
+    lines.append("_For each fired eval: read `raw/{eval}/transcript.md` + `substrate-diff.md` + "
+                 "`shape-receipts.md`, then write prose answering whether the Reviewer reasoned "
+                 "the way a mandate-holder would. There are no cells to fill (§1.3)._\n")
+    for r in fired:
+        lines.append(f"### {r['eval']}  — {(r.get('description') or '').strip().splitlines()[0] if r.get('description') else ''}\n")
+        if r.get("response_inconclusive"):
+            lines.append(f"> ⚠ **INCONCLUSIVE flag**: {r['response_inconclusive']} near-empty Reviewer "
+                         f"response(s) (< {EMPTY_RESPONSE_CHAR_THRESHOLD} chars). Per §6.2, an empty "
+                         f"response contains no narration to read — this is NOT a clean read. Verify the "
+                         f"`execution_events` receipt in `shape-receipts.md` before scoring.\n")
+        lines.append(f"**Prior**: {(r.get('prior') or '_(none declared)_').strip()}\n")
+        lines.append("**What the Reviewer did**: _<!-- operator: prose from transcript + substrate-diff -->_\n")
+        lines.append("**Coherent with the mandate?**: _<!-- operator: judgment against MANDATE + principles. "
+                     "If diverged from prior — defensible alternative or real gap? If a gap, which cause "
+                     "(a substrate / b Reviewer-read / c envelope / d canon, §1.2)? -->_\n")
+        lines.append("**Receipts**: _<!-- operator: revision_ids, proposal rows (family!), execution_event ids — "
+                     "inline, from shape-receipts.md -->_\n")
+    for r in refused:
+        failed = [c for c in r.get("preflight", {}).get("precondition", {}).get("checks", []) if not c["ok"]]
+        detail = "; ".join(f"{c['assertion'].get('path')}: {c['detail']}" for c in failed)
+        lines.append(f"### {r['eval']}  — REFUSED (precondition violation)\n")
+        lines.append(f"Not fired. Preconditions not satisfied at fire time: {detail}. "
+                     f"No read — the situation could not be established (§3).\n")
+    lines.append("---\n")
 
-    # Behavior
-    lines.append("### Behavior\n")
-    lines.append(
-        "_Shape column per EVAL-SUITE-DISCIPLINE.md §1.6: "
-        "B=behavioral / R=red-team / A=behavioral_substrate_audit / C=counterfactual. "
-        "Substrate inputs column per §1.5 — upstream contract; full block in suite YAML._\n"
-    )
-    shape_mix = _shape_aggregate_summary(eval_results)
-    lines.append(f"_Shape mix: {shape_mix}_\n")
-    lines.append("| Eval | Shape | Substrate inputs | Expected verdict | Expected substrate side-effect | Observed | Pass? | Notes |")
-    lines.append("|---|---|---|---|---|---|---|---|")
-    for r in eval_results:
-        ed = r["expected_dimensions"].get("behavior", {})
-        si = _format_substrate_inputs_compact(r.get("substrate_inputs", {}))
-        es = _format_eval_shape_compact(r.get("eval_shape", "behavioral"))
-        lines.append(
-            f"| `{r['eval']}` | {es} | {si} | {ed.get('verdict', '?')} | {ed.get('substrate_side_effect', '?')} "
-            f"| <!-- TODO --> | <!-- TODO --> | {_verdict_pass_marker()} |"
-        )
-    lines.append("\n**Behavior aggregate**: _<!-- TODO: X/N evals pass -->_\n")
+    # §What the session says overall
+    lines.append("## §What the session says overall   ← operator writes\n")
+    lines.append("_One-to-three paragraphs. The load-bearing finding — what this session establishes "
+                 "about whether the Reviewer reasons like a mandate-holder. Cross-eval patterns. "
+                 "Each load-bearing claim carries a receipt._\n")
+    lines.append("<!-- TODO operator -->\n")
+    lines.append("---\n")
 
-    # Posture
-    lines.append("### Posture\n")
-    lines.append("| Eval | Shape | Substrate inputs | Expected cell | Observed cell | Pass? | Notes |")
-    lines.append("|---|---|---|---|---|---|---|")
-    for r in eval_results:
-        ed = r["expected_dimensions"].get("posture", {})
-        si = _format_substrate_inputs_compact(r.get("substrate_inputs", {}))
-        es = _format_eval_shape_compact(r.get("eval_shape", "behavioral"))
-        lines.append(
-            f"| `{r['eval']}` | {es} | {si} | {ed.get('cell', '?')} | <!-- TODO Axis-A SQL + Axis-B human-read --> "
-            f"| <!-- TODO --> | {_verdict_pass_marker()} |"
-        )
-    lines.append(f"\n**Posture aggregate**: _<!-- TODO: X/N evals in expected cell. M6-DRIFT count: Y (ceiling: {suite['budget']['m6_drift_ceiling']}). -->_\n")
+    # §Recommendations
+    lines.append("## §Recommendations (if any)   ← operator writes\n")
+    lines.append("_Hat-A system-canon changes this read recommends, each gated on a specific read above. "
+                 "May be \"none — behavior is canon-coherent.\" Multi-rec or architectural → separate "
+                 "commits (README rule 6)._\n")
+    lines.append("<!-- TODO operator -->\n")
+    lines.append("---\n")
 
-    # Substrate usage
-    lines.append("### Substrate usage\n")
-    lines.append("| Eval | Trace-completeness (0.0-1.0) | Pass? | Notes |")
-    lines.append("|---|---|---|---|")
-    for r in eval_results:
-        ed = r["expected_dimensions"].get("substrate_usage", {})
-        floor = ed.get("trace_completeness_min", suite["budget"]["trace_completeness_floor"])
-        lines.append(
-            f"| `{r['eval']}` | <!-- TODO human-read --> | <!-- TODO vs {floor} --> "
-            f"| {_verdict_pass_marker()} |"
-        )
-    lines.append(f"\n**Substrate aggregate**: _<!-- TODO: avg trace-completeness, all evals ≥ floor ({suite['budget']['trace_completeness_floor']}) -->_\n")
-
-    # Cost (this dimension is fully automatable)
-    lines.append("### Cost (automated from `execution_events`)\n")
-    lines.append("| Eval | Wakes in window | Cost USD | Within per-eval budget? |")
-    lines.append("|---|---|---|---|")
-    # Map eval cost windows to per-eval rows by matching slug → wakes within eval's started_at/finished_at
-    raw_rows = cost_rollup["raw_rows"]
-    for r in eval_results:
-        eval_start = _parse_iso8601_lenient(r["started_at"])
-        eval_end = _parse_iso8601_lenient(r["finished_at"])
-        # Add a ±2-min pad to catch reactive wakes that fire just after a turn write
-        from datetime import timedelta
-        pad = timedelta(minutes=2)
-        eval_rows = [
-            row for row in raw_rows
-            if eval_start - pad <= _parse_iso8601_lenient(row["created_at"]) <= eval_end + pad
-        ]
-        eval_cost = sum((row.get("cost_usd") or 0) for row in eval_rows)
-        within = "YES" if eval_cost <= per_eval_budget else "NO"
-        lines.append(
-            f"| `{r['eval']}` | {len(eval_rows)} | ${eval_cost:.4f} | {within} (budget ${per_eval_budget:.2f}) |"
-        )
-    lines.append("")
-    lines.append(f"**Session-level cost**: ${session_total_usd:.4f} total across {cost_rollup['wake_count']} wakes "
-                 f"({cost_rollup['judgment_wake_count']} judgment, {cost_rollup['mechanical_wake_count']} mechanical).")
+    # §Cost (automated appendix)
+    lines.append("## §Cost (automated appendix)\n")
+    lines.append(f"**Session total**: ${session_total_usd:.4f} across {cost_rollup['wake_count']} wakes "
+                 f"({cost_rollup['judgment_wake_count']} judgment, {cost_rollup['mechanical_wake_count']} mechanical). "
+                 f"Budget ${per_session_budget:.2f} — {cost_label}.")
     lines.append(f"**Tokens**: {cost_rollup['total_input_tokens']:,} in / {cost_rollup['total_output_tokens']:,} out.\n")
-
     if cost_rollup["per_slug"]:
-        lines.append("**Per-slug cost breakdown**:")
         lines.append("| Slug | Wakes | Cost USD | Tokens (in/out) |")
         lines.append("|---|---|---|---|")
         for slug, b in sorted(cost_rollup["per_slug"].items(), key=lambda kv: kv[1]["cost_usd"], reverse=True):
-            lines.append(
-                f"| `{slug}` | {b['wakes']} | ${b['cost_usd']:.4f} "
-                f"| {b['input_tokens']:,}/{b['output_tokens']:,} |"
-            )
+            lines.append(f"| `{slug}` | {b['wakes']} | ${b['cost_usd']:.4f} | {b['input_tokens']:,}/{b['output_tokens']:,} |")
         lines.append("")
-
-    lines.append("---\n")
-
-    # §3 Cross-dimension observations
-    lines.append("## §3 Cross-dimension observations\n")
-    lines.append("_What the four dimensions reveal together that no single dimension reveals alone._\n")
-    lines.append("<!-- TODO operator: cross-dimension synthesis after dimension tables are filled in -->\n")
-    lines.append("---\n")
-
-    # §4 System-canon recommendations
-    lines.append("## §4 System-canon recommendations\n")
-    lines.append("_What this session's findings recommend for Hat-A work. Each recommendation gates on a measurement criterion in this session._\n")
-    lines.append("<!-- TODO operator: recommendations -->\n")
-    lines.append("---\n")
-
-    # §5 Substrate-receipts
-    lines.append("## §5 Substrate-receipts\n")
-    lines.append("**Per-eval capture folders** (substrate-diffs, transcripts, decisions, proposals, token usage):\n")
+    lines.append("**Per-eval capture folders**:")
     for r in eval_results:
-        outcome_label = "OK" if r["outcome"] == "completed" else f"FAILED ({r['error']})"
-        lines.append(f"- `raw/{Path(r['folder']).name}/` — {r['turns_executed']} turns, "
-                     f"{r['duration_sec']}s, {outcome_label}")
+        if r.get("fired"):
+            lines.append(f"- `raw/{Path(r['folder']).name}/` — {r['turns_executed']} turns, {r['duration_sec']}s, {r['outcome']}")
+        else:
+            lines.append(f"- `raw/{Path(r['folder']).name}/` — REFUSED (precondition violation), not fired")
     lines.append("")
-    lines.append("**Cost rollup CSV**: `raw/cost-rollup.csv`")
-    lines.append("")
-    lines.append("**Reproducible SQL** for re-pulling the session's execution_events:")
+    lines.append("**Reproducible SQL** for re-pulling the session window:")
     lines.append("```sql")
     lines.append(
-        f"SELECT slug, mode, status, tool_rounds, input_tokens, output_tokens, cost_usd, created_at\n"
+        f"SELECT slug, mode, wake_source, status, tool_rounds, input_tokens, output_tokens, cost_usd, created_at\n"
         f"FROM execution_events\n"
         f"WHERE user_id = '{user_id}'\n"
         f"  AND created_at >= '{session_started_at.isoformat()}'\n"
         f"  AND created_at <= '{session_finished_at.isoformat()}'\n"
         f"ORDER BY created_at;"
     )
-    lines.append("```")
-    lines.append("")
+    lines.append("```\n")
     lines.append("---\n")
-    lines.append("## Status\n")
-    lines.append("**DRAFT** — runner produced the skeleton + automated cost dimension. Operator fills in behavior / posture / substrate-usage human-read columns + §1 headline + §3 cross-dimension synthesis + §4 recommendations after reading raw/ artifacts.\n")
+
+    # §Read-state (C5 — replaces DRAFT/POPULATED)
+    lines.append("## §Read-state\n")
+    lines.append(f"Read: nothing yet — runner scaffold only. {len(fired)} eval(s) fired, "
+                 f"{len(refused)} refused pre-flight. The operator reads raw/ artifacts and writes "
+                 f"§The read + §What the session says. Name what was read here (e.g. \"evals 1-3 read; "
+                 f"4-6 not yet\") — there is no DRAFT/POPULATED flag (§6.2 / S7).\n")
     lines.append(f"## Last updated\n\n{session_started_at.isoformat()} — runner emit.\n")
     return "\n".join(lines)
 
@@ -770,12 +839,11 @@ async def run_suite(suite_path: Path, caller: str) -> int:
     from services.operator_proxy.client import OperatorProxy
 
     suite = load_suite(suite_path)
-    print(f"suite: {suite['eval_suite']}")
+    print(f"suite: {suite['eval_suite']} (read_kind={suite['read_kind']})")
     print(f"persona: {suite['persona']}")
     print(f"evals: {len(suite['evals'])}")
-    print(f"budget: per-eval ${suite['budget']['per_eval_usd']}, per-session ${suite['budget']['per_session_usd']}")
+    print(f"budget: per-session ${suite['budget']['per_session_usd']}")
 
-    # Resolve persona → user_id via OperatorProxy
     proxy = OperatorProxy.from_persona(suite["persona"], caller=caller)
     user_id = proxy.config.user_id
     user_email = proxy.config.email or "(unknown)"
@@ -789,7 +857,10 @@ async def run_suite(suite_path: Path, caller: str) -> int:
     session_started_at = datetime.now(timezone.utc)
     eval_results: list[dict] = []
     for i, eval_def in enumerate(suite["evals"]):
-        result = await run_one_eval(eval_def, i, raw_folder, caller)
+        result = await run_one_eval(
+            eval_def, i, raw_folder, caller,
+            user_id=user_id, persona_slug=suite["persona"],
+        )
         eval_results.append(result)
 
     write_phase_finished_at = datetime.now(timezone.utc)
@@ -798,15 +869,16 @@ async def run_suite(suite_path: Path, caller: str) -> int:
     completion = await wait_for_completion(user_id, eval_results, session_started_at)
     print(f"    completion gate: elapsed {completion['elapsed_sec']}s, timed_out={completion['timed_out']}")
 
-    print("\n=== Re-snapshotting per-eval captures (post-wake state) ===")
+    print("\n=== Re-snapshotting per-eval captures + shape receipts (post-wake) ===")
     for r in eval_results:
-        if r["outcome"] != "completed":
+        if not r.get("fired") or r["outcome"] != "completed":
             continue
         try:
             await resnapshot_eval(user_id, r)
-            print(f"    re-snapshotted: {r['eval']}")
+            await capture_shape_receipts(user_id, r)
+            print(f"    captured: {r['eval']}")
         except Exception as exc:
-            print(f"    re-snapshot FAILED for {r['eval']}: {type(exc).__name__}: {exc}")
+            print(f"    capture FAILED for {r['eval']}: {type(exc).__name__}: {exc}")
 
     session_finished_at = datetime.now(timezone.utc)
 
@@ -827,16 +899,15 @@ async def run_suite(suite_path: Path, caller: str) -> int:
         completion=completion,
         session_started_at=session_started_at,
         session_finished_at=session_finished_at,
-        session_folder_path=folder,
     )
     (folder / "SESSION.md").write_text(session_md)
     print(f"\nsession complete: {folder / 'SESSION.md'}")
-    print("(edit SESSION.md to fill in behavior / posture / substrate-usage human-read columns)")
+    print("(read raw/ artifacts, then write §The read + §What the session says — no cells to fill)")
     return 0
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Eval-suite session runner (EVAL-SUITE-DISCIPLINE.md)")
+    ap = argparse.ArgumentParser(description="Eval-suite session runner v2 (EVAL-SUITE-DISCIPLINE.md)")
     ap.add_argument("--suite", required=True, type=Path, help="Path to eval-suite YAML manifest")
     ap.add_argument("--caller", default="eval-suite-runner", help="Caller identity tag")
     args = ap.parse_args()

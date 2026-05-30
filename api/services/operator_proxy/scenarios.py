@@ -494,6 +494,195 @@ async def _write_substrate_with_author(
     return {"revision_id": revision_id, "path": path}
 
 
+async def _delete_substrate_file(user_id: str, path: str) -> bool:
+    """Delete a workspace_files row (the one legitimate non-revision write
+    per ADR-209 — deletion is a distinct operation; the revision chain in
+    workspace_file_versions is preserved). Returns True if a row was removed.
+
+    Used by establish_substrate to honor a `requires: [{path, absent: true}]`
+    precondition or a `setup: [{delete_substrate: path}]` reset step. The
+    history under the path stays walkable; only the head/denormalized row
+    goes, so a subsequent read_file returns None (file absent) as the
+    precondition demands.
+    """
+    from services.supabase import get_service_client
+
+    if not path.startswith("/workspace/"):
+        path = f"/workspace/{path.lstrip('/')}"
+
+    client = get_service_client()
+    loop = asyncio.get_running_loop()
+
+    def _delete() -> bool:
+        resp = (
+            client.table("workspace_files")
+            .delete()
+            .eq("user_id", user_id)
+            .eq("path", path)
+            .execute()
+        )
+        return bool(resp.data)
+
+    return await loop.run_in_executor(None, _delete)
+
+
+# ---------------------------------------------------------------------------
+# EVAL-SUITE-DISCIPLINE.md §3 + §8 C2/C3 — pre-flight precondition machinery
+#
+# A read is only trustworthy if the situation it read was the situation it
+# claimed. `requires:` makes the claim checkable (check_preconditions); the
+# `absent: true` delete + setup writes make the clean starting state
+# establishable (establish_substrate). The c51c44f failure — firing 7 of 10
+# evals against violated preconditions — becomes structurally impossible: the
+# harness refuses to fire (check_preconditions) against a state it can't
+# establish.
+# ---------------------------------------------------------------------------
+
+
+def _dotted_get(data: dict, dotted: str):
+    """Resolve a dotted path (`default.delegation`) into a nested dict.
+
+    Returns the value or a sentinel _MISSING when any segment is absent.
+    """
+    cur = data
+    for seg in dotted.split("."):
+        if not isinstance(cur, dict) or seg not in cur:
+            return _MISSING
+        cur = cur[seg]
+    return cur
+
+
+_MISSING = object()
+
+
+async def check_preconditions(user_id: str, requires: list[dict]) -> dict:
+    """Evaluate each `requires:` assertion against live workspace_files.
+
+    Each assertion is one of:
+      - {path, field, equals}        — dotted YAML field equals a value
+      - {path, contains}             — file content contains substring
+      - {path, not_contains}         — file content does NOT contain substring
+      - {path, absent: true}         — file must not exist
+      - {path}                       — file must exist (present)
+
+    Returns {satisfied: bool, checks: [{assertion, ok, detail}]}. The runner
+    refuses to fire an eval whose preconditions are not satisfied (§3, S2).
+    No tokens are spent on a measurement that cannot honor its own contract.
+    """
+    import yaml as _yaml
+
+    from services.supabase import get_service_client
+
+    client = get_service_client()
+    loop = asyncio.get_running_loop()
+
+    def _read_content(path: str) -> str | None:
+        norm = path if path.startswith("/workspace/") else f"/workspace/{path.lstrip('/')}"
+        resp = (
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", norm)
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        return rows[0]["content"] if rows else None
+
+    checks: list[dict] = []
+    for assertion in requires or []:
+        path = assertion.get("path")
+        if not path:
+            checks.append({"assertion": assertion, "ok": False, "detail": "missing 'path'"})
+            continue
+        content = await loop.run_in_executor(None, _read_content, path)
+
+        if assertion.get("absent") is True:
+            ok = content is None
+            detail = "absent" if ok else "file present (expected absent)"
+        elif "field" in assertion and "equals" in assertion:
+            if content is None:
+                ok, detail = False, "file absent (expected field match)"
+            else:
+                try:
+                    parsed = _yaml.safe_load(content) or {}
+                    # YAML files in this codebase may carry frontmatter or be
+                    # whole-file YAML; safe_load on whole-file YAML is correct
+                    # for _autonomy.yaml / _pace.yaml (the `requires` targets).
+                    val = _dotted_get(parsed if isinstance(parsed, dict) else {}, assertion["field"])
+                    ok = (val is not _MISSING) and (val == assertion["equals"])
+                    detail = f"{assertion['field']}={val!r} (expected {assertion['equals']!r})"
+                except Exception as exc:
+                    ok, detail = False, f"yaml parse error: {exc}"
+        elif "contains" in assertion:
+            ok = content is not None and assertion["contains"] in content
+            detail = "contains" if ok else f"missing substring {assertion['contains']!r}"
+        elif "not_contains" in assertion:
+            ok = content is not None and assertion["not_contains"] not in content
+            detail = "absent-substring" if ok else f"unexpected substring {assertion['not_contains']!r}"
+        else:
+            # bare {path} → file must be present
+            ok = content is not None
+            detail = "present" if ok else "file absent (expected present)"
+
+        checks.append({"assertion": assertion, "ok": ok, "detail": detail})
+
+    return {"satisfied": all(c["ok"] for c in checks), "checks": checks}
+
+
+async def establish_substrate(
+    user_id: str,
+    *,
+    requires: list[dict],
+    setup: list[dict],
+    authored_by: str,
+) -> dict:
+    """Establish the eval's clean starting state before firing (§3, §3.1, C3).
+
+    Two responsibilities:
+      1. Honor `requires: [{path, absent: true}]` by DELETING those files
+         (revision chain preserved per ADR-209) — so the precondition the
+         eval claims can actually hold.
+      2. Apply `setup:` steps that write substrate (`write_substrate` /
+         `delete_substrate`). The richer turn-shaped setup (`seed_draft`,
+         `flip_frontmatter_field`, `fire`) stays in ScenarioRunner — this
+         helper covers only the substrate establishment a pre-flight reset
+         needs. ScenarioRunner.run still executes the scenario's own setup.
+
+    All writes carry the operator-proxy eval-suite-runner attribution. Returns
+    {deleted: [...], wrote: [...]} for the SESSION.md precondition record.
+    """
+    deleted: list[str] = []
+    wrote: list[dict] = []
+
+    # 1. Delete files that must be absent.
+    for assertion in requires or []:
+        if assertion.get("absent") is True and assertion.get("path"):
+            removed = await _delete_substrate_file(user_id, assertion["path"])
+            if removed:
+                deleted.append(assertion["path"])
+
+    # 2. Apply substrate-establishment setup steps. Only the substrate-shaped
+    #    steps are handled here; turn-shaped setup runs inside ScenarioRunner.
+    for step in setup or []:
+        if "write_substrate" in step:
+            ws = step["write_substrate"]
+            res = await _write_substrate_with_author(
+                user_id,
+                ws["path"],
+                ws.get("content", ""),
+                authored_by=ws.get("authored_by", authored_by),
+                message=ws.get("message", "eval-suite pre-flight establish"),
+            )
+            wrote.append({"path": res["path"], "revision_id": res.get("revision_id")})
+        elif "delete_substrate" in step:
+            path = step["delete_substrate"]
+            if await _delete_substrate_file(user_id, path):
+                deleted.append(path)
+
+    return {"deleted": deleted, "wrote": wrote}
+
+
 async def _seed_draft_from_template(
     user_id: str,
     *,
