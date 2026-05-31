@@ -7,10 +7,11 @@ import os
 import json
 import base64
 from functools import lru_cache
-from typing import Optional, Tuple
+from typing import Iterator, Optional, Tuple
 from dataclasses import dataclass
 
 from supabase import create_client, Client
+from supabase.lib.client_options import SyncClientOptions as ClientOptions
 from fastapi import Depends, HTTPException, Header
 
 # Python 3.9 compatible Annotated import
@@ -78,11 +79,30 @@ def get_service_client() -> Client:
     return create_client(url, key)
 
 
-def get_user_client(authorization: Optional[str] = Header(None)) -> AuthenticatedClient:
+def get_user_client(
+    authorization: Optional[str] = Header(None),
+) -> Iterator[AuthenticatedClient]:
     """
     Get Supabase client with user's JWT for RLS enforcement.
-    Returns an AuthenticatedClient with both the client and user_id.
+    Yields an AuthenticatedClient with both the client and user_id.
     Use as FastAPI dependency.
+
+    Memory discipline: this dependency runs on every authenticated request,
+    including the always-on frontend polls (``/api/workspace/nav``,
+    ``/api/recurrences``, ``/api/cockpit/pace`` every ~60s). Each ``create_client``
+    builds a ``postgrest`` client wrapping its own ``httpx.Client`` connection
+    pool. Without an explicit teardown these pools (TLS connections + buffers)
+    accumulate over the process lifetime — the slow RSS creep that OOM-killed
+    yarnnn-api on 2026-06-01 (~5 MB/hr until it crossed the 512 MB ceiling).
+
+    Two guards:
+      1. ``auto_refresh_token=False`` + ``persist_session=False`` — we never run
+         the sign-in flow here (the JWT is decoded locally and applied directly
+         to postgrest), so the gotrue auto-refresh ``threading.Timer`` is pure
+         overhead. Disabling it removes any chance of an orphaned refresh timer.
+      2. ``finally: client.postgrest.aclose()`` — releases the per-request
+         connection pool as soon as the request completes, instead of leaving it
+         for GC. This is the load-bearing fix.
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
@@ -105,11 +125,22 @@ def get_user_client(authorization: Optional[str] = Header(None)) -> Authenticate
     if not key:
         raise ValueError("SUPABASE_ANON_KEY must be set")
 
-    client = create_client(url, key)
+    options = ClientOptions(auto_refresh_token=False, persist_session=False)
+    client = create_client(url, key, options)
     # Set the auth token for RLS
     client.postgrest.auth(token)
 
-    return AuthenticatedClient(client=client, user_id=user_id, email=email)
+    try:
+        yield AuthenticatedClient(client=client, user_id=user_id, email=email)
+    finally:
+        # Release the request-scoped postgrest connection pool. SyncPostgrestClient
+        # exposes aclose() (async); the wrapped httpx.Client.close() is the sync
+        # release we actually need. Close defensively so a teardown error never
+        # masks the response.
+        try:
+            client.postgrest.session.close()
+        except Exception:  # pragma: no cover - teardown best-effort
+            pass
 
 
 # Type alias for dependency injection
