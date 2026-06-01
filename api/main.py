@@ -68,7 +68,7 @@ _validate_environment()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, cockpit
+from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, cockpit, mcp
 
 app = FastAPI(
     title="YARNNN API",
@@ -137,3 +137,6 @@ app.include_router(programs.router, prefix="/api/programs", tags=["programs"])
 
 # ADR-242: cockpit operator-facing surfaces (Alpaca account snapshot etc.)
 app.include_router(cockpit.router, prefix="/api/cockpit", tags=["cockpit"])
+
+# ADR-310 D4: MCP OAuth login callback (binds Supabase user to pending auth code)
+app.include_router(mcp.router, prefix="/api/mcp", tags=["mcp"])

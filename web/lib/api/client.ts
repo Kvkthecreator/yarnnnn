@@ -1683,6 +1683,17 @@ export const api = {
       }),
   },
 
+  // ADR-310 D4: MCP OAuth login handoff. The web /mcp/authorize page calls
+  // this with the operator's JWT to bind the real user to the pending auth
+  // code, then navigates the browser to the returned redirect_url (back to
+  // the OAuth client — Claude.ai / ChatGPT / etc.).
+  mcp: {
+    completeAuthorize: (code: string) =>
+      request<{ redirect_url: string }>(
+        `/api/mcp/oauth-callback?code=${encodeURIComponent(code)}`
+      ),
+  },
+
 };
 
 export default api;

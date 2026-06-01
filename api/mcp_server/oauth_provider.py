@@ -5,13 +5,18 @@ Implements OAuthAuthorizationServerProvider from the mcp SDK to enable
 Claude.ai connectors and ChatGPT developer mode to authenticate via
 standard OAuth 2.1 flow.
 
-Flow:
+Flow (ADR-310 D4 — real login, multi-user):
 1. Client registers dynamically (POST /register)
 2. Client redirects user to /authorize
-3. We redirect to Supabase Auth login
-4. On Supabase callback, auto-approve + generate auth code
-5. Client exchanges code for access token (POST /token)
-6. Client uses access token on /mcp requests
+3. /authorize writes a PENDING auth code (user_id=NULL) and redirects the
+   operator to {APP_URL}/mcp/authorize (the web app)
+4. Web app authenticates the operator, then calls GET /api/mcp/oauth-callback
+   (on the API service, JWT-scoped), which binds the real Supabase user_id
+   onto the pending code and bounces back to the client redirect_uri
+5. Client exchanges code for access token (POST /token) — a code whose
+   user_id is still NULL is rejected, so login is mandatory
+6. Client uses access token on /mcp requests; each request resolves its own
+   user via the token (mcp_server/auth.py::resolve_request_client)
 
 Token storage: Supabase tables (mcp_oauth_clients, mcp_oauth_codes,
 mcp_oauth_access_tokens, mcp_oauth_refresh_tokens).
@@ -35,7 +40,6 @@ from mcp.server.auth.provider import (
     AccessToken,
     RefreshToken,
     OAuthAuthorizationServerProvider,
-    construct_redirect_uri,
 )
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
 
@@ -129,21 +133,24 @@ class YarnnnOAuthProvider(
     async def authorize(
         self, client: OAuthClientInformationFull, params: AuthorizationParams
     ) -> str:
-        """Auto-approve: generate auth code immediately and redirect back.
+        """ADR-310 D4: real login. Store a PENDING auth code (no user yet) and
+        redirect the operator to yarnnn.com to authenticate.
 
-        In single-user mode, we skip the login step and directly issue
-        an auth code for MCP_USER_ID. Multi-user mode would redirect to
-        Supabase login first.
+        The pending code captures the OAuth request (client, redirect_uri, PKCE,
+        state, scope) but carries user_id=NULL. The web app logs the operator in
+        and hands off to GET /api/mcp/oauth-callback, which binds the real
+        Supabase user_id onto the code and redirects back to the OAuth client's
+        redirect_uri. A code with NULL user_id is never exchangeable
+        (load_authorization_code rejects it), so login is mandatory.
         """
-        user_id = _get_mcp_user_id()
         code = secrets.token_urlsafe(32)
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=AUTH_CODE_LIFETIME)
 
-        # Store auth code
+        # Store PENDING auth code — user_id bound later by the web callback.
         self._client().table("mcp_oauth_codes").insert({
             "code": code,
             "client_id": client.client_id,
-            "user_id": user_id,
+            "user_id": None,  # PENDING — bound at /api/mcp/oauth-callback
             "redirect_uri": str(params.redirect_uri),
             "scope": " ".join(params.scopes) if params.scopes else "read",
             "code_challenge": params.code_challenge,
@@ -152,14 +159,17 @@ class YarnnnOAuthProvider(
             "expires_at": expires_at.isoformat(),
         }).execute()
 
-        logger.info(f"[MCP OAuth] Auto-approved auth for user {user_id}, client {client.client_id}")
-
-        # Redirect back to client with auth code
-        return construct_redirect_uri(
-            str(params.redirect_uri),
-            code=code,
-            state=params.state,
+        logger.info(
+            f"[MCP OAuth] Pending auth code for client {client.client_id} — "
+            f"redirecting to web login"
         )
+
+        # Redirect the browser to the web app's MCP-authorize page. After the
+        # operator authenticates, the web app calls /api/mcp/oauth-callback with
+        # the pending code; that route binds the user and completes the redirect
+        # back to the OAuth client.
+        app_url = os.environ.get("APP_URL", "https://yarnnn.com").rstrip("/")
+        return f"{app_url}/mcp/authorize?{urlencode({'code': code})}"
 
     # --- Authorization Code Exchange ---
 
@@ -183,6 +193,13 @@ class YarnnnOAuthProvider(
         if expires_at < datetime.now(timezone.utc):
             # Expired — clean up
             self._client().table("mcp_oauth_codes").delete().eq("code", authorization_code).execute()
+            return None
+
+        # ADR-310 D4: a PENDING code (user not yet bound by the web login
+        # callback) is never exchangeable — reject without deleting so the
+        # in-flight login can still complete and bind it.
+        if not row.get("user_id"):
+            logger.info("[MCP OAuth] Rejected exchange of pending (unbound) auth code")
             return None
 
         scopes = row.get("scope", "read").split(" ")
