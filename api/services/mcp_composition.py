@@ -817,6 +817,16 @@ async def submit_foreign_write_wake(
     contribution to evaluate against authored ground-truth. Never raises — a
     wake failure must not affect the remember_this result (the write already
     committed and is attributed).
+
+    Shared-workspace seam (Phase 3, deferred): the Reviewer is a WORKSPACE-level
+    seat (one per workspace), not per-user. The wake must fire for the WORKSPACE
+    that owns this substrate, independent of which member's LLM wrote it. Today
+    user_id == workspace owner (1:1), so `wake_scope` below equals auth.user_id
+    and is accidentally correct. When workspaces become shared (user_id →
+    workspace_id re-key), `wake_scope` becomes the resolved workspace_id — a
+    one-line change confined to this function, which is the sole MCP→wake seam.
+    The writing human's identity is preserved separately via authored_by on the
+    revision (ADR-288), so multi-author attribution survives the re-key.
     """
     try:
         # workspace-relative path → absolute workspace path for revision lookup.
@@ -824,8 +834,14 @@ async def submit_foreign_write_wake(
         if abs_path and not abs_path.startswith("/workspace/"):
             abs_path = "/workspace/" + abs_path.lstrip("/")
 
+        # TODO(shared-workspace / Phase 3): resolve workspace_id here instead of
+        # reusing the writing user's id. Today 1:1, so this is correct.
+        wake_scope = auth.user_id
+
         from services.authored_substrate import _read_head_revision_id
 
+        # Revision lookup is scoped to the writer's data (auth.user_id) — correct
+        # in both worlds: the revision was written under the writer's scope.
         revision_id = _read_head_revision_id(auth.client, auth.user_id, abs_path)
         if not revision_id:
             logger.info(
@@ -845,7 +861,7 @@ async def submit_foreign_write_wake(
 
         await submit_wake_proposal(
             auth.client,
-            auth.user_id,
+            wake_scope,  # workspace-scoped seam (Phase 3) — == auth.user_id today
             source="substrate_event",
             payload={
                 "hook": {
