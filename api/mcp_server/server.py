@@ -547,6 +547,18 @@ async def remember_this(
     # cross-LLM contribution committed. The morning briefing will surface
     # this attribution per ADR-169.
     written_path = result.get("filename") or result.get("path") or "(unknown)"
+
+    # ADR-310 D2/D3 — the moat: a foreign-LLM write is judged. Wake the
+    # Reviewer to evaluate this contribution against authored ground-truth
+    # (eventually-async; the write already committed). Best-effort, single
+    # seam into the wake contract (mcp_composition.submit_foreign_write_wake).
+    if written_path and written_path != "(unknown)":
+        await mcp_composition.submit_foreign_write_wake(
+            auth,
+            written_path=written_path,
+            target=target,
+            client_name=client_name,
+        )
     _emit_mcp_narrative(
         auth,
         tool="remember_this",
@@ -582,6 +594,11 @@ async def remember_this(
             "date": _today_iso(),
             "original_context": (about or content[:80]),
         },
+        # ADR-310 D2: this is a JUDGED hub, not a storage hub. The write
+        # committed and the Reviewer has been asked to evaluate it against
+        # authored ground-truth (eventually-async). The contribution is
+        # captured now; its standing is judged shortly after.
+        "judged": True,
         "note": classification.get("note"),
     }
 

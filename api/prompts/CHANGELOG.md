@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.01.3] - MCP remember_this is a JUDGED write (ADR-310 D2/D3)
+
+### Changed (LLM-facing)
+
+- `api/mcp_server/server.py::remember_this`: after a successful substrate write,
+  the tool now wakes the Reviewer to evaluate the foreign-LLM contribution
+  against authored ground-truth (eventually-async, via the frozen
+  `submit_wake_proposal` substrate_event source). The tool result gains
+  `"judged": true`.
+- `api/services/mcp_composition.py::submit_foreign_write_wake` (new): the single
+  seam into the wake contract. Carries foreignness in the wake's `hook.prompt`
+  (ADR-310 D3) rather than a new payload field, so the wake contract stays
+  frozen. Best-effort — a wake failure never affects the write result.
+- Expected behavior: a foreign LLM's `remember_this` is no longer a silent
+  storage write. It commits immediately (never blocks the foreign tool) and the
+  Reviewer judges it shortly after, surfacing in the cockpit if it conflicts
+  with mandate/ground-truth. This is the "judged hub, not storage hub" moat
+  (ADR-310 supersedes ADR-169 — the living-hub claim re-pinned from the deleted
+  workforce onto the live Reviewer).
+
+---
+
 ## [2026.06.01.2] - audit-write single-call discipline (one WriteFile + one ReturnVerdict)
 
 ### Decision

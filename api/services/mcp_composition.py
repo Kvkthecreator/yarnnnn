@@ -782,3 +782,84 @@ async def dispatch_remember_this(
         "error": "invalid_target",
         "message": f"unknown remember_this target: {target}",
     }
+
+
+# =============================================================================
+# ADR-310 D2/D3 — the moat seam: foreign write → Reviewer judgment (async)
+# =============================================================================
+#
+# This is the SINGLE site in the MCP path that touches the wake contract
+# (services.wake.submit_wake_proposal). It is deliberately isolated in one
+# best-effort adapter so that if the wake contract is ever reshaped, the blast
+# radius is exactly this function. Everything else in the MCP tools stays
+# wake-agnostic.
+#
+# Eventually-judged model (ADR-310 D2 write side): the foreign LLM's write has
+# already committed via dispatch_remember_this; this adapter then asks the
+# Reviewer to evaluate it AFTER the fact. The foreign tool never blocks on it.
+#
+# Foreignness reaches the Reviewer in the wake's hook.prompt (ADR-310 D3) —
+# NOT a new payload field — so the substrate_event contract stays frozen. The
+# author is also structurally present on the revision (authored_by="yarnnn:mcp"
+# per ADR-288), so the Reviewer can verify by reading it.
+
+async def submit_foreign_write_wake(
+    auth: Any,
+    *,
+    written_path: str,
+    target: str,
+    client_name: str,
+) -> None:
+    """Best-effort: wake the Reviewer to judge a foreign-LLM substrate write.
+
+    Resolves the head revision_id for the just-written path and submits a
+    substrate_event wake whose hook.prompt names the write as a foreign (MCP)
+    contribution to evaluate against authored ground-truth. Never raises — a
+    wake failure must not affect the remember_this result (the write already
+    committed and is attributed).
+    """
+    try:
+        # workspace-relative path → absolute workspace path for revision lookup.
+        abs_path = written_path
+        if abs_path and not abs_path.startswith("/workspace/"):
+            abs_path = "/workspace/" + abs_path.lstrip("/")
+
+        from services.authored_substrate import _read_head_revision_id
+
+        revision_id = _read_head_revision_id(auth.client, auth.user_id, abs_path)
+        if not revision_id:
+            logger.info(
+                "[MCP WAKE] no revision for %s — skipping Reviewer wake", abs_path
+            )
+            return
+
+        prompt = (
+            f"A foreign LLM (via MCP, client: {client_name}) just wrote to "
+            f"`{abs_path}` (target: {target}). Evaluate whether this "
+            f"contribution is consistent with authored ground-truth and the "
+            f"operator's mandate before it becomes load-bearing. If it "
+            f"conflicts or warrants attention, surface it; otherwise stand down."
+        )
+
+        from services.wake import submit_wake_proposal
+
+        await submit_wake_proposal(
+            auth.client,
+            auth.user_id,
+            source="substrate_event",
+            payload={
+                "hook": {
+                    "slug": "mcp-foreign-write-review",
+                    "event": "substrate_change",
+                    "prompt": prompt,
+                },
+                "path": abs_path,
+                "field_change": {"source": "mcp", "target": target},
+                "revision_id": revision_id,
+            },
+        )
+        logger.info(
+            "[MCP WAKE] submitted Reviewer wake for foreign write to %s", abs_path
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[MCP WAKE] submit failed (non-fatal): %s", exc)
