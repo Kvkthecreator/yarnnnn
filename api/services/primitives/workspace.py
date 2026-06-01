@@ -1328,3 +1328,27 @@ async def _is_path_locked_for_reviewer(auth: Any, path: str) -> bool:
 
     governance = {p.strip().lstrip("/") for p in DEFAULT_REVIEWER_WRITE_LOCKS}
     return candidate in governance
+
+
+def _is_path_locked_for_mcp(path: str) -> bool:
+    """Check the MCP-caller (foreign LLM) write-lock policy for a path.
+
+    ADR-310 follow-on (foreign-LLM write gate): the foreign LLM is a lower-trust
+    caller than the Reviewer. Its lock-set is BROADER and prefix-based — it may
+    not write under `review/` (Reviewer seat) or `context/_shared/` (operator-
+    authored intent + governance). Writes elsewhere in the commons APPLY.
+
+    Synchronous + pure (no DB) — the lock-set is a static subtree policy, unlike
+    the Reviewer's which composes with operator overrides. Singular: same lock
+    *mechanism* (path → bool), caller-specific lock-set.
+    """
+    from services.workspace_paths import DEFAULT_MCP_WRITE_LOCK_PREFIXES
+
+    candidate = path.strip().lstrip("/")
+    if candidate.startswith("workspace/"):
+        candidate = candidate[len("workspace/"):]
+
+    return any(
+        candidate.startswith(prefix.strip().lstrip("/"))
+        for prefix in DEFAULT_MCP_WRITE_LOCK_PREFIXES
+    )

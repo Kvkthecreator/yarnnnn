@@ -169,6 +169,23 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
     if is_read_only(name):
         return PermissionDecision.APPLY, "read_only"
 
+    # Foreign-LLM (MCP) caller gate — ADR-310 follow-on.
+    # The MCP caller is lower-trust than operator/Reviewer: it may contribute to
+    # the commons but must never directly rewrite operator-authored intent or
+    # the Reviewer seat. A path-addressed write under a locked subtree DENYs;
+    # all other foreign writes APPLY (and fire the eventually-judged wake per
+    # ADR-310 D2). This branch precedes the non_reviewer short-circuit so the
+    # foreign caller does NOT inherit the operator/headless free-pass.
+    if getattr(auth, "caller_identity", "") == "yarnnn:mcp":
+        if name in _PATH_ADDRESSED_QUEUEABLE:  # WriteFile today
+            from services.primitives.workspace import (
+                _resolve_workspace_path_for_gate, _is_path_locked_for_mcp,
+            )
+            path = _resolve_workspace_path_for_gate(input)
+            if path is not None and _is_path_locked_for_mcp(path):
+                return PermissionDecision.DENY, f"mcp_governance_locked:{path}"
+        return PermissionDecision.APPLY, "mcp_caller_unlocked_path"
+
     # Autonomy gate scoped to Reviewer-runtime calls (ADR-293).
     if not getattr(auth, "reviewer_caller", False):
         return PermissionDecision.APPLY, "non_reviewer_caller"

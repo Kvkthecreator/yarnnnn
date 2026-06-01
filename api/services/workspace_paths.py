@@ -195,6 +195,38 @@ SPECS_PREFIX = "/workspace/specs/"
 #     gating mechanism; the operator reviews diffs (under bounded) or revision
 #     history (under autonomous). Same trust model as Claude Code editing the
 #     project's CLAUDE.md.
+# ---------------------------------------------------------------------------
+# MCP caller write-lock set (ADR-310 follow-on — foreign-LLM write gate)
+# ---------------------------------------------------------------------------
+#
+# The foreign LLM (caller_identity="yarnnn:mcp") is a LOWER-TRUST caller than
+# the Reviewer. The Reviewer's lock-set is narrow (governance-only) because the
+# Reviewer is trusted to edit operational content — "same trust model as Claude
+# Code editing CLAUDE.md." A foreign LLM is NOT that trusted: it may contribute
+# to the commons (context domains, memory, feedback) but must never silently
+# rewrite the operator's governing intent or the Reviewer's own substrate.
+#
+# So the MCP lock-set is BROADER than the Reviewer's, expressed as two subtree
+# PREFIXES that cover all governance + operator-authored intent + the Reviewer
+# seat in one stroke (every governing file lives under one of these two roots):
+#   - context/_shared/ — operator-authored intent (MANDATE, IDENTITY, BRAND,
+#     CONVENTIONS, PRECEDENT) AND governance (_autonomy/_pace/_preferences/
+#     _token_budget yaml) AND _operator_profile/_risk. All of it.
+#   - review/ — the Reviewer's own seat substrate (principles, decisions,
+#     IDENTITY). Operator/Reviewer territory, not foreign-contributor territory.
+# A foreign WriteFile under either prefix DENYs at the gate. Foreign writes
+# elsewhere in the commons (context domains, memory, feedback) APPLY and fire
+# the eventually-judged Reviewer wake (ADR-310 D2).
+#
+# Note: identity/brand foreign contributions still flow via InferContext (a
+# merge, not a raw overwrite), so the lock here governs only direct WriteFile
+# attempts — which is exactly the raw-write risk the primitive surface opens.
+DEFAULT_MCP_WRITE_LOCK_PREFIXES = (
+    "review/",
+    "context/_shared/",
+)
+
+
 DEFAULT_REVIEWER_WRITE_LOCKS = (
     SHARED_AUTONOMY_PATH,
     SHARED_AUTONOMY_YAML_PATH,
