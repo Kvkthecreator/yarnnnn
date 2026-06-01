@@ -48,10 +48,9 @@ export const KERNEL_SURFACE_REGISTRY: Record<KernelSurfaceSlug, ComponentType> =
   cadence: CadencePage,
   pace: PacePage,
   autonomy: AutonomyPage,
-  // Brand co-renders inside IdentityPage (per ADR-297 D1 — the
-  // IdentityBrandCard hosts both). The Brand slug maps to the same
-  // component for now; future split is operator-demand-driven.
-  brand: IdentityPage,
+  // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone
+  // surface — the Identity surface (IdentityBrandCard) co-renders it.
+  // /brand is a server redirect → /identity (ADR-308).
   mandate: MandatePage,
   principles: PrinciplesPage,
   identity: IdentityPage,

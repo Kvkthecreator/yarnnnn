@@ -1,25 +1,16 @@
-'use client';
-
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-
 /**
  * Legacy /memory route — redirects to /files with IDENTITY.md preselected.
  *
  * ADR-215 R3 (2026-04-24): identity/brand/profile are substrate; the
- * canonical edit surface is the Files tab (/files). The old Settings >
- * Memory tab is retired; this route redirects to the Files tab with
- * IDENTITY.md already open.
+ * canonical edit surface is Files (/files). This route opens the Files
+ * surface with IDENTITY.md already selected.
  *
- * Bookmark-safety stub. See ADR-236 Item 5 + web/lib/routes.ts for the
- * redirect-stub policy.
+ * ADR-308 (2026-06-01): pure transport — server redirect(), never renders
+ * inside the OS shell.
  */
+
+import { redirect } from 'next/navigation';
+
 export default function MemoryRedirect() {
-  const router = useRouter();
-
-  useEffect(() => {
-    router.replace('/files?path=%2Fworkspace%2Fcontext%2F_shared%2FIDENTITY.md');
-  }, [router]);
-
-  return null;
+  redirect('/files?path=%2Fworkspace%2Fcontext%2F_shared%2FIDENTITY.md');
 }

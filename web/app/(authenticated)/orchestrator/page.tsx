@@ -1,24 +1,21 @@
-'use client';
-
 /**
- * Legacy /orchestrator route — redirects to HOME_ROUTE (ADR-163: /chat).
- * Preserves query params so OAuth callbacks land on the briefing dashboard
- * with the newly-connected platform reflected in working memory.
+ * Legacy /orchestrator route — redirects to HOME_ROUTE.
+ *
+ * Preserves query params so OAuth callbacks land home with the
+ * newly-connected platform reflected in working memory.
+ *
+ * ADR-308 (2026-06-01): pure transport — server redirect(). searchParams
+ * arrive as a server-component prop.
  */
 
-import { useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { HOME_ROUTE } from '@/lib/routes';
 
-export default function OrchestratorRedirect() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  useEffect(() => {
-    // Preserve query params (e.g. ?provider=slack&status=connected)
-    const params = searchParams?.toString();
-    router.replace(`${HOME_ROUTE}${params ? `?${params}` : ''}`);
-  }, [router, searchParams]);
-
-  return null;
+export default function OrchestratorRedirect({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
+  const qs = new URLSearchParams(searchParams as Record<string, string>).toString();
+  redirect(qs ? `${HOME_ROUTE}?${qs}` : HOME_ROUTE);
 }

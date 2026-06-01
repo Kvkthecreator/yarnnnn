@@ -27,10 +27,14 @@
 //
 //   1. A redirect stub is added when an ADR retires a route that may have
 //      been bookmarked or shared. The target is the current canonical route.
-//   2. The stub is a thin client component that calls `router.replace(...)`
-//      (or `redirect(...)` from `next/navigation` for server pages). It
-//      preserves query params when the target is a query-bearing route
-//      (e.g. /orchestrator → /chat preserves OAuth callback params).
+//   2. ADR-308 (2026-06-01): a redirect stub is PURE SERVER TRANSPORT — a
+//      server component calling `redirect(...)` from `next/navigation`,
+//      fired before any layout mounts. It MUST NOT be a `'use client'`
+//      component that redirects in `useEffect` — that paints one orphaned
+//      frame inside the OS shell (no Desktop, dead dock) before
+//      redirecting, the bimodality seam ADR-308 closed. Query params are
+//      preserved via the server `searchParams` prop (e.g. /orchestrator →
+//      HOME_ROUTE preserves OAuth callback params).
 //   3. Each stub's docblock names the originating ADR and the rationale.
 //   4. Stubs are reviewed at each frontend coherence pass (ADR-236 and its
 //      successors) and removed when (a) the originating ADR has been

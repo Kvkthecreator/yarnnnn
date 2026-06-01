@@ -91,9 +91,11 @@ def _grep(pattern: str, *paths: str) -> list[str]:
 # real route) + the legacy/stub routes that resolve to a surface.
 KERNEL_SLUGS = [
     "feed", "cadence", "mandate", "cockpit", "delegation", "autonomy",
-    "principles", "identity", "brand", "queue", "activity", "program",
+    "principles", "identity", "queue", "activity", "program",
     "pace", "agents", "context", "files", "settings", "connectors",
     "desktop",
+    # ADR-309: `brand` removed — Identity owns Brand; /brand is a server
+    # redirect stub, not a kernel surface.
 ]
 
 
@@ -168,23 +170,16 @@ def test_navigation_primitive_exists() -> None:
 # Group 3 — no bare cross-surface router.push to a kernel-surface route
 # =============================================================================
 
-# Allowlist: redirect-stub route files whose entire job is to redirect on
-# mount (legitimate transport, not navigation). Phase 5 may delete some;
-# until then, their single redirect is permitted.
-ALLOWLIST_REDIRECT_STUBS = {
-    "app/(authenticated)/operation/page.tsx",
-    "app/(authenticated)/brand/page.tsx",
-    "app/(authenticated)/memory/page.tsx",
-    "app/(authenticated)/backend/page.tsx",
-    "app/(authenticated)/docs/page.tsx",
-    "app/(authenticated)/context/page.tsx",  # 2026-06-01 — /context → /files (slug/route coherence)
-    "app/(authenticated)/system/page.tsx",
-    "app/(authenticated)/chat/page.tsx",
-    "app/(authenticated)/workfloor/page.tsx",
-    "app/(authenticated)/orchestrator/page.tsx",
-    "app/(authenticated)/overview/page.tsx",
-    "app/(authenticated)/team/page.tsx",
-}
+# ADR-308 (2026-06-01): redirect stubs are now PURE SERVER TRANSPORT —
+# every authenticated-interior stub uses `redirect()` from next/navigation,
+# NOT `router.push`/`router.replace`. The client-stub pattern this allowlist
+# used to permit no longer exists in any stub, so the allowlist is empty.
+# A client `router.push('/slug')` redirect reappearing in a stub is now a
+# genuine violation (it would paint an orphaned frame in the OS shell —
+# the bimodality seam ADR-308 closed). ADR-308's own guard
+# (test_adr308_redirect_stubs_transport.py) bans the client-stub shape
+# directly; this set stays empty to enforce it from the navigation side too.
+ALLOWLIST_REDIRECT_STUBS: set[str] = set()
 
 
 def _owning_surface_slug(rel_path: str) -> str | None:

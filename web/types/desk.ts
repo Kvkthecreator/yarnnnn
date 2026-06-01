@@ -10,8 +10,12 @@
 // =============================================================================
 
 // ADR-297 axiom (2026-05-21): surface = viewport panel, not URL
-// destination. KernelSurfaceSlug enumerates the 16 atomic surfaces
+// destination. KernelSurfaceSlug enumerates the 15 atomic surfaces
 // declared by api/services/kernel_surfaces.py.
+// ADR-309 (2026-06-01): `brand` slug DELETED — Brand is not a standalone
+// surface; the Identity surface (IdentityBrandCard) owns Brand. /brand is
+// a server redirect → /identity per ADR-308. Surfaces also carry a
+// `register` (settings | application) per ADR-309's two-register model.
 // D19.4 (2026-05-22): settings + connectors promoted from legacy
 // pages to atomic kernel surfaces — reverses D19.7. Inside the
 // authenticated workspace, every surface is a window.
@@ -24,7 +28,6 @@ export type KernelSurfaceSlug =
   | 'mandate'
   | 'principles'
   | 'identity'
-  | 'brand'
   | 'files'
   | 'agents'
   | 'program'
@@ -57,7 +60,7 @@ export type DeskSurface =
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   'feed', 'cockpit', 'cadence', 'pace', 'autonomy', 'mandate', 'principles',
-  'identity', 'brand', 'files', 'agents', 'program', 'queue', 'activity',
+  'identity', 'files', 'agents', 'program', 'queue', 'activity',
   'settings', 'connectors',
 ] as const;
 

@@ -230,8 +230,29 @@ export type SurfaceTier =
   | `program:${string}`
   | 'composed';
 
+/**
+ * ADR-309 (2026-06-01) — the two windowed registers. Mirrors
+ * `api/services/kernel_surfaces.py::register`.
+ *
+ *   - `settings`     — System Settings: the OS configuring itself. Finite,
+ *                      kernel/program-defined, bound 1:1 to a governance
+ *                      substrate file, bespoke editor/view.
+ *   - `application`  — Applications: open files + live state. Artifacts are
+ *                      files opened by Applications via the type→application
+ *                      association layer.
+ *
+ * Absent on chrome surfaces (the window manager's own framing — neither
+ * register). FE↔BE coherence is guarded in test_adr297_phase1.py.
+ */
+export type SurfaceRegister = 'settings' | 'application';
+
 export interface Surface {
   slug: string;
+  /**
+   * ADR-309 — which windowed register this surface belongs to. Present on
+   * every content surface; absent on chrome.
+   */
+  register?: SurfaceRegister;
   title: string;
   archetype: Archetype;
   substrate_paths: string[];

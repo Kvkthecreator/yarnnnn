@@ -1,28 +1,19 @@
-'use client';
-
 /**
- * Legacy /team route — redirects to /agents (ADR-214, 2026-04-23).
+ * Legacy /team route — redirects to /agents (ADR-214). Reverses ADR-201 at
+ * the URL level. Query params preserved.
  *
- * Reverses ADR-201 at the URL level. Kept as a bookmark-safety redirect
- * mirroring the old /agents → /team stub. Query params preserved.
+ * ADR-308 (2026-06-01): pure transport — server redirect(). searchParams
+ * arrive as a server-component prop.
  */
 
-import { useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { AGENTS_ROUTE } from '@/lib/routes';
 
-export default function TeamRedirect() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  useEffect(() => {
-    const params = searchParams?.toString();
-    router.replace(`${AGENTS_ROUTE}${params ? `?${params}` : ''}`);
-  }, [router, searchParams]);
-
-  return (
-    <div className="flex items-center justify-center h-full">
-      <p className="text-sm text-muted-foreground">Redirecting...</p>
-    </div>
-  );
+export default function TeamRedirect({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
+  const qs = new URLSearchParams(searchParams as Record<string, string>).toString();
+  redirect(qs ? `${AGENTS_ROUTE}?${qs}` : AGENTS_ROUTE);
 }

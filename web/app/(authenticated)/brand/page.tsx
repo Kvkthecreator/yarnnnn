@@ -1,22 +1,16 @@
-'use client';
-
 /**
- * /brand — atomic Brand surface (ADR-297 D1).
+ * /brand redirect stub.
  *
- * Per ADR-297 D1, Brand is a peer atomic surface to Identity. The
- * underlying IdentityBrandCard co-renders both; /brand currently
- * redirects to /identity so operators discover the joint render.
- * Splitting into a dedicated /brand-only card is a follow-on if
- * operator demand surfaces.
+ * ADR-309 (2026-06-01): `brand` is no longer a kernel surface slug. Brand is
+ * not standalone — the Identity surface (IdentityBrandCard) co-renders it.
+ * The /brand URL survives only as bookmark-safety transport.
+ *
+ * ADR-308 (2026-06-01): pure transport — server redirect(), never renders
+ * inside the OS shell.
  */
 
-import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { redirect } from 'next/navigation';
 
-export default function BrandPage() {
-  const router = useRouter();
-  useEffect(() => {
-    router.replace('/identity');
-  }, [router]);
-  return null;
+export default function BrandRedirect() {
+  redirect('/identity');
 }

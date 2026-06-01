@@ -102,6 +102,22 @@ ARCHETYPES = (
 # `substrate_paths` is empty and the substrate-class is documented in
 # the comment.
 #
+# ADR-309 field (2026-06-01) — `register`: which of the two windowed
+# registers this surface belongs to (see ADR-309). Required on every
+# content surface; absent on chrome (chrome is the window manager's own
+# framing, neither register).
+#   - `settings`     — System Settings: the OS configuring itself. Finite,
+#                      kernel/program-defined, bound 1:1 to a governance
+#                      substrate file, bespoke editor/view. The operator
+#                      does not install or request these; they exist because
+#                      the OS/program exists. (Mandate, Autonomy, Principles,
+#                      Pace, Identity, Program, Settings, Connectors.)
+#   - `application`  — Applications: open files + live state. A typed file,
+#                      a folder/filesystem, or live state composed into a
+#                      view. (Files, Cockpit, Feed, Queue, Activity, Agents,
+#                      Cadence.) Artifacts are files opened by Applications
+#                      via the type→application association layer.
+#
 # ADR-297 D11 fields (optional; absent on legacy content surfaces, which
 # default to the `main` region with `summon`-style visibility — i.e., the
 # active atomic surface mounts to `main`):
@@ -119,6 +135,7 @@ ARCHETYPES = (
 KERNEL_SURFACES: list[dict[str, Any]] = [
     {
         "slug": "feed",
+        "register": "application",  # ADR-309 two-register model
         "title": "Feed",
         "archetype": "stream",
         "substrate_paths": [],  # session_messages DB table
@@ -142,6 +159,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # section overrides per ADR-273). The atomic Cockpit surface hosts
         # CockpitRenderer intact; no rewrite needed.
         "slug": "cockpit",
+        "register": "application",  # ADR-309 two-register model
         "title": "Cockpit",
         "archetype": "dashboard",
         "substrate_paths": [
@@ -166,6 +184,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "cadence",
+        "register": "application",  # ADR-309 two-register model
         "title": "Cadence",
         "archetype": "dashboard",
         "substrate_paths": [
@@ -187,6 +206,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # (Autonomy) and Identity (Identity / Brand / Principles) per
         # axiom order. (/autonomy was renamed from /delegation 2026-05-24.)
         "slug": "pace",
+        "register": "settings",  # ADR-309 two-register model
         "title": "Pace",
         "archetype": "document",
         "substrate_paths": [
@@ -205,6 +225,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # level. At the operator surface the broader concept is Autonomy.
         # /delegation kept as a redirect stub for bookmark safety.
         "slug": "autonomy",
+        "register": "settings",  # ADR-309 two-register model
         "title": "Autonomy",
         "archetype": "document",
         "substrate_paths": [
@@ -217,6 +238,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "mandate",
+        "register": "settings",  # ADR-309 two-register model
         "title": "Mandate",
         "archetype": "document",
         "substrate_paths": [
@@ -229,6 +251,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "principles",
+        "register": "settings",  # ADR-309 two-register model
         "title": "Principles",
         "archetype": "document",
         "substrate_paths": [
@@ -242,6 +265,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "identity",
+        "register": "settings",  # ADR-309 two-register model
         "title": "Identity",
         "archetype": "document",
         "substrate_paths": [
@@ -252,20 +276,14 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/identity",  # _route_status: NEW in Phase 2
         "summary": "Operator persona — voice, role, context the workspace reasons against.",
     },
-    {
-        "slug": "brand",
-        "title": "Brand",
-        "archetype": "document",
-        "substrate_paths": [
-            "/workspace/context/_shared/BRAND.md",
-        ],
-        "icon_key": "palette",
-        "default_pinned": False,
-        "route": "/brand",  # _route_status: NEW in Phase 2
-        "summary": "Brand voice and stylistic constraints applied to operator-facing outputs.",
-    },
+    # ADR-309 (2026-06-01): the `brand` kernel surface is DELETED. Brand is
+    # not a standalone surface — the Identity Settings pane (IdentityBrandCard)
+    # co-renders BRAND.md alongside IDENTITY.md. /brand is a server redirect →
+    # /identity (ADR-308). BRAND.md substrate is unchanged; only the dedicated
+    # surface is removed.
     {
         "slug": "files",
+        "register": "application",  # ADR-309 two-register model
         "title": "Files",
         "archetype": "browser",
         "substrate_paths": [],  # All paths under workspace_files
@@ -276,6 +294,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "agents",
+        "register": "application",  # ADR-309 two-register model
         "title": "Agents",
         "archetype": "roster",
         "substrate_paths": [],  # agents DB table + per-agent substrate
@@ -286,6 +305,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "program",
+        "register": "settings",  # ADR-309 two-register model
         "title": "Program",
         "archetype": "document",
         "substrate_paths": [
@@ -298,6 +318,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "queue",
+        "register": "application",  # ADR-309 two-register model
         "title": "Queue",
         "archetype": "queue",
         "substrate_paths": [],  # action_proposals DB table (pending state)
@@ -308,6 +329,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "activity",
+        "register": "application",  # ADR-309 two-register model
         "title": "Activity",
         "archetype": "stream",
         "substrate_paths": [],  # execution_events DB table
@@ -328,6 +350,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # remain as window-internal deep-link state per D19.4.
     {
         "slug": "settings",
+        "register": "settings",  # ADR-309 two-register model
         "title": "Settings",
         "archetype": "dashboard",
         "substrate_paths": [],  # account/workspace/billing config — DB + Stripe
@@ -338,6 +361,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "connectors",
+        "register": "settings",  # ADR-309 two-register model
         "title": "Connectors",
         "archetype": "dashboard",
         "substrate_paths": [],  # platform_connections DB table

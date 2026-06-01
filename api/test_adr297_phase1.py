@@ -95,10 +95,12 @@ def _assert(cond: bool, msg: str) -> None:
 def test_kernel_surfaces_module() -> None:
     print("\n[1] kernel_surfaces module hygiene")
 
+    # ADR-309 (2026-06-01): `brand` slug deleted (Identity owns Brand) →
+    # 15 content + 3 D12 chrome = 18.
     _assert(
-        len(KERNEL_SURFACES) >= 19,
-        f"At least 19 kernel surfaces declared "
-        f"(16 content + 3 D12 chrome) (found {len(KERNEL_SURFACES)})",
+        len(KERNEL_SURFACES) >= 18,
+        f"At least 18 kernel surfaces declared "
+        f"(15 content + 3 D12 chrome) (found {len(KERNEL_SURFACES)})",
     )
 
     slugs = [s["slug"] for s in KERNEL_SURFACES]
@@ -117,7 +119,7 @@ def test_kernel_surfaces_module() -> None:
         "mandate",
         "principles",
         "identity",
-        "brand",
+        # ADR-309: `brand` deleted — Identity surface owns Brand.
         "files",
         "agents",
         "program",
@@ -181,6 +183,31 @@ def test_kernel_surfaces_module() -> None:
     _assert(
         pinned_by_default == ["feed"],
         f"Only Feed is default_pinned (found: {pinned_by_default})",
+    )
+
+    # ADR-309 — two-register coherence. Every CONTENT surface declares a
+    # valid `register` (settings | application); every CHROME surface
+    # (default_region set, route empty) declares NONE.
+    VALID_REGISTERS = {"settings", "application"}
+    for entry in KERNEL_SURFACES:
+        is_chrome = entry.get("archetype") in {"input", "navigator", "chrome"}
+        if is_chrome:
+            _assert(
+                "register" not in entry,
+                f"Chrome surface '{entry['slug']}' must NOT declare a register "
+                f"(it is the window manager's framing, neither register)",
+            )
+        else:
+            _assert(
+                entry.get("register") in VALID_REGISTERS,
+                f"Content surface '{entry['slug']}' declares a valid register "
+                f"(found: {entry.get('register')!r})",
+            )
+
+    # ADR-309 — `brand` is no longer a surface (Identity owns Brand).
+    _assert(
+        "brand" not in [s["slug"] for s in KERNEL_SURFACES],
+        "ADR-309: `brand` kernel surface absent (Identity surface co-renders Brand)",
     )
 
 
