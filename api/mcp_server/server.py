@@ -614,10 +614,10 @@ def _load_active_tasks(auth) -> dict[str, dict]:
 
     ADR-231 Phase 3.6.a.4: walks workspace YAML recurrence declarations
     (truth) instead of the `tasks` scheduling index. Returns a slug-keyed
-    dict of {slug, shape, paused} for substring-based matching downstream.
+    dict of {slug, mode, paused} for substring-based matching downstream.
 
-    Function name preserved for caller stability — Phase 3.7 will rename
-    if needed when mcp_composition's classifier gets a vocabulary update.
+    ADR-263: recurrence carries `mode` (judgment | mechanical), a plain
+    string — the deleted `shape` enum (ADR-261) is gone.
     """
     try:
         from services.recurrence import walk_workspace_recurrences
@@ -625,7 +625,7 @@ def _load_active_tasks(auth) -> dict[str, dict]:
         return {
             d.slug: {
                 "slug": d.slug,
-                "shape": d.shape.value,
+                "mode": d.mode,
                 "paused": d.paused,
             }
             for d in decls

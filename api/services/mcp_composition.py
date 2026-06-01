@@ -235,10 +235,10 @@ async def compose_active_candidates(auth: Any) -> dict:
             substrate_root = d.declaration_path.rsplit("/", 1)[0]  # parent dir of the YAML
             candidates.append({
                 "subject": d.slug.replace("-", " ").replace("_", " ").title() or d.slug,
-                "reason": " · ".join(reason_bits) or f"{d.shape.value} recurrence",
+                "reason": " · ".join(reason_bits) or f"{d.mode} recurrence",
                 "path": substrate_root + "/",
                 "kind": "recurrence",
-                "shape": d.shape.value,
+                "mode": d.mode,
             })
     except Exception as e:
         logger.warning(f"[MCP_COMPOSITION] active recurrences walk failed: {e}")
@@ -586,11 +586,15 @@ def _list_related_tasks(auth: Any, domain: str) -> list[dict]:
     identifier. The caller humanizes the slug when surfacing it to the user.
     """
     try:
+        # Migration 164 (ADR-231 D4) split `paused` into its own column —
+        # a paused recurrence keeps status='active', so both filters are needed
+        # to exclude it from the "active tasks" surface.
         result = (
             auth.client.table("tasks")
             .select("slug, schedule, next_run_at")
             .eq("user_id", auth.user_id)
             .eq("status", "active")
+            .eq("paused", False)
             .limit(5)
             .execute()
         )
