@@ -36,7 +36,7 @@ from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import AnyHttpUrl
 
-from mcp_server.auth import get_authenticated_client
+from mcp_server.auth import resolve_request_client
 from mcp_server.oauth_provider import YarnnnOAuthProvider
 from services import mcp_composition
 from services.narrative import (
@@ -106,11 +106,14 @@ def _emit_mcp_narrative(
 
 @asynccontextmanager
 async def lifespan(server: FastMCP):
-    """Initialize auth context at server startup."""
-    logger.info("[MCP Server] Initializing ADR-169 three-tool surface…")
-    auth = get_authenticated_client()
-    logger.info(f"[MCP Server] Ready — user: {auth.user_id}")
-    yield {"auth": auth}
+    """Server startup/shutdown.
+
+    ADR-310 D4: identity is resolved PER REQUEST from the OAuth token
+    (resolve_request_client), not built once at boot. There is no longer a
+    boot-time auth singleton — that pinned every request to one user.
+    """
+    logger.info("[MCP Server] Ready — per-request identity (ADR-310)")
+    yield {}
     logger.info("[MCP Server] Shutting down")
 
 
@@ -203,7 +206,8 @@ async def work_on_this(
         subject_hint: Optional specific subject name (company, person,
                  project) if the conversation named one clearly.
     """
-    auth = ctx.request_context.lifespan_context["auth"]
+    # ADR-310 D4: per-request identity — the authenticating operator, not a singleton.
+    auth = resolve_request_client()
     result = await mcp_composition.compose_subject_context(
         auth=auth,
         context=context or "",
@@ -281,7 +285,8 @@ async def pull_context(
                 relationships, projects, content, signals, slack, notion, github.
         limit: Max chunks to return (default 10, hard cap 30).
     """
-    auth = ctx.request_context.lifespan_context["auth"]
+    # ADR-310 D4: per-request identity — the authenticating operator, not a singleton.
+    auth = resolve_request_client()
     limit = max(1, min(int(limit or 10), 30))
     client_name = mcp_composition.derive_client_name(
         getattr(ctx.request_context, "request", None)
@@ -437,7 +442,8 @@ async def remember_this(
         about: Optional scope hint — an entity, subject, or target name if
                clear from the conversation.
     """
-    auth = ctx.request_context.lifespan_context["auth"]
+    # ADR-310 D4: per-request identity — the authenticating operator, not a singleton.
+    auth = resolve_request_client()
     content = (content or "").strip()
     client_name = mcp_composition.derive_client_name(
         getattr(ctx.request_context, "request", None)
