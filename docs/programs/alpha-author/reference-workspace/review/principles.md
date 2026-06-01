@@ -79,6 +79,16 @@ These rules fire on `pre-ship-audit` recurrence (operator marks a draft `ready_f
 - **Pass condition**: draft framing advances a declared thesis or contributes a new datapoint to one (per `_editorial.md::What gets shipped`) — does NOT optimize for reaction (contrarian-for-attention, "everyone is wrong about X", etc.). Acknowledged thesis updates ("I previously argued X; the evidence has shifted, and I now think Y") are NOT hot takes — they are corpus evolution.
 - **Verdict on fail**: `reject` with directive distinguishing hot-take posture from acknowledged-thesis-update.
 
+### Rule: citation-verifiability
+
+> Enforces `_editorial.md` #3 ("architecture-grounded over speculation — every claim grounded in shipped ADRs/docs/files") at the Reviewer's actual epistemic boundary. The Reviewer reasons against *workspace substrate*; it cannot confirm an external reference (an ADR, a file path, a URL) it has no way to read. This rule makes the Reviewer gate unverifiable claims rather than rubber-stamp them as "architecture-grounded."
+
+- **Substrate read**: the draft's prose + `profile.md::Continuity Threads`, scanned for external factual references — claims of the form "ADR-NNN does/says X", file-path references (`docs/...`, `api/...`), and external URLs — AND the workspace substrate the Reviewer can actually read (`/workspace/**`).
+- **Pass condition**: every external factual reference is EITHER (a) traceable to workspace substrate the Reviewer can read and confirm, OR (b) decorative — not load-bearing to the piece's thesis. A piece with zero external factual references passes trivially.
+- **Verdict on fail**:
+  - `defer` (the typical case) when the piece's thesis rests on external references the Reviewer cannot verify from workspace substrate. Directive names them and routes verification to the operator: *"This piece rests on N external references (ADR-209, ADR-254, …) and M URLs I cannot verify from workspace substrate — there is no ADR corpus in this workspace. Confirm each resolves to a real source whose content matches the claim before ship, or revise. I will not bless an unverified citation as architecture-grounded."* Defer (not reject) is the honest verdict for an epistemic-limit gate — the Reviewer genuinely cannot tell a correct citation from a plausible-but-wrong one without the corpus, so it routes the check to the party who can do it, rather than punishing citations it merely can't see.
+  - `reject` when references are **internally inconsistent** (e.g., a "five live ADRs" claim followed by a list of seven — a self-contradiction visible from the draft alone) OR use an **invented path/URL shape** that contradicts a convention the workspace declares. These are fabrication tells visible without the corpus.
+
 ---
 
 ## §2 — Rules (periodic + reactive paths)

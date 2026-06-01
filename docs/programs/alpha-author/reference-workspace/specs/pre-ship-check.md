@@ -9,7 +9,8 @@ Apply the full audit chain to a draft before it ships:
 2. Continuity check (per `/workspace/specs/continuity-audit.md`)
 3. Anti-AI-slop check (subset of voice-audit; universal anti-pattern baseline)
 4. Editorial principle match (per `_editorial.md` "what gets shipped" criteria)
-5. Cadence context (is this on declared cadence per `_preferences.yaml`)
+5. Citation-verifiability check (per `principles.md::citation-verifiability`) — external factual references (ADR/file/URL claims) the Reviewer cannot verify from workspace substrate → defer to operator; internally-inconsistent or invented-path references → reject. "Architecture-grounded" is not satisfied by the mere presence of citations; it requires references the Reviewer can confirm or the operator confirms.
+6. Cadence context (is this on declared cadence per `_preferences.yaml`)
 
 ## Trigger shape
 
@@ -44,11 +45,13 @@ Reactive (`schedule: null` in `_recurrences.yaml`). Fires when:
 - Continuity-audit verdict `pass` (no unacknowledged contradictions, OR bridge is present in draft, OR operator declared `continuity_override: true` with reasoning).
 - Anti-slop check clean.
 - Editorial principle match: draft satisfies the `_editorial.md` "what gets shipped" criteria.
+- Citation-verifiability `pass`: zero unverifiable load-bearing external references (or all such references trace to workspace substrate the Reviewer confirmed).
 - Cadence context: draft is on-cadence, ahead of cadence, or behind-cadence-with-operator-acknowledgment.
 
 **DEFER** when one or more checks have specific operator-actionable defects:
 - Single anti-pattern hit with specific location (operator can edit and resubmit).
 - Continuity break with a clear suggested bridge (operator authors the bridge).
+- Unverifiable load-bearing external references (ADR/file/URL claims the Reviewer cannot confirm from workspace substrate) — operator confirms each resolves to a real source matching the claim, or revises.
 - Cadence behind but operator hasn't declared if this piece is on-thesis or off-cadence.
 
 **REJECT** when one or more hard rejection rules fire (per `/workspace/review/principles.md` "Hard rejection rules" section):
@@ -57,6 +60,7 @@ Reactive (`schedule: null` in `_recurrences.yaml`). Fires when:
 - Unacknowledged continuity break with no clear bridge.
 - Engagement-bait construction detected.
 - Hot-take posture without thesis-advancement justification.
+- Internally-inconsistent or invented-path external references (citation-verifiability fabrication tells — e.g. a count claim that contradicts its own list, or a URL path shape contradicting a declared convention).
 - Missing voice fingerprint declaration (bootstrap exception per principles.md "Bootstrap clause").
 
 ## Quality criteria
