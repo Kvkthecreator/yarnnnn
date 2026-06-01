@@ -30,7 +30,7 @@
  *   - The main content region (SurfaceViewport + children fallback)
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { NarrativeProvider, useNarrative } from '@/contexts/NarrativeContext';
@@ -139,8 +139,25 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
   // (no resurrection of the just-closed surface). Operator-observed
   // race fixed (KVK 2026-05-22 — couldn't close the topmost window).
   // Singular Implementation: one URL-sync path, owned by closeSurface.
+  //
+  // 2026-06-01 re-fire-loop fix (operator-observed: "on /feed, click a
+  // Dock icon → the new window flashes to top, then Feed reclaims top").
+  // ROOT CAUSE: `foregroundSurface` is a useCallback with `open` in its
+  // deps, so its identity changes whenever the open-set changes. This
+  // effect listed `foregroundSurface` as a dependency, so clicking a Dock
+  // icon (which mutates `open`) re-ran this effect with the SAME pathname
+  // (bare Dock-nav doesn't change the URL per D19.2). On /feed the
+  // pathname still matched the Feed surface → foregroundSurface('feed')
+  // fired → Feed reclaimed foreground + top z. The effect is meant for
+  // GENUINE pathname transitions only (cold-load deep-link, real
+  // navigation), not open-set churn. Guard with a last-synced-pathname
+  // ref so a re-run triggered by callback-identity change (same pathname)
+  // is a no-op. Same shape as the D18.3 re-fire guard.
+  const lastSyncedPathname = useRef<string | null>(null);
   useEffect(() => {
+    if (pathname === lastSyncedPathname.current) return; // no-op on churn
     if (!composition.surfaces || composition.surfaces.length === 0) return;
+    lastSyncedPathname.current = pathname;
     const sorted = [...composition.surfaces].sort(
       (a, b) => b.route.length - a.route.length
     );
