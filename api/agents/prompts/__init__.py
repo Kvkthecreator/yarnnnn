@@ -1,33 +1,24 @@
 from __future__ import annotations
 """
-YARNNN Prompt Modules (ADR-059 + ADR-186 + ADR-189 + ADR-233 Phase 1).
+YARNNN Prompt Modules (ADR-233 Phase 1 + bare-kernel product floor 2026-06-01).
 
-ADR-059: Prompts are split into composable sections.
-ADR-186: Two chat prompt profiles — workspace (full scope) and entity (scoped).
-ADR-189: Directory renamed tp_prompts/ → yarnnn_prompts/.
-ADR-233: Directory renamed yarnnn_prompts/ → prompts/ with chat/ + headless/
-         subdirectories. Profile axis extended from 2 chat profiles to 5
-         unified profiles. Single resolver `build_prompt(profile_key, ...)`.
+The chat-profile half of this module was deleted by the bare-kernel product-floor
+ratification (Direction A — program-activation is the floor; no freehand
+conversational onboarding). The `YarnnnAgent` chat surface and its workspace /
+entity prompt profiles died with ADR-257 (System Agent LLM stream removed); the
+ADR-226 activation overlay died with them (it was only ever engaged by the dead
+YarnnnAgent path). See docs/architecture/bare-kernel-product-floor-2026-06-01.md.
 
-Profile keys (5 total):
-  chat/workspace        — onboarding, task catalog, team composition, creation
-  chat/entity           — feedback routing, evaluation, agent identity management
+What remains is the LIVE headless path — the DispatchSpecialist surface. The
+Reviewer composes its own system prompt in `agents/reviewer_agent.py` and does
+not route through this module.
+
+Profile keys (3 — headless only):
   headless/deliverable  — recurring report composition (replacive, gap-filling)
   headless/accumulation — entity tracking + domain synthesis (additive)
   headless/action       — action proposal (propose, do not execute)
 
 MAINTENANCE shape has no LLM call, no profile.
-
-Chat shared sections:
-  base.py       — chat identity + tone
-  tools_core.py — primitive docs, domain terms, workforce model
-  platforms.py  — platform tools
-
-Chat profile-specific sections (under chat/):
-  workspace.py  — onboarding, task catalog, team composition, creation routes
-  entity.py     — feedback routing, evaluation, agent identity management
-  activation.py — ADR-226 activation overlay
-  onboarding.py — CONTEXT_AWARENESS for workspace profile
 
 Headless sections (under headless/):
   base.py         — HEADLESS_BASE_BLOCK (output rules, conventions, accumulation-first)
@@ -36,110 +27,12 @@ Headless sections (under headless/):
   action.py       — ACTION_POSTURE
 """
 
-from .base import BASE_PROMPT, SIMPLE_PROMPT
-from .tools_core import TOOLS_CORE
-from .platforms import PLATFORMS_SECTION
-from .chat.workspace import WORKSPACE_BEHAVIORS
-from .chat.entity import ENTITY_BEHAVIORS
-
-# Legacy imports — kept for any callers that reference them directly.
-# onboarding.py still defines CONTEXT_AWARENESS for the workspace profile.
-from .chat.onboarding import CONTEXT_AWARENESS
-
-# ADR-226: activation overlay — appended to workspace profile when the
-# workspace has been forked from a program bundle but MANDATE.md is still
-# skeleton (operator hasn't authored their edge yet).
-from .chat.activation import ACTIVATION_OVERLAY
-
 # ADR-233 Phase 1: headless shape postures + universal base block.
 from .headless.base import HEADLESS_BASE_BLOCK
 from .headless.deliverable import DELIVERABLE_POSTURE
 from .headless.accumulation import ACCUMULATION_POSTURE
 from .headless.action import ACTION_POSTURE
 
-
-def build_system_prompt(
-    *,
-    with_tools: bool = False,
-    context: str = "",
-    profile: str = "workspace",
-    entity_preamble: str = "",
-    activation_active: bool = False,
-) -> list[dict]:
-    """
-    Build the full system prompt as content blocks for prompt caching.
-
-    ADR-186: Profile-aware assembly.
-      - profile="workspace": full behavioral guidance (onboarding, creation, catalog)
-      - profile="entity": scoped behavioral guidance (feedback, evaluate, steer)
-
-    Static sections (identity, tools, behaviors) are cached via cache_control.
-    Dynamic sections (working memory context, entity preamble) are NOT cached.
-
-    Args:
-        with_tools: Include tool documentation
-        context: Working memory / context section
-        profile: "workspace" or "entity" — determines behavioral sections
-        entity_preamble: For entity profile — TASK.md, run log, output preview
-
-    Returns:
-        List of content blocks for the Anthropic system parameter
-    """
-    if not with_tools:
-        # Simple prompt without tools — all dynamic (contains context)
-        return [{"type": "text", "text": SIMPLE_PROMPT.format(context=context)}]
-
-    # Profile-specific behavioral assembly
-    if profile == "entity":
-        static_sections = [
-            BASE_PROMPT,
-            ENTITY_BEHAVIORS,
-            TOOLS_CORE,
-            PLATFORMS_SECTION,
-        ]
-    else:
-        # Default: workspace profile (full guidance)
-        static_sections = [
-            BASE_PROMPT,
-            WORKSPACE_BEHAVIORS,
-            TOOLS_CORE,
-            PLATFORMS_SECTION,
-            CONTEXT_AWARENESS,
-        ]
-        # ADR-226: when activation is active (workspace forked, MANDATE.md
-        # still skeleton), append the differential-authoring overlay so
-        # YARNNN walks the operator through the `authored` tier files.
-        if activation_active:
-            static_sections.append(ACTIVATION_OVERLAY)
-
-    static_prompt = "\n\n".join(section for section in static_sections)
-    # Remove the {context} placeholder from static — context goes in dynamic block
-    static_prompt = static_prompt.replace("{context}", "")
-
-    # Build dynamic section
-    dynamic_parts = []
-    if entity_preamble:
-        dynamic_parts.append(f"\n\n## Entity Context\n{entity_preamble}")
-    if context:
-        dynamic_parts.append(f"\n\n## Working Memory & Context\n{context}")
-    dynamic_text = "".join(dynamic_parts)
-
-    return [
-        {
-            "type": "text",
-            "text": static_prompt,
-            "cache_control": {"type": "ephemeral"},
-        },
-        {
-            "type": "text",
-            "text": dynamic_text,
-        },
-    ]
-
-
-# ---------------------------------------------------------------------------
-# ADR-233 Phase 1 — Unified prompt resolver
-# ---------------------------------------------------------------------------
 
 # Map of headless profile keys to their posture string. Posture is a
 # cognitive-job framing prepended to the cached HEADLESS_BASE_BLOCK so the LLM
@@ -180,10 +73,9 @@ def build_headless_system_block(profile_key: str) -> str:
 
 
 # Public registry of valid profile keys. Imported by tests as the source of
-# truth for what profiles exist.
+# truth for what profiles exist. Chat profiles removed per the bare-kernel
+# product-floor ratification (2026-06-01).
 PROFILE_KEYS: tuple[str, ...] = (
-    "chat/workspace",
-    "chat/entity",
     "headless/deliverable",
     "headless/accumulation",
     "headless/action",
@@ -193,26 +85,19 @@ PROFILE_KEYS: tuple[str, ...] = (
 def build_prompt(profile_key: str, **kwargs):
     """Unified prompt assembler dispatching on profile key.
 
-    ADR-233 Phase 1: single entry point for every profile in the system.
-    Chat profiles return a list of content blocks (cached + dynamic) for the
-    Anthropic system parameter. Headless profiles return a single string —
-    the caller wraps it in a content block with its own dynamic content
-    (per-task context, deliverable spec, feedback) and applies cache_control.
+    Post-bare-kernel-floor: only headless profiles remain. Headless profiles
+    return a single string — the caller wraps it in a content block with its
+    own dynamic content (per-task context, deliverable spec, feedback) and
+    applies cache_control.
 
     Args:
-        profile_key: One of PROFILE_KEYS.
-        **kwargs: Profile-specific arguments. For chat profiles: forwarded to
-                  `build_system_prompt`. For headless profiles: ignored
-                  (posture is static; dynamic content is the caller's job).
+        profile_key: One of PROFILE_KEYS (all `headless/*`).
+        **kwargs: Ignored (headless posture is static; dynamic content is the
+                  caller's job).
 
     Returns:
-        For chat profiles: list of content blocks.
-        For headless profiles: static system block as string.
+        The static headless system block as a string.
     """
-    if profile_key == "chat/workspace":
-        return build_system_prompt(profile="workspace", **kwargs)
-    if profile_key == "chat/entity":
-        return build_system_prompt(profile="entity", **kwargs)
     if profile_key.startswith("headless/"):
         return build_headless_system_block(profile_key)
     raise ValueError(

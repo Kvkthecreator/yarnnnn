@@ -245,22 +245,20 @@ def test_manage_agent_create_returns_disabled_error():
 
 
 def test_chat_prompts_no_manage_agent_create():
-    """No active prompt file invokes ManageAgent(action="create"."""
+    """No chat prompt invokes ManageAgent(action="create") — now satisfied by
+    deletion. The bare-kernel product-floor ratification (2026-06-01) removed
+    api/agents/prompts/chat/ entirely (Direction A — no freehand conversational
+    onboarding; the YarnnnAgent chat surface died with ADR-257). With no chat
+    prompts left, the ADR-235 guard is structurally permanent: there is no file
+    that *could* invoke ManageAgent(action="create"). This test now asserts the
+    deletion holds.
+    See docs/architecture/bare-kernel-product-floor-2026-06-01.md."""
     chat_prompts_dir = REPO_API / "agents" / "prompts" / "chat"
-    if not chat_prompts_dir.exists():
-        record("test_chat_prompts_no_manage_agent_create", False, "chat prompts dir missing")
-        return
-
-    offenders = []
-    for p in chat_prompts_dir.glob("*.py"):
-        text = p.read_text()
-        if 'ManageAgent(action="create"' in text or "ManageAgent(action='create'" in text:
-            offenders.append(p.name)
-
     record(
         "test_chat_prompts_no_manage_agent_create",
-        not offenders,
-        f"offenders={offenders}" if offenders else "clean",
+        not chat_prompts_dir.exists(),
+        "chat prompts dir absent (deleted)" if not chat_prompts_dir.exists()
+        else "chat prompts dir unexpectedly present — bare-kernel sweep regressed",
     )
 
 

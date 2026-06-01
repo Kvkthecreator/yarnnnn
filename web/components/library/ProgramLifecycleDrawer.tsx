@@ -171,7 +171,8 @@ export function ProgramLifecycleDrawer({ state, onMutation }: ProgramLifecycleDr
             ) : (
               <div className="rounded-lg border border-dashed border-border bg-muted/10 px-4 py-3">
                 <p className="text-sm text-muted-foreground">
-                  No program activated. Pick one below or continue running as-is.
+                  No program activated yet. Activate one below to begin — until then
+                  the workspace is in standby.
                 </p>
               </div>
             )}

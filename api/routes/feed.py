@@ -85,32 +85,14 @@ class SurfaceContext(BaseModel):
 
 
 # =============================================================================
-# ADR-186: Prompt Profile Resolution
+# ADR-186 prompt-profile resolution DELETED (bare-kernel product floor, 2026-06-01).
+# The chat-profile concept (workspace/entity) died with the YarnnnAgent chat
+# surface (ADR-257). The live feed routes to the regex execution_router or the
+# Reviewer, neither of which consumes a prompt profile — the Reviewer composes
+# its own system prompt in agents/reviewer_agent.py. The FE may still send
+# surface_context on the request; it is harmlessly ignored.
+# See docs/architecture/bare-kernel-product-floor-2026-06-01.md.
 # =============================================================================
-
-# Declarative mapping: surface type → prompt profile.
-# Default is "workspace" — new surface types get the full prompt unless
-# explicitly mapped. Failure mode: "too much context" not "missing context."
-SURFACE_PROFILES: dict[str, str] = {
-    "task-detail": "entity",
-    "agent-detail": "entity",
-    "agent-review": "entity",
-}
-
-
-def resolve_profile(surface: Optional[SurfaceContext]) -> str:
-    """Resolve prompt profile from surface context (ADR-186).
-
-    Returns "workspace" or "entity". Always logs the resolution for
-    future evaluation and diagnostics.
-    """
-    if not surface:
-        profile = "workspace"
-        logger.info(f"[YARNNN:PROFILE] surface=None → profile={profile}")
-        return profile
-    profile = SURFACE_PROFILES.get(surface.type, "workspace")
-    logger.info(f"[YARNNN:PROFILE] surface={surface.type} → profile={profile}")
-    return profile
 
 
 class ImageAttachment(BaseModel):
@@ -1130,7 +1112,7 @@ async def global_chat(
         yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': routed_tools})}\n\n"
         logger.info("[EXEC_ROUTER] routed — tools=%s for: %.50r", routed_tools, request.content)
 
-    async def _dispatch_reviewer_turn(images_for_api, profile, invocation_id: str):
+    async def _dispatch_reviewer_turn(images_for_api, invocation_id: str):
         """Reviewer handles every non-execution turn via the addressed wake source.
 
         ADR-296 v2 D1: routes through wake_sources.addressed.stream() — the
@@ -1335,8 +1317,6 @@ async def global_chat(
                 ]
                 images_for_api = (images_for_api or []) + doc_blocks
 
-            profile = resolve_profile(request.surface_context)
-
             # Path 1: Execution router — zero LLM, mechanical commands
             router_result = None
             try:
@@ -1354,7 +1334,7 @@ async def global_chat(
             # No System Agent fallback. Reviewer is always the intelligence layer.
             # If Reviewer includes action_instruction, System Agent executes it as directed.
             # If Reviewer fails entirely, yield error — do not improvise with System Agent.
-            async for chunk in _dispatch_reviewer_turn(images_for_api, profile, invocation_id):
+            async for chunk in _dispatch_reviewer_turn(images_for_api, invocation_id):
                 yield chunk
 
         except Exception as e:

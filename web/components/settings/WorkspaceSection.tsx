@@ -225,7 +225,9 @@ export function WorkspaceSection() {
         ) : (
           <div className="rounded-lg border border-dashed border-border bg-muted/10 px-4 py-3">
             <p className="text-sm text-muted-foreground">
-              No program activated. Pick one below or continue running the kernel as-is.
+              No program activated yet. Activate a program below to begin — it sets up
+              your mandate, your Reviewer, and the operation it runs. Until then the
+              workspace is in standby.
             </p>
           </div>
         )}

@@ -147,8 +147,11 @@ async def build_working_memory(
     #   "none"          — no program activated (no bundle is active for this workspace)
     #   "post_fork_pre_author"  — bundle active AND MANDATE.md is skeleton/empty
     #   "operational"   — bundle active AND MANDATE.md is non-skeleton
-    # The workspace profile prompt overlay (prompts/chat/activation.py) engages
-    # only when state == "post_fork_pre_author".
+    # Consumed by the Settings → Workspace surface + compact index. (The prior
+    # prompts/chat/activation.py overlay that engaged on "post_fork_pre_author"
+    # was deleted by the bare-kernel product-floor sweep, 2026-06-01 — the live
+    # Reviewer/wake path never read this signal. The classifier survives as a
+    # status signal, not a prompt-engagement trigger.)
     activation_state = _classify_activation_state(user_id, mandate_content, _make_client)
 
     working_memory = {
