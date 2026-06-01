@@ -6,6 +6,14 @@
 
 ---
 
+> ## ⚠ Supersession note (2026-06-01, ADR-310)
+>
+> Authored 2026-04-09 under ADR-169. Two narrative claims below are now corrected; where the body disagrees, this note wins:
+> - **"workforce running in the background" (Case 4, the through-line)** — that workforce was dissolved (bare-kernel ratification). The substrate grows via the **Reviewer + program activation**.
+> - **`remember_this` is not a silent synchronous-only write.** It commits immediately (never blocks the foreign tool) **and** wakes the Reviewer to judge the contribution against authored ground-truth (ADR-310 D2, eventually-async). "Captured instantly, judged shortly after" — so "no eventual consistency" is wrong: the *landing* is immediate, the *judgment* is async. The write primitive is `WriteFile`/`InferContext` (ADR-235), not `UpdateContext`.
+
+---
+
 ## The "this" problem, briefly
 
 When a user says "work on this" or "remember this" mid-conversation with a foreign LLM, the word **"this"** refers to something in the shared context between user and LLM — not in the tool call's parameters. The resolution mechanism is:

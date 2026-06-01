@@ -6,6 +6,20 @@
 
 ---
 
+> ## ⚠ Supersession banner (2026-06-01, ADR-310) — read before trusting code blocks below
+>
+> This doc was authored 2026-04-09 under ADR-169. Three things changed underneath it; the code blocks and tables below are corrected here in one place rather than rewritten inline. Where the body and this banner disagree, **the banner wins.**
+>
+> 1. **Write path is `WriteFile` / `InferContext`, not `UpdateContext`.** The `UpdateContext` six-target model (`identity`/`brand`/`memory`/`agent`/`task`/`deliverable`) was dissolved by **ADR-235** (before MCP work). `remember_this` now dispatches via `mcp_composition.dispatch_remember_this` → `InferContext` (identity/brand) or `WriteFile(scope="workspace", …)` (memory/agent/task). `deliverable` is no longer a target. Any `UpdateContext`-based table, pseudocode, or "scope guards reject forbidden targets" line below is superseded.
+>
+> 2. **`remember_this` is a JUDGED write (ADR-310 D2/D3).** After the write commits (immediately; never blocks the foreign tool), the tool calls `mcp_composition.submit_foreign_write_wake`, which submits a `substrate_event` wake (ADR-296) so the **Reviewer evaluates the contribution** against authored ground-truth — eventually-async. Foreignness rides in the wake's `hook.prompt` (D3), so the wake contract stays frozen. This is a fourth safety mechanism beyond the three the body lists (classification + provenance + daily-update); it is the load-bearing one. The substrate-grower is the **Reviewer + program activation**, not the deleted "workforce."
+>
+> 3. **Auth is per-request multi-user (ADR-310 D4).** `api/mcp_server/auth.py` is NOT "unchanged / two-layer service-key + MCP_USER_ID." `get_authenticated_client()` is deleted; the request path calls `resolve_request_client()`, which reads the OAuth token's `user_id` per request (`MCP_USER_ID` is only the stdio/static-bearer fallback). `/authorize` requires a real yarnnn login binding the real Supabase user to the auth code (`GET /api/mcp/oauth-callback`, `api/routes/mcp.py`). Migration 182 made `mcp_oauth_codes.user_id` nullable for the pending-code state.
+>
+> **ADR-310 supersedes ADR-169** for tool surface + framing; ADR-169's OAuth/transport infra is preserved. Every "ADR-169 will…" future-tense line below is historical — ADR-169 shipped, then was superseded.
+
+---
+
 ## The runtime-agnostic principle (ADR-164) and the primitives matrix (ADR-168)
 
 Two foundations are load-bearing for this design:

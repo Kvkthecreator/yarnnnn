@@ -1,25 +1,27 @@
-# MCP Connector — The Context Hub Across LLMs
+# MCP Connector — The Judged Context Hub Across LLMs
 
-> **Status**: Implemented (2026-04-09) — ADR-169 written and code landed. `api/services/mcp_composition.py` ships the composition layer; `api/mcp_server/server.py` is rewritten to three tools with 9 legacy tools deleted. `QueryKnowledge` ranking quality validation is the one pre-ship gate remaining before the MCP Render service is redeployed.
-> **Date**: 2026-04-09
+> **Status**: Implemented. Framing + tool surface governed by **ADR-310** (judged substrate, interop as distribution face), which **supersedes ADR-169** (the original three-tool context-hub framing). ADR-169's OAuth/transport infrastructure is preserved. The connector is **multi-user** (per-request OAuth identity, ADR-310 D4), and `remember_this` is a **judged write** — every foreign-LLM contribution wakes the Reviewer for evaluation against authored ground-truth (ADR-310 D2).
+> **Updated**: 2026-06-01 (ADR-310 supersession)
 > **Authors**: KVK, Claude
-> **Related ADRs**: ADR-075 (MCP technical architecture, OAuth + transport — preserved), ADR-164 (TP as agent, primitives runtime-agnostic), ADR-168 (primitives matrix — canonical primitive surface), ADR-159 (filesystem-as-memory), ADR-151 (context domains — `QueryKnowledge` substrate), ADR-152 (unified directory registry), ADR-156 (Composer sunset — TP is single intelligence layer)
+> **Related ADRs**: **ADR-310** (judged substrate / interop face — governing), ADR-169 (original context-hub framing — superseded; infra retained), ADR-075 (OAuth + transport — preserved), ADR-296 (wake architecture — `substrate_event` source the judged write fires), ADR-209 (authored substrate — every write attributed), ADR-168 (primitives matrix), ADR-151 (context domains — `QueryKnowledge` substrate)
+>
+> **Vocabulary note**: This folder was authored on 2026-04-09 under ADR-169, which framed the substrate as grown by "an autonomous workforce." That workforce was dissolved by the bare-kernel ratification (2026-06-01) — the live substrate-growing organ is now the **Reviewer** (the persona-bearing judgment seat) plus **program activation**. Where older text below says "workforce," read "Reviewer + program activation." The load-bearing claims have been corrected; some incidental phrasing is preserved as historical artifact.
 
 ---
 
 ## What MCP is for YARNNN
 
-**YARNNN is the context hub across the LLMs you already use.**
+**MCP is the interop face of YARNNN's one moat: a judged context substrate, served everywhere.**
 
-Users spend their thinking time inside Claude.ai, ChatGPT, Gemini, and other foreign LLM surfaces — often multiple LLMs in a single day. What breaks today is that each LLM starts every conversation cold, without the user's accumulated intelligence, and each conversation's conclusions die in that surface. The user keeps re-explaining themselves. The thinking doesn't compound.
+YARNNN has exactly one moat — authored substrate under a persona-bearing judgment seat (the Reviewer). That moat is exposed through two faces (ADR-310): the **cockpit** (the operator, in-app) and the **interop face** (a foreign LLM, via MCP). MCP is not a second product. It is how the *judged* substrate reaches the LLMs the operator already uses.
 
-MCP connects each foreign LLM to a single shared substrate: the user's YARNNN workspace. Every LLM pulls from the same accumulated material. Every LLM can contribute back. The user moves between ChatGPT, Claude.ai, and Gemini without losing continuity — because the continuity lives in YARNNN, not in any single LLM's memory.
+Operators spend their thinking time inside Claude.ai, ChatGPT, Gemini, and other foreign LLM surfaces — often several in a day. Each LLM starts cold; each conversation's conclusions die in that surface. MCP connects each foreign LLM to a single shared substrate: the operator's YARNNN workspace. Every LLM pulls from the same accumulated, *judged* material. Every LLM can contribute back — and every contribution is evaluated by the Reviewer.
 
-YARNNN's internal workforce (domain stewards, synthesizers, platform bots, TP) keeps growing the workspace on its own. Across the MCP boundary, the workforce is invisible. What crosses is **three intent-shaped tools** — two for consulting the accumulated context, one for contributing back.
+The Reviewer + program activation keep the workspace growing. Across the MCP boundary that machinery is invisible. What crosses is **three intent-shaped tools** — two for consulting the judged context, one for contributing back (where the contribution is itself judged).
 
 ### The singular framing
 
-> Each foreign LLM is a room where the user thinks. YARNNN is the shared context hub every room consults and contributes to. MCP is the three tools every room uses to stay in sync with every other room.
+> A storage hub returns whatever is stored — garbage in, garbage out, no opinion. YARNNN returns substrate the Reviewer has judged, and accepts contributions the Reviewer evaluates. The copyable half (three thin MCP tools) sits downstream of the uncopyable half (a calibrated judgment seat). **YARNNN is the *judged* context hub every LLM consults and contributes to.**
 
 Three things the user can ask any LLM to do with their YARNNN:
 
@@ -61,11 +63,11 @@ The single hardest thing foreign-LLM users struggle with is **continuity across 
 
 currently has three disconnected conversations. Each LLM starts cold. Each one's insights die when the tab closes. The user is the only thread connecting them — and the user has to re-explain the context in every session.
 
-MCP fixes this at the substrate level. Every `remember_this` call commits synchronously to Postgres. Every subsequent `pull_context` call from any other LLM sees the new material immediately. A user who contributes an insight via ChatGPT at 3pm will find that same insight available to Gemini at 4pm — not because Gemini has a better memory, but because YARNNN is the shared layer all three LLMs now reach through.
+MCP fixes this at the substrate level. Every `remember_this` call commits immediately to Postgres (the foreign tool never blocks) **and wakes the Reviewer to judge the contribution** against authored ground-truth (eventually-async, ADR-310 D2). Every subsequent `pull_context` call from any other LLM sees the new material immediately. A user who contributes an insight via ChatGPT at 3pm will find that same insight available to Gemini at 4pm — not because Gemini has a better memory, but because YARNNN is the shared *judged* layer all three LLMs now reach through. Captured instantly; judged shortly after.
 
 This is the concrete mechanism under the marketing line. The positioning follows:
 
-> **Install YARNNN on every LLM you use. Whatever you tell one, every other one now knows. Whatever your YARNNN workforce learns on its own, every LLM now reaches. Your thinking stays coherent across rooms.**
+> **Install YARNNN on every LLM you use. Whatever you tell one, every other one now knows — and your Reviewer judges each contribution against your own ground-truth before it becomes load-bearing. Your thinking stays coherent across rooms, and no careless write silently corrupts the others.**
 
 ---
 
@@ -87,15 +89,15 @@ The three resolution cases — conversation topic, in-conversation artifact, col
 
 ## Strategic positioning
 
-**We are not a connector.** Linear, Notion, and GitHub have MCP servers that expose their storage. That is not what YARNNN is.
+**We are not a storage connector.** Linear, Notion, and GitHub have MCP servers that expose their storage — garbage in, garbage out, no opinion. That is not what YARNNN is.
 
-**We are not passive memory.** ChatGPT Memory and Claude Projects store conversational facts. YARNNN accumulates intelligence through a workforce running on its own. The workforce grows the substrate; MCP exposes the substrate as three intent-shaped tools.
+**We are not passive memory.** ChatGPT Memory and Claude Projects store conversational facts. YARNNN holds substrate under a judgment seat: the Reviewer evaluates what is fit against authored ground-truth, and program activation gives the substrate a mandate. MCP exposes that *judged* substrate as three intent-shaped tools.
 
-**We are the context hub every LLM consults.** YARNNN sits above any single LLM, maintained by the workforce, and MCP is how each LLM reaches up to consult it. Cross-LLM consistency is a direct consequence — every LLM pulls from the same Postgres-backed substrate, so what one LLM learns, the others see. This is a category YARNNN is alone in, because no other MCP server has an autonomous workforce growing its substrate in the background.
+**We are the *judged* context hub every LLM consults.** YARNNN sits above any single LLM, and MCP is how each LLM reaches up to consult it — and contribute back through a write the Reviewer judges. Cross-LLM consistency is a direct consequence: every LLM pulls from the same Postgres-backed substrate, so what one LLM learns, the others see — and what any LLM contributes is evaluated before it becomes load-bearing. This is a category YARNNN is alone in, because **the copyable part (three MCP tools) sits downstream of the uncopyable part (a calibrated, persona-bearing judgment seat).** A weekend-clone can copy the tools; it cannot copy the Reviewer.
 
 The one-line pitch to a foreign-LLM user:
 
-> Your YARNNN workforce is still running whether you're in YARNNN or not. Install this connector on Claude.ai, ChatGPT, and Gemini — every one of them now reaches the same accumulated intelligence, and every one of them can contribute back. Your thinking stops starting cold every time you switch LLMs.
+> Install this connector on Claude.ai, ChatGPT, and Gemini — every one of them now reaches the same judged substrate, and every one of them can contribute back, with each contribution evaluated by your Reviewer against your own ground-truth. Your thinking stops starting cold every time you switch LLMs, and a careless write from one room doesn't silently corrupt the others.
 
 This positioning holds for every big-player surface and for any future A2A ecosystem. External agents consulting YARNNN on a user's behalf use the same three tools — they don't talk to YARNNN's internal agents, they consult the same workspace every other caller consults.
 
@@ -109,7 +111,7 @@ This README is the entry point. It establishes the service philosophy, the three
 - **[workflows.md](workflows.md)** — dialogue-level walkthroughs: conversation topic, in-conversation artifact, cold start, and cross-LLM continuity (the load-bearing case)
 - **[architecture.md](architecture.md)** — primitive mapping to the ADR-168 matrix, backend dispatch through `execute_primitive()`, cost model, implementation plan
 
-When ADR-169 is written, it will reference this folder as the canonical product framing. The ADR captures the decision; these docs capture the feature.
+**ADR-310** is the governing decision record (superseding ADR-169); this folder is the canonical product framing it references. The ADR captures the decision; these docs capture the feature.
 
 ---
 
@@ -117,21 +119,22 @@ When ADR-169 is written, it will reference this folder as the canonical product 
 
 The infrastructure is solid and carries forward unchanged:
 
-- **OAuth 2.1 + static bearer fallback** (ADR-075) — transport auth is not broken, not changing
-- **Two-layer auth model** (service key + `MCP_USER_ID` for data scoping) — unchanged
+- **OAuth 2.1 + static bearer fallback** (ADR-075) — transport auth carries forward
 - **FastMCP server + stdio/HTTP transports** — unchanged
-- **`api/mcp_server/` module layout** (`server.py`, `auth.py`, `oauth_provider.py`) — unchanged
+- **`api/mcp_server/` module layout** (`server.py`, `auth.py`, `oauth_provider.py`) — module layout unchanged (contents rewritten for ADR-310 D4)
 - **Render service** (`yarnnn-mcp-server`) — unchanged
+
+**Changed by ADR-310 D4 (multi-user):** the connector no longer scopes all data to a single boot-time `MCP_USER_ID`. Identity is resolved **per request** from the OAuth access token (`resolve_request_client()` reads the token's `user_id`), so each operator's own LLM authenticates as themselves and reaches their own substrate. `/authorize` requires a real yarnnn login (binding the real Supabase user to the auth code via `GET /api/mcp/oauth-callback`). `MCP_USER_ID` survives only as the stdio / static-bearer fallback. Service-key + explicit `.eq("user_id", …)` still does data isolation — once the real user flows in. **Deferred (Change B, out of scope):** multiple humans sharing ONE workspace — that needs a membership layer and a substrate re-key from `user_id` to `workspace_id`, demand-gated.
 
 What changes is only the **tool surface and the dispatch layer**. The 9 existing tools are deleted as a singular implementation; the 3 new tools replace them. The MCP server becomes a thin caller of `execute_primitive()` per the ADR-164 runtime-agnostic principle — no more direct service imports in `server.py`.
 
 ---
 
-## Decisions locked in for ADR-169
+## Decisions (ADR-169 → superseded by ADR-310)
 
-All four open questions from the design discussion are now decided. ADR-169 will codify these as the implementation contract.
+The original four ADR-169 decisions are preserved below for trace continuity. The load-bearing one — `remember_this` safety — was **superseded by ADR-310 D2**: pre-write gating is replaced not by three post-write visibility mechanisms but by **the Reviewer judging every foreign write** (eventually-async). Note also that the post-ADR-235 write path uses `WriteFile` / `InferContext`, not the `UpdateContext` six-target model the original text assumed; `deliverable` is no longer a target.
 
-1. **`remember_this` target permissions — DECIDED: all six targets available.** No blanket blocks on `identity`, `brand`, `memory`, `agent`, `task`, or `deliverable`. Safety shifts from pre-write gating to three mechanisms: (a) classification with confident routing or structured ambiguity return, (b) mandatory `source: mcp:<client>` provenance on every write per ADR-162, (c) daily-update surfacing so the user can see and correct MCP-contributed material the next morning. Workspace-level targets (`identity`/`brand`/`memory`) default safely to `memory` on ambiguity; operational-feedback targets (`agent`/`task`/`deliverable`) disambiguate via the structured `ambiguous` return shape with candidate slugs. Full two-branch classifier logic in [architecture.md](architecture.md).
+1. **`remember_this` safety — ADR-310 D2 (judged write).** A foreign-LLM write commits immediately (never blocks the tool) and then wakes the Reviewer via the `substrate_event` source (ADR-296) to evaluate the contribution against authored ground-truth. Foreignness is carried in the wake's `hook.prompt` (ADR-310 D3); the author is also stamped on the revision (`authored_by="yarnnn:mcp"`, ADR-288). Provenance stamping (`source: mcp:<client>`, ADR-162) and confident-routing-or-structured-ambiguity classification still apply as supporting mechanisms — but the *judgment* of fitness is the Reviewer's, not a post-hoc daily-briefing glance. _(Original ADR-169 text: "all six targets available; safety shifts to classification + provenance + daily-update surfacing." That visibility-only model is superseded.)_
 
 2. **Provenance display in the daily-update — DECIDED: yes, attributed.** The daily-update task pipeline groups recent workspace changes by provenance source. MCP-contributed content is surfaced with attribution ("From your Claude.ai conversation yesterday: ..."). This closes the loop visibly across the cross-LLM boundary and makes wrong writes correctable by the user the morning after they happen.
 

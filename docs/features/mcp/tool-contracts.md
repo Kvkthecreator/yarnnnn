@@ -6,6 +6,13 @@
 
 ---
 
+> ## ⚠ Supersession note (2026-06-01, ADR-310)
+>
+> Authored 2026-04-09 under ADR-169. Correction where the body disagrees:
+> - **`remember_this` is a JUDGED write.** Its result now includes `"judged": true`. After committing (immediately; never blocks), it wakes the Reviewer to evaluate the contribution against authored ground-truth (ADR-310 D2, eventually-async). The "zero LLM calls inside MCP" invariant still holds on the *serving path* — the Reviewer judgment happens downstream, off the tool's return path. The write primitive is `WriteFile`/`InferContext` (ADR-235), not `UpdateContext`.
+
+---
+
 ## Design invariants
 
 Every tool on this surface obeys five invariants. These are load-bearing for the service philosophy; they exist because without them the "three intent-shaped tools" framing leaks into operator-mode thinking or clarification rounds.
