@@ -304,8 +304,8 @@ export function interleaveDaySeparators(units: FeedUnit[]): FeedRow[] {
 
 /**
  * Filter the flat message list to addressed-cycle rows only. Used by
- * the Conversation surface (drawer on /feed; right-panel on /work,
- * /agents, /context, /workspace) — the Conversation renders the chat-
+ * the Conversation surface (drawer on /feed; right-panel on /cadence,
+ * /agents, /files) — the Conversation renders the chat-
  * shaped exchange between operator and addressee, not the broader
  * operations timeline.
  *

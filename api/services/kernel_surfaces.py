@@ -271,7 +271,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "substrate_paths": [],  # All paths under workspace_files
         "icon_key": "folder",
         "default_pinned": False,
-        "route": "/context",  # _route_status: EXISTING — the current /context page is the Files surface (legacy URL retained)
+        "route": "/files",  # _route_status: EXISTING — slug/route/label all coherent (legacy /context is a redirect stub)
         "summary": "Raw substrate browser — every file in the workspace, with revision history.",
     },
     {

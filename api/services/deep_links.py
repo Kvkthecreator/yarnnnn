@@ -13,7 +13,7 @@ Naming convention (operator-native, per ADR-201):
   /overview  — HOME (Overview surface, ADR-199)
   /team      — roster surface (ADR-201; replaces legacy /agents)
   /work      — tasks (Work surface, ADR-180)
-  /context   — filesystem / knowledge browser (ADR-180)
+  /files     — filesystem / knowledge browser (ADR-180; legacy /context redirects here)
   /review    — Reviewer stream + queue (ADR-200)
 
 All helpers return absolute URLs. Query params are the deep-link
@@ -115,18 +115,18 @@ def work_url(
     return _build("/work", params)
 
 
-def context_path_url(path: str) -> str:
-    """Context surface pointing at a specific workspace file.
+def files_path_url(path: str) -> str:
+    """Files surface pointing at a specific workspace file.
 
-    Example: context_path_url("/workspace/context/_money_truth_summary.md")
+    Example: files_path_url("/workspace/context/_money_truth_summary.md")
     """
     # path is URL-encoded to preserve slashes + any unusual chars
-    return _build("/context", {"path": path})
+    return _build("/files", {"path": path})
 
 
-def context_domain_url(domain: str) -> str:
-    """Context surface pointing at a domain folder (e.g., 'trading')."""
-    return _build("/context", {"domain": domain})
+def files_domain_url(domain: str) -> str:
+    """Files surface pointing at a domain folder (e.g., 'trading')."""
+    return _build("/files", {"domain": domain})
 
 
 def chat_url() -> str:

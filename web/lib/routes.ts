@@ -44,7 +44,8 @@
 //   /team          → /agents                           (ADR-214 — reverses ADR-201)
 //   /overview      → /cadence                          (ADR-205 F2; ADR-297 dissolved /work → Cadence)
 //   /workfloor     → /feed                             (ADR-163)
-//   /memory        → /context?path=...IDENTITY.md      (ADR-215 R3)
+//   /memory        → /files?path=...IDENTITY.md        (ADR-215 R3)
+//   /context       → /files                            (2026-06-01 — slug/route/label coherence)
 //   /system        → /settings                         (system tab removed 2026-05-02)
 //   /operation     → /mandate                          (ADR-297 — atomic surface; routes.ts doc corrected 2026-05-30)
 //   /backend       → /activity                         (ADR-265 — operator-readable rename)
@@ -65,7 +66,10 @@ export const FEED_ROUTE = "/feed";
 // single repoint.
 export const WORK_ROUTE = "/cadence";
 export const AGENTS_ROUTE = "/agents"; // ADR-214 — canonical (reverses ADR-201 /team rename).
-export const CONTEXT_ROUTE = "/context";
+// Files surface — slug `files`, route `/files`. Legacy `/context` is a
+// redirect stub (2026-06-01). The substrate path `/workspace/context/…`
+// is unrelated — it's the filesystem namespace, not a route URL.
+export const FILES_ROUTE = "/files";
 // WORKSPACE_CONFIG_ROUTE ("/workspace") deleted 2026-05-30 — ADR-297
 // dissolved the /workspace container into atomic surfaces (mandate,
 // autonomy, principles, etc.); the constant had zero consumers.

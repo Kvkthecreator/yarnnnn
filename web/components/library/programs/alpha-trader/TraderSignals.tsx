@@ -99,7 +99,7 @@ export function TraderSignals() {
           {signals.length > 0 && ` · ${signals.length}`}
         </h3>
         <Link
-          href="/context?path=%2Fworkspace%2Fcontext%2Ftrading%2Fsignals%2F"
+          href="/files?path=%2Fworkspace%2Fcontext%2Ftrading%2Fsignals%2F"
           className="text-[11px] text-muted-foreground/60 underline-offset-4 hover:text-foreground hover:underline"
         >
           View all →
@@ -190,7 +190,7 @@ export function TraderSignals() {
                       </p>
                     )}
                     <Link
-                      href={`/context?path=${encodeURIComponent(s.path)}`}
+                      href={`/files?path=${encodeURIComponent(s.path)}`}
                       className="inline-block text-[10px] text-muted-foreground/60 underline-offset-4 hover:text-foreground hover:underline"
                     >
                       View source file →

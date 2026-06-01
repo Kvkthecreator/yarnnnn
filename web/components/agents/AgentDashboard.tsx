@@ -107,7 +107,7 @@ export function AgentDashboard({ agent, tasks }: AgentDashboardProps) {
           {allUpdates[0] && <> · Last updated {formatShort(allUpdates[0])}</>}
         </span>
         <Link
-          href={`/context?domain=${domain}`}
+          href={`/files?domain=${domain}`}
           className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
         >
           Explore

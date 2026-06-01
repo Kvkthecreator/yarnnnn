@@ -4,10 +4,10 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 /**
- * Legacy /memory route — redirects to /context with IDENTITY.md preselected.
+ * Legacy /memory route — redirects to /files with IDENTITY.md preselected.
  *
  * ADR-215 R3 (2026-04-24): identity/brand/profile are substrate; the
- * canonical edit surface is the Files tab (/context). The old Settings >
+ * canonical edit surface is the Files tab (/files). The old Settings >
  * Memory tab is retired; this route redirects to the Files tab with
  * IDENTITY.md already open.
  *
@@ -18,7 +18,7 @@ export default function MemoryRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/context?path=%2Fworkspace%2Fcontext%2F_shared%2FIDENTITY.md');
+    router.replace('/files?path=%2Fworkspace%2Fcontext%2F_shared%2FIDENTITY.md');
   }, [router]);
 
   return null;

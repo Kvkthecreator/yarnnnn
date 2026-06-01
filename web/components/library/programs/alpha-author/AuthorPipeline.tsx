@@ -244,7 +244,7 @@ export function AuthorPipeline() {
                 {recentPublished.map(p => (
                   <li key={p.path} className="flex items-baseline justify-between gap-3">
                     <Link
-                      href={`/context?path=${encodeURIComponent(p.path)}`}
+                      href={`/files?path=${encodeURIComponent(p.path)}`}
                       className="truncate hover:underline"
                     >
                       {p.slug}
@@ -265,7 +265,7 @@ export function AuthorPipeline() {
           Cadence declared in _preferences.yaml
         </span>
         <Link
-          href={`/context?path=${encodeURIComponent(AUTHORED_ROOT)}`}
+          href={`/files?path=${encodeURIComponent(AUTHORED_ROOT)}`}
           className="text-muted-foreground/70 hover:text-foreground hover:underline"
         >
           Open corpus →

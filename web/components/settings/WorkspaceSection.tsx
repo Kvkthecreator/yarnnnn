@@ -427,7 +427,7 @@ function SubstrateRow({
       </span>
     );
 
-  const filesHref = `/context?path=${encodeURIComponent(path)}`;
+  const filesHref = `/files?path=${encodeURIComponent(path)}`;
 
   return (
     <div className="rounded-md border border-border bg-card px-3 py-2 flex items-center justify-between gap-3">

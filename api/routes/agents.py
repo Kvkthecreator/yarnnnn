@@ -767,7 +767,7 @@ async def get_reviewer_capabilities(auth: UserClient) -> dict:
 
     Before this route shipped, the capability library was entirely
     backend-internal: Reviewer reads them, operator never sees them
-    (would need to manually browse /context?path=/workspace/specs/).
+    (would need to manually browse /files?path=/workspace/specs/).
 
     Three substrate operations:
 

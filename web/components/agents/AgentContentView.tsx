@@ -31,7 +31,7 @@ import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPane
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { formatRelativeTime } from '@/lib/formatting';
 import { humanizeSchedule, scheduleDisplay } from '@/lib/schedule';
-import { CONTEXT_ROUTE, WORK_ROUTE } from '@/lib/routes';
+import { FILES_ROUTE, WORK_ROUTE } from '@/lib/routes';
 import { SubstrateTab } from './SubstrateTab';
 import { ReviewerActivityPanel } from './ReviewerActivityPanel';
 import { ReviewerCapabilitiesPanel } from './ReviewerCapabilitiesPanel';
@@ -348,7 +348,7 @@ function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) 
     segments.push(
       <Link
         key="domain"
-        href={`${CONTEXT_ROUTE}?domain=${domain}`}
+        href={`${FILES_ROUTE}?domain=${domain}`}
         className="hover:text-foreground hover:underline"
       >
         {formatKeyLabel(domain)}
@@ -526,7 +526,7 @@ function SpecialistFolderBlock({ agent, tasks }: { agent: Agent; tasks: Recurren
                 {domainLabel}/
               </span>
               <Link
-                href={`${CONTEXT_ROUTE}?domain=${agent.context_domain}`}
+                href={`${FILES_ROUTE}?domain=${agent.context_domain}`}
                 className="inline-flex items-center gap-1 hover:text-foreground"
               >
                 View folder
@@ -721,7 +721,7 @@ function AgentTabBar({
 // Capabilities tab added 2026-05-14: surfaces /workspace/specs/*.md as
 // first-class operator content (the Claude Code skills.md analog). Specs
 // were entirely backend-internal before — Reviewer read them; operator
-// had to manually browse /context to know they existed.
+// had to manually browse /files to know they existed.
 //
 // Activity tab also added 2026-05-14 after audit found ReviewerActivityPanel
 // was rendering significantly stale data inside the Autonomy tab. Splitting
@@ -730,7 +730,7 @@ function AgentTabBar({
 //
 // Track Record + Decisions link-outs deleted in earlier passes —
 // calibration headline already surfaces on cockpit PerformanceFace
-// (ADR-228); raw files remain accessible via /context.
+// (ADR-228); raw files remain accessible via /files.
 // ---------------------------------------------------------------------------
 
 // ADR-297: Autonomy + Principles tabs DELETED. Operator-authored

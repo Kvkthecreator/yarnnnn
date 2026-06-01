@@ -33,7 +33,7 @@ import ProgramPage from '@/app/(authenticated)/program/page';
 import QueuePage from '@/app/(authenticated)/queue/page';
 import ActivityPage from '@/app/(authenticated)/activity/page';
 import AgentsPage from '@/app/(authenticated)/agents/page';
-import ContextPage from '@/app/(authenticated)/context/page';
+import FilesPage from '@/app/(authenticated)/files/page';
 // ADR-297 D19.4 (2026-05-22) — Settings + Connectors promoted from
 // legacy pages to atomic kernel surfaces. Reverses D19.7. Inside the
 // authenticated workspace, every surface is a window mounted on the
@@ -59,7 +59,7 @@ export const KERNEL_SURFACE_REGISTRY: Record<KernelSurfaceSlug, ComponentType> =
   queue: QueuePage,
   activity: ActivityPage,
   agents: AgentsPage,
-  files: ContextPage,
+  files: FilesPage,
   settings: SettingsPage,
   connectors: ConnectorsPage,
 };

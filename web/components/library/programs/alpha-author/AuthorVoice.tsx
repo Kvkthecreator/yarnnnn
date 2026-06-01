@@ -258,7 +258,7 @@ export function AuthorVoice() {
             : 'no voice declaration yet'}
         </span>
         <Link
-          href={`/context?path=${encodeURIComponent(VOICE_PATH)}`}
+          href={`/files?path=${encodeURIComponent(VOICE_PATH)}`}
           className="text-muted-foreground/70 hover:text-foreground hover:underline"
         >
           Open _voice.md →

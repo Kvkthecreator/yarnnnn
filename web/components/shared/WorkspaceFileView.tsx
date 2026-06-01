@@ -188,7 +188,7 @@ export function WorkspaceFileView({
           {maxLines && content && content.split('\n').length > maxLines && (
             <p className="mt-1 text-[10px] text-muted-foreground/50 italic">
               Showing last {maxLines} lines —{' '}
-              <a href={`/context?path=${encodeURIComponent(path)}`} className="underline underline-offset-4">
+              <a href={`/files?path=${encodeURIComponent(path)}`} className="underline underline-offset-4">
                 open full file
               </a>
             </p>

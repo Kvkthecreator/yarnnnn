@@ -14,7 +14,8 @@ export default function robots(): MetadataRoute.Robots {
           "/dashboard/",
           "/orchestrator/",
           "/memory/",
-          "/context/",
+          "/files/",
+          "/context/", // redirect stub → /files
           "/system/",
           "/settings/",
           "/agents/",

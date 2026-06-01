@@ -75,8 +75,8 @@ function TaskCompleteCard({ data }: { data: TaskCompleteData }) {
   const outputPath = data.output_path
     || (data.task_slug ? `/workspace/reports/${data.task_slug}` : null);
   const href = outputPath
-    ? `/context?path=${encodeURIComponent(outputPath)}`
-    : '/context';
+    ? `/files?path=${encodeURIComponent(outputPath)}`
+    : '/files';
 
   return (
     <div className="flex items-center justify-between gap-2.5 p-3 rounded-lg border border-border bg-muted/30 my-1 animate-in fade-in slide-in-from-bottom-1 duration-150">

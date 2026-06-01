@@ -19,7 +19,7 @@
  *   - "Used by" — list of recurrence slugs whose prompt text references
  *     this spec (computed server-side by parsing _recurrences.yaml)
  *   - Last-updated relative timestamp
- *   - Deep-link to source file on /context for the full read
+ *   - Deep-link to source file on /files for the full read
  *   - "Edit in chat" affordance routing through ADR-235 D1
  *
  * Read-only by design. Substrate edits go via chat per ADR-235 D1 +
@@ -192,7 +192,7 @@ export function ReviewerCapabilitiesPanel() {
 
             <div className="flex items-center gap-3 pt-1 border-t border-border/40">
               <Link
-                href={`/context?path=${encodeURIComponent(s.path)}`}
+                href={`/files?path=${encodeURIComponent(s.path)}`}
                 className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground hover:underline underline-offset-4 transition-colors"
               >
                 <FileText className="h-3 w-3" />

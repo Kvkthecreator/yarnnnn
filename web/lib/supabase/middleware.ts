@@ -12,7 +12,7 @@ import { HOME_ROUTE } from "@/lib/routes";
 //   as deep-link transports for direct surface mounting.
 //
 // Atomic surface slugs are also top-level URLs: /feed /cockpit /cadence
-// /pace /autonomy /mandate /principles /identity /brand /files (→ /context)
+// /pace /autonomy /mandate /principles /identity /brand /files
 // /agents /program /queue /activity. Each is a protected route + a deep-link
 // transport — cold-load opens that surface in a window.
 // /delegation is a redirect stub → /autonomy (2026-05-24 surface rename).
@@ -28,7 +28,8 @@ const PROTECTED_PREFIXES = [
   "/feed",
   "/cadence", // ADR-297 — absorbed /work (recurrence list + task detail)
   "/agents",
-  "/context",
+  "/files",
+  "/context", // redirect stub → /files (2026-06-01 — slug/route/label coherence)
   "/activity",
   "/connectors",
   "/operation", // redirect stub → /mandate

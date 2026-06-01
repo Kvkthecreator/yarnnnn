@@ -3,7 +3,7 @@
 /**
  * ADR-039: Redirect to unified Context page
  *
- * Legacy /docs route now redirects to /context?section=documents
+ * Legacy /docs route now redirects to /files?section=documents
  */
 
 import { useEffect } from 'react';
@@ -14,7 +14,7 @@ export default function DocsRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/context?section=documents');
+    router.replace('/files?section=documents');
   }, [router]);
 
   return (

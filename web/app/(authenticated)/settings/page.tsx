@@ -62,7 +62,7 @@ export default function SettingsPage() {
   const { clearMessages } = useNarrative();
   const tabParam = searchParams.get("tab");
   // ADR-215 R3 (2026-04-24): `memory` tab retired — identity/brand/profile
-  // are substrate, edited on Files (/context?path=/workspace/context/_shared/…).
+  // are substrate, edited on Files (/files?path=/workspace/context/_shared/…).
   // Legacy `?tab=memory` redirects to Files IDENTITY.md via effect below.
   const initialTab: SettingsTab =
     tabParam === "usage" ? "usage" :
@@ -76,7 +76,7 @@ export default function SettingsPage() {
   // IDENTITY.md preselected. One edit surface for substrate (Files).
   useEffect(() => {
     if (tabParam === "memory") {
-      router.replace("/context?path=%2Fworkspace%2Fcontext%2F_shared%2FIDENTITY.md");
+      router.replace("/files?path=%2Fworkspace%2Fcontext%2F_shared%2FIDENTITY.md");
     }
   }, [tabParam, router]);
 

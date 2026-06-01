@@ -100,7 +100,7 @@ export function TraderOrders() {
           Recent Orders
         </h3>
         <a
-          href="/context?path=%2Fworkspace%2Fcontext%2Ftrading%2F"
+          href="/files?path=%2Fworkspace%2Fcontext%2Ftrading%2F"
           className="text-[11px] text-muted-foreground/60 underline-offset-4 hover:text-foreground hover:underline"
         >
           View all →

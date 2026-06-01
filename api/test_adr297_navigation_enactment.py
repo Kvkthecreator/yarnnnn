@@ -177,6 +177,7 @@ ALLOWLIST_REDIRECT_STUBS = {
     "app/(authenticated)/memory/page.tsx",
     "app/(authenticated)/backend/page.tsx",
     "app/(authenticated)/docs/page.tsx",
+    "app/(authenticated)/context/page.tsx",  # 2026-06-01 — /context → /files (slug/route coherence)
     "app/(authenticated)/system/page.tsx",
     "app/(authenticated)/chat/page.tsx",
     "app/(authenticated)/workfloor/page.tsx",

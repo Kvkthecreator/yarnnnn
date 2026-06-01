@@ -11,7 +11,7 @@
  *   Home page:           [] (empty — just "yarnnn")
  *   Agents overview:     [] (empty — toggle bar shows "Agents")
  *   Agent selected:      [{ label: "Agents", href: "/agents" }, { label: "Researcher", href: "/agents?agent=..." }]
- *   Context / domain:    [{ label: "Context", href: "/context" }, { label: "Competitors", href: "/context?path=..." }]
+ *   Context / domain:    [{ label: "Context", href: "/files" }, { label: "Competitors", href: "/files?path=..." }]
  */
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from 'react';
