@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.01.2] - audit-write single-call discipline (one WriteFile + one ReturnVerdict)
+
+### Decision
+
+The Fix-2 validation re-fire (eval `2026-05-30-054957-author-produce-corpus-piece/
+findings-fix2-validation-inconclusive.md`) budget-exhausted at 20/20 rounds: the
+model wrote the rule-by-rule audit across 14 incremental WriteFile calls (some
+fumbling the `content` parameter) and never reached the last rule. Root cause —
+the two-channel guidance ([2026.06.01.1]) said "WriteFile the full audit" but did
+not say "in ONE call," so a verbose run fragmented the write and ran out of rounds.
+
+### Changed (LLM-facing)
+
+- `agents/reviewer_agent.py` `_TRIGGER_FRAMING["reactive"]` audit bullet: now
+  "TWO calls total — (1) ONE WriteFile of the COMPLETE audit document (compose
+  the whole thing first, write it once, always include `content`); (2) ONE
+  ReturnVerdict headline." Explicitly forbids rule-by-rule incremental writes.
+- `agents/reviewer_agent.py` `RETURN_VERDICT_TOOL.reasoning` description: "write
+  the COMPLETE audit in ONE WriteFile call (with the content parameter) FIRST."
+- `docs/programs/alpha-author/reference-workspace/specs/pre-ship-check.md`
+  "Output target": single-WriteFile discipline made explicit, with the
+  budget-exhaustion observation as rationale.
+- **Expected behavior change**: a pre-ship audit reads substrate, composes the
+  full rule-by-rule audit (all 8 rules including citation-verifiability),
+  writes it in ONE WriteFile, then closes with ONE ReturnVerdict — completing
+  well within the 20-round budget instead of fragmenting and exhausting it.
+
 ## [2026.06.01.1] - two-channel audit verdict + verdict-in-prose recovery (ADR-303 §9 P6)
 
 ### Decision
