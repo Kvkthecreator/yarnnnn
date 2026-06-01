@@ -16,6 +16,48 @@ Read this when you're: writing a new library component, authoring a new bundle's
 
 ---
 
+## Two registers, one window manager (ADR-309)
+
+Everything the operator sees inside the authenticated workspace is a window
+mounted by the one window manager (`useSurfacePreferences`, ADR-297). But
+windows come in **two registers**, and the distinction is load-bearing —
+collapsing them into a flat "surface" concept was the un-hardening ADR-309
+closed.
+
+- **System Settings** (`register: settings`) — the OS configuring *itself*.
+  Finite, kernel/program-defined, bound 1:1 to a governance substrate file,
+  bespoke editor/view. Mandate, Autonomy, Principles, Pace, Identity,
+  Program, Settings, Connectors. The operator does not install or request
+  these; they exist because the OS/program exists (the macOS System Settings
+  analog). Their per-file content parsers live in `web/lib/content-shapes/`
+  (ADR-245).
+
+- **Applications** (`register: application`) — open files + live state. A
+  typed userspace file (report, PDF, image), a folder (Files = Finder), or
+  live state composed into a view (Cockpit = Activity Monitor). Feed, Queue,
+  Activity, Agents, Cadence, Files, Cockpit. **Artifacts are files**, not
+  surfaces: a Reviewer-generated report/PDF is substrate; the viewer
+  Application opens it via the **type→application association**
+  (`web/lib/file-types`, `resolveViewerApplication`). The report Application
+  is `DeliverableMiddle`; the generic file/PDF/image viewer is ContentViewer
+  dispatching through the association table. One artifact, potentially many
+  Applications showing it (Files dispatches; Cockpit embeds).
+
+`register` is declared per surface in `api/services/kernel_surfaces.py` and
+mirrored on the FE `Surface` type. Chrome (top-bar, launcher, chat-drawer)
+is neither register — it is the window manager's own framing.
+
+**Agent-composed Applications** — the orchestration layer authoring a new
+Application by writing an application-manifest *file* in the substrate
+(everything-is-a-file extends to app definitions; the compositor reads
+installed-app manifests the way Finder reads `/Applications`), including
+mandate-driven self-initiative — is the **named, deferred horizon** per
+ADR-309 §Forward horizon. Not built; the seam is kept clean (the compositor
+already reads declarative surface manifests, which is the mechanism a
+runtime-authored app manifest would reuse).
+
+---
+
 ## The seam in one diagram
 
 ```

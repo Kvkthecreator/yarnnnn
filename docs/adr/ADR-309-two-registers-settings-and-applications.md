@@ -1,6 +1,6 @@
 # ADR-309 — Two Registers: System Settings and Applications. Hardening the Surface Concept Against the OS Primitives
 
-> **Status:** Proposed (2026-06-01) — **frame-only; no code this cycle.** Re-classification of the existing kernel surfaces is on-paper; the refactor that enacts it is a sequenced follow-on.
+> **Status:** Implemented (2026-06-01) — frame ratified + enacted in one pass. **Register re-classification landed**: every content kernel surface carries `register: settings | application` (backend `kernel_surfaces.py` + FE `Surface` type); `brand` slug DELETED (Identity owns Brand; `/brand` → server redirect). **Type→application association landed**: the layer already existed as a private `getFileKind` buried in `ContentViewer.tsx` — ADR-309 *lifted* it into the named, shared, kernel-default module `web/lib/file-types` (`resolveViewerApplication`); ContentViewer now dispatches through it. **No parallel report Application built** — the report/artifact Application already exists as `DeliverableMiddle`, wired in `files/page.tsx` for `/workspace/reports/{slug}`; building a second would violate Singular Implementation. Guards: `api/test_adr309_two_registers.py` 9/9 + `test_adr297_phase1.py` register-coherence 137/137. Agent-composed applications remain the explicit deferred horizon (§Forward horizon). Implementation-time finding: the "missing artifact/PDF viewer" the operator named was **already present** in ContentViewer (pdf→iframe, image→img, html→iframe) — the un-hardening was that it wasn't *named* as the OS-level type→application layer. Naming it closed the conceptual gap without new viewer code.
 > **Authors:** KVK, Claude
 > **Amends:** [ADR-297](ADR-297-surfaces-as-substrate-mirror.md) (sharpens the flat "surface" concept into two registers; ADR-297's window-manager axiom and Desktop layer are preserved verbatim) · [ADR-225](ADR-225-compositor-layer.md) (the compositor reads which application opens an input, not just middle-component resolution)
 > **Enacts (from "Not yet built" → named + framed):** [ADR-222](ADR-222-agent-native-operating-system-framing.md) rows — *Compositor / window manager*, *Per-user customization layer* (the type→application association), *Shared system libraries* (the renderer/component library)
@@ -140,21 +140,22 @@ The fullest expression of agent-native OS: **the agent installs applications.** 
 
 ## What this ADR does NOT do
 
-- **No code.** Frame-only. The re-classification table guides a sequenced refactor; this cycle ratifies the concept.
 - **Does not touch the window manager, Desktop, or WindowFrame** (ADR-297 shipped; preserved verbatim).
-- **Does not delete or rename any existing surface route or slug.** ADR-308 (redirect-stub transport) is the only live mechanical change in flight; ADR-309 is conceptual.
-- **Does not build the type→application association table or the report/artifact application** — names them as the first refactor targets.
+- **Does not build a parallel report/artifact Application** — it already exists as `DeliverableMiddle`; ADR-309 names it as the report Application and reuses it (Singular Implementation).
+- **Does not build a new viewer for PDFs/images/html** — those renderers already exist in ContentViewer; ADR-309 only *named + centralized* the type→application association that selects them.
+- **Does not expose operator/agent override of type→app defaults** — kernel defaults only (Open question 1).
 - **Does not build agent-composed applications** — directionally ratified, deferred, seam kept clean.
 - **Does not change the public/marketing site.** Decided this discourse: the public route group (`/`, `/blog`, `/pricing`, `/faq`, …) stays conventional, SEO-first, page-shaped **forever**. The OS framing is strictly behind-auth (robots.ts disallows every authenticated route). Two disjoint territories: the indexed web (pages) and the OS (windows). The OS framing does not threaten SEO/GEO — it clarifies the boundary.
 
 ---
 
-## Sequenced refactor (named, not executed this cycle)
+## Refactor — as built (2026-06-01)
 
-1. **Re-label** the 16 surfaces by register in `kernel_surfaces.py` (add a `register: "settings" | "application"` field alongside `archetype`); FE mirror in `types/desk.ts`. Pure metadata; no behavior change. Regression-guard register coherence FE↔BE (extends the slug-sync guard from commit `77d4497`).
-2. **Formalize the type→application association layer** — a kernel default table + the report/artifact application (lift `DeliverableMiddle` + compose pipeline into a file-type-launched Application that Files dispatches to and Cockpit embeds).
-3. **Optionally** expose operator/agent override of type→app defaults (Open question 1).
-4. **Leave the agent-composed-application seam** documented in `compositor.md` as the deferred horizon.
+1. **Re-label by register — DONE.** `register: "settings" | "application"` added to every content surface in `kernel_surfaces.py`; FE mirror = `SurfaceRegister` + optional `register` on the `Surface` type (`compositor/types.ts`); flows to the FE automatically via `kernel_surface_entries()` deep-copy (no resolver whitelist). Coherence guarded in `test_adr297_phase1.py` (content surfaces have a valid register; chrome has none) + `test_adr309_two_registers.py`.
+2. **`brand` deleted — DONE.** Removed from `KernelSurfaceSlug` union, `KERNEL_SURFACE_SLUGS`, `KERNEL_SURFACE_REGISTRY`, `kernel_surfaces.py`, and the nav/phase1 guards. `/brand` is a server redirect → `/identity` (ADR-308 transport). Identity surface (IdentityBrandCard) co-renders Brand.
+3. **Type→application association formalized — DONE.** `web/lib/file-types/index.ts` (`resolveViewerApplication` + `describeViewerApplication`) is the kernel-default table, lifted out of `ContentViewer.tsx`'s private `getFileKind`. ContentViewer dispatches through it. The report/artifact Application is the *existing* `DeliverableMiddle` (wired in `files/page.tsx`) — not duplicated.
+4. **Operator/agent override of type→app defaults — DEFERRED** (Open question 1). Kernel defaults only.
+5. **Agent-composed-application seam — DEFERRED**, documented in `compositor.md` as the named horizon.
 
 ---
 

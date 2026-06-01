@@ -47,8 +47,8 @@ The framing is literal, not metaphorical: every box in OS architecture has a cor
 | **Compositor / window manager** — reads application UI declarations and renders the screen | The composition layer — FE infrastructure that resolves a program's composition manifest against substrate paths and produces the rendered cockpit | **Not yet built — implementation ADR forthcoming** |
 | **Composition manifest** — the file an app ships declaring its surface composition | `SURFACES.yaml` (or equivalent), shipped in the program bundle | **Convention not yet defined — implementation ADR forthcoming** |
 | **Userspace / user's home directory** — per-user state and preferences | An operator's `/workspace/` | Shipped |
-| **Per-user customization layer** — user overrides of application defaults | Workspace-level composition overlay (`/workspace/SURFACES.yaml` override) | **Not yet built** |
-| **Shared system libraries (libc, libGL)** — reusable across applications | Universal component library (`web/components/library/` — to be formalized) | Partial; convention not yet formal |
+| **Per-user customization layer** — user overrides of application defaults | The **type→application association** (`web/lib/file-types`, ADR-309) — which viewer Application opens a file type; kernel defaults shipped, operator/agent override is the named horizon. Workspace-level composition overlay (`/workspace/SURFACES.yaml`) remains the broader form. | Partial — association layer landed (ADR-309); overrides deferred |
+| **Shared system libraries (libc, libGL)** — reusable across applications | Universal component library (`web/components/library/`) + the type→application association (`web/lib/file-types`, ADR-309) | Partial — library convention + association layer landed |
 | **Distribution** — curated set of (kernel + apps + DE + defaults) | A program is a YARNNN distribution — kernel-shared, program-curated | Implicit in program bundle convention |
 
 Every row on the right has either been built or is named in this ADR's implementation roadmap. Nothing on the left is unrepresented.

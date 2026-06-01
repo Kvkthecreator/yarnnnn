@@ -20,6 +20,13 @@ import { FileIcon } from '@/components/workspace/FileIcon';
 // invokes WriteFile(scope='workspace') per ADR-235). RevisionHistoryPanel
 // retains its revert affordance — that's substrate recovery, not editing.
 import { InferenceContentView } from '@/components/context/InferenceContentView';
+// ADR-309: the type→application association layer (Applications register).
+// Lifted out of this file's private getFileKind into the shared kernel-
+// default table so every Application dispatches through one layer.
+import {
+  resolveViewerApplication,
+  describeViewerApplication,
+} from '@/lib/file-types';
 import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 
 // ADR-162 Sub-phase D / ADR-215: IDENTITY and BRAND files carry an
@@ -302,7 +309,7 @@ function FileView({
   }
 
   const filename = file.path.split('/').pop() || file.path;
-  const kind = getFileKind(file.path, file.content_type);
+  const kind = resolveViewerApplication(file.path, file.content_type);
 
   return (
     <div className="h-full overflow-auto">
@@ -315,7 +322,7 @@ function FileView({
                 <h2 className="text-lg font-medium truncate">{filename}</h2>
               </div>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span>{describeFileKind(file.path, file.content_type)}</span>
+                <span>{describeViewerApplication(file.path, file.content_type)}</span>
                 {file.updated_at && <span>{formatTimestamp(file.updated_at, true)}</span>}
                 {file.content_type && <span>{file.content_type}</span>}
                 {/* ADR-236 Cluster B: surface head-revision authorship.
@@ -500,57 +507,8 @@ function describeNodeKind(node: WorkspaceTreeNode): string {
   if (node.type === 'folder') {
     return 'Folder';
   }
-  return describeFileKind(node.path);
-}
-
-function describeFileKind(path: string, contentType?: string): string {
-  const kind = getFileKind(path, contentType);
-  switch (kind) {
-    case 'markdown':
-      return 'Markdown';
-    case 'html':
-      return 'HTML report';
-    case 'image':
-      return 'Image';
-    case 'pdf':
-      return 'PDF';
-    case 'csv':
-      return 'CSV';
-    case 'download':
-      return 'Binary file';
-    default:
-      return 'Text';
-  }
-}
-
-function getFileKind(path: string, contentType?: string): 'markdown' | 'html' | 'image' | 'pdf' | 'csv' | 'text' | 'download' {
-  const lowerPath = path.toLowerCase();
-  const lowerType = (contentType || '').toLowerCase();
-
-  if (lowerPath.endsWith('.md')) return 'markdown';
-  if (lowerPath.endsWith('.html') || lowerType.includes('text/html')) return 'html';
-  if (
-    lowerPath.endsWith('.png') ||
-    lowerPath.endsWith('.jpg') ||
-    lowerPath.endsWith('.jpeg') ||
-    lowerPath.endsWith('.gif') ||
-    lowerPath.endsWith('.webp') ||
-    lowerPath.endsWith('.svg') ||
-    lowerType.startsWith('image/')
-  ) {
-    return 'image';
-  }
-  if (lowerPath.endsWith('.pdf') || lowerType.includes('application/pdf')) return 'pdf';
-  if (lowerPath.endsWith('.csv') || lowerType.includes('text/csv')) return 'csv';
-  if (
-    lowerPath.endsWith('.xlsx') ||
-    lowerPath.endsWith('.xls') ||
-    lowerPath.endsWith('.pptx') ||
-    lowerPath.endsWith('.ppt')
-  ) {
-    return 'download';
-  }
-  return 'text';
+  // ADR-309: dispatch through the shared type→application association.
+  return describeViewerApplication(node.path);
 }
 
 function formatTimestamp(value?: string, detailed = false): string {
