@@ -431,13 +431,19 @@ def read_revision(
             return None
         target_id = revisions[walk_back]["id"]
 
-    # Fetch the full revision with content joined from workspace_blobs
+    # Fetch the full revision with content joined from workspace_blobs.
+    # Defense-in-depth (ADR-310 follow-on): filter by user_id even though
+    # target_id is a PK. A caller-supplied revision_id (now reachable via the
+    # MCP-exposed ReadRevision/DiffRevisions primitives) must not be able to
+    # read another workspace's revision content by UUID. Same-workspace reads
+    # are unaffected; a foreign revision_id returns None (not found).
     result = (
         db_client.table("workspace_file_versions")
         .select("id, user_id, path, blob_sha, parent_version_id, "
                 "authored_by, author_identity_uuid, message, created_at, "
                 "workspace_blobs(content)")
         .eq("id", target_id)
+        .eq("user_id", user_id)
         .limit(1)
         .execute()
     )
