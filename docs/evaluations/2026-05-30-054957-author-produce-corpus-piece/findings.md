@@ -112,6 +112,9 @@ ORDER BY created_at;
 
 ## §6 — The independent pre-ship audit: FIRED, then SILENT-EXITED (new system finding)
 
+> **Update 2026-06-01**: the silent-exit's one-off-vs-structural status (left UNKNOWN below) is now RESOLVED — it is **structural**, reproduced 2× independently on two trigger types. Root cause reframed as a **channel-shape mismatch** (long audit verdict vs 2-5-sentence ReturnVerdict). See [`findings-silent-exit-reproduction.md`](findings-silent-exit-reproduction.md).
+
+
 The §4 #2 test *ran* — and the substrate resolved it to a result I had to chase down carefully, because the first receipt I read was a **mismatched one** (S1 discipline caught it before it became a false finding):
 
 - **The audit fired on the right piece.** Pre-ship-audit wake enqueued `05:52:19`, `dedup_key=ff2783fa…` → triggering revision is `moat-thesis/profile.md` "Mark ready_for_review". `wake_queue.status=completed`; `execution_events` `05:54:58` reactive/substrate_event status=success, 4 rounds, $0.17.

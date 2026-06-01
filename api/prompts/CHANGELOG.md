@@ -6,6 +6,46 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.01.1] - two-channel audit verdict + verdict-in-prose recovery (ADR-303 §9 P6)
+
+### Decision
+
+Long, structured pre-ship / corpus-coherence audits silent-exited because the
+verdict had no channel that fit: the spec demands a rule-by-rule document, but
+`ReturnVerdict.reasoning` is sized for "2-5 sentences," so the model wrote the
+verdict as prose and the loop's `if not tool_uses` read that as a terminal
+exit — fabricating a contradicting `stand_down`. Reproduced 2× independently
+(eval `2026-05-30-054957-author-produce-corpus-piece/findings-silent-exit-reproduction.md`).
+Fix: two-channel verdict (long document → judgment_log via WriteFile; headline
+→ ReturnVerdict) + a scoped in-loop recovery for the verdict-in-prose case.
+
+### Changed (LLM-facing)
+
+- `agents/reviewer_agent.py` `RETURN_VERDICT_TOOL.reasoning` description: now
+  framed as the HEADLINE (2-5 sentences); for long rule-by-rule audits, the
+  model is told to `WriteFile` the full audit to `judgment_log.md` FIRST, then
+  ReturnVerdict the headline. The long document is the judgment_log write, not
+  the reasoning field.
+- `agents/reviewer_agent.py` `_TRIGGER_FRAMING["reactive"]`: new "Pre-ship /
+  corpus-coherence audit prompt" shape bullet teaching the two-channel pattern
+  (WriteFile judgment_log → ReturnVerdict headline; a verdict emitted only as
+  prose does not close the turn).
+- `docs/programs/alpha-author/reference-workspace/specs/pre-ship-check.md`
+  "Output target": two-channel discipline made explicit (ADR-303 P6).
+- **Expected behavior change**: on a long pre-ship audit the Reviewer writes
+  the full rule-by-rule audit to `judgment_log.md` and returns a short headline
+  verdict — instead of pouring the audit into a text block and silent-exiting.
+
+### Changed (loop behavior, not prompt — recorded here for trace)
+
+- `agents/reviewer_agent.py` `if not tool_uses` branch: new `_looks_like_verdict`
+  detection + one-shot recovery nudge. A synthesized-but-unwrapped verdict gets
+  ONE nudge to re-emit as a tool call (loop continues, autonomy-preserving); a
+  second text-only round falls through to the dispatcher fallback with
+  `exit_class="verdict_in_prose_unrecovered"` and the RECOVERED verdict (e.g.
+  `reject`), not a fabricated `stand_down`. Genuinely-confused exits route to
+  the unchanged `text_only_mid_loop` path.
+
 ## [2026.05.30.1] - unified permission taxonomy: one gate, one queue (ADR-307)
 
 ### Decision

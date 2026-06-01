@@ -1,7 +1,7 @@
 # ADR-303 — Reviewer Posture Taxonomy + Per-Posture Substrate Contracts
 
-**Status**: **Proposed** (2026-05-26). Drafted from Hat-B evaluation findings; defines what postures the Reviewer can take per wake and what substrate-visibility contract each posture must honor. No code/prompt changes yet.
-**Date**: 2026-05-26 (Proposed)
+**Status**: **Proposed** (2026-05-26); **§9 P6 amendment Implemented 2026-06-01** (in-loop verdict-in-prose recovery — see §9). Drafted from Hat-B evaluation findings; defines what postures the Reviewer can take per wake and what substrate-visibility contract each posture must honor.
+**Date**: 2026-05-26 (Proposed); 2026-06-01 (§9 P6 amendment)
 **Supersedes / amends**: Implicitly amends the persona-frame standing_intent contract in `api/agents/reviewer_agent.py::_PERSONA_FRAME` §392–§411 (current contract: "every reactive recurrence cycle produces a standing_intent.md write"). The current contract is over-broad — it conflates several distinct postures into one rule and forces silent-exits when the rule doesn't fit the cell.
 **Builds on**: ADR-194 v2 (Reviewer substrate), ADR-258 revised (REVIEWER_PRIMITIVES + per-action narration), ADR-289 D4 (verdict-of-record substrate), ADR-293 (governance/operational taxonomy), ADR-295 (self-amendment evidence patterns), ADR-298 (trifecta), and ADR-302 (prompt-envelope discipline — drafted same session).
 **Preserves**: FOUNDATIONS Axiom 1 (substrate is filesystem), Axiom 2 (judgment seat), Axiom 4 (Trigger), Axiom 8 (money-truth), ADR-209 attribution model, ADR-256 unified invoke_reviewer entry point, `DEFAULT_REVIEWER_WRITE_LOCKS`.
@@ -178,4 +178,31 @@ The same principle applies to D3 failed-action narratives: they're authored by `
 - **Failure-reason denylist evolution**: D3's `SILENCE_FAILURE_REASONS` starts with three known transient-noise classes (rate_limited, transient_network, retried_successfully_in_cycle). The denylist may expand if Phase 4 observation surfaces other natural noise classes. Operator-relevant failure reasons NEVER enter the denylist — they are exactly the substrate signals the operator needs. ADR amendment expected only if a noise class is identified that the initial three don't cover.
 - **Operator-side noise tolerance**: D3 surfaces all failed actions by default with operator-side filtering deferred. If real-world feed becomes too noisy post-Phase-4, a per-operator suppress mechanism may be needed. Deferred until evidence justifies.
 - **Cell P5 detection**: P5 ("genuinely confused") is currently indistinguishable from P4 ("budget-exhausted") at exit. Differentiating at re-occurrence pattern requires substrate-level telemetry that doesn't yet exist. Deferred to operator-driven future work if the distinction becomes load-bearing.
-- **Whether the substrate-honoring "dispatcher write" approach IS itself a hotfix in disguise**: arguable. The structural alternative would be in-loop intervention (force ReturnVerdict on terminal rounds, or push system-message reminder when model exits text-only). The dispatcher-write approach is chosen because it preserves model autonomy in-loop (no behavioral pressure) while honoring operator visibility — but is functionally similar to the rejected hotfix `9e7c1c7` at the substrate-result layer. The honest distinction: this ADR's dispatcher writes have explicit `dispatcher:` attribution + are grounded in a per-cell taxonomy where they slot into a defined posture rather than papering over a uniform contract. If this distinction proves too thin in practice, future ADR revisits.
+- **Whether the substrate-honoring "dispatcher write" approach IS itself a hotfix in disguise**: arguable. The structural alternative would be in-loop intervention (force ReturnVerdict on terminal rounds, or push system-message reminder when model exits text-only). The dispatcher-write approach is chosen because it preserves model autonomy in-loop (no behavioral pressure) while honoring operator visibility — but is functionally similar to the rejected hotfix `9e7c1c7` at the substrate-result layer. The honest distinction: this ADR's dispatcher writes have explicit `dispatcher:` attribution + are grounded in a per-cell taxonomy where they slot into a defined posture rather than papering over a uniform contract. **RESOLVED 2026-06-01 (§9)** — "too thin in practice" evidence materialized: the moat-thesis audit synthesized a *correct* verdict and emitted it as prose, and the uniform dispatcher-write fabricated a *contradicting* `stand_down`. §9 adds the scoped in-loop intervention (one-shot recovery nudge) the autonomy concern deferred — bounded to the verdict-in-prose case, preserving autonomy elsewhere.
+
+---
+
+## 9. Amendment (2026-06-01) — Cell P6: verdict-in-prose (synthesized-correctly, wrong-channel)
+
+**Evidence** (`docs/evaluations/2026-05-30-054957-author-produce-corpus-piece/findings-silent-exit-reproduction.md`): the alpha-author pre-ship-audit silent-exited 2× independently (substrate_event 4/20 rounds; cron weekly-corpus-review 14/20 rounds, 8,406 output tokens), each time **reasoning correctly** through a rule-by-rule audit and emitting it as a TEXT block (`## Pre-Ship Audit / ### Rule 1: voice-fingerprint-match...`) instead of a tool call. The D1 taxonomy classified this as **P5 (Confused — "genuinely unable to synthesize")** — which the receipts **falsify**: the model synthesized a full, correct verdict. It is a distinct cell.
+
+### D6-amend — Sixth posture cell
+
+| # | Posture | Trigger | Cause | Recovery |
+|---|---|---|---|---|
+| **P6** | **Verdict-in-prose** | Long, structured audit (pre-ship / corpus-coherence) | **Channel-shape mismatch**: the spec demands a long rule-by-rule document; `ReturnVerdict.reasoning` is sized for "2-5 sentences"; the model writes the verdict as prose because no channel fits it. NOT confusion — correct synthesis, wrong channel. | One-shot in-loop recovery nudge → on repeat, honest dispatcher fallback with the **recovered** verdict (not a fabricated `stand_down`). |
+
+### D7-amend — Two-channel verdict (the cause-fix)
+
+The pre-ship-audit spec already directs the verdict to `judgment_log.md` (ADR-281); the prompt/tool surface contradicted it by routing everything through the short `ReturnVerdict.reasoning`. Resolution — separate the two channels:
+
+- **Long audit document → `WriteFile(judgment_log.md)`** (append-only, verdict-of-record). The rule-by-rule structure lives here.
+- **Headline → `ReturnVerdict.reasoning`** (kept 2-5 sentences). The verdict + one-sentence why; closes the loop.
+
+Implemented in: `RETURN_VERDICT_TOOL.reasoning` description (headline + judgment_log escape valve); `_TRIGGER_FRAMING["reactive"]` (audit sub-bullet); `docs/programs/alpha-author/reference-workspace/specs/pre-ship-check.md` "Output target" (two-channel discipline). No new tool, no schema change — `WriteFile(judgment_log)` is an existing Reviewer primitive and judgment_log is not in `DEFAULT_REVIEWER_WRITE_LOCKS`.
+
+### D8-amend — In-loop recovery (cell P6 contract, the backstop)
+
+At the `if not tool_uses` branch in `invoke_reviewer`, a new `_looks_like_verdict(text)` helper detects a synthesized-but-unwrapped verdict (explicit `approve|reject|defer` token, or audit-document structure). On first detection: inject a one-shot recovery nudge ("a verdict is an action — WriteFile the audit to judgment_log, then ReturnVerdict the headline") and **continue** the loop (autonomy-preserving — no forced tool_choice). On a *second* text-only round: fall through to the dispatcher fallback, but with `exit_class="verdict_in_prose_unrecovered"` and the **recovered verdict** (e.g. `reject`) instead of a fabricated `stand_down`. Genuinely-confused exits (no verdict signal) route to the existing `text_only_mid_loop` path unchanged.
+
+This is the scoped in-loop intervention Open-Question #4 deferred: bounded to the verdict-in-prose failure (not all text-only exits), one retry then honest fallback — preserving the autonomy concern while closing the contradicting-`stand_down` harm.

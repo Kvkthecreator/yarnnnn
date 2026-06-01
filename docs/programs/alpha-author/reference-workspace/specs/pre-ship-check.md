@@ -29,11 +29,13 @@ Reactive (`schedule: null` in `_recurrences.yaml`). Fires when:
 
 ## Output target
 
-The Reviewer's verdict + reasoning lands at:
-1. `/workspace/review/judgment_log.md` (append-only) per ADR-281.
-2. The draft's `profile.md` updated with `pre_ship_audit_state: approved | deferred | rejected` and the latest audit timestamp.
-3. When deferred: structured defect description in judgment_log.md AND a `Clarify` message surfaced to operator with the specific operator-actionable defect.
-4. When approved AND `_autonomy.yaml` permits auto-ship for this piece type: `ProposeAction(action_type="ship_piece", piece_slug=...)` emitted. Otherwise the approve is surfaced to operator Queue for click.
+**Two-channel verdict (ADR-303 P6 — channel-shape discipline).** A pre-ship audit produces a long, structured, rule-by-rule document. That document does NOT fit a short verdict-signal field — so it has its own channel:
+
+1. **The full rule-by-rule audit → `/workspace/review/judgment_log.md` via `WriteFile` (append-only, per ADR-281).** This is the verdict-of-record: the `## Pre-Ship Audit / ### Rule 1.../### Rule 2...` document with specific evidence (paragraph locations, excerpts, prior-piece references). Write this FIRST.
+2. **The headline → `ReturnVerdict`.** After the judgment_log write, close the turn with `ReturnVerdict(verdict=approve|defer|reject, reasoning='[one-sentence headline]', confidence=...)`. `reasoning` is the headline ONLY — do not restate the full audit there; the full audit is the judgment_log document. A verdict emitted as prose without a tool call does NOT close the turn.
+3. The draft's `profile.md` updated with `pre_ship_audit_state: approved | deferred | rejected` and the latest audit timestamp.
+4. When deferred: the structured defect description lives in the judgment_log document; surface a `Clarify` message to the operator with the specific operator-actionable defect.
+5. When approved AND `_autonomy.yaml` permits auto-ship for this piece type: `ProposeAction(action_type="ship_piece", piece_slug=...)` emitted. Otherwise the approve is surfaced to operator Queue for click.
 
 ## Verdict criteria
 
