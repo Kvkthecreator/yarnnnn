@@ -70,11 +70,14 @@ The system commits to this invariant, recorded in SERVICE-MODEL.md:
 
 > **The agent's posture is read from substrate presence, never asserted by the frame.** The same persona-bearing judgment seat is coherent whether its constitution is forked (operating) or absent (standby). The frame corrects the model's assistant prior and defines the runtime interface; *what to do* comes from the envelope's substrate headers, which the agent reads — present headers direct behavior, absent headers are reasoned about honestly. There is no separate onboarding agent, no posture-branch, and no `/init`; the bundle-fork is the constitution-creation event (Direction A).
 
-### D4 — Vestigial inference primitives are deletion candidates (follow-on, separate commit).
+### D4 — Inference primitives: NOT deletion candidates (receipt-corrected).
 
-`InferContext` and `InferWorkspace` (`api/services/primitives/{infer_context,infer_workspace}.py`) are in the dead `CHAT_PRIMITIVES` list, are **not** in `REVIEWER_PRIMITIVES` (the only live LLM surface), and have **no live invocation site** (verified this session: route/MCP greps for `execute_primitive("InferContext"…)` are empty; the chat agent that would have called them is dead-coded since ADR-257). Their cognitive shape ("LLM merge over text + docs + URLs → write") is, in the Claude Code decomposition, not a primitive at all — it is `Read → reason → Write`. Under D1 (no `/init`), they will never gain a live caller. They are pure deletion candidates.
-
-**This is downstream hygiene, separable from the frame fix.** It is named here for completeness but lands as its own commit so the load-bearing posture realignment is not conflated with vestigial-tool cleanup (Singular-Implementation clarity). The deletion is deferred to a follow-on; this ADR records the finding and the intent.
+> **Correction (2026-06-02, same session)**: an earlier draft of this ADR proposed deleting `InferContext` + `InferWorkspace` as vestigial "no live caller" cleanup. A precise call-site audit *before* executing the deletion found that claim **false for `InferContext`** and **insufficient for `InferWorkspace`**. The deletion was NOT executed. The corrected finding:
+>
+> - **`InferContext` is LIVE.** It is invoked by the MCP `remember_this` tool — `api/services/mcp_composition.py::route_remember_this` calls `execute_primitive(auth, "InferContext", {"target": target, "text": stamped_text})` for `target ∈ {identity, brand}`. This is the ADR-310 / ADR-169 judged-hub path (foreign-LLM identity/brand contributions). Deleting it breaks a live, recently-shipped surface. The original "no live caller" grep checked `routes/feed.py` / `routes/memory.py` / `mcp_server/server.py` but missed `mcp_composition.py`, the actual dispatcher. **`InferContext` stays.**
+> - **`InferWorkspace` is invocation-dead but canon-ratified.** No `execute_primitive(…, "InferWorkspace", …)` call exists (the string hits are the registry dispatch-map entry, the tool definition, prose/comments, and the `feed.py` decisions-summary *display filter* — none an invocation). But ADR-235 D1.a ratified it as the first-act scaffold primitive, and three gates assert its existence (`test_recent_commits.py`, `test_adr235`, `test_adr307`). Deleting it is therefore **not hygiene — it is a primitive-surface amendment to ADR-235**, which warrants its own decision, not a follow-on bullet here.
+>
+> **Net: this ADR deletes no primitives.** Any future removal of the invocation-dead `InferWorkspace` lands in a dedicated ADR that amends ADR-235, weighing whether the first-act-scaffold capability is still wanted at all under Direction A (where bundle-fork, not a scaffold primitive, is the constitution-creation event). The Claude-Code observation that "infer is `Read → reason → Write`, not a primitive" remains a valid *future* simplification thesis — but it is a separate decision, not a consequence of the posture fix, and it must reckon with `InferContext`'s live MCP role.
 
 ## What this supersedes / amends / preserves
 
@@ -83,7 +86,7 @@ The system commits to this invariant, recorded in SERVICE-MODEL.md:
 - **Preserves** the bare-kernel product floor (Direction A) + ADR-257 (no orchestration LLM) + ADR-286 (single-writer governance) — D1 ratifies them at the agent-behavior layer.
 - **Preserves** ADR-194 v2 Reviewer substrate, the seat structure, the occupant model, the `_is_path_locked_for_reviewer` lock-set (MANDATE confirmed write-reachable + AUTONOMY-gated; the refine-after-fork lifecycle is mechanically supported, attributed per ADR-209, revertible).
 - **Amends** SERVICE-MODEL.md — adds the standby↔operating posture invariant (D3) to the Execution Flow / Reviewer section.
-- **Names as follow-on** the `InferContext` + `InferWorkspace` deletion (D4) — separate commit.
+- **Does not touch the primitive surface** — D4 (receipt-corrected) deletes nothing; `InferContext` is live via MCP, `InferWorkspace` removal is a future ADR-235 amendment.
 
 ## Risk + revert
 
@@ -94,6 +97,6 @@ The frame change is one section edit, separable, revertible to the line-437 stat
 - **Phase A** (this ADR): record the decision.
 - **Phase B**: `reviewer_agent.py::_compute_minimal_frame` — delete the "operator already told you what to do" assertion; rewrite the principal-shift to the D2 index-not-assert shape. `CHANGELOG` entry. Single-section edit.
 - **Phase C**: SERVICE-MODEL.md — add the standby↔operating posture invariant (D3).
-- **Phase D** (follow-on, separate commit): delete `InferContext` + `InferWorkspace` primitives + their `CHAT_PRIMITIVES` / dispatch-map entries + imports; grep gate for zero references.
+- ~~**Phase D**: delete `InferContext` + `InferWorkspace`~~ — **NOT executed** (D4 receipt-correction). `InferContext` is live via MCP `remember_this`; `InferWorkspace` is invocation-dead but ADR-235-ratified. Any removal is a future ADR amending ADR-235, not a follow-on here.
 
 Refs: ADR-306, ADR-281, ADR-257, ADR-286, ADR-226, FOUNDATIONS Derived Principle 22, `docs/architecture/bare-kernel-product-floor-2026-06-01.md`, `docs/evaluations/2026-05-29-persona-frame-collapse-ablation.md`.
