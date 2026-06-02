@@ -1,16 +1,5 @@
 # Sequenced Moat Strategy — Substrate-Interop First, Judgment Layer Additive
 
-> **⚠️ STRATEGIC FRAMING SUPERSEDED (2026-06-02) — see [judgment-as-center-2026-06-02.md](judgment-as-center-2026-06-02.md).**
-> The substrate-as-product thesis this document built (§2 + §8–§10: "substrate is the
-> Phase-1 wedge, judgment is the additive Phase-2 layer") is **corrected.** Judgment is the
-> center; the portable attributed substrate is its *trust-medium*, not a standalone product.
-> "Attributed files / Dropbox-for-agents" was the wrong center (a *property* cannot pull a
-> buyer; it has no day-one job). **What survives:** the §9 as-built substrate audit (property
-> inventory, still accurate) and the §10 cross-operator-viral / `user_id → workspace_id`
-> re-key analysis (still the right *technical* shape if shared workspaces are ever built).
-> **What is superseded:** the Phase-1/Phase-2 service-model center-of-gravity. Preserved
-> below as discourse trail; do not treat the phasing as a ratified decision.
-
 **Date:** 2026-06-01
 **Hat:** B (external developer surface — strategic discourse capture). This is an
 analysis/finding, not canon. It *recommends* canon amendments; it does not make

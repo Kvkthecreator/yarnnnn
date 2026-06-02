@@ -1,14 +1,5 @@
 # ADR-310 — Judged Substrate, Served Everywhere: Interop as the Distribution Face of One Moat
 
-> **⚠️ D1 FRAMING SUPERSEDED (2026-06-02) — see [judgment-as-center-2026-06-02.md](../analysis/judgment-as-center-2026-06-02.md).**
-> D1's "interop is the *distribution face of one moat*" framing implied the substrate is the
-> product being distributed. **Corrected:** the center is *accountable judgment under an
-> operator's mandate*; interop is **how that judgment is reachable from any LLM the operator
-> uses** — the judgment travels, not "the substrate is distributed." **The mechanics survive
-> unchanged and shipped:** D2 (judged reads/writes), D3 (foreignness via wake prompt), D4
-> (per-request identity), D5 (shared-workspace deferred), plus the gate fixes (`a33d062`,
-> `0723e5a`). Only the moat-framing in D1/§2 is reframed.
-
 **Status:** Proposed (2026-06-01)
 **Supersedes:** ADR-169 (MCP as Context Hub — the cross-LLM tool surface; its OAuth/transport infrastructure is preserved and amended, not deleted)
 **Amends:** FOUNDATIONS Axiom 6 (Channel — "Foreign LLM via MCP" row gains a judgment clause), ADR-296 (substrate_event wake source gains a new caller), ADR-288 (`yarnnn:mcp` caller-identity becomes load-bearing in the wake envelope)

@@ -1,21 +1,6 @@
 # ADR-311 — The Primitive Interop Surface: Kernel File + Revision Primitives, MCP-Mode, Scoped to the Commons
 
-> **⚠️ DRAFT HELD PENDING REFRAME (2026-06-02) — see [judgment-as-center-2026-06-02.md](../analysis/judgment-as-center-2026-06-02.md).**
-> **Do not ratify as drafted.** This draft's framing (§4 "two-moats-phased," §5 substrate
-> Phase-1 face / judgment Phase-2 face, the "interop as distribution face" lineage from
-> ADR-310 D1) inherits the **substrate-as-product thesis that was superseded 2026-06-02.**
-> The *mechanics* are all still correct and still want doing: the primitive interop surface
-> (D1/D2), the all-consequence-at-the-gate invariant (D4 — already shipped: `a33d062` +
-> `0723e5a` + `DEFAULT_MCP_WRITE_LOCK_PREFIXES`, 12/12 gate), the foreign-caller
-> threat-model audit lens (D5), the four operator §7 decisions (raw WriteFile + all 3
-> revision reads · both search primitives · protocol-agnostic verbs · ratify-shipped-gate),
-> and the substrate↔kernel boundary correction (§5/§D7). **What must change before ratifying:**
-> re-center the framing on "portable attributed substrate = the *trust-medium* of the
-> operator's accountable judgment," and remove the Phase-1/Phase-2 substrate-wedge language.
-> Held until the cold-start + front-end-surface discourse settles the experience this surface
-> serves. **Status below (Proposed) is frozen — treat as Held.**
-
-**Status:** Proposed (2026-06-01) — **HELD pending reframe (see banner above)**
+**Status:** Proposed (2026-06-01)
 **Supersedes:** ADR-310's three-intent-tool *implementation* of the interop face (`work_on_this` / `pull_context` / `remember_this`). ADR-310's D1 two-faces frame, D2 read/write disciplines, D4 per-request identity, and D5 shared-workspace deferral all **survive** — relocated onto the primitive surface. Fully supersedes ADR-169 (already superseded by ADR-310; this completes the tool-surface dissolution).
 **Amends:** FOUNDATIONS Axiom 1 (the "files are the universal interface across … MCP" clause becomes literally the product surface) + Axiom 6 (the "Foreign LLM via MCP" Channel row's shape changes from "3 intent tools" to "file-primitive responses over the commons"); `docs/architecture/primitives-matrix.md` (reverses two MCP-mode rules — see §6); THESIS (sequencing note, Resolution B — no content change, no re-rank).
 **Preserves:** FOUNDATIONS Axioms 1–9, THESIS four commitments, ADR-209 Authored Substrate, ADR-222 OS framing (the substrate↔kernel boundary this ADR leans on), ADR-307 uniform permission gate, ADR-310 D1/D2/D4/D5, the frozen `submit_wake_proposal` interface.

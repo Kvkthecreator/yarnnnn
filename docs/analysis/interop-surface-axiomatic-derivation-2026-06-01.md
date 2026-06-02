@@ -1,15 +1,5 @@
 # Interop Surface — Axiomatic Derivation (v2, primitive altitude)
 
-> **⚠️ STRATEGIC FRAMING PARTIALLY SUPERSEDED (2026-06-02) — see [judgment-as-center-2026-06-02.md](judgment-as-center-2026-06-02.md).**
-> **Resolution B ("two moats, phased" — substrate = Phase-1 face, judgment = Phase-2 face)
-> is superseded.** Judgment is the center; the portable attributed substrate is its
-> trust-medium, not a co-equal phased face. **The primitive-surface derivation itself stands
-> in full** — §1–§4 (gate invariant, primitive altitude, riders-as-return), §6, §7 (the
-> primitive surface, revision-archaeology-as-differentiator, the foreign-caller threat-model
-> lens) are all still correct *mechanics*. Only the strategic phasing the primitives were
-> hung on is corrected. When the ratifying ADR (311) is reframed, keep the §1–§4/§6/§7
-> mechanics; drop the Resolution-B phasing language.
-
 **Date:** 2026-06-01
 **Hat:** B (external developer surface — strategic/architectural discourse capture). Analysis, not canon. Recommends; does not amend. Ratified outcome lands as an ADR (superseding ADR-310 + ADR-169 tool surface) + GLOSSARY + primitives-matrix + a THESIS sequencing note.
 **Origin:** operator asked for an *axiomatic, future-proof* re-derivation of the interop surface. Through discourse this deepened twice: (1) from intent-shaped tools to **primitive (Claude-Code-style) substrate operations**, and (2) a thesis-level resolution that **YARNNN has two moats, phased** — the attributed substrate (Phase-1 face) and the judgment seat (Phase-2 face).
