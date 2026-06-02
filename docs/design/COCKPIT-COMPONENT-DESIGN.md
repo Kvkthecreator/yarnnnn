@@ -1,10 +1,12 @@
 # Cockpit Component Design — Common vs Program-Specific
 
+> **ADR-312 vocabulary note (2026-06-02):** the **cockpit surface renames to Home** (`slug: home`, route `/home`). `CockpitRenderer` → `HomeRenderer`; `CockpitHeader` → `HomeHeader` (the Constitution band, slot #1); the composition key `cockpit:` → `home:`; trader-data routes folded `/api/cockpit/*` → `/api/programs/alpha-trader/*` (pace → kernel `/api/pace`). The `Trader*` program components keep their names — they are the alpha-trader bindings of the Home's slots. The kernel-general "Layer 1 header" described below IS the Constitution band. The substrate-backed 7-section stack (ADR-273) survives verbatim as the program's declared composition. Read "cockpit" below as "Home."
+>
 > **Status**: Canonical design reference (2026-05-14, v3 — substrate-backed
-> 7-section stack per ADR-273). Governs the visual architecture of the
-> `/work` cockpit zone — specifically how **kernel-general** (any workspace)
-> components and **program-specific** (bundle-supplied, e.g. alpha-trader)
-> components compose on screen.
+> 7-section stack per ADR-273; surface renamed Home per ADR-312 D1). Governs
+> the visual architecture of the **Home** surface — specifically how
+> **kernel-general** (any workspace) components and **program-specific**
+> (bundle-supplied, e.g. alpha-trader) components compose on screen.
 >
 > This doc does NOT replace `docs/architecture/compositor.md` (the seam
 > reference) or ADR-225 (the compositor) or ADR-273 (the program-section

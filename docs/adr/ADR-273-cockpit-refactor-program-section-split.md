@@ -1,5 +1,7 @@
 # ADR-273: Cockpit Refactor — Kernel/Program Section Split + Substrate-Backed Trader Sections
 
+> **SUPERSEDED at the framing level by [ADR-312](ADR-312-home-as-composition.md) (2026-06-02).** ADR-273 rebuilt the cockpit as a program-section stack (deleting the four faces, dispatching `cockpit.program_sections`) and shipped the seven trader sections. ADR-312 renames the **cockpit surface → Home** (slug/route/`CockpitRenderer`→`HomeRenderer`/`CockpitHeader`→`HomeHeader`) and the **composition key `cockpit:` → `home:`**. ADR-273's program-section dispatch mechanism + the seven `Trader*` components survive verbatim — they are now the alpha-trader program's declared composition of the Home's slots, not a "cockpit." The `/api/cockpit/*` trader-data routes ADR-273 added are folded to `/api/programs/alpha-trader/*` (ADR-312 D9). The four-face deletion ADR-273 performed is confirmed and made permanent.
+
 **Status**: **Proposed 2026-05-14**. Phased implementation across one PR (8 commits) tracked in working todo list. Phase 0 = this ADR.
 
 **Companion / prior art**:

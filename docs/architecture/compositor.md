@@ -1,5 +1,7 @@
 # Compositor — Architecture Reference
 
+> **ADR-312 vocabulary note (2026-06-02):** the **cockpit surface renames to Home** (`slug: home`, route `/home`, `HomeRenderer`/`HomeHeader`), and the bundle composition key **`tabs.work.list.cockpit` → `tabs.work.list.home`**. The compositor seam below is unchanged — only the surface name and composition key. The Home is a *composition over the workspace's present constituents* (six kernel slots; the program declares each slot's weight/label/shape via `home.program_sections`), substrate-forward when empty. The two registers (ADR-309) refine to three: `intent` + `os-config` + `application` (ADR-312 D5). Read "cockpit" below as "Home."
+
 **Status:** Canonical architecture doc.
 **Date:** 2026-04-27 (Phase 3 landing)
 **Governs:** the compositor seam — how the FE renders against bundle composition manifests vs kernel defaults.

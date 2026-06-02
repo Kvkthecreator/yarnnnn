@@ -46,6 +46,17 @@ YARNNN is canonized as an agent-native operating system. The framing is literal 
 
 **Usage discipline:** when introducing a new mechanic that touches the architectural layering, name which layer it occupies (kernel / compositor / program-bundle / userspace / shell). A mechanic that crosses layers without justification is a design error per Derived Principle 16.
 
+### Home as Composition (ADR-312, 2026-06-02)
+
+The cockpit dissolves into **Home**. The home is not a fixed dashboard; it is a *composition over the workspace's present constituents* — substrate-forward when empty, operation-forward when a program runs. The kernel owns a fixed set of six slots; the program weights/labels/shapes them (it does not invent slots).
+
+| Term | Meaning | Note |
+|---|---|---|
+| **Home** *(canonical)* | The composed default surface (`slug: home`, route `/home`, `HomeRenderer`). Renders six kernel slots top→bottom: constitution band · ground-truth hero · decision queue · live entities · recent artifacts · judgment trail. | Renamed from **Cockpit** by ADR-312 D1 (singular implementation — slug/route/components renamed, not aliased). Files (ADR-245 L1) is the raw escape hatch; Home is the L3 composed default. |
+| **Constitution band** *(canonical)* | Home slot #1 — the operation's authored intent: mandate one-liner + Reviewer persona. The empty state IS the onboarding/activation entry ("declare what this workspace is for / activate a program"). | Backed by the `intent` register (mandate / principles / identity). NOT buried in a config drawer — the mandate is the operation's charter, not a wifi setting. Rendered by `HomeHeader`. |
+| **Ground-truth hero** *(canonical)* | Home slot #2 — the operation's primary signal. *Generic; the program declares the shape* (money-truth strip for trader, pipeline-stage board for partnerships, coherence panel for author). | The kernel content-shape names a generic hero contract (`GroundTruthHero`); `TraderMoneyTruth` is the *alpha-trader binding*, not the kernel default (ADR-312 D3). No trader noun leaks into the kernel. |
+| **Two registers → three** | ADR-309's `settings` register cleaves (ADR-312 D5) into **`intent`** (the constitution — mandate/principles/identity) + **`os-config`** (the OS configuring itself — autonomy/pace/connectors/program/settings). **`application`** unchanged (Home/Files/Feed/Queue/Activity/Agents/Cadence). | `SurfaceRegister = 'intent' \| 'os-config' \| 'application'`. The split recognizes the authored constitution is not OS config at all. |
+
 ### Two compose modes (post-OS-framing discourse, 2026-04-27)
 
 The compose substrate has two modes. Both are kernel-level; both share the universal component library; both are program-aware via composition manifest. They differ in lifetime and binding mode.
@@ -53,7 +64,7 @@ The compose substrate has two modes. Both are kernel-level; both share the unive
 | Term | Meaning | When it applies |
 |---|---|---|
 | **Document compose** *(canonical)* | Produces frozen HTML artifacts (`output.html`, PDF exports, PPTX). Snapshot at compose time, immutable thereafter. | Task pipeline output composition, emailable deliverables, archived task runs. Existing infrastructure (ADR-148, ADR-170, ADR-177, ADR-213). |
-| **Surface compose** *(canonical, infra not yet built)* | Produces live cockpit panes — re-rendered every load, bound to current substrate. | Cockpit tabs displaying live workspace state, dashboards, metric bands. New infrastructure shipping with the Compositor (ADR 2 forthcoming). |
+| **Surface compose** *(canonical)* | Produces live Home slots — re-rendered every load, bound to current substrate. | The Home's program sections displaying live workspace state, dashboards, metric bands (ADR-312; renamed from "cockpit panes"). |
 
 A `MetricCardRow` component works in both modes — call site decides whether the binding is live (surface compose) or snapshot-at-compose-time (document compose). Mode is a property of the binding in the SURFACES manifest, not the component.
 

@@ -500,6 +500,10 @@ The file is the durable artifact (Substrate). The rendering is how it was produc
 
 Cross-cuts are not always errors. They are errors when unjustified.
 
+### The Home is a composition over present constituents (ADR-312)
+
+The operator-facing surface is not a fixed program dashboard; it is a **composition over the workspace's present constituents** ([ADR-312](../adr/ADR-312-home-as-composition.md)). Every workspace — trader, author, partnership manager, A&R, SCM, engineer — has the same six constituents at different weights; the weight-shift is exactly what a *program* declares. The kernel owns a fixed set of six Home slots (constitution band · ground-truth hero · decision queue · live entities · recent artifacts · judgment trail) and their order; the program weights, labels, and shapes each slot via the compositor (ADR-225). It does not invent slots. Absent constituents do not render — the Home is honest about what exists, so a bare kernel renders substrate-forward (the constitution-band CTA), not as a de-activated program dashboard. **The kernel never hardcodes a program noun in a slot** (no "Positions," no "money-truth" as kernel default); slot #2's ground-truth hero and slot #4's live entities are generic contracts the program binds. This is the Channel-dimension expression of Axiom 1's substrate-by-role taxonomy (ADR-281): the Home composes constitution / context / artifacts / trail by substrate role. The two windowed registers (ADR-309) refine to three (ADR-312 D5): `intent` (the constitution), `os-config` (the OS configuring itself), `application` (open files + live state).
+
 ---
 
 ## Axiom 7: Recursion — The Six Dimensions Compose Over Time

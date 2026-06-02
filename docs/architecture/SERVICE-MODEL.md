@@ -105,7 +105,9 @@ YARNNN is canonized as an agent-native operating system. The framing is literal 
 
 The framing dissolves "workspace type / workspace mode" as housing for vertical specialization: workspaces don't have types; they run programs; the program declaration is the implicit type; specialization happens at the compositor (a separate architectural layer), not the kernel. Adding a program is purely additive — a new bundle, possibly new system component library entries, no kernel touch.
 
-Deep dive: [ADR-222](../adr/ADR-222-agent-native-operating-system-framing.md). Implementation roadmap: [os-framing-implementation-roadmap.md](os-framing-implementation-roadmap.md).
+**Home as composition (ADR-312, 2026-06-02).** The operator-facing default surface is **Home** (renamed from Cockpit), and it is a *composition over the workspace's present constituents*, not a fixed program dashboard. The kernel owns six Home slots (constitution band · ground-truth hero · decision queue · live entities · recent artifacts · judgment trail); the program weights/labels/shapes them via the compositor — it does not invent slots, and the kernel never hardcodes a program noun in a slot. A bare kernel renders substrate-forward (the constitution-band CTA is the onboarding entry), not as a de-activated trader dashboard. The two windowed registers (ADR-309) refine to three (ADR-312 D5): `intent` (the constitution — mandate/principles/identity) · `os-config` (autonomy/pace/connectors/program/settings) · `application`. Program data routes are program-scoped (`/api/programs/alpha-trader/*`); pace is a kernel governance dial (`/api/pace`).
+
+Deep dive: [ADR-222](../adr/ADR-222-agent-native-operating-system-framing.md) + [ADR-312](../adr/ADR-312-home-as-composition.md). Implementation roadmap: [os-framing-implementation-roadmap.md](os-framing-implementation-roadmap.md).
 
 ---
 
