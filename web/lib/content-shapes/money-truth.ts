@@ -7,11 +7,17 @@
  * writes JSON frontmatter — this parser reads that JSON shape.
  *
  * Per ADR-245 D5 the WRITE_CONTRACT is `live_aggregate` — only the system
- * outcomes ledger writes; operators never edit through L3. Per ADR-273 D2
- * the canonical L3 reading `_money_truth.md`'s balance/headline portion is
- * `TraderMoneyTruth` (the alpha-trader program component); `TraderExpectancy`
- * consumes the `by_signal` subfield. The legacy kernel `MoneyTruthFace`
- * fallback (which rendered both) was deleted in ADR-273 Phase 2.
+ * outcomes ledger writes; operators never edit through L3.
+ *
+ * ADR-312 D3 de-skin: money-truth is one *binding* of the Home's generic
+ * ground-truth hero (slot #2), not the kernel default. The kernel content-
+ * shape names a generic hero contract (`CANONICAL_L3 = 'GroundTruthHero'`);
+ * the alpha-trader program binds that slot to `TraderMoneyTruth` (balance/
+ * headline) + `TraderExpectancy` (`by_signal` subfield) via its
+ * SURFACES.yaml `home.program_sections`. A partnerships program would bind
+ * a pipeline-stage board; an author program a coherence/publication panel.
+ * No trader component is the kernel default — the four-face `MoneyTruthFace`
+ * fallback was deleted in ADR-273 Phase 2; ADR-312 confirms it.
  */
 
 import type { ContentShapeMeta } from './index';
@@ -24,7 +30,10 @@ export const SHAPE_KEY = 'money_truth' as const;
 export const PATH_GLOB =
   '**/context/{*/_money_truth.md,_money_truth_summary.md}';
 export const WRITE_CONTRACT = 'live_aggregate' as const;
-export const CANONICAL_L3 = 'TraderMoneyTruth' as const;
+// ADR-312 D3: the kernel names a GENERIC ground-truth hero contract (slot
+// #2). Programs bind it — alpha-trader → TraderMoneyTruth — via SURFACES.yaml
+// `home.program_sections`. No trader component is the kernel default.
+export const CANONICAL_L3 = 'GroundTruthHero' as const;
 
 export const META: ContentShapeMeta = {
   SHAPE_KEY,
