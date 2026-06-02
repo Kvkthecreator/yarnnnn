@@ -35,12 +35,15 @@ DESIGN_ARCHIVE_DIR = REPO_ROOT / "docs" / "design" / "archive"
 WEB_LIB_DIR = REPO_ROOT / "web" / "lib"
 
 # Phase 2 — content-shape modules under web/lib/content-shapes/
+# `performance` → `money-truth`: the P&L-unification refactor (2026-05-12)
+# renamed the shape module; the parser reads `_money_truth.md` JSON
+# frontmatter (the legacy `performance.ts` flat-YAML parser was deleted).
 PHASE_2_SHAPES = [
     "autonomy",
     "decisions",
     "inference-meta",
     "snapshot",
-    "performance",
+    "money-truth",
     "principles",
 ]
 
@@ -296,49 +299,50 @@ def test_phase_2_recurrence_shapes_finding_logged():
 # Phase 3 assertions
 # ---------------------------------------------------------------------------
 
-WEB_MONEY_TRUTH_FACE = REPO_ROOT / "web" / "components" / "library" / "faces" / "MoneyTruthFace.tsx"
-WEB_MANDATE_FACE = REPO_ROOT / "web" / "components" / "library" / "faces" / "MandateFace.tsx"
-WEB_PERFORMANCE_FACE = REPO_ROOT / "web" / "components" / "library" / "faces" / "PerformanceFace.tsx"
-WEB_DECISIONS_STREAM = REPO_ROOT / "web" / "components" / "work" / "details" / "DecisionsStream.tsx"
+# ADR-273 deleted the four `faces/*Face.tsx` components; the canonical L3
+# cards moved to web/components/workspace-concepts/. ADR-312 renamed the
+# money_truth canonical L3 to the generic GroundTruthHero contract
+# (`TraderMoneyTruth` is the program binding, read via the alpha-trader API,
+# not a content-shape file parser). The Phase 3/4 assertions below are
+# reoriented to the current component homes.
+WEB_TRADER_MONEY_TRUTH = REPO_ROOT / "web" / "components" / "library" / "programs" / "alpha-trader" / "TraderMoneyTruth.tsx"
+WEB_AUTONOMY_CARD = REPO_ROOT / "web" / "components" / "workspace-concepts" / "AutonomyCard.tsx"
+WEB_MANDATE_CARD = REPO_ROOT / "web" / "components" / "workspace-concepts" / "MandateCard.tsx"
+WEB_MONEY_TRUTH_SHAPE = REPO_ROOT / "web" / "lib" / "content-shapes" / "money-truth.ts"
 
 
-def test_phase_3_money_truth_imports_from_registry():
-    """Assertion #15: MoneyTruthFace.tsx imports the performance parser
-    from `@/lib/content-shapes/performance` per ADR-245 Phase 3 audit
-    (the inline `parseFrontmatter` was the canonical violation flagged
-    in §Implementation Phase 3 candidates)."""
-    src = _read(WEB_MONEY_TRUTH_FACE)
-    assert "@/lib/content-shapes/performance" in src, (
-        "MoneyTruthFace.tsx must import from @/lib/content-shapes/performance "
-        "per ADR-245 Phase 3 canonical-L3 audit."
+def test_phase_3_money_truth_shape_is_canonical_parser():
+    """Assertion #15 (reoriented): the money_truth parser lives in the
+    content-shape registry module `content-shapes/money-truth.ts`, and the
+    alpha-trader binding `TraderMoneyTruth` is a pure API reader — it does
+    NOT redeclare an inline frontmatter parser. ADR-312 D3 de-skinned the
+    canonical L3 to the generic `GroundTruthHero` contract; `TraderMoneyTruth`
+    is the program binding. Singular Implementation: one money_truth parser."""
+    shape_src = _read(WEB_MONEY_TRUTH_SHAPE)
+    assert "export function parse" in shape_src, (
+        "content-shapes/money-truth.ts must export the canonical parse()."
     )
-
-
-def test_phase_3_money_truth_no_inline_parser():
-    """Assertion #16: MoneyTruthFace.tsx has no inline `parseFrontmatter`
-    function and does not redeclare the `MoneyTruthMeta` interface — both
-    moved into `content-shapes/performance.ts` per ADR-245 Phase 3.
-    Singular Implementation rule 1: no parallel parsers."""
-    src = _read(WEB_MONEY_TRUTH_FACE)
-    assert "function parseFrontmatter" not in src, (
-        "MoneyTruthFace.tsx must NOT redeclare inline parseFrontmatter "
-        "(use `parse` from @/lib/content-shapes/performance) per ADR-245 Phase 3."
+    assert "GroundTruthHero" in shape_src, (
+        "content-shapes/money-truth.ts CANONICAL_L3 must be the generic "
+        "GroundTruthHero contract per ADR-312 D3 (not a Trader* component)."
     )
-    assert "interface MoneyTruthMeta" not in src, (
-        "MoneyTruthFace.tsx must NOT redeclare MoneyTruthMeta interface "
-        "(use `PerformanceMeta` from registry) per ADR-245 Phase 3."
+    trader_src = _read(WEB_TRADER_MONEY_TRUTH)
+    assert "function parseFrontmatter" not in trader_src, (
+        "TraderMoneyTruth.tsx must NOT redeclare an inline parseFrontmatter "
+        "(it is a pure API reader) — Singular Implementation rule 1."
     )
 
 
 def test_phase_3_canonical_consumers_import_from_registry():
     """Assertion #17: every canonical L3 consumer of a registry-covered
-    shape imports its parser from `@/lib/content-shapes/{shape}`.
-    Verifies Phase 2 sed migration didn't miss anything and Phase 3
-    canonical-L3 census is complete."""
+    shape imports its parser from `@/lib/content-shapes/{shape}`. Post-ADR-273
+    the canonical cards live in web/components/workspace-concepts/ (the
+    faces/ directory was deleted); the census points at their current homes.
+    (The `decisions` shape declares `CANONICAL_L3 = ''` — no canonical L3
+    consumer to assert; it is read by stream surfaces, not a single card.)"""
     canonical_consumers = {
-        WEB_MANDATE_FACE: "@/lib/content-shapes/autonomy",
-        WEB_PERFORMANCE_FACE: "@/lib/content-shapes/decisions",
-        WEB_DECISIONS_STREAM: "@/lib/content-shapes/decisions",
+        WEB_AUTONOMY_CARD: "@/lib/content-shapes/autonomy",
+        WEB_MANDATE_CARD: "@/lib/content-shapes/mandate",
     }
     for path, expected_import in canonical_consumers.items():
         src = _read(path)
@@ -417,20 +421,25 @@ def test_phase_4_write_helper_routes_by_contract():
         )
 
 
-def test_phase_4_mandate_face_uses_writeshape():
-    """Assertion #22: MandateFace ships the autonomy toggle — imports
-    writeShape + serializeAutonomy and contains the AutonomyToggle
-    subcomponent. This is the Phase 4 canonical-L3 demonstration that
-    the registry + write-routing infrastructure is exercised end-to-end."""
-    src = _read(WEB_MANDATE_FACE)
-    for marker in [
-        "from '@/lib/content-shapes/write'",
-        "writeShape",
-        "AutonomyToggle",
-        "serializeAutonomy",
-    ]:
-        assert marker in src, (
-            f"MandateFace.tsx must wire {marker!r} per ADR-245 Phase 4 toggle."
+def test_phase_4_autonomy_card_exercises_writeshape():
+    """Assertion #22 (reoriented): the autonomy toggle lives in AutonomyCard
+    (the canonical L3 for autonomy; MandateFace was deleted by ADR-273). The
+    card mutates via the `useAutonomy` hook, whose `setLevel` calls
+    `serialize()` + `writeShape()` (ADR-245 D5 contract enforcement). This is
+    the Phase 4 demonstration that the registry + write-routing infra is
+    exercised end-to-end: the card imports the hook + offers a level setter,
+    and the hook routes the write through writeShape + serialize."""
+    card_src = _read(WEB_AUTONOMY_CARD)
+    assert "useAutonomy" in card_src and "setLevel" in card_src, (
+        "AutonomyCard.tsx must drive the toggle via useAutonomy().setLevel "
+        "per ADR-245 Phase 4."
+    )
+    # The hook is where serialize + writeShape are wired (single write path).
+    hook_src = _read(WEB_AUTONOMY_SHAPE)
+    for marker in ["export function serialize", "writeShape"]:
+        assert marker in hook_src, (
+            f"content-shapes/autonomy.ts must wire {marker!r} (setLevel routes "
+            "through serialize() + writeShape) per ADR-245 Phase 4 D5."
         )
 
 
@@ -471,15 +480,14 @@ def main() -> int:
         test_phase_2_registry_populated,
         test_phase_2_recurrence_shapes_finding_logged,
         # Phase 3
-        test_phase_3_money_truth_imports_from_registry,
-        test_phase_3_money_truth_no_inline_parser,
+        test_phase_3_money_truth_shape_is_canonical_parser,
         test_phase_3_canonical_consumers_import_from_registry,
         test_phase_3_bundle_specific_parsers_documented,
         # Phase 4
         test_phase_4_autonomy_serialize_exists,
         test_phase_4_write_helper_exists,
         test_phase_4_write_helper_routes_by_contract,
-        test_phase_4_mandate_face_uses_writeshape,
+        test_phase_4_autonomy_card_exercises_writeshape,
         test_phase_4_deferrals_logged,
     ]
     passed = 0

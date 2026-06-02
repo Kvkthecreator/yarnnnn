@@ -266,9 +266,11 @@ def test_response_always_carries_schema_version_1():
 
 def test_response_keys_are_stable():
     """The top-level response shape is stable — schema_version /
-    active_bundles / composition. Used by FE TS types."""
+    active_bundles / composition / surfaces. Used by FE TS types.
+    (`surfaces` added by ADR-297 D3 — the flat kernel+program surface
+    registry the launcher/dock consume.)"""
     _bust_caches()
     from services.composition_resolver import resolve_workspace_composition
     result = resolve_workspace_composition("user", _StubClient([]))
-    assert set(result.keys()) == {"schema_version", "active_bundles", "composition"}
+    assert set(result.keys()) == {"schema_version", "active_bundles", "composition", "surfaces"}
     assert set(result["composition"].keys()) == {"tabs", "chat_chips"}
