@@ -231,12 +231,17 @@ export type SurfaceTier =
   | 'composed';
 
 /**
- * ADR-309 (2026-06-01) — the two windowed registers. Mirrors
- * `api/services/kernel_surfaces.py::register`.
+ * The windowed registers (ADR-309 2026-06-01; cleaved by ADR-312 2026-06-02).
+ * Mirrors `api/services/kernel_surfaces.py::register`.
  *
- *   - `settings`     — System Settings: the OS configuring itself. Finite,
- *                      kernel/program-defined, bound 1:1 to a governance
- *                      substrate file, bespoke editor/view.
+ * ADR-312 D5 split ADR-309's single `settings` register, which conflated
+ * the OS configuring itself with the operation declaring what it is:
+ *
+ *   - `intent`       — the operation's authored intent: the constitution
+ *                      (Mandate, Principles, Identity). Surfaced first-class
+ *                      as the Home's Constitution band, NOT a config drawer.
+ *   - `os-config`    — the OS configuring itself (Autonomy, Pace, Connectors,
+ *                      Program, Settings). Glanceable in menu-bar vitals.
  *   - `application`  — Applications: open files + live state. Artifacts are
  *                      files opened by Applications via the type→application
  *                      association layer.
@@ -244,7 +249,7 @@ export type SurfaceTier =
  * Absent on chrome surfaces (the window manager's own framing — neither
  * register). FE↔BE coherence is guarded in test_adr297_phase1.py.
  */
-export type SurfaceRegister = 'settings' | 'application';
+export type SurfaceRegister = 'intent' | 'os-config' | 'application';
 
 export interface Surface {
   slug: string;

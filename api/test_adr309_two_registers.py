@@ -2,8 +2,9 @@
 
 Enforces the surface-concept hardening:
 
-  1. Two-register coherence — every CONTENT kernel surface declares a
-     `register` (settings | application); chrome declares none. (The
+  1. Register coherence — every CONTENT kernel surface declares a
+     `register` (intent | os-config | application per ADR-312 D5);
+     chrome declares none. (The
      primary register assertions live in test_adr297_phase1.py; this file
      adds the FE-side + the association-layer guards.)
 
@@ -50,11 +51,16 @@ def test_fe_surface_register_field() -> None:
     print("\n[1] FE Surface type mirrors the two-register model")
 
     types_ts = (WEB / "lib" / "compositor" / "types.ts").read_text()
+    # ADR-312 D5 cleaved `settings` → `intent` + `os-config`. The
+    # two-register insight holds; the union now has three members.
     _assert(
         "SurfaceRegister" in types_ts
-        and re.search(r"['\"]settings['\"]\s*\|\s*['\"]application['\"]", types_ts)
+        and re.search(
+            r"['\"]intent['\"]\s*\|\s*['\"]os-config['\"]\s*\|\s*['\"]application['\"]",
+            types_ts,
+        )
         is not None,
-        "compositor/types.ts declares SurfaceRegister = 'settings' | 'application'",
+        "compositor/types.ts declares SurfaceRegister = 'intent' | 'os-config' | 'application' (ADR-312 D5)",
     )
     _assert(
         re.search(r"register\?\s*:\s*SurfaceRegister", types_ts) is not None,

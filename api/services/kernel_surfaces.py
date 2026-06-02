@@ -102,19 +102,26 @@ ARCHETYPES = (
 # `substrate_paths` is empty and the substrate-class is documented in
 # the comment.
 #
-# ADR-309 field (2026-06-01) — `register`: which of the two windowed
-# registers this surface belongs to (see ADR-309). Required on every
+# `register` field (ADR-309 2026-06-01; cleaved by ADR-312 2026-06-02):
+# which windowed register this surface belongs to. Required on every
 # content surface; absent on chrome (chrome is the window manager's own
 # framing, neither register).
-#   - `settings`     — System Settings: the OS configuring itself. Finite,
-#                      kernel/program-defined, bound 1:1 to a governance
-#                      substrate file, bespoke editor/view. The operator
-#                      does not install or request these; they exist because
-#                      the OS/program exists. (Mandate, Autonomy, Principles,
-#                      Pace, Identity, Program, Settings, Connectors.)
+#
+# ADR-312 D5 split ADR-309's single `settings` register — it conflated
+# *the OS configuring itself* with *the operation declaring what it is*:
+#   - `intent`       — the operation's authored intent: the constitution.
+#                      Mandate, Principles, Identity. Surfaced FIRST-CLASS
+#                      as the Home's Constitution band (slot #1), NOT buried
+#                      in a config drawer. The mandate is the operation's
+#                      charter, not a wifi setting.
+#   - `os-config`    — the OS configuring itself. Autonomy, Pace, Connectors,
+#                      Program, Settings. Glanceable in the menu-bar vitals
+#                      (SystemStatusCluster); click-to-configure. Rarely
+#                      opened. The operator does not author these to declare
+#                      what the workspace is; they tune how the OS behaves.
 #   - `application`  — Applications: open files + live state. A typed file,
 #                      a folder/filesystem, or live state composed into a
-#                      view. (Files, Cockpit, Feed, Queue, Activity, Agents,
+#                      view. (Files, Home, Feed, Queue, Activity, Agents,
 #                      Cadence.) Artifacts are files opened by Applications
 #                      via the type→application association layer.
 #
@@ -206,7 +213,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # (Autonomy) and Identity (Identity / Brand / Principles) per
         # axiom order. (/autonomy was renamed from /delegation 2026-05-24.)
         "slug": "pace",
-        "register": "settings",  # ADR-309 two-register model
+        "register": "os-config",  # ADR-312 D5 (was `settings`)
         "title": "Pace",
         "archetype": "document",
         "substrate_paths": [
@@ -225,7 +232,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # level. At the operator surface the broader concept is Autonomy.
         # /delegation kept as a redirect stub for bookmark safety.
         "slug": "autonomy",
-        "register": "settings",  # ADR-309 two-register model
+        "register": "os-config",  # ADR-312 D5 (was `settings`)
         "title": "Autonomy",
         "archetype": "document",
         "substrate_paths": [
@@ -238,7 +245,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "mandate",
-        "register": "settings",  # ADR-309 two-register model
+        "register": "intent",  # ADR-312 D5 — constitution band, slot #1 (was `settings`)
         "title": "Mandate",
         "archetype": "document",
         "substrate_paths": [
@@ -251,7 +258,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "principles",
-        "register": "settings",  # ADR-309 two-register model
+        "register": "intent",  # ADR-312 D5 — constitution band (was `settings`)
         "title": "Principles",
         "archetype": "document",
         "substrate_paths": [
@@ -265,7 +272,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "identity",
-        "register": "settings",  # ADR-309 two-register model
+        "register": "intent",  # ADR-312 D5 — constitution band (was `settings`)
         "title": "Identity",
         "archetype": "document",
         "substrate_paths": [
@@ -305,7 +312,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "program",
-        "register": "settings",  # ADR-309 two-register model
+        "register": "os-config",  # ADR-312 D5 (was `settings`)
         "title": "Program",
         "archetype": "document",
         "substrate_paths": [
@@ -350,7 +357,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # remain as window-internal deep-link state per D19.4.
     {
         "slug": "settings",
-        "register": "settings",  # ADR-309 two-register model
+        "register": "os-config",  # ADR-312 D5 (was `settings`)
         "title": "Settings",
         "archetype": "dashboard",
         "substrate_paths": [],  # account/workspace/billing config — DB + Stripe
@@ -361,7 +368,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "connectors",
-        "register": "settings",  # ADR-309 two-register model
+        "register": "os-config",  # ADR-312 D5 (was `settings`)
         "title": "Connectors",
         "archetype": "dashboard",
         "substrate_paths": [],  # platform_connections DB table

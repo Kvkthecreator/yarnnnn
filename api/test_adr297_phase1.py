@@ -185,10 +185,11 @@ def test_kernel_surfaces_module() -> None:
         f"Only Feed is default_pinned (found: {pinned_by_default})",
     )
 
-    # ADR-309 — two-register coherence. Every CONTENT surface declares a
-    # valid `register` (settings | application); every CHROME surface
-    # (default_region set, route empty) declares NONE.
-    VALID_REGISTERS = {"settings", "application"}
+    # Two-register coherence (ADR-309; cleaved by ADR-312 D5). Every
+    # CONTENT surface declares a valid `register` (intent | os-config |
+    # application); every CHROME surface (default_region set, route empty)
+    # declares NONE.
+    VALID_REGISTERS = {"intent", "os-config", "application"}
     for entry in KERNEL_SURFACES:
         is_chrome = entry.get("archetype") in {"input", "navigator", "chrome"}
         if is_chrome:
