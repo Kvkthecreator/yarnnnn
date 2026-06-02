@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.02.1] - Frame indexes intent, does not assert it (ADR-314)
+
+### Changed (LLM-facing)
+
+- `api/agents/reviewer_agent.py::_compute_minimal_frame`: deleted the substrate
+  assertion "The operator already told you what to do: it is in your MANDATE.md
+  and your standing_intent.md." Replaced the principal-shift's directive with an
+  index-not-assert shape: "You decide and direct from what your governing files
+  declare… When a header is present, act on its content. When a header is absent
+  or empty, reason honestly about that absence rather than inventing intent: an
+  absent MANDATE means the operation's primary intent has not yet been declared
+  (the operator establishes it by activating a program)."
+- Why: the deleted line violated FOUNDATIONS Derived Principle 22 / ADR-306 D5
+  (the frame restates no substrate file) — it restated MANDATE content three
+  lines after the frame promises "this prompt does not restate them." The
+  assertion was TRUE in the operating state and FALSE in the standby state
+  (bare kernel, MANDATE absent per ADR-286), where it instructed the agent to
+  direct toward intent that does not exist.
+- Expected behavior: **operating state unchanged** — "act on what they declare"
+  over a present MANDATE preserves the same directive force ("the operator told
+  you what to do" was just a paraphrase of reading MANDATE). **Standby state
+  corrected** — the agent reasons honestly about the absent constitution instead
+  of being told a falsehood and instructed to direct toward nothing. One frame,
+  two coherent behaviors, no substrate-conditional branch (D5-compliant,
+  subtractive). Bundle-fork remains the sole constitution-creation event
+  (Direction A); there is no interactive /init.
+
+---
+
 ## [2026.06.01.3] - MCP remember_this is a JUDGED write (ADR-310 D2/D3)
 
 ### Changed (LLM-facing)
