@@ -3,283 +3,156 @@
 **Purpose**: Canonical product narrative. What YARNNN is, what users are buying, and what must remain true as the implementation evolves.
 **Status**: Active
 **Date**: 2026-01-28
-**Updated**: 2026-04-20 (v12.3 — Cockpit service model ratified per ADR-198 v2. "What Stays Constant" extended to six elements; operator works *inside* YARNNN rather than consuming deliverables elsewhere.)
+**Updated**: 2026-06-02 (v13.0 — substrate-first rewrite. The product is re-centered on **authored, attributed, portable context** as the floor (the Phase-1 wedge), with **declared intent + a judgment seat + ground-truth evaluation** as the additive judgment layer on top (Phase 2). Supersedes the v12.x "team you build by chatting / money-truth cockpit" framing. Grounded in THESIS (four commitments), the sequenced-moat-strategy analysis (substrate as floor, judgment as rider), ADR-310/311 (one moat, two faces — cockpit + interop), ADR-222 (kernel/program OS framing), ADR-216 (orchestration vs judgment), ADR-231 (task abstraction sunset). Money-truth demoted from a universal product element to a program-specific flavor of ground truth.)
 
 ---
 
 ## Core Thesis
 
-YARNNN is an **autonomous agent platform for recurring knowledge work** — the team you build by chatting.
+YARNNN is the **authored context layer that travels with you** — and, when you're ready, an operation that runs on it under a judgment you control.
 
-The user describes their work to YARNNN, creates Agents around it through that conversation, and supervises outcomes as the Agents run on cadence with accumulated context. The relationship is authorship, not delegation: the team is the user's, built up over time, switching cost accumulates from the first Agent.
+There are two layers, and the lower one stands on its own:
+
+- **The substrate layer (the floor).** You author your work — notes, documents, decisions, accumulated domain context — and every piece of it is **attributed, retained, and yours**. It's a context commons in a format every LLM speaks, reachable from any model you already use. This is valuable the moment you author anything; it needs no program, no mandate, no autonomous agent.
+- **The judgment layer (additive, on top).** Activate a program and that same substrate gets a **declared mandate**, a **Reviewer** (an independent judgment seat), and an **operation that runs in your absence** — evaluated against ground truth. This deepens the substrate from *portable* to *judged and operated*. It never replaces the floor.
 
 **The product promise in one sentence:**
-> Describe your work. Create the agents that do it.
+> Author your context once. Carry it into every AI — and, when you're ready, let it run under a judgment you control.
 
-Short form: *Your work, your agents.*
+Short form: *Your context, attributed and portable.*
+
+The relationship is **authorship, not delegation**. The substrate is the user's — legible, correctable, and sovereign — and switching cost accumulates from the first thing they author.
 
 ## What Stays Constant
 
-The product essence has six stable elements:
+The product essence has five stable elements. They are ordered floor-first: the earlier ones are true with the lightest possible substrate; the later ones are what a program adds.
 
-1. **Agents built around your work, not generic assistants**  
-   Agents are created by the user through conversation with YARNNN, scoped to a specific domain of the user's work, with identity, directives, memory, workspace, sources, and execution history. Zero Agents are pre-scaffolded — the team is authored, not provisioned (ADR-189).
+1. **Authored context, not inferred context**
+   Every file has a declared author (operator, YARNNN, a named agent, the Reviewer, a system actor). Every mutation produces a parent-pointered revision with required attribution and a message. The operator can read, correct, and carry their context. Inferred context (what every incumbent builds — memory scraped from activity) commoditizes as retrieval saturates; authored context does not, because it is owned and inspectable (THESIS Commitment 4, FOUNDATIONS Axiom 1 + Authored Substrate / ADR-209).
 
-2. **Accumulated context, not prompt reconstruction**  
-   Slack, Notion, GitHub, workspace memory, prior outputs, and user feedback all compound into future runs. Specialists accumulate role-scoped style; Agents accumulate domain-scoped expertise. The two axes are distinct and both compound (ADR-117, ADR-189).
+2. **Portable across every AI, not locked to one model**
+   Authored context is reachable from any LLM the operator already uses, via the interop face (MCP today; protocol-agnostic by design). No model provider offers your context *across* the others — they are each present-bound silos. Portability is structurally something only a neutral substrate layer can offer, and it is the wedge that stands alone before any judgment exists (ADR-310, ADR-311).
 
-3. **Supervision, not manual operation**  
-   The user does not re-prompt from zero every time. The user reviews, redirects, and refines a running system. The team the user built keeps running.
+3. **Declared intent, not inferred purpose**
+   When an operator activates a program, purpose is **authored** as a mandate, not discovered by inference. Everything downstream — context domains, recurrences, proposed actions — exists in service of the declared mandate. Inferred intent is undetectably wrong; declared intent is correctable because it is legible (THESIS Commitment 1, FOUNDATIONS Axiom 3).
 
-4. **Recurring work products, not one-off answers**  
-   The system exists to produce useful work on cadence: recaps, briefs, monitoring outputs, research, synthesis, and richer rendered artifacts when the job requires them.
+4. **A judgment seat, not a safety filter**
+   The role that decides whether a proposed action is fit to execute is the most important durable role in the system, and it is architecturally independent of the producers whose work it judges. The Reviewer reads the mandate, the accumulated context, the track record, and the proposed action, and renders a verdict. The seat persists; the occupant is interchangeable (human today, AI as it becomes credible). This is supervised autonomy: the operator is never structurally absent (THESIS Commitment 2, FOUNDATIONS Axiom 2, ADR-194).
 
-5. **Money-truth, not vibe-truth**  
-   YARNNN is a money-making platform for operators. Every action the team takes is attributable to a capital outcome — trades to P&L, campaigns to revenue, discounts to attribution. Accumulated context is pruned by what actually made money, not by what sounded good. Reviewers (human or AI) judge proposals in expected-value terms given the operator's book and track record. The team gets better at its job, and the job is making the operator money (FOUNDATIONS Axiom 8, ADR-194, ADR-195).
+5. **Ground-truth evaluation, not vibe-truth**
+   In the domains where it applies, the Reviewer's judgment and the accumulated context are validated against a real outcome signal, not against internal agreement or user thumbs. The *flavor* of ground truth is program-specific — money-truth for a trading operation, publication/coherence for an authoring operation, revenue for commerce. Ground truth is structural, not universal; it is the spine of the judgment layer, not a claim about every workspace (THESIS Commitment 3, FOUNDATIONS Axiom 8).
 
-6. **Cockpit, not report factory**
-   The operator works *inside* YARNNN. Five destinations — Overview (what's going on), Team (agents), Work (tasks), Context (what the workspace knows), Review (the judgment trail) — plus an always-present YARNNN rail. This is the operator's cockpit: where performance is consulted, the team is supervised, pending decisions are made, the workforce is tuned, and the judgment trail is audited. External distribution (email to stakeholders, Slack posts, PDF exports) is a **derivative Channel**, not the primary output. Autonomous writes have a legible cockpit Channel back to the operator — an operator who can't see the workforce cannot trust it. The cockpit framing is what makes trusted autonomy possible (ADR-198, FOUNDATIONS Derived Principle 12).
+These five compose. Take the substrate floor (1–2) alone and you have portable, sovereign context — already differentiated. Add the judgment layer (3–5) and the substrate becomes judged and operated. Remove any one of the five and what remains degrades into an existing inferior form (a wiki, a memory feature, a chatbot, a safety wrapper, a dashboard).
 
-## What Changed Recently
+## The Two Layers, Concretely
 
-ADR-189 introduced the three-layer cognition model. The prior model conflated "agents" as a single concept; the new model separates three distinct layers with distinct scopes and developmental axes:
+### Layer 1 — Authored substrate, served everywhere (the floor)
 
-- **YARNNN = the super-agent** — the product and the conversational layer share a name. The user addresses YARNNN directly. YARNNN composes, supervises, and orchestrates.
-- **Specialists = YARNNN's palette** — six role-typed capabilities (Researcher, Analyst, Writer, Tracker, Designer, Reporting). Infrastructure; not user-addressed. Develop stylistic preference across all tasks using them.
-- **Agents = WHO (user-created)** — persistent, identity-explicit, domain-scoped workers. Each Agent is created by the user through conversation with YARNNN. Appear on `/agents`. Develop domain expertise over tenure.
-- **Tasks = WHAT** — defined work units with objective, cadence, delivery, and success criteria. TASK.md is the source of truth. A task's Team is drafted by YARNNN from the Specialist palette per cycle.
+A workspace is a filesystem of authored, attributed, retained context. The operator authors it through conversation with YARNNN, through uploads, and through accumulated work. Every revision is content-addressed and parent-pointered; nothing is silently lost; everything carries an author.
 
-Users are buying an authored team that compounds. The team is theirs — built up through conversation, supervised over time, richer with tenure.
+That substrate is reachable from any LLM via the interop face. What you author in YARNNN follows you into ChatGPT, Claude, or any model — attributed and portable. This layer requires no program, no Reviewer, no mandate. It is the entry value: *your context is yours, and it follows you.*
 
-> Users buy an authored team that compounds.
-> YARNNN orchestrates. Specialists draft style. Agents carry domain. Tasks define the work.
+### Layer 2 — The judgment layer (what a program adds)
 
----
+A **program** (alpha-trader, alpha-author, and future programs) is an application that activates on top of the bare substrate. It supplies:
 
-## The Product Model
+- a **mandate** the operator declares,
+- a **Reviewer persona** and principles the operator authors,
+- **recurrences** that fire the operation on cadence,
+- a **cockpit** — the supervisory surface where the operator consults performance, sees pending decisions, and audits the judgment trail,
+- a **ground-truth signal** appropriate to the domain.
 
-### From Operator To Supervisor
-
-YARNNN embodies a shift in how users relate to AI-assisted work:
-
-**From**: user as operator  
-**To**: user as supervisor
-
-The user is no longer responsible for repeatedly:
-
-- gathering source context
-- restating goals
-- regenerating the same recurring draft
-- manually stitching work across tools
-
-Instead, the system maintains context, runs recurring jobs, delivers work, and improves through supervision.
-
-### From Prompts To Persistent Attention
-
-The unit of value is not the chat turn. It is the **persistent agent**.
-
-An agent is a standing unit of attention allocated to some part of the user's work:
-
-- a Slack recap
-- a meeting-prep specialist
-- a competitor watch
-- a weekly cross-platform brief
-- a domain researcher
-
-Each agent compounds because the same specialist keeps running against the same domain over time.
-
-### From Answers To Work Products
-
-YARNNN is not primarily a system for answering questions.
-
-It is a system for producing recurring work products such as:
-
-- summaries and recaps
-- meeting briefs
-- monitoring updates
-- research reports
-- cross-platform syntheses
-- rendered artifacts and attachments when the job requires them
-
-The work product may be plain text, email-ready content, or a rendered artifact. That output variation does not change the product category. The job is still the same: autonomous recurring work with supervision.
-
----
+This is where the operation runs in the operator's absence and improves through supervision. It is additive: a Layer-1 operator has portable context; a Layer-2 operator has *judged* portable context plus an operation that runs without them.
 
 ## The System Shape
 
-### 1. YARNNN: The Meta-Cognitive Layer
+1. **Substrate** — the authored, attributed filesystem. The floor everything stands on. State lives in files; computation is stateless over them (FOUNDATIONS Axiom 1).
 
-YARNNN is the system's meta-intelligence — the super-agent the user addresses directly. Product and conversational layer share the name (ADR-189).
+2. **The interop face** — the substrate reachable from any LLM. The distribution channel of the one moat: file + revision operations over the operator's context commons, attributed on every read (ADR-310/311).
 
-Its job is not to own a domain. Its job is to manage the user's cognitive workforce:
+3. **YARNNN (the orchestration surface)** — the chat surface the operator addresses. It keeps the workspace legible, drafts work, and routes mutations. It is orchestration, not a judgment persona — it is *how the operator drives the system*, not a seat that renders verdicts (ADR-216).
 
-- converse with the user
-- create Agents through that conversation
-- draft Specialist Teams per task
-- supervise Agent health
-- interpret feedback
-- adjust the system over time
+4. **The Reviewer** — the judgment seat (one per workspace). Reads proposed actions, renders approve/reject/defer, accumulates calibration over tenure. The seat where trust is earned (ADR-194).
 
-YARNNN is the interface through which the user builds, directs, and supervises the team.
+5. **Programs** — applications that activate the judgment layer on bare substrate. They ship a mandate template, a Reviewer persona, recurrences, and a cockpit composition. Workspaces don't have *types*; they *run programs* (ADR-222).
 
-### 2. Agents: The Domain-Cognitive Layer (WHO)
-
-Agents are persistent domain experts. Each handles the full thinking chain: sense context, reason about it, produce output.
-
-They exist as developing workers with:
-
-- an archetype (monitor, researcher, producer, operator)
-- a workspace with identity file (AGENT.md) and accumulated memory
-- learned preferences from user feedback
-- domain knowledge that compounds with every run
-
-Agents are where recurring attention lives.
-
-### 3. Tasks: The Work Definition Layer (WHAT)
-
-Tasks define units of work: what to produce, for whom, on what cadence, delivered where.
-
-- TASK.md carries the objective, success criteria, output spec, and agent assignment
-- Tasks run on schedule — the scheduler queries tasks, not agents
-- Output accumulates in task workspace (`/tasks/{slug}/outputs/`)
-- Simple tasks: 1 Agent, small Specialist Team. Complex tasks: multiple Agents, larger Specialist Team, YARNNN orchestrates the sequence.
-
-Tasks are where work definition lives. Agents are assigned to tasks — one agent can work on multiple tasks.
-
-### 4. Workspace: The Shared Operating Substrate
-
-The workspace is where accumulated intelligence persists:
-
-- agent identity files
-- memory
-- working notes
-- knowledge outputs
-- output folders
-- user-level context
-
-This is what allows the system to improve with tenure instead of resetting with each interaction.
-
-### 5. Output Skills: The Execution Layer
-
-Output skills make agents more capable, but they do not redefine the product.
-
-They are the agent's toolbox:
-
-- PDF
-- presentation
-- spreadsheet
-- chart
-- future delegated or local skills
-
-Output skills enrich the deliverable. They do not change the agent's identity.
-
----
+6. **User-authored Agents** — persistent domain experts the operator creates through conversation. They hold domain intent and accumulate domain context. Optional; many-per-workspace.
 
 ## The User Experience Loop
 
-The core loop is:
+There are two loops. The first is the floor; the second is what a program adds.
 
-1. **Describe your work — connect tools to enrich it**
-2. **System creates the right agents and tasks**
-3. **Tasks run on cadence, agents produce, outputs deliver**
-4. **The user reviews, refines, or redirects**
-5. **Agent memory, preferences, and domain knowledge compound**
-6. **Future supervision gets lighter**
+**Loop 1 — author and reach (every workspace):**
+1. Author context — through conversation, uploads, or accumulated work.
+2. It is attributed and retained — a revision chain you can inspect.
+3. Reach it from any AI you use — your context follows you.
 
-That loop is the product.
+**Loop 2 — declare, judge, operate (programs):**
+1. Declare a mandate — what the operation is for.
+2. The operation runs on cadence — proposing actions against accumulated context.
+3. The Reviewer judges proposals against the mandate and ground truth.
+4. The operator supervises — approves, redirects, refines — and the judgment trail accumulates.
+5. Calibration, context, and preferences compound; future supervision gets lighter.
 
-Everything else is implementation support.
-
----
+Loop 1 is the product's floor. Loop 2 is the deepening.
 
 ## Why This Is Different
 
-Most AI systems fail on recurring work for one of two reasons:
+Most AI systems fail recurring, high-context work for one of two reasons: they are **session-based** (forget context between runs) or **persistent but inferred** (the context is scraped, shallow, and the operator can't see or carry it).
 
-1. They are **session-based**, so they forget the operating context between runs.
-2. They are **persistent**, but they do not act autonomously on that persistence.
+Every major platform is building an inferred-context layer (OpenAI Memory, Microsoft Copilot + Graph, Google Workspace Intelligence, Anthropic Projects). All infer context from activity. Inferred context commoditizes as model capability saturates.
 
-YARNNN does both:
-
-- it **accumulates**
-- it **acts**
-
-That combination is the moat.
-
-The system becomes more valuable with time because:
-
-- the same agents keep running
-- the same domains keep deepening
-- the same user preferences keep sharpening
-- the same outputs keep feeding better future outputs
+YARNNN's position is the opposite stance: **context is authored, attributed, retained, and portable.** It does not commoditize — it gets richer per operator per month of use, and it travels across any model, any agent layer, any future incumbent. On top of that authored floor, an independent judgment seat makes the operation trustworthy in a way a self-critiquing producer never can.
 
 ## The Moat
 
-The moat is not "AI agents" in the abstract.
+There is **one moat: authored substrate under a persona-bearing judgment seat.** It is served two ways — a **cockpit face** (the operator, in-app) and an **interop face** (any LLM, via MCP). The two are faces of the same moat, not two moats (ADR-310).
 
-The moat is **accumulated attention**:
+- The substrate is the differentiator that exists *before* any judgment: attributed, retained, LLM-native, portable. No competitor's agent-filesystem exposes an attributed, walkable revision chain across the boundary.
+- The judgment seat is where accumulation compounds and trust is earned: the longer the Reviewer runs against ground truth, the harder its calibrated judgment is to replicate elsewhere.
 
-- context from real systems
-- agent-specific memory
-- recursive knowledge outputs
-- user supervision patterns
-- durable work history
-
-The longer an agent runs, the harder its judgment is to replicate elsewhere.
-
----
+Inferred-context layers commoditize. Authored substrate, judged over tenure, compounds.
 
 ## What YARNNN Is Not
 
 YARNNN is not:
 
-- **just a chat UI**  
-  YARNNN (the conversational layer) is an interface into a running system, not the whole product.
-
-- **generic task automation**  
-  The value is recurring, high-context work, not arbitrary one-off commands.
-
-- **template-fill drafting**  
-  Agents operate from live context and accumulated judgment, not static input forms.
-
-- **uncontrolled autonomous action**  
-  The model is supervised autonomy with history, visible outputs, delivery controls, and explicit user direction.
-
-- **a file conversion product**  
-  Rich output skills matter, but they support the recurring-work model. They are not the core category.
-
----
+- **an inferred-memory feature** — context is authored and attributed, not scraped from activity.
+- **locked to one model** — the substrate is portable across every LLM; that is the point.
+- **a chat UI** — YARNNN the chat surface is how the operator drives a running system, not the whole product.
+- **a safety-filter wrapper** — the Reviewer is an independent judgment seat that compounds in value, not a post-hoc guardrail bolted onto a producer.
+- **uncontrolled autonomous action** — the model is supervised autonomy: declared mandate, gated actions, a legible cockpit, and an operator who is never structurally absent.
+- **a money-making claim for every workspace** — money-truth is one program's flavor of ground truth (trading), not a universal product element. The universal is *authored, portable substrate*.
 
 ## Canonical Positioning
 
-If YARNNN must be described simply, the canonical external framing is:
+External framing is Path B (YARNNN as a platform for operators), per the communication discipline in THESIS + ADR-210.
 
 **Primary:**
-> Describe your work. Create the agents that do it.
+> Author your context once. Carry it into every AI.
 
 **Short form:**
-> Your work, your agents.
+> Your context, attributed and portable.
 
 **Expanded:**
-> YARNNN is the super-agent the user talks to. The user describes their work, creates persistent Agents through that conversation, and supervises outputs that improve with every cycle. The team is built, not provisioned. Switching cost accumulates from the first Agent.
+> YARNNN is the authored context layer that travels with you. You author your work — attributed, retained, sovereign — and reach it from any LLM you already use. Activate a program and that same substrate gets a declared mandate, an independent Reviewer, and an operation that runs in your absence under a judgment you control. The substrate is the floor; judgment is what you add on top.
 
 Short forms that remain valid in voice-variation contexts:
 
-- **The team you build by chatting**
-- **Compounding autonomy for recurring knowledge work** (internal/architectural)
-- **Connect once. Build from there.**
-
----
+- **Your context, everywhere you think.**
+- **Authored, not inferred.**
+- **The substrate that follows you — judged when you're ready.**
 
 ## Source Of Truth Hierarchy
 
 For product narrative and architecture, use this order:
 
-1. `docs/ESSENCE.md` — product essence and stable value proposition
-2. `docs/architecture/FOUNDATIONS.md` — first-principles cognitive architecture
-3. `docs/adr/ADR-138-agents-as-work-units.md` — agents + tasks architecture (supersedes projects)
-4. `docs/adr/ADR-139-workfloor-task-surface-architecture.md` — frontend surfaces
-5. `docs/architecture/orchestration.md` — canonical agent taxonomy
-6. `docs/adr/ADR-118-skills-as-capability-layer.md` — output skills and output gateway
+1. `docs/ESSENCE.md` — product essence and stable value proposition (this doc)
+2. `docs/architecture/THESIS.md` — the philosophical claim and the four commitments
+3. `docs/architecture/FOUNDATIONS.md` — first-principles cognitive architecture (six dimensions, eight axioms)
+4. `docs/adr/ADR-310-judged-substrate-interop-face.md` + `ADR-311-primitive-interop-surface.md` — one moat, two faces; the interop surface
+5. `docs/adr/ADR-222-agent-native-operating-system-framing.md` — kernel / program OS framing
+6. `docs/adr/ADR-209-authored-substrate.md` — authored, attributed, retained substrate
+7. `docs/adr/ADR-194-pluggable-reviewer-and-impersonation.md` — the judgment seat
 
 If lower-level docs contradict this essence without justification, the lower-level docs should be revised.
