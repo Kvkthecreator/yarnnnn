@@ -7,6 +7,16 @@ judgment-mode recurrence; tripping a ceiling skips the fire.
 The governance file is operator-only-authored (in `DEFAULT_REVIEWER_WRITE_LOCKS`)
 — the Reviewer cannot escalate its own resource ceiling.
 
+Fire-frequency gate partition (ADR-313): token-budget owns COST (daily $
+ceiling + daily judgment-fire count) + PER-SLUG FLOOR (min_interval_for(slug),
+with per-slug `overrides:`). This is the sibling-but-distinct gate to PACE
+(`services/pace.py`, ADR-298/301), which owns the workspace-wide DRAIN-LANE
+RATE. `token_budget.min_interval_for(slug)` is a per-recurrence floor;
+`pace.min_interval_seconds` is a workspace-wide drain interval — same word,
+different layer, different scope. The two gates are sequential, not
+redundant: a wake must satisfy the pace lane to be pulled, then satisfy
+token-budget to fire. See ADR-313 for the canonical partition statement.
+
 Schema:
 
     daily_spend_ceiling_usd: 5.00

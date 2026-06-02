@@ -20,6 +20,15 @@ Pace enum:
   ``weekly``     — drain paced lane ≤1 wake/week    (≤1 fires/7days)
   ``continuous`` — no drain rate cap
 
+Fire-frequency gate partition (ADR-313): Pace owns the DRAIN-LANE RATE —
+the workspace-wide tempo at which the paced wake lane empties. This is the
+sibling-but-distinct gate to TOKEN-BUDGET (`services/token_budget.py`,
+ADR-293 D7), which owns COST + PER-SLUG FLOOR. `pace.min_interval_seconds`
+is a workspace-wide drain interval; `token_budget.min_interval_for(slug)`
+is a per-recurrence floor — same word, different layer, different scope.
+The two gates are sequential, not redundant. See ADR-313 for the canonical
+partition statement.
+
 Numeric override (`every: <ISO 8601 duration>`) is parsed and computed
 back to the nearest enum band for cockpit display + drain rate. First
 iteration: enum-band coercion. Pure-numeric drain rate is a future

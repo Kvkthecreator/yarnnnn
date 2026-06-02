@@ -49,6 +49,16 @@ short-circuit the funnel to "skip"):
   - Daily judgment-recurrence cap (ADR-293 D7)
   - Per-slug min-interval (ADR-293 D7)
 
+Fire-frequency gate partition (ADR-313): the gates above are the
+TOKEN-BUDGET half — COST (daily $ + daily fire count) + PER-SLUG FLOOR
+(min_interval_for(slug)). They are sequential with, not redundant to, the
+PACE drain-lane-rate gate in `services/wake_drainer.py` (ADR-298/301). A
+wake must satisfy the pace lane to be pulled, then satisfy token-budget to
+fire. `pace.min_interval_seconds` is a workspace-wide drain interval;
+`token_budget.min_interval_for(slug)` is a per-recurrence floor — same
+word, different layer, different scope. See ADR-313 for the canonical
+partition statement.
+
 Failure discipline: every public entry returns `{success: bool, ...}`.
 Reviewer exceptions emit a system-role narrative entry; the scheduler
 index advances next_run_at so on-demand recurrences don't get stuck.
