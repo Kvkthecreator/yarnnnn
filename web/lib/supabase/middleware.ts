@@ -11,14 +11,15 @@ import { HOME_ROUTE } from "@/lib/routes";
 //   empty-state welcome copy. Per-slug routes (/feed, /cadence, etc.) survive
 //   as deep-link transports for direct surface mounting.
 //
-// Atomic surface slugs are also top-level URLs: /feed /cockpit /cadence
-// /pace /autonomy /mandate /principles /identity /brand /files
+// Atomic surface slugs are also top-level URLs: /feed /home /cadence
+// /pace /autonomy /mandate /principles /identity /files
 // /agents /program /queue /activity. Each is a protected route + a deep-link
-// transport — cold-load opens that surface in a window.
+// transport — cold-load opens that surface in a window. (/home renamed from
+// /cockpit per ADR-312 D1.)
 // /delegation is a redirect stub → /autonomy (2026-05-24 surface rename).
 // /chat is a redirect stub → /feed (ADR-259 — preserves bookmarks).
-// /overview was absorbed into /work's cockpit zone (F2); ADR-225 Phase 3 made
-// cockpit panes compositor-resolved.
+// /overview was absorbed into the Home composition; ADR-225 Phase 3 +
+// ADR-312 made the Home's slots compositor-resolved.
 // /team redirects to /agents per ADR-214 (reverses ADR-201). /review is
 // deleted; Reviewer lives at /agents?agent=reviewer.
 // /schedule is now a redirect stub → /work (ADR-243 folded into Work tabs).

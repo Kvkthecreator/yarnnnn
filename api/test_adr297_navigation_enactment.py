@@ -90,7 +90,7 @@ def _grep(pattern: str, *paths: str) -> list[str]:
 # api/services/kernel_surfaces.py KERNEL_SURFACES (content surfaces with a
 # real route) + the legacy/stub routes that resolve to a surface.
 KERNEL_SLUGS = [
-    "feed", "cadence", "mandate", "cockpit", "delegation", "autonomy",
+    "feed", "cadence", "mandate", "home", "delegation", "autonomy",  # ADR-312 D1: cockpit→home
     "principles", "identity", "queue", "activity", "program",
     "pace", "agents", "context", "files", "settings", "connectors",
     "desktop",

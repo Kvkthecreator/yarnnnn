@@ -1,22 +1,24 @@
 schema_version: 1
 
-# alpha-author composition manifest. Read by the compositor (ADR-225 +
-# ADR-228 cockpit reshape). Speaks ADR-198 archetypes × ADR-214 4-tab nav.
+# alpha-author composition manifest. Read by the compositor (ADR-225;
+# ADR-312 renamed the cockpit composition key → home). Speaks ADR-198
+# archetypes × ADR-214 4-tab nav.
 #
 # All bindings are filesystem paths. Components must exist in the system
 # component library (web/components/library/) at compositor render time.
 #
 # ADR-283 patched D8: the four-face kernel pattern was dissolved by
 # ADR-273 Phase 2. alpha-author follows alpha-trader's precedent —
-# program-specific face composition via the cockpit.program_sections
-# binding, no kernel-imposed face floor.
+# program-specific section composition via the home.program_sections
+# binding (ADR-312 D2), no kernel-imposed face floor.
 #
-# DEFERRED: The Author* face components are declared here in advance of
-# step 3 implementation. Until step 3 lands at
+# DEFERRED: The Author* section components are declared here in advance
+# of step 3 implementation. Until step 3 lands at
 # web/components/library/programs/alpha-author/, the compositor will fall
-# through to kernel-default chrome (CockpitHeader + UnactivatedCockpitCTA).
-# This is honest deferral — the SURFACES manifest captures bundle intent
-# even while the FE components are being authored.
+# through to the kernel-default Home chrome (HomeHeader / Constitution
+# band + UnactivatedHomeCTA). This is honest deferral — the SURFACES
+# manifest captures bundle intent even while the FE components are being
+# authored.
 
 tabs:
   work:
@@ -26,16 +28,17 @@ tabs:
       filters_default:
         output_kind: produces_deliverable
 
-      # ADR-283 D8 + ADR-273 Phase 6: program-specific cockpit stack.
-      # The cockpit tells a story top-to-bottom: standing intent →
+      # ADR-283 D8 + ADR-273 Phase 6: program-specific section stack.
+      # The Home tells a story top-to-bottom: standing intent →
       # corpus state → voice consistency → shipping pipeline.
-      # CockpitHeader (kernel-general) sits above this stack and shows
-      # mandate + autonomy posture.
+      # HomeHeader / the Constitution band (kernel-general) sits above
+      # this stack and shows mandate + autonomy posture.
       #
       # Order can be customized by operators; sections can be suppressed
       # by removing entries. YARNNN can edit this file via WriteFile on
-      # request.
-      cockpit:
+      # request. ADR-312 D2: this `home` key is the program's declared
+      # composition for the Home's slots.
+      home:
         program_sections:
           - kind: AuthorMandate         # standing intent + voice fingerprint declaration
             order: 1

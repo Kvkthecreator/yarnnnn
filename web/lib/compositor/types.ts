@@ -158,28 +158,30 @@ export interface TabListBlock {
   default_collapsed?: boolean;
   reviewer?: { principles_default?: string };
   /**
-   * Bundle-supplied cockpit configuration.
+   * Bundle-supplied home configuration (key renamed cockpit→home by
+   * ADR-312 D2).
    *
-   * ADR-243 Phase B: `program_sections` is the primary mechanism.
-   * An ordered list of named section components rendered below
-   * `CockpitHeader` when the bundle is active. Each section is
-   * independently registered in `LIBRARY_COMPONENTS`; the `order`
-   * field controls display sequence. Operator (or YARNNN) can reorder
-   * or remove sections by editing their workspace SURFACES.yaml.
+   * ADR-243 Phase B: `program_sections` is the primary mechanism — an
+   * ordered list of named section components the program declares for
+   * the Home's composed slots, rendered below `HomeHeader` (the
+   * Constitution band) when the bundle is active. Each section is
+   * independently registered in `LIBRARY_COMPONENTS`; the `order` field
+   * controls display sequence. Operator (or YARNNN) can reorder or remove
+   * sections by editing their workspace SURFACES.yaml.
    *
-   * When `program_sections` is present → CockpitRenderer renders
-   * CockpitHeader + sections only (no four-face stack).
-   * When absent → CockpitRenderer falls through to kernel-default
-   * four-face stack.
+   * When `program_sections` is present → HomeRenderer renders
+   * HomeHeader + the program-declared sections.
+   * When absent → HomeRenderer renders the constitution-band CTA
+   * (the honest Phase-1 cold-start home, ADR-312 D6) — there is no
+   * kernel-default four-face stack (deleted by ADR-273, confirmed
+   * deleted by ADR-312).
    *
    * The legacy per-face binding keys (money_truth.live_source,
-   * performance.components, tracking.operational_state) are superseded
-   * by program_sections for workspaces that declare sections. They
-   * remain in the open-schema Record for backward compat with any
-   * workspaces that haven't migrated, but new programs should use
-   * program_sections instead.
+   * performance.components, tracking.operational_state) remain in the
+   * open-schema Record for backward compat; new programs use
+   * program_sections.
    */
-  cockpit?: {
+  home?: {
     program_sections?: Array<{ kind: string; order: number }>;
     [key: string]: unknown;
   };

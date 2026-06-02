@@ -6,10 +6,10 @@
  * resolution; selectors (getTab, getDetailMiddles, getActiveBundles)
  * for tree access.
  *
- * ADR-228: cockpit-side resolution (resolveCockpitPanes,
- * KERNEL_DEFAULT_COCKPIT_PANES) deleted — the cockpit renders four
- * faces directly via CockpitRenderer; no compositor-resolver step
- * stands between SURFACES.yaml and the cockpit faces.
+ * ADR-228/312: cockpit-side resolution (resolveCockpitPanes,
+ * KERNEL_DEFAULT_COCKPIT_PANES) deleted — the Home renders its
+ * program-declared sections via HomeRenderer (getProgramSections); no
+ * compositor-resolver step stands between SURFACES.yaml and the Home.
  */
 
 export { useComposition, getTab, getDetailMiddles, getActiveBundles } from './useComposition';

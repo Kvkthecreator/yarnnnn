@@ -1,7 +1,8 @@
 schema_version: 1
 
 # alpha-trader composition manifest. Read by the compositor
-# (ADR-225 Phase 1+2 shipped, amended by ADR-228 cockpit reshape).
+# (ADR-225 Phase 1+2 shipped; ADR-312 renamed the cockpit composition
+# key → home — the program declares the Home's composed slots here).
 # Speaks ADR-198 archetypes (Document/Dashboard/Queue/Briefing/Stream)
 # × ADR-214 4-tab nav (chat/work/agents/files).
 #
@@ -18,17 +19,16 @@ tabs:
         output_kind: produces_deliverable
 
       # ADR-273 Phase 6 (2026-05-14): seven-section program stack.
-      # The cockpit tells a story top-to-bottom: tape → account →
+      # The Home tells a story top-to-bottom: tape → account →
       # balances → tenure → live state → today's decisions → ledger.
-      # CockpitHeader (kernel-general) sits above this stack and shows
-      # mandate + autonomy posture.
+      # HomeHeader / the Constitution band (kernel-general) sits above
+      # this stack and shows mandate + autonomy posture.
       #
       # Operator can reorder by editing `order` values; suppress a
       # section by removing its entry. YARNNN can edit this file via
-      # WriteFile on request. New sections (TraderRegime / TraderSignals
-      # / TraderExpectancy) added in ADR-273 Phase 5 surface accumulated
-      # trading substrate that was previously invisible on the dashboard.
-      cockpit:
+      # WriteFile on request. ADR-312 D2: this `home` key is the
+      # program's declared composition for the Home's slots.
+      home:
         program_sections:
           - kind: TraderRegime          # tape regime headline strip (_regime.yaml)
             order: 1

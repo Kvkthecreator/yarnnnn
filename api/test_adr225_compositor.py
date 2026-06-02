@@ -158,26 +158,28 @@ def test_phase_overlay_banner_applied_to_observation():
     assert "Paper-only" in banner
 
 
-def test_alpha_trader_cockpit_block_surfaces():
-    """ADR-228: bundles fill the cockpit via `tabs.work.list.cockpit` per-face
-    bindings. alpha-trader declares money_truth + performance bindings
-    pointing at the portfolio domain. (The pre-ADR-228 detail-middle
-    assertions were deleted along with the detail middles — bundle-shaped
-    specifics for trading live inside the four cockpit faces, not in
-    detail-mode middles. /work detail falls through to kernel-default
-    DeliverableMiddle for portfolio-review and trading-signal.)"""
+def test_alpha_trader_home_block_surfaces():
+    """ADR-273 Phase 6 + ADR-312 D2: bundles fill the Home via
+    `tabs.work.list.home.program_sections` (the cockpit composition key
+    renamed → home). alpha-trader declares a seven-section program stack
+    (TraderRegime / TraderPortfolio / TraderMoneyTruth / TraderExpectancy /
+    TraderPositions / TraderSignals / TraderOrders). The pre-ADR-273
+    per-face bindings (money_truth/performance) were superseded by
+    program_sections; ADR-312 confirms the four-face stack is deleted, not
+    a kernel default. Detail middles remain absent — /work detail falls
+    through to kernel-default DeliverableMiddle."""
     _bust_caches()
     from services.composition_resolver import resolve_workspace_composition
     client = _StubClient(platform_connections_rows=[
         {"platform": "trading", "status": "active", "created_at": "2026-04-01T00:00:00Z"},
     ])
     result = resolve_workspace_composition("user-trader", client)
-    cockpit = result["composition"]["tabs"]["work"]["list"].get("cockpit") or {}
-    assert "money_truth" in cockpit
-    assert cockpit["money_truth"].get("substrate_fallback") == "/workspace/context/portfolio/_performance.md"
-    assert "performance" in cockpit
-    assert cockpit["performance"].get("attribution_source") == "/workspace/context/portfolio/_performance.md"
-    # Detail middles intentionally absent (ADR-228) — kernel default handles detail.
+    home = result["composition"]["tabs"]["work"]["list"].get("home") or {}
+    sections = home.get("program_sections") or []
+    section_kinds = {s.get("kind") for s in sections}
+    assert "TraderMoneyTruth" in section_kinds
+    assert "TraderPositions" in section_kinds
+    # Detail middles intentionally absent (ADR-228/312) — kernel default handles detail.
     assert "detail" not in result["composition"]["tabs"]["work"] or not (
         result["composition"]["tabs"]["work"].get("detail", {}).get("middles")
     )

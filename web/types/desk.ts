@@ -15,13 +15,14 @@
 // ADR-309 (2026-06-01): `brand` slug DELETED — Brand is not a standalone
 // surface; the Identity surface (IdentityBrandCard) owns Brand. /brand is
 // a server redirect → /identity per ADR-308. Surfaces also carry a
-// `register` (settings | application) per ADR-309's two-register model.
+// `register` (intent | os-config | application per ADR-309 + ADR-312 D5).
 // D19.4 (2026-05-22): settings + connectors promoted from legacy
 // pages to atomic kernel surfaces — reverses D19.7. Inside the
 // authenticated workspace, every surface is a window.
+// ADR-312 D1 (2026-06-02): `cockpit` slug renamed → `home`.
 export type KernelSurfaceSlug =
   | 'feed'
-  | 'cockpit'
+  | 'home'
   | 'cadence'
   | 'pace'
   | 'autonomy'
@@ -59,7 +60,7 @@ export type DeskSurface =
   | { type: 'idle' };
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
-  'feed', 'cockpit', 'cadence', 'pace', 'autonomy', 'mandate', 'principles',
+  'feed', 'home', 'cadence', 'pace', 'autonomy', 'mandate', 'principles',
   'identity', 'files', 'agents', 'program', 'queue', 'activity',
   'settings', 'connectors',
 ] as const;

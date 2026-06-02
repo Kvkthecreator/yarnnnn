@@ -5,9 +5,9 @@
  *   - resolveMiddle — content-area middle (Phase 2)
  *   - resolveChrome — chrome (metadata + actions) (Phase 3)
  *
- * (resolveCockpitPanes deleted by ADR-228 — the cockpit no longer
- * dispatches a flat pane sequence; see `CockpitRenderer.tsx` for the
- * four-face render.)
+ * (resolveCockpitPanes deleted by ADR-228 — the Home no longer
+ * dispatches a flat pane sequence; see `HomeRenderer.tsx` for the
+ * program-section render. Cockpit renamed → Home by ADR-312 D1.)
  *
  * Match resolution (Phase I — collapsed from 4 tiers to 1):
  *   Tier 1: task_slug exact match
@@ -86,12 +86,12 @@ export function resolveChrome(
 
 
 /**
- * getProgramSections — ADR-243 Phase B.
+ * getProgramSections — ADR-243 Phase B; key renamed by ADR-312 D2.
  *
  * Returns the ordered list of program sections from the active
- * composition when the bundle declares `cockpit.program_sections`.
- * Returns an empty array when the key is absent (kernel-default
- * four-face stack renders instead).
+ * composition when the bundle declares `home.program_sections`.
+ * Returns an empty array when the key is absent (the Home renders its
+ * constitution-band CTA instead — ADR-312 D6).
  *
  * Sections are sorted ascending by `order` so SURFACES.yaml authoring
  * order doesn't have to match visual order.
@@ -99,9 +99,9 @@ export function resolveChrome(
 export function getProgramSections(
   composition: import('./types').SurfacesResponse,
 ): Array<{ kind: string; order: number }> {
-  const cockpit = composition.composition.tabs?.work?.list?.cockpit as
+  const home = composition.composition.tabs?.work?.list?.home as
     | { program_sections?: Array<{ kind: string; order: number }> }
     | undefined;
-  const sections = cockpit?.program_sections ?? [];
+  const sections = home?.program_sections ?? [];
   return [...sections].sort((a, b) => a.order - b.order);
 }

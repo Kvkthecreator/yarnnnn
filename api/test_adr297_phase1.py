@@ -112,7 +112,7 @@ def test_kernel_surfaces_module() -> None:
     # Spot-check critical surfaces exist
     expected_slugs = {
         "feed",
-        "cockpit",  # ADR-297 D1 amendment (same-session 2026-05-21)
+        "home",  # ADR-312 D1 — renamed from `cockpit` (was ADR-297 D1)
         "cadence",
         "pace",  # ADR-300 (2026-05-22) — atomic Pace surface
         "autonomy",  # 2026-05-24 design polish — renamed from "delegation"

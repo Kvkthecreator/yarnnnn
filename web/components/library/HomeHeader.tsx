@@ -1,7 +1,10 @@
 'use client';
 
 /**
- * CockpitHeader — Layer 1 (kernel-general) of the cockpit, always present.
+ * HomeHeader — the Constitution band (slot #1) of the Home, always present.
+ * Renamed from CockpitHeader by ADR-312 D1; ADR-312 D2/D5 names this
+ * kernel-general Layer-1 header the "Constitution band" (mandate one-liner
+ * + autonomy posture — the operation's authored intent).
  *
  * ADR-243 Phase A. Implements the "common - page header" block from the
  * operator's design sketch: mandate-based title + summary on the left,
@@ -39,7 +42,7 @@ import { api } from '@/lib/api/client';
 import { useAutonomy } from '@/lib/content-shapes/autonomy';
 import type { AutonomyDelegation } from '@/lib/content-shapes/autonomy';
 import { parse as parseMandate } from '@/lib/content-shapes/mandate';
-import { useCockpit } from './CockpitContext';
+import { useHome } from './HomeContext';
 import { cn } from '@/lib/utils';
 
 const MANDATE_PATH = '/workspace/context/_shared/MANDATE.md';
@@ -77,11 +80,11 @@ function AutonomyBadge({ level, summary }: { level: AutonomyDelegation | null; s
 }
 
 // ---------------------------------------------------------------------------
-// CockpitHeader
+// HomeHeader
 // ---------------------------------------------------------------------------
 
-export function CockpitHeader() {
-  const { onOpenChatDraft } = useCockpit();
+export function HomeHeader() {
+  const { onOpenChatDraft } = useHome();
   const { effectiveLevel, summary: autonomySummary, loading: autonomyLoading } = useAutonomy();
 
   const [mandate, setMandate] = useState<string | null>(null);

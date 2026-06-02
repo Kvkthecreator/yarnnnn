@@ -159,15 +159,18 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Operator chat surface and multi-actor narrative timeline.",
     },
     {
-        # ADR-297 D1 amendment (same-session 2026-05-21): cockpit added as
-        # the 13th kernel surface to resolve the /work dissolution. ADR-228
-        # already established cockpit-as-substrate-read (four-face stack:
-        # Mandate / Money truth / Performance / Tracking, plus program-shipped
-        # section overrides per ADR-273). The atomic Cockpit surface hosts
-        # CockpitRenderer intact; no rewrite needed.
-        "slug": "cockpit",
-        "register": "application",  # ADR-309 two-register model
-        "title": "Cockpit",
+        # ADR-312 D1 (2026-06-02): the cockpit surface renames to `home`.
+        # The home is a composition over the workspace's present
+        # constituents (six kernel slots, top→bottom; the program declares
+        # each slot's weight/label/shape via the compositor) — substrate-
+        # forward when empty, operation-forward when a program runs. The
+        # four-face stack (ADR-228) and fixed trader section sequence
+        # (ADR-273) survive ONLY as a program's declared composition, never
+        # as the kernel default. The atomic Home surface hosts HomeRenderer.
+        # (Was: ADR-297 D1 cockpit, the 13th kernel surface.)
+        "slug": "home",
+        "register": "application",  # ADR-309 / ADR-312 D5 two-register model
+        "title": "Home",
         "archetype": "dashboard",
         "substrate_paths": [
             "/workspace/context/_shared/MANDATE.md",
@@ -175,19 +178,14 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
             "/workspace/context/_shared/_performance.md",
             "/workspace/context/_shared/_performance_summary.md",
         ],
-        # ADR-297 D19.5.2 (2026-05-22): icon swapped from layout-dashboard
-        # → square-activity. Operator-observed (KVK 2026-05-22): the
-        # 4-square LayoutDashboard glyph was visually too close to the
-        # Launcher's LayoutGrid (also a 4-square shape) — they read as
-        # the same icon at 16px in the Launcher overlay. square-activity
-        # is a box-with-pulse-line glyph (macOS Activity Monitor shape),
-        # which reads as "live operations monitor" — semantically right
-        # for the Cockpit's role (money-truth + performance + tracking
-        # snapshot) and visually distinct from any other surface icon.
+        # ADR-297 D19.5.2 (2026-05-22): square-activity glyph (macOS Activity
+        # Monitor shape) — reads as "live operations monitor," semantically
+        # right for the Home's role and visually distinct from the Launcher's
+        # LayoutGrid. (Kept through the ADR-312 home rename.)
         "icon_key": "square-activity",
         "default_pinned": False,
-        "route": "/cockpit",  # _route_status: NEW in Phase 2 — replaces /work?tab=dashboard
-        "summary": "Live operating dashboard — mandate, money-truth, performance, tracking + program-shipped sections.",
+        "route": "/home",  # ADR-312 D1 (was /cockpit)
+        "summary": "The operation, rendered — constitution, ground-truth, decision queue, live entities, recent artifacts, judgment trail. Composition over the workspace's present constituents.",
     },
     {
         "slug": "cadence",

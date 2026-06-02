@@ -1,57 +1,56 @@
 'use client';
 
 /**
- * CockpitRenderer — ADR-273 program-section-only dispatch.
+ * HomeRenderer — renamed from CockpitRenderer by ADR-312 D1.
  *
- * Post-ADR-273 Phase 2 the cockpit is two visual layers:
+ * The Home is a composition over the workspace's present constituents
+ * (ADR-312 §1–2). Post-ADR-273 it renders two visual layers; ADR-312 P4
+ * reshapes Layer 2 into the six-slot kernel home contract. P3 (this
+ * commit) is a pure rename — the structure below is preserved verbatim
+ * from CockpitRenderer.
  *
- *   Layer 1 — CockpitHeader (kernel-general, always rendered)
- *               mandate title + summary + autonomy posture, read from
- *               /workspace/context/_shared/{MANDATE.md, AUTONOMY.md}.
- *               Surface stays present on every workspace whether or not
+ *   Layer 1 — HomeHeader (the Constitution band, slot #1; kernel-general,
+ *               always rendered) — mandate one-liner + autonomy posture,
+ *               read from /workspace/context/_shared/{MANDATE.md,
+ *               _autonomy.yaml}. Present on every workspace whether or not
  *               a program is activated.
  *
- *   Layer 2 — program_sections (program-specific) OR UnactivatedCTA.
+ *   Layer 2 — program_sections (program-specific) OR UnactivatedHomeCTA.
  *               When the active bundle's SURFACES.yaml declares
- *               cockpit.program_sections[], each section renders in
- *               `order` sequence below CockpitHeader. When no program
- *               is activated (active_program_slug == null), the
- *               UnactivatedCockpitCTA renders an explicit "Activate a
- *               program from Settings → Workspace" affordance instead.
+ *               home.program_sections[], each section renders in `order`
+ *               sequence below HomeHeader. When no program is activated
+ *               (active_program_slug == null), the UnactivatedHomeCTA
+ *               renders an explicit "Activate a program" affordance —
+ *               this is the honest Phase-1 cold-start home (ADR-312 D6).
  *
- * Singular implementation per ADR-273 D2:
+ * Singular implementation per ADR-273 D2 (preserved):
  *   - The legacy four-face fallback (MoneyTruthFace / PerformanceFace /
- *     TrackingFace / MandateFace) was DELETED in this phase. These were
- *     never rendered for any workspace with an active program; for the
- *     no-program-activated state they were placeholder noise rather than
- *     a useful operator surface.
+ *     TrackingFace / MandateFace) was DELETED in ADR-273. ADR-312 confirms
+ *     the deletion — the cold-start home is the constitution-band CTA, not
+ *     a de-activated trader dashboard.
  *   - getProgramSections() returning empty + no active_program_slug =>
  *     the operator hasn't picked a program yet => render the activation
  *     CTA. There is no third path.
- *   - getProgramSections() returning empty + active_program_slug present
- *     would mean an activated program declares no cockpit sections; we
- *     render the activation banner as a graceful empty state (this should
- *     not happen for any shipped program but is the safest fallback).
  */
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
-import { CockpitProvider } from './CockpitContext';
-import { CockpitHeader } from './CockpitHeader';
+import { HomeProvider } from './HomeContext';
+import { HomeHeader } from './HomeHeader';
 import { useComposition, getProgramSections } from '@/lib/compositor';
 import { dispatchComponent } from './registry';
 import { api } from '@/lib/api/client';
 
-interface CockpitRendererProps {
+interface HomeRendererProps {
   /**
-   * Chat-draft handler. Forwarded into CockpitContext so any future
-   * cockpit section can call sendMessage() without prop-drilling.
+   * Chat-draft handler. Forwarded into HomeContext so any home slot
+   * component can call sendMessage() without prop-drilling.
    */
   onOpenChatDraft?: (prompt: string) => void;
 }
 
-export function CockpitRenderer({ onOpenChatDraft }: CockpitRendererProps) {
+export function HomeRenderer({ onOpenChatDraft }: HomeRendererProps) {
   const handleOpenChatDraft = onOpenChatDraft ?? (() => { /* no-op */ });
   const { data: composition } = useComposition();
   const programSections = getProgramSections(composition);
@@ -74,7 +73,7 @@ export function CockpitRenderer({ onOpenChatDraft }: CockpitRendererProps) {
         if (!cancelled) setActiveProgramSlug(state.active_program_slug);
       } catch {
         // Network failure: render activation CTA optimistically — the
-        // operator can still navigate to Settings → Workspace.
+        // operator can still navigate to the Program surface.
       } finally {
         if (!cancelled) setStateLoaded(true);
       }
@@ -85,9 +84,9 @@ export function CockpitRenderer({ onOpenChatDraft }: CockpitRendererProps) {
   }, [hasProgramSections]);
 
   return (
-    <CockpitProvider value={{ onOpenChatDraft: handleOpenChatDraft }}>
-      <section aria-label="Cockpit" className="border-b border-border/60">
-        <CockpitHeader />
+    <HomeProvider value={{ onOpenChatDraft: handleOpenChatDraft }}>
+      <section aria-label="Home" className="border-b border-border/60">
+        <HomeHeader />
         {hasProgramSections ? (
           <div className="flex flex-col gap-4 px-6 py-6 bg-muted/20">
             {programSections.map((section) =>
@@ -95,24 +94,26 @@ export function CockpitRenderer({ onOpenChatDraft }: CockpitRendererProps) {
             )}
           </div>
         ) : stateLoaded ? (
-          <UnactivatedCockpitCTA activeProgramSlug={activeProgramSlug} />
+          <UnactivatedHomeCTA activeProgramSlug={activeProgramSlug} />
         ) : null}
       </section>
-    </CockpitProvider>
+    </HomeProvider>
   );
 }
 
 /**
- * UnactivatedCockpitCTA — replaces the deleted four-face fallback.
+ * UnactivatedHomeCTA — the cold-start home's constitution-band empty state
+ * (ADR-312 D6). The home doubles as onboarding: a bare kernel renders the
+ * "declare what this workspace is for / activate a program" affordance.
  *
  * Two states:
  *   - active_program_slug == null: operator has not picked a program;
- *     deep-link to Settings → Workspace where the program picker lives.
+ *     deep-link to the Program surface where the picker lives.
  *   - active_program_slug != null: program activated but its SURFACES.yaml
- *     declares no cockpit.program_sections (unlikely but defensive). Show
- *     a milder message acknowledging the activation.
+ *     declares no home.program_sections (unlikely but defensive). Show a
+ *     milder message acknowledging the activation.
  */
-function UnactivatedCockpitCTA({ activeProgramSlug }: { activeProgramSlug: string | null }) {
+function UnactivatedHomeCTA({ activeProgramSlug }: { activeProgramSlug: string | null }) {
   const hasActivation = !!activeProgramSlug;
   return (
     <div className="px-6 py-8 bg-muted/20">
@@ -125,7 +126,7 @@ function UnactivatedCockpitCTA({ activeProgramSlug }: { activeProgramSlug: strin
           </h3>
           <p className="text-sm text-muted-foreground mb-4">
             {hasActivation
-              ? 'This program does not declare a cockpit dashboard. Configure your operation from Settings → Workspace, or use the chat to set things up.'
+              ? 'This program does not declare a home dashboard. Configure your operation from the Program surface, or use the chat to set things up.'
               : 'YARNNN runs your operations through programs — pre-shipped templates that bring a domain-shaped workspace (mandate, agents, recurrences, context structure). Activate one to see your operation rendered here.'}
           </p>
           <Link

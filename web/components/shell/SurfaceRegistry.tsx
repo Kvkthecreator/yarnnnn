@@ -22,7 +22,7 @@ import type { ComponentType } from 'react';
 import type { KernelSurfaceSlug } from '@/types/desk';
 
 import FeedPage from '@/app/(authenticated)/feed/page';
-import CockpitPage from '@/app/(authenticated)/cockpit/page';
+import HomePage from '@/app/(authenticated)/home/page';
 import CadencePage from '@/app/(authenticated)/cadence/page';
 import PacePage from '@/app/(authenticated)/pace/page';
 import AutonomyPage from '@/app/(authenticated)/autonomy/page';
@@ -44,7 +44,7 @@ import ConnectorsPage from '@/app/(authenticated)/connectors/page';
 
 export const KERNEL_SURFACE_REGISTRY: Record<KernelSurfaceSlug, ComponentType> = {
   feed: FeedPage,
-  cockpit: CockpitPage,
+  home: HomePage,
   cadence: CadencePage,
   pace: PacePage,
   autonomy: AutonomyPage,

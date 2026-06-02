@@ -263,12 +263,12 @@ def _merge_list_or_detail_block(
             result[k] = (result.get(k) or []) + deepcopy(v)
         elif k == "components" and isinstance(v, list):
             result[k] = (result.get(k) or []) + deepcopy(v)
-        elif k == "cockpit" and isinstance(v, dict):
-            # ADR-228 + ADR-243 Phase B: cockpit block merge.
-            # `program_sections` (list of {kind, order}) is union-merged
-            # across bundles — deduped by kind, first-bundle wins on order
-            # conflicts. All other keys use per-face deep-merge (first-bundle
-            # wins on scalars) per ADR-228.
+        elif k == "home" and isinstance(v, dict):
+            # ADR-243 Phase B + ADR-312 D2: home block merge (key renamed
+            # cockpit→home). `program_sections` (list of {kind, order}) is
+            # union-merged across bundles — deduped by kind, first-bundle
+            # wins on order conflicts. All other keys use per-face deep-merge
+            # (first-bundle wins on scalars).
             existing = result.get(k) or {}
             for face_key, face_value in v.items():
                 if face_key == "program_sections" and isinstance(face_value, list):

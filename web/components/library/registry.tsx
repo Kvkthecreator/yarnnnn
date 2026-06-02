@@ -13,12 +13,13 @@
  * ADR-273 D1: kernel-general at library/ root, program-specific at
  * library/programs/{slug}/).
  *
- * Post-ADR-273 Phase 2: the cockpit DOES dispatch through this registry —
+ * Post-ADR-273 Phase 2: the Home DOES dispatch through this registry —
  * program_sections render via dispatchComponent({ kind }) (alpha-trader's
  * SURFACES.yaml lists TraderRegime / TraderPortfolio / TraderMoneyTruth /
  * TraderExpectancy / TraderPositions / TraderSignals / TraderOrders).
- * CockpitHeader stays imported directly because it's always-rendered Layer 1,
- * not declaratively composed.
+ * HomeHeader (the Constitution band; renamed from CockpitHeader by ADR-312)
+ * stays imported directly because it's always-rendered Layer 1, not
+ * declaratively composed.
  *
  * Components are invoked via React.createElement so the registry can
  * stay shape-agnostic — the only convention is that a registered
