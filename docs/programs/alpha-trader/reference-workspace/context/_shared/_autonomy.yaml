@@ -6,6 +6,15 @@ note: "Machine-parsed delegation declaration (ADR-254). Forked to /workspace/con
 # Machine-parsed by review_policy.load_autonomy() and working_memory.
 # See AUTONOMY.md for documentation on what these fields mean.
 # Edit this file to tune your delegation ceilings.
+#
+# ADR-312 D7 (program-declared autonomy default): the bundle ships the
+# autonomy default appropriate to the operation; the kernel does not pick a
+# global default (per ADR-286 Single-Writer Per Path, only the bundle fork
+# writes this file). alpha-trader is a capital/rule-bound operation —
+# reversible-ish, capped, rule-governed — so it defaults toward autonomous
+# execution. (Relationship/high-touch operations like alpha-author default
+# `manual`.) The operator tunes from here; the DEFAULT_REVIEWER_WRITE_LOCKS
+# self-authority floor is unchanged — autonomy stays operator-owned.
 
 default:
   # ADR-269 / iter-4 (2026-05-13): operator-authored flip to autonomous.
