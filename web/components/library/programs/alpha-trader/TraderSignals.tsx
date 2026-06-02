@@ -8,7 +8,7 @@
  * the gap between "signal evaluator fires a proposal" and "operator sees
  * what was evaluated and what the Reviewer said about it."
  *
- * Data: api.cockpit.signals(limit=10) → /workspace/context/trading/signals/*.yaml
+ * Data: api.programs.alphaTrader.signals(limit=10) → /workspace/context/trading/signals/*.yaml
  *       listed newest-first + best-effort reviewer-decision correlation.
  *
  * Each row shows: ticker · direction · expectancy · reviewer verdict
@@ -30,7 +30,7 @@ import { Loader2, Radar, TrendingDown, TrendingUp } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
-type SignalsResponse = Awaited<ReturnType<typeof api.cockpit.signals>>;
+type SignalsResponse = Awaited<ReturnType<typeof api.programs.alphaTrader.signals>>;
 type SignalRow = SignalsResponse['signals'][number];
 
 function formatExpectancy(v: SignalRow['expectancy']): string {
@@ -67,7 +67,7 @@ export function TraderSignals() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.cockpit.signals(10);
+        const res = await api.programs.alphaTrader.signals(10);
         if (!cancelled) setData(res);
       } catch {
         if (!cancelled) setData({ live: false, fallback_reason: 'read_failed', signals: [] });

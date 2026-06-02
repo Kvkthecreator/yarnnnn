@@ -1,24 +1,24 @@
 """
-Cockpit endpoints — operator-facing surfaces for the four-face cockpit
-(ADR-228 + ADR-242).
+alpha-trader program-data endpoints (ADR-312 D9; renamed from cockpit.py).
 
-Today's surface:
-  GET /api/cockpit/money-truth
-    — Alpaca account snapshot for the MoneyTruth face's bundle override
-      path (ADR-242 D1). Returns the live brokerage state when the
-      operator has connected Alpaca; falls back to a normalized "no live
-      data" shape that the FE handles with substrate-fallback rendering.
+Mounted at `/api/programs/alpha-trader/*`. These are PROGRAM data routes
+for the alpha-trader bundle's Home sections (TraderMoneyTruth, Trader-
+Portfolio, TraderPositions, TraderOrders, TraderRegime, TraderSignals,
+TraderExpectancy). ADR-312 D9 de-namespaced `/api/cockpit/*` — trader data
+moved here (program-scoped), the kernel pace dial moved to `/api/pace`.
 
-The endpoint is named by what it returns (Alpaca account snapshot), not
-by who consumes it (cockpit). Future readers wanting Alpaca live equity
-for any reason can use the same endpoint.
+Two kinds of route:
+  - Live brokerage reads (money-truth, portfolio-history, positions,
+    recent-orders) — decrypt the operator's Alpaca credentials and call
+    the live API; graceful `live: False` fallback on any error.
+  - Substrate reads (regime, indicators, signals) — read workspace_files
+    directly (zero LLM, zero platform calls); graceful empty-state.
 
 Auth boundary: derives user from `auth.user_id`. No cross-user reads —
-operators only see their own brokerage state. Same pattern as
-`/api/programs/surfaces`.
+operators only see their own brokerage + substrate state.
 
-Per ADR-242 §"Singular Implementation discipline": this is the singular
-live-snapshot path. No parallel surface elsewhere.
+Singular Implementation: this is the singular trader-data path. No
+parallel surface elsewhere.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ class MoneyTruthResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# GET /cockpit/money-truth
+# GET /api/programs/alpha-trader/money-truth
 # ---------------------------------------------------------------------------
 
 @router.get("/money-truth", response_model=MoneyTruthResponse)
@@ -98,7 +98,7 @@ async def get_money_truth(auth: UserClient) -> MoneyTruthResponse:
             .execute()
         )
     except Exception as exc:
-        logger.warning(f"[COCKPIT] platform_connections read failed for {user_id[:8]}: {exc}")
+        logger.warning(f"[ALPHA-TRADER] platform_connections read failed for {user_id[:8]}: {exc}")
         return MoneyTruthResponse(live=False, fallback_reason="no_platform_connection")
 
     rows = result.data or []
@@ -121,7 +121,7 @@ async def get_money_truth(auth: UserClient) -> MoneyTruthResponse:
             return MoneyTruthResponse(live=False, fallback_reason="no_credentials")
         api_key, api_secret = decrypted.split(":", 1)
     except Exception as exc:
-        logger.warning(f"[COCKPIT] credential decrypt failed for {user_id[:8]}: {exc}")
+        logger.warning(f"[ALPHA-TRADER] credential decrypt failed for {user_id[:8]}: {exc}")
         return MoneyTruthResponse(live=False, fallback_reason="no_credentials")
 
     paper = bool((row.get("metadata") or {}).get("paper", True))
@@ -131,11 +131,11 @@ async def get_money_truth(auth: UserClient) -> MoneyTruthResponse:
         client = get_trading_client()
         account = await client.get_account(api_key, api_secret, paper)
         if isinstance(account, dict) and account.get("error"):
-            logger.info(f"[COCKPIT] Alpaca account error for {user_id[:8]}: {account.get('error')}")
+            logger.info(f"[ALPHA-TRADER] Alpaca account error for {user_id[:8]}: {account.get('error')}")
             return MoneyTruthResponse(live=False, fallback_reason="alpaca_unreachable")
         positions = await client.get_positions(api_key, api_secret, paper)
     except Exception as exc:
-        logger.warning(f"[COCKPIT] Alpaca call failed for {user_id[:8]}: {exc}")
+        logger.warning(f"[ALPHA-TRADER] Alpaca call failed for {user_id[:8]}: {exc}")
         return MoneyTruthResponse(live=False, fallback_reason="alpaca_unreachable")
 
     # Normalize numeric fields. Alpaca returns strings; cast to float
@@ -184,14 +184,14 @@ async def get_money_truth(auth: UserClient) -> MoneyTruthResponse:
 
 
 # ---------------------------------------------------------------------------
-# Shared credential helper — DRY pattern for the three cockpit endpoints.
+# Shared credential helper — DRY pattern for the live-brokerage endpoints.
 # ---------------------------------------------------------------------------
 
 async def _get_alpaca_credentials(auth: UserClient):
     """Read + decrypt Alpaca credentials for the authed operator.
 
     Returns (api_key, api_secret, paper) or raises HTTPException on failure.
-    Used by all three Phase C cockpit endpoints.
+    Used by all three Phase C live-brokerage endpoints.
     """
     from integrations.core.tokens import get_token_manager
 
@@ -225,7 +225,7 @@ async def _get_alpaca_credentials(auth: UserClient):
 
 
 # ---------------------------------------------------------------------------
-# GET /cockpit/portfolio-history
+# GET /api/programs/alpha-trader/portfolio-history
 # ---------------------------------------------------------------------------
 
 @router.get("/portfolio-history")
@@ -252,12 +252,12 @@ async def get_portfolio_history(
             return {"live": False, "fallback_reason": "alpaca_unreachable", "data": None}
         return {"live": True, "paper": paper, "period": period, "timeframe": timeframe, "data": history}
     except Exception as exc:
-        logger.warning(f"[COCKPIT] portfolio_history failed for {auth.user_id[:8]}: {exc}")
+        logger.warning(f"[ALPHA-TRADER] portfolio_history failed for {auth.user_id[:8]}: {exc}")
         return {"live": False, "fallback_reason": "alpaca_unreachable", "data": None}
 
 
 # ---------------------------------------------------------------------------
-# GET /cockpit/positions
+# GET /api/programs/alpha-trader/positions
 # ---------------------------------------------------------------------------
 
 @router.get("/positions")
@@ -274,12 +274,12 @@ async def get_positions(auth: UserClient) -> Dict:
         positions = await client.get_positions(api_key, api_secret, paper)
         return {"live": True, "paper": paper, "positions": positions}
     except Exception as exc:
-        logger.warning(f"[COCKPIT] positions failed for {auth.user_id[:8]}: {exc}")
+        logger.warning(f"[ALPHA-TRADER] positions failed for {auth.user_id[:8]}: {exc}")
         return {"live": False, "fallback_reason": "alpaca_unreachable", "positions": []}
 
 
 # ---------------------------------------------------------------------------
-# GET /cockpit/recent-orders
+# GET /api/programs/alpha-trader/recent-orders
 # ---------------------------------------------------------------------------
 
 @router.get("/recent-orders")
@@ -299,7 +299,7 @@ async def get_recent_orders(
         orders = await client.list_orders(api_key, api_secret, paper, status="all", limit=limit)
         return {"live": True, "paper": paper, "orders": orders}
     except Exception as exc:
-        logger.warning(f"[COCKPIT] recent_orders failed for {auth.user_id[:8]}: {exc}")
+        logger.warning(f"[ALPHA-TRADER] recent_orders failed for {auth.user_id[:8]}: {exc}")
         return {"live": False, "fallback_reason": "alpaca_unreachable", "orders": []}
 
 
@@ -308,7 +308,7 @@ async def get_recent_orders(
 #
 # These three routes read workspace_files directly — no platform calls, no
 # LLM. They surface accumulated trading substrate (regime, per-ticker
-# indicators, signals + reviewer trail) to the FE cockpit sections.
+# indicators, signals + reviewer trail) to the FE Home program sections.
 #
 # Path conventions per alpha-trader bundle:
 #   /workspace/context/trading/_regime.yaml          — TrackRegime output (D3)
@@ -373,7 +373,7 @@ async def get_regime(auth: UserClient) -> Dict:
             .execute()
         )
     except Exception as exc:
-        logger.warning(f"[COCKPIT] regime read failed for {user_id[:8]}: {exc}")
+        logger.warning(f"[ALPHA-TRADER] regime read failed for {user_id[:8]}: {exc}")
         return {"live": False, "fallback_reason": "read_failed"}
 
     if not result.data:
@@ -429,7 +429,7 @@ async def get_indicators(
             .execute()
         )
     except Exception as exc:
-        logger.warning(f"[COCKPIT] indicators read failed for {user_id[:8]}/{ticker_upper}: {exc}")
+        logger.warning(f"[ALPHA-TRADER] indicators read failed for {user_id[:8]}/{ticker_upper}: {exc}")
         return {"live": False, "ticker": ticker_upper, "fallback_reason": "read_failed"}
 
     if not result.data:
@@ -506,7 +506,7 @@ async def get_signals(auth: UserClient, limit: int = 10) -> Dict:
             .execute()
         )
     except Exception as exc:
-        logger.warning(f"[COCKPIT] signals list failed for {user_id[:8]}: {exc}")
+        logger.warning(f"[ALPHA-TRADER] signals list failed for {user_id[:8]}: {exc}")
         return {
             "live": False,
             "fallback_reason": "read_failed",
@@ -609,70 +609,6 @@ def _extract_reviewer_decision(decisions_md: str, signal_slug: str) -> Optional[
         "excerpt": excerpt[:300],
     }
 
-
-# ---------------------------------------------------------------------------
-# ADR-298 Phase 5 — Pace + queue depth surface
-# ---------------------------------------------------------------------------
-
-
-class PaceResponse(BaseModel):
-    """ADR-298 D11 — operator pace + live queue depth for cockpit display.
-
-    Surfaces the Trigger-dimension dial of the Pace + Autonomy + Persona
-    trifecta (per ADR-298 D11) alongside the wake_queue depths (paced +
-    live) so the operator can see at a glance what's pending and at what
-    rate it will drain.
-    """
-
-    pace_kind: Optional[str] = None      # 'hourly' | 'daily' | 'weekly' | 'continuous' | None (no pace declared)
-    pace_every_iso: Optional[str] = None # numeric override (e.g., '4h'), preserved for display
-    fires_per_day_cap: Optional[float] = None  # drain rate ceiling, None for continuous / no pace
-    paced_lane_depth: int = 0           # pending count in the paced (cron) lane
-    live_lane_depth: int = 0            # pending count in the live (addressed/substrate/manual) lane
-
-
-@router.get("/pace", response_model=PaceResponse)
-async def get_pace(auth: UserClient) -> PaceResponse:
-    """Return operator's declared pace + current wake_queue depths.
-
-    Per ADR-298 D2 the queue is transient compute, not operator-readable
-    substrate — but `queue_depth` is a thin telemetry-only surface for
-    cockpit display (per D2 docstring). This endpoint composes that
-    helper with the operator's pace declaration.
-
-    When the operator has no `_pace.yaml`, returns `pace_kind=None` with
-    zeroed cap; the FE renders "no pace declared" copy.
-    """
-    from services.pace import PACE_FIRES_PER_DAY, read_pace
-    from services.wake_queue import queue_depth
-
-    try:
-        pace = await read_pace(auth.client, auth.user_id)
-    except Exception as exc:
-        logger.warning("[COCKPIT:pace] read_pace failed for %s: %s", auth.user_id[:8], exc)
-        pace = None
-
-    pace_kind = pace.kind if pace is not None else None
-    pace_every_iso = pace.every_iso if pace is not None else None
-    fires_cap: Optional[float] = None
-    if pace is not None and pace.kind != "continuous":
-        fires_cap = PACE_FIRES_PER_DAY[pace.kind]
-
-    try:
-        paced_depth = queue_depth(auth.client, user_id=auth.user_id, lane="paced")
-    except Exception as exc:
-        logger.warning("[COCKPIT:pace] paced queue_depth failed: %s", exc)
-        paced_depth = 0
-    try:
-        live_depth = queue_depth(auth.client, user_id=auth.user_id, lane="live")
-    except Exception as exc:
-        logger.warning("[COCKPIT:pace] live queue_depth failed: %s", exc)
-        live_depth = 0
-
-    return PaceResponse(
-        pace_kind=pace_kind,
-        pace_every_iso=pace_every_iso,
-        fires_per_day_cap=fires_cap,
-        paced_lane_depth=paced_depth,
-        live_lane_depth=live_depth,
-    )
+# Pace (ADR-298 Phase 5) moved to the kernel route api/routes/pace.py
+# (`GET /api/pace`) per ADR-312 D9 — pace is a kernel governance dial, not
+# trader-program data.

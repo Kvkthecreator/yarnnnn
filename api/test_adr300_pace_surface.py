@@ -23,7 +23,8 @@ ADR_FILE = REPO_ROOT / "docs" / "adr" / "ADR-300-pace-as-atomic-kernel-surface.m
 KERNEL_SURFACES = REPO_ROOT / "api" / "services" / "kernel_surfaces.py"
 WORKSPACE_PATHS = REPO_ROOT / "api" / "services" / "workspace_paths.py"
 PACE_SERVICE = REPO_ROOT / "api" / "services" / "pace.py"
-COCKPIT_ROUTE = REPO_ROOT / "api" / "routes" / "cockpit.py"
+# ADR-312 D9: pace folded from /api/cockpit/pace → kernel route /api/pace.
+PACE_ROUTE = REPO_ROOT / "api" / "routes" / "pace.py"
 
 # FE
 DESK_TYPES = REPO_ROOT / "web" / "types" / "desk.ts"
@@ -105,12 +106,14 @@ def assertion_4_pace_service_unchanged_no_new_write_helper():
 
 
 def assertion_5_no_put_pace_route():
-    """Cockpit route exposes GET /pace only — no PUT endpoint per ADR-300 D5+ADR-245."""
-    assert COCKPIT_ROUTE.exists(), f"missing: {COCKPIT_ROUTE}"
-    src = COCKPIT_ROUTE.read_text()
-    assert '@router.get("/pace"' in src, "GET /api/cockpit/pace must exist"
-    assert '@router.put("/pace"' not in src, \
-        "PUT /api/cockpit/pace must NOT exist — writes go via writeShape() per ADR-245 D5"
+    """Kernel pace route (/api/pace per ADR-312 D9) exposes GET only — no PUT
+    endpoint per ADR-300 D5 + ADR-245."""
+    assert PACE_ROUTE.exists(), f"missing: {PACE_ROUTE}"
+    src = PACE_ROUTE.read_text()
+    # The route is mounted at /api/pace, so the handler decorator is @router.get("").
+    assert '@router.get("")' in src or '@router.get("/")' in src, "GET /api/pace must exist"
+    assert "@router.put" not in src, \
+        "PUT /api/pace must NOT exist — writes go via writeShape() per ADR-245 D5"
 
 
 def assertion_6_fe_kernel_surface_slug_includes_pace():

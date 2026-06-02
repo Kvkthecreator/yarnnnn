@@ -68,7 +68,7 @@ _validate_environment()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, cockpit, mcp
+from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, pace, mcp
 
 app = FastAPI(
     title="YARNNN API",
@@ -132,11 +132,18 @@ app.include_router(proposals.router, prefix="/api", tags=["proposals"])
 # ADR-219 Commit 4: narrative filter-over-substrate for /work list view
 app.include_router(narrative.router, prefix="/api/narrative", tags=["narrative"])
 
-# ADR-225: cockpit composition surfaces (compositor's API-side resolver)
+# ADR-225: program composition surfaces (compositor's API-side resolver)
 app.include_router(programs.router, prefix="/api/programs", tags=["programs"])
 
-# ADR-242: cockpit operator-facing surfaces (Alpaca account snapshot etc.)
-app.include_router(cockpit.router, prefix="/api/cockpit", tags=["cockpit"])
+# ADR-312 D9: alpha-trader program data (live brokerage + trading substrate).
+# Renamed from /api/cockpit/* — trader data is program-scoped. Mounted at the
+# more-specific /api/programs/alpha-trader prefix (no collision with the
+# programs.router /surfaces|/activatable|/activate|/deactivate routes).
+app.include_router(alpha_trader.router, prefix="/api/programs/alpha-trader", tags=["alpha-trader"])
+
+# ADR-312 D9: pace is a kernel governance dial (not trader data) — folded
+# from /api/cockpit/pace to the kernel /api/pace location.
+app.include_router(pace.router, prefix="/api/pace", tags=["pace"])
 
 # ADR-310 D4: MCP OAuth login callback (binds Supabase user to pending auth code)
 app.include_router(mcp.router, prefix="/api/mcp", tags=["mcp"])

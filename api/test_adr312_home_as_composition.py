@@ -149,13 +149,66 @@ def test_four_face_fallback_deleted():
 
 
 # ---------------------------------------------------------------------------
-# 5 — cockpit-route fold (D9) — ADDED IN P5
+# 5 — cockpit-route fold (D9)
 # ---------------------------------------------------------------------------
-#
-# The route-fold assertions (no /api/cockpit/* survives; trader data under
-# /api/programs/alpha-trader/*; pace under kernel /api/pace) are added in
-# Phase 5 when the fold lands. They are intentionally absent here so P4
-# lands green before the route work.
+
+def test_cockpit_route_module_folded():
+    """ADR-312 D9: api/routes/cockpit.py is folded — trader data → alpha_trader
+    route, pace → kernel pace route. No cockpit route module survives."""
+    assert not (REPO_ROOT / "api" / "routes" / "cockpit.py").exists(), (
+        "ADR-312 D9: api/routes/cockpit.py must be folded into alpha_trader.py "
+        "(trader data) + pace.py (kernel governance) — no cockpit route survives."
+    )
+    assert (REPO_ROOT / "api" / "routes" / "alpha_trader.py").exists(), (
+        "ADR-312 D9: trader data routes live in api/routes/alpha_trader.py."
+    )
+    assert (REPO_ROOT / "api" / "routes" / "pace.py").exists(), (
+        "ADR-312 D9: pace folds to the kernel route api/routes/pace.py."
+    )
+
+
+def test_no_api_cockpit_mount_in_main():
+    """ADR-312 D9: main.py mounts alpha_trader at /api/programs/alpha-trader and
+    pace at /api/pace — no /api/cockpit router mount survives."""
+    main_src = _read(REPO_ROOT / "api" / "main.py")
+    # No live router mount on /api/cockpit. (Explanatory comments naming the
+    # old path are allowed; an include_router(... "/api/cockpit") is not.)
+    for line in main_src.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            continue
+        assert "/api/cockpit" not in stripped, (
+            f"ADR-312 D9: no live /api/cockpit mount may survive (found: {stripped!r})"
+        )
+    assert "/api/programs/alpha-trader" in main_src, (
+        "ADR-312 D9: alpha_trader router mounts at /api/programs/alpha-trader."
+    )
+    assert 'prefix="/api/pace"' in main_src, (
+        "ADR-312 D9: pace router mounts at the kernel /api/pace."
+    )
+
+
+def test_no_api_cockpit_callers_in_frontend():
+    """ADR-312 D9: the FE client + components call /api/programs/alpha-trader/*
+    and /api/pace — no live api.cockpit caller survives."""
+    import subprocess
+
+    web = REPO_ROOT / "web"
+    # Search for live `api.cockpit.` usages (the namespace was deleted).
+    # -F so the dots are literal (else /api/cockpit/ in doc tables matches).
+    result = subprocess.run(
+        ["grep", "-rnF", "api.cockpit.", str(web / "components"), str(web / "lib"), str(web / "app")],
+        capture_output=True,
+        text=True,
+    )
+    hits = [
+        ln for ln in result.stdout.splitlines()
+        if "node_modules" not in ln and "/README.md:" not in ln
+    ]
+    assert not hits, (
+        "ADR-312 D9: api.cockpit.* namespace deleted — callers use "
+        f"api.programs.alphaTrader.* / api.pace(). Survivors: {hits}"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +223,9 @@ def _run():
         test_ground_truth_hero_is_generic_not_trader,
         test_no_kernel_hardcoded_positions_label,
         test_four_face_fallback_deleted,
+        test_cockpit_route_module_folded,
+        test_no_api_cockpit_mount_in_main,
+        test_no_api_cockpit_callers_in_frontend,
     ]
     passed = 0
     failed = 0

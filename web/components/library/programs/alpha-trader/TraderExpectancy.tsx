@@ -8,7 +8,7 @@
  * the tenured intelligence the system has accumulated about which signals
  * generate P&L — the "are we getting better?" question.
  *
- * Data: api.cockpit.moneyTruth() → /api/cockpit/money-truth
+ * Data: api.programs.alphaTrader.moneyTruth() → /api/programs/alpha-trader/money-truth
  *       Reads the `by_signal` field of the response payload (written by
  *       services/outcomes/ledger.py per ADR-195). Reuses the existing
  *       money-truth route — no new endpoint per ADR-273 D3.
@@ -88,7 +88,7 @@ export function TraderExpectancy() {
         // client today only exposes the balances subset. Cast through unknown
         // to access the substrate field without altering the shared client
         // type contract.
-        const res = (await api.cockpit.moneyTruth()) as unknown as MoneyTruthWithSignals;
+        const res = (await api.programs.alphaTrader.moneyTruth()) as unknown as MoneyTruthWithSignals;
         if (!cancelled) setBySignal(res.by_signal ?? null);
       } catch {
         if (!cancelled) setBySignal(null);

@@ -6,7 +6,7 @@
  * Renders the live Alpaca brokerage state — equity headline + day Δ +
  * buying power + cash + open positions count.
  *
- * Data: api.cockpit.moneyTruth() → /api/cockpit/money-truth (Alpaca
+ * Data: api.programs.alphaTrader.moneyTruth() → /api/programs/alpha-trader/money-truth (Alpaca
  * /v2/account + /v2/positions, normalized for the FE).
  *
  * Scope split with TraderExpectancy (ADR-273 D4):
@@ -76,7 +76,7 @@ export function TraderMoneyTruth() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.cockpit.moneyTruth();
+        const res = await api.programs.alphaTrader.moneyTruth();
         if (!cancelled) setData(res as MoneyTruthData);
       } catch {
         if (!cancelled) setData({ live: false, fallback_reason: 'alpaca_unreachable' });

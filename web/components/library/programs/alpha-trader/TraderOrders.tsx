@@ -6,7 +6,7 @@
  * Recent orders table — symbol, type, side, qty, avg fill, status,
  * submitted-at. Matches Alpaca brokerage dashboard aesthetic.
  *
- * Data: api.cockpit.recentOrders(limit=10) → /api/cockpit/recent-orders
+ * Data: api.programs.alphaTrader.recentOrders(limit=10) → /api/programs/alpha-trader/recent-orders
  *
  * Graceful degradation: returns null when Alpaca not connected
  * (TraderPortfolio surfaces the canonical not-connected state).
@@ -65,7 +65,7 @@ export function TraderOrders() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.cockpit.recentOrders(10);
+        const res = await api.programs.alphaTrader.recentOrders(10);
         if (cancelled) return;
         if (!res.live && res.fallback_reason === 'no_platform_connection') {
           setNoConnection(true);

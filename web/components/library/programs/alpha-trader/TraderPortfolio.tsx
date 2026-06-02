@@ -6,8 +6,8 @@
  * Portfolio equity headline + time-series sparkline. Matches Alpaca's
  * brokerage dashboard aesthetic.
  *
- * Data: api.cockpit.portfolioHistory() → /api/cockpit/portfolio-history
- *       api.cockpit.moneyTruth()        → equity headline + day Δ
+ * Data: api.programs.alphaTrader.portfolioHistory() → /api/programs/alpha-trader/portfolio-history
+ *       api.programs.alphaTrader.moneyTruth()        → equity headline + day Δ
  *
  * Chart: minimal SVG sparkline. Recharts-style line chart kept
  * intentionally lightweight — the full Recharts bundle adds ~200KB; a
@@ -90,8 +90,8 @@ export function TraderPortfolio() {
     setLoading(true);
     const cfg = PERIOD_CONFIG[p];
     const [histRes, accountRes] = await Promise.allSettled([
-      api.cockpit.portfolioHistory(cfg.alpacaPeriod, cfg.alpacaTimeframe),
-      api.cockpit.moneyTruth(),
+      api.programs.alphaTrader.portfolioHistory(cfg.alpacaPeriod, cfg.alpacaTimeframe),
+      api.programs.alphaTrader.moneyTruth(),
     ]);
     if (
       histRes.status === 'fulfilled' && !histRes.value.live &&

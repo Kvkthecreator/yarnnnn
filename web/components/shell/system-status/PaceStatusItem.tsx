@@ -4,7 +4,7 @@
  * PaceStatusItem — pace + wake-queue depth chip in the agent-OS
  * menu-bar status cluster (ADR-297 D20, slot 2).
  *
- * Consumes api.cockpit.pace() (ADR-298 D2, ADR-300). Read-only popover;
+ * Consumes api.pace() (ADR-298 D2, ADR-300). Read-only popover;
  * mutations happen on the /pace atomic surface (ADR-300 D1).
  *
  * Replaces PaceBadge (deleted in same commit) — the pace indicator
@@ -60,7 +60,7 @@ export function PaceStatusItem() {
 
     const fetchPace = async () => {
       try {
-        const data = await api.cockpit.pace();
+        const data = await api.pace();
         if (!cancelled) {
           setState(data);
         }

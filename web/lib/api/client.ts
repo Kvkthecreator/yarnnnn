@@ -658,26 +658,13 @@ export const api = {
       }>("/api/programs/deactivate", {
         method: "POST",
       }),
-  },
 
-  // ADR-242 + ADR-243 Phase C: Cockpit live platform reads.
-  // Auth-scoped only — endpoints derive user_id from session, no path param.
-  cockpit: {
-    // ADR-298 Phase 5 — operator pace + live wake_queue depths.
-    // Pace is the Trigger-dimension dial of the Pace+Autonomy+Persona
-    // trifecta (D11). Queue depths are a thin telemetry surface (per
-    // ADR-298 D2 — the queue itself is not operator-readable substrate;
-    // only the depth aggregate is).
-    pace: () =>
-      request<{
-        pace_kind: 'hourly' | 'daily' | 'weekly' | 'continuous' | null;
-        pace_every_iso: string | null;
-        fires_per_day_cap: number | null;
-        paced_lane_depth: number;
-        live_lane_depth: number;
-      }>('/api/cockpit/pace'),
-
-    moneyTruth: () =>
+    // ADR-312 D9: alpha-trader program data (Home sections). Folded from
+    // the legacy /api/cockpit/* namespace into program scope. Auth-scoped
+    // only — endpoints derive user_id from session, no path param.
+    // ADR-242 + ADR-243 Phase C (live brokerage) + ADR-273 D3 (substrate).
+    alphaTrader: {
+      moneyTruth: () =>
       request<{
         live: boolean;
         provider?: string;
@@ -690,7 +677,7 @@ export const api = {
         positions_count?: number;
         as_of?: string;
         fallback_reason?: 'no_platform_connection' | 'alpaca_unreachable' | 'no_credentials';
-      }>("/api/cockpit/money-truth"),
+      }>("/api/programs/alpha-trader/money-truth"),
 
     // ADR-243 Phase C: portfolio equity history for TraderPortfolio chart.
     portfolioHistory: (period = '1M', timeframe = '1D') =>
@@ -707,7 +694,7 @@ export const api = {
           base_value: number;
         } | null;
         fallback_reason?: string;
-      }>(`/api/cockpit/portfolio-history?period=${period}&timeframe=${timeframe}`),
+      }>(`/api/programs/alpha-trader/portfolio-history?period=${period}&timeframe=${timeframe}`),
 
     // ADR-243 Phase C: open positions for TraderPositions.
     positions: () =>
@@ -727,7 +714,7 @@ export const api = {
           change_today: string;
         }>;
         fallback_reason?: string;
-      }>("/api/cockpit/positions"),
+      }>("/api/programs/alpha-trader/positions"),
 
     // ADR-243 Phase C: recent orders for TraderOrders.
     recentOrders: (limit = 10) =>
@@ -749,7 +736,7 @@ export const api = {
           filled_at?: string | null;
         }>;
         fallback_reason?: string;
-      }>(`/api/cockpit/recent-orders?limit=${limit}`),
+      }>(`/api/programs/alpha-trader/recent-orders?limit=${limit}`),
 
     // ADR-273 D3: substrate reads — accumulated trading intelligence.
     // Zero LLM, zero platform calls. Each route reads workspace_files
@@ -768,7 +755,7 @@ export const api = {
         spy_sma_50?: number;
         data_stale?: boolean;
         fallback_reason?: 'no_substrate' | 'parse_failed' | 'read_failed';
-      }>("/api/cockpit/regime"),
+      }>("/api/programs/alpha-trader/regime"),
 
     indicators: (ticker: string) =>
       request<{
@@ -783,7 +770,7 @@ export const api = {
         atr_14?: number;
         volume_20d_avg?: number;
         fallback_reason?: 'no_substrate' | 'parse_failed' | 'read_failed';
-      }>(`/api/cockpit/indicators?ticker=${encodeURIComponent(ticker)}`),
+      }>(`/api/programs/alpha-trader/indicators?ticker=${encodeURIComponent(ticker)}`),
 
     signals: (limit = 10) =>
       request<{
@@ -804,8 +791,23 @@ export const api = {
         }>;
         fallback_reason?: 'no_substrate' | 'read_failed';
         evaluator_last_run_at?: string | null;
-      }>(`/api/cockpit/signals?limit=${limit}`),
+      }>(`/api/programs/alpha-trader/signals?limit=${limit}`),
+    },
   },
+
+  // ADR-312 D9: pace is a KERNEL governance dial (not trader-program data).
+  // Folded from /api/cockpit/pace → /api/pace. Pace is the Trigger-dimension
+  // dial of the Pace+Autonomy+Persona trifecta (ADR-298 D11). Queue depths
+  // are a thin telemetry surface (per ADR-298 D2 — the queue itself is not
+  // operator-readable substrate; only the depth aggregate is).
+  pace: () =>
+    request<{
+      pace_kind: 'hourly' | 'daily' | 'weekly' | 'continuous' | null;
+      pace_every_iso: string | null;
+      fires_per_day_cap: number | null;
+      paced_lane_depth: number;
+      live_lane_depth: number;
+    }>('/api/pace'),
 
   // ADR-231: Recurrences endpoints (was `tasks`; renamed in Phase 3.8)
   recurrences: {

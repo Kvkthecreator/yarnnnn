@@ -8,10 +8,10 @@
  * gap between "live brokerage state" and "what the system has
  * accumulated about each instrument."
  *
- * Live data: `api.cockpit.positions()` → /api/cockpit/positions
+ * Live data: `api.programs.alphaTrader.positions()` → /api/programs/alpha-trader/positions
  *            → Alpaca /v2/positions for the operator's account
  *
- * Substrate: `api.cockpit.indicators({ticker})` → /workspace/context/trading/{TICKER}.yaml
+ * Substrate: `api.programs.alphaTrader.indicators({ticker})` → /workspace/context/trading/{TICKER}.yaml
  *            → SMA/RSI/ATR/volume from the TrackUniverse mechanical mirror
  *
  * Per-row enrichment:
@@ -103,7 +103,7 @@ export function TraderPositions() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.cockpit.positions();
+        const res = await api.programs.alphaTrader.positions();
         if (cancelled) return;
         if (!res.live && res.fallback_reason === 'no_platform_connection') {
           setNoConnection(true);
@@ -116,7 +116,7 @@ export function TraderPositions() {
         const tickers = res.positions.map(p => p.symbol);
         if (tickers.length > 0) {
           const indResults = await Promise.allSettled(
-            tickers.map(t => api.cockpit.indicators(t))
+            tickers.map(t => api.programs.alphaTrader.indicators(t))
           );
           if (cancelled) return;
           const indMap: Record<string, IndicatorContext> = {};

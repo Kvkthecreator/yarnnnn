@@ -7,7 +7,7 @@
  * tells the operator what the tape is doing today. Single sentence,
  * high signal-to-pixel.
  *
- * Data: api.cockpit.regime() → /workspace/context/trading/_regime.yaml
+ * Data: api.programs.alphaTrader.regime() → /workspace/context/trading/_regime.yaml
  *       (written by the TrackRegime primitive per ADR-271 Thread A).
  *
  * The regime predicate has two axes:
@@ -28,7 +28,7 @@ import { Activity, AlertCircle, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
-type Regime = Awaited<ReturnType<typeof api.cockpit.regime>>;
+type Regime = Awaited<ReturnType<typeof api.programs.alphaTrader.regime>>;
 
 function describeRegime(r: Regime): { headline: string; tone: 'risk-on' | 'risk-off' | 'neutral' } {
   if (!r.trend_regime) return { headline: 'No regime read', tone: 'neutral' };
@@ -71,7 +71,7 @@ export function TraderRegime() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await api.cockpit.regime();
+        const res = await api.programs.alphaTrader.regime();
         if (!cancelled) setData(res);
       } catch {
         if (!cancelled) setData({ live: false, fallback_reason: 'read_failed' });

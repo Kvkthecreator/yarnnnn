@@ -28,12 +28,12 @@ web/components/library/
         └── TraderOrders.tsx
 ```
 
-**Kernel-general components** at the library root render for every workspace regardless of active program. **Program-specific components** at `programs/{slug}/` render only when their SURFACES.yaml declares them in `cockpit.program_sections[]`. Future programs (alpha-commerce, alpha-defi) each get their own `programs/{slug}/` subdirectory, mirroring `docs/programs/{slug}/` on the backend.
+**Kernel-general components** at the library root render for every workspace regardless of active program. **Program-specific components** at `programs/{slug}/` render only when their SURFACES.yaml declares them in `home.program_sections[]` (the composition key renamed `cockpit`→`home` per ADR-312 D2). Future programs (alpha-commerce, alpha-defi) each get their own `programs/{slug}/` subdirectory, mirroring `docs/programs/{slug}/` on the backend.
 
 ## Discipline
 
 - **Each component is a TSX file with the same name as the SURFACES.yaml `kind` field.** `kind: TraderPortfolio` → `programs/alpha-trader/TraderPortfolio.tsx`.
-- **Components accept a `binding` prop** matching one of the 6 binding-type taxonomy shapes (`file | frontmatter | task_output | action_proposals | narrative | directory` per ADR-225 §2). They fetch+render via existing hooks (`useTaskOutputs`, `useWorkspaceFile`, etc.) — or call dedicated cockpit API routes (`/api/cockpit/{regime,signals,indicators,money-truth,positions,portfolio-history,recent-orders}`).
+- **Components accept a `binding` prop** matching one of the 6 binding-type taxonomy shapes (`file | frontmatter | task_output | action_proposals | narrative | directory` per ADR-225 §2). They fetch+render via existing hooks (`useTaskOutputs`, `useWorkspaceFile`, etc.) — or call dedicated program-data API routes (`/api/programs/alpha-trader/{regime,signals,indicators,money-truth,positions,portfolio-history,recent-orders}` per ADR-312 D9; pace is the kernel `/api/pace`).
 - **Components are PURE READERS in both compose modes.** Surface compose: live binding, re-rendered per load. Document compose: frozen snapshot at compose time. Same render, different data freshness. **Components do not mutate.** Operator interactions that mutate (approve, reject, edit) flow through existing primitive surfaces.
 - **Components are additive-only.** Removing a component is breaking and requires a deprecation cycle with ADR ratification.
 - **No new component shipped without a bundle (or kernel-default middle) that uses it.** The library grows because programs demand it, not on speculation.
@@ -41,15 +41,17 @@ web/components/library/
 
 ## Current set (alpha-trader, post-ADR-273 Phase 5)
 
+All program-data routes mounted at `/api/programs/alpha-trader/*` per ADR-312 D9.
+
 | Component | Path | Used by | Binding shape |
 |---|---|---|---|
-| `TraderRegime` | `programs/alpha-trader/TraderRegime.tsx` | cockpit program_sections (order: 1) | `/api/cockpit/regime` |
-| `TraderPortfolio` | `programs/alpha-trader/TraderPortfolio.tsx` | cockpit program_sections (order: 2) | `/api/cockpit/portfolio-history` + `/money-truth` |
-| `TraderMoneyTruth` | `programs/alpha-trader/TraderMoneyTruth.tsx` | cockpit program_sections (order: 3) | `/api/cockpit/money-truth` |
-| `TraderExpectancy` | `programs/alpha-trader/TraderExpectancy.tsx` | cockpit program_sections (order: 4) | `/api/cockpit/money-truth.by_signal` |
-| `TraderPositions` | `programs/alpha-trader/TraderPositions.tsx` | cockpit program_sections (order: 5) | `/api/cockpit/positions` + `/indicators` |
-| `TraderSignals` | `programs/alpha-trader/TraderSignals.tsx` | cockpit program_sections (order: 6) | `/api/cockpit/signals` |
-| `TraderOrders` | `programs/alpha-trader/TraderOrders.tsx` | cockpit program_sections (order: 7) | `/api/cockpit/recent-orders` |
+| `TraderRegime` | `programs/alpha-trader/TraderRegime.tsx` | home program_sections (order: 1) | `/api/programs/alpha-trader/regime` |
+| `TraderPortfolio` | `programs/alpha-trader/TraderPortfolio.tsx` | home program_sections (order: 2) | `…/portfolio-history` + `…/money-truth` |
+| `TraderMoneyTruth` | `programs/alpha-trader/TraderMoneyTruth.tsx` | home program_sections (order: 3) | `…/money-truth` |
+| `TraderExpectancy` | `programs/alpha-trader/TraderExpectancy.tsx` | home program_sections (order: 4) | `…/money-truth.by_signal` |
+| `TraderPositions` | `programs/alpha-trader/TraderPositions.tsx` | home program_sections (order: 5) | `…/positions` + `…/indicators` |
+| `TraderSignals` | `programs/alpha-trader/TraderSignals.tsx` | home program_sections (order: 6) | `…/signals` |
+| `TraderOrders` | `programs/alpha-trader/TraderOrders.tsx` | home program_sections (order: 7) | `…/recent-orders` |
 
 ## Future expansion (deferred until needed)
 
