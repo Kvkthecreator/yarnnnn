@@ -20,10 +20,13 @@
 // pages to atomic kernel surfaces — reverses D19.7. Inside the
 // authenticated workspace, every surface is a window.
 // ADR-312 D1 (2026-06-02): `cockpit` slug renamed → `home`.
+// 2026-06-03: `cadence` slug renamed → `recurrence` (substrate already
+// spoke "recurrence"; only the surface label lagged). /cadence is a
+// redirect stub.
 export type KernelSurfaceSlug =
   | 'feed'
   | 'home'
-  | 'cadence'
+  | 'recurrence'
   | 'pace'
   | 'autonomy'
   | 'mandate'
@@ -40,7 +43,7 @@ export type KernelSurfaceSlug =
 export type DeskSurface =
   // ADR-297: atomic kernel surface — slug identifies which surface
   // component to mount; params carry optional deep-link state
-  // (e.g. `task` slug on cadence, `agent` slug on agents).
+  // (e.g. `task` slug on recurrence, `agent` slug on agents).
   | { type: 'atomic'; slug: KernelSurfaceSlug; params?: Record<string, string> }
   // Legacy surface kinds — predate ADR-297 and remain in use by the
   // NarrativeContext handoff machinery + signal-shaped deep-links.
@@ -60,7 +63,7 @@ export type DeskSurface =
   | { type: 'idle' };
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
-  'feed', 'home', 'cadence', 'pace', 'autonomy', 'mandate', 'principles',
+  'feed', 'home', 'recurrence', 'pace', 'autonomy', 'mandate', 'principles',
   'identity', 'files', 'agents', 'program', 'queue', 'activity',
   'settings', 'connectors',
 ] as const;

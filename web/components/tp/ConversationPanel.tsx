@@ -10,7 +10,7 @@
  * operations events belong to the FeedTimeline, not the Conversation.
  *
  * Mount contexts (ADR-289 D7):
- *   - Right panel on /cadence, /agents, /files (via
+ *   - Right panel on /recurrence, /agents, /files (via
  *     ThreePanelLayout.conversation prop)
  *   - Drawer on /feed (ConversationDrawer slide-over)
  *

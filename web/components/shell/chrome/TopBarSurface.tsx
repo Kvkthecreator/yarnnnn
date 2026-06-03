@@ -306,8 +306,14 @@ export function TopBarSurface() {
           logo + marketing site) for brand recognition vs Apple's
           mature-OS minimal icon. Click → /desktop (HOME_ROUTE).
           shrink-0 + fixed width so it doesn't compress when the
-          center Dock has many icons. */}
-      <div className="flex shrink-0 items-center">
+          center Dock has many icons.
+
+          2026-06-03: hidden on phones (< sm). The wordmark eats the
+          fixed-width real estate the center Dock needs on narrow
+          screens — the Dock could overflow-scroll behind it. The
+          Desktop is still reachable on mobile via the Dock + Launcher;
+          the brand mark is a desktop-class affordance. */}
+      <div className="hidden sm:flex shrink-0 items-center">
         <button
           onClick={navigateToHome}
           aria-label="yarnnn — go to Desktop"

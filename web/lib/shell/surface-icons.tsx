@@ -12,11 +12,11 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Activity,
-  ActivitySquare,
   Box,
   Clock,
   FolderOpen,
   Gauge,
+  Home,
   Inbox,
   Link2,
   MessageCircle,
@@ -42,6 +42,10 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // Singular Implementation: one canonical icon per surface, used
   // everywhere it surfaces (Dock, Launcher, status cluster).
   gauge: Gauge,
+  // 2026-06-03: home glyph for the Home surface (post ADR-312
+  // cockpit→home rename). Replaces square-activity, which no longer
+  // matched the surface name.
+  home: Home,
   inbox: Inbox,
   // ADR-297 D19.5.2 (2026-05-22): layout-dashboard DELETED. Was only
   // mapped to Cockpit; swapped to square-activity to disambiguate
@@ -61,12 +65,6 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   'scroll-text': ScrollText,
   settings: Settings,
   'shield-check': ShieldCheck,
-  // ADR-297 D19.5.2 (2026-05-22): Cockpit icon. Box-with-pulse-line
-  // glyph (macOS Activity Monitor shape); distinct from layout-grid.
-  // ActivitySquare is the older lucide name for the same glyph shipped
-  // as SquareActivity in newer versions — pinned to ActivitySquare per
-  // installed lucide-react version.
-  'square-activity': ActivitySquare,
   target: Target,
   'user-circle': UserCircle,
   users: Users,

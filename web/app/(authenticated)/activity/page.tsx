@@ -212,11 +212,12 @@ function JobCard({ group, defaultOpen = false }: { group: JobGroup; defaultOpen?
           )}
         </div>
 
-        {/* Declaration-lens deep-link — routes to /cadence?task={slug}
+        {/* Declaration-lens deep-link — routes to /recurrence?task={slug}
             where the operator can run / pause / edit the recurrence
-            (post-ADR-297 atomic Cadence surface; /work dissolved). */}
+            (atomic Recurrence surface; /work dissolved, Cadence renamed
+            → Recurrence 2026-06-03). */}
         <Link
-          href={`/cadence?task=${encodeURIComponent(group.slug)}`}
+          href={`/recurrence?task=${encodeURIComponent(group.slug)}`}
           onClick={(e) => e.stopPropagation()}
           className="shrink-0 text-[10px] text-muted-foreground/40 hover:text-foreground hover:underline underline-offset-4 transition-colors"
           title="Manage this recurrence (declaration view + run / pause / edit)"

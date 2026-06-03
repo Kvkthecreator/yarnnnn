@@ -11,11 +11,11 @@ import { HOME_ROUTE } from "@/lib/routes";
 //   empty-state welcome copy. Per-slug routes (/feed, /cadence, etc.) survive
 //   as deep-link transports for direct surface mounting.
 //
-// Atomic surface slugs are also top-level URLs: /feed /home /cadence
+// Atomic surface slugs are also top-level URLs: /feed /home /recurrence
 // /pace /autonomy /mandate /principles /identity /files
 // /agents /program /queue /activity. Each is a protected route + a deep-link
 // transport — cold-load opens that surface in a window. (/home renamed from
-// /cockpit per ADR-312 D1.)
+// /cockpit per ADR-312 D1; /recurrence renamed from /cadence 2026-06-03.)
 // /delegation is a redirect stub → /autonomy (2026-05-24 surface rename).
 // /chat is a redirect stub → /feed (ADR-259 — preserves bookmarks).
 // /overview was absorbed into the Home composition; ADR-225 Phase 3 +
@@ -27,7 +27,8 @@ import { HOME_ROUTE } from "@/lib/routes";
 const PROTECTED_PREFIXES = [
   "/desktop", // ADR-297 §D17 — authenticated boot route
   "/feed",
-  "/cadence", // ADR-297 — absorbed /work (recurrence list + task detail)
+  "/recurrence", // ADR-297 — absorbed /work (recurrence list + task detail); renamed from /cadence 2026-06-03
+  "/cadence", // redirect stub → /recurrence (2026-06-03 — surface rename)
   "/agents",
   "/files",
   "/context", // redirect stub → /files (2026-06-01 — slug/route/label coherence)

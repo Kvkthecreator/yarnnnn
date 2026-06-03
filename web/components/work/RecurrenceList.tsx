@@ -1,11 +1,16 @@
 'use client';
 
 /**
- * CadenceList — Atomic Cadence surface body (ADR-297 D1).
+ * RecurrenceList — Atomic Recurrence surface body (ADR-297 D1).
  *
  * Renders all recurrences cadence-grouped (Recurring / Reactive) with
  * search, agent filter, and include-historical toggle. Answers the
  * operator's question "what runs, and when?"
+ *
+ * "Cadence" survives here as the temporal-classification concept
+ * (cadenceCategory: Recurring vs Reactive grouping) — distinct from the
+ * surface name, which is Recurrence (renamed from Cadence 2026-06-03;
+ * the substrate + hooks already spoke "recurrence").
  *
  * System/back-office recurrences are hidden by default (visible via
  * include-historical toggle in the overflow menu). Connector vs user-
@@ -14,8 +19,8 @@
  *
  * Renamed from WorkListSurface in the ADR-297 atomic-shell migration.
  * The former Dashboard tab dissolved — cockpit rendering lives at the
- * dedicated /cockpit atomic surface. Cockpit-slot + activeTab + WorkTab
- * concepts all removed; this is a single-mode list surface now.
+ * dedicated /home atomic surface (ADR-312). Cockpit-slot + activeTab +
+ * WorkTab concepts all removed; this is a single-mode list surface now.
  */
 
 import { useRef, useEffect, useMemo, useState } from 'react';
@@ -43,7 +48,7 @@ import type { Recurrence, Agent, NarrativeByTaskSlice } from '@/types';
 import { BundleBanner } from '@/components/library/BundleBanner';
 import { useComposition, getTab } from '@/lib/compositor';
 
-interface CadenceListProps {
+interface RecurrenceListProps {
   tasks: Recurrence[];
   agents: Agent[];
   narrativeByTask: Map<string, NarrativeByTaskSlice>;
@@ -190,7 +195,7 @@ function OverflowOptions({
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-export function CadenceList({
+export function RecurrenceList({
   tasks,
   agents,
   narrativeByTask,
@@ -198,7 +203,7 @@ export function CadenceList({
   dataError,
   onClearAgentFilter,
   onSelect,
-}: CadenceListProps) {
+}: RecurrenceListProps) {
   const [search, setSearch] = useState('');
   const [includeSystem, setIncludeSystem] = useState(false);
   const [includeHistorical, setIncludeHistorical] = useState(false);
@@ -276,7 +281,7 @@ export function CadenceList({
         {/* Bundle banner — operator-facing posture string from the active
             program's SURFACES.yaml. Optional; renders nothing when the
             bundle declares no banner. Kept here so program-shipped
-            context still surfaces on the Cadence list. */}
+            context still surfaces on the Recurrence list. */}
         <BundleBanner tab="work" />
 
         {/* Search + agent filter + pace badge + overflow */}

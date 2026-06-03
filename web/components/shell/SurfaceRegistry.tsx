@@ -23,7 +23,7 @@ import type { KernelSurfaceSlug } from '@/types/desk';
 
 import FeedPage from '@/app/(authenticated)/feed/page';
 import HomePage from '@/app/(authenticated)/home/page';
-import CadencePage from '@/app/(authenticated)/cadence/page';
+import RecurrencePage from '@/app/(authenticated)/recurrence/page';
 import PacePage from '@/app/(authenticated)/pace/page';
 import AutonomyPage from '@/app/(authenticated)/autonomy/page';
 import MandatePage from '@/app/(authenticated)/mandate/page';
@@ -45,7 +45,7 @@ import ConnectorsPage from '@/app/(authenticated)/connectors/page';
 export const KERNEL_SURFACE_REGISTRY: Record<KernelSurfaceSlug, ComponentType> = {
   feed: FeedPage,
   home: HomePage,
-  cadence: CadencePage,
+  recurrence: RecurrencePage,
   pace: PacePage,
   autonomy: AutonomyPage,
   // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone

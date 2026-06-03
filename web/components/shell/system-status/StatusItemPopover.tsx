@@ -128,7 +128,13 @@ export function StatusItemPopover({
       {isOpen && (
         <div
           style={{ zIndex: Z_POPOVER }}
-          className="absolute top-full right-0 mt-1 w-72 bg-background border border-border rounded-lg shadow-lg overflow-hidden"
+          // 2026-06-03: `max-w-[calc(100vw-1rem)]` clamps the 18rem
+          // popover to the viewport on phones. Pre-fix the fixed w-72
+          // anchored right-0 to a ~24px-wide trigger overflowed the LEFT
+          // viewport edge on narrow screens — the popover read as
+          // "crossing the screen" and was clipped/unreadable. The right
+          // edge stays pinned to the trigger; only the left edge clamps.
+          className="absolute top-full right-0 mt-1 w-72 max-w-[calc(100vw-1rem)] bg-background border border-border rounded-lg shadow-lg overflow-hidden"
           role="dialog"
         >
           <div className="px-3 py-2 border-b border-border bg-muted/30">

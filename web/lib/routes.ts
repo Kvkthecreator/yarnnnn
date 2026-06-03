@@ -9,7 +9,7 @@
 // the Feed surface on login. D17 ratifies the YARNNN Agent OS boot model:
 // login boots to the Desktop layer. Last-session windows restore from the
 // open-surfaces registry (D13). Empty registry → empty Desktop with context-
-// aware welcome copy. Per-slug routes (/feed, /cadence, etc.) survive as
+// aware welcome copy. Per-slug routes (/feed, /recurrence, etc.) survive as
 // deep-link transports.
 //
 // Current nav: Feed | Work | Agents | Files
@@ -46,7 +46,8 @@
 //   /chat          → /feed                             (ADR-259 — surface rename)
 //   /orchestrator  → /feed                             (ADR-163, ADR-205 F1)
 //   /team          → /agents                           (ADR-214 — reverses ADR-201)
-//   /overview      → /cadence                          (ADR-205 F2; ADR-297 dissolved /work → Cadence)
+//   /overview      → /recurrence                       (ADR-205 F2; ADR-297 dissolved /work → Cadence; renamed → Recurrence 2026-06-03)
+//   /cadence       → /recurrence                       (2026-06-03 — surface rename; substrate already spoke "recurrence")
 //   /workfloor     → /feed                             (ADR-163)
 //   /memory        → /files?path=...IDENTITY.md        (ADR-215 R3)
 //   /context       → /files                            (2026-06-01 — slug/route/label coherence)
@@ -57,18 +58,18 @@
 // =============================================================================
 // ADR-297 §D17 (2026-05-22): HOME_ROUTE flips /feed → /desktop. The
 // authenticated Desktop layer is the canonical landing route; per-slug
-// routes (FEED_ROUTE, /cadence, /mandate, etc.) survive as deep-link
+// routes (FEED_ROUTE, /recurrence, /mandate, etc.) survive as deep-link
 // transports for direct surface mounting.
 export const HOME_ROUTE = "/desktop";
 export const HOME_LABEL = "Desktop";
 export const DESKTOP_ROUTE = "/desktop";
 export const FEED_ROUTE = "/feed";
 // ADR-297: /work dissolved — recurrence list + task detail folded into
-// the Cadence surface. WORK_ROUTE repointed to /cadence so the surviving
-// deep-links (`?task=`) resolve to the live surface. Both consumers
-// (AgentContentView task links, /overview redirect stub) heal via this
-// single repoint.
-export const WORK_ROUTE = "/cadence";
+// the Recurrence surface (renamed from Cadence 2026-06-03). WORK_ROUTE
+// repointed to /recurrence so the surviving deep-links (`?task=`)
+// resolve to the live surface. Both consumers (AgentContentView task
+// links, /overview redirect stub) heal via this single repoint.
+export const WORK_ROUTE = "/recurrence";
 export const AGENTS_ROUTE = "/agents"; // ADR-214 — canonical (reverses ADR-201 /team rename).
 // Files surface — slug `files`, route `/files`. Legacy `/context` is a
 // redirect stub (2026-06-01). The substrate path `/workspace/context/…`

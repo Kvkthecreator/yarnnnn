@@ -189,9 +189,10 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
   //
   // ADR-297 D19.5 (navigation enactment): the legacy DeskSurface kinds
   // map to atomic kernel surfaces via navigateToSurface — window-opening,
-  // not router.push route-replacement. The task-detail → 'cadence' slug
+  // not router.push route-replacement. The task-detail → 'recurrence' slug
   // corrects the prior wrong mapping (it pushed to /agents, a relic from
-  // before /work dissolved into Cadence per ADR-297 D1).
+  // before /work dissolved into the Recurrence surface per ADR-297 D1;
+  // surface renamed Cadence → Recurrence 2026-06-03).
   const handleSurfaceChange = useCallback(
     (newSurface: DeskSurface, handoffMessage?: string) => {
       switch (newSurface.type) {
@@ -202,7 +203,7 @@ function AuthenticatedLayoutInner({ children }: { children: React.ReactNode }) {
           navigateToSurface('agents', { agent: newSurface.agentId });
           return;
         case 'task-detail':
-          navigateToSurface('cadence', { task: newSurface.taskSlug });
+          navigateToSurface('recurrence', { task: newSurface.taskSlug });
           return;
         case 'document-list':
         case 'platform-list':

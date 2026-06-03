@@ -178,19 +178,25 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
             "/workspace/context/_shared/_performance.md",
             "/workspace/context/_shared/_performance_summary.md",
         ],
-        # ADR-297 D19.5.2 (2026-05-22): square-activity glyph (macOS Activity
-        # Monitor shape) — reads as "live operations monitor," semantically
-        # right for the Home's role and visually distinct from the Launcher's
-        # LayoutGrid. (Kept through the ADR-312 home rename.)
-        "icon_key": "square-activity",
+        # 2026-06-03: icon → `home`. Post the ADR-312 cockpit→home rename the
+        # square-activity glyph (a "live operations monitor" shape) no longer
+        # matched the surface's name or operator mental model. The literal
+        # home glyph reads unambiguously as "the home surface."
+        "icon_key": "home",
         "default_pinned": False,
         "route": "/home",  # ADR-312 D1 (was /cockpit)
         "summary": "The operation, rendered — constitution, ground-truth, decision queue, live entities, recent artifacts, judgment trail. Composition over the workspace's present constituents.",
     },
     {
-        "slug": "cadence",
+        # Renamed cadence → recurrence (2026-06-03). The surface's
+        # substrate, hooks (useRecurrenceDetail), and detail logic already
+        # spoke "recurrence" everywhere — only the surface label/slug/route
+        # lagged. "Cadence" survives as a temporal-classification concept
+        # (Recurring vs Reactive grouping; Pace's tempo tagline), NOT as
+        # this surface's name. /cadence kept as a redirect stub.
+        "slug": "recurrence",
         "register": "application",  # ADR-309 two-register model
-        "title": "Cadence",
+        "title": "Recurrence",
         "archetype": "dashboard",
         "substrate_paths": [
             "/workspace/_recurrences.yaml",
@@ -199,15 +205,15 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         ],
         "icon_key": "clock",
         "default_pinned": False,
-        "route": "/cadence",  # _route_status: NEW in Phase 2 — Phase 1 emits the surface, route is built by shell-rebuild PR
+        "route": "/recurrence",
         "summary": "Recurrences, substrate-event hooks, standing intent, and wake telemetry.",
     },
     {
         # ADR-300 (2026-05-22) — pace promoted from cockpit-tab section
         # (ADR-298 D5 original) to atomic kernel surface. Document archetype,
         # operator-only edit, mirrors /autonomy's shape. Slotted between
-        # /cadence and /autonomy to keep Trigger-dimension surfaces
-        # (Cadence + Pace) adjacent before transitioning into Mechanism
+        # /recurrence and /autonomy to keep Trigger-dimension surfaces
+        # (Recurrence + Pace) adjacent before transitioning into Mechanism
         # (Autonomy) and Identity (Identity / Brand / Principles) per
         # axiom order. (/autonomy was renamed from /delegation 2026-05-24.)
         "slug": "pace",

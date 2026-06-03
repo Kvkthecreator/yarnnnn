@@ -13,10 +13,11 @@
  * analog): runway state is operator-critical, deserves persistent
  * visibility.
  *
- * Icon discipline (ADR-297 D20 amendment 2026-05-25): unlike the other
- * three chips, Balance has NO atomic kernel surface — its edit target
- * is /settings?tab=billing (intra-surface deep-link). Lucide's `Zap`
- * (lightning/battery analog) is the local canonical glyph, registered
+ * Icon discipline (ADR-297 D20 amendment 2026-05-25; icon updated
+ * 2026-06-03): unlike the other three chips, Balance has NO atomic
+ * kernel surface — its edit target is /settings?tab=billing
+ * (intra-surface deep-link). Lucide's `CreditCard` is the local
+ * canonical glyph (matching the Billing tab it opens), registered
  * inline here rather than via the kernel surface-icons registry. If a
  * future ADR promotes Balance to its own atomic surface, the icon
  * declaration moves to kernel_surfaces.py + surface-icons.tsx and this
@@ -24,7 +25,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { Zap, Loader2 } from 'lucide-react';
+import { CreditCard, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { StatusItemPopover, type StatusTone } from './StatusItemPopover';
 
@@ -86,7 +87,7 @@ export function BalanceStatusItem() {
 
   const popoverHeader = (
     <div className="flex items-center gap-2">
-      <Zap className="w-3.5 h-3.5 shrink-0" />
+      <CreditCard className="w-3.5 h-3.5 shrink-0" />
       <span className="text-sm font-medium">{balanceLabel}</span>
       {state.is_subscriber && (
         <span className="text-xs text-muted-foreground">· Pro</span>
@@ -126,7 +127,7 @@ export function BalanceStatusItem() {
 
   return (
     <StatusItemPopover
-      icon={Zap}
+      icon={CreditCard}
       tooltip={tooltip}
       tone={tone}
       ariaLabel="Workspace balance"

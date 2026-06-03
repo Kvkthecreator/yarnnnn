@@ -8,7 +8,7 @@
  * mutations happen on the /pace atomic surface (ADR-300 D1).
  *
  * Replaces PaceBadge (deleted in same commit) — the pace indicator
- * moves from /cadence-only chrome to kernel chrome (every surface).
+ * moves from /recurrence-only chrome to kernel chrome (every surface).
  *
  * Per ADR-298 D2 the queue itself is NOT operator-readable substrate;
  * only the aggregate depth is surfaced.

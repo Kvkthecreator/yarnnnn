@@ -113,7 +113,7 @@ def test_kernel_surfaces_module() -> None:
     expected_slugs = {
         "feed",
         "home",  # ADR-312 D1 — renamed from `cockpit` (was ADR-297 D1)
-        "cadence",
+        "recurrence",  # 2026-06-03 — renamed from `cadence` (substrate already spoke "recurrence")
         "pace",  # ADR-300 (2026-05-22) — atomic Pace surface
         "autonomy",  # 2026-05-24 design polish — renamed from "delegation"
         "mandate",
