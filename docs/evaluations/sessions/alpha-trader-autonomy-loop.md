@@ -18,17 +18,17 @@ Companion thread: `alpha-author-autonomy-loop.md` — same shape, substrate-cont
 Canonical per [FOUNDATIONS Derived Principle 21](../../architecture/FOUNDATIONS.md). This thread validates the line under the **capital-execution archetype** — real (paper) money, real consequences, real reconciliation. Clause-to-substrate map: [`docs/alpha/ALPHA-1-PLAYBOOK.md` §0](../../alpha/ALPHA-1-PLAYBOOK.md#0-the-architectural-success-criterion-the-one-liner).
 
 A real operator, on an activated alpha-trader workspace with Alpaca paper credentials connected, has:
-- Mechanical mirrors (track-account, track-universe, track-regime, track-positions, track-orders) keeping substrate fresh on schedule
-- signal-evaluation recurrence firing at market_open + 15min, detecting matches against operator-declared signals
-- trade-proposal recurrence emitting ProposeAction when signal conditions warrant capital action
+- Mechanical mirrors (track-account, track-universe, track-regime, track-positions, track-orders, mirror-signal-state) keeping substrate fresh on schedule
+- signal-evaluation recurrence firing at @market_open + 15min, detecting matches against operator-declared signals AND emitting ProposeAction INLINE when an entry signal or exit trigger fires (per ADR-296 v2 D3 — the standalone `trade-proposal` recurrence was dissolved into signal-evaluation's inline emit)
 - Reviewer wake on proposal-arrival reactive trigger, reading governance + ground-truth substrate + per-ticker state
-- Reviewer reaching approve/reject/defer verdict within 3-round Sonnet budget (per ADR-260 / ADR-256)
+- Reviewer reaching approve/reject/defer verdict (per ADR-260 / ADR-256 — Sonnet for proposal-arrival capital decisions)
 - `should_auto_apply(action_class="capital")` returning True under autonomous → `handle_execute_proposal` invoked
-- risk_gate.compute_risk_state validating against live envelope → Alpaca paper order submitted (or correctly refused for envelope violations)
-- outcome-reconciliation recurrence reading order outcomes from Alpaca, folding into `_money_truth.md` per FOUNDATIONS Axiom 8
+- risk_gate validating against live envelope (DST-/holiday-correct market-hours gate via NyseUsCalendar per the 2026-06-04 temporal finding) → Alpaca paper order submitted (or correctly refused for envelope violations)
+- outcome-reconciliation recurrence (@market_close + 1h, judgment mode) reading order outcomes from Alpaca, folding into `_money_truth.md` per FOUNDATIONS Axiom 8, closing with ReturnVerdict + forward-looking standing_intent
+- **the daily P&L confirmation sent ALONE**: the outcome-reconciliation judgment triggers the ADR-317 post-judgment dispatcher, which composes + sends the EOD P&L email via the system Resend wire (Reviewer triggers; dispatcher sends — the email tool is NOT in REVIEWER_PRIMITIVES)
 - Reviewer eventually meta-aware-edits operator-canon (principles.md, _operator_profile.md, _risk.md) when accumulated outcome data meets ADR-295 D1 thresholds (40+ reconciled trades, etc.)
 
-Demonstrating the full chain end-to-end without operator interjection is the demo's success criterion.
+Demonstrating the full chain end-to-end without operator interjection is the demo's success criterion. The north-star read for the live run: **would a real trader trust this autonomous loop's verdicts + EOD confirmation, and return tomorrow?**
 
 ## Active persona(s)
 
@@ -42,17 +42,26 @@ Update this table when a new demo window opens or AUTONOMY mode shifts on any pe
 
 ## Current state
 
-**Persona under active observation**: `kvk`
-**Demo window**: 2026-05-20T04:13Z (T0) onwards
-**Latest observation folder**: `docs/evaluations/2026-05-25-053951-reviewer-behavior-population-audit/` (load-bearing — N=27 judgment-shape wakes characterization, 48% persona-frame adherence, 0 action_proposals across 4 days × 3 trader personas since cutover; the 0-proposal count may be by-design selectivity OR silent-wake stand-downs, undistinguishable from substrate alone — Tuesday signal-evaluation will inform). Tuesday staging: `docs/evaluations/2026-05-26-134500-signal-evaluation-tuesday-rth/`. T0 baseline preserved at `docs/evaluations/archive/2026-05-20-040500-kvk-autonomy-demonstration-T0/`.
-**AUTONOMY mode**: `autonomous`, `ceiling_cents: 5000000`, `never_auto: [close_position_market, cancel_other_orders]`
-**Active probe-residue caveat**: `_operator_profile.md` Reviewer-edit from post-refusal-self-amendment-probe (commit `72f775b`) still at revision-chain head. Hat-A cleanup may be needed before next-RTH window for clean attribution. See T0 PLAYBOOK §"Probe-residue named explicitly".
+**Persona under active observation**: `kvk` (full autonomy — the main autonomous-loop demonstration)
+**Demo window**: re-pointed 2026-06-04 for the full-autonomy multi-day run. Prior 2026-05-20→25 window archived (see "Past alpha-trader activity").
+**AUTONOMY mode**: `autonomous`, `ceiling_cents: 5000000`, `never_auto: [close_position_market, cancel_other_orders]`. This is the operator-elected full-autonomy posture (ADR-269) — the Reviewer acts ALONE on capital + runs the daily P&L confirmation without intervention. The `never_auto` floor + `_risk.md` hard caps (max_position_size_usd 1000, max_daily_loss_usd 200, max_order_size_shares 100, trading_hours_only) are the safety floor that survives autonomous mode.
 
-**Next capture: event-anchored, not strict T+24h ladder:**
-- **T+~10h** = 2026-05-20 ~14:00Z (just after signal-evaluation fire at 13:45Z)
-- **T+~17h** = 2026-05-20 ~21:30Z (just after outcome-reconciliation at 21:00Z)
-- **T+24h** = 2026-05-21 ~04:00Z (Seoul morning synthesis)
-- **T+5d** = 2026-05-25 ~04:00Z (week-end interpretation)
+### Pre-flight gate before this live run (NEW 2026-06-04)
+
+This live multi-day demonstration is the **tenure read** (does the loop close + calibration improve over a real week). Its **pre-flight gate** — does each judgment moment work in shape at all — is the constructed-situation eval-suite, run as a separate Hat-B session BEFORE relying on the live run:
+
+- **`docs/evaluations/eval-suites/alpha-trader-autonomous-loop.yaml`** (persona kvk, judgment_coherence) — three evals validating the three judgment moments in clean, reset-to-clean situations:
+  1. `signal-auto-execute` (wraps `warm-start-auto-execute`) — approve verdict AUTO-EXECUTES under autonomous, cites the sizing/regime trace.
+  2. `reconciliation-judgment` — outcome-reconciliation judgment closes with ReturnVerdict + forward-looking standing_intent.
+  3. `eod-pnl-compose-and-send` — the Reviewer's judgment TRIGGERS the ADR-317 post-judgment dispatcher, which composes + sends the daily P&L email ALONE (Reviewer does NOT send it — the email tool is excluded from REVIEWER_PRIMITIVES).
+
+Run the eval-suite first; the live demonstration is worth starting once the three moments read clean. The two-activity split (constructed-situation eval-suite as pre-flight; live multi-day demo as the tenure read) is recorded in `docs/evaluations/2026-06-04-eval-suite-catchup-AUDIT.md` §9.
+
+### The daily P&L confirmation is now a real artifact (ADR-317, NEW 2026-06-04)
+
+The `operator_notifications.daily_pnl_reconciliation` opt-in now has a live consumer: `api/services/daily_pnl_email.py` fires after the `outcome-reconciliation` wake completes, reads `_money_truth.md`, and sends the EOD P&L email via the system Resend wire. **The Reviewer triggers (its judgment); the dispatcher sends.** Default-off (ADR-299) — flip `daily_pnl_reconciliation` to `active: true` in kvk's `_preferences.yaml` to receive the email during the live run. Until flipped, the dispatcher returns `{sent: false, reason: not_opted_in}` (no email, no noise).
+
+**Next capture: event-anchored (signal-evaluation @market_open+15min / outcome-reconciliation @market_close+1h / Seoul morning synthesis / week-end interpretation).** Anchor capture timestamps to the actual demo-window open date.
 
 ### The time-aspect difficulty, named structurally (audit finding, 2026-05-20)
 
@@ -219,4 +228,6 @@ Same system-side vocabulary as alpha-author thread (Reviewer, System Agent, subs
 
 ## Last updated
 
-2026-05-20 — initial draft alongside the alpha-author session-start guide. Maintain this file as alpha-trader demos run: update "Active persona(s)" + "Current state" on each demo-window transition.
+2026-06-04 — re-pointed for the kvk full-autonomy multi-day run. Added the pre-flight eval-suite gate (`alpha-trader-autonomous-loop.yaml`) + the ADR-317 daily-P&L dispatcher (the EOD confirmation is now a real artifact) + refreshed the north-star chain for ADR-296 v2 (inline signal emit) + the 2026-06-04 temporal market-hours fix. Prior 2026-05-20 draft preserved in git history. Maintain this file as alpha-trader demos run: update "Active persona(s)" + "Current state" on each demo-window transition.
+
+2026-05-20 — initial draft alongside the alpha-author session-start guide.

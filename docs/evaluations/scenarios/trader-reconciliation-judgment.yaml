@@ -1,0 +1,98 @@
+scenario_schema_version: 1
+scenario: trader-reconciliation-judgment
+description: |
+  Validate the Reviewer's outcome-reconciliation judgment under full
+  autonomy. The outcome-reconciliation recurrence (@market_close + 1h,
+  mode: judgment) wakes the Reviewer; the deterministic reconciler folds
+  fills into _money_truth.md; the Reviewer reads the reconciled state and
+  closes the cycle with a forward-looking verdict.
+
+  This is the EOD judgment moment that precedes the daily P&L email
+  (trader-eod-pnl-send wraps the send half via ADR-317). Here we read
+  ONLY the judgment: does the Reviewer read the reconciled _money_truth.md
+  correctly, attribute outcomes to signals, and close with a verdict
+  (ReturnVerdict) + forward-looking standing_intent naming which open
+  positions it is watching?
+
+  Per principles.md the close-cycle contract is mandatory: text-only
+  response without ReturnVerdict is forbidden — the cycle does not close
+  cleanly without it, and a judgment recurrence that fails to close is the
+  worst-shape outcome.
+
+  Seeds _money_truth.md with reconciled windows (operator stands in for
+  accumulated history) so the Reviewer reads a non-empty performance state
+  at fire time rather than burning rounds inferring it.
+
+persona: kvk
+
+setup:
+  # Fire the mechanical mirrors so position/account state is non-empty
+  # when the Reviewer reads it during the reconciliation wake.
+  - fire: track-account
+  - fire: track-positions
+
+  # Seed reconciled _money_truth.md — the state the deterministic
+  # reconciler would have produced. Schema per performance-rollup.md.
+  - write_substrate:
+      path: /workspace/context/trading/_money_truth.md
+      authored_by: operator-proxy:scenario-runner:acting-as-kvk
+      content: |
+        ---
+        last_reconciled: 2026-06-04T21:00:00Z
+        windows:
+          7d:
+            realized_pnl_usd: 412.30
+            fills: 4
+            win_rate: 0.75
+            avg_win_usd: 188.40
+            avg_loss_usd: -152.10
+            expectancy_usd: 64.20
+            sharpe: 1.18
+          30d:
+            realized_pnl_usd: 1840.55
+            fills: 19
+            win_rate: 0.631
+            avg_win_usd: 201.30
+            avg_loss_usd: -128.70
+            expectancy_usd: 71.40
+            sharpe: 1.41
+          90d:
+            realized_pnl_usd: 5210.80
+            fills: 58
+            win_rate: 0.620
+            avg_win_usd: 198.10
+            avg_loss_usd: -131.20
+            expectancy_usd: 68.90
+            sharpe: 1.36
+        by_signal:
+          signal-2-mean-reversion-oversold:
+            realized_pnl_usd: 1240.50
+            fills: 11
+            expectancy_usd: 89.25
+        ---
+        # Ground truth — kvk (reconciliation seed)
+
+        Seeded to give the Reviewer a reconciled EOD state to judge.
+        Real workspaces accumulate this via outcome-reconciliation; the
+        stub stands in so the reconciliation-judgment read does not
+        require live fills to settle.
+
+turns:
+  # Fire the outcome-reconciliation recurrence directly (manual_fire →
+  # the judgment wake the @market_close + 1h cron would produce).
+  - fire: outcome-reconciliation
+    expect:
+      - reviewer_responded
+      # The mandatory close-cycle contract (principles.md): ReturnVerdict
+      # always closes the cycle, even when no new fills occurred.
+      - reviewer_returnverdict_present
+      # Forward-looking substrate per ADR-284 — Reviewer names what it
+      # is watching for the next reconciliation window.
+      - standing_intent_write
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages

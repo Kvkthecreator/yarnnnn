@@ -224,7 +224,7 @@ NOT a DRAFT/POPULATED binary. Honest partial state is stated, not apologized for
 
 ## §7 Migration from the prior suite
 
-The prior `yarnnn-author-baseline.yaml` (10 evals, v1 schema, four eval-shapes, `substrate_inputs` + `expected_dimensions`) migrates as follows. **This is a plan, not an executed migration** — it lands after operator review.
+The prior `yarnnn-author-baseline.yaml` (10 evals, v1 schema, four eval-shapes, `substrate_inputs` + `expected_dimensions`) migrated as follows. **Executed** — the two read-kind suites (`yarnnn-author-judgment.yaml` + `yarnnn-author-responsiveness.yaml`) are live; the v1 `yarnnn-author-baseline.yaml` manifest was deleted 2026-06-04 (Singular Implementation — the superseded monolith is not kept as a parallel path). The four prior v1 *session folders* remain as grandfathered historical artifact (§7.4).
 
 ### §7.1 Split into two read-kind suites
 

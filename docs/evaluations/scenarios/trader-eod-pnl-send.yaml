@@ -1,0 +1,118 @@
+scenario_schema_version: 1
+scenario: trader-eod-pnl-send
+description: |
+  Validate the FULL daily-P&L compose-AND-send path under full autonomy
+  (ADR-317). This is the operator's "the Reviewer runs my daily P&L
+  confirmation alone, and I receive it without intervention" requirement,
+  end-to-end.
+
+  The architecture (ADR-317): the Reviewer does NOT send the email — the
+  email tool is deliberately excluded from REVIEWER_PRIMITIVES (verdict-
+  quality regression, 2026-05-25 canary). The Reviewer's outcome-
+  reconciliation JUDGMENT triggers; a post-judgment dispatcher
+  (api/services/daily_pnl_email.py) fires after the wake completes, reads
+  the reconciled _money_truth.md, and sends via the system Resend wire.
+  Reviewer triggers; dispatcher sends.
+
+  This scenario flips operator_notifications.daily_pnl_reconciliation to
+  active: true (default-off per ADR-299), seeds reconciled _money_truth.md,
+  fires outcome-reconciliation, and reads BOTH halves:
+    (a) the Reviewer's judgment closed cleanly (ReturnVerdict +
+        standing_intent), AND
+    (b) the dispatcher composed + sent the expository-pointer email
+        (deep-link CTA, deterministic P&L windows, no fabricated numbers).
+
+  The send half is observable in logs / send result, not in substrate —
+  the email is operator-addressing observability, not a substrate write.
+  The read judges whether the composed P&L headline matches the seeded
+  _money_truth.md windows (the dispatcher must not fabricate; bootstrap
+  windows degrade to honest copy).
+
+  NOTE on RESEND: the dispatcher calls jobs.email.send_email which requires
+  RESEND_API_KEY. In a dry environment the send returns
+  {success: false, error: "RESEND_API_KEY not configured"} — the dispatcher
+  still RAN (opt-in gate passed, windows parsed, email composed); the read
+  notes whether the send wire was exercised vs. the compose path validated.
+
+persona: kvk
+
+setup:
+  - fire: track-account
+  - fire: track-positions
+
+  # Flip the operator_notifications opt-in active (default is false per
+  # ADR-299 default-off discipline). This IS the standing approval —
+  # AUTONOMY does not gate operator-addressing observability (ADR-299 D5).
+  # operator_notifications is a nested list block (not a frontmatter
+  # field), so the opt-in is set via a full-file write_substrate rather
+  # than flip_frontmatter_field. Only the daily_pnl_reconciliation entry
+  # is active: true; the others stay default-off.
+  - write_substrate:
+      path: /workspace/context/_shared/_preferences.yaml
+      authored_by: operator-proxy:scenario-runner:acting-as-kvk
+      content: |
+        ---
+        tier: canon
+        note: "Operator-authored cadence preferences (ADR-275). Eval seed: daily_pnl_reconciliation opt-in flipped active for the ADR-317 send path."
+        ---
+        deliverable_preferences:
+          - slug: weekly-performance-review
+            spec: /workspace/specs/weekly-performance-review.md
+            cadence: "0 18 * * 0"
+            description: "Weekly performance synthesis every Sunday at 18:00 UTC"
+            active: true
+
+        operator_notifications:
+          - slug: daily_pnl_reconciliation
+            description: "EOD P&L email via ADR-317 post-judgment dispatcher."
+            cadence_hint: "Daily — after outcome-reconciliation settles"
+            active: true
+          - slug: signal_fire_alert
+            description: "Default-off."
+            cadence_hint: "Event-driven"
+            active: false
+
+  # Seed reconciled _money_truth.md (same shape as trader-reconciliation-
+  # judgment) so the dispatcher has real windows to compose from.
+  - write_substrate:
+      path: /workspace/context/trading/_money_truth.md
+      authored_by: operator-proxy:scenario-runner:acting-as-kvk
+      content: |
+        ---
+        last_reconciled: 2026-06-04T21:00:00Z
+        windows:
+          7d:
+            realized_pnl_usd: 412.30
+            fills: 4
+            win_rate: 0.75
+            expectancy_usd: 64.20
+            sharpe: 1.18
+          30d:
+            realized_pnl_usd: 1840.55
+            fills: 19
+            win_rate: 0.631
+            expectancy_usd: 71.40
+            sharpe: 1.41
+        ---
+        # Ground truth — kvk (EOD P&L send seed)
+
+turns:
+  # Fire outcome-reconciliation. After the judgment closes, the ADR-317
+  # post-judgment hook in wake.py fires maybe_send_daily_pnl_email.
+  - fire: outcome-reconciliation
+    expect:
+      - reviewer_responded
+      - reviewer_returnverdict_present
+      # ADR-317 dispatcher fired after the judgment. The send result is
+      # in logs (sent: true | reason: ...). The read checks: did the
+      # dispatcher compose a headline matching the seeded windows
+      # (7-day P&L +$412.30 · 4 fills · 75.0% win rate)?
+      - daily_pnl_dispatcher_fired
+      - composed_headline_matches_money_truth
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages
