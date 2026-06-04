@@ -6,6 +6,29 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.04.2] - Silent-wake root cause: manual_fire recurrence trigger fix
+
+### Changed (behavioral, not prompt — recorded here because it changes Reviewer-invocation)
+
+- `services/wake.py::_invoke_recurrence_wake`: trigger derivation fixed from
+  `"addressed" if manual_fire else "reactive"` to `"reactive"` always. A
+  recurrence fire is reactive regardless of manual-vs-cron; the prior mapping
+  tagged manual_fire recurrence wakes as `addressed`, which (with a recurrence-
+  fire context bag carrying no user_message) failed `_validate_context_shape`,
+  returned None, and was recorded as success. This was THE recurring silent-wake
+  bug — manual_fire judgment recurrences structurally never ran the Reviewer.
+- `services/wake.py` dispatcher: a None return from invoke_reviewer now records
+  status="failed" (error_reason="reviewer_returned_none") + a material narrative,
+  not status="success" with NULL tokens. Silent failures are now visible.
+- `agents/reviewer_agent.py`: the invoke_reviewer swallow-to-None path now logs
+  the full traceback (logger.exception), not a one-line opaque error.
+- Expected behavior: the eval's `{fire: <slug>}` path (and operator manual-fire)
+  of a judgment recurrence now runs the Reviewer to a closed cycle, identical to
+  a cron_tick fire. "No proposal" can finally be distinguished — correct
+  stand-down (verdict/standing_intent written) vs. silent failure (status=failed).
+- Finding: docs/evaluations/2026-06-04-silent-wake-root-cause-FINDING.md.
+- Gate: api/test_silent_wake_trigger_fix.py 7/7; reviewer suite 33/33 no regression.
+
 ## [2026.06.04.1] - Agentic wake posture (ADR-318)
 
 ### Changed (LLM-facing)

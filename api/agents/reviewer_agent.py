@@ -1464,8 +1464,18 @@ async def invoke_reviewer(
         return output
 
     except Exception as exc:
-        logger.error(
-            "[REVIEWER] invoke_reviewer failed trigger=%s user=%s: %s",
+        # SILENT-WAKE diagnosis (2026-06-04): this swallow-to-None is the
+        # in-process half of the silent-wake bug — an exception anywhere in the
+        # round loop (a malformed _build_user_message, a fast-failing
+        # chat_completion_with_tools, a primitive dispatch error) returns None,
+        # and the dispatcher (wake.py) now records that as status="failed"
+        # rather than the prior status="success". Capture the FULL traceback at
+        # error level so the cause is diagnosable from logs — "[REVIEWER]
+        # invoke_reviewer failed: <one-line>" with no stack was what made every
+        # prior silent-wake investigation hit a dead end.
+        logger.exception(
+            "[REVIEWER] invoke_reviewer raised (→ None → dispatcher records "
+            "failed) trigger=%s user=%s: %s",
             trigger, user_id[:8] if user_id else "?", exc,
         )
         return None

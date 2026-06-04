@@ -295,19 +295,42 @@ async def _invoke_recurrence_wake(
     ADR-296 v2: the legacy `trigger` parameter is computed here from
     `wake_source` for backwards compatibility with downstream functions
     (record_execution_event's trigger_type column, narrative pulse,
-    Reviewer's context envelope). `wake_source="manual_fire"` ↔
-    `trigger="addressed"`; `wake_source="cron_tick"` ↔ `trigger="reactive"`.
-    The trigger axis itself is preserved as kernel-internal vocabulary
-    per ADR-263 D2; only the public surface speaks wake_source.
+    Reviewer's context envelope). This function handles RECURRENCE fires
+    only (cron_tick + manual_fire of a recurrence) — both carry the
+    recurrence-fire context shape, so `trigger="reactive"` for both (fixed
+    2026-06-04 — the prior manual_fire→addressed mapping was the silent-wake
+    root cause; see the trigger-derivation comment below). The manual-vs-cron
+    distinction is carried by the `wake_source` field on the context, not the
+    trigger axis. Genuine operator chat turns are `addressed` and reach the
+    Reviewer through the feed/stream_addressed path, not this function. The
+    trigger axis is kernel-internal vocabulary per ADR-263 D2; only the public
+    surface speaks wake_source.
     """
     if recurrence.paused:
         return _result_paused(recurrence, wake_source)
 
     started_at = datetime.now(timezone.utc)
 
-    # ADR-296 v2 D1: wake-source comes from the caller. Derive the
-    # legacy `trigger` value for downstream callers that still consume it.
-    trigger = "addressed" if wake_source == "manual_fire" else "reactive"
+    # ADR-296 v2 D1: wake-source comes from the caller. Derive the legacy
+    # `trigger` value for downstream callers that still consume it.
+    #
+    # SILENT-WAKE ROOT CAUSE (2026-06-04): this function handles RECURRENCE
+    # fires only — both cron_tick AND manual_fire of a recurrence. Both build
+    # the recurrence-fire context shape (recurrence_prompt + recurrence_slug, NO
+    # user_message). The prior `"addressed" if manual_fire else "reactive"`
+    # mapping was WRONG: it tagged a manual_fire recurrence wake as trigger=
+    # "addressed", but addressed requires a non-empty user_message — so
+    # invoke_reviewer's _validate_context_shape rejected the contradictory
+    # (trigger=addressed, recurrence-context) pair, returned None, and the wake
+    # silently produced nothing. This is why every eval that fired a recurrence
+    # via manual_fire (the {fire: <slug>} path) saw the Reviewer "never run".
+    # A recurrence fire is `reactive` regardless of manual-vs-cron — the
+    # wake_source field (already on the context) carries the manual/cron
+    # distinction for the Reviewer to perceive; the trigger axis follows the
+    # CONTEXT SHAPE, which is recurrence-fire either way. Genuine operator chat
+    # turns are `addressed` and never reach this function (they go through the
+    # feed/stream_addressed path with a real user_message).
+    trigger = "reactive"
 
     # ADR-289 D2 + D3: pre-generate the invocation atom id. This UUID is the
     # canonical execution_events.id for the cycle; every narrative row produced
@@ -605,10 +628,49 @@ async def _invoke_recurrence_wake(
 
     duration_ms = int((datetime.now(timezone.utc) - started_at).total_seconds() * 1000)
     # ADR-291 cost ledger write. reviewer_output carries the loop's token
-    # accumulators (incl. cache breakdown) and model — written to execution_events
-    # as the sole authoritative cost record per the unified-cost-ledger collapse.
-    # NULL when Reviewer returned None (shape violation / pre-LLM exit).
-    _ro = reviewer_output if isinstance(reviewer_output, dict) else {}
+    # accumulators (incl. cache breakdown) and model.
+    #
+    # SILENT-WAKE FIX (2026-06-04): a `None` return from invoke_reviewer means
+    # the Reviewer did NOT close a cycle — a context-shape violation, a pre-LLM
+    # exit, or a swallowed exception inside the round loop (reviewer_agent.py
+    # outer try/except → return None). Previously this was recorded as
+    # status="success" with NULL tokens — making a FAILED judgment wake
+    # indistinguishable from a successful no-op stand-down. That ambiguity is
+    # the recurring "the agent silently produces nothing" trap across every
+    # alpha-trader autonomy run: a wake escalates, the LLM never runs (or
+    # raises), and telemetry says success. A judgment wake that escalated but
+    # returned None did NOT judge — record it as a failure so it is visible.
+    _ro = reviewer_output if isinstance(reviewer_output, dict) else None
+    if _ro is None:
+        logger.error(
+            "[DISPATCH] %s/%s SILENT WAKE — invoke_reviewer returned None "
+            "(escalated, envelope loaded in %sms, but no verdict/output). "
+            "Recording as failed.",
+            user_id[:8], recurrence.slug, envelope_load_ms,
+        )
+        record_execution_event(
+            client, user_id=user_id, slug=recurrence.slug,
+            id=invocation_id,
+            mode="judgment", trigger_type=trigger,
+            status="failed", error_reason="reviewer_returned_none",
+            error_detail="invoke_reviewer returned None — context-shape violation, "
+                         "pre-LLM exit, or swallowed exception in the round loop "
+                         "(see reviewer_agent.py logs for the captured cause)",
+            duration_ms=duration_ms,
+            envelope_load_ms=envelope_load_ms,
+            wake_source=wake_source,
+            funnel_decision="escalate",
+        )
+        await _emit_system_narrative(
+            client, user_id, recurrence,
+            summary=f"{recurrence.slug} produced no judgment",
+            body="The Reviewer wake escalated but returned no verdict (silent "
+                 "exit). This is a system fault, not a stand-down — see logs.",
+            trigger=trigger,
+            weight="material",
+        )
+        return _result_failed(recurrence, "reviewer returned None (silent wake)", trigger=trigger)
+
     record_execution_event(
         client, user_id=user_id, slug=recurrence.slug,
         id=invocation_id,  # ADR-289 D2: canonical invocation atom id
