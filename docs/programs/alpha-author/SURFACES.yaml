@@ -12,13 +12,12 @@ schema_version: 1
 # program-specific section composition via the home.program_sections
 # binding (ADR-312 D2), no kernel-imposed face floor.
 #
-# DEFERRED: The Author* section components are declared here in advance
-# of step 3 implementation. Until step 3 lands at
-# web/components/library/programs/alpha-author/, the compositor will fall
-# through to the kernel-default Home chrome (HomeHeader / Constitution
-# band + UnactivatedHomeCTA). This is honest deferral — the SURFACES
-# manifest captures bundle intent even while the FE components are being
-# authored.
+# The Author* section components are implemented at
+# web/components/library/programs/alpha-author/ and registered in
+# web/components/library/registry.tsx — so an activated alpha-author
+# workspace renders this four-section Home stack below the kernel-general
+# Constitution band + the kernel-universal slots (decision queue, recent
+# artifacts, judgment trail) per ADR-312.
 
 tabs:
   work:

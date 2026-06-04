@@ -135,6 +135,58 @@ def test_no_kernel_hardcoded_positions_label():
 
 
 # ---------------------------------------------------------------------------
+# 3b — D2 amendment (2026-06-04): kernel renders the three universal slots
+# ---------------------------------------------------------------------------
+
+def test_kernel_universal_slots_exist():
+    """ADR-312 D2 amendment: the three kernel-universal Home slots (#3 decision
+    queue, #5 recent artifacts, #6 judgment trail) are kernel-rendered — they
+    exist as components under web/components/library/kernel-home/ and are NOT
+    program-declared (no SURFACES.yaml). They render for every workspace."""
+    kernel_home = LIBRARY_DIR / "kernel-home"
+    for comp in ("KernelDecisionQueue", "KernelRecentArtifacts", "KernelJudgmentTrail"):
+        assert (kernel_home / f"{comp}.tsx").exists(), (
+            f"ADR-312 D2 amendment: kernel-universal slot {comp} must exist at "
+            f"web/components/library/kernel-home/{comp}.tsx."
+        )
+
+
+def test_home_renderer_wires_universal_slots():
+    """ADR-312 D2 amendment: HomeRenderer interleaves the three kernel-universal
+    slots with program sections (not behind the program XOR). All three must be
+    rendered by HomeRenderer directly."""
+    src = _read(LIBRARY_DIR / "HomeRenderer.tsx")
+    for comp in ("KernelDecisionQueue", "KernelRecentArtifacts", "KernelJudgmentTrail"):
+        assert f"<{comp} />" in src, (
+            f"ADR-312 D2 amendment: HomeRenderer must render {comp} directly "
+            "(kernel-universal slot, not program-gated)."
+        )
+
+
+def test_decision_queue_reuses_proposals_api():
+    """Singular implementation: the decision-queue slot reuses the existing
+    proposals API (ADR-307), not a parallel reader."""
+    src = _read(LIBRARY_DIR / "kernel-home" / "KernelDecisionQueue.tsx")
+    # Match the chained call (`api.proposals\n  .list(...)`) — check both
+    # tokens rather than the contiguous string so line-wrapping doesn't
+    # false-negative.
+    assert "api.proposals" in src and ".list(" in src, (
+        "KernelDecisionQueue must reuse api.proposals.list (ADR-307 generic "
+        "gated-action queue), not a parallel proposals reader."
+    )
+
+
+def test_judgment_trail_reuses_decisions_parser():
+    """Singular implementation: the judgment-trail slot reuses the canonical
+    content-shapes/decisions.ts parser, not a parallel decisions parser."""
+    src = _read(LIBRARY_DIR / "kernel-home" / "KernelJudgmentTrail.tsx")
+    assert "content-shapes/decisions" in src, (
+        "KernelJudgmentTrail must reuse the canonical content-shapes/decisions.ts "
+        "parser, not re-implement decisions.md parsing."
+    )
+
+
+# ---------------------------------------------------------------------------
 # 4 — four-face fallback stays deleted (ADR-228 → ADR-273 → confirmed ADR-312)
 # ---------------------------------------------------------------------------
 
@@ -222,6 +274,10 @@ def _run():
         test_register_split_intent_vs_os_config,
         test_ground_truth_hero_is_generic_not_trader,
         test_no_kernel_hardcoded_positions_label,
+        test_kernel_universal_slots_exist,
+        test_home_renderer_wires_universal_slots,
+        test_decision_queue_reuses_proposals_api,
+        test_judgment_trail_reuses_decisions_parser,
         test_four_face_fallback_deleted,
         test_cockpit_route_module_folded,
         test_no_api_cockpit_mount_in_main,

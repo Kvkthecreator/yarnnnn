@@ -1025,6 +1025,19 @@ export const api = {
     getFile: (path: string) =>
       request<WorkspaceFile>(`/api/workspace/file?path=${encodeURIComponent(path)}`),
 
+    // ADR-312 Home slot #5: recent delivered outputs across the whole
+    // workspace (not per-recurrence). Kernel-universal — every workspace.
+    recentArtifacts: (limit: number = 5) =>
+      request<{
+        artifacts: Array<{
+          slug: string;
+          date: string;
+          path: string;
+          summary: string | null;
+          updated_at: string | null;
+        }>;
+      }>(`/api/workspace/recent-artifacts?limit=${limit}`),
+
     editFile: (path: string, content: string, summary?: string, message?: string) =>
       request<{ success: boolean; path: string; updated_at: string }>(
         `/api/workspace/file`,

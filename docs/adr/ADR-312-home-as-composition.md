@@ -32,6 +32,19 @@ The home renders six slots, top→bottom. The kernel owns the slot set and their
 5. **Recent artifacts** — delivered outputs (reports / contracts / published / shipped).
 6. **Judgment trail** — recent decisions + reconciled outcomes.
 
+#### D2 amendment (2026-06-04) — kernel renders the three universal slots; the program declares only the two program-shaped ones
+
+The original D2 sentence ("the program declares each slot's … whether it renders") was implemented as *all of Layer 2 is program-gated* — the kernel rendered only slot #1 (constitution band) and delegated #2–#6 entirely to the program's `SURFACES.yaml home.program_sections[]`. The consequence was a defect: an activated program that declared no sections — or a bare kernel — fell through to a near-empty "this program does not declare a home dashboard" CTA, even when the workspace had pending proposals, delivered outputs, and a Reviewer decision trail.
+
+The fix partitions the six slots by **substrate ownership**:
+
+- **Kernel-universal slots (#3 Decision queue, #5 Recent artifacts, #6 Judgment trail)** read *kernel* substrate — `action_proposals` (the ADR-307 generic gated-action queue), delivered outputs in `workspace_files` (`/workspace/reports/{slug}/{date}/output.md`), and `/workspace/review/decisions.md`. These exist in **every** workspace, program or not. The **kernel renders them directly** via `web/components/library/kernel-home/{KernelDecisionQueue, KernelRecentArtifacts, KernelJudgmentTrail}.tsx`, interleaved by `HomeRenderer` in slot order. They are NOT declared in any `SURFACES.yaml`. Each **self-hides when its substrate is empty**, so the cold-start Home stays honest.
+- **Program-shaped slots (#2 Ground-truth hero, #4 Live entities)** read *program* substrate whose shape only the program knows (a trader's P&L strip, an author's corpus signal). These stay program-declared via `home.program_sections[]` (§D3/§D4), generic contract, no kernel default.
+
+So "the program declares whether [a slot] renders" holds for #2/#4 (the program-shaped slots), and is superseded for #3/#5/#6 (the kernel-universal slots — the kernel renders them whenever their substrate is non-empty). This closes the dead-end-Home defect and is faithful to D2's own description of slot #3 as "the ADR-307 generic gated-action queue, unchanged" — a generic, kernel-owned queue was never a program concern.
+
+Backend: `GET /api/workspace/recent-artifacts` (new, browser-only) backs slot #5; #3 reuses `GET /api/proposals`; #6 reuses `getFile(decisions.md)` + the canonical `content-shapes/decisions.ts` parser. No parallel implementations.
+
 ### D3 — The ground-truth hero is generic, not money-truth (F1)
 
 Slot #2 is a **ground-truth panel** whose shape the program declares: money-truth strip (trader), pipeline-stage board (partnerships), coherence/publication panel (author). The kernel content-shape names a generic hero contract; `web/lib/content-shapes/money-truth.ts::CANONICAL_L3 = 'TraderMoneyTruth'` is de-skinned — `TraderMoneyTruth` becomes the *alpha-trader binding* of the hero slot, not the kernel default. This is the concrete code instance of the "money-truth is a trader-skin in the kernel frame" finding (sequenced-moat §8; ESSENCE v13.0 demotion of money-truth).
@@ -51,7 +64,7 @@ ADR-309's `settings` register conflated *the OS configuring itself* with *the op
 
 ### D6 — The constitution band's empty state is the onboarding/activation entry (F5, F6)
 
-On a bare kernel (no mandate), slot #1 renders "Declare what this workspace is for / activate a program" — the home doubles as onboarding. The cold-start home = empty constitution CTA + slot #4 showing "your authored files" + menu-bar vitals (Balance, Connections). No ground-truth hero, no queue, no faces. **Honest Phase-1 home; the "blank cockpit" is eliminated structurally.** Constitution is a *section of the home*, not a separate surface.
+On a bare kernel (no mandate), slot #1 renders "Declare what this workspace is for / activate a program" — the home doubles as onboarding. The cold-start home = empty constitution CTA + menu-bar vitals (Balance, Connections) + whichever kernel-universal slots (#3/#5/#6) already have substrate. No ground-truth hero, no program faces (those are program-shaped, #2/#4). Per the **D2 amendment (2026-06-04)** the kernel-universal slots self-hide when empty, so a truly-fresh workspace shows just the constitution CTA, while a workspace that has accumulated proposals / outputs / decisions shows those even before a program is picked. **Honest Phase-1 home; the "blank cockpit" is eliminated structurally.** Constitution is a *section of the home*, not a separate surface.
 
 ### D7 — Autonomy default is program-declared (F4, amends ADR-226)
 

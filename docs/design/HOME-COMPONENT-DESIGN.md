@@ -1,5 +1,9 @@
-# Cockpit Component Design — Common vs Program-Specific
+# Home Component Design — Kernel-Universal vs Program-Specific
 
+> **Renamed 2026-06-04** from `COCKPIT-COMPONENT-DESIGN.md` — the surface is the Home (ADR-312 D1), so the design doc carries the surface's name.
+>
+> **ADR-312 D2 amendment note (2026-06-04):** the Home's six slots partition by substrate ownership. The **kernel renders the three universal slots itself** — slot #3 Decision queue (`KernelDecisionQueue`, `action_proposals`/ADR-307), slot #5 Recent artifacts (`KernelRecentArtifacts`, delivered outputs), slot #6 Judgment trail (`KernelJudgmentTrail`, `decisions.md`) — for *every* workspace, not via SURFACES.yaml. They live at `web/components/library/kernel-home/` and self-hide when their substrate is empty. The **program declares only the two program-shaped slots** — slot #2 Ground-truth hero + slot #4 Live entities — via `home.program_sections[]`. So "Layer 2" below is no longer 100% program-supplied: it's kernel-universal slots interleaved with program sections. See ADR-312 §"D2 amendment (2026-06-04)".
+>
 > **ADR-312 vocabulary note (2026-06-02):** the **cockpit surface renames to Home** (`slug: home`, route `/home`). `CockpitRenderer` → `HomeRenderer`; `CockpitHeader` → `HomeHeader` (the Constitution band, slot #1); the composition key `cockpit:` → `home:`; trader-data routes folded `/api/cockpit/*` → `/api/programs/alpha-trader/*` (pace → kernel `/api/pace`). The `Trader*` program components keep their names — they are the alpha-trader bindings of the Home's slots. The kernel-general "Layer 1 header" described below IS the Constitution band. The substrate-backed 7-section stack (ADR-273) survives verbatim as the program's declared composition. Read "cockpit" below as "Home."
 >
 > **Status**: Canonical design reference (2026-05-14, v3 — substrate-backed

@@ -56,6 +56,19 @@ class FileEditRequest(BaseModel):
     message: Optional[str] = None
 
 
+class RecentArtifact(BaseModel):
+    """One delivered output across the workspace (ADR-312 kernel slot #5)."""
+    slug: str            # recurrence slug the output belongs to
+    date: str            # dated output folder (e.g. "2026-06-04")
+    path: str            # full workspace_files path
+    summary: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
+class RecentArtifactsResponse(BaseModel):
+    artifacts: list[RecentArtifact]
+
+
 # =============================================================================
 # GET /workspace/nav — Structured navigation (ADR-154: Agent OS model)
 # =============================================================================
@@ -515,6 +528,58 @@ async def get_workspace_file(
         raise
     except Exception as e:
         logger.error(f"[WORKSPACE_API] File read failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# GET /workspace/recent-artifacts — Recent delivered outputs (ADR-312 slot #5)
+# =============================================================================
+# Kernel-universal Home slot. Reads delivered task outputs across the WHOLE
+# workspace (not per-recurrence) from workspace_files, where each
+# produces_deliverable recurrence writes /workspace/reports/{slug}/{date}/
+# output.md (per routes/recurrences.py report_root convention). Ordered by
+# recency. Self-hides on the frontend when empty (bare kernel before any
+# deliverable has run). Browser-consumed only — no scheduler/MCP impact.
+
+@router.get("/workspace/recent-artifacts", response_model=RecentArtifactsResponse)
+async def get_recent_artifacts(
+    auth: UserClient,
+    limit: int = Query(5, ge=1, le=25),
+) -> RecentArtifactsResponse:
+    """Recent delivered outputs across the workspace (ADR-312 Home slot #5)."""
+    try:
+        result = (
+            auth.client.table("workspace_files")
+            .select("path, summary, updated_at")
+            .eq("user_id", auth.user_id)
+            .like("path", "/workspace/reports/%/output.md")
+            .order("updated_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        artifacts: list[RecentArtifact] = []
+        for row in result.data or []:
+            path = row["path"]
+            # /workspace/reports/{slug}/{date}/output.md → slug, date
+            parts = path.split("/")
+            try:
+                reports_idx = parts.index("reports")
+                slug = parts[reports_idx + 1]
+                date = parts[reports_idx + 2]
+            except (ValueError, IndexError):
+                slug, date = "", ""
+            artifacts.append(
+                RecentArtifact(
+                    slug=slug,
+                    date=date,
+                    path=path,
+                    summary=row.get("summary"),
+                    updated_at=row.get("updated_at"),
+                )
+            )
+        return RecentArtifactsResponse(artifacts=artifacts)
+    except Exception as e:
+        logger.error(f"[WORKSPACE_API] Recent artifacts read failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

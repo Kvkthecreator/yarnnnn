@@ -149,14 +149,35 @@ def bundles_active_for_workspace(user_id: str, client: Any) -> list[dict[str, An
         )
     except Exception as exc:
         logger.warning(f"[BUNDLE_READER] platform_connections lookup failed: {exc}")
-        return []
+        rows = None  # treat as no connections; connection-less bundles still resolve
 
-    connected_platforms = {r["platform"] for r in (rows.data or [])}
-    if not connected_platforms:
-        return []
+    connected_platforms = {r["platform"] for r in (rows.data if rows else [])}
+
+    # 2026-06-04: a bundle that requires NO platform connection
+    # (e.g. alpha-author — read_uploads + websearch only) cannot be
+    # resolved by the connected-platform filter. Its activation signal is
+    # the operator's activated program (the MANDATE.md slug marker written
+    # at fork time per ADR-226), not a platform connection. Read it once so
+    # connection-less bundles resolve when the operator has activated them.
+    activated_slug: Optional[str] = None
+    try:
+        mandate = (
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", "/workspace/context/_shared/MANDATE.md")
+            .limit(1)
+            .execute()
+        )
+        if mandate.data:
+            from services.programs import parse_active_program_slug
+            activated_slug = parse_active_program_slug(mandate.data[0].get("content"))
+    except Exception as exc:
+        logger.warning(f"[BUNDLE_READER] activated-program lookup failed: {exc}")
+
     # Map platform → oldest created_at so bundles can be ordered deterministically
     platform_age: dict[str, str] = {}
-    for r in rows.data or []:
+    for r in (rows.data if rows else []):
         p = r["platform"]
         ca = r.get("created_at") or ""
         if p not in platform_age or (ca and ca < platform_age[p]):
@@ -164,20 +185,29 @@ def bundles_active_for_workspace(user_id: str, client: Any) -> list[dict[str, An
 
     matching: list[tuple[str, dict[str, Any]]] = []
     for bundle in all_active_bundles():
-        # Bundle is active for this workspace if any of its capabilities'
-        # required platforms is connected.
-        for cap in bundle.get("capabilities", []) or []:
-            req = cap.get("requires_connection")
-            if req and req in connected_platforms:
-                # Use the oldest connection age across this bundle's platforms
-                ages = [
-                    platform_age.get(c.get("requires_connection"), "")
-                    for c in (bundle.get("capabilities") or [])
-                    if c.get("requires_connection") in connected_platforms
-                ]
-                bundle_age = min(a for a in ages if a) if any(ages) else ""
-                matching.append((bundle_age, bundle))
-                break  # one matching capability is enough — don't double-list
+        caps = bundle.get("capabilities", []) or []
+        required_platforms = {
+            c.get("requires_connection") for c in caps if c.get("requires_connection")
+        }
+
+        if not required_platforms:
+            # Connection-less bundle: active-for-workspace iff the operator
+            # has activated it (MANDATE.md slug marker). No platform gate.
+            # Sort key "" => oldest, so platform-bound bundles (which carry
+            # a real connection age) order after it deterministically.
+            if activated_slug and bundle.get("slug") == activated_slug:
+                matching.append(("", bundle))
+            continue
+
+        # Platform-bound bundle: active iff any required platform is connected.
+        if required_platforms & connected_platforms:
+            ages = [
+                platform_age.get(p, "")
+                for p in required_platforms
+                if p in connected_platforms
+            ]
+            bundle_age = min(a for a in ages if a) if any(ages) else ""
+            matching.append((bundle_age, bundle))
 
     # Sort by oldest connection age (oldest first)
     matching.sort(key=lambda pair: pair[0] or "")

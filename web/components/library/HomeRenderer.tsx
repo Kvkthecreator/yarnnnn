@@ -1,36 +1,45 @@
 'use client';
 
 /**
- * HomeRenderer — renamed from CockpitRenderer by ADR-312 D1.
+ * HomeRenderer — renamed from CockpitRenderer by ADR-312 D1; six-slot
+ * composition wired 2026-06-04 (ADR-312 D2 amendment).
  *
  * The Home is a composition over the workspace's present constituents
- * (ADR-312 §1–2). Post-ADR-273 it renders two visual layers; ADR-312 P4
- * reshapes Layer 2 into the six-slot kernel home contract. P3 (this
- * commit) is a pure rename — the structure below is preserved verbatim
- * from CockpitRenderer.
+ * (ADR-312 §1–2). The kernel owns the six-slot set + order; it renders
+ * the three KERNEL-UNIVERSAL slots itself (from kernel substrate, every
+ * workspace, program or not) and lets the PROGRAM declare the two
+ * program-shaped slots. Absent constituents self-hide — honest Home.
  *
- *   Layer 1 — HomeHeader (the Constitution band, slot #1; kernel-general,
- *               always rendered) — mandate one-liner + autonomy posture,
- *               read from /workspace/context/_shared/{MANDATE.md,
- *               _autonomy.yaml}. Present on every workspace whether or not
- *               a program is activated.
+ *   #1 Constitution band  — HomeHeader (kernel, always). Mandate one-liner
+ *                           + autonomy posture from _shared/{MANDATE.md,
+ *                           _autonomy.yaml}.
+ *   #3 Decision queue      — KernelDecisionQueue (kernel-universal). Pending
+ *                           gated actions (action_proposals / ADR-307).
+ *                           Surfaced HIGH — the most operator-urgent glance.
+ *   #2 Ground-truth hero   } program_sections (program-declared via
+ *   #4 Live entities       } SURFACES.yaml home.program_sections[]). The
+ *                           program's hero + entity expression. Generic
+ *                           contract (ADR-312 D3/D4); no kernel default.
+ *   #5 Recent artifacts    — KernelRecentArtifacts (kernel-universal).
+ *                           Delivered outputs across the workspace.
+ *   #6 Judgment trail      — KernelJudgmentTrail (kernel-universal). Recent
+ *                           Reviewer decisions from review/decisions.md.
  *
- *   Layer 2 — program_sections (program-specific) OR UnactivatedHomeCTA.
- *               When the active bundle's SURFACES.yaml declares
- *               home.program_sections[], each section renders in `order`
- *               sequence below HomeHeader. When no program is activated
- *               (active_program_slug == null), the UnactivatedHomeCTA
- *               renders an explicit "Activate a program" affordance —
- *               this is the honest Phase-1 cold-start home (ADR-312 D6).
+ * ADR-312 D2 amendment (2026-06-04): slots #3/#5/#6 read kernel-universal
+ * substrate (proposals, delivered outputs, decisions) and have no reason
+ * to be program-gated. The kernel renders them directly — closing the
+ * defect where an activated-but-section-less program (or bare kernel)
+ * showed a near-empty Home. Each kernel slot self-hides when its substrate
+ * is empty, so the cold-start Home stays honest (constitution CTA + only
+ * the universal slots that have content yet).
  *
  * Singular implementation per ADR-273 D2 (preserved):
  *   - The legacy four-face fallback (MoneyTruthFace / PerformanceFace /
- *     TrackingFace / MandateFace) was DELETED in ADR-273. ADR-312 confirms
- *     the deletion — the cold-start home is the constitution-band CTA, not
- *     a de-activated trader dashboard.
- *   - getProgramSections() returning empty + no active_program_slug =>
- *     the operator hasn't picked a program yet => render the activation
- *     CTA. There is no third path.
+ *     TrackingFace / MandateFace) stays DELETED. The constitution-band CTA
+ *     handles the no-mandate cold start, not a de-activated trader board.
+ *   - The CTA now renders ONLY when there is genuinely nothing to show —
+ *     no program sections AND no activation yet. With a program activated,
+ *     the program sections render; the kernel slots render regardless.
  */
 
 import { useEffect, useState } from 'react';
@@ -40,6 +49,9 @@ import { HomeProvider } from './HomeContext';
 import { HomeHeader } from './HomeHeader';
 import { useComposition, getProgramSections } from '@/lib/compositor';
 import { dispatchComponent } from './registry';
+import { KernelDecisionQueue } from './kernel-home/KernelDecisionQueue';
+import { KernelRecentArtifacts } from './kernel-home/KernelRecentArtifacts';
+import { KernelJudgmentTrail } from './kernel-home/KernelJudgmentTrail';
 import { api } from '@/lib/api/client';
 
 interface HomeRendererProps {
@@ -83,60 +95,77 @@ export function HomeRenderer({ onOpenChatDraft }: HomeRendererProps) {
     };
   }, [hasProgramSections]);
 
+  // The activation CTA renders ONLY when there is genuinely nothing to
+  // show in Layer 2 — no program sections AND no activated program. With a
+  // program activated, the program sections render; either way the three
+  // kernel-universal slots render below (each self-hides when empty).
+  const showActivationCTA = !hasProgramSections && stateLoaded && !activeProgramSlug;
+
   return (
     <HomeProvider value={{ onOpenChatDraft: handleOpenChatDraft }}>
       <section aria-label="Home" className="border-b border-border/60">
+        {/* Slot #1 — Constitution band (kernel, always) */}
         <HomeHeader />
-        {hasProgramSections ? (
-          <div className="flex flex-col gap-4 px-6 py-6 bg-muted/20">
-            {programSections.map((section) =>
+
+        <div className="flex flex-col gap-4 px-6 py-6 bg-muted/20">
+          {/* Slot #3 — Decision queue (kernel-universal; self-hides) */}
+          <KernelDecisionQueue />
+
+          {/* Slots #2 + #4 — program-declared hero + entities */}
+          {hasProgramSections &&
+            programSections.map((section) =>
               dispatchComponent({ kind: section.kind }, {})
             )}
-          </div>
-        ) : stateLoaded ? (
-          <UnactivatedHomeCTA activeProgramSlug={activeProgramSlug} />
-        ) : null}
+
+          {/* Slot #5 — Recent artifacts (kernel-universal; self-hides) */}
+          <KernelRecentArtifacts />
+
+          {/* Slot #6 — Judgment trail (kernel-universal; self-hides) */}
+          <KernelJudgmentTrail />
+
+          {/* Cold-start CTA — only when there is nothing else to show */}
+          {showActivationCTA && (
+            <UnactivatedHomeCTA activeProgramSlug={activeProgramSlug} />
+          )}
+        </div>
       </section>
     </HomeProvider>
   );
 }
 
 /**
- * UnactivatedHomeCTA — the cold-start home's constitution-band empty state
- * (ADR-312 D6). The home doubles as onboarding: a bare kernel renders the
- * "declare what this workspace is for / activate a program" affordance.
+ * UnactivatedHomeCTA — the cold-start home's empty state (ADR-312 D6).
+ * The home doubles as onboarding: a bare kernel (no program activated, no
+ * universal substrate yet) renders the "activate a program" affordance.
  *
- * Two states:
- *   - active_program_slug == null: operator has not picked a program;
- *     deep-link to the Program surface where the picker lives.
- *   - active_program_slug != null: program activated but its SURFACES.yaml
- *     declares no home.program_sections (unlikely but defensive). Show a
- *     milder message acknowledging the activation.
+ * Post ADR-312 D2 amendment (2026-06-04) this renders ONLY when no program
+ * is activated. An activated program always shows its sections + the
+ * kernel-universal slots, so the prior "program activated but declares no
+ * home dashboard" branch is gone — there is no dead-end Home anymore.
  */
 function UnactivatedHomeCTA({ activeProgramSlug }: { activeProgramSlug: string | null }) {
-  const hasActivation = !!activeProgramSlug;
+  // Defensive: this component only mounts when activeProgramSlug is null
+  // (see showActivationCTA in HomeRenderer). The prop is retained for type
+  // clarity at the call site.
+  void activeProgramSlug;
   return (
-    <div className="px-6 py-8 bg-muted/20">
-      <div className="rounded-lg border border-dashed border-border/60 bg-card/50 px-6 py-8">
-        <div className="max-w-xl">
-          <h3 className="text-base font-medium text-foreground mb-2">
-            {hasActivation
-              ? `Program activated — ${activeProgramSlug}`
-              : 'No program activated yet'}
-          </h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            {hasActivation
-              ? 'This program does not declare a home dashboard. Configure your operation from the Program surface, or use the chat to set things up.'
-              : 'YARNNN runs your operations through programs — pre-shipped templates that bring a domain-shaped workspace (mandate, agents, recurrences, context structure). Activate one to see your operation rendered here.'}
-          </p>
-          <Link
-            href="/program"
-            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
-          >
-            {hasActivation ? 'Manage program' : 'Activate a program'}
-            <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </div>
+    <div className="rounded-lg border border-dashed border-border/60 bg-card/50 px-6 py-8">
+      <div className="max-w-xl">
+        <h3 className="text-base font-medium text-foreground mb-2">
+          No program activated yet
+        </h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          YARNNN runs your operations through programs — pre-shipped templates
+          that bring a domain-shaped workspace (mandate, agents, recurrences,
+          context structure). Activate one to see your operation rendered here.
+        </p>
+        <Link
+          href="/program"
+          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
+        >
+          Activate a program
+          <ArrowRight className="h-3.5 w-3.5" />
+        </Link>
       </div>
     </div>
   );

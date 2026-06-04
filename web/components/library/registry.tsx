@@ -38,6 +38,16 @@ import type { Binding } from '@/lib/compositor';
 import { KernelDeliverableMetadata } from './kernel-chrome/KernelDeliverableMetadata';
 import { KernelDeliverableActions } from './kernel-chrome/KernelDeliverableActions';
 
+// Kernel-universal Home slots (ADR-312 slots #3/#5/#6). Unlike program
+// sections, these are NOT declared in any SURFACES.yaml — the kernel
+// renders them for EVERY workspace from kernel substrate (action_proposals,
+// delivered outputs, decisions.md). HomeRenderer interleaves them with
+// program sections in the six-slot order. Each self-hides when its
+// substrate is empty.
+import { KernelDecisionQueue } from './kernel-home/KernelDecisionQueue';
+import { KernelRecentArtifacts } from './kernel-home/KernelRecentArtifacts';
+import { KernelJudgmentTrail } from './kernel-home/KernelJudgmentTrail';
+
 // alpha-trader bundle components — kernel/program folder split per
 // ADR-273 D1; component `kind`s remain bare strings in SURFACES.yaml.
 // Folder location is filesystem signal, not registry namespacing.
@@ -81,6 +91,13 @@ export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   // web/lib/compositor/kernel-defaults.ts references only these two.
   KernelDeliverableMetadata: () => <KernelDeliverableMetadata />,
   KernelDeliverableActions: () => <KernelDeliverableActions />,
+
+  // Kernel-universal Home slots (ADR-312 #3/#5/#6) — rendered for every
+  // workspace by HomeRenderer, NOT via SURFACES.yaml. Registered here so
+  // they share the one dispatch path with program sections.
+  KernelDecisionQueue: () => <KernelDecisionQueue />,
+  KernelRecentArtifacts: () => <KernelRecentArtifacts />,
+  KernelJudgmentTrail: () => <KernelJudgmentTrail />,
 
   // alpha-trader bundle components. Declared in
   // docs/programs/alpha-trader/SURFACES.yaml under cockpit.program_sections[].

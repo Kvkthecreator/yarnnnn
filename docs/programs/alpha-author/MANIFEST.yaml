@@ -1,7 +1,13 @@
 schema_version: 1
 slug: alpha-author
 title: alpha-author
-status: deferred
+# 2026-06-04: deferred → active. The Author* Home components shipped
+# (web/components/library/programs/alpha-author/), and the bundle resolves
+# for workspaces via the MANDATE.md activation marker (connection-less
+# bundle path in bundle_reader.bundles_active_for_workspace). With status
+# deferred the bundle was excluded from all_active_bundles(), so an
+# activated alpha-author workspace fell through to the empty-Home CTA.
+status: active
 # ADR-292: bundle version stamp. See alpha-trader/MANIFEST.yaml header
 # comment for the discipline. Bumped on any reference-workspace/ or specs/
 # change. Operator update flow consults this for "Bundle update available."

@@ -10,7 +10,7 @@
  * operator's design sketch: mandate-based title + summary on the left,
  * autonomy mode indicator + toggle on the right.
  *
- * Design reference: docs/design/COCKPIT-COMPONENT-DESIGN.md §"Layer 1"
+ * Design reference: docs/design/HOME-COMPONENT-DESIGN.md §"Layer 1"
  *
  * NOT a card — full-width, prose-weight header that frames what the
  * operation is trying to achieve and what permissions it carries. Present
