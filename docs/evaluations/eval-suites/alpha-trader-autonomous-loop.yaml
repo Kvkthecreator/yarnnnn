@@ -14,6 +14,33 @@ description: |
   AND act ALONE, without operator intervention, under delegation:
   autonomous?
 
+  THE SUCCESS CRITERION (the canon one-liner, composed from MANDATE.md
+  "What this operation is" + principles.md "Calibration loop" + the
+  EVAL-SUITE-DISCIPLINE S9 cycle-closure rule):
+
+    The autonomous trader loop succeeds when EVERY judgment wake CLOSES —
+    a real signal produces a proposal that auto-executes within the
+    envelope; the ABSENCE of a signal produces a stand-down that WRITES
+    standing_intent; the outcome reconciles into money-truth; and the
+    verdict-vs-outcome record compounds so calibration sharpens over
+    tenure. The measured variable is CALIBRATION COHERENCE + CYCLE-CLOSURE
+    DISCIPLINE — NOT trade frequency. Trade arrival is environmental
+    (signals fire when the market warrants, not on command), so:
+      • "No trade today" is SUCCESS when no signal fired (MANDATE.md: the
+        operation is "failing if signals do not fire and the Reviewer
+        proposes anyway").
+      • Failure is ONLY: a signal fired and the Reviewer did not propose;
+        OR a wake escalated and produced no closed cycle (the silent-wake
+        fault per S9 — a `success` row with NULL output_tokens is NOT a
+        stand-down, it means the Reviewer never ran).
+
+  This reframes the recurring "we can't get it to start trading" problem:
+  prior runs measured "did it trade" (hostage to signal arrival, rare by
+  design) and read every quiet day as failure. Canon measures judgment +
+  cycle-closure + calibration. The thing that "improves recursively" is
+  the calibration record (judgment_log.md verdict→outcome), not the trade
+  count. See docs/evaluations/2026-06-04-silent-wake-root-cause-FINDING.md.
+
   This is the PRE-FLIGHT suite for the live multi-day autonomy
   demonstration (sessions/alpha-trader-autonomy-loop.md). It validates the
   SHAPE of each judgment moment in a constructed, reset-to-clean situation
