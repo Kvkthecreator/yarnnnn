@@ -30,7 +30,10 @@ def _read(rel: str) -> str:
 # -----------------------------------------------------------------------------
 
 def test_reviewer_output_declares_telemetry_fields() -> None:
-    src = _read("agents/reviewer_agent.py")
+    # ADR-315: ReviewerOutput is DEFINED in occupant_contract.py (the published
+    # substrate<->occupant ABI). The dict-literal construction sites stay in
+    # reviewer_agent.py and are asserted by Contract 2+ below.
+    src = _read("agents/occupant_contract.py")
     tree = ast.parse(src)
     found = None
     for node in ast.walk(tree):

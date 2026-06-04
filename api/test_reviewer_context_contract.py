@@ -40,6 +40,8 @@ from agents.reviewer_agent import _validate_context_shape  # noqa: E402
 
 DISPATCHER_PATH = REPO_ROOT / "api" / "services" / "invocation_dispatcher.py"
 REVIEWER_PATH = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
+# ADR-315: ReviewerContext is defined in the published occupant contract module.
+OCCUPANT_CONTRACT_PATH = REPO_ROOT / "api" / "agents" / "occupant_contract.py"
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +184,7 @@ def test_dispatcher_does_not_emit_legacy_context_keys():
 def test_reviewer_context_typeddict_canonical_keys():
     """ReviewerContext TypedDict must declare the canonical recurrence-fire
     field names and must not declare the legacy `trigger_slug` field."""
-    src = _read(REVIEWER_PATH)
+    src = _read(OCCUPANT_CONTRACT_PATH)  # ADR-315: ReviewerContext moved here
     assert re.search(r"recurrence_prompt:\s*str", src), (
         "ReviewerContext must declare `recurrence_prompt: str`."
     )

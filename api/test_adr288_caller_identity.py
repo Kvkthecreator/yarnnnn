@@ -240,13 +240,13 @@ def test_envelope_key_renamed_to_ground_truth_md():
     what fills it. `performance_md` was ADR-267 residue — pre-rename file path
     `_performance.md` baked into the slot name.
     """
-    # Kernel-side: ReviewerContext field + readers
-    src = _read_text(_file("agents", "reviewer_agent.py"))
+    # Kernel-side: ReviewerContext field (ADR-315: defined in occupant_contract.py)
+    src = _read_text(_file("agents", "occupant_contract.py"))
     assert "ground_truth_md: str" in src, (
         "ReviewerContext field must be `ground_truth_md` per ADR-288 D5."
     )
     assert "performance_md" not in src, (
-        "`performance_md` identifier must not appear in reviewer_agent.py."
+        "`performance_md` identifier must not appear in occupant_contract.py."
     )
 
     # Envelope helper docstring

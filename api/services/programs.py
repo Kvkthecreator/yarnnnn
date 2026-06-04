@@ -369,8 +369,9 @@ async def _populate_occupant_for_runtime(um: Any, program_slug: str) -> None:
     """
     from datetime import datetime, timezone
 
-    # Import locally to avoid circular dependency at module load.
-    from agents.reviewer_agent import REVIEWER_MODEL_IDENTITY
+    # ADR-315: import the occupant identity from the published contract
+    # (pure data, no circular risk) rather than the occupant implementation.
+    from agents.occupant_contract import REVIEWER_MODEL_IDENTITY
 
     activated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     # REVIEWER_MODEL_IDENTITY is "ai:reviewer-sonnet-v8" (prefix included);
