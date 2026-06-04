@@ -124,7 +124,7 @@ Per "stabilize + refactor on the existing," every current `KERNEL_SURFACES` entr
 
 Plus the **(report/artifact) application** — *currently missing as a first-class entry*; it is the home for confusion #2 and the first concrete new Application the refactor adds (it already exists fragmentarily as `DeliverableMiddle` + the compose pipeline; the refactor formalizes it as the file-type-launched application).
 
-The chrome entries (`top-bar`, `launcher`, `chat-drawer`) are neither register — they are the **window manager's own chrome** (ADR-297 D11–D12), unchanged.
+The chrome entries (`top-bar`, `launcher`, `chat-drawer`) are neither register — they are the **window manager's own chrome** (ADR-297 D11–D12). ([ADR-316](ADR-316-chat-as-dockable-rail.md) later moves `chat-drawer` from the `floating-overlay` region to a dockable `main-rail` — chrome that *frames* the active surface beside it rather than occluding it — but it remains chrome, neither register.)
 
 ---
 

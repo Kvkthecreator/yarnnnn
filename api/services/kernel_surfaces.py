@@ -129,8 +129,11 @@ ARCHETYPES = (
 # default to the `main` region with `summon`-style visibility — i.e., the
 # active atomic surface mounts to `main`):
 #   - `default_region`: which named layout region the compositor mounts
-#     this surface into. One of `main | top | bottom-floating |
-#     bottom-fixed | floating-overlay`.
+#     this surface into. One of `main | main-rail | top | bottom-floating |
+#     bottom-fixed | floating-overlay`. `main-rail` (ADR-316) is the
+#     dockable command rail docked to the right of `main`'s window area —
+#     a flex sibling of SurfaceViewport that *reduces* the surface area
+#     rather than occluding it. Chat lives here, not in floating-overlay.
 #   - `default_visibility`: when the compositor mounts it. One of
 #     `always` (mounted whenever any authenticated surface is active),
 #     `summon` (mounted only when explicitly opened — e.g., Launcher
@@ -433,15 +436,23 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # always → summon. The pre-D16 bottom-strip composer dissolves
         # into a FAB + slide-over drawer pattern (universal generalization
         # of /feed's ADR-289 ConversationDrawer). See ADR-297 §D16.
+        #
+        # ADR-316 (2026-06-04): region flips floating-overlay → main-rail.
+        # Chat is the command-line OVER the active surface — a dockable
+        # rail that reduces the surface area, not an overlay that occludes
+        # it. The FAB still summons it; on desktop it docks to main's right
+        # (surface reflows), on mobile it degrades to a full-screen overlay
+        # (the isMobile branch in ChatDrawer). The "Viewing: X" label is
+        # now honest because the surface stays visible. See ADR-316.
         "slug": "chat-drawer",
         "title": "Chat Drawer",
         "archetype": "input",
         "substrate_paths": [],  # writes session_messages DB table
         "icon_key": "message-circle",
         "default_pinned": False,
-        "route": "",  # not navigable; floating-overlay summon
-        "summary": "Operator chat drawer — FAB at viewport bottom-center summons a slide-over drawer with composer + addressed-conversation timeline.",
-        "default_region": "floating-overlay",
+        "route": "",  # not navigable; FAB-summoned command rail
+        "summary": "Operator command rail — FAB summons a dockable right rail (desktop) / overlay (mobile) with composer + addressed-conversation timeline, scoped to the foregrounded surface.",
+        "default_region": "main-rail",
         "default_visibility": "summon",
     },
 ]

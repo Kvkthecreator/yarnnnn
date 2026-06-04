@@ -494,6 +494,8 @@ D15 implementation status: **Implemented 2026-05-22** (this session, code commit
 
 ### D16 — Universal summon chat drawer (2026-05-22 same-session amendment)
 
+> **AMENDED by [ADR-316](ADR-316-chat-as-dockable-rail.md) (2026-06-04):** the chat-drawer's *spatial mounting* changes — region `floating-overlay` → `main-rail`, `position: fixed` overlay → flex sibling of `SurfaceViewport` inside `main`. Opening chat now *reduces* the surface area instead of occluding it, so the `Viewing: X` label (D16 §5) is honest. D16 §5's `surfaceOverride` ↔ `foregrounded` ↔ `Viewing:` binding is **preserved and strengthened** (the occlusion that undermined it is gone). On mobile (<640px) the overlay survives — split is impossible there. Read D16's `floating-overlay` / "floats over whichever window is foregrounded" language as superseded by the rail model; everything else (one FAB, one drawer, universal, DeskContext→`foregrounded` context) stands.
+
 **Supersedes** D11 §Layout-policy line *"Composer always mounted in `bottom-fixed` (Input surface — every operator can chat with YARNNN from any surface)"* and **dissolves** D14.1's `useSuppressShellComposer()` machinery in full. Also dissolves the legacy `ConversationDrawer` on /feed (its responsibility absorbs into the universal drawer). Finishes the D11 Phase C.2 follow-on that was outstanding.
 
 D11 through D15 left three distinct chat affordances in the codebase, each operating under different rules:

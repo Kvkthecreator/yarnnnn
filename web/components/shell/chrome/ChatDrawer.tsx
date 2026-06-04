@@ -1,24 +1,29 @@
 'use client';
 
 /**
- * ChatDrawer — ADR-297 D16 universal chat drawer body.
+ * ChatDrawer — the operator command channel (ADR-297 D16 + ADR-316).
  *
- * The slide-over drawer summoned by the bottom-center FAB. Hosts:
- *   - Persona header (yarnnn icon + persona name + Conversation
- *     subtitle + close ×)
+ * The chat the operator addresses, summoned by the FAB. Hosts:
+ *   - Persona header (yarnnn icon + persona name + "Viewing: X" subtitle
+ *     + close ×)
  *   - Scrollable addressed-conversation timeline (ConversationPanel,
  *     filtered to pulse='addressed' intrinsically)
  *   - Composer input at the bottom (inside ConversationPanel)
  *
- * Drawer width: default 400px, resizable 320–720px via left-edge
- * drag handle. Persisted per-user to localStorage. Mobile (<640px):
- * full-screen takeover.
+ * ADR-316 — TWO LAYOUT MODES, one component:
+ *   - DESKTOP (≥640px): a dockable RAIL. A flex sibling of the window
+ *     area (ShellCompositor's `main` flex row). Opening it REDUCES the
+ *     surface area; it never occludes the surface. So "Viewing: X" is
+ *     honest — the surface stays co-visible and reflows. Width is the
+ *     posture dial (narrow=supervise, wide=author): default 400px,
+ *     resizable 320–720px via left-edge drag, persisted to localStorage.
+ *   - MOBILE (<640px): a full-screen overlay (split is impossible).
+ *     "Viewing: X" degrades to a breadcrumb.
  *
- * This component intentionally re-uses the per-`/feed` legacy
- * ConversationDrawer (web/components/feed/ConversationDrawer.tsx)
- * pattern verbatim — operators already learned the shape; D16 just
- * relocates the mount from `/feed`-only to the shell. The legacy
- * file is DELETED in the same commit; this file is its successor.
+ * The conversation body is identical across both modes; only the outer
+ * frame differs. surfaceOverride (→ agent context) + the "Viewing: X"
+ * label both read the window manager's `foregrounded` slug — one signal,
+ * shared operator↔agent↔surface meta-awareness (D16 §5, ADR-186).
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -138,42 +143,12 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   // a slightly stronger bg dim covers the same intent. Operator-
   // observed re-open flicker now gone.
 
-  return (
-    <>
-      {/* Backdrop dims the windows behind (desktop) or fully covers
-          them (mobile, where the drawer takes full-screen). Fades
-          in/out over 150ms via opacity transition. */}
-      <div
-        className={cn(
-          'fixed inset-0 bg-foreground/15 transition-opacity duration-150',
-          isMobile && 'bg-background',
-          open ? 'opacity-100' : 'opacity-0 pointer-events-none',
-        )}
-        style={{ zIndex: Z_DRAWER_BACKDROP }}
-        onClick={onClose}
-        aria-hidden="true"
-      />
-      <div
-        className={cn(
-          'fixed top-0 right-0 bottom-0 flex bg-background border-l border-border shadow-2xl transition-transform duration-150',
-          isMobile && 'left-0 border-l-0',
-          open ? 'translate-x-0' : 'translate-x-full pointer-events-none',
-        )}
-        style={isMobile ? { zIndex: Z_DRAWER_BODY } : { width, zIndex: Z_DRAWER_BODY }}
-        role="dialog"
-        aria-hidden={!open}
-        aria-label={`Conversation with ${personaName ?? 'Reviewer'}`}
-      >
-        {/* Drag handle (desktop only) */}
-        {!isMobile && (
-          <div
-            onMouseDown={onMouseDown}
-            className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
-            title="Drag to resize"
-          />
-        )}
-
-        <div className="flex-1 min-w-0 flex flex-col">
+  // ADR-316: the conversation body is identical across desktop-rail and
+  // mobile-overlay modes; only the OUTER frame differs (flex sibling that
+  // reduces the surface vs. fixed overlay that covers it). Factor the body
+  // once, wrap it per mode.
+  const body = (
+    <div className="flex-1 min-w-0 flex flex-col">
           {/* Header */}
           <div className="flex items-center justify-between px-3 py-2.5 border-b border-border bg-background shrink-0">
             <div className="flex items-center gap-2">
@@ -206,6 +181,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
               the operator is "asking about {current surface}" when they
               summon chat from any window. Same signal drives the
               "Viewing: X" header above — shared meta-awareness. */}
+          {/* Conversation body — composer + addressed timeline. */}
           <div className="flex-1 min-h-0">
             <ConversationPanel
               surfaceOverride={surfaceOverride}
@@ -215,8 +191,65 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
               showInputDivider={true}
             />
           </div>
+    </div>
+  );
+
+  // ADR-316 — MOBILE: full-screen overlay (split is impossible <640px).
+  // Keeps the fixed-position + backdrop + slide-in transition from the
+  // pre-ADR-316 drawer. The "Viewing: X" label degrades to a breadcrumb
+  // here because the surface cannot be co-visible.
+  if (isMobile) {
+    return (
+      <>
+        <div
+          className={cn(
+            'fixed inset-0 bg-background transition-opacity duration-150',
+            open ? 'opacity-100' : 'opacity-0 pointer-events-none',
+          )}
+          style={{ zIndex: Z_DRAWER_BACKDROP }}
+          onClick={onClose}
+          aria-hidden="true"
+        />
+        <div
+          className={cn(
+            'fixed inset-0 flex bg-background transition-transform duration-150',
+            open ? 'translate-x-0' : 'translate-x-full pointer-events-none',
+          )}
+          style={{ zIndex: Z_DRAWER_BODY }}
+          role="dialog"
+          aria-hidden={!open}
+          aria-label={`Conversation with ${personaName ?? 'Reviewer'}`}
+        >
+          {body}
         </div>
-      </div>
-    </>
+      </>
+    );
+  }
+
+  // ADR-316 — DESKTOP: a dockable command RAIL. A flex sibling of the
+  // window area (mounted by ShellCompositor's `main` flex row). When open
+  // it occupies `width`px and the surface area reflows into the remaining
+  // space — it never overlays the surface. When closed it collapses to
+  // zero width (animated) and the FAB re-summons it. The drag handle on
+  // the left edge is the posture dial (narrow = supervise, wide = author).
+  return (
+    <div
+      className={cn(
+        'h-full flex bg-background border-l border-border shadow-xl overflow-hidden transition-[width] duration-150',
+        open ? '' : 'pointer-events-none',
+      )}
+      style={{ width: open ? width : 0 }}
+      role="dialog"
+      aria-hidden={!open}
+      aria-label={`Conversation with ${personaName ?? 'Reviewer'}`}
+    >
+      {/* Drag handle — left edge of the rail. Drag left to widen. */}
+      <div
+        onMouseDown={onMouseDown}
+        className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
+        title="Drag to resize"
+      />
+      {body}
+    </div>
   );
 }

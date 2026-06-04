@@ -49,6 +49,18 @@ closed.
 mirrored on the FE `Surface` type. Chrome (top-bar, launcher, chat-drawer)
 is neither register — it is the window manager's own framing.
 
+**Chat is the command rail, not an overlay (ADR-316).** The chat-drawer
+chrome lives in the `main-rail` region — a flex sibling of `SurfaceViewport`
+inside `main` that *reduces* the surface area when open, never occluding it.
+On desktop it docks to the right of the window area (the foregrounded surface
+reflows and stays co-visible, so the chat header's `Viewing: X` label is
+honest); on mobile (<640px) it degrades to a full-screen overlay because the
+surface cannot be co-visible. The same `foregrounded` slug that names the
+`Viewing:` surface scopes the agent's context (`surfaceOverride`) and resolves
+its prompt profile (ADR-186) — one gesture (`foregroundSurface`) both raises
+the window and scopes the conversation. Chrome that frames content sits beside
+it; it does not cover it.
+
 **Agent-composed Applications** — the orchestration layer authoring a new
 Application by writing an application-manifest *file* in the substrate
 (everything-is-a-file extends to app definitions; the compositor reads

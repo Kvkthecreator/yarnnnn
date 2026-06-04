@@ -14,14 +14,15 @@
  * surfaces are none of those; they mount into top / floating-overlay
  * regions and are not pickable from the launcher.
  *
- * Post-D16 (2026-05-22) chrome set:
+ * Post-ADR-316 chrome set:
  *   top-bar     — merged dock-bar (D12: brand · launcher · Dock · user)
- *   launcher    — full surface-index overlay (D4 + D11)
- *   chat-drawer — FAB + slide-over drawer (D16, replaces chat-composer)
+ *   launcher    — full surface-index overlay (D4 + D11), floating-overlay
+ *   chat-drawer — FAB + dockable command rail (ADR-316), main-rail
  *
  * D12 collapsed `dock` into top-bar's body.
- * D16 collapsed `chat-composer` (bottom-fixed strip) into chat-drawer
- * (FAB + floating-overlay summon).
+ * D16 collapsed `chat-composer` (bottom-fixed strip) into chat-drawer.
+ * ADR-316 moved chat-drawer from floating-overlay (occluding) to
+ * main-rail (a flex sibling of main that reduces the surface area).
  */
 
 import type { ComponentType } from 'react';

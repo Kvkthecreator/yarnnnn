@@ -55,9 +55,15 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
     setWindowState,
     toggleMaximize,
     minimizeWindow,
+    desktopBounds,
   } = useSurfacePreferences();
   const { data: composition } = useComposition();
   const viewport = useViewport();
+  // ADR-316: drag/resize clamping uses the DESKTOP box (reduced by the
+  // command rail), falling back to the raw viewport before the Desktop
+  // measures. Keeps windows from being draggable under the rail.
+  const clampWidth = desktopBounds?.width ?? viewport.width;
+  const clampHeight = desktopBounds?.height ?? viewport.height;
 
   // Cold-load deep-link fallback (D13). Recognize per-slug routes as
   // transports that open the named surface; the /desktop route itself
@@ -177,8 +183,8 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
             }}
             onMaximize={() => toggleMaximize(slug)}
             windowState={ws}
-            viewportWidth={viewport.width}
-            viewportHeight={viewport.height}
+            viewportWidth={clampWidth}
+            viewportHeight={clampHeight}
             onWindowStateChange={(state) => setWindowState(slug, state)}
             interactive={true}
           >

@@ -1,18 +1,19 @@
 'use client';
 
 /**
- * ChatDrawerSurface — ADR-297 D16 + D17 chrome surface
- * (region: floating-overlay, archetype: input, visibility: summon).
+ * ChatDrawerSurface — chrome surface for the chat command rail
+ * (region: main-rail, archetype: input, visibility: summon).
  *
- * D17 (2026-05-22): only the drawer mounts here. The FAB moved into
- * the Desktop layer (web/components/shell/Desktop.tsx) per D17 §7,9 —
- * the FAB is a desktop-level affordance (it belongs on the desktop
- * wallpaper); the drawer is a temporary overlay that covers content.
- * Different homes; different responsibilities.
+ * ADR-316 (2026-06-04): region flips floating-overlay → main-rail. The
+ * chat is the command-line OVER the active surface — a dockable rail
+ * (desktop) that reduces the surface area, degrading to a full-screen
+ * overlay only on mobile. ShellCompositor mounts this as a flex sibling
+ * of SurfaceViewport inside `main`. The ChatDrawer component owns both
+ * layout modes; this wrapper just threads open/close state.
  *
- * Pre-D17 this surface mounted both ChatFAB + ChatDrawer. Post-D17
- * ChatFAB.tsx is DELETED (Singular Implementation — body inlined into
- * Desktop.tsx); ChatDrawerSurface shrinks to drawer-only.
+ * D17 (2026-05-22): the FAB lives in the Desktop layer
+ * (web/components/shell/Desktop.tsx), not here — it's a desktop-level
+ * affordance. ChatFAB.tsx is DELETED (Singular Implementation).
  */
 
 import { ChatDrawer } from './ChatDrawer';

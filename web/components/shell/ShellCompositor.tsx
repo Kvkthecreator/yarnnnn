@@ -8,14 +8,15 @@
  * matching JSX slot. Replaces the hardcoded shell JSX previously living
  * in AuthenticatedLayout.tsx.
  *
- * Layout regions (ADR-297 D11):
+ * Layout regions (ADR-297 D11 + ADR-316):
  *   - `top`              → top-of-viewport chrome (today: TopBar)
- *   - `main`             → primary content area (mounts SurfaceViewport;
- *                           atomic content surface dispatched by DeskContext)
+ *   - `main`             → primary content area (a flex ROW: SurfaceViewport
+ *                           window area flex-1 + main-rail command rail)
+ *   - `main-rail`        → dockable command rail docked right of the window
+ *                           area (ADR-316, today: ChatDrawerSurface). Reduces
+ *                           the surface area; never occludes it.
  *   - `bottom-floating`  → floating affordance above main (today: Dock)
- *   - `bottom-fixed`     → fixed input region below main (today:
- *                           ChatComposerSurface placeholder; Phase C wires
- *                           the actual composer body)
+ *   - `bottom-fixed`     → fixed input region below main (today: unused)
  *   - `floating-overlay` → modal overlays summoned over main (today:
  *                           LauncherSurface)
  *
@@ -79,6 +80,7 @@ function partitionChromeByRegion(
 ): Record<LayoutRegion, ChromeSurfaceSlug[]> {
   const byRegion: Record<LayoutRegion, ChromeSurfaceSlug[]> = {
     main: [],
+    'main-rail': [],
     top: [],
     'bottom-floating': [],
     'bottom-fixed': [],
@@ -112,11 +114,20 @@ export function ShellCompositor({ children }: ShellCompositorProps) {
             user menu). */}
         {mountRegion('top')}
 
-        {/* Main region — atomic content surface(s) via SurfaceViewport
-            (D15: multi-window), with legacy children as fallback for
-            non-atomic routes. */}
-        <main className="flex-1 min-h-0 overflow-hidden">
-          <SurfaceViewport>{children}</SurfaceViewport>
+        {/* Main region — ADR-316: a flex ROW. The window area
+            (SurfaceViewport) is flex-1; the command rail (chat) docks to
+            its right as a flex sibling, reducing the window area instead
+            of occluding it. On mobile the rail renders itself as a
+            full-screen overlay (its own isMobile branch), so the row
+            collapses to just the window area there. */}
+        <main className="flex-1 min-h-0 overflow-hidden flex flex-row">
+          <div className="flex-1 min-w-0 overflow-hidden">
+            <SurfaceViewport>{children}</SurfaceViewport>
+          </div>
+          {/* main-rail region — the dockable command rail (chat). It owns
+              its own open/closed + width state; renders null-width when
+              closed (desktop) or as an overlay (mobile). */}
+          {mountRegion('main-rail')}
         </main>
 
         {/* D12 + D16 (2026-05-21..22): bottom-floating + bottom-fixed
@@ -130,9 +141,9 @@ export function ShellCompositor({ children }: ShellCompositorProps) {
             use but no kernel surface targets them today. */}
       </div>
 
-      {/* Floating-overlay region — LauncherSurface + ChatDrawerSurface
-          (D16). Mounted outside the screen flow because overlays use
-          their own fixed positioning + z-index stacking. */}
+      {/* Floating-overlay region — LauncherSurface only (ADR-316 moved
+          ChatDrawerSurface to main-rail). Mounted outside the screen flow
+          because overlays use their own fixed positioning + z-index. */}
       {mountRegion('floating-overlay')}
     </>
   );

@@ -28,6 +28,7 @@
  * conceptual surface. D17 unifies them.
  */
 
+import { useEffect, useRef } from 'react';
 import { LayoutGrid, MessageCircle } from 'lucide-react';
 import { useShellChrome } from './ShellChromeContext';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -63,10 +64,30 @@ function useIsFirstTime(): boolean {
 
 export function Desktop({ hasWindows, children }: DesktopProps) {
   const { toggleDrawer, drawerOpen } = useShellChrome();
+  const { setDesktopBounds } = useSurfacePreferences();
   const isFirstTime = useIsFirstTime();
+  const ref = useRef<HTMLDivElement>(null);
+
+  // ADR-316: report the Desktop's own measured box to the window manager
+  // so window geometry (cascade / maximize / drag-clamp) is relative to
+  // the Desktop — which the command rail (chat) reduces as a flex sibling
+  // — not the raw viewport. ResizeObserver fires on rail open/close/drag
+  // and on viewport resize, keeping geometry correct as the rail moves.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const report = () => setDesktopBounds(el.clientWidth, el.clientHeight);
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [setDesktopBounds]);
 
   return (
-    <div className="relative h-full w-full bg-muted/30 p-3 sm:p-4 overflow-hidden">
+    <div
+      ref={ref}
+      className="relative h-full w-full bg-muted/30 p-3 sm:p-4 overflow-hidden"
+    >
       {/* Empty-state copy renders only when no windows are mounted.
           Context-aware: first-time operators get a richer welcome with
           an arrow pointer; returning operators get a concise hint. */}

@@ -285,13 +285,28 @@ export function computeMaximizedGeometry(
   viewportHeight: number
 ): { x: number; y: number; width: number; height: number } {
   const TOP_BAR_PX = 56;       // outside Desktop's coordinate frame
-  const DESKTOP_PAD = 16;      // sm:p-4 — Desktop's own padding
   const usableHeight = Math.max(WINDOW_MIN_HEIGHT, viewportHeight - TOP_BAR_PX);
+  return computeMaximizedGeometryFromBounds(viewportWidth, usableHeight);
+}
+
+/**
+ * ADR-316: maximize geometry from the DESKTOP's own measured box
+ * (already excludes the top-bar and the command rail — the Desktop is
+ * the flex-1 sibling of the rail, below the top-bar). The input is the
+ * usable Desktop area; this only insets the Desktop's own padding. The
+ * viewport-based computeMaximizedGeometry above delegates here after
+ * subtracting the top-bar, so both share one inset rule.
+ */
+export function computeMaximizedGeometryFromBounds(
+  desktopWidth: number,
+  desktopHeight: number
+): { x: number; y: number; width: number; height: number } {
+  const DESKTOP_PAD = 16;      // sm:p-4 — Desktop's own padding
   return {
     x: DESKTOP_PAD,
     y: DESKTOP_PAD,
-    width: Math.max(WINDOW_MIN_WIDTH, viewportWidth - DESKTOP_PAD * 2),
-    height: Math.max(WINDOW_MIN_HEIGHT, usableHeight - DESKTOP_PAD * 2),
+    width: Math.max(WINDOW_MIN_WIDTH, desktopWidth - DESKTOP_PAD * 2),
+    height: Math.max(WINDOW_MIN_HEIGHT, desktopHeight - DESKTOP_PAD * 2),
   };
 }
 

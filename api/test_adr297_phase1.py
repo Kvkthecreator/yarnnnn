@@ -30,10 +30,15 @@ ADR-297 D16 amendments (universal summon chat drawer):
   bottom-fixed → floating-overlay/summon. The bottom-strip composer
   dissolves into a FAB + slide-over drawer.
 
-Post-D16 chrome surface set (3 entries):
-    `top-bar`    (chrome/top/always)        — merged dock-bar body
+ADR-316 amendment (chat as dockable command rail):
+- Chat-drawer's region flips floating-overlay → main-rail — a flex
+  sibling of `main`'s window area that reduces the surface rather than
+  occluding it. Still FAB-summoned; on mobile it degrades to overlay.
+
+Post-ADR-316 chrome surface set (3 entries):
+    `top-bar`    (chrome/top/always)              — merged dock-bar body
     `launcher`   (navigator/floating-overlay/summon) — overlay
-    `chat-drawer`(input/floating-overlay/summon)    — FAB + drawer
+    `chat-drawer`(input/main-rail/summon)          — FAB + dockable rail
 
 Both `bottom-floating` and `bottom-fixed` LayoutRegions survive in the
 type union but no kernel surface targets them today.
@@ -131,8 +136,8 @@ def test_kernel_surfaces_module() -> None:
         "settings",
         "connectors",
         # ADR-297 D11 chrome surfaces (D12 collapsed `dock` into top-bar;
-        # D16 renamed `chat-composer` → `chat-drawer` and flipped its
-        # region bottom-fixed → floating-overlay/summon).
+        # D16 renamed `chat-composer` → `chat-drawer`; ADR-316 flipped
+        # chat-drawer's region floating-overlay → main-rail).
         "top-bar",
         "launcher",
         "chat-drawer",
@@ -442,16 +447,17 @@ def test_d11_archetype_catalog() -> None:
 def test_d11_chrome_surfaces() -> None:
     print("\n[5b-chrome] ADR-297 D11+D12+D16 chrome-surface contract")
 
-    # The three chrome surfaces (post-D12, post-D16) and their
-    # declared (archetype, region, visibility).
+    # The three chrome surfaces (post-D12, post-D16, post-ADR-316) and
+    # their declared (archetype, region, visibility).
     #   D12 deleted `dock` from this set.
-    #   D16 renamed `chat-composer` → `chat-drawer` and flipped its
-    #   region bottom-fixed → floating-overlay/summon (universal
-    #   FAB + slide-over drawer replaces the bottom-strip composer).
+    #   D16 renamed `chat-composer` → `chat-drawer`.
+    #   ADR-316 flipped chat-drawer's region floating-overlay → main-rail
+    #   (the dockable command rail that reduces the surface, not an
+    #   overlay that occludes it). Still FAB-summoned, still input/summon.
     expected_chrome = {
         "top-bar": ("chrome", "top", "always"),
         "launcher": ("navigator", "floating-overlay", "summon"),
-        "chat-drawer": ("input", "floating-overlay", "summon"),
+        "chat-drawer": ("input", "main-rail", "summon"),
     }
 
     by_slug = {s["slug"]: s for s in KERNEL_SURFACES}
@@ -500,8 +506,9 @@ def test_d11_chrome_surfaces() -> None:
             f"(region={has_region}, visibility={has_visibility})",
         )
 
-    # Every declared region is one of the canonical five
-    legal_regions = {"main", "top", "bottom-floating", "bottom-fixed", "floating-overlay"}
+    # Every declared region is one of the canonical six (ADR-316 added
+    # `main-rail` — the dockable command rail beside `main`).
+    legal_regions = {"main", "main-rail", "top", "bottom-floating", "bottom-fixed", "floating-overlay"}
     for entry in KERNEL_SURFACES:
         region = entry.get("default_region")
         if region is not None:

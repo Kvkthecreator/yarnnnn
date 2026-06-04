@@ -47,6 +47,7 @@ import {
   closeSurface as closeSurfaceWrite,
   computeDefaultWindowState,
   computeMaximizedGeometry,
+  computeMaximizedGeometryFromBounds,
   getForegroundedSurface,
   getKeptSurfaces,
   getOpenSurfaces,
@@ -139,6 +140,17 @@ export interface SurfacePreferences {
    *  "Close another to open this." Caller clears via clearCapHit. */
   capHit: string | null;
   clearCapHit: () => void;
+  /**
+   * ADR-316: the Desktop container's measured inner bounds. Window
+   * geometry (cascade origin, maximize snap, drag-clamp) is relative to
+   * the DESKTOP, not the raw viewport — because the command rail
+   * (chat) and any future docked chrome reduce the Desktop's width.
+   * The Desktop component reports its bounds here via a ResizeObserver;
+   * the geometry math reads from here instead of `window.innerWidth`.
+   * Null until the Desktop mounts + measures (geometry falls back to
+   * window dims until then). */
+  desktopBounds: { width: number; height: number } | null;
+  setDesktopBounds: (width: number, height: number) => void;
 }
 
 const Ctx = createContext<SurfacePreferences | null>(null);
@@ -156,6 +168,19 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   // D15 — window manager state.
   const [windowStates, setWindowStatesState] = useState<WindowStateMap>({});
   const [capHit, setCapHit] = useState<string | null>(null);
+  // ADR-316: Desktop-measured bounds (see interface docstring). Held in
+  // a ref so geometry callbacks read the latest value without being
+  // re-created on every Desktop resize (which would thrash window
+  // callbacks). A state mirror is also exposed for consumers that need
+  // to re-render on bounds change.
+  const desktopBoundsRef = useRef<{ width: number; height: number } | null>(null);
+  const [desktopBounds, setDesktopBoundsState] = useState<{ width: number; height: number } | null>(null);
+  const setDesktopBounds = useCallback((width: number, height: number) => {
+    const prev = desktopBoundsRef.current;
+    if (prev && prev.width === width && prev.height === height) return;
+    desktopBoundsRef.current = { width, height };
+    setDesktopBoundsState({ width, height });
+  }, []);
   // Monotonic cascade counter — increments per newly-opened window
   // without prior state. Used to compute cascade x/y offset.
   const cascadeCounter = useRef(0);
@@ -359,12 +384,24 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
           // viewport-fixed bottom-right above windows (Z_FAB=150),
           // the cascade origin returns to a simple viewport-padded
           // box. Singular Implementation.
-          const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
-          const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-          const TOP_BAR_PX = 56;
+          // ADR-316: prefer the Desktop-measured bounds (already excludes
+          // the top-bar AND the command rail, since the Desktop is the
+          // flex-1 sibling of the rail). Fall back to window dims minus
+          // chrome only before the Desktop has measured.
+          const bounds = desktopBoundsRef.current;
           const DESKTOP_PAD = 16;
-          const usableW = vw - DESKTOP_PAD * 2;
-          const usableH = vh - TOP_BAR_PX - DESKTOP_PAD * 2;
+          let usableW: number;
+          let usableH: number;
+          if (bounds) {
+            usableW = bounds.width - DESKTOP_PAD * 2;
+            usableH = bounds.height - DESKTOP_PAD * 2;
+          } else {
+            const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+            const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+            const TOP_BAR_PX = 56;
+            usableW = vw - DESKTOP_PAD * 2;
+            usableH = vh - TOP_BAR_PX - DESKTOP_PAD * 2;
+          }
           const cascadeIndex = cascadeCounter.current++;
           const computed = computeDefaultWindowState(
             usableW,
@@ -445,9 +482,17 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
           };
         } else {
           // Zoom. Save current geometry into prevGeometry, snap to max.
-          const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
-          const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
-          const max = computeMaximizedGeometry(vw, vh);
+          // ADR-316: maximize snaps to the DESKTOP bounds (already
+          // exclude the top-bar AND the command rail) when measured, so a
+          // zoomed window fills the surface area beside the rail, never
+          // under it. Falls back to the viewport-based helper pre-measure.
+          const bounds = desktopBoundsRef.current;
+          const max = bounds
+            ? computeMaximizedGeometryFromBounds(bounds.width, bounds.height)
+            : computeMaximizedGeometry(
+                typeof window !== 'undefined' ? window.innerWidth : 1280,
+                typeof window !== 'undefined' ? window.innerHeight : 800,
+              );
           next = {
             x: max.x,
             y: max.y,
@@ -593,6 +638,8 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       minimizeWindow,
       capHit,
       clearCapHit,
+      desktopBounds,
+      setDesktopBounds,
     }),
     [
       userId,
@@ -615,6 +662,8 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       minimizeWindow,
       capHit,
       clearCapHit,
+      desktopBounds,
+      setDesktopBounds,
     ]
   );
 
