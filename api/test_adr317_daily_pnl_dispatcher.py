@@ -24,9 +24,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from services.daily_pnl_email import (  # noqa: E402
     NOTIFICATION_SLUG,
     TRIGGER_SLUG,
+    SENT_MARKER_PATH,
     build_headline,
     build_html,
     is_opted_in,
+    _already_sent_today,
     _parse_money_truth_windows,
 )
 
@@ -121,6 +123,64 @@ check(
     'recurrence.slug == "outcome-reconciliation"' in wake_src
     and "maybe_send_daily_pnl_email" in wake_src,
 )
+
+
+# ── 5. idempotency — once per UTC day (the 2026-06-04 double-fire fix) ───────
+class _FakeTable:
+    def __init__(self, content):
+        self._content = content
+
+    def select(self, *a, **k):
+        return self
+
+    def eq(self, *a, **k):
+        return self
+
+    def limit(self, *a, **k):
+        return self
+
+    def execute(self):
+        class R:
+            pass
+
+        r = R()
+        r.data = [{"content": self._content}] if self._content is not None else []
+        return r
+
+
+class _FakeClient:
+    def __init__(self, content):
+        self._content = content
+
+    def table(self, *_a, **_k):
+        return _FakeTable(self._content)
+
+
+_today = "2026-06-04"
+sent_marker = f"# marker\nlast_sent_date: '{_today}'\nlast_headline: \"x\"\n"
+check(
+    "already-sent-today TRUE when marker matches today",
+    _already_sent_today(_FakeClient(sent_marker), "u", _today) is True,
+)
+check(
+    "already-sent-today FALSE for a different date (new day → send)",
+    _already_sent_today(_FakeClient(sent_marker), "u", "2026-06-05") is False,
+)
+check(
+    "already-sent-today FALSE when no marker exists yet",
+    _already_sent_today(_FakeClient(None), "u", _today) is False,
+)
+check(
+    "sent-marker lives under /workspace/review/ (system-authored, not Reviewer-locked)",
+    SENT_MARKER_PATH.startswith("/workspace/review/"),
+)
+
+# ── 6. CTA points at the live landing route, not the dead /overview stub ────
+from services.deep_links import overview_url  # noqa: E402
+
+cta = overview_url()
+check("CTA targets /desktop (HOME_ROUTE), not the dead /overview stub",
+      "/desktop" in cta and "/overview" not in cta)
 
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

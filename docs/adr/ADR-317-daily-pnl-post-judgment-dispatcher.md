@@ -1,6 +1,6 @@
 # ADR-317: Daily P&L Post-Judgment Dispatcher — Reviewer Triggers, Dispatcher Sends
 
-> **Status**: **Implemented** 2026-06-04. Phase 1 (dispatcher service + wake-hook + test gate) shipped. Live-send validation against kvk's workspace pending the operator flipping `daily_pnl_reconciliation` to `active: true`.
+> **Status**: **Implemented + live-validated** 2026-06-04. Phase 1 (dispatcher + wake-hook + test gate) shipped; the first live trader-suite run (kvk) confirmed the email **arrives in the operator's inbox composed correctly** (headline + windows match `_money_truth.md`). That run also surfaced two defects, both fixed same-day (§Defects-found-in-production). Test gate 18/18.
 > **Date**: 2026-06-04
 > **Authors**: KVK, Claude
 > **Extends**: ADR-202 (External Channel Discipline — expository pointers), ADR-299 D5 (operator-addressing observability opt-ins), ADR-195 (money-truth substrate), FOUNDATIONS Axiom 6 (Channel) + Derived Principle 12 (channel legibility gates autonomy)
@@ -53,6 +53,16 @@ The dispatcher rides the existing system Resend wire (`RESEND_API_KEY`, already 
 - The `operator_notifications.daily_pnl_reconciliation` opt-in is now real. Flipping it `active: true` in a workspace's `_preferences.yaml` produces a daily P&L email after the @market_close+1h outcome-reconciliation fire.
 - The pattern generalizes: `operator_notifications.signal_fire_alert` + `regime_state_change_alert` (also default-off in the bundle) can adopt the same post-judgment-dispatcher shape in follow-on work, each gated on the relevant wake/event.
 - The eval suite can now assert the **full** compose-and-send EOD artifact end-to-end (see the alpha-trader autonomous-loop suite), not just the Reviewer's composition.
+
+## Defects found in production (2026-06-04 first live run, fixed same-day)
+
+The first live trader-suite run validated the happy path (email arrived, composed correctly) AND surfaced two defects — the value of a live run over unit tests:
+
+- **D-fix-1 — double-fire.** The `outcome-reconciliation` recurrence can fire more than once per day (manual_fire + cron, or — as in the eval — fired twice across two evals). The dispatcher had no idempotency guard, so each fire sent a duplicate email (two identical P&L emails in the operator's inbox). **Fix:** a once-per-UTC-day guard — `_already_sent_today()` reads a substrate marker `/workspace/review/_daily_pnl_sent.yaml` (written `authored_by="system:daily-pnl-dispatcher"` AFTER a confirmed send, so a failed send stays retryable). The send-time date is read from the runtime clock (Axiom 4 — time is perceived, not stored); the marker records *which* date was last sent (auditable, restart-safe).
+
+- **D-fix-2 — stale CTA URL.** The email's "Open cockpit" CTA pointed at `https://yarnnn.com/overview`, a dead redirect stub. `overview_url()` (the shared deep-link helper, also used by `daily_update_email` + `notifications`) was built around the defunct `/overview` surface. **Fix:** repointed `overview_url()` to `/desktop` (`HOME_ROUTE` per ADR-297 D17 — the authenticated landing route where auth-callback + middleware land operators). Source-level fix heals the stale CTA across all three notification surfaces in one place (Singular Implementation). Function name retained (3 callers) — a slight misnomer post-ADR-297, documented in the helper.
+
+Both fixes are Hat-A (the email ships to operators). Test gate extended to 18/18 (idempotency 4 checks + CTA-target check).
 
 ## Files
 

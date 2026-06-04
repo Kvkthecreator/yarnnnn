@@ -9,12 +9,13 @@ UX.
 APP_URL env var is the base. Defaults to `https://yarnnn.com` (prod).
 Override in local/dev via APP_URL.
 
-Naming convention (operator-native, per ADR-201):
-  /overview  — HOME (Overview surface, ADR-199)
-  /team      — roster surface (ADR-201; replaces legacy /agents)
-  /work      — tasks (Work surface, ADR-180)
+Naming convention (operator-native):
+  /desktop   — HOME / authenticated landing route (ADR-297 D17; overview_url() targets this)
+  /agents    — roster surface (ADR-214 reversed ADR-201's /team)
   /files     — filesystem / knowledge browser (ADR-180; legacy /context redirects here)
   /review    — Reviewer stream + queue (ADR-200)
+Note: overview_url() is a slight misnomer post-ADR-297 (it points at /desktop,
+not a defunct /overview surface) — name retained to avoid a 3-caller rename.
 
 All helpers return absolute URLs. Query params are the deep-link
 shape (`?focus=queue`, `?since=<iso>`, `?agent=<slug>`). Anchors
@@ -40,13 +41,20 @@ def overview_url(
     focus: Optional[str] = None,
     since: Optional[str] = None,
 ) -> str:
-    """Overview surface (HOME) deep-link.
+    """Home/landing deep-link — the authenticated landing route.
+
+    Points at /desktop (HOME_ROUTE per ADR-297 D17 — where auth-callback +
+    middleware land operators; the OS shell then surfaces the Home
+    composition). PREVIOUSLY pointed at /overview, which is a dead redirect
+    stub (the 2026-06-04 trader-suite run surfaced operators getting a stale
+    CTA URL in the daily P&L email). The function name is retained (3 callers:
+    daily_pnl_email, daily_update_email, notifications) — only the target is
+    corrected, healing the stale CTA across all three surfaces in one place.
 
     Args:
-        focus: Optional pane focus. Recognized values per ADR-199:
-            "queue" — pending proposals pane
-            "alerts" — alert/notification pane
-            "performance" — money-truth slice
+        focus: Optional pane focus hint (legacy ADR-199 panes: queue / alerts /
+            performance). Carried as a query param; the shell honors it where it
+            can and ignores it otherwise.
         since: Optional ISO timestamp — filter to events since.
     """
     params = {}
@@ -54,7 +62,7 @@ def overview_url(
         params["focus"] = focus
     if since:
         params["since"] = since
-    return _build("/overview", params)
+    return _build("/desktop", params)
 
 
 def review_url(

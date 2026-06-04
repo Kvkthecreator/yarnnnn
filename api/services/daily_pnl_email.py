@@ -226,6 +226,45 @@ def build_text(windows: dict, overview_url: str) -> str:
     return "\n".join(lines)
 
 
+# Substrate marker tracking the last date the P&L email was sent — the
+# idempotency record. The outcome-reconciliation recurrence can fire more than
+# once per day (manual_fire + cron, or the eval firing it twice), and without
+# this guard each fire sends a duplicate email (the 2026-06-04 trader-suite run
+# surfaced a double-fire in the operator's inbox). One email per UTC day.
+SENT_MARKER_PATH = "/workspace/review/_daily_pnl_sent.yaml"
+
+
+def _already_sent_today(client: Any, user_id: str, today: str) -> bool:
+    content = _get_workspace_file_content(client, user_id, SENT_MARKER_PATH)
+    if not content:
+        return False
+    import re
+
+    m = re.search(r"last_sent_date:\s*['\"]?(\d{4}-\d{2}-\d{2})", content)
+    return bool(m and m.group(1) == today)
+
+
+def _stamp_sent_marker(client: Any, user_id: str, today: str, headline: str) -> None:
+    from services.authored_substrate import write_revision
+
+    body = (
+        f"# Daily P&L send marker (ADR-317 idempotency)\n"
+        f"last_sent_date: '{today}'\n"
+        f"last_headline: \"{headline}\"\n"
+    )
+    try:
+        write_revision(
+            client,
+            user_id=user_id,
+            path=SENT_MARKER_PATH,
+            content=body,
+            authored_by="system:daily-pnl-dispatcher",
+            message=f"daily P&L email sent for {today}",
+        )
+    except Exception as exc:  # noqa: BLE001 — marker write must not break the send result
+        logger.warning("[daily-pnl] sent-marker write failed for %s: %s", user_id[:8], exc)
+
+
 async def maybe_send_daily_pnl_email(client: Any, user_id: str) -> dict:
     """Post-judgment dispatcher — called after the outcome-reconciliation wake completes.
 
@@ -234,12 +273,23 @@ async def maybe_send_daily_pnl_email(client: Any, user_id: str) -> dict:
 
     Gates, in order:
       1. operator opted in (operator_notifications.daily_pnl_reconciliation active)
-      2. _money_truth.md exists (the judgment produced substrate to summarize)
-      3. operator email resolvable
+      2. not already sent today (idempotency — one email per UTC day)
+      3. _money_truth.md exists (the judgment produced substrate to summarize)
+      4. operator email resolvable
     """
     prefs = _get_workspace_file_content(client, user_id, PREFERENCES_PATH)
     if not is_opted_in(prefs):
         return {"sent": False, "reason": "not_opted_in"}
+
+    # Idempotency: the send-time clock is a runtime concern (Axiom 4 — time is
+    # perceived, not stored), so the UTC date is read here, not from substrate.
+    # The substrate marker records WHICH date was last sent (auditable, restart-
+    # safe), but "what day is it now" comes from the runtime.
+    from datetime import datetime, timezone
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    if _already_sent_today(client, user_id, today):
+        return {"sent": False, "reason": "already_sent_today", "date": today}
 
     money_truth = _get_workspace_file_content(client, user_id, MONEY_TRUTH_PATH)
     if not money_truth:
@@ -269,6 +319,9 @@ async def maybe_send_daily_pnl_email(client: Any, user_id: str) -> dict:
         text=build_text(windows, overview),
     )
     if result.success:
+        # Stamp the marker only AFTER a confirmed send — a failed send should be
+        # retryable on the next fire, not suppressed by a premature marker.
+        _stamp_sent_marker(client, user_id, today, headline)
         logger.info("[daily-pnl] sent to %s (%s)", user_id[:8], headline)
         return {"sent": True, "headline": headline, "message_id": result.message_id}
     logger.warning("[daily-pnl] send failed for %s: %s", user_id[:8], result.error)
