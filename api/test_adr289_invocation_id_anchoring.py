@@ -51,7 +51,8 @@ def _read(path: str) -> str:
 
 def test_reviewer_output_typeddict_declares_invocation_id():
     """ReviewerOutput TypedDict exposes invocation_id field per ADR-289 D4."""
-    src = _read("agents/reviewer_agent.py")
+    # ADR-315: ReviewerOutput defined in occupant_contract.py.
+    src = _read("agents/occupant_contract.py")
     # Look for invocation_id field in ReviewerOutput class body
     m = re.search(
         r"class ReviewerOutput\(TypedDict.*?\n.*?invocation_id\s*:\s*str",

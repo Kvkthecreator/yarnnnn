@@ -1121,7 +1121,7 @@ async def global_chat(
         progress event generation; this route maps the typed event stream
         to SSE frames + finalizes the execution_events row.
         """
-        from agents.reviewer_agent import REVIEWER_MODEL_IDENTITY
+        from agents.occupant_contract import REVIEWER_MODEL_IDENTITY  # ADR-315
         from services.reviewer_chat_surfacing import write_reviewer_message
         from services.supabase import get_service_client
         from services.telemetry import record_execution_event

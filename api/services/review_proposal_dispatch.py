@@ -335,7 +335,8 @@ async def _run_ai_reviewer(
     write produced during the cycle, then finalize the canonical
     execution_events row at function exit.
     """
-    from agents.reviewer_agent import invoke_reviewer, REVIEWER_MODEL_IDENTITY
+    from agents.reviewer_agent import invoke_reviewer
+    from agents.occupant_contract import REVIEWER_MODEL_IDENTITY  # ADR-315
     from agents.reviewer_agent_compat import output_to_review_decision
     import uuid as _uuid
 

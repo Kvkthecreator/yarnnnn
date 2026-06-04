@@ -1582,10 +1582,8 @@ async def stream_addressed_wake(
     accounting because the SSE response is structured around it).
     """
     import asyncio as _asyncio
-    from agents.reviewer_agent import (
-        invoke_reviewer,
-        REVIEWER_MODEL_IDENTITY,
-    )
+    from agents.reviewer_agent import invoke_reviewer
+    from agents.occupant_contract import REVIEWER_MODEL_IDENTITY  # ADR-315
     from services.reviewer_envelope import load_reviewer_governance_envelope
     from services.reviewer_chat_surfacing import (
         REVIEWER_COGNITION_TOOLS as _COGNITION_ONLY,
