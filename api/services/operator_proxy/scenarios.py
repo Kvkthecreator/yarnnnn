@@ -419,6 +419,26 @@ class ScenarioRunner:
                 obs["error"] = f"{type(exc).__name__}: {exc}"
             return obs
 
+        if "fire" in turn:
+            # Fire a recurrence as the MEASURED turn (not setup). This is the
+            # autonomous recurrence-fire path: manual_fire enqueues to wake_queue;
+            # the deployed scheduler drains it and runs the Reviewer with the
+            # recurrence-fire envelope (identical context shape to a real cron_tick
+            # per ADR-318). The completion gate waits for the judgment-mode
+            # manual_fire execution_event. Added 2026-06-04 — the first live
+            # trader-suite run surfaced that _execute_turn had no `fire` handler
+            # (only _execute_setup_step did), so fire-turns fell through to
+            # action="unknown" and never woke the Reviewer.
+            slug = turn["fire"]
+            obs["action"] = "fire"
+            obs["slug"] = slug
+            try:
+                await _manual_fire(proxy.config.user_id, slug)
+                obs["result"] = "dispatched"
+            except Exception as exc:
+                obs["error"] = f"{type(exc).__name__}: {exc}"
+            return obs
+
         # Unknown turn shape — log and continue.
         obs["action"] = "unknown"
         obs["raw"] = turn

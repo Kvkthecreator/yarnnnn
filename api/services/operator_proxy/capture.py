@@ -291,22 +291,38 @@ async def _format_proposals(user_id: str, proposal_ids: set[str]) -> str:
 
     from services.supabase import get_service_client
     client = get_service_client()
+    # Schema note (2026-06-04): action_proposals dropped `action_type` /
+    # `rationale` / `expected_effect`. The action identity now lives in
+    # `primitive` + `family` (+ `inputs.action_type` for trading actions);
+    # the reasoning lives in `reviewer_reasoning`; per-proposal context in
+    # `decision_context`. This query was the schema-drift bug the 2026-06-04
+    # first live trader-suite run surfaced.
     rows = (
         client.table("action_proposals")
-        .select("id, action_type, status, created_at, rationale, expected_effect")
+        .select(
+            "id, primitive, family, status, created_at, inputs, "
+            "reviewer_identity, reviewer_reasoning, source, execution_result"
+        )
         .in_("id", list(proposal_ids))
         .order("created_at")
         .execute()
     )
     lines = [f"# Proposals — {len(proposal_ids)} new", ""]
     for p in rows.data or []:
-        lines.append(f"## {p.get('action_type', '?')} — status={p.get('status', '?')}")
+        inputs = p.get("inputs") or {}
+        action_type = inputs.get("action_type") if isinstance(inputs, dict) else None
+        label = action_type or p.get("primitive") or p.get("family") or "?"
+        lines.append(f"## {label} — status={p.get('status', '?')}")
         lines.append(f"- **id**: `{p['id']}`")
+        lines.append(f"- **family**: {p.get('family', '?')}  ·  **primitive**: {p.get('primitive', '?')}")
+        lines.append(f"- **source**: {p.get('source', '?')}")
         lines.append(f"- **created**: {p.get('created_at', '?')}")
-        if p.get("rationale"):
-            lines.append(f"- **rationale**:\n\n```\n{p['rationale']}\n```")
-        if p.get("expected_effect"):
-            lines.append(f"- **expected effect**: {p['expected_effect']}")
+        if p.get("reviewer_identity"):
+            lines.append(f"- **reviewer_identity**: {p['reviewer_identity']}")
+        if p.get("reviewer_reasoning"):
+            lines.append(f"- **reviewer_reasoning**:\n\n```\n{p['reviewer_reasoning']}\n```")
+        if p.get("execution_result"):
+            lines.append(f"- **execution_result**: `{p['execution_result']}`")
         lines.append("")
     return "\n".join(lines)
 
