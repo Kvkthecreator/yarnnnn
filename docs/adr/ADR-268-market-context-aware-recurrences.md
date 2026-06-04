@@ -52,6 +52,8 @@ This ADR commits a structural market-context system that is **bundle-declared, s
 
 > **Market hours are a property of the program, not of the recurrence. Bundles targeting a specific market declare that market's context (timezone, sessions, calendar). Recurrences within those bundles schedule against semantic anchors (`@market_open`, `@market_close`, `@every N during session`), which resolve to UTC at materialize-due time using the bundle's market context. Plain UTC cron remains the escape hatch for market-agnostic recurrences. The substrate stays single-shaped; the vocabulary of the `schedule` field expands.**
 
+> **Behavioral synthesis:** this ADR is the *scheduling-plane* (Plane 1) instance of the broader three-plane temporal model. For how time reaches an agent's *reasoning* (Plane 2 perception) and *action gating* (Plane 3), and how to think about temporal behavior across all programs, see the singular synthesis at [`cadence-and-wakes.md` §8b](../architecture/cadence-and-wakes.md#8b-temporal-model--how-time-reaches-agent-behavior).
+
 Three consequences:
 
 1. **One new optional block on MANIFEST.yaml**: `market_context:`. Declares timezone, session windows, calendar key. Bundles without it use plain cron only — backward compatible.
@@ -281,7 +283,7 @@ These are real concerns but not iter-3 scope:
 
 Audit done 2026-05-13 of prior ADRs touching market-hours / scheduling:
 
-- **`api/services/risk_gate.py:_is_us_market_hours()`** — partial market-hours awareness at the *execution gate* (post-proposal, pre-order). This ADR adds market-hours awareness at the *scheduling layer* (pre-recurrence-fire). The two layers are complementary; risk_gate stays as-is.
+- **`api/services/risk_gate.py` execution-gate market-hours** — partial market-hours awareness at the *execution gate* (post-proposal, pre-order). This ADR adds market-hours awareness at the *scheduling layer* (pre-recurrence-fire). The two layers are complementary. **Update (2026-06-04, finding `docs/evaluations/2026-06-04-temporal-awareness-kernel-vs-program-audit/`):** the execution gate's hand-rolled `_is_us_market_hours()` approximation (DST-blind, holiday-blind) was deleted and the gate now routes through this ADR's kernel calendar primitive (`market_calendars.NyseUsCalendar.is_open_now`). Both layers now share one DST-/holiday-correct source of truth.
 - **`docs/alpha/observations/2026-04-27-trader-rls-fix-signal-eval-hang.md`** — observed the structural gap and explicitly named it deferred ("won't fix itself by re-triggering"). This ADR closes that deferral.
 - **ADR-263 §"Two operator scenarios" example schedule** `"0 * 9-16 * 1-5"` — the example schedule in ADR-263 was descriptively-correct for a US-RTH-like window but encoded by hand-rolled UTC. This ADR replaces the encoding pattern; ADR-263's principles (mode authoring intent, judgment vs mechanical) are preserved.
 - **ADR-187 (Alpaca integration)** — specifies the trading platform but does not specify schedule semantics. No conflict.

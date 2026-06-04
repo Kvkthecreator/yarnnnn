@@ -39,7 +39,6 @@ or bracketed lists `[AAPL, MSFT]`.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
 from typing import Any, Optional
 
 logger = logging.getLogger(__name__)
@@ -192,12 +191,12 @@ async def check_risk_limits(
                 "not trailing, no stop_price)"
             )
 
-    # Trading hours (approximate US market hours check)
+    # Trading hours — DST- and holiday-correct via the kernel market calendar.
     if risk_params.get("trading_hours_only"):
-        if not _is_us_market_hours():
+        if not _nyse_calendar().is_open_now():
             failures.append(
-                "trading_hours_only=true but order submitted outside approximate "
-                "US market hours (Mon-Fri 13:30-20:00 UTC / 9:30-16:00 ET)"
+                "trading_hours_only=true but order submitted outside NYSE regular "
+                "trading hours (Mon-Fri 09:30-16:00 ET, holidays excluded)"
             )
 
     if failures:
@@ -388,20 +387,17 @@ def _derive_price_estimate(proposed_order: dict) -> Optional[float]:
     return None
 
 
-def _is_us_market_hours() -> bool:
-    """Approximate US market-hours check (no NYSE holiday calendar).
+def _nyse_calendar():
+    """Return the kernel NYSE calendar (DST- + holiday-correct).
 
-    Returns True on Mon-Fri between 13:30 UTC and 20:00 UTC (rough ET
-    equivalent ignoring DST drift of ≤1 hour). Intentionally simple;
-    precision tightens if the alpha reveals DST-edge false negatives.
+    The execution gate routes through the single canonical market-calendar
+    primitive (`services.market_calendars`) rather than reinventing market-hours
+    arithmetic. alpha-trader is NYSE/us_equities; future non-NYSE trading
+    programs would resolve their calendar from the bundle market_context.
     """
-    now = datetime.now(timezone.utc)
-    if now.weekday() >= 5:  # Sat=5, Sun=6
-        return False
-    minutes_utc = now.hour * 60 + now.minute
-    # 13:30 UTC = 9:30 ET (EST); 20:00 UTC = 16:00 ET (EST).
-    # DST introduces a 60-minute shift but the window is generous enough.
-    return 13 * 60 + 30 <= minutes_utc <= 20 * 60
+    from services.market_calendars import get_calendar
+
+    return get_calendar("nyse_us")
 
 
 # =============================================================================
@@ -439,8 +435,9 @@ blocked_tickers: []
 - max_day_trades: 3 is the US PDT threshold; 2 leaves one in reserve.
 - require_stop_loss: true blocks plain buy/sell without a stop. Use
   bracket order or trailing stop to satisfy.
-- trading_hours_only: true blocks orders outside approximate US market
-  hours (Mon-Fri 9:30-16:00 ET). Set false to allow pre/post-market.
+- trading_hours_only: true blocks orders outside NYSE regular trading
+  hours (Mon-Fri 9:30-16:00 ET, DST- and holiday-correct via the kernel
+  market calendar). Set false to allow pre/post-market.
 - max_position_size_usd: notional cap per order. Requires a price (limit
   or derived) to evaluate — market orders skip this check with a warning.
 - max_position_percent_of_portfolio: position-size as % of total equity.

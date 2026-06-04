@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Optional
 from zoneinfo import ZoneInfo
 
@@ -101,6 +101,25 @@ class MarketCalendar:
             if self.is_trading_day(candidate):
                 return candidate
         raise RuntimeError(f"no trading day found within 30 days of {d}")
+
+    def is_open_now(self, session: str = "regular_hours", *, now: Optional[datetime] = None) -> bool:
+        """Return True iff the market is in the given session right now.
+
+        DST- and holiday-correct: resolves the session window in the market's
+        own timezone for today's local date, then checks containment. This is
+        the canonical "is the market open right now" check — the execution
+        risk gate routes through it rather than reinventing UTC-window math.
+
+        `now` may be supplied for testing; defaults to the current instant.
+        """
+        instant = (now or datetime.now(timezone.utc)).astimezone(self.timezone)
+        local_date = instant.date()
+        if not self.is_trading_day(local_date):
+            return False
+        if session not in self.sessions:
+            raise ValueError(f"unknown session {session!r} for {self.name}")
+        open_dt, close_dt = self.session_window(local_date, session)
+        return open_dt <= instant <= close_dt
 
 
 # ---------------------------------------------------------------------------

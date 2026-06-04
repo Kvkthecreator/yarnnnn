@@ -223,6 +223,42 @@ The Reviewer's persona frame instructs it to read `_schedule_index.md` and `_rec
 
 With the pulse files in the envelope, the Reviewer reasons from substrate, not memory. Schedule-hallucination class is structurally closed.
 
+### 8b. Temporal model — how time reaches agent behavior
+
+> **Canonical home for "how should I think about time for agent behavior."** Time concepts were previously scattered across FOUNDATIONS Axiom 4, ADR-268 (market-context-aware recurrences), and ADR-274 (trigger-authoring). This section is the singular synthesis; those ADRs point here.
+
+**The governing principle (FOUNDATIONS Axiom 4 v8.5): time is *perceived*, not *stored*.** An agent does not read a clock out of workspace substrate; the runtime tells the wake-time envelope what time it is, fresh, on every wake. This mirrors Claude Code injecting the current date into each invocation. There is no `now` field in any `.md` or `.yaml` — and there must never be one, because persisted time goes stale between invocations.
+
+Time acts on **three orthogonal planes**. Keep them separate when designing a persona's behavior — conflating them is the main source of confusion:
+
+| Plane | Question it answers | Mechanism | Determinism |
+|---|---|---|---|
+| **1. Trigger** | *When should the agent wake at all?* | `_recurrences.yaml` schedules (incl. semantic `@market_open + 15min`) resolved against the bundle calendar by the scheduler (§2, §4) | Fully mechanical, zero LLM |
+| **2. Perception** | *What temporal context must the agent know to reason well?* | The `operating_context_block` in the governance envelope (§8) — `now` + operator timezone + workspace tenure + (program-declared) market state | Projection, zero LLM |
+| **3. Gate** | *What temporal constraint should mechanically block an action?* | A risk-gate / policy rule (e.g. `trading_hours_only` → `NyseUsCalendar.is_open_now()`), evaluated pre-execution | Deterministic, zero LLM |
+
+**The kernel-universal vs program-declared split inside Plane 2** is the part that makes this scale across alpha workspaces:
+
+- **Kernel-universal (every workspace, unconditionally):** `now` (UTC + operator-local), operator timezone, workspace tenure. Any program's agent can reason about time-of-day ("it's 2am operator-local, defer the noisy notification") and maturity ("3 days old, be conservative") with no per-program wiring.
+- **Program-declared (only when the active bundle ships a `market_context:` block):** the **market state** line. Rendered via the graceful `if mc:` skip in `build_operating_context_block` — absent bundles simply don't get the line.
+
+Each program's load-bearing temporal concept differs, and the design deliberately does **not** force "market state" onto all of them:
+
+| Program | `market_context` in MANIFEST | Load-bearing temporal concept |
+|---|---|---|
+| alpha-trader | full (`us_equities`, `nyse_us`, sessions) | market sessions (RTH open/close) |
+| alpha-author | declared but `exchange: operator_authored`, `trading_days: any` | operator-local time-of-day (publish windows); explicitly *not* market-gated |
+| alpha-prediction | none | time-to-expiry / resolution |
+| alpha-defi | none | block time (24/7, no calendar) |
+| alpha-commerce | none | settlement cadence (daily reconciliation) |
+
+**How to design temporal behavior for a new or stress-tested program** — ask one question per plane:
+1. *When should it wake?* → author a `_recurrences.yaml` schedule (Plane 1). Use semantic schedules only if the program has a calendar.
+2. *What must it perceive to reason well?* → for most non-trader programs, kernel-universal `now` + timezone + tenure is enough. Only extend the bundle `market_context` (or add an analogous envelope field) if a stress test shows a genuine reasoning gap. **Discover the need empirically; do not generalize speculatively** (same demand-pull discipline as ADR-224/225).
+3. *What should mechanically block an action?* → a Plane-3 gate, only for programs with consequential external writes.
+
+**Anti-pattern:** putting time-of-day *logic* into a persona's prose principles ("only trade 9:30–4"). That re-implements the clock in prose. Time-of-day belongs in Plane 1 (don't wake off-hours) + Plane 3 (mechanically block); Plane 2 gives the agent the *awareness* to reason about edge cases. Prose principles reason *about* perceived time — they never assert what time it is.
+
 ---
 
 ## 9. Telemetry — observability of wake activity
@@ -347,5 +383,9 @@ Items the audit surfaced that are not architecturally drift but worth ADR attent
 4. **Operator-visible cadence surface** — `_preferences.yaml` is read by the Reviewer at every wake but never displayed in the operator UI. `standing_intent.md` is similarly invisible. `_hooks.yaml` entries don't appear anywhere. This is **the largest operator-transparency gap** and the prompt for the surface-model discussion at [`docs/design/SURFACE-MODEL-ATOMIC-VS-CONTAINER.md`](../design/SURFACE-MODEL-ATOMIC-VS-CONTAINER.md).
 
 5. **Standing intent → Tier 2 envelope contract** — `standing_intent.md` is described as shaping Tier 2 reasoning, but the exact way it's surfaced into the Haiku call (verbatim inclusion, summarized, structured?) deserves explicit contract documentation. Drift-resistance discipline.
+
+6. **`market_context` shape is equities-vocabulary** (Plane 2, §8b) — the program-declared market-state slot uses `exchange` / `sessions` / `calendar` keys shaped for equities. alpha-prediction (needs *time-to-expiry*) and alpha-defi (needs *block time*) won't fit `sessions: {regular_hours...}`. When a second program's stress test reveals a temporal-perception gap, resolve it then — either a more abstract `market_context` shape or a program-specific envelope field beside it. **Demand-pull: do not abstract before a second program has spoken** (the kernel-vs-program over-design trap, per the [2026-06-04 temporal-awareness audit](../evaluations/2026-06-04-temporal-awareness-kernel-vs-program-audit/findings.md)). Today only trader (sessions) and author (explicitly market-agnostic) populate it.
+
+7. **Risk-gate calendar hardcoded to `nyse_us`** (Plane 3, §8b) — `risk_gate._nyse_calendar()` returns `get_calendar("nyse_us")` even though the bundle declares `market_context.calendar`. Harmless while exactly one execution-bearing program exists (alpha-trader). The moment a second execution program ships with a different calendar, the gate must resolve its calendar from the workspace's `market_context.calendar` instead of hardcoding. Flagged in `risk_gate.py`; bounded, known debt.
 
 These are hardening opportunities, not architectural drift. Cadence + wakes are first-class in the kernel as of 2026-05-20 (ADR-296 v2 fully implemented). The remaining work is observability, transparency, and discipline-of-documentation.
