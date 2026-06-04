@@ -341,7 +341,7 @@ Both YARNNN (orchestration) and Reviewer (judgment) read these. They are the ope
 
 ### 4.3 Asymmetry rule
 
-The operator's standing declarations under `_shared/` are **read by every agent**. The operator *drafts* them — via YARNNN chat (`InferContext` / `InferWorkspace` / `WriteFile` scope=`workspace`, per ADR-235). But "operator-authored" names the *first* author, not the *only* one: from then on the Reviewer co-authors most of them on its own initiative. See §4.4 — the two locked files are the sole exception.
+The operator's standing declarations under `_shared/` are **read by every agent**. The operator *drafts* them — via YARNNN chat (`InferContext` for identity/brand merge, `WriteFile` scope=`workspace` for direct substrate, per ADR-235; the `InferWorkspace` first-act primitive was removed per ADR-314 D4, dissolved by Direction A — for a program workspace the bundle fork drafts the constitution). But "operator-authored" names the *first* author, not the *only* one: from then on the Reviewer co-authors most of them on its own initiative. See §4.4 — the two locked files are the sole exception.
 
 The Reviewer's seat substrate under `/workspace/review/` is **read by the Reviewer agent and its dispatcher only**. Rotation primitive writes to OCCUPANT + handoffs. Reviewer agent writes to decisions. Back-office task writes to calibration. IDENTITY + principles are operator-authored and revision-chained.
 

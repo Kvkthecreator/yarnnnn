@@ -8,7 +8,8 @@ D1 — UpdateContext dissolution (10):
    2. UpdateContext is NOT in HANDLERS.
    3. update_context.py does not exist on disk.
    4. InferContext is in CHAT_PRIMITIVES with the expected target enum.
-   5. InferWorkspace is in CHAT_PRIMITIVES.
+   5. InferWorkspace is NOT in CHAT_PRIMITIVES (removed per ADR-314 D4 — the
+      first-act-scaffold path dissolved by Direction A).
    6. ManageRecurrence is in BOTH CHAT_PRIMITIVES and HEADLESS_PRIMITIVES.
    7. ManageRecurrence action enum has exactly 5 values.
    8. WriteFile gains scope='workspace' (Option A) — schema enum includes it.
@@ -102,13 +103,16 @@ def test_infer_context_in_chat():
     )
 
 
-def test_infer_workspace_in_chat():
+def test_infer_workspace_removed():
+    # ADR-314 D4 amends ADR-235 D1.a: the first-act-scaffold primitive
+    # InferWorkspace is removed (dissolved by Direction A — bundle-fork is the
+    # constitution-creation event; no conversational /init). InferContext stays.
     from services.primitives.registry import CHAT_PRIMITIVES
     names = {t["name"] for t in CHAT_PRIMITIVES}
     record(
-        "test_infer_workspace_in_chat",
-        "InferWorkspace" in names,
-        f"present={('InferWorkspace' in names)}",
+        "test_infer_workspace_removed",
+        "InferWorkspace" not in names,
+        f"absent={('InferWorkspace' not in names)}",
     )
 
 
@@ -392,7 +396,7 @@ def main():
         test_updatecontext_not_in_handlers,
         test_update_context_file_deleted,
         test_infer_context_in_chat,
-        test_infer_workspace_in_chat,
+        test_infer_workspace_removed,
         test_manage_recurrence_in_both_modes,
         test_manage_recurrence_action_enum,
         test_writefile_workspace_scope,

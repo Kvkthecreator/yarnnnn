@@ -126,7 +126,7 @@ def build_tools_block(allowed_tool_names: set[str] | None = None) -> str:
         "**Not in your curated tool surface** (per ADR-258 revised — the "
         "REVIEWER_PRIMITIVES subset of CHAT_PRIMITIVES is curated for the "
         "judgment-seat role): ManageDomains, ManageAgent, InferContext, "
-        "InferWorkspace, RuntimeDispatch, RepurposeOutput, EditEntity, "
+        "RuntimeDispatch, RepurposeOutput, EditEntity, "
         "ExecuteProposal, RejectProposal. These shape orchestration / agent "
         "scaffolding / context inference — not authority-escalation gates. "
         "ExecuteProposal / RejectProposal are dispatched on your behalf by "

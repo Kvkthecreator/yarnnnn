@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.03.1] - InferWorkspace primitive removed (ADR-314 D4)
+
+### Changed (LLM-facing)
+
+- `services/primitives/registry.py`: `InferWorkspace` removed from `CHAT_PRIMITIVES`
+  and the dispatch map; `infer_workspace.py` deleted. The conversational
+  first-act-scaffold primitive (ADR-235 D1.a) is gone — its purpose was
+  dissolved by Direction A (bundle-fork is the constitution-creation event;
+  there is no interactive `/init`), and it had been invocation-dead since the
+  chat agent was removed (ADR-257). The orphaned `infer_first_act()` in
+  `context_inference.py` (its sole caller) is deleted too.
+- `InferContext` is UNCHANGED — it stays in `CHAT_PRIMITIVES` and the dispatch
+  map because it is live via the MCP `remember_this` path
+  (`mcp_composition.py::route_remember_this`, ADR-310/169).
+- Expected behavior: a chat-mode caller can no longer invoke `InferWorkspace`.
+  No live caller existed, so no behavior regresses. Identity/brand inference
+  still flows through `InferContext`; first-act constitution drafting is the
+  bundle fork's job, not a primitive's. Chat tool surface drops by one.
+- Amends ADR-235 D1.a (note added to ADR-235). ADR-314 Implemented.
+
+---
+
 ## [2026.06.02.1] - Frame indexes intent, does not assert it (ADR-314)
 
 ### Changed (LLM-facing)

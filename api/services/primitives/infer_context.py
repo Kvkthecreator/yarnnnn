@@ -36,8 +36,9 @@ runs, deterministic gap detection runs on the result and is returned in
 `gaps`. If gaps.severity is "high", consider issuing a Clarify in your
 next turn.
 
-For first-act scaffolding (combined identity + brand + entities + work_intent
-in one pass), use InferWorkspace instead.
+(The combined first-act-scaffold primitive InferWorkspace was removed per
+ADR-314 D4 — dissolved by Direction A. For a program workspace, the bundle
+fork drafts the full constitution; there is no conversational `/init`.)
 
 For direct substrate writes (mandate, autonomy, precedent, awareness,
 operator-authored content with no inference) use WriteFile against the

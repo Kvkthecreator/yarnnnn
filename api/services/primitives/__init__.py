@@ -5,8 +5,9 @@ Two explicit mode registries (CHAT_PRIMITIVES, HEADLESS_PRIMITIVES).
 Canonical reference: docs/architecture/primitives-matrix.md (ADR-168).
 
 Key consolidations + dissolutions:
-- UpdateContext: dissolved (ADR-235). Inference-merged writes → InferContext /
-  InferWorkspace; substrate writes → WriteFile(scope="workspace"); recurrence
+- UpdateContext: dissolved (ADR-235). Inference-merged writes → InferContext
+  (InferWorkspace removed per ADR-314 D4 — first-act scaffold dissolved by
+  Direction A); substrate writes → WriteFile(scope="workspace"); recurrence
   lifecycle → ManageRecurrence.
 - ManageTask: dissolved (ADR-231 Phase 3.7). Lifecycle split into
   ManageRecurrence + FireInvocation.

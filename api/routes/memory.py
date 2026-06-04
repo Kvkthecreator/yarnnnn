@@ -102,7 +102,7 @@ class BulkImportResponse(BaseModel):
 # DELETED. Replaced by GET /api/workspace/state (routes/workspace.py) with
 # extended shape (substrate_status + capability_gaps + available_programs).
 # ADR-144/146/235: POST /user/onboarding deleted — context enrichment via
-# InferContext / InferWorkspace primitives.
+# the InferContext primitive (InferWorkspace removed per ADR-314 D4).
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -150,7 +150,7 @@ def _note_to_entry(note: dict, idx: int) -> dict:
 # in favor of workspace_init.initialize_workspace().
 #
 # ADR-144 / ADR-235 / ADR-146: POST /user/onboarding deleted. Context enrichment
-# routes through InferContext / InferWorkspace primitives.
+# routes through the InferContext primitive (InferWorkspace removed per ADR-314 D4).
 
 
 # ─── Brand (ADR-133 — workspace-level brand) ────────────────────────────────

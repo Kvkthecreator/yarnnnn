@@ -45,9 +45,11 @@ After init, YARNNN customizes the workspace based on the user's work description
   - Scaffolds domain-specific context directories on demand (ADR-188 Phase 2:
     `_domain.md`)
   - Creates custom tasks with domain-specific step instructions (ADR-188 Phase 1)
-  - Rich first-act input triggers `InferWorkspace(...)` which runs combined
-    inference + writes IDENTITY/BRAND + scaffolds entity subfolders +
-    proposes work intent (ADR-190 + ADR-235 D1.a)
+  - Identity/brand inference from rich input flows through `InferContext`
+    (ADR-235 D1.a). The combined first-act-scaffold primitive `InferWorkspace`
+    was removed per ADR-314 D4 (dissolved by Direction A — for a program
+    workspace, the bundle fork drafts the constitution; there is no
+    conversational `/init`).
 
 ADR-190 deletions:
   - WORKSPACE.md manifest (was vestigial post-ADR-159 compact index)

@@ -36,7 +36,11 @@ from .fire_invocation import FIRE_INVOCATION_TOOL, handle_fire_invocation
 #   - Direct substrate writes  → WriteFile (with scope='workspace', ADR-235 Option A)
 #   - Lifecycle action          → ManageRecurrence
 from .infer_context import INFER_CONTEXT_TOOL, handle_infer_context
-from .infer_workspace import INFER_WORKSPACE_TOOL, handle_infer_workspace
+# ADR-314 D4: InferWorkspace DELETED. The first-act-scaffold path (ADR-235 D1.a)
+# was dissolved by Direction A (bundle-fork is the constitution-creation event,
+# no conversational /init); the primitive went invocation-dead when the chat
+# agent was removed (ADR-257) and is now removed. InferContext survives — it is
+# live via MCP remember_this (identity/brand foreign-LLM writes).
 from .schedule import SCHEDULE_TOOL, handle_schedule  # ADR-261 §3 — renamed from ManageRecurrence
 from .manage_hook import MANAGE_HOOK_TOOL, handle_manage_hook  # ADR-296 v2 D2 — substrate-event hook lifecycle
 from .compose import COMPOSE_TOOL, handle_compose  # ADR-262 D4 — callable primitive wrapping render engine
@@ -249,10 +253,11 @@ CHAT_PRIMITIVES = [
     # External (ADR-153: RefreshPlatformContent removed)
     WEB_SEARCH_PRIMITIVE,
     LIST_INTEGRATIONS_TOOL,
-    # ADR-235 D1.a: Inference-merged writes — explicit Infer* primitives.
+    # ADR-235 D1.a: Inference-merged write — explicit Infer* primitive.
     # Cognitive shape is "LLM merge over text + docs + URLs"; named honestly.
+    # ADR-314 D4: INFER_WORKSPACE_TOOL removed (first-act scaffold dissolved by
+    # Direction A). INFER_CONTEXT_TOOL stays — live via MCP remember_this.
     INFER_CONTEXT_TOOL,
-    INFER_WORKSPACE_TOOL,
     # ADR-155: Domain scaffolding (TP-driven)
     MANAGE_DOMAINS_TOOL,
     # Agent lifecycle (1, was 2 pre-ADR-231; ADR-235 D2: action enum drops 'create').
@@ -486,9 +491,8 @@ HANDLERS: dict[str, Callable] = {
     # "UpdateContext": DELETED (ADR-235 — dissolved into InferContext / InferWorkspace / ManageRecurrence / WriteFile scope='workspace')
     # ADR-231 D5: FireInvocation — recurrence-aware dispatch.
     "FireInvocation": handle_fire_invocation,
-    # ADR-235 D1.a: Inference-merged writes
+    # ADR-235 D1.a: Inference-merged write (ADR-314 D4: InferWorkspace removed)
     "InferContext": handle_infer_context,
-    "InferWorkspace": handle_infer_workspace,
     # ADR-235 D1.c: Lifecycle management for recurrence declarations
     "Schedule": handle_schedule,
     # ADR-296 v2 D2: Substrate-event hook lifecycle

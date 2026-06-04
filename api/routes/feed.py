@@ -354,7 +354,6 @@ async def _write_conversation_summary(auth, messages: list[dict]) -> None:
                     "ManageRecurrence",
                     "ManageAgent",
                     "InferContext",
-                    "InferWorkspace",
                     "WriteFile",
                 ):
                     decisions.append(f"{name}: {summary[:100]}" if summary else name)

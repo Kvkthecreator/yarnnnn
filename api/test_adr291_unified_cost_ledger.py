@@ -160,7 +160,7 @@ def test_check_spend_budget_deleted() -> None:
 EXPECTED_CALLERS = [
     "services/recurrence_prompt_inference.py",
     "services/session_continuity.py",
-    "services/primitives/infer_workspace.py",
+    # ADR-314 D4: infer_workspace.py deleted (first-act scaffold dissolved).
     "services/primitives/infer_context.py",
     "services/primitives/dispatch_specialist.py",
     "services/primitives/web_search.py",
@@ -168,8 +168,9 @@ EXPECTED_CALLERS = [
 
 
 def test_callers_migrated() -> None:
-    """Each of the 6 ex-token_usage callers must import record_execution_event
-    AND NOT have any LIVE (non-comment) reference to record_token_usage."""
+    """Each of the 5 ex-token_usage callers must import record_execution_event
+    AND NOT have any LIVE (non-comment) reference to record_token_usage.
+    (Was 6 — infer_workspace.py deleted per ADR-314 D4.)"""
     api_root = ROOT
     for rel in EXPECTED_CALLERS:
         path = api_root / rel

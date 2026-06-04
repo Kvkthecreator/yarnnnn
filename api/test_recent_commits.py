@@ -264,9 +264,8 @@ def test_primitive_consolidation_imports():
     record("InferContext tool imports", INFER_CONTEXT_TOOL["name"] == "InferContext")
     record("InferContext handler imports", callable(handle_infer_context))
 
-    from services.primitives.infer_workspace import INFER_WORKSPACE_TOOL, handle_infer_workspace
-    record("InferWorkspace tool imports", INFER_WORKSPACE_TOOL["name"] == "InferWorkspace")
-    record("InferWorkspace handler imports", callable(handle_infer_workspace))
+    # ADR-314 D4: InferWorkspace deleted (first-act scaffold dissolved by
+    # Direction A). InferContext survives — live via MCP remember_this.
 
     # ADR-231 + ADR-235 successor of ManageTask
     from services.primitives.schedule import SCHEDULE_TOOL, handle_schedule
@@ -330,7 +329,8 @@ def test_registry_tool_counts():
 
     # Post-ADR-235 successors are present in chat
     record("Chat has InferContext (ADR-235 D1.a)", "InferContext" in chat_names)
-    record("Chat has InferWorkspace (ADR-235 D1.a)", "InferWorkspace" in chat_names)
+    # ADR-314 D4: InferWorkspace removed (first-act scaffold dissolved).
+    record("Chat does NOT have InferWorkspace (ADR-314 D4)", "InferWorkspace" not in chat_names)
     record("Chat has ManageRecurrence (ADR-235 D1.c)", "ManageRecurrence" in chat_names)
     record("Headless has ManageRecurrence", "ManageRecurrence" in headless_names)
     record("Chat has FireInvocation (ADR-231 D5)", "FireInvocation" in chat_names)
@@ -392,16 +392,18 @@ def test_infer_context_tool_schema():
     record("InferContext has url_contents field", "url_contents" in props)
 
 
-def test_infer_workspace_tool_schema():
-    """ADR-235 D1.a: InferWorkspace schema covers first-act scaffold."""
-    from services.primitives.infer_workspace import INFER_WORKSPACE_TOOL
+def test_infer_workspace_removed():
+    """ADR-314 D4: InferWorkspace deleted — the module and the tool are gone.
+    The first-act-scaffold path (ADR-235 D1.a) was dissolved by Direction A
+    (bundle-fork is the constitution-creation event; no conversational /init)."""
+    import importlib
 
-    schema = INFER_WORKSPACE_TOOL["input_schema"]
-    props = schema["properties"]
-
-    record("InferWorkspace has text field", "text" in props)
-    record("InferWorkspace has document_ids field", "document_ids" in props)
-    record("InferWorkspace has url_contents field", "url_contents" in props)
+    try:
+        importlib.import_module("services.primitives.infer_workspace")
+        gone = False
+    except ModuleNotFoundError:
+        gone = True
+    record("InferWorkspace module deleted (ADR-314 D4)", gone)
 
 
 def test_write_file_workspace_scope():
@@ -672,7 +674,7 @@ def main():
             test_registry_tool_counts,
             test_handler_registry_complete,
             test_infer_context_tool_schema,
-            test_infer_workspace_tool_schema,
+            test_infer_workspace_removed,
             test_write_file_workspace_scope,
             test_manage_recurrence_tool_schema,
             test_manage_agent_action_enum_no_create,

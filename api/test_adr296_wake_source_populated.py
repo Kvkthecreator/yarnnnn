@@ -253,7 +253,7 @@ def test_non_wake_sites_do_not_stamp_wake_source() -> None:
     non_wake_files = [
         "services/session_continuity.py",
         "services/recurrence_prompt_inference.py",
-        "services/primitives/infer_workspace.py",
+        # ADR-314 D4: infer_workspace.py deleted (first-act scaffold dissolved).
         "services/primitives/infer_context.py",
         "services/primitives/dispatch_specialist.py",
         "services/primitives/web_search.py",

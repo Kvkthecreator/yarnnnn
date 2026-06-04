@@ -494,7 +494,9 @@ DEFAULT_BRAND_MD = """\
 # YARNNN had any signal about the user. Under the authored-team model, brand
 # emerges from inference on rich user input (uploaded docs, URLs, descriptions),
 # not from a pre-committed template. The skeleton matches IDENTITY.md: empty
-# until populated by `infer_first_act` or `infer_shared_context(target="brand")`.
+# until populated by `infer_shared_context(target="brand")` (InferContext) or,
+# for a program workspace, the bundle fork (Direction A). The conversational
+# first-act scaffold (`infer_first_act`) was removed per ADR-314 D4.
 
 DEFAULT_AWARENESS_MD = """\
 # Awareness

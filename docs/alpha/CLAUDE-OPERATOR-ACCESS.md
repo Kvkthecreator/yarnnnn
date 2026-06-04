@@ -156,7 +156,7 @@ path to act on it at all.
 | Approve irreversible proposal | ❌ always escalates regardless of mode | ❌ always escalates | ❌ always KVK |
 | Chat-initiate task run (`@yarnnn run X`) | ✅ via API — operator-on-behalf | ✅ in chat | ❌ KVK initiates |
 | Edit `_risk.md`, `principles.md`, `_operator_profile.md`, IDENTITY.md | ❌ never Claude unilaterally | ❌ never Claude unilaterally | ❌ never Claude unilaterally |
-| Author MANDATE / IDENTITY / signals etc. on operator's behalf (via `WriteFile(scope="workspace")` for shared substrate per ADR-235 D1.b, or `InferContext`/`InferWorkspace` per D1.a when inference is appropriate) | ✅ when operator-on-behalf has explicit content (e.g., persona-canonical paste); `authored_by="operator"` per ADR-209 | ✅ Claude types in chat surface | ❌ KVK does it |
+| Author MANDATE / IDENTITY / signals etc. on operator's behalf (via `WriteFile(scope="workspace")` for shared substrate per ADR-235 D1.b, or `InferContext` per D1.a when identity/brand inference is appropriate; `InferWorkspace` removed per ADR-314 D4) | ✅ when operator-on-behalf has explicit content (e.g., persona-canonical paste); `authored_by="operator"` per ADR-209 | ✅ Claude types in chat surface | ❌ KVK does it |
 | Dissolve / archive / pause agent | ❌ escalate | ❌ escalate | ❌ escalate |
 | Write observation note to `docs/alpha/observations/` | ✅ (this is a repo commit) | ✅ (same — repo commit, any mode) | ✅ |
 | Connect platform (Alpaca / LS / future) | ✅ via `connect.py` | ✅ via Integrations UI | ❌ KVK initiates |

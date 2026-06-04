@@ -82,10 +82,12 @@ def test_consequential_default_is_fail_closed():
     'assume writes' default, ADR-307 D2). Unknown names are consequential."""
     from services.primitives.permission import is_read_only
 
+    # InferWorkspace removed per ADR-314 D4; __nonexistent_primitive__ below
+    # already covers the unknown-name-is-consequential case.
     for name in ("WriteFile", "Schedule", "RuntimeDispatch", "DispatchSpecialist",
                  "ManageHook", "ManageAgent", "ManageDomains", "ProposeAction",
                  "ExecuteProposal", "FireInvocation", "InferContext",
-                 "InferWorkspace", "Compose", "RepurposeOutput", "EditEntity",
+                 "Compose", "RepurposeOutput", "EditEntity",
                  "SyncPlatformState", "__nonexistent_primitive__"):
         assert not is_read_only(name), (
             f"{name} must be treated as consequential (fail-closed) per ADR-307 D2"
