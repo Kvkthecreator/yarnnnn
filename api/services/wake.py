@@ -713,6 +713,25 @@ async def _invoke_recurrence_wake(
             user_id[:8], recurrence.slug, exc,
         )
 
+    # ADR-317: post-judgment operator-addressing dispatcher. After the
+    # outcome-reconciliation judgment completes (the Reviewer folded fills
+    # into _money_truth.md + closed with a verdict), send the daily P&L
+    # email IF the operator opted in. The Reviewer cannot send this itself
+    # (platform_email_send_to_operator is deliberately excluded from
+    # REVIEWER_PRIMITIVES — verdict-quality regression); the dispatcher is
+    # the send half. Same post-judgment best-effort shape as the lineage +
+    # narration hooks above. Gated on the trigger slug so it costs nothing
+    # for any other recurrence.
+    if recurrence.slug == "outcome-reconciliation":
+        try:
+            from services.daily_pnl_email import maybe_send_daily_pnl_email
+            await maybe_send_daily_pnl_email(client, user_id)
+        except Exception as exc:  # noqa: BLE001 — notification must not break dispatch
+            logger.warning(
+                "[DISPATCH] %s/%s daily-pnl dispatch failed: %s",
+                user_id[:8], recurrence.slug, exc,
+            )
+
     # ADR-262 D4: opt-out structural auto-compose at session-close.
     # When the Reviewer wrote section partials matching the deliverable
     # convention, auto-run Compose unless the recurrence opted out via

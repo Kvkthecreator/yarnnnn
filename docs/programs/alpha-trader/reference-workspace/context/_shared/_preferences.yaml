@@ -89,8 +89,14 @@ deliverable_preferences:
 
 operator_notifications:
   - slug: daily_pnl_reconciliation
-    description: "End-of-day email summarizing today's outcome-reconciliation: realized + unrealized P&L, fills count, signal attribution, calibration deltas vs declared expectancy. Reviewer composes from /workspace/context/trading/_money_truth.md after the @market_close + 1h outcome-reconciliation fire."
-    cadence_hint: "Daily at @market_close + 90min (after outcome-reconciliation settles)"
+    # ADR-317: this opt-in now has a live consumer — the post-judgment
+    # dispatcher (api/services/daily_pnl_email.py) fires after the
+    # outcome-reconciliation wake completes, reads _money_truth.md, and
+    # sends the email. The Reviewer does NOT send it (email tool is
+    # excluded from REVIEWER_PRIMITIVES); the Reviewer's judgment triggers,
+    # the dispatcher sends. Flip active: true to receive the email.
+    description: "End-of-day email summarizing today's outcome-reconciliation: realized + unrealized P&L, fills count, signal attribution, calibration deltas vs declared expectancy. A post-judgment dispatcher (ADR-317) composes from /workspace/context/trading/_money_truth.md after the @market_close + 1h outcome-reconciliation fire and sends via the system Resend wire."
+    cadence_hint: "Daily — fires immediately after outcome-reconciliation settles (@market_close + 1h)"
     active: false
 
   - slug: signal_fire_alert
