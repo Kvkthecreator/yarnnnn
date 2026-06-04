@@ -94,19 +94,36 @@ def test_envelope_universal_decls_include_occupant_and_standing_intent() -> None
     )
 
 
-def test_envelope_universal_decls_count_grew_to_8() -> None:
-    """Pre-ADR-284: 6 governance entries. Post-ADR-284: 6 + 2 = 8."""
+def test_envelope_universal_decls_count() -> None:
+    """Kernel-universal envelope entries.
+
+    Growth ledger (count + the ADR that grew it):
+      - Pre-ADR-284: 6 governance entries.
+      - ADR-284 (+2 = 8): occupant_md + standing_intent_md.
+      - ADR-298 D11 (+1 = 9): pace_yaml (Trigger-dimension operator dial).
+      - ADR-301 pulse envelope (+2 = 11): schedule_index_md +
+        recent_execution_md (Reviewer's own cadence + recent fires).
+
+    2026-06-04 (ADR-315 carry-over): retargeted == 8 → == 11 + key-set
+    expanded to current reality. The assertion's job is unchanged — pin the
+    kernel-universal envelope to its declared, ADR-attributed entries so a
+    silent add/drop trips the gate.
+    """
     from services.reviewer_envelope import _UNIVERSAL_ENVELOPE_DECLS
 
-    assert len(_UNIVERSAL_ENVELOPE_DECLS) == 8, (
-        f"Expected 8 kernel-universal envelope entries post-ADR-284, "
+    assert len(_UNIVERSAL_ENVELOPE_DECLS) == 11, (
+        f"Expected 11 kernel-universal envelope entries "
+        f"(6 pre-284 + ADR-284 occupant/standing_intent + ADR-298 pace + "
+        f"ADR-301 schedule_index/recent_execution), "
         f"found {len(_UNIVERSAL_ENVELOPE_DECLS)}"
     )
     keys = {entry[0] for entry in _UNIVERSAL_ENVELOPE_DECLS}
     expected = {
         "identity_md", "principles_md", "precedent_md",
         "mandate_md", "autonomy_md", "preferences_yaml",
-        "occupant_md", "standing_intent_md",
+        "occupant_md", "standing_intent_md",  # ADR-284
+        "pace_yaml",                           # ADR-298 D11
+        "schedule_index_md", "recent_execution_md",  # ADR-301 pulse
     }
     assert keys == expected, (
         f"Envelope keys mismatch. Expected {expected}, got {keys}"
@@ -312,12 +329,16 @@ def test_glossary_occupant_entry_runtime_truth_aligned() -> None:
 
 
 def test_reviewer_substrate_doc_includes_standing_intent() -> None:
-    src = _read_repo("docs/architecture/reviewer-substrate.md")
+    # 2026-06-04 (ADR-315 carry-over): reviewer-substrate.md was split into
+    # three domain docs; the seat-file inventory (incl. standing_intent.md)
+    # lives in reviewer-seat-substrate.md now. The doc-coverage invariant is
+    # unchanged; only the file it reads from moved.
+    src = _read_repo("docs/architecture/reviewer-seat-substrate.md")
     assert "standing_intent.md" in src, (
-        "reviewer-substrate.md must inventory standing_intent.md per ADR-284"
+        "reviewer-seat-substrate.md must inventory standing_intent.md per ADR-284"
     )
     assert "forward-looking" in src.lower(), (
-        "reviewer-substrate.md standing-intent section must declare the "
+        "reviewer-seat-substrate.md standing-intent section must declare the "
         "forward-looking semantic"
     )
 
@@ -342,7 +363,7 @@ if __name__ == "__main__":
     test_review_standing_intent_path_defined()
     test_standing_intent_in_review_files_tuple()
     test_envelope_universal_decls_include_occupant_and_standing_intent()
-    test_envelope_universal_decls_count_grew_to_8()
+    test_envelope_universal_decls_count()
     test_envelope_docstring_documents_new_entries()
     test_persona_frame_includes_standing_intent_section()
     test_persona_frame_enforces_every_cycle_write_contract()

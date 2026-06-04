@@ -263,15 +263,46 @@ def test_addressed_cycle_stamps_system_agent_narrations():
     internally). The single append_message call site stamps invocation_id.
     Pre-ADR-296 had two sites (live drain + post-loop drain); the wake
     gateway's event-driven shape collapses them.
+
+    2026-06-04 (ADR-315 carry-over): the post-ADR-296v2 narration site no
+    longer carries the literal "system_agent" string *inside* the
+    append_message(...) call — the wake source declares the row role per-tool
+    (`row_role = event.get("role", "system_agent")`, Clarify→reviewer) and the
+    invocation_id is stamped into a `meta_out` dict passed positionally. The
+    behavioral invariant is unchanged (narration stamps invocation_id, default
+    role is system_agent); only the matched code shape updates. The regex is
+    retargeted from the old single-literal shape to the current
+    role-default + meta-stamp shape.
     """
     src = _read("routes/feed.py")
-    matches = re.findall(
-        r'append_message\([^)]*?"system_agent"[^)]*?"invocation_id"\s*:\s*invocation_id',
+    # The agent_narration branch must (a) default the row role to
+    # "system_agent" and (b) stamp "invocation_id": invocation_id into the
+    # meta dict it passes to append_message.
+    role_default = re.search(
+        r'row_role\s*=\s*event\.get\(\s*"role"\s*,\s*"system_agent"\s*\)',
+        src,
+    )
+    assert role_default, (
+        "Addressed-cycle narration must default row role to 'system_agent' "
+        "(wake source overrides per-tool, e.g. Clarify→reviewer) per ADR-289 "
+        "D3 / ADR-296 v2."
+    )
+    meta_stamp = re.search(
+        r'"invocation_id"\s*:\s*invocation_id', src,
+    )
+    assert meta_stamp, (
+        "Addressed-cycle narration meta must stamp 'invocation_id': "
+        "invocation_id per ADR-289 D3."
+    )
+    # And both must reach a single append_message call site that passes the
+    # role variable + the meta dict.
+    call_site = re.search(
+        r'append_message\(\s*[^)]*row_role[^)]*meta_out\s*\)',
         src, re.DOTALL,
     )
-    assert len(matches) >= 1, (
-        "Addressed-cycle system_agent narration must stamp invocation_id "
-        "per ADR-289 D3 (expected >=1 site, found %d)." % len(matches)
+    assert call_site, (
+        "Addressed-cycle narration must call append_message(..., row_role, "
+        "narration, meta_out) — the single post-ADR-296v2 narration site."
     )
 
 

@@ -7,8 +7,10 @@ Reviewer's loop tracked usage internally and wrote it to token_usage, but
 never returned the accumulators to the dispatcher — so the slug-indexed
 audit table couldn't show per-fire cost without joining token_usage.
 
-Fix: extend ReviewerOutput with token + model + tool_rounds fields;
-invocation_dispatcher reads them off and passes into record_execution_event.
+Fix: extend ReviewerOutput with token + model + tool_rounds fields; the
+judgment dispatch path reads them off and passes into record_execution_event.
+(That path lived in invocation_dispatcher.py until the ADR-296 v2 → ADR-298
+wake-architecture migration moved it into services/wake.py.)
 
 These assertions are structural (AST + source contract). They do not
 exercise a live Anthropic call.
@@ -133,7 +135,12 @@ def test_cancellation_standdown_carries_telemetry() -> None:
 # -----------------------------------------------------------------------------
 
 def test_dispatcher_judgment_success_forwards_telemetry() -> None:
-    src = _read("services/invocation_dispatcher.py")
+    # 2026-06-04 (ADR-315 carry-over): the judgment dispatch path moved from
+    # the deleted services/invocation_dispatcher.py into services/wake.py
+    # (ADR-296 v2 → ADR-298 wake-architecture migration). The telemetry-
+    # forwarding shape (`_ro.get(...)` into record_execution_event) survived
+    # verbatim; only the file it lives in changed.
+    src = _read("services/wake.py")
     # Find the success-path record_execution_event call right after the
     # invoke_reviewer await returns successfully.
     marker = 'mode="judgment", trigger_type=trigger,\n        status="success"'
@@ -162,7 +169,9 @@ def test_dispatcher_judgment_success_forwards_telemetry() -> None:
 # -----------------------------------------------------------------------------
 
 def test_dispatcher_guards_reviewer_output_none() -> None:
-    src = _read("services/invocation_dispatcher.py")
+    # 2026-06-04 (ADR-315 carry-over): retargeted invocation_dispatcher.py →
+    # wake.py (wake-architecture migration; guard shape preserved verbatim).
+    src = _read("services/wake.py")
     # _ro must be assigned conditional on reviewer_output being a dict
     # so the .get() calls don't crash when invoke_reviewer returned None.
     assert "_ro = reviewer_output if isinstance(reviewer_output, dict) else {}" in src, (

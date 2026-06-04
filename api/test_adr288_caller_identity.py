@@ -90,8 +90,14 @@ def test_reviewer_auth_sets_caller_identity():
 
 
 def test_mechanical_auth_sets_caller_identity():
-    """ADR-288 D1: _MechanicalAuth carries caller_identity=f'system:{slug}'."""
-    src = _read_text(_file("services", "invocation_dispatcher.py"))
+    """ADR-288 D1: _MechanicalAuth carries caller_identity=f'system:{slug}'.
+
+    2026-06-04 (ADR-315 carry-over): _MechanicalAuth moved from the deleted
+    services/invocation_dispatcher.py into services/wake.py (ADR-296 v2 →
+    ADR-298 wake-architecture migration). The caller_identity contract is
+    unchanged; only the file moved.
+    """
+    src = _read_text(_file("services", "wake.py"))
     assert 'caller_identity=f"system:{recurrence.slug}"' in src, (
         "_MechanicalAuth must set caller_identity=f'system:{recurrence.slug}' "
         "per ADR-288 D1."
@@ -161,13 +167,20 @@ def test_schedule_default_resolves_from_caller_identity():
 
 
 def test_yarnnn_schedule_injection_deleted():
-    """ADR-288 D3: agents/yarnnn.py tool_executor no longer injects per-call.
+    """ADR-288 D3: the YARNNN chat agent tool_executor no longer injects per-call.
 
     The pre-ADR-288 block ``if tool_name == "Schedule" and isinstance(...) and
     not tool_input.get("authored_by"): tool_input = {**tool_input,
     "authored_by": "operator"}`` is deleted. auth.caller_identity carries it.
+
+    2026-06-04 (ADR-315 carry-over): agents/yarnnn.py was ratify-deleted by
+    commit 1272c92 ("delete the dead chat-profile chain"); the YARNNN chat
+    agent's tool_executor now lives in agents/chat_agent.py. This gate asserts
+    a DELETION (the per-call injection block must be absent), so retargeting it
+    to the successor file keeps the invariant honest — caller_identity, not a
+    per-call patch, carries Schedule attribution.
     """
-    src = _read_text(_file("agents", "yarnnn.py"))
+    src = _read_text(_file("agents", "chat_agent.py"))
     # The literal injection pattern must be absent
     assert not re.search(
         r'if tool_name == "Schedule".*not tool_input\.get\("authored_by"\)',
@@ -402,36 +415,20 @@ def test_cockpit_awareness_de_instanced():
     )
 
 
-def test_tools_core_de_instanced():
-    """Phase 3: `tools_core.py` must not prescribe alpha-trader instance
-    vocabulary as kernel reasoning shape for the Reviewer description.
-
-    Mentions of `_money_truth.md` as alpha-trader's instance example are
-    allowed (kernel concept + instance pointer is correct per ADR-282
-    instance-of phrasings); claims that the Reviewer reasons "against
-    _money_truth.md money-truth" as if it were the universal substrate
-    are NOT (that hardcodes alpha-trader vocabulary as kernel reasoning).
-    """
-    src = _read_text(_file("agents", "prompts", "tools_core.py"))
-
-    # Negative: no kernel-as-universal claims tying Reviewer to _money_truth.md
-    # alone. Allow instance-pointer phrasings ("alpha-trader's instance:
-    # `_money_truth.md`").
-    assert "against `_money_truth.md` money-truth" not in src, (
-        "tools_core.py must not claim Reviewer reasons against "
-        "`_money_truth.md` as if it were the universal substrate. Use "
-        "kernel concept + instance-pointer phrasing per ADR-282."
-    )
-    assert "Capital-EV reasoning against `_money_truth.md`" not in src, (
-        "tools_core.py must not prescribe Capital-EV as kernel reasoning "
-        "shape. Capital-EV is alpha-trader's instance reasoning."
-    )
-
-    # Positive: ground-truth substrate framing present
-    assert "ground-truth substrate" in src, (
-        "tools_core.py must reference `ground-truth substrate` (kernel "
-        "concept per FOUNDATIONS Axiom 8)."
-    )
+# test_tools_core_de_instanced DELETED (ADR-315 carry-over, 2026-06-04):
+#   agents/prompts/tools_core.py was ratify-deleted by commit 1272c92
+#   ("delete the dead chat-profile chain — program-activation is the floor").
+#   The de-instancing concern this gate guarded (kernel prompt prose must not
+#   hardcode alpha-trader `_money_truth.md` / Capital-EV vocabulary as the
+#   universal Reviewer reasoning shape) is already covered for every SURVIVING
+#   kernel-prompt site by sibling assertions in this file:
+#     - test_cockpit_awareness_de_instanced (agents/cockpit_awareness.py)
+#     - test_default_review_identity_md_speaks_in_ground_truth_substrate
+#     - test_default_review_principles_md_speaks_in_ground_truth_substrate
+#       (services/orchestration.py DEFAULT_REVIEW_* constants)
+#     - test_reviewer_agent_docstring_de_instanced (agents/reviewer_agent.py)
+#   Retargeting to a survivor would duplicate that coverage; the gate's subject
+#   file is simply gone. Singular-implementation: delete, don't shim.
 
 
 def test_reviewer_agent_docstring_de_instanced():
@@ -528,7 +525,8 @@ def main() -> int:
         ("D8: DEFAULT_REVIEW_IDENTITY_MD de-instanced", test_default_review_identity_md_speaks_in_ground_truth_substrate),
         ("D8: DEFAULT_REVIEW_PRINCIPLES_MD de-instanced", test_default_review_principles_md_speaks_in_ground_truth_substrate),
         ("D8: cockpit_awareness.py de-instanced", test_cockpit_awareness_de_instanced),
-        ("D8: tools_core.py de-instanced", test_tools_core_de_instanced),
+        # D8 tools_core gate deleted (ADR-315 carry-over) — file ratify-deleted
+        # by 1272c92; coverage retained by the four sibling de-instancing gates.
         ("D8: reviewer_agent.py docstring de-instanced", test_reviewer_agent_docstring_de_instanced),
     ]
 

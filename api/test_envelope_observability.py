@@ -6,8 +6,10 @@ Validates:
 - The elapsed_ms is a non-negative int.
 - The dict still carries the canonical ReviewerContext fields.
 - `record_execution_event` accepts the new `envelope_load_ms` kwarg.
-- Both callers (invocation_dispatcher reactive path, feed.py addressed path)
+- Both callers (wake.py reactive path, feed.py addressed path)
   unpack the tuple and route envelope_load_ms appropriately.
+  (The reactive path lived in invocation_dispatcher.py until the ADR-296 v2 →
+  ADR-298 wake-architecture migration moved it into services/wake.py.)
 
 This test does NOT hit the database — it runs against an in-memory stub client
 so the assertions are deterministic and the test is CI-safe.
@@ -146,7 +148,11 @@ def test_telemetry_accepts_envelope_load_ms() -> None:
 # ---------------------------------------------------------------------------
 
 def test_dispatcher_routes_envelope_load_ms() -> None:
-    src = (ROOT / "services" / "invocation_dispatcher.py").read_text()
+    # 2026-06-04 (ADR-315 carry-over): the reactive dispatch path moved from
+    # the deleted services/invocation_dispatcher.py into services/wake.py
+    # (ADR-296 v2 → ADR-298 wake-architecture migration). The tuple-unpack +
+    # envelope_load_ms threading shape survived verbatim; only the file moved.
+    src = (ROOT / "services" / "wake.py").read_text()
 
     # Tuple-unpack at the call site.
     if "governance_envelope, envelope_load_ms = await load_reviewer_governance_envelope" in src:

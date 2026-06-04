@@ -38,7 +38,11 @@ sys.path.insert(0, str(REPO_ROOT / "api"))
 
 from agents.reviewer_agent import _validate_context_shape  # noqa: E402
 
-DISPATCHER_PATH = REPO_ROOT / "api" / "services" / "invocation_dispatcher.py"
+# 2026-06-04 (ADR-315 carry-over): the reactive recurrence-fire context-bag
+# construction moved from the deleted services/invocation_dispatcher.py into
+# services/wake.py (ADR-296 v2 → ADR-298 wake-architecture migration). The
+# canonical-key contract is unchanged; only the file that builds the bag moved.
+DISPATCHER_PATH = REPO_ROOT / "api" / "services" / "wake.py"
 REVIEWER_PATH = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
 # ADR-315: ReviewerContext is defined in the published occupant contract module.
 OCCUPANT_CONTRACT_PATH = REPO_ROOT / "api" / "agents" / "occupant_contract.py"
@@ -158,12 +162,12 @@ def test_dispatcher_uses_canonical_keys():
     this one fails the dispatcher side if it emits them."""
     src = _read(DISPATCHER_PATH)
     assert '"recurrence_prompt"' in src, (
-        "invocation_dispatcher.py must build context bags with the canonical "
+        "wake.py must build context bags with the canonical "
         "key 'recurrence_prompt'. If you see this failing, the dispatcher "
         "regressed back to the pre-e55d201 key drift."
     )
     assert '"recurrence_slug"' in src, (
-        "invocation_dispatcher.py must build context bags with the canonical "
+        "wake.py must build context bags with the canonical "
         "key 'recurrence_slug'."
     )
 
@@ -174,7 +178,7 @@ def test_dispatcher_does_not_emit_legacy_context_keys():
     literal so unrelated identifier uses don't trip the gate."""
     src = _read(DISPATCHER_PATH)
     assert '"trigger_slug"' not in src, (
-        "invocation_dispatcher.py must not use the legacy key 'trigger_slug' "
+        "wake.py must not use the legacy key 'trigger_slug' "
         "in context-bag construction — singular implementation per "
         "CLAUDE.md item 1. The Reviewer side dropped its trigger_slug "
         "fallback 2026-05-13."

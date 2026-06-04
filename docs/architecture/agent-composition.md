@@ -152,7 +152,7 @@ The Reviewer agent does NOT read AUTONOMY.md directly. The dispatcher enforces t
 
 #### 3.2.1 Partition discipline: what belongs in `principles.md` vs. persona-frame
 
-> **This subsection is the singular enforcement home for the principles ↔ persona-frame partition.** When you are about to add content to `/workspace/review/principles.md` (in a bundle template, in a per-workspace seed, or in a doc that prescribes principles content), this is the test. When you are about to add content to a `_compute_*` section of `api/agents/reviewer_agent.py`'s persona-frame, this is the test. Other canon files (`reviewer-substrate.md`, ADR-194 v2, ADR-217, ADR-293, ADR-295, ADR-303) defer to this clause on the partition question — they describe the seat, the autonomy gating, the self-amendment capability, the posture taxonomy, but the *content boundary between principles.md and the persona-frame* is governed here.
+> **This subsection is the singular enforcement home for the principles ↔ persona-frame partition.** When you are about to add content to `/workspace/review/principles.md` (in a bundle template, in a per-workspace seed, or in a doc that prescribes principles content), this is the test. When you are about to add content to a `_compute_*` section of `api/agents/reviewer_agent.py`'s persona-frame, this is the test. Other canon files (`reviewer-seat-substrate.md`, `reviewer-occupant.md`, ADR-194 v2, ADR-217, ADR-293, ADR-295, ADR-303, ADR-315) defer to this clause on the partition question — they describe the seat, the occupant, the autonomy gating, the self-amendment capability, the posture taxonomy, but the *content boundary between principles.md and the persona-frame* is governed here.
 
 **The one-line statement** (already canonized at §4.2 line 227 and §3.2 substrate table):
 > **`principles.md` is the rule-set the persona applies.** Persona is *how to reason*; mandate is *why we exist*; autonomy is *how far decisions bind*; principles is *what the rules of judgment are*.
@@ -460,6 +460,7 @@ Decisions that shaped the current agent composition, in order:
 - **ADR-212** — LAYER-MAPPING correction. Sharp Agent/Orchestration taxonomy.
 - **ADR-216** — YARNNN reclassification + persona wiring. Orchestration vs judgment separation; persona read at reasoning time.
 - **ADR-217** — Workspace autonomy substrate. Single authoring mouth for delegation; modes.md → AUTONOMY.md.
+- **ADR-315** — Reviewer Occupant Contract. Seat ≠ occupant: the seat stays substrate ([reviewer-seat-substrate.md](reviewer-seat-substrate.md)); the occupant becomes a contract-bounded module ([reviewer-occupant.md](reviewer-occupant.md)) consuming a published ABI ([reviewer-occupant-contract.md](reviewer-occupant-contract.md), defined in `api/agents/occupant_contract.py`).
 - **Shared governance hardening** (commit `fd4917a`, 2026-04-24) — `PRECEDENT.md` under `/workspace/context/_shared/` as operator-authored durable interpretation substrate. Read by YARNNN (compact index), Reviewer (v4 prompt), task pipeline (`gather_task_context`).
 - **`persona-reflection.md`** (canon doc, 2026-04-24) — Reviewer as living accumulator. Precedent and reflection together close the "framework evolves with reality" gap: precedent is operator-sided; reflection (future ADR-218) is persona-sided. Both accumulate inside MANDATE + AUTONOMY boundaries.
 

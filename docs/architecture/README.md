@@ -25,7 +25,10 @@ Parallel deep-dives on the two sharpest architectural substrates — the write p
 | Document | Covers |
 |----------|--------|
 | [**authored-substrate.md**](authored-substrate.md) | Content-addressed retention + parent-pointer history + authored-by attribution on every `workspace_files` mutation. Ratified by FOUNDATIONS v6.1 Axiom 1 second clause + ADR-209. |
-| [**reviewer-substrate.md**](reviewer-substrate.md) | The Reviewer seat's filesystem expression — six seat files at `/workspace/review/` plus adjacent shared delegation in `/workspace/context/_shared/AUTONOMY.md`, the prospective-attribution contract, and the calibration loop. Ratified by FOUNDATIONS v6.3 + ADR-217. |
+| [**reviewer-substrate.md**](reviewer-substrate.md) | Index (ADR-315 split) routing to the three Reviewer docs below. |
+| [**reviewer-seat-substrate.md**](reviewer-seat-substrate.md) | The Reviewer **seat** — six seat files at `/workspace/review/` plus adjacent shared delegation in `/workspace/context/_shared/AUTONOMY.md`, the prospective-attribution contract, and the calibration loop. The seat is substrate. Ratified by FOUNDATIONS v6.3 + ADR-217. |
+| [**reviewer-occupant.md**](reviewer-occupant.md) | The Reviewer **occupant** — the AI agent (`reviewer_agent.py`) that fills the seat: occupant classes, `invoke_reviewer`, model-by-trigger, persona-frame discipline. Ratified by ADR-256 + ADR-315. |
+| [**reviewer-occupant-contract.md**](reviewer-occupant-contract.md) | The published **ABI** between seat and occupant — `ReviewerContext` / `ReviewerOutput` / `invoke_reviewer` / the kernel-side envelope assembler. Defined in `api/agents/occupant_contract.py`. Ratified by ADR-315. |
 
 ### System operation
 
@@ -54,7 +57,7 @@ For someone new to the codebase:
 3. **[agent-composition.md](agent-composition.md)** — how YARNNN / Reviewer / domain Agents compose today
 4. **[FOUNDATIONS.md](FOUNDATIONS.md)** — why it works this way, axiomatically
 5. **[THESIS.md](THESIS.md)** — the philosophical claim the axioms exist to express (internal canon)
-6. **[authored-substrate.md](authored-substrate.md)** + **[reviewer-substrate.md](reviewer-substrate.md)** — the two sharpest architectural substrates (write path + judgment seat)
+6. **[authored-substrate.md](authored-substrate.md)** + **[reviewer-seat-substrate.md](reviewer-seat-substrate.md)** — the two sharpest architectural substrates (write path + judgment seat). The seat's occupant + ABI: [reviewer-occupant.md](reviewer-occupant.md) + [reviewer-occupant-contract.md](reviewer-occupant-contract.md) (ADR-315).
 7. **[orchestration.md](orchestration.md)** — orchestration capabilities and dispatch
 8. **[execution-loop.md](execution-loop.md)** — the accumulation cycle (how recurring work compounds)
 9. **[WORKSPACE.md](WORKSPACE.md)** — workspace layers, filesystem model, bootstrap, autonomy threshold

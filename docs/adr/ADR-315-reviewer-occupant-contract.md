@@ -1,6 +1,6 @@
 # ADR-315: Reviewer Occupant Contract — Carving the Occupant from the Seat
 
-**Status:** Accepted — L2 (code) Implemented 2026-06-04; L1 (docs) + import-suite validation carry-over; L3 deferred
+**Status:** Accepted — L2 (code) Implemented 2026-06-04; L1 (docs) Implemented + import-suite validated 2026-06-04; L3 deferred
 **Date:** 2026-06-04
 **Authors:** KVK, Claude
 **Related:** [reviewer-occupant-carveout-2026-06-04.md](../analysis/reviewer-occupant-carveout-2026-06-04.md) (framing), [reviewer-substrate.md](../architecture/reviewer-substrate.md), [agent-composition.md](../architecture/agent-composition.md) §3.2.x
@@ -148,15 +148,46 @@ external judgment occupant, or a ratified open-core decision.
   `api/test_reviewer_context_contract.py`,
   `api/test_adr288_caller_identity.py` (gate retargeting)
 
-**Carry-over (needs `anthropic` installed / a full test env):**
-- L1 doc split (D5) — mechanical, fully specified above.
-- Run the import-based reviewer suite to confirm runtime parity:
-  `test_adr274 / 275 / 276 / 301 / reviewer_context_contract (runtime part) /
-  envelope_observability / reviewer_formalization / adr284 / adr247`.
-- Cross-ref sweeps (CLAUDE.md, GLOSSARY, agent-composition §6, README index).
-- `api/prompts/CHANGELOG.md` entry IF any persona-frame content changed (it did
-  not in L2 — pure symbol relocation; add the entry only with the L1/D5 pass if
-  doc pointers in prompt-adjacent files move).
+**Carry-over — LANDED 2026-06-04 (env with `anthropic` 0.86.0 + pytest 8.4.2):**
+- L1 doc split (D5) — `reviewer-substrate.md` (269 lines) split into
+  `reviewer-seat-substrate.md` (kernel/seat) + `reviewer-occupant.md`
+  (personification) + `reviewer-occupant-contract.md` (ABI); `reviewer-substrate.md`
+  became a one-screen index. Cross-ref sweep landed on CLAUDE.md "Reviewer seat"
+  block, GLOSSARY (Reviewer / `/workspace/review/` / Occupant entries),
+  `agent-composition.md` §3.2.1 partition-defer list + §6 ADR map,
+  `architecture/README.md` index.
+- Import-based reviewer suite run + green: **154 passed, 0 failed** across
+  `test_f1 / adr289 / reviewer_context_contract / adr288 / adr274 / adr275 /
+  adr276 / adr301 / adr284 / adr247 / envelope_observability /
+  reviewer_formalization`.
+- No `api/prompts/CHANGELOG.md` entry — confirmed no persona-frame *content*
+  changed (pure symbol relocation in L2; pure doc pointers in L1).
+
+**Test-rot finding (recorded for the trail, NOT caused by this carve):** running
+the suite surfaced **11 pre-existing failures** — proven independent of the carve
+by reproducing the identical failures on parent commit `95fc53c` (before the L2
+carve). They were rot from the ADR-296 v2 → ADR-298 wake-architecture migration
+(two weeks older than ADR-315) and the 1272c92 chat-profile-chain deletion. All 11
+repaired in this same bundle commit (Singular-Implementation discipline — green
+suite, no skips):
+- 7 gates grep-referenced the deleted `services/invocation_dispatcher.py` →
+  retargeted to `services/wake.py` (the judgment-dispatch + telemetry-forwarding +
+  envelope-load + recurrence-context-bag + `_MechanicalAuth caller_identity` logic
+  moved there verbatim).
+- 1 gate (`test_adr289::stamps_system_agent_narrations`) grep-matched a pre-296v2
+  feed.py shape; regex updated to the post-296v2 role-default + meta-stamp shape
+  (behavioral invariant preserved).
+- 1 gate (`test_adr288::test_yarnnn_schedule_injection_deleted`) grep-referenced
+  the deleted `agents/yarnnn.py` → retargeted to `agents/chat_agent.py` (where the
+  YARNNN chat agent's `tool_executor` now lives; the deletion-assertion stays
+  honest).
+- 1 gate (`test_adr284::envelope_decls_count`) asserted `== 8`; reality is `11`
+  (ADR-298 `pace_yaml` + ADR-301 `schedule_index_md`/`recent_execution_md` grew the
+  kernel-universal envelope) → updated count + key-set + growth ledger.
+- 1 gate (`test_adr288::test_tools_core_de_instanced`) grep-referenced the
+  ratify-deleted `agents/prompts/tools_core.py` (1272c92) and its de-instancing
+  concern is already covered by 3 sibling assertions on surviving files →
+  **deleted with rationale** (delete, don't shim).
 
 ## Test plan
 1. `python3 -c "import ast; ast.parse(open('api/agents/occupant_contract.py').read())"` — parses.
