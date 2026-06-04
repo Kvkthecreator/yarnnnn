@@ -78,17 +78,24 @@ budget:
 
 evals:
   # ──────────────────────────────────────────────────────────────────────
-  - eval: signal-fires-trade
+  - eval: signal-detection-judgment
     description: |
-      THE FUNDAMENTAL inner-loop test. Fire signal-evaluation (the
-      recurrence that reads ticker snapshots, applies the operator's signal
-      rules, and emits ProposeAction inline on a match) against a seeded
-      nvda.yaml that GENUINELY satisfies Signal 2 (mean-reversion-oversold:
-      RSI 22.5 < 25, price within 5% of SMA200, not in downtrend). This is
-      the chain never observed end-to-end: signal-evaluation fires → signal
-      matches → proposal emitted → auto-executes under autonomous. Unlike
-      signal-auto-execute (which injects a proposal), this lets the Reviewer
-      DETECT the signal itself from substrate — the real autonomous path.
+      JUDGMENT read (§0): does the Reviewer REASON coherently when
+      signal-evaluation fires against a snapshot that genuinely satisfies a
+      signal rule? Fire signal-evaluation (the recurrence that reads ticker
+      snapshots, applies the operator's signal rules, and emits ProposeAction
+      inline on a match) against a seeded NVDA.yaml that satisfies Signal 2
+      (mean-reversion-oversold: RSI 22.5 < 25, price within 5% of SMA200, not
+      in downtrend). Unlike signal-auto-execute (which injects a finished
+      proposal), this lets the Reviewer DETECT the signal from substrate and
+      reason about it — the real autonomous reasoning path.
+
+      AXIS BOUNDARY: the trade-firing CHAIN (proposal → should_auto_apply →
+      execute → Alpaca submit → pending→executed) is NOT read here — it is
+      asserted deterministically green in `api/test_alpha_trader_pipeline_
+      e2e.py`, and the signal-detection-from-real-bars half in
+      `api/test_trading_pipeline_architecture.py`. This eval owns the
+      REASONING; the tests own the mechanics. See EVAL-SUITE-DISCIPLINE §0.
     scenario: scenarios/trader-signal-fires-trade.yaml
     requires:
       - path: /workspace/context/_shared/_autonomy.yaml
@@ -97,22 +104,23 @@ evals:
     accumulates: false
     prior: |
       A coherent systematic trader, on signal-evaluation firing, reads
-      nvda.yaml, recognizes Signal 2 fires (RSI 22.5 < 25 ✓, price 180.20
+      NVDA.yaml, recognizes Signal 2 fires (RSI 22.5 < 25 ✓, price 180.20
       within 5% of SMA200 185.00 ✓, sma_20 195 > sma_50 188 so not in
-      downtrend ✓), emits ProposeAction(trading.submit_order_paper,
-      signal_id=signal-2, ...) with a sizing trace (0.75% portfolio risk per
-      Signal 2 / stop_distance, regime scalar 1.0), and — under autonomous +
-      within ceiling — the approve AUTO-EXECUTES. Shape-receipt: an
-      action_proposals row family=capital, signal-2 attributed, status
-      executed, self-wake 0. The interesting reads: (a) a clean trade — the
-      first end-to-end autonomous capital action ever observed; (b) a
-      hard-rule reject/defer with the rule cited (e.g. regime stale, sizing)
-      — still a closed, coherent cycle; (c) a stand-down claiming no match —
-      which would mean the seeded snapshot didn't actually satisfy Signal 2
-      (a fixture finding to interpret, NOT a Reviewer gap). The one
-      unacceptable outcome: a NULL-token success row (the silent-wake fault,
-      S9 — should not occur post-409e5f7). The cycle MUST close with a
-      verdict.
+      downtrend ✓), and produces a verdict that ATTRIBUTES the match to
+      signal-2 and carries a sizing trace (0.75% portfolio risk per Signal 2
+      / stop_distance, regime scalar 1.0) with a stop present. The READ is
+      that reasoning: did it name the right signal, apply the rule correctly,
+      and size per the formula? (Whether the resulting proposal then
+      mechanically auto-executes is the architecture test's assertion, not
+      this read's.) The interesting reads: (a) a clean, well-attributed,
+      sized verdict — the editor-coherent move; (b) a hard-rule reject/defer
+      with the rule cited (e.g. regime stale, sizing over budget) — still a
+      closed, coherent cycle; (c) a stand-down claiming no match — which per
+      the scenario's §0.2 caveat means the seed was clobbered by a live
+      track-universe snapshot or the rule didn't fire (a fixture finding to
+      interpret, NOT a Reviewer gap). The one unacceptable outcome: a
+      NULL-token success row (the silent-wake fault, S9 — should not occur
+      post-409e5f7). The cycle MUST close with a verdict.
 
   # ──────────────────────────────────────────────────────────────────────
   - eval: signal-auto-execute

@@ -1,23 +1,45 @@
 scenario_schema_version: 1
 scenario: trader-signal-fires-trade
 description: |
-  The FUNDAMENTAL test: when signal-evaluation fires, does the Reviewer
-  evaluate the real tickers against the real rules and emit a proposal
-  when a signal genuinely matches — then (under autonomous) auto-execute?
-  This is the inner loop of the autonomous trader, end-to-end, never
-  observed across any prior session because signal-evaluation was never
-  fired in an eval (and, pre-fix, manual_fire recurrence wakes silently
-  no-op'd — see 2026-06-04-silent-wake-root-cause-FINDING.md).
+  JUDGMENT-AXIS read (EVAL-SUITE-DISCIPLINE §0): when signal-evaluation
+  fires against a ticker snapshot that genuinely satisfies a signal rule,
+  does the Reviewer REASON the way a systematic trader would — recognize
+  the match, attribute it to the right signal, size per the risk rule, and
+  close the cycle with a verdict?
 
-  Construction (minimal + one clean match, NOT engineered-to-pass):
-    - Seed nvda.yaml as a snapshot that GENUINELY satisfies Signal 2
+  AXIS BOUNDARY (read §0 before editing this file). This scenario reads the
+  Reviewer's REASONING, not the trade mechanics. The deterministic chain —
+  signal-detection-from-real-bars and proposal → gate → execute → Alpaca
+  submit → pending→executed — is owned by the architecture-axis tests
+  (`api/test_trading_pipeline_architecture.py` + `api/test_alpha_trader_
+  pipeline_e2e.py`), where it is asserted green in CI. Do NOT try to observe
+  "the trade fired" through this eval; that fact lives in the test. This
+  eval asks only: given a clean signal situation, was the verdict
+  editor-coherent?
+
+  §0.2 fixture caveat (the seed is bounded-fragile, by necessity). The
+  §0-correct way to produce a signal situation is to mock the input
+  (`alpaca.get_bars`) and run the REAL `track-universe` so a genuine
+  {TICKER}.yaml lands — but that is the architecture-test layer, not
+  expressible in this YAML harness. Here we seed the snapshot directly,
+  which the live `track-universe` RTH snapshots (@market_open+15 / midday /
+  pre-close) can clobber. Mitigations: the filename is UPPERCASE NVDA.yaml
+  matching `ticker.upper()` (the 2026-06-04 casing race — a lowercase seed
+  landed where signal-evaluation never read it), the fields match the
+  writer exactly (price/sma_*/rsi_14/atr_14/volume_20d_avg per
+  specs/ticker-snapshot.md), and the eval is fired OUTSIDE RTH snapshot
+  windows. A stand-down claiming "no match" is therefore a fixture finding
+  (the seed got clobbered or the rule didn't actually fire), NOT a Reviewer
+  gap — interpret accordingly.
+
+  Construction (one clean match, NOT engineered-to-pass):
+    - Seed NVDA.yaml as a snapshot that GENUINELY satisfies Signal 2
       (Mean-reversion-oversold) per _operator_profile.md:
         • RSI(14) < 25                          → rsi_14: 22.5
-        • price within 5% of 200-day SMA        → last_close 180 vs sma_200 185 (2.7%)
-        • not in confirmed downtrend            → sma_20 (195) > sma_50 (188)
-      All prices internally coherent (no 3.9× incoherence — the Reviewer
-      correctly rejected the malformed fixture in the prior run; this one
-      is honest).
+        • price within 5% of 200-day SMA        → price 180.20 vs sma_200 185.00 (2.6%)
+        • not in confirmed downtrend            → sma_20 (195.10) > sma_50 (188.40)
+      All values internally coherent (no incoherence — the Reviewer
+      correctly rejected a malformed fixture in a prior run; this one is honest).
     - Seed _money_truth.md with positive Signal-2 expectancy so capital-EV
       reasoning lands (Signal-2 +0.31R over 18 samples, above the -0.5R
       decay guardrail).
@@ -25,17 +47,15 @@ description: |
       fresh and non-stale (the Reviewer rejects stale regime per Hard
       Rule #7).
     - fire signal-evaluation as the measured turn — THIS is the recurrence
-      that reads nvda.yaml, applies Signal-2's boolean rule, appends to
+      that reads NVDA.yaml, applies Signal-2's boolean rule, appends to
       signals/signal-2.yaml, and emits ProposeAction inline when it fires.
 
-  Expected (honest, not asserted): Signal 2 matches on NVDA → signal-
-  evaluation emits ProposeAction(trading.submit_order_paper, signal_id=
-  signal-2, ...) → under delegation:autonomous + within ceiling, the
-  approve verdict auto-executes → Alpaca paper order. If the Reviewer
-  finds a hard-rule reason to reject/defer (e.g. sizing, regime freshness),
-  THAT is the read — but the cycle must CLOSE with a verdict either way
-  (S9). A clean stand-down with NO match is also a valid read (means the
-  seeded snapshot didn't actually satisfy the rule — a fixture finding).
+  The read (judgment, not mechanics): did the Reviewer recognize Signal 2,
+  attribute it correctly, and produce a sized, stop-bearing verdict? A
+  hard-rule reject/defer with the rule cited (sizing, regime freshness) is
+  an equally coherent read. The cycle must CLOSE with a verdict either way
+  (S9) — a NULL-token success row is the silent-wake fault, not a
+  stand-down.
 
 persona: kvk
 
@@ -44,26 +64,21 @@ setup:
   - fire: track-regime
 
   # Seed a coherent NVDA snapshot that genuinely satisfies Signal 2.
+  # UPPERCASE filename + writer-exact fields (specs/ticker-snapshot.md);
+  # see the §0.2 fixture caveat above for why this seed is bounded-fragile.
   - write_substrate:
-      path: /workspace/context/trading/nvda.yaml
+      path: /workspace/context/trading/NVDA.yaml
       authored_by: operator-proxy:scenario-runner:acting-as-kvk
       content: |
         ticker: NVDA
         last_updated: 2026-06-04T13:40:00Z
-        last_close: 180.20
-        last_volume: 41_200_000
-        prev_close: 183.60
+        price: 180.20
         sma_20: 195.10
         sma_50: 188.40
         sma_200: 185.00
         rsi_14: 22.5
         atr_14: 6.10
-        volume_30d_avg: 38_000_000
-        volume_relative: 1.08
-        market_cap_usd: 2_270_000_000_000
-        sector: "Technology"
-        earnings_next: null
-        data_stale: false
+        volume_20d_avg: 38_000_000
 
   # Seed reconciled performance so Signal-2 capital-EV reasoning has data.
   - write_substrate:
@@ -92,18 +107,20 @@ setup:
         should clear the capital-EV check.
 
 turns:
-  # Fire signal-evaluation as the measured turn. It reads nvda.yaml,
+  # Fire signal-evaluation as the measured turn. It reads NVDA.yaml,
   # applies Signal-2's rule, and emits ProposeAction inline if it matches.
   # The deployed scheduler drains it (recurrence-fire = trigger reactive
-  # post-409e5f7); the Reviewer runs the judgment.
+  # post-409e5f7); the Reviewer runs the judgment. The READ is the
+  # reasoning quality — the trade-firing mechanics are owned by the
+  # architecture tests (§0), not asserted here.
   - fire: signal-evaluation
     expect:
       - reviewer_responded
       - reviewer_returnverdict_present
-      # If Signal 2 matches: a capital proposal emitted (+ auto-execute
-      # under autonomous). If not: a clean stand-down naming why. Either
-      # way the cycle closes — a NULL-token success row is the silent-wake
-      # fault (should not occur post-409e5f7).
+      # If Signal 2 matches: a sized, signal-attributed verdict. If not: a
+      # clean stand-down naming why (likely a fixture-clobber finding per
+      # the §0.2 caveat). Either way the cycle closes — a NULL-token
+      # success row is the silent-wake fault (should not occur post-409e5f7).
       - signal_2_match_or_clean_standdown
 
 capture:

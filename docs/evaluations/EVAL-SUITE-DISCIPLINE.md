@@ -37,7 +37,10 @@ The alpha-trader autonomy arc (2026-05 → 2026-06) failed to observe a trade ac
 
 ### §0.3 Where each lives
 
-- **Architecture-axis tests**: `api/test_*.py` (e.g. `api/test_trading_pipeline_*.py`) — Hat-A or Hat-B depending on what they exercise; CI-runnable; assert exact substrate outcomes from controlled inputs.
+- **Architecture-axis tests**: `api/test_*.py` — Hat-A or Hat-B depending on what they exercise; CI-runnable; assert exact substrate outcomes from controlled inputs. The two worked examples for the alpha-trader machine, both green, are the canonical reference for the axis:
+  - `api/test_trading_pipeline_architecture.py` (9/9) — the deterministic `track-universe` half: indicator computation, the UPPERCASE filename contract (`ticker.upper()`), the `price` field name. Locks the casing + field drift that masqueraded as a Reviewer stand-down.
+  - `api/test_alpha_trader_pipeline_e2e.py` (10/10) — **the trade fires.** Bypasses the two LLM judgment steps (inject the proposal + approve), mocks the two network seams (risk gate, Alpaca), and runs everything between REAL: `handle_propose_action` → `action_proposals` row → `should_auto_apply` → `handle_execute_proposal` → trading-tool submit → `alpaca.submit_order` → proposal `pending→executed`. Surfaces a real architectural fact: irreversible capital actions QUEUE even under `autonomous` (the `reversibility=irreversible` safety floor); reversible-within-ceiling auto-binds.
+  - Both are standalone scripts (`sys.exit`, not pytest-collectable) — run directly: `.venv/bin/python api/test_trading_pipeline_architecture.py`.
 - **Judgment-axis evals**: `docs/evaluations/eval-suites/*.yaml` + this discipline — Hat-B; session-read; prose findings.
 - **The S9 cycle-closure rule (§9)** is the seam between them: a wake recorded `success` with NULL token telemetry is a *machine* fault (architecture axis — the LLM never ran), not a stand-down (judgment axis). S9 is what lets a judgment read *detect* that it has been handed a machine fault rather than a judgment to interpret.
 

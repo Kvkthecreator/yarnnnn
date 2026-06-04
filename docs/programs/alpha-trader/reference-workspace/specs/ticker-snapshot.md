@@ -22,34 +22,31 @@ YAML, one file per ticker. **UPPERCASE** ticker as filename
 
 ## Required fields
 
-```yaml
-ticker: NVDA
-last_updated: 2026-05-10T08:15:00Z      # ISO-8601 with timezone
-last_close: 925.40                       # most-recent 1Hour bar close
-last_volume: 14_823_000                  # most-recent 1Hour bar volume
-prev_close: 918.20                       # prior session's official close
+> This example is the **exact** field set the `track-universe` writer emits
+> (`api/services/primitives/track_universe.py` `_compute_indicators` +
+> `_write_ticker_yaml`). It is locked by
+> `api/test_trading_pipeline_architecture.py` — do not add fields here that the
+> writer does not emit, or the signal rules will reference data that never lands.
 
-# Price/volume technicals (computed from latest bars + 30-day window)
+```yaml
+ticker: NVDA                             # always UPPERCASE (ticker.upper())
+last_updated: 2026-05-10T08:15:00Z       # ISO-8601 with timezone; the recurrence fire time
+price: 925.40                            # most-recent 1Day bar close (closes[-1])
+
+# Technicals (computed from the daily-bar window)
 sma_20: 891.30
 sma_50: 845.10
+sma_200: 812.70
 rsi_14: 62.4
 atr_14: 22.30
-volume_30d_avg: 11_500_000
-volume_relative: 1.29                    # last_volume / volume_30d_avg
-
-# Optional fundamentals (filled when available; null otherwise)
-market_cap_usd: 2_270_000_000_000
-sector: "Technology"
-earnings_next: 2026-05-22                # null if not scheduled
-
-# Optional flags
-data_stale: false                        # true if Alpaca returned >2h old bars
+volume_20d_avg: 11_500_000
 ```
 
 ## Quality criteria
 
-- Every required field is populated; `null` is acceptable only on optional fields
+- Every field above is emitted by the writer on every successful run; the
+  signal rules in `_operator_profile.md` must reference only these fields
 - Numerical values are unquoted YAML numbers, not strings
-- `last_updated` matches the bar timestamp, not the recurrence fire time
-- When Alpaca returns stale data (e.g., over a long weekend), set `data_stale: true`
-  rather than backfilling with stale values
+- The filename is UPPERCASE (`NVDA.yaml`), matching `ticker.upper()` in the writer
+- When fewer than 200 daily bars are available, `track-universe` skips the ticker
+  with an `insufficient bars` error rather than writing a partial snapshot
