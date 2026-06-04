@@ -368,19 +368,40 @@ async def wait_for_completion(
 
     expected_revs: set[str] = set()
     addressed_turn_count = 0
+    # manual_fire wakes (the {fire: <slug>} setup/turn path). Per ADR-296 v2 +
+    # ADR-298, a manual_fire of a JUDGMENT recurrence enqueues to wake_queue and
+    # drains via the deployed scheduler — identical context shape to a real
+    # cron_tick of the same recurrence (the eval-suite's faithful proxy for the
+    # autonomous recurrence-fire path, ADR-318). Mechanical-mode fires (e.g.
+    # track-account) run inline with no Reviewer wake, so we count fired slugs
+    # here and the gate polls execution_events for judgment-mode manual_fire
+    # rows since session start (count-based, mirroring the addressed branch —
+    # manual_fire has dedup_key=None so it cannot be keyed like substrate_event).
+    manual_fire_slugs: list[str] = []
     for r in eval_results:
         if not r.get("fired"):
             continue
         for rev in r.get("triggering_revision_ids", []) or []:
             expected_revs.add(rev)
         for ev in r.get("evaluations", []) or []:
-            if ev.get("phase") == "turn" and ev.get("action") == "send_message":
+            if ev.get("action") == "send_message" and ev.get("phase") == "turn":
                 addressed_turn_count += 1
+            elif ev.get("action") == "fire" and ev.get("phase") == "turn":
+                # Only TURN fires are the measured Reviewer wake (setup fires like
+                # track-account are mechanical mirror-warming, not the thing under
+                # test). Mechanical judgment-vs-mechanical is further filtered
+                # server-side by the mode='judgment' query below, so a turn that
+                # fires a mechanical recurrence settles immediately (no judgment
+                # row → empty seen set → trivially done).
+                slug = ev.get("slug")
+                if slug:
+                    manual_fire_slugs.append(slug)
 
     print(f"    expected substrate_event wakes: {len(expected_revs)}")
     print(f"    expected addressed wakes: {addressed_turn_count}")
+    print(f"    expected manual_fire wakes (judgment, max): {len(manual_fire_slugs)} {manual_fire_slugs or ''}")
 
-    if not expected_revs and addressed_turn_count == 0:
+    if not expected_revs and addressed_turn_count == 0 and not manual_fire_slugs:
         print("    no Reviewer wakes expected; skipping completion gate")
         return {
             "elapsed_sec": 0,
@@ -389,6 +410,8 @@ async def wait_for_completion(
             "substrate_event_expected": 0,
             "addressed_settled": 0,
             "addressed_expected": 0,
+            "manual_fire_settled": 0,
+            "manual_fire_expected": 0,
             "timed_out": False,
         }
 
@@ -420,6 +443,32 @@ async def wait_for_completion(
         )
         return len(resp.data or [])
 
+    # manual_fire judgment-mode wakes since session start. Mechanical fires are
+    # excluded (mode='judgment') so a track-* mirror fire does not count toward
+    # the Reviewer-wake floor. Count-based (dedup_key is None for manual_fire).
+    # The settle floor is the number of distinct judgment slugs we fired that
+    # actually produced an execution_event — derived from the live rows, so a
+    # mechanical-only fire set settles immediately (floor 0).
+    manual_fire_expected_slugs = set(manual_fire_slugs)
+
+    def query_manual_fire_status() -> tuple[int, set[str]]:
+        if not manual_fire_expected_slugs:
+            return 0, set()
+        resp = (
+            client.table("execution_events")
+            .select("slug, status")
+            .eq("user_id", user_id)
+            .eq("wake_source", "manual_fire")
+            .eq("mode", "judgment")
+            .gte("created_at", session_started_at.isoformat())
+            .execute()
+        )
+        rows = resp.data or []
+        settled = sum(1 for r in rows if r.get("status") in ("success", "failed"))
+        seen_slugs = {r.get("slug") for r in rows if r.get("slug")}
+        # Floor: judgment slugs we fired that the server confirms exist as rows.
+        return settled, (seen_slugs & manual_fire_expected_slugs)
+
     # H3 (2026-05-30): a transient httpx.ConnectError (DNS blip) on a single
     # poll must NOT crash the gate — it skipped the re-snapshot + SESSION.md
     # render entirely in the first live run. Wrap each poll query so a transient
@@ -435,6 +484,8 @@ async def wait_for_completion(
     timed_out = False
     substrate_status: dict[str, str] = {}
     addressed_count = 0
+    manual_fire_settled = 0
+    manual_fire_seen: set[str] = set()
     while True:
         elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
         if elapsed >= COMPLETION_GATE_TIMEOUT_SEC:
@@ -443,19 +494,41 @@ async def wait_for_completion(
 
         substrate_status = await _safe(query_substrate_event_status, substrate_status)
         addressed_count = await _safe(query_addressed_count, addressed_count)
+        manual_fire_settled, manual_fire_seen = await _safe(
+            query_manual_fire_status, (manual_fire_settled, manual_fire_seen)
+        )
 
         substrate_settled = sum(1 for s in substrate_status.values() if s in ("completed", "failed", "dropped"))
         substrate_pending = sum(1 for s in substrate_status.values() if s in ("pending", "locked"))
         substrate_missing = len(expected_revs) - len(substrate_status)
         addressed_done = addressed_count >= addressed_turn_count
+        # manual_fire is done when:
+        #  - no judgment fires were expected (mechanical-only set), OR
+        #  - at least one judgment execution_event row has appeared for a fired
+        #    slug AND every seen row has settled (success|failed).
+        # The "at least one row appeared" floor prevents a premature settle in
+        # the window between local enqueue and the deployed scheduler draining.
+        if not manual_fire_expected_slugs:
+            manual_fire_done = True
+        elif len(manual_fire_seen) > 0:
+            # A judgment row appeared — done when all seen rows have settled.
+            manual_fire_done = manual_fire_settled >= len(manual_fire_seen)
+        else:
+            # No judgment row yet. Either the deployed scheduler hasn't drained
+            # (keep waiting), or the fired turn was mechanical (no Reviewer wake
+            # ever comes — settle after a grace window so we don't burn the full
+            # 600s timeout on a mechanical-only turn). 120s grace.
+            manual_fire_done = elapsed >= 120
 
         all_substrate_done = (substrate_settled == len(expected_revs))
 
         print(f"    [{int(elapsed):3d}s] substrate_event: {substrate_settled}/{len(expected_revs)} settled "
               f"({substrate_pending} pending, {substrate_missing} not-yet-queued); "
-              f"addressed: {addressed_count}/{addressed_turn_count}")
+              f"addressed: {addressed_count}/{addressed_turn_count}; "
+              f"manual_fire(judgment): {manual_fire_settled} settled / {len(manual_fire_seen)} seen "
+              f"(expected slugs: {len(manual_fire_expected_slugs)})")
 
-        if all_substrate_done and addressed_done:
+        if all_substrate_done and addressed_done and manual_fire_done:
             break
 
         await asyncio.sleep(COMPLETION_GATE_POLL_SEC)
@@ -463,6 +536,9 @@ async def wait_for_completion(
     elapsed = int((datetime.now(timezone.utc) - started_at).total_seconds())
     final_substrate = await _safe(query_substrate_event_status, substrate_status)
     final_addressed = await _safe(query_addressed_count, addressed_count)
+    final_mf_settled, final_mf_seen = await _safe(
+        query_manual_fire_status, (manual_fire_settled, manual_fire_seen)
+    )
 
     return {
         "elapsed_sec": elapsed,
@@ -471,6 +547,8 @@ async def wait_for_completion(
         "substrate_event_expected": len(expected_revs),
         "addressed_settled": final_addressed,
         "addressed_expected": addressed_turn_count,
+        "manual_fire_settled": final_mf_settled,
+        "manual_fire_expected": len(manual_fire_expected_slugs),
         "timed_out": timed_out,
     }
 
