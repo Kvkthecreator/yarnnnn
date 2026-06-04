@@ -70,13 +70,13 @@ export function KernelJudgmentTrail() {
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-border/40">
         <div className="flex items-center gap-2">
           <ScrollText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <h2 className="text-sm font-medium text-foreground">Judgment trail</h2>
+          <h2 className="text-sm font-medium text-foreground">Recent decisions</h2>
         </div>
         <Link
           href={`/files?path=${encodeURIComponent(DECISIONS_PATH)}`}
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 hover:text-foreground transition-colors"
         >
-          Full trail <ArrowRight className="h-3 w-3" />
+          All <ArrowRight className="h-3 w-3" />
         </Link>
       </header>
       <ul className="divide-y divide-border/30">

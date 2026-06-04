@@ -29,12 +29,26 @@ interface PendingProposal {
   created_at: string;
 }
 
-function humanizePrimitive(primitive: string): string {
-  // platform_trading_submit_order → "trading submit order"; WriteFile → "Write File"
-  if (primitive.includes('_')) {
-    return primitive.replace(/^platform_/, '').replace(/_/g, ' ');
-  }
-  return primitive.replace(/([a-z])([A-Z])/g, '$1 $2');
+// Plain-language label for a pending action. The operator sees what the
+// action DOES in their words, not the primitive name. Known primitives map
+// to a human verb; unknown ones fall back to a de-jargoned title-case.
+const PRIMITIVE_LABELS: Record<string, string> = {
+  WriteFile: 'Save a workspace change',
+  EditFile: 'Edit a workspace file',
+  Schedule: 'Change a schedule',
+  ManageRecurrence: 'Change a schedule',
+  FireInvocation: 'Run a task now',
+  RuntimeDispatch: 'Generate an asset',
+  InferContext: 'Update your context',
+};
+
+function actionLabel(primitive: string): string {
+  if (PRIMITIVE_LABELS[primitive]) return PRIMITIVE_LABELS[primitive];
+  // platform_trading_submit_order → "Trading submit order"
+  const base = primitive.includes('_')
+    ? primitive.replace(/^platform_/, '').replace(/_/g, ' ')
+    : primitive.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+  return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
 export function KernelDecisionQueue() {
@@ -69,10 +83,8 @@ export function KernelDecisionQueue() {
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-border/40">
         <div className="flex items-center gap-2">
           <Inbox className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-          <h2 className="text-sm font-medium text-foreground">Decision queue</h2>
-          <span className="text-[11px] text-muted-foreground/60">
-            {proposals.length} pending
-          </span>
+          <h2 className="text-sm font-medium text-foreground">Waiting for your OK</h2>
+          <span className="text-[11px] text-muted-foreground/60">{proposals.length}</span>
         </div>
         <Link
           href="/queue"
@@ -88,6 +100,8 @@ export function KernelDecisionQueue() {
               href="/queue"
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors"
             >
+              {/* Color dot distinguishes money-moving (amber) from
+                  workspace-content (sky) actions without the jargon word. */}
               <span
                 className={
                   p.family === 'capital'
@@ -96,11 +110,8 @@ export function KernelDecisionQueue() {
                 }
                 aria-hidden
               />
-              <span className="flex-1 min-w-0 text-sm text-foreground truncate capitalize">
-                {humanizePrimitive(p.primitive)}
-              </span>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground/50 shrink-0">
-                {p.family}
+              <span className="flex-1 min-w-0 text-sm text-foreground truncate">
+                {actionLabel(p.primitive)}
               </span>
             </Link>
           </li>
@@ -111,7 +122,7 @@ export function KernelDecisionQueue() {
           href="/queue"
           className="block px-4 py-2 text-[11px] text-muted-foreground/60 hover:text-foreground hover:bg-muted/30 transition-colors border-t border-border/30"
         >
-          +{overflow} more pending in Queue →
+          +{overflow} more →
         </Link>
       )}
     </section>

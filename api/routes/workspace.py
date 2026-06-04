@@ -541,6 +541,25 @@ async def get_workspace_file(
 # recency. Self-hides on the frontend when empty (bare kernel before any
 # deliverable has run). Browser-consumed only — no scheduler/MCP impact.
 
+def _artifact_title(summary: Optional[str], slug: str) -> str:
+    """Human title for a delivered artifact (plain-language pass).
+
+    The stored `summary` is frequently a machine string — e.g.
+    "Workspace write: reports/weekly-corpus-review/2026-05-26/output.md" —
+    which leaks paths to the operator. Strip those shapes and fall back to
+    the titleized slug so the Home reads like a Mac, not a workbench.
+    """
+    s = (summary or "").strip()
+    # Drop a leading "Workspace write:" / "Write:" machine prefix.
+    for prefix in ("Workspace write:", "Write:", "Output:"):
+        if s.lower().startswith(prefix.lower()):
+            s = s[len(prefix):].strip()
+    # If what's left looks like a path or is empty, titleize the slug.
+    if not s or "/" in s or s.endswith(".md") or s.endswith(".html"):
+        return slug.replace("-", " ").replace("_", " ").title() if slug else "Output"
+    return s
+
+
 @router.get("/workspace/recent-artifacts", response_model=RecentArtifactsResponse)
 async def get_recent_artifacts(
     auth: UserClient,
@@ -573,7 +592,12 @@ async def get_recent_artifacts(
                     slug=slug,
                     date=date,
                     path=path,
-                    summary=row.get("summary"),
+                    # Operator-facing title. The stored summary is often a
+                    # machine string ("Workspace write: reports/.../output.md")
+                    # — strip path-shaped / "Workspace write:" summaries so the
+                    # Home shows a human title, falling back to the titleized
+                    # slug. Plain-language pass (2026-06-04).
+                    summary=_artifact_title(row.get("summary"), slug),
                     updated_at=row.get("updated_at"),
                 )
             )

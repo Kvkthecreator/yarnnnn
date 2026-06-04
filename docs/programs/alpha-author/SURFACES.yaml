@@ -27,26 +27,27 @@ tabs:
       filters_default:
         output_kind: produces_deliverable
 
-      # ADR-283 D8 + ADR-273 Phase 6: program-specific section stack.
-      # The Home tells a story top-to-bottom: standing intent →
-      # corpus state → voice consistency → shipping pipeline.
-      # HomeHeader / the Constitution band (kernel-general) sits above
-      # this stack and shows mandate + autonomy posture.
+      # Six-slot contract (ADR-312 D2 + 2026-06-04 amendment): a program
+      # declares exactly TWO slots — the ground-truth hero (#2) and the
+      # entity list (#4). The kernel owns the other four (#1 constitution,
+      # #3 decision queue, #5 recent artifacts, #6 judgment trail) and
+      # renders them itself. A program does NOT re-render the mandate or
+      # sprawl into a metric stack (the former 4-card AuthorMandate /
+      # Corpus / Voice / Pipeline did both and read as an incoherent
+      # dashboard).
       #
-      # Order can be customized by operators; sections can be suppressed
-      # by removing entries. YARNNN can edit this file via WriteFile on
-      # request. ADR-312 D2: this `home` key is the program's declared
-      # composition for the Home's slots.
+      # For an author:
+      #   - hero  (#2, "is this working?")  → AuthorHero — does my shipped
+      #     writing still sound like me? Voice consistency is the headline;
+      #     coherence + audit volume are quiet support.
+      #   - entities (#4, "what's in play?") → AuthorPieces — the corpus
+      #     pieces, newest first, with their state.
       home:
         program_sections:
-          - kind: AuthorMandate         # standing intent + voice fingerprint declaration
+          - kind: AuthorHero            # slot #2 — ground-truth hero (voice consistency)
             order: 1
-          - kind: AuthorCorpus          # multi-signal ground-truth substrate (_signal.md)
+          - kind: AuthorPieces          # slot #4 — entity list (corpus pieces)
             order: 2
-          - kind: AuthorVoice           # voice-drift detection + revision-attribution per ADR-209
-            order: 3
-          - kind: AuthorPipeline        # drafts → scheduled → published + cadence health
-            order: 4
 
     # No detail middles. Per ADR-228 the bundle-shaped specifics for
     # alpha-author (corpus state, voice consistency, pipeline) live

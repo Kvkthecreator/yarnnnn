@@ -57,13 +57,13 @@ export function KernelRecentArtifacts() {
       <header className="flex items-center justify-between px-4 py-2.5 border-b border-border/40">
         <div className="flex items-center gap-2">
           <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-          <h2 className="text-sm font-medium text-foreground">Recent artifacts</h2>
+          <h2 className="text-sm font-medium text-foreground">Recently delivered</h2>
         </div>
         <Link
           href="/files?path=/workspace/reports"
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 hover:text-foreground transition-colors"
         >
-          All outputs <ArrowRight className="h-3 w-3" />
+          All <ArrowRight className="h-3 w-3" />
         </Link>
       </header>
       <ul className="divide-y divide-border/30">
@@ -73,13 +73,10 @@ export function KernelRecentArtifacts() {
               href={`/recurrence?task=${encodeURIComponent(a.slug)}`}
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors"
             >
-              <span className="flex-1 min-w-0">
-                <span className="block text-sm text-foreground truncate">
-                  {a.summary?.trim() || a.slug}
-                </span>
-                <span className="block text-[11px] text-muted-foreground/50 truncate">
-                  {a.slug}
-                </span>
+              {/* Backend returns a clean human title (path/machine prefixes
+                  stripped); render it as the single line. */}
+              <span className="flex-1 min-w-0 text-sm text-foreground truncate">
+                {a.summary?.trim() || a.slug}
               </span>
               {a.updated_at && (
                 <span className="text-[11px] text-muted-foreground/50 shrink-0 tabular-nums">

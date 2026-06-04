@@ -45,6 +45,33 @@ So "the program declares whether [a slot] renders" holds for #2/#4 (the program-
 
 Backend: `GET /api/workspace/recent-artifacts` (new, browser-only) backs slot #5; #3 reuses `GET /api/proposals`; #6 reuses `getFile(decisions.md)` + the canonical `content-shapes/decisions.ts` parser. No parallel implementations.
 
+#### D2 amendment #2 (2026-06-04) — a program declares exactly two slots (hero + entities); plain language throughout
+
+The first D2 amendment fixed *what the kernel renders*. This one fixes *what a program may declare* — and the operator-facing language of the whole Home. It was triggered by the alpha-yarnnn-author Home reading as an incoherent metric dashboard rather than "here's your writing operation."
+
+**The defect.** A program's `home.program_sections[]` accepted an arbitrary stack of component `kind`s. alpha-author declared four (`AuthorMandate`, `AuthorCorpus`, `AuthorVoice`, `AuthorPipeline`); alpha-trader declared seven. The result, on the author Home: (a) the mandate rendered **twice** — once in the kernel `HomeHeader` (slot #1) and again in `AuthorMandate`; (b) the autonomy posture rendered twice (both); (c) "voice accuracy" appeared in **two separate cards** (`AuthorCorpus` + `AuthorVoice`), each showing the same `—`; (d) eight mostly-empty metric cards (`0` / `—` / `never`) read as a broken dashboard, not an operation. This violated D2's own wording — slot #2 is "the operation's **primary** signal" (singular), not "every metric the program tracks."
+
+**The rule.** A program declares **exactly two slots**:
+
+- **#2 Ground-truth hero** — *one* component answering the single human question "**is this working?**" One headline, in plain words, with at most a quiet line of support. (Author: `AuthorHero` — "Your voice is holding / drifting"; voice-consistency is the headline, coherence + audit volume are quiet support. Not three cards.)
+- **#4 Live entities** — *one* labeled list answering "**what's in play?**" Program-labeled rows, newest-first, not a metric grid. (Author: `AuthorPieces` — the corpus pieces with their state. Not Drafts/Published/Total counters.)
+
+A program **may NOT**: re-render the mandate or autonomy (kernel slot #1 owns them); render the decision queue, recent artifacts, or judgment trail (kernel slots #3/#5/#6 own them); or declare more than two program sections. The kernel test gate asserts `home.program_sections` has ≤2 entries and that no program registers a `*Mandate` component.
+
+**Plain-language pass (the macOS lesson).** A Mac shows "Storage: 234 GB available," not inode counts. The Home was showing inodes. Every operator-facing string is de-jargoned: the decision-queue maps primitives to verbs (`WriteFile` → "Save a workspace change") and drops the `substrate`/`capital` jargon word (the color dot carries that distinction); recent artifacts strip machine/path summaries ("Workspace write: reports/…/output.md" → the clean title) server-side via `_artifact_title()`; slot headers read "Waiting for your OK" / "Recently delivered" / "Recent decisions." The vocabulary north star, per program-author guidance:
+
+| Engineer term | Operator-facing |
+|---|---|
+| Primary Action | the operation's one-line mission (kernel HomeHeader) |
+| Voice fingerprint / Pattern markers | "your writing voice" / "style tells" |
+| voice_audit_accuracy_30d | "your voice is holding / drifting" |
+| WriteFile · substrate | "Save a workspace change" |
+| Decision queue | "Waiting for your OK" |
+| Judgment trail | "Recent decisions" |
+| Recent artifacts | "Recently delivered" |
+
+alpha-author reshaped this pass (4 sections → `AuthorHero` + `AuthorPieces`). alpha-trader's seven-section stack also violates the two-slot rule; its reshape is deferred to a follow-up (it has genuinely more ground-truth surface — regime, P&L, positions, signals, orders — and was iterated heavily; reshaping it is its own pass). The contract + gate are in force now; trader is the known exception pending follow-up.
+
 ### D3 — The ground-truth hero is generic, not money-truth (F1)
 
 Slot #2 is a **ground-truth panel** whose shape the program declares: money-truth strip (trader), pipeline-stage board (partnerships), coherence/publication panel (author). The kernel content-shape names a generic hero contract; `web/lib/content-shapes/money-truth.ts::CANONICAL_L3 = 'TraderMoneyTruth'` is de-skinned — `TraderMoneyTruth` becomes the *alpha-trader binding* of the hero slot, not the kernel default. This is the concrete code instance of the "money-truth is a trader-skin in the kernel frame" finding (sequenced-moat §8; ESSENCE v13.0 demotion of money-truth).

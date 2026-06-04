@@ -59,16 +59,16 @@ import { TraderPositions } from './programs/alpha-trader/TraderPositions';
 import { TraderSignals } from './programs/alpha-trader/TraderSignals';
 import { TraderOrders } from './programs/alpha-trader/TraderOrders';
 
-// alpha-author bundle components — ADR-283 step 3, substrate-continuity
-// archetype face composition. Approach A (per ADR-283 step 3 discourse):
-// substrate-read components, no new backend routes — they parse
-// /workspace/context/authored/_voice.md, _editorial.md, _entities.md,
-// _signal.md directly via api.workspace.getFile + reuse content-shapes/
-// parsers where applicable.
-import { AuthorMandate } from './programs/alpha-author/AuthorMandate';
-import { AuthorCorpus } from './programs/alpha-author/AuthorCorpus';
-import { AuthorVoice } from './programs/alpha-author/AuthorVoice';
-import { AuthorPipeline } from './programs/alpha-author/AuthorPipeline';
+// alpha-author bundle components — six-slot contract (ADR-312 D2 +
+// 2026-06-04 amendment). A program declares exactly TWO slots: the
+// ground-truth hero (#2 "what's working") + the entity list (#4 "what's
+// in play"). The former four cards (AuthorMandate / AuthorCorpus /
+// AuthorVoice / AuthorPipeline) were deleted: AuthorMandate duplicated the
+// kernel HomeHeader; Corpus + Voice both surfaced "voice accuracy" and
+// merged into AuthorHero; Pipeline's 3-metric grid became the AuthorPieces
+// list. Substrate reads unchanged.
+import { AuthorHero } from './programs/alpha-author/AuthorHero';
+import { AuthorPieces } from './programs/alpha-author/AuthorPieces';
 
 /**
  * Standard prop bag passed to every library component. Components
@@ -113,13 +113,12 @@ export const LIBRARY_COMPONENTS: Record<string, LibraryComponent> = {
   TraderSignals: () => <TraderSignals />,
 
   // alpha-author bundle components. Declared in
-  // docs/programs/alpha-author/SURFACES.yaml under cockpit.program_sections[].
-  // ADR-283 step 3. Four faces (Mandate / Corpus / Voice / Pipeline) per the
-  // patched D8 program-specific composition pattern (no kernel four-face floor).
-  AuthorMandate: () => <AuthorMandate />,
-  AuthorCorpus: () => <AuthorCorpus />,
-  AuthorVoice: () => <AuthorVoice />,
-  AuthorPipeline: () => <AuthorPipeline />,
+  // docs/programs/alpha-author/SURFACES.yaml under home.program_sections[].
+  // Six-slot contract (ADR-312 D2 amendment 2026-06-04): exactly TWO —
+  // AuthorHero (slot #2, "is my writing still mine?") + AuthorPieces
+  // (slot #4, the pieces in play).
+  AuthorHero: () => <AuthorHero />,
+  AuthorPieces: () => <AuthorPieces />,
 };
 
 /**

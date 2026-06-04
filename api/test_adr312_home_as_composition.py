@@ -187,6 +187,73 @@ def test_judgment_trail_reuses_decisions_parser():
 
 
 # ---------------------------------------------------------------------------
+# 3c — D2 amendment #2 (2026-06-04): a program declares exactly hero + entities
+# ---------------------------------------------------------------------------
+
+def test_program_declares_at_most_two_home_sections():
+    """ADR-312 D2 amendment #2: a program declares EXACTLY two home slots —
+    one ground-truth hero (#2) + one entity list (#4). No metric stack. We
+    assert every program's SURFACES.yaml home.program_sections has <= 2
+    entries."""
+    import re
+    programs_dir = REPO_ROOT / "docs" / "programs"
+    offenders = []
+    for surfaces in programs_dir.glob("*/SURFACES.yaml"):
+        text = _read(surfaces)
+        # Count `- kind:` entries inside the home.program_sections block.
+        home_match = re.search(r"\n\s*home:\s*\n\s*program_sections:\s*\n(.*?)(?=\n\S|\Z)", text, re.DOTALL)
+        if not home_match:
+            continue
+        kinds = re.findall(r"-\s*kind:", home_match.group(1))
+        # alpha-trader is the known, documented exception pending reshape.
+        if surfaces.parent.name == "alpha-trader":
+            continue
+        if len(kinds) > 2:
+            offenders.append(f"{surfaces.parent.name}: {len(kinds)} sections")
+    assert not offenders, (
+        "ADR-312 D2 amendment #2: a program declares <= 2 home.program_sections "
+        f"(one hero + one entity list). Offenders: {offenders}"
+    )
+
+
+def test_no_program_mandate_component_registered():
+    """ADR-312 D2 amendment #2: a program may NOT re-render the mandate — the
+    kernel HomeHeader (slot #1) owns it. No `*Mandate` program component may be
+    registered in the library."""
+    registry = _read(LIBRARY_DIR / "registry.tsx")
+    import re
+    # Registered component keys that end in "Mandate" (e.g. AuthorMandate).
+    bad = re.findall(r"^\s*(\w*Mandate):\s*\(\)\s*=>", registry, re.MULTILINE)
+    # MandateFace was the deleted four-face component; allow none.
+    assert not bad, (
+        "ADR-312 D2 amendment #2: no program may register a *Mandate component "
+        f"(the kernel HomeHeader owns the mandate). Found: {bad}"
+    )
+
+
+def test_author_program_reshaped_to_hero_and_pieces():
+    """ADR-312 D2 amendment #2: alpha-author's four overlapping cards collapsed
+    to exactly AuthorHero (slot #2) + AuthorPieces (slot #4)."""
+    author_dir = LIBRARY_DIR / "programs" / "alpha-author"
+    assert (author_dir / "AuthorHero.tsx").exists(), "AuthorHero (slot #2) must exist."
+    assert (author_dir / "AuthorPieces.tsx").exists(), "AuthorPieces (slot #4) must exist."
+    for deleted in ("AuthorMandate", "AuthorCorpus", "AuthorVoice", "AuthorPipeline"):
+        assert not (author_dir / f"{deleted}.tsx").exists(), (
+            f"ADR-312 D2 amendment #2: {deleted} is superseded by AuthorHero/"
+            "AuthorPieces and must be deleted (Singular Implementation)."
+        )
+
+
+def test_decision_queue_is_plain_language():
+    """Plain-language pass: the decision queue maps primitives to operator verbs
+    and drops the substrate/capital jargon word from the row."""
+    src = _read(LIBRARY_DIR / "kernel-home" / "KernelDecisionQueue.tsx")
+    assert "PRIMITIVE_LABELS" in src and "Save a workspace change" in src, (
+        "KernelDecisionQueue must map primitives to plain verbs (PRIMITIVE_LABELS)."
+    )
+
+
+# ---------------------------------------------------------------------------
 # 4 — four-face fallback stays deleted (ADR-228 → ADR-273 → confirmed ADR-312)
 # ---------------------------------------------------------------------------
 
@@ -278,6 +345,10 @@ def _run():
         test_home_renderer_wires_universal_slots,
         test_decision_queue_reuses_proposals_api,
         test_judgment_trail_reuses_decisions_parser,
+        test_program_declares_at_most_two_home_sections,
+        test_no_program_mandate_component_registered,
+        test_author_program_reshaped_to_hero_and_pieces,
+        test_decision_queue_is_plain_language,
         test_four_face_fallback_deleted,
         test_cockpit_route_module_folded,
         test_no_api_cockpit_mount_in_main,
