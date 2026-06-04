@@ -114,12 +114,26 @@ export function TopBarSurface() {
     return map;
   }, [composition.surfaces]);
 
+  // Home is the fixed anchor slot (2026-06-04). It renders as a
+  // dedicated, un-releasable Dock entry pinned immediately after the
+  // Launcher — the macOS Finder analog (always-leftmost, can't be
+  // removed). Per ADR-312 the Home is the most important content surface
+  // (the operation, rendered); it earns a permanent one-tap affordance
+  // on every screen size, independent of the mutable kept/open registry.
+  // It is excluded from the kept/open segments below so it never
+  // double-renders.
+  const HOME_SLUG = 'home';
+  const homeSurface = surfaceBySlug.get(HOME_SLUG) ?? null;
+
   // D14: compute the two Dock segments — kept-in-order, then
   // open-but-not-kept in open-order. Unknown slugs (e.g. stale entries
-  // for a deleted bundle) are silently skipped.
+  // for a deleted bundle) are silently skipped. Home is filtered out of
+  // both — its render is owned by the fixed anchor slot, not the
+  // kept/open registry.
   const keptSurfaces: Surface[] = useMemo(
     () =>
       kept
+        .filter((slug) => slug !== HOME_SLUG)
         .map((slug) => surfaceBySlug.get(slug))
         .filter((s): s is Surface => Boolean(s)),
     [kept, surfaceBySlug]
@@ -128,7 +142,7 @@ export function TopBarSurface() {
   const openOnlySurfaces: Surface[] = useMemo(
     () =>
       open
-        .filter((slug) => !kept.includes(slug))
+        .filter((slug) => !kept.includes(slug) && slug !== HOME_SLUG)
         .map((slug) => surfaceBySlug.get(slug))
         .filter((s): s is Surface => Boolean(s)),
     [open, kept, surfaceBySlug]
@@ -236,6 +250,65 @@ export function TopBarSurface() {
         {/* Subtle visual differentiation for kept-not-open vs the kept-
             and-open: dot below only when open; no badge needed for
             kept-not-open beyond the muted color. */}
+      </div>
+    );
+  };
+
+  // Render the fixed Home anchor (2026-06-04). Same click semantics as a
+  // Dock icon (open / foreground / minimize / restore), but: NO right-
+  // click context menu — Home cannot be removed from the Dock (the
+  // Finder analog). It is always present, regardless of kept/open state,
+  // which is why it lives outside the kept/open registry. On mobile this
+  // is the single one-tap path to the Home composition surface (the
+  // wordmark brand mark is hidden < sm).
+  const renderHomeAnchor = (surface: Surface) => {
+    const Icon = resolveSurfaceIcon(surface.icon_key);
+    const isForegrounded = foregrounded === surface.slug;
+    const surfaceIsOpen = isOpen(surface.slug);
+
+    const handleClick = () => {
+      if (!isKernelSurfaceSlug(surface.slug)) return;
+      const isMinimized = !!windowStates[surface.slug]?.minimized;
+      if (!surfaceIsOpen) {
+        foregroundSurface(surface.slug);
+      } else if (isMinimized) {
+        foregroundSurface(surface.slug);
+      } else if (isForegrounded) {
+        minimizeWindow(surface.slug);
+      } else {
+        raiseWindow(surface.slug);
+      }
+    };
+
+    return (
+      <div key={surface.slug} className="relative flex shrink-0 flex-col items-center">
+        <button
+          type="button"
+          onClick={handleClick}
+          title={surface.title}
+          aria-label={surface.title}
+          aria-current={isForegrounded ? 'page' : undefined}
+          className={cn(
+            'flex h-9 w-9 items-center justify-center rounded-md transition-colors',
+            isForegrounded
+              ? 'bg-foreground text-background'
+              : // Anchor is never "muted/gray not-open" like a kept-not-open
+                // surface — it's the permanent home affordance, so it stays
+                // at full foreground tint whether open or not.
+                'text-foreground hover:bg-muted'
+          )}
+        >
+          <Icon className="h-4 w-4" />
+        </button>
+        {surfaceIsOpen && (
+          <div
+            aria-hidden
+            className={cn(
+              'absolute -bottom-0.5 h-1 w-1 rounded-full',
+              isForegrounded ? 'bg-background' : 'bg-foreground/70'
+            )}
+          />
+        )}
       </div>
     );
   };
@@ -353,6 +426,11 @@ export function TopBarSurface() {
         >
           <LayoutGrid className="h-4 w-4" />
         </button>
+
+        {/* Fixed Home anchor — pinned immediately after the Launcher,
+            always present, un-releasable (ADR-312: Home is the primary
+            content surface). The macOS Finder analog. */}
+        {homeSurface && renderHomeAnchor(homeSurface)}
 
         {hasAnyDockEntries && (
           <>
