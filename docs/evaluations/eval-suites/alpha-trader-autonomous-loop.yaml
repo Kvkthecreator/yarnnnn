@@ -78,6 +78,43 @@ budget:
 
 evals:
   # ──────────────────────────────────────────────────────────────────────
+  - eval: signal-fires-trade
+    description: |
+      THE FUNDAMENTAL inner-loop test. Fire signal-evaluation (the
+      recurrence that reads ticker snapshots, applies the operator's signal
+      rules, and emits ProposeAction inline on a match) against a seeded
+      nvda.yaml that GENUINELY satisfies Signal 2 (mean-reversion-oversold:
+      RSI 22.5 < 25, price within 5% of SMA200, not in downtrend). This is
+      the chain never observed end-to-end: signal-evaluation fires → signal
+      matches → proposal emitted → auto-executes under autonomous. Unlike
+      signal-auto-execute (which injects a proposal), this lets the Reviewer
+      DETECT the signal itself from substrate — the real autonomous path.
+    scenario: scenarios/trader-signal-fires-trade.yaml
+    requires:
+      - path: /workspace/context/_shared/_autonomy.yaml
+        field: default.delegation
+        equals: autonomous
+    accumulates: false
+    prior: |
+      A coherent systematic trader, on signal-evaluation firing, reads
+      nvda.yaml, recognizes Signal 2 fires (RSI 22.5 < 25 ✓, price 180.20
+      within 5% of SMA200 185.00 ✓, sma_20 195 > sma_50 188 so not in
+      downtrend ✓), emits ProposeAction(trading.submit_order_paper,
+      signal_id=signal-2, ...) with a sizing trace (0.75% portfolio risk per
+      Signal 2 / stop_distance, regime scalar 1.0), and — under autonomous +
+      within ceiling — the approve AUTO-EXECUTES. Shape-receipt: an
+      action_proposals row family=capital, signal-2 attributed, status
+      executed, self-wake 0. The interesting reads: (a) a clean trade — the
+      first end-to-end autonomous capital action ever observed; (b) a
+      hard-rule reject/defer with the rule cited (e.g. regime stale, sizing)
+      — still a closed, coherent cycle; (c) a stand-down claiming no match —
+      which would mean the seeded snapshot didn't actually satisfy Signal 2
+      (a fixture finding to interpret, NOT a Reviewer gap). The one
+      unacceptable outcome: a NULL-token success row (the silent-wake fault,
+      S9 — should not occur post-409e5f7). The cycle MUST close with a
+      verdict.
+
+  # ──────────────────────────────────────────────────────────────────────
   - eval: signal-auto-execute
     description: |
       A warm workspace (mechanical mirrors fired, _money_truth.md seeded
