@@ -8,6 +8,43 @@ Sibling to [`README.md`](README.md) — that file covers general evaluation disc
 
 ---
 
+## §0 The two-axis model — what kind of thing are you evaluating? (2026-06-05)
+
+> **Before you write an eval, decide which of two fundamentally different things you are validating: the MACHINE (the architecture / pipeline / plumbing) or the MIND (the Reviewer's reasoning / posture / judgment). They take different tools. Conflating them in one suite is the deepest evaluation-design error, and it is the one that recurred undetected for weeks.**
+
+Every evaluation target sits on one of two axes:
+
+| | **Architecture axis** (the machine) | **Judgment axis** (the mind) |
+|---|---|---|
+| **The question** | "When a condition *exists*, does the pipeline mechanically carry it through?" | "Given a situation, did the Reviewer reason the way a mandate-holder would?" |
+| **Object** | substrate, recurrences, primitives, the wake/dispatch path, field/path/casing contracts | reasoning, posture, mandate-coherence, discipline under pressure, self-amendment |
+| **Has a right answer?** | YES — deterministic, repeatable, one correct output | NO — a spectrum with texture; read, not scored |
+| **Failure mode** | a **bug** (silent-wake, casing drift, trigger mismatch, field-name drift) | a **divergence** (capitulated under pressure, didn't cite the rule, fabricated a verdict) |
+| **Right tool** | a **deterministic integration test** (`api/test_*.py`) — inject controlled INPUT, assert exact OUTPUT, runs in CI green/red | a **judgment-coherence eval** (this document's prose read — §1 onward) |
+| **Cadence** | fast, automated, every commit | a session, human-read, prose finding |
+| **"Did a trade fire?"** | **architecture fact — belongs here.** Inject synthetic market data → assert the pipeline fires the order. | NOT a judgment outcome to read. |
+| **"Did it size/tune/refuse well?"** | not testable deterministically | **judgment read — belongs here.** |
+
+### §0.1 Why this is the deepest discipline (the load-bearing lesson)
+
+The alpha-trader autonomy arc (2026-05 → 2026-06) failed to observe a trade across *many* separate sessions, each fixing a different proximate cause (prompt size, schema drift, principles mis-writes, the silent-wake trigger bug, a ticker-file casing drift). The recurrence had one root: **architecture bugs were being debugged through a judgment lens.** A plumbing failure (the Reviewer's wake silently never ran; a seeded snapshot landed in the wrong-cased file; the live mirror overwrote the seed) *masqueraded as a judgment outcome* — "the Reviewer stood down" — when the machine had simply not delivered a situation to judge. Reading a machine fault as a mind decision is the trap. The two-axis split closes it: a deterministic integration test would have caught the silent-wake, the casing drift, and the trigger mismatch as **red tests, instantly**, instead of as week-long eval mysteries dressed as Reviewer behavior.
+
+### §0.2 The discipline rule
+
+- **Architecture axis → deterministic test.** If the question has a single correct answer and the failure would be a *bug*, it is NOT an eval-suite question — it is a `test_*.py` integration test. Control the INPUT to the pipeline (e.g. mock the market-data source `track_universe` reads, so the *real* indicator computation + write path run and produce a genuinely-matching ticker snapshot); assert the OUTPUT (the pipeline fires the order). Do NOT seed a recurrence's *output* file in a judgment eval — the live mechanical mirrors (e.g. `track-universe`, `@every 1min`) overwrite it; you must control the input, which is the test layer's job, not the eval layer's.
+- **Judgment axis → eval-suite (this document).** If the question is "did it reason well" with no single right answer, it is an eval read. The eval does NOT manufacture the situation by fighting the live substrate — it is *fed* a clean, guaranteed situation by the architecture layer (the deterministic harness produces the matching ticker snapshot / clean proposal), and focuses entirely on reading the Reviewer's reasoning about it.
+- **The layers compose, they don't overlap.** The architecture layer's job is "produce the situation, deterministically." The judgment layer's job is "read the reasoning about the produced situation." A trade *firing* is the architecture layer's assertion; *whether the verdict that fired it was well-reasoned* is the judgment layer's read.
+
+### §0.3 Where each lives
+
+- **Architecture-axis tests**: `api/test_*.py` (e.g. `api/test_trading_pipeline_*.py`) — Hat-A or Hat-B depending on what they exercise; CI-runnable; assert exact substrate outcomes from controlled inputs.
+- **Judgment-axis evals**: `docs/evaluations/eval-suites/*.yaml` + this discipline — Hat-B; session-read; prose findings.
+- **The S9 cycle-closure rule (§9)** is the seam between them: a wake recorded `success` with NULL token telemetry is a *machine* fault (architecture axis — the LLM never ran), not a stand-down (judgment axis). S9 is what lets a judgment read *detect* that it has been handed a machine fault rather than a judgment to interpret.
+
+**Canon source**: the 2026-06-05 alpha-trader trade-observation arc + the silent-wake root cause (`docs/evaluations/2026-06-04-silent-wake-root-cause-FINDING.md`). The §1 onward of this document is the *judgment axis*; the architecture axis is the deterministic-test layer this section introduces.
+
+---
+
 ## §1 What an eval suite is for
 
 > **An eval suite puts the Reviewer in a small number of known, operator-recognizable situations and lets a human read what it did, so the human can answer one question: would a domain editor who holds this mandate have reasoned the way the Reviewer reasoned?**

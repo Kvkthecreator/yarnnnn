@@ -1,0 +1,8 @@
+id,slug,mode,wake_source,status,tool_rounds,input_tokens,output_tokens,cache_read_tokens,cache_create_tokens,cost_usd,duration_ms,created_at
+d8e85f5c-0a0b-470c-9743-dfde1ce1a5cb,addressed,judgment,addressed,success,7,40612,3959,147009,51112,0.222397,51944,2026-06-04T11:50:39.97788+00:00
+5361b9c3-2def-453f-bc65-95b0647c1b68,track-account,mechanical,manual_fire,success,,,,,,,1043,2026-06-04T11:51:29.073114+00:00
+2e763ea2-1ef2-46a8-8c25-f53bd48a5bf4,track-regime,mechanical,manual_fire,success,,,,,,,1655,2026-06-04T11:51:30.904031+00:00
+83c4236e-22fc-46b0-8022-8de257407b8d,signal-evaluation,judgment,manual_fire,success,9,42334,3026,226897,34582,0.19741,41816,2026-06-04T11:52:12.915005+00:00
+319c96b1-3288-477d-8234-bbc6393ca72a,track-account,mechanical,manual_fire,success,,,,,,,868,2026-06-04T11:52:14.270285+00:00
+717702dc-f636-4827-aa5b-aa6cfeec1bff,track-universe,mechanical,manual_fire,success,,,,,,,5780,2026-06-04T11:52:20.300717+00:00
+2b481dba-600a-4868-a4a9-e40814328698,track-regime,mechanical,manual_fire,success,,,,,,,2034,2026-06-04T11:52:22.578735+00:00

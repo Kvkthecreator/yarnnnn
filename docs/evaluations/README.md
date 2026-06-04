@@ -58,9 +58,15 @@ What this hat means in practice:
 
 If a finding ever recommends introducing a developer-only concept *into the system*, that's a smell. Either the concept belongs in the system (in which case it's properly an axiom / derived principle / ADR), or it's purely developer-side (in which case it stays here). No third category.
 
+## The two-axis model — read this before writing any evaluation (2026-06-05)
+
+> **Before anything else, decide which of two fundamentally different things you are validating: the MACHINE (architecture / pipeline / plumbing — has a right answer, tested deterministically) or the MIND (the Reviewer's reasoning / posture — read, not scored). They take different tools. Conflating them in one suite is the deepest evaluation-design error.**
+
+A deterministic fact ("does a trade fire when a signal exists?", "does the wake actually run the LLM?", "does the ticker-file casing match?") belongs in an `api/test_*.py` **integration test** — inject controlled input, assert exact output, CI green/red. A judgment read ("did the Reviewer size/cite/refuse well?") belongs in an **eval-suite** here. The full discipline — including why architecture bugs masquerading as judgment outcomes recurred for weeks across the alpha-trader arc — is canonized at [`EVAL-SUITE-DISCIPLINE.md` §0](EVAL-SUITE-DISCIPLINE.md). **If your evaluation is hitting a plumbing bug (silent wake, casing drift, a mirror overwriting your seed), you are on the architecture axis — write a deterministic test, do not debug it through a judgment eval.**
+
 ## Why this exists
 
-The autonomy/observability question — *"does the Reviewer act the way canon claims it should?"* — cannot be answered by unit tests alone. Behavioral validation requires multi-turn interaction under realistic operator pacing, with substrate accumulation, governance gates, capital-action paths, and the back-and-forth of operator-voice nudges all in scope. AND it requires the canonical claim to be well-specified before measurement can be honest.
+The autonomy/observability question — *"does the Reviewer act the way canon claims it should?"* — cannot be answered by unit tests alone. Behavioral validation requires multi-turn interaction under realistic operator pacing, with substrate accumulation, governance gates, capital-action paths, and the back-and-forth of operator-voice nudges all in scope. AND it requires the canonical claim to be well-specified before measurement can be honest. **(But see the two-axis model above: behavioral evaluation is the MIND axis; the MACHINE axis — does the pipeline mechanically work — is deterministic-test territory, not eval territory.)**
 
 **The spec this directory validates against** is one sentence:
 

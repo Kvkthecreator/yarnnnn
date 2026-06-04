@@ -5,8 +5,20 @@ recurrence to `/workspace/context/trading/{ticker}.yaml`.
 
 ## File format
 
-YAML, one file per ticker. Lowercase ticker as filename
-(e.g. `nvda.yaml`, `aapl.yaml`).
+YAML, one file per ticker. **UPPERCASE** ticker as filename
+(e.g. `NVDA.yaml`, `AAPL.yaml`) — the `track-universe` primitive writes
+`/workspace/context/trading/{TICKER}.yaml` via `ticker.upper()`
+(`api/services/primitives/track_universe.py`).
+
+> **Spec corrected 2026-06-05.** This previously documented lowercase
+> filenames + a `last_close` field; both drifted from the code (which writes
+> UPPERCASE filenames and a `price` field). The drift caused a seeded snapshot
+> to land in a file `signal-evaluation` never read (see
+> `docs/evaluations/2026-06-04-114939-…` finding). The actual fields the
+> `track-universe` writer emits — and that the signal rules must reference —
+> are: `price`, `sma_20`, `sma_50`, `sma_200`, `rsi_14`, `atr_14`,
+> `volume_20d_avg`, plus `ticker` + `last_updated`. Both contracts (casing +
+> field names) are locked by `api/test_trading_pipeline_architecture.py`.
 
 ## Required fields
 
