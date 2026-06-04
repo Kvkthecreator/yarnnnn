@@ -110,8 +110,16 @@ def assertion_5_no_put_pace_route():
     endpoint per ADR-300 D5 + ADR-245."""
     assert PACE_ROUTE.exists(), f"missing: {PACE_ROUTE}"
     src = PACE_ROUTE.read_text()
-    # The route is mounted at /api/pace, so the handler decorator is @router.get("").
-    assert '@router.get("")' in src or '@router.get("/")' in src, "GET /api/pace must exist"
+    # The route is mounted at /api/pace, so the handler decorator opens with
+    # @router.get("" ...) — match the prefix to tolerate trailing kwargs like
+    # response_model=PaceResponse (the literal "@router.get(\"\")" was too
+    # strict and never matched the shipped @router.get("", response_model=…)).
+    assert (
+        '@router.get("",' in src
+        or '@router.get("")' in src
+        or '@router.get("/",' in src
+        or '@router.get("/")' in src
+    ), "GET /api/pace must exist"
     assert "@router.put" not in src, \
         "PUT /api/pace must NOT exist — writes go via writeShape() per ADR-245 D5"
 
