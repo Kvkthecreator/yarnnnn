@@ -86,6 +86,19 @@ export function cadenceCategory(recurrence: Recurrence): CadenceCategory {
  * first member humanized) so the operator sees the multi-fire intent at
  * a glance without the row growing unbounded.
  */
+/**
+ * Title-case a recurrence/execution slug for display.
+ * "pre-ship-audit" → "Pre Ship Audit", "addressed" → "Addressed".
+ * Used by the Usage tab spend breakdown + any surface listing raw slugs.
+ */
+export function humanizeSlug(slug: string): string {
+  return slug
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
 export function humanizeSchedule(schedule: ScheduleValue): string {
   if (Array.isArray(schedule)) {
     const filtered = schedule.filter((s): s is string => typeof s === 'string' && !!s.trim());

@@ -140,7 +140,7 @@ $$;
 - `PlatformLimits` dataclass → replaced by `WorkspaceBalance` (balance_usd, is_subscriber)
 - `check_spend_budget()` → `check_balance(client, user_id) -> tuple[bool, float]` — queries effective balance
 - Deleted: `check_agent_limit()`, `check_task_limit()`, `check_source_limit()`, `validate_sources_update()`, `check_monthly_message_limit()`, `get_active_task_count()`, `get_monthly_message_count()`
-- `get_usage_summary()` → simplified to `balance_usd`, `spend_usd` (this period), `is_subscriber`
+- `get_usage_summary()` → `balance_usd`, `spend_usd` (since anchor), `raw_balance_usd`, `is_subscriber` (see single-window reconcile note below)
 
 ### Caller changes
 
@@ -161,11 +161,25 @@ $$;
 {
   "balance_usd": 12.50,
   "spend_usd": 1.23,
+  "raw_balance_usd": 13.73,
   "is_subscriber": true,
   "subscription_plan": "pro",
   "next_refill": "2026-05-01T00:00:00Z"
 }
 ```
+
+**Single-window reconcile (2026-06-03).** `spend_usd` is spend since the
+current balance anchor (`subscription_refill_at`, or `created_at` if never
+refilled) — the *same* window the effective-balance RPC subtracts. So
+`balance_usd + spend_usd == raw_balance_usd` by construction, and the usage
+card's progress bar uses `spend_usd / raw_balance_usd`. Prior to this fix
+`spend_usd` was calendar-month spend while `balance_usd` was anchor-relative;
+the two never summed to the raw balance, which read as a bug on the billing
+surface (e.g. raw $33, lifetime spend $25.49, remaining $7.51 — the card
+showed "$2.58 used / $7.51 remaining", implying a ~$10 starting balance).
+`get_lifetime_spend_usd()` replaces `get_monthly_spend_usd()` in
+`get_usage_summary()`; the top-bar Balance chip ("Spend to date") and the
+Settings usage card ("used") now read the same number.
 
 ### Frontend changes
 
@@ -175,6 +189,28 @@ $$;
 - `UpgradePrompt` → `AddBalancePrompt` (top-up) or `SubscribePrompt` (auto-refill)
 - `UserMenu` → shows remaining balance (`$X remaining`)
 - Pricing page → pay-as-you-go framing, subscription as optional
+
+### Usage tab expansion (2026-06-04)
+
+The Settings → Usage tab gains spend transparency *below* the balance meter,
+all derived from `execution_events` (ADR-291 cost ledger) over the same
+balance-anchor window — so the breakdown total reconciles with `spend_usd`:
+
+- **`GET /api/user/usage-detail`** → `get_usage_detail()` in
+  `platform_limits.py`. Returns `by_work` (spend per recurrence slug, top 6 +
+  "other" bucket, with pct), `trend` (14-day zero-filled daily spend), and
+  `activity` (runs, success_rate, avg_cost_usd, failed). Pure read; zero new
+  logging. `execution_events` RLS already permits per-user SELECT.
+- **"Where your balance went"** — per-work-item spend bars (recurrence slug
+  title-cased via `humanizeSlug()` in `web/lib/schedule.ts`).
+- **"Spend trend"** — 14-day bar sparkline + success-rate / avg-cost line.
+
+What was deliberately *not* adapted from Claude's settings (it has no analog
+in the balance model): session/weekly/per-model limit bars, included-routine
+quotas, a credits on/off toggle. **Follow-on (not built):** optional
+user-set monthly spend ceiling + auto-reload — a real enforcement change
+(new column + gate in `check_balance`), tracked separately from this
+display-only expansion.
 
 ---
 

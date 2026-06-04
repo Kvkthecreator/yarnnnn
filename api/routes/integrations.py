@@ -1774,6 +1774,7 @@ class UserLimitsResponse(BaseModel):
     """User's balance and subscription status (ADR-172: usage-first billing)."""
     balance_usd: float
     spend_usd: float
+    raw_balance_usd: float
     is_subscriber: bool
     subscription_plan: Optional[str] = None
     next_refill: Optional[str] = None
@@ -1797,8 +1798,10 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     Get user's balance and subscription status (ADR-172: usage-first billing).
 
     Returns:
-    - balance_usd: effective remaining balance (balance - spend since last refill)
-    - spend_usd: total token spend this month
+    - balance_usd: effective remaining balance (raw − spend since anchor)
+    - spend_usd: total token spend since the current balance anchor.
+      spend_usd + balance_usd == raw_balance_usd (single-window reconcile)
+    - raw_balance_usd: total grants/top-ups before spend is netted
     - is_subscriber: whether user has an active Pro subscription
     - subscription_plan: 'pro' | 'pro_yearly' | None
     - next_refill: ISO timestamp of next subscription billing (if subscriber)
@@ -1810,10 +1813,54 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     return UserLimitsResponse(
         balance_usd=summary["balance_usd"],
         spend_usd=summary["spend_usd"],
+        raw_balance_usd=summary["raw_balance_usd"],
         is_subscriber=summary["is_subscriber"],
         subscription_plan=summary.get("subscription_plan"),
         next_refill=summary.get("next_refill"),
     )
+
+
+class UsageWorkItem(BaseModel):
+    slug: str
+    runs: int
+    cost_usd: float
+    pct: int
+
+
+class UsageTrendPoint(BaseModel):
+    date: str
+    cost_usd: float
+
+
+class UsageActivity(BaseModel):
+    runs: int
+    success_rate: Optional[int] = None
+    avg_cost_usd: float
+    failed: int
+
+
+class UsageDetailResponse(BaseModel):
+    """Spend breakdown + trend + activity for the Usage tab (ADR-172 surface).
+
+    Derived entirely from execution_events over the current balance anchor
+    window — by_work totals reconcile with /user/limits spend_usd.
+    """
+    by_work: list[UsageWorkItem]
+    trend: list[UsageTrendPoint]
+    activity: UsageActivity
+
+
+@router.get("/user/usage-detail")
+async def get_user_usage_detail(auth: UserClient) -> UsageDetailResponse:
+    """Spend-by-work-item + 14-day trend + activity summary.
+
+    Read-only aggregation over execution_events (ADR-291 cost ledger).
+    Powers the expanded Usage tab below the balance meter. Zero new logging.
+    """
+    from services.platform_limits import get_usage_detail
+
+    detail = get_usage_detail(auth.client, auth.user_id)
+    return UsageDetailResponse(**detail)
 
 
 @router.put("/integrations/{provider}/sources")

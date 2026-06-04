@@ -1330,10 +1330,24 @@ export const api = {
       request<{
         balance_usd: number;
         spend_usd: number;
+        raw_balance_usd: number;
         is_subscriber: boolean;
         subscription_plan: string | null;
         next_refill: string | null;
       }>("/api/user/limits"),
+
+    // Usage tab expansion — spend breakdown + trend + activity (ADR-172)
+    getUsageDetail: () =>
+      request<{
+        by_work: Array<{ slug: string; runs: number; cost_usd: number; pct: number }>;
+        trend: Array<{ date: string; cost_usd: number }>;
+        activity: {
+          runs: number;
+          success_rate: number | null;
+          avg_cost_usd: number;
+          failed: number;
+        };
+      }>("/api/user/usage-detail"),
 
     // Get selected sources for a platform
     getSources: (provider: "slack" | "notion" | "github") =>

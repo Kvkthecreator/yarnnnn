@@ -21,6 +21,7 @@ import {
   History,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
+import { humanizeSlug } from "@/lib/schedule";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { createClient } from "@/lib/supabase/client";
@@ -106,13 +107,19 @@ export default function SettingsPage() {
   const [limits, setLimits] = useState<Awaited<ReturnType<typeof api.integrations.getLimits>> | null>(null);
   const [limitsLoading, setLimitsLoading] = useState(false);
 
+  // Usage detail — spend breakdown + trend + activity (ADR-172 surface)
+  const [usageDetail, setUsageDetail] = useState<Awaited<ReturnType<typeof api.integrations.getUsageDetail>> | null>(null);
+
   // Fetch usage metrics + limits when usage tab is active
   useEffect(() => {
     if (activeTab === "usage") {
       if (!usageMetrics) loadUsageMetrics();
       if (!limits) loadLimits();
+      if (!usageDetail) {
+        api.integrations.getUsageDetail().then(setUsageDetail).catch(() => {});
+      }
     }
-  }, [activeTab, usageMetrics, limits]);
+  }, [activeTab, usageMetrics, limits, usageDetail]);
 
   // Fetch danger zone stats when account tab is active
   useEffect(() => {
@@ -417,7 +424,7 @@ export default function SettingsPage() {
                   </span>
                 </div>
                 {(() => {
-                  const total = limits.balance_usd + limits.spend_usd;
+                  const total = limits.raw_balance_usd;
                   const percent = total > 0 ? Math.min(100, Math.round((limits.spend_usd / total) * 100)) : 0;
                   return (
                     <>
@@ -435,6 +442,73 @@ export default function SettingsPage() {
                   );
                 })()}
               </div>
+
+              {/* Where it went — spend by work item (ADR-172 surface) */}
+              {usageDetail && usageDetail.by_work.length > 0 && (
+                <div className="p-4 border border-border rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium">Where your balance went</h3>
+                    <span className="text-xs text-muted-foreground">
+                      {usageDetail.activity.runs} runs
+                    </span>
+                  </div>
+                  <div className="space-y-2.5">
+                    {usageDetail.by_work.map((item) => (
+                      <div key={item.slug} className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="truncate pr-3">{humanizeSlug(item.slug)}</span>
+                          <span className="font-mono text-xs text-muted-foreground shrink-0">
+                            ${item.cost_usd.toFixed(2)} · {item.pct}%
+                          </span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-primary/70"
+                            style={{ width: `${item.pct}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Spend trend — last 14 days (ADR-172 surface) */}
+              {usageDetail && usageDetail.trend.some((d) => d.cost_usd > 0) && (
+                <div className="p-4 border border-border rounded-lg space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium flex items-center gap-2">
+                      <BarChart3 className="w-4 h-4" />
+                      Spend trend
+                    </h3>
+                    <span className="text-xs text-muted-foreground">last 14 days</span>
+                  </div>
+                  {(() => {
+                    const max = Math.max(...usageDetail.trend.map((d) => d.cost_usd), 0.0001);
+                    return (
+                      <div className="flex items-end gap-1 h-20">
+                        {usageDetail.trend.map((d) => (
+                          <div
+                            key={d.date}
+                            className="flex-1 bg-primary/15 rounded-t relative group"
+                            style={{ height: `${Math.max(2, (d.cost_usd / max) * 100)}%` }}
+                            title={`${new Date(d.date + "T00:00:00").toLocaleDateString([], { month: "short", day: "numeric" })}: $${d.cost_usd.toFixed(2)}`}
+                          >
+                            <div className="absolute inset-0 bg-primary/70 rounded-t opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })()}
+                  {usageDetail.activity.success_rate !== null && (
+                    <p className="text-xs text-muted-foreground">
+                      {usageDetail.activity.success_rate}% success rate · avg $
+                      {usageDetail.activity.avg_cost_usd.toFixed(2)}/run
+                      {usageDetail.activity.failed > 0 && ` · ${usageDetail.activity.failed} failed`}
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Plan */}
               <div className="p-4 border border-border rounded-lg">
