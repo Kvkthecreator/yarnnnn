@@ -126,19 +126,20 @@ def test_chat_dispatch_reaches_file_primitives():
 # ---------------------------------------------------------------------------
 
 
-def test_tools_core_documents_file_layer():
-    src = (REPO_API / "agents" / "prompts" / "tools_core.py").read_text()
-    has_section = "### File Layer (workspace_files, ADR-234)" in src
-    has_readfile = "**ReadFile(path)**" in src
-    has_writefile = "**WriteFile(" in src
-    has_path_conventions = "Path conventions" in src
-    has_agent_path_boundary = "/agents/{slug}/" in src
-    ok = has_section and has_readfile and has_writefile and has_path_conventions and has_agent_path_boundary
-    record(
-        "test_tools_core_documents_file_layer",
-        ok,
-        f"section={has_section} readfile={has_readfile} writefile={has_writefile} conv={has_path_conventions} boundary={has_agent_path_boundary}",
-    )
+# test_tools_core_documents_file_layer DELETED (2026-06-04):
+#   This gate grepped agents/prompts/tools_core.py for an "### File Layer
+#   (workspace_files, ADR-234)" prompt section. That file — and the whole
+#   chat-profile prompt chain it belonged to — was ratify-deleted by commit
+#   1272c92 ("delete the dead chat-profile chain — program-activation is the
+#   floor"); its commit message lists tools_core.py among the files "consumed
+#   only by the dead build_system_prompt." The File-Layer prompt section did
+#   NOT move elsewhere — it was part of the dead chain.
+#   ADR-234's SUBSTANTIVE guarantee (ReadFile/WriteFile/SearchFiles/ListFiles
+#   are available in chat mode; QueryKnowledge/ReadAgentFile are not) is still
+#   enforced by the registry-side gates above (test_readfile_in_chat etc.),
+#   which assert the live PRIMITIVE_MODES registry. Only the deleted-prompt-doc
+#   assertion is removed. Singular Implementation: delete, don't retarget to a
+#   file that no longer carries the section.
 
 
 # ---------------------------------------------------------------------------
@@ -155,7 +156,9 @@ def main():
         test_queryknowledge_not_in_chat,
         test_readagentfile_not_in_chat,
         test_chat_dispatch_reaches_file_primitives,
-        test_tools_core_documents_file_layer,
+        # test_tools_core_documents_file_layer deleted (2026-06-04) — its
+        # tools_core.py prompt-section subject was ratify-deleted by 1272c92;
+        # ADR-234's substantive guarantee stays covered by the registry gates.
     ]
     for t in tests:
         try:

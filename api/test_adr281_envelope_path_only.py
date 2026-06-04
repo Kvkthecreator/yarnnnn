@@ -454,10 +454,15 @@ def test_material_outcome_gate_meta_verdict_renders_entry():
 
 
 def test_invocation_dispatcher_uses_render_lineage_entry():
-    """ADR-281 §5.D4: invocation_dispatcher.py invokes render_lineage_entry_if_material,
-    NOT the deleted append_recurrence_fire (call sites; doc-comments narrating
-    the dissolution are allowed)."""
-    src = (API_ROOT / "services" / "invocation_dispatcher.py").read_text()
+    """ADR-281 §5.D4: the reactive dispatch path invokes
+    render_lineage_entry_if_material, NOT the deleted append_recurrence_fire
+    (call sites; doc-comments narrating the dissolution are allowed).
+
+    2026-06-04: the dispatch path moved from the deleted
+    services/invocation_dispatcher.py into services/wake.py (ADR-296 v2 →
+    ADR-298 wake-architecture migration). The render-lineage invariant is
+    unchanged; only the file moved."""
+    src = (API_ROOT / "services" / "wake.py").read_text()
     # Walk lines: any executable Python referencing append_recurrence_fire is forbidden.
     # Comment lines (#) explaining the dissolution are allowed.
     for lineno, raw in enumerate(src.splitlines(), start=1):
@@ -466,11 +471,11 @@ def test_invocation_dispatcher_uses_render_lineage_entry():
             continue
         if "append_recurrence_fire" in raw:
             raise AssertionError(
-                f"invocation_dispatcher.py:{lineno}: live reference to "
+                f"wake.py:{lineno}: live reference to "
                 f"append_recurrence_fire (must be deleted): {raw.strip()!r}"
             )
     assert "render_lineage_entry_if_material" in src, \
-        "invocation_dispatcher.py must invoke render_lineage_entry_if_material"
+        "wake.py must invoke render_lineage_entry_if_material"
 
 
 def test_track_regime_does_not_write_judgment_log():

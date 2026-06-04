@@ -48,21 +48,33 @@ def _bundle(*parts: str) -> Path:
 # -----------------------------------------------------------------------------
 
 def test_default_reviewer_write_locks_is_governance_only():
-    """D2 + D3: exactly three governance paths; no operator-canon
-    operational paths in the lock set."""
+    """D2 + D3: the lock set contains exactly the operator-authored governance
+    paths; no Reviewer-writable operational paths.
+
+    2026-06-04: the lock set grew from ADR-293's original 3 to 5 — ADR-275 D6+D9
+    added `_preferences.yaml` (operator's deliverable-cadence preferences;
+    Reviewer reads but never writes), and ADR-298 added `_pace.yaml` (operator's
+    pace dial). Both are operator-authored governance the Reviewer must not
+    overwrite — same category as AUTONOMY/_autonomy.yaml/_token_budget.yaml. The
+    source of truth is `workspace_paths.DEFAULT_REVIEWER_WRITE_LOCKS`."""
     from services.workspace_paths import (
         DEFAULT_REVIEWER_WRITE_LOCKS,
         SHARED_AUTONOMY_PATH,
         SHARED_AUTONOMY_YAML_PATH,
         SHARED_TOKEN_BUDGET_PATH,
+        SHARED_PREFERENCES_PATH,
+        SHARED_PACE_PATH,
     )
     assert set(DEFAULT_REVIEWER_WRITE_LOCKS) == {
         SHARED_AUTONOMY_PATH,
         SHARED_AUTONOMY_YAML_PATH,
         SHARED_TOKEN_BUDGET_PATH,
+        SHARED_PREFERENCES_PATH,  # ADR-275 D6+D9
+        SHARED_PACE_PATH,         # ADR-298 Phase 2
     }, (
-        f"DEFAULT_REVIEWER_WRITE_LOCKS must contain exactly the 3 governance "
-        f"files per ADR-293 D2. Got: {sorted(DEFAULT_REVIEWER_WRITE_LOCKS)}"
+        f"DEFAULT_REVIEWER_WRITE_LOCKS must contain exactly the operator-authored "
+        f"governance files (ADR-293 D2 + ADR-275 D6+D9 + ADR-298). "
+        f"Got: {sorted(DEFAULT_REVIEWER_WRITE_LOCKS)}"
     )
 
 
@@ -73,9 +85,16 @@ def test_shared_token_budget_path_constant_exists():
 
 
 def test_operational_paths_not_locked():
-    """D1 + D3: paths that were locked pre-ADR-293 (MANDATE, IDENTITY,
-    BRAND, CONVENTIONS, PRECEDENT, _preferences, _locks) MUST NOT appear
-    in the governance set. They're operational."""
+    """D1 + D3: operator-canon operational paths (MANDATE, IDENTITY, BRAND,
+    CONVENTIONS, PRECEDENT, _locks) MUST NOT appear in the governance set —
+    the Reviewer freely amends operational substrate.
+
+    2026-06-04: `_preferences.yaml` was REMOVED from this must-not-be-locked
+    set — ADR-275 D6+D9 reclassified it from operational to operator-authored
+    governance (Reviewer reads but never writes operator cadence preferences),
+    so it now correctly lives in DEFAULT_REVIEWER_WRITE_LOCKS. See the
+    workspace_paths.py SHARED_PREFERENCES_PATH comment for the drift-closure
+    record."""
     from services.workspace_paths import DEFAULT_REVIEWER_WRITE_LOCKS
     must_not_be_locked = {
         "context/_shared/MANDATE.md",
@@ -83,7 +102,6 @@ def test_operational_paths_not_locked():
         "context/_shared/BRAND.md",
         "context/_shared/CONVENTIONS.md",
         "context/_shared/PRECEDENT.md",
-        "context/_shared/_preferences.yaml",
         "context/_shared/_locks.yaml",  # D6: deleted from governance
     }
     overlap = set(DEFAULT_REVIEWER_WRITE_LOCKS) & must_not_be_locked
@@ -310,18 +328,23 @@ def test_token_budget_default_yaml_schema():
 
 
 def test_scheduler_imports_token_budget_module():
-    """D7: invocation_dispatcher.py imports and uses load_token_budget,
-    not the legacy DAILY_SPEND_CEILING_USD constant from telemetry."""
-    src = _read(_file("services", "invocation_dispatcher.py"))
+    """D7: the judgment-dispatch path imports and uses load_token_budget,
+    not the legacy DAILY_SPEND_CEILING_USD constant from telemetry.
+
+    2026-06-04: the token-budget gate moved from the deleted
+    services/invocation_dispatcher.py into services/wake.py (ADR-296 v2 →
+    ADR-298 wake-architecture migration). The D7 invariant is unchanged;
+    only the file moved."""
+    src = _read(_file("services", "wake.py"))
     assert "from services.token_budget import" in src, (
-        "invocation_dispatcher.py must import token_budget module per ADR-293 D7"
+        "wake.py must import token_budget module per ADR-293 D7"
     )
     assert "load_token_budget" in src
     assert "count_judgment_fires_today" in src
     assert "seconds_since_last_fire" in src
     # Legacy import should be gone
     assert "DAILY_SPEND_CEILING_USD" not in src, (
-        "invocation_dispatcher.py must not import legacy DAILY_SPEND_CEILING_USD "
+        "wake.py must not import legacy DAILY_SPEND_CEILING_USD "
         "(now per-workspace governance per ADR-293 D7)"
     )
 

@@ -132,7 +132,11 @@ def test_dispatch_specialist_schema_accepts_required_capabilities():
 
 
 def test_dispatcher_threads_capabilities_into_context():
-    dispatcher_src = (_REPO_ROOT / "services" / "invocation_dispatcher.py").read_text()
+    # 2026-06-04: the reactive dispatch path moved from the deleted
+    # services/invocation_dispatcher.py into services/wake.py (ADR-296 v2 →
+    # ADR-298 wake-architecture migration). The capability-threading shape
+    # survived verbatim; only the file moved.
+    dispatcher_src = (_REPO_ROOT / "services" / "wake.py").read_text()
     assert_true(
         "recurrence_required_capabilities" in dispatcher_src,
         "dispatcher source threads recurrence_required_capabilities",
