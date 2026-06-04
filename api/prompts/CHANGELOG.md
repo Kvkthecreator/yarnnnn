@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.04.1] - Agentic wake posture (ADR-318)
+
+### Changed (LLM-facing)
+
+- `agents/reviewer_agent.py::_compute_minimal_frame`: added the agentic-wake
+  stance to the cycle-closing section. A wake is now framed as a *situation*,
+  not a task — the Reviewer serves the named recurrence prompt fully, THEN
+  reasons forward from its operating context (clock + market state in the
+  envelope, open positions, its own cadence in the schedule index) and authors
+  what's warranted (a future Schedule, a standing_intent watch). Frame grows
+  4372 → 5271 chars (well under the 8000 anti-rebloat budget per DP22).
+- Expected behavior: on a judgment recurrence wake (e.g. outcome-reconciliation,
+  signal-evaluation), the Reviewer no longer treats the prompt as its whole
+  scope. It serves the task first (hard contracts like "close with ReturnVerdict"
+  unchanged), then — when the situation warrants — authors future wakes / writes
+  what it's watching, like a standing trader who plans tomorrow before logging
+  off. Stance, not checklist: judgment-gated ("when it doesn't, the task plus
+  standing_intent is the whole cycle"), never an enumerated list (which would
+  regress verdict quality per the ADR-306 collapse finding).
+- No upstream change: recurrence schema (ADR-261), wake envelope, and Schedule
+  primitive (ADR-274) are unchanged — the architecture already delivered the
+  agentic envelope to every recurrence wake; this names the posture that uses it.
+- Gates: test_adr314 6/6 (incl. frame-stays-minimal), test_reviewer_formalization
+  11/11 (action-grammar coherence).
+
 ## [2026.06.03.1] - InferWorkspace primitive removed (ADR-314 D4)
 
 ### Changed (LLM-facing)

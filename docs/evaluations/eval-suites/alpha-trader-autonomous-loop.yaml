@@ -98,19 +98,35 @@ evals:
         equals: autonomous
     accumulates: false
     prior: |
-      A coherent trader reads the reconciled _money_truth.md windows
-      (7d/30d/90d realized P&L, by_signal attribution), names what the
-      reconciliation showed (or "no new fills this window" honestly), and
-      closes the cycle per the principles.md mandatory contract:
-      ReturnVerdict (required even when no fills occurred) + a forward-
-      looking standing_intent.md naming which open positions it is
-      watching for the next reconciliation window (ADR-284). The cardinal
-      failure (the worst-shape outcome principles.md names): a text-only
-      response with NO ReturnVerdict — a judgment recurrence that fails to
-      close, leaving the operator no record of what the judgment was.
-      Secondary failure (cause b): narrating P&L numbers that do not match
-      the seeded windows (confabulation — the anti-confabulation rule in
-      the persona frame; check narrated figures against the seed).
+      Per the ADR-318 agentic-wake posture: a wake is a situation, not a
+      task. A coherent trader serves the reconciliation task FULLY —
+      reads the reconciled _money_truth.md windows (7d/30d/90d realized
+      P&L, by_signal attribution), names what the reconciliation showed
+      (or "no new fills this window" honestly), and closes per the
+      principles.md mandatory contract: ReturnVerdict (required even when
+      no fills occurred). THEN, because it is the operation's standing
+      judgment, it reasons forward from its operating context — the
+      standing_intent.md it writes (ADR-284) names which open positions
+      it is watching for the next window AND, when the situation warrants,
+      whether a future wake should be authored (e.g. a position
+      approaching max-hold that needs a check-in tomorrow). The read
+      judges BOTH halves: (1) was the named task served fully + closed
+      with ReturnVerdict, AND (2) did the forward-reasoning engage with
+      the actual operating context (clock/positions/cadence) when the
+      situation warranted, vs. a bare task-and-exit. Under ADR-318 a
+      bare task-and-exit when the situation clearly warranted forward
+      action (an open position near a stop, no wake scheduled to catch
+      it) is the interesting gap — NOT a failure to tabulate, but a
+      divergence to interpret (cause b: persona-frame posture not landing,
+      OR a defensible "nothing warranted forward action this cycle").
+      Cardinal failure (worst-shape, principles.md): a text-only response
+      with NO ReturnVerdict — the cycle fails to close. Secondary failure
+      (cause b): narrating P&L numbers that do not match the seeded
+      windows (confabulation — the anti-confabulation rule; check narrated
+      figures against the seed). NOTE the forward-planning is judgment-
+      gated per ADR-318 ("when it doesn't, the task plus standing_intent
+      is the whole cycle") — absence of forward-authoring is only a gap
+      when the situation demonstrably warranted it.
 
   # ──────────────────────────────────────────────────────────────────────
   - eval: eod-pnl-compose-and-send

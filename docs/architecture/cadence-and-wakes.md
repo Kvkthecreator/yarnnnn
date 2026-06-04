@@ -19,6 +19,8 @@ Three claims hold:
 
 3. **Cost flows through wakes.** Every wake that escalates past the funnel fires a full Reviewer Sonnet loop (~$0.05-0.20 per fire). Cadence frequency × escalation rate × loop depth = workspace spend. Cadence is the upstream cost gate; autonomy (delegation) is the downstream action gate. Both matter; cadence dominates if misconfigured.
 
+4. **A wake is a situation, not a task** (ADR-318). The upstream half — a judgment recurrence — is deliberately thin: `{slug, schedule, prompt}` (ADR-261 D3), a glorified prompt at a future invocation. The downstream half — the wake itself — is **agentic**: the recurrence-fire envelope already delivers the Reviewer its full operating context (`operating_context_block` = clock + market state + tenure; `schedule_index_md` = its own cadence; `standing_intent.md` = its forward-state) plus `Schedule`-authoring authority. So the Reviewer is not a function that runs one prompt and exits — it is a standing judgment seat woken for a reason. It serves the named task fully, then reasons forward from its operating context (a position that needs watching, a future wake to author, a cadence that's wrong) and authors what's warranted. This is the posture that makes multi-day autonomy real with no new machinery — the architecture already configures for it; the persona-frame names it. (Stance, not checklist — anti-rebloat per DP22.)
+
 ---
 
 ## 2. The five wake sources
