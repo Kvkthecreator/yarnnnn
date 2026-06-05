@@ -48,7 +48,7 @@ setup:
   # than flip_frontmatter_field. Only the daily_pnl_reconciliation entry
   # is active: true; the others stay default-off.
   - write_substrate:
-      path: /workspace/context/_shared/_preferences.yaml
+      path: /workspace/governance/_preferences.yaml
       authored_by: operator-proxy:scenario-runner:acting-as-kvk
       content: |
         ---
@@ -57,7 +57,7 @@ setup:
         ---
         deliverable_preferences:
           - slug: weekly-performance-review
-            spec: /workspace/specs/weekly-performance-review.md
+            spec: /workspace/operation/specs/weekly-performance-review.md
             cadence: "0 18 * * 0"
             description: "Weekly performance synthesis every Sunday at 18:00 UTC"
             active: true
@@ -75,7 +75,7 @@ setup:
   # Seed reconciled _money_truth.md (same shape as trader-reconciliation-
   # judgment) so the dispatcher has real windows to compose from.
   - write_substrate:
-      path: /workspace/context/trading/_money_truth.md
+      path: /workspace/operation/trading/_money_truth.md
       authored_by: operator-proxy:scenario-runner:acting-as-kvk
       content: |
         ---

@@ -17,7 +17,7 @@ description: |
   What this validates:
     - Reviewer addressed-trigger wake with operator-voice prompt
       that solicits introspection on its own framework
-    - Reviewer composes WriteFile to /workspace/review/principles.md
+    - Reviewer composes WriteFile to /workspace/persona/principles.md
       (operator-canon path) under autonomous mode
     - ADR-293 D7 gate: write succeeds because mode is autonomous
     - ADR-209 attribution: `reviewer:ai:reviewer-sonnet-vN` lands
@@ -54,7 +54,7 @@ setup:
   # Seed _money_truth.md so the Reviewer has performance data to
   # reason against when scoring framework calibration.
   - write_substrate:
-      path: /workspace/context/trading/_money_truth.md
+      path: /workspace/operation/trading/_money_truth.md
       authored_by: operator-proxy:scenario-runner:acting-as-alpha-trader
       content: |
         ---

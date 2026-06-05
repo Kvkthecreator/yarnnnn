@@ -22,7 +22,7 @@ related:
 
 ## Motivation
 
-YARNNN now has three live dogfood persona workspaces (`yarnnn-author`, `netflix-script-author`, `korea-thriller-shorts`) forked from the alpha-author bundle on 2026-05-18, plus kvk's alpha-trader-2. When kernel skeleton text improves on 2026-05-25 (e.g., tightened safety language in `DEFAULT_REVIEW_PRINCIPLES_MD`), or when the alpha-author bundle's `context/_shared/IDENTITY.md` improves upstream, the improvement does not reach the three live workspaces. Drift accumulates faster than manual re-application can address.
+YARNNN now has three live dogfood persona workspaces (`yarnnn-author`, `netflix-script-author`, `korea-thriller-shorts`) forked from the alpha-author bundle on 2026-05-18, plus kvk's alpha-trader-2. When kernel skeleton text improves on 2026-05-25 (e.g., tightened safety language in `DEFAULT_REVIEW_PRINCIPLES_MD`), or when the alpha-author bundle's `persona/IDENTITY.md` improves upstream, the improvement does not reach the three live workspaces. Drift accumulates faster than manual re-application can address.
 
 The right mental model: **Claude Code's `claude --update`.** Anthropic releases a new model; Claude Code presents the update as available; the operator decides when to take it. Versioned, operator-initiated, not a polling cron.
 

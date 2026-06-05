@@ -53,13 +53,13 @@ Members of the judgment layer:
 | File | Read path | Source |
 |------|-----------|--------|
 | Compact index (ADR-159) | `working_memory.format_compact_index()` | Generated from workspace state at each turn |
-| `/workspace/context/_shared/MANDATE.md` | Via tool reads | Operator-authored (ADR-207) |
-| `/workspace/context/_shared/IDENTITY.md` | Via working memory + tool reads | Operator-authored (ADR-206) |
-| `/workspace/context/_shared/BRAND.md` | Via tool reads | Operator-authored (ADR-206) |
-| `/workspace/context/_shared/CONVENTIONS.md` | Via tool reads | Operator-authored (ADR-206) |
-| `/workspace/context/_shared/AUTONOMY.md` | Via tool reads | Operator-authored (ADR-217) — informs chat reasoning about what the AI is authorized to do autonomously |
-| `/workspace/context/_shared/PRECEDENT.md` | Via tool reads (in compact index key files per commit `fd4917a`) | Operator-authored — durable interpretations / boundary-case resolutions |
-| `/workspace/memory/AWARENESS.md` + working memory files | Via working memory | YARNNN's own orchestration state |
+| `/workspace/constitution/MANDATE.md` | Via tool reads | Operator-authored (ADR-207) |
+| `/workspace/persona/IDENTITY.md` | Via working memory + tool reads | Operator-authored (ADR-206; operator-identity collapsed into the persona seat per ADR-320 D2b) |
+| `/workspace/operation/BRAND.md` | Via tool reads | Operator-authored (ADR-206) |
+| `/workspace/operation/CONVENTIONS.md` | Via tool reads | Operator-authored (ADR-206) |
+| `/workspace/governance/AUTONOMY.md` | Via tool reads | Operator-authored (ADR-217) — informs chat reasoning about what the AI is authorized to do autonomously |
+| `/workspace/constitution/PRECEDENT.md` | Via tool reads (in compact index key files per commit `fd4917a`) | Operator-authored — durable interpretations / boundary-case resolutions |
+| `/workspace/system/AWARENESS.md` + working memory files | Via working memory | YARNNN's own orchestration state |
 
 **Persona**: none. `api/agents/yarnnn_prompts/base.py::BASE_PROMPT` declares the fixed-voice interlocutor identity. There is no workspace-authored YARNNN IDENTITY file per ADR-216 D2.
 
@@ -92,16 +92,16 @@ User message (dynamic):
 
 | File | Read at | Source |
 |------|---------|--------|
-| `/workspace/review/IDENTITY.md` | Reviewer agent (`reviewer_agent.py::_build_user_message`) | Operator-authored (ADR-216 D4). Declares the persona. |
-| `/workspace/review/principles.md` | Reviewer agent | Operator-authored. Declares the framework (checks + narrowing conditions). |
-| `/workspace/context/_shared/PRECEDENT.md` | Reviewer agent (v4 prompt, `reviewer_agent.py`) | Operator-authored (commit `fd4917a`). Durable interpretations / boundary-case rules. Overrides conflicting clauses in `principles.md` — precedent always wins when the two disagree. |
-| `/workspace/context/_shared/AUTONOMY.md` | Dispatcher (`review_proposal_dispatch.py` + `review_policy.py::load_autonomy`) | Operator-authored (ADR-217). Declares the delegation ceiling — NOT read by the Reviewer agent itself; enforced by the dispatcher before invocation. |
-| `/workspace/context/{domain}/_operator_profile.md` | Reviewer agent | Operator-authored. Strategy + style context. |
-| `/workspace/context/{domain}/_risk.md` | Reviewer agent | Operator-authored. Hard floors. |
-| `/workspace/context/{domain}/_money_truth.md` | Reviewer agent | Reconciler-generated (ADR-195 v2). Track record. |
+| `/workspace/persona/IDENTITY.md` | Reviewer agent (`reviewer_agent.py::_build_user_message`) | Operator-authored (ADR-216 D4). Declares the persona. |
+| `/workspace/persona/principles.md` | Reviewer agent | Operator-authored. Declares the framework (checks + narrowing conditions). |
+| `/workspace/constitution/PRECEDENT.md` | Reviewer agent (v4 prompt, `reviewer_agent.py`) | Operator-authored (commit `fd4917a`). Durable interpretations / boundary-case rules. Overrides conflicting clauses in `principles.md` — precedent always wins when the two disagree. |
+| `/workspace/governance/AUTONOMY.md` | Dispatcher (`review_proposal_dispatch.py` + `review_policy.py::load_autonomy`) | Operator-authored (ADR-217). Declares the delegation ceiling — NOT read by the Reviewer agent itself; enforced by the dispatcher before invocation. |
+| `/workspace/operation/{domain}/_operator_profile.md` | Reviewer agent | Operator-authored. Strategy + style context. |
+| `/workspace/operation/{domain}/_risk.md` | Reviewer agent | Operator-authored. Hard floors. |
+| `/workspace/operation/{domain}/_money_truth.md` | Reviewer agent | Reconciler-generated (ADR-195 v2). Track record. |
 | The proposal itself | Reviewer agent | `action_proposals` row passed in by dispatcher. |
 
-**Persona**: operator-authored in `/workspace/review/IDENTITY.md`. Platform provides a generic default at signup (neutral skeptical baseline); operator overwrites to embody a specific character (Simons, Buffett, Deming, etc.). The Reviewer agent reads this file as the *opening* section of its user message, so persona shapes reasoning from the first token.
+**Persona**: operator-authored in `/workspace/persona/IDENTITY.md`. Platform provides a generic default at signup (neutral skeptical baseline); operator overwrites to embody a specific character (Simons, Buffett, Deming, etc.). The Reviewer agent reads this file as the *opening* section of its user message, so persona shapes reasoning from the first token.
 
 **Prompt composition** (in `api/agents/reviewer_agent.py`):
 
@@ -117,10 +117,10 @@ System prompt (fixed, platform-authored, v4):
     - Decision categories (approve/reject/defer)
     - Reasoning expectations (upside/downside, asymmetry, edge fit)
 User message (dynamic, dispatcher-assembled):
-  1. ## /workspace/review/IDENTITY.md — Your persona
+  1. ## /workspace/persona/IDENTITY.md — Your persona
   2. ## Proposed action
-  3. ## /workspace/review/principles.md
-  4. ## /workspace/context/_shared/PRECEDENT.md — Operator-declared durable interpretations
+  3. ## /workspace/persona/principles.md
+  4. ## /workspace/constitution/PRECEDENT.md — Operator-declared durable interpretations
   5. ## Operator profile (if present)
   6. ## _risk.md (if trading)
   7. ## _money_truth.md (if domain has track record)
@@ -152,7 +152,7 @@ The Reviewer agent does NOT read AUTONOMY.md directly. The dispatcher enforces t
 
 #### 3.2.1 Partition discipline: what belongs in `principles.md` vs. persona-frame
 
-> **This subsection is the singular enforcement home for the principles ↔ persona-frame partition.** When you are about to add content to `/workspace/review/principles.md` (in a bundle template, in a per-workspace seed, or in a doc that prescribes principles content), this is the test. When you are about to add content to a `_compute_*` section of `api/agents/reviewer_agent.py`'s persona-frame, this is the test. Other canon files (`reviewer-seat-substrate.md`, `reviewer-occupant.md`, ADR-194 v2, ADR-217, ADR-293, ADR-295, ADR-303, ADR-315) defer to this clause on the partition question — they describe the seat, the occupant, the autonomy gating, the self-amendment capability, the posture taxonomy, but the *content boundary between principles.md and the persona-frame* is governed here.
+> **This subsection is the singular enforcement home for the principles ↔ persona-frame partition.** When you are about to add content to `/workspace/persona/principles.md` (in a bundle template, in a per-workspace seed, or in a doc that prescribes principles content), this is the test. When you are about to add content to a `_compute_*` section of `api/agents/reviewer_agent.py`'s persona-frame, this is the test. Other canon files (`reviewer-seat-substrate.md`, `reviewer-occupant.md`, ADR-194 v2, ADR-217, ADR-293, ADR-295, ADR-303, ADR-315) defer to this clause on the partition question — they describe the seat, the occupant, the autonomy gating, the self-amendment capability, the posture taxonomy, but the *content boundary between principles.md and the persona-frame* is governed here.
 
 **The one-line statement** (already canonized at §4.2 line 227 and §3.2 substrate table):
 > **`principles.md` is the rule-set the persona applies.** Persona is *how to reason*; mandate is *why we exist*; autonomy is *how far decisions bind*; principles is *what the rules of judgment are*.
@@ -199,7 +199,7 @@ The system-authored **minimal frame** (`api/agents/reviewer_agent.py::_compute_m
 2. **`principles.md` is authoritative for rules of judgment** (including self-amendment evidence-patterns + anti-patterns + independence). The minimal frame does NOT carry these — it carries only principal-shift + action-grammar — so there is no frame-vs-principles conflict on rules of judgment to resolve (the prior framing's "persona-frame > principles for reasoning-posture" rule is retired; the frame no longer holds reasoning-posture content).
 3. `AUTONOMY.md` ceiling > `principles.md` *for delegation widening*. Principles can narrow delegation (add defer conditions) but never widen (ADR-217 D4). The ceiling is code-enforced.
 
-**Bundle-template + per-workspace audit checklist.** Before editing a `docs/programs/{slug}/reference-workspace/review/principles.md` or forking it:
+**Bundle-template + per-workspace audit checklist.** Before editing a `docs/programs/{slug}/reference-workspace/persona/principles.md` or forking it:
 
 - Every section declares either (a) a rule with the four-field shape (now INCLUDING the self-amendment evidence-patterns + anti-patterns + independence + fiduciary rules), (b) the conflict-resolution rule, or (c) a brief workspace-lifecycle phase pointer. If it doesn't fit, it's mis-placed.
 - Numeric thresholds live in `_principles.yaml` (ADR-254). Prose category declarations may live in principles.md; the numbers per program live in yaml.
@@ -217,14 +217,14 @@ The system-authored **minimal frame** (`api/agents/reviewer_agent.py::_compute_m
 
 | Member | Authored by | Home | Class |
 |---|---|---|---|
-| `MANDATE.md` | operator | `context/_shared/` | operator-canon (why we exist) |
-| `AUTONOMY.md` + `_autonomy.yaml` | operator | `context/_shared/` | operator-canon (how far decisions bind) |
-| `_pace.yaml` | operator | `context/_shared/` | operator-canon (Trigger budget) |
-| `_preferences.yaml` | operator | `context/_shared/` | operator-canon (deliverable cadence) |
-| `IDENTITY.md` | operator (overwritable) | `review/` | persona (how to reason — character) |
-| `principles.md` (+ `_principles.yaml`) | operator (overwritable) | `review/` | framework (what rules of judgment — §3.2.1) |
-| `PRECEDENT.md` | operator | `context/_shared/` | operator-canon (durable interpretations) |
-| program-specific (e.g. `_voice.md`, `_risk.md`, `_operator_profile.md`) | operator | program domain dirs | operator-canon (domain rules) |
+| `MANDATE.md` | operator | `constitution/` | operator-canon (why we exist) |
+| `AUTONOMY.md` + `_autonomy.yaml` | operator | `governance/` | operator-canon (how far decisions bind) |
+| `_pace.yaml` | operator | `governance/` | operator-canon (Trigger budget) |
+| `_preferences.yaml` | operator | `governance/` | operator-canon (deliverable cadence) |
+| `IDENTITY.md` | operator (overwritable) | `persona/` | persona (how to reason — character) |
+| `principles.md` (+ `_principles.yaml`) | operator (overwritable) | `persona/` | framework (what rules of judgment — §3.2.1) |
+| `PRECEDENT.md` | operator | `constitution/` | operator-canon (durable interpretations) |
+| program-specific (e.g. `_voice.md`, `_risk.md`, `_operator_profile.md`) | operator | `operation/{domain}/` | operator-canon (domain rules) |
 | minimal frame `_compute_minimal_frame` | **system** (kernel) | `api/agents/reviewer_agent.py` | the two irreducible things — principal-shift (corrects the model's assistant prior) + action-grammar (agent↔runtime interface contract). NOT reasoning posture (that's principles.md post-2026-05-29 collapse). |
 
 The last row is load-bearing and easy to forget: the **system-authored minimal frame is a member of the composite set**, assembled into the same effective prompt as the operator-authored documents. A coherence audit that reads only the operator's files misses the frame. Post-collapse the frame carries only principal-shift + action-grammar (~3.5K chars, down from ~36K); the rules of judgment it used to duplicate now live solely in `principles.md` (§3.2.1 inverted boundary).
@@ -259,9 +259,9 @@ The two are complementary: structural is cheap and runs on every commit but only
 |------|---------|--------|
 | `/agents/{slug}/AGENT.md` | Task pipeline (`task_pipeline.py::gather_task_context`) | Operator-authored. **Single-file persona + framework convention**: domain Agents are single-domain, so persona (character) and framework (directives) share one file. This is deliberately different from Reviewer's IDENTITY/principles split. |
 | `/agents/{slug}/memory/*.md` | Task pipeline | Agent-accumulated working memory. |
-| `/workspace/context/{domain}/` files | Task pipeline (if `context_reads` declares the domain) | Shared accumulated context. |
-| `/workspace/context/_shared/*.md` | Task pipeline (compact-index + on-demand ReadFile for MANDATE/AUTONOMY/IDENTITY/BRAND/CONVENTIONS) | Operator-authored standing declarations (same as YARNNN/Reviewer see). |
-| `/workspace/context/_shared/PRECEDENT.md` | Task pipeline (`gather_task_context` §4b — injected as "Operator Precedent" section when non-empty) | Operator-authored durable interpretations. Forces production roles to honor operator-declared boundary-case rules across task runs. |
+| `/workspace/operation/{domain}/` files | Task pipeline (if `context_reads` declares the domain) | Shared accumulated context. |
+| `/workspace/constitution/*.md` + `/workspace/governance/*` + `/workspace/operation/{BRAND,CONVENTIONS}.md` + `/workspace/persona/IDENTITY.md` | Task pipeline (compact-index + on-demand ReadFile for MANDATE/AUTONOMY/IDENTITY/BRAND/CONVENTIONS) | Operator-authored standing declarations (same as YARNNN/Reviewer see). |
+| `/workspace/constitution/PRECEDENT.md` | Task pipeline (`gather_task_context` §4b — injected as "Operator Precedent" section when non-empty) | Operator-authored durable interpretations. Forces production roles to honor operator-declared boundary-case rules across task runs. |
 
 **Persona**: operator-authored in AGENT.md (single-file convention per ADR-216 D9). Seeded from the agent's `agent_instructions` DB column at first dispatch.
 
@@ -303,33 +303,33 @@ The operator (principal) and the Reviewer (agent) sit on opposite ends of the pr
 
 ### 4.1 Shared substrate (both read)
 
-Operator-authored standing declarations under `/workspace/context/_shared/`:
+Operator-authored standing declarations, now split across three roots per ADR-320 — `constitution/` (intent), `governance/` (ceilings the seat runs under but cannot set), and `operation/` (output-shaping). The operator's identity collapsed into the persona seat (ADR-320 D2b), so it lives at `persona/IDENTITY.md`:
 
-| File | ADR | What it declares |
-|------|-----|------------------|
-| MANDATE.md | ADR-207 | The Primary Action — what this workspace is running. |
-| IDENTITY.md | ADR-206 | The operator's identity (role, company, timezone, summary). |
-| BRAND.md | ADR-206 | Voice, tone, audience-facing presentation rules. |
-| CONVENTIONS.md | ADR-206 | Filesystem + behavioral conventions. |
-| AUTONOMY.md | ADR-217 | Delegation ceiling — how autonomously AI may act. |
-| PRECEDENT.md | 2026-04-24 shared-governance hardening | Durable interpretations and boundary-case rules that should compound across future decisions. |
+| File | New home (ADR-320) | ADR | What it declares |
+|------|-----|-----|------------------|
+| MANDATE.md | `constitution/` | ADR-207 | The Primary Action — what this workspace is running. |
+| IDENTITY.md | `persona/` | ADR-206 | The operator's judgment embodied (role, company, timezone, reasoning posture) — collapsed into the persona seat per ADR-320 D2b. |
+| BRAND.md | `operation/` | ADR-206 | Voice, tone, audience-facing presentation rules. |
+| CONVENTIONS.md | `operation/` | ADR-206 | Filesystem + behavioral conventions. |
+| AUTONOMY.md | `governance/` | ADR-217 | Delegation ceiling — how autonomously AI may act. |
+| PRECEDENT.md | `constitution/` | 2026-04-24 shared-governance hardening | Durable interpretations and boundary-case rules that should compound across future decisions. |
 
 Both YARNNN (orchestration) and Reviewer (judgment) read these. They are the operator's standing intent and bind every agent.
 
 ### 4.2 Distinct substrate (agent-specific)
 
-**Reviewer-bound** under `/workspace/review/`:
+**Reviewer-bound** under `/workspace/persona/` (the seat home, relocated from `review/` per ADR-320):
 
 | File | ADR | Author | Content |
 |------|-----|--------|---------|
-| IDENTITY.md | ADR-216 | Operator | The persona the seat embodies. |
+| IDENTITY.md | ADR-216 | Operator | The persona the seat embodies (operator-identity collapsed in per ADR-320 D2b). |
 | principles.md | ADR-194 v2 + ADR-217 | Operator | The framework the persona applies — the rule-set, not the reasoning posture. See §3.2.1 for the partition-discipline clause (singular enforcement home). |
 | OCCUPANT.md | ADR-194 v2 Phase 2b | Rotation primitive | Who currently fills the seat. |
 | handoffs.md | ADR-194 v2 Phase 2b | Rotation primitive | Rotation history (append-only). |
-| decisions.md | ADR-194 v2 | Reviewer itself | Verdict trail (append-only). |
+| judgment_log.md | ADR-194 v2 | Reviewer itself | Verdict trail (append-only; renamed from `decisions.md` per ADR-320). |
 | calibration.md | ADR-211 | Back-office task | Per-occupant × verdict rolling windows. |
 
-**YARNNN has no persona-bound substrate.** Its "working memory" under `/workspace/memory/` (AWARENESS, _playbook, style, notes) is orchestration accumulation, not persona.
+**YARNNN has no persona-bound substrate.** Its "working memory" under `/workspace/system/` (AWARENESS, _playbook, style, notes) is orchestration accumulation, not persona.
 
 **Domain Agent-bound** under `/agents/{slug}/`:
 
@@ -341,13 +341,13 @@ Both YARNNN (orchestration) and Reviewer (judgment) read these. They are the ope
 
 ### 4.3 Asymmetry rule
 
-The operator's standing declarations under `_shared/` are **read by every agent**. The operator *drafts* them — via YARNNN chat (`InferContext` for identity/brand merge, `WriteFile` scope=`workspace` for direct substrate, per ADR-235; the `InferWorkspace` first-act primitive was removed per ADR-314 D4, dissolved by Direction A — for a program workspace the bundle fork drafts the constitution). But "operator-authored" names the *first* author, not the *only* one: from then on the Reviewer co-authors most of them on its own initiative. See §4.4 — the two locked files are the sole exception.
+The operator's standing declarations under `constitution/` + `governance/` + `operation/` are **read by every agent**. The operator *drafts* them — via YARNNN chat (`InferContext` for identity/brand merge, `WriteFile` scope=`workspace` for direct substrate, per ADR-235; the `InferWorkspace` first-act primitive was removed per ADR-314 D4, dissolved by Direction A — for a program workspace the bundle fork drafts the constitution). But "operator-authored" names the *first* author, not the *only* one: from then on the Reviewer co-authors most of them on its own initiative (it cannot, however, write `governance/` — those are the ceilings it runs under but cannot set). See §4.4.
 
-The Reviewer's seat substrate under `/workspace/review/` is **read by the Reviewer agent and its dispatcher only**. Rotation primitive writes to OCCUPANT + handoffs. Reviewer agent writes to decisions. Back-office task writes to calibration. IDENTITY + principles are operator-authored and revision-chained.
+The Reviewer's seat substrate under `/workspace/persona/` is **read by the Reviewer agent and its dispatcher only**. Rotation primitive writes to OCCUPANT + handoffs. Reviewer agent writes to judgment_log. Back-office task writes to calibration. IDENTITY + principles are operator-authored and revision-chained.
 
 Domain Agent substrate under `/agents/{slug}/` is **read by task pipeline when dispatching that agent**. Operator writes AGENT.md via chat; agent writes its own memory during runs.
 
-**The invariant that makes this work**: file placement follows authorship + scope. Operator-authored workspace-scoped = `_shared/`. Operator-authored seat-bound = `/workspace/review/IDENTITY.md` + `/workspace/review/principles.md`. Operator-authored agent-bound = `/agents/{slug}/AGENT.md`. Seat-generated = decisions + calibration + rotation files. Agent-generated = agent memory.
+**The invariant that makes this work** (post-ADR-320: the directory a file lives in determines who may write it): file placement follows authorship + scope. Operator-authored intent = `constitution/`; operator-declared ceilings = `governance/`; output-shaping = `operation/`. Operator-authored seat-bound = `/workspace/persona/IDENTITY.md` + `/workspace/persona/principles.md`. Operator-authored agent-bound = `/agents/{slug}/AGENT.md`. Seat-generated = judgment_log + calibration + rotation files (all under `persona/`). Agent-generated = agent memory.
 
 **Content boundary within the seat-bound files** (the partition that companion §3.2.1 enforces): `IDENTITY.md` = persona (how the seat reasons); `principles.md` = rule-set the persona applies (the framework). Reasoning-posture content (self-amendment discipline, anti-patterns, fiduciary principle, posture taxonomy, standing-intent contract, cadence-trifecta, wake-context discipline, write authority, voice/narration) lives in `api/agents/reviewer_agent.py` persona-frame `_compute_*` sections — single home, code-local. The seat-bound prose files describe *who* and *what rules*; the persona-frame describes *how to reason*. See §3.2.1 for the four-field rule shape and the diagnostic test.
 
@@ -358,7 +358,7 @@ Domain Agent substrate under `/agents/{slug}/` is **read by task pipeline when d
 The Reviewer's capability is governed by **two independent axes**. Reasoning about one as if it were the other is the error.
 
 **Axis 1 — Authority (what substrate it may write): nearly full, self-amending.**
-The Reviewer is a self-amending agent over its own operational substrate — the direct analog of Claude Code reading and editing the project's own `CLAUDE.md`. It rewrites MANDATE, its own IDENTITY + principles, PRECEDENT, the operator-profile + risk envelope, the universe, the recurrence set, learned notes — **all of `_shared/` and all of `/workspace/review/` except the locked files** — on its own initiative, attributed via ADR-209, gated for *capital* consequence by AUTONOMY mode, reverted via the revision chain. "Operator-authored" means the operator drafts the first revision; the Reviewer co-authors every revision after.
+The Reviewer is a self-amending agent over its own operational substrate — the direct analog of Claude Code reading and editing the project's own `CLAUDE.md`. It rewrites MANDATE, its own IDENTITY + principles, PRECEDENT, the operator-profile + risk envelope, the universe, the recurrence set, learned notes — **all of `constitution/`, all of `persona/`, and all of `operation/` (the `governance/` ceilings and `system/` runtime are the locked exceptions per ADR-320)** — on its own initiative, attributed via ADR-209, gated for *capital* consequence by AUTONOMY mode, reverted via the revision chain. "Operator-authored" means the operator drafts the first revision; the Reviewer co-authors every revision after.
 
 **The two locks, and the single reason for them** (`DEFAULT_REVIEWER_WRITE_LOCKS` in `workspace_paths.py`): the Reviewer cannot write `AUTONOMY.md` / `_autonomy.yaml` (its delegation ceiling) or `_token_budget.yaml` (its compute ceiling) — plus the softer operator-cadence pair `_preferences.yaml` / `_pace.yaml`. The load-bearing two encode one rule: **an agent cannot grant itself more authority or more resources than the operator delegated.** This is not "the operator owns this content" — it is the boundary between *autonomous* (decisions bind within a declared envelope) and *unbounded* (the envelope is self-expandable). Everything the Reviewer *can* write changes WHAT the operation does; the two locked files would change WHETHER the Reviewer has unauthorized authority to do it. That is the only asymmetry. Per FOUNDATIONS line 23, even this lock-set is *current dev-trust state* and shrinks toward zero as self-amendment discipline hardens — it is not a permanent architectural line.
 
@@ -435,7 +435,7 @@ This discipline is especially important at the composition layer because **dual 
 This doc itself needs a revision when:
 
 - A new agent class joins the judgment layer (future Auditor, Advocate, etc.).
-- Substrate placement shifts (a file moves from `/workspace/review/` to `/workspace/context/_shared/` or vice versa — this was ADR-217).
+- Substrate placement shifts (a file moves between roots — e.g. from `persona/` to `constitution/` or vice versa; ADR-217 was one such shift, and ADR-320 re-rooted the whole topology into five roots).
 - The two-layer model itself is refined (unlikely but possible).
 - A new versioning discipline is adopted (e.g. if we start tracking production-role identity strings too).
 
@@ -463,7 +463,7 @@ Decisions that shaped the current agent composition, in order:
 - **ADR-216** — YARNNN reclassification + persona wiring. Orchestration vs judgment separation; persona read at reasoning time.
 - **ADR-217** — Workspace autonomy substrate. Single authoring mouth for delegation; modes.md → AUTONOMY.md.
 - **ADR-315** — Reviewer Occupant Contract. Seat ≠ occupant: the seat stays substrate ([reviewer-seat-substrate.md](reviewer-seat-substrate.md)); the occupant becomes a contract-bounded module ([reviewer-occupant.md](reviewer-occupant.md)) consuming a published ABI ([reviewer-occupant-contract.md](reviewer-occupant-contract.md), defined in `api/agents/occupant_contract.py`).
-- **Shared governance hardening** (commit `fd4917a`, 2026-04-24) — `PRECEDENT.md` under `/workspace/context/_shared/` as operator-authored durable interpretation substrate. Read by YARNNN (compact index), Reviewer (v4 prompt), task pipeline (`gather_task_context`).
+- **Shared governance hardening** (commit `fd4917a`, 2026-04-24) — `PRECEDENT.md` under `/workspace/constitution/` (re-rooted by ADR-320) as operator-authored durable interpretation substrate. Read by YARNNN (compact index), Reviewer (v4 prompt), task pipeline (`gather_task_context`).
 - **`persona-reflection.md`** (canon doc, 2026-04-24) — Reviewer as living accumulator. Precedent and reflection together close the "framework evolves with reality" gap: precedent is operator-sided; reflection (future ADR-218) is persona-sided. Both accumulate inside MANDATE + AUTONOMY boundaries.
 
 This doc supersedes the scattered "how does agent X compose" language that accumulated across the above ADRs. Those ADRs remain authoritative as decision records; this doc is the running architectural reference.

@@ -22,7 +22,7 @@ Every load-bearing evaluation in this directory must explicitly state, before re
 
 1. **What canon clause is being measured against.** Cite the specific FOUNDATIONS axiom, derived principle, ADR section, or persona-frame paragraph that defines the expected behavior. "Per FOUNDATIONS Derived Principle 21" is too coarse. "Per persona-frame `_PERSONA_FRAME` §392-§411 standing_intent contract" is the right grain.
 
-2. **The operationalization** — how the canon clause translates to a measurable substrate signal. Example: "the contract says 'every reactive recurrence cycle produces a standing_intent.md write,' operationalized as: `workspace_file_versions` row with `path='/workspace/review/standing_intent.md'` and `authored_by LIKE 'reviewer:%'` within ±15min of the wake's `execution_events` row."
+2. **The operationalization** — how the canon clause translates to a measurable substrate signal. Example: "the contract says 'every reactive recurrence cycle produces a standing_intent.md write,' operationalized as: `workspace_file_versions` row with `path='/workspace/persona/standing_intent.md'` and `authored_by LIKE 'reviewer:%'` within ±15min of the wake's `execution_events` row."
 
 3. **The expected-posture per cell** (if the canon clause covers multiple posture cells, e.g., per slug × wake_source × substrate-delta combinations). If the criterion is uniform across cells, declare that explicitly. If the criterion varies per cell, name each cell and its expected contract.
 
@@ -48,7 +48,7 @@ The **developer surface** — operator-proxy capability (ADR-294), scenario runn
 
 What this hat means in practice:
 
-1. **Findings here recommend system-side changes; they don't make them.** A finding might say "Reviewer should be tightened to handle X." The actual tightening happens in `api/agents/reviewer_agent.py` persona frame, `docs/programs/{program}/reference-workspace/review/principles.md` bundle defaults, ADRs in `docs/adr/` — system-side artifacts that flow through to real operators. The evaluation doc records the *measurement*; the system canon records the *change*.
+1. **Findings here recommend system-side changes; they don't make them.** A finding might say "Reviewer should be tightened to handle X." The actual tightening happens in `api/agents/reviewer_agent.py` persona frame, `docs/programs/{program}/reference-workspace/persona/principles.md` bundle defaults, ADRs in `docs/adr/` — system-side artifacts that flow through to real operators. The evaluation doc records the *measurement*; the system canon records the *change*.
 
 2. **Vocabulary boundary.** When writing scenarios + findings, refer to YARNNN's internal entities (Reviewer, System Agent, substrate, gating) the way they're defined in FOUNDATIONS. Don't introduce concepts that only make sense to developers — those belong here in evaluation-meta-discipline only, not leaking into the system's own vocabulary.
 
@@ -260,7 +260,7 @@ setup:
   - fire: track-account         # manual_fire a recurrence by slug
   - fire: track-universe
   - write_substrate:            # operator-voice seed write
-      path: /workspace/context/trading/_money_truth.md
+      path: /workspace/operation/trading/_money_truth.md
       authored_by: operator-proxy:scenario-runner:acting-as-kvk
       content: |
         ---

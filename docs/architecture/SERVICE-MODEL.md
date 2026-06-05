@@ -60,8 +60,8 @@ The operator works *inside* YARNNN. The front-end model is a **cockpit**, not a 
 | **Overview** | "What's going on? What needs me?" | Temporal + Performance snapshot + Queue + Reviewer alerts |
 | **Team** | "Let me check on my agents." | `/agents/*` — roster + identity + health |
 | **Work** | "Let me check the work." | `/tasks/*` — schedules, status, outputs |
-| **Context** | "What does my workspace know?" | `/workspace/context/*` + `/workspace/uploads/*` |
-| **Review** | "Who decided what, why?" | `/workspace/review/*` + task `feedback.md` |
+| **Context** | "What does my workspace know?" | `/workspace/operation/*` (accumulated domains) + `/workspace/uploads/*` |
+| **Review** | "Who decided what, why?" | `/workspace/persona/*` + task `feedback.md` |
 
 **YARNNN is ambient, not a destination.** A persistent rail is available on every surface; `/chat` is the expanded-focus form of the narrative — the single operator-facing log of every invocation the system performed (FOUNDATIONS Axiom 9). Operators don't travel *to* YARNNN; YARNNN is *with* them, and the narrative is where they return to see what happened while they weren't watching.
 
@@ -117,8 +117,8 @@ Three entities, one workspace:
 
 ```
 WORKSPACE (per user)
-├── /workspace/           User context: identity, brand, documents
-│   └── /workspace/context/  Accumulated context domains (competitors, market, relationships, etc.)
+├── /workspace/           Five permission roots (ADR-320): governance/ constitution/ persona/ operation/ system/
+│   └── /workspace/operation/  Accumulated context domains (competitors, market, relationships, etc.) + the work the agent produces
 ├── /agents/{slug}/       Agent identity + memory + outputs
 └── /tasks/{slug}/        Task definition + outputs + run log
 ```
@@ -134,7 +134,7 @@ Persistent judgment-bearing entities with three independent axes:
 | **Tasks** | TASK.md assignments — what work to do | Come and go |
 
 Current persona-bearing Agents:
-- **Reviewer** — the sole systemic persona-bearing Agent today; independent judgment seat at `/workspace/review/`, reading shared delegation from `/workspace/context/_shared/AUTONOMY.md`
+- **Reviewer** — the sole systemic persona-bearing Agent today; independent judgment seat at `/workspace/persona/`, reading shared delegation from `/workspace/governance/AUTONOMY.md`
 - **User-authored domain Agents** — zero-to-many instance Agents under `/agents/{slug}/`
 - **Future judgment archetypes** — Auditor, Advocate, Custodian, etc.
 
@@ -171,7 +171,7 @@ Mode is a property of the task, not the Agent. A Research Agent can simultaneous
 
 ### Workspace (WHERE)
 
-Virtual filesystem over Postgres (`workspace_files` table). Three content areas: identity, brand, and accumulated context domains (`/workspace/context/` — extensible per ADR-151, ADR-188). The directory registry provides curated domain templates (e.g., competitors, market, customers, trading); YARNNN can scaffold these or compose novel domains with custom entity structures from the user's work description. Path conventions are the schema — new capabilities extend paths, not database tables. See [WORKSPACE.md](WORKSPACE.md).
+Virtual filesystem over Postgres (`workspace_files` table). Five permission roots per ADR-320 (governance / constitution / persona / operation / system); accumulated context domains live under `/workspace/operation/` (extensible per ADR-151, ADR-188). The directory registry provides curated domain templates (e.g., competitors, market, customers, trading); YARNNN can scaffold these or compose novel domains with custom entity structures from the user's work description. Path conventions are the schema — new capabilities extend paths, not database tables. See [WORKSPACE.md](WORKSPACE.md).
 
 ---
 
@@ -179,16 +179,16 @@ Virtual filesystem over Postgres (`workspace_files` table). Three content areas:
 
 | Class | Entity | Scope | Role | Develops |
 |-------|--------|-------|------|----------|
-| **Orchestration surface** | YARNNN | Workspace-level | Conversational surface of the orchestrator; drafts work, routes updates, keeps the system legible | Operational awareness in `/workspace/memory/` |
+| **Orchestration surface** | YARNNN | Workspace-level | Conversational surface of the orchestrator; drafts work, routes updates, keeps the system legible | Operational awareness in `/workspace/system/` |
 | **Orchestration capability bundles** | Production roles + platform integrations | Task / integration-level | Execute production work under dispatch and permission gates | Capability catalog evolves; no persona-bearing development axis |
 | **Instance judgment Agents** | User-authored domain Agents | Domain-level | Execute domain work, accumulate expertise, represent operator intent in a domain | Inward — deeper knowledge through accumulated work in their domain |
 | **Systemic judgment Agent** | Reviewer (human user / AI / impersonation — interchangeable seat) | Proposal-level (structurally separate) | Independent judgment on proposed writes; audit trail author | Through calibration against `_money_truth.md` |
 
-**All four classes share one substrate — the filesystem.** None retains state of its own across invocations. YARNNN, production roles, domain Agents, and Reviewer all read `/workspace/`, `/agents/`, `/tasks/`, and (for Reviewer) `/workspace/review/`, act, write back, and terminate.
+**All four classes share one substrate — the filesystem.** None retains state of its own across invocations. YARNNN, production roles, domain Agents, and Reviewer all read `/workspace/`, `/agents/`, `/tasks/`, and (for Reviewer) `/workspace/persona/`, act, write back, and terminate.
 
 YARNNN is the orchestration feed surface. It may retain a row in the `agents` table for pragmatic continuity, but current canon treats that row as implementation substrate, not classification.
 
-**The Reviewer is the structurally separate judgment seat** (ADR-194, amended by ADR-217). Where YARNNN composes the future (what Agents to create, what tasks to scaffold), the Reviewer applies independent judgment to specific proposed writes. The separation is load-bearing: YARNNN emits many autonomous proposals, and having YARNNN review its own proposals is a conflict of interest. Because the Reviewer seat is structurally separate, a human user and an AI system fill it interchangeably without architectural change (FOUNDATIONS Derived Principle 14: *Roles persist; occupants rotate*). Reviewer state lives in `/workspace/review/` as six seat files, with delegation read from shared `/workspace/context/_shared/AUTONOMY.md`.
+**The Reviewer is the structurally separate judgment seat** (ADR-194, amended by ADR-217). Where YARNNN composes the future (what Agents to create, what tasks to scaffold), the Reviewer applies independent judgment to specific proposed writes. The separation is load-bearing: YARNNN emits many autonomous proposals, and having YARNNN review its own proposals is a conflict of interest. Because the Reviewer seat is structurally separate, a human user and an AI system fill it interchangeably without architectural change (FOUNDATIONS Derived Principle 14: *Roles persist; occupants rotate*). Reviewer state lives in `/workspace/persona/` as six seat files, with delegation read from shared `/workspace/governance/AUTONOMY.md`.
 
 YARNNN has two runtimes that share one orchestration surface:
 - **Chat runtime**: user-present conversation via `YarnnnAgent` class in `api/agents/yarnnn.py` (ADR-189)
@@ -297,11 +297,11 @@ Reviewer session start (wake proposal escalated)
   → Bounded at ≤12 rounds (addressed/scheduled) or ≤3 rounds (reactive) per ADR-260 D8
 ```
 
-**Per ADR-296 v2 D3, FireInvocation is NOT in the Reviewer's tool surface.** The Reviewer's trigger-authoring authority is cadence (`Schedule`) + substrate-event interest (`ManageHook`) + standing intent (`WriteFile` to `/workspace/review/standing_intent.md`). FireInvocation remains in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES — operator manual fire is the `manual_fire` wake source's entry point.
+**Per ADR-296 v2 D3, FireInvocation is NOT in the Reviewer's tool surface.** The Reviewer's trigger-authoring authority is cadence (`Schedule`) + substrate-event interest (`ManageHook`) + standing intent (`WriteFile` to `/workspace/persona/standing_intent.md`). FireInvocation remains in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES — operator manual fire is the `manual_fire` wake source's entry point.
 
 **Three actors, three responsibilities** (per ADR-261 D7 amendment):
 
-- **Reviewer** — judgment + high-level sequencing. Names specialist invocations as discrete steps. Writes verdicts to `/workspace/review/decisions.md`.
+- **Reviewer** — judgment + high-level sequencing. Names specialist invocations as discrete steps. Writes verdicts to `/workspace/persona/judgment_log.md`.
 - **Specialist** (researcher / analyst / writer / tracker / designer / reporting) — focused-prompt sub-LLM-call (`headless` runtime mode), invoked by `DispatchSpecialist`. Identical execution shape to a Claude Code sub-agent. Returns markdown output to the Reviewer's loop.
 - **System Agent** — deterministic dispatcher (per ADR-257). Receives the Reviewer's structured directives (`FireInvocation`, `Schedule`, `WriteFile`, `DispatchSpecialist`), executes them mechanically, narrates each consequential action as a feed bubble.
 
@@ -313,10 +313,10 @@ Reviewer session start (wake proposal escalated)
 
 Recurrence prompts encode output expectations using two layers (per ADR-262):
 
-- **Layer A — filesystem topology** (CONVENTIONS.md, operator-readable markdown). Conventional paths are slug-templated structurally — `/workspace/reports/{slug}/{date}/output.md`, `/workspace/context/{domain}/{entity}.md`. The Reviewer interpolates the convention against substrate-level data; no free-form path authoring.
-- **Layer B — semantic shape** (operator-authored specs at `/workspace/specs/{name}.md`, or inline in the prompt, or by-example referencing a prior output). The Reviewer reads the spec/example, produces conforming output.
+- **Layer A — filesystem topology** (CONVENTIONS.md, operator-readable markdown). Conventional paths are slug-templated structurally — `/workspace/operation/reports/{slug}/{date}/output.md`, `/workspace/operation/{domain}/{entity}.md`. The Reviewer interpolates the convention against substrate-level data; no free-form path authoring.
+- **Layer B — semantic shape** (operator-authored specs at `/workspace/operation/specs/{name}.md`, or inline in the prompt, or by-example referencing a prior output). The Reviewer reads the spec/example, produces conforming output.
 
-**Compose is opt-out structural default** (per ADR-262 D4). When a Reviewer session writes section partials matching the deliverable convention (presence of `sections/*.md` in `/workspace/reports/{slug}/{date}/`) and the session is closing, the framework auto-runs Compose unless the recurrence opts out via `options.skip_compose: true`. The mechanical compose engine (section kind dispatch, structured-data renderers, content-addressed cache) is unchanged from ADR-148 / ADR-170 / ADR-177 / ADR-213; only the trigger surface changes.
+**Compose is opt-out structural default** (per ADR-262 D4). When a Reviewer session writes section partials matching the deliverable convention (presence of `sections/*.md` in `/workspace/operation/reports/{slug}/{date}/`) and the session is closing, the framework auto-runs Compose unless the recurrence opts out via `options.skip_compose: true`. The mechanical compose engine (section kind dispatch, structured-data renderers, content-addressed cache) is unchanged from ADR-148 / ADR-170 / ADR-177 / ADR-213; only the trigger surface changes.
 
 ### The scheduler
 
@@ -364,7 +364,7 @@ Agents produce structured markdown with inline data tables and mermaid diagrams.
 | **yarnnn-mcp-server** | Web (FastAPI) | MCP protocol for Claude Desktop/Code/foreign LLMs (ADR-169) |
 | **yarnnn-render** | Web (Docker) | Output gateway — PDF, chart, mermaid, xlsx, image rendering (ADR-118) |
 
-**yarnnn-platform-sync was removed** (ADR-153, 2026-04-01) — platform_content sunset; platform data now flows through tracking tasks into `/workspace/context/` domains during task execution. OAuth token lifecycle handled inline by the task pipeline.
+**yarnnn-platform-sync was removed** (ADR-153, 2026-04-01) — platform_content sunset; platform data now flows through tracking tasks into `/workspace/operation/` domains during task execution. OAuth token lifecycle handled inline by the task pipeline.
 
 **Critical shared state**: All services share Supabase (Postgres). `INTEGRATION_ENCRYPTION_KEY` must be on API + scheduler. See [CLAUDE.md](/CLAUDE.md) "Render Service Parity" section for full env var matrix.
 
@@ -390,9 +390,9 @@ The surface continues to evolve through ADR-168 Commits 4–5 (rename to `*Entit
 
 Four layers of perception feed agent execution (FOUNDATIONS Axiom 2):
 
-1. **External** — Agents call platform APIs (Slack, Notion, GitHub) live during task execution. Signals flow into `/workspace/context/` domains. Platform connections provide auth infrastructure; there is no intermediate staging table (ADR-153).
+1. **External** — Agents call platform APIs (Slack, Notion, GitHub) live during task execution. Signals flow into `/workspace/operation/` domains. Platform connections provide auth infrastructure; there is no intermediate staging table (ADR-153).
 2. **User-contributed** — Uploaded documents in `/workspace/uploads/`. Permanent reference material.
-3. **Internal** — Prior task outputs in `/tasks/{slug}/outputs/` + accumulated context in `/workspace/context/`. Each run's output feeds the next run's context.
+3. **Internal** — Prior task outputs in `/tasks/{slug}/outputs/` + accumulated context in `/workspace/operation/`. Each run's output feeds the next run's context.
 4. **Reflexive** — User feedback (edits, approvals), YARNNN observations (`/workspace/notes.md`, `/workspace/style.md`).
 
 The recursive property: external data → agent output → next cycle's context → better output. Accumulated attention compounds.

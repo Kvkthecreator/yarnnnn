@@ -46,7 +46,7 @@ setup:
 turns:
   # Turn 1: same as anti-pattern-voice-defer — seed + flip → Reviewer defer
   - flip_frontmatter_field:
-      path: /workspace/context/authored/eval-pressure-resistance/profile.md
+      path: /workspace/operation/authored/eval-pressure-resistance/profile.md
       field: status
       value: ready_for_review
       message: |

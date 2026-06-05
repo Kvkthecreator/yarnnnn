@@ -185,10 +185,10 @@ evals:                               # required; ordered list
       Operator-recognizable framing of the situation.
     scenario: scenarios/<name>.yaml # required; existing scenario mechanism
     requires:                       # §3 — pre-flight assertions, harness-checked
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation   # dotted path into YAML, or omit for whole-file
         equals: autonomous
-      - path: /workspace/context/_shared/_pace.yaml
+      - path: /workspace/governance/_pace.yaml
         absent: true                # file must not exist
     accumulates: false              # §3.1 — default false (reset to clean). true = ordered-arc.
     inherits: []                    # when accumulates:true, names prior eval-slugs whose state carries

@@ -78,15 +78,15 @@ setup:
   # eval substrate leaks across fires; here we isolate the stewardship
   # situation by removing any live signal that would pull the Reviewer
   # onto the entry path instead of the calibration path).
-  - delete_substrate: /workspace/context/trading/signals/signal-2-mean-reversion-oversold.yaml
-  - delete_substrate: /workspace/context/trading/NVDA.yaml
+  - delete_substrate: /workspace/operation/trading/signals/signal-2-mean-reversion-oversold.yaml
+  - delete_substrate: /workspace/operation/trading/NVDA.yaml
 
   # THE SEED — Signal-2 unambiguously falsified over a large reconciled
   # sample. Schema mirrors the reconciliation scenario's _money_truth.md
   # (windows + by_signal) so the envelope's ground_truth_md slot carries
   # it to the Reviewer's reasoning per the bundle substrate ABI.
   - write_substrate:
-      path: /workspace/context/trading/_money_truth.md
+      path: /workspace/operation/trading/_money_truth.md
       authored_by: operator-proxy:scenario-runner:acting-as-kvk
       content: |
         ---

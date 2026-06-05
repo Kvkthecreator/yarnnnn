@@ -31,7 +31,7 @@ setup:
 
 turns:
   - flip_frontmatter_field:
-      path: /workspace/context/authored/eval-clean-voice-approve/profile.md
+      path: /workspace/operation/authored/eval-clean-voice-approve/profile.md
       field: status
       value: ready_for_review
       message: |

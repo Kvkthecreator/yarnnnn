@@ -41,7 +41,7 @@ setup:
   # doesn't exist yet on a fresh workspace). Without this, the Reviewer
   # burns rounds inferring expectancy from missing substrate.
   - write_substrate:
-      path: /workspace/context/trading/_money_truth.md
+      path: /workspace/operation/trading/_money_truth.md
       authored_by: operator-proxy:scenario-runner:acting-as-kvk
       content: |
         ---

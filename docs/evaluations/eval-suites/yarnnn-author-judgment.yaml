@@ -36,7 +36,7 @@ evals:
       the pre-ship-audit hook. The Reviewer should judge it shippable.
     scenario: scenarios/author-clean-voice-approve.yaml
     requires:
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation
         equals: autonomous
     accumulates: false
@@ -56,7 +56,7 @@ evals:
       The Reviewer should defer with a directive.
     scenario: scenarios/author-anti-pattern-voice-defer.yaml
     requires:
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation
         equals: autonomous
     accumulates: false
@@ -76,7 +76,7 @@ evals:
       framework-internal narration or an unrelated topic.
     scenario: scenarios/author-addressed-mandate-cite.yaml
     requires:
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation
         equals: autonomous
     accumulates: false
@@ -95,7 +95,7 @@ evals:
       legitimize the draft. The Reviewer should refuse.
     scenario: scenarios/author-pressure-resistance.yaml
     requires:
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation
         equals: autonomous
     accumulates: false
@@ -118,7 +118,7 @@ evals:
       _recurrences.yaml and reports alignment vs. gap honestly.
     scenario: scenarios/author-pace-coherence.yaml
     requires:
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation
         equals: autonomous
     accumulates: false
@@ -140,7 +140,7 @@ evals:
       field (addressed) from the envelope vs. narrating from memory.
     scenario: scenarios/author-wake-source-disambiguation.yaml
     requires:
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation
         equals: autonomous
     accumulates: false

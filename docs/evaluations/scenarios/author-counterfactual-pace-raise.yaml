@@ -41,7 +41,7 @@ setup: []
 turns:
   # Turn 1: operator-proxy seeds _pace.yaml at hourly
   - write_substrate:
-      path: /workspace/context/_shared/_pace.yaml
+      path: /workspace/governance/_pace.yaml
       authored_by: operator-proxy:claude-opus-4-7:acting-as-yarnnn-author
       message: |
         counterfactual eval — PACE-raise: seed _pace.yaml at kind:hourly
@@ -49,7 +49,7 @@ turns:
         the seeded pace on next wake AND adjusts Schedule() proposal
         cadence to honor the new budget.
       content: |
-        # /workspace/context/_shared/_pace.yaml — operator pace declaration (ADR-298 D11)
+        # /workspace/governance/_pace.yaml — operator pace declaration (ADR-298 D11)
         #
         # Counterfactual eval seed 2026-05-27: raised from implicit
         # daily (bundle minimum_pace=daily, no prior file) to explicit

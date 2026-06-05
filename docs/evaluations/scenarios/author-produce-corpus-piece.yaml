@@ -13,7 +13,7 @@ description: |
   "prove it THEN ensure the write on some qualitative artifact also validated /
   produced"): the pass is NOT "the Reviewer narrated a draft" — it is a real
   workspace_file_versions revision at
-  /workspace/context/authored/{slug}/content.md carrying YARNNN-corpus prose,
+  /workspace/operation/authored/{slug}/content.md carrying YARNNN-corpus prose,
   attributed reviewer:ai:*, that hits the _voice.md fingerprint + _editorial.md
   criteria. An empty/refused/narrate-only turn is NOT a pass — the artifact must
   exist on disk.
@@ -40,7 +40,7 @@ setup:
   # authority (the eval-suite establish_field_equals also enforces this via
   # requires:, but the scenario declares it for standalone-run honesty).
   - write_substrate:
-      path: /workspace/context/_shared/_autonomy.yaml
+      path: /workspace/governance/_autonomy.yaml
       authored_by: operator-proxy:scenario-runner:acting-as-yarnnn-author
       message: "author-produce-corpus-piece: establish autonomous for full authoring authority"
       content: |
@@ -68,7 +68,7 @@ turns:
       authority to write it.
 
       Draft the actual prose — not an outline, not a plan, the real piece. Write
-      it to /workspace/context/authored/moat-thesis/content.md (and a profile.md
+      it to /workspace/operation/authored/moat-thesis/content.md (and a profile.md
       with status: draft if you need the scaffold). Hit the _voice.md fingerprint
       (claim-first, em-dash-fluent, anti-slop floor non-negotiable) and the
       _editorial.md criteria (on-thesis, architecture-grounded — cite the real

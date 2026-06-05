@@ -34,9 +34,9 @@ turns:
   - send_message: |
       Reviewer, quick cadence audit: is your current scheduled-recurrence
       set (per /workspace/_recurrences.yaml) aligned with operator
-      cadence preferences (per /workspace/context/_shared/_preferences.yaml)
-      within the operator-declared pace budget (per /workspace/context/
-      _shared/_pace.yaml)?
+      cadence preferences (per /workspace/governance/_preferences.yaml)
+      within the operator-declared pace budget (per /workspace/
+      governance/_pace.yaml)?
 
       Report:
       1. Are all preference deliverables (active: true) actually scheduled?

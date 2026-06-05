@@ -204,10 +204,10 @@ The property unlocks a class of reads that were previously unavailable or expens
 The compact index (ADR-159) today shows YARNNN the *shape* of the substrate. Authored Substrate adds a revision column at near-zero token cost:
 
 ```
-/workspace/context/_shared/MANDATE.md (2.1KB, r3, operator · 2d ago)
-/workspace/context/trading/_operator_profile.md (4.3KB, r7, operator · 4h ago)
-/workspace/context/trading/_money_truth.md (1.8KB, r142, system:outcome-reconciliation · 1h ago)
-/workspace/review/decisions.md (12KB, r88, reviewer:ai-sonnet-v1 · 3h ago)
+/workspace/constitution/MANDATE.md (2.1KB, r3, operator · 2d ago)
+/workspace/operation/trading/_operator_profile.md (4.3KB, r7, operator · 4h ago)
+/workspace/operation/trading/_money_truth.md (1.8KB, r142, system:outcome-reconciliation · 1h ago)
+/workspace/persona/judgment_log.md (12KB, r88, reviewer:ai-sonnet-v1 · 3h ago)
 ```
 
 This is ~30 tokens extra per workspace for dramatically richer situational awareness. YARNNN now knows *what was just touched, by whom, how many times* — the ambient signal that was previously only extractable by reading files.

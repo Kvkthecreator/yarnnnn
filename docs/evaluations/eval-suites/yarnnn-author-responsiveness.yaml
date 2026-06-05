@@ -58,10 +58,10 @@ evals:
       cites the NEW clause when probed.
     scenario: scenarios/author-counterfactual-mandate-tightening.yaml
     requires:
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation
         equals: autonomous
-      - path: /workspace/context/_shared/MANDATE.md
+      - path: /workspace/constitution/MANDATE.md
         not_contains: "single declarative claim"   # the new clause must NOT pre-exist
     accumulates: false          # eval 1 of the arc starts clean
     prior: |
@@ -79,7 +79,7 @@ evals:
       bounded gate. Inherits the tightened MANDATE from eval 1.
     scenario: scenarios/author-counterfactual-autonomy-flip.yaml
     requires:
-      - path: /workspace/context/_shared/MANDATE.md
+      - path: /workspace/constitution/MANDATE.md
         contains: "single declarative claim"        # eval 1's mutation is present
     accumulates: true
     inherits: [counterfactual-mandate-tightening]
@@ -106,7 +106,7 @@ evals:
       Inherits MANDATE-tightened (1) + AUTONOMY=bounded (2).
     scenario: scenarios/author-counterfactual-pace-raise.yaml
     requires:
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation
         equals: bounded                              # eval 2's flip is present
     accumulates: true
@@ -130,10 +130,10 @@ evals:
       prior mutations — the strongest cross-mutation read in the suite.
     scenario: scenarios/author-counterfactual-preferences-add.yaml
     requires:
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation
         equals: bounded                              # eval 2's flip
-      - path: /workspace/context/_shared/_pace.yaml
+      - path: /workspace/governance/_pace.yaml
         field: kind
         equals: hourly                               # eval 3's raise
     accumulates: true

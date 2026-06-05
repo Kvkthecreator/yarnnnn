@@ -99,8 +99,8 @@ Read these in order before doing anything else:
 
 Optional / on-demand:
 - `docs/programs/alpha-trader/reference-workspace/_recurrences.yaml` — full mechanical + judgment recurrence shape
-- `docs/programs/alpha-trader/reference-workspace/review/principles.md` — hardened with ADR-295 D6
-- `docs/programs/alpha-trader/reference-workspace/context/trading/_risk.md` — risk envelope (the capital-path safety floor)
+- `docs/programs/alpha-trader/reference-workspace/persona/principles.md` — hardened with ADR-295 D6
+- `docs/programs/alpha-trader/reference-workspace/operation/trading/_risk.md` — risk envelope (the capital-path safety floor)
 - `api/services/risk_gate.py` — execution-time risk validation (the failsafe between Reviewer approve and Alpaca submit)
 
 ## What you are allowed to do in this thread (Hat B — External Developer)
@@ -145,7 +145,7 @@ Snapshot folder naming: `docs/evaluations/{YYYY-MM-DD-HHMMSS}-{persona-slug}-aut
 
 **Did the system fire signals on its own?**
 - `execution_events` rows for `signal-evaluation` with `trigger_type='scheduled'`
-- Substrate writes to `/workspace/context/trading/signals/{slug}.yaml`
+- Substrate writes to `/workspace/operation/trading/signals/{slug}.yaml`
 
 **Did any signal produce a proposal?**
 - `action_proposals` rows since T0 with the persona's `user_id`
@@ -161,7 +161,7 @@ Snapshot folder naming: `docs/evaluations/{YYYY-MM-DD-HHMMSS}-{persona-slug}-aut
 - Proposal status: `pending` = Reviewer didn't approve (deferred), proposal sat in operator Queue
 
 **Did outcome-reconciliation update `_money_truth.md`?**
-- Daily 05:00 UTC fire should write `/workspace/context/trading/_money_truth.md` with rolling expectancy + by_signal attribution
+- Daily 05:00 UTC fire should write `/workspace/operation/trading/_money_truth.md` with rolling expectancy + by_signal attribution
 - If the workspace has zero closed trades: expected stub state, not a failure
 
 **Did the Reviewer attempt operator-canon edits?**
@@ -205,7 +205,7 @@ Don't blur 2 and 4. The discipline is what makes the boundary real.
 
 ```bash
 # Check Alpaca paper account state (read-only)
-psql "<conn-string>" -c "SELECT content FROM workspace_files WHERE user_id = '<user-id>' AND path = '/workspace/context/portfolio/_account.yaml';"
+psql "<conn-string>" -c "SELECT content FROM workspace_files WHERE user_id = '<user-id>' AND path = '/workspace/operation/portfolio/_account.yaml';"
 
 # Check recent recurrence fires
 psql "<conn-string>" -c "SELECT slug, mode, trigger_type, status, created_at FROM execution_events WHERE user_id = '<user-id>' ORDER BY created_at DESC LIMIT 30;"
@@ -214,8 +214,8 @@ psql "<conn-string>" -c "SELECT slug, mode, trigger_type, status, created_at FRO
 psql "<conn-string>" -c "SELECT id, action_type, status, execution_result, created_at FROM action_proposals WHERE user_id = '<user-id>' ORDER BY created_at DESC LIMIT 10;"
 
 # Confirm AUTONOMY mode + risk envelope
-psql "<conn-string>" -c "SELECT substring(content from 'delegation: [a-z]*') FROM workspace_files WHERE user_id = '<user-id>' AND path = '/workspace/context/_shared/_autonomy.yaml';"
-psql "<conn-string>" -c "SELECT substring(content from 1 for 400) FROM workspace_files WHERE user_id = '<user-id>' AND path = '/workspace/context/trading/_risk.md';"
+psql "<conn-string>" -c "SELECT substring(content from 'delegation: [a-z]*') FROM workspace_files WHERE user_id = '<user-id>' AND path = '/workspace/governance/_autonomy.yaml';"
+psql "<conn-string>" -c "SELECT substring(content from 1 for 400) FROM workspace_files WHERE user_id = '<user-id>' AND path = '/workspace/operation/trading/_risk.md';"
 ```
 
 ## Glossary discipline reminders

@@ -42,9 +42,9 @@ Update this table when a new demo window opens on any persona.
 **Demo window**: 2026-05-20T03:43Z (T0) onwards
 **Next anchored capture**: post-`outcome-reconciliation` (next scheduled 2026-05-20T05:00Z — ~51 min after T0 per the T+~26m liveness check)
 **Subsequent**: post-`corpus-coherence-check` (~2026-05-21T12:00Z, Thu) + T+1week wall-clock (~2026-05-27T03:43Z)
-**`pre-ship-audit` status (UPDATED 2026-05-22)**: Now wired via **ADR-296 v2 D2 substrate-event hook** at `/workspace/_hooks.yaml`. Bundle ships the hook (path_match `/workspace/context/authored/*/profile.md`, field_change `status: ready_for_review`). Operator transition `profile.md` `status` `draft` → `ready_for_review` causes next scheduler tick to enqueue a `substrate_event` wake; under ADR-298 Phase 3 the wake routes through `wake_queue` and drains to the Reviewer on `lane=live`. Validated end-to-end on N=1 in [`archive/2026-05-22-020000-canary-v5-adr298-cutover/`](../archive/2026-05-22-020000-canary-v5-adr298-cutover/) — every layer L1→L5 passed; L6 (Reviewer substrate writes) blocked only by negative balance on the test workspace. L6 closure subsequently observed and validated across multiple wakes (3-of-4 substrate_event reactive wakes since 2026-05-22 produced clean Reviewer writes; the lone outlier was the 2026-05-24T05:38Z canary-RED, see `2026-05-24-054214-adr299-phase4-canary-red/`).
+**`pre-ship-audit` status (UPDATED 2026-05-22)**: Now wired via **ADR-296 v2 D2 substrate-event hook** at `/workspace/_hooks.yaml`. Bundle ships the hook (path_match `/workspace/operation/authored/*/profile.md`, field_change `status: ready_for_review`). Operator transition `profile.md` `status` `draft` → `ready_for_review` causes next scheduler tick to enqueue a `substrate_event` wake; under ADR-298 Phase 3 the wake routes through `wake_queue` and drains to the Reviewer on `lane=live`. Validated end-to-end on N=1 in [`archive/2026-05-22-020000-canary-v5-adr298-cutover/`](../archive/2026-05-22-020000-canary-v5-adr298-cutover/) — every layer L1→L5 passed; L6 (Reviewer substrate writes) blocked only by negative balance on the test workspace. L6 closure subsequently observed and validated across multiple wakes (3-of-4 substrate_event reactive wakes since 2026-05-22 produced clean Reviewer writes; the lone outlier was the 2026-05-24T05:38Z canary-RED, see `2026-05-24-054214-adr299-phase4-canary-red/`).
 **AUTONOMY mode**: `autonomous`
-**First seeded piece**: `/workspace/context/authored/governance-as-trust/` (status: `ready_for_review`)
+**First seeded piece**: `/workspace/operation/authored/governance-as-trust/` (status: `ready_for_review`)
 **Latest observation folder**: `docs/evaluations/2026-05-25-053951-reviewer-behavior-population-audit/` (load-bearing — N=27 judgment-shape wakes characterization, 48% persona-frame adherence, 11 silent wakes reproducing canary-RED pattern; engagement set R1–R5 queued for operator decision). Earlier: `docs/evaluations/2026-05-25-042827-clarify-silenced-from-feed/` (Clarify silenced from Feed surface — Hat-B finding) + `docs/evaluations/2026-05-25-042647-cross-session-substrate-verification/` (cross-session substrate verification). T0 baseline preserved at `docs/evaluations/archive/2026-05-20-034317-yarnnn-author-autonomy-demonstration-T0/`.
 
 ## Cold-start checklist (when you open a new Claude session for this thread)
@@ -60,7 +60,7 @@ Read these in order before doing anything else:
 
 Optional / on-demand:
 - `docs/programs/alpha-author/reference-workspace/_recurrences.yaml` — what the system will fire on its own
-- `docs/programs/alpha-author/reference-workspace/review/principles.md` — what discipline the Reviewer reads
+- `docs/programs/alpha-author/reference-workspace/persona/principles.md` — what discipline the Reviewer reads
 - `docs/programs/alpha-author/MANIFEST.yaml` — bundle metadata
 
 ## What you are allowed to do in this thread (Hat B — External Developer)
@@ -113,7 +113,7 @@ When reading the captured artifacts at T+24h / T+48h:
 
 **Did the Reviewer fire?**
 - Any new revisions with `authored_by: reviewer:*` since T0? If yes, system is alive.
-- Which paths? `review/judgment_log.md` + `review/standing_intent.md` are the canonical Reviewer-authored signals.
+- Which paths? `persona/judgment_log.md` + `persona/standing_intent.md` are the canonical Reviewer-authored signals.
 
 **What did the Reviewer do on the seeded `ready_for_review` piece?**
 - Approve / defer / reject verdict in `judgment_log.md`
@@ -171,7 +171,7 @@ psql "<conn-string-from-docs/database/ACCESS.md>" -c "SELECT count(*) FROM works
 psql "<conn-string>" -c "SELECT path, authored_by, created_at FROM workspace_file_versions WHERE user_id = '<user-id>' ORDER BY created_at DESC LIMIT 20;"
 
 # Confirm AUTONOMY mode
-psql "<conn-string>" -c "SELECT substring(content from 'delegation: [a-z]*') FROM workspace_files WHERE user_id = '<user-id>' AND path = '/workspace/context/_shared/_autonomy.yaml';"
+psql "<conn-string>" -c "SELECT substring(content from 'delegation: [a-z]*') FROM workspace_files WHERE user_id = '<user-id>' AND path = '/workspace/governance/_autonomy.yaml';"
 
 # Capture T+N snapshot — adapt /tmp/capture_t0.py from the original setup
 .venv/bin/python /path/to/capture_tN.py

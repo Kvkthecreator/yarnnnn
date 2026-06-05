@@ -46,7 +46,7 @@ setup:
   - fire: track-regime
 
   - write_substrate:
-      path: /workspace/context/trading/_money_truth.md
+      path: /workspace/operation/trading/_money_truth.md
       authored_by: operator-proxy:scenario-runner:acting-as-kvk
       content: |
         ---

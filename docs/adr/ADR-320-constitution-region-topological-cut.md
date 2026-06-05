@@ -124,7 +124,17 @@ One `persona/` per workspace (one judgment seat), many `operation/{domain}/`. A 
 | `operation/` | `~/Documents/` + project working dirs | user + apps (the commons) |
 | `system/` | `/var/lib/{service}` + `/tmp` | OS-managed runtime state |
 
-The five-root split is **more OS-faithful than the status quo** (which co-locates `/etc`-class, `~/.config`-class, and `~/Documents`-class in `context/_shared/` — something no OS does). `_is_path_locked(caller, path)` is `access(2)`; the per-caller prefix table is the (owner, group, other) × (r,w) matrix. The OS analogy does not merely *permit* this topology — it *predicts* it.
+The five-root split is **more OS-faithful than the status quo** (which co-locates `/etc`-class, `~/.config`-class, and `~/Documents`-class in `context/_shared/` — something no OS does). `_is_path_locked(caller, path)` is `access(2)`; the per-caller prefix table is the (owner, group, other) × (r,w) matrix. The OS analogy strongly *motivates* this topology (it makes the five-root shape the natural, low-surprise choice) — though it does not strictly *derive* it; D1 selected five over two live rivals (see the claim-tiering note below).
+
+## Claim tiering (what is forced vs. chosen — added 2026-06-05 per parallel-review Finding 1)
+
+"Axiomatic" was overclaimed in the framing. The honest decomposition, so future pushback on *cardinality* and *boundary placement* is not foreclosed by false necessity:
+
+- **AXIOMATIC (forced by Axiom 1 + Axiom 2)**: that *a* filesystem boundary between identity-substrate and operation-substrate must exist. The 2-way person ⊥ operation cut is genuinely required — the filesystem cannot blur an orthogonality the axioms declare (discourse §2.3). This part is non-negotiable.
+- **DERIVED-PRINCIPLE-GROUNDED (forced by DP16 OS-framing — a *chosen frame*, not an axiom)**: topological permission (`access(2)`); `system/` as a distinct non-identity root (Axiom 2 / ADR-257). Sound while we hold the OS framing; revisable if the framing is ever revised.
+- **DESIGN CHOICE (selected, not forced — the ADR's own word is "Decisions")**: *exactly five* roots; the 3-way split of the person side (governance / constitution / persona — motivated by the write-permission gradient as an `access(2)` elegance goal); and the boundary placements D2 (PRECEDENT → constitution), D8 (`_voice.md` → operation), D6 (`calibration.md` cross-class write), D2b (operator-identity collapse → persona). These are defensible and stress-tested, but they are choices open to redesign without violating an axiom.
+
+The cut is non-negotiable; the cardinality (2 / 3 / 5) and the boundary placements are design decisions. DP25's "topology IS the permission policy" claim is DP-grounded (the OS frame), not axiomatic — Axiom 1+2 force only the 2-way cut.
 
 ---
 

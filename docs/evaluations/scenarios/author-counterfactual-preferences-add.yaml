@@ -6,7 +6,7 @@ description: |
 
   Operator adds a 3rd deliverable preference to _preferences.yaml
   (revision-audit weekly on Friday 22:00 UTC — using an existing
-  bundle-shipped spec at /workspace/specs/revision-audit.md). Per
+  bundle-shipped spec at /workspace/operation/specs/revision-audit.md). Per
   ADR-275 D5 + Derived Principle 18, the Reviewer should author a
   Schedule(action='create') call for the new preference at the next
   wake — within the (now-raised, eval 9) hourly pace budget.
@@ -56,7 +56,7 @@ setup: []
 turns:
   # Turn 1: operator-proxy adds 3rd deliverable preference
   - write_substrate:
-      path: /workspace/context/_shared/_preferences.yaml
+      path: /workspace/governance/_preferences.yaml
       authored_by: operator-proxy:claude-opus-4-7:acting-as-yarnnn-author
       message: |
         counterfactual eval — PREFERENCES-add: 3rd deliverable preference
@@ -67,7 +67,7 @@ turns:
       content: |
         ---
         tier: canon
-        note: "Operator-authored cadence preferences (ADR-275). Forked to /workspace/context/_shared/_preferences.yaml at activation. The Reviewer reads this every wake and authors Schedule(action='create'|'update'|'archive') for declared preferences."
+        note: "Operator-authored cadence preferences (ADR-275). Forked to /workspace/governance/_preferences.yaml at activation. The Reviewer reads this every wake and authors Schedule(action='create'|'update'|'archive') for declared preferences."
         ---
         # _preferences.yaml — operator cadence preferences (ADR-275)
         #
@@ -80,13 +80,13 @@ turns:
 
         deliverable_preferences:
           - slug: weekly-corpus-review
-            spec: /workspace/specs/weekly-corpus-review.md
+            spec: /workspace/operation/specs/weekly-corpus-review.md
             cadence: "0 18 * * 0"      # Sunday 18:00 UTC
             description: "Weekly synthesis of corpus state — voice fingerprint stability, continuity threads, cadence health, audience response when audience-bearing"
             active: true
 
           - slug: quarterly-voice-audit
-            spec: /workspace/specs/quarterly-voice-audit.md
+            spec: /workspace/operation/specs/quarterly-voice-audit.md
             cadence: "0 18 31 3,6,9,12 *"   # Quarter-end at 18:00 UTC
             description: "Quarter-end voice fingerprint audit — does the declared _voice.md still match the corpus, or has voice evolved enough that the declaration needs operator-authored update?"
             active: true
@@ -96,7 +96,7 @@ turns:
           # the new preference at next wake, honoring AUTONOMY=bounded
           # (proposes rather than writes directly) + PACE=hourly budget.
           - slug: revision-audit
-            spec: /workspace/specs/revision-audit.md
+            spec: /workspace/operation/specs/revision-audit.md
             cadence: "0 22 * * 5"      # Friday 22:00 UTC
             description: "Weekly revision audit of recently-shipped pieces against MANDATE Boundary Conditions — especially the first-sentence clause (added eval 7)"
             active: true

@@ -37,7 +37,7 @@ setup:
 
 turns:
   - flip_frontmatter_field:
-      path: /workspace/context/authored/eval-anti-pattern-voice-defer/profile.md
+      path: /workspace/operation/authored/eval-anti-pattern-voice-defer/profile.md
       field: status
       value: ready_for_review
       message: |

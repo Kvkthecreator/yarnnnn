@@ -27,17 +27,17 @@ Sibling to [orchestration.md](orchestration.md): where `orchestration.md` is the
 
 The **seat** (the Reviewer Agent's architectural role) is interchangeable between occupant classes — human, YARNNN-internal AI, external AI service — without architectural change. The architectural value compounds in the **seat's substrate** (what it reads and writes) and the **accumulated calibration** over tenure, not in the **occupant** (who happens to be rendering verdicts this cycle). This is Derived Principle 14 ("Agent seats persist; occupants rotate") applied to its canonical case.
 
-The Reviewer is the **sole systemic persona-bearing Agent in YARNNN today** (see [LAYER-MAPPING.md](LAYER-MAPPING.md) + [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 2). YARNNN itself is the orchestration chat surface, not a persona-bearing Agent. Future persona-bearing Agents (Auditor, Advocate, etc.) would live alongside the Reviewer as parallel systemic seats at `/workspace/{role}/`.
+The Reviewer is the **sole systemic persona-bearing Agent in YARNNN today** (see [LAYER-MAPPING.md](LAYER-MAPPING.md) + [FOUNDATIONS.md](FOUNDATIONS.md) Axiom 2). YARNNN itself is the orchestration chat surface, not a persona-bearing Agent. The seat lives at `/workspace/persona/` (ADR-320 re-rooting; one persona per workspace per ADR-320 D9). Future persona-bearing Agents (Auditor, Advocate, etc.) are deferred — D9 confirms a single judgment seat per workspace spanning all operations.
 
 ---
 
 ## The six seat files
 
-The Reviewer seat is expressed as a filesystem subtree at `/workspace/review/`. The substrate is the seat: there is no in-memory abstraction that persists between verdicts, no parallel config table, no reviewer ABC. Every aspect of the seat — who occupies it, what principles it judges by, how it has calibrated, what it has decided — lives in files. Delegation authority is read alongside the seat from `/workspace/context/_shared/AUTONOMY.md`, but it is **not** a seat-owned file.
+The Reviewer seat is expressed as a filesystem subtree at `/workspace/persona/` (re-rooted from `/workspace/review/` by ADR-320 — the directory `persona/` names the detached judge regardless of what the entity is eventually called). The substrate is the seat: there is no in-memory abstraction that persists between verdicts, no parallel config table, no reviewer ABC. Every aspect of the seat — who occupies it, what principles it judges by, how it has calibrated, what it has decided — lives in files. Delegation authority is read alongside the seat from `/workspace/governance/AUTONOMY.md`, but it is **not** a seat-owned file (`governance/` is the operator-only ceiling root the seat runs under but cannot set).
 
 ### `IDENTITY.md` — who the seat is
 
-Persona-agnostic statement of the role. What the seat is for, what its scope is, what its reasoning posture is. This file describes the *role*, not the occupant. It is largely static after scaffolding and edited rarely.
+Persona-agnostic statement of the role. What the seat is for, what its scope is, what its reasoning posture is. This file describes the *role*, not the occupant. It is largely static after scaffolding and edited rarely. Per ADR-320 D2b the legacy operator-identity file (the operator's operating posture) collapsed into this one — the operator's reasoning-character and the embodied judge persona are the same reasoning-character described twice, so there is no separate `context/_shared/IDENTITY.md`; `persona/IDENTITY.md` is the singular home for "how this operator's judgment reasons."
 
 *Written by*: operator (at scaffold time and on rare revisions).
 
@@ -72,12 +72,12 @@ Numeric thresholds per program live in `_principles.yaml` (ADR-254 machine-parse
 
 *Written by*: operator.
 
-### Read alongside the seat: `/workspace/context/_shared/AUTONOMY.md`
+### Read alongside the seat: `/workspace/governance/AUTONOMY.md`
 
-Autonomy declaration is no longer owned by the Reviewer seat. ADR-217 moved it to shared operator-intent substrate:
+Autonomy declaration is no longer owned by the Reviewer seat. ADR-217 moved it to shared operator-intent substrate; ADR-320 re-rooted it to the `governance/` ceiling root:
 
-- **Prose path**: `/workspace/context/_shared/AUTONOMY.md` (LLM/human reading only)
-- **Machine config path**: `/workspace/context/_shared/_autonomy.yaml` (ADR-254 + Commit F)
+- **Prose path**: `/workspace/governance/AUTONOMY.md` (LLM/human reading only)
+- **Machine config path**: `/workspace/governance/_autonomy.yaml` (ADR-254 + Commit F)
 - **Author**: operator only (or YARNNN on explicit operator instruction)
 - **Meaning**: workspace-scoped delegation ceiling, with `default` + per-domain overrides. Field `delegation` ∈ `{manual, bounded, autonomous}` (Commit F 2026-05-11 — 3-value canonical enum) plus optional `ceiling_cents` (required when `bounded`) and `never_auto`
 
@@ -238,7 +238,7 @@ Examples:
 - **Not a safety layer.** Safety layers reject bad things. The Reviewer layer makes *judgments* — approve, reject, defer — against declared principles. Safety is one of many possible framings of what a judgment evaluates; the seat is general over all of them.
 - **Not coupled to proposal review exclusively.** Today the seat's primary action is rendering verdicts on `action_proposals`. The substrate supports the seat taking a broader judgment role (evaluating accumulated context for stale entries, flagging drift in domain principles, etc.) without architectural change. The proposal-review action is the first use case, not the only one.
 - **Not a human-in-the-loop feature.** Human-in-the-loop frames AI as primary and human as safety net. The Reviewer seat is primary; the occupant (human or AI) fills it. The loop is not about human oversight — it is about independent judgment with occupant-interchangeable rendering.
-- **Not an ABC, interface, or pluggable abstraction in code.** Per ADR-194 v2 retraction of v1 (preserved by ADR-315 D1), the seat is substrate — the files at `/workspace/review/` — not an in-memory abstraction. Occupant rotation is a file write, not a dependency injection. (The *occupant* is a contract-bounded module per ADR-315 D2, but the boundary is a *data* contract over substrate, not an OO abstraction over the seat.)
+- **Not an ABC, interface, or pluggable abstraction in code.** Per ADR-194 v2 retraction of v1 (preserved by ADR-315 D1), the seat is substrate — the files at `/workspace/persona/` — not an in-memory abstraction. Occupant rotation is a file write, not a dependency injection. (The *occupant* is a contract-bounded module per ADR-315 D2, but the boundary is a *data* contract over substrate, not an OO abstraction over the seat.)
 - **Not identical with review orchestration.** The orchestration is plumbing; the reviewer entity is where agency lives. See "Review orchestration vs. reviewer entity — the split" above.
 
 ---
@@ -249,7 +249,7 @@ Examples:
 - [reviewer-occupant-contract.md](reviewer-occupant-contract.md) — the published ABI between this seat (substrate) and the occupant (module): `ReviewerContext` / `ReviewerOutput` / `invoke_reviewer` / the kernel-side envelope assembler.
 - [THESIS.md](THESIS.md) — second architectural commitment ("Independent judgment — the reviewer is a durable role, not a safety feature") states the philosophical claim. This document specifies the substrate expression of that claim.
 - [FOUNDATIONS.md](FOUNDATIONS.md) — Axiom 1 (Substrate) requires the seat be filesystem-expressed; Axiom 2 (Identity) establishes Reviewer as the fourth cognitive layer; Derived Principle 14 ("Roles persist; occupants rotate") makes occupant-interchangeability structurally enforceable.
-- [authored-substrate.md](authored-substrate.md) — every write to `/workspace/review/` (including `decisions.md` append, `OCCUPANT.md` rotation, `handoffs.md` entry) flows through the Authored Substrate with required `authored_by` attribution.
+- [authored-substrate.md](authored-substrate.md) — every write to `/workspace/persona/` (including `judgment_log.md` append, `OCCUPANT.md` rotation, `handoffs.md` entry) flows through the Authored Substrate with required `authored_by` attribution.
 - [ADR-194 v2](../adr/ADR-194-pluggable-reviewer-and-impersonation.md) — current implementation. Phases 1 + 2a + 2b + 3 shipped.
 - [ADR-195 v2](../adr/ADR-195-outcome-attribution-substrate.md) — money-truth substrate that calibration.md reads from.
 - [ADR-315](../adr/ADR-315-reviewer-occupant-contract.md) — seat ≠ occupant; the carve that produced this document split.

@@ -27,7 +27,7 @@ description: |
   matching `ticker.upper()` (the 2026-06-04 casing race — a lowercase seed
   landed where signal-evaluation never read it), the fields match the
   writer exactly (price/sma_*/rsi_14/atr_14/volume_20d_avg per
-  specs/ticker-snapshot.md), and the eval is fired OUTSIDE RTH snapshot
+  operation/specs/ticker-snapshot.md), and the eval is fired OUTSIDE RTH snapshot
   windows. A stand-down claiming "no match" is therefore a fixture finding
   (the seed got clobbered or the rule didn't actually fire), NOT a Reviewer
   gap — interpret accordingly.
@@ -68,13 +68,13 @@ setup:
   # signal-evaluation reads UPPERCASE, so the lowercase seed was never read
   # AND lingered as a confusing shadow. Delete it before seeding so this
   # scenario can never be confused by a casing shadow regardless of history.
-  - delete_substrate: /workspace/context/trading/nvda.yaml
+  - delete_substrate: /workspace/operation/trading/nvda.yaml
 
   # Seed a coherent NVDA snapshot that genuinely satisfies Signal 2.
-  # UPPERCASE filename + writer-exact fields (specs/ticker-snapshot.md);
+  # UPPERCASE filename + writer-exact fields (operation/specs/ticker-snapshot.md);
   # see the §0.2 fixture caveat above for why this seed is bounded-fragile.
   - write_substrate:
-      path: /workspace/context/trading/NVDA.yaml
+      path: /workspace/operation/trading/NVDA.yaml
       authored_by: operator-proxy:scenario-runner:acting-as-kvk
       content: |
         ticker: NVDA
@@ -89,7 +89,7 @@ setup:
 
   # Seed reconciled performance so Signal-2 capital-EV reasoning has data.
   - write_substrate:
-      path: /workspace/context/trading/_money_truth.md
+      path: /workspace/operation/trading/_money_truth.md
       authored_by: operator-proxy:scenario-runner:acting-as-kvk
       content: |
         ---

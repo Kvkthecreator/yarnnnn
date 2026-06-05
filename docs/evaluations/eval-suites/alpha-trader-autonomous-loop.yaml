@@ -98,7 +98,7 @@ evals:
       REASONING; the tests own the mechanics. See EVAL-SUITE-DISCIPLINE §0.
     scenario: scenarios/trader-signal-fires-trade.yaml
     requires:
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation
         equals: autonomous
     accumulates: false
@@ -133,7 +133,7 @@ evals:
       moment of full autonomy.
     scenario: scenarios/warm-start-auto-execute.yaml
     requires:
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation
         equals: autonomous
     accumulates: false
@@ -165,7 +165,7 @@ evals:
       forward-looking verdict.
     scenario: scenarios/trader-reconciliation-judgment.yaml
     requires:
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation
         equals: autonomous
     accumulates: false
@@ -211,7 +211,7 @@ evals:
       artifact.
     scenario: scenarios/trader-eod-pnl-send.yaml
     requires:
-      - path: /workspace/context/_shared/_autonomy.yaml
+      - path: /workspace/governance/_autonomy.yaml
         field: default.delegation
         equals: autonomous
     accumulates: false

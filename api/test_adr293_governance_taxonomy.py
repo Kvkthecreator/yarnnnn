@@ -335,9 +335,14 @@ def test_cockpit_awareness_prompt_envelope_aligned_with_adr293():
     src = _read(_file("agents", "cockpit_awareness.py"))
 
     # Edit 1: governance-files block present in substrate list
-    assert "Governance files (locked from your runtime per ADR-293 D2)" in src, (
-        "cockpit_awareness.py substrate list must explicitly call out the "
-        "3 governance files per ADR-293 D2."
+    assert "The permission topology (ADR-320" in src, (
+        "cockpit_awareness.py substrate list must call out the permission "
+        "topology (ADR-320 five-root access(2) framing — supersedes the "
+        "pre-ADR-320 'Governance files' header)."
+    )
+    # The governance files are still named under the topology section
+    assert "governance/AUTONOMY.md" in src and "governance/_token_budget.yaml" in src, (
+        "cockpit_awareness.py must still name the governance/ ceiling files."
     )
     # Edit 1: the legacy "_locks.yaml — operator-authored access policy" line is gone
     assert "operator-authored access policy" not in src, (
@@ -393,7 +398,7 @@ def test_reviewer_agent_invoke_docstring_aligned():
 def test_alpha_trader_bundle_ships_token_budget():
     """Bundle reference-workspace MUST include _token_budget.yaml so
     program-activated workspaces inherit it via Phase 5 fork."""
-    bundle_path = _bundle("context", "_shared", "_token_budget.yaml")
+    bundle_path = _bundle("governance", "_token_budget.yaml")
     assert bundle_path.exists(), (
         f"alpha-trader bundle must ship _token_budget.yaml at {bundle_path} "
         f"per ADR-293 D7"

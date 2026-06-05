@@ -145,7 +145,7 @@ The scheduler walks `/workspace/_hooks.yaml` at every tick. For each hook, it qu
 
 ## 6. Operator preferences (the cadence-intent declaration)
 
-**`/workspace/context/_shared/_preferences.yaml`** is the operator's deliverable-cadence intent declaration — *"I want a pre-market brief at @market_open - 30min, a weekly review on Sunday 18:00 UTC, a quarterly signal audit at quarter-end."*
+**`/workspace/governance/_preferences.yaml`** is the operator's deliverable-cadence intent declaration — *"I want a pre-market brief at @market_open - 30min, a weekly review on Sunday 18:00 UTC, a quarterly signal audit at quarter-end."*
 
 ### Role in the architecture
 
@@ -166,7 +166,7 @@ Direct operator authoring of `_recurrences.yaml` was rejected because cadence is
 
 ## 7. Standing intent (the Reviewer's forward-looking state)
 
-**`/workspace/review/standing_intent.md`** (constant `REVIEW_STANDING_INTENT_PATH`) is the Reviewer's own working state — single-writer, forward-looking. Three canonical sections per ADR-284:
+**`/workspace/persona/standing_intent.md`** (constant `REVIEW_STANDING_INTENT_PATH`) is the Reviewer's own working state — single-writer, forward-looking. Three canonical sections per ADR-284:
 
 - **What I'm watching for** — substrate transitions, market conditions, operator messages the Reviewer expects to matter
 - **What would change my next move** — explicit triggers that would shift the Reviewer's posture
@@ -215,7 +215,7 @@ Both pulse files are **mechanically mirrored per scheduler tick** by `services.k
 - `operating_context_block` — `## Operating Context` block: now UTC + operator timezone + market state + workspace tenure. Composed by `services.reviewer_envelope.build_operating_context_block` (consolidated home post-ADR-301 D5; the prior `agents.reviewer_agent` location preserved as import re-export shim).
 
 **Specs inventory (program-bundled capability library)**:
-- `specs_inventory` — name + title list of `/workspace/specs/*.md` files. Bodies read on demand via `ReadFile`.
+- `specs_inventory` — name + title list of `/workspace/operation/specs/*.md` files. Bodies read on demand via `ReadFile`.
 
 Envelope load time is logged on `execution_events.envelope_load_ms` (migration 175) for capacity tuning — zero LLM cost observability.
 
@@ -309,7 +309,7 @@ Per ADR-274 + ADR-275 + ADR-296 v2 D3, the Reviewer's authority over cadence is 
 |---|---|---|
 | `/workspace/_recurrences.yaml` | `Schedule` (create/update/pause/resume/archive) | Time-driven wakes — when the Reviewer fires periodically |
 | `/workspace/_hooks.yaml` | `ManageHook` (create/update/pause/resume/archive) | Substrate-event wakes — what transitions the Reviewer watches |
-| `/workspace/review/standing_intent.md` | `WriteFile` (Reviewer-scoped) | Forward-looking working state — what the Reviewer expects to matter next |
+| `/workspace/persona/standing_intent.md` | `WriteFile` (Reviewer-scoped) | Forward-looking working state — what the Reviewer expects to matter next |
 
 **`FireInvocation` is NOT in `REVIEWER_PRIMITIVES`** (per ADR-296 v2 D3). The Reviewer cannot invoke itself ad-hoc. It can only:
 - Author future cadence (`Schedule`, `ManageHook`)
@@ -352,10 +352,10 @@ All three are Trigger-dimension concepts (Axiom 4) at different scopes. Pace is 
 |---|---|---|---|
 | `/workspace/_recurrences.yaml` | `Schedule` primitive (operator, Reviewer); bundle fork | Scheduler (`cron_tick` source), Reviewer (governance envelope), operator (read-only) | Singular cadence substrate; one execution shape via `mode` discriminator |
 | `/workspace/_hooks.yaml` | `ManageHook` primitive (operator, Reviewer); bundle fork | Scheduler (`substrate_event` source at every tick), Reviewer | Substrate-event wake declarations |
-| `/workspace/context/_shared/_preferences.yaml` | Operator only (bundle fork seeds initial) | Reviewer (governance envelope; reconciles changes) | Operator's deliverable cadence intent; Reviewer-write-locked |
-| `/workspace/review/standing_intent.md` | Reviewer (cycle terminus) | Reviewer (next wake, Tier 2 envelope) | Reviewer's forward-looking state |
-| `/workspace/context/_shared/_autonomy.yaml` | Operator only | `should_auto_execute_verdict()` gate; governance envelope | Delegation ceiling + paused state |
-| `/workspace/context/_shared/_pace.yaml` | Operator only (path in `DEFAULT_REVIEWER_WRITE_LOCKS`); bundle fork at activation seeds initial | `Schedule` primitive pace-gate (ADR-298 D5); governance envelope; `/pace` atomic surface | Workspace-wide rhythm budget — `kind` is the only operator-edited field on the surface; secondary fields routed through chat |
+| `/workspace/governance/_preferences.yaml` | Operator only (bundle fork seeds initial) | Reviewer (governance envelope; reconciles changes) | Operator's deliverable cadence intent; Reviewer-write-locked |
+| `/workspace/persona/standing_intent.md` | Reviewer (cycle terminus) | Reviewer (next wake, Tier 2 envelope) | Reviewer's forward-looking state |
+| `/workspace/governance/_autonomy.yaml` | Operator only | `should_auto_execute_verdict()` gate; governance envelope | Delegation ceiling + paused state |
+| `/workspace/governance/_pace.yaml` | Operator only (path in `DEFAULT_REVIEWER_WRITE_LOCKS`); bundle fork at activation seeds initial | `Schedule` primitive pace-gate (ADR-298 D5); governance envelope; `/pace` atomic surface | Workspace-wide rhythm budget — `kind` is the only operator-edited field on the surface; secondary fields routed through chat |
 | `execution_events` (DB, migration 177) | `services/wake.py` (every wake) | Operator queries, telemetry | Wake source + funnel decision + cost + duration |
 | `workspace_file_versions` (DB, ADR-209) | Every substrate write | Hook walker, ListRevisions/ReadRevision primitives | Attributed revision chain — provenance of every cadence change |
 

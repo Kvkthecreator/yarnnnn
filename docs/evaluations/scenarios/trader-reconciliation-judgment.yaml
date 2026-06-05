@@ -34,7 +34,7 @@ setup:
   # Seed reconciled _money_truth.md — the state the deterministic
   # reconciler would have produced. Schema per performance-rollup.md.
   - write_substrate:
-      path: /workspace/context/trading/_money_truth.md
+      path: /workspace/operation/trading/_money_truth.md
       authored_by: operator-proxy:scenario-runner:acting-as-kvk
       content: |
         ---

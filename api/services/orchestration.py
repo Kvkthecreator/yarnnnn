@@ -906,16 +906,16 @@ path_zones:
   - path: working
     role: reviewer-workbench
     purpose: ephemeral scratch (24h TTL)
-  - path: memory
+  - path: system
     role: running-narrative
     purpose: YARNNN orchestration accumulation
   - path: agents
     role: running-narrative
     purpose: per-agent substrate
-  - path: reports
+  - path: operation/reports
     role: running-narrative
     purpose: per-recurrence deliverable outputs
-  - path: operations
+  - path: operation/operations
     role: running-narrative
     purpose: per-recurrence action state
   - path: research

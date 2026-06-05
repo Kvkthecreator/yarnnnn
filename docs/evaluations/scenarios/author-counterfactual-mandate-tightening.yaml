@@ -37,7 +37,7 @@ turns:
   # Turn 1: operator-proxy mutates MANDATE.md (operator authorship —
   # the persona has full WriteFile authority on operator-canon)
   - write_substrate:
-      path: /workspace/context/_shared/MANDATE.md
+      path: /workspace/constitution/MANDATE.md
       authored_by: operator-proxy:claude-opus-4-7:acting-as-yarnnn-author
       message: |
         counterfactual eval — MANDATE-tightening: add Boundary Condition

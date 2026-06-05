@@ -104,7 +104,7 @@ The occupant never reaches around the contract to read kernel internals, and the
 
 ## What the occupant is not
 
-- **Not the seat.** The seat is substrate (`/workspace/review/*`); the occupant is a module (`reviewer_agent.py`). Rotating the occupant is a file write to `OCCUPANT.md`, not a code change. See [reviewer-seat-substrate.md](reviewer-seat-substrate.md).
+- **Not the seat.** The seat is substrate (`/workspace/persona/*`); the occupant is a module (`reviewer_agent.py`). Rotating the occupant is a file write to `OCCUPANT.md`, not a code change. See [reviewer-seat-substrate.md](reviewer-seat-substrate.md).
 - **Not an ABC or pluggable abstraction.** ADR-194 v2 retracted v1's "Reviewer ABC"; ADR-315 D1 preserved that retraction. The occupant is carved as a *data*-contract-bounded module, not an OO interface over the seat.
 - **Not the only possible occupant.** `reviewer_agent.py` implements today's `ai:reviewer-sonnet-v8`. Human occupants bypass it; external occupants are deferred (ADR-315 D6).
 - **Not free to widen autonomy.** The occupant reads `AUTONOMY.md` as a ceiling. `principles.md` may narrow; nothing the occupant does widens delegation beyond the operator's declaration (ADR-217 D4).
