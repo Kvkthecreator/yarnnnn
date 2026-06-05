@@ -198,7 +198,22 @@ class ScenarioRunner:
     # ----- step executors -----
 
     async def _execute_setup_step(self, proxy: Any, step: dict) -> None:
-        """Setup steps: fire | write_substrate. Logged but not turn-counted."""
+        """Setup steps: fire | write_substrate | delete_substrate. Logged but not turn-counted."""
+        if "delete_substrate" in step:
+            # Reset step: remove a workspace_files head row (revision chain
+            # preserved per ADR-209). Same shape establish_substrate honors —
+            # kept in lockstep so a scenario behaves identically through the
+            # run_scenario path and the eval-suite pre-flight path.
+            path = step["delete_substrate"]
+            removed = await _delete_substrate_file(proxy.config.user_id, path)
+            self.evaluations.append({
+                "phase": "setup",
+                "action": "delete_substrate",
+                "path": path,
+                "removed": removed,
+            })
+            return
+
         if "fire" in step:
             slug = step["fire"]
             # Invoke manual_fire path directly via dispatch.

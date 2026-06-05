@@ -63,6 +63,13 @@ setup:
   - fire: track-account
   - fire: track-regime
 
+  # Defensively remove any stale lowercase shadow file. The 2026-06-04 run
+  # seeded lowercase nvda.yaml while track-universe wrote UPPERCASE NVDA.yaml;
+  # signal-evaluation reads UPPERCASE, so the lowercase seed was never read
+  # AND lingered as a confusing shadow. Delete it before seeding so this
+  # scenario can never be confused by a casing shadow regardless of history.
+  - delete_substrate: /workspace/context/trading/nvda.yaml
+
   # Seed a coherent NVDA snapshot that genuinely satisfies Signal 2.
   # UPPERCASE filename + writer-exact fields (specs/ticker-snapshot.md);
   # see the §0.2 fixture caveat above for why this seed is bounded-fragile.
