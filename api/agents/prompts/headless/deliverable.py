@@ -6,7 +6,7 @@ identify the gap between what exists and what the spec requires, and produce
 only the gap. Output is **replacive** — the new `output.md` supersedes the prior.
 
 Phase 2 (2026-04-29): the dispatcher pre-reads the latest dated subfolder
-under `/workspace/reports/{slug}/` and injects `output.md` content as a
+under `/workspace/operation/reports/{slug}/` and injects `output.md` content as a
 `## Prior Output (latest run, {date})` block in the user-message half of the
 prompt. The posture below tells the LLM how to use it; the absence of the
 block means first-run.

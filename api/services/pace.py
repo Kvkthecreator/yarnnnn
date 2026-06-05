@@ -3,7 +3,7 @@
 Pace is the operator's first-class dial for **how often the agent works**
 (ADR-298 D11 — Pace + Autonomy + Persona trifecta, mapping to Trigger +
 Mechanism + Identity dimensions of FOUNDATIONS Axiom 0). Substrate file:
-``/workspace/context/_shared/_pace.yaml`` (operator-authored, machine-parsed
+``/workspace/governance/_pace.yaml`` (operator-authored, machine-parsed
 per File Format Discipline §9).
 
 Pace's authority is **enforced at recurrence declaration time** (ADR-298
@@ -251,13 +251,13 @@ def parse_pace_yaml(content: str) -> Optional[Pace]:
 async def read_pace(client: Any, user_id: str) -> Optional[Pace]:
     """Load and parse the workspace's `_pace.yaml`. Returns None if absent."""
     from services.workspace import UserMemory
-    from services.workspace_paths import SHARED_PACE_PATH
+    from services.workspace_paths import GOVERNANCE_PACE_PATH
 
     um = UserMemory(client, user_id)
-    # Strip leading "/workspace/" if SHARED_PACE_PATH has it; UserMemory
+    # Strip leading "/workspace/" if GOVERNANCE_PACE_PATH has it; UserMemory
     # prepends. Path constants in workspace_paths are workspace-relative
-    # ("context/_shared/...") so no strip needed.
-    content = await um.read(SHARED_PACE_PATH)
+    # ("constitution/+governance/+operation/ (legacy _shared, ADR-320)/...") so no strip needed.
+    content = await um.read(GOVERNANCE_PACE_PATH)
     if not content:
         return None
     return parse_pace_yaml(content)

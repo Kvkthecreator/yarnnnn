@@ -278,7 +278,7 @@ async def _handle_agent_memory_write(auth: Any, parsed: Any, existing: dict, cha
                 content += "\n\n## Milestones\n"
                 for m in milestones:
                     content += f"- {m}\n"
-            await ws.write("memory/goal.md", content, summary="Agent goal and milestones")
+            await ws.write("system/goal.md", content, summary="Agent goal and milestones")
             applied.append("set_goal")
 
         if applied:
@@ -330,6 +330,6 @@ def _format_edit_message(entity_type: str, changes: dict, data: dict) -> str:
 
     # ADR-196 + ADR-235: memory edit branch removed (user_memory dropped;
     # memory is filesystem-native, mutated via WriteFile(scope="workspace",
-    # path="memory/notes.md", ...), not EditEntity).
+    # path="system/notes.md", ...), not EditEntity).
 
     return f"Updated {entity_type}: {', '.join(change_list)}"

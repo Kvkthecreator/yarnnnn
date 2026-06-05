@@ -335,10 +335,10 @@ class AgentWorkspace:
             from services.orchestration import get_type_playbook
             playbooks = get_type_playbook(role)
             for filename, content in playbooks.items():
-                existing = await self.read(f"memory/{filename}")
+                existing = await self.read(f"system/{filename}")
                 if not existing:
                     await self.write(
-                        f"memory/{filename}",
+                        f"system/{filename}",
                         content,
                         summary=f"Playbook seed: {filename}",
                         authored_by="system:playbook-seed",
@@ -431,14 +431,14 @@ class AgentWorkspace:
             parts.append(f"## Agent Directives\n{agent_md}")
 
         # Agent feedback — cross-task style/tone preferences (ADR-156 3-layer model)
-        feedback = await self.read("memory/feedback.md")
+        feedback = await self.read("system/feedback.md")
         if feedback and feedback.strip():
             parts.append(f"## Agent Feedback (cross-task)\n{feedback}")
 
         # Playbook index — referential, not full content (Claude Code pattern)
         from services.orchestration import PLAYBOOK_METADATA, TASK_OUTPUT_PLAYBOOK_ROUTING
 
-        memory_files = await self.list("memory/")
+        memory_files = await self.list("system/")
         playbook_files = [
             f for f in memory_files
             if not f.endswith("/") and (f.startswith("_playbook") or f.startswith("methodology-"))
@@ -644,21 +644,21 @@ class UserMemory:
     """
     User workspace context: /workspace/ (ADR-133, relocated by ADR-206).
 
-    Authored shared context lives under /workspace/context/_shared/:
-    - /workspace/context/_shared/MANDATE.md     — what the workspace is running
-    - /workspace/context/_shared/IDENTITY.md    — who you are (name, role, company, timezone, summary)
-    - /workspace/context/_shared/BRAND.md       — how outputs look and sound
-    - /workspace/context/_shared/CONVENTIONS.md — program-specific behavioral rules (program-scoped; only present when a bundle forks it)
-    - /workspace/context/_shared/AUTONOMY.md    — delegation ceiling for AI judgment
-    - /workspace/context/_shared/PRECEDENT.md   — durable interpretations and boundary cases
+    Authored shared context lives under constitution/ + governance/ + operation/ (ADR-320 split of legacy _shared/):
+    - /workspace/constitution/MANDATE.md     — what the workspace is running
+    - /workspace/persona/IDENTITY.md    — who you are (name, role, company, timezone, summary)
+    - /workspace/operation/BRAND.md       — how outputs look and sound
+    - /workspace/operation/CONVENTIONS.md — program-specific behavioral rules (program-scoped; only present when a bundle forks it)
+    - /workspace/governance/AUTONOMY.md    — delegation ceiling for AI judgment
+    - /workspace/constitution/PRECEDENT.md   — durable interpretations and boundary cases
 
-    YARNNN working memory lives under /workspace/memory/:
-    - /workspace/memory/awareness.md — situational notes, shift handoff
-    - /workspace/memory/_playbook.md — orchestration playbook (hidden)
-    - /workspace/memory/style.md     — inferred style from edit patterns
-    - /workspace/memory/notes.md     — standing instructions, observed facts
+    YARNNN working memory lives under /workspace/system/:
+    - /workspace/system/awareness.md — situational notes, shift handoff
+    - /workspace/system/_playbook.md — orchestration playbook (hidden)
+    - /workspace/system/style.md     — inferred style from edit patterns
+    - /workspace/system/notes.md     — standing instructions, observed facts
 
-    Callers pass full workspace-relative paths (e.g. "context/_shared/IDENTITY.md");
+    Callers pass full workspace-relative paths (e.g. "persona/IDENTITY.md");
     paths are defined as canonical constants in services.workspace_paths.
     """
 
@@ -722,12 +722,12 @@ class UserMemory:
         """Write a memory file through the Authored Substrate (ADR-209).
 
         UserMemory spans two content classes with different typical authors:
-          - /workspace/context/_shared/* — authored shared context
+          - constitution/ + governance/ + operation/ (ADR-320 split of legacy _shared/)* — authored shared context
             (IDENTITY.md, BRAND.md, MANDATE.md, AUTONOMY.md, PRECEDENT.md,
             and CONVENTIONS.md when present on program workspaces). Typical
             author: `operator` (via route handlers) or `yarnnn:<model>`
             (via inference primitives).
-          - /workspace/memory/* — YARNNN working memory (awareness, notes,
+          - /workspace/system/* — YARNNN working memory (awareness, notes,
             conversation summary, style distillation). Typical author:
             `yarnnn:<model>` or `system:*`.
 
@@ -765,18 +765,18 @@ class UserMemory:
     async def read_all(self) -> dict[str, str]:
         """Read workspace context files. Returns {basename: content}.
 
-        ADR-206: reads shared context from /workspace/context/_shared/ and
-        working-memory files from /workspace/memory/. Keys are basenames
+        ADR-206: reads shared context from constitution/ + governance/ + operation/ (ADR-320 split of legacy _shared/) and
+        working-memory files from /workspace/system/. Keys are basenames
         so downstream formatters (working_memory.format_compact_index,
         daily-update template) get stable identifiers independent of
         layout changes.
         """
         from services.workspace_paths import (
-            SHARED_IDENTITY_PATH, SHARED_BRAND_PATH,
-            MEMORY_STYLE_PATH, MEMORY_NOTES_PATH,
+            PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH,
+            SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH,
         )
         files: dict[str, str] = {}
-        for path in (SHARED_IDENTITY_PATH, SHARED_BRAND_PATH, MEMORY_STYLE_PATH, MEMORY_NOTES_PATH):
+        for path in (PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH, SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH):
             content = await self.read(path)
             if content:
                 files[path.rsplit("/", 1)[-1]] = content
@@ -785,11 +785,11 @@ class UserMemory:
     def read_all_sync(self) -> dict[str, str]:
         """Synchronous read_all for thread pool use."""
         from services.workspace_paths import (
-            SHARED_IDENTITY_PATH, SHARED_BRAND_PATH,
-            MEMORY_STYLE_PATH, MEMORY_NOTES_PATH,
+            PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH,
+            SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH,
         )
         files: dict[str, str] = {}
-        for path in (SHARED_IDENTITY_PATH, SHARED_BRAND_PATH, MEMORY_STYLE_PATH, MEMORY_NOTES_PATH):
+        for path in (PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH, SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH):
             content = self.read_sync(path)
             if content:
                 files[path.rsplit("/", 1)[-1]] = content
@@ -797,8 +797,8 @@ class UserMemory:
 
     async def get_profile(self) -> dict:
         """Parse IDENTITY.md into structured profile dict."""
-        from services.workspace_paths import SHARED_IDENTITY_PATH
-        content = await self.read(SHARED_IDENTITY_PATH)
+        from services.workspace_paths import PERSONA_IDENTITY_PATH
+        content = await self.read(PERSONA_IDENTITY_PATH)
         return self._parse_memory_md(content)
 
     async def update_profile(self, updates: dict, *, authored_by: str = "operator") -> bool:
@@ -808,14 +808,14 @@ class UserMemory:
         come through routes/memory.py (operator action). YARNNN inference
         updates should override with `yarnnn:<model>`.
         """
-        from services.workspace_paths import SHARED_IDENTITY_PATH
+        from services.workspace_paths import PERSONA_IDENTITY_PATH
         current = await self.get_profile()
         current.update({k: v for k, v in updates.items() if v is not None})
         for k, v in updates.items():
             if v is None or v == "":
                 current.pop(k, None)
         return await self.write(
-            SHARED_IDENTITY_PATH,
+            PERSONA_IDENTITY_PATH,
             self._render_memory_md(current),
             summary="User identity",
             authored_by=authored_by,
@@ -824,8 +824,8 @@ class UserMemory:
 
     async def get_preferences(self) -> dict:
         """Parse style.md into structured dict."""
-        from services.workspace_paths import MEMORY_STYLE_PATH
-        content = await self.read(MEMORY_STYLE_PATH)
+        from services.workspace_paths import SYSTEM_STYLE_PATH
+        content = await self.read(SYSTEM_STYLE_PATH)
         return self._parse_preferences_md(content)
 
     async def update_preferences(
@@ -851,9 +851,9 @@ class UserMemory:
                     del prefs[platform][k]
             if platform in prefs and not prefs[platform]:
                 del prefs[platform]
-        from services.workspace_paths import MEMORY_STYLE_PATH
+        from services.workspace_paths import SYSTEM_STYLE_PATH
         return await self.write(
-            MEMORY_STYLE_PATH,
+            SYSTEM_STYLE_PATH,
             self._render_preferences_md(prefs),
             summary="Communication and content preferences",
             authored_by=authored_by,
@@ -862,19 +862,19 @@ class UserMemory:
 
     async def get_notes(self) -> list[dict]:
         """Parse notes.md into list of {type, content}."""
-        from services.workspace_paths import MEMORY_NOTES_PATH
-        content = await self.read(MEMORY_NOTES_PATH)
+        from services.workspace_paths import SYSTEM_NOTES_PATH
+        content = await self.read(SYSTEM_NOTES_PATH)
         return self._parse_notes_md(content)
 
     async def add_note(
         self, note_type: str, content: str, *, authored_by: str = "operator"
     ) -> bool:
         """Append a note to notes.md. Defaults to operator attribution."""
-        from services.workspace_paths import MEMORY_NOTES_PATH
+        from services.workspace_paths import SYSTEM_NOTES_PATH
         notes = await self.get_notes()
         notes.append({"type": note_type, "content": content})
         return await self.write(
-            MEMORY_NOTES_PATH,
+            SYSTEM_NOTES_PATH,
             self._render_notes_md(notes),
             summary="Standing instructions and observed facts",
             authored_by=authored_by,
@@ -883,11 +883,11 @@ class UserMemory:
 
     async def remove_note(self, content: str, *, authored_by: str = "operator") -> bool:
         """Remove a note by content match. Defaults to operator attribution."""
-        from services.workspace_paths import MEMORY_NOTES_PATH
+        from services.workspace_paths import SYSTEM_NOTES_PATH
         notes = await self.get_notes()
         notes = [n for n in notes if n["content"] != content]
         return await self.write(
-            MEMORY_NOTES_PATH,
+            SYSTEM_NOTES_PATH,
             self._render_notes_md(notes),
             summary="Standing instructions and observed facts",
             authored_by=authored_by,
@@ -898,9 +898,9 @@ class UserMemory:
         self, notes: list[dict], *, authored_by: str = "system:memory-extraction"
     ) -> bool:
         """Replace all notes (used by extraction cron read-merge-write)."""
-        from services.workspace_paths import MEMORY_NOTES_PATH
+        from services.workspace_paths import SYSTEM_NOTES_PATH
         return await self.write(
-            MEMORY_NOTES_PATH,
+            SYSTEM_NOTES_PATH,
             self._render_notes_md(notes),
             summary="Standing instructions and observed facts",
             authored_by=authored_by,
@@ -1030,8 +1030,8 @@ async def get_agent_intelligence(client, user_id: str, agent: dict) -> dict:
     created_agents = await ws.get_created_agents()
     last_generated_at = await ws.get_state("last_generated_at")
     # ADR-143: Unified feedback file
-    feedback = (await ws.read("memory/feedback.md") or "").strip()
-    reflections = (await ws.read("memory/reflections.md") or "").strip()
+    feedback = (await ws.read("system/feedback.md") or "").strip()
+    reflections = (await ws.read("system/reflections.md") or "").strip()
 
     memory = {}
     if goal:

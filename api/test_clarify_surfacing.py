@@ -337,9 +337,9 @@ def test_surface_reviewer_actions_clarify_role() -> None:
         captured_calls.clear()
         actions_wf = [{
             "tool": "WriteFile",
-            "input": {"path": "/workspace/review/notes.md"},
+            "input": {"path": "/workspace/persona/notes.md"},
             "success": True,
-            "summary": "path=/workspace/review/notes.md",
+            "summary": "path=/workspace/persona/notes.md",
             "invocation_id": "inv-2",
         }]
         asyncio.run(surface_reviewer_actions(

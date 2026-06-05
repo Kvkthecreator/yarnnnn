@@ -1,249 +1,206 @@
 """
-Workspace path constants (ADR-206 + workspace-init refactor 2026-05-03).
+Workspace path constants + permission topology (ADR-320, 2026-06-05).
 
-Single source of truth for canonical workspace file paths. Callers pass these
-to UserMemory (AgentWorkspace is agent-scoped; these are workspace-scoped).
+Single source of truth for canonical workspace file paths AND the write-permission
+policy. Callers pass these to UserMemory (AgentWorkspace is agent-scoped; these are
+workspace-scoped). The permission gate `_is_path_locked(caller_class, path)` in
+`services/primitives/workspace.py` reads `CALLER_WRITE_POLICY` from this module.
 
-Post-ADR-206 layout:
+ADR-320 — FIVE-ROOT PERMISSION TOPOLOGY (FOUNDATIONS Derived Principle 25):
+the directory a file lives in determines who may write it, for every caller class,
+derivable from the path prefix alone with no file enumeration. The workspace root
+IS the permission taxonomy — `access(2)` for the agent OS (Derived Principle 16).
 
     /workspace/
-      ├── context/
-      │   ├── _shared/              ← authored shared context + governance declarations
-      │   │   ├── MANDATE.md        ← workspace's CLAUDE.md equivalent (ADR-207 D2)
-      │   │   ├── IDENTITY.md
-      │   │   ├── BRAND.md
-      │   │   ├── AUTONOMY.md      ← delegation ceiling (ADR-217)
-      │   │   ├── PRECEDENT.md     ← durable interpretations / boundary cases
-      │   │   └── CONVENTIONS.md   ← program-scoped (NOT kernel-seeded; only present
-      │   │                           when a program bundle forks it via reference-workspace/)
-      │   └── {domain}/             ← accumulated domain context (ADR-151)
-      ├── memory/                   ← YARNNN working memory (ADR-206 relocation)
-      │   ├── awareness.md
-      │   ├── _playbook.md
-      │   ├── style.md
-      │   └── notes.md
-      ├── review/                   ← Reviewer substrate (ADR-194 + ADR-211 Phase 4)
-      │   ├── IDENTITY.md           ← who the seat is (role-level, static)
-      │   ├── OCCUPANT.md           ← who currently fills it (rotates via handoffs)
-      │   ├── principles.md         ← declared judgment framework (narrative)
-      │   ├── judgment_log.md      ← append-only judgment lineage (system-ledger, ADR-281 §5)
-      │   ├── handoffs.md           ← append-only occupant-rotation log
-      │   └── calibration.md        ← auto-generated judgments-vs-outcomes trail
-      ├── agents/                   ← agent substrate (ADR-106)
-      ├── reports/                  ← deliverable recurrence outputs (ADR-231)
-      ├── operations/               ← action recurrence state (ADR-231)
-      ├── uploads/                  ← user-contributed reference material (ADR-152)
-      └── working/                  ← ephemeral scratch (ADR-119)
+      ├── governance/    OPERATOR-ONLY ceilings the seat runs under but cannot set.
+      │     AUTONOMY.md + _autonomy.yaml (delegation), _token_budget.yaml (compute),
+      │     _pace.yaml (trigger budget), _preferences.yaml (deliverable cadence).
+      │     OS analog: /etc/security/limits.conf + cgroup/ulimits.
+      ├── constitution/  OPERATOR intent the seat AMENDS; read by ALL agents.
+      │     MANDATE.md (Primary Action), PRECEDENT.md (durable interpretations).
+      │     OS analog: the app's own ~/.config/{app}/ it may rewrite.
+      │     NOTE (ADR-320, operator-identity collapse): the operator's
+      │     operating-posture file (legacy context/_shared/IDENTITY.md) is NOT
+      │     here — it is reasoning-character, the same KIND as the persona, so it
+      │     collapses INTO persona/IDENTITY.md (singular reasoning-character per
+      │     Axiom 2 two-embodiments). constitution/ is pure intent: MANDATE +
+      │     PRECEDENT, no IDENTITY.
+      ├── persona/       THE SEAT — how it reasons + its trail. Occupant-agnostic.
+      │     IDENTITY.md (the operator's judgment, embodied — absorbs the legacy
+      │       operator operating-posture file), principles.md (+_principles.yaml),
+      │       judgment_log.md,
+      │     OCCUPANT.md, handoffs.md, calibration.md, standing_intent.md.
+      │     OS analog: the process's own address space / working set.
+      ├── operation/     THE WORK the agent operates on / produces. Many writers.
+      │     BRAND.md, CONVENTIONS.md, _voice.md-class style files, specs/, reports/,
+      │     operations/, {domain}/ accumulated context (_money_truth.md, _risk.md,
+      │     _operator_profile.md, _universe.yaml, etc.).
+      │     OS analog: ~/Documents/ + project working dirs (the commons).
+      └── system/        ORCHESTRATION runtime accumulation. Not Identity-bearing.
+            awareness.md, _playbook.md, style.md, notes.md, _schedule_index.md,
+            _recent_execution.md.
+            OS analog: /var/lib/{service} + /tmp.
 
-IDENTITY, BRAND, AUTONOMY, PRECEDENT are kernel-seeded at every workspace init.
-CONVENTIONS.md is a valid writable path but is NOT seeded by the kernel — it is
-program-scoped (program bundles like alpha-trader fork it via reference-workspace/
-with tier:canon). Generic workspaces do not receive a CONVENTIONS skeleton.
-Awareness, playbook, style, notes moved under `memory/` per ADR-206.
+Plus agent substrate at `/workspace/agents/{slug}/`, ephemeral `/workspace/working/`,
+and user uploads at `/workspace/uploads/` — unchanged by ADR-320 (not part of the
+constitution/operation/governance cut; agents/ is per-agent, working/ ephemeral,
+uploads/ user-contributed reference material).
+
+constitution/ + persona/ are the REQUIRED region (ADR-320 D4 hard-gate, generalizing
+ADR-207's MANDATE gate): the workspace cannot dispatch work until MANDATE.md +
+persona IDENTITY.md + persona principles.md are non-skeleton. governance/ defaults
+are kernel/bundle-seeded. operation/ empty is legal — it signals the bare-workspace
+"agent authored, no operation attached" state.
 """
 
-# -----------------------------------------------------------------------------
-# Authored shared context (`/workspace/context/_shared/`)
-# -----------------------------------------------------------------------------
-SHARED_MANDATE_PATH = "context/_shared/MANDATE.md"
-SHARED_IDENTITY_PATH = "context/_shared/IDENTITY.md"
-SHARED_BRAND_PATH = "context/_shared/BRAND.md"
-# CONVENTIONS.md path constant kept for callers that need to reference or write
-# it (bundle forks, editable-path allowlist in workspace.py). NOT in
-# SHARED_CONTEXT_FILES — kernel does not seed it at init.
-SHARED_CONVENTIONS_PATH = "context/_shared/CONVENTIONS.md"
-# ADR-217 + ADR-254: Autonomy delegation.
-# SHARED_AUTONOMY_PATH = prose documentation (LLM reads, human reads — not machine-parsed)
-# SHARED_AUTONOMY_YAML_PATH = machine-parsed delegation config (yaml.safe_load)
-SHARED_AUTONOMY_PATH = "context/_shared/AUTONOMY.md"          # prose doc — preserved for LLM reads
-SHARED_AUTONOMY_YAML_PATH = "context/_shared/_autonomy.yaml"  # machine-parsed (ADR-254)
-# Shared durable interpretations: operator-authored precedent that survives
-# seat rotation and is readable by YARNNN, Reviewer, and domain Agents alike.
-SHARED_PRECEDENT_PATH = "context/_shared/PRECEDENT.md"
-# ADR-275: Operator-authored deliverable cadence preferences. Reviewer
-# reads this every wake and authors Schedule(action="create"|"update"|
-# "archive") for declared preferences.
-# ADR-293: this file is OPERATIONAL substrate (Reviewer-writable subject
-# to AUTONOMY-mode gating). The Reviewer maintains operator deliverable
-# preferences on the operator's behalf; under `bounded` writes queue with
-# operator diff-preview; under `autonomous` writes apply immediately with
-# revision-chain capture. Previously locked-by-default per ADR-275; ADR-
-# 293's first-principles test (governance only locks files that grant
-# the Reviewer unauthorized authority) removes the lock — preferences
-# refinement is operational maintenance, not authority grant.
-SHARED_PREFERENCES_PATH = "context/_shared/_preferences.yaml"
+# =============================================================================
+# Root prefixes (ADR-320) — the five semantic-class roots
+# =============================================================================
+GOVERNANCE_ROOT = "governance/"
+CONSTITUTION_ROOT = "constitution/"
+PERSONA_ROOT = "persona/"
+OPERATION_ROOT = "operation/"
+SYSTEM_ROOT = "system/"
 
-# ADR-298 Phase 2 — operator-authored pace declaration. Pace is the operator's
-# first-class dial for "how often the agent works" (ADR-298 D4 + D11 trifecta).
-# Read at every reviewer wake via the governance envelope (ADR-276) so the
-# Reviewer's Schedule() calls can pace-gate at declaration time per D5.
-SHARED_PACE_PATH = "context/_shared/_pace.yaml"
+# Per-agent + ephemeral + upload roots (not part of the constitution/operation cut)
+AGENTS_ROOT = "agents/"
+WORKING_ROOT = "working/"
+UPLOADS_ROOT = "uploads/"
 
-# ADR-293: Compute-resource governance. Operator declares spending
-# ceilings + recurrence-cadence floors that the scheduler enforces
-# regardless of AUTONOMY mode. The Reviewer reads but cannot author —
-# Reviewer-edit could escalate its own resource ceiling, granting itself
-# authority the operator did not delegate. Governance file per the
-# first-principles test.
-SHARED_TOKEN_BUDGET_PATH = "context/_shared/_token_budget.yaml"
 
-# Files the kernel seeds at every workspace init. CONVENTIONS.md is intentionally
-# excluded — it is program-scoped, not kernel-scoped. See module docstring above.
-SHARED_CONTEXT_FILES = (
-    SHARED_MANDATE_PATH,
-    SHARED_IDENTITY_PATH,
-    SHARED_BRAND_PATH,
-    SHARED_AUTONOMY_PATH,
-    SHARED_PRECEDENT_PATH,
+# =============================================================================
+# governance/ — operator-only ceilings (locked from every LLM writer)
+# =============================================================================
+# AUTONOMY: prose doc (LLM/human reads) + machine-parsed yaml (yaml.safe_load).
+GOVERNANCE_AUTONOMY_PATH = "governance/AUTONOMY.md"
+GOVERNANCE_AUTONOMY_YAML_PATH = "governance/_autonomy.yaml"
+# Compute-resource ceiling. Reviewer reads, never authors (Reviewer-edit could
+# escalate its own resource ceiling — authority the operator did not delegate).
+GOVERNANCE_TOKEN_BUDGET_PATH = "governance/_token_budget.yaml"
+# Operator's deliverable-cadence preferences (ADR-275). Reviewer reads + reconciles
+# via Schedule; operator owns the content.
+GOVERNANCE_PREFERENCES_PATH = "governance/_preferences.yaml"
+# Operator's pace declaration (ADR-298 D11 trifecta). Reviewer reads at every wake
+# (governance envelope, ADR-276); Schedule pace-gates at declaration time (D5).
+GOVERNANCE_PACE_PATH = "governance/_pace.yaml"
+
+
+# =============================================================================
+# constitution/ — operator intent the seat amends; read by all agents
+# =============================================================================
+# PURE INTENT only (ADR-320 operator-identity collapse): MANDATE + PRECEDENT.
+# The operator's operating-posture (legacy context/_shared/IDENTITY.md) is NOT
+# here — it is reasoning-character and collapses into PERSONA_IDENTITY_PATH.
+CONSTITUTION_MANDATE_PATH = "constitution/MANDATE.md"
+# Durable interpretations that survive seat rotation; read by YARNNN, the seat, and
+# domain Agents alike. ADR-320 D2: PRECEDENT is constitution (survives rotation;
+# distinct from persona which rotates with the occupant).
+CONSTITUTION_PRECEDENT_PATH = "constitution/PRECEDENT.md"
+
+# Files the kernel seeds at every workspace init (constitution skeletons).
+CONSTITUTION_FILES = (
+    CONSTITUTION_MANDATE_PATH,
+    CONSTITUTION_PRECEDENT_PATH,
 )
 
 
-# -----------------------------------------------------------------------------
-# YARNNN working memory (`/workspace/memory/`)
-# -----------------------------------------------------------------------------
-MEMORY_AWARENESS_PATH = "memory/awareness.md"
-MEMORY_PLAYBOOK_PATH = "memory/_playbook.md"
-MEMORY_STYLE_PATH = "memory/style.md"
-MEMORY_NOTES_PATH = "memory/notes.md"
+# =============================================================================
+# persona/ — the judgment seat itself (occupant-agnostic)
+# =============================================================================
+# The singular reasoning-character file (ADR-320 operator-identity collapse):
+# the operator's judgment, embodied. Absorbs BOTH the legacy persona file
+# (review/IDENTITY.md) AND the legacy operator operating-posture file
+# (context/_shared/IDENTITY.md) — two embodiments of one principal (Axiom 2),
+# one substrate home. Operator-authored; occupant-agnostic.
+PERSONA_IDENTITY_PATH = "persona/IDENTITY.md"
+PERSONA_PRINCIPLES_PATH = "persona/principles.md"         # prose (LLM reads)
+PERSONA_PRINCIPLES_YAML_PATH = "persona/_principles.yaml"  # machine-parsed thresholds (ADR-254)
+PERSONA_JUDGMENT_LOG_PATH = "persona/judgment_log.md"     # append-only judgment lineage
+PERSONA_OCCUPANT_PATH = "persona/OCCUPANT.md"             # who currently fills the seat
+PERSONA_HANDOFFS_PATH = "persona/handoffs.md"             # append-only rotation log
+PERSONA_CALIBRATION_PATH = "persona/calibration.md"       # judgments-vs-outcomes trail
+PERSONA_STANDING_INTENT_PATH = "persona/standing_intent.md"  # forward-looking working state (ADR-284)
 
-# ADR-301: Reviewer Pulse envelope substrate. Two mechanically-mirrored files
-# the kernel maintenance phase writes per scheduler tick (diff-aware — most
-# ticks are no-ops). The Reviewer reads them at every wake to reason
-# correctly about its own cadence and recent execution lineage, closing the
-# schedule-hallucination class documented in
-# docs/evaluations/2026-05-24-045348-reviewer-schedule-self-misdiagnosis/.
-# Kernel-maintenance writes per ADR-209 attribution (`system:mirror-*`); the
-# Reviewer reads them; the Reviewer does not write them.
-MEMORY_SCHEDULE_INDEX_PATH = "memory/_schedule_index.md"
-MEMORY_RECENT_EXECUTION_PATH = "memory/_recent_execution.md"
-
-MEMORY_FILES = (
-    MEMORY_AWARENESS_PATH,
-    MEMORY_PLAYBOOK_PATH,
-    MEMORY_STYLE_PATH,
-    MEMORY_NOTES_PATH,
+PERSONA_FILES = (
+    PERSONA_IDENTITY_PATH,
+    PERSONA_PRINCIPLES_PATH,
+    PERSONA_JUDGMENT_LOG_PATH,
+    PERSONA_OCCUPANT_PATH,
+    PERSONA_HANDOFFS_PATH,
+    PERSONA_CALIBRATION_PATH,
+    PERSONA_STANDING_INTENT_PATH,
 )
 
 
-# -----------------------------------------------------------------------------
-# Reviewer substrate (`/workspace/review/`, ADR-194 — unchanged by ADR-206)
-# Phase 4 (ADR-211) reached seven files: IDENTITY + principles + decisions +
-# OCCUPANT + modes + handoffs + calibration.
-# ADR-217 (2026-04-24): modes.md removed — autonomy is operator-authored
-# delegation and now lives at SHARED_AUTONOMY_PATH. Seat substrate shrinks
-# to six files. Singular implementation — no dual path.
-# -----------------------------------------------------------------------------
-REVIEW_IDENTITY_PATH = "review/IDENTITY.md"
-REVIEW_PRINCIPLES_PATH = "review/principles.md"          # prose (LLM reads)
-REVIEW_PRINCIPLES_YAML_PATH = "review/_principles.yaml"  # machine-parsed thresholds (ADR-254)
-REVIEW_JUDGMENT_LOG_PATH = "review/judgment_log.md"
-# Phase 4 (ADR-211) minus modes.md (ADR-217):
-REVIEW_OCCUPANT_PATH = "review/OCCUPANT.md"
-REVIEW_HANDOFFS_PATH = "review/handoffs.md"
-REVIEW_CALIBRATION_PATH = "review/calibration.md"
-# ADR-284 (2026-05-17): Reviewer's forward-looking standing intent —
-# `reviewer-workbench` role per ADR-281 §3. Single-writer (the Reviewer).
-# Overwritable per judgment cycle; revision chain preserves history.
-REVIEW_STANDING_INTENT_PATH = "review/standing_intent.md"
+# =============================================================================
+# operation/ — the work the agent operates on / produces
+# =============================================================================
+OPERATION_BRAND_PATH = "operation/BRAND.md"
+# CONVENTIONS.md: program-scoped (NOT kernel-seeded); bundle forks it.
+OPERATION_CONVENTIONS_PATH = "operation/CONVENTIONS.md"
+# Program-bundle capability library (Claude Code skills.md analog, ADR-261 D6).
+SPECS_PREFIX = "/workspace/operation/specs/"
+# Deliverable + action recurrence substrate (ADR-231).
+REPORTS_PREFIX = "operation/reports/"
+OPERATIONS_PREFIX = "operation/operations/"
+# Accumulated domain context lives at operation/{domain}/ (ADR-151 relocated by ADR-320).
+OPERATION_DOMAINS_PREFIX = "operation/"
 
-REVIEW_FILES = (
-    REVIEW_IDENTITY_PATH,
-    REVIEW_PRINCIPLES_PATH,
-    REVIEW_JUDGMENT_LOG_PATH,
-    REVIEW_OCCUPANT_PATH,
-    REVIEW_HANDOFFS_PATH,
-    REVIEW_CALIBRATION_PATH,
-    REVIEW_STANDING_INTENT_PATH,
-)
 
-# Program-bundle-shipped capability library — Claude Code skills.md analog
-# (per ADR-261 D6 + ADR-275). Bundles fork files into this directory at
-# activation. The Reviewer reads individual specs on demand via ReadFile;
-# the wake envelope surfaces a name+title inventory so the Reviewer knows
-# which specs exist without paying the cost of pre-loading their bodies.
-SPECS_PREFIX = "/workspace/specs/"
+# =============================================================================
+# system/ — orchestration runtime accumulation (not Identity-bearing)
+# =============================================================================
+SYSTEM_AWARENESS_PATH = "system/awareness.md"
+SYSTEM_PLAYBOOK_PATH = "system/_playbook.md"
+SYSTEM_STYLE_PATH = "system/style.md"
+SYSTEM_NOTES_PATH = "system/notes.md"
+# ADR-301: Reviewer Pulse envelope substrate — mechanically-mirrored per scheduler
+# tick; the Reviewer reads them at every wake, never writes them.
+SYSTEM_SCHEDULE_INDEX_PATH = "system/_schedule_index.md"
+SYSTEM_RECENT_EXECUTION_PATH = "system/_recent_execution.md"
 
-# ADR-293 (2026-05-19): governance file set — the ONLY paths locked from
-# Reviewer runtime. Pre-ADR-293 this set contained 9 paths derived from a
-# 4-layer composition (kernel defaults + workspace guide path_zones +
-# bundle path_zones + _locks.yaml overrides). The first-principles test
-# in ADR-293 D1 narrowed the lock to files whose Reviewer-edit could grant
-# unauthorized authority: the delegation declaration + the compute-budget
-# declaration. Everything else is OPERATIONAL — Reviewer-writable subject
-# to AUTONOMY-mode gating (manual queues all, bounded queues with operator
-# diff-preview, autonomous applies immediately with revision-chain capture).
-#
-# Singular Implementation: this is the SOLE lock source. No bundle-derived
-# locks, no workspace-guide locks, no `_locks.yaml` overrides. The composition
-# in `services/primitives/workspace.py::_is_path_locked_for_reviewer` collapses
-# to one check: `path in DEFAULT_REVIEWER_WRITE_LOCKS`.
-#
-# Why these three (and only these three):
-#   - AUTONOMY.md / _autonomy.yaml — Reviewer rewriting `delegation: bounded`
-#     to `autonomous` grants itself unconditional auto-execute authority
-#     the operator did not delegate. Lock is structurally load-bearing.
-#   - _token_budget.yaml — Reviewer raising `daily_spend_ceiling_usd` from
-#     $5 to $500 escalates its own compute resource ceiling. Lock is
-#     structurally load-bearing.
-#
-# Why everything else is unlocked:
-#   - MANDATE, IDENTITY, BRAND, CONVENTIONS, PRECEDENT, _operator_profile,
-#     _risk, _universe, _preferences, _recurrences, principles, etc. — these
-#     are operational content. Reviewer-edits change WHAT the operation does,
-#     not WHETHER the Reviewer has unauthorized authority to do it. The
-#     revision chain (ADR-209) is the audit trail; AUTONOMY mode is the
-#     gating mechanism; the operator reviews diffs (under bounded) or revision
-#     history (under autonomous). Same trust model as Claude Code editing the
-#     project's CLAUDE.md.
-# ---------------------------------------------------------------------------
-# MCP caller write-lock set (ADR-310 follow-on — foreign-LLM write gate)
-# ---------------------------------------------------------------------------
-#
-# The foreign LLM (caller_identity="yarnnn:mcp") is a LOWER-TRUST caller than
-# the Reviewer. The Reviewer's lock-set is narrow (governance-only) because the
-# Reviewer is trusted to edit operational content — "same trust model as Claude
-# Code editing CLAUDE.md." A foreign LLM is NOT that trusted: it may contribute
-# to the commons (context domains, memory, feedback) but must never silently
-# rewrite the operator's governing intent or the Reviewer's own substrate.
-#
-# So the MCP lock-set is BROADER than the Reviewer's, expressed as two subtree
-# PREFIXES that cover all governance + operator-authored intent + the Reviewer
-# seat in one stroke (every governing file lives under one of these two roots):
-#   - context/_shared/ — operator-authored intent (MANDATE, IDENTITY, BRAND,
-#     CONVENTIONS, PRECEDENT) AND governance (_autonomy/_pace/_preferences/
-#     _token_budget yaml) AND _operator_profile/_risk. All of it.
-#   - review/ — the Reviewer's own seat substrate (principles, decisions,
-#     IDENTITY). Operator/Reviewer territory, not foreign-contributor territory.
-# A foreign WriteFile under either prefix DENYs at the gate. Foreign writes
-# elsewhere in the commons (context domains, memory, feedback) APPLY and fire
-# the eventually-judged Reviewer wake (ADR-310 D2).
-#
-# Note: identity/brand foreign contributions still flow via InferContext (a
-# merge, not a raw overwrite), so the lock here governs only direct WriteFile
-# attempts — which is exactly the raw-write risk the primitive surface opens.
-DEFAULT_MCP_WRITE_LOCK_PREFIXES = (
-    "review/",
-    "context/_shared/",
+SYSTEM_FILES = (
+    SYSTEM_AWARENESS_PATH,
+    SYSTEM_PLAYBOOK_PATH,
+    SYSTEM_STYLE_PATH,
+    SYSTEM_NOTES_PATH,
 )
 
 
-DEFAULT_REVIEWER_WRITE_LOCKS = (
-    SHARED_AUTONOMY_PATH,
-    SHARED_AUTONOMY_YAML_PATH,
-    SHARED_TOKEN_BUDGET_PATH,
-    # ADR-275 D6 + D9 (2026-05-21 amendment): _preferences.yaml is operator's
-    # declaration of deliverable cadence — bundle-fork honors at activation
-    # (D9), Reviewer reconciles operator-authored changes via Schedule (D10).
-    # The Reviewer reads but does not write this file; preference content is
-    # the operator's authority. Closes pre-existing drift between ADR-275 D6
-    # (which specified the lock) and the prior code state (which had it
-    # unlocked).
-    SHARED_PREFERENCES_PATH,
-    # ADR-298 Phase 2: pace is operator-authored only. Reviewer reads pace
-    # at every wake (governance envelope per ADR-276) and the Schedule
-    # primitive pace-gates at declaration time (ADR-298 D5). The Reviewer
-    # surfaces Clarify when its proposed recurrence would exceed the
-    # declared pace; the operator decides whether to pause an existing
-    # recurrence, upgrade pace, or skip. Reviewer never writes pace itself.
-    SHARED_PACE_PATH,
-)
+# =============================================================================
+# Permission topology — `access(2)` for the agent OS (ADR-320 D3)
+# =============================================================================
+# One per-caller prefix policy. `_is_path_locked(caller_class, path)` in
+# services/primitives/workspace.py reads CALLER_WRITE_POLICY: a caller is
+# LOCKED from writing `path` iff `path` starts with any prefix in its locked set.
+# No filename appears here — permission derives from (caller_class, root) alone.
+# This is the SINGULAR lock source: it replaces the pre-ADR-320 pair
+# (DEFAULT_REVIEWER_WRITE_LOCKS flat-list + DEFAULT_MCP_WRITE_LOCK_PREFIXES).
+#
+# Caller classes (matched by authored_by prefix in the gate):
+#   - "reviewer"  — the seat occupant. Amends constitution/ + persona/ +
+#                   operation/; locked from governance/ (its own ceilings) and
+#                   system/ (orchestration's, not the seat's). The one
+#                   cross-class exception (reconciler → persona/calibration.md)
+#                   is the reconciler's "system" caller writing a named path,
+#                   handled at that writer's identity, NOT a hole here.
+#   - "mcp"       — foreign LLM (yarnnn:mcp). Lowest trust. Writes ONLY the
+#                   operation/ commons; locked from everything else.
+#   - "agent"     — domain agent / specialist. Writes operation/ (domain-scoped
+#                   enforcement is the dispatcher's job); locked from governance/
+#                   constitution/ persona/ system/.
+#   - "operator"  — the human. Writes everything except system/ (orchestration
+#                   runtime state is not hand-edited).
+#   - "system"    — deterministic actors (reconciler, mirrors, cleanup). Write
+#                   system/ + operation/ + the named persona/calibration.md;
+#                   locked from governance/ constitution/ + the rest of persona/.
+#                   (Enforced by the named-path discipline at each system writer,
+#                   not by a prefix — system writers target specific paths.)
+CALLER_WRITE_POLICY: dict[str, tuple[str, ...]] = {
+    "reviewer": (GOVERNANCE_ROOT, SYSTEM_ROOT),
+    "mcp": (GOVERNANCE_ROOT, CONSTITUTION_ROOT, PERSONA_ROOT, SYSTEM_ROOT),
+    "agent": (GOVERNANCE_ROOT, CONSTITUTION_ROOT, PERSONA_ROOT, SYSTEM_ROOT),
+    "operator": (SYSTEM_ROOT,),
+    # system: governed by named-path discipline at each writer, not a prefix lock.
+    "system": (),
+}

@@ -35,7 +35,7 @@ from services.operator_proxy.client import OperatorProxy  # noqa: E402
 
 
 HOOKS_PATH = "/workspace/_hooks.yaml"
-CANARY_PROFILE_PATH = "/workspace/context/authored/governance-as-trust/profile.md"
+CANARY_PROFILE_PATH = "/workspace/operation/authored/governance-as-trust/profile.md"
 BUNDLE_TEMPLATE_PATH = os.path.join(
     API_DIR, "..", "docs", "programs", "alpha-author", "reference-workspace", "_hooks.yaml"
 )

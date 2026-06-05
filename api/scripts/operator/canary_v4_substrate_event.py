@@ -31,7 +31,7 @@ if API_DIR not in sys.path:
 from services.operator_proxy.client import OperatorProxy  # noqa: E402
 
 
-CANARY_PATH = "/workspace/context/authored/governance-as-trust/profile.md"
+CANARY_PATH = "/workspace/operation/authored/governance-as-trust/profile.md"
 
 
 def _flip_status(content: str, new_value: str) -> str:

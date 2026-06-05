@@ -70,18 +70,18 @@ def test_workspace_init_does_not_scaffold_bundle_owned_paths() -> None:
     # Find the workspace_files dict literal in workspace_init.py — pre-ADR-286
     # it included MANDATE/IDENTITY/BRAND/AUTONOMY etc. as keys. Post-ADR-286
     # only kernel-universal paths are keys.
-    # Heuristic: each entry uses a constant import like SHARED_MANDATE_PATH
+    # Heuristic: each entry uses a constant import like CONSTITUTION_MANDATE_PATH
     # or a string literal. We check for the bundle-owned constant names
     # appearing in the workspace_files block.
     bundle_owned_constants = {
-        "SHARED_MANDATE_PATH",
-        "SHARED_IDENTITY_PATH",
-        "SHARED_BRAND_PATH",
-        "SHARED_AUTONOMY_PATH",
-        "SHARED_AUTONOMY_YAML_PATH",
-        "MEMORY_AWARENESS_PATH",
-        "REVIEW_IDENTITY_PATH",
-        "REVIEW_PRINCIPLES_PATH",
+        "CONSTITUTION_MANDATE_PATH",
+        "PERSONA_IDENTITY_PATH",
+        "OPERATION_BRAND_PATH",
+        "GOVERNANCE_AUTONOMY_PATH",
+        "GOVERNANCE_AUTONOMY_YAML_PATH",
+        "SYSTEM_AWARENESS_PATH",
+        "PERSONA_IDENTITY_PATH",
+        "PERSONA_PRINCIPLES_PATH",
     }
 
     # Locate the workspace_files dict.
@@ -110,14 +110,14 @@ def test_workspace_init_drops_bundle_owned_imports() -> None:
         "DEFAULT_AWARENESS_MD",
         "DEFAULT_REVIEW_IDENTITY_MD",
         "DEFAULT_REVIEW_PRINCIPLES_MD",
-        "SHARED_MANDATE_PATH",
-        "SHARED_IDENTITY_PATH",
-        "SHARED_BRAND_PATH",
-        "SHARED_AUTONOMY_PATH",
-        "SHARED_AUTONOMY_YAML_PATH",
-        "MEMORY_AWARENESS_PATH",
-        "REVIEW_IDENTITY_PATH",
-        "REVIEW_PRINCIPLES_PATH",
+        "CONSTITUTION_MANDATE_PATH",
+        "PERSONA_IDENTITY_PATH",
+        "OPERATION_BRAND_PATH",
+        "GOVERNANCE_AUTONOMY_PATH",
+        "GOVERNANCE_AUTONOMY_YAML_PATH",
+        "SYSTEM_AWARENESS_PATH",
+        "PERSONA_IDENTITY_PATH",
+        "PERSONA_PRINCIPLES_PATH",
     }
     # Find the import block from `from services.orchestration import (`
     # and `from services.workspace_paths import (` — assert none of the
@@ -144,12 +144,12 @@ def test_workspace_init_scaffolds_kernel_universal_paths() -> None:
     workspace_files. If this fails, the kernel-universal set was over-pruned."""
     src = _read_api("services/workspace_init.py")
     survivors = {
-        "SHARED_PRECEDENT_PATH",
-        "MEMORY_PLAYBOOK_PATH",
-        "MEMORY_STYLE_PATH",
-        "MEMORY_NOTES_PATH",
-        "REVIEW_PRINCIPLES_YAML_PATH",
-        "REVIEW_CALIBRATION_PATH",
+        "CONSTITUTION_PRECEDENT_PATH",
+        "SYSTEM_PLAYBOOK_PATH",
+        "SYSTEM_STYLE_PATH",
+        "SYSTEM_NOTES_PATH",
+        "PERSONA_PRINCIPLES_YAML_PATH",
+        "PERSONA_CALIBRATION_PATH",
     }
     dict_start = src.find("workspace_files = {")
     dict_end = src.find("}\n", dict_start)

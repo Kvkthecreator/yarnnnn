@@ -152,7 +152,7 @@ def _verify_one(cur, persona: Persona) -> Check:
     if occ_attr:
         cur.execute(
             "SELECT content FROM workspace_files "
-            "WHERE user_id=%s AND path='/workspace/review/OCCUPANT.md'",
+            "WHERE user_id=%s AND path='/workspace/persona/OCCUPANT.md'",
             (uid,),
         )
         row = cur.fetchone()

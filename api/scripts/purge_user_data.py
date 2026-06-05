@@ -10,7 +10,7 @@ This gives a TRUE cold-start. Wipe order (FK-safe):
 1. workspace_file_versions (ADR-209 Authored Substrate revisions — delete
    before workspace_files; no FK cascade on (user_id, path))
 2. workspace_files (Axiom 1 substrate — IDENTITY, MANDATE, context domains,
-   task charters, /workspace/review/, agent workspaces)
+   task charters, /workspace/persona/, agent workspaces)
 3. action_proposals (ADR-194 Reviewer queue)
 4. tasks (ADR-138)
 5. agents + agent_runs (cascaded via agent_id)
@@ -31,7 +31,7 @@ NOT deleted (intentional):
 
 After purge, next login should trigger workspace_init which scaffolds the
 post-LAYER-MAPPING-flip substrate: YARNNN agent row + Reviewer substrate
-at /workspace/review/ (seven files) + _shared/ context skeleton + essential
+at /workspace/persona/ (seven files) + _shared/ context skeleton + essential
 tasks (daily-update + back-office set per ADR-161/164).
 
 WARNING: This is destructive and cannot be undone!
@@ -264,7 +264,7 @@ def purge_user_data(email: str, dry_run: bool = False):
     print("  is not re-awarded, balance state continuous.")
     print()
     print("Next login should trigger workspace_init → post-flip substrate")
-    print("scaffold (YARNNN + Reviewer seat + 7 /workspace/review/ files).")
+    print("scaffold (YARNNN + Reviewer seat + 7 /workspace/persona/ files).")
 
 
 if __name__ == "__main__":

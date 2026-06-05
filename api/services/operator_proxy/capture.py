@@ -127,7 +127,7 @@ class CaptureSession:
         substrate_md = await _format_substrate_diff(self.user_id, new_revision_ids)
         (self.folder / "substrate-diff.md").write_text(substrate_md)
 
-        # decisions.md — slice of /workspace/review/decisions.md since baseline.
+        # decisions.md — slice of /workspace/persona/judgment_log.md since baseline.
         decisions_md = await _format_decisions_slice(self.user_id, self.baseline.captured_at)
         (self.folder / "decisions.md").write_text(decisions_md)
 
@@ -248,7 +248,7 @@ async def _format_substrate_diff(user_id: str, revision_ids: set[str]) -> str:
 
 
 async def _format_decisions_slice(user_id: str, since_iso: str) -> str:
-    """Read current /workspace/review/judgment_log.md and return entries
+    """Read current /workspace/persona/judgment_log.md and return entries
     written after since_iso. judgment_log.md is the canonical Reviewer
     decision log per ADR-194 v2 + ADR-281 §5. Split on `--- decision ---`
     and `--- material-outcome ---` block markers and filter by timestamp."""
@@ -258,11 +258,11 @@ async def _format_decisions_slice(user_id: str, since_iso: str) -> str:
         client.table("workspace_files")
         .select("content")
         .eq("user_id", user_id)
-        .eq("path", "/workspace/review/judgment_log.md")
+        .eq("path", "/workspace/persona/judgment_log.md")
         .execute()
     )
     if not rows.data:
-        return "# Decisions slice\n\n(No /workspace/review/judgment_log.md exists.)\n"
+        return "# Decisions slice\n\n(No /workspace/persona/judgment_log.md exists.)\n"
     content = rows.data[0].get("content") or ""
 
     # Split on both decision and material-outcome block markers.
@@ -282,7 +282,7 @@ async def _format_decisions_slice(user_id: str, since_iso: str) -> str:
                 fresh.append(marker + body)
     if not fresh:
         return f"# Decisions slice\n\n(No new judgment_log entries since {since_iso}.)\n"
-    return "# Decisions slice (from /workspace/review/judgment_log.md)\n\n" + "\n".join(fresh)
+    return "# Decisions slice (from /workspace/persona/judgment_log.md)\n\n" + "\n".join(fresh)
 
 
 async def _format_proposals(user_id: str, proposal_ids: set[str]) -> str:

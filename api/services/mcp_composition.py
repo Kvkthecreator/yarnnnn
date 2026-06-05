@@ -161,7 +161,7 @@ async def compose_subject_context(
             entity_row = item
         elif "signals.md" in lower_path or "/signals/" in lower_path:
             signals.append(item)
-        elif "judgment_log.md" in lower_path or "/memory/notes.md" in lower_path or "/workspace/memory/" in lower_path:
+        elif "judgment_log.md" in lower_path or "/system/notes.md" in lower_path or "/workspace/system/" in lower_path:
             decisions.append(item)
         else:
             # General context hit — bucket as a signal by default
@@ -676,7 +676,7 @@ async def dispatch_remember_this(
     dispatch path.
 
     Routing:
-      target='memory'   → WriteFile(scope='workspace', path='memory/notes.md',
+      target='memory'   → WriteFile(scope='workspace', path='system/notes.md',
                                     content=<formatted>, mode='append')
       target='identity' → InferContext(target='identity', text=stamped_text)
       target='brand'    → InferContext(target='brand', text=stamped_text)
@@ -713,7 +713,7 @@ async def dispatch_remember_this(
             "WriteFile",
             {
                 "scope": "workspace",
-                "path": "memory/notes.md",
+                "path": "system/notes.md",
                 "content": stamped_text,
                 "mode": "append",
                 "message": "remember_this → memory",

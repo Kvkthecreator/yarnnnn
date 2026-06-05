@@ -77,7 +77,7 @@ async def test_silent_exit_helper_uses_dispatcher_attribution_for_text_only_mid_
         assert kwargs["authored_by"] == "dispatcher:silent_exit_fallback"
         assert not kwargs["authored_by"].startswith("reviewer:")
         # Path is the canonical standing_intent.md
-        assert kwargs["path"] == "/workspace/review/standing_intent.md"
+        assert kwargs["path"] == "/workspace/persona/standing_intent.md"
 
 
 @pytest.mark.asyncio

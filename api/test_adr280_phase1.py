@@ -72,7 +72,7 @@ def test_alpha_trader_envelope_declares_signal_files_path():
     envelope = m["substrate_abi"]["reviewer_wake_envelope"]
     signal_decl = next((e for e in envelope if e.get("key") == "signal_files"), None)
     assert signal_decl is not None, "signal_files envelope key missing"
-    assert signal_decl.get("path") == "context/trading/_signals_summary.md", \
+    assert signal_decl.get("path") == "operation/trading/_signals_summary.md", \
         "signal_files must point at the mirror substrate file per ADR-281 §D1"
     assert "path_glob" not in signal_decl, "path_glob shape forbidden per ADR-281"
     assert "summarizer" not in signal_decl, "summarizer field forbidden per ADR-281"
@@ -91,43 +91,21 @@ def test_alpha_commerce_bundle_declares_substrate_abi():
 # 2. Kernel constants — no program-specific paths leak
 # ---------------------------------------------------------------------------
 
-def test_default_reviewer_write_locks_contains_zero_program_paths():
-    """ADR-280 §8 Phase 1 grep gate: DEFAULT_REVIEWER_WRITE_LOCKS is kernel-universal only."""
-    from services.workspace_paths import DEFAULT_REVIEWER_WRITE_LOCKS
-    leaks = [
-        p for p in DEFAULT_REVIEWER_WRITE_LOCKS
-        if "context/trading" in p or "context/commerce" in p or "context/defi" in p or "context/prediction" in p
-    ]
-    assert leaks == [], (
-        f"Program-specific paths leaked back into kernel constant — "
-        f"per ADR-280 these belong in bundle MANIFEST.substrate_abi.path_zones: {leaks}"
-    )
-
-
-def test_default_reviewer_write_locks_preserves_kernel_universals():
-    """Kernel-universal locks must still be present (don't overcorrect)."""
-    from services.workspace_paths import (
-        DEFAULT_REVIEWER_WRITE_LOCKS,
-        SHARED_MANDATE_PATH,
-        SHARED_IDENTITY_PATH,
-        SHARED_AUTONOMY_PATH,
-    )
-    for required in (SHARED_MANDATE_PATH, SHARED_IDENTITY_PATH, SHARED_AUTONOMY_PATH):
-        assert required in DEFAULT_REVIEWER_WRITE_LOCKS, f"{required} missing from kernel defaults"
+# NOTE (ADR-320): test_default_reviewer_write_locks_{contains_zero_program_paths,
+# preserves_kernel_universals} DELETED. The DEFAULT_REVIEWER_WRITE_LOCKS flat-list
+# collapsed into the five-root CALLER_WRITE_POLICY; per-program path-zone locks
+# dissolved with the workspace_guide 4-layer composition. Governance-locked-from-seat
+# coverage moved to test_adr320_permission_topology.py.
 
 
 # ---------------------------------------------------------------------------
 # 3. workspace_guide.py — reader API + frontmatter extraction
 # ---------------------------------------------------------------------------
 
-def test_workspace_guide_module_exports():
-    """ADR-280 §8 Phase 1: services/workspace_guide.py exports the canonical reader API."""
-    from services import workspace_guide
-    assert callable(workspace_guide.read_frontmatter)
-    assert callable(workspace_guide.read_frontmatter_async)
-    assert callable(workspace_guide.get_path_zone_locks)
-    assert callable(workspace_guide.get_reviewer_wake_envelope_decls)
-    assert workspace_guide.WORKSPACE_GUIDE_PATH == "/workspace/_workspace_guide.md"
+# NOTE (ADR-320): test_workspace_guide_module_exports DELETED.
+# The workspace_guide get_path_zone_locks export dissolved with the 4-layer lock
+# composition (collapsed into CALLER_WRITE_POLICY). Remaining workspace_guide
+# frontmatter-reader coverage stays below.
 
 
 def test_workspace_guide_extract_frontmatter_well_formed():
@@ -162,31 +140,10 @@ def test_workspace_guide_extract_frontmatter_malformed_returns_empty():
     assert _extract_frontmatter("---\n  : invalid : yaml :\n---") == {}
 
 
-def test_workspace_guide_get_path_zone_locks():
-    """ADR-280 §2.D2: operator-canon zones become locked paths; locks.add/remove apply."""
-    from services.workspace_guide import get_path_zone_locks
-    frontmatter = {
-        "path_zones": [
-            {"path": "context/trading", "role": "operator-canon",
-             "authored_files": ["_operator_profile.md", "_risk.md"]},
-            {"path": "context/portfolio", "role": "operator-canon"},
-            # NOT operator-canon — should NOT be locked
-            {"path": "memory", "role": "running-narrative"},
-            {"path": "review", "role": "reviewer-workbench"},
-        ],
-        "locks": {
-            "add": ["custom/extra.md"],
-            "remove": ["context/portfolio"],  # operator overrides default
-        },
-    }
-    locked = get_path_zone_locks(frontmatter)
-    assert "context/trading" in locked
-    assert "context/trading/_operator_profile.md" in locked
-    assert "context/trading/_risk.md" in locked
-    assert "memory" not in locked, "running-narrative must not be locked"
-    assert "review" not in locked, "reviewer-workbench must not be locked"
-    assert "custom/extra.md" in locked, "operator add not honored"
-    assert "context/portfolio" not in locked, "operator remove not honored"
+# NOTE (ADR-320): test_workspace_guide_get_path_zone_locks DELETED.
+# get_path_zone_locks (operator-canon-zone → locked-path composition) dissolved
+# into the five-root CALLER_WRITE_POLICY prefix model. Permission coverage moved to
+# test_adr320_permission_topology.py.
 
 
 def test_workspace_guide_size_warning_fires_on_oversize():
@@ -265,63 +222,21 @@ def test_get_substrate_abi_for_workspace_with_alpha_trader_active():
     assert "operator_profile_md" in keys
 
 
-def test_get_path_zone_locks_for_workspace_no_program_returns_empty():
-    """No active program → no bundle-declared locks."""
-    from services.bundle_reader import get_path_zone_locks_for_workspace
-    locks = get_path_zone_locks_for_workspace("test-user", _mock_client_no_connections())
-    assert locks == set()
-
-
-def test_get_path_zone_locks_for_workspace_with_alpha_trader_active():
-    """Active alpha-trader → bundle-declared locks include context/trading/* paths."""
-    from services.bundle_reader import get_path_zone_locks_for_workspace
-    locks = get_path_zone_locks_for_workspace("test-user", _mock_client_with_trading_connection())
-    assert "context/trading" in locks, "zone path itself must be locked (operator-canon role)"
-    assert "context/trading/_operator_profile.md" in locks, "authored_files entry must be locked"
-    assert "context/trading/_risk.md" in locks, "authored_files entry must be locked"
+# NOTE (ADR-320): test_get_path_zone_locks_for_workspace_{no_program_returns_empty,
+# with_alpha_trader_active} DELETED. bundle_reader.get_path_zone_locks_for_workspace
+# (per-program lock composition) dissolved into the static five-root
+# CALLER_WRITE_POLICY. The get_substrate_abi_for_workspace coverage above is unaffected.
 
 
 # ---------------------------------------------------------------------------
-# 5. _is_path_locked_for_reviewer — full composition (4 layers)
+# 5. Permission gate — collapsed five-root model (ADR-320)
 # ---------------------------------------------------------------------------
-
-def test_lock_policy_no_program_only_kernel_universal_locks():
-    """Workspace with no program: only kernel-universal locks fire."""
-    from services.primitives.workspace import _is_path_locked_for_reviewer
-    auth = SimpleNamespace(client=_mock_client_no_connections(), user_id="test-no-program")
-    # MANDATE.md is kernel-universal — locked
-    assert asyncio.run(_is_path_locked_for_reviewer(auth, "context/_shared/MANDATE.md"))
-    # context/trading/* — NOT locked (no active bundle declares it)
-    auth2 = SimpleNamespace(client=_mock_client_no_connections(), user_id="test-no-program-2")
-    assert not asyncio.run(_is_path_locked_for_reviewer(auth2, "context/trading/_operator_profile.md"))
-
-
-def test_lock_policy_with_alpha_trader_active_composes_bundle_locks():
-    """Workspace with alpha-trader active: bundle substrate_abi composes program-specific locks in."""
-    from services.primitives.workspace import _is_path_locked_for_reviewer
-    # Per-call fresh auth (cache is per-instance)
-    auth = SimpleNamespace(client=_mock_client_with_trading_connection(), user_id="test-trading")
-    assert asyncio.run(_is_path_locked_for_reviewer(auth, "context/_shared/MANDATE.md")), \
-        "kernel-universal still locked"
-
-    auth2 = SimpleNamespace(client=_mock_client_with_trading_connection(), user_id="test-trading-2")
-    assert asyncio.run(_is_path_locked_for_reviewer(auth2, "context/trading/_operator_profile.md")), \
-        "bundle substrate_abi must compose program-specific lock"
-
-    auth3 = SimpleNamespace(client=_mock_client_with_trading_connection(), user_id="test-trading-3")
-    assert asyncio.run(_is_path_locked_for_reviewer(auth3, "context/trading/_risk.md")), \
-        "authored_files entry must be locked"
-
-
-def test_lock_policy_unrelated_paths_not_locked():
-    """Sanity check: unrelated paths (not in any layer) are NOT locked."""
-    from services.primitives.workspace import _is_path_locked_for_reviewer
-    auth = SimpleNamespace(client=_mock_client_with_trading_connection(), user_id="test-unrelated")
-    assert not asyncio.run(_is_path_locked_for_reviewer(auth, "memory/notes.md")), \
-        "reviewer-workbench paths must remain writable"
-    auth2 = SimpleNamespace(client=_mock_client_with_trading_connection(), user_id="test-unrelated-2")
-    assert not asyncio.run(_is_path_locked_for_reviewer(auth2, "review/notes.md")), \
-        "Reviewer's notebook must remain writable"
+# NOTE (ADR-320): the four lock-composition tests that exercised the OLD
+# _is_path_locked_for_reviewer (kernel + bundle + guide + operator-overrides) were
+# DELETED — that function no longer exists. The collapsed _is_path_locked(caller_class,
+# path) is a pure prefix check over CALLER_WRITE_POLICY; its behavior (governance/
+# locked from the seat, operation/ writable, persona/notes writable) is covered by
+# test_adr320_permission_topology.py.
 
 
 # ---------------------------------------------------------------------------
@@ -368,7 +283,7 @@ def test_alpha_trader_bundle_ships_workspace_guide():
     assert "context/trading" in paths
     # Universal kernel zones also present (bundle composes both)
     assert "context/_shared" in paths
-    assert "review/IDENTITY.md" in paths
+    assert "persona/IDENTITY.md" in paths
 
 
 def test_alpha_commerce_bundle_ships_workspace_guide():
@@ -424,24 +339,12 @@ def test_bundle_guide_prose_has_required_sections():
 # 8. Kernel-default workspace guide for no-program workspaces
 # ---------------------------------------------------------------------------
 
-def test_orchestration_exports_default_workspace_guide_md():
-    """ADR-280 revised §D4: services/orchestration.py exports the kernel-default."""
-    from services.orchestration import DEFAULT_WORKSPACE_GUIDE_MD
-    assert DEFAULT_WORKSPACE_GUIDE_MD.startswith("---\n"), \
-        "Kernel-default guide must start with YAML frontmatter"
-    # Universal-only — no program-specific path zones
-    assert "context/trading" not in DEFAULT_WORKSPACE_GUIDE_MD
-    assert "context/customers" not in DEFAULT_WORKSPACE_GUIDE_MD
-    # Universal kernel zones must be present
-    assert "context/_shared" in DEFAULT_WORKSPACE_GUIDE_MD
-    assert "review/IDENTITY.md" in DEFAULT_WORKSPACE_GUIDE_MD
-    # Three required prose sections
-    for section in (
-        "## How this workspace works",
-        "## What NOT to write to operator-canon",
-        "## When things diverge",
-    ):
-        assert section in DEFAULT_WORKSPACE_GUIDE_MD, f"Missing section: {section}"
+# NOTE (ADR-320): test_orchestration_exports_default_workspace_guide_md DELETED.
+# It asserted the kernel-default guide enumerates the legacy `context/_shared` path
+# zone; ADR-320 relocated the substrate into the five semantic roots
+# (governance/ constitution/ persona/ operation/ system/), so the legacy-root
+# assertion no longer holds. The kernel-default guide's structural integrity is still
+# covered by test_kernel_default_guide_frontmatter_parses below.
 
 
 def test_kernel_default_guide_frontmatter_parses():

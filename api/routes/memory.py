@@ -2,16 +2,16 @@
 Memory routes — ADR-133 + ADR-206: Workspace Context Architecture
 
 Mounted at /api/memory. Reads/writes workspace context files:
-  /workspace/context/_shared/IDENTITY.md  → User identity (ADR-206 relocation)
-  /workspace/context/_shared/BRAND.md     → Brand identity (ADR-206 relocation)
-  /workspace/memory/notes.md              → YARNNN-accumulated knowledge (ADR-206 relocation)
+  /workspace/persona/IDENTITY.md  → User identity (ADR-206 relocation)
+  /workspace/operation/BRAND.md     → Brand identity (ADR-206 relocation)
+  /workspace/system/notes.md              → YARNNN-accumulated knowledge (ADR-206 relocation)
 
 Endpoints:
-  GET  /profile              - Get identity from /workspace/context/_shared/IDENTITY.md
+  GET  /profile              - Get identity from /workspace/persona/IDENTITY.md
   PATCH /profile             - Update identity fields
-  GET  /user/brand           - Get brand from /workspace/context/_shared/BRAND.md
+  GET  /user/brand           - Get brand from /workspace/operation/BRAND.md
   POST /user/brand           - Save brand
-  GET  /user/memories        - List notes from /memory/notes.md
+  GET  /user/memories        - List notes from /system/notes.md
   POST /user/memories        - Add a note
   POST /user/memories/import - Bulk import from text
   DELETE /memories/{id}      - Delete a note
@@ -159,11 +159,11 @@ def _note_to_entry(note: dict, idx: int) -> dict:
 
 @router.get("/user/identity")
 async def get_identity(auth: UserClient):
-    """Get workspace identity. Reads /workspace/context/_shared/IDENTITY.md (ADR-206)."""
+    """Get workspace identity. Reads /workspace/persona/IDENTITY.md (ADR-206)."""
     try:
-        from services.workspace_paths import SHARED_IDENTITY_PATH
+        from services.workspace_paths import PERSONA_IDENTITY_PATH
         um = UserMemory(auth.client, auth.user_id)
-        content = await um.read(SHARED_IDENTITY_PATH)
+        content = await um.read(PERSONA_IDENTITY_PATH)
         if content and content.strip():
             return {"content": content, "exists": True}
         return {"content": None, "exists": False}
@@ -177,17 +177,17 @@ class IdentitySaveRequest(BaseModel):
 
 @router.post("/user/identity")
 async def save_identity(body: IdentitySaveRequest, auth: UserClient):
-    """Save workspace identity. Writes /workspace/context/_shared/IDENTITY.md (ADR-206).
+    """Save workspace identity. Writes /workspace/persona/IDENTITY.md (ADR-206).
 
     ADR-209 Phase 4: operator-initiated edit — attribute to `operator` so the
     RevisionHistoryPanel correctly surfaces this as an operator edit, not a
     system write.
     """
     try:
-        from services.workspace_paths import SHARED_IDENTITY_PATH
+        from services.workspace_paths import PERSONA_IDENTITY_PATH
         um = UserMemory(auth.client, auth.user_id)
         success = await um.write(
-            SHARED_IDENTITY_PATH,
+            PERSONA_IDENTITY_PATH,
             body.content,
             summary="User identity",
             authored_by="operator",
@@ -206,11 +206,11 @@ async def save_identity(body: IdentitySaveRequest, auth: UserClient):
 
 @router.get("/user/brand")
 async def get_brand(auth: UserClient):
-    """Get workspace brand. Reads /workspace/context/_shared/BRAND.md (ADR-206)."""
+    """Get workspace brand. Reads /workspace/operation/BRAND.md (ADR-206)."""
     try:
-        from services.workspace_paths import SHARED_BRAND_PATH
+        from services.workspace_paths import OPERATION_BRAND_PATH
         um = UserMemory(auth.client, auth.user_id)
-        content = await um.read(SHARED_BRAND_PATH)
+        content = await um.read(OPERATION_BRAND_PATH)
         if content and content.strip():
             return {"content": content, "exists": True}
         return {"content": None, "exists": False}
@@ -224,15 +224,15 @@ class BrandSaveRequest(BaseModel):
 
 @router.post("/user/brand")
 async def save_brand(body: BrandSaveRequest, auth: UserClient):
-    """Save workspace brand. Writes /workspace/context/_shared/BRAND.md (ADR-206).
+    """Save workspace brand. Writes /workspace/operation/BRAND.md (ADR-206).
 
     ADR-209 Phase 4: operator-initiated edit — attribute to `operator`.
     """
     try:
-        from services.workspace_paths import SHARED_BRAND_PATH
+        from services.workspace_paths import OPERATION_BRAND_PATH
         um = UserMemory(auth.client, auth.user_id)
         success = await um.write(
-            SHARED_BRAND_PATH,
+            OPERATION_BRAND_PATH,
             body.content,
             summary="Brand identity",
             authored_by="operator",
@@ -355,7 +355,7 @@ async def delete_style(platform: str, auth: UserClient):
 
 @router.get("/user/memories", response_model=list[NoteEntry])
 async def list_user_memories(auth: UserClient):
-    """List notes from /memory/notes.md."""
+    """List notes from /system/notes.md."""
     try:
         um = UserMemory(auth.client, auth.user_id)
         notes = await um.get_notes()
@@ -366,7 +366,7 @@ async def list_user_memories(auth: UserClient):
 
 @router.post("/user/memories", response_model=NoteEntry)
 async def create_user_memory(entry: EntryCreate, auth: UserClient):
-    """Add a note to /memory/notes.md."""
+    """Add a note to /system/notes.md."""
     try:
         um = UserMemory(auth.client, auth.user_id)
         await um.add_note(entry.entry_type, entry.content)

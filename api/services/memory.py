@@ -2,11 +2,11 @@
 User Memory Service — ADR-108 + ADR-156
 
 Extracts stable personal facts and persists them as entries in
-/memory/notes.md (workspace_files). Read-merge-write pattern ensures
+/system/notes.md (workspace_files). Read-merge-write pattern ensures
 deduplication and document-level coherence.
 
 ADR-156 + ADR-235: Nightly cron extraction REMOVED. Primary write path is
-now TP calling WriteFile(scope="workspace", path="memory/notes.md",
+now TP calling WriteFile(scope="workspace", path="system/notes.md",
 content="...", mode="append") during conversation.
 This module is retained for:
   - extract_from_text_to_user_memory(): bulk import from user-provided text
@@ -33,7 +33,7 @@ class UserMemoryService:
     User memory extraction and persistence.
 
     ADR-108: Extracts stable personal facts from conversations and writes them
-    to /memory/notes.md via read-merge-write. Deduplicates on content.
+    to /system/notes.md via read-merge-write. Deduplicates on content.
     """
 
     async def process_conversation(
@@ -65,7 +65,7 @@ class UserMemoryService:
             logger.debug(f"[user_memory] No facts extracted from session {session_id}")
             return 0
 
-        # ADR-108: Read-merge-write to /memory/notes.md
+        # ADR-108: Read-merge-write to /system/notes.md
         from services.workspace import UserMemory
         um = UserMemory(client, user_id)
         existing_notes = await um.get_notes()
@@ -228,7 +228,7 @@ _service = UserMemoryService()
 
 
 async def process_conversation(client, user_id: str, messages: list[dict], session_id: str) -> int:
-    """Extract stable personal facts from a completed conversation → /memory/notes.md."""
+    """Extract stable personal facts from a completed conversation → /system/notes.md."""
     return await _service.process_conversation(client, user_id, messages, session_id)
 
 

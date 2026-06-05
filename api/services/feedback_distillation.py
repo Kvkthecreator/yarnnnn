@@ -5,13 +5,13 @@ Routes user feedback signals to the appropriate recurrence's _feedback.md.
 ADR-154: Feedback is per-recurrence (HOW), not per-agent (WHO).
 ADR-181: feedback.md promoted to recurrence root (peer of recurrence YAML
 declaration and output substrate).
-ADR-231 D2: canonical path is `/workspace/reports/{slug}/_feedback.md`
+ADR-231 D2: canonical path is `/workspace/operation/reports/{slug}/_feedback.md`
 (resolved via `conventions.report_feedback_path`); the deleted /tasks/
 filesystem tree is gone.
 
 Two write paths:
   1. Edit-based — called from agents.py PATCH run endpoint. Resolves task_slug
-     from the run's metadata, writes to /workspace/reports/{slug}/_feedback.md
+     from the run's metadata, writes to /workspace/operation/reports/{slug}/_feedback.md
      via `conventions.report_feedback_path()`.
   2. Conversational — called by TP via WriteFile(scope="workspace") to the
      agent's `agents/{slug}/memory/feedback.md` or the recurrence's
@@ -227,7 +227,7 @@ async def _append_feedback_for_slug(
     """Append a feedback entry to the recurrence's _feedback.md.
 
     ADR-262 D1: every recurrence's feedback lives at the slug-templated
-    path ``/workspace/reports/{slug}/_feedback.md``.
+    path ``/workspace/operation/reports/{slug}/_feedback.md``.
 
     Newest entry first, capped at ``_MAX_FEEDBACK_ENTRIES``.
     """

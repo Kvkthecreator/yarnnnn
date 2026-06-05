@@ -93,7 +93,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
 
     "_shared": {
         "type": "shared_context",
-        "path": "context/_shared",
+        "path": "constitution/+governance/+operation/ (legacy _shared, ADR-320)",
         "display_name": "Shared Context",
         "description": "Workspace identity, brand, and filesystem conventions (authored)",
         "managed_by": "user_and_yarnnn",

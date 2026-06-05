@@ -151,7 +151,7 @@ async def handle_runtime_dispatch(auth: Any, input: dict) -> dict:
         if task_slug:
             # Headless recurrence execution — write into the recurrence's latest
             # output folder alongside section partials. ADR-231 D2 + ADR-262 D1:
-            # canonical path is /workspace/reports/{slug}/latest/ via conventions
+            # canonical path is /workspace/operation/reports/{slug}/latest/ via conventions
             # module (not the deleted /tasks/{slug}/ tree).
             from services.conventions import report_latest_dir
             ws_path = f"{report_latest_dir(task_slug)}/{safe_title}.{output_format}"

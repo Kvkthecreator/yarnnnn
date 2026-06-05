@@ -179,11 +179,11 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
     if getattr(auth, "caller_identity", "") == "yarnnn:mcp":
         if name in _PATH_ADDRESSED_QUEUEABLE:  # WriteFile today
             from services.primitives.workspace import (
-                _resolve_workspace_path_for_gate, _is_path_locked_for_mcp,
+                _resolve_workspace_path_for_gate, _is_path_locked, _caller_class,
             )
             path = _resolve_workspace_path_for_gate(input)
-            if path is not None and _is_path_locked_for_mcp(path):
-                return PermissionDecision.DENY, f"mcp_governance_locked:{path}"
+            if path is not None and _is_path_locked(_caller_class(auth), path):
+                return PermissionDecision.DENY, f"mcp_topology_locked:{path}"
         return PermissionDecision.APPLY, "mcp_caller_unlocked_path"
 
     # Autonomy gate scoped to Reviewer-runtime calls (ADR-293).
@@ -208,13 +208,13 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
             # Path-addressed (WriteFile): resolve the target path; non-workspace
             # scope is not autonomy-gated; governance lock → bypass-immune DENY.
             from services.primitives.workspace import (
-                _resolve_workspace_path_for_gate, _is_path_locked_for_reviewer,
+                _resolve_workspace_path_for_gate, _is_path_locked, _caller_class,
             )
             path = _resolve_workspace_path_for_gate(input)
             if path is None:
                 return PermissionDecision.APPLY, "non_workspace_scope"
-            if await _is_path_locked_for_reviewer(auth, path):
-                return PermissionDecision.DENY, f"governance_locked:{path}"
+            if _is_path_locked(_caller_class(auth), path):
+                return PermissionDecision.DENY, f"topology_locked:{path}"
             substrate_path = path
 
         # Delegation decision (manual/bounded → queue; autonomous → apply).

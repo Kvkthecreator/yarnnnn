@@ -138,22 +138,22 @@ def test_chat_panel_imports_use_autonomy():
 
 def test_workspace_init_scaffolds_shared_autonomy_path():
     """Assertion #5: workspace_init.py continues to scaffold
-    SHARED_AUTONOMY_PATH at signup. Regression guard against a substrate
+    GOVERNANCE_AUTONOMY_PATH at signup. Regression guard against a substrate
     sunset that would orphan ADR-238."""
     src = _read(API_WORKSPACE_INIT)
-    assert "SHARED_AUTONOMY_PATH" in src, (
-        "workspace_init.py must reference SHARED_AUTONOMY_PATH to scaffold "
+    assert "GOVERNANCE_AUTONOMY_PATH" in src, (
+        "workspace_init.py must reference GOVERNANCE_AUTONOMY_PATH to scaffold "
         "the autonomy substrate per ADR-217 / ADR-238 R4."
     )
 
 
 def test_workspace_paths_exposes_shared_autonomy_path():
-    """Assertion #6: workspace_paths.py exposes SHARED_AUTONOMY_PATH with
-    the workspace-relative shape `context/_shared/AUTONOMY.md`. Regression
+    """Assertion #6: workspace_paths.py exposes GOVERNANCE_AUTONOMY_PATH with
+    the workspace-relative shape `governance/AUTONOMY.md`. Regression
     guard against path-constant drift on the Python side; FE drift is
     caught by assertion #1."""
     src = _read(API_WORKSPACE_PATHS)
-    expected = 'SHARED_AUTONOMY_PATH = "context/_shared/AUTONOMY.md"'
+    expected = 'GOVERNANCE_AUTONOMY_PATH = "governance/AUTONOMY.md"'
     assert expected in src, (
         f"workspace_paths.py must define {expected!r} (workspace-relative). "
         "ADR-238 assertion #6."

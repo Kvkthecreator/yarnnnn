@@ -5,11 +5,11 @@ The Reviewer's wake envelope (ADR-274 + ADR-276 + ADR-281 + ADR-284 +
 ADR-301) needs two compact substrate files mirrored from the system's
 own scheduling index + execution_events ledger:
 
-- /workspace/memory/_schedule_index.md — projects `tasks` rows + each
+- /workspace/system/_schedule_index.md — projects `tasks` rows + each
   recurrence's literal `schedule:` string + last_run_at + next_run_at +
   paused flag. The Reviewer reads this to reason correctly about its own
   cadence.
-- /workspace/memory/_recent_execution.md — projects last-24h
+- /workspace/system/_recent_execution.md — projects last-24h
   `execution_events` into a deterministic markdown rollup. The Reviewer
   reads this to know what has actually fired and with what outcome.
 

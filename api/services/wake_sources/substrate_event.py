@@ -34,11 +34,11 @@ Hook schema (in /workspace/_hooks.yaml):
 hooks:
   - slug: pre-ship-audit
     event: substrate_change
-    path_match: /workspace/context/authored/*/profile.md
+    path_match: /workspace/operation/authored/*/profile.md
     field_change: { status: ready_for_review }
     prompt: |
       A draft was just marked ready_for_review. Read the draft at
-      /workspace/context/authored/{piece-slug}/content.md and audit per
+      /workspace/operation/authored/{piece-slug}/content.md and audit per
       voice + continuity + anti-slop + editorial criteria. ...
 ```
 
@@ -170,7 +170,7 @@ def _path_matches(path: str, glob_pattern: str) -> bool:
     """Match a workspace-absolute path against a glob pattern.
 
     Both are leading-slash workspace-absolute (e.g.,
-    `/workspace/context/authored/foo/profile.md`).
+    `/workspace/operation/authored/foo/profile.md`).
     """
     if not glob_pattern:
         return False

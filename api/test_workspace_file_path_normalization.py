@@ -2,9 +2,9 @@
 GET/PATCH /api/workspace/file path-normalization regression gate.
 
 The 2026-04-29 alpha-trader-2 E2E observation surfaced asymmetry:
-WriteFile(scope="workspace", path="context/_shared/MANDATE.md") writes
-to /workspace/context/_shared/MANDATE.md (canonical UserMemory storage),
-but a readback via GET /api/workspace/file?path=context/_shared/MANDATE.md
+WriteFile(scope="workspace", path="constitution/MANDATE.md") writes
+to /workspace/constitution/MANDATE.md (canonical UserMemory storage),
+but a readback via GET /api/workspace/file?path=constitution/MANDATE.md
 404'd because the route required the absolute form.
 
 Fix (2026-04-30): both GET and PATCH normalize a missing leading slash

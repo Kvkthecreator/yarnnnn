@@ -117,7 +117,7 @@ def test_path_locked_failure_surfaces():
         "tool": "WriteFile",
         "success": False,
         "failure_reason": "path_locked",
-        "input": {"path": "/workspace/context/_shared/_autonomy.yaml"},
+        "input": {"path": "/workspace/governance/_autonomy.yaml"},
     }
     assert should_surface_failed_action(action) is True
 
@@ -163,11 +163,11 @@ def test_blocked_narration_includes_tool_and_failure_reason():
         "WriteFile",
         "",
         failure_reason="path_locked",
-        inp={"path": "/workspace/context/_shared/_autonomy.yaml"},
+        inp={"path": "/workspace/governance/_autonomy.yaml"},
     )
     assert "WriteFile" in body
     assert "path_locked" in body
-    assert "/workspace/context/_shared/_autonomy.yaml" in body
+    assert "/workspace/governance/_autonomy.yaml" in body
     assert "blocked" in body.lower()
 
 

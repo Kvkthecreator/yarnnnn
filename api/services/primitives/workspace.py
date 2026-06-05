@@ -67,14 +67,14 @@ Two scopes (ADR-235 Option A):
 **scope='workspace'** (chat default) — read workspace-relative paths via the
 operator-shared substrate. Use for shared context, governance, working memory,
 task substrate, etc.
-  ReadFile(scope='workspace', path='context/_shared/MANDATE.md')
-  ReadFile(scope='workspace', path='memory/notes.md')
+  ReadFile(scope='workspace', path='constitution/MANDATE.md')
+  ReadFile(scope='workspace', path='system/notes.md')
   ReadFile(scope='workspace', path='reports/market-weekly/_spec.yaml')
 
 **scope='agent'** (headless default) — read from the calling agent's workspace
 (/agents/{slug}/...). Requires agent context.
   ReadFile(scope='agent', path='AGENT.md')
-  ReadFile(scope='agent', path='memory/playbook-outputs.md')
+  ReadFile(scope='agent', path='system/playbook-outputs.md')
 
 For semantic search across accumulated context domains, use QueryKnowledge.""",
     "input_schema": {
@@ -82,7 +82,7 @@ For semantic search across accumulated context domains, use QueryKnowledge.""",
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Path. For scope='workspace': workspace-relative (e.g. 'context/_shared/MANDATE.md', 'memory/notes.md'). For scope='agent': relative to the agent's workspace (e.g. 'AGENT.md')."
+                "description": "Path. For scope='workspace': workspace-relative (e.g. 'constitution/MANDATE.md', 'system/notes.md'). For scope='agent': relative to the agent's workspace (e.g. 'AGENT.md')."
             },
             "scope": {
                 "type": "string",
@@ -107,13 +107,13 @@ Three scopes (ADR-235 Option A):
 **scope='workspace'** (chat default) — write to operator-shared substrate via
 workspace-relative path. Use for governance declarations, working memory,
 task feedback, awareness handoff, etc.
-  WriteFile(scope='workspace', path='context/_shared/MANDATE.md', content='...')
-  WriteFile(scope='workspace', path='memory/notes.md', content='...', mode='append')
-  WriteFile(scope='workspace', path='memory/awareness.md', content='...')
+  WriteFile(scope='workspace', path='constitution/MANDATE.md', content='...')
+  WriteFile(scope='workspace', path='system/notes.md', content='...', mode='append')
+  WriteFile(scope='workspace', path='system/awareness.md', content='...')
   WriteFile(scope='workspace', path='reports/market-weekly/feedback.md', content='...', mode='append')
 
   Writes to recognized canonical paths emit activity log events automatically:
-    'memory/notes.md'   → 'memory_written'
+    'system/notes.md'   → 'memory_written'
     'agents/{slug}/memory/feedback.md' → 'agent_feedback'
 
 **scope='context'** — write to a shared context domain at
@@ -131,7 +131,7 @@ via the Authored Substrate (ADR-209) with attribution + revision chain.""",
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Path. For scope='workspace': workspace-relative (e.g., 'context/_shared/MANDATE.md', 'memory/notes.md', 'reports/market-weekly/feedback.md'). For scope='context': within the domain folder (e.g., 'acme-corp/signals.md'). For scope='agent': relative to the agent's workspace (e.g., 'AGENT.md').",
+                "description": "Path. For scope='workspace': workspace-relative (e.g., 'constitution/MANDATE.md', 'system/notes.md', 'reports/market-weekly/feedback.md'). For scope='context': within the domain folder (e.g., 'acme-corp/signals.md'). For scope='agent': relative to the agent's workspace (e.g., 'AGENT.md').",
             },
             "content": {
                 "type": "string",
@@ -251,7 +251,7 @@ filesystem. For entity listing by database table, use ListEntities.
 Two scopes (ADR-235 Option A):
 
 **scope='workspace'** (chat default) — list operator-shared substrate.
-Pass `path` to scope a subdirectory (e.g. 'context/', 'reports/', 'memory/').
+Pass `path` to scope a subdirectory (e.g. 'context/', 'reports/', 'system/').
   ListFiles(scope='workspace')                        # top-level workspace folders
   ListFiles(scope='workspace', path='context/')       # context domains
   ListFiles(scope='workspace', path='reports/')       # task report folders
@@ -278,7 +278,7 @@ Operator-facing examples:
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Optional: subdirectory to list. For scope='workspace' use workspace-relative (e.g. 'context/', 'reports/', 'memory/'). For scope='agent' relative to the agent's workspace.",
+                "description": "Optional: subdirectory to list. For scope='workspace' use workspace-relative (e.g. 'context/', 'reports/', 'system/'). For scope='agent' relative to the agent's workspace.",
             },
             "scope": {
                 "type": "string",
@@ -313,7 +313,7 @@ async def _log_cross_agent_reference(auth: Any, referenced_agent_ids: list[str])
 
     When an agent reads knowledge or context from another agent, record the
     reference so Composer can build an agent dependency graph.
-    Writes to the consuming agent's memory/references.json.
+    Writes to the consuming agent's system/references.json.
     Non-fatal — never blocks the calling primitive.
     """
     from services.workspace import AgentWorkspace, get_agent_slug
@@ -328,7 +328,7 @@ async def _log_cross_agent_reference(auth: Any, referenced_agent_ids: list[str])
         now = datetime.now(timezone.utc).isoformat()
 
         # Read existing references
-        existing = await ws.read("memory/references.json")
+        existing = await ws.read("system/references.json")
         refs = {}
         if existing:
             try:
@@ -341,7 +341,7 @@ async def _log_cross_agent_reference(auth: Any, referenced_agent_ids: list[str])
             refs[aid] = {"last_read": now}
 
         await ws.write(
-            "memory/references.json",
+            "system/references.json",
             json.dumps(refs, indent=2),
             summary="Cross-agent references (auto-tracked)",
         )
@@ -364,7 +364,7 @@ async def handle_read_file(auth: Any, input: dict) -> dict:
 
     if scope == "workspace":
         # Normalize path: UserMemory.read() expects a workspace-relative path
-        # (e.g. "context/_shared/MANDATE.md") and prepends "/workspace/" itself.
+        # (e.g. "constitution/MANDATE.md") and prepends "/workspace/" itself.
         # The model sometimes passes the full absolute path ("/workspace/context/...")
         # or the path with a leading "workspace/" — strip both so we don't get
         # /workspace/workspace/... double-prefix.
@@ -472,14 +472,14 @@ def _classify_workspace_path_for_activity(rel_path: str) -> Optional[dict]:
     """Return an activity-log event dict for a recognized canonical path, else None.
 
     Recognized paths:
-      memory/notes.md                       → memory_written
+      system/notes.md                       → memory_written
       agents/{slug}/memory/feedback.md      → agent_feedback (with agent_slug metadata)
 
     Other paths (governance declarations, task feedback, awareness, recurrence
     YAMLs, context domain files, agent workspace files) do NOT emit activity
     events — they are recorded only via the Authored Substrate revision chain.
     """
-    if rel_path == "memory/notes.md":
+    if rel_path == "system/notes.md":
         return {"event_type": "memory_written", "metadata": {}}
 
     m = _AGENT_FEEDBACK_PATH_RE.match(rel_path)
@@ -530,7 +530,7 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
     Three scopes:
       - 'workspace' (default for chat): writes workspace-relative paths via UserMemory.
         Reaches operator-shared substrate (context/, memory/, review/, reports/, ...).
-        Recognized canonical paths (memory/notes.md, agents/{slug}/memory/feedback.md)
+        Recognized canonical paths (system/notes.md, agents/{slug}/memory/feedback.md)
         emit activity-log events automatically (ADR-235 D1.b).
       - 'context': writes a shared context domain at /workspace/context/{domain}/.
       - 'agent' (default when agent context present): writes to the calling agent's workspace.
@@ -1274,9 +1274,9 @@ async def handle_read_agent_file(auth: Any, input: dict) -> dict:
     if files_mode in ("memory", "all"):
         memory_files = {}
         try:
-            files = await ws.list("memory/")
+            files = await ws.list("system/")
             for f in files:
-                # f is a path string like "memory/observations.md"
+                # f is a path string like "system/observations.md"
                 content = await ws.read(f)
                 if content:
                     memory_files[f] = content[:1000]  # Truncate for token budget
@@ -1302,53 +1302,50 @@ async def handle_read_agent_file(auth: Any, input: dict) -> dict:
 # ADR-258 D3 + D9: operator-authored access policy enforcement
 # ---------------------------------------------------------------------------
 
-async def _is_path_locked_for_reviewer(auth: Any, path: str) -> bool:
-    """Check Reviewer-write lock policy for the given path.
+def _caller_class(auth: Any) -> str:
+    """Resolve the caller-class key for the permission topology (ADR-320).
 
-    ADR-293 (2026-05-19): the lock surface is GOVERNANCE-ONLY. Three files
-    are locked from Reviewer runtime regardless of AUTONOMY mode — the
-    delegation declaration (AUTONOMY.md + _autonomy.yaml) and the compute-
-    budget declaration (_token_budget.yaml). Pre-ADR-293's 4-layer
-    composition (kernel defaults + workspace guide path_zones + bundle
-    path_zones + _locks.yaml overrides) collapsed per first-principles test:
-    only governance-purpose files (those whose Reviewer-edit could grant
-    unauthorized authority) warrant lock; everything else is operational,
-    Reviewer-writable, AUTONOMY-mode-gated at write time.
-
-    Per-path operator overrides (e.g., "lock _universe.yaml under autonomous")
-    moved to `_autonomy.yaml::never_auto` with `path:` prefix per ADR-293 D5.
-
-    Singular Implementation: one check, one source, one mechanism.
+    Maps the auth's caller_identity / reviewer_caller flag to one of the
+    CALLER_WRITE_POLICY keys: operator | reviewer | mcp | agent | system.
     """
-    from services.workspace_paths import DEFAULT_REVIEWER_WRITE_LOCKS
+    caller_identity = getattr(auth, "caller_identity", "") or ""
+    if caller_identity == "yarnnn:mcp":
+        return "mcp"
+    if getattr(auth, "reviewer_caller", False) or caller_identity.startswith("reviewer:"):
+        return "reviewer"
+    if caller_identity == "operator" or caller_identity.startswith("operator"):
+        return "operator"
+    if caller_identity.startswith("agent:") or caller_identity.startswith("specialist:"):
+        return "agent"
+    if caller_identity.startswith("system:"):
+        return "system"
+    # Default: treat unknown LLM callers as agent-class (least-trust non-mcp).
+    return "agent"
+
+
+def _is_path_locked(caller_class: str, path: str) -> bool:
+    """`access(2)` for the agent OS — the SINGULAR write-lock (ADR-320 D3).
+
+    Topology IS the permission policy: a caller is locked from writing `path`
+    iff `path`'s top-level root is in that caller-class's locked prefix set
+    (CALLER_WRITE_POLICY). No filename appears — permission derives from
+    (caller_class, root) alone. This replaces the pre-ADR-320 pair
+    (_is_path_locked_for_reviewer flat-list + _is_path_locked_for_mcp prefix);
+    one function, one source (workspace_paths.CALLER_WRITE_POLICY), one
+    mechanism. The five roots: governance/ constitution/ persona/ operation/
+    system/ (FOUNDATIONS Derived Principle 25).
+
+    Note on the one cross-class write: the reconciler (system:outcome-
+    reconciliation) writes persona/calibration.md. That is the system caller
+    targeting a specific named path — system's locked set is empty here and
+    the named-path discipline lives at the reconciler's own caller, not as a
+    hole in this prefix rule.
+    """
+    from services.workspace_paths import CALLER_WRITE_POLICY
 
     candidate = path.strip().lstrip("/")
     if candidate.startswith("workspace/"):
         candidate = candidate[len("workspace/"):]
 
-    governance = {p.strip().lstrip("/") for p in DEFAULT_REVIEWER_WRITE_LOCKS}
-    return candidate in governance
-
-
-def _is_path_locked_for_mcp(path: str) -> bool:
-    """Check the MCP-caller (foreign LLM) write-lock policy for a path.
-
-    ADR-310 follow-on (foreign-LLM write gate): the foreign LLM is a lower-trust
-    caller than the Reviewer. Its lock-set is BROADER and prefix-based — it may
-    not write under `review/` (Reviewer seat) or `context/_shared/` (operator-
-    authored intent + governance). Writes elsewhere in the commons APPLY.
-
-    Synchronous + pure (no DB) — the lock-set is a static subtree policy, unlike
-    the Reviewer's which composes with operator overrides. Singular: same lock
-    *mechanism* (path → bool), caller-specific lock-set.
-    """
-    from services.workspace_paths import DEFAULT_MCP_WRITE_LOCK_PREFIXES
-
-    candidate = path.strip().lstrip("/")
-    if candidate.startswith("workspace/"):
-        candidate = candidate[len("workspace/"):]
-
-    return any(
-        candidate.startswith(prefix.strip().lstrip("/"))
-        for prefix in DEFAULT_MCP_WRITE_LOCK_PREFIXES
-    )
+    locked_prefixes = CALLER_WRITE_POLICY.get(caller_class, ())
+    return any(candidate.startswith(prefix) for prefix in locked_prefixes)

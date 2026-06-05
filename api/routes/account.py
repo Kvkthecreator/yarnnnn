@@ -167,7 +167,7 @@ def _count_workspace_pattern(client, user_id: str, like_pattern: str) -> int:
     """Count workspace_files rows matching an arbitrary SQL LIKE pattern.
 
     Caller is responsible for the trailing `%` (and any internal `%` for
-    cross-segment patterns like `/workspace/reports/%/2026-%`).
+    cross-segment patterns like `/workspace/operation/reports/%/2026-%`).
     """
     try:
         result = (
@@ -429,13 +429,13 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
       - All `agent_runs` rows belonging to the user (every past invocation
         execution record). FK cascades on these tables also wipe their
         dependents (e.g. `agent_export_preferences` legacy entries).
-      - `workspace_files` rows where path matches `/workspace/reports/%/%/%`
+      - `workspace_files` rows where path matches `/workspace/operation/reports/%/%/%`
         (every dated DELIVERABLE output folder under any recurrence slug —
         ADR-231 D2 natural-home substrate. The three-segment pattern avoids
         the slug-root siblings (`_spec.yaml`, `_feedback.md`, etc.) which
         live at depth 2; output files live at depth 3 under a date folder).
-      - `workspace_files` rows where path matches `/workspace/reports/%/_run_log.md`
-        and `/workspace/operations/%/_run_log.md` (per-recurrence observation
+      - `workspace_files` rows where path matches `/workspace/operation/reports/%/_run_log.md`
+        and `/workspace/operation/operations/%/_run_log.md` (per-recurrence observation
         logs — re-created on next run).
 
     What is preserved (the L1 invariant set):
@@ -466,20 +466,20 @@ async def clear_work_history(auth: UserClient) -> OperationResult:
         deleted["agent_runs"] = _delete_user_agent_runs(client, user_id)
 
         # Dated DELIVERABLE output folders under any recurrence slug.
-        # Pattern `/workspace/reports/%/%/%` matches anything 3+ segments deep
-        # — i.e. dated subfolders like `/workspace/reports/{slug}/{date}/{file}`.
+        # Pattern `/workspace/operation/reports/%/%/%` matches anything 3+ segments deep
+        # — i.e. dated subfolders like `/workspace/operation/reports/{slug}/{date}/{file}`.
         # Slug-root siblings (`_spec.yaml`, `_feedback.md`, `_intent.md`,
         # `_run_log.md`) live at depth 2 and are explicitly preserved.
         deleted["report_outputs"] = _delete_workspace_pattern(
-            client, user_id, "/workspace/reports/%/%/%"
+            client, user_id, "/workspace/operation/reports/%/%/%"
         )
 
         # Per-recurrence observation logs — re-created on next run.
         deleted["report_run_logs"] = _delete_workspace_pattern(
-            client, user_id, "/workspace/reports/%/_run_log.md"
+            client, user_id, "/workspace/operation/reports/%/_run_log.md"
         )
         deleted["operation_run_logs"] = _delete_workspace_pattern(
-            client, user_id, "/workspace/operations/%/_run_log.md"
+            client, user_id, "/workspace/operation/operations/%/_run_log.md"
         )
 
         logger.info(f"[ACCOUNT] User {user_id} cleared work history: {deleted}")
@@ -539,7 +539,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         Production roles lazy-create on first dispatch; platform integrations
         per ADR-207 are capability bundles bound to platform_connections,
         not agent rows)
-      * Reviewer substrate at /workspace/review/ (ADR-194)
+      * Reviewer substrate at /workspace/persona/ (ADR-194)
       * Kernel-universal _shared/ skeletons ONLY (ADR-286 Single-Writer Per
         Path): PRECEDENT.md + _token_budget.yaml. MANDATE / IDENTITY / BRAND /
         AUTONOMY / _autonomy.yaml are bundle-owned — written by Phase 5
@@ -547,7 +547,7 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         therefore lands with those paths ABSENT (honest "unconfigured"
         semantic); the operator authors them through chat. CONVENTIONS.md is
         also program-scoped, not seeded.
-      * Memory skeletons under /workspace/memory/
+      * Memory skeletons under /workspace/system/
       * Workspace narrative session (ADR-219)
       * Bundle re-fork if `active_program_slug` was captured pre-purge (ADR-244 D4)
 
@@ -568,12 +568,12 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
         prior_program_slug: Optional[str] = None
         try:
             from services.workspace import UserMemory
-            from services.workspace_paths import SHARED_MANDATE_PATH
+            from services.workspace_paths import CONSTITUTION_MANDATE_PATH
             from services.programs import parse_active_program_slug
             from services.bundle_reader import _all_slugs
 
             um = UserMemory(client, user_id)
-            mandate_pre = await um.read(SHARED_MANDATE_PATH)
+            mandate_pre = await um.read(CONSTITUTION_MANDATE_PATH)
             candidate = parse_active_program_slug(mandate_pre)
             if candidate and candidate in _all_slugs():
                 prior_program_slug = candidate
@@ -779,12 +779,12 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         prior_program_slug: Optional[str] = None
         try:
             from services.workspace import UserMemory
-            from services.workspace_paths import SHARED_MANDATE_PATH
+            from services.workspace_paths import CONSTITUTION_MANDATE_PATH
             from services.programs import parse_active_program_slug
             from services.bundle_reader import _all_slugs
 
             um = UserMemory(client, user_id)
-            mandate_pre = await um.read(SHARED_MANDATE_PATH)
+            mandate_pre = await um.read(CONSTITUTION_MANDATE_PATH)
             candidate = parse_active_program_slug(mandate_pre)
             if candidate and candidate in _all_slugs():
                 prior_program_slug = candidate

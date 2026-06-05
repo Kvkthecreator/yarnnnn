@@ -38,9 +38,12 @@ This violates an orthogonality the axioms already declare (Axiom 1: identity man
 │                     _token_budget.yaml (compute ceiling),
 │                     _pace.yaml (trigger budget), _preferences.yaml (cadence budget)
 ├── constitution/   OPERATOR-authored intent the seat AMENDS; read by ALL agents.
-│                     MANDATE.md, IDENTITY.md (operator identity), PRECEDENT.md
+│                     MANDATE.md, PRECEDENT.md  (PURE INTENT — no IDENTITY; see
+│                     operator-identity collapse note below)
 ├── persona/        THE SEAT — how it reasons + its own trail. Occupant-agnostic.
-│                     IDENTITY.md (persona), principles.md (+_principles.yaml),
+│                     IDENTITY.md (the operator's judgment embodied — absorbs the
+│                       legacy operator operating-posture file), principles.md
+│                       (+_principles.yaml),
 │                     judgment_log.md, OCCUPANT.md, handoffs.md, calibration.md,
 │                     standing_intent.md
 ├── operation/      THE WORK the agent operates on/produces. Many writers.
@@ -84,6 +87,9 @@ Rejected: new single `constitution/` root (D1-A) — would fragment person-subst
 
 ### D2 — PRECEDENT's side: CONSTITUTION (resolved)
 PRECEDENT is operator-authored durable interpretation, read by all agents, that the seat amends over tenure. Same class as MANDATE → `constitution/`. (It is read-to-judge, but so is MANDATE; the distinguishing axis is reader-set + amend-rights, not "judge vs work," and on that axis it is constitution, not persona — persona is *occupant-rotating*, PRECEDENT *survives rotation*.)
+
+### D2b — Operator-identity collapse: COLLAPSE INTO persona/IDENTITY.md (resolved, refinement 2026-06-05)
+**Surfaced during P2 by the question "is IDENTITY constitution?"** — it is not. The legacy `context/_shared/IDENTITY.md` is the operator's *operating posture* ("process-first trader, I value discipline over outcomes, I use systems to constrain my bad habits") — reasoning-character, NOT intent (constitution) and NOT output-shaping (operation). It is the **same KIND** as the seat persona (`review/IDENTITY.md`, "Simons-style, numbers-first"). Per Axiom 2 (the operator is one principal with two runtime embodiments), the operator's posture and the embodied judge persona are *the same reasoning-character described twice*. Singular-implementation: keeping both is a dual representation. **Resolution: collapse.** `context/_shared/IDENTITY.md` is DELETED; `review/IDENTITY.md` becomes `persona/IDENTITY.md`, the singular home for "how this operator's judgment reasons." Consequences: `constitution/` is pure intent (MANDATE + PRECEDENT, no IDENTITY); the hard-gate required region (D4) is `constitution/MANDATE` + `persona/IDENTITY` + `persona/principles`; `InferContext` identity-inference targets `persona/IDENTITY.md` (persona root) while brand-inference targets `operation/BRAND.md` (operation root) — a clean two-root split. Migration: the two legacy IDENTITY files MERGE into one `persona/IDENTITY.md` (not two relocations).
 
 ### D3 — Lock topology: PURE PER-CALLER PREFIX, ONE FUNCTION (resolved)
 `DEFAULT_REVIEWER_WRITE_LOCKS` (flat list) + `DEFAULT_MCP_WRITE_LOCK_PREFIXES` (prefix) → **deleted, replaced by** one `CALLER_WRITE_POLICY` prefix table + one `_is_path_locked(caller_class, path)`. Singular implementation: two divergent lock functions collapse to one. The governance ceiling that *was* the wrinkle (seat amends its constitution but not its ceiling) dissolves because the ceilings now live in their own root (`governance/`) — `startswith("governance/")` is the whole rule, no sub-prefix, no exception.

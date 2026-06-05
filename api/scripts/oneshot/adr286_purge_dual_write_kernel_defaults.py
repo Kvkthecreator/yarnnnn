@@ -9,9 +9,9 @@ fork skipped to preserve "operator-customized content" — which was
 actually kernel-default content masquerading as operator-customized.
 
 Result observed on kvk's workspace 2026-05-17:
-  - `review/IDENTITY.md` stuck on 2354-byte kernel default (bundle ships 5270)
+  - `persona/IDENTITY.md` stuck on 2354-byte kernel default (bundle ships 5270)
   - `_shared/AUTONOMY.md` stuck on 3132-byte kernel default (bundle ships 5309)
-  - `review/principles.md` stuck on pre-Phase-2 content (bundle ships 9467)
+  - `persona/principles.md` stuck on pre-Phase-2 content (bundle ships 9467)
 
 This migration walks each alpha workspace, reads each bundle-owned path,
 checks if content matches the pre-ADR-286 kernel default (deterministic
@@ -40,14 +40,14 @@ logger = logging.getLogger("adr286_purge")
 # Future bundles add their own paths; this migration is alpha-trader-scoped
 # because alpha-trader is the only program with pre-ADR-286 workspaces.
 BUNDLE_OWNED_PATHS = [
-    "/workspace/context/_shared/MANDATE.md",
-    "/workspace/context/_shared/IDENTITY.md",
-    "/workspace/context/_shared/BRAND.md",
-    "/workspace/context/_shared/AUTONOMY.md",
-    "/workspace/context/_shared/_autonomy.yaml",
-    "/workspace/memory/awareness.md",
-    "/workspace/review/IDENTITY.md",
-    "/workspace/review/principles.md",
+    "/workspace/constitution/MANDATE.md",
+    "/workspace/persona/IDENTITY.md",
+    "/workspace/operation/BRAND.md",
+    "/workspace/governance/AUTONOMY.md",
+    "/workspace/governance/_autonomy.yaml",
+    "/workspace/system/awareness.md",
+    "/workspace/persona/IDENTITY.md",
+    "/workspace/persona/principles.md",
     "/workspace/_workspace_guide.md",
 ]
 
@@ -93,14 +93,14 @@ def _load_kernel_defaults() -> dict[str, str]:
     )
 
     return {
-        "/workspace/context/_shared/MANDATE.md": DEFAULT_MANDATE_MD,
-        "/workspace/context/_shared/IDENTITY.md": DEFAULT_IDENTITY_MD,
-        "/workspace/context/_shared/BRAND.md": DEFAULT_BRAND_MD,
-        "/workspace/context/_shared/AUTONOMY.md": DEFAULT_AUTONOMY_MD,
-        "/workspace/context/_shared/_autonomy.yaml": DEFAULT_AUTONOMY_YAML,
-        "/workspace/memory/awareness.md": DEFAULT_AWARENESS_MD,
-        "/workspace/review/IDENTITY.md": DEFAULT_REVIEW_IDENTITY_MD,
-        "/workspace/review/principles.md": DEFAULT_REVIEW_PRINCIPLES_MD,
+        "/workspace/constitution/MANDATE.md": DEFAULT_MANDATE_MD,
+        "/workspace/persona/IDENTITY.md": DEFAULT_IDENTITY_MD,
+        "/workspace/operation/BRAND.md": DEFAULT_BRAND_MD,
+        "/workspace/governance/AUTONOMY.md": DEFAULT_AUTONOMY_MD,
+        "/workspace/governance/_autonomy.yaml": DEFAULT_AUTONOMY_YAML,
+        "/workspace/system/awareness.md": DEFAULT_AWARENESS_MD,
+        "/workspace/persona/IDENTITY.md": DEFAULT_REVIEW_IDENTITY_MD,
+        "/workspace/persona/principles.md": DEFAULT_REVIEW_PRINCIPLES_MD,
         "/workspace/_workspace_guide.md": DEFAULT_WORKSPACE_GUIDE_MD,
     }
 

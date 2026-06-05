@@ -353,7 +353,7 @@ For trading actions, re-runs the risk gate on the final (possibly modified) inpu
 If the gate rejects at execution time, the proposal is marked rejected_at_execution.
 
 ADR-194 v2 Phase 2a: every approval writes a decision entry to
-/workspace/review/judgment_log.md (the Reviewer's audit trail) and stamps
+/workspace/persona/judgment_log.md (the Reviewer's audit trail) and stamps
 reviewer_identity + reviewer_reasoning on the action_proposals row.
 
 Args:
@@ -390,7 +390,7 @@ async def handle_execute_proposal(auth: Any, input: dict) -> dict:
 
     ADR-194 v2 Phase 2a: persists `reviewer_identity` + `reviewer_reasoning`
     on the action_proposals row and appends a decision entry to
-    /workspace/review/judgment_log.md. Default reviewer_identity is
+    /workspace/persona/judgment_log.md. Default reviewer_identity is
     "human:<user_id>" — matches the frontend approval UX; the LLM or
     AI Reviewer can override by passing reviewer_identity explicitly.
     """
@@ -632,7 +632,7 @@ Use when the user declines an approval, or when YARNNN recognizes on
 reflection that the proposal was wrong.
 
 ADR-194 v2 Phase 2a: every rejection writes a decision entry to
-/workspace/review/judgment_log.md (the Reviewer's audit trail) and stamps
+/workspace/persona/judgment_log.md (the Reviewer's audit trail) and stamps
 reviewer_identity + reviewer_reasoning on the action_proposals row.
 
 Args:
@@ -664,7 +664,7 @@ async def handle_reject_proposal(auth: Any, input: dict) -> dict:
     """Mark a proposal rejected.
 
     ADR-194 v2 Phase 2a: persists reviewer_identity + reviewer_reasoning +
-    appends to /workspace/review/judgment_log.md. Default reviewer_identity
+    appends to /workspace/persona/judgment_log.md. Default reviewer_identity
     is "human:<user_id>".
     """
     from services.reviewer_audit import append_decision

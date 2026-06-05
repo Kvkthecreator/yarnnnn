@@ -311,10 +311,10 @@ async def get_recent_orders(
 # indicators, signals + reviewer trail) to the FE Home program sections.
 #
 # Path conventions per alpha-trader bundle:
-#   /workspace/context/trading/_regime.yaml          — TrackRegime output (D3)
-#   /workspace/context/trading/{TICKER}.yaml         — TrackUniverse output (D3)
-#   /workspace/context/trading/signals/{slug}.yaml   — reviewer/specialist writes
-#   /workspace/review/judgment_log.md                   — reviewer decision trail
+#   /workspace/operation/trading/_regime.yaml          — TrackRegime output (D3)
+#   /workspace/operation/trading/{TICKER}.yaml         — TrackUniverse output (D3)
+#   /workspace/operation/trading/signals/{slug}.yaml   — reviewer/specialist writes
+#   /workspace/persona/judgment_log.md                   — reviewer decision trail
 #
 # All three routes return `{ live: bool, ...payload }` with graceful empty
 # states. The FE component renders an empty-state-with-context when
@@ -324,10 +324,10 @@ async def get_recent_orders(
 import yaml  # noqa: E402  — import at use site keeps the platform-only path lean
 
 
-_REGIME_PATH = "/workspace/context/trading/_regime.yaml"
-_JUDGMENT_LOG_PATH = "/workspace/review/judgment_log.md"
-_SIGNALS_PREFIX = "/workspace/context/trading/signals/"
-_INDICATORS_PREFIX = "/workspace/context/trading/"
+_REGIME_PATH = "/workspace/operation/trading/_regime.yaml"
+_JUDGMENT_LOG_PATH = "/workspace/persona/judgment_log.md"
+_SIGNALS_PREFIX = "/workspace/operation/trading/signals/"
+_INDICATORS_PREFIX = "/workspace/operation/trading/"
 
 
 def _parse_workspace_yaml(content: str) -> Dict[str, Any]:
@@ -355,7 +355,7 @@ def _parse_workspace_yaml(content: str) -> Dict[str, Any]:
 
 @router.get("/regime")
 async def get_regime(auth: UserClient) -> Dict:
-    """ADR-273 D3: read /workspace/context/trading/_regime.yaml.
+    """ADR-273 D3: read /workspace/operation/trading/_regime.yaml.
 
     Returns the regime predicate computed by the TrackRegime primitive.
     Zero LLM, zero platform calls. Empty-state when file absent (regime
@@ -404,7 +404,7 @@ async def get_indicators(
     auth: UserClient,
     ticker: str,
 ) -> Dict:
-    """ADR-273 D3: read /workspace/context/trading/{TICKER}.yaml.
+    """ADR-273 D3: read /workspace/operation/trading/{TICKER}.yaml.
 
     Returns the per-ticker indicators (SMA/RSI/ATR/volume) computed by
     the TrackUniverse primitive. Used by TraderPositions to merge live
@@ -455,11 +455,11 @@ async def get_indicators(
 
 @router.get("/signals")
 async def get_signals(auth: UserClient, limit: int = 10) -> Dict:
-    """ADR-273 D3: list /workspace/context/trading/signals/*.yaml.
+    """ADR-273 D3: list /workspace/operation/trading/signals/*.yaml.
 
     Returns up to `limit` most-recently-updated signal files. Each entry
     carries the parsed signal payload + a best-effort reviewer decision
-    correlation from /workspace/review/judgment_log.md (text-match on the
+    correlation from /workspace/persona/judgment_log.md (text-match on the
     signal slug). Closes the gap between "signal evaluator fires" and
     "operator sees what was evaluated and why the reviewer said no."
 

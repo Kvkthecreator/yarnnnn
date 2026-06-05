@@ -99,7 +99,7 @@ async def handle_infer_context(auth: Any, input: dict) -> dict:
         read_uploaded_documents,
     )
     from services.workspace import UserMemory
-    from services.workspace_paths import SHARED_IDENTITY_PATH, SHARED_BRAND_PATH
+    from services.workspace_paths import PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH
 
     target = input.get("target")
     text = input.get("text", "")
@@ -119,7 +119,7 @@ async def handle_infer_context(auth: Any, input: dict) -> dict:
             "message": "text is required",
         }
 
-    filename = SHARED_IDENTITY_PATH if target == "identity" else SHARED_BRAND_PATH
+    filename = PERSONA_IDENTITY_PATH if target == "identity" else OPERATION_BRAND_PATH
 
     try:
         um = UserMemory(auth.client, auth.user_id)

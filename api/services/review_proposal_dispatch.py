@@ -637,7 +637,7 @@ async def _execute_reviewer_directives(
     Two allowed actions (ADR-296 v2 D3 removed the `fire_invocation`
     action — Reviewer does not self-invoke; cadence is authored via
     Schedule, not via directive-fire of upstream recurrences):
-    - write_file: write to /workspace/review/ only
+    - write_file: write to /workspace/persona/ only
     - clarify: surface a question to the operator in the narrative
 
     Returns a list of human-readable result strings for the decisions.md entry.
@@ -654,8 +654,8 @@ async def _execute_reviewer_directives(
             if action == "write_file":
                 path = d.get("path", "")
                 content = d.get("content", "")
-                if not path or not path.startswith("/workspace/review/"):
-                    results.append(f"write_file: path must be within /workspace/review/ — skipped ({path})")
+                if not path or not path.startswith("/workspace/persona/"):
+                    results.append(f"write_file: path must be within /workspace/persona/ — skipped ({path})")
                     continue
                 from services.authored_substrate import write_revision
                 write_revision(

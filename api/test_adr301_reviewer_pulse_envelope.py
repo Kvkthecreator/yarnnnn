@@ -47,25 +47,25 @@ def test_path_constants() -> None:
     print("\n[1] Path constants — workspace_paths.py")
     try:
         from services.workspace_paths import (
-            MEMORY_SCHEDULE_INDEX_PATH,
-            MEMORY_RECENT_EXECUTION_PATH,
+            SYSTEM_SCHEDULE_INDEX_PATH,
+            SYSTEM_RECENT_EXECUTION_PATH,
         )
     except ImportError as e:
         _bad("workspace_paths imports", str(e))
         return
-    if MEMORY_SCHEDULE_INDEX_PATH == "memory/_schedule_index.md":
-        _ok("MEMORY_SCHEDULE_INDEX_PATH = memory/_schedule_index.md")
+    if SYSTEM_SCHEDULE_INDEX_PATH == "system/_schedule_index.md":
+        _ok("SYSTEM_SCHEDULE_INDEX_PATH = system/_schedule_index.md")
     else:
         _bad(
-            "MEMORY_SCHEDULE_INDEX_PATH value",
-            f"got {MEMORY_SCHEDULE_INDEX_PATH!r}",
+            "SYSTEM_SCHEDULE_INDEX_PATH value",
+            f"got {SYSTEM_SCHEDULE_INDEX_PATH!r}",
         )
-    if MEMORY_RECENT_EXECUTION_PATH == "memory/_recent_execution.md":
-        _ok("MEMORY_RECENT_EXECUTION_PATH = memory/_recent_execution.md")
+    if SYSTEM_RECENT_EXECUTION_PATH == "system/_recent_execution.md":
+        _ok("SYSTEM_RECENT_EXECUTION_PATH = system/_recent_execution.md")
     else:
         _bad(
-            "MEMORY_RECENT_EXECUTION_PATH value",
-            f"got {MEMORY_RECENT_EXECUTION_PATH!r}",
+            "SYSTEM_RECENT_EXECUTION_PATH value",
+            f"got {SYSTEM_RECENT_EXECUTION_PATH!r}",
         )
 
 

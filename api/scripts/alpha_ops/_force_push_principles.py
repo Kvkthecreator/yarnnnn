@@ -3,7 +3,7 @@
 Workaround for an ADR-292 gap surfaced 2026-05-20: the `is_skeleton_content`-
 based bundle-update gate can't distinguish "old bundle content" from
 "operator-customized content," so it skips re-forking files like
-`review/principles.md` whose content has diverged simply because the
+`persona/principles.md` whose content has diverged simply because the
 bundle was updated. Until ADR-292 v2 ships a version-tracking gate
 (or a per-file `--force` mode), the developer-side workaround is to
 write the bundle file directly with `system:substrate-update` attribution.
@@ -57,7 +57,7 @@ async def main_async(persona_slug: str) -> int:
     revision_id = write_revision(
         client,
         user_id=persona.user_id,
-        path="/workspace/review/principles.md",
+        path="/workspace/persona/principles.md",
         content=content,
         authored_by="system:substrate-update",
         message=(

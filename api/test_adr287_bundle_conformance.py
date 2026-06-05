@@ -80,14 +80,14 @@ def _load_recurrences(bundle_dir: Path) -> list[dict]:
 # ADR-284 — Standing Intent + OCCUPANT runtime-alignment
 # =============================================================================
 #
-# Per ADR-284 D6 + D8: every bundle's review/IDENTITY.md + review/principles.md
+# Per ADR-284 D6 + D8: every bundle's persona/IDENTITY.md + persona/principles.md
 # references standing_intent.md; judgment-mode recurrences pair stand-down
 # with a standing-intent update directive; persona rows declare
-# expected.occupant_attribution + include review/OCCUPANT.md in core_files.
+# expected.occupant_attribution + include persona/OCCUPANT.md in core_files.
 
 
 def test_adr284_d8_bundle_identity_references_standing_intent():
-    """ADR-284 D8: every active/deferred bundle's review/IDENTITY.md must
+    """ADR-284 D8: every active/deferred bundle's persona/IDENTITY.md must
     reference standing_intent.md. Without it the Reviewer persona prompt
     references a substrate file the bundle never tells operators about."""
     bundles = list(_all_active_or_deferred_bundles())
@@ -96,20 +96,20 @@ def test_adr284_d8_bundle_identity_references_standing_intent():
     for bundle in bundles:
         identity_md = bundle / "reference-workspace" / "review" / "IDENTITY.md"
         if not identity_md.exists():
-            continue  # bundle doesn't ship review/IDENTITY.md at all; out of ADR-284 scope
+            continue  # bundle doesn't ship persona/IDENTITY.md at all; out of ADR-284 scope
         content = identity_md.read_text()
         assert "standing_intent" in content, (
-            f"bundle '{bundle.name}' review/IDENTITY.md does not reference "
+            f"bundle '{bundle.name}' persona/IDENTITY.md does not reference "
             f"standing_intent.md. ADR-284 D8 requires every bundle's "
             f"IDENTITY.md to name the standing-intent substrate so the "
             f"Reviewer persona prompt aligns with bundle-shipped substrate. "
             f"Add a section like '## Standing intent — my forward-looking "
-            f"substrate (ADR-284)' citing /workspace/review/standing_intent.md."
+            f"substrate (ADR-284)' citing /workspace/persona/standing_intent.md."
         )
 
 
 def test_adr284_d8_bundle_principles_references_standing_intent():
-    """ADR-284 D8: every active/deferred bundle's review/principles.md must
+    """ADR-284 D8: every active/deferred bundle's persona/principles.md must
     reference standing_intent.md, typically under the 'default posture'
     framing where the no-fire / no-findings cycle's standing-intent update
     is the substrate counterpart to action."""
@@ -119,7 +119,7 @@ def test_adr284_d8_bundle_principles_references_standing_intent():
             continue
         content = principles_md.read_text()
         assert "standing_intent" in content, (
-            f"bundle '{bundle.name}' review/principles.md does not reference "
+            f"bundle '{bundle.name}' persona/principles.md does not reference "
             f"standing_intent.md. ADR-284 D8 requires every bundle's "
             f"principles.md to name standing-intent as the substrate "
             f"counterpart to default-posture-action. Add a paragraph under "
@@ -181,16 +181,16 @@ def test_adr284_d3_persona_rows_have_occupant_attribution():
 
 def test_adr284_d3_persona_core_files_includes_occupant_md():
     """ADR-284 D3: every persona row whose bundle is active/deferred must
-    list /workspace/review/OCCUPANT.md in expected.core_files. OCCUPANT.md
+    list /workspace/persona/OCCUPANT.md in expected.core_files. OCCUPANT.md
     is kernel-scaffolded (workspace_init Phase 5) and bundle-fork-populated
     with the runtime occupant identity; verify.py asserts presence at
     activation time."""
     for p in _personas_for_active_or_deferred_bundles():
         slug = p.get("slug", "<unknown>")
         core_files = (p.get("expected", {}) or {}).get("core_files", []) or []
-        assert "/workspace/review/OCCUPANT.md" in core_files, (
+        assert "/workspace/persona/OCCUPANT.md" in core_files, (
             f"persona '{slug}' expected.core_files does not include "
-            f"/workspace/review/OCCUPANT.md. ADR-284 D3 requires every "
+            f"/workspace/persona/OCCUPANT.md. ADR-284 D3 requires every "
             f"persona row whose bundle is active/deferred to declare "
             f"OCCUPANT.md as a core file so verify.py asserts presence "
             f"after activation."
@@ -249,17 +249,17 @@ def test_adr285_d2_envelope_role_tags_are_valid_when_present():
 
 # The 13 paths declared bundle-owned by ADR-286 D3.
 _ADR286_D3_BUNDLE_OWNED_PATHS = [
-    "context/_shared/MANDATE.md",
-    "context/_shared/IDENTITY.md",
-    "context/_shared/BRAND.md",
-    "context/_shared/CONVENTIONS.md",
-    "context/_shared/AUTONOMY.md",
-    "context/_shared/_autonomy.yaml",
-    "context/_shared/_preferences.yaml",
-    "memory/awareness.md",
-    "review/IDENTITY.md",
-    "review/principles.md",
-    "review/_principles.yaml",
+    "constitution/MANDATE.md",
+    "persona/IDENTITY.md",
+    "operation/BRAND.md",
+    "operation/CONVENTIONS.md",
+    "governance/AUTONOMY.md",
+    "governance/_autonomy.yaml",
+    "governance/_preferences.yaml",
+    "system/awareness.md",
+    "persona/IDENTITY.md",
+    "persona/principles.md",
+    "persona/_principles.yaml",
     "_recurrences.yaml",
     "_workspace_guide.md",
 ]

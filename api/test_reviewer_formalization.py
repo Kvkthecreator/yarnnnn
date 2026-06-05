@@ -391,34 +391,10 @@ def test_reviewer_primitives_contract() -> None:
 # Test 7 — DEFAULT_REVIEWER_WRITE_LOCKS matches operator-control trifecta
 # ---------------------------------------------------------------------------
 
-def test_default_reviewer_write_locks_contract() -> None:
-    """DEFAULT_REVIEWER_WRITE_LOCKS contains exactly the 5 operator-control paths."""
-    from services.workspace_paths import (
-        DEFAULT_REVIEWER_WRITE_LOCKS,
-        SHARED_AUTONOMY_PATH,
-        SHARED_AUTONOMY_YAML_PATH,
-        SHARED_TOKEN_BUDGET_PATH,
-        SHARED_PREFERENCES_PATH,
-        SHARED_PACE_PATH,
-    )
-
-    expected = {
-        SHARED_AUTONOMY_PATH,        # Mechanism-dimension dial (ADR-293)
-        SHARED_AUTONOMY_YAML_PATH,   # Mechanism-dimension dial (machine-parsed)
-        SHARED_TOKEN_BUDGET_PATH,    # compute-resource ceiling (ADR-293)
-        SHARED_PREFERENCES_PATH,     # operator deliverable cadence (ADR-275 D6)
-        SHARED_PACE_PATH,            # Trigger-dimension dial (ADR-298 Phase 4)
-    }
-    actual = set(DEFAULT_REVIEWER_WRITE_LOCKS)
-
-    assert actual == expected, (
-        f"DEFAULT_REVIEWER_WRITE_LOCKS drifted from the operator-control "
-        f"trifecta. Expected: {expected}. Got: {actual}. "
-        f"Diff added: {actual - expected}. "
-        f"Diff removed: {expected - actual}. "
-        f"Variant F claim #6 (paced by operator-declared pace + autonomy) "
-        f"depends on these 5 paths being operator-only."
-    )
+# NOTE (ADR-320): test_default_reviewer_write_locks_contract DELETED.
+# DEFAULT_REVIEWER_WRITE_LOCKS collapsed into the five-root CALLER_WRITE_POLICY
+# (governance/ locked from the reviewer caller). The operator-control-paths-locked
+# contract is now covered by test_adr320_permission_topology.py.
 
 
 # ---------------------------------------------------------------------------
@@ -499,7 +475,6 @@ if __name__ == "__main__":
         test_persona_frame_names_what_it_is,
         test_reviewer_email_tool_excluded_by_code_not_prose,
         test_reviewer_primitives_contract,
-        test_default_reviewer_write_locks_contract,
         test_judgment_prompts_bind_return_verdict,
     ]
     failures: list[str] = []

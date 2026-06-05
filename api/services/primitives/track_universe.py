@@ -3,7 +3,7 @@
 Deterministic mechanical primitive that fetches OHLCV bars from Alpaca for
 each declared universe ticker, computes indicators (SMA-20/50/200, RSI-14,
 ATR-14, volume-20d-avg), and writes one ``{TICKER}.yaml`` file per ticker
-under ``/workspace/context/trading/``.
+under ``/workspace/operation/trading/``.
 
 Zero LLM cost. Runs in ~2-5 seconds. Replaces the judgment-mode
 ``track-universe`` recurrence prompt that previously dispatched a Sonnet
@@ -13,7 +13,7 @@ Surface:
     @primitive: TrackUniverse()
 
 No arguments — universe membership is read from
-``/workspace/context/trading/_universe.yaml`` (operator-authored ticker list).
+``/workspace/operation/trading/_universe.yaml`` (operator-authored ticker list).
 The recurrence's bundle prompt is exactly this one-line directive.
 
 Behavior:
@@ -63,7 +63,7 @@ async def handle_track_universe(auth: Any, input: dict) -> dict:
     """Fetch bars + compute indicators for every ticker in _universe.yaml.
 
     Arguments are ignored — universe membership lives in
-    ``/workspace/context/trading/_universe.yaml``. The bundle prompt should
+    ``/workspace/operation/trading/_universe.yaml``. The bundle prompt should
     be exactly ``@primitive: TrackUniverse()``.
 
     Returns standard mechanical-primitive shape:
@@ -142,7 +142,7 @@ async def handle_track_universe(auth: Any, input: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 async def _read_universe(client: Any, user_id: str) -> list[str]:
-    """Read ticker list from /workspace/context/trading/_universe.yaml.
+    """Read ticker list from /workspace/operation/trading/_universe.yaml.
 
     Uses the canonical `load_workspace_yaml` helper (services.review_policy)
     which strips the bundle-forked frontmatter block (`tier:`, `prompt:`)
@@ -155,7 +155,7 @@ async def _read_universe(client: Any, user_id: str) -> list[str]:
             client.table("workspace_files")
             .select("content")
             .eq("user_id", user_id)
-            .eq("path", "/workspace/context/trading/_universe.yaml")
+            .eq("path", "/workspace/operation/trading/_universe.yaml")
             .limit(1)
             .execute()
         )
@@ -247,7 +247,7 @@ async def _write_ticker_yaml(
     indicators: dict,
     now: datetime,
 ) -> str:
-    """Write /workspace/context/trading/{TICKER}.yaml. Returns the path."""
+    """Write /workspace/operation/trading/{TICKER}.yaml. Returns the path."""
     from services.authored_substrate import write_revision
 
     ts = now.strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -261,7 +261,7 @@ async def _write_ticker_yaml(
     )
     content = header + body
 
-    path = f"/workspace/context/trading/{ticker.upper()}.yaml"
+    path = f"/workspace/operation/trading/{ticker.upper()}.yaml"
     write_revision(
         client,
         user_id=user_id,

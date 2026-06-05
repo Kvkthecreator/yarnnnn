@@ -228,7 +228,7 @@ async def main():
     )
     _check(
         "workspace guide declares path-only signal_files entry",
-        "context/trading/_signals_summary.md" in guide_content and "path_glob" not in guide_content,
+        "operation/trading/_signals_summary.md" in guide_content and "path_glob" not in guide_content,
     )
 
     # 3.3 — workspace guide attribution
@@ -253,7 +253,7 @@ async def main():
         client.table("workspace_files")
         .select("id")
         .eq("user_id", KVK_USER_ID)
-        .eq("path", "/workspace/review/judgment_log.md")
+        .eq("path", "/workspace/persona/judgment_log.md")
         .execute()
     )
     _check(
@@ -267,7 +267,7 @@ async def main():
         client.table("workspace_files")
         .select("id")
         .eq("user_id", KVK_USER_ID)
-        .eq("path", "/workspace/review/decisions.md")
+        .eq("path", "/workspace/persona/judgment_log.md")
         .execute()
     )
     _check(
@@ -313,15 +313,15 @@ async def main():
         .select("path")
         .eq("user_id", KVK_USER_ID)
         .in_("path", [
-            "/workspace/context/_shared/MANDATE.md",
-            "/workspace/context/_shared/IDENTITY.md",
-            "/workspace/context/_shared/BRAND.md",
-            "/workspace/context/_shared/AUTONOMY.md",
-            "/workspace/context/_shared/PRECEDENT.md",
-            "/workspace/review/IDENTITY.md",
-            "/workspace/review/principles.md",
-            "/workspace/context/trading/_operator_profile.md",
-            "/workspace/context/trading/_risk.md",
+            "/workspace/constitution/MANDATE.md",
+            "/workspace/persona/IDENTITY.md",
+            "/workspace/operation/BRAND.md",
+            "/workspace/governance/AUTONOMY.md",
+            "/workspace/constitution/PRECEDENT.md",
+            "/workspace/persona/IDENTITY.md",
+            "/workspace/persona/principles.md",
+            "/workspace/operation/trading/_operator_profile.md",
+            "/workspace/operation/trading/_risk.md",
         ])
         .execute()
     )
@@ -329,16 +329,16 @@ async def main():
     _check(
         "kernel-universal operator-canon files present",
         all(p in found_canon for p in [
-            "/workspace/context/_shared/MANDATE.md",
-            "/workspace/context/_shared/IDENTITY.md",
-            "/workspace/review/IDENTITY.md",
-            "/workspace/review/principles.md",
+            "/workspace/constitution/MANDATE.md",
+            "/workspace/persona/IDENTITY.md",
+            "/workspace/persona/IDENTITY.md",
+            "/workspace/persona/principles.md",
         ]),
         f"{len(found_canon)}/9 expected operator-canon paths found"
     )
     _check(
         "alpha-trader operator-canon files present (trading domain)",
-        "/workspace/context/trading/_operator_profile.md" in found_canon,
+        "/workspace/operation/trading/_operator_profile.md" in found_canon,
     )
 
     # ====================================================================

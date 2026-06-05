@@ -189,18 +189,18 @@ async def get_workspace_nav(auth: UserClient) -> dict:
             pass
 
         # ── Settings (user-visible and editable) ──
-        # ADR-206: authored shared context under /workspace/context/_shared/,
-        # YARNNN working-memory files under /workspace/memory/.
+        # ADR-206: authored shared context under constitution/ + governance/ + operation/ (ADR-320 split of legacy _shared/),
+        # YARNNN working-memory files under /workspace/system/.
         from services.workspace_paths import (
-            SHARED_IDENTITY_PATH, SHARED_BRAND_PATH,
-            MEMORY_AWARENESS_PATH, MEMORY_NOTES_PATH, MEMORY_STYLE_PATH,
+            PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH,
+            SYSTEM_AWARENESS_PATH, SYSTEM_NOTES_PATH, SYSTEM_STYLE_PATH,
         )
         SETTINGS_FILES = [
-            (SHARED_IDENTITY_PATH, "IDENTITY.md", "Identity"),
-            (SHARED_BRAND_PATH, "BRAND.md", "Brand"),
-            (MEMORY_AWARENESS_PATH, "awareness.md", "Awareness"),
-            (MEMORY_NOTES_PATH, "notes.md", "Notes"),
-            (MEMORY_STYLE_PATH, "style.md", "Style"),
+            (PERSONA_IDENTITY_PATH, "IDENTITY.md", "Identity"),
+            (OPERATION_BRAND_PATH, "BRAND.md", "Brand"),
+            (SYSTEM_AWARENESS_PATH, "awareness.md", "Awareness"),
+            (SYSTEM_NOTES_PATH, "notes.md", "Notes"),
+            (SYSTEM_STYLE_PATH, "style.md", "Style"),
         ]
         settings = []
         for relative_path, filename, label in SETTINGS_FILES:
@@ -234,7 +234,7 @@ async def get_workspace_nav(auth: UserClient) -> dict:
                     auth.client.table("workspace_files")
                     .select("content")
                     .eq("user_id", auth.user_id)
-                    .eq("path", f"/workspace/{SHARED_IDENTITY_PATH}")
+                    .eq("path", f"/workspace/{PERSONA_IDENTITY_PATH}")
                     .limit(1)
                     .execute()
                 )
@@ -466,9 +466,9 @@ async def get_workspace_file(
         ...,
         description=(
             "File path. Accepts either workspace-relative "
-            "(e.g., 'context/_shared/MANDATE.md') matching the "
+            "(e.g., 'constitution/MANDATE.md') matching the "
             "WriteFile(scope='workspace') convention, OR absolute "
-            "(e.g., '/workspace/context/_shared/MANDATE.md'). The two "
+            "(e.g., '/workspace/constitution/MANDATE.md'). The two "
             "shapes resolve to the same row — the absolute form is "
             "what's stored, the relative form is what callers usually "
             "type."
@@ -481,7 +481,7 @@ async def get_workspace_file(
     workspace-relative paths get the /workspace/ prefix prepended.
     """
     # ADR-209 + ADR-235 Option A: WriteFile(scope='workspace') passes
-    # workspace-relative paths ('context/_shared/MANDATE.md'), but
+    # workspace-relative paths ('constitution/MANDATE.md'), but
     # workspace_files.path is stored absolute ('/workspace/...'). Match
     # the UserMemory convention by normalizing here so readback after
     # write doesn't 404. Singular implementation: one normalization rule
@@ -536,7 +536,7 @@ async def get_workspace_file(
 # =============================================================================
 # Kernel-universal Home slot. Reads delivered task outputs across the WHOLE
 # workspace (not per-recurrence) from workspace_files, where each
-# produces_deliverable recurrence writes /workspace/reports/{slug}/{date}/
+# produces_deliverable recurrence writes /workspace/operation/reports/{slug}/{date}/
 # output.md (per routes/recurrences.py report_root convention). Ordered by
 # recency. Self-hides on the frontend when empty (bare kernel before any
 # deliverable has run). Browser-consumed only — no scheduler/MCP impact.
@@ -571,7 +571,7 @@ async def get_recent_artifacts(
             auth.client.table("workspace_files")
             .select("path, summary, updated_at")
             .eq("user_id", auth.user_id)
-            .like("path", "/workspace/reports/%/output.md")
+            .like("path", "/workspace/operation/reports/%/output.md")
             .order("updated_at", desc=True)
             .limit(limit)
             .execute()
@@ -579,7 +579,7 @@ async def get_recent_artifacts(
         artifacts: list[RecentArtifact] = []
         for row in result.data or []:
             path = row["path"]
-            # /workspace/reports/{slug}/{date}/output.md → slug, date
+            # /workspace/operation/reports/{slug}/{date}/output.md → slug, date
             parts = path.split("/")
             try:
                 reports_idx = parts.index("reports")
@@ -620,7 +620,7 @@ async def edit_workspace_file(
     Edit a workspace file. Upserts by path.
 
     Allowed for user-editable files: operator-authored substrate under
-    `/workspace/context/_shared/`, reviewer principles, memory files,
+    `constitution/ + governance/ + operation/ (ADR-320 split of legacy _shared/)`, reviewer principles, memory files,
     task files, and uploads.
 
     Path normalization matches GET /workspace/file: workspace-relative
@@ -642,16 +642,16 @@ async def edit_workspace_file(
         # ADR-215 R3: authored operator substrate is edited on Files with
         # `authored_by=operator` attribution. Same revision-chain path as
         # every other caller (ADR-209).
-        "/workspace/context/_shared/IDENTITY.md",
-        "/workspace/context/_shared/BRAND.md",
-        "/workspace/context/_shared/CONVENTIONS.md",
-        "/workspace/context/_shared/MANDATE.md",
-        "/workspace/context/_shared/AUTONOMY.md",
-        "/workspace/context/_shared/PRECEDENT.md",
-        "/workspace/review/principles.md",  # ADR-215 Phase 3 (Reviewer principles)
-        "/workspace/memory/",     # awareness.md, notes.md, style.md
+        "/workspace/persona/IDENTITY.md",
+        "/workspace/operation/BRAND.md",
+        "/workspace/operation/CONVENTIONS.md",
+        "/workspace/constitution/MANDATE.md",
+        "/workspace/governance/AUTONOMY.md",
+        "/workspace/constitution/PRECEDENT.md",
+        "/workspace/persona/principles.md",  # ADR-215 Phase 3 (Reviewer principles)
+        "/workspace/system/",     # awareness.md, notes.md, style.md
         "/workspace/uploads/",
-        "/workspace/reports/",    # per-recurrence outputs + _feedback.md + _run_log.md (ADR-231 D2)
+        "/workspace/operation/reports/",    # per-recurrence outputs + _feedback.md + _run_log.md (ADR-231 D2)
         "/workspace/context/",    # accumulated context domains (entities, _tracker.md, _feedback.md)
     ]
     if not any(path.startswith(p) or path == p for p in editable_prefixes):
@@ -738,7 +738,7 @@ class RevisionDiffResponse(BaseModel):
 @router.get("/workspace/revisions", response_model=RevisionListResponse)
 async def list_revisions_route(
     auth: UserClient,
-    path: str = Query(..., description="Absolute workspace path (e.g., /workspace/context/_shared/MANDATE.md)"),
+    path: str = Query(..., description="Absolute workspace path (e.g., /workspace/constitution/MANDATE.md)"),
     limit: int = Query(10, ge=1, le=100, description="Max revisions to return (newest first)"),
 ) -> RevisionListResponse:
     """ADR-209 Phase 4: return the revision chain for a workspace path.
@@ -1014,7 +1014,7 @@ class SubstrateStatus(BaseModel):
     identity: SubstrateFileStatus
     brand: SubstrateFileStatus
     autonomy: SubstrateFileStatus
-    principles: SubstrateFileStatus  # /workspace/review/principles.md
+    principles: SubstrateFileStatus  # /workspace/persona/principles.md
 
 
 class CapabilityGap(BaseModel):
@@ -1063,11 +1063,11 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
     """
     from services.workspace import UserMemory
     from services.workspace_paths import (
-        SHARED_MANDATE_PATH,
-        SHARED_IDENTITY_PATH,
-        SHARED_BRAND_PATH,
-        SHARED_AUTONOMY_PATH,
-        REVIEW_PRINCIPLES_PATH,
+        CONSTITUTION_MANDATE_PATH,
+        PERSONA_IDENTITY_PATH,
+        OPERATION_BRAND_PATH,
+        GOVERNANCE_AUTONOMY_PATH,
+        PERSONA_PRINCIPLES_PATH,
     )
     from services.working_memory import _classify_activation_state
     from services.bundle_reader import _all_slugs, _load_manifest
@@ -1130,7 +1130,7 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
 
     # ─── Step 2: activation state + active program slug ─────────────────
     um = UserMemory(auth.client, auth.user_id)
-    mandate_content = await um.read(SHARED_MANDATE_PATH)
+    mandate_content = await um.read(CONSTITUTION_MANDATE_PATH)
 
     activation_state = "none"
     active_program_slug: Optional[str] = None
@@ -1191,18 +1191,18 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
             return SubstrateFileStatus(path=path, state="missing")
 
     substrate_status = SubstrateStatus(
-        mandate=await _read_file_status(SHARED_MANDATE_PATH),
-        identity=await _read_file_status(SHARED_IDENTITY_PATH),
-        brand=await _read_file_status(SHARED_BRAND_PATH),
-        autonomy=await _read_file_status(SHARED_AUTONOMY_PATH),
-        principles=await _read_file_status(REVIEW_PRINCIPLES_PATH),
+        mandate=await _read_file_status(CONSTITUTION_MANDATE_PATH),
+        identity=await _read_file_status(PERSONA_IDENTITY_PATH),
+        brand=await _read_file_status(OPERATION_BRAND_PATH),
+        autonomy=await _read_file_status(GOVERNANCE_AUTONOMY_PATH),
+        principles=await _read_file_status(PERSONA_PRINCIPLES_PATH),
     )
 
     # last_revised_at via batched workspace_files lookup (singular round-trip)
     try:
         paths = [
-            SHARED_MANDATE_PATH, SHARED_IDENTITY_PATH, SHARED_BRAND_PATH,
-            SHARED_AUTONOMY_PATH, REVIEW_PRINCIPLES_PATH,
+            CONSTITUTION_MANDATE_PATH, PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH,
+            GOVERNANCE_AUTONOMY_PATH, PERSONA_PRINCIPLES_PATH,
         ]
         rows = (
             auth.client.table("workspace_files")
@@ -1212,11 +1212,11 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
             .execute()
         )
         timestamps = {r["path"]: r.get("updated_at") for r in (rows.data or [])}
-        substrate_status.mandate.last_revised_at = timestamps.get(SHARED_MANDATE_PATH)
-        substrate_status.identity.last_revised_at = timestamps.get(SHARED_IDENTITY_PATH)
-        substrate_status.brand.last_revised_at = timestamps.get(SHARED_BRAND_PATH)
-        substrate_status.autonomy.last_revised_at = timestamps.get(SHARED_AUTONOMY_PATH)
-        substrate_status.principles.last_revised_at = timestamps.get(REVIEW_PRINCIPLES_PATH)
+        substrate_status.mandate.last_revised_at = timestamps.get(CONSTITUTION_MANDATE_PATH)
+        substrate_status.identity.last_revised_at = timestamps.get(PERSONA_IDENTITY_PATH)
+        substrate_status.brand.last_revised_at = timestamps.get(OPERATION_BRAND_PATH)
+        substrate_status.autonomy.last_revised_at = timestamps.get(GOVERNANCE_AUTONOMY_PATH)
+        substrate_status.principles.last_revised_at = timestamps.get(PERSONA_PRINCIPLES_PATH)
     except Exception as exc:
         logger.warning(f"[WORKSPACE_STATE] timestamp lookup failed: {exc}")
 
@@ -1324,12 +1324,12 @@ async def get_workspace_setup_bundle(
     import asyncio
     from services.workspace import UserMemory
     from services.workspace_paths import (
-        SHARED_MANDATE_PATH,
-        SHARED_IDENTITY_PATH,
-        SHARED_BRAND_PATH,
-        SHARED_AUTONOMY_YAML_PATH,
-        REVIEW_PRINCIPLES_PATH,
-        REVIEW_PRINCIPLES_YAML_PATH,
+        CONSTITUTION_MANDATE_PATH,
+        PERSONA_IDENTITY_PATH,
+        OPERATION_BRAND_PATH,
+        GOVERNANCE_AUTONOMY_YAML_PATH,
+        PERSONA_PRINCIPLES_PATH,
+        PERSONA_PRINCIPLES_YAML_PATH,
     )
     from services.authored_substrate import list_revisions
 
@@ -1360,23 +1360,23 @@ async def get_workspace_setup_bundle(
         identity_content,
         brand_content,
     ) = await asyncio.gather(
-        _read(SHARED_MANDATE_PATH),
-        _read(SHARED_AUTONOMY_YAML_PATH),
-        _read(REVIEW_PRINCIPLES_PATH),
-        _read(REVIEW_PRINCIPLES_YAML_PATH),
-        _read(SHARED_IDENTITY_PATH),
-        _read(SHARED_BRAND_PATH),
+        _read(CONSTITUTION_MANDATE_PATH),
+        _read(GOVERNANCE_AUTONOMY_YAML_PATH),
+        _read(PERSONA_PRINCIPLES_PATH),
+        _read(PERSONA_PRINCIPLES_YAML_PATH),
+        _read(PERSONA_IDENTITY_PATH),
+        _read(OPERATION_BRAND_PATH),
     )
 
     # ─── Step 3: revision metadata (parallel, absolute paths) ───────────
     # workspace_file_versions.path is stored absolute (matches workspace_files).
     abs_paths = {
-        "mandate": f"/workspace/{SHARED_MANDATE_PATH}",
-        "autonomy_yaml": f"/workspace/{SHARED_AUTONOMY_YAML_PATH}",
-        "principles_prose": f"/workspace/{REVIEW_PRINCIPLES_PATH}",
-        "principles_yaml": f"/workspace/{REVIEW_PRINCIPLES_YAML_PATH}",
-        "identity": f"/workspace/{SHARED_IDENTITY_PATH}",
-        "brand": f"/workspace/{SHARED_BRAND_PATH}",
+        "mandate": f"/workspace/{CONSTITUTION_MANDATE_PATH}",
+        "autonomy_yaml": f"/workspace/{GOVERNANCE_AUTONOMY_YAML_PATH}",
+        "principles_prose": f"/workspace/{PERSONA_PRINCIPLES_PATH}",
+        "principles_yaml": f"/workspace/{PERSONA_PRINCIPLES_YAML_PATH}",
+        "identity": f"/workspace/{PERSONA_IDENTITY_PATH}",
+        "brand": f"/workspace/{OPERATION_BRAND_PATH}",
     }
 
     def _last_rev_sync(abs_path: str) -> Optional[dict]:

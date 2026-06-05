@@ -54,7 +54,7 @@ MANAGE_HOOK_TOOL = {
 A hook is a record with five load-bearing fields:
   slug:         stable identifier
   event:        "substrate_change" (today's only event type)
-  path_match:   workspace-absolute glob pattern (e.g., "/workspace/context/authored/*/profile.md")
+  path_match:   workspace-absolute glob pattern (e.g., "/workspace/operation/authored/*/profile.md")
   field_change: dict of frontmatter key → expected new value (e.g., {status: "ready_for_review"})
   prompt:       what the Reviewer reads when the hook fires
 
@@ -76,9 +76,9 @@ Example: author a pre-ship-audit hook for an authoring program
 
   ManageHook(action="create",
       slug="pre-ship-audit",
-      path_match="/workspace/context/authored/*/profile.md",
+      path_match="/workspace/operation/authored/*/profile.md",
       field_change={"status": "ready_for_review"},
-      prompt="A draft was just marked ready_for_review. Read the draft at /workspace/context/authored/{piece-slug}/content.md and audit per voice + continuity + anti-slop + editorial criteria. ...")
+      prompt="A draft was just marked ready_for_review. Read the draft at /workspace/operation/authored/{piece-slug}/content.md and audit per voice + continuity + anti-slop + editorial criteria. ...")
 
 Example: pause + resume
 
@@ -106,7 +106,7 @@ Example: pause + resume
                 "description": (
                     "Workspace-absolute glob pattern (fnmatch syntax) for the "
                     "path(s) this hook listens on. E.g., "
-                    "'/workspace/context/authored/*/profile.md'."
+                    "'/workspace/operation/authored/*/profile.md'."
                 ),
             },
             "field_change": {

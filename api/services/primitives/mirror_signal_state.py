@@ -21,9 +21,9 @@ wake envelope reads that substrate file like every other path entry.
 Surface:
   MirrorSignalState(
       source: str,         # glob pattern, workspace-relative
-                           # (e.g. "context/trading/signals/*.yaml")
+                           # (e.g. "operation/trading/signals/*.yaml")
       write_to: str,       # output substrate path, workspace-relative
-                           # (e.g. "context/trading/_signals_summary.md")
+                           # (e.g. "operation/trading/_signals_summary.md")
       diff_aware: bool = True,
   )
 
@@ -76,9 +76,9 @@ async def handle_mirror_signal_state(auth: Any, input: dict) -> dict:
 
     Inputs:
       source: str — glob pattern, workspace-relative
-                    (e.g. "context/trading/signals/*.yaml")
+                    (e.g. "operation/trading/signals/*.yaml")
       write_to: str — output substrate path, workspace-relative
-                      (e.g. "context/trading/_signals_summary.md")
+                      (e.g. "operation/trading/_signals_summary.md")
       diff_aware: bool — default True; skip write when content unchanged
 
     Returns:

@@ -176,9 +176,9 @@ def test_bundle_principles_md_no_standing_intent_restatement():
     """
     src = _read(_bundle("review", "principles.md"))
     # Negative: the "Every cycle authors" paragraph must be gone
-    assert "Every cycle authors `/workspace/review/standing_intent.md`" not in src, (
+    assert "Every cycle authors `/workspace/persona/standing_intent.md`" not in src, (
         "Bundle principles.md still contains 'Every cycle authors "
-        "/workspace/review/standing_intent.md' — per ADR-290 D2 this "
+        "/workspace/persona/standing_intent.md' — per ADR-290 D2 this "
         "restates the universal Identity-layer contract that lives in "
         "the kernel persona frame. Principles.md is framework, not "
         "substrate-contract restatement."
@@ -197,8 +197,8 @@ def test_bundle_recurrences_no_standing_intent_trailing_clauses():
     # pre-ADR-290 to be precise (don't match against comments mentioning
     # standing_intent as context).
     bad_patterns = [
-        r"AND update /workspace/review/standing_intent\.md with what's\s+close to firing",
-        r"AND update /workspace/review/standing_intent\.md with what would change\s+the assessment",
+        r"AND update /workspace/persona/standing_intent\.md with what's\s+close to firing",
+        r"AND update /workspace/persona/standing_intent\.md with what would change\s+the assessment",
         r"Standing down without updating standing_intent\.md leaves",
         r"standing_intent\.md update is unconditional",
     ]

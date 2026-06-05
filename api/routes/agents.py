@@ -559,7 +559,7 @@ async def list_agents(
         ))
 
     # ADR-214: Synthesize Reviewer as a systemic pseudo-agent. No DB row —
-    # substrate at /workspace/review/{IDENTITY,principles,decisions}.md stays
+    # substrate at /workspace/persona/{IDENTITY,principles,decisions}.md stays
     # authoritative per ADR-194 v2 Axiom 1. Frontend dispatches on
     # agent_class='reviewer' to render ReviewerDetailView.
     # Status filter: Reviewer is always 'active'; skip synthesis only if
@@ -757,26 +757,26 @@ async def get_reviewer_activity(auth: UserClient) -> dict:
 
 @router.get("/reviewer/capabilities")
 async def get_reviewer_capabilities(auth: UserClient) -> dict:
-    """Reviewer capability library — operator-facing view of /workspace/specs/.
+    """Reviewer capability library — operator-facing view of /workspace/operation/specs/.
 
     Surfaces the Reviewer's capability library (analog of Claude Code's
     skills.md) as first-class cockpit content. Each spec is a quality
     contract: schema, sections, anti-patterns. Specs are load-bearing —
     the Reviewer reads them by explicit path reference in recurrence
-    prompts (e.g. "Schema in /workspace/specs/performance-rollup.md").
+    prompts (e.g. "Schema in /workspace/operation/specs/performance-rollup.md").
 
     Before this route shipped, the capability library was entirely
     backend-internal: Reviewer reads them, operator never sees them
-    (would need to manually browse /files?path=/workspace/specs/).
+    (would need to manually browse /files?path=/workspace/operation/specs/).
 
     Three substrate operations:
 
-    1. **List specs** — `/workspace/specs/*.md` files for this workspace.
+    1. **List specs** — `/workspace/operation/specs/*.md` files for this workspace.
     2. **Parse each spec** — title from `# {Title}` heading; description
        from the first prose paragraph (typically under `## Purpose` or
        the intro). No-cost markdown parse.
     3. **Correlate used_by** — best-effort grep of `_recurrences.yaml`
-       prompt text for explicit `/workspace/specs/{slug}` references.
+       prompt text for explicit `/workspace/operation/specs/{slug}` references.
        Each spec's `used_by` lists the recurrence slugs that name it.
 
     Returns one dict per spec; FE renders as cards.
@@ -788,7 +788,7 @@ async def get_reviewer_capabilities(auth: UserClient) -> dict:
     import yaml as _yaml
     import re as _re
 
-    SPECS_PREFIX = "/workspace/specs/"
+    SPECS_PREFIX = "/workspace/operation/specs/"
     RECURRENCES_PATH = "/workspace/_recurrences.yaml"
 
     # --- 1. List spec files ---
@@ -977,7 +977,7 @@ async def get_agent(
         slug = get_agent_slug(agent)
         from services.workspace import AgentWorkspace
         _aw = AgentWorkspace(auth.client, auth.user_id, slug)
-        _projects_raw = await _aw.read("memory/projects.json")
+        _projects_raw = await _aw.read("system/projects.json")
         if _projects_raw:
             project_memberships = _json.loads(_projects_raw)
     except Exception:

@@ -14,7 +14,7 @@ registries are templates that were applied, the workspace filesystem is the
 sole source of truth.
 
 ADR-205 + ADR-212: Two systemic Agents are scaffolded at signup — YARNNN
-(meta-cognitive Agent) and the Reviewer seat (at /workspace/review/).
+(meta-cognitive Agent) and the Reviewer seat (at /workspace/persona/).
 Production roles (orchestration capability bundles — Researcher, Analyst,
 Writer, Tracker, Designer, Reporting) are lazy-created on first dispatch
 as agents-table rows for pipeline dispatch; they are NOT Agents in the
@@ -24,8 +24,8 @@ not Agents. Substrate grows from work.
 ADR-206: Further collapse — zero operational tasks at signup. `daily-update`
 and `back-office-*` are no longer scaffolded; they materialize on trigger
 conditions (proposals created, platform connected, agent threshold, etc.).
-IDENTITY/BRAND/CONVENTIONS relocated under `/workspace/context/_shared/`;
-YARNNN working-memory files relocated under `/workspace/memory/`.
+IDENTITY/BRAND/CONVENTIONS relocated under `constitution/ + governance/ + operation/ (ADR-320 split of legacy _shared/)`;
+YARNNN working-memory files relocated under `/workspace/system/`.
 The workspace is textually present + structurally empty.
 
 Phases:
@@ -107,11 +107,11 @@ async def initialize_workspace(
     }
 
     # Check if already initialized. ADR-206: idempotency gated on presence
-    # of /workspace/context/_shared/IDENTITY.md (always scaffolded in Phase 2).
+    # of /workspace/persona/IDENTITY.md (always scaffolded in Phase 2).
     from services.workspace import UserMemory
-    from services.workspace_paths import SHARED_IDENTITY_PATH
+    from services.workspace_paths import PERSONA_IDENTITY_PATH
     um = UserMemory(client, user_id)
-    existing_identity = await um.read(SHARED_IDENTITY_PATH)
+    existing_identity = await um.read(PERSONA_IDENTITY_PATH)
     if existing_identity:
         result["already_initialized"] = True
         # Still run idempotent steps in case of partial init
@@ -177,13 +177,13 @@ async def initialize_workspace(
             DEFAULT_WORKSPACE_GUIDE_MD,  # kernel-default for no-program workspaces only (ADR-286 D2)
         )
         from services.workspace_paths import (
-            SHARED_PRECEDENT_PATH,
-            SHARED_TOKEN_BUDGET_PATH,  # ADR-293 D7 governance file
-            MEMORY_PLAYBOOK_PATH,
-            MEMORY_STYLE_PATH, MEMORY_NOTES_PATH,
-            REVIEW_PRINCIPLES_YAML_PATH,  # machine-parsed thresholds — kernel default empty; bundle overrides
-            REVIEW_OCCUPANT_PATH,
-            REVIEW_HANDOFFS_PATH, REVIEW_CALIBRATION_PATH,
+            CONSTITUTION_PRECEDENT_PATH,
+            GOVERNANCE_TOKEN_BUDGET_PATH,  # ADR-293 D7 governance file
+            SYSTEM_PLAYBOOK_PATH,
+            SYSTEM_STYLE_PATH, SYSTEM_NOTES_PATH,
+            PERSONA_PRINCIPLES_YAML_PATH,  # machine-parsed thresholds — kernel default empty; bundle overrides
+            PERSONA_OCCUPANT_PATH,
+            PERSONA_HANDOFFS_PATH, PERSONA_CALIBRATION_PATH,
         )
         from services.token_budget import DEFAULT_TOKEN_BUDGET_YAML
 
@@ -191,7 +191,7 @@ async def initialize_workspace(
         # kernel-universal paths — paths that no bundle ships, present in every
         # workspace regardless of program activation. Bundle-owned paths
         # (MANDATE, IDENTITY, BRAND, AUTONOMY, _autonomy.yaml, awareness.md,
-        # review/IDENTITY, review/principles, review/_principles.yaml, etc.)
+        # review/IDENTITY, review/principles, persona/_principles.yaml, etc.)
         # are written exclusively by `fork_reference_workspace` in Phase 5.
         # No-program workspaces have absent bundle-owned paths; the Reviewer
         # envelope renders empty-state hints (honest semantic — a no-program
@@ -205,16 +205,16 @@ async def initialize_workspace(
         # `identity_content` (with optional timezone normalization above) is
         # no longer written here — alpha-trader bundle ships its own IDENTITY.md.
         # When the operator declares their personal identity, it lives in
-        # `context/_shared/IDENTITY.md` either through bundle-default + edits
+        # `persona/IDENTITY.md` either through bundle-default + edits
         # or future explicit personal-identity path (deferred). For no-program
         # workspaces, IDENTITY.md is absent and the operator authors via chat.
         workspace_files = {
             # Kernel-universal paths only (no bundle ships these):
-            SHARED_PRECEDENT_PATH: (DEFAULT_PRECEDENT_MD, "Precedent substrate — durable boundary-case guidance"),
-            MEMORY_PLAYBOOK_PATH: (TP_ORCHESTRATION_PLAYBOOK, "YARNNN orchestration playbook"),
-            MEMORY_STYLE_PATH: ("# Style\n<!-- System-inferred from edit patterns. -->\n", "Style placeholder"),
-            MEMORY_NOTES_PATH: ("# Notes\n<!-- YARNNN-extracted facts and instructions. -->\n", "Notes placeholder"),
-            REVIEW_PRINCIPLES_YAML_PATH: (
+            CONSTITUTION_PRECEDENT_PATH: (DEFAULT_PRECEDENT_MD, "Precedent substrate — durable boundary-case guidance"),
+            SYSTEM_PLAYBOOK_PATH: (TP_ORCHESTRATION_PLAYBOOK, "YARNNN orchestration playbook"),
+            SYSTEM_STYLE_PATH: ("# Style\n<!-- System-inferred from edit patterns. -->\n", "Style placeholder"),
+            SYSTEM_NOTES_PATH: ("# Notes\n<!-- YARNNN-extracted facts and instructions. -->\n", "Notes placeholder"),
+            PERSONA_PRINCIPLES_YAML_PATH: (
                 "# _principles.yaml — machine-parsed review thresholds (ADR-254)\n"
                 "# Read by review_policy.load_principles() via yaml.safe_load.\n"
                 "# For the Reviewer's full reasoning framework, see principles.md.\n\n"
@@ -224,13 +224,13 @@ async def initialize_workspace(
                 "#   auto_approve_below_cents: 0         # set to enable AI auto-action\n",
                 "Reviewer machine-parsed thresholds — kernel-universal default (overridden by bundle on activation)"
             ),
-            REVIEW_CALIBRATION_PATH: (DEFAULT_REVIEW_CALIBRATION_MD, "Reviewer seat calibration trail (auto-generated by back-office task)"),
+            PERSONA_CALIBRATION_PATH: (DEFAULT_REVIEW_CALIBRATION_MD, "Reviewer seat calibration trail (auto-generated by back-office task)"),
             # ADR-293 D7: compute-resource governance. Operator-only-authored;
             # Reviewer reads but cannot escalate its own resource ceiling.
             # Kernel-universal — every workspace needs governance regardless
             # of program activation. Bundles MAY override with program-tuned
             # defaults via Phase 5 fork (alpha-trader ships its own version).
-            SHARED_TOKEN_BUDGET_PATH: (
+            GOVERNANCE_TOKEN_BUDGET_PATH: (
                 DEFAULT_TOKEN_BUDGET_YAML,
                 "Token-budget governance — compute-resource ceiling (ADR-293 D7)",
             ),
@@ -249,9 +249,9 @@ async def initialize_workspace(
                 "Workspace guide — kernel default for no-program workspaces (ADR-286 D2)",
             )
 
-        # Note: REVIEW_PRINCIPLES_YAML_PATH is in the kernel-universal set
+        # Note: PERSONA_PRINCIPLES_YAML_PATH is in the kernel-universal set
         # above for backward compatibility — the alpha-trader bundle ALSO
-        # ships review/_principles.yaml with `auto_approve_below_cents` etc.
+        # ships persona/_principles.yaml with `auto_approve_below_cents` etc.
         # populated. The bundle's version overrides via Phase 5 fork. For
         # no-program workspaces, the kernel default empty-template stays.
         # If a future bundle audit confirms _principles.yaml should always
@@ -280,8 +280,8 @@ async def initialize_workspace(
                     reason="Workspace scaffold — operator is default Reviewer seat occupant",
                 )
                 if rotation["rotated"]:
-                    result["workspace_files_seeded"].append(REVIEW_OCCUPANT_PATH)
-                    result["workspace_files_seeded"].append(REVIEW_HANDOFFS_PATH)
+                    result["workspace_files_seeded"].append(PERSONA_OCCUPANT_PATH)
+                    result["workspace_files_seeded"].append(PERSONA_HANDOFFS_PATH)
                     logger.info(
                         f"[WORKSPACE_INIT] Reviewer seat scaffolded: "
                         f"occupant=human:{user_id[:8]} (ADR-211 D4)"
@@ -453,12 +453,12 @@ async def initialize_workspace(
     #     in Phase 5 above (overrides the kernel default for program workspaces).
     # The Reviewer reads the resulting guide at every wake (including first
     # wake) like any other operator-canon file. No genesis machinery needed.
-    from services.workspace_paths import SHARED_IDENTITY_PATH
+    from services.workspace_paths import PERSONA_IDENTITY_PATH
     problems = []
     if len(result["agents_created"]) == 0 and not result["already_initialized"]:
         problems.append("zero agents created")
-    if SHARED_IDENTITY_PATH not in result["workspace_files_seeded"] and not result["already_initialized"]:
-        problems.append(f"{SHARED_IDENTITY_PATH} not seeded")
+    if PERSONA_IDENTITY_PATH not in result["workspace_files_seeded"] and not result["already_initialized"]:
+        problems.append(f"{PERSONA_IDENTITY_PATH} not seeded")
     # ADR-206: daily-update is no longer an essential signup task — removed from validation.
 
     if problems:

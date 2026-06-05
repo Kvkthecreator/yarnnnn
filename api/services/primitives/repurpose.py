@@ -110,7 +110,7 @@ async def handle_repurpose_output(auth: Any, input: dict) -> dict:
     client = auth.client
 
     # ADR-262 D1: report outputs land at slug-templated path
-    # /workspace/reports/{slug}/{date}/output.md.
+    # /workspace/operation/reports/{slug}/{date}/output.md.
     from services.conventions import report_root
     from services.workspace import UserMemory
 

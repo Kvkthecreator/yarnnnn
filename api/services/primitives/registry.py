@@ -361,7 +361,7 @@ PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.
 # The Reviewer is the operator's installed judgment character — personified
 # to act on the operator's behalf. Like a human supervisor, the Reviewer:
 #   - Reads any report directly (observation is unmediated)
-#   - Writes its own notebook (decisions, reflections, notes within /workspace/review/)
+#   - Writes its own notebook (decisions, reflections, notes within /workspace/persona/)
 #   - Submits proposals for capital actions (ProposeAction)
 #   - Asks the operator when in doubt (Clarify)
 #
@@ -380,7 +380,7 @@ PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.
 # over invoking itself or commissioning unit-of-work fires. When upstream
 # substrate is stale, the Reviewer authors:
 #   (a) cadence — Schedule the next mechanical mirror's run, or
-#   (b) standing intent — update /workspace/review/standing_intent.md to
+#   (b) standing intent — update /workspace/persona/standing_intent.md to
 #       declare interest in the substrate transition that would unblock it.
 # It does not dispatch its own next wake by name. FireInvocation remains in
 # CHAT_PRIMITIVES for operator-initiated manual fire (operator presence is
@@ -411,7 +411,7 @@ REVIEWER_PRIMITIVES = [
     LIST_INTEGRATIONS_TOOL,
     WEB_SEARCH_PRIMITIVE,
     QUERY_KNOWLEDGE_TOOL,
-    # Self-substrate writes — own notebook (lock check enforces /workspace/review/ + non-locked paths)
+    # Self-substrate writes — own notebook (lock check enforces /workspace/persona/ + non-locked paths)
     WRITE_FILE_TOOL,
     # ADR-296 v2 D3: FireInvocation REMOVED. Reviewer does not self-invoke.
     # Direction primitive (Reviewer says, System Agent executes)
@@ -450,7 +450,7 @@ REVIEWER_PRIMITIVES = [
     #
     # Operator notifications tied to Reviewer verdicts should reach
     # operators via a post-judgment dispatcher hook (reads /workspace/
-    # review/judgment_log.md + standing_intent.md + operator
+    # persona/judgment_log.md + standing_intent.md + operator
     # _preferences.yaml, dispatches out-of-band) — same shape as
     # services/notifications.py ADR-040 pattern. NOT here.
     #

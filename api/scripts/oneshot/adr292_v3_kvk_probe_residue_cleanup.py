@@ -97,8 +97,8 @@ Newest entries at the bottom. Two entry kinds:
 Written by the Reviewer layer (ADR-194 v2 + ADR-281 §5). The Reviewer
 itself does NOT WriteFile to this path directly — infrastructure renders
 entries from the Reviewer's structured ReturnVerdict output (single-writer
-contract per ADR-281 §5.D2). See `/workspace/review/IDENTITY.md` for the
-Reviewer's identity and `/workspace/review/principles.md` for the declared
+contract per ADR-281 §5.D2). See `/workspace/persona/IDENTITY.md` for the
+Reviewer's identity and `/workspace/persona/principles.md` for the declared
 review framework.
 
 <!-- 2026-05-20T11:00Z — this file was reset to header-only by ADR-292 v3
@@ -131,7 +131,7 @@ async def run() -> int:
     print(f"ADR-292 v3 Fix 1B — kvk probe-residue cleanup\n")
 
     # ----- Step 1: revert _operator_profile.md to the pre-probe bundle-fork
-    op_profile_path = "context/trading/_operator_profile.md"
+    op_profile_path = "operation/trading/_operator_profile.md"
     print(f"--- Step 1: revert {op_profile_path} to pre-probe state ---")
     revs = list_revisions(client, user_id=KVK_USER_ID, path=f"/workspace/{op_profile_path}", limit=10)
     print(f"  {len(revs)} revisions in chain (newest first):")
@@ -166,7 +166,7 @@ async def run() -> int:
     print()
 
     # ----- Step 2: reset _money_truth.md
-    mt_path = "context/trading/_money_truth.md"
+    mt_path = "operation/trading/_money_truth.md"
     print(f"--- Step 2: reset {mt_path} (no real outcomes reconciled yet) ---")
     # The outcome reconciler will write genuine state on first fill. Reset
     # to empty-state shape (frontmatter + brief body explaining cleanup).
@@ -209,7 +209,7 @@ async def run() -> int:
     print()
 
     # ----- Step 3: reset standing_intent.md
-    si_path = "review/standing_intent.md"
+    si_path = "persona/standing_intent.md"
     print(f"--- Step 3: reset {si_path} to bootstrap shape ---")
     await um.write(
         si_path,
@@ -228,7 +228,7 @@ async def run() -> int:
     print()
 
     # ----- Step 4: reset judgment_log.md
-    jl_path = "review/judgment_log.md"
+    jl_path = "persona/judgment_log.md"
     print(f"--- Step 4: reset {jl_path} to header-only bootstrap ---")
     await um.write(
         jl_path,

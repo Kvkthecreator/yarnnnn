@@ -61,31 +61,31 @@ def assertion_2_kernel_surfaces_entry():
     # The pace block: slug + path + archetype + icon + route
     assert '"slug": "pace"' in src, "pace slug not registered in KERNEL_SURFACES"
     assert '"archetype": "document"' in src, "pace must be Document archetype (kind editor on substrate)"
-    assert '"/workspace/context/_shared/_pace.yaml"' in src, \
-        "pace must declare /workspace/context/_shared/_pace.yaml as its substrate path"
+    assert '"/workspace/governance/_pace.yaml"' in src, \
+        "pace must declare /workspace/governance/_pace.yaml as its substrate path"
     assert '"route": "/pace"' in src, "pace must declare route /pace"
     assert '"icon_key": "gauge"' in src, "pace must use the gauge icon (speedometer metaphor)"
 
 
 def assertion_3_pace_path_in_reviewer_locks():
-    """SHARED_PACE_PATH is in DEFAULT_REVIEWER_WRITE_LOCKS — operator-only substrate.
+    """GOVERNANCE_PACE_PATH is locked from the Reviewer caller — operator-only substrate.
 
-    Imports the tuple at runtime and asserts membership; the source-text
-    parse is fragile against intervening comment blocks (which the lock
-    tuple has, by design).
+    ADR-320: the flat DEFAULT_REVIEWER_WRITE_LOCKS tuple dissolved into the
+    five-root permission topology. "pace is operator-only / locked from the
+    Reviewer" is still true (governance/ is locked from the reviewer caller
+    class); the assertion mechanism is now the singular gate
+    `_is_path_locked('reviewer', path)`.
     """
     assert WORKSPACE_PATHS.exists(), f"missing: {WORKSPACE_PATHS}"
     sys.path.insert(0, str(REPO_ROOT / "api"))
     try:
-        from services.workspace_paths import (
-            DEFAULT_REVIEWER_WRITE_LOCKS,
-            SHARED_PACE_PATH,
-        )
+        from services.workspace_paths import GOVERNANCE_PACE_PATH
+        from services.primitives.workspace import _is_path_locked
     finally:
         sys.path.pop(0)
-    assert SHARED_PACE_PATH in DEFAULT_REVIEWER_WRITE_LOCKS, (
-        f"SHARED_PACE_PATH={SHARED_PACE_PATH!r} must be in DEFAULT_REVIEWER_WRITE_LOCKS "
-        f"(operator-only per ADR-298 D11). Current locks: {DEFAULT_REVIEWER_WRITE_LOCKS}"
+    assert _is_path_locked("reviewer", GOVERNANCE_PACE_PATH), (
+        f"GOVERNANCE_PACE_PATH={GOVERNANCE_PACE_PATH!r} must be locked from the "
+        f"Reviewer caller (governance/ root, operator-only per ADR-298 D11 + ADR-320)."
     )
 
 

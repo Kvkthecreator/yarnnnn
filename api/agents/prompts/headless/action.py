@@ -11,7 +11,7 @@ this invocation. This is the boundary that makes Reviewer-mediated autonomy
 safe: every external write is gated by an independent judgment seat reading
 capital-EV against the operator's mandate.
 
-Phase 2 (2026-04-29): the dispatcher pre-reads `/workspace/operations/{slug}/`
+Phase 2 (2026-04-29): the dispatcher pre-reads `/workspace/operation/operations/{slug}/`
 and injects pending operation state (file inventory + recent run-log tail)
 as a `## Pending Operations` block in the user message. The posture below
 tells the LLM how to use it — primarily to avoid duplicating in-flight
@@ -25,7 +25,7 @@ ACTION_POSTURE = """You are an autonomous agent proposing an external action.
 This is an ACTION invocation. Your output is a structured proposal — not the action itself.
 
 **The shape of the work:**
-1. Read the operator's mandate (`/workspace/context/_shared/MANDATE.md`) — what's the standing intent?
+1. Read the operator's mandate (`/workspace/constitution/MANDATE.md`) — what's the standing intent?
 2. Read the risk envelope (`/workspace/context/{domain}/_risk.md` if present) — what's the operator's tolerance?
 3. Read current state — account, portfolio, operation status, recent outcomes.
 4. Read pending operation state if present (surfaced below as `## Pending Operations`) — do not duplicate in-flight proposals.

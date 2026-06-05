@@ -1,4 +1,4 @@
-"""Reviewer Judgment Lineage — appends entries to /workspace/review/judgment_log.md
+"""Reviewer Judgment Lineage — appends entries to /workspace/persona/judgment_log.md
 (ADR-194 v2 Phase 2a + ADR-281 §5).
 
 Every approve / reject that flows through ExecuteProposal / RejectProposal
@@ -27,7 +27,7 @@ layer, applied at the substrate-write layer. Replaced by the
 ReviewerOutput against the deterministic 5-condition gate.
 
 File convention:
-  /workspace/review/judgment_log.md
+  /workspace/persona/judgment_log.md
 
 Append semantics:
 - First write creates the file with a header.
@@ -64,7 +64,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Literal
 
-from services.workspace_paths import REVIEW_JUDGMENT_LOG_PATH
+from services.workspace_paths import PERSONA_JUDGMENT_LOG_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -72,8 +72,8 @@ logger = logging.getLogger(__name__)
 #: Canonical filesystem home for the Reviewer's judgment lineage (ADR-281 §5).
 #: The constant `JUDGMENT_LOG_PATH` is the full /workspace/-prefixed path used
 #: by the DB read/write helpers below. Callers that need the workspace-relative
-#: path should import REVIEW_JUDGMENT_LOG_PATH from services.workspace_paths.
-JUDGMENT_LOG_PATH = f"/workspace/{REVIEW_JUDGMENT_LOG_PATH}"
+#: path should import PERSONA_JUDGMENT_LOG_PATH from services.workspace_paths.
+JUDGMENT_LOG_PATH = f"/workspace/{PERSONA_JUDGMENT_LOG_PATH}"
 
 
 Decision = Literal["approve", "reject", "defer"]
@@ -174,13 +174,17 @@ def _detect_outcome_kind(reviewer_output: dict) -> str | None:
                 # Bundle-declared operator-canon paths are still rare to
                 # write to (locked by default); when they do get written,
                 # the universal-paths check covers the common cases.
+                # ADR-320: operator-canon = constitution/ (MANDATE, PRECEDENT) +
+                # the persona's reasoning-character files (IDENTITY, principles).
+                # governance/ is NOT here — the Reviewer cannot write it at all
+                # (topology lock), so a governance write never reaches this gate.
                 operator_canon_prefixes = (
-                    "context/_shared/",
-                    "/workspace/context/_shared/",
-                    "review/IDENTITY.md",
-                    "review/principles.md",
-                    "/workspace/review/IDENTITY.md",
-                    "/workspace/review/principles.md",
+                    "constitution/",
+                    "/workspace/constitution/",
+                    "persona/IDENTITY.md",
+                    "persona/principles.md",
+                    "/workspace/persona/IDENTITY.md",
+                    "/workspace/persona/principles.md",
                 )
                 if any(path.startswith(p) for p in operator_canon_prefixes):
                     write_to_operator_canon = True
@@ -356,8 +360,8 @@ Newest entries at the bottom. Two entry kinds:
 Written by the Reviewer layer (ADR-194 v2 + ADR-281 §5). The Reviewer
 itself does NOT WriteFile to this path directly — infrastructure renders
 entries from the Reviewer's structured ReturnVerdict output (single-writer
-contract per ADR-281 §5.D2). See `/workspace/review/IDENTITY.md` for the
-Reviewer's identity and `/workspace/review/principles.md` for the declared
+contract per ADR-281 §5.D2). See `/workspace/persona/IDENTITY.md` for the
+Reviewer's identity and `/workspace/persona/principles.md` for the declared
 review framework.
 """
 

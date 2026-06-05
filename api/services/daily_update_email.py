@@ -2,7 +2,7 @@
 
 Daily-update email emits an **expository pointer** — headline summary +
 deep-links into cockpit surfaces — not a full-content digest. The
-agent-generated digest content lives at `/workspace/reports/daily-update/
+agent-generated digest content lives at `/workspace/operation/reports/daily-update/
 {date}/` (canonical path per ADR-231 D2 / ADR-262 D1, resolved via the
 conventions module) and is consumed by the Overview surface (ADR-199).
 The email is the notification that the cockpit has something to show; it

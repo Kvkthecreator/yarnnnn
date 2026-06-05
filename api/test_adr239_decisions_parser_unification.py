@@ -113,7 +113,7 @@ def test_performance_face_imports_from_reviewer_decisions_lib():
 def test_no_legacy_task_path_drift_in_faces():
     """Assertion #5: Q5 path audit regression guard. None of the cockpit
     faces reference the legacy `/tasks/{slug}/outputs/` substrate path.
-    Post-ADR-231 those paths moved to natural-home `/workspace/reports/`
+    Post-ADR-231 those paths moved to natural-home `/workspace/operation/reports/`
     and `/workspace/context/` locations. Catches future drift if a face
     accidentally references the legacy task path."""
     forbidden_substrings = [

@@ -423,10 +423,10 @@ def test_write_file_workspace_scope():
 
 def test_shared_context_cluster_constants():
     """Shared operator-authored substrate includes precedent alongside autonomy."""
-    from services.workspace_paths import SHARED_AUTONOMY_PATH, SHARED_CONTEXT_FILES, SHARED_PRECEDENT_PATH
+    from services.workspace_paths import GOVERNANCE_AUTONOMY_PATH, CONSTITUTION_FILES, CONSTITUTION_PRECEDENT_PATH
 
-    record("Shared context has AUTONOMY.md", SHARED_AUTONOMY_PATH in SHARED_CONTEXT_FILES)
-    record("Shared context has PRECEDENT.md", SHARED_PRECEDENT_PATH in SHARED_CONTEXT_FILES)
+    record("Shared context has AUTONOMY.md", GOVERNANCE_AUTONOMY_PATH in CONSTITUTION_FILES)
+    record("Shared context has PRECEDENT.md", CONSTITUTION_PRECEDENT_PATH in CONSTITUTION_FILES)
 
 
 def test_manage_recurrence_tool_schema():

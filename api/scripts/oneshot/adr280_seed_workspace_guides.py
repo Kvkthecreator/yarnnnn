@@ -82,7 +82,7 @@ async def main():
     rows = (
         client.table("workspace_files")
         .select("user_id")
-        .eq("path", "/workspace/review/IDENTITY.md")
+        .eq("path", "/workspace/persona/IDENTITY.md")
         .execute()
     )
     user_ids = sorted({r["user_id"] for r in (rows.data or [])})

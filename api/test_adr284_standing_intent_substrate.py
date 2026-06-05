@@ -1,8 +1,8 @@
 """ADR-284 Phase 1 regression gate: standing intent + OCCUPANT envelope.
 
 Asserts the Phase 1 contracts:
-  - REVIEW_STANDING_INTENT_PATH constant exists + value
-  - REVIEW_STANDING_INTENT_PATH is in REVIEW_FILES tuple
+  - PERSONA_STANDING_INTENT_PATH constant exists + value
+  - PERSONA_STANDING_INTENT_PATH is in PERSONA_FILES tuple
   - reviewer_envelope `_UNIVERSAL_ENVELOPE_DECLS` includes both OCCUPANT
     and standing_intent at the kernel-universal level
   - `_PERSONA_FRAME` mentions standing_intent.md + the write contract
@@ -36,26 +36,26 @@ def _read_repo(rel: str) -> str:
 
 
 # -----------------------------------------------------------------------------
-# 1. workspace_paths.py — REVIEW_STANDING_INTENT_PATH constant
+# 1. workspace_paths.py — PERSONA_STANDING_INTENT_PATH constant
 # -----------------------------------------------------------------------------
 
 def test_review_standing_intent_path_defined() -> None:
     src = _read_api("services/workspace_paths.py")
-    assert 'REVIEW_STANDING_INTENT_PATH = "review/standing_intent.md"' in src, (
-        "REVIEW_STANDING_INTENT_PATH constant missing — workspace_paths.py "
+    assert 'PERSONA_STANDING_INTENT_PATH = "persona/standing_intent.md"' in src, (
+        "PERSONA_STANDING_INTENT_PATH constant missing — workspace_paths.py "
         "must declare the canonical relative path per ADR-284"
     )
 
 
 def test_standing_intent_in_review_files_tuple() -> None:
     src = _read_api("services/workspace_paths.py")
-    # Find the REVIEW_FILES tuple literal and assert membership.
-    idx = src.find("REVIEW_FILES = (")
-    assert idx != -1, "REVIEW_FILES tuple must be defined"
+    # Find the PERSONA_FILES tuple literal and assert membership.
+    idx = src.find("PERSONA_FILES = (")
+    assert idx != -1, "PERSONA_FILES tuple must be defined"
     end = src.find(")", idx)
     block = src[idx:end]
-    assert "REVIEW_STANDING_INTENT_PATH" in block, (
-        "REVIEW_STANDING_INTENT_PATH must be included in REVIEW_FILES tuple"
+    assert "PERSONA_STANDING_INTENT_PATH" in block, (
+        "PERSONA_STANDING_INTENT_PATH must be included in PERSONA_FILES tuple"
     )
 
 
@@ -66,11 +66,11 @@ def test_standing_intent_in_review_files_tuple() -> None:
 def test_envelope_universal_decls_include_occupant_and_standing_intent() -> None:
     src = _read_api("services/reviewer_envelope.py")
     # Confirm imports were added
-    assert "REVIEW_OCCUPANT_PATH" in src, (
-        "REVIEW_OCCUPANT_PATH must be imported from workspace_paths"
+    assert "PERSONA_OCCUPANT_PATH" in src, (
+        "PERSONA_OCCUPANT_PATH must be imported from workspace_paths"
     )
-    assert "REVIEW_STANDING_INTENT_PATH" in src, (
-        "REVIEW_STANDING_INTENT_PATH must be imported from workspace_paths"
+    assert "PERSONA_STANDING_INTENT_PATH" in src, (
+        "PERSONA_STANDING_INTENT_PATH must be imported from workspace_paths"
     )
     # Confirm declarations are in the universal list — skip past the type
     # annotation `list[tuple[str, str]]` to find the actual `[ ... ]` body.
@@ -86,11 +86,11 @@ def test_envelope_universal_decls_include_occupant_and_standing_intent() -> None
     assert '"standing_intent_md"' in block, (
         "_UNIVERSAL_ENVELOPE_DECLS must include standing_intent_md entry per ADR-284"
     )
-    assert "REVIEW_OCCUPANT_PATH" in block, (
-        "occupant_md entry must point at REVIEW_OCCUPANT_PATH"
+    assert "PERSONA_OCCUPANT_PATH" in block, (
+        "occupant_md entry must point at PERSONA_OCCUPANT_PATH"
     )
-    assert "REVIEW_STANDING_INTENT_PATH" in block, (
-        "standing_intent_md entry must point at REVIEW_STANDING_INTENT_PATH"
+    assert "PERSONA_STANDING_INTENT_PATH" in block, (
+        "standing_intent_md entry must point at PERSONA_STANDING_INTENT_PATH"
     )
 
 

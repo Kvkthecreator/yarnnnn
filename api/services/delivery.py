@@ -158,7 +158,7 @@ class DeliveryService:
             # 3. Delivery is now per-recurrence (ADR-138 / ADR-231) — this
             # legacy path is unused. Live delivery flows through
             # `deliver_from_output_folder()` which reads substrate from
-            # `/workspace/reports/{slug}/...` (canonical per ADR-231 D2).
+            # `/workspace/operation/reports/{slug}/...` (canonical per ADR-231 D2).
             return ExportResult(
                 status=ExportStatus.FAILED,
                 error_message="Legacy deliver_version path — use deliver_from_output_folder() instead"
@@ -716,7 +716,7 @@ async def deliver_from_output_folder(
         )
 
     # ADR-202 §3: delivery_requires_approval gate.
-    # Compose writes the output + manifest to /workspace/reports/{slug}/{date}/
+    # Compose writes the output + manifest to /workspace/operation/reports/{slug}/{date}/
     # (canonical path per ADR-231 D2 / ADR-262 D1) regardless. Distribution
     # fires only after operator clicks Ship Now in the cockpit Work surface
     # (Phase 3 frontend UX). Until that timestamp is set, this function
@@ -1006,7 +1006,7 @@ async def _deliver_email_from_manifest(
 
     # ADR-202 §1: daily-update email is an expository pointer, not a
     # full-content digest. The agent-generated content lives at
-    # /workspace/reports/daily-update/{date}/ (canonical per ADR-231 D2
+    # /workspace/operation/reports/daily-update/{date}/ (canonical per ADR-231 D2
     # / ADR-262 D1) and the Overview surface (ADR-199) renders it. The
     # email is just the invitation.
     # Compute deterministic headline counts + swap the body for the

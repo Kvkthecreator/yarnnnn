@@ -53,7 +53,7 @@ def main_sync(persona_slug: str, mode: str) -> int:
     result = write_revision(
         client,
         user_id=persona.user_id,
-        path="/workspace/context/_shared/_autonomy.yaml",
+        path="/workspace/governance/_autonomy.yaml",
         content=content,
         authored_by="operator:test-validation",
         message=f"Test flip — delegation={mode} for ADR-293 validation",

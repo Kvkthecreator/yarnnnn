@@ -4,7 +4,7 @@ Recurrences routes — read/write surface over /workspace/_recurrences.yaml.
 Per ADR-261 D1 + D2: every recurrence is `{slug, schedule, prompt}` in
 the canonical file. Per ADR-262 D1: substrate paths are slug-templated
 via the conventions module — every recurrence's outputs land at
-``/workspace/reports/{slug}/{date}/output.md``.
+``/workspace/operation/reports/{slug}/{date}/output.md``.
 
 The HTTP surface lives at ``/api/recurrences/*``. The TaskResponse model
 matches the FE Recurrence type post-Phase-I (post-merge sweep, 2026-05-10):
@@ -505,7 +505,7 @@ async def get_run_status(slug: str, auth: UserClient) -> RunStatusResponse:
 
 @router.get("/{slug}/outputs")
 async def list_recurrence_outputs(slug: str, auth: UserClient) -> list[TaskOutputEntry]:
-    """List dated output folders under /workspace/reports/{slug}/."""
+    """List dated output folders under /workspace/operation/reports/{slug}/."""
     substrate_root = report_root(slug)
 
     result = (

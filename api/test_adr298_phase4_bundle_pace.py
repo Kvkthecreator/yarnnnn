@@ -67,7 +67,7 @@ def _wipe_pace_yaml(client, user_id):
     """Remove _pace.yaml from a user's workspace_files (clean slate for tests)."""
     try:
         client.table("workspace_files").delete().eq("user_id", user_id).eq(
-            "path", "/workspace/context/_shared/_pace.yaml"
+            "path", "/workspace/governance/_pace.yaml"
         ).execute()
     except Exception:
         pass
@@ -175,13 +175,13 @@ def _write_pace_yaml(client, user_id, kind):
     """Pre-write a _pace.yaml for a scratch user to simulate operator
     having declared a pace prior to bundle activation."""
     from services.workspace import UserMemory
-    from services.workspace_paths import SHARED_PACE_PATH
+    from services.workspace_paths import GOVERNANCE_PACE_PATH
     body = f"pace:\n  kind: {kind}\n"
 
     async def write():
         um = UserMemory(client, user_id)
         await um.write(
-            SHARED_PACE_PATH, body,
+            GOVERNANCE_PACE_PATH, body,
             summary="test scaffold",
             authored_by="operator",
         )

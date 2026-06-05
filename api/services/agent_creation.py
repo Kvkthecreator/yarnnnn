@@ -191,7 +191,7 @@ async def create_agent_record(
                 playbook = get_type_playbook(role)
                 for filename, content in playbook.items():
                     await ws.write(
-                        f"memory/{filename}",
+                        f"system/{filename}",
                         content,
                         summary=f"ADR-143: seed playbook ({filename})",
                     )

@@ -146,9 +146,9 @@ def test_mirror_signal_state_handler_writes_substrate():
             if self.last_table == "workspace_files":
                 # Return signal yaml content for the glob query
                 return SimpleNamespace(data=[
-                    {"path": "/workspace/context/trading/signals/IH-1.yaml",
+                    {"path": "/workspace/operation/trading/signals/IH-1.yaml",
                      "content": "state: armed\ntriggered_today: []\n"},
-                    {"path": "/workspace/context/trading/signals/IH-2.yaml",
+                    {"path": "/workspace/operation/trading/signals/IH-2.yaml",
                      "content": "state: triggered\ntriggered_today: [NVDA]\n"},
                 ])
             return SimpleNamespace(data=[])
@@ -156,13 +156,13 @@ def test_mirror_signal_state_handler_writes_substrate():
     auth = SimpleNamespace(client=_MockClient(), user_id="test-user-12345")
     with patch("services.authored_substrate.write_revision") as mock_write:
         result = asyncio.run(handle_mirror_signal_state(auth, {
-            "source": "context/trading/signals/*.yaml",
-            "write_to": "context/trading/_signals_summary.md",
+            "source": "operation/trading/signals/*.yaml",
+            "write_to": "operation/trading/_signals_summary.md",
             "diff_aware": False,
         }))
         assert result["success"] is True
         assert result["signals_processed"] == 2
-        assert "/workspace/context/trading/_signals_summary.md" in result["paths_written"]
+        assert "/workspace/operation/trading/_signals_summary.md" in result["paths_written"]
         assert mock_write.called
         call_kwargs = mock_write.call_args.kwargs
         assert call_kwargs["authored_by"] == "system:mirror-signal-state"
@@ -184,7 +184,7 @@ def test_alpha_trader_manifest_signal_files_is_path_only():
     assert "path" in signal_decl, "signal_files must use path-only shape per ADR-281"
     assert "path_glob" not in signal_decl, "path_glob shape forbidden per ADR-281"
     assert "summarizer" not in signal_decl, "summarizer shape forbidden per ADR-281"
-    assert signal_decl["path"] == "context/trading/_signals_summary.md"
+    assert signal_decl["path"] == "operation/trading/_signals_summary.md"
 
 
 def test_alpha_trader_workspace_guide_signal_files_is_path_only():
@@ -196,7 +196,7 @@ def test_alpha_trader_workspace_guide_signal_files_is_path_only():
     envelope = fm["reviewer_wake_envelope"]
     signal_decl = next((e for e in envelope if e.get("key") == "signal_files"), None)
     assert signal_decl is not None
-    assert signal_decl.get("path") == "context/trading/_signals_summary.md"
+    assert signal_decl.get("path") == "operation/trading/_signals_summary.md"
     assert "path_glob" not in signal_decl
     assert "summarizer" not in signal_decl
 
@@ -214,8 +214,8 @@ def test_alpha_trader_has_mirror_signal_state_recurrence():
         "mirror-signal-state must fire on activation to populate substrate before first Reviewer wake"
     prompt = mirror.get("prompt", "")
     assert "@primitive: MirrorSignalState" in prompt
-    assert 'source="context/trading/signals/*.yaml"' in prompt
-    assert 'write_to="context/trading/_signals_summary.md"' in prompt
+    assert 'source="operation/trading/signals/*.yaml"' in prompt
+    assert 'write_to="operation/trading/_signals_summary.md"' in prompt
 
 
 # ---------------------------------------------------------------------------
@@ -320,12 +320,13 @@ def test_adr_223_drops_path_glob_summarizer():
 # 6. Phase 1 + Stream A preserved work still passes
 # ---------------------------------------------------------------------------
 
-def test_default_reviewer_write_locks_still_kernel_universal_only():
-    """Phase 1 closure preserved: DEFAULT_REVIEWER_WRITE_LOCKS contains zero program paths."""
-    from services.workspace_paths import DEFAULT_REVIEWER_WRITE_LOCKS
-    leaks = [p for p in DEFAULT_REVIEWER_WRITE_LOCKS
-             if "context/trading" in p or "context/commerce" in p]
-    assert leaks == []
+# test_default_reviewer_write_locks_still_kernel_universal_only DELETED (ADR-320):
+# the flat DEFAULT_REVIEWER_WRITE_LOCKS list dissolved into the five-root
+# permission topology (CALLER_WRITE_POLICY). The intent — "reviewer locks
+# contain zero literal program-domain paths" — is now structurally guaranteed
+# by the topology (the reviewer's locked set is the root tuple
+# (GOVERNANCE_ROOT, SYSTEM_ROOT), never a filename or program path) and is
+# subsumed by test_adr320_permission_topology.py per Singular Implementation.
 
 
 def test_review_proposal_dispatch_no_trading_hardcode():
@@ -378,11 +379,11 @@ def test_grep_gate_kernel_perception_no_program_paths():
 # ---------------------------------------------------------------------------
 
 def test_review_judgment_log_path_constant_renamed():
-    """ADR-281 §5.D1: REVIEW_DECISIONS_PATH renamed to REVIEW_JUDGMENT_LOG_PATH."""
+    """ADR-281 §5.D1: REVIEW_DECISIONS_PATH renamed to PERSONA_JUDGMENT_LOG_PATH."""
     from services import workspace_paths
-    assert hasattr(workspace_paths, "REVIEW_JUDGMENT_LOG_PATH"), \
-        "REVIEW_JUDGMENT_LOG_PATH must exist in workspace_paths"
-    assert workspace_paths.REVIEW_JUDGMENT_LOG_PATH == "review/judgment_log.md"
+    assert hasattr(workspace_paths, "PERSONA_JUDGMENT_LOG_PATH"), \
+        "PERSONA_JUDGMENT_LOG_PATH must exist in workspace_paths"
+    assert workspace_paths.PERSONA_JUDGMENT_LOG_PATH == "persona/judgment_log.md"
     assert not hasattr(workspace_paths, "REVIEW_DECISIONS_PATH"), \
         "REVIEW_DECISIONS_PATH must be deleted per Singular Implementation"
 
@@ -390,7 +391,7 @@ def test_review_judgment_log_path_constant_renamed():
 def test_judgment_log_path_in_reviewer_audit():
     """reviewer_audit.JUDGMENT_LOG_PATH is the full /workspace/-prefixed path."""
     from services.reviewer_audit import JUDGMENT_LOG_PATH
-    assert JUDGMENT_LOG_PATH == "/workspace/review/judgment_log.md"
+    assert JUDGMENT_LOG_PATH == "/workspace/persona/judgment_log.md"
     # And the legacy DECISIONS_PATH is gone
     from services import reviewer_audit
     assert not hasattr(reviewer_audit, "DECISIONS_PATH")
@@ -418,7 +419,7 @@ def test_material_outcome_gate_routine_stand_down_renders_no_entry():
     assert _detect_outcome_kind({
         "verdict": "stand_down",
         "actions_taken": [
-            {"tool": "ReadFile", "input": {"path": "/workspace/review/IDENTITY.md"}, "result": {"success": True}},
+            {"tool": "ReadFile", "input": {"path": "/workspace/persona/IDENTITY.md"}, "result": {"success": True}},
             {"tool": "ListFiles", "input": {"path": "/workspace/context/"}, "result": {"success": True}},
         ],
     }) is None
@@ -482,9 +483,9 @@ def test_track_regime_does_not_write_judgment_log():
     """ADR-281 §5 / Derived Principle 19: track_regime.py writes substrate
     (`_regime_freshness.yaml`), not directly to the judgment log."""
     src = (API_ROOT / "services" / "primitives" / "track_regime.py").read_text()
-    # Should not have a write_revision call targeting /workspace/review/judgment_log.md
-    # or /workspace/review/decisions.md (post-rename or pre-rename).
-    for path in ("/workspace/review/judgment_log.md", "/workspace/review/decisions.md"):
+    # Should not have a write_revision call targeting /workspace/persona/judgment_log.md
+    # or /workspace/persona/judgment_log.md (post-rename or pre-rename).
+    for path in ("/workspace/persona/judgment_log.md", "/workspace/persona/judgment_log.md"):
         # Path may appear in doc-comments explaining the refactor — that's OK.
         # What's forbidden: an active write call. Heuristic: check for `path=` argument
         # passing the path string.
@@ -496,10 +497,15 @@ def test_track_regime_does_not_write_judgment_log():
 
 
 def test_alpha_trader_workspace_guide_declares_judgment_log_role():
-    """alpha-trader bundle workspace guide declares judgment_log.md as system-ledger."""
+    """alpha-trader bundle workspace guide declares judgment_log.md as system-ledger.
+
+    ADR-281 renamed decisions.md → judgment_log.md; ADR-320 relocated it from
+    review/ to persona/. The guide must name the new path and carry no live
+    reference to either legacy path.
+    """
     guide = (BUNDLES_ROOT / "alpha-trader" / "reference-workspace" / "_workspace_guide.md").read_text()
-    assert "review/judgment_log.md" in guide
-    assert "review/decisions.md" not in guide, "old path must be fully replaced"
+    assert "persona/judgment_log.md" in guide
+    assert "review/decisions.md" not in guide, "old (pre-ADR-281/320) path must be fully replaced"
 
 
 def test_no_live_decisions_md_path_in_kernel_perception_files():
@@ -507,6 +513,11 @@ def test_no_live_decisions_md_path_in_kernel_perception_files():
 
     Doc-comment narration explaining the refactor IS allowed (e.g. "decisions.md was
     renamed to judgment_log.md per ADR-281 §5"). What's forbidden: live path strings.
+
+    ADR-320: the canonical home moved from review/ to persona/, so the banned
+    legacy path is the full pre-rename/pre-relocation `/workspace/review/decisions.md`.
+    The current `/workspace/persona/judgment_log.md` is the correct live path and
+    must NOT be flagged.
     """
     files_to_check = [
         API_ROOT / "services" / "workspace_paths.py",
@@ -527,11 +538,11 @@ def test_no_live_decisions_md_path_in_kernel_perception_files():
             # Skip lines that are obviously docstring narration about the rename
             if "renamed" in line.lower() or "ADR-281" in line or "deleted" in line.lower():
                 continue
-            # Live path strings forbidden
+            # Live legacy path strings forbidden (pre-ADR-281 rename + pre-ADR-320 relocation).
             if "/workspace/review/decisions.md" in line:
                 raise AssertionError(
-                    f"{f.relative_to(API_ROOT)}:{lineno}: live decisions.md path "
-                    f"reference (must be renamed to judgment_log.md): {line.strip()!r}"
+                    f"{f.relative_to(API_ROOT)}:{lineno}: live legacy decisions.md path "
+                    f"reference (must be persona/judgment_log.md): {line.strip()!r}"
                 )
 
 

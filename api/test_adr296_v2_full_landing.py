@@ -281,7 +281,7 @@ def test_alpha_trader_trade_proposal_deleted() -> None:
 
 def test_alpha_trader_principles_no_fireinvocation() -> None:
     src = _read_repo(
-        "docs/programs/alpha-trader/reference-workspace/review/principles.md"
+        "docs/programs/alpha-trader/reference-workspace/persona/principles.md"
     )
     # The "Commission substrate via FireInvocation" clause must be gone.
     if "Commission substrate via FireInvocation" in src:

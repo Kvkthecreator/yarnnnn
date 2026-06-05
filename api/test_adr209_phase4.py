@@ -47,7 +47,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 TEST_USER_ID = "2abf3f96-118b-4987-9d95-40f2d9be9a18"
-SCRATCH_PATH = "/workspace/context/_shared/CONVENTIONS.md"  # editable + always exists for the test user post-onboarding
+SCRATCH_PATH = "/workspace/operation/CONVENTIONS.md"  # editable + always exists for the test user post-onboarding
 # Fallback scratch if CONVENTIONS.md isn't present on the test user's workspace:
 SCRATCH_FALLBACK_PATH = "/workspace/uploads/_adr209-phase4-test.md"
 
@@ -396,7 +396,7 @@ async def test_save_identity_brand_operator_attribution(client) -> None:
         auth = _FakeAuth(client, TEST_USER_ID)
 
         # Capture current brand so we restore it at the end (don't mutate user data)
-        brand_path = "/workspace/context/_shared/BRAND.md"
+        brand_path = "/workspace/operation/BRAND.md"
         before = (
             client.table("workspace_files")
             .select("content")

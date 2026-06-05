@@ -182,7 +182,7 @@ class ChatAgent(BaseAgent):
             # ADR-154: thesis.md dissolved — domain understanding in /workspace/context/
 
             # Load memory files (playbooks only per ADR-154)
-            memory_files = await ws.list("memory/")
+            memory_files = await ws.list("system/")
             if memory_files:
                 memory_parts = []
                 for mf_path in memory_files[:5]:  # Cap at 5 memory files

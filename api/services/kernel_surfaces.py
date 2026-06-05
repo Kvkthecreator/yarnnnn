@@ -176,10 +176,10 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Home",
         "archetype": "dashboard",
         "substrate_paths": [
-            "/workspace/context/_shared/MANDATE.md",
-            "/workspace/context/_shared/_autonomy.yaml",
-            "/workspace/context/_shared/_performance.md",
-            "/workspace/context/_shared/_performance_summary.md",
+            "/workspace/constitution/MANDATE.md",
+            "/workspace/governance/_autonomy.yaml",
+            "/workspace/operation/_performance.md",
+            "/workspace/operation/_performance_summary.md",
         ],
         # 2026-06-03: icon → `home`. Post the ADR-312 cockpit→home rename the
         # square-activity glyph (a "live operations monitor" shape) no longer
@@ -204,7 +204,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "substrate_paths": [
             "/workspace/_recurrences.yaml",
             "/workspace/_hooks.yaml",
-            "/workspace/review/standing_intent.md",
+            "/workspace/persona/standing_intent.md",
         ],
         "icon_key": "clock",
         "default_pinned": False,
@@ -224,7 +224,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Pace",
         "archetype": "document",
         "substrate_paths": [
-            "/workspace/context/_shared/_pace.yaml",
+            "/workspace/governance/_pace.yaml",
         ],
         "icon_key": "gauge",
         "default_pinned": False,
@@ -243,7 +243,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Autonomy",
         "archetype": "document",
         "substrate_paths": [
-            "/workspace/context/_shared/_autonomy.yaml",
+            "/workspace/governance/_autonomy.yaml",
         ],
         "icon_key": "shield-check",
         "default_pinned": False,
@@ -256,7 +256,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Mandate",
         "archetype": "document",
         "substrate_paths": [
-            "/workspace/context/_shared/MANDATE.md",
+            "/workspace/constitution/MANDATE.md",
         ],
         "icon_key": "target",
         "default_pinned": False,
@@ -269,8 +269,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Principles",
         "archetype": "document",
         "substrate_paths": [
-            "/workspace/review/principles.md",
-            "/workspace/review/_principles.yaml",
+            "/workspace/persona/principles.md",
+            "/workspace/persona/_principles.yaml",
         ],
         "icon_key": "scale",
         "default_pinned": False,
@@ -283,7 +283,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Identity",
         "archetype": "document",
         "substrate_paths": [
-            "/workspace/context/_shared/IDENTITY.md",
+            "/workspace/persona/IDENTITY.md",
         ],
         "icon_key": "user-circle",
         "default_pinned": False,

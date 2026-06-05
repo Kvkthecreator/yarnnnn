@@ -10,7 +10,7 @@ Asserts:
 - check_population_constraint: mechanical-mode recurrences excluded from sum.
 - check_population_constraint: reactive (schedule=None) recurrences excluded.
 - check_population_constraint: continuous pace + None pace pass everything.
-- SHARED_PACE_PATH is in DEFAULT_REVIEWER_WRITE_LOCKS (Reviewer cannot write pace).
+- GOVERNANCE_PACE_PATH is locked from the Reviewer caller (governance/ root, ADR-320).
 - Reviewer envelope decl includes `pace_yaml` key.
 - Schedule primitive returns pace_exceeded error when create would breach cap.
 
@@ -43,10 +43,8 @@ from services.pace import (  # noqa: E402
     cron_fires_per_day,
     parse_pace_yaml,
 )
-from services.workspace_paths import (  # noqa: E402
-    DEFAULT_REVIEWER_WRITE_LOCKS,
-    SHARED_PACE_PATH,
-)
+from services.workspace_paths import GOVERNANCE_PACE_PATH  # noqa: E402
+from services.primitives.workspace import _is_path_locked  # noqa: E402
 from services.reviewer_envelope import _UNIVERSAL_ENVELOPE_DECLS  # noqa: E402
 
 
@@ -283,11 +281,15 @@ def test_population_reactive_new() -> None:
 
 
 def test_pace_locked_for_reviewer() -> None:
-    print("\n[integration] SHARED_PACE_PATH in DEFAULT_REVIEWER_WRITE_LOCKS")
+    # ADR-320: the flat DEFAULT_REVIEWER_WRITE_LOCKS list dissolved into the
+    # five-root permission topology. "pace is locked from Reviewer" is still
+    # true — governance/ is locked from the reviewer caller class — but the
+    # assertion mechanism is now the singular gate.
+    print("\n[integration] GOVERNANCE_PACE_PATH locked from Reviewer (governance/ root)")
     check(
         "_pace.yaml is locked from Reviewer writes",
-        SHARED_PACE_PATH in DEFAULT_REVIEWER_WRITE_LOCKS,
-        f"DEFAULT_REVIEWER_WRITE_LOCKS = {DEFAULT_REVIEWER_WRITE_LOCKS}",
+        _is_path_locked("reviewer", GOVERNANCE_PACE_PATH),
+        f"_is_path_locked('reviewer', {GOVERNANCE_PACE_PATH!r}) returned False",
     )
 
 

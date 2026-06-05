@@ -165,7 +165,7 @@ def bundles_active_for_workspace(user_id: str, client: Any) -> list[dict[str, An
             client.table("workspace_files")
             .select("content")
             .eq("user_id", user_id)
-            .eq("path", "/workspace/context/_shared/MANDATE.md")
+            .eq("path", "/workspace/constitution/MANDATE.md")
             .limit(1)
             .execute()
         )

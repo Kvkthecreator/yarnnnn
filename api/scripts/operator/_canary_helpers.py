@@ -12,7 +12,7 @@ investigation arc (their inline implementations are part of the
 substrate-receipt). New canaries (post-2026-05-27) import here.
 
 Conventions:
-- A "piece" is an authored draft under /workspace/context/authored/{slug}/
+- A "piece" is an authored draft under /workspace/operation/authored/{slug}/
   with two canonical files: profile.md (frontmatter + title) and content.md
   (the prose). Status transitions on profile.md fire the substrate-event
   hook bound in alpha-author's _hooks.yaml.
@@ -34,13 +34,13 @@ import re
 def piece_paths(slug: str) -> dict[str, str]:
     """Return canonical paths for an authored piece by slug.
 
-    A piece is a draft under /workspace/context/authored/{slug}/ with
+    A piece is a draft under /workspace/operation/authored/{slug}/ with
     two files: profile.md (frontmatter + title) and content.md (prose).
 
     Returns:
         {"dir": str, "profile": str, "content": str}
     """
-    base = f"/workspace/context/authored/{slug}"
+    base = f"/workspace/operation/authored/{slug}"
     return {
         "dir": base,
         "profile": f"{base}/profile.md",

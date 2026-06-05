@@ -264,7 +264,7 @@ def test_live_no_legacy_level_survivors():
     rows = (
         client.table("workspace_files")
         .select("user_id,content")
-        .eq("path", "/workspace/context/_shared/_autonomy.yaml")
+        .eq("path", "/workspace/governance/_autonomy.yaml")
         .execute()
     ).data or []
 

@@ -2,8 +2,8 @@
 
 Deterministic mechanical primitive that fetches VIXY + SPY 1Day bars from
 Alpaca, computes the regime predicate (vix_regime_active + trend_regime),
-and writes ``/workspace/context/trading/_regime.yaml`` per the schema in
-``/workspace/specs/regime-state.md``.
+and writes ``/workspace/operation/trading/_regime.yaml`` per the schema in
+``/workspace/operation/specs/regime-state.md``.
 
 Zero LLM cost. Runs in ~1-2 seconds. Replaces the judgment-mode
 ``track-regime`` recurrence prompt that previously dispatched a Sonnet
@@ -13,7 +13,7 @@ Surface:
     @primitive: TrackRegime()
 
 No arguments — thresholds (vixy_active_threshold, vixy_deactivation_threshold)
-are read at runtime from ``/workspace/specs/regime-state.md`` so the
+are read at runtime from ``/workspace/operation/specs/regime-state.md`` so the
 operator can tune them in the spec doc without redeploying. The recurrence's
 bundle prompt is exactly this one-line directive.
 
@@ -57,8 +57,8 @@ _VIXY_BARS = 25  # enough for SMA-20 + 1 day buffer
 _SPY_BARS = 55   # enough for SMA-50 + 1 day buffer
 _DEACTIVATION_STREAK_WINDOW = 30  # cap streak counter at 30 days
 
-_REGIME_SPEC_PATH = "/workspace/specs/regime-state.md"
-_REGIME_OUTPUT_PATH = "/workspace/context/trading/_regime.yaml"
+_REGIME_SPEC_PATH = "/workspace/operation/specs/regime-state.md"
+_REGIME_OUTPUT_PATH = "/workspace/operation/trading/_regime.yaml"
 
 # Spec-doc defaults — used if regime-state.md doesn't override.
 # Match the published values in docs/programs/alpha-trader/.../specs/regime-state.md
@@ -361,7 +361,7 @@ async def _emit_stale_fallback(
         logger.warning("[TRACK_REGIME] stale-fallback path failed: %s", exc)
 
 
-_FRESHNESS_PATH = "/workspace/context/trading/_regime_freshness.yaml"
+_FRESHNESS_PATH = "/workspace/operation/trading/_regime_freshness.yaml"
 
 
 async def _write_freshness_state(
@@ -430,13 +430,13 @@ async def _write_freshness_state(
 async def _write_regime_yaml(
     client: Any, user_id: str, payload: dict, now: datetime,
 ) -> str:
-    """Write /workspace/context/trading/_regime.yaml."""
+    """Write /workspace/operation/trading/_regime.yaml."""
     from services.authored_substrate import write_revision
 
     ts = now.strftime("%Y-%m-%dT%H:%M:%SZ")
     header = (
         "# Regime state — written by TrackRegime primitive (ADR-271 Thread A)\n"
-        f"# See /workspace/specs/regime-state.md for schema + threshold tuning.\n"
+        f"# See /workspace/operation/specs/regime-state.md for schema + threshold tuning.\n"
     )
     body = _yaml.dump(
         payload, default_flow_style=False, allow_unicode=True, sort_keys=False,

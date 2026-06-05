@@ -51,18 +51,18 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable
 
 from services.workspace_paths import (
-    REVIEW_IDENTITY_PATH,
-    REVIEW_PRINCIPLES_PATH,
-    REVIEW_OCCUPANT_PATH,
-    REVIEW_STANDING_INTENT_PATH,
-    SHARED_PRECEDENT_PATH,
-    SHARED_MANDATE_PATH,
-    SHARED_AUTONOMY_PATH,
-    SHARED_PREFERENCES_PATH,
-    SHARED_PACE_PATH,
+    PERSONA_IDENTITY_PATH,
+    PERSONA_PRINCIPLES_PATH,
+    PERSONA_OCCUPANT_PATH,
+    PERSONA_STANDING_INTENT_PATH,
+    CONSTITUTION_PRECEDENT_PATH,
+    CONSTITUTION_MANDATE_PATH,
+    GOVERNANCE_AUTONOMY_PATH,
+    GOVERNANCE_PREFERENCES_PATH,
+    GOVERNANCE_PACE_PATH,
     SPECS_PREFIX,
-    MEMORY_SCHEDULE_INDEX_PATH,
-    MEMORY_RECENT_EXECUTION_PATH,
+    SYSTEM_SCHEDULE_INDEX_PATH,
+    SYSTEM_RECENT_EXECUTION_PATH,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,26 +77,26 @@ logger = logging.getLogger(__name__)
 
 _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     # — Governance (Persona + Framework class) —
-    ("identity_md", REVIEW_IDENTITY_PATH),
-    ("principles_md", REVIEW_PRINCIPLES_PATH),
-    ("precedent_md", SHARED_PRECEDENT_PATH),
-    ("mandate_md", SHARED_MANDATE_PATH),
-    ("autonomy_md", SHARED_AUTONOMY_PATH),
-    ("preferences_yaml", SHARED_PREFERENCES_PATH),
+    ("identity_md", PERSONA_IDENTITY_PATH),
+    ("principles_md", PERSONA_PRINCIPLES_PATH),
+    ("precedent_md", CONSTITUTION_PRECEDENT_PATH),
+    ("mandate_md", CONSTITUTION_MANDATE_PATH),
+    ("autonomy_md", GOVERNANCE_AUTONOMY_PATH),
+    ("preferences_yaml", GOVERNANCE_PREFERENCES_PATH),
     # ADR-298 D11: pace is the Trigger-dimension operator dial of the
     # Pace + Autonomy + Persona trifecta. The Reviewer reads it at every
     # wake so its Schedule() calls (mid-loop cadence authoring) can land
     # within the operator's declared pace budget. When read returns empty
     # (no _pace.yaml authored yet) the helper still yields ("pace_yaml",
     # "") so the ReviewerContext key is unconditionally present.
-    ("pace_yaml", SHARED_PACE_PATH),
+    ("pace_yaml", GOVERNANCE_PACE_PATH),
     # — Seat Occupant (ADR-284) — current occupant identity, runtime-truth-aligned
-    ("occupant_md", REVIEW_OCCUPANT_PATH),
+    ("occupant_md", PERSONA_OCCUPANT_PATH),
     # — Standing Intent (ADR-284) — what the Reviewer was watching for last cycle.
     # The Reviewer reads this on every wake, compares against current world state,
     # and updates it before standing down. The substrate counterpart to a no-fire
     # judgment is an updated standing_intent.md.
-    ("standing_intent_md", REVIEW_STANDING_INTENT_PATH),
+    ("standing_intent_md", PERSONA_STANDING_INTENT_PATH),
     # — Pulse (ADR-301) — Reviewer's own cadence + recent fires.
     # Mechanically mirrored from `tasks` (scheduling index) +
     # `execution_events` (ledger) by `services.kernel_mirrors`, run per
@@ -105,8 +105,8 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     # to reason correctly about its own pulse — closes the schedule-
     # hallucination class documented in docs/evaluations/2026-05-24-
     # 045348-reviewer-schedule-self-misdiagnosis/findings.md.
-    ("schedule_index_md", MEMORY_SCHEDULE_INDEX_PATH),
-    ("recent_execution_md", MEMORY_RECENT_EXECUTION_PATH),
+    ("schedule_index_md", SYSTEM_SCHEDULE_INDEX_PATH),
+    ("recent_execution_md", SYSTEM_RECENT_EXECUTION_PATH),
 ]
 
 
@@ -227,14 +227,14 @@ async def load_reviewer_governance_envelope(
         structured logger (addressed path) per ADR-276 hardening.
 
     Universal envelope (always present, kernel-shipped):
-      - identity_md          → /workspace/review/IDENTITY.md
-      - principles_md        → /workspace/review/principles.md
-      - precedent_md         → /workspace/context/_shared/PRECEDENT.md
-      - mandate_md           → /workspace/context/_shared/MANDATE.md
-      - autonomy_md          → /workspace/context/_shared/AUTONOMY.md
-      - preferences_yaml     → /workspace/context/_shared/_preferences.yaml
-      - occupant_md          → /workspace/review/OCCUPANT.md            (ADR-284)
-      - standing_intent_md   → /workspace/review/standing_intent.md     (ADR-284)
+      - identity_md          → /workspace/persona/IDENTITY.md
+      - principles_md        → /workspace/persona/principles.md
+      - precedent_md         → /workspace/constitution/PRECEDENT.md
+      - mandate_md           → /workspace/constitution/MANDATE.md
+      - autonomy_md          → /workspace/governance/AUTONOMY.md
+      - preferences_yaml     → /workspace/governance/_preferences.yaml
+      - occupant_md          → /workspace/persona/OCCUPANT.md            (ADR-284)
+      - standing_intent_md   → /workspace/persona/standing_intent.md     (ADR-284)
 
     Program-shaped envelope (read from active bundle's MANIFEST per ADR-281
     D2): substrate paths declared in `substrate_abi.reviewer_wake_envelope`.
@@ -329,7 +329,7 @@ async def load_reviewer_governance_envelope(
     )
 
     # --- Specs inventory (name + title only, no bodies) ---
-    # Program bundles fork capability specs into /workspace/specs/ at activation
+    # Program bundles fork capability specs into /workspace/operation/specs/ at activation
     # (per ADR-261 D6 + ADR-275). The Reviewer's _PERSONA_FRAME tells it specs
     # exist but doesn't enumerate them — without an inventory, the Reviewer
     # ends up asking the operator "do those spec files exist?" when it could
@@ -346,7 +346,7 @@ async def load_reviewer_governance_envelope(
 
 
 async def _inventory_specs(client: Any, user_id: str) -> str:
-    """List bundle-shipped capability specs under /workspace/specs/.
+    """List bundle-shipped capability specs under /workspace/operation/specs/.
 
     Returns a multi-line string, one line per spec:
         - {path} — {first-heading title or "(no heading)"}

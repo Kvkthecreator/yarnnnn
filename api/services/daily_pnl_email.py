@@ -43,8 +43,8 @@ TRIGGER_SLUG = "outcome-reconciliation"
 NOTIFICATION_SLUG = "daily_pnl_reconciliation"
 
 # Canonical substrate the dispatcher reads (the judgment's output).
-MONEY_TRUTH_PATH = "/workspace/context/trading/_money_truth.md"
-PREFERENCES_PATH = "/workspace/context/_shared/_preferences.yaml"
+MONEY_TRUTH_PATH = "/workspace/operation/trading/_money_truth.md"
+PREFERENCES_PATH = "/workspace/governance/_preferences.yaml"
 
 
 def _get_workspace_file_content(client: Any, user_id: str, path: str) -> Optional[str]:
@@ -97,7 +97,7 @@ def is_opted_in(preferences_content: Optional[str]) -> bool:
 def _parse_money_truth_windows(money_truth_content: str) -> dict:
     """Extract the windows frontmatter from _money_truth.md.
 
-    Schema per /workspace/specs/performance-rollup.md:
+    Schema per /workspace/operation/specs/performance-rollup.md:
         ---
         last_reconciled: ...
         windows:
@@ -231,7 +231,7 @@ def build_text(windows: dict, overview_url: str) -> str:
 # once per day (manual_fire + cron, or the eval firing it twice), and without
 # this guard each fire sends a duplicate email (the 2026-06-04 trader-suite run
 # surfaced a double-fire in the operator's inbox). One email per UTC day.
-SENT_MARKER_PATH = "/workspace/review/_daily_pnl_sent.yaml"
+SENT_MARKER_PATH = "/workspace/persona/_daily_pnl_sent.yaml"
 
 
 def _already_sent_today(client: Any, user_id: str, today: str) -> bool:

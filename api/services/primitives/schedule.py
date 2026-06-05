@@ -68,7 +68,7 @@ Examples:
       slug="signal-evaluation",
       schedule="0 * 9-16 * 1-5",
       mode="judgment",
-      prompt="Evaluate the universe against signals IH-1 through IH-5 on fresh 1Hour bars. Write findings to /workspace/context/trading/signals/.")
+      prompt="Evaluate the universe against signals IH-1 through IH-5 on fresh 1Hour bars. Write findings to /workspace/operation/trading/signals/.")
 
   Schedule(action="create",
       slug="track-positions",

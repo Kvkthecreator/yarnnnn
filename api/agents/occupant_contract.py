@@ -4,7 +4,7 @@ This module is the **named seam** between the domain-agnostic kernel (substrate 
 seat + wake/dispatch harness) and the swappable Reviewer *occupant* (the AI agent
 that fills the seat). Per ADR-315:
 
-- The *seat* is substrate (`/workspace/review/*` + ADR-209 attribution + the
+- The *seat* is substrate (`/workspace/persona/*` + ADR-209 attribution + the
   wake/verdict contract). It stays substrate — ADR-194 v2's "no ABC" retraction
   is preserved.
 - The *occupant* is a module (`agents/reviewer_agent.py`). It consumes a
@@ -168,7 +168,7 @@ class ReviewerContext(TypedDict, total=False):
     recent_decisions_md: str
     signal_files: str
     workspace_state: str
-    # Spec inventory — bundle-shipped capability specs under /workspace/specs/.
+    # Spec inventory — bundle-shipped capability specs under /workspace/operation/specs/.
     # Format: one line per spec, "- {path} — {title}". Bodies read on demand
     # via ReadFile. Closes the discovery gap that produced the operator-
     # facing question "do those spec files exist?" in standing intent.

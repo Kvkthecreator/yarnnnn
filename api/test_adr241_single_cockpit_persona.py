@@ -109,13 +109,13 @@ def test_agent_content_view_no_reviewer_dispatch():
 
 def test_reviewer_audit_substrate_preserved():
     """Assertion #6: services/reviewer_audit.py exists and continues
-    to write to /workspace/review/judgment_log.md. Substrate preservation
+    to write to /workspace/persona/judgment_log.md. Substrate preservation
     regression guard per ADR-241 §"Preserves" (ADR-194 v2 substrate
     paths unchanged)."""
     src = _read(API_REVIEWER_AUDIT)
-    assert "review/judgment_log.md" in src, (
+    assert "persona/judgment_log.md" in src, (
         "reviewer_audit.py must continue to reference "
-        "/workspace/review/judgment_log.md per ADR-194 v2 substrate "
+        "/workspace/persona/judgment_log.md per ADR-194 v2 substrate "
         "preservation. ADR-241 changes the surface, not the substrate."
     )
 

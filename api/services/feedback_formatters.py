@@ -21,7 +21,7 @@ These helpers do NOT perform writes themselves. They:
 from datetime import datetime, timezone
 from typing import Any, Optional, Tuple
 
-from services.workspace_paths import MEMORY_NOTES_PATH
+from services.workspace_paths import SYSTEM_NOTES_PATH
 
 
 # ---------------------------------------------------------------------------
@@ -59,10 +59,10 @@ async def format_memory_entry(
 
     needle = text.lower().strip()
     if any(n["content"].lower().strip() == needle for n in existing_notes):
-        return (None, MEMORY_NOTES_PATH, "duplicate")
+        return (None, SYSTEM_NOTES_PATH, "duplicate")
 
     entry_type = infer_memory_entry_type(text)
-    return (text, MEMORY_NOTES_PATH, entry_type)
+    return (text, SYSTEM_NOTES_PATH, entry_type)
 
 
 # ---------------------------------------------------------------------------
@@ -95,7 +95,7 @@ def format_agent_feedback_entry(
 
 def agent_feedback_relative_path(agent_slug: str) -> str:
     """Compute the AgentWorkspace-relative path for an agent's feedback file."""
-    return "memory/feedback.md"
+    return "system/feedback.md"
 
 
 # ---------------------------------------------------------------------------
@@ -137,7 +137,7 @@ async def resolve_task_feedback_path(
     """Resolve task feedback path for a recurrence slug.
 
     Per ADR-261 every recurrence shares one shape; per ADR-262 D1 the
-    convention is ``/workspace/reports/{slug}/_feedback.md`` (the
+    convention is ``/workspace/operation/reports/{slug}/_feedback.md`` (the
     canonical home from CONVENTIONS.md topology).
 
     Returns (relative_path, error_payload). On success, error_payload is None.

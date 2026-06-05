@@ -193,8 +193,8 @@ from services.agent_creation import VALID_SCOPES, VALID_ROLES, ROLE_TO_SCOPE  # 
 
 
 # ADR-196 + ADR-235: _process_memory() deleted. Memory writes flow through
-# WriteFile(scope="workspace", path="memory/notes.md", content=..., mode="append")
-# which routes to /workspace/memory/*.md via the UserMemory class (ADR-156).
+# WriteFile(scope="workspace", path="system/notes.md", content=..., mode="append")
+# which routes to /workspace/system/*.md via the UserMemory class (ADR-156).
 
 
 def _process_document(data: dict) -> dict:

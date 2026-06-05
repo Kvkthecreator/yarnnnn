@@ -83,7 +83,7 @@ class PersonaFrameSection:
             exists to surface.
         compute: produces the section's text body. Called at registry
             resolution time. May close over module-level constants
-            (e.g., DEFAULT_REVIEWER_WRITE_LOCKS per ADR-302 D2) so the
+            (e.g., CALLER_WRITE_POLICY per ADR-320) so the
             section content templates from canon rather than paraphrasing.
         cache_break: True for volatile sections that must recompute per
             wake. False for cached defaults (the vast majority). When True,

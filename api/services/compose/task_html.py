@@ -3,7 +3,7 @@ Recurrence HTML Composition — ADR-213.
 
 Single path for composing a recurrence's output folder into HTML on demand.
 Reads substrate (section partials + sys_manifest.json + manifest.json) from
-`/workspace/reports/{slug}/{date}/` (canonical path per ADR-231 D2 + ADR-262
+`/workspace/operation/reports/{slug}/{date}/` (canonical path per ADR-231 D2 + ADR-262
 D1; resolved via the conventions module), POSTs to the render service
 `/compose`, returns HTML.
 
@@ -41,7 +41,7 @@ async def compose_task_output_html(
     """Compose a recurrence output folder into HTML on demand.
 
     Reads section partials and manifest from
-    `/workspace/reports/{task_slug}/{date_folder}/` (canonical per
+    `/workspace/operation/reports/{task_slug}/{date_folder}/` (canonical per
     ADR-231 D2 / ADR-262 D1, resolved via the conventions module),
     posts to render service `/compose`, returns the composed HTML string.
 
@@ -49,7 +49,7 @@ async def compose_task_output_html(
     failed. Caller decides how to handle None (404, fallback, etc.).
     """
     # ADR-262 D1: report outputs land at the slug-templated path
-    # /workspace/reports/{slug}/{date}/. We do not validate that a recurrence
+    # /workspace/operation/reports/{slug}/{date}/. We do not validate that a recurrence
     # exists for the slug — composition reads what's actually on disk.
     from services.conventions import report_root
     from services.workspace import UserMemory

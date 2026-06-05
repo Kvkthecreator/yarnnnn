@@ -21,7 +21,7 @@ Layer 2 (services.wake + wake_sources — singular invocation gateway):
 Layer 3 (yarnnn.py — operator-present only):
 - Chat mode with primitives. YARNNN is the single intelligence layer
   (ADR-156, ADR-189). Memory writes via `WriteFile(scope="workspace",
-  path="memory/notes.md", content=..., mode="append")` in-session per
+  path="system/notes.md", content=..., mode="append")` in-session per
   ADR-156 + ADR-235.
 
 Cron: every 5 minutes via Render. `schedule: "*/5 * * * *"`. The scheduler
@@ -378,7 +378,7 @@ async def run_unified_scheduler():
     # ADR-301 kernel mirrors — Reviewer pulse envelope substrate.
     # Per-tick maintenance phase: project tasks scheduling index + recent
     # execution_events into compact substrate files (_schedule_index.md +
-    # _recent_execution.md under /workspace/memory/) that the Reviewer
+    # _recent_execution.md under /workspace/system/) that the Reviewer
     # reads at every wake. Both mirrors are diff-aware — most ticks write
     # nothing across most workspaces. Closes the schedule-hallucination
     # class documented in docs/evaluations/2026-05-24-045348-reviewer-

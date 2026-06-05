@@ -15,7 +15,7 @@ entries. Whether they actuate entity mutations depends on operator-
 declared rules in a future extension.
 
 **Threshold discipline:** the operator declares thresholds in
-`/workspace/review/principles.md` under a `high_impact` key per domain.
+`/workspace/persona/principles.md` under a `high_impact` key per domain.
 Default: no threshold → no high-impact entries written (safe default).
 
 **Task resolution:** every outcome with a `proposal_id` can be traced
@@ -243,7 +243,7 @@ def _render_feedback_entry(
         f"- Domain: `{domain}` · Action: `{action_type}` · Executed: {executed_at_str}",
         f"- Outcome: **{label}** · Realized: **{value_str}** · Confidence: {candidate.get('reconciliation_confidence', 'medium')}",
         f"- Reconciled by: `{provider.provider_name}`",
-        f"- Severity: {severity} · Thresholds declared in `/workspace/review/principles.md`",
+        f"- Severity: {severity} · Thresholds declared in `/workspace/persona/principles.md`",
     ]
     # Include action inputs for agent-readable context
     inputs = candidate.get("action_inputs") or {}
@@ -301,7 +301,7 @@ async def _append_entries_to_task_feedback(
     Returns True on success. Never raises.
     """
     try:
-        # ADR-262 D1: feedback lives at /workspace/reports/{slug}/_feedback.md.
+        # ADR-262 D1: feedback lives at /workspace/operation/reports/{slug}/_feedback.md.
         from services.conventions import report_feedback_path
         from services.feedback_distillation import _MAX_FEEDBACK_ENTRIES
         from services.workspace import UserMemory

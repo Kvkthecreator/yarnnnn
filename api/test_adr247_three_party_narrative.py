@@ -103,8 +103,8 @@ def assertion_4_reviewer_persona_hook_exists():
         f"web/lib/reviewer-persona.ts missing — required by ADR-247 D2"
     )
     src = REVIEWER_PERSONA_HOOK.read_text()
-    assert "IDENTITY.md" in src or "IDENTITY_PATH" in src or "review/IDENTITY" in src, (
-        "reviewer-persona.ts must reference /workspace/review/IDENTITY.md path"
+    assert "IDENTITY.md" in src or "IDENTITY_PATH" in src or "persona/IDENTITY" in src, (
+        "reviewer-persona.ts must reference /workspace/persona/IDENTITY.md path"
     )
     assert "useReviewerPersona" in src, (
         "reviewer-persona.ts must export useReviewerPersona hook"

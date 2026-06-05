@@ -242,11 +242,11 @@ def main() -> None:
     bundle_root = Path(__file__).parent.parent / "docs/programs/alpha-trader/reference-workspace"
     legacy_paths = [
         bundle_root / "_shared/back-office.yaml",
-        bundle_root / "context/trading/_recurring.yaml",
+        bundle_root / "operation/trading/_recurring.yaml",
         bundle_root / "operations/trade-proposal/_action.yaml",
-        bundle_root / "reports/pre-market-brief/_spec.yaml",
-        bundle_root / "reports/quarterly-signal-audit/_spec.yaml",
-        bundle_root / "reports/weekly-performance-review/_spec.yaml",
+        bundle_root / "operation/reports/pre-market-brief/_spec.yaml",
+        bundle_root / "operation/reports/quarterly-signal-audit/_spec.yaml",
+        bundle_root / "operation/reports/weekly-performance-review/_spec.yaml",
     ]
     for p in legacy_paths:
         if p.exists():

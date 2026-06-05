@@ -155,10 +155,10 @@ def test_writefile_activity_classifier():
     """ADR-235 D1.b: WriteFile path-prefix recognition for activity-log emission."""
     from services.primitives.workspace import _classify_workspace_path_for_activity
 
-    notes = _classify_workspace_path_for_activity("memory/notes.md")
+    notes = _classify_workspace_path_for_activity("system/notes.md")
     feedback = _classify_workspace_path_for_activity("agents/researcher/memory/feedback.md")
-    mandate = _classify_workspace_path_for_activity("context/_shared/MANDATE.md")
-    other = _classify_workspace_path_for_activity("reports/x/_spec.yaml")
+    mandate = _classify_workspace_path_for_activity("constitution/MANDATE.md")
+    other = _classify_workspace_path_for_activity("operation/reports/x/_spec.yaml")
 
     ok = (
         notes is not None and notes["event_type"] == "memory_written"

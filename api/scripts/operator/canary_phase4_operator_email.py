@@ -6,11 +6,11 @@ canary v4/v6/v7), then chains into the substrate-event canary on
 governance-as-trust to fire the pre-ship-audit hook.
 
 Expected chain:
-  1. write_substrate to /workspace/context/_shared/_preferences.yaml —
+  1. write_substrate to /workspace/governance/_preferences.yaml —
      append `operator_notifications:` block with `pre_ship_audit_summary`
      entry active: true (the event-driven notification that fires on
      pre-ship-audit hook).
-  2. write_substrate to /workspace/context/authored/governance-as-trust/profile.md —
+  2. write_substrate to /workspace/operation/authored/governance-as-trust/profile.md —
      flip `status: ready_for_review → draft → ready_for_review` (same shape
      as canary v4) to trigger the pre-ship-audit hook walker.
   3. Wait for next scheduler tick (~1-5 min).
@@ -48,8 +48,8 @@ if API_DIR not in sys.path:
 from services.operator_proxy.client import OperatorProxy  # noqa: E402
 
 
-PREFERENCES_PATH = "/workspace/context/_shared/_preferences.yaml"
-CANARY_PROFILE_PATH = "/workspace/context/authored/governance-as-trust/profile.md"
+PREFERENCES_PATH = "/workspace/governance/_preferences.yaml"
+CANARY_PROFILE_PATH = "/workspace/operation/authored/governance-as-trust/profile.md"
 
 # operator_notifications block to append. pre_ship_audit_summary is event-
 # driven (fires when pre-ship-audit hook resolves); active: true makes it

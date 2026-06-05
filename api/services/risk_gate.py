@@ -4,7 +4,7 @@ Risk Gate Primitive — ADR-192 Phase 2
 Pre-trade validation for trading-order submission. Runs before any
 `submit_order` / `submit_bracket_order` / `submit_trailing_stop` call
 dispatched through `handle_platform_tool`. Reads trader-declared risk
-parameters from `/workspace/context/trading/_risk.md` and evaluates the
+parameters from `/workspace/operation/trading/_risk.md` and evaluates the
 proposed order against them.
 
 **Mode semantics:**
@@ -31,7 +31,7 @@ to the LLM/caller rather than calling Alpaca. The caller (YARNNN or an
 agent) sees the rejection and can either ask the user to adjust limits,
 propose a smaller order, or abandon the action.
 
-**Storage:** `/workspace/context/trading/_risk.md` as structured markdown
+**Storage:** `/workspace/operation/trading/_risk.md` as structured markdown
 with one `key: value` per line. Values may be numbers, booleans, strings,
 or bracketed lists `[AAPL, MSFT]`.
 """
@@ -44,7 +44,7 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 
-RISK_MD_PATH = "/workspace/context/trading/_risk.md"
+RISK_MD_PATH = "/workspace/operation/trading/_risk.md"
 
 
 # =============================================================================
@@ -80,7 +80,7 @@ async def check_risk_limits(
                 "approved": False,
                 "reason": (
                     "No risk parameters declared. Create "
-                    f"/workspace/context/trading/_risk.md (see scaffold_default_risk_md) "
+                    f"/workspace/operation/trading/_risk.md (see scaffold_default_risk_md) "
                     "before enabling autonomous trading."
                 ),
                 "warnings": [],
@@ -91,7 +91,7 @@ async def check_risk_limits(
             "approved": True,
             "reason": "Supervised execution; no risk parameters configured.",
             "warnings": [
-                "Risk parameters not set at /workspace/context/trading/_risk.md. "
+                "Risk parameters not set at /workspace/operation/trading/_risk.md. "
                 "Autonomous execution will fail-closed until configured."
             ],
             "mode": mode,
@@ -407,7 +407,7 @@ def _nyse_calendar():
 def scaffold_default_risk_md() -> str:
     """Return conservative-default `_risk.md` content for trading onboarding.
 
-    Written to /workspace/context/trading/_risk.md when a user connects
+    Written to /workspace/operation/trading/_risk.md when a user connects
     their trading account (if the file doesn't already exist). User is
     expected to review and adjust before enabling autonomous trading.
     """

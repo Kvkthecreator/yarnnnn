@@ -13,14 +13,14 @@ in sync. When CONVENTIONS.md changes, this module changes too.
 The convention shapes (per ADR-262 D1):
 
     Reports (DELIVERABLE-shaped output, replacive per firing):
-      output:        /workspace/reports/{slug}/{date}/output.md
-      output html:   /workspace/reports/{slug}/{date}/output.html
-      sections:      /workspace/reports/{slug}/{date}/sections/
-      manifest:      /workspace/reports/{slug}/{date}/manifest.json
-      latest:        /workspace/reports/{slug}/latest/
-      feedback:      /workspace/reports/{slug}/_feedback.md
-      run log:       /workspace/reports/{slug}/_run_log.md
-      working:       /workspace/reports/{slug}/working/
+      output:        /workspace/operation/reports/{slug}/{date}/output.md
+      output html:   /workspace/operation/reports/{slug}/{date}/output.html
+      sections:      /workspace/operation/reports/{slug}/{date}/sections/
+      manifest:      /workspace/operation/reports/{slug}/{date}/manifest.json
+      latest:        /workspace/operation/reports/{slug}/latest/
+      feedback:      /workspace/operation/reports/{slug}/_feedback.md
+      run log:       /workspace/operation/reports/{slug}/_run_log.md
+      working:       /workspace/operation/reports/{slug}/working/
 
     Context (ACCUMULATION-shaped, additive entity files):
       domain root:    /workspace/context/{domain}/
@@ -34,30 +34,30 @@ The convention shapes (per ADR-262 D1):
 
     Operations (ACTION-shaped, no filesystem output — outcomes flow into
     the relevant domain's ground-truth substrate per FOUNDATIONS Axiom 8):
-      ops root:      /workspace/operations/{slug}/
-      run log:       /workspace/operations/{slug}/_run_log.md
-      working:       /workspace/operations/{slug}/working/
+      ops root:      /workspace/operation/operations/{slug}/
+      run log:       /workspace/operation/operations/{slug}/_run_log.md
+      working:       /workspace/operation/operations/{slug}/working/
 
     Recurrences (canonical declarations file per ADR-261 D2):
       single file:   /workspace/_recurrences.yaml
 
     Reviewer substrate (ADR-194 v2; ADR-256 unified reflection outputs
     into the judgment log; ADR-281 §5 renamed decisions.md → judgment_log.md):
-      identity:       /workspace/review/IDENTITY.md
-      principles:     /workspace/review/principles.md (prose)
-      principles:     /workspace/review/_principles.yaml (machine-parsed thresholds)
-      judgment_log:   /workspace/review/judgment_log.md (system-rendered append-only)
+      identity:       /workspace/persona/IDENTITY.md
+      principles:     /workspace/persona/principles.md (prose)
+      principles:     /workspace/persona/_principles.yaml (machine-parsed thresholds)
+      judgment_log:   /workspace/persona/judgment_log.md (system-rendered append-only)
 
     Operator-authored shared substrate (ADR-206 + ADR-217 relocated
-    `_shared/` to `/workspace/context/_shared/`): see
-    ``services.workspace_paths.SHARED_CONTEXT_FILES`` — that module is
+    `_shared/` to `constitution/ + governance/ + operation/ (ADR-320 split of legacy _shared/)`): see
+    ``services.workspace_paths.CONSTITUTION_FILES`` — that module is
     the sole source of truth for kernel-seeded path constants. This
     module deliberately does not duplicate them; importing both would
     create two sources of truth.
 
     Specs (operator-authored output specs cited by recurrence prompts,
     ADR-262 D2 Pattern (ii)):
-      spec:          /workspace/specs/{name}.md
+      spec:          /workspace/operation/specs/{name}.md
 
 ADR-262 §D1 sub-clause: conventional paths are slug-templated
 structurally. The slug, the date, the entity, the domain are
@@ -99,13 +99,13 @@ def _date_token(when: Optional[datetime]) -> str:
 
 def report_root(slug: str) -> str:
     """Per-report root directory (parent of dated folders + ancillary files)."""
-    return f"/workspace/reports/{slug}"
+    return f"/workspace/operation/reports/{slug}"
 
 
 def report_dated_folder(slug: str, when: Optional[datetime] = None) -> str:
     """The folder holding one firing's output bundle: ``output.md``,
     ``output.html``, ``sections/``, ``manifest.json``."""
-    return f"/workspace/reports/{slug}/{_date_token(when)}"
+    return f"/workspace/operation/reports/{slug}/{_date_token(when)}"
 
 
 def report_output_path(slug: str, when: Optional[datetime] = None) -> str:
@@ -132,22 +132,22 @@ def report_manifest_path(slug: str, when: Optional[datetime] = None) -> str:
 
 def report_latest_dir(slug: str) -> str:
     """The 'latest' pointer folder (ADR-262 D1; symlink-equivalent)."""
-    return f"/workspace/reports/{slug}/latest"
+    return f"/workspace/operation/reports/{slug}/latest"
 
 
 def report_feedback_path(slug: str) -> str:
     """Per-report feedback file (ADR-181)."""
-    return f"/workspace/reports/{slug}/_feedback.md"
+    return f"/workspace/operation/reports/{slug}/_feedback.md"
 
 
 def report_run_log_path(slug: str) -> str:
     """Per-report append-only run log."""
-    return f"/workspace/reports/{slug}/_run_log.md"
+    return f"/workspace/operation/reports/{slug}/_run_log.md"
 
 
 def report_working_dir(slug: str) -> str:
     """Per-report ephemeral scratch directory."""
-    return f"/workspace/reports/{slug}/working"
+    return f"/workspace/operation/reports/{slug}/working"
 
 
 # ---------------------------------------------------------------------------
@@ -195,15 +195,15 @@ def operation_root(slug: str) -> str:
     the platform side-effect IS the work, with outcomes flowing into the
     relevant domain's ground-truth substrate per FOUNDATIONS Axiom 8
     (alpha-trader instance: ``_money_truth.md`` per ADR-195 v2)."""
-    return f"/workspace/operations/{slug}"
+    return f"/workspace/operation/operations/{slug}"
 
 
 def operation_run_log_path(slug: str) -> str:
-    return f"/workspace/operations/{slug}/_run_log.md"
+    return f"/workspace/operation/operations/{slug}/_run_log.md"
 
 
 def operation_working_dir(slug: str) -> str:
-    return f"/workspace/operations/{slug}/working"
+    return f"/workspace/operation/operations/{slug}/working"
 
 
 # ---------------------------------------------------------------------------
@@ -212,22 +212,23 @@ def operation_working_dir(slug: str) -> str:
 # Note: ADR-256 unified reflection outputs into the judgment log. There is
 # no separate reflections.md substrate. ADR-281 §5 renamed decisions.md →
 # judgment_log.md; the canonical path constant lives in
-# `services.workspace_paths.REVIEW_JUDGMENT_LOG_PATH` — this module's
+# `services.workspace_paths.PERSONA_JUDGMENT_LOG_PATH` — this module's
 # REVIEW_DECISIONS_PATH (parallel definition, zero importers) was deleted
 # 2026-05-15 per Singular Implementation. Other REVIEW_* constants here
 # remain as legacy /workspace/-prefixed convenience strings — if a future
 # caller emerges these should be consolidated to workspace_paths.py too.
 # ---------------------------------------------------------------------------
 
-REVIEW_IDENTITY_PATH = "/workspace/review/IDENTITY.md"
-REVIEW_PRINCIPLES_PROSE_PATH = "/workspace/review/principles.md"
-REVIEW_PRINCIPLES_YAML_PATH = "/workspace/review/_principles.yaml"
+# ADR-320: the duplicate persona-path constants that lived here (zero importers)
+# are DELETED. workspace_paths.py is the singular source for persona/* paths
+# (PERSONA_IDENTITY_PATH, PERSONA_PRINCIPLES_PATH, PERSONA_PRINCIPLES_YAML_PATH).
+# Import from there, never redefine here.
 
 
 # ---------------------------------------------------------------------------
 # Operator-authored shared substrate
 #
-# Source of truth: ``services.workspace_paths.SHARED_CONTEXT_FILES``.
+# Source of truth: ``services.workspace_paths.CONSTITUTION_FILES``.
 # This module deliberately does not duplicate those constants — the
 # stale SHARED_*_PATH constants that pointed at /workspace/_shared/
 # (pre-ADR-206 location) were deleted 2026-05-12. The MEMORY_*_PATH
@@ -243,7 +244,7 @@ REVIEW_PRINCIPLES_YAML_PATH = "/workspace/review/_principles.yaml"
 
 def spec_path(name: str) -> str:
     """Operator-authored spec doc cited by recurrence prompts."""
-    return f"/workspace/specs/{name}.md"
+    return f"/workspace/operation/specs/{name}.md"
 
 
 __all__ = [
@@ -270,10 +271,6 @@ __all__ = [
     "operation_root",
     "operation_run_log_path",
     "operation_working_dir",
-    # Reviewer substrate
-    "REVIEW_IDENTITY_PATH",
-    "REVIEW_PRINCIPLES_PROSE_PATH",
-    "REVIEW_PRINCIPLES_YAML_PATH",
     # Specs
     "spec_path",
 ]

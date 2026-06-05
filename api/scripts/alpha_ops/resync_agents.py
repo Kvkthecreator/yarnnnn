@@ -117,7 +117,7 @@ async def resync_persona(slug: str, role_filter: str | None, dry_run: bool) -> i
         # Playbook files (memory/_playbook-*.md)
         playbook = get_type_playbook(role)
         for filename, content in playbook.items():
-            mem_path = f"memory/{filename}"
+            mem_path = f"system/{filename}"
             current_pb = await ws.read(mem_path) or ""
             if current_pb.strip() == content.strip():
                 continue

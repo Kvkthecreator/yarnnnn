@@ -142,7 +142,7 @@ async def _seed_recurrences_from_preferences(
     `_preferences.yaml`.
 
     For each `active: true` deliverable preference in
-    `/workspace/context/_shared/_preferences.yaml` whose `slug` is NOT
+    `/workspace/governance/_preferences.yaml` whose `slug` is NOT
     yet a recurrence in `/workspace/_recurrences.yaml`, this helper
     appends a new recurrence entry with:
       - mode: judgment
@@ -169,12 +169,12 @@ async def _seed_recurrences_from_preferences(
 
     from services.conventions import RECURRENCES_PATH
     from services.workspace import UserMemory
-    from services.workspace_paths import SHARED_PREFERENCES_PATH
+    from services.workspace_paths import GOVERNANCE_PREFERENCES_PATH
 
     um = UserMemory(client, user_id)
 
     # Read post-fork preferences + current recurrences.
-    preferences_yaml = await um.read(SHARED_PREFERENCES_PATH)
+    preferences_yaml = await um.read(GOVERNANCE_PREFERENCES_PATH)
     if not preferences_yaml:
         logger.info(
             f"[FORK:D9] no _preferences.yaml for {user_id[:8]}/{program_slug}; "
@@ -258,7 +258,7 @@ async def _seed_recurrences_from_preferences(
                 f"{spec_path_abs}. Read the spec for output schema, sections, "
                 f"and quality criteria. Write the composed output to the "
                 f"slug-templated path per CONVENTIONS.md. Update "
-                f"/workspace/review/standing_intent.md with what you're "
+                f"/workspace/persona/standing_intent.md with what you're "
                 f"watching for in the next cycle per ADR-284 + principles.md "
                 f'"Default posture".\n\n'
                 f"This recurrence was seeded at activation from operator "
@@ -383,7 +383,7 @@ occupant_class: ai
 activated_at: {activated_at}
 activated_by: system:bundle-fork
 delegation_charter:
-  source: /workspace/context/_shared/AUTONOMY.md
+  source: /workspace/governance/AUTONOMY.md
   posture: read AUTONOMY.md at every wake; render verdicts within declared ceiling
 config: {{}}
 ---
@@ -417,7 +417,7 @@ Occupant-class taxonomy:
 - `impersonated:<admin>-as-<persona>` — admin alpha-stress-testing
 """
     await um.write(
-        "review/OCCUPANT.md",
+        "persona/OCCUPANT.md",
         occupant_body,
         summary=f"OCCUPANT runtime-population for {program_slug} (ADR-284)",
         authored_by="system:occupant-fork",
@@ -543,7 +543,7 @@ async def fork_reference_workspace(
             pace_at_least_as_frequent,
             read_pace,
         )
-        from services.workspace_paths import SHARED_PACE_PATH
+        from services.workspace_paths import GOVERNANCE_PACE_PATH
 
         if bundle_min_pace not in PACE_KINDS:
             raise ValueError(
@@ -568,7 +568,7 @@ async def fork_reference_workspace(
             # "bundle default" from "operator-customized" via revision
             # history.
             pace_yaml_body = (
-                f"# /workspace/context/_shared/_pace.yaml — operator pace declaration\n"
+                f"# /workspace/governance/_pace.yaml — operator pace declaration\n"
                 f"#\n"
                 f"# ADR-298 D8: seeded at activation of program '{program_slug}'\n"
                 f"# from the bundle's declared minimum_pace. Operator may\n"
@@ -584,7 +584,7 @@ async def fork_reference_workspace(
                 f"  kind: {bundle_min_pace}\n"
             )
             await um.write(
-                SHARED_PACE_PATH,
+                GOVERNANCE_PACE_PATH,
                 pace_yaml_body,
                 summary=f"seed _pace.yaml from {program_slug} minimum_pace",
                 authored_by="system:bundle-fork",
@@ -722,7 +722,7 @@ async def fork_reference_workspace(
     # bundle owns the runtime-occupant overwrite via this helper).
     # Future-shape (deferred): explicit human-occupant declaration honored
     # at activation time via operator UX; the kernel branches here.
-    occupant_path = "review/OCCUPANT.md"
+    occupant_path = "persona/OCCUPANT.md"
     await _populate_occupant_for_runtime(um, program_slug)
     if occupant_path not in files_written:
         files_written.append(occupant_path)

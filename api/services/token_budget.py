@@ -4,7 +4,7 @@ Per-workspace `_token_budget.yaml` declares the operator's ceiling on
 Reviewer compute spend. The scheduler reads this before firing each
 judgment-mode recurrence; tripping a ceiling skips the fire.
 
-The governance file is operator-only-authored (in `DEFAULT_REVIEWER_WRITE_LOCKS`)
+The governance file is operator-only-authored (governance/ root — locked from the seat per ADR-320 CALLER_WRITE_POLICY)
 — the Reviewer cannot escalate its own resource ceiling.
 
 Fire-frequency gate partition (ADR-313): token-budget owns COST (daily $
@@ -82,12 +82,12 @@ def load_token_budget(client: Any, user_id: str) -> TokenBudget:
         overrides={},
     )
     try:
-        from services.workspace_paths import SHARED_TOKEN_BUDGET_PATH
+        from services.workspace_paths import GOVERNANCE_TOKEN_BUDGET_PATH
         res = (
             client.table("workspace_files")
             .select("content")
             .eq("user_id", user_id)
-            .eq("path", f"/workspace/{SHARED_TOKEN_BUDGET_PATH}")
+            .eq("path", f"/workspace/{GOVERNANCE_TOKEN_BUDGET_PATH}")
             .limit(1)
             .execute()
         )

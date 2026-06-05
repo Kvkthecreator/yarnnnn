@@ -48,7 +48,7 @@ from typing import Any
 
 import yaml as _yaml
 
-from services.workspace_paths import MEMORY_SCHEDULE_INDEX_PATH
+from services.workspace_paths import SYSTEM_SCHEDULE_INDEX_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ async def handle_mirror_schedule_index(auth: Any, input: dict) -> dict:
             "error": "missing auth context (client or user_id)",
         }
 
-    output_path = f"/workspace/{MEMORY_SCHEDULE_INDEX_PATH}"
+    output_path = f"/workspace/{SYSTEM_SCHEDULE_INDEX_PATH}"
 
     # --- Query tasks scheduling index ---
     try:

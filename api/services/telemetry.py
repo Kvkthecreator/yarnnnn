@@ -41,7 +41,7 @@ _DEFAULT_RATE = _BILLING_RATES["claude-sonnet-4-6"]
 
 # ADR-293 (2026-05-19): DAILY_SPEND_CEILING_USD export DELETED.
 # Compute-resource governance is now per-workspace via
-# `services/token_budget.py` reading `/workspace/context/_shared/_token_budget.yaml`.
+# `services/token_budget.py` reading `/workspace/governance/_token_budget.yaml`.
 # Kernel default (env var) still applies as the fall-through value when
 # no per-workspace governance file exists — read directly by token_budget.py.
 # Singular Implementation: one canonical source for the ceiling value.

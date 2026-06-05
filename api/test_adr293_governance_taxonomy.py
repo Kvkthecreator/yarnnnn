@@ -47,95 +47,33 @@ def _bundle(*parts: str) -> Path:
 # D2 — Governance file set
 # -----------------------------------------------------------------------------
 
-def test_default_reviewer_write_locks_is_governance_only():
-    """D2 + D3: the lock set contains exactly the operator-authored governance
-    paths; no Reviewer-writable operational paths.
-
-    2026-06-04: the lock set grew from ADR-293's original 3 to 5 — ADR-275 D6+D9
-    added `_preferences.yaml` (operator's deliverable-cadence preferences;
-    Reviewer reads but never writes), and ADR-298 added `_pace.yaml` (operator's
-    pace dial). Both are operator-authored governance the Reviewer must not
-    overwrite — same category as AUTONOMY/_autonomy.yaml/_token_budget.yaml. The
-    source of truth is `workspace_paths.DEFAULT_REVIEWER_WRITE_LOCKS`."""
-    from services.workspace_paths import (
-        DEFAULT_REVIEWER_WRITE_LOCKS,
-        SHARED_AUTONOMY_PATH,
-        SHARED_AUTONOMY_YAML_PATH,
-        SHARED_TOKEN_BUDGET_PATH,
-        SHARED_PREFERENCES_PATH,
-        SHARED_PACE_PATH,
-    )
-    assert set(DEFAULT_REVIEWER_WRITE_LOCKS) == {
-        SHARED_AUTONOMY_PATH,
-        SHARED_AUTONOMY_YAML_PATH,
-        SHARED_TOKEN_BUDGET_PATH,
-        SHARED_PREFERENCES_PATH,  # ADR-275 D6+D9
-        SHARED_PACE_PATH,         # ADR-298 Phase 2
-    }, (
-        f"DEFAULT_REVIEWER_WRITE_LOCKS must contain exactly the operator-authored "
-        f"governance files (ADR-293 D2 + ADR-275 D6+D9 + ADR-298). "
-        f"Got: {sorted(DEFAULT_REVIEWER_WRITE_LOCKS)}"
-    )
+# NOTE (ADR-320): test_default_reviewer_write_locks_is_governance_only DELETED.
+# The DEFAULT_REVIEWER_WRITE_LOCKS flat-list collapsed into the five-root
+# CALLER_WRITE_POLICY (governance/ locked from the reviewer caller). Coverage moved
+# to test_adr320_permission_topology.py::test_governance_locked_from_all_llm_callers.
 
 
 def test_shared_token_budget_path_constant_exists():
-    """D2: SHARED_TOKEN_BUDGET_PATH constant must be exported."""
-    from services.workspace_paths import SHARED_TOKEN_BUDGET_PATH
-    assert SHARED_TOKEN_BUDGET_PATH == "context/_shared/_token_budget.yaml"
+    """D2: GOVERNANCE_TOKEN_BUDGET_PATH constant must be exported."""
+    from services.workspace_paths import GOVERNANCE_TOKEN_BUDGET_PATH
+    assert GOVERNANCE_TOKEN_BUDGET_PATH == "governance/_token_budget.yaml"
 
 
-def test_operational_paths_not_locked():
-    """D1 + D3: operator-canon operational paths (MANDATE, IDENTITY, BRAND,
-    CONVENTIONS, PRECEDENT, _locks) MUST NOT appear in the governance set —
-    the Reviewer freely amends operational substrate.
-
-    2026-06-04: `_preferences.yaml` was REMOVED from this must-not-be-locked
-    set — ADR-275 D6+D9 reclassified it from operational to operator-authored
-    governance (Reviewer reads but never writes operator cadence preferences),
-    so it now correctly lives in DEFAULT_REVIEWER_WRITE_LOCKS. See the
-    workspace_paths.py SHARED_PREFERENCES_PATH comment for the drift-closure
-    record."""
-    from services.workspace_paths import DEFAULT_REVIEWER_WRITE_LOCKS
-    must_not_be_locked = {
-        "context/_shared/MANDATE.md",
-        "context/_shared/IDENTITY.md",
-        "context/_shared/BRAND.md",
-        "context/_shared/CONVENTIONS.md",
-        "context/_shared/PRECEDENT.md",
-        "context/_shared/_locks.yaml",  # D6: deleted from governance
-    }
-    overlap = set(DEFAULT_REVIEWER_WRITE_LOCKS) & must_not_be_locked
-    assert not overlap, (
-        f"Pre-ADR-293 lock paths must NOT be in the new governance set: "
-        f"{sorted(overlap)} (they are operational; Reviewer-writable per D4)"
-    )
+# NOTE (ADR-320): test_operational_paths_not_locked DELETED.
+# The DEFAULT_REVIEWER_WRITE_LOCKS flat-list collapsed into CALLER_WRITE_POLICY.
+# "Operational paths writable by the reviewer" coverage moved to
+# test_adr320_permission_topology.py (operation/ writable by every caller).
 
 
 # -----------------------------------------------------------------------------
 # D3 — Lock surface collapse + dead helper deletion
 # -----------------------------------------------------------------------------
 
-def test_is_path_locked_for_reviewer_collapsed():
-    """D3: the function must NOT reference the old 4-layer composition
-    sources (workspace_guide.get_path_zone_locks, bundle_reader.
-    get_path_zone_locks_for_workspace, /workspace/_shared/_locks.yaml read).
-    """
-    src = _read(_file("services", "primitives", "workspace.py"))
-    func_start = src.find("async def _is_path_locked_for_reviewer")
-    assert func_start > -1, "_is_path_locked_for_reviewer must still exist"
-    # Take ~80 lines after func definition as the function body
-    func_body = src[func_start:func_start + 4000]
-    for legacy in [
-        "workspace_guide",
-        "get_path_zone_locks",
-        "bundle_reader",
-        "/workspace/_shared/_locks.yaml",
-        "_reviewer_locks_cache",
-    ]:
-        assert legacy not in func_body, (
-            f"_is_path_locked_for_reviewer must not reference legacy "
-            f"lock-composition source: {legacy!r}"
-        )
+# NOTE (ADR-320): test_is_path_locked_for_reviewer_collapsed DELETED.
+# _is_path_locked_for_reviewer no longer exists — collapsed into the single
+# _is_path_locked(caller_class, path) reading CALLER_WRITE_POLICY. The
+# "no legacy 4-layer composition" intent is now structurally guaranteed (one
+# prefix-policy dict, no workspace_guide/bundle_reader/_locks.yaml reads).
 
 
 def test_path_zone_locks_helpers_deleted():
@@ -177,14 +115,14 @@ def test_should_auto_apply_exists_with_action_class_branch():
     ok, _ = should_auto_apply(
         autonomy_policy={"delegation": "autonomous"},
         action_class="substrate",
-        substrate_path="context/_shared/MANDATE.md",
+        substrate_path="constitution/MANDATE.md",
     )
     assert ok is True, "autonomous substrate write should auto-apply"
     # Substrate branch — bounded mode → False (queue)
     ok, reason = should_auto_apply(
         autonomy_policy={"delegation": "bounded", "ceiling_cents": 5000000},
         action_class="substrate",
-        substrate_path="context/_shared/MANDATE.md",
+        substrate_path="constitution/MANDATE.md",
     )
     assert ok is False, "bounded substrate write should NOT auto-apply"
     assert "bounded" in reason.lower(), f"reason should mention bounded: {reason}"
@@ -192,7 +130,7 @@ def test_should_auto_apply_exists_with_action_class_branch():
     ok, _ = should_auto_apply(
         autonomy_policy={"delegation": "manual"},
         action_class="substrate",
-        substrate_path="context/_shared/MANDATE.md",
+        substrate_path="constitution/MANDATE.md",
     )
     assert ok is False, "manual substrate write should NOT auto-apply"
 
@@ -232,21 +170,21 @@ def test_never_auto_substrate_path_match():
     ok, reason = should_auto_apply(
         autonomy_policy={
             "delegation": "autonomous",
-            "never_auto": ["path:context/trading/_universe.yaml"],
+            "never_auto": ["path:operation/trading/_universe.yaml"],
         },
         action_class="substrate",
-        substrate_path="context/trading/_universe.yaml",
+        substrate_path="operation/trading/_universe.yaml",
     )
     assert ok is False, "never_auto path-match should block substrate write"
     assert "never_auto" in reason
-    # Directory-prefix match
+    # Directory-prefix match (ADR-320: domain context relocated context/ → operation/)
     ok, _ = should_auto_apply(
         autonomy_policy={
             "delegation": "autonomous",
-            "never_auto": ["path:context/trading"],
+            "never_auto": ["path:operation/trading"],
         },
         action_class="substrate",
-        substrate_path="context/trading/_operator_profile.md",
+        substrate_path="operation/trading/_operator_profile.md",
     )
     assert ok is False, "never_auto path-prefix should block descendant paths"
 
@@ -255,27 +193,11 @@ def test_never_auto_substrate_path_match():
 # D6 — _locks.yaml deletion (no live readers)
 # -----------------------------------------------------------------------------
 
-def test_locks_yaml_not_read_by_lock_function():
-    """D6: _is_path_locked_for_reviewer no longer READS
-    /workspace/_shared/_locks.yaml (legacy file-content read deleted).
-    Allow historical-context mentions in the function's docstring.
-    """
-    src = _read(_file("services", "primitives", "workspace.py"))
-    func_start = src.find("async def _is_path_locked_for_reviewer")
-    func_body = src[func_start:func_start + 4000]
-    # The legacy read pattern: querying workspace_files for /workspace/_shared/_locks.yaml
-    legacy_read_patterns = [
-        '.eq("path", "/workspace/_shared/_locks.yaml")',
-        ".eq('path', '/workspace/_shared/_locks.yaml')",
-        "yaml.safe_load(content)",  # the old _locks.yaml parser
-        "locked_paths",  # field-name read from old _locks.yaml schema
-        "unlocked_paths",  # field-name read from old _locks.yaml schema
-    ]
-    for pat in legacy_read_patterns:
-        assert pat not in func_body, (
-            f"_is_path_locked_for_reviewer must not contain legacy "
-            f"_locks.yaml read-pattern: {pat!r}"
-        )
+# NOTE (ADR-320): test_locks_yaml_not_read_by_lock_function DELETED.
+# _is_path_locked_for_reviewer no longer exists; the collapsed
+# _is_path_locked(caller_class, path) is a pure prefix check over
+# CALLER_WRITE_POLICY with no file reads at all. The "no legacy _locks.yaml read"
+# intent is structurally satisfied.
 
 
 # -----------------------------------------------------------------------------
@@ -353,7 +275,7 @@ def test_workspace_init_seeds_token_budget():
     """D7 + workspace_init Phase 2: kernel-universal scaffold includes
     _token_budget.yaml."""
     src = _read(_file("services", "workspace_init.py"))
-    assert "SHARED_TOKEN_BUDGET_PATH" in src, (
+    assert "GOVERNANCE_TOKEN_BUDGET_PATH" in src, (
         "workspace_init.py must seed _token_budget.yaml per ADR-293 D7"
     )
     assert "DEFAULT_TOKEN_BUDGET_YAML" in src
@@ -385,16 +307,11 @@ def test_substrate_autonomy_gate_lives_at_permission_layer():
     )
 
 
-def test_governance_lock_is_deny_tier_at_permission_layer():
-    """ADR-293 D2 governance lock PRESERVED, relocated by ADR-307: the
-    governance-locked path is the bypass-immune DENY tier resolved by the
-    permission gate. _is_path_locked_for_reviewer remains the lock check."""
-    perm_src = _read(_file("services", "primitives", "permission.py"))
-    assert "_is_path_locked_for_reviewer" in perm_src, (
-        "the permission gate must consult _is_path_locked_for_reviewer for the "
-        "DENY (governance-lock) tier per ADR-293 D2 + ADR-307 D1"
-    )
-    assert "DENY" in perm_src
+# NOTE (ADR-320): test_governance_lock_is_deny_tier_at_permission_layer DELETED.
+# The permission gate no longer consults the per-reviewer helper by name; it routes
+# through the collapsed _is_path_locked(caller_class, path). The DENY-tier governance
+# lock is covered by test_adr320_permission_topology.py
+# (test_governance_locked_from_all_llm_callers).
 
 
 # -----------------------------------------------------------------------------
@@ -493,24 +410,24 @@ def test_alpha_trader_bundle_ships_token_budget():
 # -----------------------------------------------------------------------------
 
 def main() -> int:
+    # NOTE (ADR-320): the DEFAULT_REVIEWER_WRITE_LOCKS-based governance-set tests
+    # (D2 lock-set, D1/D3 operational-not-locked, D3 collapse, D6 _locks.yaml read,
+    # D2 deny-tier) were DELETED — the flat-list lock model collapsed into the
+    # five-root CALLER_WRITE_POLICY; coverage moved to
+    # test_adr320_permission_topology.py.
     tests = [
-        ("D2: governance set is exactly 3 paths", test_default_reviewer_write_locks_is_governance_only),
-        ("D2: SHARED_TOKEN_BUDGET_PATH constant", test_shared_token_budget_path_constant_exists),
-        ("D1/D3: operational paths not locked", test_operational_paths_not_locked),
-        ("D3: _is_path_locked_for_reviewer collapsed", test_is_path_locked_for_reviewer_collapsed),
+        ("D2: GOVERNANCE_TOKEN_BUDGET_PATH constant", test_shared_token_budget_path_constant_exists),
         ("D3: path_zone_locks helpers deleted", test_path_zone_locks_helpers_deleted),
         ("D4: should_auto_apply with action_class", test_should_auto_apply_exists_with_action_class_branch),
         ("D4: should_auto_execute_verdict renamed", test_should_auto_execute_verdict_renamed),
         ("D5: never_auto action-type match", test_never_auto_action_type_match),
         ("D5: never_auto path: prefix match", test_never_auto_substrate_path_match),
-        ("D6: _locks.yaml not read", test_locks_yaml_not_read_by_lock_function),
         ("D7: token_budget fallback to kernel defaults", test_token_budget_module_loads_with_fallback),
         ("D7: token_budget parses workspace yaml", test_token_budget_module_parses_workspace_yaml),
         ("D7: DEFAULT_TOKEN_BUDGET_YAML schema", test_token_budget_default_yaml_schema),
         ("D7: scheduler imports token_budget", test_scheduler_imports_token_budget_module),
         ("D7: workspace_init seeds _token_budget.yaml", test_workspace_init_seeds_token_budget),
-        ("D14: handle_write_file has AUTONOMY gate", test_handle_write_file_has_autonomy_gate),
-        ("D14: governance_locked distinct from substrate gate", test_handle_write_file_governance_error_distinct),
+        ("D14: substrate autonomy gate at permission layer", test_substrate_autonomy_gate_lives_at_permission_layer),
         ("Bundle alpha-trader ships token_budget", test_alpha_trader_bundle_ships_token_budget),
         # Work 1 follow-up — prompt envelope alignment
         ("Work 1: cockpit_awareness.py aligned with ADR-293", test_cockpit_awareness_prompt_envelope_aligned_with_adr293),

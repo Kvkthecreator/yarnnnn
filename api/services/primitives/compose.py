@@ -35,7 +35,7 @@ COMPOSE_TOOL = {
     "description": """Compose section partials + manifest into final HTML output (ADR-262 D4).
 
 Wraps the deterministic render-engine pipeline. Reads from the recurrence's
-output folder (`/workspace/reports/{task_slug}/{date_folder}/`, canonical per
+output folder (`/workspace/operation/reports/{task_slug}/{date_folder}/`, canonical per
 ADR-231 D2 / ADR-262 D1):
   - sys_manifest.json (composition manifest with section-kind metadata)
   - sections/*.md (section partials)
@@ -44,7 +44,7 @@ ADR-231 D2 / ADR-262 D1):
 Posts to render service /compose. Returns the composed HTML.
 
 Caller responsibility: write the result to the appropriate output path
-(typically `/workspace/reports/{task_slug}/{date}/output.html` per
+(typically `/workspace/operation/reports/{task_slug}/{date}/output.html` per
 CONVENTIONS topology). The primitive returns the HTML string — it does
 not write substrate itself.
 
@@ -123,7 +123,7 @@ async def handle_compose(auth: Any, input: dict) -> dict:
         return {
             "ok": False,
             "error": (
-                f"no substrate at /workspace/reports/{task_slug}/{date_folder}/ — "
+                f"no substrate at /workspace/operation/reports/{task_slug}/{date_folder}/ — "
                 "recurrence may not have fired yet, or the substrate's natural-home "
                 "path is non-conventional and falls outside the auto-resolver."
             ),

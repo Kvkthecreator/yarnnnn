@@ -127,10 +127,10 @@ RETURN_VERDICT_TOOL = {
                 "description": (
                     "The HEADLINE — 2-5 sentences in your persona's voice. "
                     "First sentence is the verdict; second is why. Written "
-                    "verbatim to /workspace/review/judgment_log.md. "
+                    "verbatim to /workspace/persona/judgment_log.md. "
                     "For a long, structured, rule-by-rule audit (pre-ship / "
                     "corpus-coherence), do NOT put the full audit here — write "
-                    "the COMPLETE audit document to /workspace/review/judgment_log.md "
+                    "the COMPLETE audit document to /workspace/persona/judgment_log.md "
                     "in ONE WriteFile call (with the content parameter) FIRST, "
                     "then call ReturnVerdict with just the headline. This field "
                     "is sized for the headline; the long document is the single "
@@ -446,7 +446,7 @@ _TRIGGER_FRAMING = {
         "- Pre-ship / corpus-coherence audit prompt → this produces a LONG, "
         "structured, rule-by-rule verdict. Two channels, TWO calls total: "
         "(1) ONE WriteFile of the COMPLETE rule-by-rule audit document to "
-        "/workspace/review/judgment_log.md (the verdict-of-record) — compose "
+        "/workspace/persona/judgment_log.md (the verdict-of-record) — compose "
         "the entire audit in a single `content` string and write it ONCE; do "
         "NOT write it rule-by-rule across many calls (that wastes your round "
         "budget and risks running out before you finish), and always include "
@@ -479,7 +479,7 @@ _TRIGGER_FRAMING = {
         "- Data is stale and a refresh would change the next assessment → "
         "author cadence (per ADR-296 v2 D3): either (a) Schedule your next "
         "cycle for after the relevant mechanical mirror's next fire, or "
-        "(b) WriteFile to /workspace/review/standing_intent.md declaring "
+        "(b) WriteFile to /workspace/persona/standing_intent.md declaring "
         "interest in the substrate transition that would unblock you. "
         "Narrate: 'Upstream X is stale; I'm waiting for the next mirror "
         "fire / I want to be woken when X transitions.' Do NOT invoke the "
@@ -488,7 +488,7 @@ _TRIGGER_FRAMING = {
         "intent, not over commissioning unit-of-work fires.\n"
         "- A pattern, observation, or judgment is worth retaining for the next "
         "cycle → WriteFile to your own substrate (judgment_log.md or notes "
-        "within /workspace/review/). The operator's chair owns its "
+        "within /workspace/persona/). The operator's chair owns its "
         "notebook; use it.\n"
         "- Combination of the above — typical case is cadence-author + "
         "write-note explaining why you scheduled the next cycle. Sequence "
@@ -714,7 +714,7 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
             "",
         ]
 
-    # Specs inventory — bundle-shipped capability library at /workspace/specs/.
+    # Specs inventory — bundle-shipped capability library at /workspace/operation/specs/.
     # Name + title only (bodies on demand via ReadFile). Empty string when
     # no specs exist (kernel-only workspace, pre-activation, etc.).
     specs = ctx.get("specs_inventory") or ""
@@ -1641,7 +1641,7 @@ async def _dispatcher_write_silent_exit_standing_intent(
         write_revision(
             client,
             user_id=user_id,
-            path="/workspace/review/standing_intent.md",
+            path="/workspace/persona/standing_intent.md",
             content=body,
             authored_by="dispatcher:silent_exit_fallback",
             message=f"silent-exit fallback ({exit_class} @ round {exit_round}/{max_rounds})",
@@ -1793,4 +1793,4 @@ def _clear_session_cancellation(client: Any, user_id: str) -> None:
 # `services.reviewer_envelope.ENVELOPE_SUMMARIZERS["signal_files"]` (a.k.a.
 # `_summarize_signal_files`). The relocation makes path_glob parametric so
 # the summarizer is no longer alpha-trader-hardcoded; bundles declare their
-# own glob (e.g., `context/trading/signals/*.yaml`).
+# own glob (e.g., `operation/trading/signals/*.yaml`).

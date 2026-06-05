@@ -18,7 +18,7 @@ Structure (post-Commit B registry split):
    Advocate) will register here alongside YARNNN; the registry holds
    scaffold templates regardless of whether the entity is persona-bearing
    (judgment layer) or orchestration surface (orchestration layer). The
-   Reviewer Agent's seat is substrate (`/workspace/review/`) not a template
+   Reviewer Agent's seat is substrate (`/workspace/persona/`) not a template
    entry here — Reviewer default content (DEFAULT_REVIEW_*_MD below) is a
    convenience for workspace_init scaffolding, NOT a registered template.
 2. PRODUCTION_ROLES — orchestration capability bundles for production
@@ -50,9 +50,9 @@ DEFAULT_REVIEW_PRINCIPLES_MD, DEFAULT_REVIEW_CALIBRATION_MD) plus the
 workspace-scoped DEFAULT_AUTONOMY_MD and DEFAULT_PRECEDENT_MD: these
 live here as scaffold-time defaults consumed by `workspace_init.py`.
 The Reviewer Agent's seat is substrate; Reviewer-specific constants are
-content loaded into `/workspace/review/` at signup. DEFAULT_AUTONOMY_MD
+content loaded into `/workspace/persona/` at signup. DEFAULT_AUTONOMY_MD
 (ADR-217) and DEFAULT_PRECEDENT_MD are operator-authored shared files
-under `/workspace/context/_shared/` — loaded here for scaffold
+under `constitution/ + governance/ + operation/ (ADR-320 split of legacy _shared/)` — loaded here for scaffold
 convenience but not Reviewer-owned.
 Architectural shape lives in `docs/architecture/reviewer-substrate.md`
 (seat) and ADR-217 (delegation).
@@ -302,7 +302,7 @@ PRODUCTION_ROLES: dict[str, dict[str, Any]] = {
 # register here.
 #
 # NOTE: the Reviewer Agent is systemic but does NOT register as a
-# template here. The Reviewer's seat is substrate (`/workspace/review/`,
+# template here. The Reviewer's seat is substrate (`/workspace/persona/`,
 # seven canonical files per reviewer-substrate.md). Reviewer scaffold-
 # time default content (DEFAULT_REVIEW_*_MD constants below) is loaded
 # at workspace_init by the rotation primitive; it is not a registry
@@ -527,14 +527,14 @@ DEFAULT_AWARENESS_MD = """\
 # reference-workspace/ with tier:canon. Generic workspaces do not get a
 # CONVENTIONS.md skeleton — the headless base prompt carries a compact inline
 # summary and the full docs/architecture/workspace-conventions.md is the
-# authoritative reference. See SHARED_CONTEXT_FILES in workspace_paths.py.
+# authoritative reference. See CONSTITUTION_FILES in workspace_paths.py.
 
 
 # =============================================================================
 # Reviewer Substrate — seeded at signup (ADR-194 v2 Phase 1)
 # =============================================================================
 #
-# Files land at /workspace/review/ and are the Reviewer layer's filesystem
+# Files land at /workspace/persona/ and are the Reviewer layer's filesystem
 # home per FOUNDATIONS v6.0 Axiom 1 (Substrate) + Axiom 2 (Identity — four cognitive layers).
 #
 # The Reviewer is the independent judgment seat — interchangeable between
@@ -651,7 +651,7 @@ fire upstream recurrences by name — that is operator + cron territory.
 ```
 # Example (override for your domain):
 # When deferring because a signal has < 20 closed-loop samples:
-#   directive: write_file(path="/workspace/review/standing_intent.md",
+#   directive: write_file(path="/workspace/persona/standing_intent.md",
 #                          content="I want to be woken when this signal
 #                                   crosses 20 closed-loop samples.")
 #   AND
@@ -696,7 +696,7 @@ trading:
 # =============================================================================
 # Phase 4 (ADR-211) — Reviewer seat substrate completion
 # =============================================================================
-# Four additional files at /workspace/review/ that complete the seven-file
+# Four additional files at /workspace/persona/ that complete the seven-file
 # canonical target per reviewer-substrate.md. Scaffolded at signup via
 # workspace_init.py Phase 2. See ADR-211 D1–D3 + D6 for schemas.
 
@@ -711,7 +711,7 @@ trading:
 # DEFAULT_REVIEW_MODES_MD DELETED (ADR-217, 2026-04-24). Autonomy delegation
 # is the operator's standing intent about how much judgment authority the
 # AI carries on their behalf — it is not Reviewer-owned config. The file
-# relocated to `/workspace/context/_shared/AUTONOMY.md` as a sibling to
+# relocated to `/workspace/governance/AUTONOMY.md` as a sibling to
 # MANDATE/IDENTITY/BRAND/CONVENTIONS; its default content is now
 # DEFAULT_AUTONOMY_MD below. The retired schema (`autonomy_level`,
 # `scope`, `on_behalf_posture`, `auto_approve_below_cents`,
@@ -732,7 +732,7 @@ config lives next to it at `_autonomy.yaml` (ADR-254 + Commit F).
 Autonomy is the **delegation ceiling** for AI-rendered verdicts. When the
 Reviewer approves a proposal, the dispatcher checks `_autonomy.yaml` to
 decide whether the approval auto-executes or routes to the cockpit Queue
-for my click. Principles in `/workspace/review/principles.md` can *narrow*
+for my click. Principles in `/workspace/persona/principles.md` can *narrow*
 this ceiling (add defer conditions) but never *widen* it — the servant can
 be more conservative than I permit, never more permissive.
 
@@ -820,7 +820,7 @@ Do not use it for:
 - one-off execution instructions
 - raw notes or scratch thinking
 - operator identity or brand rules
-- Reviewer persona/framework content that belongs in `/workspace/review/`
+- Reviewer persona/framework content that belongs in `/workspace/persona/`
 
 ## Active precedents
 
@@ -842,7 +842,7 @@ Promote a chat decision here when it should compound.
 If the decision changes what the workspace is trying to do, edit
 `MANDATE.md` instead.
 If it changes how much authority the AI has, edit `AUTONOMY.md` instead.
-If it changes how the Reviewer reasons, edit `/workspace/review/principles.md`.
+If it changes how the Reviewer reasons, edit `/workspace/persona/principles.md`.
 """
 
 
@@ -867,40 +867,40 @@ schema_version: 1
 # Path zones: kernel-universal entries only (no program activated).
 # Each zone declares its role; lock policy is derived per ADR-280 §2.D2.
 path_zones:
-  - path: context/_shared
+  - path: constitution/+governance/+operation/ (legacy _shared, ADR-320)
     role: operator-canon
     purpose: operator's standing intent — MANDATE, IDENTITY, BRAND, AUTONOMY, PRECEDENT, _preferences
-  - path: context/_shared/_locks.yaml
+  - path: governance/_locks.yaml
     role: operator-canon
     purpose: operator-authored lock policy
   - path: uploads
     role: operator-canon
     purpose: operator-contributed reference material
-  - path: review/IDENTITY.md
+  - path: persona/IDENTITY.md
     role: operator-canon
     purpose: Reviewer seat persona declaration
-  - path: review/principles.md
+  - path: persona/principles.md
     role: operator-canon
     purpose: Reviewer's declared judgment framework
-  - path: review/_principles.yaml
+  - path: persona/_principles.yaml
     role: operator-canon
     purpose: machine-parsed Reviewer thresholds
-  - path: review/OCCUPANT.md
+  - path: persona/OCCUPANT.md
     role: system-ledger
     purpose: current Reviewer seat occupant
-  - path: review/handoffs.md
+  - path: persona/handoffs.md
     role: system-ledger
     purpose: append-only seat-occupant rotation log
-  - path: review/calibration.md
+  - path: persona/calibration.md
     role: system-ledger
     purpose: per-occupant judgment-vs-outcome rolling windows
-  - path: review/judgment_log.md
+  - path: persona/judgment_log.md
     role: system-ledger
     purpose: Reviewer's judgment lineage
-  - path: memory/recent.md
+  - path: system/recent.md
     role: system-ledger
     purpose: back-office narrative digest (24h rollup)
-  - path: review/notes.md
+  - path: persona/notes.md
     role: reviewer-workbench
     purpose: Reviewer's working scratch across wakes
   - path: working
@@ -927,22 +927,22 @@ path_zones:
 
 reviewer_wake_envelope:
   - key: identity_md
-    path: review/IDENTITY.md
+    path: persona/IDENTITY.md
     optional: false
   - key: principles_md
-    path: review/principles.md
+    path: persona/principles.md
     optional: false
   - key: precedent_md
-    path: context/_shared/PRECEDENT.md
+    path: constitution/PRECEDENT.md
     optional: true
   - key: mandate_md
-    path: context/_shared/MANDATE.md
+    path: constitution/MANDATE.md
     optional: false
   - key: autonomy_md
-    path: context/_shared/AUTONOMY.md
+    path: governance/AUTONOMY.md
     optional: false
   - key: preferences_yaml
-    path: context/_shared/_preferences.yaml
+    path: governance/_preferences.yaml
     optional: true
 
 locks:
@@ -991,8 +991,8 @@ default.
 
 Operational substrate emerges through Reviewer judgment + work over
 tenure: investigation work surfaces a `research/` directory the Reviewer
-populates; pattern-tracking lands in `review/notes.md`; operation-shaping
-judgment moments accumulate in `review/judgment_log.md`.
+populates; pattern-tracking lands in `persona/notes.md`; operation-shaping
+judgment moments accumulate in `persona/judgment_log.md`.
 
 ## When things diverge
 
@@ -1010,7 +1010,7 @@ insight via `Clarify` / `ProposeAction` so the operator authors the
 change with their own attribution.
 
 The right home for the Reviewer's evolving understanding is
-`review/notes.md` (reviewer-workbench).
+`persona/notes.md` (reviewer-workbench).
 """
 
 

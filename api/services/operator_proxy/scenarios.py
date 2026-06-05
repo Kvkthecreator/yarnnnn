@@ -843,8 +843,8 @@ async def _seed_draft_from_template(
         description=template.get("description", ""),
     )
 
-    profile_path = f"/workspace/context/authored/{slug}/profile.md"
-    content_path = f"/workspace/context/authored/{slug}/content.md"
+    profile_path = f"/workspace/operation/authored/{slug}/profile.md"
+    content_path = f"/workspace/operation/authored/{slug}/content.md"
 
     profile_result = await _write_substrate_with_author(
         user_id,

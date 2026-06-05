@@ -132,7 +132,7 @@ def test_scenario_parser_accepts_full_scenario():
             {"fire": "track-account"},
             {
                 "write_substrate": {
-                    "path": "/workspace/context/trading/_money_truth.md",
+                    "path": "/workspace/operation/trading/_money_truth.md",
                     "authored_by": "operator-proxy:scenario-runner:acting-as-alpha-trader",
                     "content": "stub",
                 }

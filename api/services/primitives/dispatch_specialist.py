@@ -94,7 +94,7 @@ Examples:
   DispatchSpecialist(role="designer",
     brief="Render a 90-day equity-curve chart from
            /workspace/context/portfolio/_money_truth.md. Output target:
-           /workspace/reports/weekly-performance-review/{date}/
+           /workspace/operation/reports/weekly-performance-review/{date}/
            sections/equity-curve.png. Caption: 'Account equity, last 90d.'")""",
     "input_schema": {
         "type": "object",
@@ -469,7 +469,7 @@ do NOT see your tool-use loop.
 - Write substrate via WriteFile. The brief tells you where to write. Use
   the slug-templated paths from CONVENTIONS topology — never invent paths.
 - When the brief asks for a deliverable section, write it to the dated
-  sections folder (`/workspace/reports/{{slug}}/{{date}}/sections/{{name}}.md`)
+  sections folder (`/workspace/operation/reports/{{slug}}/{{date}}/sections/{{name}}.md`)
   so the auto-compose hook picks it up at session-close.
 - When the brief asks for accumulation work, write entity files to
   `/workspace/context/{{domain}}/{{entity}}.{{md|yaml}}` per the convention.

@@ -118,7 +118,7 @@ async def emit_proposal(user_id: str) -> dict:
 
 
 def read_decisions_md(user_id: str) -> str | None:
-    """Read /workspace/review/judgment_log.md for the persona after the fact."""
+    """Read /workspace/persona/judgment_log.md for the persona after the fact."""
     import sys
     _alpha_ops = Path(__file__).resolve().parent
     if str(_alpha_ops) not in sys.path:
@@ -129,7 +129,7 @@ def read_decisions_md(user_id: str) -> str | None:
     with conn.cursor() as cur:
         cur.execute(
             "SELECT content FROM workspace_files WHERE user_id = %s AND path = %s",
-            (user_id, "/workspace/review/judgment_log.md"),
+            (user_id, "/workspace/persona/judgment_log.md"),
         )
         row = cur.fetchone()
     conn.close()
@@ -162,7 +162,7 @@ def main() -> int:
     decisions = read_decisions_md(persona.user_id)
     if decisions:
         print("=" * 70)
-        print("/workspace/review/judgment_log.md — last ~40 lines")
+        print("/workspace/persona/judgment_log.md — last ~40 lines")
         print("=" * 70)
         lines = decisions.splitlines()
         for line in lines[-40:]:

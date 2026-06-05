@@ -49,7 +49,7 @@ logging.basicConfig(
 logger = logging.getLogger("autonomy_rewrite")
 
 
-AUTONOMY_PATH = "/workspace/context/_shared/_autonomy.yaml"
+AUTONOMY_PATH = "/workspace/governance/_autonomy.yaml"
 
 
 def _map_level_to_delegation(level: Any) -> str:

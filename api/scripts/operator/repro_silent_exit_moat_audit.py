@@ -41,7 +41,7 @@ if API_DIR not in sys.path:
 
 from services.operator_proxy.client import OperatorProxy  # noqa: E402
 
-PROFILE_PATH = "/workspace/context/authored/moat-thesis/profile.md"
+PROFILE_PATH = "/workspace/operation/authored/moat-thesis/profile.md"
 
 
 def _flip_status(content: str, new_status: str) -> str:

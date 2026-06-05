@@ -19,7 +19,7 @@ Reviewer) is the judgment boundary; this test asserts up to "a matching snapshot
 exists," which is exactly the clean situation the eval should be fed.
 
 Signal-2 (mean-reversion-oversold) per docs/programs/alpha-trader/reference-
-workspace/context/trading/_operator_profile.md §"Signal 2":
+workspace/operation/trading/_operator_profile.md §"Signal 2":
   RSI(14) < 25  AND  price within 5% of 200-day SMA  AND  sma_20 > sma_50.
 
 The four external seams of handle_track_universe are mocked (credentials,
@@ -138,16 +138,16 @@ check("track-universe returns success", result.get("success") is True, str(resul
 check("items_processed == 1 (NVDA)", result.get("items_processed") == 1, str(result))
 check(
     "paths_written contains UPPERCASE NVDA.yaml (the casing contract)",
-    result.get("paths_written") == ["/workspace/context/trading/NVDA.yaml"],
+    result.get("paths_written") == ["/workspace/operation/trading/NVDA.yaml"],
     str(result.get("paths_written")),
 )
 check("no errors", not result.get("errors"), str(result.get("errors")))
 
 # ── 2. the written file actually landed at the UPPERCASE path ────────────────
-nvda_path = "/workspace/context/trading/NVDA.yaml"
+nvda_path = "/workspace/operation/trading/NVDA.yaml"
 check(
     "write_revision wrote NVDA.yaml (not lowercase nvda.yaml)",
-    nvda_path in _written and "/workspace/context/trading/nvda.yaml" not in _written,
+    nvda_path in _written and "/workspace/operation/trading/nvda.yaml" not in _written,
     str(list(_written.keys())),
 )
 

@@ -109,7 +109,7 @@ def _maintenance_prompt_for(slug: str, executor: str) -> str:
         "back-office-narrative-digest": (
             "Roll up non-conversation narrative events from the last 24h "
             "(reviewer verdicts, agent runs, system events) into "
-            "/workspace/memory/recent.md. Group by Identity (reviewer / "
+            "/workspace/system/recent.md. Group by Identity (reviewer / "
             "agent / external / system) and summarize material entries "
             "first. Feeds the compact index per ADR-159 + ADR-221."
         ),
@@ -118,35 +118,35 @@ def _maintenance_prompt_for(slug: str, executor: str) -> str:
             "without operator action. Use UpdateContext target='proposal' "
             "to mark them archived (revision log preserves history per "
             "ADR-209). For each archived proposal, append one line to "
-            "/workspace/review/judgment_log.md noting the auto-archive."
+            "/workspace/persona/judgment_log.md noting the auto-archive."
         ),
         "back-office-outcome-reconciliation": (
             "Reconcile yesterday's executed proposals against platform "
             "events. Pull executed orders + fills since last reconciliation. "
             "Compute realized P&L per fill and append rolling-window "
             "updates to /workspace/context/{domain}/_money_truth.md per "
-            "the schema in /workspace/specs/performance-rollup.md."
+            "the schema in /workspace/operation/specs/performance-rollup.md."
         ),
         "back-office-reviewer-calibration": (
             "Calibrate against money-truth. Read "
-            "/workspace/context/trading/_money_truth.md for the last "
+            "/workspace/operation/trading/_money_truth.md for the last "
             "7d/30d/90d windows. Compare realized expectancy to your "
             "declared edge. If realized P&L diverges materially, append "
-            "a calibration concern to /workspace/review/judgment_log.md."
+            "a calibration concern to /workspace/persona/judgment_log.md."
         ),
         "back-office-reviewer-reflection": (
             "Reflect on yesterday's decisions against your principles. "
-            "Read /workspace/review/judgment_log.md (last 7d) and "
-            "/workspace/review/principles.md. If a pattern warrants a "
+            "Read /workspace/persona/judgment_log.md (last 7d) and "
+            "/workspace/persona/principles.md. If a pattern warrants a "
             "principles adjustment, ProposeAction with full revised file "
             "content. Always append a reflections.md entry."
         ),
         "track-universe": (
             "Refresh fundamentals for tickers in "
-            "/workspace/context/trading/_universe.yaml. For each ticker, "
+            "/workspace/operation/trading/_universe.yaml. For each ticker, "
             "fetch fresh Alpaca bars and compute SMA/RSI/ATR/volume. "
             "Write a current snapshot to "
-            "/workspace/context/trading/{ticker}.yaml."
+            "/workspace/operation/trading/{ticker}.yaml."
         ),
         "signal-evaluation": (
             "Evaluate the universe against signals on the latest bars. "
@@ -214,7 +214,7 @@ def _project_domain_recurring_entry(entry: dict, domain: str) -> Optional[dict]:
 
 
 def _project_action_yaml(body: dict) -> Optional[dict]:
-    """Project a /workspace/operations/{slug}/_action.yaml body."""
+    """Project a /workspace/operation/operations/{slug}/_action.yaml body."""
     slug = body.get("slug") or ""
     if not slug:
         return None
@@ -263,7 +263,7 @@ def _project_action_yaml(body: dict) -> Optional[dict]:
 
 
 def _project_report_yaml(body: dict) -> Optional[dict]:
-    """Project a /workspace/reports/{slug}/_spec.yaml body."""
+    """Project a /workspace/operation/reports/{slug}/_spec.yaml body."""
     slug = body.get("slug") or ""
     if not slug:
         return None
@@ -272,7 +272,7 @@ def _project_report_yaml(body: dict) -> Optional[dict]:
     schedule = recurring.get("schedule")
     paused = bool(recurring.get("paused", False))
     display_name = body.get("display_name") or slug.replace("-", " ").title()
-    output_path = body.get("output_path") or f"/workspace/reports/{slug}/{{date}}/output.md"
+    output_path = body.get("output_path") or f"/workspace/operation/reports/{slug}/{{date}}/output.md"
 
     deliverable = body.get("deliverable") or {}
     if not isinstance(deliverable, dict):
@@ -407,8 +407,8 @@ def _gather_legacy_entries(client, user_id: str) -> tuple[list[dict], list[str]]
         .or_(
             "path.eq./workspace/_shared/back-office.yaml,"
             "path.like./workspace/context/%/_recurring.yaml,"
-            "path.like./workspace/operations/%/_action.yaml,"
-            "path.like./workspace/reports/%/_spec.yaml"
+            "path.like./workspace/operation/operations/%/_action.yaml,"
+            "path.like./workspace/operation/reports/%/_spec.yaml"
         )
         .execute()
     ).data or []
@@ -447,7 +447,7 @@ def _gather_legacy_entries(client, user_id: str) -> tuple[list[dict], list[str]]
                     projected.append(rec)
             legacy_paths.append(path)
 
-        elif path.startswith("/workspace/operations/") and path.endswith("/_action.yaml"):
+        elif path.startswith("/workspace/operation/operations/") and path.endswith("/_action.yaml"):
             body = parsed.get("action") if "action" in parsed else parsed
             if isinstance(body, dict):
                 rec = _project_action_yaml(body)
@@ -455,7 +455,7 @@ def _gather_legacy_entries(client, user_id: str) -> tuple[list[dict], list[str]]
                     projected.append(rec)
             legacy_paths.append(path)
 
-        elif path.startswith("/workspace/reports/") and path.endswith("/_spec.yaml"):
+        elif path.startswith("/workspace/operation/reports/") and path.endswith("/_spec.yaml"):
             body = parsed.get("report") if "report" in parsed else parsed
             if isinstance(body, dict):
                 rec = _project_report_yaml(body)
@@ -607,8 +607,8 @@ async def main() -> None:
             .or_(
                 "path.eq./workspace/_shared/back-office.yaml,"
                 "path.like./workspace/context/%/_recurring.yaml,"
-                "path.like./workspace/operations/%/_action.yaml,"
-                "path.like./workspace/reports/%/_spec.yaml"
+                "path.like./workspace/operation/operations/%/_action.yaml,"
+                "path.like./workspace/operation/reports/%/_spec.yaml"
             )
             .execute()
         ).data or []

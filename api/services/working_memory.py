@@ -125,27 +125,27 @@ async def build_working_memory(
 
     # ADR-143 + ADR-206: Read brand + orchestration playbook from workspace
     from services.workspace_paths import (
-        SHARED_BRAND_PATH, SHARED_IDENTITY_PATH,
-        MEMORY_PLAYBOOK_PATH, MEMORY_AWARENESS_PATH,
+        OPERATION_BRAND_PATH, PERSONA_IDENTITY_PATH,
+        SYSTEM_PLAYBOOK_PATH, SYSTEM_AWARENESS_PATH,
     )
     brand_content = memory_files.get("BRAND.md", "")
     orchestration_playbook = await asyncio.to_thread(
-        _run_sync_with_client, _get_workspace_file_sync, user_id, MEMORY_PLAYBOOK_PATH
+        _run_sync_with_client, _get_workspace_file_sync, user_id, SYSTEM_PLAYBOOK_PATH
     )
 
     # ADR-144 + ADR-206: Read identity + awareness + conversation summary + compute context readiness
     # ADR-226: also read MANDATE.md (used by activation-state detection — skeleton-or-empty
     # MANDATE.md combined with one-or-more-active-bundles signals post-fork-pre-author state).
     identity_content, awareness_content, conversation_summary, mandate_content, autonomy_content, principles_content = await asyncio.gather(
-        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, SHARED_IDENTITY_PATH),
-        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, MEMORY_AWARENESS_PATH),
-        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "memory/conversation.md"),
-        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "context/_shared/MANDATE.md"),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, PERSONA_IDENTITY_PATH),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, SYSTEM_AWARENESS_PATH),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "system/conversation.md"),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "constitution/MANDATE.md"),
         # ADR-246 + ADR-254: reads _autonomy.yaml (machine-parsed, ADR-254) for
         # workspace_state autonomy signals. AUTONOMY.md is prose-only now.
         # principles.md remains prose (LLM reads it); _principles.yaml has thresholds.
-        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "context/_shared/_autonomy.yaml"),
-        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "review/principles.md"),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "governance/_autonomy.yaml"),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "persona/principles.md"),
     )
     task_count, doc_count, recent_uploads, recent_authorship, loop_events = await asyncio.gather(
         asyncio.to_thread(_run_sync_with_client, _count_tasks_sync, user_id),
@@ -795,7 +795,7 @@ def _get_context_domain_health_sync(user_id: str, client: Any) -> list[dict]:
     groups by the first directory segment after context/. Registry provides display
     names and temporal flags as a lookup layer — it does not determine what gets reported.
 
-    Domains created by TP outside the declared registry (e.g., /workspace/context/customers/)
+    Domains created by TP outside the declared registry (e.g., /workspace/operation/customers/)
     appear automatically as soon as they contain files. No registry update required.
 
     Returns list of {domain, file_count, latest_update, health, temporal} for each
@@ -1402,12 +1402,12 @@ def _format_entity_index(working_memory: dict, surface_context: Optional[dict] =
 
     # --- Key file references (always included) ---
     lines.append("\n### Key files (read with LookupEntity or entity-layer tools)")
-    lines.append("- `/workspace/context/_shared/MANDATE.md` — what the workspace is running")
-    lines.append("- `/workspace/context/_shared/AUTONOMY.md` — delegation ceiling")
-    lines.append("- `/workspace/context/_shared/PRECEDENT.md` — durable interpretations and boundary cases")
-    lines.append("- `/workspace/context/_shared/IDENTITY.md` — who the user is")
-    lines.append("- `/workspace/memory/awareness.md` — your shift notes")
-    lines.append("- `/workspace/memory/notes.md` — stable facts and preferences")
+    lines.append("- `/workspace/constitution/MANDATE.md` — what the workspace is running")
+    lines.append("- `/workspace/governance/AUTONOMY.md` — delegation ceiling")
+    lines.append("- `/workspace/constitution/PRECEDENT.md` — durable interpretations and boundary cases")
+    lines.append("- `/workspace/persona/IDENTITY.md` — who the user is")
+    lines.append("- `/workspace/system/awareness.md` — your shift notes")
+    lines.append("- `/workspace/system/notes.md` — stable facts and preferences")
 
     return _enforce_compact_index_ceiling("\n".join(lines), "_format_entity_index")
 
@@ -1653,8 +1653,8 @@ def format_compact_index(
             lines.append(f"\nCurrently viewing: Work > {task_slug}")
             lines.append(
                 f"(Declaration: find via ListFiles or check "
-                f"`/workspace/reports/{task_slug}/_spec.yaml`, "
-                f"`/workspace/operations/{task_slug}/_action.yaml`, "
+                f"`/workspace/operation/reports/{task_slug}/_spec.yaml`, "
+                f"`/workspace/operation/operations/{task_slug}/_action.yaml`, "
                 f"or the domain `_recurring.yaml` for this slug)"
             )
         elif page == "context":
@@ -1675,15 +1675,15 @@ def format_compact_index(
 
     # --- File references (TP reads on demand) ---
     lines.append("\n### Key files (read with ReadFile if you need detail)")
-    lines.append("- `/workspace/context/_shared/MANDATE.md` — what the workspace is running")
-    lines.append("- `/workspace/context/_shared/AUTONOMY.md` — delegation ceiling")
-    lines.append("- `/workspace/context/_shared/PRECEDENT.md` — durable interpretations and boundary cases")
-    lines.append("- `/workspace/context/_shared/IDENTITY.md` — who the user is")
-    lines.append("- `/workspace/context/_shared/BRAND.md` — visual style and voice")
-    lines.append("- `/workspace/memory/awareness.md` — your shift notes from prior sessions")
-    lines.append("- `/workspace/memory/conversation.md` — summary of earlier conversation")
-    lines.append("- `/workspace/memory/notes.md` — stable facts and user preferences")
-    lines.append("- `/workspace/memory/recent.md` — recent material non-conversation events (ADR-221)")
+    lines.append("- `/workspace/constitution/MANDATE.md` — what the workspace is running")
+    lines.append("- `/workspace/governance/AUTONOMY.md` — delegation ceiling")
+    lines.append("- `/workspace/constitution/PRECEDENT.md` — durable interpretations and boundary cases")
+    lines.append("- `/workspace/persona/IDENTITY.md` — who the user is")
+    lines.append("- `/workspace/operation/BRAND.md` — visual style and voice")
+    lines.append("- `/workspace/system/awareness.md` — your shift notes from prior sessions")
+    lines.append("- `/workspace/system/conversation.md` — summary of earlier conversation")
+    lines.append("- `/workspace/system/notes.md` — stable facts and user preferences")
+    lines.append("- `/workspace/system/recent.md` — recent material non-conversation events (ADR-221)")
     # ADR-246: Workspace settings surface — operator-facing program lifecycle
     # (activate / switch / deactivate / inspect substrate status / capability gaps).
     lines.append("- `/settings?tab=workspace` — program lifecycle, substrate status, capability gaps (ADR-244)")

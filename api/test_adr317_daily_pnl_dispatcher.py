@@ -171,8 +171,8 @@ check(
     _already_sent_today(_FakeClient(None), "u", _today) is False,
 )
 check(
-    "sent-marker lives under /workspace/review/ (system-authored, not Reviewer-locked)",
-    SENT_MARKER_PATH.startswith("/workspace/review/"),
+    "sent-marker lives under /workspace/persona/ (system-authored, not Reviewer-locked)",
+    SENT_MARKER_PATH.startswith("/workspace/persona/"),
 )
 
 # ── 6. CTA points at the live landing route, not the dead /overview stub ────

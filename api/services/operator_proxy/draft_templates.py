@@ -1,6 +1,6 @@
 """Author-shape draft templates for scenario runner.
 
-Author-shape probes seed a /workspace/context/authored/{slug}/ piece with
+Author-shape probes seed a /workspace/operation/authored/{slug}/ piece with
 profile.md (frontmatter + title) + content.md (prose), then transition
 profile.md's `status:` field to fire the alpha-author bundle's pre-ship-
 audit substrate-event hook. Each template is hand-authored to exercise

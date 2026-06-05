@@ -59,10 +59,10 @@ MANDATE.md this week?" or "how many times has _money_truth.md been
 reconciled?"
 
 Path is absolute within the workspace filesystem, e.g.:
-  /workspace/context/_shared/MANDATE.md
+  /workspace/constitution/MANDATE.md
   /agents/alpha-research/AGENT.md
-  /workspace/reports/weekly-brief/_feedback.md
-  /workspace/review/judgment_log.md
+  /workspace/operation/reports/weekly-brief/_feedback.md
+  /workspace/persona/judgment_log.md
 
 Read-only. Use ReadRevision(path, revision_id=...) to fetch a specific
 revision's content, or DiffRevisions(path, from_rev, to_rev) to compare
@@ -72,7 +72,7 @@ two revisions.""",
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Absolute workspace path, e.g. '/workspace/context/_shared/MANDATE.md'",
+                "description": "Absolute workspace path, e.g. '/workspace/constitution/MANDATE.md'",
             },
             "limit": {
                 "type": "integer",

@@ -67,7 +67,7 @@ async def _run():
     # 3. WriteFile to a GOVERNANCE path → must be governance_locked (gate via real path)
     wf_gov = await execute_primitive(auth, "WriteFile", {
         "scope": "workspace",
-        "path": "context/_shared/MANDATE.md",
+        "path": "constitution/MANDATE.md",
         "content": "ATTACK — a foreign LLM must never write here",
         "mode": "append",
         "message": "stage1 gate probe — should be DENIED",
@@ -81,13 +81,13 @@ async def _run():
     # 4. WriteFile to review/ subtree → also locked
     wf_rev = await execute_primitive(auth, "WriteFile", {
         "scope": "workspace",
-        "path": "review/principles.md",
+        "path": "persona/principles.md",
         "content": "ATTACK — foreign write to reviewer seat",
         "mode": "append",
         "message": "stage1 gate probe — should be DENIED",
     })
     check(
-        "WriteFile review/principles.md → governance_locked",
+        "WriteFile persona/principles.md → governance_locked",
         wf_rev.get("success") is False and wf_rev.get("error") == "governance_locked",
         f"got={wf_rev.get('error')}",
     )

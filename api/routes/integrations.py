@@ -2325,7 +2325,7 @@ async def handle_commerce_webhook(request: "Request"):
         slug = _slugify_customer(email)
 
         await um.write(
-            f"context/customers/{slug}/profile.md",
+            f"operation/customers/{slug}/profile.md",
             (
                 f"# {name}\n\n"
                 f"## Status\nActive subscriber\n\n"
@@ -2336,7 +2336,7 @@ async def handle_commerce_webhook(request: "Request"):
             summary=f"New subscriber: {email} → {product}",
         )
         await um.write(
-            f"context/customers/{slug}/history.md",
+            f"operation/customers/{slug}/history.md",
             f"# History — {name}\n\n- {date_str}: Subscribed to {product}\n",
             summary=f"Subscriber history: {email}",
         )
@@ -2346,23 +2346,23 @@ async def handle_commerce_webhook(request: "Request"):
         slug = _slugify_customer(email)
 
         # Append cancellation to history
-        existing = await um.read(f"context/customers/{slug}/history.md")
+        existing = await um.read(f"operation/customers/{slug}/history.md")
         if existing:
             updated = existing.rstrip() + f"\n- {date_str}: Cancelled subscription\n"
             await um.write(
-                f"context/customers/{slug}/history.md",
+                f"operation/customers/{slug}/history.md",
                 updated,
                 summary=f"Subscriber cancelled: {email}",
             )
 
         # Update profile status
-        existing_profile = await um.read(f"context/customers/{slug}/profile.md")
+        existing_profile = await um.read(f"operation/customers/{slug}/profile.md")
         if existing_profile:
             updated_profile = existing_profile.replace(
                 "Active subscriber", "Cancelled"
             ).replace("- Status: active", "- Status: cancelled")
             await um.write(
-                f"context/customers/{slug}/profile.md",
+                f"operation/customers/{slug}/profile.md",
                 updated_profile,
                 summary=f"Subscriber status → cancelled: {email}",
             )
@@ -2371,11 +2371,11 @@ async def handle_commerce_webhook(request: "Request"):
         email = attrs.get("user_email", "unknown")
         slug = _slugify_customer(email)
 
-        existing = await um.read(f"context/customers/{slug}/history.md")
+        existing = await um.read(f"operation/customers/{slug}/history.md")
         if existing:
             updated = existing.rstrip() + f"\n- {date_str}: Payment successful\n"
             await um.write(
-                f"context/customers/{slug}/history.md",
+                f"operation/customers/{slug}/history.md",
                 updated,
                 summary=f"Payment received: {email}",
             )
@@ -2384,11 +2384,11 @@ async def handle_commerce_webhook(request: "Request"):
         email = attrs.get("user_email", "unknown")
         slug = _slugify_customer(email)
 
-        existing = await um.read(f"context/customers/{slug}/history.md")
+        existing = await um.read(f"operation/customers/{slug}/history.md")
         if existing:
             updated = existing.rstrip() + f"\n- {date_str}: ⚠ Payment failed\n"
             await um.write(
-                f"context/customers/{slug}/history.md",
+                f"operation/customers/{slug}/history.md",
                 updated,
                 summary=f"Payment failed: {email}",
             )
@@ -2401,10 +2401,10 @@ async def handle_commerce_webhook(request: "Request"):
         slug = _slugify_customer(email)
 
         # Create or update customer profile
-        existing_profile = await um.read(f"context/customers/{slug}/profile.md")
+        existing_profile = await um.read(f"operation/customers/{slug}/profile.md")
         if not existing_profile:
             await um.write(
-                f"context/customers/{slug}/profile.md",
+                f"operation/customers/{slug}/profile.md",
                 (
                     f"# {name}\n\n"
                     f"## Status\nCustomer (one-time purchase)\n\n"
@@ -2415,14 +2415,14 @@ async def handle_commerce_webhook(request: "Request"):
             )
 
         # Append to history
-        existing_history = await um.read(f"context/customers/{slug}/history.md")
+        existing_history = await um.read(f"operation/customers/{slug}/history.md")
         entry = f"- {date_str}: Purchased — ${total / 100:.2f} {currency}\n"
         if existing_history:
             updated = existing_history.rstrip() + f"\n{entry}"
         else:
             updated = f"# History — {name}\n\n{entry}"
         await um.write(
-            f"context/customers/{slug}/history.md",
+            f"operation/customers/{slug}/history.md",
             updated,
             summary=f"Order from {email}: ${total / 100:.2f}",
         )
@@ -2551,7 +2551,7 @@ async def connect_trading(
 
 
 async def _scaffold_risk_md(service_client: Any, user_id: str) -> bool:
-    """Create /workspace/context/trading/_risk.md with conservative defaults.
+    """Create /workspace/operation/trading/_risk.md with conservative defaults.
 
     Idempotent: returns False if the file already exists. Returns True
     if newly created. Non-fatal: connection succeeds even if scaffold

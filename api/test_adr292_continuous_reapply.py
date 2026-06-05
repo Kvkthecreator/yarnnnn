@@ -360,13 +360,13 @@ def test_update_report_shape() -> None:
         bundle_from="2026-05-17",
         bundle_to="2026-05-18.1",
         actions=[
-            UpdateAction(path="memory/_playbook.md", layer="kernel", change_summary="canon updated"),
+            UpdateAction(path="system/_playbook.md", layer="kernel", change_summary="canon updated"),
         ],
         skipped_operator_authored=2,
         skipped_aligned=10,
     )
     md = report.to_log_markdown()
-    if "Substrate update" in md and "alpha-trader" in md and "memory/_playbook.md" in md and "2026-05-18.1" in md:
+    if "Substrate update" in md and "alpha-trader" in md and "system/_playbook.md" in md and "2026-05-18.1" in md:
         _ok("UpdateReport.to_log_markdown produces structured audit-log block")
     else:
         _bad("to_log_markdown output", f"missing expected markers: {md[:300]}...")

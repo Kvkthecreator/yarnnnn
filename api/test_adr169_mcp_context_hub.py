@@ -484,7 +484,7 @@ async def test_cross_llm_write_read_roundtrip(auth):
     # --- Step 2: Simulate chatgpt read of the written content ---
     # _handle_memory writes to /workspace/notes.md (via UserMemory._full_path
     # which prepends self._base = "/workspace"). Note: some other codepaths in
-    # workspace.py read from "/memory/notes.md" — that's a pre-existing
+    # workspace.py read from "/system/notes.md" — that's a pre-existing
     # convention inconsistency, not an ADR-169 concern. For this test we
     # verify the path that the MCP write actually lands on.
     notes_result = (
@@ -641,7 +641,7 @@ def test_extract_domain_from_path():
         ("/workspace/context/competitors/acme/profile.md", "competitors"),
         ("/workspace/context/market/segments.md", "market"),
         ("/workspace/context/relationships/alice/profile.md", "relationships"),
-        ("/workspace/memory/notes.md", None),
+        ("/workspace/system/notes.md", None),
         ("/tasks/some-task/outputs/report.md", None),
         ("", None),
         (None, None),

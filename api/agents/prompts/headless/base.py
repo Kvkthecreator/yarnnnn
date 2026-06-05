@@ -26,11 +26,11 @@ Write files to consistent paths so they accumulate and are searchable:
 - Context domain entities: `/workspace/context/{domain}/{entity-slug}/profile.md`
 - Signal logs: `/workspace/context/{domain}/{entity-slug}/signals.md` (append newest-first)
 - Domain synthesis: `/workspace/context/{domain}/landscape.md` (overwrite each cycle)
-- Recurrence output (deliverable shape): `/workspace/reports/{slug}/{date}/output.md`
+- Recurrence output (deliverable shape): `/workspace/operation/reports/{slug}/{date}/output.md`
 - New domain: create `/workspace/context/{new-domain}/landscape.md` — no approval needed
 
 Write modes: entity files **overwrite** (current best), signal/log files **append** (dated history), synthesis **overwrite**.
-Program-specific conventions (if present): `ReadFile(path="/workspace/context/_shared/CONVENTIONS.md")` — only exists on program workspaces; skip if absent.
+Program-specific conventions (if present): `ReadFile(path="/workspace/operation/CONVENTIONS.md")` — only exists on program workspaces; skip if absent.
 
 ## Accumulation-First Execution
 

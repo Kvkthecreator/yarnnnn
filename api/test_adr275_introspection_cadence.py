@@ -2,7 +2,7 @@
 
 Bundle's _recurrences.yaml no longer ships judgment cadence (introspection,
 housekeeping, deliverable production). Operator preferences live at
-/workspace/context/_shared/_preferences.yaml. Reviewer reads preferences
+/workspace/governance/_preferences.yaml. Reviewer reads preferences
 and authors all judgment cadence via Schedule.
 
 Run:
@@ -235,30 +235,31 @@ def test_specs_preserved() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 4. SHARED_PREFERENCES_PATH constant + default lock
+# 4. GOVERNANCE_PREFERENCES_PATH constant + default lock
 # ---------------------------------------------------------------------------
 
 def test_workspace_paths_extended() -> None:
-    from services.workspace_paths import (
-        SHARED_PREFERENCES_PATH,
-        DEFAULT_REVIEWER_WRITE_LOCKS,
-    )
+    # ADR-320: the flat DEFAULT_REVIEWER_WRITE_LOCKS list dissolved into the
+    # five-root permission topology. The path constant is unchanged; the lock
+    # is now expressed as a root-prefix gate (governance/ is locked from the
+    # reviewer caller class). Equivalent assertion via the singular gate.
+    from services.workspace_paths import GOVERNANCE_PREFERENCES_PATH
+    from services.primitives.workspace import _is_path_locked
 
-    if SHARED_PREFERENCES_PATH == "context/_shared/_preferences.yaml":
-        _ok("SHARED_PREFERENCES_PATH constant correct")
+    if GOVERNANCE_PREFERENCES_PATH == "governance/_preferences.yaml":
+        _ok("GOVERNANCE_PREFERENCES_PATH constant correct")
     else:
         _bad(
-            "SHARED_PREFERENCES_PATH value",
-            f"expected 'context/_shared/_preferences.yaml', got {SHARED_PREFERENCES_PATH!r}",
+            "GOVERNANCE_PREFERENCES_PATH value",
+            f"expected 'governance/_preferences.yaml', got {GOVERNANCE_PREFERENCES_PATH!r}",
         )
 
-    if SHARED_PREFERENCES_PATH in DEFAULT_REVIEWER_WRITE_LOCKS:
-        _ok("_preferences.yaml in DEFAULT_REVIEWER_WRITE_LOCKS")
+    if _is_path_locked("reviewer", GOVERNANCE_PREFERENCES_PATH):
+        _ok("_preferences.yaml locked from Reviewer writes (governance/ root, ADR-320)")
     else:
         _bad(
             "_preferences.yaml lock policy",
-            f"SHARED_PREFERENCES_PATH not in DEFAULT_REVIEWER_WRITE_LOCKS: "
-            f"{DEFAULT_REVIEWER_WRITE_LOCKS}",
+            f"_is_path_locked('reviewer', {GOVERNANCE_PREFERENCES_PATH!r}) returned False",
         )
 
 
@@ -373,7 +374,7 @@ def test_preferences_yaml_is_preloaded_in_wake_envelope() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 6c. feed.py addressed-trigger site loads SHARED_PREFERENCES_PATH + AUTONOMY
+# 6c. feed.py addressed-trigger site loads GOVERNANCE_PREFERENCES_PATH + AUTONOMY
 # ---------------------------------------------------------------------------
 
 def test_all_invoke_reviewer_call_sites_use_canonical_envelope() -> None:

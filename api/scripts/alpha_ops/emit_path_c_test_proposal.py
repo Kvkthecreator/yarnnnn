@@ -22,7 +22,7 @@ Pass signal:
   - action_proposals.status='executed'
   - reviewer_identity='ai:reviewer-sonnet-v5' (NOT 'human:...')
   - execution_result.id is an Alpaca order UUID
-  - /workspace/review/judgment_log.md has new entry attributed to ai:reviewer-sonnet-v5
+  - /workspace/persona/judgment_log.md has new entry attributed to ai:reviewer-sonnet-v5
 
 Defer signal (correct behavior, NOT a failure of the system):
   - reviewer_identity='ai:reviewer-sonnet-v5' but verdict='defer'

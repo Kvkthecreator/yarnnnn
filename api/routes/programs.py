@@ -138,7 +138,7 @@ async def activate_program(req: ActivateRequest, auth: UserClient) -> dict:
       {
         "schema_version": 1,
         "activated_program": "alpha-trader",
-        "files_written": ["context/_shared/MANDATE.md", ...],
+        "files_written": ["constitution/MANDATE.md", ...],
         "files_skipped": ["..."]
       }
     """
@@ -183,7 +183,7 @@ async def deactivate_program(auth: UserClient) -> dict:
       { schema_version: 1, deactivated: bool, prior_program_slug: str | null }
     """
     from services.workspace import UserMemory
-    from services.workspace_paths import SHARED_MANDATE_PATH
+    from services.workspace_paths import CONSTITUTION_MANDATE_PATH
     from services.programs import (
         parse_active_program_slug,
         strip_program_marker_from_mandate,
@@ -191,7 +191,7 @@ async def deactivate_program(auth: UserClient) -> dict:
 
     um = UserMemory(auth.client, auth.user_id)
     try:
-        mandate_content = await um.read(SHARED_MANDATE_PATH)
+        mandate_content = await um.read(CONSTITUTION_MANDATE_PATH)
     except Exception as exc:
         logger.exception(f"[DEACTIVATE] MANDATE.md read failed for {auth.user_id[:8]}")
         raise HTTPException(status_code=500, detail=str(exc))
@@ -208,7 +208,7 @@ async def deactivate_program(auth: UserClient) -> dict:
     new_content = strip_program_marker_from_mandate(mandate_content or "")
     try:
         await um.write(
-            SHARED_MANDATE_PATH,
+            CONSTITUTION_MANDATE_PATH,
             new_content,
             summary="Mandate (program deactivated)",
             authored_by="system:program-deactivate",

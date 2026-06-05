@@ -63,15 +63,15 @@ from typing import Any
 import yaml as _yaml
 
 from services.workspace_paths import (
-    REVIEW_PRINCIPLES_YAML_PATH,
-    SHARED_AUTONOMY_YAML_PATH,
+    PERSONA_PRINCIPLES_YAML_PATH,
+    GOVERNANCE_AUTONOMY_YAML_PATH,
 )
 
 logger = logging.getLogger(__name__)
 
 # Path constants
-PRINCIPLES_YAML_PATH = f"/workspace/{REVIEW_PRINCIPLES_YAML_PATH}"
-AUTONOMY_YAML_PATH = f"/workspace/{SHARED_AUTONOMY_YAML_PATH}"
+PRINCIPLES_YAML_PATH = f"/workspace/{PERSONA_PRINCIPLES_YAML_PATH}"
+AUTONOMY_YAML_PATH = f"/workspace/{GOVERNANCE_AUTONOMY_YAML_PATH}"
 
 _DEFAULT_DOMAIN_KEY = "default"
 

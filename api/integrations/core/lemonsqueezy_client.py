@@ -771,7 +771,7 @@ class LemonSqueezyClient(CommerceProvider):
 
         LS doesn't natively support tags / segments. For cross-customer
         segmentation + targeting, write to workspace context (e.g.,
-        `/workspace/context/customers/{slug}/_tags.md`) via WriteFile —
+        `/workspace/operation/customers/{slug}/_tags.md`) via WriteFile —
         that layer belongs to YARNNN, not LS.
 
         This tool updates LS's native customer record fields.

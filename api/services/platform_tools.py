@@ -563,7 +563,7 @@ COMMERCE_WRITE_TOOLS = [
     },
     {
         "name": "platform_commerce_update_customer",
-        "description": "Update LS-native customer metadata (name, city, country, region, email_marketing opt-in). For cross-customer tagging / segmentation, write to /workspace/context/customers/{slug}/_tags.md via WriteFile — that intelligence layer belongs in YARNNN, not LS.",
+        "description": "Update LS-native customer metadata (name, city, country, region, email_marketing opt-in). For cross-customer tagging / segmentation, write to /workspace/operation/customers/{slug}/_tags.md via WriteFile — that intelligence layer belongs in YARNNN, not LS.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -867,7 +867,7 @@ EMAIL_SEND_TO_OPERATOR_TOOL = {
         "(auth.users.email for the workspace owner) — no `to:` field. Use "
         "for daily updates, alert digests, state-change notifications the "
         "operator opted into via "
-        "/workspace/context/_shared/_preferences.yaml::operator_notifications. "
+        "/workspace/governance/_preferences.yaml::operator_notifications. "
         "Does NOT route through ExecuteProposal / AUTONOMY gating (per "
         "ADR-299 D4 — operator-addressing writes are observability, not "
         "consequential action). The wire is system-deployed Resend "

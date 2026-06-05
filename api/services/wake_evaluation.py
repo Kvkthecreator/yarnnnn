@@ -31,7 +31,7 @@ substantially below the daily spend ceiling. If empirical observation
 shows Tier 2 cost approaching the ceiling, the operator's
 `_token_budget.yaml` declares the calibration knob.
 
-Reviewer's standing intent (`/workspace/review/standing_intent.md`)
+Reviewer's standing intent (`/workspace/persona/standing_intent.md`)
 shapes Tier 2 reasoning: it carries the Reviewer's prior-cycle
 declarations of what substrate transitions / next moments warrant
 its attention. Tier 2 reads it as the standing-intent envelope.
@@ -272,11 +272,11 @@ async def tier_2_decision(
         # need truncation; we cap at ~2k chars defensively.
         memory = UserMemory(client, user_id)
         try:
-            standing_intent = (memory.read("review/standing_intent.md") or "")[:2000]
+            standing_intent = (memory.read("persona/standing_intent.md") or "")[:2000]
         except Exception:
             standing_intent = ""
         try:
-            mandate = (memory.read("context/_shared/MANDATE.md") or "")[:2000]
+            mandate = (memory.read("constitution/MANDATE.md") or "")[:2000]
         except Exception:
             mandate = ""
 

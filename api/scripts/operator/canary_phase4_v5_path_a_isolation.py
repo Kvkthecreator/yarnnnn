@@ -47,7 +47,7 @@ from services.operator_proxy.client import OperatorProxy  # noqa: E402
 
 
 FRESH_PIECE_SLUG = "phase4-canary-v5-path-a-isolation"
-FRESH_PIECE_DIR = f"/workspace/context/authored/{FRESH_PIECE_SLUG}"
+FRESH_PIECE_DIR = f"/workspace/operation/authored/{FRESH_PIECE_SLUG}"
 PROFILE_PATH = f"{FRESH_PIECE_DIR}/profile.md"
 CONTENT_PATH = f"{FRESH_PIECE_DIR}/content.md"
 

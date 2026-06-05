@@ -3,7 +3,7 @@ Phase D.3 — Live re-fork of the updated alpha-trader bundle.
 
 Per ADR-261 D6 + ADR-262 D6 the bundle now ships:
   - /workspace/_recurrences.yaml (canonical, replaces 6 per-shape files)
-  - /workspace/specs/{ticker-snapshot, performance-rollup,
+  - /workspace/operation/specs/{ticker-snapshot, performance-rollup,
     pre-market-brief, weekly-performance-review,
     quarterly-signal-audit}.md (operator-authored output specs cited by
     recurrence prompts)

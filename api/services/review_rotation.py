@@ -36,7 +36,7 @@ from typing import Any
 
 import yaml as _yaml
 
-from services.workspace_paths import REVIEW_OCCUPANT_PATH, REVIEW_HANDOFFS_PATH
+from services.workspace_paths import PERSONA_OCCUPANT_PATH, PERSONA_HANDOFFS_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +91,7 @@ async def read_current_occupant(um: Any) -> dict[str, Any]:
     Never raises.
     """
     try:
-        content = await um.read(REVIEW_OCCUPANT_PATH)
+        content = await um.read(PERSONA_OCCUPANT_PATH)
     except Exception as exc:  # noqa: BLE001
         logger.warning("[REVIEW_ROTATION] OCCUPANT.md read failed: %s", exc)
         content = None
@@ -235,7 +235,7 @@ async def rotate_occupant(
     )
     try:
         await um.write(
-            REVIEW_OCCUPANT_PATH,
+            PERSONA_OCCUPANT_PATH,
             new_content,
             summary=f"Rotate Reviewer seat: {previous_identity or '(none)'} → {new_occupant_identity}",
         )
@@ -259,10 +259,10 @@ async def rotate_occupant(
         reason=reason,
     )
     try:
-        existing_handoffs = await um.read(REVIEW_HANDOFFS_PATH) or ""
+        existing_handoffs = await um.read(PERSONA_HANDOFFS_PATH) or ""
         new_handoffs = (existing_handoffs.rstrip() + "\n\n" + entry + "\n") if existing_handoffs else entry + "\n"
         await um.write(
-            REVIEW_HANDOFFS_PATH,
+            PERSONA_HANDOFFS_PATH,
             new_handoffs,
             summary=f"Handoff: {previous_identity or '(none)'} → {new_occupant_identity} ({trigger})",
         )

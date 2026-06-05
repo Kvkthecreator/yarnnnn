@@ -13,20 +13,20 @@ Pure function. No I/O. Composed at module-level once per process.
 from __future__ import annotations
 
 from services.workspace_paths import (
-    SHARED_MANDATE_PATH,
-    SHARED_AUTONOMY_PATH,
-    SHARED_AUTONOMY_YAML_PATH,
-    SHARED_PRECEDENT_PATH,
-    SHARED_IDENTITY_PATH,
-    SHARED_BRAND_PATH,
-    SHARED_CONVENTIONS_PATH,
-    REVIEW_IDENTITY_PATH,
-    REVIEW_PRINCIPLES_PATH,
-    REVIEW_PRINCIPLES_YAML_PATH,
-    REVIEW_JUDGMENT_LOG_PATH,
-    REVIEW_OCCUPANT_PATH,
-    REVIEW_CALIBRATION_PATH,
-    MEMORY_AWARENESS_PATH,
+    CONSTITUTION_MANDATE_PATH,
+    GOVERNANCE_AUTONOMY_PATH,
+    GOVERNANCE_AUTONOMY_YAML_PATH,
+    CONSTITUTION_PRECEDENT_PATH,
+    PERSONA_IDENTITY_PATH,
+    OPERATION_BRAND_PATH,
+    OPERATION_CONVENTIONS_PATH,
+    PERSONA_IDENTITY_PATH,
+    PERSONA_PRINCIPLES_PATH,
+    PERSONA_PRINCIPLES_YAML_PATH,
+    PERSONA_JUDGMENT_LOG_PATH,
+    PERSONA_OCCUPANT_PATH,
+    PERSONA_CALIBRATION_PATH,
+    SYSTEM_AWARENESS_PATH,
 )
 
 
@@ -49,21 +49,21 @@ def build_filesystem_block() -> str:
         "### Filesystem (canonical paths under /workspace/)",
         "",
         "**Operator's standing intent (operator-authored, you read):**",
-        f"- /{SHARED_MANDATE_PATH} — operation's primary intent",
-        f"- /{SHARED_AUTONOMY_PATH} — your delegation ceiling (prose)",
-        f"- /{SHARED_AUTONOMY_YAML_PATH} — machine-parsed autonomy config",
-        f"- /{SHARED_PRECEDENT_PATH} — operator's durable interpretations (overrides principles)",
-        f"- /{SHARED_IDENTITY_PATH} — workspace identity (operator-authored)",
-        f"- /{SHARED_BRAND_PATH} — workspace brand voice",
-        f"- /{SHARED_CONVENTIONS_PATH} — workspace conventions",
+        f"- /{CONSTITUTION_MANDATE_PATH} — operation's primary intent",
+        f"- /{GOVERNANCE_AUTONOMY_PATH} — your delegation ceiling (prose)",
+        f"- /{GOVERNANCE_AUTONOMY_YAML_PATH} — machine-parsed autonomy config",
+        f"- /{CONSTITUTION_PRECEDENT_PATH} — operator's durable interpretations (overrides principles)",
+        f"- /{PERSONA_IDENTITY_PATH} — workspace identity (operator-authored)",
+        f"- /{OPERATION_BRAND_PATH} — workspace brand voice",
+        f"- /{OPERATION_CONVENTIONS_PATH} — workspace conventions",
         "",
         "**Your substrate (you may write here freely):**",
-        f"- /{REVIEW_IDENTITY_PATH} — your persona (read first; operator seeded)",
-        f"- /{REVIEW_PRINCIPLES_PATH} — your framework (your rules of judgment)",
-        f"- /{REVIEW_PRINCIPLES_YAML_PATH} — machine-parsed thresholds",
-        f"- /{REVIEW_JUDGMENT_LOG_PATH} — your judgment lineage (system-rendered append-only, ADR-281 §5)",
-        f"- /{REVIEW_OCCUPANT_PATH} — current occupant metadata",
-        f"- /{REVIEW_CALIBRATION_PATH} — rolling calibration metrics",
+        f"- /{PERSONA_IDENTITY_PATH} — your persona (read first; operator seeded)",
+        f"- /{PERSONA_PRINCIPLES_PATH} — your framework (your rules of judgment)",
+        f"- /{PERSONA_PRINCIPLES_YAML_PATH} — machine-parsed thresholds",
+        f"- /{PERSONA_JUDGMENT_LOG_PATH} — your judgment lineage (system-rendered append-only, ADR-281 §5)",
+        f"- /{PERSONA_OCCUPANT_PATH} — current occupant metadata",
+        f"- /{PERSONA_CALIBRATION_PATH} — rolling calibration metrics",
         "",
         "**Domain substrate (per-domain, you read; your program's "
         "`/workspace/_workspace_guide.md` declares the concrete paths and "
@@ -81,14 +81,14 @@ def build_filesystem_block() -> str:
         "**Cross-cutting:**",
         "- /workspace/_workspace_guide.md — your program's substrate "
         "topology + bundle declarations (read at every wake)",
-        f"- /{MEMORY_AWARENESS_PATH} — workspace-level awareness narrative",
+        f"- /{SYSTEM_AWARENESS_PATH} — workspace-level awareness narrative",
         "",
         "**Governance files (locked from your runtime per ADR-293 D2):**",
-        "- /workspace/context/_shared/AUTONOMY.md + _autonomy.yaml — "
+        "- /workspace/governance/AUTONOMY.md + _autonomy.yaml — "
         "operator's delegation declaration to you. Read at every wake; "
         "applied via should_auto_apply gate. NOT writable: editing would "
         "let you grant yourself authority the operator did not delegate.",
-        "- /workspace/context/_shared/_token_budget.yaml — operator's "
+        "- /workspace/governance/_token_budget.yaml — operator's "
         "compute-resource ceiling on you (daily spend, max judgment fires, "
         "min interval). Read by the scheduler; enforced at fire boundary. "
         "NOT writable: editing would let you escalate your own resource ceiling.",
@@ -197,7 +197,7 @@ the operator exactly what you changed and why.
 - Missing signal state or program-specific upstream substrate → author
   cadence per ADR-296 v2 D3: (a) Schedule your next cycle for after the
   relevant mechanical mirror's next fire, or (b) WriteFile to
-  /workspace/review/standing_intent.md declaring interest in the
+  /workspace/persona/standing_intent.md declaring interest in the
   substrate transition that would unblock you. Do NOT fire upstream
   recurrences directly — that authority belongs to the operator (via
   chat) and to the cron-tick wake source; your authority is over cadence
@@ -216,7 +216,7 @@ You have up to 8 rounds per invocation. Use them:
    ADR-274 + ADR-296 v2 D3). NOT for invoking upstream recurrences.
 4. ProposeAction — submit action when conditions are met (gated by AUTONOMY)
 5. WriteFile — write to your own substrate (judgment_log.md, notes within
-   /workspace/review/, standing_intent.md, etc.) or to operator-shared
+   /workspace/persona/, standing_intent.md, etc.) or to operator-shared
    substrate if not locked
 6. Clarify — ask the operator something material
 7. ReturnVerdict — close the turn (always last)

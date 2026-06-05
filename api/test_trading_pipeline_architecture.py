@@ -113,13 +113,13 @@ check(
 )
 
 # ── 4. the write path is UPPERCASE (the casing contract that drifted) ────────
-# track_universe.py:264 — path = f"/workspace/context/trading/{ticker.upper()}.yaml"
+# track_universe.py:264 — path = f"/workspace/operation/trading/{ticker.upper()}.yaml"
 # The 2026-06-04 run seeded lowercase nvda.yaml; signal-evaluation read the
 # uppercase NVDA.yaml the live mirror wrote. Pin the canonical case from source.
 tu_src = (Path(__file__).resolve().parent / "services" / "primitives" / "track_universe.py").read_text()
 check(
     "track_universe writes UPPERCASE {TICKER}.yaml (ticker.upper())",
-    'f"/workspace/context/trading/{ticker.upper()}.yaml"' in tu_src,
+    'f"/workspace/operation/trading/{ticker.upper()}.yaml"' in tu_src,
 )
 check(
     "the ticker payload stamps ticker.upper() too (consistent casing)",

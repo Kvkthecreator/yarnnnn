@@ -14,9 +14,9 @@ ADR-221: Layered context strategy — non-conversation roles filtered from API;
 
 Session Philosophy (ADR-159 + ADR-221):
 - 10-message rolling window for API call (singular truncation)
-- Cross-session continuity via /workspace/memory/awareness.md
-- Conversation summary written every 5 user messages to /workspace/memory/conversation.md
-- Recent material non-conversation events rolled up to /workspace/memory/recent.md
+- Cross-session continuity via /workspace/system/awareness.md
+- Conversation summary written every 5 user messages to /workspace/system/conversation.md
+- Recent material non-conversation events rolled up to /workspace/system/recent.md
   by back-office-narrative-digest task; YARNNN reads on demand via ReadFile
 - Global TP: 4h inactivity boundary (ADR-067 Phase 2)
 - Project sessions: 24h inactivity boundary (ADR-125)
@@ -315,7 +315,7 @@ async def get_session_messages(
 
 async def _write_conversation_summary(auth, messages: list[dict]) -> None:
     """
-    ADR-159: Write rolling conversation summary to /workspace/memory/conversation.md.
+    ADR-159: Write rolling conversation summary to /workspace/system/conversation.md.
 
     Called every 5 user messages. Extracts key decisions, corrections, and focus
     from the full message history. Written as a workspace file that TP can read
@@ -382,7 +382,7 @@ async def _write_conversation_summary(auth, messages: list[dict]) -> None:
         from services.authored_substrate import write_revision
 
         svc = get_service_client()
-        path = "/workspace/memory/conversation.md"
+        path = "/workspace/system/conversation.md"
 
         write_revision(
             svc,
@@ -454,7 +454,7 @@ async def _summarize_previous_session(previous_session_id: str, client) -> None:
 # =============================================================================
 #
 # ADR-221 Commit C deleted ADR-067 Phase 3's in-session LLM compaction.
-# Compaction is now filesystem-native via /workspace/memory/conversation.md
+# Compaction is now filesystem-native via /workspace/system/conversation.md
 # (written every 5 user messages by _write_conversation_summary). YARNNN
 # reads conversation.md on demand via ReadFile when older context is needed.
 #
@@ -484,7 +484,7 @@ def build_history_for_claude(
 
     ADR-221 Commit A: filters non-conversation roles (system/reviewer/agent/external)
     out of the API messages list — Claude only accepts user/assistant. Non-conversation
-    Identity classes re-enter YARNNN's reasoning via /workspace/memory/recent.md
+    Identity classes re-enter YARNNN's reasoning via /workspace/system/recent.md
     (Layer 2 pointer in the compact index, ReadFile on demand).
 
     ADR-221 Commit B: only the most-recent assistant turn carrying `tool_history`
@@ -690,7 +690,7 @@ def _parse_input_summary(input_summary: str) -> dict:
 # `maybe_compact_history`, `COMPACTION_PROMPT`, `COMPACTION_THRESHOLD`,
 # `truncate_history_by_tokens`, and `estimate_message_tokens` were deleted
 # per ADR-221's singular-implementation discipline. Compaction is now
-# filesystem-native via `/workspace/memory/conversation.md` (written every
+# filesystem-native via `/workspace/system/conversation.md` (written every
 # 5 user messages by `_write_conversation_summary`); YARNNN reads it on
 # demand via `ReadFile` when older context is needed.
 #
@@ -1072,7 +1072,7 @@ async def global_chat(
     # Full history stays in DB for chat UI display.
     # ADR-221 Commit C: the 10-message window IS the singular truncation —
     # ADR-067 Phase 3's 40K-token in-session LLM compaction has been deleted.
-    # Compaction is filesystem-native via /workspace/memory/conversation.md
+    # Compaction is filesystem-native via /workspace/system/conversation.md
     # (written every 5 user messages by _write_conversation_summary).
     # YARNNN reads conversation.md on demand via ReadFile.
     if len(existing_messages) > MESSAGE_WINDOW:

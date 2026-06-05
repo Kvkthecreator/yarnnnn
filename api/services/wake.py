@@ -462,7 +462,7 @@ async def _invoke_recurrence_wake(
                     f"(${daily_spend:.2f}) has reached the workspace's "
                     f"daily ceiling (${budget.daily_spend_ceiling_usd:.2f}). "
                     f"Run skipped. Resets at midnight UTC. To adjust, "
-                    f"edit /workspace/context/_shared/_token_budget.yaml."
+                    f"edit /workspace/governance/_token_budget.yaml."
                 ),
                 trigger=trigger,
                 weight="material",
