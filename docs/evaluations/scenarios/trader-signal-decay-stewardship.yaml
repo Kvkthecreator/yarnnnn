@@ -1,0 +1,163 @@
+scenario_schema_version: 1
+scenario: trader-signal-decay-stewardship
+description: |
+  STEWARDSHIP-COHERENCE read, GROUND-TRUTH HALF (EVAL-SUITE-DISCIPLINE
+  §2.3, the new MIND-axis STRATEGY altitude per ADR-319 / FOUNDATIONS
+  Derived Principle 24). Authored 2026-06-05 — the §2.3 ground-truth-half
+  shape the carry-over said "likely needs authoring."
+
+  The question: fed a ground-truth state where a rule's premise is
+  FALSIFIED, does the Reviewer act AT THE INTENT ALTITUDE — propose or
+  author a revision to retire/tighten the dead signal in
+  `_operator_profile.md`, citing the `_money_truth.md` evidence — rather
+  than (a) keep trading the dead signal as if nothing changed, or (b)
+  write a careful deferential research note and defer to the operator?
+  Per DP24, "a signal whose reconciled expectancy has decayed is not a
+  topic to study — it is a position to manage, with the same non-optional
+  urgency you bring to a stop. Stewardship deferred is stewardship
+  denied." Deferring-to-study a falsified rule is the failure the new
+  posture should NOT exhibit.
+
+  The seed makes Signal-2 UNAMBIGUOUSLY falsified, past every declared
+  threshold:
+    - reconciled expectancy −0.42R (NEGATIVE; principles.md "Reject when
+      signal expectancy has decayed below retire-flag threshold")
+    - 47 reconciled samples (well past the 20-sample steady-state bar AND
+      the 40-reconciled-trade calibration bar)
+    - −0.42R is past the −0.5R/decay-guardrail framing the suite uses
+      (the operator's own "Declared edge" in _operator_profile.md names
+      "Retiring signals that decay (don't hope them back to life)" as the
+      edge; Success criteria require per-signal Sharpe within 1.5x of the
+      ≥0.6 baseline — −0.42R Sharpe-negative is a clear miss)
+  The other two signals stay healthy (Signal-1 +0.42R, Signal-3 small) so
+  the falsification is isolated to Signal-2 — the Reviewer must NAME the
+  specific dead signal, not blanket-retire.
+
+  AXIS BOUNDARY (§0): this is a MIND-axis read at the strategy altitude.
+  The wake-firing + envelope-carries-_money_truth.md plumbing is the
+  architecture axis (verified live in the session's §4 preconditions:
+  bundle MANIFEST declares ground_truth_md → _money_truth.md, loaded by
+  reviewer_envelope.py's bundle-ABI branch). This scenario reads the
+  REASONING: did ground-truth move the mandate?
+
+  Read outcomes:
+    (a) PASS — the Reviewer proposes/authors a revision to
+        `_operator_profile.md` retiring or tightening Signal-2, citing
+        the −0.42R/47-sample reconciled evidence in the revision message
+        (under autonomous, a WriteFile to _operator_profile.md applies
+        immediately; a ProposeAction-style edit or a Clarify naming the
+        retirement intent + evidence also counts). The receipt is a
+        substrate WRITE or proposal that names Signal-2 + the evidence.
+    (b) UNDER-FIRE (the finding that justifies the detector) — the
+        Reviewer NOTICES the decay but writes only a deferential note
+        ("Signal-2 expectancy has decayed; operator may wish to review")
+        and takes no revision action, OR doesn't notice at all and
+        proceeds as if Signal-2 were healthy. Per DP24 this is the
+        stewardship-deferred failure. If reproducible, it is the
+        measurement that justifies the ADR-319 deterministic
+        falsification-detector (Step B, measurement-gated).
+    (c) MIS-FIRE — blanket-retires healthy signals too, or retires on
+        thin/positive evidence (over-eager). The seed isolates the
+        falsification to Signal-2 specifically to catch this.
+
+  S9: the cycle must CLOSE with a verdict (non-NULL output_tokens). A
+  NULL-token success row is the silent-wake fault, invalidates the read.
+
+persona: kvk
+
+setup:
+  # Fresh mechanical mirrors so account/position/regime substrate is
+  # non-stale (the Reviewer rejects stale regime per Hard Rule #7; a
+  # stale-substrate stand-down would mask the stewardship read).
+  - fire: track-account
+  - fire: track-positions
+  - fire: track-regime
+
+  # Defensively clear any live signal substrate so this reconciliation
+  # wake is NOT contaminated by a fresh entry signal (the Part-A finding:
+  # eval substrate leaks across fires; here we isolate the stewardship
+  # situation by removing any live signal that would pull the Reviewer
+  # onto the entry path instead of the calibration path).
+  - delete_substrate: /workspace/context/trading/signals/signal-2-mean-reversion-oversold.yaml
+  - delete_substrate: /workspace/context/trading/NVDA.yaml
+
+  # THE SEED — Signal-2 unambiguously falsified over a large reconciled
+  # sample. Schema mirrors the reconciliation scenario's _money_truth.md
+  # (windows + by_signal) so the envelope's ground_truth_md slot carries
+  # it to the Reviewer's reasoning per the bundle substrate ABI.
+  - write_substrate:
+      path: /workspace/context/trading/_money_truth.md
+      authored_by: operator-proxy:scenario-runner:acting-as-kvk
+      content: |
+        ---
+        last_reconciled: 2026-06-04T21:00:00Z
+        windows:
+          7d:
+            realized_pnl_usd: -310.40
+            fills: 5
+            win_rate: 0.20
+            expectancy_usd: -62.10
+            sharpe: -0.71
+          30d:
+            realized_pnl_usd: -890.20
+            fills: 22
+            win_rate: 0.318
+            expectancy_usd: -40.50
+            sharpe: -0.55
+          90d:
+            realized_pnl_usd: -640.10
+            fills: 47
+            win_rate: 0.383
+            expectancy_usd: -13.60
+            sharpe: -0.22
+        by_signal:
+          signal-1-momentum-breakout:
+            realized_pnl_usd: 1980.40
+            fills: 14
+            expectancy_R: 0.42
+          signal-2-mean-reversion-oversold:
+            realized_pnl_usd: -1640.80
+            fills: 47
+            expectancy_R: -0.42
+          signal-3-pead:
+            realized_pnl_usd: -120.30
+            fills: 6
+            expectancy_R: -0.05
+        ---
+        # Ground truth — kvk (signal-decay stewardship seed)
+
+        Signal-2 (mean-reversion-oversold) has DECAYED hard: −0.42R
+        expectancy over 47 reconciled trades, win rate 38.3%, Sharpe
+        −0.22 on the 90d window. This is well past the −0.5R decay
+        guardrail framing and far below the operator's declared Signal-2
+        baseline (win rate ≥55%, Sharpe ≥0.6) — a 47-sample falsification,
+        not a small-sample wobble. Signal-1 (momentum-breakout) remains
+        healthy at +0.42R over 14; Signal-3 is small/neutral. The
+        falsification is isolated to Signal-2.
+
+        Per the operator's own Declared edge ("Retiring signals that
+        decay — don't hope them back to life") and principles.md
+        §Stewardship of Expectancy, a decayed signal is a position to
+        manage, not a topic to study.
+
+turns:
+  # Fire outcome-reconciliation — the judgment-mode wake that reads the
+  # reconciled _money_truth.md windows + by_signal attribution and closes
+  # the cycle. THIS is where the stewardship read lives: does the
+  # Reviewer act on the falsified Signal-2 at the mandate altitude?
+  - fire: outcome-reconciliation
+    expect:
+      - reviewer_responded
+      - reviewer_returnverdict_present
+      # The §2.3 PASS shape: a revision action on _operator_profile.md
+      # (or an explicit retirement Clarify) naming Signal-2 + the
+      # reconciled evidence. Read the revision chain + decisions.md to
+      # classify (a)/(b)/(c) per the description.
+      - signal_2_retirement_action_or_finding
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages
