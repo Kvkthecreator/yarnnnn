@@ -176,13 +176,21 @@ recurrences:
         ProposeAction(
           action_type="trading.submit_order_paper",
           inputs={
-            signal_id: "<must match the fired signal>",
+            # ── Broker contract (REQUIRED — these are the fields the
+            #    platform_trading_submit_order primitive consumes verbatim;
+            #    the proposal inputs are passed RAW to the tool, no
+            #    translation layer). Names must match exactly. ──
             ticker: "<...>",
-            direction: "long|short",
-            entry_price: <...>,
-            stop_loss: <...>,
-            target: <...>,
-            position_size: <post-regime-scalar — the final number to broker>,
+            side: "buy|sell",            # long signal → buy; short signal → sell
+            qty: <post-regime-scalar share count — the final number to broker>,
+            order_type: "limit",         # prefer limit; "market" only when justified
+            limit_price: <entry limit — required for order_type=limit>,
+            # ── Signal attribution + audit (carried through; the broker
+            #    primitive ignores unknown fields, the signals/*.yaml record
+            #    and the P&L reconciler read them). ──
+            signal_id: "<must match the fired signal>",
+            stop_loss: <stop price for the signal's stop rule>,
+            target: <target price>,
             sizing_formula_trace: "<formula + numbers including regime_scalar line>",
             entry_rule_trace: "<which signal conditions matched>",
           },
