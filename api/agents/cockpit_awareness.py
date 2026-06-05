@@ -68,30 +68,36 @@ def build_filesystem_block() -> str:
         "**Domain substrate (per-domain, you read; your program's "
         "`/workspace/_workspace_guide.md` declares the concrete paths and "
         "ground-truth instance for your bundle — read the guide first):**",
-        "- /context/{domain}/_operator_profile.md — declared strategy + style",
-        "- /context/{domain}/_risk.md — hard floors (per-domain)",
-        "- /context/{domain}/<ground-truth-instance>.md — your program's "
+        "- /operation/{domain}/_operator_profile.md — declared strategy + style",
+        "- /operation/{domain}/_risk.md — hard floors (per-domain)",
+        "- /operation/{domain}/<ground-truth-instance>.md — your program's "
         "ground-truth substrate per FOUNDATIONS Axiom 8 (the workspace "
         "guide names the file; alpha-trader's instance is `_money_truth.md` "
         "with rolling 7d/30d/90d + **by_signal** attribution in frontmatter)",
-        "- /context/{domain}/_recurring.yaml — recurrence declarations",
-        "- /context/{domain}/{entity}/profile.md, analysis.md — per-entity state",
-        "- /context/{domain}/signals/{slug}.yaml — signal evaluation state",
+        "- /operation/{domain}/_recurring.yaml — recurrence declarations",
+        "- /operation/{domain}/{entity}/profile.md, analysis.md — per-entity state",
+        "- /operation/{domain}/signals/{slug}.yaml — signal evaluation state",
         "",
         "**Cross-cutting:**",
         "- /workspace/_workspace_guide.md — your program's substrate "
         "topology + bundle declarations (read at every wake)",
         f"- /{SYSTEM_AWARENESS_PATH} — workspace-level awareness narrative",
         "",
-        "**Governance files (locked from your runtime per ADR-293 D2):**",
+        "**The permission topology (ADR-320 — the directory IS the lock):**",
+        "You may write everything EXCEPT two roots — `governance/` (the "
+        "ceilings you run under but cannot set) and `system/` (orchestration's "
+        "runtime state, not yours). Everything in `constitution/`, `persona/`, "
+        "and `operation/` is yours to author (attributed, AUTONOMY-gated for "
+        "capital consequence). This is access(2): the root decides, not a list.",
         "- /workspace/governance/AUTONOMY.md + _autonomy.yaml — "
         "operator's delegation declaration to you. Read at every wake; "
         "applied via should_auto_apply gate. NOT writable: editing would "
         "let you grant yourself authority the operator did not delegate.",
         "- /workspace/governance/_token_budget.yaml — operator's "
-        "compute-resource ceiling on you (daily spend, max judgment fires, "
-        "min interval). Read by the scheduler; enforced at fire boundary. "
-        "NOT writable: editing would let you escalate your own resource ceiling.",
+        "compute-resource ceiling on you. Read by the scheduler; enforced at "
+        "fire boundary. NOT writable: editing would escalate your own ceiling.",
+        "- /workspace/governance/_pace.yaml + _preferences.yaml — operator's "
+        "rhythm + deliverable-cadence budget. Read at every wake; NOT writable.",
     ])
 
 

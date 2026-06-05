@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.05.1] - ADR-320 five-root permission topology — cockpit-awareness + persona-frame paths
+
+### Changed (behavioral — Reviewer-facing prompt content)
+
+- `agents/cockpit_awareness.py` (generated from path constants, drift-resistant):
+  the Reviewer's substrate map re-rendered for the five-root topology. New
+  "**The permission topology (ADR-320 — the directory IS the lock)**" section:
+  "you may write everything EXCEPT `governance/` and `system/`" — access(2), the
+  root decides not a list. Governance section lists governance/AUTONOMY +
+  _autonomy + _token_budget + _pace + _preferences (all under one root). Domain
+  substrate paths corrected `/context/{domain}/` → `/operation/{domain}/`.
+- `agents/reviewer_agent.py` persona-frame + wake-envelope: all substrate path
+  references re-rooted (constitution/ persona/ governance/ operation/ system/).
+  The minimal frame stays minimal (DP22) — lock specifics live in the generated
+  cockpit-awareness section, not the frame.
+- Expected behavior: the Reviewer perceives its write boundary as two locked
+  roots (topological) rather than an enumerated file list; reads governance/
+  ceilings, constitution/ intent, persona/ self, operation/ work, system/ (RO)
+  from their new headers. No change to WHAT it may write (governance + token
+  budget still locked) — only the framing + paths.
+
+### Related
+- ADR-320 (five-root permission topology), FOUNDATIONS Derived Principle 25,
+  CALLER_WRITE_POLICY in workspace_paths.py, _is_path_locked unified gate.
+
 ## [2026.06.04.2] - Silent-wake root cause: manual_fire recurrence trigger fix
 
 ### Changed (behavioral, not prompt — recorded here because it changes Reviewer-invocation)
