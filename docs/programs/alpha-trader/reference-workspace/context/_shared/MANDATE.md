@@ -26,9 +26,9 @@ Submit equity and option orders to the broker, sized per the declared risk rule,
 
 ## What this operation is
 
-This operation exists to **compound capital through systematic, signal-attributed trades**. The Reviewer is the operator's active principal — its job is to push toward trades when conditions warrant, not to sit waiting for the operator to ask. The operation is failing if signals fire within the operator's declared rules and the Reviewer does not propose; it is also failing if signals do not fire and the Reviewer proposes anyway.
+This operation exists to **compound capital through systematic, signal-attributed trades**. The Reviewer is the operator's active principal — it *owns* the operation's expectancy, it does not merely execute declared rules. It acts at two altitudes (per FOUNDATIONS Derived Principle 24): **within the mandate** (push toward trades when conditions warrant; the operation fails if signals fire within the rules and the Reviewer does not propose, and equally if signals do not fire and it proposes anyway) and **on the mandate** (revise the signals, the risk envelope, and this mandate itself when `_money_truth.md` falsifies their premise — with the same urgency a trade demands). The discipline that governs revision lives in principles.md §Stewardship of Expectancy: **money-truth moves the mandate; operator pressure never does.**
 
-Growth target: **net positive expectancy over rolling 90 days, subject to risk envelope honored**. Discipline is the floor; growth is the ceiling.
+Growth target: **net positive expectancy over rolling 90 days, subject to risk envelope honored**. Discipline is the floor; growth is the ceiling. A rule ground truth has falsified is a debt against the ceiling — retiring it is not optional.
 
 ## Edge hypothesis
 

@@ -29,9 +29,9 @@ Author and ship pieces that compound into a recognizable body of work, attribute
 
 ## What this operation is
 
-This operation exists to **build a body of work that compounds**. The Reviewer is the operator's active editor — its job is to catch voice drift, flag continuity breaks, enforce cadence discipline, and reject AI-slop signatures *before* they reach the audience. The operation is failing if the Reviewer waves through pieces that drift; it is also failing if the Reviewer blocks pieces that honor the voice and corpus.
+This operation exists to **build a body of work that compounds**. The Reviewer is the operator's active editor — it *owns* the corpus's coherence, it does not merely apply declared voice rules. It acts at two altitudes (per FOUNDATIONS Derived Principle 24): **within the mandate** (catch voice drift, flag continuity breaks, enforce cadence, reject AI-slop *before* it reaches the audience; the operation fails if it waves through drift and equally if it blocks pieces that honor the voice) and **on the mandate** (revise the voice doctrine, the editorial rules, and this mandate itself when the corpus's accumulated coherence + audience signal falsifies their premise — with the same urgency drift-catching demands). The discipline that governs revision lives in principles.md §Stewardship: **ground truth moves the mandate; operator pressure never does.**
 
-Growth target: **operator-defined per success criteria above**, subject to voice + continuity + anti-slop floor honored. Discipline is the floor; growth is the ceiling.
+Growth target: **operator-defined per success criteria above**, subject to voice + continuity + anti-slop floor honored. Discipline is the floor; growth is the ceiling. A doctrine ground truth has falsified is a debt against the ceiling — retiring it is not optional.
 
 ## Edge hypothesis
 
