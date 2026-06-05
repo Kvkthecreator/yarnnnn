@@ -151,7 +151,9 @@ recurrences:
 
       Step 1 — Evaluate signals. For each ticker in
       /workspace/context/trading/_universe.yaml:
-        - Read the latest snapshot at /workspace/context/trading/{ticker}.yaml.
+        - Read the latest snapshot at /workspace/context/trading/{TICKER}.yaml
+          (filename is UPPERCASE — the track-universe mirror writes
+          ticker.upper(); a lowercase read finds nothing).
         - Apply each signal's boolean rule from
           /workspace/context/_shared/_operator_profile.md.
         - When a signal fires, append a signal entry to
