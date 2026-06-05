@@ -1,5 +1,5 @@
 /**
- * Reviewer decisions content shape — `/workspace/review/decisions.md`.
+ * Reviewer decisions content shape — `/workspace/persona/judgment_log.md`.
  *
  * Migrated from `web/lib/reviewer-decisions.ts` by ADR-245 Phase 2.
  *
@@ -19,7 +19,7 @@ import type { ContentShapeMeta } from './index';
 // ---------------------------------------------------------------------------
 
 export const SHAPE_KEY = 'decisions' as const;
-export const PATH_GLOB = '**/review/decisions.md';
+export const PATH_GLOB = '**/persona/judgment_log.md';
 export const WRITE_CONTRACT = 'narrative' as const;
 export const CANONICAL_L3 = '' as const;
 

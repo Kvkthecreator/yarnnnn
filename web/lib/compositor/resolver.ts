@@ -15,7 +15,7 @@
  * The legacy Tier 2 (output_kind + condition), Tier 3 (output_kind alone),
  * and Tier 4 (agent_role / agent_class) are deleted per ADR-261 D1's "one
  * execution shape" principle and ADR-262 §6.1's resolution: every
- * recurrence's substrate lives at /workspace/reports/{slug}/{date}/output.md
+ * recurrence's substrate lives at /workspace/operation/reports/{slug}/{date}/output.md
  * (per CONVENTIONS topology) and renders through the universal middle. A
  * bundle that wants to override the universal middle for a specific
  * recurrence does so by naming its slug in SURFACES.yaml.

@@ -33,8 +33,8 @@ import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 // `<!-- inference-meta: ... -->` comment injected by `_append_inference_meta()`
 // on the backend. When rendered on Files, we surface that provenance (source
 // caption + gap banner) above the markdown body via InferenceContentView.
-const IDENTITY_PATH = '/workspace/context/_shared/IDENTITY.md';
-const BRAND_PATH = '/workspace/context/_shared/BRAND.md';
+const IDENTITY_PATH = '/workspace/persona/IDENTITY.md';
+const BRAND_PATH = '/workspace/operation/BRAND.md';
 function inferenceTarget(path: string): 'identity' | 'brand' | null {
   if (path === IDENTITY_PATH) return 'identity';
   if (path === BRAND_PATH) return 'brand';

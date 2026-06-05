@@ -17,10 +17,10 @@
  * for every workspace regardless of active bundle.
  *
  * Substrate reads:
- *   /workspace/context/_shared/MANDATE.md  → title + summary (via canonical
+ *   /workspace/constitution/MANDATE.md  → title + summary (via canonical
  *                                            L2 parser at content-shapes/mandate.ts
  *                                            per ADR-245 D3 + ADR-266 D3)
- *   /workspace/context/_shared/_autonomy.yaml → level + ceiling
+ *   /workspace/governance/_autonomy.yaml → level + ceiling
  *                                              (via useAutonomy hook)
  *
  * Singular Implementation discipline: parsing MANDATE.md goes through the
@@ -45,7 +45,7 @@ import { parse as parseMandate } from '@/lib/content-shapes/mandate';
 import { useHome } from './HomeContext';
 import { cn } from '@/lib/utils';
 
-const MANDATE_PATH = '/workspace/context/_shared/MANDATE.md';
+const MANDATE_PATH = '/workspace/constitution/MANDATE.md';
 // Atomic Autonomy surface (renamed from /delegation 2026-05-24).
 const AUTONOMY_EDIT_HREF = '/autonomy';
 

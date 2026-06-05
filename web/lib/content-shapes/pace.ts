@@ -1,5 +1,5 @@
 /**
- * Pace content shape — `/workspace/context/_shared/_pace.yaml`.
+ * Pace content shape — `/workspace/governance/_pace.yaml`.
  *
  * ADR-300 (2026-05-22): pace promoted from cockpit-tab section (ADR-298 D5
  * original) to atomic kernel surface. This module mirrors autonomy.ts's
@@ -43,7 +43,7 @@ export const META: ContentShapeMeta = {
 // Constants — mirror Python SHARED_PACE_PATH in api/services/workspace_paths.py
 // ---------------------------------------------------------------------------
 
-export const PACE_YAML_PATH = '/workspace/context/_shared/_pace.yaml';
+export const PACE_YAML_PATH = '/workspace/governance/_pace.yaml';
 
 export const PACE_KINDS = ['hourly', 'daily', 'weekly', 'continuous'] as const;
 export type PaceKind = typeof PACE_KINDS[number];
@@ -289,7 +289,7 @@ export function useCockpitPace(opts?: { initialContent?: string | null }): UsePa
     // ADR-245 D5: configuration shapes route through writeShape so the
     // WRITE_CONTRACT guard runs. Same backend primitive as autonomy.
     const { writeShape } = await import('./write');
-    await writeShape('pace', 'context/_shared/_pace.yaml', content, {
+    await writeShape('pace', 'governance/_pace.yaml', content, {
       message: `pace: kind=${next}`,
     });
   };

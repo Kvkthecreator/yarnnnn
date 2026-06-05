@@ -3,7 +3,7 @@
 /**
  * /identity — atomic Identity + Brand surface (ADR-297 D1).
  *
- * Renders /workspace/context/_shared/IDENTITY.md + BRAND.md via the
+ * Renders /workspace/persona/IDENTITY.md + BRAND.md via the
  * kernel-library IdentityBrandCard (full variant; self-fetches per ADR-266
  * D8). Per ADR-297 D1's surface table, Identity and Brand are nominally
  * separate atomic concepts, but the existing card co-renders them — the

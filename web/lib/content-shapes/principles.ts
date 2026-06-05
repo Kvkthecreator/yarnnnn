@@ -17,7 +17,7 @@ import type { ContentShapeMeta } from './index';
 // ---------------------------------------------------------------------------
 
 export const SHAPE_KEY = 'principles' as const;
-export const PATH_GLOB = '**/review/principles.md';
+export const PATH_GLOB = '**/persona/principles.md';
 export const WRITE_CONTRACT = 'configuration' as const;
 export const CANONICAL_L3 = 'PrinciplesCard' as const;
 

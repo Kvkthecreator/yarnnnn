@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * AutonomyCard — L3 component for /workspace/context/_shared/_autonomy.yaml.
+ * AutonomyCard — L3 component for /workspace/governance/_autonomy.yaml.
  *
  * Renamed from DelegationCard (2026-05-24) to align with the substrate file
  * (_autonomy.yaml) and the operator's mental model. The schema field

@@ -28,7 +28,7 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
 
 export interface WorkspaceFileViewProps {
-  /** Absolute workspace path, e.g. /workspace/context/_shared/MANDATE.md */
+  /** Absolute workspace path, e.g. /workspace/constitution/MANDATE.md */
   path: string;
 
   /** Optional heading shown above the content. */

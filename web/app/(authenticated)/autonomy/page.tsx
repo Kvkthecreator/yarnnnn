@@ -8,7 +8,7 @@
  * `default_delegation` stays — it's the precise data-layer term for the
  * delegated level. At the operator surface the broader concept is Autonomy.
  *
- * Renders /workspace/context/_shared/_autonomy.yaml via the kernel-library
+ * Renders /workspace/governance/_autonomy.yaml via the kernel-library
  * AutonomyCard (full variant; self-fetches per ADR-266 D8). Per the
  * 2026-05-24 design polish, the full variant gates every mutation behind
  * a confirm modal (see docs/design/WORKSPACE-COMPONENTS.md §2).

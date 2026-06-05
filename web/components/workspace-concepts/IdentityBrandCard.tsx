@@ -75,8 +75,8 @@ export function IdentityBrandCard({
     let cancelled = false;
     void (async () => {
       const [id, br] = await Promise.allSettled([
-        api.workspace.getFile('/workspace/context/_shared/IDENTITY.md'),
-        api.workspace.getFile('/workspace/context/_shared/BRAND.md'),
+        api.workspace.getFile('/workspace/persona/IDENTITY.md'),
+        api.workspace.getFile('/workspace/operation/BRAND.md'),
       ]);
       if (cancelled) return;
       setIdentity(id.status === 'fulfilled' ? parseIdentity(id.value.content ?? '') : { excerpt: null, isEmpty: true });

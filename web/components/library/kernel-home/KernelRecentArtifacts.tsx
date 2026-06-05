@@ -5,7 +5,7 @@
  *
  * Kernel-universal: renders for EVERY workspace from kernel substrate
  * (delivered task outputs in `workspace_files` under
- * /workspace/reports/{slug}/{date}/output.md), independent of the active
+ * /workspace/operation/reports/{slug}/{date}/output.md), independent of the active
  * program. Programs do NOT declare this slot.
  *
  * Compact: the few most-recent delivered outputs as rows linking to the

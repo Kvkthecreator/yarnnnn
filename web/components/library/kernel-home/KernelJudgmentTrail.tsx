@@ -4,7 +4,7 @@
  * KernelJudgmentTrail — Home slot #6 (ADR-312).
  *
  * Kernel-universal: renders for EVERY workspace from kernel substrate
- * (the Reviewer's append-only /workspace/review/decisions.md), independent
+ * (the Reviewer's append-only /workspace/persona/judgment_log.md), independent
  * of the active program. Programs do NOT declare this slot.
  *
  * Compact: the few most-recent Reviewer decisions (approve / reject /
@@ -26,7 +26,7 @@ import {
   type ReviewerDecision,
 } from '@/lib/content-shapes/decisions';
 
-const DECISIONS_PATH = '/workspace/review/decisions.md';
+const DECISIONS_PATH = '/workspace/persona/judgment_log.md';
 const COMPACT_LIMIT = 5;
 
 function VerdictIcon({ decision }: { decision: ReviewerDecision['decision'] }) {

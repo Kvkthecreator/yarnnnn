@@ -6,7 +6,7 @@
  *
  * Per ADR-261 D1's "one execution shape" + ADR-262 D1's slug-templated
  * convention, every recurrence's substrate lives at the canonical path
- * `/workspace/reports/{slug}/{date}/output.md` (and `output.html` when
+ * `/workspace/operation/reports/{slug}/{date}/output.md` (and `output.html` when
  * Compose has run). DeliverableMiddle is the universal viewer: it reads
  * the dated outputs, renders the latest, and degrades gracefully ("No
  * past outputs yet") for reactive recurrences that haven't fired yet.
@@ -25,7 +25,7 @@
  * section provenance strip above the output. Each pill = one declared section,
  * color-coded by freshness. YARNNN can target individual sections via the
  * recurrence's natural-home feedback substrate:
- *   WriteFile(scope="workspace", path="reports/<slug>/feedback.md",
+ *   WriteFile(scope="workspace", path="operation/reports/<slug>/feedback.md",
  *             content="## Steering for section <section-slug>\n- ...",
  *             mode="append")  per ADR-235 D1.b
  */

@@ -128,7 +128,7 @@ export function ReviewerCard({ data, content, personaName, confidence, directive
           retargeted to the working substrate read 2026-05-11. */}
       {proposalId && isProposalVerdict && (
         <Link
-          href={`/files?path=${encodeURIComponent('/workspace/review/decisions.md')}`}
+          href={`/files?path=${encodeURIComponent('/workspace/persona/judgment_log.md')}`}
           className="text-[10px] text-muted-foreground/40 hover:text-foreground transition-colors mt-1 block"
         >
           Audit trail →

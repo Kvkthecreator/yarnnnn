@@ -12,7 +12,7 @@
  * what's in play. This is a labeled list: each piece is a row with its
  * state, newest first.
  *
- * Substrate (unchanged): walk /workspace/context/authored/ for piece
+ * Substrate (unchanged): walk /workspace/operation/authored/ for piece
  * folders, peek profile.md for draft/published state.
  */
 
@@ -23,7 +23,7 @@ import { api } from '@/lib/api/client';
 import { useHome } from '../../HomeContext';
 import type { WorkspaceTreeNode } from '@/types';
 
-const AUTHORED_ROOT = '/workspace/context/authored';
+const AUTHORED_ROOT = '/workspace/operation/authored';
 
 interface Piece {
   slug: string;

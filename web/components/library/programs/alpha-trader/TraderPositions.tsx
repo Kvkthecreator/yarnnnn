@@ -11,7 +11,7 @@
  * Live data: `api.programs.alphaTrader.positions()` → /api/programs/alpha-trader/positions
  *            → Alpaca /v2/positions for the operator's account
  *
- * Substrate: `api.programs.alphaTrader.indicators({ticker})` → /workspace/context/trading/{TICKER}.yaml
+ * Substrate: `api.programs.alphaTrader.indicators({ticker})` → /workspace/operation/trading/{TICKER}.yaml
  *            → SMA/RSI/ATR/volume from the TrackUniverse mechanical mirror
  *
  * Per-row enrichment:

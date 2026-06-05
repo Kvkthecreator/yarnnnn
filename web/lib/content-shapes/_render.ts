@@ -40,7 +40,7 @@ export function stripInlineMarkdown(s: string): string {
  *
  *  Examples:
  *    "rules in `/workspace/...risk.md`" → "rules in (workspace file)"
- *    "see /workspace/context/_shared/MANDATE.md for"
+ *    "see /workspace/constitution/MANDATE.md for"
  *      → "see (workspace file) for"
  *
  *  Backtick-wrapped paths are caught here too; the backticks themselves

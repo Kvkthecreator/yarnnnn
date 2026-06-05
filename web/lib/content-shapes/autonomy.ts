@@ -1,5 +1,5 @@
 /**
- * Autonomy content shape — `/workspace/context/_shared/_autonomy.yaml`.
+ * Autonomy content shape — `/workspace/governance/_autonomy.yaml`.
  *
  * ADR-254 (file format discipline): machine-parsed delegation config moved
  * from AUTONOMY.md frontmatter → _autonomy.yaml. AUTONOMY.md is now
@@ -41,12 +41,12 @@ export const META: ContentShapeMeta = {
 
 /**
  * Machine-parsed delegation config (ADR-254). Mirrors Python constant
- * SHARED_AUTONOMY_YAML_PATH = "context/_shared/_autonomy.yaml".
+ * SHARED_AUTONOMY_YAML_PATH = "governance/_autonomy.yaml".
  * AUTONOMY_PATH kept as alias pointing to prose doc for link-outs only.
  */
-export const AUTONOMY_YAML_PATH = '/workspace/context/_shared/_autonomy.yaml';
+export const AUTONOMY_YAML_PATH = '/workspace/governance/_autonomy.yaml';
 /** Prose documentation — human/LLM reading only. Not machine-parsed. */
-export const AUTONOMY_PATH = '/workspace/context/_shared/AUTONOMY.md';
+export const AUTONOMY_PATH = '/workspace/governance/AUTONOMY.md';
 
 // ---------------------------------------------------------------------------
 // Types — match ADR-261 D5 / Commit F (2026-05-11) canonical schema
@@ -410,7 +410,7 @@ export function useAutonomy(opts?: { initialContent?: string | null }): UseAuton
     // The duplicate write path that bypassed the guard was retired
     // 2026-05-11 (post-FOUNDATIONS-v8.4 audit pass).
     const { writeShape } = await import('./write');
-    await writeShape('autonomy', 'context/_shared/_autonomy.yaml', content, {
+    await writeShape('autonomy', 'governance/_autonomy.yaml', content, {
       message: `autonomy delegation → ${delegation}`,
     });
   };
@@ -426,7 +426,7 @@ export function useAutonomy(opts?: { initialContent?: string | null }): UseAuton
     const content = serialize(next, rawBody, tierBlock);
     setMeta(next);
     const { writeShape } = await import('./write');
-    await writeShape('autonomy', 'context/_shared/_autonomy.yaml', content, {
+    await writeShape('autonomy', 'governance/_autonomy.yaml', content, {
       message: `autonomy paused until ${ts}: ${reason || 'operator-initiated'}`,
     });
   };
@@ -438,7 +438,7 @@ export function useAutonomy(opts?: { initialContent?: string | null }): UseAuton
     const content = serialize(next, rawBody, tierBlock);
     setMeta(next);
     const { writeShape } = await import('./write');
-    await writeShape('autonomy', 'context/_shared/_autonomy.yaml', content, {
+    await writeShape('autonomy', 'governance/_autonomy.yaml', content, {
       message: 'autonomy pause lifted by operator',
     });
   };

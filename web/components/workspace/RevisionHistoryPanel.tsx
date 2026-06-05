@@ -48,7 +48,7 @@ interface RevisionSummary {
 }
 
 interface RevisionHistoryPanelProps {
-  /** Absolute workspace path (e.g., /workspace/context/_shared/MANDATE.md). */
+  /** Absolute workspace path (e.g., /workspace/constitution/MANDATE.md). */
   path: string;
   /** Optional CSS class for outer container. */
   className?: string;

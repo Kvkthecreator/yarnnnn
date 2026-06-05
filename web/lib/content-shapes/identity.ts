@@ -1,5 +1,5 @@
 /**
- * Identity content shape — `/workspace/context/_shared/IDENTITY.md`.
+ * Identity content shape — `/workspace/persona/IDENTITY.md`.
  *
  * Extracts the first substantive paragraph for display. Full prose
  * is operator-authored; no structured schema exists. The parser

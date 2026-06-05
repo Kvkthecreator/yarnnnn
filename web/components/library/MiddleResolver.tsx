@@ -6,7 +6,7 @@
  * Phase I (post-merge sweep, 2026-05-10): output_kind dispatch DELETED
  * per ADR-261 D1's "one execution shape" principle and ADR-262 §6.1
  * resolution. Every recurrence's substrate lives at the slug-templated
- * path `/workspace/reports/{slug}/{date}/output.md` (per CONVENTIONS
+ * path `/workspace/operation/reports/{slug}/{date}/output.md` (per CONVENTIONS
  * topology); `DeliverableMiddle` is the universal viewer that reads
  * those dated outputs and degrades gracefully ("No past outputs yet")
  * for reactive recurrences and recurrences that haven't fired yet.
@@ -66,7 +66,7 @@ export function MiddleResolver({ task, refreshKey }: MiddleResolverProps) {
 
   // Universal fallback: every recurrence renders as a deliverable view.
   // Per ADR-261 D1 + ADR-262 D1: one substrate convention
-  // (/workspace/reports/{slug}/{date}/output.md), one viewer.
+  // (/workspace/operation/reports/{slug}/{date}/output.md), one viewer.
   const taskDetail = task as RecurrenceDetail;
   return (
     <DeliverableMiddle

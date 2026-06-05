@@ -22,14 +22,14 @@
  *               + _risk.md + Reviewer principles.md. The Intent layer (ADR-206).
  *   Context   — accumulated domain knowledge (/workspace/context/{domain}/).
  *   Reports   — rendered deliverables from DELIVERABLE-shape recurrences
- *               (/workspace/reports/{slug}/{date}/output.md per ADR-231 D2).
+ *               (/workspace/operation/reports/{slug}/{date}/output.md per ADR-231 D2).
  *               Was /tasks/{slug}/outputs/latest/ pre-cutover; the substrate
  *               moved to natural-home paths in ADR-231 Phase 3.7.
  *   Uploads   — user-contributed source material (/workspace/uploads/).
  *
  * Deep-link params:
  *   ?domain={key}  — navigate to a context domain folder
- *   ?path={path}   — navigate to any workspace path (incl. /workspace/reports/{slug}/)
+ *   ?path={path}   — navigate to any workspace path (incl. /workspace/operation/reports/{slug}/)
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
@@ -124,7 +124,7 @@ function buildBreadcrumbs(root: TreeNode, targetPath: string): TreeNode[] {
 //   - /workspace/context/signals — temporal signals log, not substrate.
 //
 // VISIBLE (operator can see + ask YARNNN about):
-//   - Identity (authored shared substrate at /workspace/context/_shared/)
+//   - Identity (authored substrate at /workspace/constitution + governance + operation (ADR-320))
 //   - Context (accumulated domain knowledge, hiding `_`-prefixed files)
 //   - Reports (DELIVERABLE recurrences)
 //   - Uploads (operator-contributed)
@@ -167,7 +167,7 @@ function buildContextNodes(input: {
   const outputTasks = input.outputTasks ?? [];
   const outputChildren: TreeNode[] = outputTasks.map(task => ({
     name: task.title,
-    path: `/workspace/reports/${task.slug}`,
+    path: `/workspace/operation/reports/${task.slug}`,
     type: 'folder' as const,
     updated_at: task.last_run_at ?? undefined,
     summary: task.last_run_at ? `Latest output` : 'No output yet',
@@ -397,7 +397,7 @@ export default function ContextPage() {
       const domainTitles = Object.fromEntries(navDomains.map((domain: any) => [domain.key, domain.display_name]));
 
       // Phase I: per ADR-261 D1, every recurrence is report-shaped on disk
-      // (writes to /workspace/reports/{slug}/{date}/output.md). Show every
+      // (writes to /workspace/operation/reports/{slug}/{date}/output.md). Show every
       // operator-facing recurrence that has run at least once; back-office
       // recurrences (slug prefix `back-office-`) are not surfaced in the
       // context tree.
@@ -590,9 +590,9 @@ export default function ContextPage() {
             />
             <div className="flex-1 overflow-auto">
               {/* DELIVERABLE recurrence substrate roots render DeliverableMiddle
-                  (ADR-180 + ADR-231 D2). Path shape: /workspace/reports/{slug}. */}
+                  (ADR-180 + ADR-231 D2). Path shape: /workspace/operation/reports/{slug}. */}
               {/^\/workspace\/reports\/[^/]+\/?$/.test(selectedNode.path) ? (() => {
-                // path = /workspace/reports/{slug}  →  slug at index 3
+                // path = /workspace/operation/reports/{slug}  →  slug at index 3
                 const taskSlug = selectedNode.path.split('/')[3];
                 return <DeliverableMiddle taskSlug={taskSlug} refreshKey={0} />;
               })() : (

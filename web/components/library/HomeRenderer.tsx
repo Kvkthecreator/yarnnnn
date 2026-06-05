@@ -23,7 +23,7 @@
  *   #5 Recent artifacts    — KernelRecentArtifacts (kernel-universal).
  *                           Delivered outputs across the workspace.
  *   #6 Judgment trail      — KernelJudgmentTrail (kernel-universal). Recent
- *                           Reviewer decisions from review/decisions.md.
+ *                           Reviewer decisions from persona/judgment_log.md.
  *
  * ADR-312 D2 amendment (2026-06-04): slots #3/#5/#6 read kernel-universal
  * substrate (proposals, delivered outputs, decisions) and have no reason

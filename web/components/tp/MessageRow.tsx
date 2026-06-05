@@ -88,7 +88,7 @@ function extractWorkspacePaths(content: string | undefined): string[] {
 }
 
 function shortPathLabel(path: string): string {
-  // "/workspace/context/trading/_run_log.md" → "_run_log.md"
+  // "/workspace/operation/trading/_run_log.md" → "_run_log.md"
   return path.split('/').pop() ?? path;
 }
 

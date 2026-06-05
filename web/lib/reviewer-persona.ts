@@ -3,7 +3,7 @@
 /**
  * ADR-246: Reviewer persona name resolution.
  *
- * Reads /workspace/review/IDENTITY.md and extracts the operator-authored
+ * Reads /workspace/persona/IDENTITY.md and extracts the operator-authored
  * persona name so ReviewerCard can show "Simons approved" instead of
  * "AI Reviewer approved".
  *
@@ -25,7 +25,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api/client';
 
-const REVIEWER_IDENTITY_PATH = '/workspace/review/IDENTITY.md';
+const REVIEWER_IDENTITY_PATH = '/workspace/persona/IDENTITY.md';
 
 /** Markers that indicate a skeleton/template file with no real persona yet. */
 const SKELETON_MARKERS = ['_(empty', '(template)', '# Reviewer Identity — (template)'];

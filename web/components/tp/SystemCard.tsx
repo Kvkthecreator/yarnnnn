@@ -71,9 +71,9 @@ function WorkspaceInitCard({ data }: { data: WorkspaceInitCompleteData }) {
 function TaskCompleteCard({ data }: { data: TaskCompleteData }) {
   const title = data.task_title || data.task_slug || 'Task';
   // Link to the output file in the Files explorer (path-based, stays in context).
-  // ADR-231 D2 natural-home: reports live at /workspace/reports/{slug}/.
+  // ADR-231 D2 natural-home: reports live at /workspace/operation/reports/{slug}/.
   const outputPath = data.output_path
-    || (data.task_slug ? `/workspace/reports/${data.task_slug}` : null);
+    || (data.task_slug ? `/workspace/operation/reports/${data.task_slug}` : null);
   const href = outputPath
     ? `/files?path=${encodeURIComponent(outputPath)}`
     : '/files';

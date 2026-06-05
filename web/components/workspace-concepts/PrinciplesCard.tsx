@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * PrinciplesCard — L3 component for /workspace/review/principles.md.
+ * PrinciplesCard — L3 component for /workspace/persona/principles.md.
  *
  * Variants:
  *   full    — /workspace page (per-domain thresholds + reject conditions)
@@ -19,7 +19,7 @@ import { cleanProse } from '@/lib/content-shapes/_render';
 import type { WorkspaceRevisionSummary } from '@/types';
 import { RevisionFootnote } from './RevisionFootnote';
 
-const PRINCIPLES_YAML_PATH = '/workspace/review/_principles.yaml';
+const PRINCIPLES_YAML_PATH = '/workspace/persona/_principles.yaml';
 import { cn } from '@/lib/utils';
 
 export type PrinciplesVariant = 'full' | 'compact' | 'headline';
@@ -61,7 +61,7 @@ export function PrinciplesCard({
       try {
         // ADR-254: thresholds in _principles.yaml, reject conditions in principles.md
         const [proseR, yamlR] = await Promise.allSettled([
-          api.workspace.getFile('/workspace/review/principles.md'),
+          api.workspace.getFile('/workspace/persona/principles.md'),
           api.workspace.getFile(PRINCIPLES_YAML_PATH),
         ]);
         if (cancelled) return;

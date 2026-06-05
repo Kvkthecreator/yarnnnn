@@ -141,7 +141,7 @@ async function request<T>(
 }
 
 export const api = {
-  // ADR-108: User context entries (user-scoped, stored in /memory/notes.md)
+  // ADR-108: User context entries (user-scoped, stored in /system/notes.md)
   userMemories: {
     list: () => request<Array<{
       id: string;
@@ -507,7 +507,7 @@ export const api = {
       }>("/api/agents/reviewer/activity"),
 
     // 2026-05-14: Reviewer capability library — operator-facing view of
-    // /workspace/specs/. Each spec is a quality contract (schema, sections,
+    // /workspace/operation/specs/. Each spec is a quality contract (schema, sections,
     // anti-patterns) the Reviewer reads when producing recurring outputs.
     // The capability-library analog of Claude Code's skills.md.
     reviewerCapabilities: () =>

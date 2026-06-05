@@ -63,7 +63,7 @@ export default function SettingsPage() {
   const { clearMessages } = useNarrative();
   const tabParam = searchParams.get("tab");
   // ADR-215 R3 (2026-04-24): `memory` tab retired — identity/brand/profile
-  // are substrate, edited on Files (/files?path=/workspace/context/_shared/…).
+  // are substrate, edited on Files (/files?path=/workspace/constitution|governance|operation/… (ADR-320 roots)).
   // Legacy `?tab=memory` redirects to Files IDENTITY.md via effect below.
   const initialTab: SettingsTab =
     tabParam === "usage" ? "usage" :
@@ -796,8 +796,8 @@ export default function SettingsPage() {
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
                     <li>{dangerStats?.agent_runs} past invocation records</li>
-                    <li>All dated output folders under <code>/workspace/reports/&lt;slug&gt;/</code> (every past deliverable)</li>
-                    <li>Per-recurrence <code>_run_log.md</code> files under <code>/workspace/reports/</code> and <code>/workspace/operations/</code> (re-created on next run)</li>
+                    <li>All dated output folders under <code>/workspace/operation/reports/&lt;slug&gt;/</code> (every past deliverable)</li>
+                    <li>Per-recurrence <code>_run_log.md</code> files under <code>/workspace/operation/reports/</code> and <code>/workspace/operation/operations/</code> (re-created on next run)</li>
                   </ul>
                   <p className="mt-2 text-sm">
                     <strong>Preserved:</strong> all recurrence YAML declarations, all agents, identity/brand/mandate, accumulated context domains, chat sessions, platform connections, operator-authored feedback (<code>_feedback.md</code>) and intent (<code>_intent.md</code>) files. Your next scheduled invocation will populate fresh outputs.

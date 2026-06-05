@@ -1,5 +1,5 @@
 /**
- * Brand content shape — `/workspace/context/_shared/BRAND.md`.
+ * Brand content shape — `/workspace/operation/BRAND.md`.
  *
  * Extracts the first voice/tone rule for display.
  * WRITE_CONTRACT is `authored_prose` — Chat edits via InferContext.

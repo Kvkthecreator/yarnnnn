@@ -7,7 +7,7 @@
  * tells the operator what the tape is doing today. Single sentence,
  * high signal-to-pixel.
  *
- * Data: api.programs.alphaTrader.regime() → /workspace/context/trading/_regime.yaml
+ * Data: api.programs.alphaTrader.regime() → /workspace/operation/trading/_regime.yaml
  *       (written by the TrackRegime primitive per ADR-271 Thread A).
  *
  * The regime predicate has two axes:

@@ -26,8 +26,8 @@ import { Loader2, ShieldCheck, AlertTriangle, MessageSquare } from 'lucide-react
 import { api } from '@/lib/api/client';
 import { useHome } from '../../HomeContext';
 
-const VOICE_PATH = '/workspace/context/authored/_voice.md';
-const SIGNAL_PATH = '/workspace/context/authored/_signal.md';
+const VOICE_PATH = '/workspace/operation/authored/_voice.md';
+const SIGNAL_PATH = '/workspace/operation/authored/_signal.md';
 
 interface HeroState {
   voiceDeclared: boolean;

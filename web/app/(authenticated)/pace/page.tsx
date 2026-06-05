@@ -3,7 +3,7 @@
 /**
  * /pace — atomic Pace surface (ADR-300).
  *
- * Renders /workspace/context/_shared/_pace.yaml via the kernel-library
+ * Renders /workspace/governance/_pace.yaml via the kernel-library
  * PaceCard (full variant; self-fetches per ADR-266 D8). Pace is the
  * Trigger-dimension dial of the Pace + Delegation + Identity operator
  * trifecta (ADR-298 D11).

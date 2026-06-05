@@ -12,11 +12,11 @@
  * Three sections (top → bottom):
  *
  *   1. **Mandate** — what the operation is trying to do.
- *      MandateCard variant=compact. Reads /workspace/context/_shared/MANDATE.md.
+ *      MandateCard variant=compact. Reads /workspace/constitution/MANDATE.md.
  *
  *   2. **Rules** — how the system judges + how much it acts on its own.
  *      PrinciplesCard variant=compact + AutonomyCard variant=compact.
- *      Reads /workspace/review/principles.md + _autonomy.yaml.
+ *      Reads /workspace/persona/principles.md + _autonomy.yaml.
  *
  *   3. **Pulse** — one-line "is the system alive?" + "what demands my
  *      attention right now?" + deep-links to canonical surfaces for

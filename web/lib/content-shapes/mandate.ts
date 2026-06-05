@@ -1,5 +1,5 @@
 /**
- * Mandate content shape — `/workspace/context/_shared/MANDATE.md`.
+ * Mandate content shape — `/workspace/constitution/MANDATE.md`.
  *
  * Extracts operator-meaningful fields from the markdown structure:
  *   - primaryAction: the ## Primary Action section body (one-sentence goal)

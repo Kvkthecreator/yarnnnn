@@ -4,11 +4,11 @@
  * TraderSignals — alpha-trader program section (order: 6 post-ADR-273).
  *
  * Renders the trade signals the system has evaluated, with the Reviewer's
- * decision trail correlated from /workspace/review/decisions.md. Closes
+ * decision trail correlated from /workspace/persona/judgment_log.md. Closes
  * the gap between "signal evaluator fires a proposal" and "operator sees
  * what was evaluated and what the Reviewer said about it."
  *
- * Data: api.programs.alphaTrader.signals(limit=10) → /workspace/context/trading/signals/*.yaml
+ * Data: api.programs.alphaTrader.signals(limit=10) → /workspace/operation/trading/signals/*.yaml
  *       listed newest-first + best-effort reviewer-decision correlation.
  *
  * Each row shows: ticker · direction · expectancy · reviewer verdict

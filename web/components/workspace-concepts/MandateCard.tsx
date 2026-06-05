@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * MandateCard — L3 component for /workspace/context/_shared/MANDATE.md.
+ * MandateCard — L3 component for /workspace/constitution/MANDATE.md.
  *
  * Surface-agnostic. Renders parsed MandateData at three densities:
  *   full    — /workspace page
@@ -96,7 +96,7 @@ export function MandateCard({
     let cancelled = false;
     void (async () => {
       try {
-        const file = await api.workspace.getFile('/workspace/context/_shared/MANDATE.md');
+        const file = await api.workspace.getFile('/workspace/constitution/MANDATE.md');
         if (!cancelled) {
           setRawContent(file.content ?? '');
           setData(parse(file.content ?? ''));

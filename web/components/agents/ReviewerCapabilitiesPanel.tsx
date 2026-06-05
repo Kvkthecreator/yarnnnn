@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ReviewerCapabilitiesPanel — operator-facing view of /workspace/specs/.
+ * ReviewerCapabilitiesPanel — operator-facing view of /workspace/operation/specs/.
  *
  * Authored 2026-05-14. Surfaces the Reviewer's capability library as
  * first-class cockpit content. Each spec is a quality contract: schema,
@@ -12,7 +12,7 @@
  *   "What kinds of outputs can my Reviewer produce, and what does each
  *    one promise?"
  *
- * One card per spec file under /workspace/specs/*.md. Each card carries:
+ * One card per spec file under /workspace/operation/specs/*.md. Each card carries:
  *   - Title (extracted from the spec's # heading)
  *   - Short description (extracted from the spec's intro prose)
  *   - Sections (## headings, shown as chips)
@@ -26,7 +26,7 @@
  * ADR-245. The spec library is operator-owned; chat is the canonical
  * authoring path.
  *
- * Empty state when /workspace/specs/ is empty (newly-activated workspace
+ * Empty state when /workspace/operation/specs/ is empty (newly-activated workspace
  * with no specs forked yet) — points the operator at chat to start
  * authoring.
  */
@@ -92,7 +92,7 @@ export function ReviewerCapabilitiesPanel() {
           No capability specs declared yet
         </p>
         <p className="text-xs text-muted-foreground/70 text-center max-w-md mx-auto mb-4">
-          Capability specs live at <code className="text-[11px] bg-muted px-1 rounded">/workspace/specs/*.md</code>.
+          Capability specs live at <code className="text-[11px] bg-muted px-1 rounded">/workspace/operation/specs/*.md</code>.
           Each spec is a quality contract describing one kind of output your Reviewer
           can produce — schema, sections, anti-patterns. The Reviewer reads them when
           producing recurring work.

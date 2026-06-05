@@ -56,11 +56,11 @@ const FILE_LABELS: Record<keyof WorkspaceState['substrate_status'], string> = {
 // Files page deep-links — substrate authoring routes through chat per
 // ADR-244 D7, but Files is the right destination for raw markdown viewing.
 const FILE_PATHS: Record<keyof WorkspaceState['substrate_status'], string> = {
-  mandate: '/workspace/context/_shared/MANDATE.md',
-  identity: '/workspace/context/_shared/IDENTITY.md',
-  brand: '/workspace/context/_shared/BRAND.md',
-  autonomy: '/workspace/context/_shared/AUTONOMY.md',
-  principles: '/workspace/review/principles.md',
+  mandate: '/workspace/constitution/MANDATE.md',
+  identity: '/workspace/persona/IDENTITY.md',
+  brand: '/workspace/operation/BRAND.md',
+  autonomy: '/workspace/governance/AUTONOMY.md',
+  principles: '/workspace/persona/principles.md',
 };
 
 export function WorkspaceSection() {

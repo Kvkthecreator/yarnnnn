@@ -297,11 +297,11 @@ function summarizeRoleContract(agent: Agent, tasks: Recurrence[]) {
   })();
 
   // Phase I: per ADR-261/262, every recurrence's output substrate lives at
-  // /workspace/reports/{slug}/{date}/output.md. Per-class label fallbacks
+  // /workspace/operation/reports/{slug}/{date}/output.md. Per-class label fallbacks
   // remain to provide useful agent-card guidance when no recurrences are
   // assigned yet.
   const outputs = (() => {
-    if (liveTasks.length > 0) return 'Reports under /workspace/reports/{slug}/';
+    if (liveTasks.length > 0) return 'Reports under /workspace/operation/reports/{slug}/';
     if (cls === 'platform-bot') return 'Platform digest and action outputs';
     if (cls === 'synthesizer') return 'Cross-domain reports';
     return 'Domain tracking updates and briefs';
@@ -718,7 +718,7 @@ function AgentTabBar({
 // produce (Capabilities) → how much delegation (Autonomy) → what it did
 // (Activity).
 //
-// Capabilities tab added 2026-05-14: surfaces /workspace/specs/*.md as
+// Capabilities tab added 2026-05-14: surfaces /workspace/operation/specs/*.md as
 // first-class operator content (the Claude Code skills.md analog). Specs
 // were entirely backend-internal before — Reviewer read them; operator
 // had to manually browse /files to know they existed.
@@ -775,7 +775,7 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
           <div className="px-6 py-5">
             <SubstrateTab
               title="Identity"
-              path="/workspace/review/IDENTITY.md"
+              path="/workspace/persona/IDENTITY.md"
               tagline="The Reviewer's persona — who occupies the judgment seat. Operator-authored; shapes how verdicts are reasoned."
               editPrompt="I want to evolve my Reviewer's identity and persona. Walk me through the current declaration."
               emptyBody={

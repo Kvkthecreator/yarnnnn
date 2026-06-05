@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * PaceCard — L3 component for /workspace/context/_shared/_pace.yaml.
+ * PaceCard — L3 component for /workspace/governance/_pace.yaml.
  *
  * ADR-300 (2026-05-22): pace promoted to atomic kernel surface. PaceCard
  * mirrors AutonomyCard's shape — Direct mutation (setKind() writes the

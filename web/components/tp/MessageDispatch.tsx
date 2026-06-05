@@ -131,7 +131,7 @@ function renderAgentBubble({ msg }: RendererProps): JSX.Element {
  * Reviewer bubble — full-weight chat-participant shape per ADR-258 /
  * ADR-272. Reviewer is the only systemic judgment entity in the cockpit
  * post-ADR-272. Persona label resolved via useReviewerPersona() from
- * /workspace/review/IDENTITY.md.
+ * /workspace/persona/IDENTITY.md.
  */
 function ReviewerBubbleRenderer({ msg }: RendererProps): JSX.Element {
   const personaName = useReviewerPersona();

@@ -160,7 +160,7 @@ const ROLE_META: Record<CanonicalAgentRole, RoleMeta> = {
   // and has no cockpit display. The DB role enum 'thinking_partner' persists
   // as substrate (routes/feed.py uses it for the orchestration profile),
   // but the FE never sees a row with this role post-filter.
-  // ADR-214 + ADR-251: Reviewer as first-class surface. Substrate at /workspace/review/
+  // ADR-214 + ADR-251: Reviewer as first-class surface. Substrate at /workspace/persona/
   // per ADR-194 v2. Autonomy + Principles + heartbeat cadence housed here (ADR-251 D4).
   reviewer: {
     displayName: 'Reviewer',

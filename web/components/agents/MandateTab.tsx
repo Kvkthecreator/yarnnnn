@@ -3,7 +3,7 @@
 /**
  * MandateTab — YARNNN detail Mandate tab.
  *
- * Renders /workspace/context/_shared/MANDATE.md per ADR-207. The
+ * Renders /workspace/constitution/MANDATE.md per ADR-207. The
  * mandate is the operator's standing intent — Primary Action +
  * success criteria + boundary conditions. It's the substrate YARNNN
  * gates task creation on (per ADR-207 hard gate).
@@ -22,7 +22,7 @@ export function MandateTab() {
       title="Mandate"
       icon={Compass}
       tagline="Your Primary Action declaration — the external write you're moving value with, plus success criteria and guardrails. YARNNN gates task creation on this (ADR-207)."
-      path="/workspace/context/_shared/MANDATE.md"
+      path="/workspace/constitution/MANDATE.md"
       editPrompt="Help me revise my mandate. Show me the current Primary Action declaration and walk me through sharpening success criteria + boundary conditions."
       emptyBody={
         <>

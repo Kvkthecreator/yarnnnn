@@ -3,7 +3,7 @@
 /**
  * /principles — atomic Principles surface (ADR-297 D1).
  *
- * Renders /workspace/review/principles.md + /workspace/review/_principles.yaml
+ * Renders /workspace/persona/principles.md + /workspace/persona/_principles.yaml
  * via the kernel-library PrinciplesCard (full variant; self-fetches per
  * ADR-266 D8). Principles are the Reviewer's judgment framework.
  */

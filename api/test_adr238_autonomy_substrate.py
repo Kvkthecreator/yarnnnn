@@ -26,15 +26,12 @@ Or as a standalone script:
 from __future__ import annotations
 
 import os
-import re
 import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 WEB_LIB_AUTONOMY = REPO_ROOT / "web" / "lib" / "content-shapes" / "autonomy.ts"
-WEB_MANDATE_FACE = REPO_ROOT / "web" / "components" / "library" / "faces" / "MandateFace.tsx"
-WEB_CHAT_PANEL = REPO_ROOT / "web" / "components" / "tp" / "ChatPanel.tsx"
 API_WORKSPACE_INIT = REPO_ROOT / "api" / "services" / "workspace_init.py"
 API_WORKSPACE_PATHS = REPO_ROOT / "api" / "services" / "workspace_paths.py"
 
@@ -78,62 +75,9 @@ def test_lib_autonomy_module_exists_and_exports_required_surface():
     ), "autonomy shape module missing export: parseAutonomy (function or const alias)"
 
 
-def test_mandate_face_does_not_re_inline_parser():
-    """Assertion #2: regression guard — MandateFace.tsx no longer contains
-    the strings `function parseAutonomy(` or `function formatAutonomySummary(`.
-    A future drift that re-inlines the parser would fail this assertion."""
-    src = _read(WEB_MANDATE_FACE)
-    assert "function parseAutonomy(" not in src, (
-        "MandateFace.tsx re-inlined parseAutonomy — Singular Implementation "
-        "violation per ADR-238 D1/D3. Import from @/lib/content-shapes/autonomy instead."
-    )
-    assert "function formatAutonomySummary(" not in src, (
-        "MandateFace.tsx re-inlined formatAutonomySummary — Singular "
-        "Implementation violation per ADR-238 D1/D3. Import from "
-        "@/lib/content-shapes/autonomy instead."
-    )
-
-
-def test_mandate_face_imports_from_lib_autonomy():
-    """Assertion #3: MandateFace.tsx imports from @/lib/content-shapes/autonomy.
-
-    **Amended by ADR-245 Phase 4**: MandateFace replaced the static
-    `autonomyLine` text with the AutonomyToggle subcomponent (canonical
-    L3 for the autonomy shape per ADR-245 D4). The previously-required
-    `formatAutonomySummary` import was dropped because the toggle owns
-    its own rendering. The post-Phase-4 surface MandateFace consumes is
-    AUTONOMY_PATH + parseAutonomy + the new round-trip + serialize."""
-    src = _read(WEB_MANDATE_FACE)
-    assert "from '@/lib/content-shapes/autonomy'" in src, (
-        "MandateFace.tsx must import autonomy helpers from @/lib/content-shapes/autonomy "
-        "per ADR-238 D3."
-    )
-    # Verify the post-Phase-4 names MandateFace consumes.
-    for name in ("AUTONOMY_PATH", "parseAutonomy"):
-        pattern = re.compile(
-            rf"from\s+'@/lib/content-shapes/autonomy'|import\s*\{{[^}}]*\b{name}\b[^}}]*\}}",
-            re.DOTALL,
-        )
-        assert name in src and "@/lib/content-shapes/autonomy" in src, (
-            f"MandateFace.tsx must import `{name}` from @/lib/content-shapes/autonomy."
-        )
-
-
-def test_chat_panel_imports_use_autonomy():
-    """Assertion #4: ChatPanel.tsx imports useAutonomy from @/lib/content-shapes/autonomy
-    and renders the chip."""
-    src = _read(WEB_CHAT_PANEL)
-    assert "useAutonomy" in src, (
-        "ChatPanel.tsx must import useAutonomy from @/lib/content-shapes/autonomy "
-        "per ADR-238 D4."
-    )
-    assert "@/lib/content-shapes/autonomy" in src, (
-        "ChatPanel.tsx must import from @/lib/content-shapes/autonomy."
-    )
-    # The chip is gated on a non-manual effective level.
-    assert "showAutonomyChip" in src, (
-        "ChatPanel.tsx must compute showAutonomyChip per ADR-238 D4."
-    )
+# test_mandate_face_does_not_re_inline_parser — superseded: MandateFace.tsx deleted by ADR-228.
+# test_mandate_face_imports_from_lib_autonomy — superseded: MandateFace.tsx deleted by ADR-228.
+# test_chat_panel_imports_use_autonomy — superseded: ChatPanel.tsx deleted by ADR-259/ADR-312.
 
 
 def test_workspace_init_scaffolds_governance_substrate():
@@ -170,10 +114,7 @@ def test_workspace_paths_exposes_shared_autonomy_path():
 def _run_all() -> int:
     tests = [
         test_lib_autonomy_module_exists_and_exports_required_surface,
-        test_mandate_face_does_not_re_inline_parser,
-        test_mandate_face_imports_from_lib_autonomy,
-        test_chat_panel_imports_use_autonomy,
-        test_workspace_init_scaffolds_shared_autonomy_path,
+        test_workspace_init_scaffolds_governance_substrate,
         test_workspace_paths_exposes_shared_autonomy_path,
     ]
     failed = 0

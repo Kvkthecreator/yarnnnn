@@ -362,7 +362,7 @@ export interface Agent {
   description?: string;
   // SURFACE-ARCHITECTURE v3 + ADR-214: agent class + owned context domain
   // 'reviewer' added by ADR-214 — Reviewer is a synthesized systemic pseudo-agent
-  // (no DB row; substrate at /workspace/review/*.md per ADR-194 v2).
+  // (no DB row; substrate at /workspace/persona/*.md per ADR-194 v2).
   // ADR-272 (2026-05-14): 'meta-cognitive' removed — the orchestration LLM
   // identity (formerly "System Agent" cockpit entity) is filtered at
   // /api/agents and no longer surfaces to the FE.
