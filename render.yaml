@@ -11,6 +11,15 @@ services:
     buildCommand: pip install -r api/requirements.txt
     startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
     envVars:
+      # Memory discipline (2026-06-05): glibc malloc retains freed per-thread
+      # arenas under threaded request churn (httpx pools) and is slow to return
+      # them to the OS — the amplifier behind the 512 MiB OOM creep. Trim
+      # aggressively so freed memory is reclaimed, turning slow-climb-to-OOM into
+      # a stable sawtooth. Defense-in-depth atop the client-teardown fix in
+      # services/supabase.py + working_memory.py. See
+      # docs/infrastructure/memory-and-client-lifecycle.md.
+      - key: MALLOC_TRIM_THRESHOLD_
+        value: "100000"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY
@@ -69,6 +78,11 @@ crons:
     command: cd api && python -m jobs.unified_scheduler
     region: singapore
     envVars:
+      # Memory discipline (2026-06-05): glibc arena trim — same rationale as the
+      # API service. The scheduler churns Supabase clients per tick across the
+      # thread pool. See docs/infrastructure/memory-and-client-lifecycle.md.
+      - key: MALLOC_TRIM_THRESHOLD_
+        value: "100000"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY

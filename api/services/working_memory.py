@@ -35,8 +35,39 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 from supabase import create_client as _create_supabase_client
+from services.supabase import close_supabase_client
 
 logger = logging.getLogger(__name__)
+
+
+def _run_sync_with_client(fn, *args):
+    """Run a sync DB helper with a thread-local Supabase client, then close it.
+
+    Memory + thread-safety discipline (see
+    ``docs/infrastructure/memory-and-client-lifecycle.md``):
+
+    ``build_working_memory`` fans ~23 independent reads across the default
+    thread pool via ``asyncio.to_thread``. The sync supabase client wraps a
+    non-threadsafe httpx pool, so each parallel read needs its OWN client. The
+    leak we fixed: clients used to be built on the event-loop thread, handed
+    into the worker thread (a latent cross-thread bug), and never closed — 23
+    abandoned pools per request, the bulk of the 2026-06-04 OOM creep.
+
+    This wrapper constructs the client INSIDE the worker thread, runs
+    ``fn(*args, client)``, and closes BOTH httpx pools in ``finally`` before the
+    thread returns. The client never crosses threads and never leaks.
+
+    Call shape: ``asyncio.to_thread(_run_sync_with_client, _helper, user_id)``
+    — the client is appended as the last positional arg, matching every
+    ``_*_sync(user_id, …, client)`` signature.
+    """
+    url = os.environ.get("SUPABASE_URL", "")
+    key = os.environ.get("SUPABASE_SERVICE_KEY", "")
+    client = _create_supabase_client(url, key)
+    try:
+        return fn(*args, client)
+    finally:
+        close_supabase_client(client)
 
 # --- Configuration ---
 
@@ -72,25 +103,24 @@ async def build_working_memory(
         Designed to stay under ~2,000 tokens (+ ~500 for agent scope).
     """
     # Parallelize independent DB queries via thread pool.
-    # Each thread gets its own Supabase client to avoid httpx connection pool
-    # thread-safety issues (sync supabase client shares non-threadsafe httpx pool).
-    url = os.environ.get("SUPABASE_URL", "")
-    key = os.environ.get("SUPABASE_SERVICE_KEY", "")
-
-    def _make_client():
-        return _create_supabase_client(url, key)
-
+    # Each parallel read gets its OWN thread-local Supabase client — the sync
+    # supabase client wraps a non-threadsafe httpx pool, so concurrent reads
+    # cannot share one. _run_sync_with_client builds the client INSIDE the
+    # worker thread and closes BOTH httpx pools (postgrest + gotrue auth) in a
+    # finally before the thread returns — no cross-thread handoff, no leak.
+    # (Pre-fix this leaked ~23 abandoned clients per call — the bulk of the
+    # 2026-06-04 OOM creep. See docs/infrastructure/memory-and-client-lifecycle.md.)
     memory_files, agents, platforms, sessions, system_summary = await asyncio.gather(
-        asyncio.to_thread(_get_user_memory_files_sync, user_id, _make_client()),
-        asyncio.to_thread(_get_active_agents_sync, user_id, _make_client()),
-        asyncio.to_thread(_get_connected_platforms_sync, user_id, _make_client()),
-        asyncio.to_thread(_get_recent_sessions_sync, user_id, _make_client()),
-        asyncio.to_thread(_get_system_summary_sync, user_id, _make_client()),
+        asyncio.to_thread(_run_sync_with_client, _get_user_memory_files_sync, user_id),
+        asyncio.to_thread(_run_sync_with_client, _get_active_agents_sync, user_id),
+        asyncio.to_thread(_run_sync_with_client, _get_connected_platforms_sync, user_id),
+        asyncio.to_thread(_run_sync_with_client, _get_recent_sessions_sync, user_id),
+        asyncio.to_thread(_run_sync_with_client, _get_system_summary_sync, user_id),
     )
 
     # ADR-127: Check for global user_shared/ files
     user_shared_files = await asyncio.to_thread(
-        _get_user_shared_files_sync, user_id, _make_client()
+        _run_sync_with_client, _get_user_shared_files_sync, user_id
     )
 
     # ADR-143 + ADR-206: Read brand + orchestration playbook from workspace
@@ -100,43 +130,43 @@ async def build_working_memory(
     )
     brand_content = memory_files.get("BRAND.md", "")
     orchestration_playbook = await asyncio.to_thread(
-        _get_workspace_file_sync, user_id, MEMORY_PLAYBOOK_PATH, _make_client()
+        _run_sync_with_client, _get_workspace_file_sync, user_id, MEMORY_PLAYBOOK_PATH
     )
 
     # ADR-144 + ADR-206: Read identity + awareness + conversation summary + compute context readiness
     # ADR-226: also read MANDATE.md (used by activation-state detection — skeleton-or-empty
     # MANDATE.md combined with one-or-more-active-bundles signals post-fork-pre-author state).
     identity_content, awareness_content, conversation_summary, mandate_content, autonomy_content, principles_content = await asyncio.gather(
-        asyncio.to_thread(_get_workspace_file_sync, user_id, SHARED_IDENTITY_PATH, _make_client()),
-        asyncio.to_thread(_get_workspace_file_sync, user_id, MEMORY_AWARENESS_PATH, _make_client()),
-        asyncio.to_thread(_get_workspace_file_sync, user_id, "memory/conversation.md", _make_client()),
-        asyncio.to_thread(_get_workspace_file_sync, user_id, "context/_shared/MANDATE.md", _make_client()),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, SHARED_IDENTITY_PATH),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, MEMORY_AWARENESS_PATH),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "memory/conversation.md"),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "context/_shared/MANDATE.md"),
         # ADR-246 + ADR-254: reads _autonomy.yaml (machine-parsed, ADR-254) for
         # workspace_state autonomy signals. AUTONOMY.md is prose-only now.
         # principles.md remains prose (LLM reads it); _principles.yaml has thresholds.
-        asyncio.to_thread(_get_workspace_file_sync, user_id, "context/_shared/_autonomy.yaml", _make_client()),
-        asyncio.to_thread(_get_workspace_file_sync, user_id, "review/principles.md", _make_client()),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "context/_shared/_autonomy.yaml"),
+        asyncio.to_thread(_run_sync_with_client, _get_workspace_file_sync, user_id, "review/principles.md"),
     )
     task_count, doc_count, recent_uploads, recent_authorship, loop_events = await asyncio.gather(
-        asyncio.to_thread(_count_tasks_sync, user_id, _make_client()),
-        asyncio.to_thread(_count_documents_sync, user_id, _make_client()),
-        asyncio.to_thread(_get_recent_uploads_sync, user_id, _make_client()),
+        asyncio.to_thread(_run_sync_with_client, _count_tasks_sync, user_id),
+        asyncio.to_thread(_run_sync_with_client, _count_documents_sync, user_id),
+        asyncio.to_thread(_run_sync_with_client, _get_recent_uploads_sync, user_id),
         # ADR-209 Phase 3: recent substrate authorship aggregation
-        asyncio.to_thread(_get_recent_authorship_sync, user_id, _make_client()),
+        asyncio.to_thread(_run_sync_with_client, _get_recent_authorship_sync, user_id),
         # ADR-249 Layer 2: unacknowledged loop events since last user message.
         # Replaces the recent_md compact index pointer (which required a separate
         # ReadFile call). Direct events surfaced here; recent.md file preserved
         # as readable substrate for on-demand detail.
-        asyncio.to_thread(_get_unacknowledged_loop_events_sync, user_id, _make_client()),
+        asyncio.to_thread(_run_sync_with_client, _get_unacknowledged_loop_events_sync, user_id),
     )
 
     # ADR-151: Fetch active tasks + context domain health for TP meta-awareness
     # ADR-172: Balance replaces work_budget signal
     active_tasks, context_domains, balance_info, agent_health = await asyncio.gather(
-        asyncio.to_thread(_get_active_tasks_sync, user_id, _make_client()),
-        asyncio.to_thread(_get_context_domain_health_sync, user_id, _make_client()),
-        asyncio.to_thread(_get_balance_sync, user_id, _make_client()),
-        asyncio.to_thread(_get_agent_health_sync, user_id, _make_client()),
+        asyncio.to_thread(_run_sync_with_client, _get_active_tasks_sync, user_id),
+        asyncio.to_thread(_run_sync_with_client, _get_context_domain_health_sync, user_id),
+        asyncio.to_thread(_run_sync_with_client, _get_balance_sync, user_id),
+        asyncio.to_thread(_run_sync_with_client, _get_agent_health_sync, user_id),
     )
 
     # Compute stale tasks (hasn't run in 2x its schedule)
@@ -152,7 +182,7 @@ async def build_working_memory(
     # was deleted by the bare-kernel product-floor sweep, 2026-06-01 — the live
     # Reviewer/wake path never read this signal. The classifier survives as a
     # status signal, not a prompt-engagement trigger.)
-    activation_state = _classify_activation_state(user_id, mandate_content, _make_client)
+    activation_state = _classify_activation_state(user_id, mandate_content)
 
     working_memory = {
         "preferences": _extract_preferences_from_file(memory_files.get("style.md")),
@@ -292,7 +322,7 @@ def _count_stale_tasks(active_tasks: list[dict]) -> int:
 
 
 def _classify_activation_state(
-    user_id: str, mandate_content: Optional[str], make_client_fn
+    user_id: str, mandate_content: Optional[str]
 ) -> str:
     """ADR-226: classify the workspace's activation state for the YARNNN
     prompt overlay decision.
@@ -311,8 +341,13 @@ def _classify_activation_state(
     """
     try:
         from services.bundle_reader import bundles_active_for_workspace
-        client = make_client_fn()
-        bundles = bundles_active_for_workspace(user_id, client)
+        url = os.environ.get("SUPABASE_URL", "")
+        key = os.environ.get("SUPABASE_SERVICE_KEY", "")
+        client = _create_supabase_client(url, key)
+        try:
+            bundles = bundles_active_for_workspace(user_id, client)
+        finally:
+            close_supabase_client(client)
     except Exception:
         bundles = []
 

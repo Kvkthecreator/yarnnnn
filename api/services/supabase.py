@@ -61,6 +61,35 @@ class AuthenticatedClient:
     caller_identity: str = "operator"
 
 
+def close_supabase_client(client: Client) -> None:
+    """Release every httpx connection pool a ``create_client()`` opened.
+
+    A Supabase ``Client`` eagerly constructs TWO httpx pools — postgrest (lazy,
+    on first ``.table()``/``.rpc()``) and the gotrue auth client (eager, in
+    ``__init__``) — and exposes NO unified ``close()``. Each must be released
+    individually or the pools (TLS connections + buffers + HTTP/2 hpack state)
+    accumulate over the process lifetime. That accumulation OOM-killed
+    ``yarnnn-api`` on 2026-06-01 (postgrest leak, partially fixed) and again on
+    2026-06-04 (the auth pool was still leaking + ``build_working_memory``
+    leaked 23 clients/request). See
+    ``docs/infrastructure/memory-and-client-lifecycle.md``.
+
+    This is the Singular teardown — every per-request / per-thread ``create_client``
+    call site closes through here, never a hand-rolled ``.session.close()``.
+    Best-effort: a teardown error must never mask the response.
+    """
+    # postgrest pool — only built once a table/rpc call ran, so guard the lazy attr.
+    try:
+        client.postgrest.session.close()
+    except Exception:  # pragma: no cover - teardown best-effort
+        pass
+    # gotrue auth pool — built eagerly in Client.__init__, always present.
+    try:
+        client.auth._http_client.close()
+    except Exception:  # pragma: no cover - teardown best-effort
+        pass
+
+
 @lru_cache()
 def get_supabase_url() -> str:
     url = os.environ.get("SUPABASE_URL")
@@ -90,19 +119,20 @@ def get_user_client(
     Memory discipline: this dependency runs on every authenticated request,
     including the always-on frontend polls (``/api/workspace/nav``,
     ``/api/recurrences``, ``/api/pace`` every ~60s). Each ``create_client``
-    builds a ``postgrest`` client wrapping its own ``httpx.Client`` connection
-    pool. Without an explicit teardown these pools (TLS connections + buffers)
-    accumulate over the process lifetime — the slow RSS creep that OOM-killed
-    yarnnn-api on 2026-06-01 (~5 MB/hr until it crossed the 512 MB ceiling).
+    builds TWO ``httpx`` connection pools (postgrest + gotrue auth). Without an
+    explicit teardown these pools (TLS connections + buffers + HTTP/2 hpack
+    state) accumulate over the process lifetime — the RSS creep that OOM-killed
+    yarnnn-api on 2026-06-01 and again on 2026-06-04. See
+    ``docs/infrastructure/memory-and-client-lifecycle.md``.
 
     Two guards:
       1. ``auto_refresh_token=False`` + ``persist_session=False`` — we never run
          the sign-in flow here (the JWT is decoded locally and applied directly
          to postgrest), so the gotrue auto-refresh ``threading.Timer`` is pure
          overhead. Disabling it removes any chance of an orphaned refresh timer.
-      2. ``finally: client.postgrest.aclose()`` — releases the per-request
-         connection pool as soon as the request completes, instead of leaving it
-         for GC. This is the load-bearing fix.
+      2. ``finally: close_supabase_client(client)`` — releases BOTH per-request
+         pools (the 2026-06-01 fix closed only postgrest; the auth pool kept
+         leaking, which is why the OOM recurred). This is the load-bearing fix.
     """
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid Authorization header")
@@ -133,14 +163,8 @@ def get_user_client(
     try:
         yield AuthenticatedClient(client=client, user_id=user_id, email=email)
     finally:
-        # Release the request-scoped postgrest connection pool. SyncPostgrestClient
-        # exposes aclose() (async); the wrapped httpx.Client.close() is the sync
-        # release we actually need. Close defensively so a teardown error never
-        # masks the response.
-        try:
-            client.postgrest.session.close()
-        except Exception:  # pragma: no cover - teardown best-effort
-            pass
+        # Release BOTH request-scoped httpx pools (postgrest + gotrue auth).
+        close_supabase_client(client)
 
 
 # Type alias for dependency injection
