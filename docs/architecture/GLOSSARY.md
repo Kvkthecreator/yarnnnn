@@ -98,6 +98,21 @@ The substrate-pedagogy vocabulary canonized by [ADR-281](../adr/ADR-281-substrat
 
 ---
 
+## Workspace Permission Topology (ADR-320, FOUNDATIONS Derived Principle 25)
+
+The five-root workspace layout canonized by [ADR-320](../adr/ADR-320-constitution-region-topological-cut.md). Each top-level root is exactly one semantic class; the directory name IS the class; write-permission is derivable from `(caller_class, root)` alone (`access(2)` for the agent OS — Derived Principle 16). These supersede the pre-ADR-320 `context/_shared/` mixed bucket. Future ADRs cite these roots by name.
+
+| Term | Meaning | Note |
+|---|---|---|
+| **`governance/`** | The operator-only ceilings the seat runs under but cannot set: `AUTONOMY.md` + `_autonomy.yaml` (delegation ceiling), `_token_budget.yaml` (compute ceiling), `_pace.yaml` (trigger budget), `_preferences.yaml` (deliverable cadence). **Locked from every LLM writer** — operator-only. | The agent-OS analog of `/etc/security/limits.conf` + cgroup/ulimits: a process reads its limits, never raises them. The single load-bearing lock root — an agent cannot grant itself more authority or resources than the operator delegated. Replaces the flat `DEFAULT_REVIEWER_WRITE_LOCKS` enumeration. |
+| **`constitution/`** | Operator-authored intent the seat **amends** and **all agents read**: `MANDATE.md` (Primary Action), `IDENTITY.md` (operator identity), `PRECEDENT.md` (durable interpretations). | Analog of an app's own `~/.config/{app}/` it may rewrite ("Claude Code edits CLAUDE.md"). Survives occupant rotation (distinct from `persona/`). Required-non-empty (with `persona/`) for the workspace to dispatch work — the ADR-207 MANDATE hard-gate generalized to the region. |
+| **`persona/`** | The judgment seat itself — how it reasons + its own trail; occupant-agnostic. `IDENTITY.md` (persona), `principles.md` (+`_principles.yaml`), `judgment_log.md`, `OCCUPANT.md`, `handoffs.md`, `calibration.md`, `standing_intent.md`. Replaces `review/`. | The seat's own substrate (the seat = `persona/`, per [reviewer-seat-substrate.md](reviewer-seat-substrate.md)). Seat-written except `calibration.md` (the one cross-class write — reconciler `system:outcome-reconciliation`, scoped to that writer's identity, not a prefix hole). Occupant-agnostic per Derived Principle 14. |
+| **`operation/`** | The work the agent operates on / produces; many writers: `BRAND.md`, `CONVENTIONS.md`, `_voice.md`-class style files (D8), `specs/`, `reports/`, `operations/`, and `{domain}/` accumulated context (`_money_truth.md`, `_operator_profile.md`, `_risk.md`, etc.). | Analog of `~/Documents/` + project working dirs — the commons. The only root the foreign MCP caller may write. Empty `operation/` is legal + meaningful: it signals "agent authored, no operation attached" (the bare-workspace two-halves state). The rule-*about* a `_voice.md` lives once in `persona/principles.md`; the voice content lives once here — no dual mention (D8). |
+| **`system/`** | Orchestration runtime accumulation; not Identity-bearing (Axiom 2): `awareness.md`, `_playbook.md`, `notes.md`, `_schedule_index.md`, `_recent_execution.md`. Replaces `memory/`. | Analog of `/var/lib/{service}` + `/tmp` — OS-managed state. `system:*`-written; locked from the seat (YARNNN's, not the seat's). |
+| **`_is_path_locked(caller_class, path)`** | The single write-gate: `access(2)` for the agent OS. Per-caller prefix policy over the five roots — reviewer locked-from `{governance/, system/}`; foreign MCP locked-from `{governance/, constitution/, persona/, system/}` (writes only `operation/`); domain agent locked-from same + non-own `operation/{domain}/`. No filename appears in the logic. | Collapses the pre-ADR-320 two divergent functions (`_is_path_locked_for_reviewer` flat-list + `_is_path_locked_for_mcp` prefix) into one. Singular implementation. |
+
+---
+
 ## The Six Dimensions (FOUNDATIONS Axiom 0)
 
 Every mechanic in YARNNN occupies a cell in six orthogonal dimensions. These are the axiomatic vocabulary that governs every other term in this glossary. Each dimension answers one interrogative:

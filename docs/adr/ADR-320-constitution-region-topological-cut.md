@@ -1,6 +1,6 @@
 # ADR-320 — Workspace Permission Topology: Five Roots, One Gate, `access(2)` for the Agent OS
 
-> **Status**: DRAFT (2026-06-05). Decisions D1–D9 RESOLVED below; phased implementation NOT started. Awaiting operator ratification before P1.
+> **Status**: ACCEPTED (2026-06-05). Decisions D1–D9 RESOLVED. Ratified by KVK. Canon-first phase (P1: FOUNDATIONS DP25 + Axiom 1 subsection + v9.0 + THESIS two-poles sharpening + GLOSSARY five-region vocabulary) landing alongside this status flip. P2–P5 (code + bundles + eval suite + live migration) in progress.
 > **Date**: 2026-06-05
 > **Authors**: KVK, Claude
 > **Upstream discourse**: [personified-judgment-seat-vs-task-harness-2026-06-05.md](../analysis/personified-judgment-seat-vs-task-harness-2026-06-05.md) (the commissioned-tool vs delegated-agent axis) + [personified-seat-canon-sketches-2026-06-05.md](../analysis/personified-seat-canon-sketches-2026-06-05.md) (the canon amendments this enables).
@@ -132,6 +132,13 @@ The five-root split is **more OS-faithful than the status quo** (which co-locate
 ---
 
 ## Scope / blast radius (this is a MAJOR ADR — ADR-217/ADR-231 class)
+
+> **Scope amendment (2026-06-05, post-ratification impact scan).** An exhaustive codebase sweep (Explore agent, 400+ references mapped) surfaced two categories the original 9-point estimate underweighted, now folded in as points 10–11:
+> - **Point 10 — Frontend is a first-class path consumer (~40 hardcoded refs).** `web/lib/content-shapes/{autonomy,pace}.ts` *write* to `_autonomy.yaml`/`_pace.yaml` via `writeShape`; `web/lib/reviewer-persona.ts` reads `review/IDENTITY.md`; `web/components/settings/WorkspaceSection.tsx` holds a hardcoded path-map; route pages (`mandate/`, `identity/`, `autonomy/`, `principles/`, `pace/`, `files/`, `settings/`) + components (`ContentViewer`, `HomeHeader`, `KernelJudgmentTrail`, `PrinciplesCard`, `AuthorHero`) reference old paths. The FE must migrate in lockstep (CLAUDE.md §5 render-parity discipline) or the cockpit reads moved files and silently renders empty.
+> - **Point 11 — Duplicate-constant collapse (`conventions.py:222-224`).** `REVIEW_IDENTITY_PATH` / `REVIEW_PRINCIPLES_PROSE_PATH` / `REVIEW_PRINCIPLES_YAML_PATH` are *redefined* in `conventions.py` with `/workspace/`-absolute values — a second source of truth that violates singular-implementation. P2 collapses these into the single `workspace_paths.py` source (re-export, not redefine). Also: `alpha_trader.py`, `daily_pnl_email.py`, `risk_gate.py`, `workspace_guide.py` hold module-local hardcoded path constants (`_REGIME_PATH`, `MONEY_TRUTH_PATH`, `RISK_MD_PATH`, etc.) that must import from the source.
+>
+> **Immutable-history note**: applied SQL migrations (156, etc.) contain hardcoded old paths — these are NOT edited (migration history is immutable). Live data they wrote is moved by the P3 runtime migration script, not by editing migrations.
+
 
 1. **`workspace_paths.py`** — all `SHARED_*` / `MEMORY_*` / `REVIEW_*` / `SPECS_*` constants re-rooted to the five roots. `DEFAULT_REVIEWER_WRITE_LOCKS` + `DEFAULT_MCP_WRITE_LOCK_PREFIXES` → one `CALLER_WRITE_POLICY` table.
 2. **The gate** (`primitives/workspace.py`) — `_is_path_locked_for_reviewer` + `_is_path_locked_for_mcp` → one `_is_path_locked(caller_class, path)`. (Singular implementation: two functions deleted, one created.)
