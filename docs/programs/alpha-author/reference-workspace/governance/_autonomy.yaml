@@ -1,0 +1,42 @@
+---
+tier: canon
+note: "Machine-parsed delegation declaration (ADR-254). Forked to /workspace/governance/_autonomy.yaml at activation. See AUTONOMY.md for documentation."
+---
+# _autonomy.yaml — delegation ceiling (ADR-254)
+# Machine-parsed by review_policy.load_autonomy() and working_memory.
+# See AUTONOMY.md for documentation on what these fields mean.
+# Edit this file to tune your delegation ceilings.
+#
+# ADR-312 D7 (program-declared autonomy default): the bundle ships the
+# autonomy default appropriate to the operation; the kernel does not pick a
+# global default (per ADR-286 Single-Writer Per Path, only the bundle fork
+# writes this file). alpha-author is a relationship/high-touch operation —
+# you cannot un-ship a published piece — so it defaults `manual` (every ship
+# queues for operator click). (Capital/rule-bound operations like
+# alpha-trader default toward autonomous.) The operator extends category-by-
+# category from here; the DEFAULT_REVIEWER_WRITE_LOCKS self-authority floor
+# is unchanged — autonomy stays operator-owned.
+
+default:
+  # Phase 0 bundle default per AUTONOMY.md: every ship action queues for
+  # operator click. Reviewer's approve verdict on pre-ship audits is
+  # visible but advisory. Operator builds confidence in Reviewer's
+  # voice-audit + continuity-audit + anti-slop reasoning before flipping
+  # any category to bounded auto-ship.
+  delegation: manual
+  # Empty at activation; operator extends category-by-category during
+  # Phase 1 once a category's calibration data shows zero false-positive
+  # auto-ships. Per AUTONOMY.md Phase progression: newsletter weekly
+  # edition is a low-risk first candidate; essays + long-arc-scenes stay
+  # manual indefinitely.
+  ceiling_categories: []
+  # Hard safety list — piece types that ALWAYS route to Queue regardless
+  # of level. Empty at activation; operator may add types they want never
+  # to auto-ship (e.g., long-arc-scene, retraction).
+  never_auto: []
+
+# NOTE: heartbeat_triggers field deleted by ADR-260 D4 + ADR-263.
+# Rationale: cron is part of the environment that fires recurrences; the
+# recurrence's own `mode` field (judgment | mechanical) per ADR-263 declares
+# whether a fire wakes the Reviewer. There is no separate registry coupling
+# substrate-change events to Reviewer wakes.

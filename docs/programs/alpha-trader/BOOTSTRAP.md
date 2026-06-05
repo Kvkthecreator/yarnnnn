@@ -58,7 +58,7 @@ Stage 3 — Live autonomous       (auto-execution within new ceiling)
 **What happens on the backend during activation** (per [WORKSPACE.md §2 Phase 5](../../architecture/WORKSPACE.md#phase-5--reference-workspace-fork-optional)):
 
 1. `POST /api/programs/activate` runs.
-2. `services.programs.fork_reference_workspace()` walks the bundle's `reference-workspace/` directory and writes ~14 files (5 _shared/, 2 trading/, 6 review/, 5 specs/, 1 root _recurrences.yaml). The kernel-seeded files that pre-existed (AUTONOMY.md, _autonomy.yaml, review/IDENTITY.md, review/_principles.yaml) are skipped — already at canon state.
+2. `services.programs.fork_reference_workspace()` walks the bundle's `reference-workspace/` directory and writes ~14 files (5 _shared/, 2 trading/, 6 review/, 5 specs/, 1 root _recurrences.yaml). The kernel-seeded files that pre-existed (AUTONOMY.md, _autonomy.yaml, persona/IDENTITY.md, persona/_principles.yaml) are skipped — already at canon state.
 3. Bundle files arrive on disk:
    - `tier: canon` files copied verbatim (alpha-trader: `_autonomy.yaml` with `delegation: bounded`, `ceiling_cents: 20000`)
    - `tier: authored` files copied (alpha-trader: `_universe.yaml`, `_principles.yaml`) — operator may overwrite
@@ -122,7 +122,7 @@ default:
 | 8:00am ET (daily) | `track-universe` (judgment) | Per-ticker snapshots regenerate against the universe in `_universe.yaml`. Visible in narrative. |
 | 8:05am ET (daily) | `signal-evaluation` (judgment) | Reviewer evaluates all 5 signals. If entry/exit conditions match for any signal, fires `trade-proposal`. |
 | Reactive | `trade-proposal` (judgment) | Reviewer emits ProposeAction with sizing math; lands in operator-approval queue. |
-| 8:15am ET (daily) | `pre-market-brief` (judgment) | Daily report: signal state, exposure, decay flags, regime. Composed HTML in `/workspace/reports/pre-market-brief/{date}/`. |
+| 8:15am ET (daily) | `pre-market-brief` (judgment) | Daily report: signal state, exposure, decay flags, regime. Composed HTML in `/workspace/operation/reports/pre-market-brief/{date}/`. |
 | 6:00am ET (daily) | `morning-calibration` (judgment) | Reviewer compares realized vs declared expectancy; flags divergence in `decisions.md`. |
 | 7:00am ET (daily) | `morning-reflection` (judgment) | Reviewer reflects on prior verdicts; may propose principle edits. |
 | 5:00am ET (daily) | `outcome-reconciliation` (judgment) | Reconciles fills against proposal projections; updates `_money_truth.md` rolling windows. |
@@ -130,7 +130,7 @@ default:
 
 **What you should track during Phase 0:**
 
-1. **Reviewer verdict quality.** Read `/workspace/review/judgment_log.md` regularly. Are the approve verdicts ones you would have approved? Are the reject verdicts catching real risk?
+1. **Reviewer verdict quality.** Read `/workspace/persona/judgment_log.md` regularly. Are the approve verdicts ones you would have approved? Are the reject verdicts catching real risk?
 2. **Signal expectancy stability.** Watch `weekly-performance-review`. Are signals tracking their declared baselines?
 3. **Calibration trajectory.** Watch `morning-calibration`. Is realized P&L close to declared expectancy?
 
@@ -142,11 +142,11 @@ default:
 
 | File | What to tune | Why |
 |---|---|---|
-| `/workspace/context/_shared/IDENTITY.md` | Author your operator persona (2–3 sentences on decision posture + risk relationship) | Reviewer reads it for judgment voice; empty defaults to neutral baseline. Non-blocking but improves verdict quality. |
-| `/workspace/context/trading/_risk.md` | Adjust portfolio limits if your seed capital differs from $25k | Shipped at $25k seed / 1.5% daily VAR / 5% weekly drawdown. If you have $100k, scale up. |
-| `/workspace/context/trading/_universe.yaml` | Edit the ticker list | Shipped with AAPL, MSFT, NVDA, SPY, TSLA. Add/remove per your actual interest. |
-| `/workspace/review/IDENTITY.md` | Customize Reviewer persona if not Simons-style | Shipped Simons-style. Swap to Buffett, Deming, or operator-original if your judgment character differs. |
-| `/workspace/review/principles.md` | Tune hard rejection rules if your edge differs | Shipped with 5 rules + hard exit triggers. Most operators leave defaults. |
+| `/workspace/persona/IDENTITY.md` | Author your operator persona (2–3 sentences on decision posture + risk relationship) | Reviewer reads it for judgment voice; empty defaults to neutral baseline. Non-blocking but improves verdict quality. |
+| `/workspace/operation/trading/_risk.md` | Adjust portfolio limits if your seed capital differs from $25k | Shipped at $25k seed / 1.5% daily VAR / 5% weekly drawdown. If you have $100k, scale up. |
+| `/workspace/operation/trading/_universe.yaml` | Edit the ticker list | Shipped with AAPL, MSFT, NVDA, SPY, TSLA. Add/remove per your actual interest. |
+| `/workspace/persona/IDENTITY.md` | Customize Reviewer persona if not Simons-style | Shipped Simons-style. Swap to Buffett, Deming, or operator-original if your judgment character differs. |
+| `/workspace/persona/principles.md` | Tune hard rejection rules if your edge differs | Shipped with 5 rules + hard exit triggers. Most operators leave defaults. |
 
 None of these tunes are blocking. They make the system more accurate to your specifics.
 
@@ -164,7 +164,7 @@ None of these tunes are blocking. They make the system more accurate to your spe
 
 **Make one edit.** Raise `_autonomy.yaml` `ceiling_cents` to the notional that lets entry-sized trades auto-execute.
 
-Open `/workspace/context/_shared/_autonomy.yaml` in the Files surface (or via chat):
+Open `/workspace/governance/_autonomy.yaml` in the Files surface (or via chat):
 
 ```yaml
 default:
@@ -203,7 +203,7 @@ default:
    - `proposal.estimated_cents` ($12,500 for typical entry) < `ceiling_cents` ($15,000) ✓
    - Action type not in `never_auto` ✓
 6. **Executes**: `handle_execute_proposal` fires the platform tool (Alpaca order submission).
-7. Audit: `append_decision(decision="approve", reviewer_identity="ai:reviewer-{occupant}")` to `/workspace/review/judgment_log.md`.
+7. Audit: `append_decision(decision="approve", reviewer_identity="ai:reviewer-{occupant}")` to `/workspace/persona/judgment_log.md`.
 8. Next minute: `track-positions` mechanical recurrence mirrors the new position into substrate.
 9. Next 5am: `outcome-reconciliation` reconciles when the trade closes (stop / target / max-hold).
 10. Next 6am: `morning-calibration` compares realized vs declared expectancy.
@@ -235,12 +235,12 @@ default:
 - If `paused_until` is set in `_autonomy.yaml` with a future date, autonomy is in circuit-breaker mode.
 
 **"Reviewer keeps deferring instead of approving or rejecting."**
-- Check `/workspace/context/trading/_money_truth.md` — is it empty or stale? Reviewer defers when it has insufficient evidence.
+- Check `/workspace/operation/trading/_money_truth.md` — is it empty or stale? Reviewer defers when it has insufficient evidence.
 - Check the proposal's reasoning. If it doesn't name a signal from `_operator_profile.md`, Reviewer should reject (hard rule 2), not defer.
 - Inspect `decisions.md` for the deferral reasoning. The Reviewer narrates why.
 
 **"`_risk.md` ceiling check is failing."**
-- This shouldn't happen with the bundle as-shipped — `_risk.md` ships full. If you cleared it, restore from `docs/programs/alpha-trader/reference-workspace/context/trading/_risk.md` or re-fork the bundle.
+- This shouldn't happen with the bundle as-shipped — `_risk.md` ships full. If you cleared it, restore from `docs/programs/alpha-trader/reference-workspace/operation/trading/_risk.md` or re-fork the bundle.
 
 **"I want to start over."**
 - L2 reset: `DELETE /api/account/workspace` purges workspace, preserves user account. Workspace re-initializes on next `GET /api/workspace/state`. Re-activate the bundle from `/workspace?first_run=1`.

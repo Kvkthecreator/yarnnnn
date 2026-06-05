@@ -136,14 +136,17 @@ def test_chat_panel_imports_use_autonomy():
     )
 
 
-def test_workspace_init_scaffolds_shared_autonomy_path():
-    """Assertion #5: workspace_init.py continues to scaffold
-    GOVERNANCE_AUTONOMY_PATH at signup. Regression guard against a substrate
-    sunset that would orphan ADR-238."""
+def test_workspace_init_scaffolds_governance_substrate():
+    """Assertion #5 (amended ADR-286 + ADR-320): AUTONOMY.md is BUNDLE-owned
+    (forked via fork_reference_workspace per ADR-286 single-writer), not
+    kernel-scaffolded. The kernel-universal governance file workspace_init DOES
+    scaffold is the token-budget ceiling (GOVERNANCE_TOKEN_BUDGET_PATH). This
+    guards that the governance root stays wired into init."""
     src = _read(API_WORKSPACE_INIT)
-    assert "GOVERNANCE_AUTONOMY_PATH" in src, (
-        "workspace_init.py must reference GOVERNANCE_AUTONOMY_PATH to scaffold "
-        "the autonomy substrate per ADR-217 / ADR-238 R4."
+    assert "GOVERNANCE_TOKEN_BUDGET_PATH" in src, (
+        "workspace_init.py must reference GOVERNANCE_TOKEN_BUDGET_PATH — the "
+        "kernel-universal governance ceiling scaffolded at signup (ADR-293 D7). "
+        "AUTONOMY.md itself is bundle-forked per ADR-286 single-writer."
     )
 
 

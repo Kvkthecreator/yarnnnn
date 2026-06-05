@@ -4,7 +4,7 @@
 
 ## What's here
 
-- `context/_shared/` — workspace-level authored substrate operators populate (IDENTITY, BRAND, CONVENTIONS, MANDATE, AUTONOMY)
+- the constitution/ + governance/ + operation/ roots — workspace-level authored substrate operators populate (IDENTITY, BRAND, CONVENTIONS, MANDATE, AUTONOMY)
 - `review/` — Reviewer seat substrate (IDENTITY persona + principles framework)
 - `memory/` — YARNNN orchestration accumulation files (empty placeholders)
 

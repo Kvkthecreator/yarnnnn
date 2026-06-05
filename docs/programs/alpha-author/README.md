@@ -60,10 +60,10 @@ These are program-layer commitments — the OS hosts them but does not claim the
 | Surface | What it is | Hosting tab |
 |---|---|---|
 | **Author-aware Work list** | When alpha-author is the active program, `/work` list mode pins `pre-ship-audit` + `weekly-corpus-review` and surfaces a phase-aware banner | Work |
-| **Corpus dashboard** | Live read of `/workspace/context/authored/` — recent pieces, voice fingerprint state, continuity threads. Wired via four-face cockpit composition (see SURFACES.yaml) | Work cockpit |
+| **Corpus dashboard** | Live read of `/workspace/operation/authored/` — recent pieces, voice fingerprint state, continuity threads. Wired via four-face cockpit composition (see SURFACES.yaml) | Work cockpit |
 | **Voice-audit review queue** | Pre-ship audit proposals surfaced in Queue archetype with voice-drift detection + continuity-check + anti-slop scoring alongside approve/reject | Work task-detail (proposals also visible at `/agents?agent=reviewer`) |
 | **Cadence-health indicator** | Renders operator's declared cadence (from `_preferences.yaml`) against actual ship dates; surfaces "you said weekly, you haven't shipped in 12 days" | Work, surfaced on the AuthorPipeline cockpit face |
-| **Per-piece detail view** | Drill into `/workspace/context/authored/{piece-slug}/` — content, voice fingerprint match, continuity threads, revision lineage per ADR-209 | Work task-detail |
+| **Per-piece detail view** | Drill into `/workspace/operation/authored/{piece-slug}/` — content, voice fingerprint match, continuity threads, revision lineage per ADR-209 | Work task-detail |
 
 The OS provides the cockpit shell, narrative substrate, primitive surface. The program provides the author-shaped reads on top.
 
@@ -79,8 +79,8 @@ What the program brings to a workspace, beyond what the OS scaffolds at signup. 
 The bundle is **activatable today in knowledge-only mode** (uploads + websearch as workspace reads; operator-addressing writes via system infrastructure). Audience-bearing capabilities (publishing-platform writes) ship in step 2 and unlock the audience signal slice of `_signal.md`.
 
 ### Context domains
-- `/workspace/context/authored/` — per-piece entities (one folder per draft or published piece). Operator authors `_voice.md` (declared voice fingerprint + anti-patterns) and `_editorial.md` (what gets shipped, what doesn't). `_signal.md` accumulates corpus-coherence audit results.
-- `/workspace/context/audience/` — per-platform engagement state. Empty by default; populated only when audience-bearing capabilities are connected (LinkedIn, X, newsletter, commerce platforms).
+- `/workspace/operation/authored/` — per-piece entities (one folder per draft or published piece). Operator authors `_voice.md` (declared voice fingerprint + anti-patterns) and `_editorial.md` (what gets shipped, what doesn't). `_signal.md` accumulates corpus-coherence audit results.
+- `/workspace/operation/audience/` — per-platform engagement state. Empty by default; populated only when audience-bearing capabilities are connected (LinkedIn, X, newsletter, commerce platforms).
 
 ### Recurrence types
 Capability-shaped, not schedule-shaped (per ADR-283 D9). The bundle ships capability specs; workspace-level `_preferences.yaml` declares cadence:
@@ -95,10 +95,10 @@ Plus operator-declared deliverable cadence via `_preferences.yaml`:
 - `quarterly-voice-audit` (quarter-end) — quarterly check on voice fingerprint drift vs declared corpus baseline
 
 ### Agent roster (universal roles, contextual application)
-Standard YARNNN agents apply. The **Reviewer** is the load-bearing seat for alpha-author — see [reference-workspace/review/IDENTITY.md](reference-workspace/review/IDENTITY.md) for the editor-shaped default persona.
+Standard YARNNN agents apply. The **Reviewer** is the load-bearing seat for alpha-author — see [reference-workspace/persona/IDENTITY.md](reference-workspace/persona/IDENTITY.md) for the editor-shaped default persona.
 
 ### Principles content (program guidance, operator authors)
-Templates ship in [reference-workspace/review/principles.md](reference-workspace/review/principles.md). Defaults:
+Templates ship in [reference-workspace/persona/principles.md](reference-workspace/persona/principles.md). Defaults:
 
 - Voice fingerprint enforcement (drift detection against declared `_voice.md` baseline)
 - Continuity audit (every draft checked against prior published corpus for contradiction)

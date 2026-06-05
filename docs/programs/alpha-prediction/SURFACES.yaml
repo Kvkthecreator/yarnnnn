@@ -34,7 +34,7 @@ tabs:
         - match: { task_slug: resolution-reconcile }
           archetype: stream
           bindings:
-            settlements: /workspace/context/portfolio/_money_truth.md
+            settlements: /workspace/operation/portfolio/_money_truth.md
           components:
             - kind: ResolutionSettlementStream
               source: settlements
@@ -43,7 +43,7 @@ tabs:
     list:
       featured: [reviewer]
     reviewer:
-      principles_default: reference-workspace/review/principles.md
+      principles_default: reference-workspace/persona/principles.md
 
   context:
     list:

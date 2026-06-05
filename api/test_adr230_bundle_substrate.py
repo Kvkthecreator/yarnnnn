@@ -101,7 +101,7 @@ def test_bundle_carries_canonical_substrate():
             domain_path = domain.get("path")
             authored = domain.get("authored_substrate") or []
             for filename in authored:
-                ref_file = ref_root / "context" / domain_path / filename
+                ref_file = ref_root / "operation" / domain_path / filename
                 assert ref_file.exists(), (
                     f"program '{program_dir.name}' MANIFEST declares "
                     f"context_domains[{domain_path}].authored_substrate "
@@ -116,8 +116,8 @@ def test_alpha_trader_bundle_has_operator_profile_and_risk():
     """ADR-230 Commit 1 specifically shipped these two files. Pin them
     so a future regression that removes them surfaces here."""
     bundle = PROGRAMS_ROOT / "alpha-trader" / "reference-workspace"
-    op_profile = bundle / "context" / "trading" / "_operator_profile.md"
-    risk = bundle / "context" / "trading" / "_risk.md"
+    op_profile = bundle / "operation" / "trading" / "_operator_profile.md"
+    risk = bundle / "operation" / "trading" / "_risk.md"
     assert op_profile.exists(), (
         "alpha-trader bundle missing _operator_profile.md template. "
         "Was added in ADR-230 Commit 1; do not remove without superseding ADR-230."
@@ -196,6 +196,11 @@ def test_alpha_trader_recurrences_yaml_carries_default_recurrences():
     # deliverable production) is Reviewer-authored from _preferences.yaml.
     # This assertion pins the bundle-shipped set; deliverable cadence lives
     # in _preferences.yaml separately.
+    # Stale-test fix (2026-06-05, pre-existing rot surfaced during ADR-320 bundle
+    # re-root): `trade-proposal` was dissolved into `signal-evaluation` inline
+    # ProposeAction per ADR-296 v2 (CLAUDE.md wake-architecture note). The bundle
+    # ships signal-evaluation as the judgment-mode capital recurrence; there is no
+    # standalone trade-proposal slug. Assertions updated to current bundle reality.
     expected_subset = {
         "outcome-reconciliation",
         "signal-evaluation",
@@ -204,7 +209,6 @@ def test_alpha_trader_recurrences_yaml_carries_default_recurrences():
         "track-account",
         "track-orders",
         "track-positions",
-        "trade-proposal",
     }
     missing = expected_subset - slugs
     assert not missing, (
@@ -218,11 +222,9 @@ def test_alpha_trader_recurrences_yaml_carries_default_recurrences():
     assert by_slug["track-positions"]["mode"] == "mechanical", (
         "track-positions must be mechanical-mode per ADR-264 SyncPlatformState"
     )
-    assert by_slug["trade-proposal"]["mode"] == "judgment", (
-        "trade-proposal must be judgment-mode (Reviewer renders capital judgment)"
-    )
-    assert by_slug["trade-proposal"]["schedule"] is None, (
-        "trade-proposal is reactive — fires on FireInvocation, no schedule"
+    assert by_slug["signal-evaluation"]["mode"] == "judgment", (
+        "signal-evaluation must be judgment-mode (Reviewer renders capital judgment "
+        "via inline ProposeAction per ADR-296 v2)"
     )
 
 

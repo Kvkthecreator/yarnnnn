@@ -33,7 +33,7 @@ tabs:
         - match: { task_slug: gas-float-monitor }
           archetype: dashboard
           bindings:
-            gas_float: /workspace/context/portfolio/_gas_float.md
+            gas_float: /workspace/operation/portfolio/_gas_float.md
           components:
             - kind: GasFloatGauge
               source: gas_float
@@ -42,7 +42,7 @@ tabs:
     list:
       featured: [reviewer]
     reviewer:
-      principles_default: reference-workspace/review/principles.md
+      principles_default: reference-workspace/persona/principles.md
 
   context:
     list:

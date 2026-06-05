@@ -14,7 +14,7 @@
 # alpha-trader ships with no pre-declared hooks. The operator or Reviewer
 # may author hook entries via ManageHook as standing-intent authority
 # emerges (e.g., "wake me when a fresh fill lands in
-# /workspace/context/portfolio/positions/{ticker}.yaml that crosses my
+# /workspace/operation/portfolio/positions/{ticker}.yaml that crosses my
 # attention threshold").
 #
 # Hook schema:

@@ -32,7 +32,7 @@ These are program-layer commitments — the OS hosts them but does not claim the
 |---|---|---|
 | **Performance-aware Work list** | When alpha-trader is the active program, `/work` list mode pins `trading-signal` + `portfolio-review` and surfaces a phase-aware banner | Work |
 | **Backtest harness** | Substrate-replay primitive (OS-layer) + a trader-shaped consumer that re-runs strategies against past revisions of the workspace + market data | Work / dedicated route TBD |
-| **Portfolio dashboard** | Live read of `/workspace/context/portfolio/` — positions, gross/net exposure, sector concentration, var budget consumed, regime indicator. Wired via `portfolio-review` task-detail middle | Work task-detail |
+| **Portfolio dashboard** | Live read of `/workspace/operation/portfolio/` — positions, gross/net exposure, sector concentration, var budget consumed, regime indicator. Wired via `portfolio-review` task-detail middle | Work task-detail |
 | **Signal-attribution review queue** | Trading proposals surfaced in Queue archetype with named signal + sized stop + expectancy alongside approve/reject. Wired via `trading-signal` task-detail middle | Work task-detail (proposals also visible at `/agents?agent=reviewer`) |
 | **Daily-discipline checklist** | Renders the MANDATE Daily Discipline boxes against the day's actual proposals + fills | Work, surfaced 5pm ET |
 
@@ -48,8 +48,8 @@ What the program brings to a workspace, beyond what the OS scaffolds at signup. 
 - **Gap to wire**: `get_fundamentals` exists in `api/integrations/core/alpaca_client.py:718` but isn't exposed as a tool. 30-minute fix per the thesis §7 #5.
 
 ### Context domains
-- `/workspace/context/trading/` — per-instrument entities (one folder per ticker), `_signals.md`, `_universe.md`
-- `/workspace/context/portfolio/` — account-level state, `_positions.md`, `_money_truth.md`, `_risk_state.md`
+- `/workspace/operation/trading/` — per-instrument entities (one folder per ticker), `_signals.md`, `_universe.md`
+- `/workspace/operation/portfolio/` — account-level state, `_positions.md`, `_money_truth.md`, `_risk_state.md`
 
 ### Task types (ADR-187 + program-specific)
 - `trading-digest` (accumulates_context, daily) — sweep universe, update entity files
@@ -60,11 +60,11 @@ What the program brings to a workspace, beyond what the OS scaffolds at signup. 
 ### Agent roster (universal roles, contextual application)
 - Researcher, Analyst, Writer, Tracker, Designer, Reporting — the universal six
 - Trading Bot — capability bundle, not a persona-bearing Agent
-- Reviewer — Simons-persona principles, capital-EV reasoning over `_money_truth.md`. Default persona shipped in [reference-workspace/review/IDENTITY.md](reference-workspace/review/IDENTITY.md).
+- Reviewer — Simons-persona principles, capital-EV reasoning over `_money_truth.md`. Default persona shipped in [reference-workspace/persona/IDENTITY.md](reference-workspace/persona/IDENTITY.md).
 
 ### Principles content (program guidance, operator authors)
 
-Templates ship in [reference-workspace/review/principles.md](reference-workspace/review/principles.md). Defaults:
+Templates ship in [reference-workspace/persona/principles.md](reference-workspace/persona/principles.md). Defaults:
 
 - Position sizing formula required (`account × risk_percent / stop_distance`), no conviction sizing
 - Signal attribution required on every proposal

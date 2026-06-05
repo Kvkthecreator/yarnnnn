@@ -32,7 +32,7 @@ These are the hardest tests of OS generality. If any answer is "alpha-trader doe
 
 1. **Idempotency primitive at the action layer** — duplicate tx submission is catastrophic (double-spend the gas, sometimes double-execute). External-action proposal envelopes must carry an idempotency key (tx hash for confirmed, deterministic-nonce for pre-submission). alpha-trader gets this for free from broker order IDs; alpha-defi forces it to be explicit.
 2. **24/7 task scheduling** — alpha-trader's tasks can gate on market hours. alpha-defi has no market close. Scheduler primitives must handle continuous cadence without "session-close compaction" assumptions.
-3. **On-chain data as a perception layer** — `/workspace/context/onchain/` is structurally distinct from `/workspace/context/trading/` because it reads from RPC, not REST APIs, and the substrate is block-keyed not date-keyed. Block height as time anchor (alongside or instead of UTC timestamp) must be expressible.
+3. **On-chain data as a perception layer** — `/workspace/operation/onchain/` is structurally distinct from `/workspace/operation/trading/` because it reads from RPC, not REST APIs, and the substrate is block-keyed not date-keyed. Block height as time anchor (alongside or instead of UTC timestamp) must be expressible.
 4. **Custody / key management primitives** — Polymarket-style EIP-712 signing is one shape; alpha-defi requires more. Hot wallet, MPC, account abstraction (EIP-4337), or hardware-backed signing — the OS must have a custody abstraction that admits all of these without hardcoding hot-wallet-only. **This is the heaviest OS lift the reference triangle implies.**
 5. **MEV / slippage as first-class risk concepts** — Reviewer principles for alpha-defi must reason about slippage tolerance, MEV exposure (front-run risk on swaps), liquidity-pool depth at execution time. This is domain-specific principles.md content; the Reviewer machinery stays domain-neutral.
 6. **Substrate-replay determinism under non-deterministic execution** — even with a deterministic substrate snapshot, on-chain tx execution depends on block state at submission time (gas prices, mempool, MEV). Backtest replay must explicitly mark non-deterministic gaps; "this strategy would have entered at $X on block N" is approximate, not exact.
@@ -47,9 +47,9 @@ Sketch only. None of this is built.
 - `write_defi` — signed tx submission (swap, lend, LP, stake, claim, bridge); per-tx EIP-712 or EIP-1559 signing
 
 ### Context domains
-- `/workspace/context/onchain/` — per-protocol entities, `_positions.md`, `_yields.md`, `_risk_state.md` (smart-contract risk, depeg risk, oracle risk)
-- `/workspace/context/portfolio/` — wallet-level state across protocols, gas float, base-token balances
-- `/workspace/context/markets/` — token/pair-level entities for tradeable assets
+- `/workspace/operation/onchain/` — per-protocol entities, `_positions.md`, `_yields.md`, `_risk_state.md` (smart-contract risk, depeg risk, oracle risk)
+- `/workspace/operation/portfolio/` — wallet-level state across protocols, gas float, base-token balances
+- `/workspace/operation/markets/` — token/pair-level entities for tradeable assets
 
 ### Task types
 - `defi-digest` (accumulates_context, daily) — sweep watched protocols and positions

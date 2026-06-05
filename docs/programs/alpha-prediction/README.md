@@ -48,9 +48,9 @@ Sketch only. None of this is built.
 - `write_prediction` — submit / cancel orders (signed for Polymarket, REST for Kalshi)
 
 ### Context domains
-- `/workspace/context/markets/` — per-market entities (one folder per active position or watched market), `_resolution_criteria.md`, `_liquidity.md`
-- `/workspace/context/portfolio/` — same shape as alpha-trader's, accommodates discrete-outcome positions
-- `/workspace/context/news_mappings/` — only for operators using news→market causal mapping
+- `/workspace/operation/markets/` — per-market entities (one folder per active position or watched market), `_resolution_criteria.md`, `_liquidity.md`
+- `/workspace/operation/portfolio/` — same shape as alpha-trader's, accommodates discrete-outcome positions
+- `/workspace/operation/news_mappings/` — only for operators using news→market causal mapping
 
 ### Task types
 - `prediction-digest` (accumulates_context, daily) — sweep watched markets, update entity files

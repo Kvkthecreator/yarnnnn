@@ -61,7 +61,7 @@ def test_alpha_trader_path_zones_use_valid_roles():
     }
     for zone in m["substrate_abi"]["path_zones"]:
         assert zone.get("role") in valid_roles, f"Invalid role in zone {zone.get('path')}: {zone.get('role')}"
-        assert isinstance(zone.get("path"), str) and zone["path"].startswith("context/")
+        assert isinstance(zone.get("path"), str) and zone["path"].startswith("operation/")
 
 
 def test_alpha_trader_envelope_declares_signal_files_path():
@@ -84,7 +84,7 @@ def test_alpha_commerce_bundle_declares_substrate_abi():
     abi = m.get("substrate_abi")
     assert abi is not None, "alpha-commerce missing substrate_abi block — additive pattern broken"
     assert abi.get("schema_version") == 1
-    assert any(z.get("path") == "context/customers" for z in abi["path_zones"])
+    assert any(z.get("path") == "operation/customers" for z in abi["path_zones"])
 
 
 # ---------------------------------------------------------------------------
@@ -212,9 +212,9 @@ def test_get_substrate_abi_for_workspace_with_alpha_trader_active():
     """Workspace with trading connection sees alpha-trader's substrate_abi declarations."""
     from services.bundle_reader import get_substrate_abi_for_workspace
     abi = get_substrate_abi_for_workspace("test-user", _mock_client_with_trading_connection())
-    assert len(abi["path_zones"]) >= 2, "Should see context/trading + context/portfolio zones"
+    assert len(abi["path_zones"]) >= 2, "Should see operation/trading + operation/portfolio zones"
     paths = [z["path"] for z in abi["path_zones"]]
-    assert "context/trading" in paths
+    assert "operation/trading" in paths
     # Origin tagging — bundle slug surfaced for downstream attribution
     assert all(z.get("_program_slug") == "alpha-trader" for z in abi["path_zones"])
     # Envelope declarations include operator_profile_md
@@ -280,9 +280,9 @@ def test_alpha_trader_bundle_ships_workspace_guide():
     assert isinstance(fm.get("reviewer_wake_envelope"), list) and len(fm["reviewer_wake_envelope"]) > 0
     # alpha-trader-specific zones present
     paths = [z["path"] for z in fm["path_zones"]]
-    assert "context/trading" in paths
+    assert "operation/trading" in paths
     # Universal kernel zones also present (bundle composes both)
-    assert "context/_shared" in paths
+    assert "constitution" in paths
     assert "persona/IDENTITY.md" in paths
 
 
@@ -298,7 +298,7 @@ def test_alpha_commerce_bundle_ships_workspace_guide():
     fm = _yaml.safe_load(match.group(1))
     assert fm.get("schema_version") == 1
     paths = [z["path"] for z in fm["path_zones"]]
-    assert "context/customers" in paths
+    assert "operation/customers" in paths
 
 
 def test_bundle_guides_use_only_valid_roles():

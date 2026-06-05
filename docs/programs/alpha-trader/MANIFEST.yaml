@@ -208,13 +208,13 @@ substrate_abi:
   # "Operator-authored" badges) and first-fork-write attribution, the role
   # is still meaningful — it just no longer locks.
   path_zones:
-    - path: context/trading
+    - path: operation/trading
       role: operator-canon
       purpose: per-instrument entities, signals, watched universe
       authored_files: [_operator_profile.md, _risk.md, _universe.yaml]
       accumulating_files: [_money_truth.md, _tracker.md, _regime.yaml]
       glob_zones: ["signals/*.yaml", "{TICKER}.yaml"]
-    - path: context/portfolio
+    - path: operation/portfolio
       role: operator-canon
       purpose: account-level state, performance, risk
       accumulating_files: [_money_truth.md, _tracker.md]
@@ -225,13 +225,13 @@ substrate_abi:
   # autonomy_md, preferences_yaml) are kernel-shipped — bundles only declare additions.
   reviewer_wake_envelope:
     - key: operator_profile_md
-      path: context/trading/_operator_profile.md
+      path: operation/trading/_operator_profile.md
       optional: false
     - key: risk_md
-      path: context/trading/_risk.md
+      path: operation/trading/_risk.md
       optional: false
     - key: ground_truth_md
-      path: context/trading/_money_truth.md
+      path: operation/trading/_money_truth.md
       optional: true   # accumulated by reconciler — empty before first reconciliation. Kernel slot name `ground_truth_md` per FOUNDATIONS Axiom 8 + ADR-282 vocabulary discipline (ADR-288 D5); the substrate file `_money_truth.md` is the alpha-trader instance of ground-truth substrate.
     # ADR-281: signal_files is now a path-only entry pointing at the
     # compact substrate file written by the mirror-signal-state mechanical
@@ -240,7 +240,7 @@ substrate_abi:
     # mechanical primitives at known cadence, not summarized at LLM-
     # prompt-assembly time. World-mirror role per the six-role taxonomy.
     - key: signal_files
-      path: context/trading/_signals_summary.md
+      path: operation/trading/_signals_summary.md
       optional: true
 
 activation_preconditions: []  # already active
@@ -266,7 +266,7 @@ current_phase: observation
 references:
   - docs/alpha/ALPHA-1-PLAYBOOK.md
   # MANDATE template lives in this bundle's reference-workspace per ADR-230 D2:
-  - docs/programs/alpha-trader/reference-workspace/context/_shared/MANDATE.md
+  - docs/programs/alpha-trader/reference-workspace/constitution/MANDATE.md
   - docs/analysis/external-oracle-thesis-2026-04-26.md
   - docs/adr/ADR-187-trading-integration.md
   - docs/adr/ADR-194-reviewer-layer.md

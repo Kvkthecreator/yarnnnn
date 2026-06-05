@@ -4,8 +4,8 @@
 
 ## What's here
 
-- `context/_shared/` — workspace-level authored substrate operators populate (IDENTITY, BRAND, CONVENTIONS, MANDATE, AUTONOMY) plus machine-parsed siblings (`_autonomy.yaml`, `_preferences.yaml`)
-- `context/authored/` — operator-authored substrate for the authored domain (`_voice.md` voice fingerprint, `_editorial.md` editorial principles)
+- the constitution/ + governance/ + operation/ roots — workspace-level authored substrate operators populate (IDENTITY, BRAND, CONVENTIONS, MANDATE, AUTONOMY) plus machine-parsed siblings (`_autonomy.yaml`, `_preferences.yaml`)
+- `operation/authored/` — operator-authored substrate for the authored domain (`_voice.md` voice fingerprint, `_editorial.md` editorial principles)
 - `review/` — Reviewer seat substrate (IDENTITY editor persona, principles.md framework, `_principles.yaml` machine-parsed thresholds)
 - `memory/` — YARNNN orchestration accumulation files (empty placeholders)
 - `specs/` — capability specs (Claude Code skills.md analog; six specs: voice-audit, continuity-audit, corpus-coherence-rollup, pre-ship-check, weekly-corpus-review, quarterly-voice-audit)

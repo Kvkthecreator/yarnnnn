@@ -91,7 +91,7 @@ personas:
       # bundles ship only substrate-maintenance + reactive + event-anchored
       # heartbeats. Reviewer authors introspection / housekeeping /
       # deliverable cadence from first-principled judgment. Operator
-      # preferences for deliverable cadence in /workspace/context/_shared/
+      # preferences for deliverable cadence in /workspace/constitution/
       # _preferences.yaml; Reviewer reads and authors Schedule accordingly.
       scaffolded_recurrences:
         - outcome-reconciliation         # judgment-mode but substrate-maint (post-close reconciler)
@@ -105,17 +105,16 @@ personas:
       platform_connections: 1
       core_files:
         - /workspace/_recurrences.yaml   # ADR-261 D2: single canonical recurrence declaration substrate
-        - /workspace/context/_shared/IDENTITY.md
-        - /workspace/context/_shared/MANDATE.md
-        - /workspace/context/_shared/AUTONOMY.md
-        - /workspace/context/_shared/BRAND.md
-        - /workspace/context/_shared/CONVENTIONS.md
-        - /workspace/context/_shared/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
-        - /workspace/context/trading/_operator_profile.md
-        - /workspace/context/trading/_risk.md
-        - /workspace/review/IDENTITY.md
-        - /workspace/review/principles.md
-        - /workspace/review/OCCUPANT.md   # ADR-284: runtime-truth-aligned seat occupant declaration (kernel-scaffolded by workspace_init Phase 5; bundle-fork overwrites via _populate_occupant_for_runtime with ai:reviewer-sonnet-v8 for current alpha state)
+        - /workspace/persona/IDENTITY.md
+        - /workspace/constitution/MANDATE.md
+        - /workspace/governance/AUTONOMY.md
+        - /workspace/operation/BRAND.md
+        - /workspace/operation/CONVENTIONS.md
+        - /workspace/governance/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
+        - /workspace/operation/trading/_operator_profile.md
+        - /workspace/operation/trading/_risk.md
+        - /workspace/persona/principles.md
+        - /workspace/persona/OCCUPANT.md   # ADR-284: runtime-truth-aligned seat occupant declaration (kernel-scaffolded by workspace_init Phase 5; bundle-fork overwrites via _populate_occupant_for_runtime with ai:reviewer-sonnet-v8 for current alpha state)
       # ADR-284: standing_intent.md is NOT a signup-invariant core_file — it
       # materializes only after the Reviewer's first judgment-mode cycle
       # writes it (Reviewer is the single writer per the reviewer-workbench
@@ -128,7 +127,7 @@ personas:
         # `human` default leaks past bundle-fork overwrite.
         expected_occupant_class: ai
         expected_occupant_prefix: "ai:reviewer-sonnet-"
-      risk_md_path: /workspace/context/trading/_risk.md
+      risk_md_path: /workspace/operation/trading/_risk.md
 
   - slug: alpha-trader-2
     label: "Stat-Arb pairs trader (Simons-flavor, parallel-loop test)"
@@ -160,7 +159,7 @@ personas:
       # bundles ship only substrate-maintenance + reactive + event-anchored
       # heartbeats. Reviewer authors introspection / housekeeping /
       # deliverable cadence from first-principled judgment. Operator
-      # preferences for deliverable cadence in /workspace/context/_shared/
+      # preferences for deliverable cadence in /workspace/constitution/
       # _preferences.yaml; Reviewer reads and authors Schedule accordingly.
       scaffolded_recurrences:
         - outcome-reconciliation         # judgment-mode but substrate-maint (post-close reconciler)
@@ -174,17 +173,16 @@ personas:
       platform_connections: 1
       core_files:
         - /workspace/_recurrences.yaml   # ADR-261 D2: single canonical recurrence declaration substrate
-        - /workspace/context/_shared/IDENTITY.md
-        - /workspace/context/_shared/MANDATE.md
-        - /workspace/context/_shared/AUTONOMY.md
-        - /workspace/context/_shared/BRAND.md
-        - /workspace/context/_shared/CONVENTIONS.md
-        - /workspace/context/_shared/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
-        - /workspace/context/trading/_operator_profile.md
-        - /workspace/context/trading/_risk.md
-        - /workspace/review/IDENTITY.md
-        - /workspace/review/principles.md
-        - /workspace/review/OCCUPANT.md   # ADR-284: runtime-truth-aligned seat occupant declaration (kernel-scaffolded by workspace_init Phase 5; bundle-fork overwrites via _populate_occupant_for_runtime with ai:reviewer-sonnet-v8 for current alpha state)
+        - /workspace/persona/IDENTITY.md
+        - /workspace/constitution/MANDATE.md
+        - /workspace/governance/AUTONOMY.md
+        - /workspace/operation/BRAND.md
+        - /workspace/operation/CONVENTIONS.md
+        - /workspace/governance/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
+        - /workspace/operation/trading/_operator_profile.md
+        - /workspace/operation/trading/_risk.md
+        - /workspace/persona/principles.md
+        - /workspace/persona/OCCUPANT.md   # ADR-284: runtime-truth-aligned seat occupant declaration (kernel-scaffolded by workspace_init Phase 5; bundle-fork overwrites via _populate_occupant_for_runtime with ai:reviewer-sonnet-v8 for current alpha state)
       # ADR-284: standing_intent.md is NOT a signup-invariant core_file — it
       # materializes only after the Reviewer's first judgment-mode cycle
       # writes it (Reviewer is the single writer per the reviewer-workbench
@@ -197,7 +195,7 @@ personas:
         # `human` default leaks past bundle-fork overwrite.
         expected_occupant_class: ai
         expected_occupant_prefix: "ai:reviewer-sonnet-"
-      risk_md_path: /workspace/context/trading/_risk.md
+      risk_md_path: /workspace/operation/trading/_risk.md
 
   # ─────────────────────────────────────────────────────────────────────
   # alpha-author personas (ADR-283 step 4, 2026-05-17)
@@ -241,7 +239,7 @@ personas:
       # `audience/` is declared in the bundle's substrate_abi but stays
       # empty by design (per ADR-283 D7 — alpha-author runs internal-
       # coherence-only). Per-piece entities accumulate at
-      # /workspace/context/authored/{piece-slug}/ from real authoring,
+      # /workspace/operation/authored/{piece-slug}/ from real authoring,
       # not from scaffolding.
       - authored
     credentials_env: {}   # empty per platform.kind=none
@@ -268,18 +266,17 @@ personas:
       platform_connections: 0   # ADR-283 D7: zero external writes by design
       core_files:
         - /workspace/_recurrences.yaml
-        - /workspace/context/_shared/IDENTITY.md
-        - /workspace/context/_shared/MANDATE.md
-        - /workspace/context/_shared/AUTONOMY.md
-        - /workspace/context/_shared/BRAND.md
-        - /workspace/context/_shared/CONVENTIONS.md
-        - /workspace/context/_shared/_preferences.yaml
-        - /workspace/context/authored/_voice.md
-        - /workspace/context/authored/_editorial.md
-        - /workspace/context/authored/_entities.md
-        - /workspace/review/IDENTITY.md
-        - /workspace/review/principles.md
-        - /workspace/review/OCCUPANT.md   # ADR-284 D3: runtime-truth-aligned seat occupant declaration
+        - /workspace/persona/IDENTITY.md
+        - /workspace/constitution/MANDATE.md
+        - /workspace/governance/AUTONOMY.md
+        - /workspace/operation/BRAND.md
+        - /workspace/operation/CONVENTIONS.md
+        - /workspace/governance/_preferences.yaml
+        - /workspace/operation/authored/_voice.md
+        - /workspace/operation/authored/_editorial.md
+        - /workspace/operation/authored/_entities.md
+        - /workspace/persona/principles.md
+        - /workspace/persona/OCCUPANT.md   # ADR-284 D3: runtime-truth-aligned seat occupant declaration
       occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
         # AI occupant expected post-bundle-fork — alpha-author runs the
         # editor-shaped Reviewer seat under the same AI-occupant default
@@ -319,18 +316,17 @@ personas:
       platform_connections: 0
       core_files:
         - /workspace/_recurrences.yaml
-        - /workspace/context/_shared/IDENTITY.md
-        - /workspace/context/_shared/MANDATE.md
-        - /workspace/context/_shared/AUTONOMY.md
-        - /workspace/context/_shared/BRAND.md
-        - /workspace/context/_shared/CONVENTIONS.md
-        - /workspace/context/_shared/_preferences.yaml
-        - /workspace/context/authored/_voice.md
-        - /workspace/context/authored/_editorial.md
-        - /workspace/context/authored/_entities.md
-        - /workspace/review/IDENTITY.md
-        - /workspace/review/principles.md
-        - /workspace/review/OCCUPANT.md   # ADR-284 D3: runtime-truth-aligned seat occupant declaration
+        - /workspace/persona/IDENTITY.md
+        - /workspace/constitution/MANDATE.md
+        - /workspace/governance/AUTONOMY.md
+        - /workspace/operation/BRAND.md
+        - /workspace/operation/CONVENTIONS.md
+        - /workspace/governance/_preferences.yaml
+        - /workspace/operation/authored/_voice.md
+        - /workspace/operation/authored/_editorial.md
+        - /workspace/operation/authored/_entities.md
+        - /workspace/persona/principles.md
+        - /workspace/persona/OCCUPANT.md   # ADR-284 D3: runtime-truth-aligned seat occupant declaration
       occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
         # AI occupant expected post-bundle-fork — alpha-author runs the
         # editor-shaped Reviewer seat under the same AI-occupant default
@@ -379,18 +375,17 @@ personas:
       platform_connections: 0
       core_files:
         - /workspace/_recurrences.yaml
-        - /workspace/context/_shared/IDENTITY.md
-        - /workspace/context/_shared/MANDATE.md
-        - /workspace/context/_shared/AUTONOMY.md
-        - /workspace/context/_shared/BRAND.md
-        - /workspace/context/_shared/CONVENTIONS.md
-        - /workspace/context/_shared/_preferences.yaml
-        - /workspace/context/authored/_voice.md
-        - /workspace/context/authored/_editorial.md
-        - /workspace/context/authored/_entities.md
-        - /workspace/review/IDENTITY.md
-        - /workspace/review/principles.md
-        - /workspace/review/OCCUPANT.md   # ADR-284 D3: runtime-truth-aligned seat occupant declaration
+        - /workspace/persona/IDENTITY.md
+        - /workspace/constitution/MANDATE.md
+        - /workspace/governance/AUTONOMY.md
+        - /workspace/operation/BRAND.md
+        - /workspace/operation/CONVENTIONS.md
+        - /workspace/governance/_preferences.yaml
+        - /workspace/operation/authored/_voice.md
+        - /workspace/operation/authored/_editorial.md
+        - /workspace/operation/authored/_entities.md
+        - /workspace/persona/principles.md
+        - /workspace/persona/OCCUPANT.md   # ADR-284 D3: runtime-truth-aligned seat occupant declaration
       occupant_attribution:                # ADR-284 D3: substrate-runtime alignment check
         # Same AI-occupant default as the other two alpha-author personas.
         # Operator may swap to human occupant by editing OCCUPANT.md.
@@ -425,7 +420,7 @@ personas:
       # bundles ship only substrate-maintenance + reactive + event-anchored
       # heartbeats. Reviewer authors introspection / housekeeping /
       # deliverable cadence from first-principled judgment. Operator
-      # preferences for deliverable cadence in /workspace/context/_shared/
+      # preferences for deliverable cadence in /workspace/constitution/
       # _preferences.yaml; Reviewer reads and authors Schedule accordingly.
       scaffolded_recurrences:
         - outcome-reconciliation         # judgment-mode but substrate-maint (post-close reconciler)
@@ -439,17 +434,16 @@ personas:
       platform_connections: 1
       core_files:
         - /workspace/_recurrences.yaml   # ADR-261 D2: single canonical recurrence declaration substrate
-        - /workspace/context/_shared/IDENTITY.md
-        - /workspace/context/_shared/MANDATE.md
-        - /workspace/context/_shared/AUTONOMY.md
-        - /workspace/context/_shared/BRAND.md
-        - /workspace/context/_shared/CONVENTIONS.md
-        - /workspace/context/_shared/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
-        - /workspace/context/trading/_operator_profile.md
-        - /workspace/context/trading/_risk.md
-        - /workspace/review/IDENTITY.md
-        - /workspace/review/principles.md
-        - /workspace/review/OCCUPANT.md   # ADR-284: runtime-truth-aligned seat occupant declaration (kernel-scaffolded by workspace_init Phase 5; bundle-fork overwrites via _populate_occupant_for_runtime with ai:reviewer-sonnet-v8 for current alpha state)
+        - /workspace/persona/IDENTITY.md
+        - /workspace/constitution/MANDATE.md
+        - /workspace/governance/AUTONOMY.md
+        - /workspace/operation/BRAND.md
+        - /workspace/operation/CONVENTIONS.md
+        - /workspace/governance/_preferences.yaml    # ADR-275 operator deliverable cadence prefs
+        - /workspace/operation/trading/_operator_profile.md
+        - /workspace/operation/trading/_risk.md
+        - /workspace/persona/principles.md
+        - /workspace/persona/OCCUPANT.md   # ADR-284: runtime-truth-aligned seat occupant declaration (kernel-scaffolded by workspace_init Phase 5; bundle-fork overwrites via _populate_occupant_for_runtime with ai:reviewer-sonnet-v8 for current alpha state)
       # ADR-284: standing_intent.md is NOT a signup-invariant core_file — it
       # materializes only after the Reviewer's first judgment-mode cycle
       # writes it (Reviewer is the single writer per the reviewer-workbench
@@ -462,4 +456,4 @@ personas:
         # `human` default leaks past bundle-fork overwrite.
         expected_occupant_class: ai
         expected_occupant_prefix: "ai:reviewer-sonnet-"
-      risk_md_path: /workspace/context/trading/_risk.md
+      risk_md_path: /workspace/operation/trading/_risk.md

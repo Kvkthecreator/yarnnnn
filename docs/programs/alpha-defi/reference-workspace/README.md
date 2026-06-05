@@ -8,4 +8,4 @@
 
 alpha-defi is the **heaviest litmus** in the reference triangle and explicitly the hardest of the three to activate. Activation depends on OS-layer custody primitives, idempotency at the action envelope, block-keyed substrate replay, and a 24/7 scheduling model — each of which the SPEC pressures the kernel into supporting cleanly *before* this folder usefully populates.
 
-When the OS primitives ship and activation_preconditions are met, this folder will populate with operator-template files mirroring the alpha-trader bundle's structure (`context/_shared/MANDATE.md` + `IDENTITY.md` + `BRAND.md` + `CONVENTIONS.md` + `AUTONOMY.md` adapted for irreversibility, `review/IDENTITY.md` + `principles.md` adapted for MEV/slippage/depeg risk, `memory/awareness.md`).
+When the OS primitives ship and activation_preconditions are met, this folder will populate with operator-template files mirroring the alpha-trader bundle's structure (`constitution/MANDATE.md` + `IDENTITY.md` + `BRAND.md` + `CONVENTIONS.md` + `AUTONOMY.md` adapted for irreversibility, `persona/IDENTITY.md` + `principles.md` adapted for MEV/slippage/depeg risk, `system/awareness.md`).

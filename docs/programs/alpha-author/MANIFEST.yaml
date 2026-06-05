@@ -215,13 +215,13 @@ substrate_abi:
 
   # Path zones this program contributes beyond the kernel-universal set.
   path_zones:
-    - path: context/authored
+    - path: operation/authored
       role: operator-canon
       purpose: the corpus itself — per-piece entities + voice fingerprint
       authored_files: [_voice.md, _editorial.md]
       accumulating_files: [_signal.md, _tracker.md]
       glob_zones: ["{piece-slug}/profile.md", "{piece-slug}/content.md"]
-    - path: context/audience
+    - path: operation/audience
       role: operator-canon
       purpose: per-platform audience signal (when audience-bearing)
       accumulating_files: [_signal.md, _tracker.md]
@@ -233,16 +233,16 @@ substrate_abi:
   # block only declares program-specific additions.
   reviewer_wake_envelope:
     - key: voice_md
-      path: context/authored/_voice.md
+      path: operation/authored/_voice.md
       optional: false                 # operator must declare voice fingerprint at minimum
     - key: editorial_md
-      path: context/authored/_editorial.md
+      path: operation/authored/_editorial.md
       optional: false                 # operator must declare editorial principles at minimum
     - key: corpus_signal_md
-      path: context/authored/_signal.md
+      path: operation/authored/_signal.md
       optional: true                  # accumulated by coherence-check + reconciliation — empty before first run
     - key: audience_signal_md
-      path: context/audience/_signal.md
+      path: operation/audience/_signal.md
       optional: true                  # accumulated by track-* mechanical recurrences when audience-bearing — empty by default
 
 activation_preconditions:
@@ -272,7 +272,7 @@ references:
   - docs/adr/ADR-283-alpha-author-bundle.md
   - docs/analysis/alpha-author-discourse-2026-05-15.md
   # MANDATE template lives in this bundle's reference-workspace per ADR-230 D2:
-  - docs/programs/alpha-author/reference-workspace/context/_shared/MANDATE.md
+  - docs/programs/alpha-author/reference-workspace/constitution/MANDATE.md
   - docs/adr/ADR-194-reviewer-layer.md
   - docs/adr/ADR-217-autonomy-delegation.md
   - docs/adr/ADR-222-agent-native-operating-system-framing.md

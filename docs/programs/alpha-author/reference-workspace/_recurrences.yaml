@@ -49,25 +49,25 @@ recurrences:
     mode: judgment
     required_capabilities: []
     prompt: |
-      Read the operator's voice fingerprint at /workspace/context/authored/
+      Read the operator's voice fingerprint at /workspace/operation/authored/
       _voice.md and the recent corpus (pieces published in the last
-      30 days at /workspace/context/authored/{piece-slug}/content.md
+      30 days at /workspace/operation/authored/{piece-slug}/content.md
       with status=published).
 
       Audit for:
         1. Voice fingerprint drift: aggregate voice-audit results across
            recent pieces; flag if ≥30% show drift on the same anti-pattern
-           per /workspace/review/_principles.yaml::high_impact_voice_drift_
+           per /workspace/persona/_principles.yaml::high_impact_voice_drift_
            recent_pieces threshold.
         2. Cross-piece continuity break: pairwise continuity check across
            recent corpus; flag any unacknowledged contradiction.
-        3. Cadence health: read /workspace/context/_shared/_preferences.yaml;
+        3. Cadence health: read /workspace/governance/_preferences.yaml;
            compute days-since-last-ship per cadence; flag if 2+ intervals
-           missed (per /workspace/review/_principles.yaml::high_impact_
+           missed (per /workspace/persona/_principles.yaml::high_impact_
            cadence_intervals_missed threshold).
 
-      Write findings to /workspace/context/authored/_signal.md (coherence
-      slice) per /workspace/specs/corpus-coherence-rollup.md schema.
+      Write findings to /workspace/operation/authored/_signal.md (coherence
+      slice) per /workspace/operation/specs/corpus-coherence-rollup.md schema.
 
       When findings cross high-impact thresholds: emit Clarify proposals
       to operator surfacing the specific drift/break/missed cadence with
@@ -75,7 +75,7 @@ recurrences:
       "defer", reasoning="<persona-voice naming the specific drift>",
       confidence="high").
 
-      Otherwise: WriteFile /workspace/review/standing_intent.md with
+      Otherwise: WriteFile /workspace/persona/standing_intent.md with
       what corpus drift patterns you're watching for per ADR-284 +
       principles.md "Default posture". Cite specific anti-patterns
       trending up across recent pieces (e.g., "Watching for cadence
@@ -97,22 +97,22 @@ recurrences:
   # screenplay, book project) iterate on a single artifact over months
   # without flipping that flag. revision-audit is the Reviewer's lens for
   # that loop — periodic pass comparing current draft state against the
-  # prior revision per ADR-209 chain. Spec: /workspace/specs/revision-audit.md
+  # prior revision per ADR-209 chain. Spec: /workspace/operation/specs/revision-audit.md
   - slug: revision-audit
     schedule: "0 22 * * 5"   # Friday 22:00 UTC ≈ Friday afternoon US Pacific
     mode: judgment
     required_capabilities: []
     prompt: |
       Periodic revision audit on in-progress drafts. Per
-      /workspace/specs/revision-audit.md schema.
+      /workspace/operation/specs/revision-audit.md schema.
 
-      Read /workspace/context/_shared/_preferences.yaml to determine the
+      Read /workspace/governance/_preferences.yaml to determine the
       audit window length for this workspace (default 7 days for the
       Friday-weekly cadence; operator may have tuned per-piece-type via
       _preferences.yaml).
 
       Procedure:
-        1. List all draft-state pieces in /workspace/context/authored/
+        1. List all draft-state pieces in /workspace/operation/authored/
            (status: draft per piece profile.md).
         2. For each draft, ListRevisions on content.md within the audit
            window.
@@ -124,12 +124,12 @@ recurrences:
                 anti-slop baseline)
              b. Entity continuity (entities/{slug}.md What's been
                 established for entities the diff touches per
-                /workspace/specs/entity-continuity.md)
+                /workspace/operation/specs/entity-continuity.md)
              c. Structural load-bearing (passages other passages depend
                 on that shifted)
              d. Open-question state (implicit closes of entity What's
                 open without acknowledgment)
-        4. Write findings to /workspace/review/judgment_log.md with
+        4. Write findings to /workspace/persona/judgment_log.md with
            audit_type: revision-audit.
         5. Update each audited draft's profile.md with last_revision_audit
            timestamp + revision_audit_state verdict.
@@ -151,7 +151,7 @@ recurrences:
       operator-canon (_voice.md, _editorial.md, _entities.md). Findings
       surface via Clarify for operator authoring.
 
-      AND update /workspace/review/standing_intent.md with what trajectory
+      AND update /workspace/persona/standing_intent.md with what trajectory
       patterns you're watching for across in-progress drafts per ADR-284 +
       principles.md "Default posture". Cite specific drafts + the
       trajectory dimension (e.g., "Watching for entity-continuity break
@@ -176,20 +176,20 @@ recurrences:
     required_capabilities: []
     prompt: |
       Reconcile the day's audit + ship + revision events into _signal.md
-      per /workspace/specs/corpus-coherence-rollup.md schema.
+      per /workspace/operation/specs/corpus-coherence-rollup.md schema.
 
       Read:
-        - /workspace/review/judgment_log.md — today's audit verdicts (pre-
+        - /workspace/persona/judgment_log.md — today's audit verdicts (pre-
           ship-audit, corpus-coherence-check, revision-audit, entity-
           continuity findings) with reasoning.
-        - Workspace file revisions per ADR-209 for /workspace/context/
+        - Workspace file revisions per ADR-209 for /workspace/operation/
           authored/ — pieces shipped today, drafts iterated today.
-        - Existing /workspace/context/authored/_signal.md::external_outcomes
+        - Existing /workspace/operation/authored/_signal.md::external_outcomes
           frontmatter — operator-authored sparse events; surface any
           new-since-last-reconciliation entries to feedback.md per ADR-181
           when impact: high.
 
-      Fold into /workspace/context/authored/_signal.md:
+      Fold into /workspace/operation/authored/_signal.md:
         - Frontmatter rolling 7d/30d/90d windows of audit-correct rate,
           ship-rate, voice-flag-rate, continuity-flag-rate, entity-
           continuity-flag-rate.
@@ -202,10 +202,10 @@ recurrences:
         - Body narrative: today's notable verdicts, drift signals,
           cadence state, recent external_outcomes entries.
 
-      Regenerate /workspace/context/_signal_summary.md as the cross-domain
+      Regenerate /workspace/operation/_signal_summary.md as the cross-domain
       rollup the daily-update briefing reads.
 
-      Close the cycle: WriteFile /workspace/review/standing_intent.md with
+      Close the cycle: WriteFile /workspace/persona/standing_intent.md with
       what calibration patterns you're watching for per ADR-284 +
       principles.md "Default posture". Cite specific calibration
       trajectories (e.g., "Watching voice-audit accuracy 30d trend —
@@ -222,10 +222,10 @@ recurrences:
     display_name: "Outcome Reconciliation"
 
 # ADR-275: weekly-corpus-review and quarterly-voice-audit (operator
-# deliverable cadence) live in /workspace/context/_shared/_preferences.yaml.
+# deliverable cadence) live in /workspace/governance/_preferences.yaml.
 # The Reviewer reads _preferences.yaml at every wake and authors Schedule(
 # action="create"|"update"|"archive") for declared preferences. Specs at
-# /workspace/specs/weekly-corpus-review.md + quarterly-voice-audit.md are
+# /workspace/operation/specs/weekly-corpus-review.md + quarterly-voice-audit.md are
 # the Claude Code skills.md analog.
 
 # ADR-283 step 2 will add mechanical track-* recurrences for audience-

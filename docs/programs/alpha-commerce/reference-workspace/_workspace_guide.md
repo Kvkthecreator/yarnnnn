@@ -6,46 +6,46 @@ schema_version: 1
 # Each zone declares its role; lock policy is derived per ADR-280 §2.D2.
 path_zones:
   # --- Kernel-universal zones ---
-  - path: context/_shared
+  - path: constitution
     role: operator-canon
     purpose: operator's standing intent — MANDATE, IDENTITY, BRAND, AUTONOMY, PRECEDENT, _preferences
-  - path: context/_shared/_locks.yaml
+  - path: governance/_locks.yaml
     role: operator-canon
     purpose: operator-authored lock policy
   - path: uploads
     role: operator-canon
     purpose: operator-contributed reference material
-  - path: review/IDENTITY.md
+  - path: persona/IDENTITY.md
     role: operator-canon
     purpose: Reviewer seat persona declaration
-  - path: review/principles.md
+  - path: persona/principles.md
     role: operator-canon
     purpose: Reviewer's declared judgment framework
-  - path: review/_principles.yaml
+  - path: persona/_principles.yaml
     role: operator-canon
     purpose: machine-parsed Reviewer thresholds
-  - path: review/OCCUPANT.md
+  - path: persona/OCCUPANT.md
     role: system-ledger
     purpose: current Reviewer seat occupant
-  - path: review/handoffs.md
+  - path: persona/handoffs.md
     role: system-ledger
     purpose: append-only seat-occupant rotation log
-  - path: review/calibration.md
+  - path: persona/calibration.md
     role: system-ledger
     purpose: per-occupant judgment-vs-outcome rolling windows
-  - path: review/judgment_log.md
+  - path: persona/judgment_log.md
     role: system-ledger
     purpose: Reviewer's judgment lineage
-  - path: memory/recent.md
+  - path: system/recent.md
     role: system-ledger
     purpose: back-office narrative digest (24h rollup)
-  - path: review/notes.md
+  - path: persona/notes.md
     role: reviewer-workbench
     purpose: Reviewer's working scratch across wakes
   - path: working
     role: reviewer-workbench
     purpose: ephemeral scratch (24h TTL)
-  - path: memory
+  - path: system
     role: running-narrative
     purpose: YARNNN orchestration accumulation
   - path: agents
@@ -65,11 +65,11 @@ path_zones:
     purpose: scheduling-index source of truth
 
   # --- alpha-commerce program-specific zones ---
-  - path: context/customers
+  - path: operation/customers
     role: operator-canon
     bundle: alpha-commerce
     purpose: per-customer entities; lifecycle, LTV, segment
-  - path: context/revenue
+  - path: operation/revenue
     role: operator-canon
     bundle: alpha-commerce
     purpose: account-level revenue, MRR, churn, cohort retention
@@ -77,30 +77,30 @@ path_zones:
 reviewer_wake_envelope:
   # --- Kernel-universal envelope ---
   - key: identity_md
-    path: review/IDENTITY.md
+    path: persona/IDENTITY.md
     optional: false
   - key: principles_md
-    path: review/principles.md
+    path: persona/principles.md
     optional: false
   - key: precedent_md
-    path: context/_shared/PRECEDENT.md
+    path: constitution/PRECEDENT.md
     optional: true
   - key: mandate_md
-    path: context/_shared/MANDATE.md
+    path: constitution/MANDATE.md
     optional: false
   - key: autonomy_md
-    path: context/_shared/AUTONOMY.md
+    path: governance/AUTONOMY.md
     optional: false
   - key: preferences_yaml
-    path: context/_shared/_preferences.yaml
+    path: governance/_preferences.yaml
     optional: true
 
   # --- alpha-commerce program-specific envelope ---
   - key: operator_profile_md
-    path: context/customers/_operator_profile.md
+    path: operation/customers/_operator_profile.md
     optional: false
   - key: revenue_money_truth_md
-    path: context/revenue/_money_truth.md
+    path: operation/revenue/_money_truth.md
     optional: true
 
 locks:
@@ -150,17 +150,17 @@ platform webhooks). Self-funding by design.
 The kernel-universal substrate is here from signup. The alpha-commerce
 program adds two operator-canon domains:
 
-- **`context/customers/`** — per-customer entities. Subscribers and
+- **`operation/customers/`** — per-customer entities. Subscribers and
   buyers. Lifecycle, LTV, segment.
 
-- **`context/revenue/`** — account-level revenue. MRR, churn, cohort
+- **`operation/revenue/`** — account-level revenue. MRR, churn, cohort
   retention. `_money_truth.md` accumulates reconciled revenue per
   ADR-195.
 
 Operational substrate emerges through Reviewer judgment + work over
 tenure: customer-research surfaces the `research/` directory as needed;
-patterns land in `review/notes.md`; operation-shaping decisions
-accumulate in `review/judgment_log.md`.
+patterns land in `persona/notes.md`; operation-shaping decisions
+accumulate in `persona/judgment_log.md`.
 
 ## When things diverge
 
@@ -175,4 +175,4 @@ Even when the Reviewer has insights about operator intent or framework,
 do NOT write to `operator-canon` paths directly. Surface insight via
 `Clarify` / `ProposeAction` so the operator authors changes with their
 own attribution. The right home for the Reviewer's evolving understanding
-is `review/notes.md` (reviewer-workbench).
+is `persona/notes.md` (reviewer-workbench).

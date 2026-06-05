@@ -6,46 +6,46 @@ schema_version: 1
 # Each zone declares its role; lock policy is derived per ADR-280 §2.D2.
 path_zones:
   # --- Kernel-universal zones ---
-  - path: context/_shared
+  - path: constitution
     role: operator-canon
     purpose: operator's standing intent — MANDATE, IDENTITY, BRAND, AUTONOMY, PRECEDENT, _preferences
-  - path: context/_shared/_locks.yaml
+  - path: governance/_locks.yaml
     role: operator-canon
     purpose: operator-authored lock policy
   - path: uploads
     role: operator-canon
     purpose: operator-contributed reference material
-  - path: review/IDENTITY.md
+  - path: persona/IDENTITY.md
     role: operator-canon
     purpose: Reviewer seat persona declaration
-  - path: review/principles.md
+  - path: persona/principles.md
     role: operator-canon
     purpose: Reviewer's declared judgment framework
-  - path: review/_principles.yaml
+  - path: persona/_principles.yaml
     role: operator-canon
     purpose: machine-parsed Reviewer thresholds
-  - path: review/OCCUPANT.md
+  - path: persona/OCCUPANT.md
     role: system-ledger
     purpose: current Reviewer seat occupant (rotation primitive writes)
-  - path: review/handoffs.md
+  - path: persona/handoffs.md
     role: system-ledger
     purpose: append-only seat-occupant rotation log
-  - path: review/calibration.md
+  - path: persona/calibration.md
     role: system-ledger
     purpose: per-occupant judgment-vs-outcome rolling windows
-  - path: review/judgment_log.md
+  - path: persona/judgment_log.md
     role: system-ledger
     purpose: Reviewer's judgment lineage (proposal verdicts, audit decisions)
-  - path: memory/recent.md
+  - path: system/recent.md
     role: system-ledger
     purpose: back-office narrative digest (24h rollup)
-  - path: review/notes.md
+  - path: persona/notes.md
     role: reviewer-workbench
     purpose: Reviewer's working scratch across wakes
   - path: working
     role: reviewer-workbench
     purpose: ephemeral scratch (24h TTL)
-  - path: memory
+  - path: system
     role: running-narrative
     purpose: YARNNN orchestration accumulation (awareness, _playbook, style, notes)
   - path: agents
@@ -65,11 +65,11 @@ path_zones:
     purpose: scheduling-index source of truth (kernel reads, Schedule primitive writes)
 
   # --- alpha-author program-specific zones ---
-  - path: context/authored
+  - path: operation/authored
     role: operator-canon
     bundle: alpha-author
     purpose: the corpus — per-piece entities + voice fingerprint + editorial principles
-  - path: context/audience
+  - path: operation/audience
     role: operator-canon
     bundle: alpha-author
     purpose: per-platform audience signal (when audience-bearing per ADR-283 step 2)
@@ -79,36 +79,36 @@ path_zones:
 reviewer_wake_envelope:
   # --- Kernel-universal envelope ---
   - key: identity_md
-    path: review/IDENTITY.md
+    path: persona/IDENTITY.md
     optional: false
   - key: principles_md
-    path: review/principles.md
+    path: persona/principles.md
     optional: false
   - key: precedent_md
-    path: context/_shared/PRECEDENT.md
+    path: constitution/PRECEDENT.md
     optional: true
   - key: mandate_md
-    path: context/_shared/MANDATE.md
+    path: constitution/MANDATE.md
     optional: false
   - key: autonomy_md
-    path: context/_shared/AUTONOMY.md
+    path: governance/AUTONOMY.md
     optional: false
   - key: preferences_yaml
-    path: context/_shared/_preferences.yaml
+    path: governance/_preferences.yaml
     optional: true
 
   # --- alpha-author program-specific envelope ---
   - key: voice_md
-    path: context/authored/_voice.md
+    path: operation/authored/_voice.md
     optional: false                # operator must declare voice fingerprint
   - key: editorial_md
-    path: context/authored/_editorial.md
+    path: operation/authored/_editorial.md
     optional: false                # operator must declare editorial principles
   - key: corpus_signal_md
-    path: context/authored/_signal.md
+    path: operation/authored/_signal.md
     optional: true                 # accumulated by coherence-check + reconciliation — empty before first run
   - key: audience_signal_md
-    path: context/audience/_signal.md
+    path: operation/audience/_signal.md
     optional: true                 # populated only when audience-bearing per ADR-283 step 2
 
 # Operator overrides on top of role-derived defaults (start empty;
@@ -279,7 +279,7 @@ Flipped `active: true → false` → `Schedule(pause|archive)`. Added a new
 authority; the reconciliation is yours.
 
 **Bundles ship** substrate-maintenance recurrences + reactive triggers +
-capability specs at `/workspace/specs/` — they do NOT ship *judgment*
+capability specs at `/workspace/operation/specs/` — they do NOT ship *judgment*
 cadence. Operator-facing deliverable cadences come from `_preferences.yaml`
 (seeded at activation); introspection cadence (your own reflection /
 calibration / housekeeping) is yours from first principles (Derived
@@ -298,7 +298,7 @@ to fire the email yourself. A separate post-judgment path delivers it. Your
 job is the judgment, not the delivery.
 
 The `## Capability specs available` section lists every spec under
-`/workspace/specs/` (the Claude Code skills.md analog — filename + title
+`/workspace/operation/specs/` (the Claude Code skills.md analog — filename + title
 only). When a recurrence prompt references a spec, or you need an output
 shape, `ReadFile` the matching spec — don't ask the operator whether spec
 files exist; the envelope already told you. An empty inventory means a
@@ -306,7 +306,7 @@ kernel-only workspace or a bundle that ships no specs.
 
 ### Your workbench — standing_intent.md (ADR-284, the every-cycle commitment)
 
-`/workspace/review/standing_intent.md` is where your forward-looking
+`/workspace/persona/standing_intent.md` is where your forward-looking
 judgment lives between invocations: what you're watching for, what would
 change your next move, what open questions you'd surface. It is
 `reviewer-workbench` role — you are the single writer
@@ -367,7 +367,7 @@ reader + lock + retention; see frontmatter `path_zones[*].role`):
   observations, and scratch the Reviewer wants to retain across wakes
   that aren't yet operation-shaping.
 - **`system-ledger`** — infrastructure-rendered append-only logs
-  (judgment_log.md, calibration.md, handoffs.md, OCCUPANT.md, memory/recent.md).
+  (judgment_log.md, calibration.md, handoffs.md, OCCUPANT.md, system/recent.md).
   The Reviewer supplies the content (via its `ReturnVerdict` for
   judgment_log.md); infrastructure renders the entries. The Reviewer does
   not WriteFile to these directly.
@@ -391,14 +391,14 @@ archetype per ADR-283 — accumulated work that compounds across voice,
 cadence, and (when audience-bearing) audience signal.
 
 The kernel-universal substrate is here from signup: operator-authored
-library at `context/_shared/`, Reviewer seat at `review/`, working
+library at the constitution/ + governance/ + operation/ roots, Reviewer seat at `persona/`, working
 memory at `memory/`, agent substrate roots at `agents/`, deliverable +
 action recurrence roots at `reports/` and `operations/`, ephemeral
 scratch at `working/`, kernel scheduling index at `_recurrences.yaml`.
 
 The alpha-author program adds two operator-canon domains:
 
-- **`context/authored/`** — the corpus itself. The operator authors
+- **`operation/authored/`** — the corpus itself. The operator authors
   `_voice.md` (declared voice fingerprint + anti-patterns) and
   `_editorial.md` (what gets shipped, what doesn't). Per-piece entities
   live at `{piece-slug}/profile.md` + `{piece-slug}/content.md`. The
@@ -409,7 +409,7 @@ The alpha-author program adds two operator-canon domains:
   slices populate when audience-bearing capabilities are connected per
   ADR-283 step 2).
 
-- **`context/audience/`** — per-platform audience signal. Empty by
+- **`operation/audience/`** — per-platform audience signal. Empty by
   default — populated only when audience-bearing capabilities are
   connected. Per-platform entities at `{platform-slug}/profile.md`.
   `_signal.md` accumulates engagement state. The bundle ships this
@@ -417,8 +417,8 @@ The alpha-author program adds two operator-canon domains:
 
 Operational substrate emerges through Reviewer judgment + work over
 tenure: investigation work surfaces a `research/` directory the Reviewer
-populates; pattern-tracking lands in `review/notes.md`; operation-shaping
-judgment moments accumulate in `review/judgment_log.md` (rendered by
+populates; pattern-tracking lands in `persona/notes.md`; operation-shaping
+judgment moments accumulate in `persona/judgment_log.md` (rendered by
 infrastructure from the Reviewer's structured outputs). The bundle ships
 the empty house; the workspace develops as the operation actually runs.
 
@@ -466,6 +466,6 @@ Specifically:
   during quarterly-voice-audit is the right channel.
 
 The right home for the Reviewer's evolving understanding is its
-`reviewer-workbench` substrate (`review/notes.md`). The right channel for
+`reviewer-workbench` substrate (`persona/notes.md`). The right channel for
 proposed changes to operator canon is the operator's approval surface
 (`Clarify` or `ProposeAction`).

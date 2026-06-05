@@ -19,7 +19,7 @@
 # it via @primitive: SyncPlatformState(...) directives.
 #
 # Per ADR-262 D1: every output path is slug-templated by CONVENTIONS.md;
-# every spec referenced by a prompt lives under /workspace/specs/.
+# every spec referenced by a prompt lives under /workspace/operation/specs/.
 #
 # Per ADR-268: semantic schedules ("@market_open + 15min",
 # "@every 1min during regular_hours") resolve to UTC at materialize-due
@@ -42,7 +42,7 @@ recurrences:
     prompt: |
       @primitive: SyncPlatformState(
         tool="platform_trading_get_positions",
-        write_to="context/portfolio/positions/{symbol}.yaml",
+        write_to="operation/portfolio/positions/{symbol}.yaml",
         iterate_field="positions",
         item_key="symbol",
         diff_aware=true
@@ -58,7 +58,7 @@ recurrences:
     prompt: |
       @primitive: SyncPlatformState(
         tool="platform_trading_get_account",
-        write_to="context/portfolio/_account.yaml",
+        write_to="operation/portfolio/_account.yaml",
         diff_aware=true
       )
     display_name: "Account State Mirror"
@@ -70,7 +70,7 @@ recurrences:
       @primitive: SyncPlatformState(
         tool="platform_trading_get_orders",
         tool_args={"status": "open"},
-        write_to="context/portfolio/_orders.yaml",
+        write_to="operation/portfolio/_orders.yaml",
         diff_aware=true
       )
     display_name: "Open Orders Mirror"
@@ -147,26 +147,26 @@ recurrences:
       What you produce (ADR-296 v2 D3 — single judgment cycle, inline emit):
       - signal-entry rows appended to signals/{signal_id}.yaml when entry conditions match
       - ProposeAction(...) emitted INLINE when any entry signal OR exit trigger fires
-      - stand-down written to /workspace/review/judgment_log.md when neither path triggers
+      - stand-down written to /workspace/persona/judgment_log.md when neither path triggers
 
       Step 1 — Evaluate signals. For each ticker in
-      /workspace/context/trading/_universe.yaml:
-        - Read the latest snapshot at /workspace/context/trading/{TICKER}.yaml
+      /workspace/operation/trading/_universe.yaml:
+        - Read the latest snapshot at /workspace/operation/trading/{TICKER}.yaml
           (filename is UPPERCASE — the track-universe mirror writes
           ticker.upper(); a lowercase read finds nothing).
         - Apply each signal's boolean rule from
-          /workspace/context/_shared/_operator_profile.md.
+          /workspace/operation/trading/_operator_profile.md.
         - When a signal fires, append a signal entry to
-          /workspace/context/trading/signals/{signal_id}.yaml with timestamp,
+          /workspace/operation/trading/signals/{signal_id}.yaml with timestamp,
           ticker, conditions snapshot, and sizing inputs.
 
       Step 2 — Check open positions for exit triggers. Read
-      /workspace/context/portfolio/positions/{ticker}.yaml against the
-      "Hard exit triggers" section in /workspace/review/principles.md —
+      /workspace/operation/portfolio/positions/{ticker}.yaml against the
+      "Hard exit triggers" section in /workspace/persona/principles.md —
       stop hit, target reached, max-hold reached.
 
       Step 3 — Before sizing entry proposals, read
-      /workspace/context/trading/_regime.yaml. Two checks:
+      /workspace/operation/trading/_regime.yaml. Two checks:
         (a) Freshness: if last_updated > 24h OR data_stale=true, do NOT
             emit entry proposals — note in reasoning + stand down on entries
             (exits still emit per the mandatory-close rule below).
@@ -227,7 +227,7 @@ recurrences:
       sizing math>", confidence="high"|"medium").
 
       Otherwise, when neither entries nor exits fire: WriteFile
-      /workspace/review/standing_intent.md per kernel persona frame, THEN
+      /workspace/persona/standing_intent.md per kernel persona frame, THEN
       ReturnVerdict(verdict="stand_down", reasoning="<persona-voice noting
       no entries/exits + what you're watching for in the next cycle>",
       confidence="medium"). Text-only response without ReturnVerdict is
@@ -254,8 +254,8 @@ recurrences:
     fire_on_activation: true
     prompt: |
       @primitive: MirrorSignalState(
-        source="context/trading/signals/*.yaml",
-        write_to="context/trading/_signals_summary.md",
+        source="operation/trading/signals/*.yaml",
+        write_to="operation/trading/_signals_summary.md",
         diff_aware=true
       )
     display_name: "Signals Summary Mirror"
@@ -271,10 +271,10 @@ recurrences:
   # scaffolded here. Under FOUNDATIONS v8.5 Axiom 4 + Derived Principle
   # 18, deliverable cadence is Reviewer-authored — not bundle-scaffolded.
   # The operator declares preferences for these deliverables in
-  # /workspace/context/_shared/_preferences.yaml. The Reviewer reads
+  # /workspace/governance/_preferences.yaml. The Reviewer reads
   # _preferences.yaml at every wake and authors Schedule(action="create"|
   # "update"|"archive") for declared preferences. The capability specs
-  # remain in /workspace/specs/ (pre-market-brief.md, weekly-performance-
+  # remain in /workspace/operation/specs/ (pre-market-brief.md, weekly-performance-
   # review.md, quarterly-signal-audit.md) — Claude Code skills.md analog.
 
   # ── outcome-reconciliation — daily money-truth reconcile ─────────────────
@@ -304,14 +304,14 @@ recurrences:
            (our proposal.id round-trips through Alpaca per the P&L
            unification refactor; the reconciler reads it back and joins
            against action_proposals to extract signal_id from inputs).
-        3. Folds outcomes into /workspace/context/trading/_money_truth.md
+        3. Folds outcomes into /workspace/operation/trading/_money_truth.md
            — frontmatter rolling 7d/30d/90d, by_signal per-signal windows,
            by_action_type, by_provider; body narrative with per-signal
-           attribution section. Schema in /workspace/specs/performance-rollup.md.
-        4. Regenerates /workspace/context/_money_truth_summary.md as the
+           attribution section. Schema in /workspace/operation/specs/performance-rollup.md.
+        4. Regenerates /workspace/operation/_money_truth_summary.md as the
            cross-domain rollup the daily-update briefing reads.
 
-      Close the cycle: WriteFile /workspace/review/standing_intent.md
+      Close the cycle: WriteFile /workspace/persona/standing_intent.md
       noting which open positions you're watching for fills + the next
       reconciliation window (per ADR-284). THEN ReturnVerdict(verdict=
       "stand_down", reasoning="<persona-voice summary of today's
