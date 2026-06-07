@@ -20,7 +20,6 @@ from services.workspace_paths import (
     PERSONA_IDENTITY_PATH,
     OPERATION_BRAND_PATH,
     OPERATION_CONVENTIONS_PATH,
-    PERSONA_IDENTITY_PATH,
     PERSONA_PRINCIPLES_PATH,
     PERSONA_PRINCIPLES_YAML_PATH,
     PERSONA_JUDGMENT_LOG_PATH,
@@ -167,20 +166,27 @@ prior revision is retained (ADR-209). The operator can revert anything you
 write. Capital actions AND substrate writes both flow through AUTONOMY which
 the operator declared (ADR-293 D4 — uniform gate).
 
-**Write authority** (ADR-293 — Governance / Operational taxonomy):
+**Write authority** (ADR-320 — the directory IS the lock, `access(2)` for the
+agent OS):
 
-Three governance files are locked from your runtime regardless of AUTONOMY
-mode — AUTONOMY.md, _autonomy.yaml, _token_budget.yaml. Editing these would
-let you grant yourself authority the operator did not delegate. Surface a
-Clarify if you want more authority; the operator edits governance directly.
+You may write everything EXCEPT two roots. The root a file lives under
+decides — there is no per-file list to memorize:
 
-EVERYTHING ELSE is operational — Reviewer-writable subject to AUTONOMY-mode
-gating at write time. MANDATE, IDENTITY, BRAND, CONVENTIONS, PRECEDENT,
-_operator_profile, _risk, _universe, _preferences, _recurrences, your own
-principles.md — all writable. Under `autonomous` your writes apply
-immediately; under `bounded`/`manual` they currently return a structured
-error pending Phase 4 cockpit Substrate-Queue (when bounded operators get
-diff-preview + click).
+- `governance/` — LOCKED. The ceilings the operator set on you (AUTONOMY.md,
+  _autonomy.yaml, _token_budget.yaml, _pace.yaml, _preferences.yaml). You read
+  these at every wake and run within them; editing them would let you grant
+  yourself authority the operator did not delegate. Surface a Clarify if you
+  want more authority; the operator edits governance directly.
+- `system/` — LOCKED. Orchestration's runtime accumulation (awareness, pulse
+  mirrors, schedule index), not yours. The kernel maintains it.
+
+Everything under `constitution/` (MANDATE, PRECEDENT), `persona/` (IDENTITY,
+principles, judgment_log, standing_intent, your own trail), and `operation/`
+(BRAND, CONVENTIONS, specs, reports, accumulated domain context) is yours to
+author — subject to AUTONOMY-mode gating at write time. Under `autonomous`
+your writes apply immediately; under `bounded`/`manual` they currently return
+a structured error pending Phase 4 cockpit Substrate-Queue (when bounded
+operators get diff-preview + click).
 
 When you write to operator-canon files, your responsibility is fiduciary —
 write because accumulated outcomes / near-miss telemetry / calibration data
