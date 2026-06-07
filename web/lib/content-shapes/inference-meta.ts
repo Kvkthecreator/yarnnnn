@@ -10,8 +10,9 @@
  *
  * Note on PATH_GLOB: this shape doesn't anchor to a single path — the
  * comment trailer can appear on any inferred file. The glob below matches
- * the two known producers (IDENTITY.md + BRAND.md); if more inferred
- * surfaces gain meta trailers later, extend the glob without renaming.
+ * the two known producers (persona/IDENTITY.md + operation/BRAND.md, ADR-320
+ * five-root); if more inferred surfaces gain meta trailers later, extend the
+ * glob without renaming.
  */
 
 import type { ContentShapeMeta } from './index';
@@ -21,7 +22,7 @@ import type { ContentShapeMeta } from './index';
 // ---------------------------------------------------------------------------
 
 export const SHAPE_KEY = 'inference-meta' as const;
-export const PATH_GLOB = '**/_shared/{IDENTITY,BRAND}.md';
+export const PATH_GLOB = '**/{persona/IDENTITY,operation/BRAND}.md';
 export const WRITE_CONTRACT = 'system_owned' as const;
 export const CANONICAL_L3 = 'InferenceContentView' as const;
 

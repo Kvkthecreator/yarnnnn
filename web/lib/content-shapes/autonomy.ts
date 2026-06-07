@@ -24,7 +24,7 @@ import type { ContentShapeMeta } from './index';
 // ---------------------------------------------------------------------------
 
 export const SHAPE_KEY = 'autonomy' as const;
-export const PATH_GLOB = '**/_shared/_autonomy.yaml';
+export const PATH_GLOB = '**/governance/_autonomy.yaml';
 export const WRITE_CONTRACT = 'configuration' as const;
 export const CANONICAL_L3 = 'AutonomyCard' as const;
 

@@ -23,7 +23,7 @@ import type { ContentShapeMeta } from './index';
 // ---------------------------------------------------------------------------
 
 export const SHAPE_KEY = 'mandate' as const;
-export const PATH_GLOB = '**/_shared/MANDATE.md';
+export const PATH_GLOB = '**/constitution/MANDATE.md';
 export const WRITE_CONTRACT = 'authored_prose' as const;
 export const CANONICAL_L3 = 'MandateCard' as const;
 

@@ -11,7 +11,7 @@
 import type { ContentShapeMeta } from './index';
 
 export const SHAPE_KEY = 'identity' as const;
-export const PATH_GLOB = '**/_shared/IDENTITY.md';
+export const PATH_GLOB = '**/persona/IDENTITY.md';
 export const WRITE_CONTRACT = 'authored_prose' as const;
 export const CANONICAL_L3 = 'IdentityBrandCard' as const;
 
