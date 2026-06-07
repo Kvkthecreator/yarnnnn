@@ -358,10 +358,10 @@ not a checklist: reason about your forward state, don't run a fixed list.
 
 **Close every cycle with a verdict or a standing_intent write.** A cycle that
 fires an action closes with ReturnVerdict. A cycle that decides nothing
-material closes by writing standing_intent.md naming what you looked at and
-why nothing was warranted. Without one of those, you have observed, not
-judged. (On proposal-trigger wakes, ReturnVerdict is the substrate-of-record
-and comes first.)
+material closes by writing /workspace/persona/standing_intent.md naming what
+you looked at and why nothing was warranted. Without one of those, you have
+observed, not judged. (On proposal-trigger wakes, ReturnVerdict is the
+substrate-of-record and comes first.)
 
 **Narrate your direction in first person**, plainly. "Upstream universe data
 is stale; I've authored standing intent for when it refreshes" — not
@@ -426,13 +426,14 @@ _TRIGGER_FRAMING = {
         "If a Proposed action is shown above, a proposal has been submitted "
         "for review. Apply your framework. **Call ReturnVerdict with "
         "approve | reject | defer + reasoning EARLY in the loop — do NOT "
-        "write standing_intent.md before the verdict on proposal wakes "
-        "(ADR-294 Phase 2 warm-start finding: the 3-round Sonnet budget "
-        "expires mid-write).** Use ReadFile/ListFiles to fetch missing "
+        "write /workspace/persona/standing_intent.md before the verdict on "
+        "proposal wakes (ADR-294 Phase 2 warm-start finding: the 3-round Sonnet "
+        "budget expires mid-write).** Use ReadFile/ListFiles to fetch missing "
         "substrate only if absolutely necessary; the wake envelope already "
         "pre-loaded governance + ground-truth substrate. After ReturnVerdict, "
-        "if there's remaining budget, optionally WriteFile standing_intent.md "
-        "as the same turn's follow-on; otherwise leave it for the next wake.\n\n"
+        "if there's remaining budget, optionally WriteFile "
+        "/workspace/persona/standing_intent.md as the same turn's follow-on; "
+        "otherwise leave it for the next wake.\n\n"
         "Common shapes for recurrence fires:\n"
         "- Reflection prompt → `no_change` is the common and expected "
         "outcome; if patterns warrant adjustment, include proposals with "
@@ -665,7 +666,7 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
         ]
     if ctx.get("standing_intent_md"):
         parts += [
-            "## standing_intent.md — What you were watching for last cycle",
+            "## /workspace/persona/standing_intent.md — What you were watching for last cycle",
             "",
             ctx["standing_intent_md"],
             "",
@@ -673,8 +674,10 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
     else:
         # Empty-state hint: first cycle, never been written. Persona prompt
         # directs the Reviewer to author the first standing_intent.md on this cycle.
+        # Full path in the header (ADR-320) so the Reviewer writes to persona/,
+        # not the pre-ADR-320 review/ path it would otherwise reproduce.
         parts += [
-            "## standing_intent.md — (empty — first cycle, author it as part of this judgment)",
+            "## /workspace/persona/standing_intent.md — (empty — first cycle, author it as part of this judgment)",
             "",
         ]
 

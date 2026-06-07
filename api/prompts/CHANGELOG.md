@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.07.1] - ADR-320 follow-up: full-path standing_intent headers (kill dual-write)
+
+### Changed (behavioral — Reviewer wake-envelope + instructions)
+
+- `agents/reviewer_agent.py`: the wake-envelope `standing_intent.md` header (both
+  populated + empty-state) now renders the FULL path
+  `/workspace/persona/standing_intent.md`, and the three bare-filename
+  "write standing_intent.md" instructions are path-qualified to
+  `/workspace/persona/standing_intent.md`.
+- Root cause: post-ADR-320 deploy, the Reviewer (`reviewer:ai:reviewer-sonnet-v8`)
+  kept writing `review/standing_intent.md` (the pre-ADR-320 path) because the
+  envelope header showed a BARE filename — the model filled the directory from
+  its prior knowledge of `review/`. judgment_log writes were already correct
+  (those instructions carried the full `/workspace/persona/` path). Substrate
+  receipt: `review/standing_intent.md` head authored_by=`reviewer:ai:reviewer-sonnet-v8`
+  at 2026-06-06 06:35, hours after the 07:16 deploy — model-chosen path, not a
+  code literal (all constants already pointed at persona/).
+- Expected behavior: the Reviewer writes standing_intent + judgment_log to
+  persona/ only; no more dual-write to the legacy review/ path. The stale
+  review/ + memory/ rows were deleted from live substrate (canonicals confirmed
+  in persona/ + system/).
+
+### Related
+- ADR-320 (five-root topology), [2026.06.05.1] (the path migration this completes).
+
 ## [2026.06.05.1] - ADR-320 five-root permission topology — cockpit-awareness + persona-frame paths
 
 ### Changed (behavioral — Reviewer-facing prompt content)
