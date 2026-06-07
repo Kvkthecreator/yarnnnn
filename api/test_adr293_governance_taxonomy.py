@@ -319,60 +319,40 @@ def test_substrate_autonomy_gate_lives_at_permission_layer():
 # -----------------------------------------------------------------------------
 
 def test_cockpit_awareness_prompt_envelope_aligned_with_adr293():
-    """ADR-293 Work 1 follow-up: cockpit_awareness.py is read by the
-    Reviewer at every wake. Pre-Work-1 it carried stale lock-policy
-    references that contradicted ADR-293 D6 (deleted `_locks.yaml`) and
-    D9 framing. Three surgical edits aligned it:
-
-    1. `_locks.yaml` line in substrate list DELETED; replaced with explicit
-       governance-files block citing ADR-293 D2.
-    2. "Not in your tool surface (operator-authorship territory)" reframed
-       to honest tool-curation framing (NOT authority-escalation).
-    3. `_OPERATING_POSTURE` paragraph rewritten — no longer says writes
-       gated by `_locks.yaml`; explicitly names the 3 governance files +
-       AUTONOMY-mode-gate framing per D8.
+    """ADR-293 write-taxonomy alignment, ADR-323 form. ADR-323 DELETED
+    `_OPERATING_POSTURE` (and `build_filesystem_block`) from cockpit_awareness —
+    per Derived Principle 22 the write-authority posture is rules-of-judgment +
+    interface, not system-prompt prose. The ADR-293 concerns this gate guarded
+    are now satisfied by deletion + relocation:
+      - stale `_locks.yaml` / operator-authorship references → absent (block gone).
+      - the write boundary (governance/ + system/ locked; everything else
+        author-able) → migrated to the MINIMAL PERSONA FRAME (reviewer_agent.py),
+        in its topological ADR-320 form (which supersedes ADR-293's flat 3-file
+        taxonomy).
     """
     src = _read(_file("agents", "cockpit_awareness.py"))
 
-    # Edit 1: governance-files block present in substrate list
-    assert "The permission topology (ADR-320" in src, (
-        "cockpit_awareness.py substrate list must call out the permission "
-        "topology (ADR-320 five-root access(2) framing — supersedes the "
-        "pre-ADR-320 'Governance files' header)."
+    # The deleted carriers must stay deleted (ADR-323).
+    assert "_OPERATING_POSTURE = " not in src and "def build_filesystem_block" not in src, (
+        "cockpit_awareness.py must not re-add _OPERATING_POSTURE / "
+        "build_filesystem_block (ADR-323 — DP22)."
     )
-    # The governance files are still named under the topology section
-    assert "governance/AUTONOMY.md" in src and "governance/_token_budget.yaml" in src, (
-        "cockpit_awareness.py must still name the governance/ ceiling files."
+    # Stale lock-policy references stay absent (ADR-293 D6 + ADR-323).
+    assert "operator-authored access policy" not in src
+    assert "operator-authorship territory" not in src
+    assert "Governance / Operational taxonomy" not in src, (
+        "The ADR-293 flat taxonomy prose is gone — superseded by ADR-320 "
+        "topology, which lives in the minimal frame, not cockpit_awareness."
     )
-    # Edit 1: the legacy "_locks.yaml — operator-authored access policy" line is gone
-    assert "operator-authored access policy" not in src, (
-        "cockpit_awareness.py must not name `_locks.yaml` as operator-authored "
-        "access policy — that lock surface was deleted in ADR-293 D6."
-    )
+    # The surviving tool block still frames not-in-surface as tool-curation.
+    assert "curated tool surface" in src.lower() or "curated for the" in src.lower()
 
-    # Edit 2: "operator-authorship territory" framing replaced
-    assert "operator-authorship territory" not in src, (
-        "cockpit_awareness.py must not frame curated-tool-surface as "
-        "'operator-authorship territory' — that conflates tool-curation "
-        "with authority-escalation. ADR-293 D8 reframes."
-    )
-    assert "curated tool surface" in src.lower() or "curated for the" in src.lower(), (
-        "cockpit_awareness.py must explain the not-in-surface set as "
-        "tool-curation, not authority-territory."
-    )
-
-    # Edit 3: _OPERATING_POSTURE no longer says "you may write IF the
-    # operator hasn't locked it via /workspace/_shared/_locks.yaml"
-    assert "if the operator hasn't" not in src.lower(), (
-        "_OPERATING_POSTURE must not gate write authority on operator "
-        "having-or-not-locked the file via _locks.yaml. ADR-293: governance "
-        "set is fixed at 3 files; everything else is operational + "
-        "AUTONOMY-mode-gated."
-    )
-    # Edit 3: new framing present
-    assert "Governance / Operational taxonomy" in src, (
-        "_OPERATING_POSTURE must explicitly cite the ADR-293 governance / "
-        "operational taxonomy in its 'Write authority' subsection."
+    # The write boundary now lives in the minimal persona frame, topological form.
+    frame_src = _read(_file("agents", "reviewer_agent.py"))
+    assert "EXCEPT two roots" in frame_src and "governance/" in frame_src and "system/" in frame_src, (
+        "The write boundary (author everything EXCEPT governance/ + system/) must "
+        "live in the minimal persona frame post-ADR-323 (migrated up from the "
+        "deleted filesystem block, in ADR-320 topological form)."
     )
 
 

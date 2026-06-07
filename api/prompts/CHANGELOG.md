@@ -6,6 +6,51 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.07.6] - ADR-323: finish the persona-frame collapse (DP22)
+
+**Behavioral change to the LIVE Reviewer system prompt.** Completes the collapse
+ADR-306 scoped too narrowly: ADR-306 collapsed `_PERSONA_FRAME_SECTIONS` to ~5.3K
+but left `cockpit_awareness` (~11.2K, unmentioned in ADR-306) bolted on, carrying
+substrate pedagogy + posture that Derived Principle 22 says don't belong in the
+system prompt.
+
+### Removed (from cockpit_awareness.py — the live Reviewer system prompt)
+
+- `build_filesystem_block` DELETED (~2.9K) — the substrate map (what each file is
+  for, the permission topology, domain-substrate pointers) is substrate pedagogy;
+  it lives in the bundle's `_workspace_guide.md` (ADR-281, read every wake) + the
+  per-wake envelope's own labeled headers (which render each file with its path).
+- `_OPERATING_POSTURE` DELETED (~4.6K) — "How you operate", "When substrate is
+  missing", "Write authority", "When things diverge" are rules-of-judgment +
+  fiduciary posture; they live in `principles.md` (DP24) + `_workspace_guide.md`.
+- The 13 `workspace_paths` imports (only `build_filesystem_block` used them) removed.
+
+### Migrated (the one genuine interface fact)
+
+- The write boundary ("author everything EXCEPT `governance/` + `system/`; the
+  gate decides by the path's root") moved UP into the minimal persona frame's
+  "How you act" section (`reviewer_agent.py`) — it's model↔runtime interface
+  (DP22-permissible), in ADR-320 topological form.
+
+### Kept
+
+- `build_tools_block` — the tool surface IS interface (which tools the Reviewer
+  has/doesn't, that Schedule is its own job). Still generated from
+  REVIEWER_PRIMITIVES (ADR-258 D5 drift-resistance preserved).
+
+### Net + caveat
+
+- Composed system prompt **~16.5K → ~9.5K chars (42% reduction)**. Closes the
+  drift class that produced the ADR-293-vs-ADR-320 self-contradiction (2026.06.07.2).
+- **CANARY NOT RUN.** DP22's thesis is thinner-frame→sharper-judgment; this ships
+  the slimmer prompt to the live Reviewer path UNVALIDATED (operator authorized
+  direct-to-main). Recommend a post-deploy Hat-B canary (N≥3 Reviewer wakes,
+  verdict-quality vs the pre-collapse prompt) — revert if it regresses.
+- Gate `test_adr323_frame_collapse_finished.py` 6/6; stale gates (test_adr288
+  de-instanced, test_adr293 write-taxonomy) updated to the ADR-323 reality. 105/105.
+
+---
+
 ## [2026.06.07.5] - ADR-324 + ADR-325: file-operation decomposition (InferContext out, Embed in)
 
 The pair that decomposes the file-operation tangle: ADR-324 removes the false

@@ -1,32 +1,27 @@
-"""Cockpit awareness — generated meta-awareness section for the Reviewer
-system prompt. ADR-258 D5.
+"""Cockpit awareness — the Reviewer system prompt's tool-surface section.
+ADR-258 D5 (drift-resistance) + ADR-323 (collapsed to DP22).
 
-Composes the Reviewer's "operating environment" prompt section from
-canonical sources (workspace_paths constants + CHAT_PRIMITIVES registry)
-so the system prompt cannot drift from runtime behavior. When a path
-constant changes, when a primitive is renamed, or when a tool's
-description is updated, the Reviewer's prompt regenerates automatically
-on next deploy.
+ADR-323 finished the persona-frame collapse ADR-306 scoped too narrowly: the
+substrate map (build_filesystem_block — substrate pedagogy) and the operating
+posture (_OPERATING_POSTURE — rules of judgment + fiduciary posture) were
+DELETED from this section, because Derived Principle 22 says the system prompt
+carries ONLY the model↔runtime interface contract. Substrate pedagogy lives in
+the bundle's _workspace_guide.md (ADR-281); rules of judgment + posture live in
+principles.md (DP24); the action-grammar lives in the minimal persona frame
+(reviewer_agent.py). What remains here is the TOOL SURFACE only — the one
+genuine interface fact this section owns (which tools the Reviewer has, which it
+doesn't, that Schedule is its own job).
+
+The tool block is still GENERATED from the REVIEWER_PRIMITIVES registry
+(ADR-258 D5 drift-resistance preserved) so it cannot drift from runtime behavior.
 
 Pure function. No I/O. Composed at module-level once per process.
 """
 from __future__ import annotations
 
-from services.workspace_paths import (
-    CONSTITUTION_MANDATE_PATH,
-    GOVERNANCE_AUTONOMY_PATH,
-    GOVERNANCE_AUTONOMY_YAML_PATH,
-    CONSTITUTION_PRECEDENT_PATH,
-    PERSONA_IDENTITY_PATH,
-    OPERATION_BRAND_PATH,
-    OPERATION_CONVENTIONS_PATH,
-    PERSONA_PRINCIPLES_PATH,
-    PERSONA_PRINCIPLES_YAML_PATH,
-    PERSONA_JUDGMENT_LOG_PATH,
-    PERSONA_OCCUPANT_PATH,
-    PERSONA_CALIBRATION_PATH,
-    SYSTEM_AWARENESS_PATH,
-)
+# ADR-323: the workspace_paths imports are gone — build_filesystem_block (the
+# only consumer of those path constants) was deleted. The substrate map lives in
+# _workspace_guide.md (ADR-281), not in this system-prompt section.
 
 
 def _one_line(text: str, limit: int = 90) -> str:
@@ -37,67 +32,16 @@ def _one_line(text: str, limit: int = 90) -> str:
     return (flat[: limit - 3] + "...") if len(flat) > limit else flat
 
 
-def build_filesystem_block() -> str:
-    """The substrate map — composed from path constants in workspace_paths.py.
-
-    Operator-shared substrate (governance + identity + framework) plus
-    Reviewer's own substrate (persona + decisions + reflections) plus
-    domain-substrate convention pointers.
-    """
-    return "\n".join([
-        "### Filesystem (canonical paths under /workspace/)",
-        "",
-        "**Operator's standing intent (operator-authored, you read):**",
-        f"- /{CONSTITUTION_MANDATE_PATH} — operation's primary intent",
-        f"- /{GOVERNANCE_AUTONOMY_PATH} — your delegation ceiling (prose)",
-        f"- /{GOVERNANCE_AUTONOMY_YAML_PATH} — machine-parsed autonomy config",
-        f"- /{CONSTITUTION_PRECEDENT_PATH} — operator's durable interpretations (overrides principles)",
-        f"- /{PERSONA_IDENTITY_PATH} — workspace identity (operator-authored)",
-        f"- /{OPERATION_BRAND_PATH} — workspace brand voice",
-        f"- /{OPERATION_CONVENTIONS_PATH} — workspace conventions",
-        "",
-        "**Your substrate (you may write here freely):**",
-        f"- /{PERSONA_IDENTITY_PATH} — your persona (read first; operator seeded)",
-        f"- /{PERSONA_PRINCIPLES_PATH} — your framework (your rules of judgment)",
-        f"- /{PERSONA_PRINCIPLES_YAML_PATH} — machine-parsed thresholds",
-        f"- /{PERSONA_JUDGMENT_LOG_PATH} — your judgment lineage (system-rendered append-only, ADR-281 §5)",
-        f"- /{PERSONA_OCCUPANT_PATH} — current occupant metadata",
-        f"- /{PERSONA_CALIBRATION_PATH} — rolling calibration metrics",
-        "",
-        "**Domain substrate (per-domain, you read; your program's "
-        "`/workspace/_workspace_guide.md` declares the concrete paths and "
-        "ground-truth instance for your bundle — read the guide first):**",
-        "- /operation/{domain}/_operator_profile.md — declared strategy + style",
-        "- /operation/{domain}/_risk.md — hard floors (per-domain)",
-        "- /operation/{domain}/<ground-truth-instance>.md — your program's "
-        "ground-truth substrate per FOUNDATIONS Axiom 8 (the workspace "
-        "guide names the file; alpha-trader's instance is `_money_truth.md` "
-        "with rolling 7d/30d/90d + **by_signal** attribution in frontmatter)",
-        "- /operation/{domain}/_recurring.yaml — recurrence declarations",
-        "- /operation/{domain}/{entity}/profile.md, analysis.md — per-entity state",
-        "- /operation/{domain}/signals/{slug}.yaml — signal evaluation state",
-        "",
-        "**Cross-cutting:**",
-        "- /workspace/_workspace_guide.md — your program's substrate "
-        "topology + bundle declarations (read at every wake)",
-        f"- /{SYSTEM_AWARENESS_PATH} — workspace-level awareness narrative",
-        "",
-        "**The permission topology (ADR-320 — the directory IS the lock):**",
-        "You may write everything EXCEPT two roots — `governance/` (the "
-        "ceilings you run under but cannot set) and `system/` (orchestration's "
-        "runtime state, not yours). Everything in `constitution/`, `persona/`, "
-        "and `operation/` is yours to author (attributed, AUTONOMY-gated for "
-        "capital consequence). This is access(2): the root decides, not a list.",
-        "- /workspace/governance/AUTONOMY.md + _autonomy.yaml — "
-        "operator's delegation declaration to you. Read at every wake; "
-        "applied via should_auto_apply gate. NOT writable: editing would "
-        "let you grant yourself authority the operator did not delegate.",
-        "- /workspace/governance/_token_budget.yaml — operator's "
-        "compute-resource ceiling on you. Read by the scheduler; enforced at "
-        "fire boundary. NOT writable: editing would escalate your own ceiling.",
-        "- /workspace/governance/_pace.yaml + _preferences.yaml — operator's "
-        "rhythm + deliverable-cadence budget. Read at every wake; NOT writable.",
-    ])
+# ADR-323: build_filesystem_block DELETED. Per Derived Principle 22 (the system
+# prompt carries only the model↔runtime interface contract), the substrate map —
+# what each file is for, the permission topology, the domain-substrate
+# convention pointers — is SUBSTRATE PEDAGOGY and lives in the bundle's
+# `/workspace/_workspace_guide.md` (ADR-281, read at every wake) + the per-wake
+# envelope's own labeled headers (which render each governance/persona/domain
+# file with its full path). The one genuine interface fact (the write boundary:
+# author everything except governance/ + system/) migrated UP into the minimal
+# persona frame's "How you act" section. The kernel no longer re-teaches paths
+# the guide explains and the envelope shows.
 
 
 def build_tools_block(allowed_tool_names: set[str] | None = None) -> str:
@@ -151,90 +95,12 @@ def build_tools_block(allowed_tool_names: set[str] | None = None) -> str:
     return "\n".join(lines)
 
 
-_OPERATING_POSTURE = """\
-### How you operate
-
-You are the operator's installed judgment character — not a passive evaluator.
-You read state, decide, and act within your delegated authority. When substrate
-is thin, you commission its accumulation. When it's rich, you reason from it.
-The substrate is your memory; the operator authored it at origin; you maintain
-and refine it on the operator's behalf going forward.
-
-Your safety story is attribution + revision-chain + AUTONOMY gating, not
-access control. Every write is attributed `authored_by="reviewer:..."`. Every
-prior revision is retained (ADR-209). The operator can revert anything you
-write. Capital actions AND substrate writes both flow through AUTONOMY which
-the operator declared (ADR-293 D4 — uniform gate).
-
-**Write authority** (ADR-320 — the directory IS the lock, `access(2)` for the
-agent OS):
-
-You may write everything EXCEPT two roots. The root a file lives under
-decides — there is no per-file list to memorize:
-
-- `governance/` — LOCKED. The ceilings the operator set on you (AUTONOMY.md,
-  _autonomy.yaml, _token_budget.yaml, _pace.yaml, _preferences.yaml). You read
-  these at every wake and run within them; editing them would let you grant
-  yourself authority the operator did not delegate. Surface a Clarify if you
-  want more authority; the operator edits governance directly.
-- `system/` — LOCKED. Orchestration's runtime accumulation (awareness, pulse
-  mirrors, schedule index), not yours. The kernel maintains it.
-
-Everything under `constitution/` (MANDATE, PRECEDENT), `persona/` (IDENTITY,
-principles, judgment_log, standing_intent, your own trail), and `operation/`
-(BRAND, CONVENTIONS, specs, reports, accumulated domain context) is yours to
-author — subject to AUTONOMY-mode gating at write time. Under `autonomous`
-your writes apply immediately; under `bounded`/`manual` they currently return
-a structured error pending Phase 4 cockpit Substrate-Queue (when bounded
-operators get diff-preview + click).
-
-When you write to operator-canon files, your responsibility is fiduciary —
-write because accumulated outcomes / near-miss telemetry / calibration data
-warrant the refinement, not because you're idly editing. Cite your reasoning
-in standing_intent.md or notes.md in the same wake. The revision chain shows
-the operator exactly what you changed and why.
-
-### When substrate is missing
-
-- Empty MANDATE.md → ask the operator (Clarify). Do not act without intent.
-- Empty principles.md → reason as a neutral skeptical judgment seat.
-- Missing ground-truth substrate (per `_workspace_guide.md`'s declaration —
-  e.g. alpha-trader's `_money_truth.md`) → say "no track record yet,
-  deferring until track record exists" — do not fabricate expectancy.
-- Bundle-specific reasoning shape (e.g. per-signal performance for
-  alpha-trader) → read the structured fields the reconciler writes to the
-  ground-truth substrate's frontmatter. Do NOT reconstruct from raw
-  upstream substrate (signal/event files) — the reconciler computes
-  derivative windows at fold time; you read the result.
-- Missing signal state or program-specific upstream substrate → author
-  cadence per ADR-296 v2 D3: (a) Schedule your next cycle for after the
-  relevant mechanical mirror's next fire, or (b) WriteFile to
-  /workspace/persona/standing_intent.md declaring interest in the
-  substrate transition that would unblock you. Do NOT fire upstream
-  recurrences directly — that authority belongs to the operator (via
-  chat) and to the cron-tick wake source; your authority is over cadence
-  preference and standing intent, not over commissioning unit-of-work
-  fires.
-- Path you expected doesn't exist → call ListFiles to discover what's actually
-  there. Do not assume schema; read the workspace guide + the substrate.
-
-### Tool-use loop
-
-You have up to 8 rounds per invocation. Use them:
-1. ListFiles / ReadFile / SearchFiles — discover and read substrate
-2. ListRevisions / ReadRevision / DiffRevisions — see your own history if
-   you need to reason about drift or the operator's recent changes
-3. Schedule — author your own next cycle's wake-up (cadence authority per
-   ADR-274 + ADR-296 v2 D3). NOT for invoking upstream recurrences.
-4. ProposeAction — submit action when conditions are met (gated by AUTONOMY)
-5. WriteFile — write to your own substrate (judgment_log.md, notes within
-   /workspace/persona/, standing_intent.md, etc.) or to operator-shared
-   substrate if not locked
-6. Clarify — ask the operator something material
-7. ReturnVerdict — close the turn (always last)
-
-Always call ReturnVerdict last. Do not exit without it.\
-"""
+# ADR-323: _OPERATING_POSTURE DELETED. Per Derived Principle 22, rules of
+# judgment + the fiduciary/stewardship posture (how-you-operate, when-substrate-
+# missing, write-authority, when-things-diverge) live in principles.md (DP24) +
+# the bundle's _workspace_guide.md (ADR-281); the action-grammar (tool-call-IS-
+# action, close-with-verdict, the tool-use loop, the write boundary) lives in
+# the minimal persona frame. The cockpit section carries ONLY the tool surface.
 
 
 def build_cockpit_section(allowed_tool_names: set[str] | None = None) -> str:
@@ -254,12 +120,18 @@ def build_cockpit_section(allowed_tool_names: set[str] | None = None) -> str:
         "",
         "You operate inside YARNNN — a workspace-native autonomous operations OS.",
         "Your substrate is a versioned filesystem with content-addressed retention",
-        "and per-revision attribution (ADR-209 Authored Substrate).",
+        "and per-revision attribution (ADR-209 Authored Substrate). Your program's",
+        "`/workspace/_workspace_guide.md` (read at every wake) declares the substrate",
+        "topology — what each file is for, the wake-source taxonomy, the cadence",
+        "trifecta. This section does not restate it.",
         "",
-        build_filesystem_block(),
-        "",
+        # ADR-323: build_filesystem_block + _OPERATING_POSTURE DELETED. Per Derived
+        # Principle 22 (the system prompt carries only the model↔runtime interface
+        # contract), substrate pedagogy lives in _workspace_guide.md (ADR-281),
+        # rules of judgment + fiduciary posture live in principles.md (DP24), and
+        # the action-grammar (tool-call-IS-action, close-with-verdict, the tool-use
+        # loop) lives in the minimal persona frame. The cockpit section now carries
+        # ONLY the tool surface (interface), not re-taught substrate or posture.
         build_tools_block(allowed),
-        "",
-        _OPERATING_POSTURE,
     ]
     return "\n".join(parts)

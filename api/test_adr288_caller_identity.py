@@ -386,25 +386,34 @@ def test_default_review_principles_md_speaks_in_ground_truth_substrate():
 
 
 def test_cockpit_awareness_de_instanced():
-    """Phase 3: agents/cockpit_awareness.py must not hardcode `_money_truth.md`
-    as kernel-universal Reviewer substrate. The bundle's `_workspace_guide.md`
-    is the authoritative carrier of program-specific substrate paths.
+    """De-instancing, ADR-323 form: agents/cockpit_awareness.py must not hardcode
+    bundle-instance substrate (`_money_truth.md`) as kernel-universal Reviewer
+    prose. ADR-323 SATISFIED THIS BY DELETION — build_filesystem_block +
+    _OPERATING_POSTURE (the only carriers of substrate prose) are gone; the
+    substrate map lives in the bundle's `_workspace_guide.md`. This gate now
+    asserts the stronger ADR-323 invariant: no substrate-instance prose AND no
+    substrate-pedagogy at all in the kernel cockpit section.
     """
     src = _read_text(_file("agents", "cockpit_awareness.py"))
 
-    # The domain-substrate path list must point at `_workspace_guide.md`
-    # rather than hardcoding `_money_truth.md` as a kernel-universal slot.
-    # Allow instance-pointer mentions of `_money_truth.md` (e.g. "alpha-
-    # trader's instance is `_money_truth.md`") as long as the kernel-concept
-    # phrasing is also present.
-    assert "_workspace_guide.md" in src, (
-        "cockpit_awareness.py must point at `_workspace_guide.md` as the "
-        "authoritative carrier of bundle-specific substrate paths per "
-        "ADR-280 + ADR-288 Phase 3."
+    # ADR-323: the deleted functions must not be re-added.
+    assert "def build_filesystem_block" not in src, (
+        "build_filesystem_block must stay deleted (ADR-323 — substrate pedagogy "
+        "lives in _workspace_guide.md, not the system prompt)."
     )
-    assert "ground-truth" in src.lower() or "ground truth" in src.lower(), (
-        "cockpit_awareness.py must reference ground-truth substrate "
-        "(kernel concept per FOUNDATIONS Axiom 8)."
+    assert "_OPERATING_POSTURE = " not in src, (
+        "_OPERATING_POSTURE must stay deleted (ADR-323 — posture lives in principles.md)."
+    )
+    # No bundle-instance substrate hardcoded as a rendered Reviewer-prose slot.
+    # (Tombstone comments naming _workspace_guide.md as the carrier are fine.)
+    assert 'f"- /operation/{domain}/<ground-truth-instance>' not in src, (
+        "cockpit_awareness.py must not render a hardcoded ground-truth substrate "
+        "slot — that pedagogy moved to _workspace_guide.md (ADR-323)."
+    )
+    # The carrier is still NAMED (in the intro pointer + tombstones).
+    assert "_workspace_guide.md" in src, (
+        "cockpit_awareness.py must still point at `_workspace_guide.md` as the "
+        "authoritative substrate-topology carrier (ADR-281 + ADR-323)."
     )
 
     # The empty-state guidance "Missing _money_truth.md" framing should be
