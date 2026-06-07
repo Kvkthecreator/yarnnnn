@@ -491,13 +491,14 @@ def _domain_from_pattern(pattern: str) -> Optional[str]:
 
 def _path_matches_pattern(path: str, pattern: str) -> bool:
     """Simple glob matching for path patterns."""
-    # Normalize: strip leading /workspace/context/ prefix from path for matching
+    # Normalize: strip leading /workspace/operation/ prefix from path for matching
+    # (ADR-321: domains re-rooted from context/ to operation/).
     # Pattern is relative to domain: "competitors/*/analysis.md"
     domain = _domain_from_path(pattern)
     if not domain:
         return False
     # Check domain appears in path
-    if f"/context/{domain}/" not in path and f"/{domain}/" not in path:
+    if f"/operation/{domain}/" not in path and f"/{domain}/" not in path:
         return False
     # Check file suffix if pattern ends with a filename
     if not pattern.endswith("*/") and not pattern.endswith("*"):

@@ -138,9 +138,10 @@ def _verify_one(cur, persona: Persona) -> Check:
         check.present(risk in paths, f"risk file {risk}")
 
     # Context domain stubs: at least one file present under each domain.
+    # ADR-321: domains re-rooted from context/ to operation/.
     for domain in persona.context_domains:
-        has_files = any(p.startswith(f"/workspace/context/{domain}/") for p in paths)
-        check.present(has_files, f"context domain '{domain}' files under /workspace/context/{domain}/")
+        has_files = any(p.startswith(f"/workspace/operation/{domain}/") for p in paths)
+        check.present(has_files, f"context domain '{domain}' files under /workspace/operation/{domain}/")
 
     # ADR-284 D3: substrate-runtime alignment check on OCCUPANT.md.
     # Pre-ADR-284 the bundle scaffold's `occupant_class: human` default

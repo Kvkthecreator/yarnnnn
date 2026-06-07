@@ -23,7 +23,7 @@ Changelog:
 
 Single source of truth for ALL workspace content directories. Governs:
   /workspace/uploads/    — user-contributed reference material
-  /workspace/context/    — agent-accumulated intelligence substrate (11 domains)
+  /workspace/operation/  — agent-accumulated intelligence substrate (domains; ADR-321 re-root from context/)
 
 Two directory types:
   user_contributed — user uploads, permanent, not agent-managed
@@ -108,7 +108,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
 
     "competitors": {
         "type": "context",
-        "path": "context/competitors",
+        "path": "operation/competitors",
         "display_name": "Competitors",
         "description": "Companies and products we compete with",
         "managed_by": "agent",
@@ -132,7 +132,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
 
     "market": {
         "type": "context",
-        "path": "context/market",
+        "path": "operation/market",
         "display_name": "Market",
         "description": "Market segments, sizing, trends, and opportunities",
         "managed_by": "agent",
@@ -153,7 +153,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
 
     "relationships": {
         "type": "context",
-        "path": "context/relationships",
+        "path": "operation/relationships",
         "display_name": "Relationships",
         "description": "People and organizations we work with",
         "managed_by": "agent",
@@ -176,7 +176,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
 
     "projects": {
         "type": "context",
-        "path": "context/projects",
+        "path": "operation/projects",
         "display_name": "Projects",
         "description": "Internal initiatives, workstreams, and milestones",
         "managed_by": "agent",
@@ -198,7 +198,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
 
     "content_research": {
         "type": "context",
-        "path": "context/content",
+        "path": "operation/content",
         "display_name": "Content Research",
         "description": "Research, drafts, and creative work in progress",
         "managed_by": "agent",
@@ -215,7 +215,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
 
     "signals": {
         "type": "context",
-        "path": "context/signals",
+        "path": "operation/signals",
         "display_name": "Signals",
         "description": "Temporal signal log — what happened when, across all domains",
         "managed_by": "agent",
@@ -249,7 +249,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
 
     "slack": {
         "type": "context",
-        "path": "context/slack",
+        "path": "operation/slack",
         "display_name": "Slack",
         "description": "Temporal observations from Slack channels — decisions, signals, activity",
         "managed_by": "agent",
@@ -270,7 +270,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
 
     "notion": {
         "type": "context",
-        "path": "context/notion",
+        "path": "operation/notion",
         "display_name": "Notion",
         "description": "Temporal observations from Notion pages — changes, updates, content state",
         "managed_by": "agent",
@@ -291,7 +291,7 @@ WORKSPACE_DIRECTORIES: dict[str, dict[str, Any]] = {
 
     "github": {
         "type": "context",
-        "path": "context/github",
+        "path": "operation/github",
         "display_name": "GitHub",
         "description": "Temporal observations + reference data from GitHub repos — issues, PRs, releases, README, metadata",
         "managed_by": "agent",
@@ -380,7 +380,7 @@ def list_directories(dir_type: Optional[str] = None) -> list[dict[str, Any]]:
 
 
 def get_directory_path(key: str) -> Optional[str]:
-    """Get the workspace-relative path for a directory. Returns e.g. 'context/competitors'."""
+    """Get the workspace-relative path for a directory. Returns e.g. 'operation/competitors'."""
     d = get_directory(key)
     return d["path"] if d else None
 
@@ -545,7 +545,7 @@ def has_assets_folder(key: str) -> bool:
 def get_assets_path(key: str) -> Optional[str]:
     """Get the workspace-relative path to a domain's assets/ folder.
 
-    Returns e.g. 'context/competitors/assets' or None.
+    Returns e.g. 'operation/competitors/assets' or None.
     """
     d = get_directory(key)
     if not d or not d.get("assets_folder"):
@@ -628,8 +628,8 @@ CONTEXT_DOMAINS = {k: v for k, v in WORKSPACE_DIRECTORIES.items() if v.get("type
 
 
 # scaffold_all_directories — DELETED (ADR-205 Primitive Collapse, 2026-04-22).
-# Signup no longer pre-creates any /workspace/context/ directory. The first
-# agent write to a context path materializes the directory via UserMemory's
+# Signup no longer pre-creates any /workspace/operation/ domain directory. The first
+# agent write to a domain path materializes the directory via UserMemory's
 # virtual-filesystem write (paths are implicit until written). Platform-bound
 # domains are still scaffolded on OAuth connect — see scaffold_context_domain()
 # below and the call sites in routes/integrations.py. ADR-205 FOUNDATIONS v6.0
@@ -653,8 +653,8 @@ async def scaffold_context_domain(client, user_id: str, domain_key: str) -> bool
 
     directory = WORKSPACE_DIRECTORIES.get(domain_key)
     if not directory:
-        # Unknown domain — create minimal landscape.md
-        path = f"context/{domain_key}"
+        # Unknown domain — create minimal landscape.md (ADR-321: operation/ root)
+        path = f"operation/{domain_key}"
         landscape_path = f"{path}/landscape.md"
         existing = await um.read(landscape_path)
         if existing:

@@ -27,8 +27,8 @@ SEARCH_ENTITIES_TOOL = {
 Scopes: document (uploaded files), agent, version, all. Memory is not a scope — already in working memory.
 
 DOES NOT SEARCH:
-- Work declarations — these are recurrence YAML files at natural-home paths. The compact index lists every recurrence by slug; use ReadFile with the YAML path directly (/workspace/operation/reports/{slug}/_spec.yaml, /workspace/context/{domain}/_recurring.yaml, /workspace/operation/operations/{slug}/_action.yaml, /workspace/_shared/back-office.yaml).
-- Context domain files (/workspace/context/**) — use QueryKnowledge for semantic search or ReadFile for a known path.
+- Work declarations — these are recurrence YAML files at natural-home paths. The compact index lists every recurrence by slug; use ReadFile with the YAML path directly (/workspace/operation/reports/{slug}/_spec.yaml, /workspace/operation/{domain}/_recurring.yaml, /workspace/operation/operations/{slug}/_action.yaml, /workspace/_shared/back-office.yaml).
+- Accumulated domain files (/workspace/operation/**) — use QueryKnowledge for semantic search or ReadFile for a known path.
 - AGENT.md, IDENTITY.md, BRAND.md — these are workspace files. Use ReadFile with the known path.
 
 Use SearchEntities ONLY when you need database rows (agent records, uploaded document metadata, agent run history).""",

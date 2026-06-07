@@ -23,14 +23,14 @@ The convention shapes (per ADR-262 D1):
       working:       /workspace/operation/reports/{slug}/working/
 
     Context (ACCUMULATION-shaped, additive entity files):
-      domain root:    /workspace/context/{domain}/
-      entity (md):    /workspace/context/{domain}/{entity}.md
-      entity (yml):   /workspace/context/{domain}/{entity}.yaml
-      synthesis:      /workspace/context/{domain}/_<name>.md
-      feedback:       /workspace/context/{domain}/_feedback.md
-      ground-truth:   /workspace/context/{domain}/_<ground-truth-instance>.md
+      domain root:    /workspace/operation/{domain}/
+      entity (md):    /workspace/operation/{domain}/{entity}.md
+      entity (yml):   /workspace/operation/{domain}/{entity}.yaml
+      synthesis:      /workspace/operation/{domain}/_<name>.md
+      feedback:       /workspace/operation/{domain}/_feedback.md
+      ground-truth:   /workspace/operation/{domain}/_<ground-truth-instance>.md
                       (bundle-instance-named; alpha-trader: `_money_truth.md`)
-      run log:        /workspace/context/{domain}/_run_log.md
+      run log:        /workspace/operation/{domain}/_run_log.md
 
     Operations (ACTION-shaped, no filesystem output — outcomes flow into
     the relevant domain's ground-truth substrate per FOUNDATIONS Axiom 8):
@@ -157,7 +157,7 @@ def report_working_dir(slug: str) -> str:
 
 def domain_root(domain: str) -> str:
     """Per-domain context root."""
-    return f"/workspace/context/{domain}"
+    return f"/workspace/operation/{domain}"
 
 
 def domain_entity_path(domain: str, entity: str, ext: str = "md") -> str:
@@ -166,23 +166,23 @@ def domain_entity_path(domain: str, entity: str, ext: str = "md") -> str:
     ``ext`` defaults to ``md`` (prose) but should be ``yaml`` for
     structured records per the file-format discipline (CLAUDE.md item 9).
     """
-    return f"/workspace/context/{domain}/{entity}.{ext}"
+    return f"/workspace/operation/{domain}/{entity}.{ext}"
 
 
 def domain_synthesis_path(domain: str, name: str) -> str:
     """Cross-entity synthesis file (underscore-prefixed)."""
-    return f"/workspace/context/{domain}/_{name}.md"
+    return f"/workspace/operation/{domain}/_{name}.md"
 
 
 def domain_feedback_path(domain: str) -> str:
     """Per-domain feedback file (ADR-181, ADR-151)."""
-    return f"/workspace/context/{domain}/_feedback.md"
+    return f"/workspace/operation/{domain}/_feedback.md"
 
 
 def domain_run_log_path(domain: str) -> str:
     """Per-domain shared run log (multiple recurrences in one domain
     write to the same log; entries identify by slug)."""
-    return f"/workspace/context/{domain}/_run_log.md"
+    return f"/workspace/operation/{domain}/_run_log.md"
 
 
 # ---------------------------------------------------------------------------

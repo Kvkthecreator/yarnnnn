@@ -116,10 +116,9 @@ task feedback, awareness handoff, etc.
     'system/notes.md'   → 'memory_written'
     'agents/{slug}/memory/feedback.md' → 'agent_feedback'
 
-**scope='context'** — write to a shared context domain at
-/workspace/context/{domain}/. Use during "update-context" steps to persist
-research findings.
-  WriteFile(scope='context', domain='competitors', path='acme-corp/signals.md', content='...')
+  Accumulated domain context is path-native under operation/{domain}/ (ADR-321 —
+  the path's root is the address; there is no separate 'context' scope):
+  WriteFile(scope='workspace', path='operation/competitors/acme-corp/signals.md', content='...')
 
 **scope='agent'** — write to the calling agent's workspace
 (/agents/{slug}/...). Rarely needed — agent workspace is identity only.
@@ -131,7 +130,7 @@ via the Authored Substrate (ADR-209) with attribution + revision chain.""",
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Path. For scope='workspace': workspace-relative (e.g., 'constitution/MANDATE.md', 'system/notes.md', 'reports/market-weekly/feedback.md'). For scope='context': within the domain folder (e.g., 'acme-corp/signals.md'). For scope='agent': relative to the agent's workspace (e.g., 'AGENT.md').",
+                "description": "Path (the root IS the address — ADR-320/321). For scope='workspace': workspace-relative under one of the five roots (e.g., 'constitution/MANDATE.md', 'system/notes.md', 'reports/market-weekly/feedback.md', 'operation/competitors/acme-corp/signals.md' for accumulated domain context). For scope='agent': relative to the agent's workspace (e.g., 'AGENT.md').",
             },
             "content": {
                 "type": "string",
@@ -144,12 +143,8 @@ via the Authored Substrate (ADR-209) with attribution + revision chain.""",
             },
             "scope": {
                 "type": "string",
-                "enum": ["workspace", "agent", "context"],
-                "description": "Write scope. 'workspace' (default for chat) reaches operator-shared substrate via workspace-relative path. 'context' writes to /workspace/context/{domain}/. 'agent' writes to the calling agent's workspace.",
-            },
-            "domain": {
-                "type": "string",
-                "description": "For scope='context': the context domain (e.g., 'competitors', 'market', 'relationships').",
+                "enum": ["workspace", "agent"],
+                "description": "Write scope (address-space selector, ADR-321). 'workspace' (default for chat) reaches the five-root operator-shared filesystem via a workspace-relative path — the path's top-level root is the address (governance/constitution/persona/operation/system). 'agent' writes to the calling agent's private workspace.",
             },
             "authored_by": {
                 "type": "string",
@@ -197,7 +192,7 @@ Ephemeral scratch files (working/) are excluded from search by default.
             },
             "path_prefix": {
                 "type": "string",
-                "description": "Optional: limit search to a subdirectory (e.g., 'reports/', 'context/', 'working/').",
+                "description": "Optional: limit search to a subdirectory (e.g., 'reports/', 'operation/', 'working/').",
             },
         },
         "required": ["query"],
@@ -214,7 +209,7 @@ Search by topic, entity, or keyword. Optionally filter by domain name to narrow 
 
 Domains are filesystem-discovered — any domain that has files appears here,
 including user-created domains (customers/, investors/, campaigns/, etc.).
-Do not assume a fixed set of domains; use ListFiles on /workspace/context/ to discover what exists.
+Do not assume a fixed set of domains; use ListFiles on /workspace/operation/ to discover what exists.
 
 Uses semantic search (vector similarity) as the primary path, with keyword
 search as fallback. Best for conceptual queries: "what do we know about X?"
@@ -251,10 +246,10 @@ filesystem. For entity listing by database table, use ListEntities.
 Two scopes (ADR-235 Option A):
 
 **scope='workspace'** (chat default) — list operator-shared substrate.
-Pass `path` to scope a subdirectory (e.g. 'context/', 'reports/', 'system/').
-  ListFiles(scope='workspace')                        # top-level workspace folders
-  ListFiles(scope='workspace', path='context/')       # context domains
-  ListFiles(scope='workspace', path='reports/')       # task report folders
+Pass `path` to scope a subdirectory (e.g. 'operation/', 'reports/', 'system/').
+  ListFiles(scope='workspace')                          # top-level workspace folders (the five roots)
+  ListFiles(scope='workspace', path='operation/')       # accumulated domains
+  ListFiles(scope='workspace', path='operation/reports/') # task report folders
 
 **scope='agent'** (headless default) — list within the calling agent's workspace.
 Ephemeral (working/) and archived files are hidden by default.
@@ -278,7 +273,7 @@ Operator-facing examples:
         "properties": {
             "path": {
                 "type": "string",
-                "description": "Optional: subdirectory to list. For scope='workspace' use workspace-relative (e.g. 'context/', 'reports/', 'system/'). For scope='agent' relative to the agent's workspace.",
+                "description": "Optional: subdirectory to list. For scope='workspace' use workspace-relative (e.g. 'operation/', 'reports/', 'system/'). For scope='agent' relative to the agent's workspace.",
             },
             "scope": {
                 "type": "string",
@@ -527,24 +522,23 @@ async def _emit_workspace_activity(
 async def handle_write_file(auth: Any, input: dict) -> dict:
     """Handle WriteFile primitive (ADR-168: renamed from WriteWorkspace; ADR-235 Option A: scope='workspace').
 
-    Three scopes:
-      - 'workspace' (default for chat): writes workspace-relative paths via UserMemory.
-        Reaches operator-shared substrate (context/, memory/, review/, reports/, ...).
-        Recognized canonical paths (system/notes.md, agents/{slug}/memory/feedback.md)
-        emit activity-log events automatically (ADR-235 D1.b).
-      - 'context': writes a shared context domain at /workspace/context/{domain}/.
+    Two scopes (ADR-321 — address-space selector; the path's root is the address):
+      - 'workspace' (default for chat): writes workspace-relative paths via UserMemory
+        across the five roots (governance/constitution/persona/operation/system).
+        Accumulated domain context is path-native under operation/{domain}/ — there
+        is no separate 'context' scope (ADR-321 deleted it). Recognized canonical
+        paths (system/notes.md, agents/{slug}/memory/feedback.md) emit activity-log
+        events automatically (ADR-235 D1.b).
       - 'agent' (default when agent context present): writes to the calling agent's workspace.
 
-    ADR-174 Phase 2: Registry gate removed for scope='context'. Unknown domains
-    allowed — TP can create new context domains freely. Async embedding generation
-    fires after successful context file writes. Non-blocking; failure does not
-    fail the write.
+    ADR-321: embedding is no longer a write side-effect — it is the explicit Embed
+    primitive (ADR-325). UserMemory.write → write_revision is content-hash-deduped
+    (no-op writes create no revision per ADR-209).
     """
     path = input.get("path", "")
     content = input.get("content", "")
     mode = input.get("mode", "overwrite")
     scope = input.get("scope") or _default_file_scope(auth)
-    domain = input.get("domain", "")
     authored_by = input.get("authored_by")
     message = input.get("message")
 
@@ -614,68 +608,15 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
 
         return {"success": True, "scope": "workspace", "path": abs_path, "mode": mode}
 
-    if scope == "context":
-        # ADR-151 + ADR-174: Write to shared context domain /workspace/context/{domain}/
-        # ADR-174: domain need not be in the registry — any domain name is valid.
-        if not domain:
-            return {"success": False, "error": "missing_domain", "message": "domain is required for scope='context'"}
-
-        from services.workspace import UserMemory
-
-        # ADR-174: derive folder directly — registry is vocabulary, not gate.
-        # Known domains resolve to their declared path; unknown domains default to context/{domain}.
-        from services.directory_registry import get_domain_folder
-        domain_folder = get_domain_folder(domain) or f"context/{domain}"
-
-        full_path = f"{domain_folder}/{path}"
-        abs_path = f"/workspace/{full_path}"
-
-        um = UserMemory(auth.client, auth.user_id)
-
-        if mode == "append":
-            existing = await um.read(full_path) or ""
-            new_content = existing + "\n" + content
-            success = await um.write(full_path, new_content,
-                                     summary=f"Context update: {domain}/{path}")
-        else:
-            # ADR-176 Phase 4: Content hash dedup — skip write if content unchanged.
-            # Cheap SHA-256 comparison avoids unnecessary DB writes and embedding calls.
-            filename = path.rsplit("/", 1)[-1] if "/" in path else path
-            # ADR-209: versioning is substrate-native — every write to the
-            # Authored Substrate (via um.write → write_revision) lands a new
-            # revision with authored_by + message attribution and preserves
-            # prior content in the revision chain. The explicit dedup check
-            # below remains a short-circuit optimization (avoids creating a
-            # no-op revision for idempotent writes).
-            existing_content = await um.read(full_path)
-            if existing_content is not None:
-                existing_hash = hashlib.sha256(existing_content.encode()).hexdigest()
-                new_hash = hashlib.sha256(content.encode()).hexdigest()
-                if existing_hash == new_hash:
-                    return {"success": True, "path": abs_path, "domain": domain,
-                            "scope": "context", "skipped": True, "reason": "content_unchanged"}
-
-            new_content = content
-            # authored_by derives from the invoking caller identity:
-            # context writes typically come through WriteFile primitive invoked by
-            # an agent or by YARNNN. We pass the agent slug when known
-            # (via write_context_ref) or fall back to "yarnnn:<model>" for
-            # YARNNN-authored context. UserMemory.write's default
-            # ("system:user-memory") is the safety net.
-            success = await um.write(
-                full_path, new_content,
-                summary=f"Context write: {domain}/{path}",
-                message=f"WriteFile context {domain}/{path}",
-            )
-
-        if success:
-            # ADR-174 Phase 2: embed context files async (fire-and-forget).
-            # Scoped to /workspace/context/ only. Failure is non-fatal.
-            asyncio.ensure_future(
-                _embed_workspace_file(auth.client, auth.user_id, abs_path, new_content)
-            )
-            return {"success": True, "path": abs_path, "domain": domain, "scope": "context"}
-        return {"success": False, "error": "write_failed", "message": f"Failed to write: {full_path}"}
+    # ADR-321: scope='context' DELETED. Domains live under operation/{domain}/
+    # (re-rooted from context/ in directory_registry.py). Writes to a domain are
+    # now path-native: WriteFile(scope='workspace', path='operation/{domain}/...').
+    # The path's top-level root IS the address (the ADR-320 gate reads it); no
+    # `domain` param, no get_domain_folder() indirection, no separate scope.
+    # Embedding is no longer a write side-effect — it is the explicit Embed
+    # primitive (ADR-325). The content-hash dedup is preserved in the
+    # 'workspace' branch's UserMemory.write → write_revision path (no-op writes
+    # don't create revisions per ADR-209).
 
     # scope == "agent"
     from services.workspace import AgentWorkspace, get_agent_slug
@@ -685,7 +626,7 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
         return {
             "success": False,
             "error": "no_agent_context",
-            "message": "WriteFile scope='agent' requires agent context. Use scope='workspace' for operator-shared paths or scope='context' for context domains.",
+            "message": "WriteFile scope='agent' requires agent context. Use scope='workspace' for operator-shared paths (including operation/{domain}/ for accumulated domain context).",
         }
 
     agent_slug = get_agent_slug(agent)
@@ -781,24 +722,25 @@ async def handle_search_files(auth: Any, input: dict) -> dict:
 
 
 async def handle_query_knowledge(auth: Any, input: dict) -> dict:
-    """Handle QueryKnowledge primitive — searches /workspace/context/ accumulated domains.
+    """Handle QueryKnowledge primitive — searches /workspace/operation/ accumulated domains.
 
     ADR-151 + ADR-174 Phase 2: Semantic search as primary path, BM25 as fallback.
     - Primary: vector cosine similarity via search_workspace_semantic RPC (requires embedding)
     - Fallback: BM25 full-text via search_workspace RPC (always available)
 
-    ADR-174: domain filter resolves to any path under /workspace/context/{domain}/,
-    including user-created domains not in the registry.
+    ADR-321: domain filter resolves to any path under /workspace/operation/{domain}/,
+    including user-created domains not in the registry (re-rooted from context/).
     """
     query = input.get("query") or ""
     domain = input.get("content_class") or input.get("domain")  # content_class kept for backwards compat
     limit = min(input.get("limit", 10), 30)
 
     # Resolve path prefix — registry for known domains, direct path for unknown.
-    prefix = "/workspace/context/"
+    # ADR-321: domains live under operation/{domain}/ (re-rooted from context/).
+    prefix = "/workspace/operation/"
     if domain:
         from services.directory_registry import get_domain_folder
-        domain_folder = get_domain_folder(domain) or f"context/{domain}"
+        domain_folder = get_domain_folder(domain) or f"operation/{domain}"
         prefix = f"/workspace/{domain_folder}/"
 
     rows = []

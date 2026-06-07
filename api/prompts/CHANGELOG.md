@@ -6,6 +6,25 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.07.3] - ADR-321 path-native file primitives (implementation)
+
+### Changed (behavioral — file-layer primitive tool descriptions)
+
+- `WriteFile` schema: `scope` enum narrowed `{workspace, agent, context}` → `{workspace, agent}`; the `domain` param DELETED. Domain context is now path-native: `WriteFile(scope='workspace', path='operation/{domain}/...')`. The path's top-level root is the address (ADR-320 gate reads it).
+- `WriteFile` / `SearchFiles` / `ListFiles` / `QueryKnowledge` descriptions + examples re-rooted `context/` → `operation/` (the five-root topology; `context/` is no longer a workspace root).
+- `read.py` task-slug-redirect hint + `search.py` "DOES NOT SEARCH" list re-rooted `context/{domain}` → `operation/{domain}`.
+- Expected behavior: agents writing accumulated domain context target `operation/{domain}/` (where readers actually look) instead of the dissolved `context/{domain}/` orphan root. Closes the silent-data-loss class (writes landing where no reader consults).
+
+### Changed (code — not prompt, noted for completeness)
+
+- `directory_registry.py`: all domain `path` values re-rooted `context/{domain}` → `operation/{domain}`; `get_domain_folder` now returns `operation/` paths; unknown-domain fallback → `operation/{domain}`.
+- `conventions.py`: `domain_root`/`domain_entity_path`/`domain_synthesis_path`/`domain_feedback_path`/`domain_run_log_path` re-rooted to `operation/`.
+- `handle_write_file`: `scope=='context'` branch DELETED (the fire-and-forget `_embed_workspace_file` call went with it — embedding is now the explicit `Embed` primitive per ADR-325). `compose/assembly.py` path-matching + `QueryKnowledge` prefix re-rooted. `directory_registry` callers (`scaffold.py`, `compose/assembly.py`) auto-migrate via `get_domain_folder`.
+- Data-migration receipt: ZERO live `workspace_files` under `/workspace/context/%` (147 under `operation/`) — pure code change, no live-data move.
+- Gate: `api/test_adr321_path_native_primitives.py` 8/8. Neighbors (ADR-235 dissolution, ADR-307 permission) 36/36 green. Pre-existing rot (`test_recent_commits` ADR-231 module deletions, `test_adr224` bundle `_money_truth.md` rename) confirmed unrelated + out-of-scope.
+
+---
+
 ## [2026.06.07.2] - ADR-320 prompt-envelope alignment (residue after 14ce6c7)
 
 Context: this entry covers an ADR-320 prompt-envelope audit run concurrently

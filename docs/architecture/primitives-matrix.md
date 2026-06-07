@@ -21,7 +21,7 @@ Primitives carry orthogonal scoping across the other five dimensions:
 
 | FOUNDATIONS dimension | How primitives encode it |
 |---|---|
-| Substrate (what) | Substrate family column (`entity` / `file` / `context` / `lifecycle` / `action` / `interaction` / `external` / `introspection`) |
+| Substrate (what) | Substrate family column (`entity` / `file` / `lifecycle` / `action` / `interaction` / `external` / `introspection`) — `context` DISSOLVED per ADR-321 (domains are `file`-family paths under `operation/`) |
 | Identity (who) | Mode availability (`chat` / `headless` / `MCP`) — which cognitive-layer runtime can call the primitive |
 | Purpose (why) | Capability tags (`user-channel`, `user-authorized`, `context-mutation`, etc.) — intent scoping |
 | Trigger (when) | Not encoded in the primitive itself — Trigger lives in the caller (scheduler / event / chat turn) |
@@ -53,7 +53,7 @@ Every primitive is described by exactly two axes.
 
 | Axis | Values | Used for |
 |---|---|---|
-| **Substrate family** (what it operates on) | `entity` / `file` / `context` / `lifecycle` / `action` / `interaction` / `external` / `introspection` | Dispatch path, mental model, naming convention. |
+| **Substrate family** (what it operates on) | `entity` / `file` / `lifecycle` / `action` / `interaction` / `external` / `introspection` | Dispatch path, mental model, naming convention. (`context` DISSOLVED per ADR-321 — domains are `file`-family paths under `operation/`.) |
 | **Permission mode** (who can call it) | `chat` / `headless` / `both` | Runtime tool availability. Enforced by `CHAT_PRIMITIVES` and `HEADLESS_PRIMITIVES` registries. |
 
 **Plus capability tags** (orthogonal, descriptive): `entity-layer`, `file-layer`, `semantic-query`, `context-mutation`, `lifecycle`, `user-channel`, `user-authorized`, `external`, `introspection`, `asset-render`, `inter-agent`. Tags are metadata on this table, not part of primitive names.
@@ -110,15 +110,15 @@ Mental model: **"read or write this file at this path."**
 
 Verbs: `ReadFile`, `WriteFile`, `SearchFiles`, `ListFiles`, `QueryKnowledge` (semantic variant), `ReadAgentFile` (cross-agent variant).
 
-### `context` — Typed context mutations
+### `context` — DISSOLVED (ADR-321)
 
-ADR-146 originally consolidated four context-write verbs into a single `UpdateContext`. ADR-235 dissolved that aggregate when its three categorically different cognitive shapes (inference-merged write / substrate write / lifecycle action) drifted apart. The current vocabulary (post-ADR-235):
+The `context` substrate family is **deleted**. Post-ADR-320 a "context domain" is not a separate root — it is `operation/{domain}/`, a `file`-family path under the `operation` root. The family's three members re-homed:
 
-- **Inference-merged writes** → `InferContext` (identity/brand). LLM merge over text + docs + URLs. (`InferWorkspace` first-act scaffold removed per ADR-314 D4 — dissolved by Direction A.)
-- **Substrate writes** → `WriteFile(scope="workspace", path=..., content=...)`. Direct, attributed, revision-chained per ADR-209. Recognized canonical paths emit activity-log events (ADR-235 D1.b).
-- **Recurrence lifecycle** → `Schedule(action=..., shape=..., slug=..., ...)`. See `lifecycle` family.
+- **Substrate writes** → `file` family. `WriteFile(scope="workspace", path="operation/{domain}/...", content=...)`. The path's top-level root is the address (ADR-320 gate reads it); there is no `scope='context'` and no `domain` param (ADR-321 deleted both). Direct, attributed, revision-chained per ADR-209.
+- **Recurrence lifecycle** → `lifecycle` family. `Schedule(action=..., ...)`.
+- **Inference-merged writes** → `InferContext` **dissolved** by ADR-324 (it was an application-level workflow — LLM-merge into two identity/brand files — not a primitive; its merge relocated to a dispatch helper).
 
-Mental model: **"the cognitive shape is the verb."** ADR-209's `write_revision` already unifies substrate-write paths under one attribution + revision chain — the consolidation rationale of ADR-146 is preserved at the substrate level, not at the primitive-name level.
+Mental model (post-ADR-321): **one authored write** (`write_revision`, ADR-209) over a five-root path-native filesystem; "context" was never a place, only a path prefix. ADR-146's consolidation rationale is preserved at the substrate level (one attribution + revision chain), not as a primitive-name family.
 
 ### `lifecycle` — Entity lifecycle management
 
@@ -235,7 +235,7 @@ Every verb in that loop is in the matrix below. The decision loop ("read percept
 | `SearchEntities` | entity | ● | ● | ○ | entity-layer | [search.py](../../api/services/primitives/search.py) | Search entities by content or metadata. |
 | `EditEntity` | entity | ● | ○ | ○ | entity-layer, user-authorized | [edit.py](../../api/services/primitives/edit.py) | Mutate entity fields under user direction. Chat only — headless has no user authorization path. |
 | `ReadFile` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Read a file from the workspace filesystem. Two scopes (**ADR-235 Option A**): `scope='workspace'` (chat default) reaches operator-shared substrate via workspace-relative path; `scope='agent'` (headless default) reaches the calling agent's workspace. MCP reads workspace files via `pull_context` → `QueryKnowledge` (user-scoped), not via `ReadFile` (path-shaped). |
-| `WriteFile` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Write a file to the workspace through the Authored Substrate (ADR-209 attribution + revision chain). Three scopes (**ADR-235 Option A**): `scope='workspace'` (chat default — operator-shared substrate including `context/_shared/*`, `memory/*`, `reports/*/feedback.md`); `scope='context'` (writes to `/workspace/context/{domain}/`); `scope='agent'` (calling agent's workspace). **ADR-235 D1.b**: writes to recognized canonical paths emit activity-log events automatically (`memory/notes.md` → `memory_written`, `agents/{slug}/memory/feedback.md` → `agent_feedback`). |
+| `WriteFile` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | Write a file to the workspace through the Authored Substrate (ADR-209 attribution + revision chain). Two scopes (**ADR-321** — address-space selector; the path's top-level root IS the address): `scope='workspace'` (chat default — the five-root operator-shared filesystem; accumulated domain context is path-native at `operation/{domain}/`); `scope='agent'` (calling agent's workspace). **`scope='context'` + `domain` param DELETED by ADR-321** — domains re-rooted from `context/` to `operation/`; embedding is no longer a write side-effect (the explicit `Embed` primitive, ADR-325). **ADR-235 D1.b**: writes to recognized canonical paths emit activity-log events automatically (`system/notes.md` → `memory_written`, `agents/{slug}/memory/feedback.md` → `agent_feedback`). |
 | `SearchFiles` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | BM25 search across workspace files. Two scopes (**ADR-235 Option A**): `scope='workspace'` (chat default — entire operator workspace) or `scope='agent'`. |
 | `ListFiles` | file | ● | ● | ○ | file-layer | [workspace.py](../../api/services/primitives/workspace.py) | List files under a path prefix. Two scopes (**ADR-235 Option A**): `scope='workspace'` (chat default) or `scope='agent'`. ADR-209 Phase 3: accepts `authored_by` / `since` / `until` filters to answer "what has been written by whom lately". |
 | `ListRevisions` | file | ● | ● | ○ | file-layer, authored-substrate | [revisions.py](../../api/services/primitives/revisions.py) | ADR-209 Phase 3. Return the revision chain for a workspace path (newest first). Surfaces the Authored Substrate's parent-pointer history — who edited what, when. Chat parity intentional: operators + YARNNN inspect authored files through the same API. |
@@ -306,7 +306,7 @@ For verbs that carry a typed sub-action, the enum is load-bearing. Single source
 
 `shape` is required for all actions and determines the natural-home substrate location (per ADR-231 D2):
 - `deliverable` → `/workspace/reports/{slug}/_spec.yaml`
-- `accumulation` → `/workspace/context/{domain}/_recurring.yaml` (multi-entry; `domain` required)
+- `accumulation` → `/workspace/operation/{domain}/_recurring.yaml` (multi-entry; `domain` required; ADR-321 re-root from context/)
 - `action` → `/workspace/operations/{slug}/_action.yaml`
 - `maintenance` → entry in `/workspace/_shared/back-office.yaml` (multi-entry)
 
@@ -320,17 +320,16 @@ For verbs that carry a typed sub-action, the enum is load-bearing. Single source
 
 After every successful write, the scheduling index is re-materialized (best-effort, non-fatal).
 
-### `WriteFile.scope` (ADR-235 Option A)
+### `WriteFile.scope` (ADR-321 — address-space selector)
 
-3-value enum. Source of truth: `WRITE_FILE_TOOL.input_schema.properties.scope.enum` in `api/services/primitives/workspace.py`.
+2-value enum. Source of truth: `WRITE_FILE_TOOL.input_schema.properties.scope.enum` in `api/services/primitives/workspace.py`. **ADR-321 deleted the 3rd value `context`** (it addressed the dissolved `context/` root) + the `domain` param. The path's top-level root is the address (the ADR-320 gate reads it).
 
 | Scope | Path semantics | Default for | Reaches |
 |---|---|---|---|
-| `workspace` | Workspace-relative path via `UserMemory` | chat | operator-shared substrate (`context/_shared/*`, `memory/*`, `reports/*`, `operations/*`, `agents/{slug}/*`) |
-| `context` | Domain-scoped via `directory_registry` | (explicit) | `/workspace/context/{domain}/{path}` |
+| `workspace` | Workspace-relative path via `UserMemory` | chat | the five-root operator-shared filesystem (`governance/*`, `constitution/*`, `persona/*`, `operation/*` [incl. accumulated `operation/{domain}/*`], `system/*`, plus `reports/*`, `operations/*`, `agents/{slug}/*`) |
 | `agent` | Calling agent's workspace via `AgentWorkspace` | headless agents (when agent context attached to auth) | `/agents/{slug}/{path}` |
 
-`ReadFile` / `SearchFiles` / `ListFiles` have a 2-value `scope` enum (`workspace` | `agent`); `context` is write-only.
+`ReadFile` / `SearchFiles` / `ListFiles` share the same 2-value `scope` enum (`workspace` | `agent`). Domain context (formerly `scope='context'`) is now path-native: `WriteFile(scope='workspace', path='operation/{domain}/...')`.
 
 **Activity-log emission** (ADR-235 D1.b): writes to recognized canonical paths emit activity-log events automatically inside `WriteFile`:
 - `memory/notes.md` → `memory_written`

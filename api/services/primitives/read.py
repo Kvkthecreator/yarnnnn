@@ -121,7 +121,7 @@ async def handle_lookup_entity(auth: Any, input: dict) -> dict:
                     hint = (
                         f"'{parsed.identifier}' looks like a slug, not a UUID. "
                         f"Work declarations live in recurrence YAML at natural-home paths — "
-                        f"check /workspace/context/{{domain}}/_recurring.yaml (accumulation), "
+                        f"check /workspace/operation/{{domain}}/_recurring.yaml (accumulation), "
                         f"/workspace/operation/reports/{parsed.identifier}/_spec.yaml (deliverable), "
                         f"/workspace/operation/operations/{parsed.identifier}/_action.yaml (action), "
                         f"or /workspace/_shared/back-office.yaml (maintenance). "
