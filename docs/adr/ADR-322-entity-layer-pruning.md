@@ -1,6 +1,6 @@
 # ADR-322 — Entity-Layer Pruning: a Narrow `/proc` over the Filesystem-Native Substrate
 
-> **Status**: DRAFT (2026-06-07). Proposed by Claude, pending KVK ratification. Part of the post-ADR-320 surface re-grounding arc (ADR-321 file primitives → **ADR-322 entity layer** → ADR-323 frame collapse → ADR-324 InferContext dissolution → ADR-325 Embed primitive). **Gated on ADR-321 landing** — the entity-layer pruning routes `document` reads into the `file` family, so the file side must be path-native first.
+> **Status**: ACCEPTED (2026-06-07). Ratified by KVK. Implementation in progress (gated on ADR-321 landing first). Part of the post-ADR-320 surface re-grounding arc (ADR-321 file primitives → **ADR-322 entity layer** → ADR-323 frame collapse → ADR-324 InferContext dissolution → ADR-325 Embed primitive). **Gated on ADR-321 landing** — the entity-layer pruning routes `document` reads into the `file` family, so the file side must be path-native first.
 > **Date**: 2026-06-07
 > **Authors**: KVK, Claude
 > **Upstream**: [primitive-surface-grounding discourse](../analysis/primitive-surface-grounding-2026-06-07.md) §4 (the entity-layer evidence map) + the two Explore caller-traces it cites.

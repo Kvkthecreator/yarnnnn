@@ -1,6 +1,6 @@
 # ADR-323 — Finish the Persona-Frame Collapse: `cockpit_awareness` Against Derived Principle 22
 
-> **Status**: DRAFT (2026-06-07). Proposed by Claude, pending KVK ratification. The behavioral-layer twin of the post-ADR-320 surface re-grounding — completes the collapse ADR-306 scoped too narrowly.
+> **Status**: ACCEPTED (2026-06-07). Ratified by KVK. **Implementation written, MERGE DEFERRED behind the §6 canary gate** — the slimmed reviewer prompt is a behavioral change; DP22's thesis (thinner frame → sharper judgment) must be canary-validated (N≥3 Reviewer wakes, no verdict-quality regression vs the ~16.5K prompt) before the collapse merges to the live reviewer path. The behavioral-layer twin of the post-ADR-320 surface re-grounding — completes the collapse ADR-306 scoped too narrowly.
 > **Date**: 2026-06-07
 > **Authors**: KVK, Claude
 > **Upstream**: [reviewer-prompting-posture-coherence assessment](../analysis/reviewer-prompting-posture-coherence-2026-06-07.md) (the measured seam) + the 2026.06.07.2 CHANGELOG fix (the ADR-293-vs-ADR-320 self-contradiction *inside one prompt* that was an instance of exactly this drift class).

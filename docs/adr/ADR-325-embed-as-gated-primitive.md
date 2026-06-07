@@ -1,6 +1,6 @@
 # ADR-325 — Embed as a Gated Primitive: Make-AI-Ready as an Explicit, Autonomy-Governed Step
 
-> **Status**: DRAFT (2026-06-07). Proposed by Claude, directionally-ratified by KVK (promote embed to first-class, but **scope it carefully** — not a 100%-embed principle; an explicit step governed by autonomy like every other tool). **Sibling of ADR-324** (which removes the false primitive `InferContext`; this adds the true fundamental operation the reconsideration surfaced). Part of the post-ADR-320 surface re-grounding arc.
+> **Status**: ACCEPTED (2026-06-07). Ratified by KVK (promote embed to first-class, but **scope it carefully** — not a 100%-embed principle; an explicit step governed by autonomy like every other tool). Implementation in progress (this commit chain; pairs with 324). **Sibling of ADR-324** (which removes the false primitive `InferContext`; this adds the true fundamental operation the reconsideration surfaced). Part of the post-ADR-320 surface re-grounding arc.
 > **Date**: 2026-06-07
 > **Authors**: KVK, Claude
 > **Upstream**: [primitive-surface-grounding discourse](../analysis/primitive-surface-grounding-2026-06-07.md) §1 FACT A + §5 (embed is a derived index over authored content; today it's a buried fire-and-forget) + the operator's framing ("embed/yarnnn-ify should be an explicit additional step, agent/operator chooses, handled by autonomy mode — potentially a primitive that's gated or evolved as a tool").
