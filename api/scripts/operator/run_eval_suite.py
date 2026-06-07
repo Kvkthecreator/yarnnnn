@@ -11,6 +11,15 @@ What the runner does honestly (and ONLY this):
     fire-against-violated-state class is structurally impossible.
   - Pre-flight `setup:` / reset-to-clean establishment (§3.1, C3).
   - Orchestrate the existing ScenarioRunner (no parallel scenario path).
+  - Enforce per-eval ISOLATION for `accumulates: false` evals: fire →
+    drain-to-settlement → capture per eval, before the next eval's setup
+    runs (the 2026-06-05 alpha-trader session finding, rec #1). Without
+    this barrier, an eval's setup clobbers the prior eval's substrate
+    before its async judgment wake drains, and only the FIRST eval is
+    attributable. `accumulates: true` evals keep the deferred-batch shape
+    (they want to inherit the arc). Scoping the drain per-eval also bounds
+    the re-snapshot diff to one fire window — fixing the whole-session
+    700-revision `APIError: JSON could not be generated` (rec #2).
   - Capture per-eval receipts to raw/ (revisions, proposals WITH family,
     execution_events WITH wake_source/status) so the human can check
     *architecture-shape*, not just outcome (§5 of the audit).
@@ -932,6 +941,34 @@ def emit_cost_rollup_csv(cost_rollup: dict, csv_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
+def _aggregate_completions(completions: list[dict]) -> dict:
+    """Fold the per-eval completion dicts into one session-level summary for the
+    SESSION.md scaffold. Sums settled/expected across evals; `timed_out` is True
+    if ANY eval's gate timed out; `elapsed_sec` is the total drain wall-clock;
+    surfaces the first `gate_crashed` reason if any eval's gate crashed.
+
+    An empty list (no evals, or all refused pre-flight) returns the zero dict so
+    the render path's `expected > 0` guard short-circuits cleanly.
+    """
+    agg = {
+        "elapsed_sec": 0,
+        "substrate_event_settled": 0, "substrate_event_pending": 0, "substrate_event_expected": 0,
+        "addressed_settled": 0, "addressed_expected": 0,
+        "manual_fire_settled": 0, "manual_fire_expected": 0,
+        "timed_out": False,
+    }
+    for c in completions:
+        agg["elapsed_sec"] += c.get("elapsed_sec", 0)
+        for k in ("substrate_event_settled", "substrate_event_pending", "substrate_event_expected",
+                  "addressed_settled", "addressed_expected",
+                  "manual_fire_settled", "manual_fire_expected"):
+            agg[k] += c.get(k, 0)
+        agg["timed_out"] = agg["timed_out"] or c.get("timed_out", False)
+        if c.get("gate_crashed") and "gate_crashed" not in agg:
+            agg["gate_crashed"] = c["gate_crashed"]
+    return agg
+
+
 async def run_suite(suite_path: Path, caller: str) -> int:
     from services.operator_proxy.client import OperatorProxy
 
@@ -953,44 +990,105 @@ async def run_suite(suite_path: Path, caller: str) -> int:
 
     session_started_at = datetime.now(timezone.utc)
     eval_results: list[dict] = []
+    completions: list[dict] = []
+    # PER-EVAL ISOLATION (rec #1, the 2026-06-05 alpha-trader session finding):
+    # an `accumulates: false` eval is, by declaration, an INDEPENDENT situation.
+    # The prior implementation fired all evals' setups in one burst, then drained
+    # ONCE at the end — so eval N+1's setup clobbered eval N's substrate before
+    # eval N's async judgment wake had drained (eval-3's outcome-reconciliation
+    # fired against eval-1's still-live signals/*.yaml and re-evaluated NVDA
+    # instead of reconciling). Only the FIRST eval was ever attributable.
+    #
+    # The fix: for `accumulates: false` evals, fire → DRAIN-TO-SETTLEMENT →
+    # CAPTURE per eval, before the next eval's setup runs. The wake settles
+    # against the substrate the eval established, and the next eval resets onto a
+    # clean, drained workspace. This also scopes the re-snapshot diff to one
+    # eval's fire window (start_at → now) instead of the whole multi-eval session,
+    # which is what overflowed PostgREST JSON generation with 700+ revisions and
+    # threw `APIError: JSON could not be generated` (rec #2 — fixed here for free).
+    #
+    # `accumulates: true` evals are ordered arcs that WANT to inherit prior state;
+    # they keep the deferred-batch shape (drained together in the trailing block).
     for i, eval_def in enumerate(suite["evals"]):
+        eval_fired_at = datetime.now(timezone.utc)
         result = await run_one_eval(
             eval_def, i, raw_folder, caller,
             user_id=user_id, persona_slug=suite["persona"],
         )
         eval_results.append(result)
 
+        if eval_def.get("accumulates"):
+            # Inherit-the-arc eval — defer drain + capture to the trailing block
+            # so the inherited state is read against the cumulative session.
+            continue
+
+        # Drain THIS eval's wakes before the next eval's setup runs (the isolation
+        # barrier). Scope the gate to this single eval + its own fire time so the
+        # addressed/manual_fire counts and the substrate-event window are this
+        # eval's, not the whole session's. H3 finally-discipline preserved: a gate
+        # crash degrades to a stub and we STILL capture + continue.
+        print(f"\n=== Draining eval {i + 1} ({result['eval']}) to settlement (isolation barrier) ===")
+        try:
+            ev_completion = await wait_for_completion(user_id, [result], eval_fired_at)
+            print(f"    eval {i + 1} gate: elapsed {ev_completion['elapsed_sec']}s, "
+                  f"timed_out={ev_completion['timed_out']}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"    eval {i + 1} gate CRASHED ({type(exc).__name__}: {str(exc)[:80]}) — "
+                  f"capturing from settled state (H3 finally-discipline)")
+            ev_completion = {
+                "elapsed_sec": 0, "substrate_event_settled": 0, "substrate_event_pending": 0,
+                "substrate_event_expected": 0, "addressed_settled": 0, "addressed_expected": 0,
+                "manual_fire_settled": 0, "manual_fire_expected": 0,
+                "timed_out": False, "gate_crashed": f"{type(exc).__name__}: {str(exc)[:120]}",
+            }
+        completions.append(ev_completion)
+
+        # Capture THIS eval immediately, in its own drained window (scoped diff →
+        # no whole-session 700-revision APIError).
+        if result.get("fired") and result["outcome"] == "completed":
+            try:
+                await resnapshot_eval(user_id, result)
+                await capture_shape_receipts(user_id, result)
+                print(f"    captured: {result['eval']}")
+            except Exception as exc:  # noqa: BLE001
+                print(f"    capture FAILED for {result['eval']}: {type(exc).__name__}: {exc}")
+
     write_phase_finished_at = datetime.now(timezone.utc)
     print(f"\n=== Write phase complete in {int((write_phase_finished_at - session_started_at).total_seconds())}s ===")
-    print(f"=== Completion gate: polling wake_queue + execution_events ===")
-    # H3 (2026-05-30): the completion gate must NOT be able to destroy the run's
-    # output. Even with per-poll _safe wrapping, belt-and-suspenders: if the gate
-    # raises, degrade to a "gate-crashed" completion dict and STILL proceed to
-    # re-snapshot + render, so the SESSION.md artifact always lands from whatever
-    # settled. In the first live run a gate crash skipped render entirely; the
-    # read had to be reconstructed from substrate by hand.
-    try:
-        completion = await wait_for_completion(user_id, eval_results, session_started_at)
-        print(f"    completion gate: elapsed {completion['elapsed_sec']}s, timed_out={completion['timed_out']}")
-    except Exception as exc:  # noqa: BLE001
-        print(f"    completion gate CRASHED ({type(exc).__name__}: {str(exc)[:80]}) — "
-              f"proceeding to render from settled state (H3 finally-discipline)")
-        completion = {
-            "elapsed_sec": 0, "substrate_event_settled": 0, "substrate_event_pending": 0,
-            "substrate_event_expected": 0, "addressed_settled": 0, "addressed_expected": 0,
-            "timed_out": False, "gate_crashed": f"{type(exc).__name__}: {str(exc)[:120]}",
-        }
 
-    print("\n=== Re-snapshotting per-eval captures + shape receipts (post-wake) ===")
-    for r in eval_results:
-        if not r.get("fired") or r["outcome"] != "completed":
-            continue
+    # Trailing block: drain + capture any `accumulates: true` evals (deferred
+    # above). For an all-`accumulates: false` suite (e.g. alpha-trader-autonomous-
+    # loop) this is a no-op — every eval already drained + captured in the loop.
+    deferred = [r for r in eval_results if r.get("accumulates")]
+    if deferred:
+        print(f"=== Completion gate: polling for {len(deferred)} accumulating eval(s) ===")
         try:
-            await resnapshot_eval(user_id, r)
-            await capture_shape_receipts(user_id, r)
-            print(f"    captured: {r['eval']}")
-        except Exception as exc:
-            print(f"    capture FAILED for {r['eval']}: {type(exc).__name__}: {exc}")
+            completion = await wait_for_completion(user_id, deferred, session_started_at)
+            print(f"    completion gate: elapsed {completion['elapsed_sec']}s, timed_out={completion['timed_out']}")
+        except Exception as exc:  # noqa: BLE001
+            print(f"    completion gate CRASHED ({type(exc).__name__}: {str(exc)[:80]}) — "
+                  f"proceeding to render from settled state (H3 finally-discipline)")
+            completion = {
+                "elapsed_sec": 0, "substrate_event_settled": 0, "substrate_event_pending": 0,
+                "substrate_event_expected": 0, "addressed_settled": 0, "addressed_expected": 0,
+                "timed_out": False, "gate_crashed": f"{type(exc).__name__}: {str(exc)[:120]}",
+            }
+        completions.append(completion)
+        print("\n=== Re-snapshotting accumulating-eval captures + shape receipts (post-wake) ===")
+        for r in deferred:
+            if not r.get("fired") or r["outcome"] != "completed":
+                continue
+            try:
+                await resnapshot_eval(user_id, r)
+                await capture_shape_receipts(user_id, r)
+                print(f"    captured: {r['eval']}")
+            except Exception as exc:  # noqa: BLE001
+                print(f"    capture FAILED for {r['eval']}: {type(exc).__name__}: {exc}")
+
+    # Aggregate the per-eval completion dicts into one session-level summary for
+    # the SESSION.md scaffold (sums settled/expected across evals; timed_out is
+    # True if ANY eval's gate timed out; gate_crashed surfaced if any crashed).
+    completion = _aggregate_completions(completions)
 
     session_finished_at = datetime.now(timezone.utc)
 
