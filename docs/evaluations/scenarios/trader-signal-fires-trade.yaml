@@ -17,20 +17,26 @@ description: |
   eval asks only: given a clean signal situation, was the verdict
   editor-coherent?
 
-  §0.2 fixture caveat (the seed is bounded-fragile, by necessity). The
+  §0.2 fixture caveat (ONE residual fragility — clobber, NOT staleness). The
   §0-correct way to produce a signal situation is to mock the input
   (`alpaca.get_bars`) and run the REAL `track-universe` so a genuine
   {TICKER}.yaml lands — but that is the architecture-test layer, not
-  expressible in this YAML harness. Here we seed the snapshot directly,
-  which the live `track-universe` RTH snapshots (@market_open+15 / midday /
-  pre-close) can clobber. Mitigations: the filename is UPPERCASE NVDA.yaml
-  matching `ticker.upper()` (the 2026-06-04 casing race — a lowercase seed
-  landed where signal-evaluation never read it), the fields match the
-  writer exactly (price/sma_*/rsi_14/atr_14/volume_20d_avg per
-  operation/specs/ticker-snapshot.md), and the eval is fired OUTSIDE RTH snapshot
-  windows. A stand-down claiming "no match" is therefore a fixture finding
-  (the seed got clobbered or the rule didn't actually fire), NOT a Reviewer
-  gap — interpret accordingly.
+  expressible in this YAML harness. Here we seed the snapshot directly.
+
+  STALENESS is now fixed (2026-06-08): last_updated is `@now-2h` (harness-
+  resolved to fire time), so the seed is fresh by construction every run —
+  the canary's "NVDA stale 2026-06-04" stand-down can no longer recur. What
+  REMAINS is the clobber risk: a live `track-universe` RTH snapshot
+  (@market_open+15 / midday / pre-close) can OVERWRITE the seeded NVDA.yaml
+  with real-market values that may not satisfy Signal 2. Mitigations: the
+  filename is UPPERCASE NVDA.yaml matching `ticker.upper()` (the 2026-06-04
+  casing race), the fields match the writer exactly
+  (price/sma_*/rsi_14/atr_14/volume_20d_avg per operation/specs/
+  ticker-snapshot.md), and the eval should be fired in a gap BETWEEN RTH
+  snapshot windows (e.g. mid-late morning ET, after @market_open+15 settles
+  and before midday). A stand-down claiming "no match" with a FRESH timestamp
+  is therefore a clobber finding (real NVDA didn't satisfy Signal 2), NOT a
+  staleness artifact and NOT a Reviewer gap — interpret accordingly.
 
   Construction (one clean match, NOT engineered-to-pass):
     - Seed NVDA.yaml as a snapshot that GENUINELY satisfies Signal 2
@@ -71,14 +77,24 @@ setup:
   - delete_substrate: /workspace/operation/trading/nvda.yaml
 
   # Seed a coherent NVDA snapshot that genuinely satisfies Signal 2.
-  # UPPERCASE filename + writer-exact fields (operation/specs/ticker-snapshot.md);
-  # see the §0.2 fixture caveat above for why this seed is bounded-fragile.
+  # UPPERCASE filename + writer-exact fields (operation/specs/ticker-snapshot.md).
+  #
+  # FRESH-BY-CONSTRUCTION (2026-06-08): last_updated is `@now-2h` (the harness
+  # resolves it to fire-time-minus-2h UTC). The 2026-06-04 frozen literal here
+  # is exactly what the canary correctly stood down on ("NVDA universe data is
+  # stale 2026-06-04") — a fixture artifact, not a Reviewer gap (§0.2). With
+  # @now-2h the snapshot reads as a legitimate recent track-universe fire, so a
+  # Monday-RTH run removes the stale-seed reason to stand down: the Reviewer now
+  # either FIRES (Signal-2 match → sized bracket proposal) or refuses for a
+  # SUBSTANTIVE reason (regime/sizing/var) — the live-fire read we actually want.
+  # 2h offset (not bare @now) so it reads as recent-but-not-instant, matching a
+  # real @market_open+15 snapshot fired earlier in the session.
   - write_substrate:
       path: /workspace/operation/trading/NVDA.yaml
       authored_by: operator-proxy:scenario-runner:acting-as-kvk
       content: |
         ticker: NVDA
-        last_updated: 2026-06-04T13:40:00Z
+        last_updated: @now-2h
         price: 180.20
         sma_20: 195.10
         sma_50: 188.40
@@ -93,7 +109,7 @@ setup:
       authored_by: operator-proxy:scenario-runner:acting-as-kvk
       content: |
         ---
-        last_reconciled: 2026-06-04T05:00:00Z
+        last_reconciled: @now-1h
         windows:
           30d:
             realized_pnl_usd: 1840.55

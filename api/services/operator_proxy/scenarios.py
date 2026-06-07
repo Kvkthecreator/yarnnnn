@@ -27,7 +27,8 @@ Schema (v1):
           path: <workspace-relative>
           authored_by: operator-proxy:scenario-runner:acting-as-<persona>
           content: |
-            ...
+            last_updated: @now               # fire-time UTC; @now-2h / @now-30m for offsets
+            ...                               # (kills the frozen-literal-goes-stale hazard)
       - write_substrate_from_file:           # single-source-of-truth variant:
           path: <workspace-relative>         # load content from repo-relative file
           source: <repo-relative path>       # avoids dual-source drift when applying
@@ -75,7 +76,7 @@ from __future__ import annotations
 import asyncio
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -497,6 +498,42 @@ async def _emit_proposal_from_template(user_id: str, template_name: str) -> dict
     return await handle_propose_action(auth, template)
 
 
+def _resolve_now_tokens(content: str) -> str:
+    """Substitute fire-relative timestamp tokens in seed content.
+
+    The frozen-literal hazard (2026-06-08, the trader live-fire fixture): a
+    scenario that seeds `last_updated: 2026-06-04T13:40:00Z` produces a snapshot
+    that is fresh the day it's authored and STALE every day after — so a trader-
+    judgment freshness gate (signal-evaluation Step 3a; the Reviewer's "don't act
+    on a 3-day-old price" discipline) correctly rejects it, and the eval reads a
+    fixture artifact instead of a live signal situation. This token lets a
+    scenario express "fresh AT FIRE TIME" declaratively:
+
+      @now          → current UTC, ISO-8601 with Z (e.g. 2026-06-08T13:45:02Z)
+      @now-2h       → 2 hours before fire (within-window-but-not-instant seeds)
+      @now-30m      → 30 minutes before fire
+      @now+1h       → 1 hour after fire (rare; e.g. a future-dated marker)
+
+    Matches the track-universe writer's stamp shape exactly
+    (`now.strftime("%Y-%m-%dT%H:%M:%SZ")`, track_universe.py:253) so a seeded
+    snapshot is indistinguishable from a live mirror write in freshness terms.
+    Applied at the single write chokepoint (_write_substrate_with_author), so
+    every write path — setup, turn, establish, from_file — inherits it.
+    """
+    import re
+
+    def _sub(m: "re.Match") -> str:
+        sign, amount, unit = m.group(1), m.group(2), m.group(3)
+        now = datetime.now(timezone.utc)
+        if amount and unit:
+            delta = timedelta(hours=int(amount)) if unit == "h" else timedelta(minutes=int(amount))
+            now = now + delta if sign == "+" else now - delta
+        return now.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+    # @now  or  @now-2h / @now+30m  (h = hours, m = minutes)
+    return re.sub(r"@now(?:([+-])(\d+)([hm]))?", _sub, content)
+
+
 async def _write_substrate_with_author(
     user_id: str,
     path: str,
@@ -506,9 +543,15 @@ async def _write_substrate_with_author(
     message: str,
 ) -> dict:
     """Direct write_revision; the scenario runner needs control over
-    authored_by independent of any proxy config."""
+    authored_by independent of any proxy config.
+
+    `@now[±Nh|±Nm]` tokens in content resolve to fire-time UTC here (the single
+    write chokepoint) — see _resolve_now_tokens for the frozen-literal rationale.
+    """
     from services.authored_substrate import write_revision
     from services.supabase import get_service_client
+
+    content = _resolve_now_tokens(content)
 
     if not path.startswith("/workspace/"):
         path = f"/workspace/{path.lstrip('/')}"
