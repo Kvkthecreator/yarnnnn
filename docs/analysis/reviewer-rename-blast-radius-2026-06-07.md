@@ -24,15 +24,16 @@ The load-bearing distinction — the one this whole rename pivots on — is **LA
 
 ---
 
-## 1. The seat ≠ occupant ≠ name three-way distinction (read this before the buckets)
+## 1. The four-way distinction (read this before the buckets)
 
-There are **three** nameable things here, and the rename touches exactly one:
+> **Updated 2026-06-07 after the ADR-326 discourse resolved the name.** The v1 of this section conflated "seat" and "entity" into one bullet — the exact conflation the operator's pushback corrected. They are *different*: the **seat** is an architectural abstraction (gets no operator name); the **operator-facing entity** is the named Persona. Four nameable things, the rename touches exactly one (deletes "Reviewer" from the operator surface; coins no new noun).
 
-1. **The occupant's persona name** — operator-authored, per-workspace, lives in `persona/IDENTITY.md` (e.g., "Simons", "Buffett"). Already named, already operator-controlled, already surfaced ("Simons approved" via `web/lib/reviewer-persona.ts`). **The rename does NOT touch this.** This is what the blog post *Name Your Reviewer* is about — the operator names the occupant.
-2. **The seat / entity** — the detached personified judgment seat itself, the role the occupant fills. Today labeled "Reviewer". **This is the ONLY thing the rename touches.**
-3. **The implementation slugs** — `role='reviewer'`, `agent_class='reviewer'`, `authored_by="reviewer:…"`, `REVIEWER_MODEL_IDENTITY="ai:reviewer-sonnet-v8"`, `/agents?agent=reviewer`, `reviewer_agent.py`. Data-compat code-slugs. **The rename does NOT touch these** (code-slug-stays).
+1. **The architectural seat** — the slot that persists while occupants rotate (Derived Principle 14 / ADR-315). **Gets NO operator-facing name** — "seat" is *technical* canon, the operator never says it. The rename does NOT touch it; "seat"/"occupant" survive as architectural vocabulary. *(This is the bullet v1 got wrong by trying to "name the seat.")*
+2. **The operator-facing entity** — the personified judgment the operator relies on and talks about ("my ___ approved the trade"). Today labeled "Reviewer". **This is the ONLY thing the rename touches** — and the resolution is: it IS the named **Persona** (the operator authors + names it "Simons"); "Reviewer" is *deleted* with no coined replacement noun.
+3. **The occupant's persona name** — operator-authored, per-workspace, lives in `persona/IDENTITY.md` (e.g., "Simons", "Buffett"). Already named, already operator-controlled, already surfaced ("Simons approved" via `web/lib/reviewer-persona.ts`). **The rename does NOT touch this.** This is what the blog post *Name Your Reviewer* is about — the operator names their Persona.
+4. **The implementation slugs** — `role='reviewer'`, `agent_class='reviewer'`, `authored_by="reviewer:…"`, `REVIEWER_MODEL_IDENTITY="ai:reviewer-sonnet-v8"`, `/agents?agent=reviewer`, `reviewer_agent.py`. Data-compat code-slugs. **The rename does NOT touch these** (code-slug-stays).
 
-The published marketing already operationalizes #1-vs-#2: *"Name Your Reviewer"* = name the occupant (#1) under the seat-label "Reviewer" (#2). The de-naming question is narrowly: **what is the operator-facing label for #2?** Everything in the buckets below is sorted against that question.
+The published marketing already operationalizes #2-vs-#3: *"Name Your Reviewer… Should Have A Persona"* = the operator names their Persona (#3), under the entity-label "Reviewer" (#2). **The de-naming resolution promotes "Persona" from #3's character-label to #2's entity-label** — the operator names a Persona, and that named Persona *is* the entity (no separate "Reviewer" entity-word above it). The character-word and the entity-word merge cleanly because they were always pointing at the same personified judgment. Everything in the buckets below is sorted against this: delete "Reviewer" where it meant #2; keep everything else.
 
 ---
 
