@@ -94,7 +94,7 @@ The Reviewer's system prompt cockpit-awareness section is **generated** from `CH
 
 ### `entity` — Relational entity layer
 
-Operates on typed entity references (`<type>:<UUID>` format). Resolves through [api/services/primitives/refs.py](../../api/services/primitives/refs.py) via `parse_ref` + `resolve_ref`. Types: `agent`, `platform`, `session`, `document`, `work`.
+Operates on typed entity references (`<type>:<UUID>` format). Resolves through [api/services/primitives/refs.py](../../api/services/primitives/refs.py) via `parse_ref` + `resolve_ref`. Types (the live `ENTITY_TYPES` set in `refs.py`): `agent`, `version`, `platform`, `session`, `document`, `task`. (There is no `work` type — ADR-138 renamed it `task`; the doc previously claimed `work`, a stale label. The pruning of `document` → file substrate and `task` → `Schedule`/`ReadFile`, plus the `EditEntity`-shrink, is the subject of the [primitive-surface-grounding discourse](../analysis/primitive-surface-grounding-2026-06-07.md) §4.)
 
 **Axiom 0 note:** The entity layer is narrow by design — it operates only on the "scheduling index / credential / ephemeral queue" DB rows permitted by FOUNDATIONS Axiom 0. Semantic content (memory, domain state, theses, observations) lives in files, reached through the `file` substrate family below, not here. ADR-196 removed the stale `memory` and `domain` entity types from `ENTITY_TYPES` when `user_memory` was dropped — both had pointed at a table that held semantic content in DB rows, a violation of Axiom 0. The filesystem replacements (`/workspace/memory/*.md`, `/workspace/context/{domain}/`) are reached via the file substrate.
 
@@ -286,8 +286,8 @@ For verbs that carry a typed sub-action, the enum is load-bearing. Single source
 
 | Target | Writes to | Typical caller |
 |---|---|---|
-| `identity` | Identity substrate (`/workspace/context/_shared/IDENTITY.md` + inference merge) | YARNNN during operator-input handling |
-| `brand` | Brand substrate (`/workspace/context/_shared/BRAND.md` + inference merge) | YARNNN during operator-input handling |
+| `identity` | Identity substrate (`/workspace/persona/IDENTITY.md` + inference merge, ADR-320) | YARNNN during operator-input handling |
+| `brand` | Brand substrate (`/workspace/operation/BRAND.md` + inference merge, ADR-320) | YARNNN during operator-input handling |
 
 ### `ManageAgent.action` (ADR-235 D2)
 

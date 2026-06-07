@@ -1,9 +1,9 @@
 # ADR-321 — Topology-Native File Primitives: the Five-Root Filesystem as the Agent's Address Space
 
-> **Status**: DRAFT (2026-06-07). Proposed by Claude, pending KVK ratification. Companion to ADR-320 (five-root permission topology) — this ADR finishes the topology migration on the *primitive* side that ADR-320 finished on the *gate* side.
+> **Status**: DRAFT (2026-06-07). Proposed by Claude, pending KVK ratification. Companion to ADR-320 (five-root permission topology) — this ADR finishes the topology migration on the *primitive* side that ADR-320 finished on the *gate* side. **Scope sharpened 2026-06-07** after the [primitive-surface-grounding discourse](../analysis/primitive-surface-grounding-2026-06-07.md): D5 now deletes the vestigial `context` substrate *family* (not merely the `scope='context'` enum value), and the canon-drift fixes the discourse surfaced are folded in (§Canon-drift below). This ADR is the **first of three** in the post-ADR-320 surface re-grounding arc — followed by ADR-322 (entity-layer pruning) and a deferred derive-from-substrate-producer ADR (the `InferContext` generalization horizon). Sequencing rationale: §Relationship.
 > **Date**: 2026-06-07
 > **Authors**: KVK, Claude
-> **Upstream**: ADR-320 (the gate became `access(2)`; this ADR asks whether the *syscalls* should become path-native to match) + the prompt-envelope alignment pass (2026.06.07.2 CHANGELOG) that surfaced a *second wave* of `context/`-root drift living inside the primitive tool descriptions themselves.
+> **Upstream**: ADR-320 (the gate became `access(2)`; this ADR asks whether the *syscalls* should become path-native to match) + the prompt-envelope alignment pass (2026.06.07.2 CHANGELOG) that surfaced a *second wave* of `context/`-root drift living inside the primitive tool descriptions themselves + the [primitive-surface-grounding discourse](../analysis/primitive-surface-grounding-2026-06-07.md) (the evidence base: Authored Substrate is decisively first-class — 100% of content writes via `write_revision` — which is *why* the `context` family is vestigial and the destination is "one authored write, one two-rank read").
 > **Dimensional classification**: **Mechanism** (Axiom 5 — primitives are the vocabulary of the Mechanism dimension; FOUNDATIONS Derived Principle 9) primary + **Substrate** (Axiom 1 — the file layer addresses the filesystem) + **Channel** (Axiom 6 — the LLM-facing tool description IS the legible interface).
 > **Canon backing**: ADR-222 + Derived Principle 16 (literal OS framing) — ADR-320 made the *permission model* `access(2)`; this ADR asks whether the *file syscalls* should become path-native like a real OS's `open`/`read`/`write`/`stat`, dropping the `scope` indirection.
 
@@ -57,11 +57,29 @@ The grep/bash insight, stated as the rule this ADR proposes: **the path is the a
 ### D4 — The `scope` parameter narrows from a 3-value enum to a 2-value enum (`workspace | agent`), default `workspace`; then a follow-on may delete it entirely.
 After D2, `scope` has two values: `workspace` (the five-root address space, default) and `agent` (the per-agent address space). This is no longer a *semantic-bucket selector* (the old `context` job) — it is an *address-space selector* between the shared filesystem and the per-agent filesystem. If D3's open question resolves to "collapse `agents/` into path-native too," `scope` deletes entirely and the file primitives become pure `path`-takers (full grep/bash parity). Staging it this way keeps the risky deletion out of the description-sweep commit.
 
-### D5 — The `context` substrate family in primitives-matrix collapses into `file`.
-"Context domain" was a separate substrate-family concept because it had a separate root. Under five roots it is `operation/{domain}/` — a `file`-family path under the `operation` root. `QueryKnowledge` stays a distinct *primitive* (semantic-rank composition over `operation/{domain}/` accumulated context — a real different mechanism, ADR-151), but it is a `file`-family primitive that happens to rank semantically, not a `context`-family primitive. The matrix's substrate-family enum drops `context`.
+### D5 — The `context` substrate family in primitives-matrix collapses; its members re-home.
+"Context domain" was a separate substrate-family concept because it had a separate root. Under five roots it is `operation/{domain}/` — a `file`-family path under the `operation` root. The matrix's substrate-family enum **drops `context`**, and its three members re-home (per the discourse §3):
+- `WriteFile(scope='context')` → `file` family (D2 deletes the scope value entirely).
+- `Schedule` → `lifecycle` family (where it already belongs).
+- `InferContext` → **not `file` either** — it is a *derive-from-substrate producer* (read substrate → LLM-merge → author result), the shape named in the discourse §5 and the deferred derive-producer ADR. For *this* ADR it simply leaves the `context` family; its positive reclassification is named, not built (it stays exactly as it is functionally — only its family label is corrected from `context` to a producer shape the deferred ADR formalizes).
+
+`QueryKnowledge` stays a distinct *primitive* (semantic-rank composition over `operation/{domain}/` accumulated context — a real different mechanism, ADR-151), but it is a `file`-family primitive that ranks semantically, not a `context`-family primitive.
 
 ### D6 — `QueryKnowledge` and the domain-discovery prose re-root.
 `QueryKnowledge` description ("use ListFiles on `/workspace/context/`") → `/workspace/operation/`. The "domains are filesystem-discovered" prose points at `operation/`. `SearchFiles`/`ListFiles`/`ReadFile` examples re-rooted `context/` → `operation/`. This is the description-sweep half — low risk, mechanical, ships first.
+
+---
+
+## Canon-drift (surfaced by the discourse; split into fix-now vs ships-with-implementation)
+
+The discourse surfaced that `primitives-matrix.md` had drifted from ADR-320. The drift splits cleanly on a discipline line — *does the doc misdescribe current code, or correctly describe current-but-soon-to-change code?*
+
+**Fixed now (pure doc bugs — the doc said the wrong thing about *current* code; landed 2026-06-07 with this ADR draft):**
+- `primitives-matrix.md:97` claimed a `work` entity type. The live `ENTITY_TYPES` (`refs.py:71-88`) has no `work` — it's `agent, version, platform, session, document, task`. Corrected.
+- `primitives-matrix.md:289-290` said `InferContext` writes `context/_shared/IDENTITY.md` / `BRAND.md`. The live code (`infer_context.py:122`) *already* writes `persona/IDENTITY.md` / `operation/BRAND.md` (ADR-320). Corrected to match running code.
+
+**Ships with implementation (NOT fixed now — the doc correctly describes *current* code that this ADR changes):**
+- `primitives-matrix.md:99,244,309,329-330,535` describe `scope='context'` → `/workspace/context/{domain}/`. The code *still resolves there* (`workspace.py:628`, `get_domain_folder() or f"context/{domain}"`). Editing the doc ahead of the code would make it lie about current state. These re-root to `operation/` **in the same commit** as the D2 handler change — doc and code move together (CLAUDE.md §1 docs-alongside-code).
 
 ---
 
