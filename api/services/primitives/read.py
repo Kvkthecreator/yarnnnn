@@ -19,34 +19,32 @@ from .refs import parse_ref, resolve_ref
 
 LOOKUP_ENTITY_TOOL = {
     "name": "LookupEntity",
-    "description": """Look up any entity by reference. Returns full content.
+    "description": """Look up a database-backed entity by reference. Returns the full row.
 
-This is the ENTITY LAYER primitive — it operates on the relational abstraction
-(typed refs like agent:uuid, document:uuid), not on the filesystem. For file
-reads, use ReadFile (path-based, agent-scoped).
+This is the ENTITY LAYER primitive — the agent OS's `/proc` (ADR-322). It
+operates on the relational abstraction (typed refs like agent:uuid) over
+genuinely-non-file DB records, NOT on the filesystem. For file reads (including
+uploaded documents at uploads/{slug}.md), use ReadFile (path-based).
 
 IMPORTANT: Use the exact `ref` value returned by SearchEntities or ListEntities. The ref contains a UUID, not a filename.
 
 Examples:
-- LookupEntity(ref="document:abc12345-def6-7890-ghij-klmnopqrstuv") - document by UUID from SearchEntities results
 - LookupEntity(ref="agent:latest") - most recent agent
-- LookupEntity(ref="platform:slack") - platform by provider name
-- LookupEntity(ref="memory:uuid-123") - specific memory
-
-For documents: Returns full content from all pages, not just metadata.
+- LookupEntity(ref="platform:slack") - platform connection by provider name
+- LookupEntity(ref="session:uuid-123") - a chat session
+- LookupEntity(ref="version:uuid-123") - an agent run (run ledger)
 
 Reference format: <type>:<UUID>
-Types: agent, platform, memory, session, domain, document, task, version
-
-Workflow:
-1. SearchEntities(query="...", scope="document") → returns results with `ref` field
-2. LookupEntity(ref="document:<UUID from search>") → returns full document content""",
+Types (ADR-322 /proc core): agent, platform, session, version.
+NOT entities (use the file family / Schedule instead):
+- documents → ReadFile('uploads/{slug}.md') (they are files, ADR-197)
+- tasks/recurrences → ReadFile of the YAML + Schedule (ADR-231)""",
     "input_schema": {
         "type": "object",
         "properties": {
             "ref": {
                 "type": "string",
-                "description": "Entity reference from SearchEntities/ListEntities results (e.g., 'document:abc12345-uuid'). Must use UUID, not filename."
+                "description": "Entity reference from SearchEntities/ListEntities results (e.g., 'agent:abc12345-uuid'). Must use UUID, not filename."
             },
             "refs": {
                 "type": "array",
@@ -106,35 +104,46 @@ async def handle_lookup_entity(auth: Any, input: dict) -> dict:
             "message": "Either 'ref' or 'refs' is required",
         }
 
+    # ADR-322 D2: `task` and `document` are no longer entity types — but a model
+    # may still try LookupEntity(ref="task:..."/"document:..."). Catch those
+    # prefixes BEFORE parse_ref raises "Unknown entity type" and steer to the
+    # right primitive (the helpful redirect ADR-322 preserves).
+    if ref_str.startswith("task:"):
+        ident = ref_str.split(":", 1)[1].split("/", 1)[0].split("?", 1)[0]
+        hint = (
+            f"`task` is no longer an entity type (ADR-231/322). Work lives in "
+            f"recurrence YAML at natural-home paths — check "
+            f"/workspace/operation/{{domain}}/_recurring.yaml (accumulation), "
+            f"/workspace/operation/reports/{ident}/_spec.yaml (deliverable), "
+            f"/workspace/operation/operations/{ident}/_action.yaml (action), "
+            f"or /workspace/_shared/back-office.yaml (maintenance). Use ListFiles "
+            f"or ReadFile with the path; for scheduling/status use "
+            f"Schedule(slug='{ident}', action='...')."
+        )
+        return {"success": False, "error": "not_an_entity_type", "message": hint, "ref": ref_str, "retry_hint": hint}
+    if ref_str.startswith("document:"):
+        hint = (
+            "`document` is no longer an entity type (ADR-322) — uploaded documents "
+            "are files. Use SearchFiles(scope='workspace', path_prefix='uploads/') "
+            "to find them and ReadFile('uploads/{slug}.md') to read them."
+        )
+        return {"success": False, "error": "not_an_entity_type", "message": hint, "ref": ref_str, "retry_hint": hint}
+
     try:
         parsed = parse_ref(ref_str)
 
-        # Ergonomic guard: task/agent refs must be UUIDs (or 'latest'/'*').
-        # If caller passed a slug-looking identifier, return a targeted hint
-        # instead of letting Postgres explode with "invalid input syntax for type uuid".
-        if parsed.entity_type in ("task", "agent") and parsed.identifier not in {"*", "latest", "current", "new"}:
+        # Ergonomic guard: agent refs must be UUIDs (or 'latest'/'*'). If caller
+        # passed a slug-looking identifier, return a targeted hint instead of
+        # letting Postgres explode with "invalid input syntax for type uuid".
+        if parsed.entity_type == "agent" and parsed.identifier not in {"*", "latest", "current", "new"}:
             import re as _re
             _UUID_RE = _re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", _re.IGNORECASE)
             if not _UUID_RE.match(parsed.identifier):
-                # Likely a slug. For tasks, steer the caller to the right primitive.
-                if parsed.entity_type == "task":
-                    hint = (
-                        f"'{parsed.identifier}' looks like a slug, not a UUID. "
-                        f"Work declarations live in recurrence YAML at natural-home paths — "
-                        f"check /workspace/operation/{{domain}}/_recurring.yaml (accumulation), "
-                        f"/workspace/operation/reports/{parsed.identifier}/_spec.yaml (deliverable), "
-                        f"/workspace/operation/operations/{parsed.identifier}/_action.yaml (action), "
-                        f"or /workspace/_shared/back-office.yaml (maintenance). "
-                        f"Use ListFiles or ReadFile with the relevant path. "
-                        f"For scheduling/status, use ManageRecurrence(slug='{parsed.identifier}', action='...'). "
-                        f"For the entity row, pass the id from ListEntities(pattern='task:*')."
-                    )
-                else:
-                    hint = (
-                        f"'{parsed.identifier}' looks like a slug, not a UUID. "
-                        f"For agent content, use ReadFile(path='/agents/{parsed.identifier}/AGENT.md'). "
-                        f"For the entity row, pass the id from ListEntities(pattern='agent:*')."
-                    )
+                hint = (
+                    f"'{parsed.identifier}' looks like a slug, not a UUID. "
+                    f"For agent content, use ReadFile(path='/agents/{parsed.identifier}/AGENT.md'). "
+                    f"For the entity row, pass the id from ListEntities(pattern='agent:*')."
+                )
                 return {
                     "success": False,
                     "error": "slug_not_uuid",
@@ -149,12 +158,10 @@ async def handle_lookup_entity(auth: Any, input: dict) -> dict:
             # Provide retry hint based on entity type
             # (ADR-196: "memory" retired — memory is filesystem-native;
             # agents/YARNNN read /workspace/*.md directly via ReadFile.)
-            if parsed.entity_type == "document":
-                retry_hint = "Use Search(scope='document') first to find documents and get their UUID refs."
-            elif parsed.entity_type == "agent":
-                retry_hint = "Use List(pattern='agent:*') to see available agents."
+            if parsed.entity_type == "agent":
+                retry_hint = "Use ListEntities(pattern='agent:*') to see available agents."
             else:
-                retry_hint = f"Use Search or List to find valid {parsed.entity_type} refs."
+                retry_hint = f"Use SearchEntities or ListEntities to find valid {parsed.entity_type} refs."
 
             return {
                 "success": False,

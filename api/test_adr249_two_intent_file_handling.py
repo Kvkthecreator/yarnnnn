@@ -124,18 +124,20 @@ check(
     "workspace_files" in ci and "filesystem_chunks" not in ci,
 )
 
-# 6. primitives/refs.py uses workspace_files
+# 6. primitives/refs.py: document is no longer an entity type (ADR-322).
+#    Document enrichment was DELETED — documents are files (read via ReadFile).
 refs = read(os.path.join(API_ROOT, "services", "primitives", "refs.py"))
 check(
-    "primitives/refs.py document enrichment reads workspace_files not filesystem_chunks",
-    "workspace_files" in refs and "filesystem_chunks" not in refs,
+    "primitives/refs.py: document removed from entity layer (ADR-322), no filesystem_chunks",
+    "async def _enrich_document_with_content" not in refs and "filesystem_chunks" not in refs,
 )
 
-# 7. primitives/search.py uses workspace_files
+# 7. primitives/search.py: document search moved to the file family (ADR-322).
+#    SearchEntities(scope='document') + _search_document_content DELETED.
 search = read(os.path.join(API_ROOT, "services", "primitives", "search.py"))
 check(
-    "primitives/search.py document search uses workspace_files not filesystem_chunks",
-    "workspace_files" in search and "filesystem_chunks" not in search,
+    "primitives/search.py: document search removed from entity layer (ADR-322), no filesystem_chunks",
+    "async def _search_document_content" not in search and "filesystem_chunks" not in search,
 )
 
 # 8. useDocuments.ts does not exist
@@ -145,19 +147,20 @@ check(
     not os.path.exists(use_docs_path),
 )
 
-# 9. FileAttachment and /chat/attach endpoint exist in chat.py
-chat = read(os.path.join(API_ROOT, "routes", "chat.py"))
+# 9. FileAttachment and the attach endpoint exist in feed.py
+#    (ADR-259 renamed routes/chat.py → routes/feed.py; endpoint /chat/attach → /feed/attach).
+feed = read(os.path.join(API_ROOT, "routes", "feed.py"))
 check(
-    "chat.py defines FileAttachment model",
-    "class FileAttachment" in chat,
+    "feed.py defines FileAttachment model",
+    "class FileAttachment" in feed,
 )
 check(
-    "chat.py defines /chat/attach endpoint",
-    '"/chat/attach"' in chat or "chat/attach" in chat,
+    "feed.py defines the attach endpoint",
+    '"/feed/attach"' in feed or "feed/attach" in feed,
 )
 check(
-    "chat.py passes file_attachments to Claude API as document blocks",
-    "file_id" in chat and '"document"' in chat,
+    "feed.py passes file_attachments to Claude API as document blocks",
+    "file_id" in feed and '"document"' in feed,
 )
 
 # 10. Migration 166 drops both tables

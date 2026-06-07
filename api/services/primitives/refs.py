@@ -68,23 +68,24 @@ class EntityRef:
         return result
 
 
-# Valid entity types
+# Valid entity types — the /proc core (ADR-322): genuinely-non-file DB objects.
 ENTITY_TYPES = {
     "agent",
-    "version",  # Agent versions (generated content)
+    "version",  # Agent versions / run ledger (agent_runs — immutable audit)
     "platform",
     "session",
-    "document",
-    "task",  # ADR-138: work units
-    # ADR-168 Commit 2: "action" and "system" removed. They only existed to
-    # serve the Execute primitive's action discovery surface (`List(pattern="action:*")`).
-    # Execute was dissolved into ManageTask + UpdateContext; both subsequently
-    # dissolved (ADR-231 / ADR-235), so these entity types had no callers.
-    # ADR-196: "memory" and "domain" removed. Memory is filesystem-native at
-    # /workspace/*.md since ADR-156; the user_memory table was dropped in
-    # migration 151. The "domain" type originally pointed at knowledge_domains
-    # (dropped by ADR-059), then at user_memory (dropped by ADR-196); never
-    # had live callers after ADR-156.
+    # ADR-322: "document" and "task" removed — they are not /proc records.
+    #   document → a FILE (ADR-197: workspace_files row at uploads/{slug}.md).
+    #     Reads move to the file family: SearchFiles(path_prefix='uploads/') +
+    #     ReadFile('uploads/...'). The document:uuid ref grammar had no external
+    #     callers (only the entity layer's own self-referential tool docs).
+    #   task → a REDIRECT (ADR-231: thin scheduling index; recurrences are YAML
+    #     files). LookupEntity already steered task slugs to ReadFile + Schedule.
+    #     Recurrence interaction is Schedule / FireInvocation / ReadFile of the
+    #     YAML. The thin `tasks` scheduling-index TABLE stays; it is just no
+    #     longer addressed via the entity-ref grammar.
+    # ADR-168 Commit 2: "action" and "system" removed (Execute-primitive residue).
+    # ADR-196: "memory" and "domain" removed (user_memory table dropped).
 }
 
 # Special identifiers
@@ -157,14 +158,14 @@ def parse_ref(ref: str) -> EntityRef:
     )
 
 
-# Table mappings for entity types
+# Table mappings for entity types (ADR-322: the /proc core — 4 DB objects).
 TABLE_MAP = {
     "agent": "agents",
-    "version": "agent_runs",  # Generated agent content
+    "version": "agent_runs",  # Run ledger (immutable audit)
     "platform": "platform_connections",
     "session": "chat_sessions",
-    "document": "workspace_files",  # ADR-249: /workspace/uploads/*.md (was filesystem_documents)
-    "task": "tasks",  # ADR-138: work units
+    # ADR-322: "document" (→ file: SearchFiles/ReadFile on uploads/) and "task"
+    # (→ Schedule/FireInvocation/ReadFile of the recurrence YAML) removed.
     # ADR-196: "memory" and "domain" entries removed (user_memory table dropped).
 }
 
@@ -219,7 +220,8 @@ async def resolve_ref(
         if "limit" in ref.query:
             query = query.limit(int(ref.query["limit"]))
         # ADR-196: memory-by-tag query removed (user_memory table dropped).
-        if ref.entity_type in ("agent", "task"):
+        # ADR-322: "task" removed from the status-filter set (no longer an entity type).
+        if ref.entity_type == "agent":
             # Default to excluding archived unless explicitly requested
             if "status" in ref.query:
                 query = query.eq("status", ref.query["status"])
@@ -265,9 +267,8 @@ async def resolve_ref(
         if ref.subpath:
             return _extract_subpath(entity, ref.subpath)
 
-        # Special handling for documents: include content from chunks
-        if ref.entity_type == "document":
-            entity = await _enrich_document_with_content(client, entity)
+        # ADR-322: document-enrich removed — documents are files now; read them
+        # via ReadFile('uploads/...'), not LookupEntity(document:uuid).
 
         # Special handling for platforms: include sync status from sync_registry
         if ref.entity_type == "platform":
@@ -276,41 +277,9 @@ async def resolve_ref(
         return entity
 
 
-async def _enrich_document_with_content(client: Any, doc: dict) -> dict:
-    """Enrich a document ref with content from /workspace/uploads/*.md (ADR-249).
-
-    The workspace file IS the document — content is the full extracted text
-    stored in the markdown body. No chunked DB reads needed.
-    """
-    path = doc.get("path") or doc.get("id")  # ADR-249: path is the identifier
-    user_id = doc.get("user_id")
-    if not path or not user_id:
-        return doc
-
-    try:
-        result = client.table("workspace_files").select(
-            "content, path"
-        ).eq("user_id", user_id).eq("path", path).execute()
-
-        row = (result.data or [None])[0]
-        if row:
-            raw = row.get("content", "") or ""
-            # Strip YAML frontmatter for cleaner content delivery
-            if raw.startswith("---"):
-                parts = raw.split("---", 2)
-                body = parts[2].strip() if len(parts) >= 3 else raw
-            else:
-                body = raw
-            doc["content"] = body
-        else:
-            doc["content"] = ""
-
-    except Exception as e:
-        import logging
-        logging.warning(f"[REFS] Failed to fetch document content: {e}")
-        doc["content"] = f"[Error loading content: {e}]"
-
-    return doc
+# ADR-322: _enrich_document_with_content DELETED. Documents are files now —
+# read them via ReadFile('uploads/{slug}.md'), which returns the full content
+# directly (the markdown body IS the document). No document-ref enrichment.
 
 
 async def _enrich_platform_with_sync_status(client: Any, user_id: str, platform: dict) -> dict:

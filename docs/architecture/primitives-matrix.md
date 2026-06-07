@@ -92,13 +92,15 @@ The Reviewer's system prompt cockpit-awareness section is **generated** from `CH
 
 ## The Substrate Families
 
-### `entity` — Relational entity layer
+### `entity` — Relational read layer (the agent OS's `/proc`)
 
-Operates on typed entity references (`<type>:<UUID>` format). Resolves through [api/services/primitives/refs.py](../../api/services/primitives/refs.py) via `parse_ref` + `resolve_ref`. Types (the live `ENTITY_TYPES` set in `refs.py`): `agent`, `version`, `platform`, `session`, `document`, `task`. (There is no `work` type — ADR-138 renamed it `task`; the doc previously claimed `work`, a stale label. The pruning of `document` → file substrate and `task` → `Schedule`/`ReadFile`, plus the `EditEntity`-shrink, is the subject of the [primitive-surface-grounding discourse](../analysis/primitive-surface-grounding-2026-06-07.md) §4.)
+Operates on typed entity references (`<type>:<UUID>` format) over genuinely-non-file DB records. Resolves through [api/services/primitives/refs.py](../../api/services/primitives/refs.py) via `parse_ref` + `resolve_ref`. **Types (post-ADR-322 — the live `ENTITY_TYPES` set, the `/proc` core): `agent`, `version`, `platform`, `session`.** Four DB-backed objects the filesystem can't naturally express: the roster (`agents`), the run ledger (`agent_runs`, immutable), OAuth credential state (`platform_connections`), chat continuity (`chat_sessions`).
 
-**Axiom 0 note:** The entity layer is narrow by design — it operates only on the "scheduling index / credential / ephemeral queue" DB rows permitted by FOUNDATIONS Axiom 0. Semantic content (memory, domain state, theses, observations) lives in files, reached through the `file` substrate family below, not here. ADR-196 removed the stale `memory` and `domain` entity types from `ENTITY_TYPES` when `user_memory` was dropped — both had pointed at a table that held semantic content in DB rows, a violation of Axiom 0. The filesystem replacements (`/workspace/memory/*.md`, `/workspace/context/{domain}/`) are reached via the file substrate.
+**Pruned by ADR-322** (they were never `/proc` records): `document` → a FILE (ADR-197: `workspace_files` at `uploads/{slug}.md`; read via `ReadFile`/`SearchFiles(path_prefix='uploads/')`); `task` → a REDIRECT (ADR-231: thin scheduling index; recurrence interaction is `Schedule`/`FireInvocation`/`ReadFile` of the YAML — the thin `tasks` table stays, just not entity-ref-addressed). `EditEntity` shrinks to the two mutable records (`agent`, `platform`). (`work` was never a real type — ADR-138 renamed it `task`.)
 
-Mental model: **"look up this database record by reference."**
+**Axiom 0 note:** The entity layer is narrow by design — it operates only on the "scheduling index / credential / ephemeral queue" DB rows permitted by FOUNDATIONS Axiom 0, and pairs with `GetSystemState` (the aggregate snapshot) as the per-record `cat /proc/{pid}` to its `ps aux`. Semantic content (memory, domain state, theses, observations, uploaded documents) lives in files, reached through the `file` substrate family below, not here. ADR-196 removed `memory`/`domain` (pointed at the dropped `user_memory`); ADR-322 removed `document`/`task` (a file and a redirect). The filesystem replacements (`/workspace/memory/*.md`, `/workspace/operation/{domain}/`, `/workspace/uploads/*.md`) are reached via the file substrate.
+
+Mental model: **"`cat /proc/{record}` — look up a live DB record by reference."** For files (including uploaded documents), use the `file` family.
 
 Verbs: `LookupEntity`, `ListEntities`, `SearchEntities`, `EditEntity`.
 

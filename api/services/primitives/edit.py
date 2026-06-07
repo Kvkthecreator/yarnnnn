@@ -29,15 +29,16 @@ EDIT_ENTITY_TOOL = {
     "name": "EditEntity",
     "description": """Modify an existing entity by typed ref.
 
-This is the ENTITY LAYER primitive — it mutates database-backed entities
-(agents, memories, tasks). For filesystem writes, use WriteFile.
+This is the ENTITY LAYER primitive — it mutates database-backed entities. Post
+ADR-322 it serves the two mutable /proc records: **agent** and **platform**.
+For filesystem writes (including domain context + uploaded docs), use WriteFile.
+(documents/tasks are not entities — they are files / recurrence YAML.)
 
 Examples:
 - EditEntity(ref="agent:uuid-123", changes={status: "paused"})
 - EditEntity(ref="agent:uuid-123", changes={agent_instructions: "Always use bullet points."})
 - EditEntity(ref="agent:uuid-123", changes={append_observation: {note: "Q4 data is now finalized"}})
 - EditEntity(ref="agent:uuid-123", changes={set_goal: {description: "...", status: "in_progress", milestones: [...]}})
-- EditEntity(ref="memory:uuid-456", changes={content: "Updated preference"})
 
 For agent_memory, use append_observation or set_goal (scoped writes — do not pass raw agent_memory JSONB).
 Only specified fields are updated; others remain unchanged.""",

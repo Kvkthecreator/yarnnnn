@@ -9,10 +9,10 @@ Distinct from QueryKnowledge (semantic-query layer, accumulated context domains)
 
 Usage:
   SearchEntities(query="weekly report", scope="agent")
-  SearchEntities(query="competitor analysis", scope="document")
+  SearchEntities(query="agent runs", scope="version")
 
-scope="memory" is NOT a valid search scope. Memory is injected into the
-TP system prompt at session start via working memory. TP already has it.
+scope="memory"/"document" are NOT valid (ADR-322): memory is in working memory;
+uploaded documents are files — use SearchFiles(path_prefix='uploads/').
 """
 
 from typing import Any, Optional
@@ -22,16 +22,17 @@ from .refs import TABLE_MAP
 
 SEARCH_ENTITIES_TOOL = {
     "name": "SearchEntities",
-    "description": """Find database-backed entities by content (entity layer). Returns refs for LookupEntity.
+    "description": """Find database-backed entities by content (entity layer — the /proc core). Returns refs for LookupEntity.
 
-Scopes: document (uploaded files), agent, version, all. Memory is not a scope — already in working memory.
+Scopes: agent, version, all. Memory is not a scope — already in working memory.
 
 DOES NOT SEARCH:
-- Work declarations — these are recurrence YAML files at natural-home paths. The compact index lists every recurrence by slug; use ReadFile with the YAML path directly (/workspace/operation/reports/{slug}/_spec.yaml, /workspace/operation/{domain}/_recurring.yaml, /workspace/operation/operations/{slug}/_action.yaml, /workspace/_shared/back-office.yaml).
+- Uploaded documents (ADR-322) — documents are FILES at /workspace/uploads/{slug}.md. Use SearchFiles(scope='workspace', path_prefix='uploads/') to find them and ReadFile('uploads/...') to read them. (The document:uuid entity ref was removed.)
+- Work declarations — recurrence YAML files at natural-home paths. The compact index lists every recurrence by slug; use ReadFile with the YAML path directly (/workspace/operation/reports/{slug}/_spec.yaml, /workspace/operation/{domain}/_recurring.yaml, /workspace/operation/operations/{slug}/_action.yaml, /workspace/_shared/back-office.yaml). For scheduling/status use Schedule.
 - Accumulated domain files (/workspace/operation/**) — use QueryKnowledge for semantic search or ReadFile for a known path.
 - AGENT.md, IDENTITY.md, BRAND.md — these are workspace files. Use ReadFile with the known path.
 
-Use SearchEntities ONLY when you need database rows (agent records, uploaded document metadata, agent run history).""",
+Use SearchEntities ONLY when you need database rows (agent records, agent run history).""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -41,8 +42,8 @@ Use SearchEntities ONLY when you need database rows (agent records, uploaded doc
             },
             "scope": {
                 "type": "string",
-                "enum": ["document", "agent", "version", "all"],
-                "description": "What to search. Default: 'all'. Note: memory is not a scope — it is already in your working memory context."
+                "enum": ["agent", "version", "all"],
+                "description": "What to search. Default: 'all'. Note: memory is not a scope (already in working memory); uploaded documents are files — use SearchFiles(path_prefix='uploads/')."
             },
             "agent_id": {
                 "type": "string",
@@ -58,11 +59,10 @@ Use SearchEntities ONLY when you need database rows (agent records, uploaded doc
 }
 
 
-# Searchable fields per entity type
+# Searchable fields per entity type (ADR-322: document removed — files now)
 SEARCH_FIELDS = {
     "agent": ["title", "description"],
     "version": ["content"],  # Agent version content
-    "document": ["filename"],  # documents table uses 'filename' not 'name'
 }
 
 
@@ -100,26 +100,23 @@ async def handle_search_entities(auth: Any, input: dict) -> dict:
             "message": (
                 "scope='memory' is not searchable — memory is already in your working memory "
                 "context at session start. Check the 'What you've told me' section of your context. "
-                "Use scope='document' for uploaded documents, scope='agent' for agents, "
-                "or scope='all' to search everything."
+                "For uploaded documents use SearchFiles(path_prefix='uploads/') (they are files, "
+                "ADR-322); scope='agent' for agents, or scope='all' to search entity rows."
             ),
         }
 
     try:
-        # Determine scopes to search
-        # ADR-065: 'all' excludes memory (already in working memory prompt)
+        # Determine scopes to search (ADR-322: 'document' removed — files now).
+        # ADR-065: 'all' excludes memory (already in working memory prompt).
         if scope == "all":
-            scopes = ["document", "agent"]
+            scopes = ["agent"]
         else:
             scopes = [scope]
 
         all_results = []
 
         for entity_scope in scopes:
-            if entity_scope == "document":
-                # Documents need special handling - search chunks for content
-                results = await _search_document_content(auth, query, limit)
-            elif entity_scope == "version":
+            if entity_scope == "version":
                 results = await _search_versions(auth, query, agent_id, limit)
             else:
                 results = await _search_entity(auth, query, entity_scope, limit)
@@ -144,81 +141,11 @@ async def handle_search_entities(auth: Any, input: dict) -> dict:
         }
 
 
-async def _search_document_content(
-    auth: Any,
-    query: str,
-    limit: int,
-) -> list[dict]:
-    """Search uploaded documents by content (ADR-249).
-
-    Reads /workspace/uploads/*.md workspace files via ilike full-text match
-    on content. The file body IS the document — no chunk table needed.
-    """
-    import logging
-
-    try:
-        result = auth.client.table("workspace_files").select(
-            "path, content, updated_at"
-        ).eq(
-            "user_id", auth.user_id
-        ).like(
-            "path", "/workspace/uploads/%.md"
-        ).ilike(
-            "content", f"%{query}%"
-        ).limit(limit).execute()
-
-        rows = result.data or []
-        results = []
-        for row in rows:
-            path = row["path"]
-            raw = row.get("content", "") or ""
-
-            # Parse frontmatter fields
-            original_filename = path.rsplit("/", 1)[-1].removesuffix(".md")
-            word_count = 0
-            for line in raw.split("\n"):
-                if line.startswith("original_filename:"):
-                    original_filename = line.split(":", 1)[1].strip()
-                elif line.startswith("word_count:"):
-                    try:
-                        word_count = int(line.split(":", 1)[1].strip())
-                    except (ValueError, IndexError):
-                        pass
-
-            # Extract body snippet (skip frontmatter)
-            if raw.startswith("---"):
-                parts = raw.split("---", 2)
-                body = parts[2].strip() if len(parts) >= 3 else raw
-            else:
-                body = raw
-
-            # Find query position for a relevant snippet
-            idx = body.lower().find(query.lower())
-            start = max(0, idx - 100)
-            snippet = body[start:start + 400]
-            if start > 0:
-                snippet = "..." + snippet
-            if start + 400 < len(body):
-                snippet += "..."
-
-            results.append({
-                "entity_type": "document",
-                "ref": f"document:{path}",
-                "data": {
-                    "path": path,
-                    "filename": original_filename,
-                    "word_count": word_count,
-                    "matched_content": snippet,
-                    "uploaded_at": (row.get("updated_at") or "")[:10],
-                },
-                "score": 0.5,
-            })
-
-        return results
-
-    except Exception as e:
-        logging.warning(f"[SEARCH] Document content search failed: {e}")
-        return []
+# ADR-322: _search_document_content DELETED. Documents are files now —
+# search them via SearchFiles(scope='workspace', path_prefix='uploads/'), which
+# does BM25 over workspace_files content + returns a content_preview. The
+# query-positioned snippet is a minor degradation accepted per ADR-322 (the
+# file family is the correct home for uploaded-doc discovery).
 
 
 async def _search_versions(

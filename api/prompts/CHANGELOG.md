@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.07.4] - ADR-322 entity-layer pruning (implementation)
+
+### Changed (behavioral — entity-layer primitive tool descriptions)
+
+- `LookupEntity` description rewritten to the `/proc` core: types now `agent | platform | session | version` (was 6 incl. `document`/`task`). Documents → ReadFile('uploads/...'); tasks/recurrences → ReadFile + Schedule. New: `LookupEntity(ref='document:...')` and `('task:...')` return a *redirect hint* (steer to the file family / Schedule) instead of a raw "Unknown entity type" — the helpful steer ADR-322 D2 preserves.
+- `SearchEntities` scope enum `{document, agent, version, all}` → `{agent, version, all}`; description steers uploaded-doc search to `SearchFiles(path_prefix='uploads/')`.
+- `ListEntities` examples re-pointed to the /proc core (agent/platform/session); stale `memory:`/`task:` examples removed.
+- `EditEntity` description: now serves the two mutable /proc records (`agent`, `platform`); "agents, memories, tasks" → corrected.
+- Expected behavior: the entity layer is a narrow relational read over genuinely-non-file DB records; document + task interaction routes to the file family / Schedule, where the data actually lives.
+
+### Changed (code — not prompt, noted for completeness)
+
+- `refs.py`: `document` + `task` removed from `ENTITY_TYPES` + `TABLE_MAP`; `_enrich_document_with_content` DELETED; `task` dropped from the collection status-filter.
+- `search.py`: `_search_document_content` DELETED; `SEARCH_FIELDS` drops `document`; `scope='all'` → `['agent']`.
+- `edit.py`: `EditEntity` naturally rejects document/task (not in TABLE_MAP) — D3-a shrink to {agent, platform}.
+- Pre-existing rot fixed incidentally to unblock the gate: `test_adr249` read `routes/chat.py` (ADR-259 renamed → `routes/feed.py`; endpoint `/chat/attach` → `/feed/attach`) — re-pointed.
+- Gate `api/test_adr322_entity_pruning.py` 9/9. Neighbors (ADR-307, ADR-235) 36/36. test_adr249 13/13. ADR-321 8/8 (no regression).
+
+---
+
 ## [2026.06.07.3] - ADR-321 path-native file primitives (implementation)
 
 ### Changed (behavioral — file-layer primitive tool descriptions)

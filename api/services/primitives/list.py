@@ -8,8 +8,8 @@ Distinct from ListFiles (file layer, path-based, agent-scoped).
 
 Usage:
   ListEntities(pattern="agent:*")
-  ListEntities(pattern="memory:?type=fact")
-  ListEntities(pattern="task:?status=active")
+  ListEntities(pattern="platform:*")
+  ListEntities(pattern="session:*")
 """
 
 from typing import Any
@@ -24,12 +24,14 @@ LIST_ENTITIES_TOOL = {
 This is the ENTITY LAYER primitive — it enumerates database-backed entities
 by typed pattern. For filesystem listings, use ListFiles.
 
-Examples:
+Examples (ADR-322 /proc core — agent, platform, session, version):
 - ListEntities(pattern="agent:*") - all agents
 - ListEntities(pattern="agent:?status=active") - active agents
-- ListEntities(pattern="memory:?type=fact&limit=20") - fact memories
 - ListEntities(pattern="platform:*") - all connected platforms
-- ListEntities(pattern="task:?status=active") - active tasks
+- ListEntities(pattern="session:*") - chat sessions
+
+NOT entities: documents (files — use ListFiles(path='uploads/')), tasks/recurrences
+(use ListFiles + Schedule).
 
 Pattern format: <type>:<identifier|*>[?<filters>]""",
     "input_schema": {
