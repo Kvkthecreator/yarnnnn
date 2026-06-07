@@ -138,6 +138,11 @@ GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
     "ManageDomains",
     "RuntimeDispatch",
     "DispatchSpecialist",
+    # ADR-325: Embed is consequential + autonomy-governed (the autonomy mode IS
+    # the embed policy). Under bounded/manual a Reviewer Embed QUEUEs; under
+    # autonomous it applies. Carries an orthogonal cost ceiling (embed daily cap)
+    # checked in the handler — additive, like Schedule's pace cap.
+    "Embed",
 })
 
 #: Subset of GATE_QUEUEABLE_PRIMITIVES that are path-addressed (governance-lock

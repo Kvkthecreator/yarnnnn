@@ -86,16 +86,21 @@ RULES:
 - If existing content is provided, MERGE: preserve information from both old and new sources"""
 
 
-async def infer_shared_context(
+async def author_identity_merge(
     target: Literal["identity", "brand"],
     text: str = "",
     document_contents: Optional[list] = None,
     url_contents: Optional[list] = None,
     existing_content: str = "",
 ) -> str:
-    """Infer workspace shared context from provided sources.
+    """Merge new operator input into the identity/brand file content (ADR-324).
 
-    Returns markdown content for the target workspace file.
+    The focused LLM merge step: read-set (text + doc contents + URLs + existing)
+    → IDENTITY_SYSTEM/BRAND_SYSTEM prompt → merged markdown. Renamed from
+    `infer_shared_context` (ADR-324 — honest name; it authors the operator's
+    identity/brand, it does not "infer context"). Used by `author_identity`
+    (the full workflow), the MCP path, and the eval harness. Returns merged
+    markdown content for the target workspace file.
 
     Args:
         target: "identity" or "brand"
@@ -166,6 +171,102 @@ async def infer_shared_context(
         logger.error(f"[INFERENCE] Failed for {target}: {e}")
 
     return existing_content or "", {}
+
+
+async def author_identity(
+    client: Any,
+    user_id: str,
+    target: Literal["identity", "brand"],
+    text: str = "",
+    document_ids: Optional[list] = None,
+    url_contents: Optional[list] = None,
+    authored_by: str = "operator",
+) -> dict:
+    """Full identity/brand authoring workflow (ADR-324 — relocated from the
+    dissolved InferContext primitive's handler).
+
+    Reads the existing file, merges new input via `author_identity_merge`,
+    records the cost ledger, writes the result via UserMemory (→ write_revision,
+    authored_by=operator by default), and runs deterministic gap detection.
+
+    Called by the MCP `dispatch_remember_this` identity/brand path and the
+    eval harness. The chat surface does NOT call this — post-ADR-324 the chat
+    LLM authors identity/brand inline via WriteFile (no focused sub-prompt).
+
+    Returns the same shape the old handle_infer_context returned:
+        {success, target, filename, content, gaps, message} | {success: False, error, message}
+    """
+    from services.workspace import UserMemory
+    from services.workspace_paths import PERSONA_IDENTITY_PATH, OPERATION_BRAND_PATH
+
+    if target not in ("identity", "brand"):
+        return {"success": False, "error": "invalid_target", "message": "target must be 'identity' or 'brand'"}
+    if not text or not text.strip():
+        return {"success": False, "error": "empty_text", "message": "text is required"}
+
+    filename = PERSONA_IDENTITY_PATH if target == "identity" else OPERATION_BRAND_PATH
+
+    try:
+        um = UserMemory(client, user_id)
+        existing = await um.read(filename)
+
+        document_contents = []
+        if document_ids:
+            document_contents = await read_uploaded_documents(client, user_id, document_ids)
+
+        new_content, usage = await author_identity_merge(
+            target=target,
+            text=text,
+            document_contents=document_contents,
+            url_contents=url_contents or [],
+            existing_content=existing or "",
+        )
+
+        # ADR-291: unified cost ledger.
+        if usage.get("input_tokens") or usage.get("output_tokens"):
+            try:
+                from services.telemetry import record_execution_event
+                from services.supabase import get_service_client
+                record_execution_event(
+                    get_service_client(),
+                    user_id=user_id,
+                    slug=f"author-identity:{target}",
+                    mode="judgment",
+                    trigger_type="addressed",
+                    status="success",
+                    input_tokens=usage.get("input_tokens", 0),
+                    output_tokens=usage.get("output_tokens", 0),
+                    cache_read_tokens=usage.get("cache_read_input_tokens", 0) or 0,
+                    cache_create_tokens=usage.get("cache_creation_input_tokens", 0) or 0,
+                    model=INFERENCE_MODEL,
+                )
+            except Exception as e:
+                logger.warning(f"[AUTHOR_IDENTITY] cost ledger record failed: {e}")
+
+        if not new_content or not new_content.strip():
+            return {"success": False, "error": "merge_empty", "message": "Merge produced no content — provide more detail"}
+
+        ok = await um.write(
+            filename, new_content,
+            summary=f"{target.capitalize()} updated via merge",
+            authored_by=authored_by,
+            message=f"author {target}",
+        )
+        if not ok:
+            return {"success": False, "error": "write_failed", "message": f"Failed to write {filename}"}
+
+        gap_report = detect_inference_gaps(target=target, inferred_content=new_content)
+        return {
+            "success": True,
+            "target": target,
+            "filename": filename,
+            "content": new_content,
+            "gaps": gap_report,
+            "message": f"Updated {filename} successfully",
+        }
+    except Exception as e:
+        logger.error(f"[AUTHOR_IDENTITY] failed for {target}: {e}")
+        return {"success": False, "error": "author_failed", "message": str(e)}
 
 
 def _append_inference_meta(

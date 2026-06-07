@@ -185,10 +185,11 @@ async def run_fixture(fixture_path: Path, verbose: bool = False) -> dict:
     """Run one fixture through inference and score the result."""
     fixture = json.loads(fixture_path.read_text())
 
-    # Lazy import — keeps the module loadable for unit tests of the scorer
-    from services.context_inference import infer_shared_context
+    # Lazy import — keeps the module loadable for unit tests of the scorer.
+    # ADR-324: infer_shared_context renamed → author_identity_merge.
+    from services.context_inference import author_identity_merge
 
-    output, _usage = await infer_shared_context(
+    output, _usage = await author_identity_merge(
         target=fixture["target"],
         text=fixture["inputs"].get("text", ""),
         document_contents=fixture["inputs"].get("document_contents", []),

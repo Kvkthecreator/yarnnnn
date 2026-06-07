@@ -101,8 +101,9 @@ class BulkImportResponse(BaseModel):
 # ADR-244 (2026-05-01): OnboardingStateResponse + GET /user/onboarding-state
 # DELETED. Replaced by GET /api/workspace/state (routes/workspace.py) with
 # extended shape (substrate_status + capability_gaps + available_programs).
-# ADR-144/146/235: POST /user/onboarding deleted — context enrichment via
-# the InferContext primitive (InferWorkspace removed per ADR-314 D4).
+# ADR-144/146/235: POST /user/onboarding deleted — identity/brand authoring is
+# inline WriteFile (chat) + context_inference.author_identity (MCP) per ADR-324
+# (InferContext dissolved; InferWorkspace removed earlier per ADR-314 D4).
 
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -149,8 +150,8 @@ def _note_to_entry(note: dict, idx: int) -> dict:
 # ADR-205 (2026-04-22): _scaffold_default_roster deleted. Was already deprecated
 # in favor of workspace_init.initialize_workspace().
 #
-# ADR-144 / ADR-235 / ADR-146: POST /user/onboarding deleted. Context enrichment
-# routes through the InferContext primitive (InferWorkspace removed per ADR-314 D4).
+# ADR-144 / ADR-235 / ADR-146: POST /user/onboarding deleted. Identity/brand
+# authoring is inline WriteFile (chat) + author_identity helper (MCP) per ADR-324.
 
 
 # ─── Brand (ADR-133 — workspace-level brand) ────────────────────────────────

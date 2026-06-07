@@ -91,15 +91,21 @@ def test_update_context_file_deleted():
 
 
 def test_infer_context_in_chat():
-    from services.primitives.registry import CHAT_PRIMITIVES
-    from services.primitives.infer_context import INFER_CONTEXT_TOOL
+    # ADR-324 SUPERSEDES ADR-235 D1.a: InferContext dissolved. Identity/brand
+    # authoring is inline WriteFile (chat) + context_inference.author_identity
+    # (MCP) — not a chat primitive. This invariant now asserts the dissolution.
+    from services.primitives.registry import CHAT_PRIMITIVES, HANDLERS
+    from services import context_inference
     names = {t["name"] for t in CHAT_PRIMITIVES}
-    targets = INFER_CONTEXT_TOOL["input_schema"]["properties"]["target"]["enum"]
-    ok = "InferContext" in names and set(targets) == {"identity", "brand"}
+    ok = (
+        "InferContext" not in names
+        and "InferContext" not in HANDLERS
+        and hasattr(context_inference, "author_identity")
+    )
     record(
-        "test_infer_context_in_chat",
+        "test_infer_context_dissolved (ADR-324, was in_chat per ADR-235)",
         ok,
-        f"in_chat={('InferContext' in names)} targets={sorted(targets)}",
+        f"in_chat={('InferContext' in names)} helper={hasattr(context_inference, 'author_identity')}",
     )
 
 

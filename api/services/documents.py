@@ -208,16 +208,22 @@ async def process_document(
         logger.error(f"[DOCUMENTS] Failed to write workspace file {workspace_path}: {e}")
         return {"success": False, "error": f"Failed to write workspace file: {e}"}
 
-    # 4. Embed at file level for SearchFiles findability
+    # 4. Embed for QueryKnowledge/SearchFiles findability (ADR-325).
+    # Upload is OPERATOR-initiated, not a Reviewer-runtime call — so it is not
+    # autonomy-gated (the gate scopes to Reviewer calls per ADR-293); the
+    # operator's upload action IS the choice to make this AI-ready. We route
+    # through the same `_embed_workspace_file` mechanism as the explicit Embed
+    # primitive (one embed path, ADR-325) instead of a bespoke inline call.
+    # uploads/ is embed-eligible by content-kind (ADR-325 D5).
     try:
-        from services.embeddings import get_embedding
-        # Embed a representative excerpt (first 2000 chars of body text avoids frontmatter noise)
-        excerpt = text[:2000]
-        embedding = await get_embedding(excerpt)
-        if embedding:
-            db_client.table("workspace_files").update({
-                "embedding": embedding
-            }).eq("user_id", user_id).eq("path", workspace_path).execute()
+        from services.primitives.embed import is_embed_eligible
+        from services.primitives.workspace import _embed_workspace_file
+        rel = workspace_path.lstrip("/")
+        if rel.startswith("workspace/"):
+            rel = rel[len("workspace/"):]
+        eligible, _reason = is_embed_eligible(rel, text)
+        if eligible:
+            await _embed_workspace_file(db_client, user_id, workspace_path, text[:2000])
     except Exception as e:
         # Non-fatal: file is readable, just not semantically searchable yet
         logger.warning(f"[DOCUMENTS] Embedding failed for {workspace_path}: {e}")

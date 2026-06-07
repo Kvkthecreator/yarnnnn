@@ -678,8 +678,8 @@ async def dispatch_remember_this(
     Routing:
       target='memory'   → WriteFile(scope='workspace', path='system/notes.md',
                                     content=<formatted>, mode='append')
-      target='identity' → InferContext(target='identity', text=stamped_text)
-      target='brand'    → InferContext(target='brand', text=stamped_text)
+      target='identity' → author_identity(target='identity', ...) [ADR-324 helper]
+      target='brand'    → author_identity(target='brand', ...)    [ADR-324 helper]
       target='agent'    → WriteFile(scope='workspace',
                                     path='agents/{slug}/memory/feedback.md',
                                     content=<formatted entry>, mode='append')
@@ -698,10 +698,16 @@ async def dispatch_remember_this(
     from services.primitives.registry import execute_primitive
 
     if target == "identity" or target == "brand":
-        return await execute_primitive(
-            auth,
-            "InferContext",
-            {"target": target, "text": stamped_text},
+        # ADR-324: InferContext dissolved. Identity/brand authoring is the
+        # `author_identity` workflow helper (merge + gap + write), not a
+        # primitive. caller_identity ("yarnnn:mcp") flows as authored_by.
+        from services.context_inference import author_identity
+        return await author_identity(
+            client=auth.client,
+            user_id=auth.user_id,
+            target=target,
+            text=stamped_text,
+            authored_by=getattr(auth, "caller_identity", None) or "yarnnn:mcp",
         )
 
     if target == "memory":

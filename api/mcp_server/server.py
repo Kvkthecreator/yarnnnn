@@ -513,9 +513,9 @@ async def remember_this(
         user_context=about,
     )
 
-    # --- Dispatch through the post-ADR-235 primitive surface ---
-    # Routes to InferContext (identity/brand) or WriteFile (memory/agent/task).
-    # See services/mcp_composition.py::dispatch_remember_this.
+    # --- Dispatch through the post-ADR-235/324 primitive surface ---
+    # Routes to author_identity helper (identity/brand, ADR-324) or
+    # WriteFile (memory/agent/task). See mcp_composition.py::dispatch_remember_this.
     result = await mcp_composition.dispatch_remember_this(
         auth=auth,
         target=target,

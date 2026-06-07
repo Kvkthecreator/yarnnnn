@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.07.5] - ADR-324 + ADR-325: file-operation decomposition (InferContext out, Embed in)
+
+The pair that decomposes the file-operation tangle: ADR-324 removes the false
+primitive (InferContext), ADR-325 adds the true fundamental operation (Embed).
+
+### Removed (ADR-324 — InferContext dissolution)
+
+- `InferContext` primitive DELETED from CHAT_PRIMITIVES + HANDLERS; `infer_context.py` removed.
+- Identity/brand authoring is no longer a primitive. **Chat** authors `persona/IDENTITY.md` + `operation/BRAND.md` via inline `WriteFile` (the LLM reads the existing file + merges in-conversation). **MCP** `remember_this` routes identity/brand to the `context_inference.author_identity` workflow helper (merge + gap-detect + write, preserving the focused IDENTITY/BRAND system-prompts + cost-ledger).
+- `infer_shared_context` renamed → `author_identity_merge` (honest name); eval harness re-pointed.
+- Expected behavior: YARNNN authoring identity/brand uses WriteFile (it'll naturally pick it — it's the tool for "write IDENTITY.md"); no more confusingly-named "InferContext" tool. The chat path trades the focused merge sub-prompt for inline LLM merge (accepted cost of true dissolution).
+
+### Added (ADR-325 — Embed as a gated primitive)
+
+- New `Embed` primitive: make a file AI-ready (compute embedding → QueryKnowledge can rank it). **Consequential + gate-queueable** — under manual/bounded a Reviewer Embed QUEUEs, under autonomous it applies (the autonomy mode IS the embed policy, ADR-307 gate, zero new mechanism). Orthogonal daily cost cap like RuntimeDispatch's token budget.
+- **Content-kind selective** (NOT 100%-embed): eligible = `operation/{domain}/**` (domain context) + `uploads/**` (reference material); ineligible = `governance/`/`system/` roots, `*.yaml`/`*.yml`/`*.json` (machine config), files < 200 chars.
+- The buried fire-and-forget auto-embed (was a `WriteFile(scope='context')` side-effect; the branch was deleted by ADR-321) is replaced by the explicit `Embed`. The `_embed_workspace_file` mechanism survives as Embed's call target. Upload route auto-embeds through the same mechanism (operator-initiated, not Reviewer-gated).
+- Expected behavior: agents/operators choose when to make accumulated context searchable; embedding is governed by autonomy + eligibility, not an automatic write tax.
+
+### Gates
+
+- ADR-324 7/7, ADR-325 6/6. Neighbors (307 permission, 235 dissolution, 291 cost-ledger) updated for the InferContext removal + green. Full arc sweep (321+322+324+325 + neighbors) 78/78. Registry boots (CHAT_PRIMITIVES 27→28).
+
+---
+
 ## [2026.06.07.4] - ADR-322 entity-layer pruning (implementation)
 
 ### Changed (behavioral — entity-layer primitive tool descriptions)

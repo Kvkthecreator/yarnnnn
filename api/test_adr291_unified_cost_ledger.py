@@ -161,7 +161,9 @@ EXPECTED_CALLERS = [
     "services/recurrence_prompt_inference.py",
     "services/session_continuity.py",
     # ADR-314 D4: infer_workspace.py deleted (first-act scaffold dissolved).
-    "services/primitives/infer_context.py",
+    # ADR-324: infer_context.py deleted (InferContext dissolved); the
+    # identity/brand cost-ledger write moved to context_inference.author_identity.
+    "services/context_inference.py",
     "services/primitives/dispatch_specialist.py",
     "services/primitives/web_search.py",
 ]

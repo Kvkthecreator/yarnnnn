@@ -84,9 +84,11 @@ def test_consequential_default_is_fail_closed():
 
     # InferWorkspace removed per ADR-314 D4; __nonexistent_primitive__ below
     # already covers the unknown-name-is-consequential case.
+    # ADR-324: InferContext removed from this list (dissolved). The
+    # __nonexistent_primitive__ entry covers the unknown-name-is-consequential case.
     for name in ("WriteFile", "Schedule", "RuntimeDispatch", "DispatchSpecialist",
                  "ManageHook", "ManageAgent", "ManageDomains", "ProposeAction",
-                 "ExecuteProposal", "FireInvocation", "InferContext",
+                 "ExecuteProposal", "FireInvocation",
                  "Compose", "RepurposeOutput", "EditEntity",
                  "SyncPlatformState", "__nonexistent_primitive__"):
         assert not is_read_only(name), (

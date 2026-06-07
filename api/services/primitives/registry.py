@@ -35,7 +35,11 @@ from .fire_invocation import FIRE_INVOCATION_TOOL, handle_fire_invocation
 #   - Inference-merged writes → InferContext / InferWorkspace
 #   - Direct substrate writes  → WriteFile (with scope='workspace', ADR-235 Option A)
 #   - Lifecycle action          → ManageRecurrence
-from .infer_context import INFER_CONTEXT_TOOL, handle_infer_context
+# ADR-324: InferContext primitive DELETED (infer_context.py removed). Identity/
+# brand authoring is the `context_inference.author_identity` workflow helper
+# (MCP path) + inline WriteFile (chat path) — not a primitive.
+# ADR-325: Embed — make-AI-ready as an explicit, autonomy-governed step.
+from .embed import EMBED_TOOL, handle_embed
 # ADR-314 D4: InferWorkspace DELETED. The first-act-scaffold path (ADR-235 D1.a)
 # was dissolved by Direction A (bundle-fork is the constitution-creation event,
 # no conversational /init); the primitive went invocation-dead when the chat
@@ -250,14 +254,16 @@ CHAT_PRIMITIVES = [
     WRITE_FILE_TOOL,
     SEARCH_FILES_TOOL,
     LIST_FILES_TOOL,
+    # ADR-325: Embed — explicit make-AI-ready (consequential, autonomy-gated).
+    EMBED_TOOL,
     # External (ADR-153: RefreshPlatformContent removed)
     WEB_SEARCH_PRIMITIVE,
     LIST_INTEGRATIONS_TOOL,
-    # ADR-235 D1.a: Inference-merged write — explicit Infer* primitive.
-    # Cognitive shape is "LLM merge over text + docs + URLs"; named honestly.
-    # ADR-314 D4: INFER_WORKSPACE_TOOL removed (first-act scaffold dissolved by
-    # Direction A). INFER_CONTEXT_TOOL stays — live via MCP remember_this.
-    INFER_CONTEXT_TOOL,
+    # ADR-324: INFER_CONTEXT_TOOL DELETED. Identity/brand authoring is no longer
+    # a primitive — the chat LLM authors IDENTITY.md/BRAND.md inline via WriteFile
+    # (read existing → merge → write); the MCP path routes through the
+    # context_inference.author_identity workflow helper. (ADR-314 D4 had already
+    # removed INFER_WORKSPACE_TOOL.)
     # ADR-155: Domain scaffolding (TP-driven)
     MANAGE_DOMAINS_TOOL,
     # Agent lifecycle (1, was 2 pre-ADR-231; ADR-235 D2: action enum drops 'create').
@@ -319,6 +325,8 @@ HEADLESS_PRIMITIVES = [
     SEARCH_FILES_TOOL,
     QUERY_KNOWLEDGE_TOOL,
     LIST_FILES_TOOL,
+    # ADR-325: Embed — specialists may make accumulated context AI-ready.
+    EMBED_TOOL,
     # Inter-agent (2)
     DISCOVER_AGENTS_TOOL,
     READ_AGENT_FILE_TOOL,
@@ -491,8 +499,8 @@ HANDLERS: dict[str, Callable] = {
     # "UpdateContext": DELETED (ADR-235 — dissolved into InferContext / InferWorkspace / ManageRecurrence / WriteFile scope='workspace')
     # ADR-231 D5: FireInvocation — recurrence-aware dispatch.
     "FireInvocation": handle_fire_invocation,
-    # ADR-235 D1.a: Inference-merged write (ADR-314 D4: InferWorkspace removed)
-    "InferContext": handle_infer_context,
+    # "InferContext": DELETED (ADR-324 — dissolved; identity/brand authoring is
+    # context_inference.author_identity (MCP) + inline WriteFile (chat))
     # ADR-235 D1.c: Lifecycle management for recurrence declarations
     "Schedule": handle_schedule,
     # ADR-296 v2 D2: Substrate-event hook lifecycle
@@ -530,6 +538,8 @@ HANDLERS: dict[str, Callable] = {
     "SearchFiles": handle_search_files,
     "QueryKnowledge": handle_query_knowledge,
     "ListFiles": handle_list_files,
+    # ADR-325: Embed — explicit make-AI-ready (consequential, gate-queueable).
+    "Embed": handle_embed,
     "DiscoverAgents": handle_discover_agents,
     "ReadAgentFile": handle_read_agent_file,
     "RuntimeDispatch": handle_runtime_dispatch,
