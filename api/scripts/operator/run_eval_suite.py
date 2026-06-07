@@ -428,6 +428,37 @@ async def wait_for_completion(
     loop = asyncio.get_running_loop()
     started_at = datetime.now(timezone.utc)
 
+    # Per-eval execution_event id baseline (2026-06-08 fix, eval-4 finding b).
+    # The prior count-based settle floor STUCK when two evals fired the SAME
+    # judgment slug (eval-3 + eval-4 both fire outcome-reconciliation): it
+    # compared a row-COUNT (`settled`) against a distinct-SLUG-SET size
+    # (`len(seen)`), and a same-slug second row (or a skipped/dedup row whose
+    # status is neither success nor failed) diverged the two, hanging the gate
+    # to the 600s timeout. The fix is per-EVENT-ID tracking, not slug-count:
+    # snapshot the manual_fire/judgment execution_event ids that ALREADY EXIST
+    # at gate start, then settle is computed over only the NEW ids for expected
+    # slugs. Two same-slug wakes in adjacent eval windows are now distinct ids,
+    # so each eval's scoped gate (run_suite passes eval_fired_at) sees exactly
+    # its own new row. session_started_at is the lower bound; the id-baseline is
+    # the precise cut (a row created in the gap between session start and gate
+    # start — e.g. a still-draining prior eval — is excluded by id).
+    def _snapshot_manual_fire_ids() -> set[str]:
+        if not manual_fire_expected_slugs:
+            return set()
+        resp = (
+            client.table("execution_events")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("wake_source", "manual_fire")
+            .eq("mode", "judgment")
+            .gte("created_at", session_started_at.isoformat())
+            .execute()
+        )
+        return {r["id"] for r in (resp.data or [])}
+
+    manual_fire_expected_slugs = set(manual_fire_slugs)
+    manual_fire_baseline_ids = await loop.run_in_executor(None, _snapshot_manual_fire_ids)
+
     def query_substrate_event_status() -> dict[str, str]:
         if not expected_revs:
             return {}
@@ -452,20 +483,19 @@ async def wait_for_completion(
         )
         return len(resp.data or [])
 
-    # manual_fire judgment-mode wakes since session start. Mechanical fires are
+    # manual_fire judgment-mode wakes since gate start. Mechanical fires are
     # excluded (mode='judgment') so a track-* mirror fire does not count toward
-    # the Reviewer-wake floor. Count-based (dedup_key is None for manual_fire).
-    # The settle floor is the number of distinct judgment slugs we fired that
-    # actually produced an execution_event — derived from the live rows, so a
-    # mechanical-only fire set settles immediately (floor 0).
-    manual_fire_expected_slugs = set(manual_fire_slugs)
-
-    def query_manual_fire_status() -> tuple[int, set[str]]:
+    # the Reviewer-wake floor. ID-based (dedup_key is None for manual_fire, so
+    # we key on execution_event id against the pre-gate baseline). Returns the
+    # set of NEW (post-baseline) row ids that have SETTLED, and the set of NEW
+    # row ids SEEN at all — both restricted to expected slugs. Comparing two id
+    # SETS (not a count vs a slug-set size) is what unsticks the same-slug case.
+    def query_manual_fire_status() -> tuple[set[str], set[str]]:
         if not manual_fire_expected_slugs:
-            return 0, set()
+            return set(), set()
         resp = (
             client.table("execution_events")
-            .select("slug, status")
+            .select("id, slug, status")
             .eq("user_id", user_id)
             .eq("wake_source", "manual_fire")
             .eq("mode", "judgment")
@@ -473,10 +503,14 @@ async def wait_for_completion(
             .execute()
         )
         rows = resp.data or []
-        settled = sum(1 for r in rows if r.get("status") in ("success", "failed"))
-        seen_slugs = {r.get("slug") for r in rows if r.get("slug")}
-        # Floor: judgment slugs we fired that the server confirms exist as rows.
-        return settled, (seen_slugs & manual_fire_expected_slugs)
+        new_for_slug = [
+            r for r in rows
+            if r["id"] not in manual_fire_baseline_ids
+            and r.get("slug") in manual_fire_expected_slugs
+        ]
+        seen_ids = {r["id"] for r in new_for_slug}
+        settled_ids = {r["id"] for r in new_for_slug if r.get("status") in ("success", "failed")}
+        return settled_ids, seen_ids
 
     # H3 (2026-05-30): a transient httpx.ConnectError (DNS blip) on a single
     # poll must NOT crash the gate — it skipped the re-snapshot + SESSION.md
@@ -493,7 +527,7 @@ async def wait_for_completion(
     timed_out = False
     substrate_status: dict[str, str] = {}
     addressed_count = 0
-    manual_fire_settled = 0
+    manual_fire_settled: set[str] = set()
     manual_fire_seen: set[str] = set()
     while True:
         elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
@@ -520,8 +554,9 @@ async def wait_for_completion(
         if not manual_fire_expected_slugs:
             manual_fire_done = True
         elif len(manual_fire_seen) > 0:
-            # A judgment row appeared — done when all seen rows have settled.
-            manual_fire_done = manual_fire_settled >= len(manual_fire_seen)
+            # A NEW judgment row appeared — done when every seen NEW id has
+            # settled (id-set ⊇, not count ≥ — same-slug rows are distinct ids).
+            manual_fire_done = manual_fire_seen.issubset(manual_fire_settled)
         else:
             # No judgment row yet. Either the deployed scheduler hasn't drained
             # (keep waiting), or the fired turn was mechanical (no Reviewer wake
@@ -534,7 +569,7 @@ async def wait_for_completion(
         print(f"    [{int(elapsed):3d}s] substrate_event: {substrate_settled}/{len(expected_revs)} settled "
               f"({substrate_pending} pending, {substrate_missing} not-yet-queued); "
               f"addressed: {addressed_count}/{addressed_turn_count}; "
-              f"manual_fire(judgment): {manual_fire_settled} settled / {len(manual_fire_seen)} seen "
+              f"manual_fire(judgment): {len(manual_fire_settled)} settled / {len(manual_fire_seen)} seen "
               f"(expected slugs: {len(manual_fire_expected_slugs)})")
 
         if all_substrate_done and addressed_done and manual_fire_done:
@@ -556,7 +591,9 @@ async def wait_for_completion(
         "substrate_event_expected": len(expected_revs),
         "addressed_settled": final_addressed,
         "addressed_expected": addressed_turn_count,
-        "manual_fire_settled": final_mf_settled,
+        # Expose COUNTS (ints) downstream — the aggregator sums them and
+        # SESSION.md renders them as numbers; the id-SETS are gate-internal.
+        "manual_fire_settled": len(final_mf_settled),
         "manual_fire_expected": len(manual_fire_expected_slugs),
         "timed_out": timed_out,
     }
@@ -568,37 +605,78 @@ async def wait_for_completion(
 
 
 async def resnapshot_eval(user_id: str, eval_result: dict) -> None:
+    """Re-snapshot one eval's window after its wakes have drained.
+
+    2026-06-08 fix (eval-4 finding a): the prior `_baseline_at_time` built the
+    baseline as `lt(created_at, eval_start)` — UNBOUNDED below — so on kvk's
+    700-revision workspace the baseline query overflowed PostgREST (`APIError:
+    JSON could not be generated`) and stranded the whole eval's capture.
+
+    The fix shares ONE `since` floor (eval_start − pad) across baseline AND
+    endpoint. The baseline is the workspace state AT fire time (rows in
+    [since, eval_start)); the endpoint is taken now (post-drain, rows in
+    [since, now]). The diff endpoint − baseline = exactly this eval's window —
+    identical to the old semantics, but bounded so the payload is one eval's
+    worth of rows, not the whole workspace history. A prior same-slug eval's
+    revisions sit BELOW `since` (its window already drained + captured), so
+    they're in neither set — overlapping same-slug evals no longer over-diff.
+    """
     from services.operator_proxy.capture import CaptureSession
 
     folder = Path(eval_result["eval_folder_abs"])
-    session = CaptureSession(user_id, folder, scenario_name=eval_result["scenario"])
     eval_started_at = datetime.fromisoformat(eval_result["started_at"])
-    session.baseline = await _baseline_at_time(user_id, eval_started_at)
+    # Bounded window floor: a small pad below fire so the baseline doesn't
+    # need the whole workspace history (the over-fetch that threw APIError),
+    # but wide enough to absorb proxy↔DB clock skew. A prior same-slug eval
+    # drained + captured in its own earlier window sits below this floor → it
+    # is in neither baseline nor endpoint, so it can't over-diff.
+    since = eval_started_at - timedelta(seconds=2)
+    session = CaptureSession(user_id, folder, scenario_name=eval_result["scenario"], since=since)
+    # Baseline = rows in [since, eval_start) — state AT fire time, time-cut at
+    # eval_start (NOT a current snapshot, which post-drain would equal endpoint).
+    session.baseline = await _baseline_window(user_id, since=since, until=eval_started_at)
+    # Endpoint (taken inside snapshot()) = rows in [since, now]. Diff isolates
+    # [eval_start, now] = exactly this eval's writes.
     await session.snapshot()
 
 
-async def _baseline_at_time(user_id: str, baseline_at: datetime) -> "CaptureSnapshot":
+async def _baseline_window(user_id: str, *, since: datetime, until: datetime):
+    """Baseline snapshot bounded to [since, until) — the workspace state at
+    eval fire time, computed as a windowed time-cut (NOT a current snapshot).
+
+    Replaces the unbounded `_baseline_at_time` (`lt(created_at, until)` with no
+    lower bound) that overflowed PostgREST on a long-lived workspace. Both
+    bounds are present, so the payload is one eval-window of rows.
+    """
     from services.operator_proxy.capture import CaptureSnapshot
     from services.supabase import get_service_client
 
     client = get_service_client()
     loop = asyncio.get_running_loop()
+    since_iso, until_iso = since.isoformat(), until.isoformat()
 
     def query():
-        rev_resp = client.table("workspace_file_versions").select("id").eq("user_id", user_id).lt("created_at", baseline_at.isoformat()).execute()
-        msg_resp = client.table("session_messages").select("id, session_id").lt("created_at", baseline_at.isoformat()).execute()
-        prop_resp = client.table("action_proposals").select("id").eq("user_id", user_id).lt("created_at", baseline_at.isoformat()).execute()
-        ee_resp = client.table("execution_events").select("id").eq("user_id", user_id).lt("created_at", baseline_at.isoformat()).execute()
-        return rev_resp, msg_resp, prop_resp, ee_resp
+        def _win(q):
+            return q.gte("created_at", since_iso).lt("created_at", until_iso)
+        rev = _win(client.table("workspace_file_versions").select("id").eq("user_id", user_id)).execute()
+        prop = _win(client.table("action_proposals").select("id").eq("user_id", user_id)).execute()
+        ee = _win(client.table("execution_events").select("id").eq("user_id", user_id)).execute()
+        sessions = client.table("chat_sessions").select("id").eq("user_id", user_id).execute()
+        session_ids = [s["id"] for s in (sessions.data or [])]
+        msg = (
+            _win(client.table("session_messages").select("id").in_("session_id", session_ids)).execute()
+            if session_ids else None
+        )
+        return rev, prop, ee, msg
 
-    rev_resp, msg_resp, prop_resp, ee_resp = await loop.run_in_executor(None, query)
+    rev, prop, ee, msg = await loop.run_in_executor(None, query)
     return CaptureSnapshot(
         user_id=user_id,
-        captured_at=baseline_at.isoformat(),
-        revision_ids={r["id"] for r in (rev_resp.data or [])},
-        proposal_ids={r["id"] for r in (prop_resp.data or [])},
-        message_ids={r["id"] for r in (msg_resp.data or [])},
-        execution_event_ids={r["id"] for r in (ee_resp.data or [])},
+        captured_at=until_iso,
+        revision_ids={r["id"] for r in (rev.data or [])},
+        proposal_ids={r["id"] for r in (prop.data or [])},
+        message_ids={m["id"] for m in (msg.data or [])} if msg else set(),
+        execution_event_ids={r["id"] for r in (ee.data or [])},
     )
 
 

@@ -58,10 +58,20 @@ class CaptureSession:
         await session.snapshot()
     """
 
-    def __init__(self, user_id: str, folder: Path, scenario_name: str | None = None):
+    def __init__(self, user_id: str, folder: Path, scenario_name: str | None = None,
+                 since: Optional[datetime] = None):
         self.user_id = user_id
         self.folder = folder
         self.scenario_name = scenario_name
+        # Lower-bound for snapshot queries (2026-06-08 fix). On a long-lived
+        # workspace (kvk's has 700+ revisions) an unbounded `select(id)` over
+        # workspace_file_versions / execution_events overflows PostgREST's
+        # response and throws `APIError: JSON could not be generated`. The diff
+        # is set-difference (endpoint − baseline), so any row older than the
+        # baseline is fetched then discarded — pure over-fetch. Bounding BOTH
+        # snapshots by the same `since` floor leaves the diff identical and the
+        # payload tiny. None = full-table (legacy callers, short-lived workspaces).
+        self.since = since
         self.baseline: Optional[CaptureSnapshot] = None
         self.endpoint: Optional[CaptureSnapshot] = None
         self.metadata: dict[str, Any] = {}  # caller can stash arbitrary evaluation context
@@ -73,18 +83,24 @@ class CaptureSession:
         folder: Path,
         *,
         scenario_name: str | None = None,
+        since: Optional[datetime] = None,
     ) -> "CaptureSession":
-        """Take a baseline snapshot. Folder is created if missing."""
+        """Take a baseline snapshot. Folder is created if missing.
+
+        `since` bounds the snapshot queries to rows created after that floor —
+        pass the scenario/eval fire time on a long-lived workspace to avoid the
+        unbounded-query APIError. None = full-table (legacy / short-lived).
+        """
         folder.mkdir(parents=True, exist_ok=True)
-        session = cls(user_id, folder, scenario_name=scenario_name)
-        session.baseline = await _take_snapshot(user_id)
+        session = cls(user_id, folder, scenario_name=scenario_name, since=since)
+        session.baseline = await _take_snapshot(user_id, since=since)
         return session
 
     async def snapshot(self) -> None:
         """Take endpoint snapshot, compute diffs, write all artifacts."""
         if self.baseline is None:
             raise RuntimeError("CaptureSession.snapshot() called before start()")
-        self.endpoint = await _take_snapshot(self.user_id)
+        self.endpoint = await _take_snapshot(self.user_id, since=self.since)
         await self._write_artifacts()
 
     async def _write_artifacts(self) -> None:
@@ -154,32 +170,44 @@ class CaptureSession:
 # Snapshot machinery
 # ---------------------------------------------------------------------------
 
-async def _take_snapshot(user_id: str) -> CaptureSnapshot:
+async def _take_snapshot(user_id: str, *, since: Optional[datetime] = None) -> CaptureSnapshot:
     """Read current state from DB. Records IDs only — diffs come from
-    comparing sets at end."""
+    comparing sets at end.
+
+    `since`, when set, lower-bounds every query by `created_at` so a long-lived
+    workspace doesn't overflow PostgREST (the `JSON could not be generated`
+    APIError). The diff is endpoint − baseline; rows older than `since` are in
+    NEITHER, so bounding both snapshots by the same floor is loss-free.
+    """
     from services.supabase import get_service_client
 
     client = get_service_client()
     now_iso = datetime.now(timezone.utc).isoformat()
     snap = CaptureSnapshot(user_id=user_id, captured_at=now_iso)
+    since_iso = since.isoformat() if since else None
+
+    def _bound(q):
+        return q.gte("created_at", since_iso) if since_iso else q
 
     # revision IDs
-    rows = client.table("workspace_file_versions").select("id").eq("user_id", user_id).execute()
+    rows = _bound(client.table("workspace_file_versions").select("id").eq("user_id", user_id)).execute()
     snap.revision_ids = {r["id"] for r in (rows.data or [])}
 
     # proposal IDs
-    rows = client.table("action_proposals").select("id").eq("user_id", user_id).execute()
+    rows = _bound(client.table("action_proposals").select("id").eq("user_id", user_id)).execute()
     snap.proposal_ids = {r["id"] for r in (rows.data or [])}
 
-    # session_message IDs (via chat_sessions)
+    # session_message IDs (via chat_sessions — session_messages has no user_id)
     sessions = client.table("chat_sessions").select("id").eq("user_id", user_id).execute()
     session_ids = [s["id"] for s in (sessions.data or [])]
     if session_ids:
-        msgs = client.table("session_messages").select("id").in_("session_id", session_ids).execute()
+        msgs = _bound(
+            client.table("session_messages").select("id").in_("session_id", session_ids)
+        ).execute()
         snap.message_ids = {m["id"] for m in (msgs.data or [])}
 
     # execution_event IDs
-    rows = client.table("execution_events").select("id").eq("user_id", user_id).execute()
+    rows = _bound(client.table("execution_events").select("id").eq("user_id", user_id)).execute()
     snap.execution_event_ids = {r["id"] for r in (rows.data or [])}
 
     return snap
