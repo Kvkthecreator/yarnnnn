@@ -74,7 +74,7 @@ Examples:
       slug="track-positions",
       schedule="* * 9-16 * 1-5",
       mode="mechanical",
-      prompt='@primitive: SyncPlatformState(tool="platform_trading_get_positions", write_to="context/portfolio/positions/{symbol}.yaml", iterate_field="positions", item_key="symbol")')
+      prompt='@primitive: SyncPlatformState(tool="platform_trading_get_positions", write_to="operation/portfolio/positions/{symbol}.yaml", iterate_field="positions", item_key="symbol")')
 
   Schedule(action="update", slug="signal-evaluation", changes={"schedule": "*/30 9-16 * * 1-5"})
   Schedule(action="update", slug="track-positions", changes={"mode": "judgment"})  # flip mode

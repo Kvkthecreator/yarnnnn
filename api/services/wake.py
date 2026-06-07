@@ -831,7 +831,7 @@ import re as _re
 # kwarg expression (yaml.safe_load on the args body for type fidelity).
 # Example match: @primitive: SyncPlatformState(
 #     tool="platform_trading_get_positions",
-#     write_to="context/portfolio/positions/{symbol}.yaml"
+#     write_to="operation/portfolio/positions/{symbol}.yaml"
 # )
 _PRIMITIVE_DIRECTIVE_RE = _re.compile(
     r"@primitive:\s*(\w+)\s*\((.*?)\)\s*$",

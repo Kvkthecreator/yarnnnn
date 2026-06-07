@@ -3,7 +3,7 @@
 Money-truth's canonical home per FOUNDATIONS Axiom 8 + the P&L unification
 refactor is:
 
-    /workspace/context/{domain}/_money_truth.md
+    /workspace/operation/{domain}/_money_truth.md
 
 One file per domain. YAML-compatible JSON frontmatter (machine-readable
 track record + per-signal attribution + idempotency keys) + narrative
@@ -73,7 +73,7 @@ async def compute_since_for_provider(
 ) -> datetime:
     """Return the timestamp from which `provider` should reconcile forward.
 
-    Reads `/workspace/context/{provider.context_domain}/_money_truth.md` and
+    Reads `/workspace/operation/{provider.context_domain}/_money_truth.md` and
     returns the last reconciliation timestamp recorded for this provider.
     Falls back to a bootstrap window if the file doesn't exist yet or has
     no entries for this provider.
@@ -251,7 +251,7 @@ async def fold_outcome_candidates(
 
 
 def _money_truth_path(context_domain: str) -> str:
-    return f"/workspace/context/{context_domain}/_money_truth.md"
+    return f"/workspace/operation/{context_domain}/_money_truth.md"
 
 
 async def _read_money_truth_file(
@@ -778,19 +778,19 @@ def _parse_iso(raw: str) -> datetime:
 
 
 # =============================================================================
-# Cross-domain summary — /workspace/context/_money_truth_summary.md (Phase 3)
+# Cross-domain summary — /workspace/operation/_money_truth_summary.md (Phase 3)
 # =============================================================================
 
 
-SUMMARY_PATH = "/workspace/context/_money_truth_summary.md"
+SUMMARY_PATH = "/workspace/operation/_money_truth_summary.md"
 
 
 async def write_money_truth_summary(
     client: Any, user_id: str, provider_domains: list[str],
 ) -> bool:
-    """Regenerate `/workspace/context/_money_truth_summary.md` from per-domain files.
+    """Regenerate `/workspace/operation/_money_truth_summary.md` from per-domain files.
 
-    Reads each `_money_truth.md` under `/workspace/context/{domain}/`,
+    Reads each `_money_truth.md` under `/workspace/operation/{domain}/`,
     aggregates totals + rolling windows across domains, and writes a
     single cross-domain summary. This is the file the daily-update
     briefing (ADR-195 Phase 4) and the Reviewer (ADR-194 Phase 3) read

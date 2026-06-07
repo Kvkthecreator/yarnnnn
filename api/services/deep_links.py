@@ -126,7 +126,7 @@ def work_url(
 def files_path_url(path: str) -> str:
     """Files surface pointing at a specific workspace file.
 
-    Example: files_path_url("/workspace/context/_money_truth_summary.md")
+    Example: files_path_url("/workspace/operation/_money_truth_summary.md")
     """
     # path is URL-encoded to preserve slashes + any unusual chars
     return _build("/files", {"path": path})

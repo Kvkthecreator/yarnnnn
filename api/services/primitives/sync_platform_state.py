@@ -10,7 +10,7 @@ Surface:
   SyncPlatformState(
       tool: str,                          # platform tool name, e.g. "platform_trading_get_positions"
       tool_args: dict = {},               # input arguments to the tool
-      write_to: str,                      # substrate path template, e.g. "context/portfolio/positions/{symbol}.yaml"
+      write_to: str,                      # substrate path template, e.g. "operation/portfolio/positions/{symbol}.yaml"
       iterate_field: str | None = None,   # if set, iterate over result[iterate_field] and write per-item
       item_key: str | None = None,        # template-variable name for per-item iteration (e.g. "symbol")
       diff_aware: bool = True,            # only write substrate if content meaningfully changed since prior revision
@@ -66,7 +66,7 @@ Typical usage:
       prompt: |
         @primitive: SyncPlatformState(
           tool="platform_trading_get_positions",
-          write_to="context/portfolio/positions/{symbol}.yaml",
+          write_to="operation/portfolio/positions/{symbol}.yaml",
           iterate_field="positions",
           item_key="symbol"
         )
@@ -93,7 +93,7 @@ Diff-aware: when content matches the prior revision, the write is skipped
             },
             "write_to": {
                 "type": "string",
-                "description": "Substrate path template, workspace-relative (e.g. 'context/portfolio/positions/{symbol}.yaml'). Template variables: {item_key} for per-item, plus any operator context.",
+                "description": "Substrate path template, workspace-relative (e.g. 'operation/portfolio/positions/{symbol}.yaml'). Template variables: {item_key} for per-item, plus any operator context.",
             },
             "iterate_field": {
                 "type": "string",

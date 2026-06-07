@@ -237,7 +237,7 @@ def _build_pointer_cluster_html(counts: dict) -> str:
     if task_runs > 0:
         lines.append(_pointer_line_html(
             label="Open your book →",
-            url=files_path_url("/workspace/context/_money_truth_summary.md"),
+            url=files_path_url("/workspace/operation/_money_truth_summary.md"),
         ))
     return "\n".join(lines)
 
@@ -266,7 +266,7 @@ def _build_pointer_cluster_markdown(counts: dict) -> list[str]:
     if task_runs > 0:
         lines.append(
             f"- [Open your book →]"
-            f"({files_path_url('/workspace/context/_money_truth_summary.md')})"
+            f"({files_path_url('/workspace/operation/_money_truth_summary.md')})"
         )
     return lines
 

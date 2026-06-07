@@ -243,7 +243,7 @@ async def compose_active_candidates(auth: Any) -> dict:
     except Exception as e:
         logger.warning(f"[MCP_COMPOSITION] active recurrences walk failed: {e}")
 
-    # --- Recently-updated entity files under /workspace/context/ ---
+    # --- Recently-updated entity files under /workspace/operation/ ---
     try:
         seven_days_ago = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
         # Reach back ~7 days via a broad query and rely on ordering
@@ -251,7 +251,7 @@ async def compose_active_candidates(auth: Any) -> dict:
             auth.client.table("workspace_files")
             .select("path, updated_at, summary")
             .eq("user_id", auth.user_id)
-            .like("path", "/workspace/context/%")
+            .like("path", "/workspace/operation/%")
             .order("updated_at", desc=True)
             .limit(10)
             .execute()
@@ -259,7 +259,7 @@ async def compose_active_candidates(auth: Any) -> dict:
         seen_entities: set[str] = set()
         for row in (result.data or []):
             path = row.get("path", "")
-            # Extract entity segment: /workspace/context/{domain}/{entity}/...
+            # Extract entity segment: /workspace/operation/{domain}/{entity}/...
             parts = path.split("/")
             if len(parts) >= 5:
                 domain = parts[3]
@@ -271,7 +271,7 @@ async def compose_active_candidates(auth: Any) -> dict:
                 candidates.append({
                     "subject": entity.replace("-", " ").replace("_", " ").title(),
                     "reason": f"recent activity in {domain}",
-                    "path": f"/workspace/context/{domain}/{entity}/",
+                    "path": f"/workspace/operation/{domain}/{entity}/",
                     "kind": "entity",
                 })
                 if len(seen_entities) >= 3:
@@ -445,10 +445,13 @@ def stamp_provenance(
 
 def extract_domain_from_path(path: str) -> Optional[str]:
     """
-    Extract the domain key from a /workspace/context/{domain}/... path.
-    Returns None if the path is not under /workspace/context/.
+    Extract the domain key from a /workspace/operation/{domain}/... path.
+    Returns None if the path is not under /workspace/operation/.
+
+    Per ADR-320 + ADR-321, accumulation domains live under operation/, not
+    the pre-migration context/ root.
     """
-    if not path or not path.startswith("/workspace/context/"):
+    if not path or not path.startswith("/workspace/operation/"):
         return None
     parts = path.split("/")
     if len(parts) >= 4:

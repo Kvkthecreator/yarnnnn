@@ -6,6 +6,52 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.07.7] - ADR-320 writer-audit close: re-root context/ → operation/ in residual live writers
+
+**LLM-facing change**: `SyncPlatformState` tool-schema `write_to` description (the
+path-template example the Reviewer/specialist reads when composing a sync) now
+shows `operation/portfolio/positions/{symbol}.yaml`, not the dead `context/`
+root. Also `ReadFile` regex-handler docstring (illustrative path operator sees).
+
+**Why**: the ADR-323 canary (Hat-B, alpha-trader-autonomous-loop vs the slim
+Reviewer prompt) surfaced that the slim Reviewer stood down claiming "substrate
+missing" while reading the pre-ADR-321 `context/trading/` topology — the
+substrate exists at `operation/trading/`. DP22 judgment quality VALIDATED (no
+regression: eval-3 produced an arithmetic-dense 7-rule reject); the stand-downs
+traced to **live writers ADR-321 missed**, not the prompt collapse. ADR-321
+re-rooted the accumulation resolvers (directory_registry / conventions /
+assembly) but not these:
+
+### Re-rooted context/ → operation/ (Hat-A, system canon)
+
+- `services/outcomes/ledger.py` — `_money_truth_path()` + `SUMMARY_PATH` (the
+  Axiom-8 money-truth writer was writing to the dead `context/` root that no
+  post-ADR-321 reader consults; the wake envelope reads `operation/`).
+- `services/outcomes/{__init__,reconciler,base}.py` — docstrings aligned.
+- `services/primitives/schedule.py` — `track-positions` recurrence template
+  `write_to` (a live recurrence-prompt path).
+- `services/primitives/sync_platform_state.py` — tool-schema description +
+  docstring examples (LLM-facing).
+- `services/mcp_composition.py` — `compose_active_candidates` query filter +
+  reconstructed candidate path + `extract_domain_from_path` prefix (the MCP
+  `work_on_this` / `remember_this` domain-classification read paths were blind
+  to re-rooted domains).
+- `services/bundle_reader.py` — bundle→directory-registry domain normalizer
+  (bundle-sourced domains resolved to `context/` while kernel domains resolved
+  to `operation/` post-ADR-321 — an inconsistency).
+- `services/daily_update_email.py` + `services/deep_links.py` — the "Open your
+  book" pointer now links the re-rooted `_money_truth_summary.md`.
+- `services/{wake,execution_router}.py` — illustrative comments aligned.
+
+**Expected behavior**: money-truth reconciliation now writes where the Reviewer
+wake envelope + cockpit read it; the Reviewer no longer mis-perceives present
+substrate as missing. Grep-gate: zero live `context/{domain}` path-builders /
+write-targets / query filters remain. Gates green: test_reconciler_fold 21/21,
+test_adr291 12/12, test_adr242 6/6. No prompt-version bump (path strings, not
+behavioral instructions).
+
+---
+
 ## [2026.06.07.6] - ADR-323: finish the persona-frame collapse (DP22)
 
 **Behavioral change to the LIVE Reviewer system prompt.** Completes the collapse

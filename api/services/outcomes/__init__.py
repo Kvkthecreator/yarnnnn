@@ -1,8 +1,8 @@
 """Money-Truth Substrate (ADR-195 v2 + P&L unification 2026-05-12).
 
 Per FOUNDATIONS Axiom 8 + the P&L unification refactor, money-truth's
-canonical home is `/workspace/context/{domain}/_money_truth.md` per
-domain, with `/workspace/context/_money_truth_summary.md` as the cross-
+canonical home is `/workspace/operation/{domain}/_money_truth.md` per
+domain, with `/workspace/operation/_money_truth_summary.md` as the cross-
 domain rollup. This package provides:
 
   - base.py      — OutcomeProvider ABC + OutcomeCandidate shape (with

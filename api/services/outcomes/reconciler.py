@@ -5,7 +5,7 @@ returns a structured summary. Provider errors are isolated — one provider's
 outage does not block siblings.
 
 Per ADR-195 v2 + the P&L unification refactor (2026-05-12), the reconciler
-writes to `/workspace/context/{domain}/_money_truth.md` per domain, not
+writes to `/workspace/operation/{domain}/_money_truth.md` per domain, not
 to a SQL ledger. Providers emit OutcomeCandidate dicts (now with optional
 signal_id per Commit 1); ledger.fold_outcome_candidates persists them via
 filesystem upsert with frontmatter-based idempotency and per-signal bucketing.

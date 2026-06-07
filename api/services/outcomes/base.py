@@ -30,7 +30,7 @@ class OutcomeCandidate(TypedDict, total=False):
     outcome_label: str
         # e.g., "closed_profit", "closed_loss", "refund_issued"
     context_domain: str
-        # drives _money_truth.md routing; lives under /workspace/context/<domain>/
+        # drives _money_truth.md routing; lives under /workspace/operation/<domain>/
     reconciliation_confidence: Literal["high", "medium", "low"]
 
     # Optional / provider-specific

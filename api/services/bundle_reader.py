@@ -411,7 +411,7 @@ def _normalize_bundle_domain(d: dict[str, Any], bundle: dict[str, Any]) -> dict[
     bundle-sourced domains identically to kernel-sourced domains.
     """
     result: dict[str, Any] = {
-        "path": f"context/{d.get('path')}",
+        "path": f"operation/{d.get('path')}",
         "type": "context",
         "purpose": d.get("purpose"),
         "managed_by": "agent",
