@@ -1,6 +1,6 @@
 # ADR-322 — Entity-Layer Pruning: a Narrow `/proc` over the Filesystem-Native Substrate
 
-> **Status**: DRAFT (2026-06-07). Proposed by Claude, pending KVK ratification. **Second of three** in the post-ADR-320 surface re-grounding arc (ADR-321 file primitives → **ADR-322 entity layer** → deferred derive-producer ADR). **Gated on ADR-321 landing** — the entity-layer pruning routes `document` reads into the `file` family, so the file side must be path-native first.
+> **Status**: DRAFT (2026-06-07). Proposed by Claude, pending KVK ratification. Part of the post-ADR-320 surface re-grounding arc (ADR-321 file primitives → **ADR-322 entity layer** → ADR-323 frame collapse → ADR-324 InferContext dissolution → ADR-325 Embed primitive). **Gated on ADR-321 landing** — the entity-layer pruning routes `document` reads into the `file` family, so the file side must be path-native first.
 > **Date**: 2026-06-07
 > **Authors**: KVK, Claude
 > **Upstream**: [primitive-surface-grounding discourse](../analysis/primitive-surface-grounding-2026-06-07.md) §4 (the entity-layer evidence map) + the two Explore caller-traces it cites.
@@ -112,7 +112,7 @@ Medium. Single PR after ADR-321 lands:
 
 ## Relationship to other ADRs
 
-- **Second of three** in the post-ADR-320 arc: ADR-321 (file primitives) → **ADR-322 (this)** → deferred derive-producer ADR.
+- **Part of** the post-ADR-320 arc: ADR-321 (file primitives) → **ADR-322 (this)** → ADR-323 (frame collapse) → ADR-324 (InferContext dissolution) → ADR-325 (Embed primitive).
 - **Gated on** ADR-321 (document reads route into the now-path-native `file` family).
 - **Finishes migrations** ADR-197 (document-as-file → document reads as file reads) + ADR-231 (task-as-redirect → task off the entity grammar).
 - **Amends** primitives-matrix.md Axiom-0 note (the entity layer's true extent) + ADR-168 (the `Read→LookupEntity` naming reform — this prunes the type set that reform operated over).
