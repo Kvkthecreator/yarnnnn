@@ -174,20 +174,23 @@ def test_yarnnn_schedule_injection_deleted():
     "authored_by": "operator"}`` is deleted. auth.caller_identity carries it.
 
     2026-06-04 (ADR-315 carry-over): agents/yarnnn.py was ratify-deleted by
-    commit 1272c92 ("delete the dead chat-profile chain"); the YARNNN chat
-    agent's tool_executor now lives in agents/chat_agent.py. This gate asserts
-    a DELETION (the per-call injection block must be absent), so retargeting it
-    to the successor file keeps the invariant honest — caller_identity, not a
-    per-call patch, carries Schedule attribution.
+    commit 1272c92 ("delete the dead chat-profile chain").
+    2026-06-07 (ADR-320 prompt-alignment): agents/chat_agent.py (the dead
+    ADR-124 project-meeting-room ChatAgent it had been retargeted onto) was
+    deleted too. The live chat-mode / addressed tool-execution path now runs
+    through services/wake.py, where caller_identity carries the attribution —
+    so the gate retargets there. The invariant is unchanged: the per-call
+    Schedule injection block must be absent; caller_identity, not a per-call
+    patch, carries Schedule attribution.
     """
-    src = _read_text(_file("agents", "chat_agent.py"))
+    src = _read_text(_file("services", "wake.py"))
     # The literal injection pattern must be absent
     assert not re.search(
         r'if tool_name == "Schedule".*not tool_input\.get\("authored_by"\)',
         src,
         re.DOTALL,
     ), (
-        "agents/yarnnn.py Schedule injection block must be deleted per "
+        "services/wake.py must not inject Schedule authored_by per-call per "
         "ADR-288 D3 — auth.caller_identity supersedes per-call compensation."
     )
 

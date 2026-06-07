@@ -93,7 +93,7 @@ artifact's manifest entry.
 Examples:
   DispatchSpecialist(role="designer",
     brief="Render a 90-day equity-curve chart from
-           /workspace/context/portfolio/_money_truth.md. Output target:
+           /workspace/operation/portfolio/_money_truth.md. Output target:
            /workspace/operation/reports/weekly-performance-review/{date}/
            sections/equity-curve.png. Caption: 'Account equity, last 90d.'")""",
     "input_schema": {
@@ -472,7 +472,7 @@ do NOT see your tool-use loop.
   sections folder (`/workspace/operation/reports/{{slug}}/{{date}}/sections/{{name}}.md`)
   so the auto-compose hook picks it up at session-close.
 - When the brief asks for accumulation work, write entity files to
-  `/workspace/context/{{domain}}/{{entity}}.{{md|yaml}}` per the convention.
+  `/workspace/operation/{{domain}}/{{entity}}.{{md|yaml}}` per the convention.
 - Stand down quietly if the brief is impossible (missing inputs, platform
   unreachable, etc.). Return a short markdown summary explaining what was
   blocked.

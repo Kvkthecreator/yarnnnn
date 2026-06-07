@@ -6,6 +6,47 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.07.2] - ADR-320 prompt-envelope alignment (residue after 14ce6c7)
+
+Context: this entry covers an ADR-320 prompt-envelope audit run concurrently
+with operator commit `14ce6c7`. That commit independently landed two of the
+findings this audit surfaced — the `_OPERATING_POSTURE` ADR-293→ADR-320 collapse
+in `cockpit_awareness.py`, and the deletion of dead `agents/chat_agent.py` +
+`agents/prompts/` (both never git-tracked / now removed). What remains below is
+the residue `14ce6c7` did NOT cover.
+
+### Changed (behavioral — DispatchSpecialist frame)
+
+- `services/primitives/dispatch_specialist.py`: two old-topology paths in the
+  LIVE specialist frame + tool description re-rooted `context/` → `operation/`:
+  the accumulation-write instruction (`/workspace/operation/{domain}/{entity}.…`)
+  and the equity-curve example (`/workspace/operation/portfolio/_money_truth.md`).
+- Root cause: pre-ADR-320 these wrote to `context/{domain}/`, which under the
+  five-root topology is no longer a root at all — specialist writes would land
+  in an orphaned path the envelope/working-memory readers no longer consult
+  (silent-data-loss class). The deliverable-section path in the same frame was
+  already correct (`operation/reports/…`); only the accumulation + example paths
+  had drifted. NOT touched by `14ce6c7`.
+
+### Fixed (test break introduced by 14ce6c7)
+
+- `test_adr288_caller_identity.py::test_yarnnn_schedule_injection_deleted`:
+  `14ce6c7` deleted `agents/chat_agent.py` but left this gate reading it via
+  `_read_text(_file("agents", "chat_agent.py"))` → the gate `FileNotFoundError`s
+  at HEAD. Retargeted to the live `services/wake.py` (where chat-mode tool
+  execution + caller_identity now live). The invariant is unchanged (the per-call
+  Schedule-injection block must be ABSENT — an `assert not re.search`); the gate
+  now reads a live file instead of a deleted one.
+
+### Gates
+
+- `test_adr320_permission_topology.py` 15/15, `test_adr288_caller_identity.py`
+  18/18 (was broken at HEAD by the deleted-file read; now green), reviewer
+  contract + formalization + pulse-envelope 39/39. Final grep gate: zero
+  old-topology references remain in any live prompt string.
+
+---
+
 ## [2026.06.07.1] - ADR-320 follow-up: full-path standing_intent headers (kill dual-write)
 
 ### Changed (behavioral — Reviewer wake-envelope + instructions)
