@@ -34,3 +34,34 @@ A **shared path-manifest**: generate the FE's path constants from `api/services/
 ## Cross-reference
 
 The runtime-writer audit (`docs/analysis/SESSION-PROMPT-adr320-runtime-writer-audit.md`) covers the *backend* writer surface. This note covers the *frontend reader/writer* path-coupling. They are complementary; neither subsumes the other.
+
+---
+
+## Audit update (2026-06-07, same day) — the trigger condition is closer than "hypothetical"
+
+A follow-on audit (commit `18af8aa`) re-walked the path-as-identity layer with receipts. Two findings change the deferral calculus from "speculative future" to "scheduled second wave."
+
+### Finding 1 — the ADR-320 migration was incomplete; six globs were missed
+
+Six content-shape `PATH_GLOB`s (`mandate / identity / brand / autonomy / pace / inference-meta`) still pointed at the dead `_shared/` root after the migration "completed." Their docstrings already named the correct five-root path — only the glob *value* was stale (mandate.ts said `constitution/MANDATE.md` in its header while its glob said `_shared/`). Fixed in `18af8aa`. **Implication:** the 45-edit migration silently under-covered the literal layer. A manifest would have made under-coverage structurally impossible (one source, regenerate-or-fail) — the literals can't drift out of sync with the source if they *are* the source.
+
+These globs are also **latent, not live**: `shapeForPath` (the only `PATH_GLOB` consumer) has zero live callers; the live registry keys on `shapeKey`. So the miss was invisible to the type-checker and to runtime — pure documentary drift embedded in code. That's the *worst* kind for a manifest to prevent, because nothing catches it.
+
+### Finding 2 — a second root change is already on the books (Family 2)
+
+The literal layer is split:
+
+- **Family 1 — governance literals** (`constitution/ persona/ operation/ governance/`): backend-migrated, FE now aligned (`18af8aa`). Stable.
+- **Family 2 — accumulation/domain literals** (`context/{domain}/`): `money-truth.ts` glob + the whole `recurrence-shapes.ts` domain map still name `context/`. They are **correctly** aligned to the *still-un-migrated* backend (`conventions.py:160` emits `/workspace/context/{domain}`; `directory_registry` + `workspace.py scope=context` + `assembly.py` likewise — recorded in MEMORY.md "ADR-320 Writer Audit — accumulation path-layer NOT migrated").
+
+So the third hand-edit of this exact literal layer is **already scheduled**: when the backend accumulation-path migration re-roots `context/{domain}/ → operation/{domain}/`, the FE Family-2 literals must move with it. That is the **second root-change trigger** this note named as the YAGNI threshold — no longer hypothetical, it's on the roadmap as a known-deferred backend migration.
+
+### The sharpened call
+
+The manifest has now *earned* its churn — two distinct evidences (a silent under-coverage that types couldn't catch + a scheduled second wave). But the **cleanest landing moment is the Family-2/backend-accumulation migration, not now**, because:
+
+1. Building it now, against only Family-1 (already-stable) literals, repeats the speculative-abstraction anti-pattern — you'd build the manifold before the second consumer arrives, just by a few weeks.
+2. Building it *as part of* the accumulation migration means FE + backend re-root through **one** source in the same change — the manifest proves itself by absorbing a real root change instead of a hypothetical one. (Same discipline ADR-320 itself followed: doc-first, but code-validated.)
+3. The natural shape is now legible from the audit: the FE consumes paths as `api.workspace.getFile('<literal>')` with the literal duplicated across content-shapes + components + route pages + a hardcoded map in `WorkspaceSection.tsx`. A `/api/workspace/paths` endpoint (or build-time codegen from `workspace_paths.py`) collapses all of those to one resolver. The endpoint shape is the lighter lift — `workspace.py` already imports `workspace_paths` constants at three sites; exposing them as a JSON map is ~20 lines.
+
+**Recommendation:** keep the manifest deferred, but **bind its trigger explicitly to the backend accumulation-path migration** (not "some future root change"). When that migration is scoped, the FE path-manifest becomes a sub-deliverable of it — they re-root together, one source, and the manifest is validated by a real change rather than authored on spec. Until then: Family-1 is fixed and stable; Family-2 is intentionally left aligned to the un-migrated backend; the debt is named, scoped, and trigger-bound.
