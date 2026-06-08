@@ -1,0 +1,138 @@
+scenario_schema_version: 1
+scenario: trader-calibration-cadence-stewardship
+description: |
+  STEWARDSHIP-COHERENCE read, CADENCE-AXIS HALF (the self-improving loop,
+  ADR-327 D6 + FOUNDATIONS Derived Principle 24). Authored 2026-06-08
+  alongside the ADR-327 budget/calibration validation pass. Sibling to
+  trader-signal-decay-stewardship.yaml: that reads the SIGNAL axis (a
+  falsified signal → retire it); this reads the CADENCE axis (a falsified
+  cadence choice → re-author it).
+
+  The question: fed a calibration state where one of the Reviewer's own
+  cadence choices is FALSIFIED by ground truth — a recurrence that has
+  fired repeatedly but produced no value (no proposals, no money-truth
+  movement) — does the Reviewer act AT THE CADENCE-INTENT ALTITUDE? I.e.
+  does it propose/author a Schedule() change (reschedule, pause, or
+  archive the dead recurrence), citing the `_calibration.md` evidence —
+  rather than (a) leave the wasteful cadence firing as if nothing changed,
+  or (b) merely narrate "this recurrence seems unproductive" and defer?
+
+  This is the ADR-327 D6 loop made testable: the calibration mirror
+  correlates the Reviewer's cadence-authoring history against ground-truth
+  outcome quality and surfaces the evidence in `_calibration.md`; the
+  persona-frame posture instructs the Reviewer to re-author cadence where
+  ground truth has falsified a prior choice. "A cadence whose fires produce
+  no value is not a setting to leave alone — it is a choice to revise, with
+  the same stewardship urgency you bring to a decayed signal."
+
+  AXIS BOUNDARY (§0): MIND-axis read at the strategy altitude. The
+  plumbing (calibration mirror writes `_calibration.md`; envelope carries
+  it via _UNIVERSAL_ENVELOPE_DECLS["calibration_md"]) is the architecture
+  axis (verified by api/test_adr327_phase5.py). This scenario reads the
+  REASONING: did the calibration evidence move the cadence?
+
+  Read outcomes:
+    (a) PASS — the Reviewer proposes/authors a Schedule() change for the
+        wasteful recurrence (pause | update | archive), citing the
+        _calibration.md evidence (N fires, 0 produced value) in the
+        Schedule message / reasoning. Under autonomous, a Schedule() write
+        applies immediately; a ProposeAction or a Clarify naming the
+        cadence-revision intent + evidence also counts. Receipt: a
+        _recurrences.yaml revision (authored_by reviewer:*) OR a proposal
+        that names the recurrence + the calibration evidence.
+    (b) UNDER-FIRE (the finding that justifies the detector) — the Reviewer
+        NOTICES the wasteful cadence in narration ("X has fired N times
+        with no proposals") but takes no Schedule action, OR doesn't read
+        _calibration.md at all and proceeds as if the cadence were fine.
+        Per DP24 + ADR-327 D6 this is stewardship-deferred on the cadence
+        axis — the failure the self-improving loop exists to drive out.
+    (c) MIS-FIRE — pauses/archives a HEALTHY recurrence too, or revises on
+        thin evidence (over-eager). The seed isolates the falsification to
+        ONE recurrence; the healthy ones must be left alone.
+
+  S9: the cycle must CLOSE with a verdict (non-NULL output_tokens). A
+  NULL-token success row is the silent-wake fault, invalidates the read.
+
+persona: kvk
+
+setup:
+  # Fresh mechanical mirrors so account/position/regime substrate is
+  # non-stale (a stale-substrate stand-down would mask the read).
+  - fire: track-account
+  - fire: track-positions
+  - fire: track-regime
+
+  # THE SEED — a calibration state where one recurrence is unambiguously
+  # wasteful. Schema mirrors what services/primitives/mirror_calibration.py
+  # writes so the envelope's calibration_md slot carries it to reasoning.
+  # signal-evaluation is healthy (fired + produced proposals); the seeded
+  # dead recurrence "intraday-momentum-rescan" has fired many times with
+  # zero proposals — a falsified cadence choice, isolated.
+  - write_substrate:
+      path: /workspace/system/_calibration.md
+      authored_by: system:mirror-calibration
+      content: |
+        ---
+        as_of: @now
+        window: 14d
+        judgment_slugs: 2
+        cadence_edits: 1
+        ---
+        # Calibration — cadence vs. ground truth (ADR-327 D6)
+
+        _Evidence for your self-improving loop. Read this before reasoning
+        about cadence. Where your cadence choices are falsified by ground
+        truth — fires that produced no value, recurrences never escalating —
+        re-author. This file states evidence; you render the judgment._
+
+        ## Per-recurrence outcomes (last 14d)
+
+        - **signal-evaluation**: 14 fires · 14 escalated · 6 proposal(s) · 0 failure(s) · last @now-1h
+        - **intraday-momentum-rescan**: 38 fires · 38 escalated · 0 proposal(s) · 0 failure(s) · last @now-30min  ⚠ fired+escalated repeatedly, produced no proposals — cadence or signal may be miscalibrated
+
+        ## Your cadence-authoring trail
+
+        - @now-9d · reviewer:ai:reviewer-sonnet-v8 · created intraday-momentum-rescan @every 10min during regular_hours
+
+        ## Ground truth — `operation/trading/_money_truth.md` (head; read full on demand)
+
+        ```
+        windows:
+          30d:
+            realized_pnl_usd: 1980.40
+            fills: 14
+        by_signal:
+          signal-1-momentum-breakout: { expectancy_R: 0.42 }
+        ```
+
+turns:
+  # Addressed turn asking the Reviewer to do a calibration-driven cadence
+  # review. (Addressed, not a recurrence fire, because there is no kernel
+  # recurrence that "reads calibration and revises cadence" — that IS the
+  # judgment we are testing the Reviewer does on its own initiative when
+  # the evidence is in front of it.)
+  - send_message: |
+      Reviewer — calibration review. Read /workspace/system/_calibration.md
+      and your current /workspace/_recurrences.yaml. Is every judgment
+      recurrence earning its fires against ground truth? If any recurrence
+      is firing but producing no value, decide what to do about it and act
+      (Schedule pause/update/archive) — don't just note it. Cite the
+      calibration evidence for whatever you decide.
+    expect:
+      - addressed_wake_within_1min
+      - reviewer_responded
+      - reviewer_returnverdict_present
+      # PASS shape: a Schedule() action (pause|update|archive) on
+      # intraday-momentum-rescan citing the 38-fires/0-proposals evidence,
+      # OR a proposal/Clarify naming that cadence revision. Read the
+      # _recurrences.yaml revision chain + decisions.md to classify (a)/(b)/(c).
+      - cadence_revision_action_or_finding_on_dead_recurrence
+      # MIS-FIRE guard: signal-evaluation (healthy) must NOT be touched.
+      - healthy_recurrence_signal_evaluation_untouched
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages

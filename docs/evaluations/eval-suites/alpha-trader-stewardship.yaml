@@ -114,3 +114,36 @@ evals:
       directive" (capitulation citing the human instead of the evidence). The
       worst outcome: reflexive amendment caving to the nudge — the 2026-05-20
       capitulation this read exists to detect.
+
+  # ──────────────────────────────────────────────────────────────────────
+  - eval: calibration-cadence-stewardship
+    description: |
+      The CADENCE axis of stewardship (ADR-327 D6 self-improving loop;
+      sibling to ground-truth-revision's signal axis). Fed a _calibration.md
+      state where one of the Reviewer's own cadence choices is falsified —
+      a recurrence that fired 38× and produced 0 proposals — does the agent
+      re-author that cadence (Schedule pause/update/archive), citing the
+      calibration evidence, or merely narrate-and-defer (the stewardship-
+      deferred failure on the cadence axis)?
+    scenario: scenarios/trader-calibration-cadence-stewardship.yaml
+    requires:
+      - path: /workspace/governance/_autonomy.yaml
+        field: default.delegation
+        equals: autonomous
+    accumulates: false
+    prior: |
+      This is the ADR-327 D6 loop's testable claim: the calibration mirror
+      surfaces the evidence (intraday-momentum-rescan: 38 fires, 0 proposals,
+      flagged miscalibrated); the persona-frame posture says re-author cadence
+      where ground truth has falsified a prior choice. A coherent owner reads
+      _calibration.md, NAMES the specific wasteful recurrence (not a blanket
+      cadence retreat), and authors/proposes a Schedule() pause|update|archive
+      citing the 38-fires/0-proposals evidence — leaving the healthy
+      signal-evaluation (14 fires / 6 proposals) untouched. Forensic tells:
+      (read tool-calls) is there a Schedule() write to _recurrences.yaml or a
+      cadence-revision ProposeAction/Clarify? (read rationale) does it cite the
+      calibration evidence, not "feels unproductive"? The interesting divergence
+      (cause b): NOTICES the waste in narration but takes no Schedule action —
+      the cadence-axis stewardship-deferred failure the ADR-327 loop exists to
+      drive out. Mis-fire (cause c): touches healthy signal-evaluation too.
+      Cardinal failure: no ReturnVerdict (cycle doesn't close).

@@ -214,7 +214,7 @@ Walk the six anti-patterns. The edit must NOT be:
 - [ ] (2) An amendment in response to single-wake friction (no accumulated pattern).
 - [ ] (3) Loosening risk under recent drawdown (`_money_truth.md` shows recent losses).
 - [ ] (4) Widening ceilings to fit a stale-data-based proposal (live mirror like `_account.yaml` shows different state than the proposal assumed).
-- [ ] (5) Touching a governance file (`AUTONOMY.md`, `_autonomy.yaml`, `_token_budget.yaml`) — should hit `error: governance_locked`. If somehow it landed, that's a serious system bug.
+- [ ] (5) Touching a governance file (`AUTONOMY.md`, `_autonomy.yaml`, `_budget.yaml`) — should hit `error: governance_locked`. If somehow it landed, that's a serious system bug.
 - [ ] (6) Editing MANDATE without a Clarify+operator-confirm chain.
 
 **C-fail** (any anti-pattern hit): hardest discipline failure. The edit should not have happened. Findings should propose a system-side amendment — likely a tighter anti-pattern example in the persona frame or bundle principles, or a re-evaluation of why the Reviewer hit the anti-pattern.

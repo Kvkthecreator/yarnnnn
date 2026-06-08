@@ -83,7 +83,7 @@ One part of the old framework earned its keep and is preserved verbatim in spiri
 | (c) **Envelope** doesn't deliver it | File on disk but not in `_UNIVERSAL_ENVELOPE_DECLS` / `ReviewerContext` / `_build_user_message` | Envelope plumbing fix (Hat-A) |
 | (d) **Canon** itself is mis-specified | Substrate, envelope, Reviewer all working as designed, but the outcome is still wrong | ADR amendment (Hat-A canon work) |
 
-This diagnostic is **the spine of the prose read, not a scoring rubric.** When a read names a divergence, it names which of (a)–(d) caused it — that's what gives the finding a fix-location vector. It lives in sentences ("the envelope carried `_pace.yaml`; the Reviewer reasoned from a cached `standing_intent.md` narrative instead — cause (b), fix is persona-frame read-discipline"), never in a cell. The substrate→envelope→behavior chain it rests on is real plumbing (ADR-274 / ADR-276 envelope assembly), and naming it per-divergence is how a read becomes actionable rather than impressionistic.
+This diagnostic is **the spine of the prose read, not a scoring rubric.** When a read names a divergence, it names which of (a)–(d) caused it — that's what gives the finding a fix-location vector. It lives in sentences ("the envelope carried `_budget.yaml`; the Reviewer reasoned from a cached `standing_intent.md` narrative instead — cause (b), fix is persona-frame read-discipline"), never in a cell. The substrate→envelope→behavior chain it rests on is real plumbing (ADR-274 / ADR-276 envelope assembly), and naming it per-divergence is how a read becomes actionable rather than impressionistic.
 
 ### §1.3 What is deliberately dropped
 
@@ -201,8 +201,9 @@ evals:                               # required; ordered list
       - path: /workspace/governance/_autonomy.yaml
         field: default.delegation   # dotted path into YAML, or omit for whole-file
         equals: autonomous
-      - path: /workspace/governance/_pace.yaml
-        absent: true                # file must not exist
+      - path: /workspace/governance/_budget.yaml
+        field: budget.amount_usd    # ADR-327 spend envelope; e.g. raised to 150
+        equals: 150.0
     accumulates: false              # §3.1 — default false (reset to clean). true = ordered-arc.
     inherits: []                    # when accumulates:true, names prior eval-slugs whose state carries
     prior: |                        # §4 — orienting hypothesis, NOT a graded contract
@@ -246,7 +247,7 @@ Per-eval `requires:` check result. An eval that failed pre-flight did NOT fire.
 | Eval | requires | satisfied at fire time? | fired? |
 |---|---|---|---|
 | clean-voice-approve | autonomy=autonomous | YES | yes |
-| counterfactual-pace-raise | _pace.yaml absent | NO (file present) | REFUSED |
+| counterfactual-budget-raise | _budget.yaml amount=150 | NO (still at default) | REFUSED |
 
 ## §The read   ← the operator writes this; runner leaves it blank
 
@@ -299,13 +300,13 @@ The 10 current evals split cleanly along the §2 seam:
 
 | New suite | read_kind | From current evals |
 |---|---|---|
-| `yarnnn-author-judgment.yaml` | `judgment_coherence` | 1 clean-voice-approve, 2 anti-pattern-voice-defer, 3 addressed-mandate-cite, 4 pressure-resistance, 5 pace-coherence, 6 wake-source-disambiguation |
-| `yarnnn-author-responsiveness.yaml` | `substrate_responsiveness` | 7 counterfactual-mandate-tightening, 8 counterfactual-autonomy-flip, 9 counterfactual-pace-raise, 10 counterfactual-preferences-add |
+| `yarnnn-author-judgment.yaml` | `judgment_coherence` | 1 clean-voice-approve, 2 anti-pattern-voice-defer, 3 addressed-mandate-cite, 4 pressure-resistance, 5 budget-coherence, 6 wake-source-disambiguation |
+| `yarnnn-author-responsiveness.yaml` | `substrate_responsiveness` | 7 counterfactual-mandate-tightening, 8 counterfactual-autonomy-flip, 9 counterfactual-budget-raise, 10 counterfactual-preferences-add |
 
 ### §7.2 Per-eval transform
 
 For each eval:
-1. **`substrate_inputs` → `requires:`** — the `autonomy_mode_required`, `pace_relevant`, and the implicit file-state assumptions become harness-checked assertions. (`autonomy_mode_required: autonomous` → `requires: [{path: .../_autonomy.yaml, field: default.delegation, equals: autonomous}]`. Eval-9's "no prior _pace.yaml" → `requires: [{path: .../_pace.yaml, absent: true}]`.)
+1. **`substrate_inputs` → `requires:`** — the `autonomy_mode_required`, `budget_relevant`, and the implicit file-state assumptions become harness-checked assertions. (`autonomy_mode_required: autonomous` → `requires: [{path: .../_autonomy.yaml, field: default.delegation, equals: autonomous}]`. Eval-9's "budget raised to 150" → `requires: [{path: .../_budget.yaml, field: budget.amount_usd, equals: 150.0}]`.)
 2. **`expected_dimensions` → `prior:`** — collapse the four-cell block into one prose hypothesis. The `posture.rationale` text is already half-prose; it becomes the seed of `prior`.
 3. **`eval_shape` → deleted** (suite-level `read_kind` carries it).
 4. **The responsiveness suite's ordered-arc evals (7→8→9→10) declare `accumulates: true` + `inherits:`** explicitly — the iterative-arc cross-interaction the current suite relied on silently becomes a declared, named property of those evals.

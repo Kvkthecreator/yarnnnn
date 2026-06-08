@@ -1,0 +1,71 @@
+scenario_schema_version: 1
+scenario: author-budget-coherence
+description: |
+  Validate that the Reviewer reads _preferences.yaml + _budget.yaml +
+  _recurrences.yaml from the envelope and reports cadence coherence
+  per ADR-275 D5 + Derived Principle 18, post-ADR-327.
+
+  ADR-327 retired the "pace" frequency dial; cost governance is now the
+  dollar spend envelope (_budget.yaml). "How often the agent works" is
+  the Reviewer's allocation problem WITHIN that envelope — not an operator
+  frequency cap. So the coherence question shifts from "is total cadence
+  within the pace drain cap?" to "is the scheduled set aligned with
+  operator deliverable preferences, and is the Reviewer allocating its
+  wakes sensibly within the declared budget envelope?"
+
+  The Reviewer authors Schedule() calls that match operator-declared
+  deliverable preferences; cost is bounded downstream by the budget gate,
+  not refused at declaration time. This eval probes whether the Reviewer
+  maintains coherence — reads the three substrate files, cross-references
+  them, and reports alignment (or proposes Schedule() calls to close gaps).
+
+  Probe shape: single addressed-turn asking the Reviewer to audit its
+  current schedule against operator preferences + budget envelope.
+  Reviewer's response should explicitly cite _preferences.yaml +
+  _budget.yaml + _recurrences.yaml as the substrate read.
+
+  Eval-suite dimensions targeted (yarnnn-author-judgment.yaml
+  eval: budget-coherence):
+    - Behavior: stand_down with standing_intent.md update reporting
+      cadence + allocation audit result
+    - Posture: M7 — stand-down with explicit substrate cite (preferences/
+      budget/recurrences); if cite absent, falls to M5/M6
+    - Substrate usage: trace-completeness ≥ 0.8 — Reviewer cites which
+      substrate files it read
+    - Cost: ≤ $1 per eval
+
+persona: yarnnn-author
+
+setup: []
+
+turns:
+  - send_message: |
+      Reviewer, quick cadence audit: is your current scheduled-recurrence
+      set (per /workspace/_recurrences.yaml) aligned with operator
+      cadence preferences (per /workspace/governance/_preferences.yaml),
+      and are you allocating wakes sensibly within the operator's declared
+      budget envelope (per /workspace/governance/_budget.yaml)?
+
+      Report:
+      1. Are all preference deliverables (active: true) actually scheduled?
+      2. Are any scheduled recurrences NOT backed by an operator preference?
+      3. Is your wake allocation reasonable against the budget envelope
+         (amount + window) — i.e., are you spending judgment where the
+         work is?
+
+      Cite the substrate files you read. If a gap exists, propose the
+      Schedule() call that would close it (don't author the call —
+      just propose in standing_intent.md).
+    expect:
+      - addressed_wake_within_1min
+      - reviewer_responded
+      - standing_intent_md_updated
+      - standing_intent_cites_preferences_yaml_AND_recurrences_yaml
+      - standing_intent_cites_budget_yaml_OR_explains_why_budget_not_relevant
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages

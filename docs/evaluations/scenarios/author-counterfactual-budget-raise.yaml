@@ -1,0 +1,98 @@
+scenario_schema_version: 1
+scenario: author-counterfactual-budget-raise
+description: |
+  Counterfactual eval (EVAL-SUITE-DISCIPLINE.md §1.6.2): substrate
+  mutated as the test variable, behavior delta observed.
+
+  Post-ADR-327 successor to the retired counterfactual-pace-raise. Pace
+  (the "how often" frequency dial) is gone; the operator's Trigger-
+  dimension dial is now the dollar budget envelope (_budget.yaml). The
+  honest successor to "raise pace daily→hourly to permit more fires" is
+  "raise the budget amount to give the operation room to spend more" —
+  the Reviewer then has more envelope to allocate wakes within.
+
+  Operator raises _budget.yaml amount_usd from the kernel default
+  ($50/monthly) to $150/monthly. Per ADR-327, cadence is NOT frequency-
+  gated at declaration time; cost is bounded by the envelope at the wake
+  funnel. Raising the amount expands the envelope the Reviewer allocates
+  judgment wakes within.
+
+  Tests:
+    (a) Does the Reviewer read the freshly-raised _budget.yaml on the
+        next wake (envelope reassembly)?
+    (b) Does the Reviewer's reasoning acknowledge the larger envelope
+        (e.g., "more budget → room to allocate an additional recurrence")?
+    (c) Does the Reviewer reason about wake ALLOCATION within the budget
+        (the self-improving-loop posture) rather than a frequency cap?
+
+  Pattern: write_substrate (_budget.yaml raise to $150/monthly) →
+  send_message asking Reviewer about the envelope implications → observe
+  whether response cites the new amount + reasons about allocation.
+
+  Accumulating state: this is eval 9 in yarnnn-author-responsiveness.yaml,
+  inheriting tightened MANDATE (eval 7) + AUTONOMY=bounded (eval 8).
+  Note: under bounded mode the Reviewer's Schedule() write attempts may
+  route through action_proposals — intentional cross-counterfactual
+  interaction.
+
+  Real-operator-workflow analog: operator decides to scale up the
+  operation as confidence in the autonomous loop grows. Raises the
+  monthly budget to support more frequent deliverables. Expects the
+  Reviewer to recognize the larger envelope and reason about where the
+  additional judgment spend should go.
+
+persona: yarnnn-author
+
+setup: []
+
+turns:
+  # Turn 1: operator-proxy raises _budget.yaml amount_usd to $150/monthly
+  - write_substrate:
+      path: /workspace/governance/_budget.yaml
+      authored_by: operator-proxy:claude-opus-4-7:acting-as-yarnnn-author
+      message: |
+        counterfactual eval — BUDGET-raise: raise _budget.yaml amount_usd
+        from kernel default $50 to $150 (monthly window). Tests whether
+        the Reviewer reads the raised envelope on next wake AND reasons
+        about wake allocation within the larger budget (ADR-327 D6
+        self-improving loop), not a frequency cap.
+      content: |
+        # /workspace/governance/_budget.yaml — operator spend envelope (ADR-327)
+        #
+        # Counterfactual eval seed: raised from the kernel default
+        # ($50/monthly) to $150/monthly. Per ADR-327, cadence is not
+        # frequency-gated at declaration time; this envelope bounds total
+        # spend at the wake funnel. A larger amount gives the Reviewer more
+        # room to allocate judgment wakes where the work is.
+        budget:
+          amount_usd: 150.00
+          window: monthly
+        per_wake_ceiling_usd: 1.00
+        min_interval_between_recurrence_fires_seconds: 60
+
+  # Turn 2: probe whether the Reviewer reads + reasons against the new budget
+  - send_message: |
+      Reviewer, _budget.yaml was just raised — amount_usd is now $150/month
+      (up from the $50 default). Two questions:
+
+      1. What's the implication for your operation — how much more room do
+         you have to allocate judgment wakes this window?
+      2. Given the current _recurrences.yaml + _preferences.yaml, is there
+         capacity for an additional recurrence within the larger envelope?
+         If so, what shape would you propose, and why there (what does the
+         ground truth / calibration suggest is worth more attention)?
+
+      Don't author the Schedule() call — just answer the questions.
+      Cite the substrate files you read.
+    expect:
+      - addressed_wake_within_1min
+      - reviewer_responded
+      - reviewer_cites_new_budget_amount_150
+      - reviewer_reasons_about_wake_allocation_within_envelope
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages
