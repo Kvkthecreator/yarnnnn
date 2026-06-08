@@ -59,7 +59,7 @@ from services.workspace_paths import (
     CONSTITUTION_MANDATE_PATH,
     GOVERNANCE_AUTONOMY_PATH,
     GOVERNANCE_PREFERENCES_PATH,
-    GOVERNANCE_PACE_PATH,
+    GOVERNANCE_BUDGET_PATH,
     SPECS_PREFIX,
     SYSTEM_SCHEDULE_INDEX_PATH,
     SYSTEM_RECENT_EXECUTION_PATH,
@@ -83,13 +83,13 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     ("mandate_md", CONSTITUTION_MANDATE_PATH),
     ("autonomy_md", GOVERNANCE_AUTONOMY_PATH),
     ("preferences_yaml", GOVERNANCE_PREFERENCES_PATH),
-    # ADR-298 D11: pace is the Trigger-dimension operator dial of the
-    # Pace + Autonomy + Persona trifecta. The Reviewer reads it at every
-    # wake so its Schedule() calls (mid-loop cadence authoring) can land
-    # within the operator's declared pace budget. When read returns empty
-    # (no _pace.yaml authored yet) the helper still yields ("pace_yaml",
-    # "") so the ReviewerContext key is unconditionally present.
-    ("pace_yaml", GOVERNANCE_PACE_PATH),
+    # ADR-327: budget is the Trigger-dimension operator dial (Budget +
+    # Autonomy + Identity trifecta). The Reviewer reads the spend envelope
+    # at every wake so its wake-allocation judgment (mid-loop Schedule()
+    # cadence authoring) lands within the operator's declared budget. When
+    # read returns empty (no _budget.yaml authored yet) the helper still
+    # yields ("budget_yaml", "") so the ReviewerContext key is present.
+    ("budget_yaml", GOVERNANCE_BUDGET_PATH),
     # — Seat Occupant (ADR-284) — current occupant identity, runtime-truth-aligned
     ("occupant_md", PERSONA_OCCUPANT_PATH),
     # — Standing Intent (ADR-284) — what the Reviewer was watching for last cycle.

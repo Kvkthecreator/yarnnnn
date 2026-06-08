@@ -137,12 +137,12 @@ class ReviewerContext(TypedDict, total=False):
     # substrate (not a "remember to ReadFile" side-quest) makes Derived
     # Principle 18's first-wake obligation structural.
     preferences_yaml: str
-    # ADR-298 D11 — operator-declared pace (Trigger-dimension dial of the
-    # Pace + Autonomy + Persona trifecta). Pre-loaded so the Reviewer can
-    # surface Clarify with the actual declared kind when Schedule() returns
-    # pace_exceeded, and so the wake envelope carries the workspace's
-    # current cadence intent.
-    pace_yaml: str
+    # ADR-327 — operator-declared budget (Trigger-dimension dial of the
+    # Budget + Autonomy + Identity trifecta; supersedes the retired pace
+    # dial). The operation's dollar spend envelope over a timeframe.
+    # Pre-loaded so the Reviewer reasons about wake allocation within the
+    # operator's declared envelope (the self-improving loop, ADR-327 D6).
+    budget_yaml: str
     # ADR-284: seat occupant + standing intent. The canonical envelope helper
     # populates both via `_UNIVERSAL_ENVELOPE_DECLS`; the renderer at
     # `_build_user_message` reads them via `ctx.get(...)`. Declaring them

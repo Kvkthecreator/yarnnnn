@@ -642,16 +642,16 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
             ctx["preferences_yaml"],
             "",
         ]
-    # ADR-298 D11 (Pace + Autonomy + Persona trifecta) — operator pace
-    # declaration. Mid-loop Schedule() calls are pace-gated at declaration
-    # time per D5; this section surfaces the cap to the Reviewer so it can
-    # plan recurrence-authoring within the declared budget rather than
-    # discovering the gate via pace_exceeded errors round-trip.
-    if ctx.get("pace_yaml"):
+    # ADR-327 (Budget + Autonomy + Identity trifecta) — operator's spend
+    # envelope. The Reviewer reasons about wake allocation within this
+    # dollar budget over a timeframe (the self-improving loop, D6): every
+    # judgment wake draws from it; the Reviewer allocates wakes where
+    # ground truth says the work is, within the declared envelope.
+    if ctx.get("budget_yaml"):
         parts += [
-            "## _pace.yaml — Operator's declared pace (recurrence drain rate)",
+            "## _budget.yaml — Operator's spend envelope (allocate wakes within it)",
             "",
-            ctx["pace_yaml"],
+            ctx["budget_yaml"],
             "",
         ]
     # ADR-284 (2026-05-17): seat-occupant declaration + standing intent are

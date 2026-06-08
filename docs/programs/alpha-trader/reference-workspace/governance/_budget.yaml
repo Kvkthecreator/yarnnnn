@@ -1,0 +1,42 @@
+---
+tier: canon
+note: "The operation's spend envelope (ADR-327). Operator declares a dollar budget over a timeframe; the Reviewer respects it and allocates wakes within it. Reviewer reads but cannot author — governance file per ADR-293 D2. Collapses the retired _pace.yaml + _token_budget.yaml into one file."
+---
+# _budget.yaml — alpha-trader bundle default (ADR-327)
+#
+# The single per-workspace cost/frequency governance file. Replaces:
+#   - _pace.yaml (deleted — "how often the agent works" is the Reviewer's
+#     allocation problem within this budget, not an operator dial)
+#   - _token_budget.yaml (folded in — daily ceiling → window budget;
+#     judgment-fire cap deleted; per-slug floor preserved)
+#
+# The wake funnel reads this before firing each judgment-mode wake. Every
+# judgment wake (scheduled + reactive) draws from the budget; mechanical
+# recurrences are free. When window-to-date spend reaches amount_usd,
+# scheduled (cron_tick) wakes are skipped while reactive wakes (operator
+# present / proposal / hook) warn-but-fire (ADR-327 D4). The Reviewer
+# cannot author this file — operator-only governance per ADR-293 D2.
+#
+# Defaults below are bundle-scaffolded; operator may freely edit.
+
+budget:
+  # The dollar amount this operation may spend over the window below.
+  # Sized against observed 30-day spend (ADR-327 §5 open-question #2) with
+  # comfortable headroom for a real operator's organic rhythm.
+  amount_usd: 50.00
+  # monthly | weekly | daily — the timeframe amount_usd covers. Monthly
+  # absorbs day-to-day variance (the point of an envelope, not a daily cap).
+  window: monthly
+
+# Runaway floor: a single wake whose projected cost exceeds this routes to
+# the operator regardless of remaining budget. Independent of the envelope.
+per_wake_ceiling_usd: 1.00
+
+# Floor on cadence (ADR-313 Gate 3, preserved): a recurrence cannot fire
+# more frequently than this many seconds apart. Orthogonal to cost.
+min_interval_between_recurrence_fires_seconds: 60
+
+# Per-recurrence overrides (optional). Uncomment and tune to taste:
+# overrides:
+#   signal-evaluation:
+#     min_interval_seconds: 900   # never more frequent than 15 min

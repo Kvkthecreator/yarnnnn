@@ -74,14 +74,20 @@ UPLOADS_ROOT = "uploads/"
 # AUTONOMY: prose doc (LLM/human reads) + machine-parsed yaml (yaml.safe_load).
 GOVERNANCE_AUTONOMY_PATH = "governance/AUTONOMY.md"
 GOVERNANCE_AUTONOMY_YAML_PATH = "governance/_autonomy.yaml"
-# Compute-resource ceiling. Reviewer reads, never authors (Reviewer-edit could
-# escalate its own resource ceiling — authority the operator did not delegate).
+# The operation's spend envelope (ADR-327): one dollar budget over a timeframe.
+# Reviewer reads, never authors (Reviewer-edit could raise its own ceiling —
+# authority the operator did not delegate). Collapses the retiring _pace.yaml +
+# _token_budget.yaml into one file.
+GOVERNANCE_BUDGET_PATH = "governance/_budget.yaml"
+# DEPRECATED (ADR-327): folded into _budget.yaml. Constant retained only until
+# its last consumer is rewired (Phase 2/4); see services/budget.py.
 GOVERNANCE_TOKEN_BUDGET_PATH = "governance/_token_budget.yaml"
 # Operator's deliverable-cadence preferences (ADR-275). Reviewer reads + reconciles
 # via Schedule; operator owns the content.
 GOVERNANCE_PREFERENCES_PATH = "governance/_preferences.yaml"
-# Operator's pace declaration (ADR-298 D11 trifecta). Reviewer reads at every wake
-# (governance envelope, ADR-276); Schedule pace-gates at declaration time (D5).
+# DEPRECATED (ADR-327): pace retires — tempo is the Reviewer's allocation problem
+# within _budget.yaml, not an operator dial. Constant retained only until its last
+# consumer is rewired (Phase 2/4); see services/budget.py.
 GOVERNANCE_PACE_PATH = "governance/_pace.yaml"
 
 
