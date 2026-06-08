@@ -43,6 +43,8 @@ import { useNarrative } from '@/contexts/NarrativeContext';
 import type { DeskSurface } from '@/types/desk';
 import { api } from '@/lib/api/client';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
+import { RecentlyAuthored } from '@/components/workspace/RecentlyAuthored';
+import { UploadButton } from '@/components/workspace/UploadButton';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
@@ -511,13 +513,25 @@ export default function ContextPage() {
     router.replace(`/files?path=${encodeURIComponent(node.path)}`, { scroll: false });
   }, [router]);
 
+  // Path-based select (ADR-329 D2: RecentlyAuthored hands back a path, not a
+  // TreeNode — the file may not be in the visible tree, e.g. a `_`-prefixed
+  // path is hidden from the explorer but a revision row can still target it;
+  // syntheticNodeForPath resolves the viewer).
+  const handleExplorerSelect_byPath = useCallback((path: string) => {
+    setSelectedPath(path);
+    router.replace(`/files?path=${encodeURIComponent(path)}`, { scroll: false });
+  }, [router]);
+
   // D19 (2026-05-22): the prior plusMenuActions + chat empty-state
   // block were ThreePanelLayout-side affordances. Chat affordances
   // now live in the universal ChatDrawer FAB (singular summon path).
 
-  // Tree pane content
+  // Tree pane content. ADR-329 D2: "Recently authored" feed leads the
+  // substrate surface — the operator's "what changed in my workspace" glance
+  // — above the full explorer tree. Self-hides when nothing authored yet.
   const treePaneContent = (
     <div className="flex-1 overflow-y-auto">
+      <RecentlyAuthored onSelectPath={handleExplorerSelect_byPath} selectedPath={selectedPath} />
       {fileTreeLoading && treeNodes.length === 0 ? (
         <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -547,18 +561,22 @@ export default function ContextPage() {
             className="shrink-0 border-r border-border flex flex-col bg-background"
             style={{ width: treeWidth }}
           >
-            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0">
-              <div>
+            <div className="flex items-center justify-between px-3 py-2 border-b border-border shrink-0 gap-2">
+              <div className="min-w-0">
                 <p className="text-sm font-medium text-foreground">Explorer</p>
                 <p className="text-[11px] text-muted-foreground">Workspace context and settings</p>
               </div>
-              <button
-                onClick={() => setTreePaneOpen(false)}
-                className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded"
-                title="Collapse explorer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {/* ADR-329: 'add' is an operator verb, homed on Files. */}
+                <UploadButton onUploaded={() => loadExplorer()} />
+                <button
+                  onClick={() => setTreePaneOpen(false)}
+                  className="p-1 text-muted-foreground/40 hover:text-muted-foreground rounded"
+                  title="Collapse explorer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
             {treePaneContent}
           </div>
@@ -601,6 +619,13 @@ export default function ContextPage() {
                   onNavigate={handleExplorerSelect}
                   showHeader={false}
                   onOpenChatDraft={(prompt) => sendMessage(prompt, { surface: effectiveSurface })}
+                  onDeleted={() => {
+                    // ADR-329: file archived — clear selection + refresh the
+                    // tree (the archived file self-filters out server-side).
+                    setSelectedPath(null);
+                    router.replace('/files', { scroll: false });
+                    loadExplorer();
+                  }}
                 />
               )}
             </div>

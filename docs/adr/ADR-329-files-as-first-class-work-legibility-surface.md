@@ -1,0 +1,132 @@
+# ADR-329 — Files as the Operator's Substrate Surface: Five File Verbs, Two Operator / Two System / One Shared
+
+> **Status**: IMPLEMENTED (2026-06-08). Drafted + implemented by KVK + Claude. Frontend re-composition + one read-only route + one route-behavior change; no schema change.
+> **Date**: 2026-06-08
+> **Authors**: KVK, Claude
+> **Hat**: A (System Editor) — reshapes the operator-facing Files surface real operators inherit.
+> **Dimensional classification**: **Channel** (Axiom 6 — how the operator perceives + acts on authored work) primary; **Substrate** (Axiom 1 — Layer 1 made legible) + **Mechanism** (Axiom 5 — the file-verb permission carve) secondary.
+> **Upstream discourse**: [substrate-portability-swap-test-2026-06-08.md](../analysis/substrate-portability-swap-test-2026-06-08.md) ("the OS metaphor's frontend payoff is the two things only Layer 1 can show that a Finder cannot: attribution/provenance, and the permission topology made legible") + [ADR-328](ADR-328-substrate-portability-invariant.md) (Layer 1 is the authored, attributed, portable substrate; Layer 2 is reconstructable cache).
+
+---
+
+## The one-sentence thesis
+
+**The Files surface is not first-class because the file *browser* is rich — that instinct is the reinvent-Claude-Code trap (ADR-328). Files is first-class because it is the operator's substrate surface: where they *see* the work the system authored (who wrote each claim, how it evolved, what changed while they were away) and *act* on their own material (add, delete) — under a permission carve that is OS-neutral and traces directly to ADR-320 topology. There are exactly five verbs over the substrate: `add` and `delete` are operator verbs; `edit` and `index` are system verbs; `read` is shared (and reading includes provenance). This carve dictates the whole file UX, and its second-order effect on Home is small: Home stays the decision glance and grows no file affordance.**
+
+---
+
+## Why this does NOT contradict the swap-test
+
+The swap-test concluded the Files *surface* is "the least fundamental layer" and warned against a "richer file explorer / Finder clone." This ADR is not that — it answers a different question:
+
+- **Swap-test question:** "Is a richer file *browser* the moat?" → No. Don't reinvent Finder.
+- **This ADR's question:** "Does the operator have a first-class way to *see and trust* the work the system did, and *act on their own* material?" → That's not browser chrome. It's provenance legibility + a clean file-verb permission model.
+
+The swap-test names the resolution itself: *"the frontend payoff is the two things only Layer 1 can show that a Finder cannot — (1) attribution/provenance … `git log` surfaced as L3, the moat made visible; (2) the permission topology made legible."* This ADR delivers (1) directly and grounds (2) in the file-verb carve.
+
+---
+
+## The model — five file verbs (the whole permission story in one table)
+
+Every OS exposes the same handful of verbs over a filesystem. Naming the file operations *is* the OS-neutral vocabulary — no bespoke decision-point numbers, the verbs are the canon.
+
+| Verb | Who acts | How | Substrate effect |
+|---|---|---|---|
+| **read** | operator + system | operator views; system calls `ReadFile` | none — and reading *includes* provenance (authored-by + revision history; the moat made visible) |
+| **add** | **operator** | upload affordance on Files | `write_revision` to `uploads/`, attributed `operator`, auto-indexed (ADR-325 D6) |
+| **delete** | **operator** | "Delete" on Files (uploads only) | **archive, not erase** — `write_revision` sets `lifecycle=archived`; ADR-209-retained, reversible |
+| **edit** | **system only** | operator routes intent through chat → `WriteFile` | attributed revision — the operator never edits files directly |
+| **index** (embed) | **system only** | `Embed` primitive, autonomy-gated (+ upload auto-index) | derived Layer-2 index; never an operator button |
+
+**The one-line UX law:** *the operator adds and deletes their own material; the system edits and indexes; everyone reads — and reading includes seeing who authored what.*
+
+This maps 1:1 to ADR-320's caller×root topology: the operator owns `uploads/`; the system owns everything it authors. The carve is the topology made visible (swap-test payoff #2).
+
+---
+
+## Decisions
+
+### 1. read — provenance is promoted to first-class on the file view.
+
+When a file is selected, its authored-by + revision history is a first-class element of the file view, not a buried panel. The `RevisionHistoryPanel` (ADR-209 Phase 4) — which previously rendered on Brand/Task/Agent views but **never on the Files surface itself** — now renders on every text-shaped file (markdown/text/csv/html). This is `git log`/`blame` as the file view's substrate-trust layer: who authored this claim, how it evolved, whether it's been judged. Promotion of existing components, not new build.
+
+### 2. read — "Recently authored" is a first-class view (the work-legibility surface).
+
+Files leads with a reverse-chronological feed of authored substrate changes: *what the system authored in the workspace, and by whom*, grouped by author-class with relative time, each row deep-linking to the file. Reads a new read-only route `GET /api/workspace/recent-revisions` over `workspace_file_versions` (ADR-209). This is the literal "supplement the work done in the system" surface — it makes accumulation watchable.
+
+Distinct from the three existing recency-ish surfaces, must not duplicate:
+- **Home `KernelRecentArtifacts`** = delivered *outputs* (reports). This = authored *substrate changes*. Different substrate.
+- **Home `KernelJudgmentTrail`** = Reviewer *decisions*. This = the *file mutations* those decisions (+ agents + operator) produced.
+- **The Feed (ADR-259)** = the multi-actor *invocation narrative*. This = the *substrate delta*, not the narrative.
+
+### 3. add — upload is an operator verb, homed on Files.
+
+The single "add a file" affordance lives on Files (where uploads live, where "add a file" is the natural thought). Routes through the existing `POST /api/documents/upload` → text extraction → `/workspace/uploads/{slug}.md` via the Authored Substrate (ADR-209, attributed `operator`) → auto-index (ADR-325 D6). Singular Implementation: there is no parallel upload UI (Settings shows a document *count*, not an uploader).
+
+### 4. delete — an operator verb with trash-semantics, scoped to operator-owned roots.
+
+The operator-facing label is **"Delete"**, but the behavior is **archive, not erase** (Trash, not `rm`):
+- **Retention (ADR-209):** delete writes a *new revision* with `lifecycle='archived'`, attributed `operator`. The row + revision chain + storage binary stay. Reversible. The one operation that previously violated retention (a hard `table.delete()`) is replaced — Singular Implementation, the hard-delete route is gone.
+- **Scope (ADR-320):** the operator may delete only operator-authored material under `/workspace/uploads/`. The button is gated on that prefix in the UI **and** the backend returns 403 for any other path. The operator does not delete what the system authored on their behalf — deleting a Reviewer principle or agent context from a file browser would break the persistent-judgment-seat promise (THESIS Commitment 2). Operator-authored *constitution* files (MANDATE/IDENTITY/…) are *edited via chat*, never deleted from the browser.
+- Archived files self-filter from the explorer tree + uploads list (`lifecycle.is.null OR lifecycle.neq.archived`).
+
+### 5. edit — system-only; stays in chat. (No change; ratified here.)
+
+Direct inline editing was deleted (ADR-236); the operator routes edit intent through chat → `WriteFile(scope='workspace')` (ADR-235). The file view shows `EditInChatButton`, never a text field. This ADR ratifies it as the canonical `edit` verb and forbids re-introducing an inline editor.
+
+### 6. index (embed) — system-only; never an operator button. (No change; ratified here.)
+
+Per ADR-325, `Embed` is an LLM primitive, autonomy-gated (`GATE_QUEUEABLE` — the autonomy mode *is* the embed policy), with one operator-initiated trigger: upload auto-index (D6). There is no standalone operator "Embed" button and **the Files surface must never grow one**. Embedding is a derived Layer-2 index over Layer-1 content (ADR-328); exposing it as an operator action would surface cache machinery the operator should never manage.
+
+### 7. Second-order Home effect is small — Home stays the decision glance.
+
+`add`/`delete` are operator file verbs surfaced **on Files**; Home grows no file-management affordance. Home keeps its decision-shaped glance (decision queue + judgment trail + ground-truth). Its recent-artifacts slot thins to a glance (limit 3) labeled "Recently delivered" (outputs — distinct from Files' "Recently authored" substrate-change feed) with a "View in Files" pointer (also fixing a stale `/workspace/reports` deep-link → the substrate is at `/workspace/operation/reports`, ADR-231 D2). Discipline: file ops live on Files; glances live on Home.
+
+---
+
+## What this is NOT
+
+- **NOT a richer file browser / Finder clone.** The tree is unchanged; the *file view* + *recency view* gain legibility, and operator file verbs (add/delete) get clean affordances.
+- **NOT inline / Notion-style editing.** Edit stays in chat (verb 5). Re-introducing an inline editor is forbidden.
+- **NOT an operator embed button.** Index stays system-only (verb 6).
+- **NOT hard delete.** Delete is archive (retained, reversible). No operation erases authored substrate.
+- **NOT Files-as-cockpit.** Home stays the cockpit (ADR-312); Files is the substrate + escape-hatch surface (ADR-245).
+- **NOT a Layer-2 surface.** No embeddings/search-internals/RLS exposed (ADR-328 D6).
+- **NOT new substrate, no new primitive.** One read-only route (recent-revisions), one route-behavior change (delete→archive), the rest frontend re-composition over served data. `lifecycle` already exists on `workspace_files`.
+
+---
+
+## Claim tiering (forced vs chosen)
+
+- **FORCED (by receipts + canon):** the provenance/recency data is fully present in Layer 1 and served, yet not legible (composition gap, not infra gap). The five-verb carve is forced by ADR-320 topology (who-owns-which-root) + ADR-209 retention (delete cannot erase) + ADR-325 (index is system-gated) + ADR-236 (edit is chat-only) — the model *reads off* existing canon rather than inventing.
+- **Commitment-4 / DP16-GROUNDED:** Files-as-Layer-1's-operator-face; legibility as the frontend complement to ADR-328's export-as-proof.
+- **DESIGN CHOICE (open to pushback):** the visual shape of the provenance promotion + recency feed; the "Delete" label vs "Archive"/"Remove" (chose "Delete" with trash-semantics — most familiar word, honest reversible behavior); delete scope set at `uploads/` only for now (operator-authored constitution edits are chat-managed, not browser-deletable).
+- **EXPLICITLY OUT OF SCOPE:** richer file browser; inline editing; operator embed; Layer-2 exposure; the full permission-topology matrix as a visible surface (ADR-320 payoff #2 — a minimal author label rides along; the full matrix is its own ADR).
+
+---
+
+## Relationship to other ADRs / canon
+
+- **Realizes** the swap-test's "frontend payoff = provenance + topology legibility" — payoff #1 (verbs 1+2), payoff #2 grounded (the five-verb carve = ADR-320 made visible).
+- **Complements** ADR-328 — 328 proves portability by *export*; 329 proves authored-accumulation by *legibility*. Both surface Layer 1; neither touches Layer 2.
+- **Builds on** ADR-209 (revision chain + `authored_by` + `lifecycle` are the data this surfaces; delete=archive honors retention), ADR-320 (topology = the file-verb permission carve), ADR-325 (index/embed system-gated), ADR-236 (edit chat-only), ADR-249 (upload → uploads/ substrate).
+- **Preserves** ADR-245 (Files = L1 escape hatch + now the substrate surface), ADR-312 (Home stays cockpit), ADR-259 (Feed = invocation narrative; recency = substrate delta).
+
+---
+
+## Implementation (shipped 2026-06-08)
+
+**Backend:**
+- `GET /api/workspace/recent-revisions` — read-only, workspace-scoped, Layer-1-only (path/authored_by/message/created_at; no embeddings/search internals). [routes/workspace.py](../../api/routes/workspace.py).
+- `DELETE /api/documents/{path}` — replaced hard-delete with archive (`write_revision`, `lifecycle='archived'`, `authored_by='operator'`) + 403 scope guard outside `/workspace/uploads/`. [routes/documents.py](../../api/routes/documents.py).
+- Tree + uploads-list queries filter `lifecycle.is.null OR lifecycle.neq.archived`.
+
+**Frontend:**
+- `read` verb 1: `RevisionHistoryPanel` rendered on the Files file view for text-shaped files. [ContentViewer.tsx](../../web/components/workspace/ContentViewer.tsx).
+- `read` verb 2: `RecentlyAuthored` section leads the Files explorer. [RecentlyAuthored.tsx](../../web/components/workspace/RecentlyAuthored.tsx).
+- `add` verb: `UploadButton` in the Files explorer header. [UploadButton.tsx](../../web/components/workspace/UploadButton.tsx).
+- `delete` verb: "Delete" (trash-semantics) on the file view, gated to `/workspace/uploads/`. [ContentViewer.tsx](../../web/components/workspace/ContentViewer.tsx).
+- Home: `KernelRecentArtifacts` thinned to a 3-row glance + "View in Files" pointer (stale reports deep-link fixed). [KernelRecentArtifacts.tsx](../../web/components/library/kernel-home/KernelRecentArtifacts.tsx).
+- `api.documents.delete` comment updated; `api.workspace.recentRevisions` added. [client.ts](../../web/lib/api/client.ts).
+
+No schema change. No Render-service env-var change. No primitive rename. No new substrate.

@@ -8,10 +8,11 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { Download, ExternalLink, FileText, Folder, Loader2 } from 'lucide-react';
+import { Download, ExternalLink, FileText, Folder, Loader2, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
+import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { FileIcon } from '@/components/workspace/FileIcon';
 // ADR-236 Files page rework (2026-04-30): SubstrateEditor deleted. Direct
 // inline editing of substrate files is removed per the original assessment
@@ -51,6 +52,12 @@ interface ContentViewerProps {
    * editor — every file routes through chat for mutations.
    */
   onOpenChatDraft?: (prompt: string) => void;
+  /**
+   * ADR-329: 'delete' is an operator verb (trash-semantics, uploads only).
+   * Called after a successful archive so the surface clears selection +
+   * refreshes the tree.
+   */
+  onDeleted?: () => void;
 }
 
 export function ContentViewer({
@@ -58,6 +65,7 @@ export function ContentViewer({
   onNavigate,
   showHeader = true,
   onOpenChatDraft,
+  onDeleted,
 }: ContentViewerProps) {
   if (!selectedNode) {
     return (
@@ -83,6 +91,7 @@ export function ContentViewer({
       path={selectedNode.path}
       showHeader={showHeader}
       onOpenChatDraft={onOpenChatDraft}
+      onDeleted={onDeleted}
     />
   );
 }
@@ -233,19 +242,26 @@ interface HeadRevision {
   created_at: string;
 }
 
+// ADR-329: the operator 'delete' verb is scoped to operator-owned uploads
+// (ADR-320 topology). System-authored substrate is not deletable from the UI.
+const OPERATOR_DELETABLE_PREFIX = '/workspace/uploads/';
+
 function FileView({
   path,
   showHeader,
   onOpenChatDraft,
+  onDeleted,
 }: {
   path: string;
   showHeader: boolean;
   onOpenChatDraft?: (prompt: string) => void;
+  onDeleted?: () => void;
 }) {
   const [file, setFile] = useState<WorkspaceFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey] = useState(0);
+  const [deleting, setDeleting] = useState(false);
   // ADR-236 Cluster B: head-revision authorship surfaced on the file
   // header. Reads /api/workspace/revisions?limit=1 — the existing
   // ADR-209 Phase 4 endpoint. No new backend.
@@ -274,6 +290,26 @@ function FileView({
         // just falls back to the existing updated_at timestamp.
       });
   }, [path, reloadKey]);
+
+  // ADR-329 'delete' verb — trash-semantics (the backend archives via
+  // lifecycle; ADR-209-retained, reversible). Operator-owned uploads only;
+  // the button itself is gated below on OPERATOR_DELETABLE_PREFIX, and the
+  // backend enforces the same scope (403 otherwise).
+  const handleDelete = async () => {
+    if (deleting) return;
+    if (!window.confirm('Move this file to trash? It leaves your active workspace but can be recovered.')) return;
+    setDeleting(true);
+    try {
+      await api.documents.delete(path);
+      onDeleted?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Delete failed');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const isDeletable = path.startsWith(OPERATOR_DELETABLE_PREFIX);
 
   if (loading) {
     return (
@@ -358,6 +394,24 @@ function FileView({
               {file.content_url && (
                 <FileActions contentUrl={file.content_url} />
               )}
+              {/* ADR-329: 'delete' is an operator verb, uploads-only
+                  (ADR-320 topology). Trash-semantics — the file is archived
+                  (ADR-209-retained, recoverable), not erased. */}
+              {isDeletable && (
+                <button
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  title="Move to trash (recoverable)"
+                  className="inline-flex items-center gap-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive hover:border-destructive/40 transition-colors disabled:opacity-50"
+                >
+                  {deleting ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-3.5 h-3.5" />
+                  )}
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -427,6 +481,17 @@ function FileView({
               Open or download this file to inspect it in a native viewer.
             </p>
           </div>
+        )}
+
+        {/* ADR-329 D1: provenance promoted to a first-class element of the
+            file view. The authored, attributed revision chain (ADR-209) is
+            the moat made visible — "who authored this claim, how did it
+            evolve, has it been judged." Rendered for text-shaped authored
+            substrate (markdown/text/csv/html); binary kinds (image/pdf/
+            download) don't carry an operator-auditable authoring story.
+            The panel is itself collapsible — open it to walk the history. */}
+        {file.content && (kind === 'markdown' || kind === 'text' || kind === 'csv' || kind === 'html') && (
+          <RevisionHistoryPanel path={file.path} />
         )}
       </div>
     </div>

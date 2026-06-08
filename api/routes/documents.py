@@ -161,6 +161,7 @@ async def list_documents(
         .select("path, content, updated_at") \
         .eq("user_id", auth.user_id) \
         .like("path", "/workspace/uploads/%.md") \
+        .or_("lifecycle.is.null,lifecycle.neq.archived") \
         .order("updated_at", desc=True) \
         .range(offset, offset + limit - 1) \
         .execute()
@@ -239,11 +240,39 @@ async def download_document(auth: UserClient, document_path: str):
 # DELETE
 # =============================================================================
 
+# Operator-owned root for the archive (delete) verb. The operator may
+# archive what the operator authored — uploads. System-authored substrate
+# (Reviewer principles, agent context, the constitution) is NOT archivable
+# from the UI: that's ADR-320 topology-as-permission. Operator-authored
+# constitution files are EDITED via chat, never deleted from a browser.
+_OPERATOR_ARCHIVABLE_PREFIX = "/workspace/uploads/"
+
+
 @router.delete("/documents/{document_path:path}")
 async def delete_document(auth: UserClient, document_path: str):
-    """Delete a workspace upload and its storage binary."""
+    """Archive a workspace upload (the operator-facing 'Delete' verb).
+
+    Trash-semantics, NOT erasure. Per ADR-209 (every mutation attributed +
+    retained) this does NOT remove the row — it writes a new revision with
+    lifecycle='archived', attributed to the operator. The file leaves the
+    active workspace (filtered from the tree, dropped from context) but the
+    revision chain keeps the record and the storage binary stays. Reversible.
+
+    Scope (ADR-320 topology): operator may archive only operator-authored
+    material under /workspace/uploads/. Anything else returns 403 — the
+    operator does not delete what the system authored on their behalf.
+    """
+    from services.authored_substrate import write_revision
+
     if not document_path.startswith("/"):
         document_path = "/" + document_path
+
+    # ADR-320 scope guard: operator-archivable roots only.
+    if not document_path.startswith(_OPERATOR_ARCHIVABLE_PREFIX):
+        raise HTTPException(
+            status_code=403,
+            detail="Only uploaded files can be deleted. System-authored substrate is managed through chat.",
+        )
 
     result = auth.client.table("workspace_files") \
         .select("content") \
@@ -254,29 +283,23 @@ async def delete_document(auth: UserClient, document_path: str):
     if not result.data:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    raw = result.data[0].get("content", "") or ""
-    storage_path = None
-    for line in raw.split("\n"):
-        if line.startswith("storage_path:"):
-            storage_path = line.split(":", 1)[1].strip()
-            break
+    content = result.data[0].get("content", "") or ""
 
-    # Delete storage binary
-    if storage_path:
-        try:
-            service = get_service_client()
-            service.storage.from_("documents").remove([storage_path])
-        except Exception as e:
-            logger.warning(f"Failed to delete storage file: {e}")
+    # Archive = new revision, lifecycle='archived', operator-attributed.
+    # Retains the row + revision chain (ADR-209); storage binary untouched
+    # so an un-archive can fully restore. Content preserved verbatim.
+    service = get_service_client()
+    write_revision(
+        db_client=service,
+        user_id=auth.user_id,
+        path=document_path,
+        content=content,
+        authored_by="operator",
+        message="Archived by operator (removed from active workspace)",
+        lifecycle="archived",
+    )
 
-    # Delete workspace file
-    auth.client.table("workspace_files") \
-        .delete() \
-        .eq("user_id", auth.user_id) \
-        .eq("path", document_path) \
-        .execute()
-
-    return {"success": True, "message": "Document deleted"}
+    return {"success": True, "message": "Moved to trash", "archived": True}
 
 
 # =============================================================================

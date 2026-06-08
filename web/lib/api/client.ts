@@ -276,9 +276,11 @@ export const api = {
     download: (documentPath: string) =>
       request<DocumentDownloadResponse>(`/api/documents${documentPath}/download`),
 
-    // Delete workspace upload
+    // Delete an uploaded file (operator-facing 'Delete'). Trash-semantics,
+    // not erasure: the backend archives via lifecycle (ADR-209 retention,
+    // reversible) and scopes to operator-owned uploads/ (ADR-320 topology).
     delete: (documentPath: string) =>
-      request<{ success: boolean; message: string }>(
+      request<{ success: boolean; message: string; archived?: boolean }>(
         `/api/documents${documentPath}`,
         { method: "DELETE" }
       ),
@@ -1038,6 +1040,21 @@ export const api = {
           updated_at: string | null;
         }>;
       }>(`/api/workspace/recent-artifacts?limit=${limit}`),
+
+    // ADR-329 D2: recently authored substrate changes across the whole
+    // workspace (Layer-1 revisions per ADR-209), with authored_by
+    // attribution. Distinct from recentArtifacts (delivered outputs) —
+    // this is the substrate-change feed: "what did the system author, by
+    // whom." Powers the Files "Recently authored" section.
+    recentRevisions: (limit: number = 20) =>
+      request<{
+        revisions: Array<{
+          path: string;
+          authored_by: string | null;
+          message: string | null;
+          created_at: string | null;
+        }>;
+      }>(`/api/workspace/recent-revisions?limit=${limit}`),
 
     editFile: (path: string, content: string, summary?: string, message?: string) =>
       request<{ success: boolean; path: string; updated_at: string }>(

@@ -69,6 +69,26 @@ class RecentArtifactsResponse(BaseModel):
     artifacts: list[RecentArtifact]
 
 
+class RecentRevision(BaseModel):
+    """One authored substrate change across the workspace (ADR-329 D2).
+
+    Distinct from RecentArtifact: a RecentArtifact is a delivered *output*
+    (a report). A RecentRevision is an authored *substrate change* — any
+    mutation to Layer 1 (workspace_file_versions per ADR-209), regardless
+    of whether it produced a deliverable. This is the data behind the
+    Files "Recently authored" feed: what the system authored in the
+    workspace, and by whom.
+    """
+    path: str                              # full workspace_files path
+    authored_by: Optional[str] = None      # ADR-209 attribution taxonomy
+    message: Optional[str] = None          # authorship trailer
+    created_at: Optional[str] = None       # revision timestamp
+
+
+class RecentRevisionsResponse(BaseModel):
+    revisions: list[RecentRevision]
+
+
 # =============================================================================
 # GET /workspace/nav — Structured navigation (ADR-154: Agent OS model)
 # =============================================================================
@@ -428,6 +448,11 @@ async def get_workspace_tree(
             )
             .eq("user_id", auth.user_id)
             .like("path", f"{root}/%")
+            # ADR-329: archived files (operator 'Delete' = trash-semantics
+            # via lifecycle, ADR-209-retained) leave the active tree. NULL
+            # lifecycle (the common case) still shows — .neq alone would
+            # also exclude NULLs, so the OR keeps them.
+            .or_("lifecycle.is.null,lifecycle.neq.archived")
             .order("path")
             .limit(500)
             .execute()
@@ -604,6 +629,83 @@ async def get_recent_artifacts(
         return RecentArtifactsResponse(artifacts=artifacts)
     except Exception as e:
         logger.error(f"[WORKSPACE_API] Recent artifacts read failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# GET /workspace/recent-revisions — Recently authored substrate (ADR-329 D2)
+# =============================================================================
+# The Files "Recently authored" feed. Reads authored substrate changes across
+# the WHOLE workspace from workspace_file_versions (ADR-209 revision chain),
+# ordered by recency, with ADR-209 authored_by attribution. This answers
+# "what did the system author in my workspace while I was away, and by whom?"
+#
+# Distinct from /recent-artifacts (delivered outputs / reports). This is the
+# substrate-change feed — any Layer-1 mutation, deliverable or not.
+#
+# Layer-1-only (ADR-328 D6): surfaces ONLY authored substrate fields (path,
+# authored_by, message, created_at). No Layer-2 leakage (no embeddings, no
+# search internals). Read-only, workspace-scoped. Browser-consumed only —
+# no scheduler/MCP impact.
+#
+# Hidden paths: `_`-prefixed machine-config files and signals/ temporal logs
+# are excluded — same hide rule the Files explorer applies (files/page.tsx
+# isHidden). They're system-accumulated state, not authored substrate the
+# operator audits.
+
+# System-strict path prefixes excluded from the authored-substrate feed.
+_RECENT_REV_EXCLUDE_DIRS = ("/workspace/context/signals",)
+
+
+def _is_authored_substrate_path(path: str) -> bool:
+    """True if a revision path is operator-auditable authored substrate.
+
+    Mirrors the Files explorer hide rule (files/page.tsx isHidden):
+    drop `_`-prefixed machine-config files and temporal signal logs.
+    """
+    filename = path.rsplit("/", 1)[-1]
+    if filename.startswith("_"):
+        return False
+    for prefix in _RECENT_REV_EXCLUDE_DIRS:
+        if path.startswith(prefix):
+            return False
+    return True
+
+
+@router.get("/workspace/recent-revisions", response_model=RecentRevisionsResponse)
+async def get_recent_revisions(
+    auth: UserClient,
+    limit: int = Query(20, ge=1, le=50),
+) -> RecentRevisionsResponse:
+    """Recently authored substrate changes across the workspace (ADR-329 D2)."""
+    try:
+        # Over-fetch to absorb the post-query hide-filter, then trim to limit.
+        result = (
+            auth.client.table("workspace_file_versions")
+            .select("path, authored_by, message, created_at")
+            .eq("user_id", auth.user_id)
+            .order("created_at", desc=True)
+            .limit(limit * 3)
+            .execute()
+        )
+        revisions: list[RecentRevision] = []
+        for row in result.data or []:
+            path = row.get("path") or ""
+            if not _is_authored_substrate_path(path):
+                continue
+            revisions.append(
+                RecentRevision(
+                    path=path,
+                    authored_by=row.get("authored_by"),
+                    message=row.get("message"),
+                    created_at=row.get("created_at"),
+                )
+            )
+            if len(revisions) >= limit:
+                break
+        return RecentRevisionsResponse(revisions=revisions)
+    except Exception as e:
+        logger.error(f"[WORKSPACE_API] Recent revisions read failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
