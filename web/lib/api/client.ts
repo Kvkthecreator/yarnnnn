@@ -795,19 +795,20 @@ export const api = {
     },
   },
 
-  // ADR-312 D9: pace is a KERNEL governance dial (not trader-program data).
-  // Folded from /api/cockpit/pace → /api/pace. Pace is the Trigger-dimension
-  // dial of the Pace+Autonomy+Persona trifecta (ADR-298 D11). Queue depths
-  // are a thin telemetry surface (per ADR-298 D2 — the queue itself is not
-  // operator-readable substrate; only the depth aggregate is).
-  pace: () =>
+  // ADR-327: budget is the KERNEL governance dial (supersedes the retired
+  // pace dial). The operation's dollar spend envelope + window-to-date
+  // utilization (summed from the execution_events cost ledger) + live queue
+  // depth. Budget is the Trigger-dimension dial of the Budget+Autonomy+Identity
+  // trifecta. /api/pace → /api/budget.
+  budget: () =>
     request<{
-      pace_kind: 'hourly' | 'daily' | 'weekly' | 'continuous' | null;
-      pace_every_iso: string | null;
-      fires_per_day_cap: number | null;
-      paced_lane_depth: number;
-      live_lane_depth: number;
-    }>('/api/pace'),
+      amount_usd: number;
+      window: 'monthly' | 'weekly' | 'daily';
+      window_spend_usd: number;
+      remaining_usd: number;
+      per_wake_ceiling_usd: number;
+      queue_depth: number;
+    }>('/api/budget'),
 
   // ADR-231: Recurrences endpoints (was `tasks`; renamed in Phase 3.8)
   recurrences: {

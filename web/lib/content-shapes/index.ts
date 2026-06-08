@@ -46,7 +46,7 @@ import { META as decisionsMeta } from './decisions';
 import { META as identityMeta } from './identity';
 import { META as inferenceMetaMeta } from './inference-meta';
 import { META as mandateMeta } from './mandate';
-import { META as paceMeta } from './pace';
+import { META as budgetMeta } from './budget';
 import { META as snapshotMeta } from './snapshot';
 import { META as moneyTruthMeta } from './money-truth';
 import { META as principlesMeta } from './principles';
@@ -58,7 +58,7 @@ export const CONTENT_SHAPES: Readonly<Record<string, ContentShape>> = Object.fre
   identity: identityMeta,
   'inference-meta': inferenceMetaMeta,
   mandate: mandateMeta,
-  pace: paceMeta,
+  budget: budgetMeta,
   snapshot: snapshotMeta,
   money_truth: moneyTruthMeta,
   principles: principlesMeta,

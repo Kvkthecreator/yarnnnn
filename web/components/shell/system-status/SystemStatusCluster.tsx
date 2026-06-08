@@ -28,7 +28,7 @@ import { Cpu } from 'lucide-react';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { cn } from '@/lib/utils';
 import { AutonomyStatusItem } from './AutonomyStatusItem';
-import { PaceStatusItem } from './PaceStatusItem';
+import { BudgetStatusItem } from './BudgetStatusItem';
 import { BalanceStatusItem } from './BalanceStatusItem';
 import { ConnectionsStatusItem } from './ConnectionsStatusItem';
 
@@ -42,7 +42,7 @@ export function SystemStatusCluster() {
         aria-label="System status"
       >
         <AutonomyStatusItem />
-        <PaceStatusItem />
+        <BudgetStatusItem />
         <BalanceStatusItem />
         <ConnectionsStatusItem />
       </div>
@@ -111,7 +111,7 @@ function MobileRollup() {
         >
           <div className="flex items-center gap-1">
             <AutonomyStatusItem />
-            <PaceStatusItem />
+            <BudgetStatusItem />
             <BalanceStatusItem />
             <ConnectionsStatusItem />
           </div>

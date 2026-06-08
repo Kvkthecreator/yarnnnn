@@ -24,7 +24,10 @@ import type { KernelSurfaceSlug } from '@/types/desk';
 import FeedPage from '@/app/(authenticated)/feed/page';
 import HomePage from '@/app/(authenticated)/home/page';
 import RecurrencePage from '@/app/(authenticated)/recurrence/page';
-import PacePage from '@/app/(authenticated)/pace/page';
+import BudgetPage from '@/app/(authenticated)/budget/page';
+// ADR-327: /pace retired from the surface registry — it is now a route-level
+// redirect stub (app/(authenticated)/pace/page.tsx → /budget) handled by Next
+// file routing, not a mounted kernel surface.
 import AutonomyPage from '@/app/(authenticated)/autonomy/page';
 import MandatePage from '@/app/(authenticated)/mandate/page';
 import PrinciplesPage from '@/app/(authenticated)/principles/page';
@@ -46,7 +49,7 @@ export const KERNEL_SURFACE_REGISTRY: Record<KernelSurfaceSlug, ComponentType> =
   feed: FeedPage,
   home: HomePage,
   recurrence: RecurrencePage,
-  pace: PacePage,
+  budget: BudgetPage,
   autonomy: AutonomyPage,
   // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone
   // surface — the Identity surface (IdentityBrandCard) co-renders it.

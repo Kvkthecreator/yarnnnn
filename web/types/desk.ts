@@ -27,7 +27,7 @@ export type KernelSurfaceSlug =
   | 'feed'
   | 'home'
   | 'recurrence'
-  | 'pace'
+  | 'budget'
   | 'autonomy'
   | 'mandate'
   | 'principles'
@@ -63,7 +63,7 @@ export type DeskSurface =
   | { type: 'idle' };
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
-  'feed', 'home', 'recurrence', 'pace', 'autonomy', 'mandate', 'principles',
+  'feed', 'home', 'recurrence', 'budget', 'autonomy', 'mandate', 'principles',
   'identity', 'files', 'agents', 'program', 'queue', 'activity',
   'settings', 'connectors',
 ] as const;

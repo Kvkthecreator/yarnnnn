@@ -29,6 +29,7 @@ import {
   Target,
   UserCircle,
   Users,
+  Wallet,
 } from 'lucide-react';
 
 const ICON_REGISTRY: Record<string, LucideIcon> = {
@@ -42,6 +43,8 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   // Singular Implementation: one canonical icon per surface, used
   // everywhere it surfaces (Dock, Launcher, status cluster).
   gauge: Gauge,
+  // ADR-327: wallet glyph for the /budget surface (supersedes /pace's gauge).
+  wallet: Wallet,
   // 2026-06-03: home glyph for the Home surface (post ADR-312
   // cockpit→home rename). Replaces square-activity, which no longer
   // matched the surface name.
