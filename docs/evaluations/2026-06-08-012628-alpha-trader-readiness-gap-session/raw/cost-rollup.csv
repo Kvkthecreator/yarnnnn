@@ -1,0 +1,4 @@
+id,slug,mode,wake_source,status,tool_rounds,input_tokens,output_tokens,cache_read_tokens,cache_create_tokens,cost_usd,duration_ms,created_at
+044ba7f8-e596-4b51-b782-20ac51e6ce39,track-account,mechanical,manual_fire,success,,,,,,,821,2026-06-08T01:27:06.445507+00:00
+2f013674-248b-4dfc-b2b6-7439a07c3a02,track-regime,mechanical,manual_fire,success,,,,,,,1656,2026-06-08T01:27:08.301942+00:00
+b2020f44-dd33-4ab1-addd-2ab580573082,signal-evaluation,judgment,manual_fire,success,13,47879,3274,365516,39681,0.240643,51740,2026-06-08T01:28:00.299288+00:00
