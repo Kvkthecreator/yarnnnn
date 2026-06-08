@@ -81,15 +81,16 @@ def test_lib_autonomy_module_exists_and_exports_required_surface():
 
 
 def test_workspace_init_scaffolds_governance_substrate():
-    """Assertion #5 (amended ADR-286 + ADR-320): AUTONOMY.md is BUNDLE-owned
-    (forked via fork_reference_workspace per ADR-286 single-writer), not
-    kernel-scaffolded. The kernel-universal governance file workspace_init DOES
-    scaffold is the token-budget ceiling (GOVERNANCE_TOKEN_BUDGET_PATH). This
-    guards that the governance root stays wired into init."""
+    """Assertion #5 (amended ADR-286 + ADR-320 + ADR-327): AUTONOMY.md is
+    BUNDLE-owned (forked via fork_reference_workspace per ADR-286 single-writer),
+    not kernel-scaffolded. The kernel-universal governance file workspace_init
+    DOES scaffold is the spend envelope (GOVERNANCE_BUDGET_PATH — ADR-327,
+    collapsed _token_budget + _pace). This guards that the governance root
+    stays wired into init."""
     src = _read(API_WORKSPACE_INIT)
-    assert "GOVERNANCE_TOKEN_BUDGET_PATH" in src, (
-        "workspace_init.py must reference GOVERNANCE_TOKEN_BUDGET_PATH — the "
-        "kernel-universal governance ceiling scaffolded at signup (ADR-293 D7). "
+    assert "GOVERNANCE_BUDGET_PATH" in src, (
+        "workspace_init.py must reference GOVERNANCE_BUDGET_PATH — the "
+        "kernel-universal spend envelope scaffolded at signup (ADR-327). "
         "AUTONOMY.md itself is bundle-forked per ADR-286 single-writer."
     )
 

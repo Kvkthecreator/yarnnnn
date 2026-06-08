@@ -136,8 +136,10 @@ def test_schema_landed(client) -> None:
 
 
 def test_resolve_lane() -> None:
-    print("\n[resolve_lane] ADR-298 D3 lane mapping")
-    check("cron_tick → paced", resolve_lane("cron_tick") == "paced")
+    # ADR-327: the paced/live lane split collapsed — every source → "live"
+    # (single FIFO lane; pace throttle deleted, drainer lane-agnostic).
+    print("\n[resolve_lane] ADR-327 single-lane collapse")
+    check("cron_tick → live (was paced)", resolve_lane("cron_tick") == "live")
     check("addressed → live", resolve_lane("addressed") == "live")
     check("substrate_event → live", resolve_lane("substrate_event") == "live")
     check("proposal_arrival → live", resolve_lane("proposal_arrival") == "live")
@@ -174,7 +176,7 @@ def test_enqueue_basic(client) -> None:
         .execute()
         .data
     )
-    check("cron_tick row lane='paced'", row["lane"] == "paced")
+    check("cron_tick row lane='live' (ADR-327 single lane)", row["lane"] == "live")
     check("status='pending'", row["status"] == "pending")
     check("dedup_key persisted", row["dedup_key"] == "test-slug:2026-05-22T10:00")
 
@@ -259,51 +261,52 @@ def test_enqueue_invalid_source(client) -> None:
 
 
 def test_get_next_pending(client) -> None:
-    print("\n[get_next_pending] FIFO + lane scoping")
-    # Wipe namespace so the oldest paced/live rows ARE the ones we insert here.
+    # ADR-327: single lane — every source enqueues to "live". FIFO ordering
+    # across all sources is what matters now; the drainer is lane-agnostic.
+    print("\n[get_next_pending] FIFO (ADR-327 single lane)")
     client.table("wake_queue").delete().eq("user_id", TEST_USER_ID).execute()
 
     # Insert in known order with sleeps to guarantee enqueued_at ordering.
-    paced_id = enqueue(
+    first_id = enqueue(
         client,
         user_id=TEST_USER_ID,
         wake_source="cron_tick",
         payload={"order": 1},
-        dedup_key=f"ordering-paced-{uuid.uuid4()}",
+        dedup_key=f"ordering-first-{uuid.uuid4()}",
         slug="ordering",
     )
     time.sleep(0.05)
-    live_id = enqueue(
+    second_id = enqueue(
         client,
         user_id=TEST_USER_ID,
         wake_source="addressed",
         payload={"order": 2},
-        dedup_key=f"ordering-live-{uuid.uuid4()}",
+        dedup_key=f"ordering-second-{uuid.uuid4()}",
     )
 
-    paced_next = get_next_pending(client, user_id=TEST_USER_ID, lane="paced")
-    check(
-        "Lane-scoped paced lookup returns paced row",
-        paced_next is not None and paced_next["id"] == paced_id,
-        f"got {paced_next['id'] if paced_next else None}, expected {paced_id}",
+    # Both rows land in the single "live" lane post-ADR-327.
+    first_row = (
+        client.table("wake_queue").select("lane").eq("id", first_id).single().execute().data
     )
+    check("cron_tick row now in live lane", first_row["lane"] == "live")
 
-    live_next = get_next_pending(client, user_id=TEST_USER_ID, lane="live")
-    check(
-        "Lane-scoped live lookup returns live row",
-        live_next is not None and live_next["id"] == live_id,
-        f"got {live_next['id'] if live_next else None}, expected {live_id}",
-    )
-
-    # Unscoped lookup returns the oldest across lanes (paced inserted first).
+    # Unscoped lookup returns the oldest across all sources (FIFO).
     any_next = get_next_pending(client, user_id=TEST_USER_ID, lane=None)
     check(
-        "Unscoped lookup returns oldest pending row across lanes",
-        any_next is not None and any_next["id"] == paced_id,
-        f"got {any_next['id'] if any_next else None}, expected {paced_id} (inserted first)",
+        "Unscoped FIFO returns oldest pending row",
+        any_next is not None and any_next["id"] == first_id,
+        f"got {any_next['id'] if any_next else None}, expected {first_id} (inserted first)",
     )
 
-    # Invalid lane.
+    # Lane-scoped "live" still works (all rows are live) — returns oldest.
+    live_next = get_next_pending(client, user_id=TEST_USER_ID, lane="live")
+    check(
+        "Lane=live lookup returns oldest (all rows live)",
+        live_next is not None and live_next["id"] == first_id,
+        f"got {live_next['id'] if live_next else None}, expected {first_id}",
+    )
+
+    # Invalid lane still raises.
     raised = False
     try:
         get_next_pending(client, user_id=TEST_USER_ID, lane="garbage")
@@ -499,8 +502,9 @@ def test_queue_depth(client) -> None:
         dedup_key=f"depth-live-1-{uuid.uuid4()}",
     )
 
-    check("queue_depth lane=paced → 2", queue_depth(client, user_id=TEST_USER_ID, lane="paced") == 2)
-    check("queue_depth lane=live → 1", queue_depth(client, user_id=TEST_USER_ID, lane="live") == 1)
+    # ADR-327: all sources enqueue to the single "live" lane now.
+    check("queue_depth lane=paced → 0 (lane retired)", queue_depth(client, user_id=TEST_USER_ID, lane="paced") == 0)
+    check("queue_depth lane=live → 3 (all rows live)", queue_depth(client, user_id=TEST_USER_ID, lane="live") == 3)
     check("queue_depth unscoped → 3", queue_depth(client, user_id=TEST_USER_ID) == 3)
 
 

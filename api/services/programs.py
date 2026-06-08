@@ -491,7 +491,6 @@ async def fork_reference_workspace(
     from services.bundle_reader import (
         _load_manifest,
         get_bundle_version,
-        get_minimum_pace,
     )
     from services.conventions import RECURRENCES_PATH
     from services.scheduling import materialize_scheduling_index
@@ -523,90 +522,12 @@ async def fork_reference_workspace(
     # UserMemory must exist before the D8 default-pace seed below.
     um = UserMemory(client, user_id)
 
-    # ADR-298 D7 + D8 — Bundle minimum-pace gate + default-pace seeding.
-    #
-    # If the bundle declares `minimum_pace:` in its MANIFEST, the operator's
-    # declared workspace pace (in `_pace.yaml`) must equal or exceed it.
-    # Activation refuses with a Clarify-shaped ValueError per Scenario A
-    # if the operator's pace is below the floor.
-    #
-    # D8: when the workspace has no `_pace.yaml` yet, this is the first
-    # program activation. The bundle's `minimum_pace` becomes the default
-    # — written through write_revision with `system:bundle-fork`
-    # attribution. Operator can later override upward (e.g., daily → hourly)
-    # but not downward (would re-trigger the gate on next activation).
-    bundle_min_pace = get_minimum_pace(program_slug)
-    if bundle_min_pace is not None:
-        from services.pace import (
-            InvalidPaceKindError,
-            PACE_KINDS,
-            pace_at_least_as_frequent,
-            read_pace,
-        )
-        from services.workspace_paths import GOVERNANCE_PACE_PATH
-
-        if bundle_min_pace not in PACE_KINDS:
-            raise ValueError(
-                f"Bundle '{program_slug}' declares invalid minimum_pace="
-                f"{bundle_min_pace!r}. Must be one of {sorted(PACE_KINDS)}."
-            )
-
-        try:
-            existing_pace = await read_pace(client, user_id)
-        except Exception as exc:
-            # Treat unreadable pace as absent — fall through to default-seed.
-            logger.warning(
-                f"[ACTIVATE] Could not read existing _pace.yaml for "
-                f"{user_id[:8]}, treating as absent: {exc}"
-            )
-            existing_pace = None
-
-        if existing_pace is None:
-            # D8 default-seed — write operator's first _pace.yaml from
-            # the bundle's declared minimum. Attribution stamps it as
-            # system-authored so the operator can later distinguish
-            # "bundle default" from "operator-customized" via revision
-            # history.
-            pace_yaml_body = (
-                f"# /workspace/governance/_pace.yaml — operator pace declaration\n"
-                f"#\n"
-                f"# ADR-298 D8: seeded at activation of program '{program_slug}'\n"
-                f"# from the bundle's declared minimum_pace. Operator may\n"
-                f"# raise the pace (more frequent — e.g., daily → hourly) but\n"
-                f"# not lower it below this bundle's minimum without\n"
-                f"# deactivating the program first.\n"
-                f"#\n"
-                f"# Pace controls the cron-tick judgment recurrence drain rate.\n"
-                f"# Live-lane wakes (operator chat, substrate-event reactive,\n"
-                f"# manual-fire) bypass pace per ADR-298 D3.\n"
-                f"\n"
-                f"pace:\n"
-                f"  kind: {bundle_min_pace}\n"
-            )
-            await um.write(
-                GOVERNANCE_PACE_PATH,
-                pace_yaml_body,
-                summary=f"seed _pace.yaml from {program_slug} minimum_pace",
-                authored_by="system:bundle-fork",
-            )
-        else:
-            # Gate — operator already has a pace declared; refuse if below
-            # bundle minimum per Scenario A.
-            try:
-                ok = pace_at_least_as_frequent(existing_pace.kind, bundle_min_pace)
-            except InvalidPaceKindError as exc:
-                raise ValueError(
-                    f"Cannot evaluate pace gate: {exc}"
-                ) from exc
-            if not ok:
-                raise ValueError(
-                    f"Bundle '{program_slug}' requires minimum_pace="
-                    f"{bundle_min_pace!r}; workspace declares pace="
-                    f"{existing_pace.kind!r}. Raise the workspace pace in "
-                    f"_pace.yaml to {bundle_min_pace!r} or higher (hourly / "
-                    f"continuous), choose a different program, or skip "
-                    f"activation. ADR-298 Scenario A."
-                )
+    # ADR-327: the bundle minimum-pace gate + default-pace seeding (ADR-298
+    # D7/D8) are DELETED. Pace retires — a program no longer declares a
+    # frequency floor because frequency is not a concept. Cost governance is
+    # the dollar budget (_budget.yaml), seeded with a kernel default
+    # ($50/monthly) at workspace init; the bundle ships its own _budget.yaml
+    # via the normal reference-workspace fork. No activation-time pace gate.
 
     bundle_version = get_bundle_version(program_slug) or "unversioned"
     # Stable timestamp prefix shared by all conflict backups in this fork

@@ -89,24 +89,20 @@ class InvalidLaneError(WakeQueueError):
 # ─── Lane resolution ────────────────────────────────────────────────────────
 
 
-# Per ADR-298 D3 — table mapping wake sources to lanes.
-_WAKE_SOURCE_TO_LANE = {
-    "cron_tick":        "paced",
-    "addressed":        "live",
-    "substrate_event":  "live",
-    "proposal_arrival": "live",
-    "manual_fire":      "live",
-}
-
-
 def resolve_lane(wake_source: str) -> str:
-    """ADR-298 D3: cron_tick → paced; everything else → live."""
+    """ADR-327 D5: the paced/live lane split is collapsed — pace retired, so
+    the throttle the split served is gone. All wakes share one FIFO lane,
+    bounded by single-in-flight + window budget + per-slug floor (not a
+    drain-rate cap). Every wake resolves to "live" now. The `lane` column
+    persists as a harmless single-valued vestige (no schema migration); the
+    drainer is lane-agnostic.
+    """
     if wake_source not in VALID_WAKE_SOURCES:
         raise InvalidWakeSourceError(
             f"Unknown wake_source: {wake_source!r}. "
             f"Must be one of {sorted(VALID_WAKE_SOURCES)}."
         )
-    return _WAKE_SOURCE_TO_LANE[wake_source]
+    return "live"
 
 
 # ─── Enqueue ────────────────────────────────────────────────────────────────

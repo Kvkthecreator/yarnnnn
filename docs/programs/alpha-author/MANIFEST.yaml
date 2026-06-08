@@ -17,19 +17,9 @@ date_updated: 2026-05-20
 
 tagline: Operator-authored corpus with persistent editor seat. Substrate-continuity archetype — accumulated work that compounds across cadence + voice + audience.
 
-# ADR-298 D7 — Bundle-declared minimum pace.
-# Operator's declared workspace pace (in `_pace.yaml`) at activation must be ≥
-# this minimum. alpha-author's natural cadence is **daily** because:
-#   - outcome-reconciliation runs daily at 05:00 UTC (audit + ship + revision rollup)
-#   - corpus-coherence-check fires twice weekly (Mon + Thu) — needs at least
-#     daily drain rate to honor those without unbounded queue accumulation
-#   - reactive pre-ship-audit fires on substrate-event (live lane, not pace-
-#     gated; preserved at any pace)
-# A `weekly` operator pace would prevent daily outcome-reconciliation from
-# firing → bundle's continuity-guardian loop breaks. Activation refuses with
-# a Clarify per ADR-298 Scenario A if operator declares below this floor.
-# `hourly` and `continuous` are allowed (faster than bundle minimum is fine).
-minimum_pace: daily
+# ADR-327: minimum_pace removed — pace retires (frequency is the Reviewer's
+# allocation problem within the dollar budget, not an operator dial). Cost
+# governance is _budget.yaml (kernel default $50/monthly). No pace gate.
 
 # ADR-283: alpha-author bundle, substrate-continuity archetype.
 # Companion of FOUNDATIONS Axiom 8 (Ground-Truth Substrate, post-ADR-282).

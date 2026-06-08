@@ -68,7 +68,7 @@ _validate_environment()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, pace, mcp
+from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, budget, mcp
 
 app = FastAPI(
     title="YARNNN API",
@@ -141,9 +141,9 @@ app.include_router(programs.router, prefix="/api/programs", tags=["programs"])
 # programs.router /surfaces|/activatable|/activate|/deactivate routes).
 app.include_router(alpha_trader.router, prefix="/api/programs/alpha-trader", tags=["alpha-trader"])
 
-# ADR-312 D9: pace is a kernel governance dial (not trader data) — folded
-# from /api/cockpit/pace to the kernel /api/pace location.
-app.include_router(pace.router, prefix="/api/pace", tags=["pace"])
+# ADR-327: budget is the kernel governance dial (supersedes the retired pace
+# dial) — the operation's dollar spend envelope. /api/pace → /api/budget.
+app.include_router(budget.router, prefix="/api/budget", tags=["budget"])
 
 # ADR-310 D4: MCP OAuth login callback (binds Supabase user to pending auth code)
 app.include_router(mcp.router, prefix="/api/mcp", tags=["mcp"])

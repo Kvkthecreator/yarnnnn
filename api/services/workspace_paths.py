@@ -13,8 +13,9 @@ IS the permission taxonomy — `access(2)` for the agent OS (Derived Principle 1
 
     /workspace/
       ├── governance/    OPERATOR-ONLY ceilings the seat runs under but cannot set.
-      │     AUTONOMY.md + _autonomy.yaml (delegation), _token_budget.yaml (compute),
-      │     _pace.yaml (trigger budget), _preferences.yaml (deliverable cadence).
+      │     AUTONOMY.md + _autonomy.yaml (delegation), _budget.yaml (spend
+      │     envelope — ADR-327, collapsed _token_budget + _pace),
+      │     _preferences.yaml (deliverable cadence).
       │     OS analog: /etc/security/limits.conf + cgroup/ulimits.
       ├── constitution/  OPERATOR intent the seat AMENDS; read by ALL agents.
       │     MANDATE.md (Primary Action), PRECEDENT.md (durable interpretations).
@@ -76,19 +77,12 @@ GOVERNANCE_AUTONOMY_PATH = "governance/AUTONOMY.md"
 GOVERNANCE_AUTONOMY_YAML_PATH = "governance/_autonomy.yaml"
 # The operation's spend envelope (ADR-327): one dollar budget over a timeframe.
 # Reviewer reads, never authors (Reviewer-edit could raise its own ceiling —
-# authority the operator did not delegate). Collapses the retiring _pace.yaml +
-# _token_budget.yaml into one file.
+# authority the operator did not delegate). Collapses the retired _pace.yaml +
+# _token_budget.yaml into one file (both constants deleted by ADR-327).
 GOVERNANCE_BUDGET_PATH = "governance/_budget.yaml"
-# DEPRECATED (ADR-327): folded into _budget.yaml. Constant retained only until
-# its last consumer is rewired (Phase 2/4); see services/budget.py.
-GOVERNANCE_TOKEN_BUDGET_PATH = "governance/_token_budget.yaml"
 # Operator's deliverable-cadence preferences (ADR-275). Reviewer reads + reconciles
 # via Schedule; operator owns the content.
 GOVERNANCE_PREFERENCES_PATH = "governance/_preferences.yaml"
-# DEPRECATED (ADR-327): pace retires — tempo is the Reviewer's allocation problem
-# within _budget.yaml, not an operator dial. Constant retained only until its last
-# consumer is rewired (Phase 2/4); see services/budget.py.
-GOVERNANCE_PACE_PATH = "governance/_pace.yaml"
 
 
 # =============================================================================

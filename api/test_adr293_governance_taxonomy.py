@@ -54,9 +54,14 @@ def _bundle(*parts: str) -> Path:
 
 
 def test_shared_token_budget_path_constant_exists():
-    """D2: GOVERNANCE_TOKEN_BUDGET_PATH constant must be exported."""
-    from services.workspace_paths import GOVERNANCE_TOKEN_BUDGET_PATH
-    assert GOVERNANCE_TOKEN_BUDGET_PATH == "governance/_token_budget.yaml"
+    """D2 invariant (a governance cost-ceiling path constant exists),
+    re-homed by ADR-327: GOVERNANCE_TOKEN_BUDGET_PATH → GOVERNANCE_BUDGET_PATH."""
+    from services.workspace_paths import GOVERNANCE_BUDGET_PATH
+    assert GOVERNANCE_BUDGET_PATH == "governance/_budget.yaml"
+    # Retired constant must be gone (Singular Implementation).
+    import services.workspace_paths as wp
+    assert not hasattr(wp, "GOVERNANCE_TOKEN_BUDGET_PATH")
+    assert not hasattr(wp, "GOVERNANCE_PACE_PATH")
 
 
 # NOTE (ADR-320): test_operational_paths_not_locked DELETED.
@@ -205,80 +210,50 @@ def test_never_auto_substrate_path_match():
 # -----------------------------------------------------------------------------
 
 def test_token_budget_module_loads_with_fallback():
-    """D7: load_token_budget returns kernel defaults when file absent."""
-    from services.token_budget import load_token_budget
-    from unittest.mock import MagicMock
-    # Mock client returning empty result
-    mock_client = MagicMock()
-    mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
-    budget = load_token_budget(mock_client, "test-user")
-    assert budget.daily_spend_ceiling_usd > 0, "Must have a positive default"
-    assert budget.max_judgment_recurrences_per_day > 0
-    assert budget.min_interval_between_recurrence_fires_seconds > 0
-
-
-def test_token_budget_module_parses_workspace_yaml():
-    """D7: load_token_budget parses an actual workspace yaml correctly."""
-    from services.token_budget import load_token_budget
-    from unittest.mock import MagicMock
-    yaml_content = """
-daily_spend_ceiling_usd: 2.50
-max_judgment_recurrences_per_day: 20
-min_interval_between_recurrence_fires_seconds: 300
-overrides:
-  signal-evaluation:
-    min_interval_seconds: 900
-"""
-    mock_client = MagicMock()
-    mock_client.table.return_value.select.return_value.eq.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
-        {"content": yaml_content}
-    ]
-    budget = load_token_budget(mock_client, "test-user")
-    assert budget.daily_spend_ceiling_usd == 2.50
-    assert budget.max_judgment_recurrences_per_day == 20
-    assert budget.min_interval_between_recurrence_fires_seconds == 300
-    assert budget.min_interval_for("signal-evaluation") == 900
-    assert budget.min_interval_for("some-other-recurrence") == 300
-
-
-def test_token_budget_default_yaml_schema():
-    """D7: DEFAULT_TOKEN_BUDGET_YAML must contain the three required keys."""
-    from services.token_budget import DEFAULT_TOKEN_BUDGET_YAML
-    assert "daily_spend_ceiling_usd:" in DEFAULT_TOKEN_BUDGET_YAML
-    assert "max_judgment_recurrences_per_day:" in DEFAULT_TOKEN_BUDGET_YAML
-    assert "min_interval_between_recurrence_fires_seconds:" in DEFAULT_TOKEN_BUDGET_YAML
+    """D7 invariant (a cost-governance module with kernel-default fallback
+    exists), re-homed by ADR-327: token_budget → budget. Detailed
+    loader coverage lives in test_adr327_phase1.py; here we assert the
+    module exists with the budget shape and the old module is gone."""
+    from services.budget import Budget, DEFAULT_BUDGET_YAML, load_budget  # noqa: F401
+    assert hasattr(Budget, "min_interval_for")
+    assert "amount_usd" in DEFAULT_BUDGET_YAML
+    # Retired module must be gone (Singular Implementation).
+    import importlib
+    try:
+        importlib.import_module("services.token_budget")
+        raise AssertionError("services.token_budget must be deleted per ADR-327")
+    except ImportError:
+        pass
 
 
 def test_scheduler_imports_token_budget_module():
-    """D7: the judgment-dispatch path imports and uses load_token_budget,
-    not the legacy DAILY_SPEND_CEILING_USD constant from telemetry.
-
-    2026-06-04: the token-budget gate moved from the deleted
-    services/invocation_dispatcher.py into services/wake.py (ADR-296 v2 →
-    ADR-298 wake-architecture migration). The D7 invariant is unchanged;
-    only the file moved."""
+    """D7 invariant (cost governance gate on the dispatch path) PRESERVED,
+    re-homed by ADR-327: token_budget → budget. wake.py imports
+    services.budget (load_budget + window_spend); the daily-ceiling +
+    judgment-cap concepts retire into the dollar window budget."""
     src = _read(_file("services", "wake.py"))
-    assert "from services.token_budget import" in src, (
-        "wake.py must import token_budget module per ADR-293 D7"
+    assert "from services.budget import" in src, (
+        "wake.py must import the budget module per ADR-327 (supersedes ADR-293 D7 token_budget)"
     )
-    assert "load_token_budget" in src
-    assert "count_judgment_fires_today" in src
+    assert "load_budget" in src
+    assert "window_spend" in src
     assert "seconds_since_last_fire" in src
-    # Legacy import should be gone
-    assert "DAILY_SPEND_CEILING_USD" not in src, (
-        "wake.py must not import legacy DAILY_SPEND_CEILING_USD "
-        "(now per-workspace governance per ADR-293 D7)"
-    )
+    # Retired concepts must be gone.
+    assert "load_token_budget" not in src
+    assert "count_judgment_fires_today" not in src
+    assert "DAILY_SPEND_CEILING_USD" not in src
 
 
 def test_workspace_init_seeds_token_budget():
-    """D7 + workspace_init Phase 2: kernel-universal scaffold includes
-    _token_budget.yaml."""
+    """D7 invariant (kernel-universal cost-governance scaffold) PRESERVED,
+    re-homed by ADR-327: workspace_init seeds _budget.yaml (collapsed
+    _token_budget + _pace)."""
     src = _read(_file("services", "workspace_init.py"))
-    assert "GOVERNANCE_TOKEN_BUDGET_PATH" in src, (
-        "workspace_init.py must seed _token_budget.yaml per ADR-293 D7"
+    assert "GOVERNANCE_BUDGET_PATH" in src, (
+        "workspace_init.py must seed _budget.yaml per ADR-327 (supersedes ADR-293 D7)"
     )
-    assert "DEFAULT_TOKEN_BUDGET_YAML" in src
+    assert "DEFAULT_BUDGET_YAML" in src
+    assert "GOVERNANCE_TOKEN_BUDGET_PATH" not in src
 
 
 # -----------------------------------------------------------------------------
@@ -369,25 +344,30 @@ def test_reviewer_agent_invoke_docstring_aligned():
         "invoke_reviewer docstring must not cite `_locks.yaml` as a live "
         "safety-story component (deleted per ADR-293 D6)."
     )
-    assert "3-file governance lock" in docstring_region or "3 governance" in docstring_region.lower(), (
-        "invoke_reviewer docstring must reference the 3-file governance "
-        "lock per ADR-293 D2 in its safety story."
+    # ADR-320 made the lock root-based (governance/ root, not a 3-file
+    # enumeration); ADR-327 collapsed _token_budget + _pace into _budget.yaml.
+    assert "root-based governance lock" in docstring_region, (
+        "invoke_reviewer docstring must reference the root-based governance "
+        "lock (ADR-320 + ADR-327) in its safety story."
     )
 
 
 def test_alpha_trader_bundle_ships_token_budget():
-    """Bundle reference-workspace MUST include _token_budget.yaml so
-    program-activated workspaces inherit it via Phase 5 fork."""
-    bundle_path = _bundle("governance", "_token_budget.yaml")
+    """Bundle reference-workspace MUST include _budget.yaml (ADR-327,
+    collapsed _token_budget + _pace) so program-activated workspaces
+    inherit it via Phase 5 fork."""
+    bundle_path = _bundle("governance", "_budget.yaml")
     assert bundle_path.exists(), (
-        f"alpha-trader bundle must ship _token_budget.yaml at {bundle_path} "
-        f"per ADR-293 D7"
+        f"alpha-trader bundle must ship _budget.yaml at {bundle_path} "
+        f"per ADR-327 (supersedes ADR-293 D7 _token_budget.yaml)"
     )
     content = _read(bundle_path)
-    assert "daily_spend_ceiling_usd:" in content
-    assert "max_judgment_recurrences_per_day:" in content
+    assert "amount_usd:" in content
+    assert "window:" in content
     assert "min_interval_between_recurrence_fires_seconds:" in content
     assert "tier: canon" in content  # bundle frontmatter discipline
+    # Retired bundle file must be gone.
+    assert not _bundle("governance", "_token_budget.yaml").exists()
 
 
 # -----------------------------------------------------------------------------
@@ -401,19 +381,17 @@ def main() -> int:
     # five-root CALLER_WRITE_POLICY; coverage moved to
     # test_adr320_permission_topology.py.
     tests = [
-        ("D2: GOVERNANCE_TOKEN_BUDGET_PATH constant", test_shared_token_budget_path_constant_exists),
+        ("D2→ADR-327: GOVERNANCE_BUDGET_PATH constant", test_shared_token_budget_path_constant_exists),
         ("D3: path_zone_locks helpers deleted", test_path_zone_locks_helpers_deleted),
         ("D4: should_auto_apply with action_class", test_should_auto_apply_exists_with_action_class_branch),
         ("D4: should_auto_execute_verdict renamed", test_should_auto_execute_verdict_renamed),
         ("D5: never_auto action-type match", test_never_auto_action_type_match),
         ("D5: never_auto path: prefix match", test_never_auto_substrate_path_match),
-        ("D7: token_budget fallback to kernel defaults", test_token_budget_module_loads_with_fallback),
-        ("D7: token_budget parses workspace yaml", test_token_budget_module_parses_workspace_yaml),
-        ("D7: DEFAULT_TOKEN_BUDGET_YAML schema", test_token_budget_default_yaml_schema),
-        ("D7: scheduler imports token_budget", test_scheduler_imports_token_budget_module),
-        ("D7: workspace_init seeds _token_budget.yaml", test_workspace_init_seeds_token_budget),
+        ("D7→ADR-327: budget module + old gone", test_token_budget_module_loads_with_fallback),
+        ("D7→ADR-327: wake.py imports budget", test_scheduler_imports_token_budget_module),
+        ("D7→ADR-327: workspace_init seeds _budget.yaml", test_workspace_init_seeds_token_budget),
         ("D14: substrate autonomy gate at permission layer", test_substrate_autonomy_gate_lives_at_permission_layer),
-        ("Bundle alpha-trader ships token_budget", test_alpha_trader_bundle_ships_token_budget),
+        ("Bundle alpha-trader ships _budget.yaml (ADR-327)", test_alpha_trader_bundle_ships_token_budget),
         # Work 1 follow-up — prompt envelope alignment
         ("Work 1: cockpit_awareness.py aligned with ADR-293", test_cockpit_awareness_prompt_envelope_aligned_with_adr293),
         ("Work 1: invoke_reviewer docstring aligned", test_reviewer_agent_invoke_docstring_aligned),

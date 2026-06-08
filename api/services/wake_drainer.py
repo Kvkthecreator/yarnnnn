@@ -56,81 +56,18 @@ def instance_id() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Pace-aware paced-lane gating
-# ---------------------------------------------------------------------------
-
-
-async def paced_lane_eligible_to_drain(client, user_id: str) -> tuple[bool, str]:
-    """Return (eligible, reason).
-
-    The paced lane drains at most one wake per pace-window. We approximate
-    "window passed since last paced drain" by looking at execution_events:
-    if the most recent successful paced wake completed within the pace's
-    drain interval, the next paced wake must wait.
-
-    Conservative shape — Phase 3 implementation. Phase 5 may refine with
-    a dedicated paced_lane_last_drained_at column or a more nuanced model.
-
-    Reads `_pace.yaml` to determine the workspace's drain rate.
-    `continuous` and absence-of-pace both return eligible=True (no cap).
-    """
-    from services.pace import read_pace
-    from datetime import timedelta
-
-    try:
-        pace = await read_pace(client, user_id)
-    except Exception as exc:
-        logger.warning(
-            "[drain:%s] _pace.yaml read failed (proceeding without cap): %s",
-            user_id[:8], exc,
-        )
-        return True, "pace_read_failed"
-
-    if pace is None:
-        return True, "no_pace_declared"
-    if pace.kind == "continuous":
-        return True, "continuous"
-
-    # ADR-301 cleanup — singular pace-budget arithmetic via Pace.min_interval_seconds.
-    interval_seconds = pace.min_interval_seconds
-    if interval_seconds <= 0:
-        return True, f"pace_kind_{pace.kind}_zero_cap"
-    cutoff = datetime.now(timezone.utc) - timedelta(seconds=interval_seconds)
-
-    # Look for any paced-lane wake completed since cutoff. We use the
-    # wake_queue table itself rather than execution_events because the
-    # queue carries the lane discriminator directly.
-    try:
-        result = (
-            client.table("wake_queue")
-            .select("id, completed_at")
-            .eq("user_id", user_id)
-            .eq("lane", "paced")
-            .eq("status", "completed")
-            .gte("completed_at", cutoff.isoformat())
-            .order("completed_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-    except Exception as exc:
-        logger.warning(
-            "[drain:%s] paced-lane last-drained query failed (proceeding): %s",
-            user_id[:8], exc,
-        )
-        return True, "query_failed"
-
-    if result.data:
-        return False, (
-            f"paced_lane_throttled (pace={pace.kind}, "
-            f"interval={interval_seconds:.0f}s, "
-            f"last_drained={result.data[0]['completed_at']})"
-        )
-    return True, f"paced_lane_open (pace={pace.kind})"
-
-
-# ---------------------------------------------------------------------------
 # Single-in-flight check
 # ---------------------------------------------------------------------------
+#
+# ADR-327 D5: the pace-driven `paced_lane_eligible_to_drain` throttle is
+# DELETED. The paced/live lane split existed only to serve the pace drain
+# rate. With pace retired, the drainer is lane-agnostic: it drains FIFO,
+# bounded by the single-in-flight constraint (one Reviewer per workspace at
+# a time — no concurrency stampede) and the window-budget gate (Tier-1 +
+# wake.py Gate 1 — no overspend). The per-slug min-interval floor prevents
+# per-recurrence thrash. Together these fully cover what the throttle did;
+# stampede verification confirmed sequential single-in-flight + budget ceiling
+# is sufficient (ADR-327 D5 + §5 Q1).
 
 
 def drain_can_acquire_for_user(client, user_id: str) -> bool:
@@ -156,8 +93,6 @@ def drain_can_acquire_for_user(client, user_id: str) -> bool:
 async def drain_next_for_user(
     client,
     user_id: str,
-    *,
-    lane_filter: Optional[str] = None,
 ) -> Optional[dict]:
     """Pull the next pending wake for this workspace and execute it.
 
@@ -165,19 +100,18 @@ async def drain_next_for_user(
     _invoke_*_wake helpers returned), or None if there was nothing
     eligible to drain.
 
-    The execution path:
+    The execution path (ADR-327 D5 — lane-agnostic):
       1. Check single-in-flight constraint (D1). If a wake is locked,
          return None — caller decides whether to wait or move on.
-      2. If lane_filter='paced' or unspecified, check paced-lane pace
-         cap (D3 + D5 + D9). If paced lane is throttled, fall through
-         to live lane only.
-      3. Pull next pending wake (lane-scoped); attempt lock-acquire.
-      4. Reconstruct the source-specific payload and dispatch to the
+      2. Pull the oldest pending wake (FIFO, no lane scoping); attempt
+         lock-acquire.
+      3. Reconstruct the source-specific payload and dispatch to the
          Reviewer invocation body in services/wake.py.
-      5. Mark queue row completed (or failed) with execution_event FK.
+      4. Mark queue row completed (or failed) with execution_event FK.
 
-    The caller (scheduler tick) loops on this until it returns None,
-    enforcing pace gates between iterations.
+    Cost is bounded downstream by the window-budget gate (wake.py Gate 1);
+    the per-slug min-interval floor prevents per-recurrence thrash; the
+    single-in-flight constraint prevents concurrency. No pace throttle.
     """
     from services.wake_queue import (
         get_next_pending,
@@ -190,19 +124,8 @@ async def drain_next_for_user(
     if not drain_can_acquire_for_user(client, user_id):
         return None
 
-    # Pace check for paced lane.
-    if lane_filter in (None, "paced"):
-        eligible, _reason = await paced_lane_eligible_to_drain(client, user_id)
-        if not eligible:
-            # Paced lane throttled — try live lane only.
-            lane_filter = "live"
-
-    pending = get_next_pending(client, user_id=user_id, lane=lane_filter)
+    pending = get_next_pending(client, user_id=user_id)
     if not pending:
-        # Fall through: if we were filtering to live (because paced was
-        # throttled), check live now. If we were unscoped, nothing pending.
-        if lane_filter == "live":
-            return None
         return None
 
     queue_id = pending["id"]
@@ -333,12 +256,12 @@ async def drain_user_until_empty(
     *,
     max_iterations: int = 100,
 ) -> int:
-    """Drain pending wakes for a single user until queue is empty or
-    pace cap is reached. Returns count of wakes drained.
+    """Drain pending wakes for a single user until the queue is empty.
+    Returns count of wakes drained.
 
     Bounded by max_iterations to prevent runaway loops on misbehavior.
-    In practice the natural exit is "no more pending wakes" or "paced
-    lane throttled AND live lane empty."
+    The natural exit is "no more pending wakes." Cost is bounded by the
+    window-budget gate inside each drain (ADR-327), not by a drain-rate cap.
     """
     count = 0
     for _ in range(max_iterations):

@@ -358,45 +358,12 @@ def test_kernel_mirrors_helpers() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 11. Cleanup 2: Pace.min_interval_seconds exists and dedupes the arithmetic
+# 11. (RETIRED by ADR-327) Cleanup 2 tested Pace.min_interval_seconds + the
+# pace-driven drainer throttle — both DELETED by ADR-327 (pace retires;
+# the drainer is lane-agnostic, cost bounded by the window budget). Test
+# removed rather than patched: it validated removed behavior, and conflating
+# budget assertions into the ADR-301 pulse gate would mix two ADRs.
 # ---------------------------------------------------------------------------
-
-def test_pace_min_interval_singular() -> None:
-    print("\n[12] Pace.min_interval_seconds is the singular pace-arithmetic site")
-    try:
-        from services.pace import Pace
-    except ImportError as e:
-        _bad("services.pace.Pace import", str(e))
-        return
-    if not hasattr(Pace, "min_interval_seconds"):
-        _bad(
-            "Pace.min_interval_seconds property",
-            "attribute absent — cleanup 2 not applied",
-        )
-        return
-    _ok("Pace.min_interval_seconds property exists")
-
-    # wake_drainer must no longer compute its own `86400 / fires_per_day`
-    try:
-        import services.wake_drainer as wd
-    except ImportError as e:
-        _bad("services.wake_drainer import", str(e))
-        return
-    drainer_src = inspect.getsource(wd)
-    if "86400.0 / fires_per_day" in drainer_src or "86400 / fires_per_day" in drainer_src:
-        _bad(
-            "wake_drainer no longer duplicates 86400/fires_per_day",
-            "stale inline arithmetic still present — cleanup 2 incomplete",
-        )
-    else:
-        _ok("wake_drainer no longer duplicates the 86400/fires_per_day inline")
-    if "pace.min_interval_seconds" in drainer_src:
-        _ok("wake_drainer consumes Pace.min_interval_seconds")
-    else:
-        _bad(
-            "wake_drainer consumes Pace.min_interval_seconds",
-            "expected `pace.min_interval_seconds` reference not found",
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -432,7 +399,7 @@ def main() -> int:
     test_persona_frame_pulse_discipline()
     test_scheduler_invokes_kernel_mirrors()
     test_kernel_mirrors_helpers()
-    test_pace_min_interval_singular()
+    # test_pace_min_interval_singular retired by ADR-327 (pace deleted)
     test_adr_doc_exists()
 
     print("\n" + "=" * 70)

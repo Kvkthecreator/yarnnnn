@@ -63,26 +63,10 @@ def get_bundle_version(slug: str) -> Optional[str]:
     return str(version) if version is not None else None
 
 
-def get_minimum_pace(slug: str) -> Optional[str]:
-    """Return the bundle's declared `minimum_pace:` enum string, or None.
-
-    ADR-298 D7: bundles declare a minimum pace the operator's workspace
-    pace must equal or exceed at activation. Returns one of
-    ``hourly | daily | weekly | continuous`` (the canonical PACE_KINDS
-    enum), or None if the bundle does not declare a minimum (in which
-    case any operator pace is allowed for that program).
-
-    The returned string is validated against ``services.pace.PACE_KINDS``
-    by the caller — this helper does not raise on unknown values, only
-    surfaces what the manifest declares.
-    """
-    manifest = _load_manifest(slug)
-    if not manifest:
-        return None
-    raw = manifest.get("minimum_pace")
-    if raw is None:
-        return None
-    return str(raw).strip().lower() or None
+# ADR-327: get_minimum_pace DELETED — pace retires; a bundle no longer
+# declares a frequency floor (frequency is not a concept). Cost governance
+# is the dollar budget (_budget.yaml) with a kernel default; no activation
+# pace gate. The `minimum_pace:` MANIFEST key is removed from all bundles.
 
 
 @lru_cache(maxsize=1)

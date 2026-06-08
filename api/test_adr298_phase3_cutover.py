@@ -89,7 +89,7 @@ def test_submit_cron_tick(client) -> None:
 
     result = asyncio.run(run())
     check("cron_tick returns success=True", result.get("success") is True, str(result))
-    check("cron_tick lane='paced'", result.get("lane") == "paced", str(result))
+    check("cron_tick lane='live' (ADR-327 single lane)", result.get("lane") == "live", str(result))
     check("cron_tick yields queue_id", "queue_id" in result, str(result))
 
     # Verify the row landed with right shape.
@@ -103,7 +103,7 @@ def test_submit_cron_tick(client) -> None:
     )
     check("queued row status='pending'", row["status"] == "pending")
     check("queued row wake_source='cron_tick'", row["wake_source"] == "cron_tick")
-    check("queued row lane='paced'", row["lane"] == "paced")
+    check("queued row lane='live' (ADR-327 single lane)", row["lane"] == "live")
     check("queued row slug matches recurrence", row["slug"] == rec.slug)
     check(
         "queued row dedup_key includes slug",
@@ -272,7 +272,6 @@ def test_drainer_helpers(client) -> None:
     from services.wake_drainer import (
         drain_can_acquire_for_user,
         instance_id,
-        paced_lane_eligible_to_drain,
     )
 
     # Fresh user has no in-flight wakes.
@@ -284,12 +283,12 @@ def test_drainer_helpers(client) -> None:
     # instance_id is a stable string.
     check("instance_id is non-empty string", isinstance(instance_id(), str) and bool(instance_id()))
 
-    # No _pace.yaml in workspace → paced lane is eligible (no cap).
-    eligible, reason = asyncio.run(paced_lane_eligible_to_drain(client, TEST_USER_ID))
+    # ADR-327: paced_lane_eligible_to_drain DELETED — the drainer is
+    # lane-agnostic now (pace throttle gone; cost bounded by window budget).
+    import services.wake_drainer as _wd
     check(
-        "paced lane eligible when no _pace.yaml authored",
-        eligible is True,
-        f"reason={reason}",
+        "paced_lane_eligible_to_drain removed from drainer",
+        not hasattr(_wd, "paced_lane_eligible_to_drain"),
     )
 
 

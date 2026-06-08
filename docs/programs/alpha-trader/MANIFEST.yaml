@@ -15,17 +15,10 @@ date_updated: 2026-05-20
 
 tagline: Equities + options operator workflow with continuous-price oracle. Self-funding by design.
 
-# ADR-298 D7 — Bundle-declared minimum pace.
-# Operator's declared workspace pace (in `_pace.yaml`) at activation must be ≥
-# this minimum. alpha-trader's natural cadence is **daily** because:
-#   - signal-evaluation fires intraday (market-hours semantic schedules)
-#   - outcome-reconciliation runs daily at end-of-day
-#   - judgment recurrences (track-regime, portfolio-review) cadence daily-or-tighter
-# A `weekly` operator pace would prevent daily outcome-reconciliation from
-# firing → bundle's primary value loop breaks. Activation refuses with a
-# Clarify per ADR-298 Scenario A if operator declares below this floor.
-# `hourly` and `continuous` are allowed (faster than bundle minimum is fine).
-minimum_pace: daily
+# ADR-327: minimum_pace removed — pace retires (frequency is not a concept;
+# it is the Reviewer's allocation problem within the dollar budget). Cost
+# governance is _budget.yaml (kernel default $50/monthly; bundle ships its
+# own via reference-workspace fork). No activation pace gate.
 
 oracle:
   shape: continuous_price
