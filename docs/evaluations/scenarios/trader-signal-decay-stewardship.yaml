@@ -90,7 +90,7 @@ setup:
       authored_by: operator-proxy:scenario-runner:acting-as-kvk
       content: |
         ---
-        last_reconciled: 2026-06-04T21:00:00Z
+        last_reconciled: @now-1h
         windows:
           7d:
             realized_pnl_usd: -310.40
