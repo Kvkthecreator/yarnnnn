@@ -60,7 +60,12 @@ If a finding ever recommends introducing a developer-only concept *into the syst
 
 ## The conceptual frame — what the eval system measures (read this first, 2026-06-07)
 
-> **[`EVAL-PHILOSOPHY.md`](EVAL-PHILOSOPHY.md) is the conceptual parent of everything below.** It states the governing metaphor — *the filesystem is the repo; the Reviewer is a self-running Claude Code over it, carrying standing intent (mandate + standing_intent) across invocations* — and the **four layers** the eval system reads (repo-mechanics / tool-use → MACHINE; judgment-within-mandate / intent-ownership → MIND). The two-axis model below is *how* you measure (the method); EVAL-PHILOSOPHY is *what* you're measuring (the model). **Layer 4 (intent-ownership — does the agent hold/pursue/revise standing intent across the gap between an enticing mandate and an unready substrate, without confabulating readiness) is the frontier and the product.** Read it before designing any suite.
+> **The doc hierarchy (read top-down):**
+> 1. **[`EVAL-PHILOSOPHY.md`](EVAL-PHILOSOPHY.md) — the model (why).** The governing metaphor: *the filesystem is the repo; the Reviewer is a self-running Claude Code over it, carrying standing intent (mandate + standing_intent) across invocations.* Four conceptual layers (repo-mechanics / tool-use → MACHINE; judgment-within-mandate / intent-ownership → MIND). **Layer 4 (intent-ownership across the gap between an enticing mandate and an unready substrate, without confabulating readiness) is the frontier and the product.**
+> 2. **[`EVAL-ARCHITECTURE.md`](EVAL-ARCHITECTURE.md) — the operational model (what/how).** The two-suite seam: **Suite A** (mechanical, workspace-AGNOSTIC, deterministic → `api/test_*.py`) vs **Suite B** (thesis, workspace-SPECIFIC, forensic → eval-suites here). The criterion of a Suite-B suite is its `thesis:`; the method is a forensic trace read (tool-calls + rationale + logs + outputs), NOT cell-grading. This is the 2026-06-07 first-principles rework — it SUPERSEDES the `read_kind` taxonomy + posture-cell apparatus (§5 of that doc).
+> 3. **[`EVAL-SUITE-DISCIPLINE.md`](EVAL-SUITE-DISCIPLINE.md) — the Suite-B mechanics.** Pre-flight `requires:`/`setup:`, the `prior:` orienting hypothesis, the SESSION.md prose-read shape, the harness. Its `read_kind` taxonomy + cells are superseded (descriptive-only).
+>
+> The two-axis MACHINE/MIND model below is the *within-Suite-B* measurement method. Read the three docs above before designing any suite.
 
 ## The two-axis model — read this before writing any evaluation (2026-06-05)
 

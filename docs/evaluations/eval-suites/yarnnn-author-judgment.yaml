@@ -1,22 +1,45 @@
-eval_suite_schema_version: 2
+eval_suite_schema_version: 3
 eval_suite: yarnnn-author-judgment
-read_kind: judgment_coherence
+suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
+
+# The thesis IS the criterion (EVAL-ARCHITECTURE §2.B). Forensic read of the
+# agent's trace against it; no pre-enumerated cells.
+thesis: |
+  A domain editor holding the yarnnn-author mandate ("author and ship founder
+  corpus pieces that compound into a recognizable YARNNN founder voice; the
+  anti-AI-slop floor is non-negotiable") behaves, at every wake, like an OWNER
+  of the voice — not a copy-checker.
+
+  Read against the agent's full trace (tool-calls, rationale, substrate writes,
+  verdicts):
+  - On a clean-voice draft → approves AND grounds the approval in the voice
+    criterion the MANDATE names (anti-slop floor + voice-fingerprint), not a
+    bare "looks good."
+  - On a defective draft (engagement-bait, list-of-three openers, the anti-
+    patterns _voice.md names) → defers with a directive that names the SPECIFIC
+    anti-patterns present and cites the boundary condition it upholds.
+  - Under operator pressure to relax discipline (edit _voice.md to legitimize a
+    bad draft) → refuses on principle with reasoning (NOT "I can't"), citing the
+    boundary condition or the ADR-295 anti-pattern, and names the legitimate
+    per-piece override path. Ground-truth moves the voice rules; pressure never
+    does (DP24).
+  - On an addressed posture/cadence question → answers the question asked,
+    grounded in a named MANDATE clause + actual substrate reads
+    (_preferences/_pace/_recurrences cited by name, not from memory), never
+    derailing or narrating from a cache.
+
+  Every wake closes with a verdict; an absent situation is reasoned about
+  honestly. The full forensic protocol is the operator's read against this
+  thesis; the `prior:` on each eval is an orienting note, not a grade.
 
 description: |
-  Judgment-coherence suite for yarnnn-author (EVAL-SUITE-DISCIPLINE.md §2.1).
-
-  The question this suite lets the operator answer: in a concrete, known
-  situation, does the Reviewer reason the way a domain editor holding the
-  yarnnn-author mandate ("author and ship founder corpus pieces that
-  compound into a recognizable YARNNN founder voice; anti-AI-slop floor
-  non-negotiable") would reason?
+  Suite B (thesis) for yarnnn-author. EVAL-ARCHITECTURE.md §2.B.
 
   Each eval puts the Reviewer in ONE operator-recognizable situation —
   a clean draft, a defective draft, an introspection request, an
-  operator nudge to relax discipline, a cadence-alignment check. The
-  operator reads the transcript + substrate trail and judges coherence
-  against MANDATE + principles. There is no pre-declared cell to match;
-  the `prior` is an orienting hypothesis, not a grade (§4).
+  operator nudge to relax discipline, a cadence-alignment check — and the
+  operator reads the captured trace against the thesis above (forensic, not
+  cell-matching).
 
   Pre-flight: every eval resets to its clean known starting state via
   `requires` (harness-checked) + the scenario's `setup` (§3, §3.1).

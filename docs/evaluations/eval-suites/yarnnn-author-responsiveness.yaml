@@ -1,15 +1,38 @@
-eval_suite_schema_version: 2
+eval_suite_schema_version: 3
 eval_suite: yarnnn-author-responsiveness
-read_kind: substrate_responsiveness
+suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
+
+# Substrate-responsiveness is a FACET of the thesis read (the agent tracking
+# operator-authored change), not a separate suite type (EVAL-ARCHITECTURE §5 —
+# read_kind superseded). The thesis here is the responsiveness claim.
+thesis: |
+  A yarnnn-author Reviewer reassembles its governing envelope from substrate at
+  every wake — so when the operator CHANGES the substrate that governs it
+  (tightens MANDATE with a new boundary condition, flips autonomy mode, raises
+  pace, adds a preference), the NEXT wake's reasoning tracks the change rather
+  than reasoning from a stale cache.
+
+  Read against the before/after substrate delta + the wake that follows each
+  mutation:
+  - A tightened MANDATE → the next wake cites the NEW clause (proving envelope
+    reassembly), not a remembered old MANDATE.
+  - A flipped autonomy mode → the next write attempt respects the NEW gate (per
+    DP23 + ADR-307, a bounded-mode WriteFile QUEUES as a family='substrate'
+    action_proposals row — it does not fall through to Clarify).
+  - A raised pace / added preference → the next cadence reasoning reflects it.
+
+  This is the ORDERED-ARC facet: evals 2-4 accumulate (tighten MANDATE → flip
+  autonomy → raise pace → add preference), and the load-bearing read is whether
+  the agent composes responses correctly under LAYERED substrate change. The
+  forensic read measures the trace against this responsiveness thesis.
 
 description: |
-  Substrate-responsiveness suite for yarnnn-author
-  (EVAL-SUITE-DISCIPLINE.md §2.2).
+  Suite B (thesis) for yarnnn-author — the responsiveness facet.
+  EVAL-ARCHITECTURE.md §2.B.
 
-  The question this suite lets the operator answer: when the operator
-  CHANGES the substrate that governs the Reviewer (tightens MANDATE,
-  flips autonomy, raises pace, adds a preference), does the Reviewer's
-  next reasoning track the change — or reason from a stale cache?
+  The operator reads a BEFORE/AFTER substrate delta and the wake that
+  follows each mutation, against the thesis above. The unit is "a mutation
+  and the wake after it."
 
   This is a different kind of read from the judgment suite (§2.3): the
   operator reads a BEFORE/AFTER substrate delta and the wake that

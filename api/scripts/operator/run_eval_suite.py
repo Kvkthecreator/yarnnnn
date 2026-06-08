@@ -63,9 +63,16 @@ load_dotenv(_API_ROOT / ".env.alpha-ops")
 load_dotenv(REPO_ROOT / ".env")
 
 
-# v2 = the 2026-05-29 clean-slate rewrite (read_kind, requires, prior,
-# accumulates; no expected_dimensions, no qualitative scoring).
-SUITE_SCHEMA_VERSION = 2
+# v3 = the 2026-06-07 first-principles rework (EVAL-ARCHITECTURE.md). The
+# top-level seam is agnostic-vs-specific: Suite A (mechanical, workspace-
+# agnostic) lives in api/test_*.py and does NOT go through this runner; Suite B
+# (thesis, workspace-specific) is the ONLY kind this runner handles. The legacy
+# `read_kind` facet-taxonomy (judgment_coherence / substrate_responsiveness /
+# stewardship_coherence) is SUPERSEDED — those are facets one forensic thesis
+# read naturally covers, not suite types. v3 replaces `read_kind` with
+# `suite_kind: thesis` + a required `thesis:` field (the declared assumed-
+# behavior-and-posture — the criterion, README rule 1). Cells are gone.
+SUITE_SCHEMA_VERSION = 3
 
 # Cost is the only automated number, surfaced as a finding, never a gate (S6).
 # The v1 qualitative floors (per_eval_usd / trace_completeness_floor /
@@ -80,7 +87,8 @@ DEFAULT_BUDGET = {
 # never a pass.
 EMPTY_RESPONSE_CHAR_THRESHOLD = 40
 
-VALID_READ_KINDS = {"judgment_coherence", "substrate_responsiveness"}
+# The runner handles only Suite B (thesis). Suite A (mechanical) is api/test_*.py.
+VALID_SUITE_KINDS = {"thesis"}
 
 
 # ---------------------------------------------------------------------------
@@ -100,15 +108,25 @@ def load_suite(path: Path) -> dict:
     if version != SUITE_SCHEMA_VERSION:
         raise SuiteError(
             f"Unsupported eval_suite_schema_version {version}; runner only supports "
-            f"v{SUITE_SCHEMA_VERSION} (the 2026-05-29 prose-read rewrite). v1 suites are "
-            f"frozen historical artifact and are not re-run."
+            f"v{SUITE_SCHEMA_VERSION} (the 2026-06-07 first-principles rework, "
+            f"EVAL-ARCHITECTURE.md). Earlier-version suites are frozen historical "
+            f"artifact and are not re-run."
         )
-    for required in ("eval_suite", "read_kind", "persona", "evals"):
+    for required in ("eval_suite", "suite_kind", "persona", "thesis", "evals"):
         if required not in raw:
             raise SuiteError(f"Suite manifest missing required field: {required!r}")
-    if raw["read_kind"] not in VALID_READ_KINDS:
+    if raw["suite_kind"] not in VALID_SUITE_KINDS:
         raise SuiteError(
-            f"read_kind must be one of {sorted(VALID_READ_KINDS)}; got {raw['read_kind']!r}"
+            f"suite_kind must be one of {sorted(VALID_SUITE_KINDS)}; got {raw['suite_kind']!r}. "
+            f"Suite A (mechanical) is api/test_*.py, not a YAML suite — the runner handles "
+            f"only Suite B (thesis)."
+        )
+    if not (isinstance(raw["thesis"], str) and raw["thesis"].strip()):
+        raise SuiteError(
+            "Suite manifest 'thesis' must be a non-empty string — the declared "
+            "assumed-behavior-and-posture the forensic read measures against "
+            "(EVAL-ARCHITECTURE.md §2.B, README rule 1). A suite without a thesis is "
+            "a substrate snapshot, not an eval."
         )
     if not isinstance(raw["evals"], list) or not raw["evals"]:
         raise SuiteError("Suite manifest 'evals' must be a non-empty list")
@@ -859,13 +877,19 @@ def render_session_md(
     lines.append(f"**Captured**: {session_started_at.isoformat()}   "
                  f"**Persona**: {suite['persona']}   "
                  f"**Workspace**: `{user_id[:8]}` ({user_email})")
-    lines.append(f"**Read kind**: {suite['read_kind']}")
+    lines.append(f"**Suite kind**: {suite['suite_kind']} (Suite B — thesis-trace forensic read)")
     lines.append(f"**Suite**: `docs/evaluations/eval-suites/{suite['eval_suite']}.yaml`")
     lines.append(f"**Evals fired**: {len(fired)} of {len(suite['evals'])}"
                  + (f"   ({len(refused)} REFUSED pre-flight — see §Preconditions)" if refused else ""))
     lines.append(f"**Duration**: {duration_min} min wall-clock")
     cost_label = "within" if session_total_usd <= per_session_budget else "EXCEEDS"
     lines.append(f"**Session cost**: ${session_total_usd:.4f} (budget ${per_session_budget:.2f}) — {cost_label}\n")
+
+    # The thesis IS the criterion (EVAL-ARCHITECTURE §2.B). The forensic read
+    # below measures the captured trace against it — surface it at the top so
+    # the reader holds the assumed-behavior-and-posture while reading the trace.
+    lines.append("## §Thesis (the criterion this session reads against)\n")
+    lines.append("> " + suite["thesis"].strip().replace("\n", "\n> ") + "\n")
 
     if completion["substrate_event_expected"] > 0 or completion["addressed_expected"] > 0:
         gate_ok = (
@@ -1051,7 +1075,7 @@ async def run_suite(suite_path: Path, caller: str) -> int:
     from services.operator_proxy.client import OperatorProxy
 
     suite = load_suite(suite_path)
-    print(f"suite: {suite['eval_suite']} (read_kind={suite['read_kind']})")
+    print(f"suite: {suite['eval_suite']} (suite_kind={suite['suite_kind']})")
     print(f"persona: {suite['persona']}")
     print(f"evals: {len(suite['evals'])}")
     print(f"budget: per-session ${suite['budget']['per_session_usd']}")

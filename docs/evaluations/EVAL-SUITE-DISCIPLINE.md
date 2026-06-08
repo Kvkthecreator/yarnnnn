@@ -1,8 +1,14 @@
 # Eval-Suite Discipline
 
+> **⚠ GOVERNED BY [`EVAL-ARCHITECTURE.md`](EVAL-ARCHITECTURE.md) (2026-06-07 first-principles rework).** The top-level model is now the **two-suite seam**: Suite A (mechanical, workspace-agnostic — `api/test_*.py`, not this doc) vs **Suite B (thesis, workspace-specific — this doc's subject)**. Two pieces of THIS document are **SUPERSEDED** and survive only as descriptive content, NOT as suite structure:
+> - **The `read_kind` taxonomy** (judgment_coherence / substrate_responsiveness / stewardship_coherence, §2) → these are **facets one forensic thesis read naturally covers**, not suite types. The schema field is gone (replaced by `suite_kind: thesis` + a required `thesis:` field, schema v3).
+> - **Posture cells** (M/P cells, §4 vocabulary) → **descriptive vocabulary for a write-up, never the read's structure.** The criterion is the suite's `thesis:`; the method is a forensic trace read (EVAL-ARCHITECTURE §2.B), not cell-matching.
+>
+> What **survives unchanged**: the two-axis MACHINE/MIND model (§0 — now the *within-Suite-B* discipline), the pre-flight `requires:`/`setup:` mechanics (§3), the `prior:`-as-orienting-hypothesis principle (§4), the SESSION.md prose-read shape (§6), and the harness (§8). Read EVAL-ARCHITECTURE first; read this for the Suite-B firing + pre-flight + read mechanics.
+
 **The eval-suite shape for measuring the Reviewer — a substrate-driven, persona-bearing judgment seat — where the measurement object (reasoning quality, posture, mandate-coherence) is fundamentally qualitative.**
 
-> **Status: Proposed (full rewrite, 2026-05-29).** This document is a clean-slate redesign of the prior framework (Proposed 2026-05-27). It does not amend the old shape — it replaces it. The reasoning is in [`../analysis/eval-suite-redesign-from-first-principles-2026-05-29.md`](../analysis/eval-suite-redesign-from-first-principles-2026-05-29.md); read that first. The migration from the old suite shape is in §7. **Operator review precedes implementation** — the harness changes in §6 are named, not built.
+> **Status: Implemented (v3 first-principles rework, 2026-06-07; prior full rewrite 2026-05-29).** The reasoning for the original rewrite is in [`../analysis/eval-suite-redesign-from-first-principles-2026-05-29.md`](../analysis/eval-suite-redesign-from-first-principles-2026-05-29.md); the 2026-06-07 two-suite rework that governs it is [`EVAL-ARCHITECTURE.md`](EVAL-ARCHITECTURE.md). The migration from the old suite shape is in §7.
 
 Sibling to [`README.md`](README.md) — that file covers general evaluation discipline (criterion declaration, capture shapes, two-hats vocabulary, the Reviewer self-amendment checklist). This file covers the *eval-suite* shape specifically: how to put the Reviewer in a small number of known situations and produce one human-read finding about whether it reasoned the way a mandate-holder would.
 
@@ -172,9 +178,14 @@ When observed diverges from prior, that is **the interesting finding to interpre
 Eval-suite manifests live at `docs/evaluations/eval-suites/{name}.yaml`. The schema is deliberately thin — the weight is in the prose read the suite produces, not in the manifest's structure.
 
 ```yaml
-eval_suite_schema_version: 2          # required; runner refuses unknown. v2 = this rewrite.
+eval_suite_schema_version: 3          # required; runner refuses unknown. v3 = the 2026-06-07 two-suite rework.
 eval_suite: <suite-slug>              # required; unique, kebab-case
-read_kind: judgment_coherence | substrate_responsiveness   # required (v2) — §2
+suite_kind: thesis                    # required (v3) — the runner handles only Suite B (thesis);
+                                      #   Suite A (mechanical) is api/test_*.py, not a YAML suite.
+thesis: |                             # required (v3) — the declared assumed-behavior-and-posture;
+  What a coherent mandate-holder does  #   THIS IS THE CRITERION (EVAL-ARCHITECTURE §2.B, README rule 1).
+  in this workspace, read against the  #   The forensic read measures the trace against it. A suite
+  agent's full trace.                  #   without a thesis is a substrate snapshot, not an eval.
 description: |                        # required; free-form, captured in rollup
   What question this suite lets the operator answer, in the operator's
   vocabulary (not the framework's taxonomy).
