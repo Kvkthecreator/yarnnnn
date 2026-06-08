@@ -1,6 +1,8 @@
 # ADR-313 — Fire-Frequency Gate Partition: Pace (Drain-Lane Rate) vs Token-Budget (Cost + Per-Slug Floor)
 
-**Status**: **Proposed** (doctrine-only — zero code change, zero behavior change)
+> **⚠ SUPERSEDED by [ADR-327](ADR-327-budget-and-the-self-improving-loop.md) (Proposed, 2026-06-08).** ADR-313 named the boundary between two cost/frequency files (`_pace.yaml` Gate A + `_token_budget.yaml` Gate B) and chose to **keep both**, fixing the developer-facing confusion with documentation. ADR-327 **dissolves the partition** by collapsing the two files into one `_budget.yaml` — because the operator-facing reframe (pace retires; tempo becomes the Reviewer's allocation problem, not an operator dial) removes Gate A's reason to be a separate gate. ADR-313's audit finding (the two gates are not duplicates *as implemented*) is preserved as accurate historical record; its *keep-both* conclusion is reversed. The per-slug `min_interval` floor (Gate 3) survives into `_budget.yaml` verbatim.
+
+**Status**: **Superseded** by ADR-327 (was Proposed, doctrine-only — zero code change, zero behavior change)
 **Date**: 2026-06-02
 **Deciders**: KVK (operator) + Claude (collaborator)
 **Hat**: A (system canon — real-operator-facing)

@@ -128,6 +128,21 @@ Every mechanic in YARNNN occupies a cell in six orthogonal dimensions. These are
 
 **Usage rule:** when writing an ADR, a design doc, or a code comment that introduces a new mechanic, state explicitly which dimension(s) it occupies. A mechanic that spans dimensions without explicit justification is a cross-cut — cross-cuts are legitimate only when argued for (e.g., compose substrate deliberately couples Mechanism + Channel per ADR-148). See FOUNDATIONS v6.0 Derived Principle 1 (Dimensional purity).
 
+### Trigger-dimension vocabulary (the wake / cadence / pace cluster)
+
+The five terms below are the Trigger-dimension (Axiom 4) + autonomy (Axiom 5) cluster. They are easy to conflate; keep them distinct. **Canonical synthesis with full mechanics, lifecycle, and substrate map: [`cadence-and-wakes.md`](cadence-and-wakes.md).**
+
+| Term | One-line definition | Dimension / scope |
+|---|---|---|
+| **Wake** | The irreducible unit of agent activity — *something changed, judgment is warranted, now*. Five sources (`cron_tick \| addressed \| proposal_arrival \| substrate_event \| manual_fire`), one funnel, one gateway (`wake.py::submit_wake_proposal`). FOUNDATIONS Derived Principle 20. | Trigger — the atom |
+| **Recurrence** | A time-driven wake's config: `{slug, schedule, prompt, mode}` in `_recurrences.yaml`. `mode: judgment` wakes the Reviewer; `mode: mechanical` runs deterministic Python with no LLM. Authored via `Schedule` primitive (ADR-261/263). | Trigger — per-recurrence config |
+| **Cadence** | The composed shape of all Reviewer-authored wakes (recurrences + hooks + standing intent). The Reviewer's self-improvement surface — it authors its own cadence (Derived Principle 18). | Trigger — workspace rhythm |
+| **Pace** ⚠ **RETIRING → Budget** ([ADR-327](../adr/ADR-327-budget-and-the-self-improving-loop.md), Proposed) | The operator's workspace-wide dial (`governance/_pace.yaml`). **Retiring per ADR-327 (2026-06-08):** "pace" as a tempo/wake-frequency dial is the wrong concept and is **deleted end-to-end** (backend + frontend, Singular Implementation). Replaced by a **dollar budget over a timeframe** (`governance/_budget.yaml` — also absorbing `_token_budget.yaml`): the operator declares spend; the Reviewer allocates wakes within it (tempo is the agent's allocation problem, not an operator dial). The frequency labels (`daily ~24×/day`) were a cap-vs-vibe-vs-truth conflation. See ADR-327 D1/D2 + cadence-and-wakes.md §12a. Was the Trigger-dimension dial of the (historical) Pace + Autonomy + Identity trifecta (ADR-298 D11); live trifecta is **Budget + Autonomy + Identity**. | Trigger — workspace-wide cost envelope |
+| **Budget** *(ADR-327, Proposed)* | The operator's dollar spend envelope over a timeframe (`governance/_budget.yaml`: `amount_usd` + `window` + `per_wake_ceiling_usd` + per-slug `min_interval` floor). The single per-workspace cost/frequency governance (collapses the retiring `_pace.yaml` + `_token_budget.yaml`). Hard Tier-1 funnel gate over the `execution_events` cost ledger (ADR-291): scheduled wakes hard-gated, reactive wakes warn-but-don't-block (ADR-327 D4). Every judgment wake draws from it; mechanical recurrences are free. The Reviewer allocates *within* it — that allocation, improving over tenure, is the self-improving loop. | Trigger — workspace-wide cost envelope |
+| **Autonomy (delegation)** | How far a Reviewer verdict binds without an operator click (`governance/_autonomy.yaml`: `manual \| bounded \| autonomous` + `ceiling_cents` + `never_auto` + `paused_until`). Gates *what a wake does*, never *when it fires*. ADR-217 / ADR-307 / `review_policy.py::should_auto_apply`. | Mechanism (Axiom 5) |
+
+**Orthogonality discipline:** Pace (when/how-often) · Autonomy (how-far) · Identity/persona (how-it-reasons) are three independent dials over the wake unit. None touches another's axis. This is what makes "self-working, self-improving" safe — see cadence-and-wakes.md §1a.
+
 ---
 
 ## Vocabulary note: Agents, Orchestration, and Persona (ADR-216 2026-04-24)

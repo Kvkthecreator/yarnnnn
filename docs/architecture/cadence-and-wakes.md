@@ -1,8 +1,9 @@
 # Cadence and Wakes — Canonical Synthesis
 
-> **Status:** Canonical (last extended 2026-05-24 — ADR-301 pulse envelope)
-> **Distills:** [ADR-260](../adr/ADR-260-real-time-reviewer-loop.md) · [ADR-261](../adr/ADR-261-recurrences-as-prompts.md) · [ADR-263](../adr/ADR-263-recurrence-mode-mechanical-vs-judgment.md) · [ADR-268](../adr/ADR-268-market-context-aware-recurrences.md) · [ADR-274](../adr/ADR-274-reviewer-cadence-self-awareness.md) · [ADR-275](../adr/ADR-275-introspection-cadence-reviewer-authored.md) · [ADR-276](../adr/ADR-276-reactive-trigger-envelope-governance-preload.md) · [ADR-284](../adr/ADR-284-standing-intent-substrate-and-occupant-envelope.md) · [ADR-296 v2](../adr/ADR-296-continuous-judgment-cycle.md) · [ADR-298](../adr/ADR-298-reviewer-wake-queue-and-pace.md) · [ADR-301](../adr/ADR-301-reviewer-pulse-envelope.md)
-> **Builds on:** [FOUNDATIONS](FOUNDATIONS.md) Axiom 4 (Trigger) · Derived Principle 18 (Standing intent implies Trigger-authoring authority) · Derived Principle 20 (Wake-as-irreducible-unit) · [ADR-209](../adr/ADR-209-authored-substrate.md) (Authored Substrate)
+> **Status:** Canonical for the implemented mechanics (§1–§10, §13–§14) · **two concepts ratified in [ADR-327](../adr/ADR-327-budget-and-the-self-improving-loop.md) (Proposed, 2026-06-08), not yet implemented** — §11a self-improving loop (kernel-universal calibration mirror + persona posture) · §12a pace→budget reframe (pace retires; `_pace.yaml` + `_token_budget.yaml` collapse to one `_budget.yaml`). Last extended 2026-06-08.
+> **Scope:** This is the single load-bearing reference for the full **wake / recurrence / cadence / pace / autonomy** framework. §1a maps how the five concepts relate (the operator's Pace + Autonomy + Identity trifecta over the wake unit). The implemented mechanics are canon; the two discourse-open sections state target architecture pending ADR.
+> **Distills:** [ADR-260](../adr/ADR-260-real-time-reviewer-loop.md) · [ADR-261](../adr/ADR-261-recurrences-as-prompts.md) · [ADR-263](../adr/ADR-263-recurrence-mode-mechanical-vs-judgment.md) · [ADR-268](../adr/ADR-268-market-context-aware-recurrences.md) · [ADR-274](../adr/ADR-274-reviewer-cadence-self-awareness.md) · [ADR-275](../adr/ADR-275-introspection-cadence-reviewer-authored.md) · [ADR-276](../adr/ADR-276-reactive-trigger-envelope-governance-preload.md) · [ADR-284](../adr/ADR-284-standing-intent-substrate-and-occupant-envelope.md) · [ADR-296 v2](../adr/ADR-296-continuous-judgment-cycle.md) · [ADR-298](../adr/ADR-298-reviewer-wake-queue-and-pace.md) · [ADR-301](../adr/ADR-301-reviewer-pulse-envelope.md) · autonomy gate: [ADR-217](../adr/ADR-217-workspace-autonomy-substrate.md) (autonomy substrate) · [ADR-307](../adr/ADR-307-unified-permission-taxonomy.md) (permission taxonomy) / [`review_policy.py::should_auto_apply`](../../api/services/review_policy.py)
+> **Builds on:** [FOUNDATIONS](FOUNDATIONS.md) Axiom 4 (Trigger) · Axiom 5 (Mechanism — the autonomy axis) · Derived Principle 18 (Standing intent implies Trigger-authoring authority) · Derived Principle 20 (Wake-as-irreducible-unit) · [ADR-209](../adr/ADR-209-authored-substrate.md) (Authored Substrate)
 > **Purpose:** Single load-bearing reference for how cadence and wakes work in YARNNN. ADRs decide; this synthesizes.
 
 ---
@@ -20,6 +21,36 @@ Three claims hold:
 3. **Cost flows through wakes.** Every wake that escalates past the funnel fires a full Reviewer Sonnet loop (~$0.05-0.20 per fire). Cadence frequency × escalation rate × loop depth = workspace spend. Cadence is the upstream cost gate; autonomy (delegation) is the downstream action gate. Both matter; cadence dominates if misconfigured.
 
 4. **A wake is a situation, not a task** (ADR-318). The upstream half — a judgment recurrence — is deliberately thin: `{slug, schedule, prompt}` (ADR-261 D3), a glorified prompt at a future invocation. The downstream half — the wake itself — is **agentic**: the recurrence-fire envelope already delivers the Reviewer its full operating context (`operating_context_block` = clock + market state + tenure; `schedule_index_md` = its own cadence; `standing_intent.md` = its forward-state) plus `Schedule`-authoring authority. So the Reviewer is not a function that runs one prompt and exits — it is a standing judgment seat woken for a reason. It serves the named task fully, then reasons forward from its operating context (a position that needs watching, a future wake to author, a cadence that's wrong) and authors what's warranted. This is the posture that makes multi-day autonomy real with no new machinery — the architecture already configures for it; the persona-frame names it. (Stance, not checklist — anti-rebloat per DP22.)
+
+---
+
+## 1a. The five concepts are one loop, sliced three ways
+
+The terms **wake / recurrence / cadence / pace / autonomy** are not five features. They are **one judgment loop, sliced along the FOUNDATIONS dimensions and gated by the operator's trifecta.** Hold the whole thing this way:
+
+> A **wake** is the atom. **Recurrence + cadence** decide *when* wakes happen. **Budget** bounds total *cost* (the operator's dollar envelope; replaces the retiring "pace" dial — §12a). **Autonomy** decides what a wake is allowed to *do* without the operator. The loop's purpose is **self-improvement**: the Reviewer authors its own cadence *and allocates wakes within the budget* against operator intent + ground truth.
+
+**The orthogonal-dials map** (the operator's trifecta — ADR-298 D11). Three dials, three FOUNDATIONS dimensions, three different questions. They are deliberately orthogonal — none touches another's axis:
+
+| Dial | Dimension | Substrate | Question it answers | Who owns it |
+|---|---|---|---|---|
+| **Budget** *(replaces "Pace" — §12a)* | Trigger (Axiom 4) — cost envelope | `governance/_budget.yaml` *(today `_pace.yaml`, retiring)* | *How much* can the operation spend? | Operator declares; Reviewer allocates wakes within it |
+| **Autonomy** | Mechanism (Axiom 5) | `governance/_autonomy.yaml` | *How far* does a verdict bind without a click? | Operator only |
+| **Identity (persona)** | Identity (Axiom 2) | `persona/IDENTITY.md` + `principles.md` | *How* does the agent reason? | Operator authors; Reviewer refines within bounds |
+
+*Trifecta naming note: ADR-298 D11 named this "Pace + Autonomy + Identity." Post-§12a the first dial retires from "pace" (tempo) to "budget" (cost envelope) — same Trigger-dimension slot, honest concept. "Pace + Autonomy + Identity" survives as the historical name; the live dials are **Budget + Autonomy + Identity**.*
+
+And the irreducible unit they all act on:
+
+| Unit | Dimension | What it is | Authored by |
+|---|---|---|---|
+| **Wake** | Trigger | The atom of agent activity — *something changed, judgment is warranted, now* | Kernel (one of five sources) |
+| **Recurrence** | Trigger | A time-driven wake's config — `{slug, schedule, prompt, mode}` in `_recurrences.yaml` | Operator + Reviewer (co-author via `Schedule`) |
+| **Cadence** | Trigger | The composed shape of all Reviewer-authored wakes (recurrences + hooks + standing intent) | Reviewer (the self-improvement surface) |
+
+**Why orthogonality matters.** Budget never touches what a wake *does* (that's autonomy). Autonomy never touches *how much* the operation spends or *when* a wake fires (that's budget + cadence). Persona never touches *cost* or *binding* (it shapes the reasoning). This separation is what lets the operator dial spend, trust, and reasoning-character independently — and it is what makes "self-working, self-improving" safe: you can give the agent full cadence-authoring authority *and wake-allocation-within-budget* (self-improvement) while keeping a hard autonomy floor (never_auto) and a hard dollar ceiling.
+
+> **⚠ Two pieces in flight (2026-06-08).** This map states the *target* relationship; the **orthogonality is settled canon**. The first dial is mid-rename: **"pace" (tempo) retires → "budget" (dollar cost envelope)** — direction resolved, ADR pending (§12a). The self-improving loop's *driving mechanism* is still open (§11a). Read both before treating the substrate paths as final — `_pace.yaml` becomes a budget file.
 
 ---
 
@@ -320,6 +351,64 @@ This is structurally load-bearing — the Reviewer's authority is over *standing
 
 ---
 
+## 11a. The self-improving loop — kernel-universal shape, program-declared inputs
+
+> **⚠ RATIFIED IN [ADR-327](../adr/ADR-327-budget-and-the-self-improving-loop.md) D6 (Proposed, 2026-06-08) — not yet implemented.** The loop is kernel-universal machinery + a domain-agnostic persona posture; the bundle declares only its inputs (its ground-truth file). The *driving mechanism* (the open question this section originally flagged) is settled: a kernel mirror `_calibration.md` (sibling of the ADR-301 pulse files) correlates the Reviewer's cadence-authoring history against ground-truth outcome quality, and the persona frame instructs the Reviewer to read it before reasoning about cadence. See ADR-327 D6 for the full mechanism + the second-program validation gate (D6.d).
+
+### What "self-improving" actually means here
+
+The thesis is "agents that improve with tenure." The honest, narrow, defensible definition: **the Reviewer adjusts *when and how* it operates — its cadence and its judgment — measured against ground truth, not against getting smarter.** Improvement is a substrate-and-cadence phenomenon, not a model phenomenon. The Reviewer has the *authority* to improve (Derived Principle 18 — it authors its own cadence via `Schedule`); the open work is giving it the *pressure and feedback* that make improvement happen reliably rather than only when the LLM happens to choose to.
+
+### The loop shape (kernel-universal)
+
+```
+   operator intent                ground-truth substrate
+   (mandate, preferences,         (program-declared file:
+    budget envelope)                _money_truth.md for trader,
+        │                           a corpus-coherence / revenue /
+        │                           client-acceptance file for others)
+        └───────────────┬───────────────┘
+                        ▼
+        Reviewer reasons at wake  (persona-frame instruction —
+        "read your calibration trail + ground truth before
+         reasoning about cadence; where your past cadence
+         choices were falsified by ground truth, re-author")
+                        ▼
+        authors cadence (Schedule) + refines judgment (principles
+        application) + rewrites standing_intent
+                        ▼
+        outcomes accumulate into ground-truth substrate ───┐
+                        ▲                                   │
+                        └───────────────────────────────────┘
+```
+
+The shape is **identical across every program.** Only two things differ per program, and both are *declarations*, not machinery:
+
+| What the bundle declares | alpha-trader | alpha-author | alpha-commerce |
+|---|---|---|---|
+| **Ground-truth file** (the calibration substrate the Reviewer reasons against) | `_money_truth.md` | corpus-coherence / engagement file | revenue / cohort file |
+| **What "outcome" means** (how the world's verdict reaches substrate) | fills → P&L → per-signal attribution | published-piece performance | settlement / churn |
+
+Everything else — the reasoning posture, the envelope wiring that pre-loads ground truth + calibration trail, the `Schedule`-authoring authority, the standing-intent write — is **kernel.** This is the same kernel-vs-program split as the temporal model (§8b): the *machinery* is universal; the *inputs* are program-declared via MANIFEST `substrate_abi.reviewer_wake_envelope`.
+
+### Why kernel + persona-frame, not per-bundle scaffolding
+
+The current state (status quo): alpha-trader ships `outcome-reconciliation` (a judgment recurrence that folds fills into `_money_truth.md`) and a persona-frame that mentions money-truth. Every new program would re-invent this. That is exactly the over-scaffolding the operator flagged.
+
+The target: the **persona-frame carries a domain-agnostic improvement posture** ("read your calibration trail and the active program's ground-truth file before reasoning about cadence; re-author cadence where ground truth has falsified a prior choice"), and the **envelope pre-loads whatever the bundle declared as its ground-truth file.** A new program becomes "declare your ground-truth file in MANIFEST" — no new loop code, no new recurrence shape, no persona-frame fork.
+
+> Note the alignment with §3.2.1 of `agent-composition.md`: the *rules of judgment* (including stewardship-of-intent) already live in each program's `principles.md`, and the *reasoning posture* lives in the persona-frame. The self-improving loop is the cadence-axis instance of the same partition — domain flavor in `principles.md` + program-declared ground-truth file; universal posture in the persona-frame.
+
+### The open questions for discourse
+
+1. **What is the calibration-pressure mechanism?** Today the Reviewer *may* re-author cadence if it chooses. What injects *pressure* — a structured "your last N cadence choices produced stale/low-value outcomes" signal in the envelope? Is that a new mirror file (like `_recent_execution.md`) that correlates cadence-fires against outcome quality? This is the thinnest-mechanized part of the whole framework (Finding A).
+
+2. **How does the bundle declare its ground-truth file generically?** A MANIFEST key (`substrate_abi.ground_truth: operation/.../_money_truth.md`)? Does the persona-frame reference it by role ("your ground-truth file") rather than by name, so the same prompt works across programs?
+
+3. **What's the second-program validation?** The loop generalizes on paper; it has only ever been validated against money-truth (one data point). The improvement claim is real for trader; for alpha-author "cadence improvement against corpus-coherence" is unproven. Demand-pull discipline (per §15 #6): build the generalization, but validate the loop against a second program's stress test before declaring it canon.
+
+---
+
 ## 12. Cadence and cost — the upstream gate
 
 Cadence is the **upstream cost gate**; autonomy (delegation) is the downstream action gate.
@@ -335,14 +424,86 @@ A workspace with high cadence (many recurrences, low min-intervals, broad hook m
 
 ### Pace as the workspace-wide rhythm budget (ADR-298 D11 + ADR-300)
 
+> **⚠ RETIRING — describes the code as it stands today (2026-06-08).** This subsection documents pace *as currently implemented* (a population guardrail / drain throttle). **It is being deleted** — see §12a for the settled reframe (pace retires; a dollar budget replaces it). Kept here only as the as-built reference until the budget ADR lands and the code is removed.
+
 Inside the cadence/cost gate above, **pace** is the workspace-wide budget that bounds total wake frequency. Pace is the Trigger-dimension dial of the **Pace + Delegation + Identity** operator trifecta (canonized by [ADR-298 D11](../adr/ADR-298-reviewer-wake-queue-and-pace.md)). The operator picks one of `hourly | daily | weekly | continuous`; the Schedule primitive pace-gates every new recurrence at declaration time (ADR-298 D5), refusing any creation that would push the total declared fire-frequency past the budget.
 
-The atomic operator-facing edit surface for pace is **`/pace`** (Document archetype, 16th kernel surface — [ADR-300](../adr/ADR-300-pace-as-atomic-kernel-surface.md)). `PaceBadge` on the cockpit is a read-only deep-link to it. Pace is distinct from:
+The atomic operator-facing edit surface for pace is **`/pace`** (Document archetype, 16th kernel surface — [ADR-300](../adr/ADR-300-pace-as-atomic-kernel-surface.md)). `PaceStatusItem` (system-status popover; `PaceBadge` already deleted per ADR-297 D20) consumes `api.pace()`. Pace is distinct from:
 
 - **Cadence** — the per-recurrence taxonomy (`recurring | reactive`) surfaced on `/cadence`.
 - **Schedule** — the per-recurrence cron string field on a recurrence YAML.
 
 All three are Trigger-dimension concepts (Axiom 4) at different scopes. Pace is workspace-wide; Cadence is per-recurrence framing; Schedule is per-recurrence timing.
+
+---
+
+## 12a. Pace re-check → Budget reframe (pace retires)
+
+> **⚠ RATIFIED IN [ADR-327](../adr/ADR-327-budget-and-the-self-improving-loop.md) (Proposed, 2026-06-08) — not yet implemented.** Direction: **"pace" as a tempo/wake-frequency dial is the wrong concept and retires entirely. It is replaced by a dollar budget over a timeframe.** Tempo is not an operator dial — it is the Reviewer's allocation problem within the budget (the self-improving loop, §11a). **Deepened in the ADR research (see below):** the reframe is not just "give the vestigial `monthly_budget_usd` field teeth" — it **collapses two governance files** (`_pace.yaml` + the real-but-separate `_token_budget.yaml`) into one `_budget.yaml`. This section is the diagnosis + reframe; ADR-327 carries the decisions, the FE/BE deletion scope, and the two hard problems.
+
+### The diagnosis: the code and the UI describe two different concepts
+
+**What pace does in code today** ([`services/pace.py`](../../api/services/pace.py), [`services/wake_drainer.py`](../../api/services/wake_drainer.py), [`services/primitives/schedule.py`](../../api/services/primitives/schedule.py)):
+- **Declaration-time**: refuses a new `_recurrences.yaml` entry if total cron fire-frequency would exceed the budget (`check_population_constraint` → `pace_exceeded` error).
+- **Drain-time**: throttles the *paced lane* of the wake queue to a minimum interval between drains (`paced_lane_eligible_to_drain`).
+
+That is a **population guardrail** — "don't let cron declarations exceed a budget; throttle the lane if they pile up."
+
+**What the UI sells** (`web/components/workspace-concepts/PaceCard.tsx`): *"How often the Reviewer wakes through the paced lane."* Four tiers — `Weekly ~7×/wk`, `Daily ~24×/day`, `Hourly ~168×/day`, `Continuous` — presented as a **tempo preference** the operator picks ("how fast do you want your agent to work").
+
+**These are different concepts wearing the same word.** Two concrete consequences of the mismatch:
+
+1. **The dial is inert in the common case.** The live alpha-trader workspace has 2 judgment recurrences firing ~twice/day. Picking `weekly` vs `hourly` changes *nothing observable* — both ceilings are far above the actual fire rate. The operator believes they're setting the agent's rhythm; they're setting a ceiling the cadence already lives under.
+2. **It only bites in the over-declaration case** — it's a guardrail that activates when (operator or Reviewer) declares more cron than the cap allows. That's a useful safety property, but it is *not* "how often your agent works."
+
+**And there are already TWO cost/frequency governance files, not one.** The ADR-327 research surfaced that `_pace.yaml` (frequency cap) sits beside `governance/_token_budget.yaml` (`daily_spend_ceiling_usd` — a *real, enforced* Tier-1 spend gate via `services/token_budget.py` + `BudgetSignals`, plus `max_judgment_recurrences_per_day` + a per-slug `min_interval` floor). [ADR-313](../adr/ADR-313-fire-frequency-gate-partition.md) audited the two, named the boundary ("pace owns drain-rate; token-budget owns cost + per-slug floor"), and chose to *keep both* — fixing the *developer*-facing confusion with documentation. It did not touch the *operator*-facing confusion (the cap-vs-vibe-vs-truth problem below). The budget reframe dissolves the partition: once "how often" is no longer an operator dial, pace's drain-rate gate has no operator-facing input left, and the two files collapse into one `_budget.yaml`. **The vestigial `monthly_budget_usd` field on `_pace.yaml` (parsed, displayed, zero enforcement) was the half-built shadow of this — the budget concept already wanted to exist.**
+
+### The root error the operator named (2026-06-08)
+
+The four-tier dial smears **three different numbers** into one control, and they contradict each other:
+
+1. The **ceiling** the code enforces ("at most 24 fires/day" for `daily`).
+2. The **label** ("Daily") — a tempo vibe that doesn't match the ceiling. *"Daily" reads like ~hourly to a layperson* ("24 hours, so once an hour") — the label fights its own number.
+3. The **actual wake count** (~2/day for live alpha-trader) — the truth, shown nowhere.
+
+A dial that conflates a cap, a vibe, and a hidden truth cannot produce a correct mental model. And the "unequal distribution" objection is fatal to any frequency framing: wakes cluster at market-open, so *no* single frequency word ("daily", "hourly") is ever honest — the distribution is the Reviewer's, not a uniform rate.
+
+### The deeper tension with self-improvement
+
+If the Reviewer authors its own cadence against ground truth (§11a), then **"operator sets how often the agent works" fights "agent figures out its own cadence."** Tempo is the *agent's* job — a separate operator tempo-dial is the operator second-guessing the exact thing the agent exists to figure out. The operator's *legitimate* concern was never "how often"; it was **"how much will this cost"** and **"don't run away."** Both are budget concerns, not tempo concerns. Pace was always a budget wearing a frequency costume.
+
+### The settled reframe: pace retires, a dollar budget replaces it
+
+**One concept, singular, absorbing.** There is no separate tempo dial and no separate "pace." The operator declares **one dollar budget over a timeframe** (`$X/month`); the Reviewer allocates judgment wakes within it against ground truth. Tempo intent ("morning brief, quiet otherwise") is not a dial — it lives where standing intent already lives (`MANDATE.md` / `_preferences.yaml`), read every wake. **One loop, three inputs: budget (envelope) + mandate (intent) + ground truth (calibration).**
+
+| Old (retired) | New (singular) |
+|---|---|
+| `_pace.yaml` `kind: weekly\|daily\|hourly\|continuous` (drain-throttle) | A dollar budget over a timeframe (`$X/month`) — the operation's spend envelope |
+| `monthly_budget_usd` (vestigial, zero enforcement) | **This becomes the concept** — the single hard gate |
+| Drain-throttle (`paced_lane_eligible_to_drain`) as the cost guarantee | Cost guarantee moves to the budget gate; throttle dissolves (or survives only as a stampede smoother, see Q1) |
+| Tempo as an operator dial | Tempo as Reviewer allocation within the budget (§11a self-improving loop) |
+| "Reviewer wakes ~24×/day" (a lie) | "Funds ~$X of judgment/month — the Reviewer spends it where the work is" |
+
+**What counts against the budget** (resolved 2026-06-08): **every Reviewer judgment wake — scheduled *and* reactive (proposal / chat / hook).** Mechanical recurrences are **free and out of scope** (they never wake the Reviewer; track-positions firing every minute is $0 and irrelevant to the budget). The budget is denominated in **dollars** because that's what the operator actually pays — and once it's dollars, reactive wakes *must* count, because they cost real dollars. A budget that excluded them would understate the invoice.
+
+### Singular-implementation scope (no coexistence — pace is deleted, not deprecated)
+
+Per the project's Singular Implementation discipline, the reframe **deletes** the pace concept end-to-end; it does not leave a pace dial beside a budget concept. ADR scope spans backend **and** frontend:
+
+**Backend deletions:** `services/pace.py` (`parse_pace_yaml`, `cron_fires_per_day`, `check_population_constraint`, `pace_at_least_as_frequent`, `min_interval_seconds`), the `pace_exceeded` gate in `services/primitives/schedule.py`, `paced_lane_eligible_to_drain` in `services/wake_drainer.py` (and the paced/live lane *split* if the throttle fully dissolves — see Q1), the `_pace.yaml` envelope read in `reviewer_envelope.py`, the `SHARED_PACE_PATH`/`GOVERNANCE_PACE_PATH` constant, the activation default-seed in `services/programs.py`, and the bundle `minimum_pace` gate.
+**Backend additions:** one dollar-budget substrate file (rename/repurpose `_pace.yaml` → a budget file, or a new `governance/_budget.yaml`), a **real Tier-1 funnel gate** in `wake_evaluation.py` (`skip` when month-to-date spend ≥ budget — reads the existing `execution_events` cost ledger per ADR-291), and a budget-utilization rollup.
+**Frontend deletions:** `web/components/workspace-concepts/PaceCard.tsx`, `web/app/(authenticated)/pace/page.tsx` (the `/pace` atomic surface, ADR-300), `web/components/shell/system-status/PaceStatusItem.tsx` (the system-status popover; `PaceBadge` already gone per ADR-297 D20), `web/lib/content-shapes/pace.ts` (`useCockpitPace`, `paceKindLabel`, `PaceKind`), and the `api.pace()` client namespace (`web/lib/api/client.ts` `/api/pace` + `api/routes/pace.py`).
+**Frontend additions:** one budget surface (the renamed atomic surface) that shows the dollar budget **and its month-to-date utilization** (the two-number control: "set $X/mo" + "$Y used, Z days left, on pace"). The control *position* in the cockpit stays (operators still have one governance dial here); only its meaning + data change.
+
+### Two hard problems the reframe inherits (ADR must answer these)
+
+1. **"One budget for all judgment wakes" means a chatty operator can starve scheduled work.** 40 chat turns today draw down the budget meant for tomorrow's signal-evaluation. Resolution shape (to ratify in ADR): **reactive wakes warn-but-don't-block** (operator presence stays warrant — never "you've used up your chat budget"), while **scheduled wakes get first claim** on remaining budget. This is a priority rule on the Tier-1 gate, not just a counter.
+
+2. **A dollar budget is only honest if paired with a utilization surface.** "$12 of $50 used, 18 days left, on pace" — the data exists (`execution_events` unified cost ledger, ADR-291) but is **DB-only, surfaced nowhere** (the §15 #4 transparency gap). The budget concept has a hard dependency on this surface; you cannot ship "set a budget" without "here's where it went." This is net-new FE + a rollup, in the same ADR.
+
+### Remaining open question for the ADR
+
+1. **Does any throttle survive?** If the budget gate is the hard ceiling, is there residual value in a minimum-interval *stampede smoother* (preventing many queued wakes from draining in one burst), or does the paced/live lane split dissolve entirely? Leaning dissolve — the lane split existed to serve the pace throttle; with pace gone its reason to exist goes too. Confirm against the wake-queue's single-in-flight behavior before deleting.
 
 ---
 
@@ -355,7 +516,7 @@ All three are Trigger-dimension concepts (Axiom 4) at different scopes. Pace is 
 | `/workspace/governance/_preferences.yaml` | Operator only (bundle fork seeds initial) | Reviewer (governance envelope; reconciles changes) | Operator's deliverable cadence intent; Reviewer-write-locked |
 | `/workspace/persona/standing_intent.md` | Reviewer (cycle terminus) | Reviewer (next wake, Tier 2 envelope) | Reviewer's forward-looking state |
 | `/workspace/governance/_autonomy.yaml` | Operator only | `should_auto_execute_verdict()` gate; governance envelope | Delegation ceiling + paused state |
-| `/workspace/governance/_pace.yaml` | Operator only (path in `DEFAULT_REVIEWER_WRITE_LOCKS`); bundle fork at activation seeds initial | `Schedule` primitive pace-gate (ADR-298 D5); governance envelope; `/pace` atomic surface | Workspace-wide rhythm budget — `kind` is the only operator-edited field on the surface; secondary fields routed through chat |
+| `/workspace/governance/_pace.yaml` ⚠ **retiring → `_budget.yaml`** (§12a) | Operator only (path in `DEFAULT_REVIEWER_WRITE_LOCKS`); bundle fork at activation seeds initial | *Today:* `Schedule` primitive pace-gate (ADR-298 D5); governance envelope; `/pace` surface. *Post-budget-ADR:* a Tier-1 funnel cost gate reading month-to-date spend from `execution_events` | *Today:* workspace-wide rhythm budget (`kind` field). *Post-ADR:* a dollar budget over a timeframe; tempo dissolves into Reviewer allocation (§12a). Singular replacement — no pace/budget coexistence. |
 | `execution_events` (DB, migration 177) | `services/wake.py` (every wake) | Operator queries, telemetry | Wake source + funnel decision + cost + duration |
 | `workspace_file_versions` (DB, ADR-209) | Every substrate write | Hook walker, ListRevisions/ReadRevision primitives | Attributed revision chain — provenance of every cadence change |
 

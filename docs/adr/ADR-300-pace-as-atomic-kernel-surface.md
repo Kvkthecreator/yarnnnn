@@ -1,5 +1,7 @@
 # ADR-300 — Pace as Atomic Kernel Surface
 
+> **⚠ SUPERSEDED by [ADR-327](ADR-327-budget-and-the-self-improving-loop.md) (Proposed, 2026-06-08).** Pace retires as a concept — the `/pace` atomic surface this ADR created is repurposed to `/budget` (a dollar budget over a timeframe + window-to-date utilization). `_pace.yaml` collapses with `_token_budget.yaml` into one `_budget.yaml`. The `/pace` route survives only as a redirect stub to `/budget`. The atomic-kernel-surface *pattern* this ADR established (one substrate file → one atomic surface) is preserved and reused for `/budget`; only the pace *concept* dies. See ADR-327 D1/D7.
+
 > **Same-day vocabulary note (2026-05-24 design polish):** the "Delegation" surface this ADR references throughout — `/delegation`, `DelegationCard`, `[ Delegation ]` launcher position — was renamed to "Autonomy" / `/autonomy` / `AutonomyCard` to align with the substrate file `_autonomy.yaml`. Schema field `default_delegation` is **kept** (precise data-layer term — the delegated level value). `/delegation` route survives as a redirect stub to `/autonomy` for bookmark safety. The architectural decision (atomic kernel surface for pace) is unchanged; only the neighbor surface's operator-facing label moved. See `docs/design/CHANGELOG.md` 2026-05-24 entry.
 
 **Status:** Implemented (2026-05-22)
