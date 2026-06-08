@@ -516,6 +516,57 @@ def test_stale_performance_md_in_docstrings_updated():
 # None) or "system:unknown"`. Given the static assertions above, this
 # resolves to the correct attribution for every caller path by construction.
 
+# -----------------------------------------------------------------------------
+# ADR-315 occupant-identity single-slug invariant (2026-06-08 eval finding)
+# -----------------------------------------------------------------------------
+
+def test_wake_lineage_identity_uses_canonical_constant():
+    """ADR-315: the wake lineage writer defaults reviewer_identity to the single
+    canonical REVIEWER_MODEL_IDENTITY constant — NOT a hardcoded literal.
+
+    The 2026-06-08 stewardship eval surfaced THREE attribution slugs for one
+    occupant (reviewer:ai-sonnet-v8 / reviewer:ai:reviewer /
+    reviewer:ai:reviewer-sonnet-v8), breaking the revision-chain audit. The
+    `reviewer:ai:reviewer` leak traced to `services/wake.py` defaulting
+    `reviewer_identity = "ai:reviewer"` (a literal that drifted from the
+    constant) and a dead `reviewer_output.get("reviewer_identity")` read
+    (ReviewerOutput carries no such field). One occupant, one slug.
+    """
+    src = _read_text(_file("services", "wake.py"))
+    # The stale literal default must be gone.
+    assert 'reviewer_identity = "ai:reviewer"' not in src, (
+        'services/wake.py still defaults reviewer_identity to the literal '
+        '"ai:reviewer" — must be REVIEWER_MODEL_IDENTITY (ADR-315 one-slug).'
+    )
+    # The canonical default must be present.
+    assert "reviewer_identity = REVIEWER_MODEL_IDENTITY" in src, (
+        "services/wake.py must default reviewer_identity to "
+        "REVIEWER_MODEL_IDENTITY (the single occupant-contract constant)."
+    )
+    # The dead get("reviewer_identity") read must be gone (ReviewerOutput has no
+    # such field; the read only made the identity look dynamic).
+    assert 'reviewer_output.get("reviewer_identity")' not in src, (
+        "services/wake.py still reads reviewer_output['reviewer_identity'] — a "
+        "dead key (ReviewerOutput has no such field); delete per Singular Impl."
+    )
+
+
+def test_reviewer_output_contract_has_no_identity_field():
+    """ADR-315: ReviewerOutput must NOT carry a per-output reviewer_identity —
+    the occupant identity is the constant, not an output value. A reviewer_identity
+    field would re-open the multi-slug drift the wake.py fix closed.
+    """
+    src = _read_text(_file("agents", "occupant_contract.py"))
+    # Within the ReviewerOutput TypedDict block, there must be no reviewer_identity key.
+    m = re.search(r"class ReviewerOutput\b.*?(?=\nclass |\Z)", src, re.DOTALL)
+    assert m, "ReviewerOutput class not found in occupant_contract.py"
+    assert "reviewer_identity" not in m.group(0), (
+        "ReviewerOutput declares a reviewer_identity field — the occupant "
+        "identity is REVIEWER_MODEL_IDENTITY (the constant), not a per-output "
+        "value (ADR-315 one-occupant-one-slug)."
+    )
+
+
 def main() -> int:
     tests = [
         ("D1: AuthenticatedClient default", test_authenticated_client_has_caller_identity_default),
@@ -540,6 +591,9 @@ def main() -> int:
         # D8 tools_core gate deleted (ADR-315 carry-over) — file ratify-deleted
         # by 1272c92; coverage retained by the four sibling de-instancing gates.
         ("D8: reviewer_agent.py docstring de-instanced", test_reviewer_agent_docstring_de_instanced),
+        # ADR-315 occupant single-slug invariant (2026-06-08 eval finding)
+        ("ADR-315: wake lineage uses canonical constant", test_wake_lineage_identity_uses_canonical_constant),
+        ("ADR-315: ReviewerOutput has no identity field", test_reviewer_output_contract_has_no_identity_field),
     ]
 
     passed = 0

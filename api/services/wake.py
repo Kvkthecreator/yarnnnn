@@ -82,6 +82,7 @@ try:
 except ImportError:
     _SENTRY_AVAILABLE = False
 
+from agents.occupant_contract import REVIEWER_MODEL_IDENTITY  # ADR-315: single canonical occupant identity
 from services.recurrence import Recurrence
 from services.telemetry import (
     record_execution_event,
@@ -690,7 +691,16 @@ async def _invoke_recurrence_wake(
     actions_taken = []
     proposals = []
     verdict_summary = ""
-    reviewer_identity = "ai:reviewer"
+    # ADR-315 occupant contract: the occupant identity is the single canonical
+    # constant REVIEWER_MODEL_IDENTITY — NOT a hardcoded literal. The prior
+    # default "ai:reviewer" drifted from the constant and leaked into
+    # judgment_log attribution as `reviewer:ai:reviewer` whenever the
+    # ReviewerOutput dict carried no reviewer_identity field (which is always —
+    # ReviewerOutput has no such field; line below was a dead overwrite). One
+    # occupant, one slug: `reviewer:ai:reviewer-sonnet-v8` (2026-06-08 eval
+    # finding — three attribution strings for one occupant broke the
+    # revision-chain audit). Imported at module top per ADR-315 contract.
+    reviewer_identity = REVIEWER_MODEL_IDENTITY
     if isinstance(reviewer_output, dict):
         actions_taken = reviewer_output.get("actions_taken", []) or []
         proposals = reviewer_output.get("proposals", []) or []
@@ -723,7 +733,12 @@ async def _invoke_recurrence_wake(
             # exit at reviewer_agent.py:864 already rejects empty
             # reasoning before this code runs).
             verdict_summary = reviewer_output.get("verdict") or ""
-        reviewer_identity = reviewer_output.get("reviewer_identity") or reviewer_identity
+        # NOTE: ReviewerOutput (occupant_contract) carries NO per-output occupant
+        # identity field — the occupant identity is the canonical
+        # REVIEWER_MODEL_IDENTITY constant set above, not an output value. A prior
+        # dead read of a non-existent output key only made the identity look
+        # dynamic and leaked the stale "ai:reviewer" default into attribution;
+        # deleted per ADR-315 (one occupant, one slug) + Singular Implementation.
 
     # ADR-281 §5.D2 + §5.D4 single-writer contract: judgment_log.md is the
     # Reviewer's operation-shaping judgment lineage, NOT a wake-audit log.
@@ -1664,7 +1679,6 @@ async def stream_addressed_wake(
     """
     import asyncio as _asyncio
     from agents.reviewer_agent import invoke_reviewer
-    from agents.occupant_contract import REVIEWER_MODEL_IDENTITY  # ADR-315
     from services.reviewer_envelope import load_reviewer_governance_envelope
     from services.reviewer_chat_surfacing import (
         REVIEWER_COGNITION_TOOLS as _COGNITION_ONLY,
