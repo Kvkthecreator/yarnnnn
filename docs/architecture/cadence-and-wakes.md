@@ -407,6 +407,14 @@ The target: the **persona-frame carries a domain-agnostic improvement posture** 
 
 3. **What's the second-program validation?** The loop generalizes on paper; it has only ever been validated against money-truth (one data point). The improvement claim is real for trader; for alpha-author "cadence improvement against corpus-coherence" is unproven. Demand-pull discipline (per §15 #6): build the generalization, but validate the loop against a second program's stress test before declaring it canon.
 
+### Per-workspace sovereignty — the property that bounds the loop
+
+The self-improving loop is a *bounded* recursive-self-improvement loop: the Reviewer improves the dial it controls (cadence + judgment-within-mandate), against kernel-written ground truth it cannot author (`_calibration.md` + the program's ground-truth file), within a budget it cannot raise (`governance/_budget.yaml`, locked from the Reviewer per `CALLER_WRITE_POLICY["reviewer"]`). **Per-workspace sovereignty is the fourth fence, and it is the one that keeps the loop's blast radius equal to exactly one operator's budget.**
+
+Every revision in `workspace_file_versions` is scoped `(user_id, path)`; the blob store (`workspace_blobs`) is content-addressed and shared for dedup, but *scoping lives at the revision layer*, not the blob layer. There is no cross-workspace learning, no shared persona priors, no marketplace of calibrated Reviewers. Each operator's loop is sovereign: one operator's Reviewer re-authoring its cadence cannot affect another operator's substrate, calibration trail, or envelope.
+
+This is a **load-bearing safety property, not an incidental implementation fact.** It is what keeps YARNNN structurally outside the multilateral-coordination regime that Anthropic's "Recursive Self-Improvement" framing worries about — there is no compounding across operators, so there is nothing to coordinate. The moment cross-workspace learning is introduced (shared persona priors, a marketplace of calibrated Reviewers, federated calibration), that whole problem is imported: a misaligned cadence choice could propagate beyond the operator who authored it. **Treat any future cross-workspace-learning ADR as crossing this tripwire — it must explicitly re-derive the containment story the per-workspace boundary currently provides for free.** See `docs/analysis/moat-architecture-audit-2026-06-08.md` §2 (Claim 4) + §4.
+
 ---
 
 ## 12. Cadence and cost — the upstream gate
