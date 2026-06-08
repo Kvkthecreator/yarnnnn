@@ -275,7 +275,14 @@ discourse continued live.
 3. **Decide consciously, not by default: is the external story "autonomy" or
    "accountable compounding judgment"?** THESIS hedges toward the latter
    internally; ESSENCE / NARRATIVE may still lead with autonomy. Worth an explicit
-   alignment pass. **[Flagged — not landed; pending the ESSENCE/NARRATIVE read.]**
+   alignment pass. **[Answered 2026-06-08 by `positioning-judgment-seat-psychographic-2026-06-08.md`:
+   the external noun is the judgment seat. The follow-on GTM discourse pushed
+   past this to the deeper question — not "what noun" but "what psychographic" —
+   and landed the throughput "an agent that holds your judgment seat, not one
+   that does your tasks," cross-cutting a five-occupation stretch (A&R / PM /
+   founder / trader / partnerships) as instances of FOUNDATIONS Axiom 8
+   read as a human psychographic. The activation logic (fast vs slow ground
+   truth) and the volume hedge are in that doc.]**
 
 ---
 
@@ -311,6 +318,17 @@ insights are the *substrate it accumulates against*. Artifacts and insights are
 the by-products; the asset is the seat that gets better at the operator's job
 because the substrate densifies under it). Captured here as a pointer; the full
 framing lives in the session discourse and, if ratified, in ESSENCE.
+
+**Follow-on (2026-06-08):** the value-add framing (the judgment seat) became the
+*positioning* question — who, in human terms, is the user — captured in
+`positioning-judgment-seat-psychographic-2026-06-08.md`. Key correction it makes
+to this audit's §3.3: the moat (seat) is the *retention* property; the
+*activation* property is separate and is the binding constraint. The positioning
+doc resolves the user as a **psychographic** (recurring high-stakes judgment over
+accumulating substrate — FOUNDATIONS Axiom 8 as a human), not an occupation, and
+splits activation by ground-truth speed (fast instances onboard; slow instances
+expand TAM). Read the two docs together: this one proves the moat is real and
+defensible; the positioning doc resolves who arrives and how they activate.
 
 ---
 
