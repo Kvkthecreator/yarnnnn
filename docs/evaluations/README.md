@@ -58,9 +58,15 @@ What this hat means in practice:
 
 If a finding ever recommends introducing a developer-only concept *into the system*, that's a smell. Either the concept belongs in the system (in which case it's properly an axiom / derived principle / ADR), or it's purely developer-side (in which case it stays here). No third category.
 
+## The conceptual frame — what the eval system measures (read this first, 2026-06-07)
+
+> **[`EVAL-PHILOSOPHY.md`](EVAL-PHILOSOPHY.md) is the conceptual parent of everything below.** It states the governing metaphor — *the filesystem is the repo; the Reviewer is a self-running Claude Code over it, carrying standing intent (mandate + standing_intent) across invocations* — and the **four layers** the eval system reads (repo-mechanics / tool-use → MACHINE; judgment-within-mandate / intent-ownership → MIND). The two-axis model below is *how* you measure (the method); EVAL-PHILOSOPHY is *what* you're measuring (the model). **Layer 4 (intent-ownership — does the agent hold/pursue/revise standing intent across the gap between an enticing mandate and an unready substrate, without confabulating readiness) is the frontier and the product.** Read it before designing any suite.
+
 ## The two-axis model — read this before writing any evaluation (2026-06-05)
 
 > **Before anything else, decide which of two fundamentally different things you are validating: the MACHINE (architecture / pipeline / plumbing — has a right answer, tested deterministically) or the MIND (the Reviewer's reasoning / posture — read, not scored). They take different tools. Conflating them in one suite is the deepest evaluation-design error.**
+
+> The two axes are EVAL-PHILOSOPHY's layers 1–2 (MACHINE) vs 3–4 (MIND). This section is the measurement method; the layer model is the conceptual frame it serves.
 
 A deterministic fact ("does a trade fire when a signal exists?", "does the wake actually run the LLM?", "does the ticker-file casing match?") belongs in an `api/test_*.py` **integration test** — inject controlled input, assert exact output, CI green/red. A judgment read ("did the Reviewer size/cite/refuse well?") belongs in an **eval-suite** here. The full discipline — including why architecture bugs masquerading as judgment outcomes recurred for weeks across the alpha-trader arc — is canonized at [`EVAL-SUITE-DISCIPLINE.md` §0](EVAL-SUITE-DISCIPLINE.md). **If your evaluation is hitting a plumbing bug (silent wake, casing drift, a mirror overwriting your seed), you are on the architecture axis — write a deterministic test, do not debug it through a judgment eval.**
 

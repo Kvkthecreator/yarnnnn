@@ -10,6 +10,8 @@ Sibling to [`README.md`](README.md) — that file covers general evaluation disc
 
 ## §0 The two-axis model — what kind of thing are you evaluating? (2026-06-05)
 
+> **Conceptual parent: [`EVAL-PHILOSOPHY.md`](EVAL-PHILOSOPHY.md).** The MACHINE/MIND split below is the *measurement method*; EVAL-PHILOSOPHY is the *model of the thing measured* (filesystem=repo; Reviewer=self-running-Claude-Code + standing intent; four layers). The two axes here ARE EVAL-PHILOSOPHY's layers 1–2 (MACHINE) vs 3–4 (MIND). Read the philosophy doc first when the question is "what are we testing, conceptually?"; read this section when the question is "which tool does this target take?"
+
 > **Before you write an eval, decide which of two fundamentally different things you are validating: the MACHINE (the architecture / pipeline / plumbing) or the MIND (the Reviewer's reasoning / posture / judgment). They take different tools. Conflating them in one suite is the deepest evaluation-design error, and it is the one that recurred undetected for weeks.**
 
 Every evaluation target sits on one of two axes:
