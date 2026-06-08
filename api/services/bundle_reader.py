@@ -247,6 +247,27 @@ def get_substrate_abi_for_workspace(user_id: str, client: Any) -> dict[str, Any]
     }
 
 
+def get_ground_truth_for_workspace(user_id: str, client: Any) -> Optional[str]:
+    """ADR-327 D6: return the active bundle's declared ground-truth file path
+    (`substrate_abi.ground_truth`), workspace-relative, or None.
+
+    The ground-truth file is the substrate the Reviewer's cadence judgment is
+    calibrated against (the self-improving loop). The kernel calibration mirror
+    correlates cadence-authoring history against outcome quality read from here.
+    Returns the first active bundle's declaration (multi-program resolution is
+    deferred per ADR-280 §7). None when no active bundle declares one — the
+    calibration mirror then degrades to cadence-history-only evidence.
+    """
+    bundles = bundles_active_for_workspace(user_id, client)
+    for bundle in bundles:
+        abi = bundle.get("substrate_abi") or {}
+        if isinstance(abi, dict):
+            gt = abi.get("ground_truth")
+            if isinstance(gt, str) and gt.strip():
+                return gt.strip()
+    return None
+
+
 # ADR-293 (2026-05-19): `get_path_zone_locks_for_workspace` DELETED.
 # Bundle path_zones `role: operator-canon` is preserved as informational
 # metadata (declares author-of-origin for surface labeling + first-fork-

@@ -353,13 +353,16 @@ was woken for a reason — not a function that runs one prompt and exits.** The
 prompt (or proposal) names the immediate reason you were woken; serve it
 fully. Then, because you are the operation's standing judgment, reason
 forward from your operating context (the clock + market state in your
-envelope, your open positions, your own cadence in the schedule index): does
-the situation warrant more than the immediate task — a position that needs
-watching, a future wake you should author so you're woken when it matters, a
-cadence that's wrong? When it does, act on it (author a Schedule, write what
-you're watching) — serve the named task first, then plan forward. When it
-doesn't, the task plus standing_intent is the whole cycle. This is judgment,
-not a checklist: reason about your forward state, don't run a fixed list.
+envelope, your open positions, your own cadence in the schedule index, and
+your calibration evidence in _calibration.md — where your past cadence
+choices stand against ground truth): does the situation warrant more than
+the immediate task — a position that needs watching, a future wake you
+should author so you're woken when it matters, a cadence that's wrong
+because ground truth has falsified it? When it does, act on it (author a
+Schedule, write what you're watching) — serve the named task first, then
+plan forward. When it doesn't, the task plus standing_intent is the whole
+cycle. This is judgment, not a checklist: reason about your forward state,
+don't run a fixed list.
 
 **Close every cycle with a verdict or a standing_intent write.** A cycle that
 fires an action closes with ReturnVerdict. A cycle that decides nothing
@@ -718,6 +721,26 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
     else:
         parts += [
             "## _recent_execution.md — (empty — kernel mirror hasn't run yet "
+            "on this workspace)",
+            "",
+        ]
+
+    # ADR-327 D6 — calibration evidence (the self-improving loop). Correlates
+    # the Reviewer's cadence-authoring history against ground-truth outcome
+    # quality. Read this BEFORE reasoning about cadence (Calibration Discipline
+    # in persona frame). Empty-state ("no judgment recurrences", "ground-truth
+    # file empty") is itself meaningful.
+    calibration = ctx.get("calibration_md") or ""
+    if calibration.strip():
+        parts += [
+            "## _calibration.md — Cadence vs. ground truth (your self-improving loop)",
+            "",
+            calibration,
+            "",
+        ]
+    else:
+        parts += [
+            "## _calibration.md — (empty — kernel mirror hasn't run yet "
             "on this workspace)",
             "",
         ]

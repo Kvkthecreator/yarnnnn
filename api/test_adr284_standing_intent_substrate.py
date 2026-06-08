@@ -103,27 +103,31 @@ def test_envelope_universal_decls_count() -> None:
       - ADR-298 D11 (+1 = 9): pace_yaml (Trigger-dimension operator dial).
       - ADR-301 pulse envelope (+2 = 11): schedule_index_md +
         recent_execution_md (Reviewer's own cadence + recent fires).
+      - ADR-327: pace_yaml → budget_yaml (rename, count unchanged at 11);
+        (+1 = 12): calibration_md (D6 self-improving loop).
 
     2026-06-04 (ADR-315 carry-over): retargeted == 8 → == 11 + key-set
-    expanded to current reality. The assertion's job is unchanged — pin the
-    kernel-universal envelope to its declared, ADR-attributed entries so a
-    silent add/drop trips the gate.
+    expanded to current reality. 2026-06-08 (ADR-327): == 11 → == 12,
+    pace_yaml → budget_yaml + calibration_md. The assertion's job is
+    unchanged — pin the kernel-universal envelope to its declared,
+    ADR-attributed entries so a silent add/drop trips the gate.
     """
     from services.reviewer_envelope import _UNIVERSAL_ENVELOPE_DECLS
 
-    assert len(_UNIVERSAL_ENVELOPE_DECLS) == 11, (
-        f"Expected 11 kernel-universal envelope entries "
-        f"(6 pre-284 + ADR-284 occupant/standing_intent + ADR-298 pace + "
-        f"ADR-301 schedule_index/recent_execution), "
-        f"found {len(_UNIVERSAL_ENVELOPE_DECLS)}"
+    assert len(_UNIVERSAL_ENVELOPE_DECLS) == 12, (
+        f"Expected 12 kernel-universal envelope entries "
+        f"(6 pre-284 + ADR-284 occupant/standing_intent + ADR-327 budget "
+        f"(was ADR-298 pace) + ADR-301 schedule_index/recent_execution + "
+        f"ADR-327 D6 calibration), found {len(_UNIVERSAL_ENVELOPE_DECLS)}"
     )
     keys = {entry[0] for entry in _UNIVERSAL_ENVELOPE_DECLS}
     expected = {
         "identity_md", "principles_md", "precedent_md",
         "mandate_md", "autonomy_md", "preferences_yaml",
         "occupant_md", "standing_intent_md",  # ADR-284
-        "pace_yaml",                           # ADR-298 D11
+        "budget_yaml",                         # ADR-327 (was pace_yaml, ADR-298 D11)
         "schedule_index_md", "recent_execution_md",  # ADR-301 pulse
+        "calibration_md",                      # ADR-327 D6 self-improving loop
     }
     assert keys == expected, (
         f"Envelope keys mismatch. Expected {expected}, got {keys}"

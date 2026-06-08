@@ -183,6 +183,10 @@ class ReviewerContext(TypedDict, total=False):
     # to reason from substrate (not memory) about its own pulse.
     schedule_index_md: str
     recent_execution_md: str
+    # ADR-327 D6 — calibration evidence (the self-improving loop). Kernel-
+    # mirrored substrate correlating the Reviewer's cadence-authoring history
+    # against ground-truth outcome quality. Read before reasoning about cadence.
+    calibration_md: str
     # Wake context (ADR-296 v2 wake source taxonomy + 2026-05-27 Hat-A
     # parity fix). Pre-loaded so the Reviewer perceives WHY it was woken,
     # not just that it was woken. Pre-this-field, the fine-grained

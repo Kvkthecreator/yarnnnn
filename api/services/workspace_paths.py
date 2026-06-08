@@ -158,6 +158,11 @@ SYSTEM_NOTES_PATH = "system/notes.md"
 # tick; the Reviewer reads them at every wake, never writes them.
 SYSTEM_SCHEDULE_INDEX_PATH = "system/_schedule_index.md"
 SYSTEM_RECENT_EXECUTION_PATH = "system/_recent_execution.md"
+# ADR-327 D6: calibration evidence for the self-improving loop — correlates
+# the Reviewer's cadence-authoring history against ground-truth outcome
+# quality. Mechanically-mirrored per scheduler tick (sibling of the ADR-301
+# pulse files); the Reviewer reads it before reasoning about cadence.
+SYSTEM_CALIBRATION_PATH = "system/_calibration.md"
 
 SYSTEM_FILES = (
     SYSTEM_AWARENESS_PATH,

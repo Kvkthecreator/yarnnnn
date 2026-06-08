@@ -63,6 +63,7 @@ from services.workspace_paths import (
     SPECS_PREFIX,
     SYSTEM_SCHEDULE_INDEX_PATH,
     SYSTEM_RECENT_EXECUTION_PATH,
+    SYSTEM_CALIBRATION_PATH,
 )
 
 logger = logging.getLogger(__name__)
@@ -107,6 +108,12 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     # 045348-reviewer-schedule-self-misdiagnosis/findings.md.
     ("schedule_index_md", SYSTEM_SCHEDULE_INDEX_PATH),
     ("recent_execution_md", SYSTEM_RECENT_EXECUTION_PATH),
+    # ADR-327 D6 — calibration evidence for the self-improving loop. Mirrors
+    # the Reviewer's cadence-authoring history against ground-truth outcome
+    # quality (per-recurrence fires vs proposals-produced + ground-truth
+    # head). The Reviewer reads this BEFORE reasoning about cadence; where its
+    # prior cadence choices are falsified by ground truth, it re-authors.
+    ("calibration_md", SYSTEM_CALIBRATION_PATH),
 ]
 
 

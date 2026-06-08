@@ -388,18 +388,23 @@ async def run_unified_scheduler():
         from services.kernel_mirrors import (
             mirror_schedule_index_for_all_users,
             mirror_recent_execution_for_all_users,
+            mirror_calibration_for_all_users,
         )
         si_summary = await mirror_schedule_index_for_all_users(supabase)
         re_summary = await mirror_recent_execution_for_all_users(supabase)
-        if si_summary["written"] or re_summary["written"]:
+        cal_summary = await mirror_calibration_for_all_users(supabase)
+        if si_summary["written"] or re_summary["written"] or cal_summary["written"]:
             logger.info(
                 "[SCHED] kernel mirrors: schedule_index wrote %d/%d "
                 "(skip=%d, fail=%d), recent_execution wrote %d/%d "
+                "(skip=%d, fail=%d), calibration wrote %d/%d "
                 "(skip=%d, fail=%d)",
                 si_summary["written"], si_summary["users_processed"],
                 si_summary["skipped"], si_summary["failed"],
                 re_summary["written"], re_summary["users_processed"],
                 re_summary["skipped"], re_summary["failed"],
+                cal_summary["written"], cal_summary["users_processed"],
+                cal_summary["skipped"], cal_summary["failed"],
             )
     except Exception as exc:
         logger.warning("[SCHED] kernel mirrors raised: %s", exc)

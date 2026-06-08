@@ -186,6 +186,15 @@ capabilities:
 substrate_abi:
   schema_version: 1
 
+  # ADR-327 D6 — the program's ground-truth file: the substrate the Reviewer's
+  # cadence judgment is calibrated against (the self-improving loop). The
+  # kernel calibration mirror (_calibration.md) correlates the Reviewer's
+  # cadence-authoring history against outcome quality read from here; the
+  # persona-frame posture instructs the Reviewer to read _calibration.md
+  # before reasoning about cadence. For alpha-trader, ground truth is money:
+  # realized P&L + per-signal attribution in _money_truth.md.
+  ground_truth: operation/trading/_money_truth.md
+
   # Path zones this program contributes beyond the kernel-universal set.
   #
   # ADR-293 (2026-05-19): `role: operator-canon` is INFORMATIONAL metadata

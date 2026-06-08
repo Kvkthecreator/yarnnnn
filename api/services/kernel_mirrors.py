@@ -43,6 +43,7 @@ from typing import Any
 
 from services.primitives.mirror_schedule_index import handle_mirror_schedule_index
 from services.primitives.mirror_recent_execution import handle_mirror_recent_execution
+from services.primitives.mirror_calibration import handle_mirror_calibration
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,50 @@ async def mirror_recent_execution_for_all_users(client: Any) -> dict:
             failed += 1
             logger.warning(
                 "[KERNEL_MIRRORS:recent_execution] user=%s exception: %s",
+                user_id[:8], exc,
+            )
+    return {
+        "users_processed": len(user_ids),
+        "written": written,
+        "skipped": skipped,
+        "failed": failed,
+    }
+
+
+async def mirror_calibration_for_all_users(client: Any) -> dict:
+    """Run MirrorCalibration once per active workspace (ADR-327 D6 —
+    the self-improving loop). Correlates each workspace's cadence-authoring
+    history against ground-truth outcome quality, writing calibration
+    evidence the Reviewer reads before reasoning about cadence. Error
+    isolation same as the sibling mirrors."""
+    user_ids = _list_active_workspaces(client)
+    written = 0
+    skipped = 0
+    failed = 0
+    for user_id in user_ids:
+        auth = _MirrorAuth(
+            user_id=user_id, client=client,
+            caller_identity="system:mirror-calibration",
+        )
+        try:
+            result = await handle_mirror_calibration(
+                auth, {"diff_aware": True, "window_days": 14}
+            )
+            if result.get("success"):
+                if result.get("paths_written"):
+                    written += 1
+                if result.get("paths_skipped"):
+                    skipped += 1
+            else:
+                failed += 1
+                logger.warning(
+                    "[KERNEL_MIRRORS:calibration] user=%s failed: %s",
+                    user_id[:8], result.get("error"),
+                )
+        except Exception as exc:
+            failed += 1
+            logger.warning(
+                "[KERNEL_MIRRORS:calibration] user=%s exception: %s",
                 user_id[:8], exc,
             )
     return {
