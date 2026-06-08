@@ -212,9 +212,10 @@ from services.reviewer_envelope import build_operating_context_block  # noqa: E4
 # - Gen 1 paragraph (pre-ADR-293 "cannot write directly to operator-
 #   authored substrate") DELETED. ADR-293 inverted that policy.
 # - Gen 3 misstatement (claim that IDENTITY.md + principles.md are in
-#   DEFAULT_REVIEWER_WRITE_LOCKS) FIXED. The actual constant locks only
-#   AUTONOMY.md + _autonomy.yaml + _token_budget.yaml + _preferences.yaml
-#   + _pace.yaml. IDENTITY.md and principles.md are NOT locked.
+#   DEFAULT_REVIEWER_WRITE_LOCKS) FIXED. Post-ADR-320 the lock is
+#   root-based (CALLER_WRITE_POLICY locks the governance/ root): AUTONOMY.md
+#   + _autonomy.yaml + _budget.yaml (ADR-327, collapsed _token_budget +
+#   _pace) + _preferences.yaml. IDENTITY.md and principles.md are NOT locked.
 # - Write-authority enumeration TEMPLATED from DEFAULT_REVIEWER_WRITE_LOCKS
 #   per ADR-302 D2 — single source of truth.
 # - Anti-pattern (5) updated from "three governance files" (which was
@@ -922,10 +923,11 @@ async def invoke_reviewer(
 
     Safety story (ADR-293): attribution (ADR-209 authored substrate) +
     revision chain + uniform AUTONOMY-mode gating (capital + substrate via
-    should_auto_apply) + 3-file governance lock (AUTONOMY.md / _autonomy.yaml
-    / _token_budget.yaml — paths the Reviewer cannot author because editing
-    them would grant the Reviewer unauthorized authority). Not access control;
-    not blanket lock. Everything else operational + revertable.
+    should_auto_apply) + root-based governance lock (the governance/ root —
+    AUTONOMY.md / _autonomy.yaml / _budget.yaml / _preferences.yaml — paths
+    the Reviewer cannot author because editing them would grant the Reviewer
+    unauthorized authority). Not access control; not blanket lock. Everything
+    else operational + revertable.
 
     Two triggers (ADR-260 D2 amended by ADR-263 D2):
     - `addressed` — operator addressed the Reviewer (chat turn).

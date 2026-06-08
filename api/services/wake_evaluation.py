@@ -49,8 +49,9 @@ Module organization:
     parses response.
 
   - `BudgetSignals` — dataclass carrying the inputs Tier 1 needs
-    (balance_ok, daily_spend, spend_ceiling, judgment_count_today,
-    judgment_cap, min_interval_floor, seconds_since_last_fire).
+    (balance_ok, window_spend, window_budget, min_interval_floor,
+    seconds_since_last_fire). ADR-327: window_spend/window_budget
+    replace the retired daily_spend/spend_ceiling + judgment cap.
 """
 
 from __future__ import annotations
@@ -97,17 +98,20 @@ class BudgetSignals:
     to short-circuit the funnel before doing any work. Callers
     (`services/wake.py::_invoke_recurrence_wake` and substrate-event
     body) assemble this dict from `services.platform_limits.check_balance`
-    + `services.token_budget.load_token_budget` + recent
-    execution_events lookup.
+    + `services.budget.load_budget` + `services.budget.window_spend`
+    + recent execution_events lookup.
 
     All fields optional — `None` means "don't check this gate."
+
+    ADR-327: `daily_spend`/`spend_ceiling` → `window_spend`/`window_budget`
+    (operator-chosen timeframe, not hardwired daily). `judgment_count_today`
+    /`judgment_cap` deleted — fire-count-as-governance was a cost proxy; the
+    dollar budget governs cost directly.
     """
 
     balance_ok: Optional[bool] = None
-    daily_spend: Optional[float] = None
-    spend_ceiling: Optional[float] = None
-    judgment_count_today: Optional[int] = None
-    judgment_cap: Optional[int] = None
+    window_spend: Optional[float] = None
+    window_budget: Optional[float] = None
     min_interval_floor_sec: Optional[int] = None
     seconds_since_last_fire: Optional[int] = None
     prior_failure_was_capability_missing: Optional[bool] = None
@@ -135,11 +139,14 @@ def tier_1_decision(
       manual_fire       → escalate (operator explicit assertion)
       substrate_event   → escalate (hook match is the wake-warrant)
                           (kernel gates still apply at body layer)
-      cron_tick:
+      cron_tick (SCHEDULED — hard-gated per ADR-327 D4):
         mechanical-mode recurrence  → mechanical
-        budget exhausted            → skip
-        spend ceiling reached       → skip (reactive) or escalate (manual proceed)
-        judgment cap reached        → skip
+        balance exhausted           → skip
+        window budget reached       → skip (scheduled work goes quiet rather
+                                      than over-spend; reactive sources already
+                                      escalated above, so reactive-warn is the
+                                      default — the overage warn surfaces in
+                                      the wake body)
         min-interval floor          → skip
         otherwise                   → escalate
                                      (Tier 2 reserved for ambiguous-freshness
@@ -170,23 +177,19 @@ def tier_1_decision(
         if recurrence is not None and getattr(recurrence, "mode", "judgment") == "mechanical":
             return "mechanical", "mechanical_mode_bypass"
 
-        # Kernel gates — substrate-aware Tier 1 short-circuits
+        # Kernel gates — substrate-aware Tier 1 short-circuits.
+        # cron_tick is the SCHEDULED lane: budget exhaustion hard-skips it
+        # (ADR-327 D4). Reactive sources escalated unconditionally above, so
+        # they are never budget-blocked here — reactive-warn is structural.
         if budget.balance_ok is False:
             return "skip", "balance_exhausted"
 
         if (
-            budget.daily_spend is not None
-            and budget.spend_ceiling is not None
-            and budget.daily_spend >= budget.spend_ceiling
+            budget.window_spend is not None
+            and budget.window_budget is not None
+            and budget.window_spend >= budget.window_budget
         ):
-            return "skip", "spend_ceiling"
-
-        if (
-            budget.judgment_count_today is not None
-            and budget.judgment_cap is not None
-            and budget.judgment_count_today >= budget.judgment_cap
-        ):
-            return "skip", "judgment_cap"
+            return "skip", "budget_exhausted"
 
         if (
             budget.seconds_since_last_fire is not None

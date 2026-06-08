@@ -84,10 +84,7 @@ except ImportError:
 
 from agents.occupant_contract import REVIEWER_MODEL_IDENTITY  # ADR-315: single canonical occupant identity
 from services.recurrence import Recurrence
-from services.telemetry import (
-    record_execution_event,
-    get_daily_spend,
-)
+from services.telemetry import record_execution_event
 
 logger = logging.getLogger(__name__)
 
@@ -430,40 +427,43 @@ async def _invoke_recurrence_wake(
         )
         return _result_failed(recurrence, "balance exhausted", trigger=trigger)
 
-    # ---- Compute-resource governance (ADR-293 D7) ----
-    # Per-workspace `_token_budget.yaml` declares ceilings. Falls back to
-    # kernel defaults (ADR-250 legacy) when absent. Reviewer cannot author
-    # this file — it's governance (DEFAULT_REVIEWER_WRITE_LOCKS).
-    from services.token_budget import (
-        load_token_budget,
-        count_judgment_fires_today,
-        seconds_since_last_fire,
-    )
-    budget = load_token_budget(client, user_id)
+    # ---- Cost governance (ADR-327) ----
+    # Per-workspace `_budget.yaml` declares the spend envelope (dollar budget
+    # over a timeframe) + per-slug fire floor. Falls back to kernel defaults
+    # ($50/monthly) when absent. Reviewer cannot author this file — it's
+    # governance (DEFAULT_REVIEWER_WRITE_LOCKS). Collapses the retired
+    # _pace.yaml + _token_budget.yaml.
+    #
+    # D4 priority rule: trigger=="reactive" here is the SCHEDULED (cron_tick)
+    # lane — hard-gated on budget exhaustion (scheduled work goes quiet
+    # rather than over-spend). trigger=="manual" (operator FireInvocation)
+    # warns-but-proceeds (operator presence is warrant).
+    from services.budget import load_budget, window_spend, seconds_since_last_fire
+    budget = load_budget(client, user_id)
 
     try:
-        daily_spend = get_daily_spend(client, user_id)
+        spent = window_spend(client, user_id, budget.window)
     except Exception:
-        daily_spend = 0.0
+        spent = 0.0
 
-    # Gate 1: daily spend ceiling
-    if daily_spend >= budget.daily_spend_ceiling_usd:
+    # Gate 1: window budget (ADR-327 D3/D4)
+    if spent >= budget.amount_usd:
         warning = (
-            f"Daily spend ceiling reached (${daily_spend:.2f} / "
-            f"${budget.daily_spend_ceiling_usd:.2f} per _token_budget.yaml). "
-            f"{recurrence.slug} skipped."
+            f"Budget reached (${spent:.2f} / ${budget.amount_usd:.2f} "
+            f"per {budget.window} _budget.yaml). {recurrence.slug} skipped."
         )
         logger.warning("[DISPATCH] %s", warning)
         if trigger == "reactive":
             await _emit_system_narrative(
                 client, user_id, recurrence,
-                summary=f"Spend ceiling reached — {recurrence.slug} skipped",
+                summary=f"Budget reached — {recurrence.slug} skipped",
                 body=(
-                    f"{recurrence.slug} was due but today's spend "
-                    f"(${daily_spend:.2f}) has reached the workspace's "
-                    f"daily ceiling (${budget.daily_spend_ceiling_usd:.2f}). "
-                    f"Run skipped. Resets at midnight UTC. To adjust, "
-                    f"edit /workspace/governance/_token_budget.yaml."
+                    f"{recurrence.slug} was due but this {budget.window}'s spend "
+                    f"(${spent:.2f}) has reached the operation's budget "
+                    f"(${budget.amount_usd:.2f}). Scheduled run skipped — the "
+                    f"operation goes quiet rather than over-spend. Resets at the "
+                    f"start of the next {budget.window} window. To adjust, edit "
+                    f"/workspace/governance/_budget.yaml."
                 ),
                 trigger=trigger,
                 weight="material",
@@ -471,49 +471,33 @@ async def _invoke_recurrence_wake(
             record_execution_event(
                 client, user_id=user_id, slug=recurrence.slug,
                 mode="judgment", trigger_type=trigger,
-                status="skipped", error_reason="spend_ceiling",
+                status="skipped", error_reason="budget_exhausted",
                 error_detail=warning,
                 wake_source=wake_source,
                 funnel_decision="skip",  # ADR-296 v2 D2: Tier 1 kernel gate
             )
             return _result_failed(recurrence, warning, trigger=trigger)
         else:
+            # Manual FireInvocation — operator presence is warrant (D4
+            # reactive-warn). Surface the overage, then proceed.
             await _emit_system_narrative(
                 client, user_id, recurrence,
-                summary=f"Spend ceiling warning — {recurrence.slug} running (manual)",
-                body=f"Daily ceiling ${budget.daily_spend_ceiling_usd:.2f} reached, but running anyway (manual trigger). Today: ${daily_spend:.2f}.",
+                summary=f"Budget warning — {recurrence.slug} running (manual)",
+                body=f"{budget.window.capitalize()} budget ${budget.amount_usd:.2f} reached, but running anyway (manual fire). This {budget.window}: ${spent:.2f}.",
                 trigger=trigger,
                 weight="routine",
             )
 
-    # Gate 2: max judgment recurrences per day (ADR-293 D7)
-    judgment_count_today = count_judgment_fires_today(client, user_id)
-    if judgment_count_today >= budget.max_judgment_recurrences_per_day:
-        warning = (
-            f"Daily judgment-recurrence cap reached "
-            f"({judgment_count_today} / {budget.max_judgment_recurrences_per_day} "
-            f"per _token_budget.yaml). {recurrence.slug} skipped."
-        )
-        logger.warning("[DISPATCH] %s", warning)
-        if trigger == "reactive":
-            record_execution_event(
-                client, user_id=user_id, slug=recurrence.slug,
-                mode="judgment", trigger_type=trigger,
-                status="skipped", error_reason="judgment_cap",
-                error_detail=warning,
-                wake_source=wake_source,
-                funnel_decision="skip",  # ADR-296 v2 D2: Tier 1 kernel gate
-            )
-            return _result_failed(recurrence, warning, trigger=trigger)
-        # Manual: warn but proceed (operator at the keyboard).
+    # Gate 2 (judgment-recurrence cap) DELETED per ADR-327 D2 — fire-count
+    # was a cost proxy; the dollar budget (Gate 1) governs cost directly.
 
-    # Gate 3: per-slug min-interval (ADR-293 D7)
+    # Gate 3: per-slug min-interval floor (ADR-313 Gate 3, preserved by ADR-327)
     min_iv = budget.min_interval_for(recurrence.slug)
     since_last = seconds_since_last_fire(client, user_id, recurrence.slug)
     if since_last is not None and since_last < min_iv:
         warning = (
             f"Min-interval floor: {recurrence.slug} fired {since_last}s ago "
-            f"(floor: {min_iv}s per _token_budget.yaml). Skipping."
+            f"(floor: {min_iv}s per _budget.yaml). Skipping."
         )
         logger.warning("[DISPATCH] %s", warning)
         if trigger == "reactive":
