@@ -220,7 +220,7 @@ async def preflight_eval(
         established = await establish_substrate(
             user_id,
             requires=requires,
-            setup=[s for s in setup if "write_substrate" in s or "delete_substrate" in s],
+            setup=[s for s in setup if "write_substrate" in s or "delete_substrate" in s or "clear_proposals" in s],
             authored_by=authored_by,
         )
         established["skipped_reset"] = False

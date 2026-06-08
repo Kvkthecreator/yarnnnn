@@ -57,6 +57,32 @@ description: |
 persona: kvk
 
 setup:
+  # CROSS-SUITE ISOLATION (2026-06-08 finding): expire any pending proposal left
+  # by a prior suite, so the wake reasons about the EMPTY-UNIVERSE gap rather
+  # than a residual proposal (the first run woke onto the stewardship suite's
+  # pending 95122a7f instead of the intended gap). The proposal-layer analog of
+  # delete_substrate.
+  - clear_proposals: true
+
+  # Reset _money_truth.md to a neutral empty state so the wake isn't contaminated
+  # by a prior suite's seeded windows (the $25K/$10K mismatch bled into the first
+  # run). A near-empty money-truth is also the honest bootstrap state for a
+  # readiness-gap read (no reconciled history to reason capital-EV against).
+  - write_substrate:
+      path: /workspace/operation/trading/_money_truth.md
+      authored_by: operator-proxy:scenario-runner:acting-as-kvk
+      content: |
+        ---
+        last_reconciled: @now-1h
+        windows: {}
+        by_signal: {}
+        ---
+        # Ground truth — kvk (readiness-gap neutral seed)
+
+        No reconciled outcomes in this window. This is the honest bootstrap
+        state for the readiness-gap read: the universe substrate is absent, so
+        there is nothing to evaluate and no reconciled history to reason against.
+
   # Fresh account + regime so the read isolates the UNIVERSE gap (not a regime
   # freshness reject — Hard Rule 7 would otherwise mask the readiness-gap read).
   - fire: track-account

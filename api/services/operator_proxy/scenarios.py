@@ -215,6 +215,21 @@ class ScenarioRunner:
             })
             return
 
+        if "clear_proposals" in step:
+            # Cross-suite isolation reset: expire all pending action_proposals so
+            # this scenario's wake reasons about ITS situation, not a prior
+            # suite's residual proposal (the 2026-06-08 readiness-gap finding).
+            # The proposal-layer analog of delete_substrate. Kept in lockstep
+            # with establish_substrate so it behaves identically through the
+            # run_scenario path and the eval-suite pre-flight path.
+            n = await _clear_pending_proposals(proxy.config.user_id)
+            self.evaluations.append({
+                "phase": "setup",
+                "action": "clear_proposals",
+                "expired_count": n,
+            })
+            return
+
         if "fire" in step:
             slug = step["fire"]
             # Invoke manual_fire path directly via dispatch.
@@ -604,6 +619,39 @@ async def _delete_substrate_file(user_id: str, path: str) -> bool:
     return await loop.run_in_executor(None, _delete)
 
 
+async def _clear_pending_proposals(user_id: str) -> int:
+    """Mark all of the user's PENDING action_proposals as 'expired' — the
+    cross-suite isolation reset (2026-06-08 readiness-gap finding).
+
+    The per-eval drain-to-settlement barrier (run_eval_suite d4965cb) isolates
+    evals WITHIN a suite, but two suites run sequentially on one workspace do
+    not reset each other's residue: a prior suite's pending capital proposal
+    (e.g. the pressure-refusal eval's 95122a7f) stays live and the NEXT suite's
+    wake reasons about IT instead of the intended situation. This is the
+    proposal-layer analog of `delete_substrate` (the file-layer reset).
+
+    Uses 'expired' (a valid action_proposals_status_check value) rather than a
+    hard delete — preserves the audit row, removes it from the live queue the
+    Reviewer would wake onto. Returns the count expired.
+    """
+    from services.supabase import get_service_client
+
+    client = get_service_client()
+    loop = asyncio.get_running_loop()
+
+    def _expire() -> int:
+        resp = (
+            client.table("action_proposals")
+            .update({"status": "expired"})
+            .eq("user_id", user_id)
+            .eq("status", "pending")
+            .execute()
+        )
+        return len(resp.data or [])
+
+    return await loop.run_in_executor(None, _expire)
+
+
 # ---------------------------------------------------------------------------
 # EVAL-SUITE-DISCIPLINE.md §3 + §8 C2/C3 — pre-flight precondition machinery
 #
@@ -762,6 +810,7 @@ async def establish_substrate(
 
     # 2. Apply substrate-establishment setup steps. Only the substrate-shaped
     #    steps are handled here; turn-shaped setup runs inside ScenarioRunner.
+    expired_proposals = 0
     for step in setup or []:
         if "write_substrate" in step:
             ws = step["write_substrate"]
@@ -777,8 +826,13 @@ async def establish_substrate(
             path = step["delete_substrate"]
             if await _delete_substrate_file(user_id, path):
                 deleted.append(path)
+        elif "clear_proposals" in step:
+            # Cross-suite isolation reset (2026-06-08 readiness-gap finding) —
+            # lockstep with _execute_setup_step. Expires pending proposals so the
+            # eval's wake reasons about ITS situation, not a prior suite's residue.
+            expired_proposals += await _clear_pending_proposals(user_id)
 
-    return {"deleted": deleted, "wrote": wrote}
+    return {"deleted": deleted, "wrote": wrote, "expired_proposals": expired_proposals}
 
 
 async def _establish_field_equals(
