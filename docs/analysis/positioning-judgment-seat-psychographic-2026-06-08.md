@@ -16,6 +16,15 @@ months stale (pre-ADR-216 orchestration-vs-judgment, pre-ADR-282 ground-truth
 rename, pre-ADR-310/312, pre the judgment-seat reframe) and still leads with
 "five domain experts, $19/mo, your AI team."
 
+> **Reading note (2026-06-08):** §3 (throughput) and §4a (volume reassessment —
+> motion-fit + bounded-operation wedge) are the current answer. §4–§5 are
+> preserved as the reasoning that led there, with in-place supersede notes where
+> the earlier *founder-on-metrics* recommendation was retired. **§6a is the
+> load-bearing open edge: the ICP is right in *shape* (derived from Axiom 8), not
+> yet in *layman language* — that is the explicit job of the next sequenced step,
+> the full GTM/NARRATIVE regroup, which also pressure-tests the bounded-operation
+> wedge. This doc is the skeleton that pass dresses; it is not ship-ready copy.**
+
 ---
 
 ## 0. The question this resolves
@@ -154,15 +163,113 @@ position." Trader is merely the cleanest *built* instance today.
 
 ---
 
+## 4a. The volume reassessment — motion-fit first, then the bounded-operation sharpening (2026-06-08)
+
+A follow-on round pressure-tested the volume hedge (§6). Two findings, in order,
+because the second only matters once the first is accepted.
+
+### Finding 1 — this is not a volume business, and pricing it like one was the actual error
+
+The psychographic has a **structural** volume ceiling, not an incidental one. The
+same three properties that make the moat defensible make the population small:
+
+- *high-stakes / consequence-borne* → filters to **senior** people (juniors don't
+  bear the consequence; their boss does) → senior = scarce.
+- *accumulating substrate they live in* → filters to people whose work **has** a
+  durable substrate (much knowledge work is ephemeral, ticket-to-ticket).
+- *recurring judgment is the value* → filters to people whose value **is** the
+  judgment, not the execution → the top of every org, by definition few.
+
+This is the inverse of Claude Code's psychographic on every axis (junior-to-senior;
+substrate-by-default; execution-frequency). So the ceiling is real and cannot be
+marketed away.
+
+**But low-volume is only bad relative to a GTM motion that needs volume.** A
+premium, high-willingness-to-pay, high-switching-cost psychographic is the
+signature of a **high-ACV, low-velocity, expansion-led** business — land narrow,
+price for the value of the decision, expand within the operation/account, grow by
+tight-community word-of-mouth (traders talk to traders; A&R talk to A&R). Against
+*that* motion, low-volume is the **correct** shape, not a hedge to escape.
+
+The stale GTM_POSITIONING v3.0 framed this as a **volume** business ("$19/mo, five
+domain experts") — which is what manufactured the volume anxiety. A $19/mo
+self-serve product needs tens of thousands of users to matter; a
+judgment-seat-for-your-operation product is a real business at *hundreds* of
+operators paying real money. **The volume hedge largely dissolves once the motion
+matches the psychographic** — the architecture (high switching cost, compounding
+per-operator value) is built for high-ACV retention economics, and the GTM was
+written for the wrong motion.
+
+### Finding 2 — the wedge sharpens from "big judgment" to "bounded operation with a clean loop"
+
+Even with the right motion, you need a *first* wedge that activates. Three routes
+were tested:
+
+- **Route A — founder-on-metrics** (the broad fast-ground-truth instance §5.1/§6
+  originally recommended). **Rejected on reflection.** A founder's recurring
+  judgment is real but *diffuse* — it spans product/hiring/spend/GTM with no
+  single clean decide→reconcile loop. The substrate is messy, the ground truth is
+  multi-signal and laggy, the judgment is continuous-and-sprawling rather than
+  recurring-in-a-tight-shape. Founder-on-metrics is *bigger but muddier*, which
+  makes the activation demo **worse**, not better. (This corrects §5.1 and §6,
+  which over-credited raw TAM over loop-cleanliness.)
+- **Route B — stay narrow on the cleanest loop** (trader). Undeniable demo, tight
+  word-of-mouth; but small TAM and the most crowded/incumbent-adjacent domain.
+- **Route C — sharpen the psychographic toward bounded operations.** *Adopted.*
+  The volume ceiling comes from stacking three filters (senior + substrate +
+  recurring judgment). But the people who feel the pain *most acutely* aren't the
+  ones with the most substrate — they're the ones whose judgment is **trapped in
+  their head and lost between cycles**, on a decision they make *repeatedly*. That
+  pain is felt, not demographic. And it includes a tier the senior-executive
+  framing excluded: **the operator of a bounded operation** — a portfolio, a
+  content channel, a deal pipeline, a small product, a buying discipline — where
+  the loop is **clean precisely because the operation is bounded**, even if their
+  day job is something else.
+
+**The sharpened wedge:**
+
+> **The operator of a bounded operation with a repeating consequential decision
+> and a track record they're not learning from.**
+
+Why this resolves the tension: bounded operations are *everywhere* and they have
+*clean loops by construction* (the bounded thing reconciles on its own clock
+without organizational lag), which makes the population **larger** *and* the demo
+**better** *and* the ground truth **faster** — all three move the right way at
+once. It is still the same Axiom-8 psychographic; it is sharpened toward the
+sub-population where the loop is cleanest.
+
+### What this does to the bundle question
+
+It re-validates having *both* active bundles — but for a **reason**, not as an
+unexamined hedge:
+
+- **trader = the cleanest-demo proof play** (tightest decide→reconcile loop;
+  proves the activation story is real).
+- **author/creator-with-audience = the broadest bounded-operation TAM play** (the
+  channel is the bounded operation; engagement/revenue is the ground truth; the
+  community is tight and talks to itself).
+
+Bundle #3 is then chosen as the *next bounded operation with a clean loop and a
+self-talking community* — not "the next interesting occupation."
+
+---
+
 ## 5. The strategic consequences (named, for decision)
+
+> **§5 supersede note (2026-06-08):** items 1 and 3 below were written before the
+> §4a reassessment. Where they recommend *founder-on-metrics* as the broad wedge,
+> §4a Finding 2 supersedes them (founder's loop is muddy; the bounded-operation
+> wedge replaces it). The bundle-unit insight (item 1's first half) survives;
+> only its *founder-on-metrics* instance is retired. Read §4a as the current
+> answer; §5 is preserved as the reasoning that led there.
 
 1. **The bundle unit has been wrong.** Bundles have been chosen per-occupation
    (trader, author, commerce, defi, prediction). The unit that matters for
-   activation is **per-ground-truth-speed**. The next bundle should be chosen by
-   "what gives the next-cleanest *fast*-ground-truth activation for a *broader*
-   domain," not "what occupation is interesting." Founder-on-metrics and
-   partnerships-on-pipeline are both fast-ground-truth and far broader TAM than
-   trader.
+   activation is **the cleanliness of the decide→reconcile loop** (§4a Finding 2),
+   not the occupation. ~~Founder-on-metrics and partnerships-on-pipeline are both
+   fast-ground-truth and far broader TAM than trader.~~ *(Superseded by §4a:
+   founder-on-metrics is broad but muddy-looped; the bounded-operation wedge is
+   the current answer.)*
 
 2. **The lead is a two-part statement, psychographic-first:**
    - *Marketing throughput (universal):* "an agent that holds your judgment seat,
@@ -197,10 +304,12 @@ position." Trader is merely the cleanest *built* instance today.
   psychographic — senior people, not the mass market. Good for willingness-to-pay
   and switching cost; **bad for top-of-funnel volume.** This is the *opposite* of
   Claude Code's psychographic (huge, because every engineer has a repo). The five
-  occupations prove **range, not volume.** The open question this raises: is there
-  a *fast-ground-truth, high-volume* instance of this psychographic (the
-  founder-on-metrics one is the closest — far more numerous than traders)? That
-  might be the real lead wedge, not trader.
+  occupations prove **range, not volume.** *(§4a resolves this two ways: (1)
+  match the GTM motion to the psychographic — it's a high-ACV expansion-led
+  business, not a volume one, so low-volume is correct not broken; (2) sharpen
+  the wedge to bounded operations, where the population is larger AND the loop is
+  cleaner. The earlier "founder-on-metrics is the high-volume escape" guess is
+  retired — muddy loop.)*
 
 - **Self-selection in the demo.** A fast-ground-truth first-session win requires
   the stranger to *bring a real decision they're facing this week*. That is a
@@ -211,20 +320,79 @@ position." Trader is merely the cleanest *built* instance today.
 
 ---
 
+## 6a. The open edge — the ICP is right in shape, not yet in language (2026-06-08)
+
+**This is the load-bearing unresolved item. It is named here deliberately, not
+resolved, so the next-step GTM/NARRATIVE regroup inherits a sharp question
+instead of a false resolution.**
+
+The framing in §3–§4a is **directionally correct but still architecture-vocabulary
+wearing a thin coat of human paint.** "Operator of a bounded operation with a
+repeating consequential decision and a track record they're not learning from" is
+how the *architecture* describes the user (it is Axiom 8, lightly translated). It
+is **not how a layperson describes themselves.** No one searches that, says that
+at a dinner party, or recognizes themselves in it on a landing page.
+
+The gap is specifically:
+
+- **"Bounded operation"** is a system word. The layman words might be "your thing
+  on the side," "the [portfolio / channel / pipeline / shop] you run," "your
+  book of business" — but none is settled, and the right one probably differs by
+  the lead vertical.
+- **"Operator"** resonates internally (and to some founders/traders) but is
+  *industrially coded* to a layperson (ops manager? machine operator?). It may be
+  the right *internal* word and the wrong *external* one — the same split THESIS
+  already maintains between internal and external vocabulary.
+- **"Track record they're not learning from"** is the *felt pain* and is closest
+  to layman-resonant — but it's a clause, not a noun, and the ICP still lacks a
+  one-word self-identification a stranger claims ("I'm a ___").
+
+**What this means for sequencing:** the psychographic *shape* is solid enough to
+build on (it is derived from Axiom 8, not guessed). The psychographic *language*
+needs a fresh-eyes pass that starts from how the **lead vertical's actual people**
+talk about themselves and their pain — bottom-up from layman vocabulary, not
+top-down from the architecture. That pass is the explicit job of the next
+sequenced step (the full GTM_POSITIONING / NARRATIVE revisit), and it should
+treat this doc as the *skeleton it dresses*, not the copy it ships.
+
+Three questions for that regroup to answer (none answered here):
+
+1. **What is the layman noun** the lead-vertical user claims? ("I run a ___.")
+2. **What is the felt-pain sentence** in their words, not Axiom 8's? (Likely some
+   shape of "I keep making the same calls and I'm not getting better at them /
+   I'm flying blind on whether I'm right.")
+3. **Does the noun generalize** across at least two verticals (the range test from
+   §2), or does each vertical need its own surface copy over a shared spine?
+
+---
+
 ## 7. Recommendation
 
-Ratify the throughput sentence (§3) as the canonical psychographic, and the
-fast/slow-ground-truth split (§4) as the activation logic. If ratified:
+The throughput sentence (§3), the motion-fit finding (§4a Finding 1), and the
+bounded-operation wedge (§4a Finding 2) are solid in **shape** and ready to build
+on. The ICP **language** is explicitly not yet resolved (§6a). So the
+recommendation is *sequenced*, not "ship the copy now":
 
-- **`ESSENCE.md`** — already substrate-first (v13.0); add the judgment-seat
-  *psychographic* as the human-facing expression of Axiom 8 (currently ESSENCE
-  states the *property*, not the *who*).
-- **`NARRATIVE.md` / `GTM_POSITIONING.md`** — retire the occupation-list ICP
-  ("solo consultants," "five domain experts") and lead with the throughput +
-  fast-ground-truth wedge. GTM_POSITIONING v3.0 is stale enough to warrant a
-  full v4 rewrite against current canon (ADR-216 / 282 / 310 / 312), not a patch.
-- **Bundle roadmap** — pick bundle #3 by activation-cleanliness × TAM (a broad
-  fast-ground-truth domain), not by domain interest (§5.1).
+**Next sequenced step — the full GTM/NARRATIVE regroup (its own session):**
+- Start **bottom-up from how the lead vertical's real people talk** (§6a's three
+  questions), not top-down from this doc's architecture vocabulary. This doc is
+  the skeleton; that pass is the dressing.
+- **Pressure-test the bounded-operation wedge** as part of that pass — the natural
+  break attempt is *"isn't 'bounded operation with a thesis' just hobbyists who
+  don't pay?"* The §4a discipline answer (consequential enough that they'd pay to
+  get it right — the angel, not the hobbyist) is the hypothesis to stress, not a
+  settled defense.
+- **Then** retire the stale occupation framings in canon: GTM_POSITIONING v3.0's
+  occupation-ICP ("solo consultants," "five domain experts," "$19/mo") and
+  NARRATIVE's "solo consultants with recurring client obligations" entry-wedge.
+  GTM_POSITIONING v3.0 is stale enough (pre-ADR-216/282/310/312) to warrant a full
+  v4 rewrite, not a patch. Note the **motion** correction too: re-frame from a
+  volume/self-serve motion toward high-ACV expansion-led (§4a Finding 1).
+- **`ESSENCE.md`** — already substrate-first (v13.0); the judgment-seat
+  *psychographic* is the human-facing expression of Axiom 8 it currently lacks
+  (ESSENCE states the *property*, not the *who*). Add once §6a's language lands.
+- **Bundle roadmap** — pick bundle #3 as the next *bounded operation with a clean
+  loop and a self-talking community* (§4a), not by domain interest.
 
 Companion: `moat-architecture-audit-2026-06-08.md` (the moat receipts this
 positioning stands on; recommendation #3 there — "decide consciously: autonomy
