@@ -118,7 +118,7 @@ def get_user_client(
 
     Memory discipline: this dependency runs on every authenticated request,
     including the always-on frontend polls (``/api/workspace/nav``,
-    ``/api/recurrences``, ``/api/pace`` every ~60s). Each ``create_client``
+    ``/api/recurrences``, ``/api/budget`` every ~60s). Each ``create_client``
     builds TWO ``httpx`` connection pools (postgrest + gotrue auth). Without an
     explicit teardown these pools (TLS connections + buffers + HTTP/2 hpack
     state) accumulate over the process lifetime — the RSS creep that OOM-killed

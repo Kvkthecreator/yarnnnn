@@ -609,6 +609,6 @@ def _extract_reviewer_decision(decisions_md: str, signal_slug: str) -> Optional[
         "excerpt": excerpt[:300],
     }
 
-# Pace (ADR-298 Phase 5) moved to the kernel route api/routes/pace.py
-# (`GET /api/pace`) per ADR-312 D9 — pace is a kernel governance dial, not
-# trader-program data.
+# Budget (ADR-327; supersedes the retired pace dial) is the kernel route
+# api/routes/budget.py (`GET /api/budget`) — a kernel governance dial (the
+# operation's dollar spend envelope), not trader-program data.

@@ -1,6 +1,6 @@
 # ADR-327 — Budget and the Self-Improving Loop: Pace Retires, Cost Governance Collapses, Calibration Drives Cadence
 
-**Status:** Proposed
+**Status:** **Implemented (Phases 1–6, 2026-06-08)** · live-workspace migration script (`adr327_collapse_pace_tokenbudget_to_budget.py`) runs at deploy
 **Date:** 2026-06-08
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Hat:** A (system canon — real-operator-facing)
@@ -221,3 +221,23 @@ Each phase lands green (test gate + backend boots + frontend builds), Singular a
 1. **Does any queue throttle survive D5?** Leaning dissolve (the lane split existed to serve the pace throttle). Confirm against `wake_queue` single-in-flight before deleting the lane partition — if a cost-agnostic stampede smoother is empirically needed, it is a queue mechanic, not a resurrected pace concept.
 2. **Budget window default + first-activation seed.** alpha-trader's old `daily_spend_ceiling_usd: 10.00` maps to roughly `monthly` `$300` or stays `daily`/`$10` — pick the seed that matches the bundle's actual fire economics when Phase 1 lands (read recent `execution_events` to size it honestly rather than guessing).
 3. **D6.d second-program validation target.** alpha-author is the natural second program (corpus-coherence as ground truth). Its `ground_truth:` declaration + a stress test is the gate before declaring the loop canon-complete.
+
+---
+
+## 6. Implementation outcome (2026-06-08)
+
+Six phases, each landing green, on branch `adr-327-budget-and-self-improving-loop`:
+
+| Phase | Commit | Gate | What |
+|---|---|---|---|
+| 1 | `e877c36` | test_adr327_phase1 35/35 | `services/budget.py` (from token_budget.py) + `_budget.yaml` substrate + loader + envelope swap `pace_yaml`→`budget_yaml` + bundle `_token_budget.yaml`→`_budget.yaml` ($50/monthly) + live-migration script. |
+| 2 | `38efaab` | test_adr327_phase2 30/30 | Tier-1 budget gate (`window_spend`/`window_budget`) + D4 scheduled-hard/reactive-warn in wake.py Gate B; judgment-cap (Gate B.2) deleted. |
+| 3+4 | `16fb0da` | ADR-298 phase1 41/41, phase3 39/39 | **−1922 LOC.** Deleted: schedule.py pace gates, `paced_lane_eligible_to_drain`, lane split (collapsed to single "live" lane — stampede-verified against single-in-flight + per-slug floor), `services/pace.py`, `services/token_budget.py`, `routes/pace.py`→`routes/budget.py`, programs.py minimum_pace gate, bundle `minimum_pace`. |
+| 5 | `2f3e0a8` | test_adr327_phase5 24/24 | `_calibration.md` kernel mirror (`mirror_calibration` primitive + kernel_mirrors runner + scheduler tick) + envelope slot + minimal-frame posture + `substrate_abi.ground_truth` + bundle_reader. |
+| 6 | `b1ad7a4` | test_adr327_phase6_fe 30/30 + tsc clean | FE pace→budget collapse: deleted PaceCard/pace.ts/PaceStatusItem; shipped `/budget` surface (BudgetCard + useCockpitBudget + BudgetStatusItem + utilization view) + `/pace`→`/budget` redirect stub. |
+
+**Resolved open questions:** Q1 — the lane split dissolved (single FIFO lane; single-in-flight + window budget + per-slug floor are sufficient; no residual throttle needed). Q2 — seed is `monthly`/`$50` (sized against observed 30-day spend ≈$50, dev/eval-inflated, so comfortable headroom for a real operator).
+
+**Deferred:** Q3 — D6.d second-program (alpha-author) validation of the generalized loop. The kernel machinery ships now; the generalization is proven against a second program's `ground_truth:` declaration + stress test before the loop is declared canon-complete. The live-workspace migration script runs at deploy (not in-branch — live DB shared across branches).
+
+**Honest note on adjacent test rot:** 5 pre-existing red gates (test_adr275, test_adr274, test_adr284_phase2, test_envelope_observability, + a standing_intent-heading assertion in test_adr284) reference old bundle paths (`review/`→`persona/`, `context/_shared/`→`governance/` moves from prior ADRs) — confirmed red on the true pre-ADR-327 baseline (`2ae3260`) via worktree; **not caused by ADR-327.** Left for a separate rot sweep rather than silently absorbed. The envelope keys/count portion of test_adr284 that ADR-327 *did* change (pace_yaml→budget_yaml, +calibration_md) was updated.
