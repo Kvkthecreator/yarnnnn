@@ -24,6 +24,17 @@ rename, pre-ADR-310/312, pre the judgment-seat reframe) and still leads with
 > yet in *layman language* — that is the explicit job of the next sequenced step,
 > the full GTM/NARRATIVE regroup, which also pressure-tests the bounded-operation
 > wedge. This doc is the skeleton that pass dresses; it is not ship-ready copy.**
+>
+> **Successor (2026-06-09):** `usp-spine-and-act-shape-personas-2026-06-09.md`
+> advances this doc — it hardens the USP **spine** (Entrust → Judgment →
+> Continuity → Compounding), the distilled **USP**, and the **psychographic
+> frame** (non-presence; refuses-to-reset), and **corrects** this doc's
+> capability read: the persona reality re-keys on **act-shape** (artifact /
+> transaction / message), the artifact class is a full delegate today (kernel
+> `WriteFile` + compose — zero integration debt), and the "publish-on-behalf =
+> highest-leverage buildout" guess (§5.x here) is **retired** (publish is a
+> commodity last-mile). Read the successor for the current hardened state; §6a's
+> language gap remains the one open edge.
 
 ---
 
