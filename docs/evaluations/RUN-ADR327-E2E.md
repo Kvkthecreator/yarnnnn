@@ -72,7 +72,9 @@ cd ..
 no `_pace.yaml`/`_token_budget.yaml`). Substrate-receipt query:
 
 ```bash
-psql "$(grep -m1 'postgresql://' docs/database/ACCESS.md | sed 's/.*\(postgresql[^ ]*\).*/\1/')" -t -c \
+# NB: extract the connection string with grep -oE (the older sed form left a
+# trailing `"`, which psql rejects as `invalid sslmode value: "require""`).
+psql "$(grep -m1 'postgresql://' docs/database/ACCESS.md | grep -oE 'postgresql://[^"]+')" -t -c \
   "SELECT split_part(path,'/',4) AS file, count(*) FROM workspace_files
    WHERE path LIKE '%governance/_budget.yaml'
       OR path LIKE '%governance/_pace.yaml'
