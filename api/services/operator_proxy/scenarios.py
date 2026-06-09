@@ -38,6 +38,16 @@ Schema (v1):
           slug: <piece-slug>
           template: anti-pattern-voice      # from draft_templates.TEMPLATES
           title: "Optional override title"  # otherwise derived from template
+      - append_recurrence:                   # inject ONE recurrence into the
+          slug: <recurrence-slug>            # activation-forked _recurrences.yaml
+          schedule: "@every 10min during regular_hours"  # str | list | null
+          mode: judgment                     # judgment | mechanical (default judgment)
+          authored_by: reviewer:ai:...       # provenance for the seeded entry
+          prompt: |                          # without clobbering the forked set —
+            ...                              # for cadence-stewardship scenarios that
+          options: { display_name: "..." }   # need a REAL recurrence to Schedule()-
+                                             # archive (ADR-327 calibration eval).
+                                             # Idempotent: replaces if slug exists.
     turns:
       - send_message: "..."                 # operator-voice chat
         expect:                              # interpretation hints (logged, never fail-hard)
@@ -260,6 +270,33 @@ class ScenarioRunner:
                 "path": path,
                 "authored_by": authored_by,
                 "revision_id": result.get("revision_id"),
+            })
+            return
+
+        if "append_recurrence" in step:
+            # Inject ONE recurrence into the forked _recurrences.yaml without
+            # clobbering the activation-forked set (ADR-327 calibration-cadence
+            # eval). write_substrate replaces the whole file; a cadence-
+            # stewardship scenario needs the genuine recurrence set PLUS a
+            # seeded dead recurrence so Schedule(archive) is reachable. Lockstep
+            # with establish_substrate.
+            ar = step["append_recurrence"]
+            res = await _append_recurrence_entry(
+                proxy.config.user_id,
+                slug=ar["slug"],
+                schedule=ar.get("schedule"),
+                prompt=ar.get("prompt", ""),
+                mode=ar.get("mode", "judgment"),
+                options=ar.get("options"),
+                authored_by=ar.get("authored_by") or proxy.config.caller_identity,
+                message=ar.get("message") or f"Setup append_recurrence for scenario {self.scenario.slug}",
+            )
+            self.evaluations.append({
+                "phase": "setup",
+                "action": "append_recurrence",
+                "slug": res.get("slug"),
+                "path": res.get("path"),
+                "revision_id": res.get("revision_id"),
             })
             return
 
@@ -587,6 +624,84 @@ async def _write_substrate_with_author(
     return {"revision_id": revision_id, "path": path}
 
 
+async def _append_recurrence_entry(
+    user_id: str,
+    *,
+    slug: str,
+    schedule: Any,
+    prompt: str,
+    mode: str = "judgment",
+    options: dict | None = None,
+    authored_by: str,
+    message: str,
+) -> dict:
+    """Inject ONE recurrence into the live ``/workspace/_recurrences.yaml``
+    via read-modify-write, without clobbering the activation-forked set.
+
+    Motivated by the ADR-327 calibration-cadence eval (2026-06-09): a
+    cadence-stewardship scenario must put a *real* recurrence in front of the
+    Reviewer so a ``Schedule(action="archive")`` is reachable (the primitive
+    requires the slug to exist). ``write_substrate`` *replaces* the file, which
+    would wipe the genuine forked set the eval needs the Reviewer to reason
+    over; duplicating the bundle's 340-line file into a fixture is a
+    dual-source-of-truth drift hazard. Appending one entry into the forked
+    file is the singular correct shape — the Reviewer sees the real operation
+    plus the seeded dead recurrence.
+
+    Idempotent: if ``slug`` already exists, its entry is replaced (re-runs
+    don't duplicate). Round-trips through the canonical
+    ``parse_recurrences_yaml`` / ``serialize_recurrences_yaml`` so the result
+    is structurally valid by construction; ``@now`` tokens in ``prompt``
+    resolve at the single write chokepoint (``_write_substrate_with_author``).
+    """
+    from services.recurrence import (
+        Recurrence,
+        parse_recurrences_yaml,
+        serialize_recurrences_yaml,
+    )
+    from services.supabase import get_service_client
+
+    path = "/workspace/_recurrences.yaml"
+    client = get_service_client()
+    loop = asyncio.get_running_loop()
+
+    def _read() -> str | None:
+        resp = (
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", path)
+            .limit(1)
+            .execute()
+        )
+        rows = resp.data or []
+        return rows[0]["content"] if rows else None
+
+    current = await loop.run_in_executor(None, _read)
+    recurrences = parse_recurrences_yaml(current or "", user_id=user_id)
+
+    new_entry = Recurrence(
+        slug=slug,
+        schedule=schedule,
+        prompt=prompt,
+        mode=mode,
+        options=options or {},
+    )
+    # Replace-or-append (idempotent across re-runs).
+    recurrences = [r for r in recurrences if r.slug != slug]
+    recurrences.append(new_entry)
+
+    serialized = serialize_recurrences_yaml(recurrences)
+    result = await _write_substrate_with_author(
+        user_id,
+        path,
+        serialized,
+        authored_by=authored_by,
+        message=message,
+    )
+    return {"path": result["path"], "revision_id": result.get("revision_id"), "slug": slug}
+
+
 async def _delete_substrate_file(user_id: str, path: str) -> bool:
     """Delete a workspace_files row (the one legitimate non-revision write
     per ADR-209 — deletion is a distinct operation; the revision chain in
@@ -831,6 +946,21 @@ async def establish_substrate(
             # lockstep with _execute_setup_step. Expires pending proposals so the
             # eval's wake reasons about ITS situation, not a prior suite's residue.
             expired_proposals += await _clear_pending_proposals(user_id)
+        elif "append_recurrence" in step:
+            # Inject ONE recurrence into the forked _recurrences.yaml (ADR-327
+            # calibration-cadence eval). Lockstep with _execute_setup_step.
+            ar = step["append_recurrence"]
+            res = await _append_recurrence_entry(
+                user_id,
+                slug=ar["slug"],
+                schedule=ar.get("schedule"),
+                prompt=ar.get("prompt", ""),
+                mode=ar.get("mode", "judgment"),
+                options=ar.get("options"),
+                authored_by=ar.get("authored_by", authored_by),
+                message=ar.get("message", "eval-suite pre-flight append_recurrence"),
+            )
+            wrote.append({"path": res["path"], "revision_id": res.get("revision_id")})
 
     return {"deleted": deleted, "wrote": wrote, "expired_proposals": expired_proposals}
 

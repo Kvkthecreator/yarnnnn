@@ -62,12 +62,39 @@ setup:
   - fire: track-positions
   - fire: track-regime
 
+  # THE LIVE DEAD RECURRENCE — inject intraday-momentum-rescan INTO the
+  # activation-forked /workspace/_recurrences.yaml so the calibration evidence
+  # below corresponds to a recurrence that ACTUALLY EXISTS. Without this, the
+  # Reviewer reads the evidence, cross-checks _recurrences.yaml (as the turn
+  # instructs), finds the slug absent, and correctly declines to Schedule-
+  # archive a phantom — making the PASS-shape (a Schedule(archive) on the dead
+  # recurrence) unreachable and the D6 judgment-half untestable (the
+  # 2026-06-09 fixture-fault finding). `append_recurrence` injects ONE entry
+  # without clobbering the genuine forked set the Reviewer must reason over.
+  # Schedule matches the calibration trail's claim (line ~95). `during
+  # regular_hours` gates it to RTH, so it does NOT fire during this
+  # market-independent eval — it sits in the file as a target to archive.
+  - append_recurrence:
+      slug: intraday-momentum-rescan
+      schedule: "@every 10min during regular_hours"
+      mode: judgment
+      authored_by: reviewer:ai:reviewer-sonnet-v8
+      prompt: |
+        Intraday momentum re-scan: re-evaluate the universe for momentum
+        breakouts mid-session and emit ProposeAction inline when a fresh
+        signal clears conformance. (Seeded dead cadence — 38 fires / 0
+        proposals per _calibration.md; the eval tests whether the Reviewer
+        archives it on the evidence.)
+      options:
+        display_name: "Intraday Momentum Re-Scan"
+
   # THE SEED — a calibration state where one recurrence is unambiguously
   # wasteful. Schema mirrors what services/primitives/mirror_calibration.py
   # writes so the envelope's calibration_md slot carries it to reasoning.
   # signal-evaluation is healthy (fired + produced proposals); the seeded
   # dead recurrence "intraday-momentum-rescan" has fired many times with
-  # zero proposals — a falsified cadence choice, isolated.
+  # zero proposals — a falsified cadence choice, isolated. It now corresponds
+  # to a real _recurrences.yaml entry (the append_recurrence step above).
   - write_substrate:
       path: /workspace/system/_calibration.md
       authored_by: system:mirror-calibration
