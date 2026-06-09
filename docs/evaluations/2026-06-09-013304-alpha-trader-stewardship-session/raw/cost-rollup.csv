@@ -1,0 +1,8 @@
+id,slug,mode,wake_source,status,tool_rounds,input_tokens,output_tokens,cache_read_tokens,cache_create_tokens,cost_usd,duration_ms,created_at
+a5c26184-4d30-4952-8db7-dad44de373bf,track-account,mechanical,manual_fire,success,,,,,,,1375,2026-06-09T01:33:24.114024+00:00
+1c929801-b239-46f7-83c1-dbeff9ab1e9b,track-positions,mechanical,manual_fire,success,,,,,,,794,2026-06-09T01:33:25.039177+00:00
+b71c9df2-24ee-48f3-b662-5abedcbc99a3,track-regime,mechanical,manual_fire,success,,,,,,,1764,2026-06-09T01:33:26.961408+00:00
+fbaff1d1-62df-4b4c-a691-cf68989c5fab,outcome-reconciliation,judgment,manual_fire,success,11,60192,6759,300220,59015,0.316444,87787,2026-06-09T01:34:54.892285+00:00
+f41cf669-e044-4656-9428-bcefb7e59d8b,addressed,judgment,addressed,success,10,54832,3699,275940,43040,0.247554,60266,2026-06-09T01:36:08.993909+00:00
+9a7a7d51-e192-42e2-89b3-af950e480d83,addressed,judgment,addressed,success,2,38517,1143,28188,0,0.075281,21260,2026-06-09T01:36:30.859564+00:00
+85165b2f-0993-47db-b84b-dc0217866cc4,addressed,judgment,addressed,success,14,61738,3915,463920,53504,0.311336,60275,2026-06-09T01:37:37.480337+00:00
