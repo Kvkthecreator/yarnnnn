@@ -86,6 +86,17 @@ def assert_attr_present(module_path: str, attr: str) -> None:
     _ok(f"{module_path}.{attr} present")
 
 
+def assert_attr_absent(module_path: str, attr: str) -> None:
+    try:
+        mod = importlib.import_module(module_path)
+    except ImportError as e:
+        _fail(f"{module_path} not importable: {e}")
+        return
+    if hasattr(mod, attr):
+        _fail(f"{module_path}.{attr} should be absent")
+    _ok(f"{module_path}.{attr} absent (as required)")
+
+
 def main() -> None:
     print()
     print("=" * 70)
@@ -259,10 +270,14 @@ def main() -> None:
     _ok("bundle ships /workspace/_recurrences.yaml at root of reference-workspace")
     print()
 
-    # --- Section 8: Phase C wiring (Compose auto-trigger + DispatchSpecialist) ---
+    # --- Section 8: Phase C wiring (Compose + DispatchSpecialist) ---
     print()
     print("Section 8 — Phase C wiring")
-    assert_attr_present("services.wake", "_maybe_auto_compose")
+    # ADR-333 D2 RETIRED the eager session-close auto-compose push
+    # (`_maybe_auto_compose`). Composition is now a lazy projection pulled at
+    # the consumption boundary, never pushed at session-close. The ADR-262 D4
+    # present-assertion is superseded by an absent-assertion.
+    assert_attr_absent("services.wake", "_maybe_auto_compose")
     assert_attr_present("services.primitives.dispatch_specialist", "handle_dispatch_specialist")
     assert_attr_present("services.primitives.dispatch_specialist", "DISPATCH_SPECIALIST_TOOL")
     assert_attr_present("services.primitives.dispatch_specialist", "VALID_SPECIALIST_ROLES")

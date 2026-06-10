@@ -1,5 +1,7 @@
 # ADR-283: alpha-author — Second Operator Bundle, Substrate-Continuity Archetype
 
+> **Amended by [ADR-333](ADR-333-compose-as-lazy-projection.md) (2026-06-10):** the authored deliverable (`operation/authored/{slug}/`) gains the production capability the bundle was specified to need but never wired — a conventions home (`authored_root()` family), native-structure authoring (the Reviewer emits `kind:`-tagged sections per the new `operation/specs/piece-composition.md` production spec), and a `/api/authored/*` consumption-pull surface. `content.md` stays operator-canonical; the composed piece is its projection. This closes the "author pieces ship as flat markdown, never touching compose" orphaning (the bundle's first *production*, not audit, deliverable).
+
 **Status**: Implemented (2026-05-18) — steps 1-5 shipped (commits `cb698c0` / `8ab04f2` / `3775f3c` / `904f9a4` / `5624842`); step 6 dogfood activation is operator-driven by definition (readiness memo at `docs/alpha/observations/2026-05-17-adr283-step6-dogfood-readiness.md`); ADR-287 conformance backfill landed `a8763b1` confirming alpha-author at 13/13 ADR-286 D3 paths + ADR-284 conformance clean
 **Date**: 2026-05-15 (status flipped 2026-05-18 post-ADR-287 backfill)
 **Companion docs**: `docs/analysis/alpha-author-discourse-2026-05-15.md`, `docs/adr/ADR-282-axiom-8-ground-truth-rename.md` (prerequisite)

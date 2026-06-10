@@ -178,6 +178,8 @@ There is **no schema for specs.** A spec is whatever markdown the operator write
 
 ### D4 — Compose is a primitive AND an opt-out structural default
 
+> **⚠ The opt-out structural default (eager session-close auto-compose) is RETIRED by [ADR-333](ADR-333-compose-as-lazy-projection.md) (2026-06-10) D2.** It pushed the projection eagerly at session-close, contradicting ADR-213's surface-pull principle and driving the Docker render service on every fire for artifacts most of which are never opened. `_maybe_auto_compose` is deleted; session-close persists *substrate only*. The callable `Compose(...)` primitive survives unchanged. Composition is now a lazy projection pulled at the consumption boundary (ADR-333). The substrate-shape concept (sections present → composable) survives as a *pull-time* check, not a session-close push.
+
 `Compose` survives as a callable primitive that takes section partials + manifest data and produces composed HTML via the existing `render/compose.py` engine (preserving ADR-148, ADR-170, ADR-177, ADR-213 mechanical pipeline).
 
 **Compose is opt-out by default**, triggered structurally — not by free-text prompt content. The trigger is mechanical (no LLM judgment): when a Reviewer session writes section partials matching the deliverable convention (presence of `sections/*.md` files in `/workspace/reports/{slug}/{date}/`) and the session is closing, the framework auto-runs Compose unless the recurrence prompt explicitly opts out.

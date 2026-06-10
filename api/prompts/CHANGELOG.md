@@ -6,6 +6,40 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.10.1] - ADR-333: compose as lazy projection + the author piece-composition spec
+
+**LLM-facing change**: new production spec at
+`docs/programs/alpha-author/reference-workspace/operation/specs/piece-composition.md`
+— the alpha-author program's first *production* (non-audit) spec. The Reviewer
+reads it when authoring/revising a piece; it teaches **native-structure
+authoring**: emit `kind:`-tagged sections (comparison-table / mermaid / callout
+spine; metric-cards/status-matrix/trend-chart only with real substrate data;
+generated images Tier-3/exceptional) where the structure carries the argument
+better than prose, gated by "could this be a paragraph without loss?". There is
+no "rich" mode and no enrich step — structure is decided *inside* the single
+authoring act. Richness is measured by argument-fidelity-gain, never asset count
+(the anti-Goodhart spine).
+
+**Pipeline behavior change**: composition is now a **lazy projection** pulled at
+the consumption boundary. The eager session-close auto-compose (`_maybe_auto_compose`
+in `wake.py`, ADR-262 D4) is RETIRED — session-close persists substrate only; the
+render service is not driven on every fire. `compose_task_output_html` is
+root-agnostic (`artifact_kind` param: report default, authored for pieces). New
+`/api/authored/*` consumption-pull surface.
+
+**Why**: YARNNN ships a complete multi-modal compose pipeline that produced rich
+HTML only for audit reports — author pieces (the artifact operators publish)
+shipped as flat markdown, never touching compose (the orphaned production half).
+The eager report-path push also contradicted ADR-213's own surface-pull principle.
+ADR-333 closes both by making the whole system honor the projection axiom uniformly.
+
+**Expected behavior**: reports render only when opened/delivered/exported (cost
+win — the Docker render service stops firing on every cron). Author pieces gain a
+composition + pull surface. The Reviewer composes structure as it authors, not as
+a separate step. Regression gate `api/test_adr333_compose_projection.py` 9/9.
+
+---
+
 ## [2026.06.07.7] - ADR-320 writer-audit close: re-root context/ → operation/ in residual live writers
 
 **LLM-facing change**: `SyncPlatformState` tool-schema `write_to` description (the

@@ -793,18 +793,19 @@ async def _invoke_recurrence_wake(
                 user_id[:8], recurrence.slug, exc,
             )
 
-    # ADR-262 D4: opt-out structural auto-compose at session-close.
-    # When the Reviewer wrote section partials matching the deliverable
-    # convention, auto-run Compose unless the recurrence opted out via
-    # options.skip_compose: true. Failure is logged + non-fatal — the
-    # session result is preserved.
-    composed_path = await _maybe_auto_compose(client, user_id, recurrence)
+    # ADR-333 D2: session-close persists substrate only — the Reviewer has
+    # already written section partials + manifest. Composition is a lazy
+    # projection pulled at the consumption boundary (a surface opening the
+    # artifact, an export, an email send), never pushed eagerly here. The
+    # render service is not driven at session-close. (Retires ADR-262 D4's
+    # eager auto-compose, which contradicted ADR-213's own surface-pull
+    # principle and drove the Docker render service on every fire for
+    # artifacts most of which are never opened.)
 
     logger.info(
-        "[DISPATCH] %s/%s done (%dms) — actions=%d proposals=%d compose=%s",
+        "[DISPATCH] %s/%s done (%dms) — actions=%d proposals=%d",
         user_id[:8], recurrence.slug, duration_ms,
         len(actions_taken), len(proposals),
-        composed_path or "—",
     )
 
     return {
@@ -814,7 +815,6 @@ async def _invoke_recurrence_wake(
         "duration_ms": duration_ms,
         "actions_taken": actions_taken,
         "proposals": proposals,
-        "composed_html_path": composed_path,
         "summary": verdict_summary or f"{recurrence.slug} completed",
         "message": verdict_summary or f"{recurrence.slug} completed",
     }
@@ -1261,157 +1261,6 @@ async def _emit_system_narrative(
         )
     except Exception as e:
         logger.warning("[DISPATCH] narrative emit failed: %s", e)
-
-
-# ---------------------------------------------------------------------------
-# Auto-compose at session-close (ADR-262 D4 opt-out structural default)
-# ---------------------------------------------------------------------------
-
-
-async def _maybe_auto_compose(
-    client,
-    user_id: str,
-    recurrence: Recurrence,
-) -> Optional[str]:
-    """Auto-run Compose when section partials exist and the recurrence
-    didn't opt out. Returns the composed HTML's absolute path on success,
-    None when the auto-trigger didn't fire (no partials, opt-out,
-    already composed) or on failure.
-
-    Per ADR-262 D4 the trigger is structural (substrate-shape based),
-    not LLM-judged. Failure modes:
-      - section partials absent → no-op (None)
-      - options.skip_compose: true → no-op (None)
-      - output.html already present + newer than the latest partial →
-        no-op (idempotency: don't recompose unchanged substrate)
-      - render service errors → log + return None (Reviewer's session
-        success is preserved; operator can re-trigger composition manually
-        via the Compose primitive)
-    """
-    from services.conventions import (
-        report_dated_folder,
-        report_output_html_path,
-        report_root,
-        report_sections_dir,
-    )
-
-    if (recurrence.options or {}).get("skip_compose"):
-        return None
-
-    substrate_root = report_root(recurrence.slug)
-
-    # Find the most recent dated folder containing section partials.
-    try:
-        rows = (
-            client.table("workspace_files")
-            .select("path,updated_at")
-            .eq("user_id", user_id)
-            .like("path", f"{substrate_root}/%/sections/%.md")
-            .order("updated_at", desc=True)
-            .limit(50)
-            .execute()
-        ).data or []
-    except Exception as e:
-        logger.warning(
-            "[AUTO_COMPOSE] section scan failed for %s: %s",
-            recurrence.slug, e,
-        )
-        return None
-
-    if not rows:
-        return None
-
-    # Group by dated folder; pick the most-recent folder (by latest section update)
-    dated_folders: dict[str, str] = {}  # date_token → most recent updated_at
-    prefix = f"{substrate_root}/"
-    for row in rows:
-        path = row.get("path") or ""
-        if not path.startswith(prefix):
-            continue
-        rel = path[len(prefix):]
-        date_token = rel.split("/", 1)[0]
-        if date_token not in dated_folders:
-            dated_folders[date_token] = row.get("updated_at") or ""
-
-    if not dated_folders:
-        return None
-
-    # Newest folder wins
-    date_token = max(dated_folders.keys(), key=lambda k: dated_folders[k])
-    sections_dir = f"{report_root(recurrence.slug)}/{date_token}/sections"
-    output_html_path = f"{report_root(recurrence.slug)}/{date_token}/output.html"
-    latest_section_at = dated_folders[date_token]
-
-    # Idempotency: skip when output.html already exists AND is newer than
-    # the latest section partial.
-    try:
-        existing = (
-            client.table("workspace_files")
-            .select("updated_at")
-            .eq("user_id", user_id)
-            .eq("path", output_html_path)
-            .limit(1)
-            .execute()
-        ).data or []
-        if existing:
-            existing_at = existing[0].get("updated_at") or ""
-            if existing_at and existing_at >= latest_section_at:
-                logger.info(
-                    "[AUTO_COMPOSE] %s/%s output.html newer than partials — skip",
-                    user_id[:8], recurrence.slug,
-                )
-                return output_html_path
-    except Exception as e:
-        logger.warning(
-            "[AUTO_COMPOSE] idempotency probe failed for %s: %s",
-            recurrence.slug, e,
-        )
-
-    # Compose
-    try:
-        from services.compose.task_html import compose_task_output_html
-        html = await compose_task_output_html(
-            client, user_id,
-            task_slug=recurrence.slug,
-            date_folder=date_token,
-        )
-    except Exception as e:
-        logger.warning(
-            "[AUTO_COMPOSE] %s/%s compose failed: %s",
-            user_id[:8], recurrence.slug, e,
-        )
-        return None
-
-    if not html:
-        return None
-
-    # Write output.html via authored substrate
-    try:
-        from services.authored_substrate import write_revision
-        write_revision(
-            client,
-            user_id=user_id,
-            path=output_html_path,
-            content=html,
-            authored_by="system:auto-compose",
-            message=(
-                f"auto-compose {recurrence.slug}/{date_token} "
-                f"({len(html)} bytes) per ADR-262 D4"
-            ),
-            content_type="text/html",
-        )
-    except Exception as e:
-        logger.warning(
-            "[AUTO_COMPOSE] %s/%s write_revision failed: %s",
-            user_id[:8], recurrence.slug, e,
-        )
-        return None
-
-    logger.info(
-        "[AUTO_COMPOSE] %s/%s wrote %s (%d bytes)",
-        user_id[:8], recurrence.slug, output_html_path, len(html),
-    )
-    return output_html_path
 
 
 # ---------------------------------------------------------------------------

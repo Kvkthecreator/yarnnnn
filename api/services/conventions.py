@@ -22,6 +22,18 @@ The convention shapes (per ADR-262 D1):
       run log:       /workspace/operation/reports/{slug}/_run_log.md
       working:       /workspace/operation/reports/{slug}/working/
 
+    Authored pieces (the published artifact — operator-canonical prose +
+    on-demand composition substrate, per ADR-333 + ADR-283):
+      piece root:    /workspace/operation/authored/{slug}/
+      prose source:  /workspace/operation/authored/{slug}/content.md  (operator-canonical)
+      profile:       /workspace/operation/authored/{slug}/profile.md
+      composition:   /workspace/operation/authored/{slug}/{date}/sections/
+      section map:   /workspace/operation/authored/{slug}/{date}/sys_manifest.json
+      asset manifest:/workspace/operation/authored/{slug}/{date}/manifest.json
+      (The composed HTML is a lazy projection pulled at consumption — never
+      persisted as a file. content.md is the source; sections/ + assets are
+      the produced composition substrate; HTML is the view. ADR-333.)
+
     Context (ACCUMULATION-shaped, additive entity files):
       domain root:    /workspace/operation/{domain}/
       entity (md):    /workspace/operation/{domain}/{entity}.md
@@ -151,6 +163,58 @@ def report_working_dir(slug: str) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Authored pieces — the published artifact (ADR-333 + ADR-283)
+#
+# An authored piece is the operator's canonical prose (content.md) plus
+# on-demand composition substrate (sections/ + manifests) produced when the
+# Reviewer authors structure natively (ADR-333 D5). The composed HTML is a
+# lazy projection pulled at the consumption boundary — never persisted here.
+# The shape mirrors the report family so the root-agnostic composer
+# (compose_task_output_html) serves both with one code path.
+# ---------------------------------------------------------------------------
+
+
+def authored_root(slug: str) -> str:
+    """Per-piece root directory (parent of content.md, profile.md, and the
+    dated composition folders)."""
+    return f"/workspace/operation/authored/{slug}"
+
+
+def authored_content_path(slug: str) -> str:
+    """The operator-canonical prose source (ADR-283 — never a projection)."""
+    return f"/workspace/operation/authored/{slug}/content.md"
+
+
+def authored_profile_path(slug: str) -> str:
+    """Per-piece profile (status, voice ref, cadence ref, audit state)."""
+    return f"/workspace/operation/authored/{slug}/profile.md"
+
+
+def authored_dated_folder(slug: str, when: Optional[datetime] = None) -> str:
+    """The folder holding one composition's substrate bundle: ``sections/``,
+    ``sys_manifest.json``, ``manifest.json``. No ``output.html`` — the HTML
+    is pulled, never persisted (ADR-333)."""
+    return f"/workspace/operation/authored/{slug}/{_date_token(when)}"
+
+
+def authored_sections_dir(slug: str, when: Optional[datetime] = None) -> str:
+    """Directory holding ``kind:``-tagged section partials the Reviewer wrote
+    while authoring structure natively (ADR-333 D5)."""
+    return f"{authored_dated_folder(slug, when)}/sections"
+
+
+def authored_sys_manifest_path(slug: str, when: Optional[datetime] = None) -> str:
+    """Per-composition section→kind map consumed by the composer."""
+    return f"{authored_dated_folder(slug, when)}/sys_manifest.json"
+
+
+def authored_manifest_path(slug: str, when: Optional[datetime] = None) -> str:
+    """Per-composition asset manifest (designer-rendered chart/mermaid/image
+    URLs with role tags)."""
+    return f"{authored_dated_folder(slug, when)}/manifest.json"
+
+
+# ---------------------------------------------------------------------------
 # Context domains — ACCUMULATION-shaped substrate
 # ---------------------------------------------------------------------------
 
@@ -261,6 +325,14 @@ __all__ = [
     "report_feedback_path",
     "report_run_log_path",
     "report_working_dir",
+    # Authored pieces (ADR-333)
+    "authored_root",
+    "authored_content_path",
+    "authored_profile_path",
+    "authored_dated_folder",
+    "authored_sections_dir",
+    "authored_sys_manifest_path",
+    "authored_manifest_path",
     # Context
     "domain_root",
     "domain_entity_path",

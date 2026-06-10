@@ -2,6 +2,8 @@
 
 > **⚠ Auto-dispatch portion superseded by [ADR-262](ADR-262-output-topology-and-specs.md) (2026-05-08) D4.** "Compose runs as task-pipeline post-step" framing dissolves with the task pipeline itself per ADR-261. Compose survives as **opt-out structural default** (triggered by substrate shape — presence of `sections/*.md` partials in `/workspace/reports/{slug}/{date}/`) AND as a callable primitive `Compose(...)` for explicit mid-session use. The compose engine's mechanical innards (section kind dispatch, structured-data renderers, content-addressed cache) are preserved verbatim. Surface-pull composition (compose on demand by surfaces) is preserved as the read-side pattern.
 
+> **⚠ Ratified as the uniform axiom by [ADR-333](ADR-333-compose-as-lazy-projection.md) (2026-06-10).** This ADR's "surface-pull composition" is named the projection axiom and applied *uniformly* — the eager session-close auto-compose (the ADR-262 D4 opt-out structural default above) is **retired** because it pushed the projection instead of pulling it (a live contradiction of this ADR's own principle). Composition is now pulled at the consumption boundary for reports AND authored pieces; the composer is root-agnostic. The read-side surface-pull pattern this ADR established is preserved verbatim and extended to the authored deliverable.
+
 **Status:** Phases 1–2 Implemented (2026-04-23). Phase 3 reclassification audit Proposed.
 **Date:** 2026-04-23
 **Dimensional classification:** **Channel** (primary, Axiom 6) + **Substrate** (Axiom 1) + **Mechanism** (Axiom 5)

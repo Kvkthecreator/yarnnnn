@@ -1,21 +1,28 @@
 """
-Recurrence HTML Composition — ADR-213.
+Deliverable HTML Composition — ADR-213 + ADR-333.
 
-Single path for composing a recurrence's output folder into HTML on demand.
-Reads substrate (section partials + sys_manifest.json + manifest.json) from
-`/workspace/operation/reports/{slug}/{date}/` (canonical path per ADR-231 D2 + ADR-262
-D1; resolved via the conventions module), POSTs to the render service
+Single, root-agnostic path for composing a deliverable's output folder into
+HTML on demand. Reads substrate (section partials + sys_manifest.json +
+manifest.json) from the deliverable's dated folder — `report_root` for audit
+reports, `authored_root` for published pieces — POSTs to the render service
 `/compose`, returns HTML.
 
+The composer is a **lazy projection** (ADR-333): it is pulled when a surface
+actually consumes the artifact, never pushed eagerly. The substrate (sections
++ asset URLs) is canonical; the HTML it returns is a view. One code path
+serves both deliverable kinds — `artifact_kind` selects the root resolver
+(Singular Implementation: no parallel author-composer).
+
 Callers:
-  - api/routes/recurrences.py: GET /recurrences/{slug}/outputs/{date}/render
+  - api/routes/recurrences.py: report export (artifact_kind="report")
+  - api/routes/authored.py: authored-piece composition (artifact_kind="authored")
   - api/services/delivery.py: email body composition
   - api/services/primitives/repurpose.py: format conversion
-  - api/services/wake.py: post-fire auto-compose (per ADR-296 v2 D1)
+  (No eager session-close caller — ADR-333 D2 retired the push.)
 
 The render service is responsible for content-addressed caching (ADR-213),
-so repeated calls with unchanged substrate cost ~10ms (storage fetch) vs.
-200-1500ms (fresh compose with matplotlib chart rendering).
+so repeated pulls with unchanged substrate cost a storage fetch vs. a fresh
+compose with matplotlib chart rendering.
 """
 
 from __future__ import annotations
@@ -37,24 +44,35 @@ async def compose_task_output_html(
     date_folder: str = "latest",
     surface_type: Optional[str] = None,
     title: Optional[str] = None,
+    artifact_kind: str = "report",
 ) -> Optional[str]:
-    """Compose a recurrence output folder into HTML on demand.
+    """Compose a deliverable's output folder into HTML on demand.
 
-    Reads section partials and manifest from
-    `/workspace/operation/reports/{task_slug}/{date_folder}/` (canonical per
-    ADR-231 D2 / ADR-262 D1, resolved via the conventions module),
+    Reads section partials and manifest from the deliverable's dated folder,
     posts to render service `/compose`, returns the composed HTML string.
+    The root is selected by ``artifact_kind`` (ADR-333):
+      - ``"report"`` (default) → `/workspace/operation/reports/{slug}/{date}/`
+        (audit reports — canonical per ADR-231 D2 / ADR-262 D1)
+      - ``"authored"`` → `/workspace/operation/authored/{slug}/{date}/`
+        (published pieces — ADR-333 + ADR-283)
 
-    Returns None if no substrate exists (recurrence never fired) or compose
-    failed. Caller decides how to handle None (404, fallback, etc.).
+    We do not validate that a recurrence/piece exists for the slug —
+    composition reads what's actually on disk.
+
+    Returns None if no substrate exists (never composed) or compose failed.
+    Caller decides how to handle None (404, fallback, etc.).
     """
-    # ADR-262 D1: report outputs land at the slug-templated path
-    # /workspace/operation/reports/{slug}/{date}/. We do not validate that a recurrence
-    # exists for the slug — composition reads what's actually on disk.
-    from services.conventions import report_root
+    from services.conventions import authored_root, report_root
     from services.workspace import UserMemory
 
-    folder_abs = f"{report_root(task_slug)}/{date_folder}"
+    if artifact_kind == "authored":
+        root = authored_root(task_slug)
+        default_surface = "article"
+    else:
+        root = report_root(task_slug)
+        default_surface = "report"
+
+    folder_abs = f"{root}/{date_folder}"
 
     um = UserMemory(client, user_id)
 
@@ -71,7 +89,7 @@ async def compose_task_output_html(
         logger.warning(f"[COMPOSE] Invalid sys_manifest.json for {task_slug}/{date_folder}")
         return None
 
-    resolved_surface = surface_type or sys_manifest.get("surface_type") or "report"
+    resolved_surface = surface_type or sys_manifest.get("surface_type") or default_surface
     resolved_title = (
         title
         or sys_manifest.get("title")
