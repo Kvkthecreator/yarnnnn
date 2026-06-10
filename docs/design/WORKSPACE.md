@@ -3,7 +3,7 @@ title: Workspace (Design)
 counterpart: docs/architecture/WORKSPACE.md
 scope: design — operator-facing surface contracts, CRUD shapes, affordances
 status: Canonical
-version: v2.7 (2026-06-10 — ADR-320 path-consistency pass across all tab contracts)
+version: v3.0 (2026-06-10 — ADR-297 + ADR-312 surface-model rewrite: four-tab nav → windowed Desktop + Home-as-composition)
 last_updated: 2026-06-10
 ---
 
@@ -24,62 +24,99 @@ last_updated: 2026-06-10
 
 This is the single design reference for YARNNN's cockpit. It answers five questions, in order:
 
-0. **How does the kernel/program seam work for surfaces?** (composition layer)
-1. **What does each tab do?** (per-tab contract)
+0. **How does the shell + kernel/program seam work?** (window-manager + composition layer)
+1. **What surfaces exist, and what does each do?** (surface inventory + per-surface contracts)
 2. **How is mutation expressed?** (CRUD matrix + 6 rules)
 3. **What affordances live where?** (affordance cookbook)
-4. **In what order do we harden the tabs?** (sequencing)
+4. **In what order do we harden the surfaces?** (sequencing)
 
-When a design decision spans two tabs (e.g. "deep-link from Work to Files"), both tabs' contracts must allow it. When a CRUD decision arises (e.g. "how do we let the operator refine a task's deliverable?"), the matrix picks the shape. When the answer would require branching FE code on `program_slug`, the contract is wrong — programs specialize via composition manifest (Part 0), never via FE conditionals.
+When a design decision spans two surfaces (e.g. "deep-link from Recurrence to Files"), both surfaces' contracts must allow it. When a CRUD decision arises (e.g. "how do we let the operator refine a recurrence's deliverable?"), the matrix picks the shape. When the answer would require branching FE code on `program_slug`, the contract is wrong — programs specialize via composition manifest (Part 0), never via FE conditionals.
+
+> **ADR-297 + ADR-312 surface-model rewrite (2026-06-10).** This doc previously described a **four-tab nav** (Chat | Work | Agents | Files via `ToggleBar`). That model was superseded by [ADR-297](../adr/ADR-297-surfaces-as-substrate-mirror.md) (the cockpit is a **windowed Desktop**, surfaces are windows not tabs; `ToggleBar` deleted) and [ADR-312](../adr/ADR-312-home-as-composition.md) (the cockpit composition is **Home**, a six-slot composition at `/home`). Parts 0 + 1 below are rewritten to the surface model; the CRUD matrix (Part 2), affordance cookbook (Part 3), and hardening sequence (Part 4) are unchanged by the surface-model shift (CRUD is substrate's layer per ADR-235/231; surfaces are viewport policy). Verified against `api/services/kernel_surfaces.py` + `web/components/shell/SurfaceRegistry.tsx`.
+
+> **Findings surfaced during this rewrite (out of scope — tracked, not fixed here).** Both are Hat-A backend/comment drift the doc-verification turned up; neither is a design-doc change:
+> 1. **`kernel_surfaces.py` registry drift.** The backend registry still names the budget surface `pace` (route `/pace`); ADR-327 (Implemented 2026-06-08) renamed it `budget` (`/budget`) and the frontend `SurfaceRegistry.tsx` already has `budget` (with `/pace` a redirect stub). The backend constant is stale — the operator-facing truth (`budget`) is what this doc documents. *Fix: update `KERNEL_SURFACES` entry slug `pace`→`budget` + route → `/budget`.*
+> 2. **`web/lib/routes.ts` nav comment drift.** The header comment (line ~15) still reads "Current nav: Feed | Work | Agents | Files" — the pre-ADR-297 four-tab framing. *Fix: update the comment to the windowed-surface model.*
 
 ---
 
-## Part 0 — Composition Layer
+## Part 0 — The Shell: Window Manager + Composition Layer
 
-Every tab's contract describes the **kernel surface**. Bundles (program manifests at `docs/programs/{slug}/SURFACES.yaml`) extend kernel surfaces declaratively via the compositor seam ([ADR-225](../adr/ADR-225-compositor-layer.md), Phase 3 Implemented 2026-04-27).
+### The surface model (ADR-297)
 
-**The single mental model:** every compositor-resolved slot has the same shape — bundle declaration → kernel default fallback → library component dispatch by `kind`. There is no "kernel render path" and "bundle render path"; there is one path, where kernel defaults are themselves library components registered in `LIBRARY_COMPONENTS` alongside bundle components.
+The authenticated cockpit is a **window manager** (macOS-literal), not a tab bar. The model:
 
-The architecture-level reference for the seam is [docs/architecture/compositor.md](../architecture/compositor.md). This contract names which slots on which tabs are bundle-shapeable; the architecture doc names how they get rendered.
+- **A surface is a mountable React component bound to substrate**, addressed by surface state (`slug` + params), rendered into the shell's viewport (ADR-297 D11). URLs are *optional addressing transport* (deep-links), not identity.
+- **`HOME_ROUTE = /desktop`** (ADR-297 D17) — login boots to the **Desktop** layer (the shell), not to a surface. Last-session windows restore from the operator-authored open-surfaces registry (D13); an empty registry → empty Desktop with context-aware welcome copy.
+- **Multi-mount lifecycle** (D13): opened surfaces stay mounted in the React tree; exactly one is foregrounded (visible), others hidden. Closing is explicit. No LRU eviction — the open set is operator-authored.
+- **Window chrome** (D14): every open surface renders inside a `WindowFrame` (32px title bar + close ×). The "pinned" concept dissolved into **Kept** (macOS "Keep in Dock" semantic); the dock shows the union of kept + open surfaces.
+- **Navigation primitive** (D19.5): **`navigateToSurface(slug, params)`** is the *single* sanctioned cross-surface verb — it wraps `foregroundSurface(slug)` + URL param-sync. `router.push` is demoted to transport; the window manager owns navigation.
 
-### Compositor-resolved slots, by tab
+**Shell components** (`web/components/shell/`): `ShellCompositor` (top-level layout — TopBar region + SurfaceViewport + main-rail) · `SurfaceViewport` (mounts + z-stacks open windows) · `SurfaceRegistry` (`KERNEL_SURFACE_REGISTRY` slug→component map) · `Launcher`/`LauncherSurface` (the summon overlay that replaced the nav bar) · `AuthenticatedLayout` (auth + provider stack + pathname→foreground tracking). The backend surface registry is `api/services/kernel_surfaces.py::KERNEL_SURFACES` — the authoritative slug/register/route/archetype/substrate inventory.
 
-| Tab | Slot | Bundle declaration | Kernel default | Phase |
-|---|---|---|---|---|
-| Work | List pinned tasks | `tabs.work.list.pinned_tasks: [slug, ...]` | No pinning | 3 |
-| Work | List banner | `tabs.work.list.banner: "..."` (or via `phase_overlays`) | No banner | 2 |
-| Work | List cockpit (four faces) | `tabs.work.list.cockpit: { mandate, money_truth, performance, tracking }` | Mandate · Money truth · Performance · Tracking, fixed order | ADR-228 |
-| Work | Detail middle (content) | `tabs.work.detail.middles[]` (4-tier match) | DeliverableMiddle / TrackingEntityGrid / ActionMiddle / MaintenanceMiddle | 2 |
-| Work | Detail chrome (metadata + actions) | `tabs.work.detail.middles[].chrome` (optional) | Per-output_kind kernel chrome (`KernelDeliverableMetadata`, etc.) | 3 |
-| Agents | List featured agents | `tabs.agents.list.featured: [slug, ...]` | No featuring | (Phase 2 backend; FE consumer pending) |
-| Files (Context) | List featured domains | `tabs.context.list.featured_domains: [...]` | No featuring | (Phase 2 backend; FE consumer pending) |
-| Files (Context) | List pinned shortcuts | `tabs.context.list.pinned_shortcuts: [...]` | No pinning | (Phase 2 backend; FE consumer pending) |
-| Chat | Empty-state chips | `chat_chips: ["...", ...]` | Four kernel-default chips | (Phase 2 backend; FE consumer pending) |
-| Chat | Overview surface bands | `tabs.chat.bands[]` | (Currently hardcoded ChatEmptyState) | (Future) |
+### The composition seam (ADR-225 → ADR-312)
 
-Slots marked "FE consumer pending" mean the backend resolver returns the field but no FE component reads it yet. They'll wire incrementally as bundles need them. The Work tab is fully bundle-shapeable end-to-end after Phase 3.
+Each surface's contract below describes the **kernel surface**. Bundles (program manifests at `docs/programs/{slug}/SURFACES.yaml`) extend kernel surfaces declaratively via the compositor seam ([ADR-225](../adr/ADR-225-compositor-layer.md), Phase 3 Implemented).
+
+**The single mental model:** every compositor-resolved slot has the same shape — bundle declaration → kernel default fallback → library component dispatch by `kind`. There is no "kernel render path" and "bundle render path"; there is one path, where kernel defaults are themselves library components registered alongside bundle components.
+
+Post-ADR-312, the primary composition surface is **Home** (`/home`), whose six kernel slots are the cockpit (see [§ Home](#surface-home--the-cockpit-composition)). A program shapes Home by declaring **exactly two** of the six slots — the ground-truth hero (#2) and live entities (#4) — via `home.program_sections[]` in SURFACES.yaml. The other four slots are kernel-owned. The pre-ADR-312 `tabs.work.list.cockpit.{mandate,money_truth,performance,tracking}` four-faces binding is **deleted** (the four faces — `MandateFace`/`MoneyTruthFace`/`PerformanceFace`/`TrackingFace` — no longer exist).
+
+The architecture-level reference for the seam is [docs/architecture/compositor.md](../architecture/compositor.md). This contract names which slots are bundle-shapeable; the architecture doc names how they get rendered.
 
 ### Refuses (composition-layer-wide)
 
-- **No FE branch on `program_slug`.** Specialization happens via composition manifest, never via FE conditionals. If a tab feels it needs to know which program is active, the answer is to declare the variation in SURFACES.yaml.
+- **No FE branch on `program_slug`.** Specialization happens via composition manifest, never via FE conditionals. If a surface feels it needs to know which program is active, the answer is to declare the variation in SURFACES.yaml.
 - **No bundle-supplied executable logic.** SURFACES.yaml carries declarations only. The resolver inspects strings; it never `eval`s anything.
-- **No kernel-only dual paths.** Per Singular Implementation, kernel defaults are library components dispatched through the same registry as bundle components. Don't ever introduce a "kernel render branch" that bypasses the resolver.
+- **No kernel-only dual paths.** Per Singular Implementation, kernel defaults are library components dispatched through the same registry as bundle components.
+- **Programs may not re-render kernel-owned Home slots** (constitution band, decision queue, recent artifacts, judgment trail). A program declares the hero + entities; the kernel owns the rest (ADR-312 D2).
 
 ### Contract authority
 
-When this doc and `docs/architecture/compositor.md` disagree, the architecture doc wins on *how the seam works* (resolver pattern, binding taxonomy, library registry). This doc wins on *what each tab should look like* (per-tab contracts, archetype assignments, refuses lists). When [ADR-225](../adr/ADR-225-compositor-layer.md) and either of these disagree, the ADR wins on decisions; the docs adjust.
+When this doc and `docs/architecture/compositor.md` disagree, the architecture doc wins on *how the seam works*. This doc wins on *what each surface should look like* (per-surface contracts, archetype assignments, refuses lists). When [ADR-297](../adr/ADR-297-surfaces-as-substrate-mirror.md) / [ADR-312](../adr/ADR-312-home-as-composition.md) / [ADR-225](../adr/ADR-225-compositor-layer.md) and either doc disagree, the ADR wins on decisions; the docs adjust.
 
 ---
 
-## Part 1 — Per-Tab Surface Contracts
+## Part 1 — Surface Inventory + Per-Surface Contracts
 
-Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, user menu). Each tab contract has seven fixed sections: **Archetype · Reads · List mode · Detail mode · `+` menu · Deep-links out · Refuses.**
+The cockpit is **15 content surfaces + 3 chrome surfaces** (`api/services/kernel_surfaces.py::KERNEL_SURFACES`), in three **registers** (ADR-312 D5):
 
-> **Nav history:** ADR-243 added /schedule as a fifth tab (cadence-framed sibling of /work). In the 2026-05-06 pass /schedule was dissolved — its cadence view became the "Schedule" inner tab on /work; /schedule redirects to /work. The five-tab nav reverted to four.
+- **intent** — the constitution: operator-authored intent. `mandate` · `principles` · `identity`. Surfaced first-class as Home's constitution band, NOT a config drawer.
+- **os-config** — the OS configuring itself. `autonomy` · `budget` · `connectors` · `program` · `settings`.
+- **application** — open files + live state. `feed` · `home` · `recurrence` · `files` · `agents` · `queue` · `activity`.
 
-### Tab: Files
+Plus **chrome** (no register, route `""`, not Launcher-navigable): `top-bar` · `launcher` · `chat-drawer`.
 
-**Route:** `/files` (slug `files`, operator label "Files" per ADR-180; legacy `/context` is a redirect stub per `web/lib/routes.ts`, 2026-06-01)
+### Surface inventory
+
+| Surface | Route | Register | Archetype | Reads (substrate) |
+|---|---|---|---|---|
+| **Home** | `/home` | application | Dashboard (composition) | MANDATE + `_autonomy.yaml` + `action_proposals` + program sections + reports + `judgment_log.md` |
+| **Feed** | `/feed` | application | Stream | `session_messages` (multi-actor invocation narrative) |
+| **Recurrence** | `/recurrence` | application | Dashboard / Document (detail) | `tasks` index + `_recurrences.yaml` + per-shape natural-home substrate |
+| **Files** | `/files` | application | Browser | `workspace_files` + `workspace_file_versions` (ADR-209) |
+| **Agents** | `/agents` | application | Roster / Dashboard | `agents` table + per-agent substrate (`agents/{slug}/`, Reviewer `persona/`) |
+| **Queue** | `/queue` | application | Queue | `action_proposals` (gated actions awaiting operator decision) |
+| **Activity** | `/activity` | application | Stream | `execution_events` (workspace-wide execution ledger) |
+| **Mandate** | `/mandate` | intent | Document | `constitution/MANDATE.md` |
+| **Principles** | `/principles` | intent | Document | `persona/principles.md` + `persona/_principles.yaml` |
+| **Identity** | `/identity` | intent | Document | `persona/IDENTITY.md` (co-renders `operation/BRAND.md` per ADR-309) |
+| **Autonomy** | `/autonomy` | os-config | Document | `governance/_autonomy.yaml` |
+| **Budget** | `/budget` | os-config | Document | `governance/_budget.yaml` (ADR-327 — collapsed pace + token-budget) |
+| **Program** | `/program` | os-config | Document | active program bundle state |
+| **Connectors** | `/connectors` | os-config | Dashboard | `platform_connections` (Slack · Notion · GitHub · Lemon Squeezy · Alpaca) |
+| **Settings** | `/settings` | os-config | Dashboard | account / workspace / billing config |
+| *(chrome)* `top-bar` | `""` | — | chrome | brand · launcher trigger · kept surfaces · user menu |
+| *(chrome)* `launcher` | `""` | — | navigator | `composition.surfaces[]` (summon-to-filter index) |
+| *(chrome)* `chat-drawer` | `""` | — | input | `session_messages` (the always-available chat summon) |
+
+> **Backend/frontend registry drift (finding, out of this lane — 2026-06-10):** `api/services/kernel_surfaces.py` still names the budget surface `pace` (route `/pace`); ADR-327 (Implemented 2026-06-08) renamed it `budget` (route `/budget`) on the frontend (`SurfaceRegistry.tsx` has `budget`; `/pace` is a redirect stub). The operator-facing truth is `budget`, documented above. The stale backend registry constant is a tracked Hat-A fix, not part of this doc pass.
+
+Per-surface contracts below carry the seven fixed sections where they apply: **Archetype · Reads · List/empty mode · Detail mode · `+` menu / writes · Deep-links out · Refuses.** Surfaces are grouped by register. (Document-archetype intent/os-config surfaces are thin — a rendered file + edit-via-chat — so their contracts are brief.)
+
+### Surface: Files
+
+**Route:** `/files` · **Register:** application · **Archetype:** Browser. (slug `files`, operator label "Files" per ADR-180; legacy `/context` is a redirect stub per `web/lib/routes.ts`, 2026-06-01)
 
 - **Archetype:** Dashboard (primary, per ADR-198 §3) — live substrate slice, read-primary. Detail view of a file is a Document archetype when the file is a composed output.
 - **Reads:** `workspace_files` (entire filesystem), `workspace_file_versions` (revision chain per ADR-209), `workspace_blobs` indirectly via revision reads.
@@ -99,15 +136,15 @@ Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, u
   - **Node Details ("Get Info")** — per-node provenance property (ADR-329 Amendment 1), opened via header ⓘ toggle or tree right-click. File → revision chain (`authored_by` trail, diff, restore per ADR-209 P4); folder → subtree recent-changes. Replaced the deleted standing "Recently authored" left-rail feed.
   - Substrate-native edit affordance when `authored_by=operator` is appropriate (IDENTITY, BRAND, CONVENTIONS, principles, MANDATE, uploaded documents)
 - **`+` menu:** UploadFileModal (operator uploads a document into `/workspace/uploads/`). No other modals. No chat seeders.
-- **Deep-links out:** every file path is a stable URL (`/files?path=...`) linked from Work task-detail (`/workspace/operation/reports/{slug}/_spec.yaml` · `_feedback.md` · `{date}/output.md` per ADR-231 D2 + ADR-320), Agents detail (`/workspace/agents/{slug}/AGENT.md` · `memory/` · `style.md`), Chat artifacts, and the cockpit faces on Work.
+- **Deep-links out:** every file path is a stable URL (`/files?path=...`) linked from Recurrence detail (`/workspace/operation/reports/{slug}/_spec.yaml` · `_feedback.md` · `{date}/output.md` per ADR-231 D2 + ADR-320), Agents detail (`/workspace/agents/{slug}/AGENT.md` · `memory/` · `style.md`), Feed artifacts, and Home's recent-artifacts slot.
 - **Refuses:**
   - Recurrence orchestration, agent authoring, proposal approval — those are Work/Agents/Work respectively
   - "Edit in chat" buttons on substrate files (per R3) — Files is where substrate gets edited; Chat would invoke `WriteFile(scope='workspace', ...)` / `InferContext` and produce the same write with less clear provenance
   - Duplicate rendering of recurrence outputs (outputs exist in one canonical place at the natural-home `/workspace/operation/reports/{slug}/{date}/` per ADR-320; Files links rather than embeds per ADR-198 I2)
 
-### Tab: Agents
+### Surface: Agents
 
-**Route:** `/agents` (canonical per ADR-214, reverses ADR-201)
+**Route:** `/agents` · **Register:** application · **Archetype:** Roster / Dashboard. (canonical per ADR-214, reverses ADR-201)
 
 - **Archetype:** List (list mode — roster) + Dashboard (detail mode, per ADR-167 v2 + ADR-251). Reviewer decisions stream is a Stream archetype accessible via Files deep-link.
 - **Reads:** `agents` table filtered to principals (`thinking_partner` System Agent + user-authored domain agents, per ADR-189 origin filter + ADR-214 synthesized Reviewer pseudo-agent), plus each agent's filesystem home (`/workspace/agents/{slug}/*` for domain agents, `/workspace/persona/*` for Reviewer, `/workspace/system/*` for System Agent — ADR-320 five-root topology).
@@ -116,32 +153,44 @@ Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, u
   - `meta-cognitive` (System Agent, `?agent=system`) → **SystemDetail**: Identity card + Mandate pointer (links to `/workspace`) + Reviewer cross-link. Tabs: Identity · Mandate · Back Office. **Autonomy and Principles removed from this surface — migrated to Reviewer (ADR-251 D3).**
   - `reviewer` (`?agent=reviewer`) → **ReviewerDetail** directly — **no redirect (ADR-251 D4, reverses ADR-241 D3)**. **Five tabs (expanded 2026-05-14)**: Identity (`IDENTITY.md`) · Principles (`principles.md`) · Capabilities (`/workspace/operation/specs/*.md` library) · Autonomy (delegation config only) · Activity (Reviewer supervision surface). Tab ordering reads top-to-bottom as operator orientation: who → frame → what-it-can-produce → how-much-delegation → what-it-did. The Capabilities tab renders `ReviewerCapabilitiesPanel` (one card per spec file under `/workspace/operation/specs/`, server-side correlation of `used_by` recurrences from `_recurrences.yaml` prompt text). The Autonomy tab renders just `AutonomyCard` (manual / bounded / autonomous selector — Direct-mutation write to `_autonomy.yaml`, gated by confirm modal per 2026-05-24 design polish; renamed from `DelegationCard`). The Activity tab renders `ReviewerActivityPanel` standalone. Track Record + Decisions link-outs deleted in earlier passes — calibration headline already on cockpit PerformanceFace; raw files via `/files`.
   - domain agents → IDENTITY card + health card + AGENT.md + memory/style substrate panes (unchanged).
-- **Reviewer capability library panel** (added 2026-05-14) — `ReviewerCapabilitiesPanel` (`web/components/agents/ReviewerCapabilitiesPanel.tsx`) surfaced in Reviewer's Capabilities tab. Live-aggregate content class (ADR-245 D5): reads `/workspace/operation/specs/*.md` via `GET /api/agents/reviewer/capabilities`, parses each file for title (H1) + description (intro prose, ≤280 chars) + sections (## headings), correlates `used_by` against `_recurrences.yaml` prompt text (server-side — recurrences whose prompt body references `/workspace/operation/specs/{slug}.md`). Operator-facing analog of Claude Code's `skills.md`: a first-class inventory of "what kinds of outputs can my Reviewer produce, and what does each one promise?" Pre-2026-05-14 the capability library was entirely backend-internal — the Reviewer read specs by explicit path reference, but the operator could only see them by manually browsing `/files?path=/workspace/operation/specs/` as raw markdown. Per-card affordances: View source deep-link (→ `/files?path={path}`), Used-by recurrence chips (→ `/work?task={slug}`), Edit-in-chat affordance routing through `useNarrative.sendMessage`. Empty state for newly-activated workspaces with no specs forked yet. Read-only by design; mutations route through chat per ADR-235 D1 + ADR-245. Reviewer-specific by intent — capability libraries are Reviewer concepts; if a second persona-bearing agent ever needs one, generalise then per ADR-225 §library scoping.
+- **Reviewer capability library panel** (added 2026-05-14) — `ReviewerCapabilitiesPanel` (`web/components/agents/ReviewerCapabilitiesPanel.tsx`) surfaced in Reviewer's Capabilities tab. Live-aggregate content class (ADR-245 D5): reads `/workspace/operation/specs/*.md` via `GET /api/agents/reviewer/capabilities`, parses each file for title (H1) + description (intro prose, ≤280 chars) + sections (## headings), correlates `used_by` against `_recurrences.yaml` prompt text (server-side — recurrences whose prompt body references `/workspace/operation/specs/{slug}.md`). Operator-facing analog of Claude Code's `skills.md`: a first-class inventory of "what kinds of outputs can my Reviewer produce, and what does each one promise?" Pre-2026-05-14 the capability library was entirely backend-internal — the Reviewer read specs by explicit path reference, but the operator could only see them by manually browsing `/files?path=/workspace/operation/specs/` as raw markdown. Per-card affordances: View source deep-link (→ `/files?path={path}`), Used-by recurrence chips (→ `/recurrence?task={slug}`), Edit-in-chat affordance routing through `useNarrative.sendMessage`. Empty state for newly-activated workspaces with no specs forked yet. Read-only by design; mutations route through chat per ADR-235 D1 + ADR-245. Reviewer-specific by intent — capability libraries are Reviewer concepts; if a second persona-bearing agent ever needs one, generalise then per ADR-225 §library scoping.
 - **Reviewer activity panel** (originally ADR-251 D5, rewritten 2026-05-14 against canonical post-ADR-261 substrate) — `ReviewerActivityPanel` (`web/components/agents/ReviewerActivityPanel.tsx`) surfaced in Reviewer's Activity tab + chat `WorkspaceContextOverlay` Review section. Live-aggregate content class (ADR-245 D5): joins three sources via `GET /api/agents/reviewer/activity` — (1) `/workspace/_recurrences.yaml` judgment-mode entries (per ADR-263 D1, judgment mode = Reviewer wake) → schedule list + slug allowlist; (2) `execution_events` matching any judgment-mode slug (last 7d, the liveness signal); (3) `action_proposals` auto-approved or Reviewer-sourced (the autonomous-action history). Four-section render: Health headline · Upcoming wakes · Recent autonomous actions · Recent runs. Each Recent-runs row deep-links to `/activity?slug={slug}` for forensic detail per the supervision-vs-execution lens distinction (cross-surface affordance — same pattern as Schedule/Activity below). Read-only; "Edit schedule via chat →" routes through `useNarrative.sendMessage`. Direct-imported (not `kind`-dispatched through the library registry). Reviewer-specific by intent — heartbeat triggers + delegation ceiling are Reviewer concepts; if a second agent ever needs an analogous panel, generalise then per ADR-225 §library scoping. **Lens distinction (sharpened 2026-05-14):** Activity tab answers *"is my Reviewer functioning autonomously the way I told it to?"* — Reviewer-only supervision-lens. `/activity` (user-menu) answers *"did any recurrence run, what did it cost?"* — workspace-wide execution-lens. Both surfaces useful; deep-links bridge them.
 - **`+` menu:** none. Per ADR-235 D2, no feed-surface pathway to create user-authored Agents.
-- **Deep-links out:** each agent's files on Files (`/files?path=/workspace/agents/{slug}/AGENT.md`), Reviewer substrate on Files (`/files?path=/workspace/persona/judgment_log.md` etc. — ADR-320), the agent's tasks filtered on Work (`/work?agent={slug}`), Chat with the agent preselected (`/chat?agent={slug}`). CockpitHeader autonomy chip links to `?agent=reviewer&tab=autonomy` (ADR-251 D6).
+- **Deep-links out:** each agent's files on Files (`/files?path=/workspace/agents/{slug}/AGENT.md`), Reviewer substrate on Files (`/files?path=/workspace/persona/judgment_log.md` etc. — ADR-320), the agent's recurrences filtered on Recurrence (`/recurrence?agent={slug}`), Feed with the agent preselected (`/feed?agent={slug}`). The autonomy chip links to `/agents?agent=reviewer&tab=autonomy` (ADR-251 D6).
 - **Refuses:**
-  - Task management (tasks live on Work; this tab shows agent *identity*, not agent *work*)
+  - Recurrence management (recurrences live on the Recurrence surface; Agents shows agent *identity*, not agent *work*)
   - Editing production roles or platform integrations as if they were agents (ADR-212 — those are Orchestration, not Agents)
   - Principles/IDENTITY modal editing (ADR-215 R3 — substrate edit goes to Files or via chat)
 
-### Tab: Work
+### Surface: Home — the cockpit composition
 
-**Route:** `/work`
+**Route:** `/home` · **Register:** application · **Archetype:** Dashboard (composition)
 
-- **Archetype:** Briefing + Queue (list-mode composition) → Document/Dashboard/Stream (detail mode, per output_kind).
-- **Narrative semantics** (ADR-219 D4): `/work` **is the narrative filtered by `metadata.task_slug`**. The list-row recent-activity headline reads from the narrative via `GET /api/narrative/by-task` (ADR-219 Commit 4) — the legacy `task.last_run_at` timestamp source was retired; tasks with no narrative entries simply render no headline (singular implementation). WorkDetail's per-task run-history continues to read `agent_runs` per ADR-219 D7 — that's the audit ledger view, separate consumer.
-- **Reads** (ADR-320 five-root topology + ADR-261/262 natural-home paths — canonical homes in `api/services/conventions.py`): `tasks` thin scheduling index (per ADR-231 D4 Path B — `next_run_at`, `last_run_at`, `paused`, `declaration_path`), `/workspace/operation/reports/{slug}/*` (DELIVERABLE: `_spec.yaml`, `_feedback.md`, `_run_log.md`, `{date}/output.md`), `/workspace/operation/{domain}/*` (ACCUMULATION: `_feedback.md`, `_run_log.md`, synthesis `_<name>.md`, entity files), `/workspace/operation/operations/{slug}/*` (ACTION: `_action.yaml`, `_run_log.md`), `/workspace/_recurrences.yaml` (the single canonical recurrence declarations file — per ADR-261 D2; the legacy `_shared/back-office.yaml` MAINTENANCE index dissolved into it), `/workspace/persona/judgment_log.md` (for the SinceLastLook pane), `/workspace/operation/{domain}/_money_truth.md` (per-domain ground-truth for the Snapshot pane per ADR-195; there is no cross-domain `_money_truth_summary.md`), `agent_runs` (for WorkDetail's per-task run-history view), **`GET /api/narrative/by-task`** (for WorkListSurface row headlines per ADR-219 Commit 4).
-- **List mode** (no `?task=`): single vertical scroll with two visually-distinct zones per ADR-215 Phase 4. Both zones are now compositor-resolved (ADR-225 Phase 3, see Part 0 slot table).
-  - **Cockpit zone** (`<CockpitRenderer>`, replaces deleted `<BriefingStrip>`) — the operation, rendered. Per ADR-228, the cockpit is **four faces in fixed order**: Mandate (standing intent + autonomy posture), Money truth (where the account stands now, platform-live where applicable), Performance (attribution against mandate + Reviewer calibration), Tracking (pending decisions + operational state + recent outcomes). Bundles fill each face's domain shape via `tabs.work.list.cockpit.{mandate,money_truth,performance,tracking}`; bundles cannot reorder or omit faces. The `cockpit_panes` flat-array shape from ADR-225 Phase 3 was deleted by ADR-228.
-    - **Kernel default** (no active program): the four faces render kernel-default substrate-fallback paths (ADR-320: mandate reads `/workspace/constitution/MANDATE.md` + `/workspace/governance/AUTONOMY.md`; money truth + performance read the per-domain `/workspace/operation/{domain}/_money_truth.md` ground-truth + `/workspace/persona/judgment_log.md`; tracking reads pending action_proposals + narrative outcomes).
-    - **Bundle override** (e.g., alpha-trader): `tabs.work.list.cockpit` declares per-face bindings (e.g., `cockpit.money_truth.substrate_fallback: /workspace/operation/portfolio/_money_truth.md`). Platform-live bindings for Money truth (Alpaca / commerce providers) are reserved for ADR-228 Commit 3.
-    - **Note (framing drift, 2026-06-10):** the four-faces cockpit framing below traces to ADR-228 and was superseded at the *framing* level by [ADR-312](../adr/ADR-312-home-as-composition.md) (Home as composition — kernel constituent slots, route `/home`). The substrate paths above are corrected to ADR-320; the ADR-228→312 reframe of this section is tracked as a separate follow-up, not part of this path-consistency pass.
-    - **Empty states:** each face renders its own empty/skeleton state inside the face. Skeleton MANDATE renders destructive-tinted authoring CTA. The other faces remain readable when MANDATE is absent — the operator can still see balances, recent activity. No whole-cockpit posture switch.
-    - **Hidden when `?agent=` filter active** — deliberate focus shift per ADR-206 (filtered list becomes the primary focus). The gate lives in `page.tsx`; `<CockpitRenderer>` doesn't know about the agent filter.
-  - **Work zone** (`<WorkListSurface>`) — two inner tabs: **Dashboard** (cockpit kernel rendered inline — the four faces) and **Schedule** (all recurrences cadence-grouped: Recurring · Reactive · One-time). Schedule is the canonical recurrence list; "My Work / Connectors / System" classification tabs and the standalone Decisions tab were removed in the 2026-05-06 pass. System recurrences hidden by default (overflow toggle "Show system"). **Pinned tasks** (`tabs.work.list.pinned_tasks`) float to the top of their group in Schedule view. **Banner** (`tabs.work.list.banner`, including via `phase_overlays`) renders above via `<BundleBanner tab="work" />`.
-    - **Lens distinction (sharpened 2026-05-14):** Schedule answers the declaration-lens question — *"What recurrences exist in my workspace, when do they fire, who runs them?"* The execution-lens question — *"Did the recurrences actually run, did they succeed, what did they cost?"* — lives at `/activity` (user-menu). Schedule rows surface declaration signals (cadence, agents, next-run timestamp); they do **not** carry execution detail (cost, success/fail history, narrative excerpts) — that's the surface contract. Each Schedule row carries a `View runs →` deep-link to `/activity?slug={slug}` (pre-filtered execution log). `/activity` JobCard headers carry a reciprocal `Manage →` deep-link to `/work?task={slug}` for declaration-level mutation. Anti-pattern to avoid: dropping narrative excerpts ("last material summary") into ScheduleRow — those are execution-lens content and route the operator to the wrong surface.
-  - Zones share one vertical scroll (ADR-205 F2 — deliberate: glance-then-drill mental model; tab-ify was considered and rejected because it would force proposals behind a click).
+Home is the cockpit (ADR-312, supersedes the ADR-228 four-faces framing). It is a **composition over the workspace's present constituents** — substrate-forward when empty (a constitution CTA), operation-forward when a program runs. Rendered by `HomeRenderer` (`web/components/library/HomeRenderer.tsx`); the four legacy faces (`MandateFace`/`MoneyTruthFace`/`PerformanceFace`/`TrackingFace`) are **deleted**.
+
+- **Six kernel constituent slots, fixed order** (ADR-312 D2). The kernel owns the slot set + order; absent constituents self-hide (no dead-end Home):
+  1. **Constitution band** (`HomeHeader`, kernel) — mandate one-liner + Reviewer persona + autonomy posture. The operation's authored intent, first-class (not a config drawer). Reads `constitution/MANDATE.md` + `governance/_autonomy.yaml`. Its empty state IS the onboarding/activation CTA.
+  2. **Ground-truth hero** (program-declared) — the operation's primary "is this working?" signal. Generic kernel shape (`GroundTruthHero`); the program binds a component via `home.program_sections[]`. Alpha-trader binds `TraderMoneyTruth` (ADR-312 D3).
+  3. **Decision queue** (`KernelDecisionQueue`, kernel-universal) — consequential gated actions awaiting operator approval. Reads `action_proposals` (ADR-307).
+  4. **Live entities** (program-declared) — the operation's currently-active entities. Program-labeled ("Positions" / "Partners" / "Pieces"); the kernel never hardcodes a program noun.
+  5. **Recent artifacts** (`KernelRecentArtifacts`, kernel-universal) — delivered outputs. Reads `operation/reports/{slug}/{date}/output.md` (ADR-320). Thinned to a glance + "View in Files" pointer (ADR-329 D7).
+  6. **Judgment trail** (`KernelJudgmentTrail`, kernel-universal) — recent Reviewer decisions + reconciled outcomes. Reads `persona/judgment_log.md` (ADR-320; was `review/decisions.md`).
+- **Program binding:** a program declares **exactly two** slots (#2 hero + #4 entities) via `home.program_sections[]` in `docs/programs/{slug}/SURFACES.yaml`, dispatched by `kind` through the library. It may NOT re-render the four kernel-owned slots. (Note: alpha-trader's SURFACES.yaml currently declares a seven-section trader stack — a documented known exception pending reshape to the two-slot contract.)
+- **Writes:** none direct — Home is read-composition. Mutations route through chat (`WriteFile` / `ManageRecurrence` / etc.) or the decision queue's approve/reject (which calls `ExecuteProposal`/`RejectProposal`).
+- **Deep-links out:** decision-queue rows → `/queue`; recent-artifact rows → `/files?path=...`; judgment-trail → `/agents?agent=reviewer`; constitution band → `/mandate` · `/identity`.
+- **Refuses:** recurrence orchestration (→ Recurrence), file management (→ Files), agent authoring (→ Agents). No program noun hardcoded in the kernel slots. No `'use client'` redirect stubs (ADR-308 — pure server transport).
+
+### Surface: Recurrence — the work list
+
+**Route:** `/recurrence` (slug `recurrence`; renamed from `/cadence` 2026-06-03; the legacy `/work` + `/schedule` + `/overview` all redirect here per ADR-297). `WORK_ROUTE = "/recurrence"`.
+
+The recurrence list + per-recurrence detail. ADR-297 dissolved the old `/work` two-zone layout (cockpit + work zones) — **the cockpit moved entirely to Home**; Recurrence is now a single-mode list/detail surface, no cockpit zone.
+
+- **Archetype:** Dashboard / Queue (list mode) → Document/Dashboard/Stream (detail mode, per output_kind).
+- **Narrative semantics** (ADR-219 D4): Recurrence **is the narrative filtered by `metadata.task_slug`**. The list-row recent-activity headline reads from the narrative via `GET /api/narrative/by-task` (ADR-219 Commit 4); recurrences with no narrative entries render no headline. Detail's per-recurrence run-history reads `agent_runs` (ADR-219 D7 — the audit ledger, separate consumer).
+- **Reads** (ADR-320 five-root + ADR-261/262 natural-home paths — canonical homes in `api/services/conventions.py`): `tasks` thin scheduling index (ADR-231 D4 Path B — `next_run_at`, `last_run_at`, `paused`, `declaration_path`), `/workspace/operation/reports/{slug}/*` (DELIVERABLE: `_spec.yaml`, `_feedback.md`, `_run_log.md`, `{date}/output.md`), `/workspace/operation/{domain}/*` (ACCUMULATION: `_feedback.md`, `_run_log.md`, synthesis `_<name>.md`, entity files), `/workspace/operation/operations/{slug}/*` (ACTION: `_action.yaml`, `_run_log.md`), `/workspace/_recurrences.yaml` (the single canonical recurrence declarations file per ADR-261 D2; the legacy `_shared/back-office.yaml` MAINTENANCE index dissolved into it), `agent_runs`, **`GET /api/narrative/by-task`**.
+- **List mode** (no `?task=`): the recurrence list, cadence-grouped (Recurring · Reactive · One-time) via `RecurrenceList`. Search + agent filter. System recurrences hidden by default (overflow toggle "Show system"). **Pinned recurrences** (`tabs.work.list.pinned_tasks`) float to the top of their group. **Banner** (`tabs.work.list.banner`, incl. via `phase_overlays`) renders above via `<BundleBanner />`.
+  - **Lens distinction:** Recurrence answers the declaration-lens question — *"What recurrences exist, when do they fire, who runs them?"* The execution-lens question — *"Did they run, succeed, what did they cost?"* — lives at `/activity`. Recurrence rows surface declaration signals (cadence, agents, next-run); they do NOT carry execution detail. Each row carries `View runs →` to `/activity?slug={slug}`; `/activity` carries reciprocal `Manage →` to `/recurrence?task={slug}`. Anti-pattern: narrative excerpts in a recurrence row — those are execution-lens content.
 - **Detail mode** (`?task={slug}`): three compositor-resolved layers — chrome (top), middle (content), feedback strip (bottom). Per Part 0, every layer flows through the resolver pattern.
   - **Chrome** (`<ChromeRenderer>`) — single component for the metadata strip + array of components for the actions row. Resolved via `resolveChrome(ctx, middles)`:
     - **Kernel default per output_kind** (`KERNEL_DEFAULT_CHROME` in `kernel-defaults.ts`):
@@ -151,7 +200,7 @@ Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, u
       - `system_maintenance` → KernelMaintenanceMetadata + (no actions)
     - **Bundle override** via `tabs.work.detail.middles[].chrome` (optional, partial overrides allowed): bundles override metadata only, actions only, or both. Missing slots inherit kernel default.
     - **Action handlers** thread via `WorkDetailActionsContext` provider in `WorkDetail.tsx`. Kernel and bundle chrome components both consume `useWorkDetailActions()`.
-    - **Operational vs historical timestamp rule** (rule made contract-explicit in v2.0): chrome metadata strips show **operational** timestamps that help the operator answer "is this task healthy and current?" Bundle middles whose content area regenerates substrate every run (e.g., a Dashboard reading `_money_truth.md`) should override the metadata to show *substrate* freshness, not artifact age. Historical context lives in the narrative (`/work` list-row headlines, ADR-219), not in chrome.
+    - **Operational vs historical timestamp rule** (rule made contract-explicit in v2.0): chrome metadata strips show **operational** timestamps that help the operator answer "is this recurrence healthy and current?" Bundle middles whose content area regenerates substrate every run (e.g., a Dashboard reading `_money_truth.md`) should override the metadata to show *substrate* freshness, not artifact age. Historical context lives in the narrative (Recurrence list-row headlines, ADR-219), not in chrome.
   - **Middle** (`<MiddleResolver>`) — content area. Resolved via `resolveMiddle(ctx, middles)` 4-tier match:
     - **Kernel default per output_kind** (kind-specific components at `web/components/work/details/`, retained as the kernel-default fallback per ADR-225 §5):
       - `produces_deliverable` → DeliverableMiddle (rendered output + quality contract panel)
@@ -160,16 +209,17 @@ Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, u
       - `system_maintenance` → MaintenanceMiddle (hygiene log + run history)
     - **Bundle override** via `tabs.work.detail.middles[]` 4-tier match (task_slug → output_kind+condition → output_kind → agent_role/class). First match wins. Bundle middles take full content area; archetype declared via `archetype` field per ADR-198.
   - **FeedbackStrip** — thin bar below the middle. Single "Edit in chat" prompt per kind (ADR-181 Phase 4a). Skipped for system_maintenance (back-office tasks have no user feedback loop).
-- **`+` menu:** `TaskSetupModal` (singular creation modal across the cockpit — ADR-178 two-route rich intake; forwards to YARNNN via `sendMessage`. Per ADR-231 D5, YARNNN calls `ManageRecurrence(action='create', shape=..., slug=..., body={...})` in the same turn — `ManageTask` was deleted in ADR-231 Phase 3.7). Per ADR-215 Phase 4 singular-implementation, `CreateTaskModal` was retired — one creation modal across `/chat`, `/work`, `/agents`, `/files`.
-- **Deep-links out:** recurrence files on Files (`/files?path=/workspace/operation/reports/{slug}/_spec.yaml` for DELIVERABLE; `/workspace/operation/{domain}/` for ACCUMULATION; `/workspace/operation/operations/{slug}/_action.yaml` for ACTION; per ADR-231 D2/D3 natural-home paths + ADR-320), assigned agents on Agents (`/agents?agent={slug}`), Chat with recurrence preselected for "Edit in chat" (`/chat?task={slug}` — query-param name preserved per ADR-219 D4 task_slug = declaration slug).
+- **`+` menu:** `TaskSetupModal` (singular creation modal — ADR-178 two-route rich intake; forwards to YARNNN via `sendMessage`. Per ADR-231 D5, YARNNN calls `ManageRecurrence(action='create', shape=..., slug=..., body={...})` in the same turn — `ManageTask` was deleted in ADR-231 Phase 3.7). Per ADR-215 Phase 4 singular-implementation, `CreateTaskModal` was retired — one creation modal across the cockpit (summoned from any surface).
+- **Deep-links out:** recurrence files on Files (`/files?path=/workspace/operation/reports/{slug}/_spec.yaml` for DELIVERABLE; `/workspace/operation/{domain}/` for ACCUMULATION; `/workspace/operation/operations/{slug}/_action.yaml` for ACTION; per ADR-231 D2/D3 + ADR-320), assigned agents on Agents (`/agents?agent={slug}`), Feed with recurrence preselected for "Edit in chat" (`/feed?task={slug}` — query-param name preserved per ADR-219 D4 task_slug = declaration slug), execution log on Activity (`/activity?slug={slug}`).
 - **Refuses:**
-  - File browsing outside recurrence scope (goes to Files)
-  - Agent identity editing (goes to Agents → Chat)
+  - The cockpit composition (→ Home) — Recurrence is the work list, not the dashboard.
+  - File browsing outside recurrence scope (→ Files)
+  - Agent identity editing (→ Agents → Feed)
   - Replacing Files for the operator-authored rules (MANDATE in `constitution/`, IDENTITY/principles in `persona/`, BRAND/CONVENTIONS in `operation/` per ADR-320; per R3 — `ManageContextModal` retired)
 
-### Tab: Feed
+### Surface: Feed
 
-**Route:** `/feed` (HOME per ADR-205 F1; `/chat` redirects to `/feed` per ADR-259)
+**Route:** `/feed` · **Register:** application · **Archetype:** Stream. (`/chat` redirects to `/feed` per ADR-259; the always-available chat-drawer chrome summons this surface.)
 
 > **ADR-289 Phase 2 update (2026-05-18):** The Feed tab is now split into two render surfaces — the **FeedTimeline** (operations-timeline rendering of typed event rows, no chat bubbles) and a **ConversationDrawer** (chat-shaped exchange surface scoped to `pulse='addressed'`). Bubble grammar is preserved ONLY on the Conversation surface. The Feed surface groups rows by `metadata.invocation_id` (re-anchored to `execution_events.id` per ADR-289 D2) into InvocationCards. Operator engages a conversation via the header "Talk" button or by clicking an OperatorEventMarker's "opened conversation →" affordance — the drawer slides over the timeline. Autonomous wakes that fire while the drawer is open surface silently in the timeline behind; visible when the drawer closes.
 
@@ -179,12 +229,12 @@ Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, u
   - **Weight-driven rendering** (ADR-219 D5) — `metadata.weight` ∈ `{material, routine, housekeeping}` drives per-row UI density. Material → full card (existing user/assistant/reviewer card path). Routine → collapsed line with chevron + click-to-expand. Housekeeping → dim one-liner; the curated rollup card written by `back-office-narrative-digest` (ADR-219 Commit 3) is the recommended surface for housekeeping clusters. Legacy "no envelope" rows default to material so messages predating ADR-219 Commit 2 don't disappear.
   - **Pulse** = trigger sub-shape attached to each entry. Periodic / reactive / addressed / heartbeat. Carried in `metadata.pulse`.
   - **Filter bar** (`<ChatFilterBar>`) — three deep-linkable query-param dimensions: `?weight=...&identity=...&task=...`. Bar auto-opens when any filter is active. The filter is a Channel-layer slice over the same Stream — never a substrate change.
-  - **`/work` is the same narrative filtered by `metadata.task_slug`** — Chat and Work read the same source of truth (ADR-219 D4); Work is the legibility wrapper for task-labeled invocations, Chat is everything.
+  - **Recurrence is the same narrative filtered by `metadata.task_slug`** — Feed and Recurrence read the same source of truth (ADR-219 D4); Recurrence is the legibility wrapper for task-labeled invocations, Feed is everything.
 - **Reads:** `chat_sessions` + `session_messages` (windowed per ADR-159), compact index (`format_compact_index()` per ADR-186 profile), all substrate indirectly via YARNNN's tool calls.
 - **Writes:** through primitives (`WriteFile(scope='workspace')`, `InferContext`, `FireInvocation`, `ManageAgent` (lifecycle-only per ADR-235 D2), `ManageRecurrence`, `ManageDomains`, `ProposeAction`, etc. per ADR-168 + ADR-231 D5 + ADR-235; the `InferWorkspace` first-act primitive was removed per ADR-314 D4). Chat never writes substrate directly; it writes through YARNNN's primitive invocations. Recurrence lifecycle flows through `ManageRecurrence` (create/update/pause/resume/archive) + `FireInvocation` (manual fire) per ADR-231 D5 + ADR-235 D1.c — the legacy `ManageTask` primitive was deleted in Phase 3.7 and `UpdateContext` was deleted in ADR-235. Every primitive invocation also emits a narrative entry via `services.narrative.write_narrative_entry` (ADR-219 Commit 2 single write path; ADR-219 Commit 6 final coverage gate enforces this).
-- **Stream mode** (default, conversation active): append-only message log. Reviewer verdicts appear as `role='reviewer'` messages per ADR-212; agent task completions appear as `role='agent'` entries with task-slug envelope. `system_card='narrative_digest'` system cards are retired (digest mechanism deleted by ADR-260/261/262 back-office cleanup; the housekeeping-roll-up surface that ADR-219 D5 originally targeted was replaced by emission-at-source policy per ADR-277). MCP foreign-LLM calls land as `role='external'` entries (ADR-219 Commit 6) with `metadata.mcp_tool` + `metadata.mcp_client` provenance. Artifact cards render inline when a primitive's response carries one. "Edit in chat" entries from other tabs open Chat with a seeded first message.
+- **Stream mode** (default, conversation active): append-only message log. Reviewer verdicts appear as `role='reviewer'` messages per ADR-212; agent task completions appear as `role='agent'` entries with task-slug envelope. `system_card='narrative_digest'` system cards are retired (digest mechanism deleted by ADR-260/261/262 back-office cleanup; the housekeeping-roll-up surface that ADR-219 D5 originally targeted was replaced by emission-at-source policy per ADR-277). MCP foreign-LLM calls land as `role='external'` entries (ADR-219 Commit 6) with `metadata.mcp_tool` + `metadata.mcp_client` provenance. Artifact cards render inline when a primitive's response carries one. "Edit in chat" entries from other surfaces open the Feed with a seeded first message.
 
-- **Feed emission policy** (ADR-277, 2026-05-15) — **The feed is the central conversational substrate that surfaces throughout the cockpit (Feed tab, context overlay deep-links, Reviewer activity Recent runs cross-link, /work narrative entries). Its emission discipline governs operator experience everywhere it appears.** Two tiers of system-event emission, by intent at source:
+- **Feed emission policy** (ADR-277, 2026-05-15) — **The feed is the central conversational substrate that surfaces throughout the cockpit (Feed surface, context overlay deep-links, Reviewer activity Recent runs cross-link, Recurrence narrative entries). Its emission discipline governs operator experience everywhere it appears.** Two tiers of system-event emission, by intent at source:
 
   | Tier | When to emit | Render | Examples |
   |---|---|---|---|
@@ -198,12 +248,12 @@ Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, u
   - Mechanical fire forensics (status / duration / cost) → `/activity` filtered to `mode=mechanical`
   - What each fire wrote to substrate → `/files` file detail + `workspace_file_versions` revision chain (ADR-209)
   - Reviewer-loop activity → `/agents?agent=reviewer&tab=activity`
-  - Full upcoming-fires schedule → `/work?tab=schedule`
+  - Full upcoming-fires schedule → `/recurrence` (cadence-grouped list)
 
   This is the lens-sharpening discipline applied at the emission policy layer — same shape as the Schedule/Activity (declaration vs execution) and Reviewer Autonomy/Activity (config vs supervision) splits canonized elsewhere in this doc. **Future emission decisions reviewed against this rule of thumb.**
 - **Empty state** (cold start per ADR-205 F1): `<ChatEmptyState>` — deterministic client-side landing with four suggestion chips (Upload a doc, Paste a URL, Track something recurring, Build a recurring report). Zero LLM cost on first load. The only surface in the cockpit that overrides its archetype for first-run guidance.
 - **`+` menu:** exactly one entry per ADR-215 Phase 5 — "Start new work" → `TaskSetupModal` (R4 modal launcher). The prior "Update workspace" entry was retired — it violated R2 (update is never Modal) and R3 (identity/brand/conventions are substrate, edited on Files).
-- **Deep-links out:** any file YARNNN cites (`/files?path=...`), any recurrence `ManageRecurrence` creates or updates (`/work?task=...` — query-param name preserved per ADR-219 D4 task_slug = declaration slug), any agent `ManageAgent` touches (`/agents?agent=...`). Reviewer verdict cards (role='reviewer' messages per ADR-212) link to `/agents?agent=reviewer` (ADR-214 canonical route). Artifacts carry links, not embeds.
+- **Deep-links out:** any file YARNNN cites (`/files?path=...`), any recurrence `ManageRecurrence` creates or updates (`/recurrence?task=...` — query-param name preserved per ADR-219 D4 task_slug = declaration slug), any agent `ManageAgent` touches (`/agents?agent=...`). Reviewer verdict cards (role='reviewer' messages per ADR-212) link to `/agents?agent=reviewer` (ADR-214 canonical route). Artifacts carry links, not embeds.
 - **Context overlay** (`<WorkspaceContextOverlay>`): modal opened by YARNNN-emitted `<!-- snapshot: {"lead":"..."} -->` marker OR the surface header "Context" button. **Briefing archetype in its purest form** (ADR-198 §3): pure read, composed by selection, no outbound nav, zero LLM at open time. The overlay is *of* the conversation — Close returns the operator to typing with enriched awareness, not to another tab.
 
   **Three sections (refactored 2026-05-14 from 8 overlapping sub-blocks to a 3-section primer):** single operator question this modal answers is *"what do I need to know right now to make sense of the next chat turn?"* — a 5-second awareness primer, not a supervision or forensic surface. Anything richer routes to canonical dedicated surfaces via inline deep-links.
@@ -215,7 +265,7 @@ Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, u
   | **Pulse** | "Is it alive + what demands my attention now?" | One-line liveness ("Last wake N ago · M runs in window") + nearest next-wake hint + pending-proposals card (only when count > 0) + deep-links footer | `GET /api/agents/reviewer/activity` + `GET /api/proposals?status=pending` | 2 HTTP GETs, 0 LLM |
 
   **Lens distinction (sharpened 2026-05-14)** — modal answers ONE operator question (right-now awareness primer). Richer views live on dedicated surfaces:
-    - Full upcoming-wakes schedule → `/work?tab=schedule` (declaration-lens)
+    - Full upcoming-wakes schedule → `/recurrence` (declaration-lens, cadence-grouped)
     - Full execution history → `/activity` (execution-lens)
     - Reviewer-loop supervision (full activity + capabilities + autonomy config) → `/agents?agent=reviewer&tab=activity` (supervision-lens)
 
@@ -242,10 +292,23 @@ Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, u
 - **Interactive stream entries — chip → modal pattern** (ADR-258 D2): proposals and workspace file references use one pattern. Stream entry = compact chip (1–2 lines, append-only). Clicking opens `InteractiveModal` (centered modal, Escape to close) with full detail and action affordances. `InteractiveModal` is the single shared style for all interactive stream items — one component, no per-entry modal variants. Approve/reject executes in the modal and closes it; chip reflects terminal state. This supersedes the prior inline `ProposalCard` expand pattern and the inline `WorkspaceFileView` overlay in `MessageRow`.
 - **Inline-to-recurrence graduation** (ADR-219 D6 + ADR-231 D1/D5): material-weight operator messages that have no `metadata.task_slug` (i.e. inline invocations per FOUNDATIONS Axiom 9 + ADR-231 D1 invocation-first default) carry an inline **"Make this recurring"** affordance. Per D1 the operator's first invocation already fired and produced its result; this affordance attaches a nameplate + pulse + contract for repeat firings. Click opens `TaskSetupModal` pre-filled with `Recurring intent: <message-prefix>` so YARNNN turns it into `ManageRecurrence(action='create', shape=..., slug=..., body={...})` on submit. Reversible: a recurrence can be archived later via `ManageRecurrence(action='archive', ...)` and the same intent returns to inline. The atom of action (the invocation) is the same throughout — only the legibility wrapper rotates.
 - **Refuses:**
-  - Full CRUD forms (modal-shape — those are on other tabs per R2)
-  - Heavy data tables (those are Dashboard archetype — other tabs)
-  - Replacing direct affordances on other tabs (approve buttons stay on Work; pause buttons stay on Work; no Chat-only paths for Direct-shape operations per R1)
+  - Full CRUD forms (modal-shape — those belong on their owning surfaces per R2)
+  - Heavy data tables (those are Dashboard archetype — Home / Recurrence / Files)
+  - Replacing direct affordances on other surfaces (approve/reject stays on Queue + Home's decision queue; pause/run-now stays on Recurrence; no chat-only paths for Direct-shape operations per R1)
   - Onboarding forms — onboarding is conversational per ADR-190; no `OnboardingModal` / `ContextSetup` after ADR-215 Phase 5
+
+### Surface: Queue + Activity (application)
+
+- **Queue** (`/queue`, application, **Queue** archetype) — consequential gated actions awaiting operator decision. Reads `action_proposals`. Approve/reject executes in place (`ExecuteProposal` / `RejectProposal`); the same decision-queue slot renders on Home (#3). **Refuses:** authoring (proposals come from agents/Reviewer, not the operator); execution detail (→ Activity).
+- **Activity** (`/activity`, application, **Stream** archetype) — the workspace-wide execution ledger. Reads `execution_events` (ADR-250 + ADR-265). The execution-lens counterpart to Recurrence's declaration-lens (the Schedule/Activity split). Rows carry reciprocal `Manage →` deep-links to `/recurrence?task={slug}`. **Refuses:** declaration mutation (→ Recurrence); conversation (→ Feed).
+
+### Surfaces: intent + os-config (thin contracts)
+
+The constitution (**intent**) and OS-tuning (**os-config**) surfaces are thin **Document/Dashboard** surfaces — a rendered file or config view + edit-via-chat. They share one contract shape, so they're documented as a group rather than repeating seven sections each:
+
+- **intent** (the constitution band, also surfaced as Home slot #1): **Mandate** (`/mandate` → `constitution/MANDATE.md`) · **Principles** (`/principles` → `persona/principles.md` + `_principles.yaml`) · **Identity** (`/identity` → `persona/IDENTITY.md`, co-renders `operation/BRAND.md` per ADR-309). Read-render + revision history (ADR-209). **Writes:** edit-via-chat only (`WriteFile`/`InferContext` per ADR-235/329 D5 — no inline editor). The operator authors these; the Reviewer may amend within its write-lock topology (ADR-320 D3).
+- **os-config** (the OS configuring itself): **Autonomy** (`/autonomy` → `governance/_autonomy.yaml`, the delegation dial) · **Budget** (`/budget` → `governance/_budget.yaml`, the collapsed pace + token-budget gate per ADR-327) · **Program** (`/program`, bundle lifecycle — activate/switch/deactivate) · **Connectors** (`/connectors` → `platform_connections`, OAuth + API keys) · **Settings** (`/settings`, account/workspace/billing — `?tab=` sub-views). Autonomy + Budget are governance YAML (operator-only write per ADR-320 D3, structured edit via confirm-gated direct mutation); Connectors + Settings + Program are dashboard config surfaces.
+- **Refuses (both registers):** substrate-authoring outside the file's owning primitive; cross-surface orchestration; `'use client'` redirect stubs (ADR-308 — pure server transport).
 
 ---
 
@@ -257,17 +320,17 @@ Four shapes. One rule per verb-object pair. Every mutation in the cockpit picks 
 |---|---|---|---|
 | **Direct** | High-precision, well-specified, one-step, reversible | In-place button/input on the object's own detail page | Pause task · Archive file · Approve proposal · Run task now |
 | **Modal** | High-precision, multi-field, **creation flow**, operator arrives with a blueprint | Modal launched from `+` menu or page header | CreateTaskModal · UploadFileModal |
-| **Chat** | Judgment-shaped, ambiguous, needs YARNNN's context | Redirect to `/chat` with seeded prompt | Refine a task's deliverable · Rewrite a mandate · Author a domain agent · Define review principles |
-| **Substrate** | Operator-authored content that IS a file | Edit the file on Files tab; revision chain records `authored_by=operator` | IDENTITY.md · BRAND.md · CONVENTIONS.md · MANDATE.md · principles.md · uploaded documents |
+| **Chat** | Judgment-shaped, ambiguous, needs YARNNN's context | Seeded prompt into the Feed (`/feed`) | Refine a recurrence's deliverable · Rewrite a mandate · Author a domain agent · Define review principles |
+| **Substrate** | Operator-authored content that IS a file | Open the file on Files (`/files`); edit-via-chat records `authored_by=operator` (ADR-329 D5 — no inline editor) | IDENTITY.md · BRAND.md · CONVENTIONS.md · MANDATE.md · principles.md · uploaded documents |
 
 ### The six rules
 
 - **R1 — One verb, one shape per object.** "Edit a task" is always Chat. "Edit a file" is always Substrate. "Approve a proposal" is always Direct. No mixing across the cockpit.
 - **R2 — Create is always Modal. Update/Delete is Direct or Chat, never Modal.** Modals exist for the moment of creation where the operator arrives with a blueprint. After creation, mutation is single-click Direct or judgment-shaped Chat. No "edit modal" anywhere in the cockpit.
 - **R3 — Substrate operations bypass Chat.** If the thing being edited IS a file, the edit surface is Files. The revision panel (ADR-209 P4) shows `authored_by=operator`. No "Edit in chat" button on substrate files — Chat would invoke `WriteFile(scope='workspace')` or `InferContext` anyway, and direct substrate edit produces the same write with clearer provenance.
-- **R4 — The `+` menu is a modal launcher. Never a chat seeder.** Each tab's `+` menu lists only Modal creation flows. Chat-shaped mutations live on the object's own detail page as the R5 label.
-- **R5 — One label: "Edit in chat".** All existing phrasings ("Edit via chat" / "Edit via YARNNN" / "Edit via yarnnn") converge on **"Edit in chat"**. Lowercase. No YARNNN branding — chat is the tab; YARNNN is the agent; the operator is editing *in a surface*, not *through an agent*. Single `<EditInChatButton prompt={...} />` component across the cockpit.
-- **R6 — Surfaces never branch on `program_slug`.** Specialization happens via composition manifest (Part 0), never via FE conditionals. If a tab's contract feels it needs to know which program is active, the answer is to declare the variation in `SURFACES.yaml`. The compositor seam is the kernel/program boundary at the FE layer; bypassing it for "just one quick conditional" undoes the structural reason the seam exists. Per ADR-225 Phase 3 + ADR-222 Principle 16.
+- **R4 — The `+` menu is a modal launcher. Never a chat seeder.** A surface's `+` menu lists only Modal creation flows. Chat-shaped mutations live on the object's own detail surface as the R5 label.
+- **R5 — One label: "Edit in chat".** All existing phrasings ("Edit via chat" / "Edit via YARNNN" / "Edit via yarnnn") converge on **"Edit in chat"**. Lowercase. No YARNNN branding — chat is the Feed; YARNNN is the agent; the operator is editing *in a surface*, not *through an agent*. Single `<EditInChatButton prompt={...} />` component across the cockpit.
+- **R6 — Surfaces never branch on `program_slug`.** Specialization happens via composition manifest (Part 0), never via FE conditionals. If a surface's contract feels it needs to know which program is active, the answer is to declare the variation in `SURFACES.yaml`. The compositor seam is the kernel/program boundary at the FE layer; bypassing it for "just one quick conditional" undoes the structural reason the seam exists. Per ADR-225 Phase 3 + ADR-222 Principle 16.
 
 ---
 
@@ -277,42 +340,43 @@ Quick lookup for common verb-object pairs. When adding a new affordance, add it 
 
 | Verb | Object | Shape | Location | Notes |
 |---|---|---|---|---|
-| Create | Task | Modal | Any tab `+` menu → TaskSetupModal (singular per ADR-215 Phase 4) | R2 |
+| Create | Task | Modal | Any surface `+` menu → TaskSetupModal (singular per ADR-215 Phase 4) | R2 |
 | Create | Domain agent | Chat | Agents header → "Edit in chat" | R1 (judgment-shaped) |
 | Create | Proposal | Chat | Agent proposes via ProposeAction primitive | Not operator-initiated |
 | Upload | Document | Modal | Files `+` menu → UploadFileModal | R2 |
-| Edit | Task (DELIVERABLE, team, schedule by judgment) | Chat | Work detail → "Edit in chat" | R1 |
-| Edit | Task (mode, pause/resume, run now, archive) | Direct | Work detail → header buttons | R1, R2 |
+| Edit | Task (DELIVERABLE, team, schedule by judgment) | Chat | Recurrence detail → "Edit in chat" | R1 |
+| Edit | Task (mode, pause/resume, run now, archive) | Direct | Recurrence detail → header buttons | R1, R2 |
 | Edit | Agent identity (IDENTITY.md, memory/style) | Chat or Substrate | Substrate if file; Chat if judgment-shaped | R1 per field |
 | Edit | Operator-authored rules (MANDATE in `constitution/`; IDENTITY in `persona/`; BRAND · CONVENTIONS in `operation/` — ADR-320) | Chat | Files detail → "Edit in chat" (no inline editor; SubstrateEditor deleted per ADR-236/ADR-329 D5) | R3 / ADR-329 verb 5 |
 | Edit | Reviewer `persona/principles.md` (ADR-320) | Chat | Files detail → "Edit in chat" | R3 / ADR-329 verb 5 |
-| Edit | `feedback.md` on a task | Chat | Work detail → FeedbackStrip → "Edit in chat" | R1 |
-| Approve | Proposal | Direct | Work NeedsMe pane → Approve button | R1 |
-| Reject | Proposal | Direct | Work NeedsMe pane → Reject button | R1 |
-| Archive | Task | Direct | Work detail → header overflow | R1 |
+| Edit | `feedback.md` on a task | Chat | Recurrence detail → FeedbackStrip → "Edit in chat" | R1 |
+| Approve | Proposal | Direct | Queue (or Home decision-queue slot) → Approve button | R1 |
+| Reject | Proposal | Direct | Queue (or Home decision-queue slot) → Reject button | R1 |
+| Archive | Task | Direct | Recurrence detail → header overflow | R1 |
 | Archive | File | Direct | Files detail → overflow | R1 (when lifecycle allows) |
-| Restore | File revision | Direct | Files revision panel → Restore | R1 |
-| Connect | Platform | Modal | Settings `?tab=connectors` → connect flow | R2 (not on the four main tabs) |
-| Graduate | Inline action → Task | Chat | Chat → material operator entry → "Make this recurring" → opens TaskSetupModal pre-filled | R5 phrasing; ADR-219 D6 |
-| Filter | Narrative stream | Direct | Chat header → Filter icon → ChatFilterBar (weight / identity / task chips) | ADR-219 D5; deep-link query params |
-| Expand | Housekeeping digest rollup | Direct | Chat → narrative_digest card → chevron toggle → rolled-up bullet list | ADR-219 Commit 3 + 5 |
+| Restore | File revision | Direct | Files Get-Info → Restore (ADR-329) | R1 |
+| Connect | Platform | Modal | Connectors (`/connectors`) → connect flow | R2 |
+| Graduate | Inline action → Task | Chat | Feed → material operator entry → "Make this recurring" → opens TaskSetupModal pre-filled | R5 phrasing; ADR-219 D6 |
+| Filter | Narrative stream | Direct | Feed header → Filter icon → ChatFilterBar (weight / identity / task chips) | ADR-219 D5; deep-link query params |
 
 ---
 
-## Part 4 — Tab-Hardening Sequence
+## Part 4 — Surface-Hardening Sequence
 
-Tabs harden in this order: **Files → Agents → Work → Chat.** The order reflects the dependency graph — each tab's design consumes substrate and deep-link targets from tabs earlier in the sequence.
+> The original four-tab framing (Files → Agents → Work → Chat) is preserved below as the dependency-graph reasoning that drove the ADR-215 hardening pass (the "Implementation status" changelog records its execution). It still reads correctly under the surface model with the rename `Work → Recurrence` + `Chat → Feed`; the cockpit composition (Home) hardens last alongside Feed, since it composes over every other surface's substrate.
+
+Surfaces harden by dependency depth — each surface's design consumes substrate + deep-link targets from surfaces earlier in the sequence:
 
 ```
-Files  ←── Agents ←── Work ←── Chat
-(substrate)  (identity)  (action)    (conductor)
-zero inbound   1 inbound   2 inbound   3 inbound
+Files  ←── Agents ←── Recurrence ←── Feed / Home
+(substrate)  (identity)  (action)       (conductor / composition)
+zero inbound   1 inbound   2 inbound      N inbound
 ```
 
-- **Files first** — zero inbound dependencies. Every other tab links into Files paths. File detail shape, revision panel, inference-meta rendering, upload UX, directory-type-specific affordances must be stable before any deep-link target is promised.
-- **Agents second** — Systemic vs Domain split is fresh (ADR-214) and needs to harden before Work references agents in task-team sections. Reviewer detail (three panes) is the highest-complexity agent type; lock that shape.
-- **Work third** — Work detail links to task files (→ Files) and assigned agents (→ Agents). Deciding Work before Files/Agents is the pattern that caused the last two weeks of thrash.
-- **Chat last** — Chat mirrors affordances exposed on other tabs. Locking Chat first forces reshapes every time another tab moves. Locking Chat last lets it converge to what's already stable.
+- **Files first** — zero inbound dependencies. Every other surface links into Files paths. File detail shape, revision panel, Get-Info provenance (ADR-329), upload UX must be stable before any deep-link target is promised.
+- **Agents second** — Systemic vs Domain split (ADR-214) hardens before Recurrence references agents in `## Team` sections. Reviewer detail is the highest-complexity agent type; lock that shape.
+- **Recurrence third** — Recurrence detail links to recurrence files (→ Files) and assigned agents (→ Agents).
+- **Feed + Home last** — Feed mirrors affordances exposed on other surfaces; Home composes over all of them. Both converge to what's already stable. Locking them first forces reshapes every time another surface moves.
 
 Each phase lands with: code changes + this doc's contract section updated in the same commit + `docs/design/CHANGELOG.md` entry. No phase ships without the contract change — that discipline is what prevents ADR-215's motivation from recurring.
 
@@ -382,51 +446,33 @@ Each phase lands with: code changes + this doc's contract section updated in the
 
 ---
 
-## /workspace surface (2026-05-06, replaces Settings → Workspace tab)
+## ~~/workspace surface~~ — DISSOLVED by ADR-297 (2026-05-30)
 
-`/workspace` is the **permanent home for workspace-level configuration** — accessible from the user menu (between Settings and Billing). Replaces `Settings → Workspace tab` (removed 2026-05-06) and the Mandate/Autonomy/Principles tabs on the YARNNN agent detail (also removed 2026-05-06).
-
-Layout: `ThreePanelLayout` with chat open — operator reads configuration on the left, edits via YARNNN chat on the right. Same discipline as the rest of this doc — read-mostly, judgment-shaped writes route through chat.
-
-### What it shows
-
-- **Active program** — current program slug + tagline + phase, or "No program activated".
-- **Platform connections needed** — required-but-not-connected platforms for the active bundle. Deep-link to `/settings?tab=connectors`.
-- **Available programs** — activatable bundles list. Switch is `POST /api/programs/activate` (idempotent re-fork).
-- **Workspace setup** — per-file state (authored / template / empty) for `mandate`, `identity`, `brand`, `autonomy`, Reviewer `principles`. Each row is **expandable inline** — content readable without leaving the page. "Edit in chat →" fires an edit prompt into the chat panel.
-
-### What it does
-
-- `Activate(slug)` → `POST /api/programs/activate`
-- `Deactivate()` → `POST /api/programs/deactivate` — soft, drops MANDATE.md program marker, body untouched per ADR-209
-- `?first_run=1` → Welcome banner with "Go to chat" CTA. Same render path otherwise.
-- auth/callback first-run redirect: `/workspace?first_run=1` (was `/settings?tab=workspace&first_run=1`).
-
-### What it does NOT do
-
-- Zero `<input>` / `<textarea>` edit affordances for substrate content. Authoring routes through chat; raw-markdown editing on Files.
-- `/operation` → redirects to `/workspace` (bookmark safety stub).
-
-### Endpoint contract
-
-`GET /api/workspace/state` — canonical workspace-state read. Response: `{ has_agents, activation_state, active_program_slug, available_programs[], substrate_status, capability_gaps[] }`.
+> **Superseded.** The `/workspace` container surface (ADR-244, 2026-05-06) was dissolved by ADR-297 into atomic kernel surfaces — `WORKSPACE_CONFIG_ROUTE ('/workspace')` deleted 2026-05-30, zero consumers. Its concerns are now individual surfaces in the inventory (Part 1): active program / activate / deactivate → **Program** (`/program`); platform connections → **Connectors** (`/connectors`); per-file workspace setup (mandate/identity/brand/autonomy/principles state) → the **intent** + **os-config** surfaces (`/mandate`, `/identity`, `/autonomy`, `/principles`) + the constitution band on **Home**. The `/operation` stub redirects to `/mandate` (not the deleted `/workspace`).
+>
+> The backend read survives: **`GET /api/workspace/state`** — canonical workspace-state read, `{ has_agents, activation_state, active_program_slug, available_programs[], substrate_status, capability_gaps[] }` — consumed by the Program surface + first-run activation (ADR-244 / ADR-312 D6 constitution-band CTA). Activate/deactivate endpoints unchanged: `POST /api/programs/activate` (idempotent re-fork) + `POST /api/programs/deactivate` (soft, drops MANDATE.md program marker, body untouched per ADR-209).
 
 ---
 
 ## Related docs
 
 - [ADR-215](../adr/ADR-215-surface-contracts-and-crud-principles.md) — governs this doc
+- [ADR-297](../adr/ADR-297-surfaces-as-substrate-mirror.md) — **the surface model: windowed Desktop, surfaces-as-windows, `navigateToSurface`, `/recurrence` (dissolved `/work`)**
+- [ADR-312](../adr/ADR-312-home-as-composition.md) — **Home as composition (six kernel slots); supersedes the ADR-228 four-faces cockpit**
 - [ADR-198](../adr/ADR-198-surface-archetypes.md) — archetype vocabulary (Document · Dashboard · Queue · Briefing · Stream)
-- [ADR-214](../adr/ADR-214-agents-page-consolidation.md) — Reviewer-inside-Agents (four-tab nav `Chat | Work | Agents | Files`)
-- [ADR-243](../adr/ADR-243-schedule-surface.md) — `/schedule` (dissolved 2026-05-06 into Work's Schedule inner tab; five-tab nav reverted to four)
-- [ADR-167 v2](../adr/ADR-167-list-detail-surfaces.md) — list/detail pattern per tab
+- [ADR-214](../adr/ADR-214-agents-page-consolidation.md) — Reviewer-inside-Agents (the four-tab nav it established was superseded by ADR-297's windowed model)
+- [ADR-309](../adr/ADR-309-two-registers-settings-and-applications.md) / ADR-312 D5 — the register split (intent · os-config · application)
+- [ADR-327](../adr/ADR-327-budget-and-the-self-improving-loop.md) — pace → budget surface collapse (supersedes ADR-300)
+- [ADR-243](../adr/ADR-243-schedule-surface.md) — `/schedule` (dissolved into the Recurrence cadence list)
+- [ADR-167 v2](../adr/ADR-167-list-detail-surfaces.md) — list/detail pattern (now per-surface)
 - [ADR-209](../adr/ADR-209-authored-substrate.md) — revision chain, `authored_by`, substrate attribution
-- [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) — invocation as atom; `/chat` is the narrative surface; `/work` is the narrative filtered by task slug
-- [ADR-225](../adr/ADR-225-compositor-layer.md) — compositor seam (Phase 3 unified — chrome + cockpit + middle through one resolver pattern)
+- [ADR-219](../adr/ADR-219-invocation-narrative-implementation.md) — invocation as atom; Feed is the narrative surface; Recurrence is the narrative filtered by task slug
+- [ADR-225](../adr/ADR-225-compositor-layer.md) — compositor seam (chrome + middle through one resolver pattern; cockpit composition is now Home per ADR-312)
 - [docs/architecture/compositor.md](../architecture/compositor.md) — architecture-level reference for the resolver pattern, binding taxonomy, kernel-default registry
 - [invocation-and-narrative.md](../architecture/invocation-and-narrative.md) — canonical narrative vocabulary (invocation · pulse · narrative · task as legibility wrapper)
 - [ADR-206](../adr/ADR-206-operation-first-scaffolding.md) — operator-facing three-layer view (Intent · Operation · Deliverables)
-- [ADR-244](../adr/ADR-244-workspace-settings-surface.md) — Settings → Workspace surface (now `/workspace` — promoted to first-class route 2026-05-06)
+- [ADR-244](../adr/ADR-244-workspace-settings-surface.md) — the `/workspace` settings surface (dissolved into atomic surfaces by ADR-297, 2026-05-30)
+- [ADR-320](../adr/ADR-320-constitution-region-topological-cut.md) — the five-root substrate topology the surface contracts read
 - [ADR-168](../architecture/primitives-matrix.md) — canonical primitive matrix (not a design doc, but the authority for what verbs exist)
 - [FOUNDATIONS v6.8](../architecture/FOUNDATIONS.md) — Axiom 6 (Channel), Axiom 9 (Invocation + Narrative), Derived Principle 12 (Channel legibility gates autonomy)
 - [INLINE-PLUS-MENU.md](./INLINE-PLUS-MENU.md) — existing plus-menu verb taxonomy; under ADR-215 R4 it is strictly a modal launcher
