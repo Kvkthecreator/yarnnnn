@@ -33,6 +33,11 @@ Entrust (the handoff) → Judgment (the substance) → Continuity (the absence) 
 **The asset metaphor** (for expanded copy and demos):
 > The substrate is the asset. The agents are the labor. The Reviewer is the management. The artifacts are the dividends. Buyers come for the dividends; they stay for the asset.
 
+**The ratified umbrella hero** (2026-06-10, noun-pass resolution — see [layman-noun-pass-verb-frame-2026-06-10.md](../../analysis/layman-noun-pass-verb-frame-2026-06-10.md)):
+> **The work you run shouldn't reset.**
+> YARNNN is the workspace where it compounds. Agents you own produce it. Corrections carry forward. A judgment seat answers for what ships — even when you're not there.
+> *(vertical chips: a newsletter · a portfolio · a shop · a pipeline · a book of business)*
+
 ### Retired copy seeds — do not use
 
 - *"It runs on your behalf. It gets better the longer it does."* — verbally commoditized (Hermes, OpenAI workspace agents, Cowork memory-curation all market this sentence's content as of June 2026).
@@ -56,7 +61,7 @@ Three qualifiers do the filtering: *theirs to run* (they bear the consequence �
 
 **Range proof (one psychographic, many occupations):** A&R deciding which artist to sign · PM deciding what to ship · solo founder deciding where to spend runway · trader deciding whether to take a position · partnerships lead deciding which deal to pursue. Different jobs; one relationship to the work.
 
-**OPEN ITEM (the one unresolved edge):** the layman self-identification noun ("I'm a ___ / I run a ___"). "Operator" and "bounded operation" are system-coded. Resolution requires a bottom-up vocabulary pass from how the lead vertical's real people talk — scoped in usp-spine §6. Until it lands, surface copy uses the felt-pain sentence, not a noun.
+**~~OPEN ITEM~~ RESOLVED (2026-06-10 noun pass):** there is no single layman noun — **the noun varies by vertical; the verb is universal.** The self-identification is *"I run a ___"*; umbrella copy keys on the run-relationship merged with the canon nouns (**"the work you run"** + *compounds/reset*); vertical surfaces use the natural operation-noun (newsletter · portfolio · shop · pipeline · book of business). "Solopreneur" = channel/SEO vocabulary only (2026's consolidated umbrella person-noun, but it excludes double-jobbers, in-company consequence-bearers, and traders); "operator" stays internal. The felt-pain sentence is a *recognition* hook, not a search hook (no organic search presence) — SEO load falls on category terms; the identity hook converts on-page. Full evidence + ratified hero: [layman-noun-pass-verb-frame-2026-06-10.md](../../analysis/layman-noun-pass-verb-frame-2026-06-10.md).
 
 ---
 
@@ -117,8 +122,8 @@ The artifact class is a **full delegate on day one with zero platform connection
 
 ## 7. Open Items & Follow-ups
 
-1. **The layman ICP noun** — bottom-up pass from the lead vertical's vocabulary; pressure-test the bounded-operation wedge ("isn't this just hobbyists?" → the wince/consequence filter is the answer to stress).
-2. **Pricing ADR** — per-operation seat tiers, delegation-level pricing, Layer-1 free tier; amends ADR-172/291 posture.
+1. ~~**The layman ICP noun**~~ — **RESOLVED 2026-06-10** (verb-frame; see §2). The wedge pressure-test ("isn't this just hobbyists?") remains live for the first real-stranger conversations — the wince/consequence filter is the answer to stress.
+2. **Pricing ADR** — per-operation seat tiers, delegation-level pricing, Layer-1 free tier; amends ADR-172/291 posture. **Forced now by the marketing refactor** (/pricing page cannot be rewritten without it).
 3. **Path-A proof decision** — whether the founder-run operation's record becomes the lead traction asset. Middle path on the table: lead with the *judgment trail* (attributed verdicts, calibration deltas, the seat refusing operator pressure per ADR-319), not the returns. Own session.
 4. **Lead-vertical call** — which bounded-operation community gets the first concentrated push.
 
