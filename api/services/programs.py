@@ -453,8 +453,8 @@ async def fork_reference_workspace(
       - File exists, operator-edited, **and is a CONFIG_PATHS file**
         (`_recurrences.yaml` or `_hooks.yaml` per ADR-292 v3 D9) →
         auto-overwrite-with-backup: write operator's prior content to
-        `_shared/conflict-backups/{ran_at}/{relative}` attributed
-        `system:substrate-update`, then write bundle's new content to the
+        `system/conflict-backups/{ran_at}/{relative}` (ADR-320 relocation)
+        attributed `system:substrate-update`, then write bundle's new content to the
         live path attributed `system:bundle-fork`. The conflict is recorded
         in the returned `config_conflicts` list. This preserves operator
         intent (backup) while letting the kernel's shape-constraints reach

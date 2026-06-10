@@ -33,8 +33,9 @@ Public surface:
 NOT a mechanical primitive (no @primitive: ReapplyPlatformSubstrate
 directive). NOT a daily back-office recurrence. Operator decides when.
 
-Audit log: `/workspace/_shared/substrate-update-log.md`, system-authored,
-append-only. Each entry records one update event with attribution.
+Audit log: `/workspace/system/substrate-update-log.md` (ADR-320: relocated
+from the dissolved _shared/ root), system-authored, append-only. Each entry
+records one update event with attribution.
 
 Canonical references:
   - docs/adr/ADR-292-continuous-substrate-reapply.md
@@ -56,7 +57,10 @@ logger = logging.getLogger(__name__)
 # Constants
 # ---------------------------------------------------------------------------
 
-UPDATE_AUDIT_LOG_PATH = "_shared/substrate-update-log.md"
+# ADR-320: relocated from the dissolved _shared/ root to system/ (the
+# orchestration-runtime root). Substrate-update bookkeeping is system-authored
+# runtime state, same character as system/_playbook.md / _schedule_index.md.
+UPDATE_AUDIT_LOG_PATH = "system/substrate-update-log.md"
 
 # Attribution actor for ADR-292 update events. Distinct from
 # `system:bundle-fork` (one-shot activation actor) — names the operator-
@@ -75,7 +79,7 @@ FRONTMATTER_KERNEL_KEY = "activated_kernel_version"
 # bundle moves shape, operator-edits on the old shape may be functionally
 # inert or broken under the new code. Discipline: auto-overwrite the bundle's
 # new content into the live path; back up the operator's prior content to
-# `/workspace/_shared/conflict-backups/{ran_at}/{relative_path}` for manual
+# `/workspace/system/conflict-backups/{ran_at}/{relative_path}` for manual
 # inspection. Closed-set today — adding a third config file requires an ADR
 # amendment naming it and updating this constant in the same commit.
 CONFIG_PATHS: frozenset[str] = frozenset({
@@ -87,7 +91,7 @@ CONFIG_PATHS: frozenset[str] = frozenset({
 # config files that get overwritten by a bundle update. Operator-readable;
 # the audit log entry surfaces the backup path so manual re-application of
 # the prior edits is a known affordance.
-CONFLICT_BACKUP_PREFIX = "_shared/conflict-backups"
+CONFLICT_BACKUP_PREFIX = "system/conflict-backups"
 
 UpdateScope = Literal["kernel", "bundle", "both"]
 UpdateSource = Literal["operator", "harness", "test"]

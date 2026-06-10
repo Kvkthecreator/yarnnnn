@@ -7,26 +7,13 @@
  * The legacy `resolveTaskSurface` and `TASK_SURFACE_MAP` were registry-
  * driven helpers; the registry is dissolved per ADR-207 P4b + ADR-231 D5.
  *
- * What survives in this module: domain-key → workspace-path resolution.
- * That's a directory naming convention (key ≠ dir name in some cases),
- * still relevant for natural-home substrate path construction in the UI.
+ * ADR-320 (2026-06-10): the `resolveDomainWorkspacePath` helper + its
+ * `DOMAIN_KEY_TO_WORKSPACE_PATH` map were DELETED — they hardcoded the
+ * dissolved `/workspace/context/{domain}` root (now `operation/{domain}`)
+ * and had zero callers. Domain→path resolution is server-side now (the
+ * directory registry + nav route emit `operation/` paths). Singular
+ * Implementation: dead legacy-path code removed rather than repointed.
  */
-
-const DOMAIN_KEY_TO_WORKSPACE_PATH: Record<string, string> = {
-  'competitors':      '/workspace/context/competitors',
-  'market':           '/workspace/context/market',
-  'relationships':    '/workspace/context/relationships',
-  'projects':         '/workspace/context/projects',
-  'content_research': '/workspace/context/content',
-  'signals':          '/workspace/context/signals',
-  'slack':            '/workspace/context/slack',
-  'notion':           '/workspace/context/notion',
-  'github':           '/workspace/context/github',
-};
-
-export function resolveDomainWorkspacePath(domainKey: string): string {
-  return DOMAIN_KEY_TO_WORKSPACE_PATH[domainKey] ?? `/workspace/context/${domainKey}`;
-}
 
 export type SurfaceType = 'report' | 'deck' | 'digest' | 'dashboard';
 

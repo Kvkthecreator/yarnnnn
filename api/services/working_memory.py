@@ -788,40 +788,50 @@ def _get_active_tasks_sync(user_id: str, client: Any) -> list[dict]:
         return []
 
 
+# operation/ subfolders that are NOT context domains (ADR-320 topology):
+# reports/ (DELIVERABLE outputs) + specs/ (capability library). Loose files
+# (BRAND.md, CONVENTIONS.md) are filtered separately (no path segment).
+_OPERATION_NON_DOMAIN = {"reports", "specs"}
+
+
 def _get_context_domain_health_sync(user_id: str, client: Any) -> list[dict]:
     """Get context domain health summary for TP awareness (sync). ADR-174 Phase 1.
 
-    Filesystem-first: queries workspace_files for all paths under /workspace/context/,
-    groups by the first directory segment after context/. Registry provides display
-    names and temporal flags as a lookup layer — it does not determine what gets reported.
+    Filesystem-first: queries workspace_files for all paths under
+    /workspace/operation/ (ADR-320 five-root topology — context/ dissolved;
+    domains live at operation/{domain}/), groups by the first directory
+    segment after operation/, excluding non-domain folders (reports/, specs/).
+    Registry provides temporal flags as a lookup layer — it does not determine
+    what gets reported.
 
-    Domains created by TP outside the declared registry (e.g., /workspace/operation/customers/)
-    appear automatically as soon as they contain files. No registry update required.
+    Domains created by TP outside the declared registry (e.g.,
+    /workspace/operation/customers/) appear automatically as soon as they
+    contain files. No registry update required.
 
-    Returns list of {domain, file_count, latest_update, health, temporal} for each
-    non-empty directory found under /workspace/context/.
+    Returns list of {domain, file_count, latest_update, health, temporal} for
+    each non-empty domain directory found under /workspace/operation/.
     """
     from services.directory_registry import WORKSPACE_DIRECTORIES
 
-    # Build a registry lookup for display metadata (temporal flag, known domain keys).
-    # Keys are the directory segment name (e.g., "competitors", "slack").
+    # Build a registry lookup for display metadata (temporal flag, known domain
+    # keys). Keys are the directory segment name (e.g., "competitors", "slack").
     registry_meta: dict[str, dict] = {}
     for key, defn in WORKSPACE_DIRECTORIES.items():
         path = defn.get("path", "")
-        if path.startswith("context/"):
-            segment = path[len("context/"):].rstrip("/")
+        if path.startswith("operation/"):
+            segment = path[len("operation/"):].rstrip("/")
             if segment:
                 registry_meta[segment] = {
                     "temporal": defn.get("temporal", False),
                 }
 
     try:
-        # Single query: all files under /workspace/context/ for this user.
+        # Single query: all files under /workspace/operation/ for this user.
         result = (
             client.table("workspace_files")
             .select("path, updated_at")
             .eq("user_id", user_id)
-            .like("path", "/workspace/context/%")
+            .like("path", "/workspace/operation/%")
             .in_("lifecycle", ["active", "delivered"])
             .execute()
         )
@@ -830,17 +840,18 @@ def _get_context_domain_health_sync(user_id: str, client: Any) -> list[dict]:
         logger.warning(f"[WORKING_MEMORY] context domain query failed: {e}")
         return []
 
-    # Group by first directory segment after /workspace/context/
+    # Group by first directory segment after /workspace/operation/, skipping
+    # non-domain folders (reports/, specs/) and loose files (BRAND.md, …).
     from collections import defaultdict
     groups: dict[str, list[str]] = defaultdict(list)  # segment → [updated_at, ...]
     for row in rows:
         path = row.get("path", "")
-        # /workspace/context/{segment}/...
-        remainder = path[len("/workspace/context/"):]
-        if not remainder:
-            continue
+        # /workspace/operation/{segment}/...
+        remainder = path[len("/workspace/operation/"):]
+        if not remainder or "/" not in remainder:
+            continue  # loose file directly under operation/ (BRAND.md, CONVENTIONS.md)
         segment = remainder.split("/")[0]
-        if segment:
+        if segment and segment not in _OPERATION_NON_DOMAIN:
             groups[segment].append(row.get("updated_at", ""))
 
     domains = []
