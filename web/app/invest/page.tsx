@@ -74,7 +74,7 @@ export default function InvestPage() {
             </div>
           </section>
 
-          {/* Stage & traction (replaces the $500K/$5M/SAM raise card — no hard $ figures) */}
+          {/* Stage & traction — raise figure carried (operator-supplied: $500K @ $5M pre); no SAM/TAM */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-16">Stage &amp; traction</h2>
@@ -102,12 +102,25 @@ export default function InvestPage() {
                     </p>
                   </div>
                 </SpotlightCard>
+                <SpotlightCard variant="dark" className="md:col-span-6" spotlightColor="rgba(16,185,129,0.06)">
+                  <div className="p-6 md:p-8">
+                    <div className="text-xs text-white/30 uppercase tracking-wider mb-3">The raise</div>
+                    <p className="text-2xl md:text-3xl font-medium mb-3">
+                      $500K pre-seed <span className="text-white/40">·</span>{" "}
+                      <span className="text-white/50">$5M pre-money</span>
+                    </p>
+                    <p className="text-white/50 text-sm leading-relaxed">
+                      Raised to take the dogfooded alpha to its first paying operators — harden the
+                      calibration loop against live outcomes, ship the seat-checkout entitlements,
+                      and land narrow in one high-ACV community. The full deck and terms on request.
+                    </p>
+                  </div>
+                </SpotlightCard>
               </BentoGrid>
 
               <p className="max-w-2xl text-white/40 text-sm">
-                Raise terms and figures shared under the deck on request — the case here is
-                structural: a composition the platforms face for reasons of incentive and position,
-                not capability.
+                The case here is structural: a composition the platforms face for reasons of
+                incentive and position, not capability — not a market-sizing argument.
               </p>
             </div>
           </section>
