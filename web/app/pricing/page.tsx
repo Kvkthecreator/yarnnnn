@@ -6,30 +6,43 @@ import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { Check } from "lucide-react";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
+import { CTA } from "@/lib/cta";
 
 export const metadata = getMarketingMetadata({
-  title: "Pricing",
+  title: "Pricing — priced by trust, not by features",
   description:
-    "Start with $3 free. Top up when you need more, or go Pro at $19/month. Every feature available on every plan — no capability tiers.",
+    "The workspace is free forever. When you run an operation on it, seats start at $149/month — priced by how much you delegate, not by features. 14-day trial.",
   path: "/pricing",
-  keywords: ["yarnnn pricing", "autonomous AI pricing", "AI workforce pricing", "usage-based AI", "agent pricing"],
+  keywords: ["yarnnn pricing", "ai operation pricing", "per-operation pricing", "delegation pricing", "ai seat pricing", "solopreneur ai pricing"],
 });
 
-const everythingIncluded = [
-  "Full 10-agent team",
-  "Chat with your orchestrator",
-  "Unlimited tasks",
-  "Slack, Notion, GitHub integrations",
-  "Real deliverables — PDF, PPTX, XLSX",
-  "Agents learn from your edits",
-  "Scheduled delivery to your inbox",
-  "Connect from any AI tool via MCP",
-];
-
-const topups = [
-  { amount: "$10", detail: "~1,600 chat messages or ~20 full task runs" },
-  { amount: "$25", detail: "~4,000 chat messages or ~50 full task runs" },
-  { amount: "$50", detail: "~8,000 chat messages or ~100 full task runs" },
+// ADR-334 three-seat model. CHECKOUT GUARD (spec §0.8): seat checkout (P1–P3)
+// is unbuilt; all CTAs route to CTA.signup under "seat trials open soon" framing.
+const SEATS = [
+  {
+    name: "Supervised",
+    price: "$149",
+    tagline: "Every consequential action waits for you",
+    usage: "$15/mo usage included",
+    highlight: false,
+    features: ["Full workspace, full trail", "Manual delegation — nothing acts without your approval"],
+  },
+  {
+    name: "Delegated",
+    price: "$299",
+    tagline: "Acts within ceilings you declare",
+    usage: "$30/mo usage included",
+    highlight: true,
+    features: ["Everything in Supervised", "Bounded autonomy — acts within the limits you set"],
+  },
+  {
+    name: "Autonomous",
+    price: "$499",
+    tagline: "Runs the framework you authored",
+    usage: "$60/mo usage included",
+    highlight: false,
+    features: ["Everything in Delegated", "Full autonomy within your declared framework"],
+  },
 ];
 
 export default function PricingPage() {
@@ -42,15 +55,31 @@ export default function PricingPage() {
     offers: [
       {
         "@type": "Offer",
-        name: "Pay as you go",
+        name: "Workspace",
         price: "0",
         priceCurrency: "USD",
         url: `${BRAND.url}/pricing`,
       },
       {
         "@type": "Offer",
-        name: "Pro subscription",
-        price: "19",
+        name: "Supervised seat",
+        price: "149",
+        priceCurrency: "USD",
+        billingDuration: "P1M",
+        url: `${BRAND.url}/pricing`,
+      },
+      {
+        "@type": "Offer",
+        name: "Delegated seat",
+        price: "299",
+        priceCurrency: "USD",
+        billingDuration: "P1M",
+        url: `${BRAND.url}/pricing`,
+      },
+      {
+        "@type": "Offer",
+        name: "Autonomous seat",
+        price: "499",
         priceCurrency: "USD",
         billingDuration: "P1M",
         url: `${BRAND.url}/pricing`,
@@ -72,133 +101,147 @@ export default function PricingPage() {
             {/* Header */}
             <div className="text-center mb-16">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-6 tracking-tight">
-                Pay for what you use
+                Priced by trust, not by features.
               </h1>
               <p className="text-white/50 text-lg max-w-2xl mx-auto">
-                Start with $3 free. Top up when you need more, or subscribe for
-                $20/month auto-refill. Every feature is available on every plan.
+                Every plan is the full product. The only thing a tier changes is how much the
+                operation may do without your approval — and how much usage is included.
               </p>
             </div>
 
-            {/* Two cards: Pay as you go + Pro */}
-            <div className="grid md:grid-cols-2 gap-8 max-w-3xl mx-auto mb-16">
-
-              {/* Pay as you go */}
-              <SpotlightCard variant="dark" spotlightSize={400} className="flex flex-col">
-                <div className="p-8 flex flex-col flex-1">
-                  <div className="mb-8">
-                    <h2 className="text-2xl font-medium mb-2">Pay as you go</h2>
-                    <p className="text-white/50 text-sm mb-6">No subscription needed</p>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-medium">$3</span>
-                      <span className="text-white/50"> free to start</span>
+            {/* Free workspace card */}
+            <div className="max-w-3xl mx-auto mb-8">
+              <SpotlightCard variant="dark" spotlightSize={500}>
+                <div className="p-8 md:flex md:items-center md:justify-between gap-8">
+                  <div className="mb-6 md:mb-0">
+                    <div className="flex items-baseline gap-2 mb-2">
+                      <h2 className="text-2xl font-medium">Workspace</h2>
+                      <span className="text-3xl font-medium">$0</span>
+                      <span className="text-white/40 text-sm">forever</span>
                     </div>
-                    <p className="text-white/40 text-xs mt-2">Then top up $10, $25, or $50 as needed</p>
+                    <p className="text-white/50 text-sm max-w-md leading-relaxed">
+                      The substrate: files, uploads, chat, your context reachable from any AI you
+                      use (MCP). No running operation. Includes a $3 usage credit; top-ups
+                      available.
+                    </p>
                   </div>
-
-                  <ul className="space-y-3 flex-1 mb-8">
-                    {everythingIncluded.map((item) => (
-                      <li key={item} className="flex items-center gap-3 text-sm">
-                        <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-
                   <Link
-                    href="/auth/login"
-                    className="block w-full text-center px-6 py-3 border border-white/20 text-white font-medium rounded-full hover:bg-white/10 transition-colors"
+                    href={CTA.signup}
+                    className="block shrink-0 text-center px-6 py-3 bg-white text-black font-medium rounded-full hover:bg-white/90 transition-colors"
                   >
                     Start free
                   </Link>
                 </div>
               </SpotlightCard>
-
-              {/* Pro */}
-              <SpotlightCard variant="dark" spotlightColor="rgba(255,255,255,0.08)" spotlightSize={400} className="relative flex flex-col">
-                <div className="p-8 flex flex-col flex-1">
-                  <div className="mb-8">
-                    <h2 className="text-2xl font-medium mb-2">Pro</h2>
-                    <p className="text-white/50 text-sm mb-6">For teams that run daily</p>
-                    <div className="flex items-baseline gap-1">
-                      <span className="text-4xl font-medium">$19</span>
-                      <span className="text-white/50">/month</span>
-                    </div>
-                    <p className="text-emerald-400 text-xs mt-2">
-                      $20 usage balance auto-refills every billing cycle
-                    </p>
-                  </div>
-
-                  <ul className="space-y-3 flex-1 mb-8">
-                    {everythingIncluded.map((item) => (
-                      <li key={item} className="flex items-center gap-3 text-sm">
-                        <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                    <li className="flex items-center gap-3 text-sm">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span className="font-medium">$20 balance refills monthly</span>
-                    </li>
-                    <li className="flex items-center gap-3 text-sm">
-                      <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                      <span>Priority support</span>
-                    </li>
-                  </ul>
-
-                  <Link
-                    href="/auth/login"
-                    className="block w-full text-center px-6 py-3 bg-white text-black font-medium rounded-full hover:bg-white/90 transition-colors"
-                  >
-                    Get Pro
-                  </Link>
-                </div>
-              </SpotlightCard>
             </div>
 
-            {/* Top-up reference card */}
-            <div className="max-w-3xl mx-auto mb-16">
-              <SpotlightCard variant="dark" spotlightSize={500}>
-                <div className="p-6">
-                  <h3 className="text-lg font-medium mb-1">Top-up amounts</h3>
-                  <p className="text-white/40 text-sm mb-5">
-                    One-time purchases, no subscription required. Balance never expires.
-                  </p>
-                  <div className="space-y-3">
-                    {topups.map(({ amount, detail }) => (
-                      <div key={amount} className="flex items-center justify-between">
-                        <span className="text-sm font-medium">{amount}</span>
-                        <span className="text-white/40 text-xs">{detail}</span>
+            {/* Seat cards */}
+            <p className="text-center text-white/40 text-sm mb-6">
+              Seats — per operation / month <span className="text-white/25">·</span> annual = 10× (two months free)
+            </p>
+            <div className="grid md:grid-cols-3 gap-6 mb-6">
+              {SEATS.map((seat) => (
+                <SpotlightCard
+                  key={seat.name}
+                  variant="dark"
+                  spotlightColor={seat.highlight ? "rgba(255,255,255,0.10)" : undefined}
+                  spotlightSize={400}
+                  className={`flex flex-col ${seat.highlight ? "ring-1 ring-white/20" : ""}`}
+                >
+                  <div className="p-7 flex flex-col flex-1">
+                    {seat.highlight && (
+                      <div className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 mb-3">
+                        Most operators start here
                       </div>
-                    ))}
+                    )}
+                    <h3 className="text-xl font-medium mb-1">{seat.name}</h3>
+                    <div className="flex items-baseline gap-1 mb-1">
+                      <span className="text-3xl font-medium">{seat.price}</span>
+                      <span className="text-white/40 text-sm">/mo</span>
+                    </div>
+                    <p className="text-white/50 text-sm mb-4">{seat.tagline}</p>
+                    <p className="text-emerald-400/80 text-xs mb-6">{seat.usage}</p>
+
+                    <ul className="space-y-3 flex-1 mb-6">
+                      {seat.features.map((f) => (
+                        <li key={f} className="flex items-start gap-3 text-sm text-white/70">
+                          <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {/* CHECKOUT GUARD §0.8 — routes to bare-workspace signup, not a seat purchase */}
+                    <Link
+                      href={CTA.signup}
+                      className={`block w-full text-center px-6 py-3 font-medium rounded-full transition-colors ${
+                        seat.highlight
+                          ? "bg-white text-black hover:bg-white/90"
+                          : "border border-white/20 text-white hover:bg-white/10"
+                      }`}
+                    >
+                      Start free
+                    </Link>
                   </div>
-                  <p className="text-white/30 text-xs mt-5">
-                    Estimates based on Claude Sonnet at $6/M input · $30/M output tokens (2× Anthropic list rates).
+                </SpotlightCard>
+              ))}
+            </div>
+
+            <p className="text-center text-white/40 text-sm mb-16">
+              Seat trials open soon — 14 days, any tier, no card. Start free on the workspace today.
+            </p>
+
+            {/* Three honest paragraphs */}
+            <div className="max-w-3xl mx-auto mb-16 grid gap-6">
+              <SpotlightCard variant="dark" spotlightSize={500}>
+                <div className="p-6">
+                  <h3 className="text-lg font-medium mb-3">What&apos;s an operation?</h3>
+                  <p className="text-white/50 text-sm leading-relaxed">
+                    An activated program running on your workspace — your newsletter operation,
+                    your portfolio operation. Each runs on its own seat with its own dial. The
+                    workspace itself is never paid.
+                  </p>
+                </div>
+              </SpotlightCard>
+              <SpotlightCard variant="dark" spotlightSize={500}>
+                <div className="p-6">
+                  <h3 className="text-lg font-medium mb-3">What&apos;s &ldquo;usage&rdquo;?</h3>
+                  <p className="text-white/50 text-sm leading-relaxed">
+                    Every model call is metered at transparent rates and drawn from your included
+                    balance — you can read every line of it. Most operations use a fraction of
+                    what&apos;s included; heavy months top up from $10.
+                  </p>
+                </div>
+              </SpotlightCard>
+              <SpotlightCard variant="dark" spotlightSize={500}>
+                <div className="p-6">
+                  <h3 className="text-lg font-medium mb-3">Why per-operation?</h3>
+                  <p className="text-white/50 text-sm leading-relaxed">
+                    Because the value isn&apos;t compute — it&apos;s the calls made correctly and
+                    the asset that compounds. You pay for a running operation you trust, at the
+                    level you trust it.
                   </p>
                 </div>
               </SpotlightCard>
             </div>
 
-            {/* How pricing works */}
+            {/* Mini-FAQ */}
             <div className="max-w-3xl mx-auto mb-16">
               <SpotlightCard variant="dark" spotlightSize={500}>
-                <div className="p-6">
-                  <h3 className="text-lg font-medium mb-3">How it works</h3>
-                  <div className="space-y-3 text-white/50 text-sm leading-relaxed">
-                    <p>
-                      Your <strong className="text-white/70">balance</strong> is the only gate.
-                      Every chat message, task run, and web search draws from it.
-                      When it hits zero, work pauses — top up to continue.
-                    </p>
-                    <p>
-                      <strong className="text-white/70">Pro subscribers</strong> get $20 balance
-                      auto-refilled every billing cycle. You can also top up at any time regardless of plan.
-                    </p>
-                    <p>
-                      All features — tasks, agents, integrations, output formats, multi-agent work —
-                      are available on every plan. There are no capability tiers.
-                    </p>
-                  </div>
+                <div className="p-6 space-y-4 text-white/50 text-sm leading-relaxed">
+                  <p>
+                    <strong className="text-white/70">Trial.</strong> When seat trials open, every
+                    plan offers 14 days on any tier with no card required — the trial&apos;s job is
+                    a felt calibration trail, not a feature tour.
+                  </p>
+                  <p>
+                    <strong className="text-white/70">If your balance hits zero,</strong> the
+                    operation stops — nothing is lost. Top up to resume.
+                  </p>
+                  <p>
+                    <strong className="text-white/70">If you cancel,</strong> the operation
+                    deactivates. The workspace and every file remain yours, free.
+                  </p>
                 </div>
               </SpotlightCard>
             </div>

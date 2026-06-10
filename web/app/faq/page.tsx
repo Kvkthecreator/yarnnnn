@@ -4,6 +4,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { getMarketingMetadata } from "@/lib/metadata";
+import { CTA } from "@/lib/cta";
 
 interface FaqItem {
   question: string;
@@ -15,144 +16,80 @@ interface FaqSection {
   items: FaqItem[];
 }
 
+// ≤12 entries per SITE-COPY-SPEC-v1 §4. Competitive lines are GTM v4 §4 verbatim.
 const faqSections: FaqSection[] = [
   {
-    category: "General",
+    category: "The difference",
     items: [
       {
-        question: "What is yarnnn?",
+        question: "How is this different from ChatGPT, Claude, or Cowork?",
         answer:
-          "yarnnn is an autonomous agent platform for recurring knowledge work. You describe your work to YARNNN, create the Agents that do it through conversation, and supervise outputs as they run on cadence with accumulated context.",
+          "Concede the capability parity plainly: they have scheduled delegates, persistent workspaces, and memory marketed as improvement. What they structurally lack is owned, attributed substrate and an independent judgment seat — because the vendor that builds the delegate also grades it. They grade their own homework. Your seat here has a track record you can read.",
       },
       {
-        question: "How is yarnnn different from ChatGPT or Claude?",
+        question: "Is my data mine?",
         answer:
-          "Chat tools are session-based — they help in the moment but reset when you close the tab. yarnnn is system-based: you have persistent agents with memory that run tasks on schedule, sync context from your work tools, and learn from your feedback over time. The output gets better the longer it runs.",
+          "Yes, structurally. Every file is attributed; every revision is kept; the workspace is exportable and reachable from other AIs via MCP. The workspace is the asset — and we never train on it. Memory remembers; this owns, attributes, and answers for what it produces.",
       },
       {
-        question: "What does \"autonomous\" mean here?",
+        question: "What's an operation? What's a program?",
         answer:
-          "Tasks run on schedule or by trigger without you re-prompting from zero. Agents pull fresh context, execute the work, and deliver outputs. You review and redirect when needed.",
+          "An operation is an activated program running on your workspace — your newsletter operation, your portfolio operation. A program declares what the operation watches, produces, and counts as ground truth. Each operation runs on its own seat with its own delegation dial. The workspace itself is never paid.",
       },
       {
-        question: "What's the difference between YARNNN and the Agents I create?",
+        question: "What does the Reviewer actually do?",
         answer:
-          "YARNNN is the super-agent you talk to — the product and the conversational agent share a name. Agents are identity-explicit workers you create by chatting with YARNNN, each scoped to a domain of your work (competitors, clients, revenue, etc.). When you assign a task, YARNNN drafts a team of behind-the-scenes roles (researcher, writer, analyst, tracker, designer) to produce the work — you don't manage those directly. Platforms you connect (Slack, Notion, GitHub, commerce, trading) become capabilities Agents can use. Tasks are the work units: objective, cadence, delivery, assignment.",
+          "It's the judgment seat. It evaluates consequential actions against the principles you authored, returns a verdict with reasoning, and reconciles past calls against what actually happened — the trail is the proof. Not a content filter. An approval button isn't judgment; judgment has a track record.",
       },
     ],
   },
   {
-    category: "Workforce",
+    category: "The work",
     items: [
       {
-        question: "Do I create Agents, or do they come pre-built?",
+        question: "Can it write my newsletter for me?",
         answer:
-          "You create them. Signup starts you with zero Agents on the /agents page — the team is yours, authored through conversation with YARNNN. YARNNN handles the behind-the-scenes production work (research, writing, analysis, tracking, visual design, synthesis) for each task your Agents run. Platforms you connect (Slack, Notion, GitHub) become capabilities Agents can use. The authored-team model means the switching cost compounds from your first Agent.",
+          "It drafts, researches, and runs the operation around the work — but what ships under your name is yours to approve. For work where being you is the product, it's the desk, not the byline. The value it adds is the cumulative substrate underneath: provenance, consistency, and corrections that carry forward.",
       },
       {
-        question: "How do I build my team?",
+        question: "Which model powers it?",
         answer:
-          "Describe your work to YARNNN. Say \"I want to track these competitors\" or \"I need a weekly stakeholder brief\" and YARNNN infers the Agent that emerges, confirms with you, and creates it. Each Agent has its own identity, memory, and accumulated domain context. Over time the team grows as more work intents surface.",
+          "Model-agnostic by design. The seat's value depends on its independence — a platform refereeing its own model's agents has a self-audit problem a neutral seat doesn't. Judgments are calibrated against outcomes, not against a vendor's say-so.",
       },
       {
-        question: "How do agents improve over time?",
+        question: "Is this autonomous trading? Is this financial advice?",
         answer:
-          "Every task run, review, and edit becomes signal for future work. Agents learn your preferred structure, emphasis, and tone. They also accumulate domain knowledge — understanding your team, competitive landscape, and communication patterns more deeply with each cycle.",
-      },
-      {
-        question: "Can multiple agents work together on a task?",
-        answer:
-          "Yes. Most tasks use one agent. For bigger jobs, multiple specialists contribute to a single task. For example, Slack Bot can keep internal context fresh, Researcher can add external signals, and Reporting can synthesize one deliverable.",
-      },
-      {
-        question: "How do I steer the system?",
-        answer:
-          "YARNNN is the main control surface. Use it to create work, change priorities, refine objectives, and ask why something ran. The Work and Agents surfaces let you inspect outputs, history, and the specialists involved.",
+          "No, and no. There are no performance claims and no advice here. You author the rules; the seat enforces them; execution is paper-first. You decide how much it may do without you, and the trail shows you everything.",
       },
     ],
   },
   {
-    category: "Tasks",
+    category: "Pricing & lifecycle",
     items: [
       {
-        question: "What kinds of tasks can I assign?",
+        question: "What does it cost?",
         answer:
-          "Common tasks include: weekly team recaps from Slack, competitor intelligence briefs, status reports as PDF, Notion page summaries, research deep dives, meeting prep briefs, and cross-platform synthesis reports. Tasks can produce plain text, email, PDFs, slides (PPTX), spreadsheets (XLSX), and charts.",
+          "The workspace is free forever — your files, your context, reachable from any AI. When you run an operation on it, seats start at $149/month, priced by how much you delegate, not by features: Supervised ($149), Delegated ($299), Autonomous ($499). Each includes a usage balance you can read line by line.",
       },
       {
-        question: "What are the different task modes?",
+        question: "What happens when the trial ends, the balance hits zero, or I cancel?",
         answer:
-          "Three modes: Recurring (runs on a cadence indefinitely — daily, weekly, monthly), Goal (bounded, runs until success criteria are met), and Reactive (on-demand or event-triggered, like a meeting prep brief you request before a specific meeting).",
-      },
-      {
-        question: "How do I create a task?",
-        answer:
-          "Describe what you need in plain language — for example, \"Give me a weekly competitor brief\" or \"Summarize #engineering every Friday as a PDF.\" YARNNN creates the task definition, assigns the right agent or process, sets the cadence, and starts executing.",
+          "Nothing is deleted. If the balance hits zero, the operation stops — top up to resume. If you cancel, the operation deactivates. In every case the workspace and every file remain yours, free.",
       },
     ],
   },
   {
-    category: "Platforms & Data",
+    category: "Getting started",
     items: [
       {
-        question: "Which platforms does yarnnn connect to?",
+        question: "How do I start?",
         answer:
-          "Slack and Notion are the main public integrations today, with GitHub also represented in the scaffolded workforce model. You authorize via OAuth and choose which sources to include, or let yarnnn start with sensible defaults.",
+          "Start free on the bare workspace. Pick a program (or stay bare), write the constitution — what it's for, the rules it judges by, how much it may do alone — connect your platforms and bring in your reality, and watch the first artifact synthesize from your context with full provenance.",
       },
       {
-        question: "Do I need to connect a platform to start?",
+        question: "What's the best first move?",
         answer:
-          "No. Your agents can work with web research and documents alone. Platform connections enrich context but aren't required. You can connect Slack or Notion anytime and your agents will immediately start benefiting from the synced data.",
-      },
-      {
-        question: "Is my data safe?",
-        answer:
-          "Yes. Data is encrypted in transit and at rest. OAuth tokens are encrypted. Access is user-scoped. yarnnn reads from your tools — it does not post, edit, or modify anything in them. You can change source selections or disconnect any integration at any time.",
-      },
-    ],
-  },
-  {
-    category: "Pricing & Plans",
-    items: [
-      {
-        question: "What plans are available?",
-        answer:
-          "yarnnn has Free and Pro plans. Both include the scaffolded workforce, YARNNN, and platform integrations. Free gives you 2 active tasks, 20 work credits/month, 150 messages/month, and daily sync. Pro gives you 10 active tasks, 500 work credits/month, unlimited messages, hourly sync, and unlimited sources — $19/mo (Early Bird: $9/mo).",
-      },
-      {
-        question: "What does \"active tasks\" mean?",
-        answer:
-          "Tasks are the recurring work contracts the system keeps alive at once. Your scaffolded workforce is still there, but the tier determines how many active loops you can keep running simultaneously.",
-      },
-      {
-        question: "What are work credits?",
-        answer:
-          "Work credits meter autonomous execution and rendering. They are separate from messages with YARNNN. Free includes 20 credits/month, Pro includes 500.",
-      },
-      {
-        question: "How does sync frequency differ by plan?",
-        answer:
-          "Free: once daily. Pro: hourly. Faster sync means agents work with fresher context from your connected platforms.",
-      },
-    ],
-  },
-  {
-    category: "Getting Started",
-    items: [
-      {
-        question: "How do I get started?",
-        answer:
-          "Sign up, connect context if you want it, and describe the first recurring task. YARNNN turns that into a standing loop and the rest of the system starts compounding from there.",
-      },
-      {
-        question: "What's the best first task?",
-        answer:
-          "A weekly team recap or stakeholder brief is usually the fastest way to see value. It creates an obvious review loop, gives YARNNN something concrete to refine, and quickly shows whether the system is grounding itself well.",
-      },
-      {
-        question: "How quickly do I see results?",
-        answer:
-          "Your first task output is typically ready within minutes. From there, quality improves with every cycle as agents accumulate context and learn from your feedback.",
+          "Author your context and run one artifact, so you see the provenance and the correction loop firsthand — or bring an existing history and watch the seat reconcile it into a calibration trail. Either way, the asset exists on day one and compounds from there.",
       },
     ],
   },
@@ -161,16 +98,16 @@ const faqSections: FaqSection[] = [
 const allFaqItems = faqSections.flatMap((s) => s.items);
 
 export const metadata = getMarketingMetadata({
-  title: "FAQ",
+  title: "FAQ — the accountable, cumulative AI workspace",
   description:
-    "Frequently asked questions about yarnnn: persistent agents, YARNNN, recurring tasks, platform integrations, pricing, and getting started.",
+    "How yarnnn differs from ChatGPT, Claude, and Cowork; what an operation is; what the judgment seat does; pricing; and how to get started.",
   path: "/faq",
   keywords: [
     "yarnnn faq",
-    "autonomous ai faq",
-    "ai workforce faq",
-    "ai agent faq",
-    "ai task faq",
+    "accountable ai faq",
+    "ai judgment seat faq",
+    "cumulative ai workspace faq",
+    "ai operation pricing faq",
   ],
 });
 
@@ -202,7 +139,7 @@ export default function FaqPage() {
               Frequently asked questions
             </h1>
             <p className="text-white/50 mb-16 max-w-xl">
-              Persistent agents, YARNNN, tasks, integrations, pricing, and how to get started.
+              The difference, the work, pricing and lifecycle, and how to get started.
             </p>
 
             <div className="space-y-16">
@@ -224,10 +161,10 @@ export default function FaqPage() {
 
             <div className="mt-24 text-center">
               <h2 className="text-2xl font-medium mb-4">Still have questions?</h2>
-              <p className="text-white/50 mb-8">Start with one recurring task and let the system show you how it compounds.</p>
+              <p className="text-white/50 mb-8">Start free on the workspace and watch the first artifact compound.</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link
-                  href="/auth/login"
+                  href={CTA.signup}
                   className="inline-block px-8 py-3 bg-white text-black font-medium rounded-full hover:bg-white/90 transition-colors"
                 >
                   Start free
