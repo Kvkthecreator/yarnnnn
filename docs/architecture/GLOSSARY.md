@@ -1,7 +1,7 @@
 # YARNNN Glossary
 
 > **Status**: Canonical
-> **Date**: 2026-04-17 (v1.3 revision 2026-04-20 for FOUNDATIONS v6.0 dimensional model; v1.9 amendment 2026-04-25 for Axiom 9; v2.0 amendment 2026-04-27 for OS framing canonization per ADR-222; v2.1 amendment 2026-04-27 for two-compose-modes vocabulary post-discourse; v2.2 amendment 2026-05-06 ADR-251 — System Agent named as cockpit entity; Thinking Partner / meta-cognitive retired as user-facing terms; **v2.3 amendment 2026-05-14 ADR-272 — System Agent dissolved as cockpit entity, surfaces as ambient activity only; specialist roster narrowed to `{designer}`**)
+> **Date**: 2026-04-17 (v1.3 revision 2026-04-20 for FOUNDATIONS v6.0 dimensional model; v1.9 amendment 2026-04-25 for Axiom 9; v2.0 amendment 2026-04-27 for OS framing canonization per ADR-222; v2.1 amendment 2026-04-27 for two-compose-modes vocabulary post-discourse; v2.2 amendment 2026-05-06 ADR-251 — System Agent named as cockpit entity; Thinking Partner / meta-cognitive retired as user-facing terms; v2.3 amendment 2026-05-14 ADR-272 — System Agent dissolved as cockpit entity, surfaces as ambient activity only; specialist roster narrowed to `{designer}`; **v2.4 amendment 2026-06-10 ADR-332 — Four-Flow Completeness vocabulary (four flows / flow-completeness / perception field); ground-truth-intake + consequence-pipe entries deliberately deferred to ADR-330 Phase 5, which owns the Axiom-8 vocabulary landing**)
 > **Authors**: KVK, Claude
 > **Ratified by**: ADR-189 (Three-Layer Cognition) + ADR-194 v2 (Reviewer as Fourth Cognitive Layer) + FOUNDATIONS v6.0 (Six-Dimensional Model)
 > **Supersedes**: `naming-conventions.md` (archived to [previous_versions/naming-conventions.md](previous_versions/naming-conventions.md) after ADR-189 rename pass landed)
@@ -45,6 +45,20 @@ YARNNN is canonized as an agent-native operating system. The framing is literal 
 - **Workspace mode** — rejected by ADR-222. Implies switchability that doesn't exist (a trader workspace doesn't switch into a commerce workspace at runtime), and conflates Identity with Channel.
 
 **Usage discipline:** when introducing a new mechanic that touches the architectural layering, name which layer it occupies (kernel / compositor / program-bundle / userspace / shell). A mechanic that crosses layers without justification is a design error per Derived Principle 16.
+
+---
+
+## The Four Flows (ADR-332, FOUNDATIONS Principle 26)
+
+An operating workspace runs four flows; a program is a flow-declaration set. This vocabulary is the diagnosis-and-authoring language for operation completeness.
+
+| Term | Meaning | Note |
+|---|---|---|
+| **Four flows** *(canonical)* | The directional loop an operating workspace runs: **context in** (perception) → **work out** (the acts) → **outcomes in** (reality's verdict on the operation's own acts) → **the loop** (calibration). | The *loop view* of one operation cycle. Composes with Axiom 2's perception layers (the *source taxonomy*) without conflict. Outcomes-in is the self×world coupling term — why Axiom 8's substrate is the moat's spine. |
+| **Flow-completeness** *(canonical)* | All four flows declared and runnable (or a flow explicitly N/A with rationale). Bundle-conformance requirement for active programs (first instance ADR-330 D4; general gate at arc-3 per ADR-287). | The remedy for incompleteness is a declaration (bundle-side) or an intake/transport (kernel slot) — never a parallel subsystem. |
+| **Flow-incompleteness** *(canonical)* | The structural name for generic-workspace "offness" — one or more flows absent/undeclared. Supersedes looser explanations (empty substrate, cold start) — those are symptoms. | Diagnostic test: enumerate the four flows; the missing one is the diagnosis. |
+| **Perception field** *(canonical, arc-3 forthcoming)* | Flow 1's world-present cell: what the operation *watches* — a declared universe, read on cadence, **distilled** into attributed signal substrate, pruned by calibration over tenure. | Discipline fixed by ADR-332 D5 (*attributed observation · declared watches · transports-as-peripherals · calibrated attention*); build + full entries (observation, watch) land at the arc-3 ADR. Foundation: [perception-under-calibration-arc3-foundation-2026-06-10.md](../analysis/perception-under-calibration-arc3-foundation-2026-06-10.md). |
+| **Ground-truth intake / consequence pipe** | *(Reserved)* — flow 3's vocabulary. | **Lands with ADR-330 Phase 5**, which owns the Axiom-8 vocabulary work. Not defined here to avoid duplication. |
 
 ### Home as Composition (ADR-312, 2026-06-02)
 

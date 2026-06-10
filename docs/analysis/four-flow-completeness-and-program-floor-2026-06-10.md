@@ -165,10 +165,12 @@ Consequences, in order of importance:
   signal-substrate convention, one generic cadenced web/RSS transport,
   flow-completeness conformance gate. Demand-pull trigger: bundle #3, the
   first non-trader watch need, or alpha-author's post-330 deepening.
-- **Canon cascade candidates (operator to ratify):** four-flow model into
-  FOUNDATIONS-adjacent canon (likely a short architecture doc or a Derived
-  Principle); ESSENCE v14 "cumulative workspace" enriched with the
-  world-facing half (§2); GLOSSARY entries (perception field / flow
-  completeness / consequence pipe) when arc-3 lands.
+- **Canon cascade candidates (operator to ratify):** ~~four-flow model into
+  FOUNDATIONS-adjacent canon; ESSENCE world-facing half; GLOSSARY entries~~
+  **LANDED 2026-06-10 via [ADR-332](../adr/ADR-332-four-flow-completeness-model.md)**
+  (Ratified, framing): FOUNDATIONS v9.1 Derived Principle 26 · GLOSSARY v2.4
+  Four-Flows section · ESSENCE v14.1 world-facing half. Ground-truth-intake /
+  consequence-pipe vocabulary still lands with ADR-330 Phase 5 (owns it);
+  perception axiom-text at arc-3. ADR-332 §5 carries the follow-up ledger.
 - **Carried open:** the ICP lock (evidence-gated) · layman noun · pricing ADR
   · Path-A proof session · operator-assembled programs horizon.

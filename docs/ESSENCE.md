@@ -4,6 +4,7 @@
 **Status**: Active
 **Date**: 2026-01-28
 **Updated**: 2026-06-10 (v14.0 — **the cumulative workspace**. Product identity re-centered on *the workspace where work is cumulative*: the substrate is the asset, the agents are the labor, the Reviewer is the management, the artifacts are the dividends. Ratified in the 2026-06-10 business-model regroup against fresh June-2026 competitive evidence — see `docs/analysis/cumulative-workspace-product-formulation-2026-06-10.md`. The v13.0 two-layer structure (substrate floor + judgment layer) is preserved; what changes: (a) the external lead is the **judgment seat**, with substrate portability as supporting proof, because capability claims ("persistent," "compounds," "runs in your absence") have been verbally commoditized by platform incumbents while the accountable-judgment claim remains unoccupied; (b) the competitive posture is canonized — *capability parity arrives in waves; differentiate on structure, ownership, accountability*; (c) the neutrality card is named — a platform judging its own model's agents has a self-audit problem; a model-agnostic seat does not.)
+**v14.1 amendment** (2026-06-10, ADR-332): the cumulative asset's world-facing half — the workspace also accumulates the declared universe's distilled history (the perception field). One paragraph added to Core Thesis.
 **Prior**: v13.0 (2026-06-02 — substrate-first rewrite; grounded in THESIS four commitments, ADR-310/311 one-moat-two-faces, ADR-222 kernel/program framing, ADR-209 authored substrate, ADR-216 orchestration vs judgment.)
 
 ---
@@ -21,6 +22,8 @@ Every other AI system makes work *episodic*: an artifact generated in a session 
 3. **Correction-compounding** — fix a sub-file once and every future artifact inherits the fix. Quality is monotonically improving in tenure, not constant.
 
 A slide deck composed from substrate sub-files, a trade proposed against accumulated signals and a calibration trail — same mechanism, different program. This is why the architecture is what it is.
+
+And the asset has a world-facing half *(v14.1, ADR-332)*: the workspace accumulates not only your own work but **your declared universe's distilled history** — the slice of the world your operation watches, distilled into attributed signals and judged over tenure. Anyone's AI can read the web; no one else's can show you *your* watchlist's distilled history under *your* judgment. Reading the world is commodity; the declared, distilled, tenured perception field is not.
 
 The workspace is the **authored context layer that travels with you** — and, when you're ready, an operation that runs on it under a judgment you control.
 
