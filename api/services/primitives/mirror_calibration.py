@@ -71,6 +71,36 @@ def _fmt_ts(iso: str) -> str:
         return iso or "?"
 
 
+def _parse_ground_truth_segments(content: str) -> tuple[dict, dict]:
+    """Extract attestation mix + retrospective segment from ground-truth JSON
+    frontmatter (ADR-330 D2 + D3). Returns (by_attestation, retrospective).
+
+    The ground-truth file's frontmatter is a single JSON object (per the
+    ledger's _render_money_truth_file). We parse only the two fields the
+    calibration mirror needs to label segments; everything else is ignored.
+    Tolerant: returns ({}, {}) on any parse failure — the mirror degrades to
+    head-only presentation, never raises.
+    """
+    if not content or not content.strip().startswith("---"):
+        return {}, {}
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return {}, {}
+    import json
+    try:
+        data = json.loads(parts[1].strip())
+    except Exception:
+        return {}, {}
+    if not isinstance(data, dict):
+        return {}, {}
+    by_attestation = data.get("by_attestation") or {}
+    retrospective = data.get("retrospective") or {}
+    return (
+        by_attestation if isinstance(by_attestation, dict) else {},
+        retrospective if isinstance(retrospective, dict) else {},
+    )
+
+
 async def handle_mirror_calibration(auth: Any, input: dict) -> dict:
     """Execute MirrorCalibration (ADR-327 D6).
 
@@ -176,6 +206,8 @@ async def handle_mirror_calibration(auth: Any, input: dict) -> dict:
     # --- 4. Ground-truth file head (program-declared) ---
     ground_truth_path: Optional[str] = None
     ground_truth_head: str = ""
+    ground_truth_attestation: dict = {}
+    ground_truth_segment: dict = {}
     try:
         from services.bundle_reader import get_ground_truth_for_workspace
         ground_truth_path = get_ground_truth_for_workspace(user_id, client)
@@ -189,9 +221,17 @@ async def handle_mirror_calibration(auth: Any, input: dict) -> dict:
                 .execute()
             )
             content = (gt.data or [{}])[0].get("content") or ""
-            # Head only — the Reviewer reads the full file on demand; this is
-            # a pointer + freshness signal, not a duplication.
-            ground_truth_head = "\n".join(content.splitlines()[:20]).strip()
+            # ADR-330 D2 + D3: parse the ground-truth frontmatter so the
+            # calibration mirror can surface attestation mix + the segmented
+            # backfill count as LABELED lines — not a raw JSON dump. An
+            # agent-asserted row must never read as an independent platform
+            # fill; a backfill dump must never read as live performance.
+            ground_truth_attestation, ground_truth_segment = _parse_ground_truth_segments(content)
+            # Body head only (skip the JSON frontmatter so the head is the
+            # narrative, not raw machine state) — pointer + freshness signal,
+            # not a duplication. The Reviewer reads the full file on demand.
+            body = content.split("---", 2)[-1] if content.startswith("---") else content
+            ground_truth_head = "\n".join(body.strip().splitlines()[:20]).strip()
     except Exception as exc:
         logger.warning("[MIRROR_CALIBRATION] ground-truth read failed for %s: %s", user_id[:8], exc)
 
@@ -250,6 +290,39 @@ async def handle_mirror_calibration(auth: Any, input: dict) -> dict:
 
     if ground_truth_path:
         lines += ["", f"## Ground truth — `{ground_truth_path}` (head; read full on demand)", ""]
+
+        # ADR-330 D2: attestation mix — how much of this evidence is
+        # independently verified vs operator-imported vs agent-asserted.
+        # The Reviewer must weigh operator/agent-attested rows differently
+        # from platform fills; surfacing the mix here keeps that honest.
+        if ground_truth_attestation:
+            att_parts = [
+                f"{level} {ground_truth_attestation[level]}"
+                for level in ("platform", "operator", "agent")
+                if ground_truth_attestation.get(level)
+            ]
+            if att_parts:
+                lines.append(f"**Attestation mix:** {' · '.join(att_parts)}")
+                if ground_truth_attestation.get("agent"):
+                    lines.append(
+                        "  ⚠ agent-attested rows present — corroboration-seeking "
+                        "evidence, not independent verification (ADR-330 §3)"
+                    )
+
+        # ADR-330 D3: segmented backfill — pre-YARNNN history kept OUT of the
+        # live loop. Label it so the Reviewer never reads backfill as recent
+        # performance.
+        retro_count = ((ground_truth_segment or {}).get("totals") or {}).get(
+            "reconciled_event_count", 0
+        ) or 0
+        if retro_count > 0:
+            lines.append(
+                f"**Backfilled history:** {retro_count} segmented row(s) — "
+                f"pre-YARNNN, NOT in the live windows above"
+            )
+        if ground_truth_attestation or retro_count > 0:
+            lines.append("")
+
         if ground_truth_head:
             lines.append("```")
             lines.append(ground_truth_head)

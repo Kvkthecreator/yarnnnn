@@ -129,6 +129,15 @@ capabilities:
 substrate_abi:
   schema_version: 1
 
+  # ADR-330 D4 — ground-truth file: the substrate the Reviewer's cadence
+  # judgment is calibrated against (ADR-327 D6). For alpha-commerce, ground
+  # truth is revenue — subscription events, refunds, payment confirmations
+  # reconciled by CommerceOutcomeProvider into _money_truth.md (already an
+  # accumulating_file in the operation/revenue zone below). The declaration
+  # is the one-line pointer that lights the calibration mirror when this
+  # deferred bundle activates; the writer + file already exist.
+  ground_truth: operation/revenue/_money_truth.md
+
   path_zones:
     - path: operation/customers
       role: operator-canon

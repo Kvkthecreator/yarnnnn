@@ -1,6 +1,9 @@
-"""Trading Outcome Provider — Alpaca (ADR-195 Phase 1).
+"""Trading ground-truth intake — Alpaca (ADR-195 Phase 1, ADR-330).
 
-Reconciles Alpaca `filled` orders into `action_outcomes` rows.
+Reconciles Alpaca `filled` orders into the trading domain's ground-truth
+file (`_money_truth.md`) via the consequence pipe. Every candidate stamps
+`attestation: "platform"` (ADR-330 D2) — an Alpaca fill is independent of
+both operator and agent.
 
 Attribution model (v1):
   - Every filled SELL order is a realization event (closed round-trip or
@@ -139,6 +142,9 @@ class TradingOutcomeProvider(OutcomeProvider):
                     "outcome_metadata": metadata,
                     "context_domain": self.context_domain,
                     "reconciliation_confidence": "high",
+                    # ADR-330 D2: Alpaca is an external API independent of
+                    # operator and agent — gold attestation.
+                    "attestation": "platform",
                 }
                 if signal_id:
                     candidate["signal_id"] = signal_id
@@ -205,6 +211,8 @@ class TradingOutcomeProvider(OutcomeProvider):
                 "context_domain": self.context_domain,
                 "reconciliation_confidence": confidence,
                 "reconciliation_notes": notes,
+                # ADR-330 D2: Alpaca fill — gold attestation.
+                "attestation": "platform",
             }
             if effective_signal_id:
                 candidate["signal_id"] = effective_signal_id

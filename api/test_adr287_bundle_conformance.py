@@ -300,6 +300,94 @@ def test_adr286_d3_active_bundle_ships_all_program_owned_paths():
             )
 
 
+# =============================================================================
+# ADR-330 — Ground-Truth Intake (the consequence pipe)
+# =============================================================================
+#
+# Per ADR-330 D4: every active/deferred bundle must declare its ground-truth
+# file via substrate_abi.ground_truth, and that path must fall within a
+# declared path zone (per ADR-287 discipline — no ground-truth file outside
+# the program's owned substrate topology). The ground-truth file is what the
+# kernel calibration mirror (ADR-327 D6) reads to light the self-improving
+# loop; a bundle that omits it leaves its loop structurally dark.
+
+
+def test_adr330_d4_bundle_declares_ground_truth():
+    """ADR-330 D4: every active/deferred bundle must declare
+    substrate_abi.ground_truth pointing at its per-domain ground-truth file.
+    Without it, bundle_reader.get_ground_truth_for_workspace returns None and
+    the calibration mirror omits the ground-truth section — the program's
+    self-improving loop runs on cadence-history alone, no outcome basis."""
+    bundles = list(_all_active_or_deferred_bundles())
+    assert bundles, "no active/deferred bundles found in docs/programs/"
+
+    for bundle in bundles:
+        manifest = yaml.safe_load((bundle / "MANIFEST.yaml").read_text()) or {}
+        abi = manifest.get("substrate_abi") or {}
+        gt = abi.get("ground_truth")
+        assert isinstance(gt, str) and gt.strip(), (
+            f"bundle '{bundle.name}' does not declare substrate_abi.ground_truth. "
+            f"ADR-330 D4 requires every active/deferred bundle to point at its "
+            f"per-domain ground-truth file (e.g. operation/trading/_money_truth.md "
+            f"for alpha-trader, operation/authored/_signal.md for alpha-author). "
+            f"Without it the calibration mirror (ADR-327 D6) omits the "
+            f"ground-truth section and the self-improving loop is dark."
+        )
+
+
+def test_adr330_d4_ground_truth_within_declared_path_zone():
+    """ADR-330 D4 + ADR-287 discipline: the declared ground_truth path must
+    fall within one of the bundle's declared substrate_abi.path_zones. A
+    ground-truth file outside the program's owned substrate topology would
+    be an un-owned write target — the same discipline that governs every
+    other program substrate path."""
+    for bundle in _all_active_or_deferred_bundles():
+        manifest = yaml.safe_load((bundle / "MANIFEST.yaml").read_text()) or {}
+        abi = manifest.get("substrate_abi") or {}
+        gt = (abi.get("ground_truth") or "").strip()
+        if not gt:
+            continue  # the declaration test above already fails this case
+        zone_paths = [
+            (z.get("path") or "").strip()
+            for z in (abi.get("path_zones") or [])
+            if isinstance(z, dict)
+        ]
+        assert any(gt.startswith(zp) for zp in zone_paths if zp), (
+            f"bundle '{bundle.name}' declares ground_truth='{gt}' which is not "
+            f"under any declared path_zone ({zone_paths}). ADR-330 D4 + ADR-287: "
+            f"the ground-truth file must live within the program's owned "
+            f"substrate topology. Add the file's zone to substrate_abi.path_zones "
+            f"or correct the ground_truth path."
+        )
+
+
+def test_adr330_d4_ground_truth_is_accumulating_file():
+    """ADR-330 D4 (companion): the ground-truth file should be declared in its
+    path zone's `accumulating_files` — it is written by judgment-mode
+    recurrences (reconciliation / coherence-check) at runtime, not authored at
+    activation. This catches the alpha-author class of gap where the file
+    accumulates but the ground_truth pointer was never wired. Soft companion:
+    asserts the file's basename appears in some zone's accumulating_files."""
+    for bundle in _all_active_or_deferred_bundles():
+        manifest = yaml.safe_load((bundle / "MANIFEST.yaml").read_text()) or {}
+        abi = manifest.get("substrate_abi") or {}
+        gt = (abi.get("ground_truth") or "").strip()
+        if not gt:
+            continue
+        gt_basename = gt.rsplit("/", 1)[-1]
+        accumulating = []
+        for z in (abi.get("path_zones") or []):
+            if isinstance(z, dict):
+                accumulating.extend(z.get("accumulating_files") or [])
+        assert gt_basename in accumulating, (
+            f"bundle '{bundle.name}' ground_truth='{gt}' but its basename "
+            f"'{gt_basename}' is not in any path zone's accumulating_files "
+            f"({accumulating}). The ground-truth file is accumulated by runtime "
+            f"recurrences, not authored at activation — declare it under "
+            f"accumulating_files so the substrate contract is complete."
+        )
+
+
 def test_adr286_d3_deferred_bundle_path_readiness():
     """Companion to the active-bundle test: deferred bundles are exempt
     from full conformance, but pin a count so we know what state each

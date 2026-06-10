@@ -371,6 +371,13 @@ def _init_money_truth(context_domain: str) -> dict:
         # rolling 7d/30d/90d windows. Entries without signal_id (manual
         # trades, legacy un-attributed) skip this dict — by design.
         "by_signal": {},
+        # ADR-330 D2: per-attestation row counts (platform | operator | agent).
+        # Surfaced so the calibration mirror can show how much of this ground
+        # truth is independently verified vs operator-imported vs agent-asserted.
+        "by_attestation": {},
+        # ADR-330 D3: segmented backfill bucket — pre-YARNNN history kept
+        # separate from the live loop. Empty until a retrospective import runs.
+        "retrospective": _init_retrospective_segment(),
         "by_provider": {},
         "recent_wins": [],
         "recent_losses": [],
@@ -403,6 +410,16 @@ def _apply_entries(
     Phase 3: also appends to the bounded events list + recomputes rolling
     windows. Window math is done once per fold so readers (AI Reviewer,
     daily-update) never need to recompute.
+
+    ADR-330 D2 + D3:
+      - `by_attestation` aggregate counts every row by its `attestation`
+        level (platform | operator | agent) so the calibration mirror can
+        surface "how much of this ground truth is independently verified."
+      - Retrospective rows (`retrospective: true`) are routed to a SEPARATE
+        `retrospective` bucket — their own totals + by_action + events — so
+        a large pre-YARNNN backfill never enters the live rolling windows or
+        the live narrative. The live loop reads `totals`/`rolling_Nd`;
+        backfilled history reads `retrospective.*`. Segmented, not blended.
     """
     totals = performance.setdefault("totals", {
         "reconciled_event_count": 0,
@@ -411,11 +428,33 @@ def _apply_entries(
     })
     by_action = performance.setdefault("by_action_type", {})
     by_signal = performance.setdefault("by_signal", {})
+    by_attestation = performance.setdefault("by_attestation", {})
     wins: list[dict] = performance.setdefault("recent_wins", [])
     losses: list[dict] = performance.setdefault("recent_losses", [])
     events: list[dict] = performance.setdefault("events", [])
 
+    # ADR-330 D3: retrospective segment — backfilled pre-YARNNN history.
+    retro = performance.setdefault("retrospective", _init_retrospective_segment())
+    retro_totals = retro.setdefault("totals", {
+        "reconciled_event_count": 0, "aggregate_value_cents": 0, "currency": "USD",
+    })
+    retro_by_action = retro.setdefault("by_action_type", {})
+    retro_events: list[dict] = retro.setdefault("events", [])
+
     for entry in entries:
+        # ADR-330 D2: count every row by attestation level (all rows,
+        # including retrospective — attestation is orthogonal to backfill).
+        attestation = entry.get("attestation") or "platform"
+        by_attestation[attestation] = int(by_attestation.get(attestation, 0)) + 1
+
+        # ADR-330 D3: retrospective rows go to the segmented bucket only —
+        # they do not contribute to live totals/windows/narrative.
+        if entry.get("retrospective"):
+            _apply_retrospective_entry(
+                entry, retro_totals, retro_by_action, retro_events,
+            )
+            continue
+
         totals["reconciled_event_count"] = int(totals.get("reconciled_event_count", 0)) + 1
         value = entry.get("outcome_value_cents")
         if value is not None:
@@ -477,6 +516,10 @@ def _apply_entries(
                     "executed_at": executed_at_iso,
                     "action_type": action_type,
                     "value_cents": int(value),
+                    # ADR-330 D2: carry attestation onto the event so a future
+                    # weighting pass (open question #1) can discount by source
+                    # without re-reading candidates.
+                    "attestation": attestation,
                 }
                 if signal_id:
                     event_record["signal_id"] = signal_id
@@ -502,6 +545,70 @@ def _apply_entries(
         for window_days in ROLLING_WINDOWS_DAYS:
             key = f"rolling_{window_days}d"
             by_signal[signal_id][key] = _compute_window(signal_events, now, window_days)
+
+
+def _init_retrospective_segment() -> dict:
+    """Initial state for the segmented backfill bucket (ADR-330 D3).
+
+    Mirrors the live `totals` + `by_action_type` + `events` shape so the
+    calibration mirror can read it the same way, but kept SEPARATE so a
+    pre-YARNNN history dump never enters the live rolling windows or
+    narrative. Retrospective events are NOT pruned by EVENT_RETENTION_DAYS —
+    backfilled history is meant to be old.
+    """
+    return {
+        "totals": {
+            "reconciled_event_count": 0,
+            "aggregate_value_cents": 0,
+            "currency": "USD",
+        },
+        "by_action_type": {},
+        "events": [],
+    }
+
+
+def _apply_retrospective_entry(
+    entry: OutcomeCandidate,
+    retro_totals: dict,
+    retro_by_action: dict,
+    retro_events: list[dict],
+) -> None:
+    """Fold one retrospective row into the segmented backfill bucket (ADR-330 D3).
+
+    Same totals/by_action math as the live path, but writes to the
+    `retrospective` segment and does NOT touch live windows, narrative,
+    or per-signal attribution. Idempotency is already handled upstream
+    (processed_event_keys covers retrospective rows too).
+    """
+    value = entry.get("outcome_value_cents")
+    retro_totals["reconciled_event_count"] = (
+        int(retro_totals.get("reconciled_event_count", 0)) + 1
+    )
+    if value is not None:
+        retro_totals["aggregate_value_cents"] = (
+            int(retro_totals.get("aggregate_value_cents", 0)) + int(value)
+        )
+
+    action_type = entry.get("action_type") or "unknown"
+    action_state = retro_by_action.setdefault(action_type, {
+        "count": 0, "value_cents": 0, "wins": 0, "losses": 0,
+    })
+    action_state["count"] = int(action_state.get("count", 0)) + 1
+    if value is not None:
+        action_state["value_cents"] = int(action_state.get("value_cents", 0)) + int(value)
+        if value > 0:
+            action_state["wins"] = int(action_state.get("wins", 0)) + 1
+        elif value < 0:
+            action_state["losses"] = int(action_state.get("losses", 0)) + 1
+
+    executed_at_iso = _executed_at_iso(entry.get("executed_at"))
+    if value is not None and executed_at_iso:
+        retro_events.append({
+            "executed_at": executed_at_iso,
+            "action_type": action_type,
+            "value_cents": int(value),
+            "attestation": entry.get("attestation") or "operator",
+        })
 
 
 def _executed_at_iso(value: Any) -> str | None:
@@ -598,6 +705,9 @@ def _to_narrative_entry(entry: OutcomeCandidate, provider: OutcomeProvider) -> d
         "outcome_label": entry.get("outcome_label"),
         "value_cents": entry.get("outcome_value_cents"),
         "currency": entry.get("outcome_currency") or "USD",
+        # ADR-330 D2: attestation surfaces in the narrative line so the
+        # operator + Reviewer see "who vouched" without re-reading frontmatter.
+        "attestation": entry.get("attestation") or "platform",
         "metadata": {
             k: v for k, v in (entry.get("outcome_metadata") or {}).items()
             # Narrative shouldn't include the idempotency key itself
@@ -627,6 +737,18 @@ def _render_money_truth_file(performance: dict) -> str:
     last = performance.get("last_reconciled_at")
     if last:
         body_lines.append(f"**Last reconciled:** {last}")
+
+    # ADR-330 D2: attestation breakdown — how much of this ground truth is
+    # independently verified (platform) vs operator-imported vs agent-asserted.
+    by_attestation = performance.get("by_attestation") or {}
+    if by_attestation:
+        att_parts = [
+            f"{level}: {by_attestation[level]}"
+            for level in ("platform", "operator", "agent")
+            if by_attestation.get(level)
+        ]
+        if att_parts:
+            body_lines.append(f"**Attestation:** {' · '.join(att_parts)}")
     body_lines.append("")
 
     # Phase 3: rolling windows — "your book at three horizons"
@@ -706,7 +828,36 @@ def _render_money_truth_file(performance: dict) -> str:
             body_lines.append(f"- {_narrative_line(l)}")
         body_lines.append("")
 
-    if not by_action and not wins and not losses:
+    # ADR-330 D3: backfilled pre-YARNNN history — segmented from the live
+    # loop above so the operator + Reviewer never read it as recent performance.
+    retro = performance.get("retrospective") or {}
+    retro_totals = retro.get("totals") or {}
+    retro_count = retro_totals.get("reconciled_event_count", 0) or 0
+    if retro_count > 0:
+        body_lines.append("## Backfilled history (pre-YARNNN, segmented)")
+        body_lines.append("")
+        body_lines.append(
+            "_Operator-imported history. Kept separate from the live loop above "
+            "— not counted in rolling windows or recent wins/losses._"
+        )
+        body_lines.append("")
+        retro_value = retro_totals.get("aggregate_value_cents", 0) or 0
+        body_lines.append(f"**Backfilled events:** {retro_count}")
+        body_lines.append(f"**Backfilled aggregate value:** {_format_cents(retro_value)}")
+        body_lines.append("")
+        retro_by_action = retro.get("by_action_type") or {}
+        if retro_by_action:
+            body_lines.append("| Action | Count | Value | Wins | Losses |")
+            body_lines.append("|---|---|---|---|---|")
+            for action, state in sorted(retro_by_action.items()):
+                body_lines.append(
+                    f"| {action} | {state.get('count', 0)} | "
+                    f"{_format_cents(state.get('value_cents', 0))} | "
+                    f"{state.get('wins', 0)} | {state.get('losses', 0)} |"
+                )
+            body_lines.append("")
+
+    if not by_action and not wins and not losses and retro_count == 0:
         body_lines.append(
             "_No realized outcomes yet. Open positions / pending events "
             "do not produce narrative entries until they close._"
@@ -737,7 +888,12 @@ def _narrative_line(entry: dict) -> str:
     meta_str = f" ({', '.join(meta_parts)})" if meta_parts else ""
 
     value_str = _format_cents(value) if value is not None else "n/a"
-    return f"{executed} — {action} {label} {value_str}{meta_str}"
+    # ADR-330 D2: flag non-platform attestation inline so the operator never
+    # mistakes an operator-imported or agent-asserted row for an independent
+    # platform fill. Platform rows stay clean (the gold default).
+    attestation = entry.get("attestation") or "platform"
+    att_str = f" [via {attestation}]" if attestation != "platform" else ""
+    return f"{executed} — {action} {label} {value_str}{meta_str}{att_str}"
 
 
 def _format_cents(cents: int | None) -> str:

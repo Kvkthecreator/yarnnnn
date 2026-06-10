@@ -203,6 +203,31 @@ capabilities:
 substrate_abi:
   schema_version: 1
 
+  # ADR-330 D4 — the program's ground-truth file: the substrate the Reviewer's
+  # cadence judgment is calibrated against (the self-improving loop, ADR-327 D6).
+  # The kernel calibration mirror (_calibration.md) correlates the Reviewer's
+  # cadence-authoring history against outcome quality read from here. The file
+  # already exists and already accumulates (declared in path_zones[*].
+  # accumulating_files below, surfaced as corpus_signal_md in the wake envelope,
+  # written by coherence-check + reconciliation). Before this declaration,
+  # bundle_reader.get_ground_truth_for_workspace returned None for alpha-author,
+  # so mirror_calibration.py omitted its ground-truth section — the second
+  # active program's self-improving loop was structurally dark despite the
+  # substrate being present. This one-line declaration lights it up; no mirror
+  # code change, no new recurrence, no new writer.
+  #
+  # `_signal.md` (not `_money_truth.md`) is the canonical filename per ADR-282/
+  # ADR-283 D4: the kernel concept is "ground-truth substrate" (Axiom 8); the
+  # alpha-author instance filename is `_signal.md` because its ground truth is
+  # multi-signal coherence (corpus coherence + audience + revenue), not a single
+  # P&L number. alpha-trader's `_money_truth.md` is the trading instance of the
+  # same kernel slot. alpha-author's ground truth is inherently MULTI-ATTESTATION
+  # (ADR-330 §3): audience-platform-pulled numbers = platform; operator-imported
+  # newsletter stats = operator; agent-asserted reads = agent. The recurrence(s)
+  # feeding _signal.md stamp `attestation` accordingly — this is exactly why the
+  # ADR-330 D2 attestation field is load-bearing for non-trading verticals.
+  ground_truth: operation/authored/_signal.md
+
   # Path zones this program contributes beyond the kernel-universal set.
   path_zones:
     - path: operation/authored

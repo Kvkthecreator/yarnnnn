@@ -1,6 +1,9 @@
-"""Commerce Outcome Provider — Lemon Squeezy (ADR-195 Phase 2).
+"""Commerce ground-truth intake — Lemon Squeezy (ADR-195 Phase 2, ADR-330).
 
-Reconciles LS orders into `action_outcomes` rows.
+Reconciles LS orders into the revenue domain's ground-truth file
+(`_money_truth.md`) via the consequence pipe. Every candidate stamps
+`attestation: "platform"` (ADR-330 D2) — an LS order is independent of
+both operator and agent.
 
 Attribution model (v1):
   - Each order emits one or two outcomes depending on its current status:
@@ -121,6 +124,7 @@ class CommerceOutcomeProvider(OutcomeProvider):
                     },
                     "context_domain": self.context_domain,
                     "reconciliation_confidence": "high",
+                    "attestation": "platform",  # ADR-330 D2
                 })
 
             if status == "refunded":
@@ -138,6 +142,7 @@ class CommerceOutcomeProvider(OutcomeProvider):
                     },
                     "context_domain": self.context_domain,
                     "reconciliation_confidence": "high",
+                    "attestation": "platform",  # ADR-330 D2
                 })
             elif status == "partially_refunded":
                 candidates.append({
@@ -154,6 +159,7 @@ class CommerceOutcomeProvider(OutcomeProvider):
                     },
                     "context_domain": self.context_domain,
                     "reconciliation_confidence": "low",
+                    "attestation": "platform",  # ADR-330 D2
                     "reconciliation_notes": (
                         "Order marked partially_refunded but LS list_orders "
                         "does not expose the refund amount. Outcome value "

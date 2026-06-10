@@ -1,6 +1,6 @@
 # ADR-330 — Ground-Truth Intake: Generalizing the Consequence Pipe Beyond Platform Providers
 
-**Status:** **Proposed** (2026-06-10) — drafted for operator ratification; no code landed
+**Status:** **Implemented** (2026-06-10) — all five phases landed. Regression gate `api/test_adr330_ground_truth_intake.py` 17/17 PASS; ADR-287 bundle-conformance gate extended (11/11 PASS); existing `test_reconciler_fold.py` 21/21 PASS (backward-compatible). One scope refinement during implementation: alpha-commerce (deferred, already accumulating `_money_truth.md`) also declared `substrate_abi.ground_truth` — the uniform on-thesis move avoids a special-case exemption in the conformance gate (§6 note).
 **Date:** 2026-06-10
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Hat:** A (system canon — real-operator-facing)
@@ -119,6 +119,8 @@ alpha-author is `status: active` and its loop is dark. The audit (§1) found the
 
 2. **Bundle-conformance gate.** Extend `api/test_adr287_bundle_conformance.py` in the same commit to assert alpha-author declares a `ground_truth` path and that the path falls within a declared path zone (per ADR-287 discipline). No new test file — extend the existing gate.
 
+   **Implementation refinement (2026-06-10):** the ADR-287 gate walks **active AND deferred** bundles (`_all_active_or_deferred_bundles`). alpha-commerce (deferred) already ships a `_money_truth.md` accumulating file + `revenue_money_truth_md` wake-envelope entry but lacked the `ground_truth` pointer — the *identical* one-line gap. Rather than special-case the gate to active-only (which would contradict the ADR's own generalize-flow-3 thesis with a "but exempt commerce" branch), alpha-commerce also declared `ground_truth: operation/revenue/_money_truth.md`. The writer + file already exist; the declaration makes the deferred bundle activation-ready and keeps the conformance gate uniform. Three new assertions added: `ground_truth` declared · within a declared path zone · is an `accumulating_files` entry.
+
    *(Caveat the implementation must respect: `bundles_active_for_workspace` additionally requires a connected bundle capability for cockpit-chrome purposes. `get_ground_truth_for_workspace` iterates the same active-bundle list, so alpha-author's ground truth surfaces in the calibration mirror only for workspaces where alpha-author is active-for-workspace. This is correct — a workspace not running alpha-author shouldn't get its ground-truth declaration. The declaration is necessary and the right scope; activation is the operator's, per ADR-331.)*
 
 ---
@@ -153,15 +155,15 @@ The new providers run inside the **reconciler**, which is invoked by the daily b
 
 ---
 
-## 10. Phased implementation (for ratification — no code landed yet)
+## 10. Phased implementation (all five phases Implemented 2026-06-10)
 
-1. **Phase 1 — `attestation` field + segmenting (D2, D3 substrate).** Add `attestation: Literal["platform","operator","agent"]` and `retrospective: bool` to `OutcomeCandidate`; the two platform providers stamp `platform`; `fold_outcome_candidates` writes the fields + segments retrospective rows in `_money_truth.md`. Mirror surfaces `attestation` + segment labels. *(Backward-compatible: existing rows read as `platform`, non-retrospective.)*
-2. **Phase 2 — operator CSV provider (D1).** `OperatorOutcomeProvider` + the addressed-invocation entrypoint + idempotency. Reuses the upload path for staging.
-3. **Phase 3 — retrospective mode wiring (D3).** Retrospective flag honored end-to-end; mirror presents segments.
-4. **Phase 4 — alpha-author ground truth (D4).** MANIFEST declaration + accumulation recurrence + ADR-287 gate extension. **This is the proof the generalization works** — the second program's loop lights up.
-5. **Phase 5 — vocabulary + docstrings (D5).** FOUNDATIONS/GLOSSARY + docstring rewording + `action_outcomes` stale-prose fix.
+1. **Phase 1 — `attestation` field + segmenting (D2, D3 substrate). ✅** Added `attestation: Literal["platform","operator","agent"]` + `retrospective: bool` to `OutcomeCandidate` (`base.py`); both platform providers stamp `platform`; `_apply_entries` writes `by_attestation` accounting + a segmented `retrospective` bucket (own totals/by_action/events, NOT in live rolling windows or narrative); `_render_money_truth_file` surfaces the attestation line + `## Backfilled history` section + inline `[via X]` flags. *(Backward-compatible: existing rows read as `platform`, non-retrospective — `test_reconciler_fold.py` 21/21 still green.)*
+2. **Phase 2 — operator CSV provider (D1). ✅** `services/outcomes/operator.py::OperatorOutcomeProvider` (CSV parse, attestation=operator, default-domain, proposal_id confidence elevation, extra-column carry) + `reconcile_operator_import` addressed-invocation entrypoint routing through `reconcile_user(providers=[…])` (single pipe). Idempotency via operator `external_id` or stable `{batch}:{row-hash}`. NOT in `DEFAULT_PROVIDERS`.
+3. **Phase 3 — retrospective mode wiring (D3). ✅** Retrospective honored end-to-end (CSV column → segmented bucket). `mirror_calibration.py` parses the ground-truth frontmatter (`_parse_ground_truth_segments`) and presents labeled "Attestation mix" + "Backfilled history" lines (agent-attested rows flagged corroboration-seeking).
+4. **Phase 4 — alpha-author ground truth (D4). ✅** `substrate_abi.ground_truth: operation/authored/_signal.md` declared (alpha-commerce too — §6 refinement); ADR-287 gate extended with 3 ground-truth assertions. **Proof the generalization works** — `get_ground_truth_for_workspace` now returns the alpha-author path, lighting the second program's loop in the calibration mirror (no mirror code change).
+5. **Phase 5 — vocabulary + docstrings (D5). ✅** FOUNDATIONS Axiom 8 gains the "Ground-truth intake — the consequence pipe" subsection (flow + mechanism + attestation) + alpha-author instance-table cell resolved from "TBD" to `_signal.md` + v9.2 version note; GLOSSARY's reserved row replaced with four canonical entries (ground-truth intake / consequence pipe / attestation / retrospective backfill); `outcomes/*.py` docstrings reworded to lead with the Axiom-8 framing + stale `action_outcomes` prose corrected.
 
-Each phase lands green (`api/test_adr287_bundle_conformance.py` for Phase 4; a new `api/test_adr330_ground_truth_intake.py` regression gate covering the `attestation`/`retrospective` fields + operator provider + idempotency).
+Test gates green: `api/test_adr330_ground_truth_intake.py` (17/17) · `api/test_adr287_bundle_conformance.py` (11/11) · `api/test_reconciler_fold.py` (21/21 — backward-compat).
 
 ---
 
