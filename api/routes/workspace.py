@@ -406,8 +406,9 @@ async def get_workspace_tree(
 
     Queries workspace_files for all paths under the root, then builds
     a folder/file tree structure. Supports /workspace/ (the canonical
-    substrate root post-ADR-231; subfolders include reports/, context/,
-    review/, memory/, uploads/) and /agents/.
+    substrate root; ADR-320 five-root topology — subfolders include
+    constitution/, governance/, persona/, operation/ (domains + reports/ +
+    specs/), system/, agents/, uploads/) and /agents/.
 
     ADR-209 authored substrate enrichment: includes head-revision
     authored_by via the head_version_id FK → workspace_file_versions.

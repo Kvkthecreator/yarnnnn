@@ -79,19 +79,20 @@ Four tabs (Chat | Work | Agents | Files) + one out-of-nav surface (/workspace, u
 
 - **Archetype:** Dashboard (primary, per ADR-198 §3) — live substrate slice, read-primary. Detail view of a file is a Document archetype when the file is a composed output.
 - **Reads:** `workspace_files` (entire filesystem), `workspace_file_versions` (revision chain per ADR-209), `workspace_blobs` indirectly via revision reads.
-- **List mode** (no `?path=`): filesystem tree grouped by ADR-152 directory registry + ADR-231 D2 natural-home substrate:
-  - `_shared/` — workspace-wide authored rules (IDENTITY · BRAND · CONVENTIONS · MANDATE) + the shared back-office YAML index (`back-office.yaml` per ADR-231 D2) + audit log (`back-office-audit.md`)
-  - `context/{domain}/` — accumulated intelligence per domain, including `_money_truth.md` (ADR-195), `_tracker.md`, `_recurring.yaml` (per-domain ACCUMULATION recurrence declarations per ADR-231 D3), and `_feedback.md` (ADR-181)
-  - `reports/{slug}/` — DELIVERABLE-shape recurrences per ADR-231 D2 (`_spec.yaml` declaration · `_run_log.md` · `_feedback.md` · `{date}/output.md` per firing). **Replaces the dissolved `tasks/{slug}/` tree per ADR-231 D2.**
-  - `operations/{slug}/` — ACTION-shape recurrences (`_action.yaml` declaration · `_run_log.md`)
-  - `agents/{slug}/` — per-domain-agent AGENT.md, memory, style
-  - `review/` — Reviewer substrate (IDENTITY · principles · decisions — read-only here, edited from Agents tab or via Review flow)
-  - `uploads/` — operator-contributed documents (ADR-197)
-  - `memory/` — YARNNN working memory (conversation summaries, workspace state)
+- **List mode** (no `?path=`): filesystem tree grouped by the **ADR-320 five-root topology** (2026-06-10 correction — the prior grouping read stale `_shared/` · `context/` · `review/` · `memory/` roots that ADR-320 dissolved, so the Persona + System regions silently rendered empty). Groups, ordered Intent-first:
+  - **Identity** — operator-authored rules via `nav.settings`: `persona/IDENTITY.md`, `operation/BRAND.md`, `system/{awareness,notes,style}.md` (ADR-320 constants in the nav route). MANDATE/AUTONOMY live in `constitution/` + `governance/`.
+  - **Context** — accumulated domain knowledge, **disk-derived** from `operation/{domain}/` (any `operation/` folder that isn't `reports/` or `specs/`). NOT registry-derived — program domains (`portfolio`, `trading`) are created by work demand and aren't in the kernel registry; the registry only enriches display names. Each domain holds `_money_truth.md` (ADR-195), `_tracker.md`, `_recurring.yaml` (ADR-231 D3), `_feedback.md` (ADR-181).
+  - **Reports** — DELIVERABLE-shape recurrences at `operation/reports/{slug}/` per ADR-231 D2 (`_spec.yaml` · `_run_log.md` · `_feedback.md` · `{date}/output.md`). Built from the recurrences index (those with `last_run_at`, minus `back-office-`).
+  - **Persona** — the Reviewer seat (`persona/`): `IDENTITY.md` · `principles.md` · `judgment_log.md` · `calibration.md` · `standing_intent.md` · `handoffs.md` · `OCCUPANT.md`. **Was the dead `/workspace/review` fetch.**
+  - **System** — YARNNN working memory (`system/`): `awareness.md` · `notes.md` · `style.md` · `conversation.md` + machine state. **Was the dead `/workspace/memory` fetch.**
+  - **Agents** — per-domain-agent substrate (`agents/{slug}/`: AGENT.md, memory, style).
+  - **Uploads** — operator-contributed documents (`uploads/`).
+  - **System files are visible, not hidden** (ADR-320 correction): `_`-prefixed machine-config files (`_principles.yaml`, `_autonomy.yaml`, `_account.yaml`, `_tracker.md`…) render **de-emphasized** with a `sys` tag rather than vanishing — the prior hide-rule made the tree unable to "follow" a deep-link or Get-Info into the very files Home/cockpit link to. Only `operation/signals` (high-churn temporal log) stays hidden. Empty groups (Persona/System/Reports/Agents/Uploads) omit-if-empty.
 - **Detail mode** (`?path=/workspace/...`):
   - Rendered file content (markdown, HTML, or binary via `content_url`)
   - Inference-meta caption (ADR-162 sub-phase D) when present
-  - Revision history panel (ADR-209 P4) — `authored_by` trail, diff, restore
+  - Head-revision author glance ("Last edited by …") on the file header (ADR-329 D1)
+  - **Node Details ("Get Info")** — per-node provenance property (ADR-329 Amendment 1), opened via header ⓘ toggle or tree right-click. File → revision chain (`authored_by` trail, diff, restore per ADR-209 P4); folder → subtree recent-changes. Replaced the deleted standing "Recently authored" left-rail feed.
   - Substrate-native edit affordance when `authored_by=operator` is appropriate (IDENTITY, BRAND, CONVENTIONS, principles, MANDATE, uploaded documents)
 - **`+` menu:** UploadFileModal (operator uploads a document into `/workspace/uploads/`). No other modals. No chat seeders.
 - **Deep-links out:** every file path is a stable URL (`/context?path=...`) linked from Work task-detail (`/workspace/reports/{slug}/_spec.yaml` · `_feedback.md` · `{date}/output.md` per ADR-231 D2), Agents detail (`/workspace/agents/{slug}/AGENT.md` · `memory/` · `style.md`), Chat artifacts, and the cockpit faces on Work.

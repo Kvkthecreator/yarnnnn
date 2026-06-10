@@ -20,7 +20,7 @@
  * Four top-level sections, ordered Intent-first per ADR-206 three-layer view:
  *   Identity  — workspace identity/brand/conventions + domain _operator_profile.md
  *               + _risk.md + Reviewer principles.md. The Intent layer (ADR-206).
- *   Context   — accumulated domain knowledge (/workspace/context/{domain}/).
+ *   Context   — accumulated domain knowledge (/workspace/operation/{domain}/ per ADR-320).
  *   Reports   — rendered deliverables from DELIVERABLE-shape recurrences
  *               (/workspace/operation/reports/{slug}/{date}/output.md per ADR-231 D2).
  *               Was /tasks/{slug}/outputs/latest/ pre-cutover; the substrate
@@ -75,13 +75,6 @@ function asNodeArray(value: unknown): TreeNode[] {
   return Array.isArray(value) ? value as TreeNode[] : [];
 }
 
-function relabelTopLevelNodes(nodes: TreeNode[] | undefined, labelMap: Record<string, string>): TreeNode[] {
-  return asNodeArray(nodes).map((node) => ({
-    ...node,
-    name: labelMap[node.name] || node.name,
-  }));
-}
-
 function filterNodes(nodes: TreeNode[] | undefined, predicate: (node: TreeNode) => boolean): TreeNode[] {
   return asNodeArray(nodes)
     .filter(predicate)
@@ -115,59 +108,82 @@ function buildBreadcrumbs(root: TreeNode, targetPath: string): TreeNode[] {
   return trail;
 }
 
-// ADR-236 Round 5+ extension (2026-04-30): Files page surfaces more of
-// the substrate the operator should see.
+// Files surface group assembly — ADR-320 topology (2026-06-10 correction).
 //
-// HIDE RULE (only system-strict hidden):
-//   - Files starting with `_` (machine-config: _recurring.yaml, _tracker.md,
-//     _domain.md, _money_truth.md, etc.). These are operationally important
-//     but accumulated by the system; their content is rendered by the
-//     surfaces that need them (faces, briefings). Showing them in the
-//     explorer would create operator confusion about whether they're
-//     authored substrate.
-//   - /workspace/context/signals — temporal signals log, not substrate.
+// The five-root substrate topology (ADR-320): the legacy /workspace/_shared,
+// /workspace/context, /workspace/review, /workspace/memory roots are GONE.
+// Substrate now lives at:
+//   - /workspace/persona/      → the Reviewer seat (IDENTITY, principles,
+//                                 judgment_log, calibration, standing_intent…)
+//   - /workspace/operation/    → the work: domains ({portfolio}, {trading}…),
+//                                 reports/, specs/, BRAND.md, CONVENTIONS.md
+//   - /workspace/system/       → YARNNN working memory (awareness, notes, style)
+//   - /workspace/constitution/ → MANDATE, PRECEDENT (surfaced via Identity)
+//   - /workspace/governance/   → AUTONOMY (surfaced via Identity)
+//   - /workspace/agents/       → per-agent substrate
+//   - /workspace/uploads/      → operator-contributed source material
 //
-// VISIBLE (operator can see + ask YARNNN about):
-//   - Identity (authored substrate at /workspace/constitution + governance + operation (ADR-320))
-//   - Context (accumulated domain knowledge, hiding `_`-prefixed files)
-//   - Reports (DELIVERABLE recurrences)
-//   - Uploads (operator-contributed)
-//   - Memory (YARNNN's working memory — awareness, notes, style)
-//   - Review (Reviewer substrate — IDENTITY, principles, decisions, calibration)
-//   - Agents (per-agent substrate — AGENT.md, memory/, etc.) — the operator
-//     wanted to see TP's folder; this surfaces it.
+// SYSTEM FILES ARE VISIBLE, NOT HIDDEN (2026-06-10): the prior `_`-prefix
+// hide rule made the tree dishonest — it couldn't "follow" a deep-link or
+// Get-Info into the very files Home/cockpit link to (e.g. _account.yaml,
+// _principles.yaml). Machine-config `_*` files now render DE-EMPHASIZED
+// (TreeItem dims + tags them) rather than vanishing. The operator sees the
+// whole substrate; the system/authored distinction is shown by treatment,
+// not by omission. Only one path stays hidden: operation/signals (a
+// high-churn temporal log, not browseable substrate).
+//
+// DOMAINS ARE DISK-DERIVED, NOT REGISTRY-DERIVED: a "domain" is any folder
+// directly under operation/ that isn't reports/ or specs/. The kernel
+// registry only knows generic domains (competitors, market…); program
+// domains (portfolio, trading…) are created by work demand and would be
+// invisible if we filtered by the registry. We read what's on disk and use
+// the registry only for display-name enrichment.
+
+// operation/ subfolders that are NOT context domains (they get their own
+// groups or aren't browseable here). Loose operation/ files (BRAND.md,
+// CONVENTIONS.md) are surfaced via the Identity group (nav.settings), not
+// Context — the Context filter below keeps only folders.
+const OPERATION_NON_DOMAIN = new Set(['reports', 'specs']);
+
 function buildContextNodes(input: {
-  domainTree?: TreeNode[];
+  operationTree?: TreeNode[];
   uploadTree?: TreeNode[];
-  memoryTree?: TreeNode[];
-  reviewTree?: TreeNode[];
+  systemTree?: TreeNode[];
+  personaTree?: TreeNode[];
   agentsTree?: TreeNode[];
   domainTitles: Record<string, string>;
   settings?: Array<{ name: string; filename: string; path: string; updated_at: string | null }>;
   outputTasks?: Array<{ slug: string; title: string; last_run_at: string | null }>;
 }): TreeNode[] {
-  // System-strict hide predicate: `_`-prefixed files are machine-config /
-  // accumulated by the system; specific paths (signals/) are temporal logs.
-  const isHidden = (node: TreeNode): boolean => {
-    const filename = node.path.split('/').pop() || '';
-    if (filename.startsWith('_')) return true;
-    if (node.path.startsWith('/workspace/context/signals')) return true;
-    return false;
-  };
-  const visible = (predicate: (n: TreeNode) => boolean) => (node: TreeNode) =>
-    !isHidden(node) && predicate(node);
+  // The only path still hidden: operation/signals (temporal churn log).
+  const isHidden = (node: TreeNode): boolean =>
+    node.path.startsWith('/workspace/operation/signals');
+  const notHidden = (node: TreeNode) => !isHidden(node);
 
-  const domainChildren = relabelTopLevelNodes(
-    filterNodes(input.domainTree, visible(() => true)),
-    input.domainTitles
-  );
+  // Context = operation/ folders that are real domains (disk-derived).
+  // Reports/specs and the loose BRAND/CONVENTIONS files are excluded.
+  const operationTop = asNodeArray(input.operationTree);
+  const domainChildren = operationTop
+    .filter((n) =>
+      n.type === 'folder' &&
+      !OPERATION_NON_DOMAIN.has(n.name) &&
+      notHidden(n)
+    )
+    .map((n) => ({
+      ...n,
+      // Enrich label from the registry display name when the domain key
+      // matches; otherwise keep the on-disk folder name.
+      name: input.domainTitles[n.name] || n.name,
+      children: n.children ? filterNodes(n.children, notHidden) : undefined,
+    }));
+
   const uploadChildren = asNodeArray(input.uploadTree);
-  const memoryChildren = filterNodes(input.memoryTree, visible(() => true));
-  const reviewChildren = filterNodes(input.reviewTree, visible(() => true));
-  const agentsChildren = filterNodes(input.agentsTree, visible(() => true));
+  const systemChildren = filterNodes(input.systemTree, notHidden);
+  const personaChildren = filterNodes(input.personaTree, notHidden);
+  const agentsChildren = filterNodes(input.agentsTree, notHidden);
   const settingsFiles = Array.isArray(input.settings) ? input.settings : [];
 
-  // Outputs: DELIVERABLE-shape recurrences (ADR-180 + ADR-231 D2).
+  // Reports: DELIVERABLE-shape recurrences (ADR-180 + ADR-231 D2).
   const outputTasks = input.outputTasks ?? [];
   const outputChildren: TreeNode[] = outputTasks.map(task => ({
     name: task.title,
@@ -177,14 +193,9 @@ function buildContextNodes(input: {
     summary: task.last_run_at ? `Latest output` : 'No output yet',
   }));
 
-  // ADR-206 Intent-first ordering preserved for the first four sections.
-  // Memory + Review + Agents added per the operator's "most should be
-  // visible" framing. Sections with zero children are omitted — the
-  // operator saw "Agents: 0 items / Empty folder" which was confusing
-  // because specialist filesystem substrate only materialises when an
-  // agent first runs; TP has no /workspace/agents/ filesystem path at
-  // all (TP is an orchestration surface, not a filesystem-substrate
-  // agent per ADR-216).
+  // ADR-206 Intent-first ordering. Sections with zero children are omitted
+  // (a program may not have populated a region yet). Identity + Context are
+  // always shown; Reports/Persona/System/Agents/Uploads omit-if-empty.
   const maybe = (node: TreeNode): TreeNode | null =>
     (node.children?.length ?? 0) > 0 ? node : null;
 
@@ -216,19 +227,23 @@ function buildContextNodes(input: {
       summary: outputChildren.length ? `${outputChildren.length} reports` : 'No reports yet',
       children: outputChildren,
     }),
+    // Persona — the Reviewer seat (ADR-320: was the dead /workspace/review
+    // fetch). The Reviewer's IDENTITY, principles, judgment trail + calibration.
     maybe({
-      name: 'Memory',
-      path: '/workspace/memory',
+      name: 'Persona',
+      path: '/workspace/persona',
       type: 'folder' as const,
-      summary: `${memoryChildren.length} files`,
-      children: memoryChildren,
+      summary: `${personaChildren.length} files`,
+      children: personaChildren,
     }),
+    // System — YARNNN's working memory (ADR-320: was the dead /workspace/memory
+    // fetch). awareness, notes, style, conversation + machine state.
     maybe({
-      name: 'Review',
-      path: '/workspace/review',
+      name: 'System',
+      path: '/workspace/system',
       type: 'folder' as const,
-      summary: `${reviewChildren.length} files`,
-      children: reviewChildren,
+      summary: `${systemChildren.length} files`,
+      children: systemChildren,
     }),
     maybe({
       name: 'Agents',
@@ -365,7 +380,7 @@ export default function ContextPage() {
   const virtualRoot: TreeNode = { name: 'root', path: EXPLORER_ROOT_PATH, type: 'folder', children: treeNodes };
 
   // Synthetic node for direct workspace paths that may not be in the virtual tree
-  // (e.g. entity subfolder /workspace/context/{domain}/{entity} from TrackingEntityGrid)
+  // (e.g. entity subfolder /workspace/operation/{domain}/{entity} from TrackingEntityGrid)
   const syntheticNodeForPath = useCallback((path: string): TreeNode | null => {
     if (!path) return null;
     const name = path.split('/').filter(Boolean).pop() ?? path;
@@ -382,29 +397,40 @@ export default function ContextPage() {
   const loadExplorer = useCallback(async () => {
     setFileTreeLoading(true);
     try {
-      // ADR-236 Round 5+ extension: fetch memory/review/agents trees in
-      // parallel. allSettled rather than all so that any single tree's
-      // 404 / error doesn't take down the explorer.
+      // ADR-320 topology (2026-06-10): fetch the real five-root substrate.
+      // operation/ (domains + reports), persona/ (Reviewer seat), system/
+      // (YARNNN memory), agents/, uploads/. The legacy /workspace/context,
+      // /workspace/review, /workspace/memory roots are dead — fetching them
+      // returned empty groups (silent drift). .catch(()=>[]) so any single
+      // tree's error doesn't take down the explorer.
       const [
         nav,
-        domainTree,
+        operationTree,
         uploadTree,
-        memoryTreeR,
-        reviewTreeR,
+        systemTreeR,
+        personaTreeR,
         agentsTreeR,
         tasksData,
       ] = await Promise.all([
         api.workspace.getNav(),
-        api.workspace.getTree('/workspace/context'),
+        api.workspace.getTree('/workspace/operation'),
         api.workspace.getTree('/workspace/uploads'),
-        api.workspace.getTree('/workspace/memory').catch(() => []),
-        api.workspace.getTree('/workspace/review').catch(() => []),
+        api.workspace.getTree('/workspace/system').catch(() => []),
+        api.workspace.getTree('/workspace/persona').catch(() => []),
         api.workspace.getTree('/workspace/agents').catch(() => []),
         api.recurrences.list(),
       ]);
 
       const navDomains = Array.isArray(nav?.domains) ? nav.domains : [];
-      const domainTitles = Object.fromEntries(navDomains.map((domain: any) => [domain.key, domain.display_name]));
+      // Map registry domain *folder name* → display_name. The registry keys
+      // (competitors, market…) are the operation/{name} folder names, so we
+      // index by the last path segment for disk-folder enrichment.
+      const domainTitles = Object.fromEntries(
+        navDomains.map((domain: any) => {
+          const folderName = (domain.path || '').split('/').filter(Boolean).pop() || domain.key;
+          return [folderName, domain.display_name];
+        })
+      );
 
       // Phase I: per ADR-261 D1, every recurrence is report-shaped on disk
       // (writes to /workspace/operation/reports/{slug}/{date}/output.md). Show every
@@ -417,10 +443,10 @@ export default function ContextPage() {
         .map((t: any) => ({ slug: t.slug, title: t.title, last_run_at: t.last_run_at }));
 
       const nodes = buildContextNodes({
-        domainTree: asNodeArray(domainTree),
+        operationTree: asNodeArray(operationTree),
         uploadTree: asNodeArray(uploadTree),
-        memoryTree: asNodeArray(memoryTreeR),
-        reviewTree: asNodeArray(reviewTreeR),
+        systemTree: asNodeArray(systemTreeR),
+        personaTree: asNodeArray(personaTreeR),
         agentsTree: asNodeArray(agentsTreeR),
         domainTitles,
         settings: Array.isArray(nav?.settings) ? nav.settings : [],
@@ -444,7 +470,7 @@ export default function ContextPage() {
         const contextFolder = nodes.find(n => n.name === 'Context');
         if (contextFolder?.children) {
           const domainNode = contextFolder.children.find(
-            n => n.path === `/workspace/context/${domainParam}` || n.path.endsWith(`/${domainParam}`)
+            n => n.path === `/workspace/operation/${domainParam}` || n.path.endsWith(`/${domainParam}`)
           );
           if (domainNode) {
             setSelectedPath(domainNode.path);

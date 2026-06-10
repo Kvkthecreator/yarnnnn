@@ -97,10 +97,24 @@ interface TreeItemProps {
   onContextMenu?: (node: WorkspaceTreeNode, e: React.MouseEvent) => void;
 }
 
+// A `_`-prefixed file is machine-config / accumulated system state (per the
+// File Format Discipline: _autonomy.yaml, _principles.yaml, _tracker.md,
+// _account.yaml, …). ADR-320 correction (2026-06-10): these are no longer
+// HIDDEN — the tree must be able to follow a deep-link or Get-Info into them
+// (Home/cockpit link straight to _account.yaml etc.). They render
+// de-emphasized so the operator can tell system-state from authored prose at
+// a glance, without the tree lying about what exists.
+function isSystemFile(node: WorkspaceTreeNode): boolean {
+  if (node.type !== 'file') return false;
+  const filename = node.path.split('/').pop() || '';
+  return filename.startsWith('_');
+}
+
 function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu }: TreeItemProps) {
   const [expanded, setExpanded] = useState(depth < 1); // Auto-expand first level
   const isFolder = node.type === 'folder';
   const isSelected = selectedPath === node.path;
+  const isSystem = isSystemFile(node);
 
   useEffect(() => {
     if (isFolder && selectedPath && nodeContainsPath(node, selectedPath)) {
@@ -130,6 +144,9 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu }: TreeIt
         className={cn(
           "w-full flex items-center gap-1.5 py-1 px-2 rounded-sm text-left hover:bg-accent/50 transition-colors",
           isSelected && "bg-primary/10 text-primary font-medium",
+          // ADR-320 correction: machine-config files render de-emphasized
+          // (dimmer text) rather than hidden — present but visibly secondary.
+          isSystem && !isSelected && "text-muted-foreground/55",
         )}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
       >
@@ -137,11 +154,20 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu }: TreeIt
         {!isFolder && <span className="w-3.5" />}
         {fileIcon}
         <span className="truncate flex-1">{node.name}</span>
+        {/* System-file tag — disambiguates machine-config from authored prose
+            at a glance (the de-emphasis + tag carry the distinction the old
+            hide-rule used to carry by omission). */}
+        {isSystem && (
+          <span className="shrink-0 text-[9px] uppercase tracking-wide text-muted-foreground/40 ml-1">
+            sys
+          </span>
+        )}
         {/* ADR-209: authored_by from head revision — compact right-edge
             label so the operator can see at a glance who last touched
-            each file without opening it. Only shown for file nodes
-            (not folders) when authored_by is populated. */}
-        {!isFolder && node.authored_by && (
+            each file without opening it. Only shown for non-system file
+            nodes when authored_by is populated (system files carry the
+            'sys' tag above instead). */}
+        {!isFolder && !isSystem && node.authored_by && (
           <span className="shrink-0 text-[9px] text-muted-foreground/40 ml-1">
             {node.authored_by === 'operator' ? 'You'
               : node.authored_by.startsWith('yarnnn:') ? 'TP'
@@ -181,19 +207,20 @@ function nodeContainsPath(node: WorkspaceTreeNode, targetPath: string): boolean 
 
 function getFileIcon(node: WorkspaceTreeNode) {
   const path = node.path.toLowerCase();
-  const name = node.name.toLowerCase();
 
   if (node.type === 'folder') {
-    if (path === '/explorer/tasks') return <ListChecks className="w-3.5 h-3.5 text-orange-500" />;
-    if (path === '/explorer/domains') return <Boxes className="w-3.5 h-3.5 text-sky-600" />;
-    if (path === '/explorer/uploads') return <Upload className="w-3.5 h-3.5 text-emerald-600" />;
+    // Top-level group nodes (virtual /explorer/* paths + real ADR-320 roots).
     if (path === '/explorer/settings') return <Settings className="w-3.5 h-3.5 text-slate-500" />;
+    if (path === '/explorer/context') return <Boxes className="w-3.5 h-3.5 text-sky-600" />;
+    if (path === '/explorer/outputs') return <ListChecks className="w-3.5 h-3.5 text-orange-500" />;
+    if (path === '/explorer/uploads' || path === '/workspace/uploads') return <Upload className="w-3.5 h-3.5 text-emerald-600" />;
+    if (path === '/workspace/persona') return <Bot className="w-3.5 h-3.5 text-rose-500" />;
+    if (path === '/workspace/system') return <Settings className="w-3.5 h-3.5 text-zinc-500" />;
+    if (path === '/workspace/agents') return <Bot className="w-3.5 h-3.5 text-purple-500" />;
+    // Substrate folder children (ADR-320 topology).
     if (path.includes('/agents/')) return <Bot className="w-3.5 h-3.5 text-purple-500" />;
-    if (path.includes('/tasks/')) return <ListChecks className="w-3.5 h-3.5 text-orange-500" />;
-    if (path.includes('/context/')) return <Folder className="w-3.5 h-3.5 text-blue-500" />;
-    if (path.includes('/outputs/')) return <Folder className="w-3.5 h-3.5 text-green-500" />;
-    if (name === 'uploads') return <Upload className="w-3.5 h-3.5 text-emerald-600" />;
-    if (name === 'settings') return <Settings className="w-3.5 h-3.5 text-slate-500" />;
+    if (path.includes('/operation/reports/')) return <ListChecks className="w-3.5 h-3.5 text-orange-500" />;
+    if (path.startsWith('/workspace/operation/')) return <Folder className="w-3.5 h-3.5 text-blue-500" />;
     return <Folder className="w-3.5 h-3.5 text-muted-foreground" />;
   }
 
