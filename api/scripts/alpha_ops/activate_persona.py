@@ -130,6 +130,27 @@ async def _run_fork(persona: Persona) -> dict[str, Any]:
     )
 
 
+async def _run_clean_slate(persona: Persona) -> dict[str, Any]:
+    """Step 1 (--clean-slate only): wipe the persona's workspace via the SAME
+    L2 clear-workspace body the HTTP route uses (services.workspace_purge.
+    clear_workspace_for_user) — capture active program → purge → reinit +
+    re-fork. No second purge implementation.
+
+    This is the longitudinal-track clean-slate (LONGITUDINAL-TRACKING): a
+    soak/eval needs a true revision-1 ledger, and the route alone is JWT-scoped
+    so it cannot reach another persona's workspace. clear_workspace_for_user
+    is the singular body callable with the service key by user_id.
+
+    Returns the purge summary {deleted, prior_program_slug, reinit_summary}.
+    Note: clear_workspace_for_user already runs initialize_workspace with the
+    captured program_slug, so Steps 2-3 below are idempotent re-runs that
+    short-circuit; the value-add of the later steps is overrides + specialists
+    + connect.
+    """
+    from services.workspace_purge import clear_workspace_for_user
+    return await clear_workspace_for_user(_service_client(), persona.user_id)
+
+
 async def _apply_overrides(persona: Persona) -> list[str]:
     """Step 4 (ADR-230 D6): walk docs/alpha/personas/{slug}/overrides/ and
     write each .md file to the operator's workspace via write_revision
@@ -316,6 +337,17 @@ def main() -> int:
     ap.add_argument("--persona", required=True, help="Persona slug from personas.yaml")
     ap.add_argument("--dry-run", action="store_true", help="Show plan without writing")
     ap.add_argument("--skip-connect", action="store_true", help="Skip Step 7 platform connect")
+    ap.add_argument(
+        "--clean-slate",
+        action="store_true",
+        help=(
+            "DESTRUCTIVE: wipe the persona's workspace first (L2 clear via "
+            "services.workspace_purge.clear_workspace_for_user) before re-"
+            "activating. Use for soak/eval clean-slate — gives a true revision-1 "
+            "ledger. Preserves auth + platform_connections; purges substrate + "
+            "tasks + agents + chat + proposals + wake_queue."
+        ),
+    )
     args = ap.parse_args()
 
     reg = load_registry()
@@ -334,6 +366,10 @@ def main() -> int:
 
     if args.dry_run:
         print("DRY RUN. No writes.")
+        if args.clean_slate:
+            print(f"Step 1 CLEAN-SLATE: clear_workspace_for_user({persona.user_id}) "
+                  f"[DESTRUCTIVE: purge substrate+tasks+agents+chat+proposals+wake_queue, "
+                  f"reinit + re-fork program={persona.program}]")
         print(f"Step 2 init: initialize_workspace(program_slug=None) [idempotent, kernel skeleton + YARNNN agent row]")
         print(f"Step 3 fork: docs/programs/{persona.program}/reference-workspace/* → /workspace/* (.md + .yaml)")
         print(f"Step 4 overrides: {'apply' if has_overrides else 'skip'} (docs/alpha/personas/{persona.slug}/overrides/)")
@@ -343,6 +379,29 @@ def main() -> int:
         return 0
 
     errors: list[str] = []
+
+    # ----- Step 1 (--clean-slate only): wipe the workspace first -----
+    # Single L2 implementation (services.workspace_purge.clear_workspace_for_user):
+    # capture active program → purge → reinit + re-fork. Gives the soak/eval a
+    # true revision-1 ledger (LONGITUDINAL-TRACKING). Preserves auth +
+    # platform_connections so the subsequent steps detect the live connection.
+    if args.clean_slate:
+        print(f"[1/6] CLEAN-SLATE wipe (DESTRUCTIVE) — clear_workspace_for_user({persona.user_id})")
+        try:
+            cs = asyncio.run(_run_clean_slate(persona))
+            deleted = cs.get("deleted", {})
+            reinit = cs.get("reinit_summary", {})
+            print(f"  OK purged: workspace_files={deleted.get('workspace_files', 0)}, "
+                  f"workspace_file_versions={deleted.get('workspace_file_versions', 0)}, "
+                  f"agents={deleted.get('agents', 0)}, tasks={deleted.get('tasks', 0)}, "
+                  f"wake_queue={deleted.get('wake_queue', 0)}")
+            print(f"  OK captured prior_program={cs.get('prior_program_slug')!r}, "
+                  f"reinit re-forked program={reinit.get('activated_program')!r}, "
+                  f"agents_created={reinit.get('agents_created', [])}")
+        except Exception as exc:
+            errors.append(f"clean-slate: {exc}")
+            print(f"  FAIL clean-slate: {exc}")
+            return 1
 
     # ----- Step 2: Initialize kernel-universal workspace skeleton -----
     # Bridges the service-key signup gap. auth.admin.create_user (used by
