@@ -49,7 +49,8 @@ export interface ComponentDecl {
  * ADR-198 originally named five (document/dashboard/queue/briefing/stream).
  * ADR-297 D1 added two content shapes (browser/roster) and ADR-297 D11
  * added three structural roles (input/navigator/chrome) for chrome
- * surfaces under the Universal Surface Application axiom.
+ * surfaces under the Universal Surface Application axiom. ADR-331 D1 added
+ * `sequence` (the guided ordered presentation of substrate — `/setup`).
  *
  * Drift between this union and the Python tuple is a regression-gate
  * failure target — the Phase 1 gate compares both.
@@ -64,7 +65,8 @@ export type Archetype =
   | 'roster'
   | 'input'
   | 'navigator'
-  | 'chrome';
+  | 'chrome'
+  | 'sequence';
 
 /**
  * LayoutRegion — named compositor mount points (ADR-297 D11).

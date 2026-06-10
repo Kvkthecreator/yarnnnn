@@ -157,13 +157,17 @@ function UnactivatedHomeCTA({ activeProgramSlug }: { activeProgramSlug: string |
         <p className="text-sm text-muted-foreground mb-4">
           YARNNN runs your operations through programs — pre-shipped templates
           that bring a domain-shaped workspace (mandate, agents, recurrences,
-          context structure). Activate one to see your operation rendered here.
+          context structure). Get set up to see your operation rendered here.
         </p>
+        {/* ADR-331 D6: the home empty-state CTA points to the guided /setup
+            sequence (activate · author · connect · bring in reality), not the
+            /program reference drawer. Home only POINTS to setup; it never grows
+            setup chrome. */}
         <Link
-          href="/program"
+          href="/setup"
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
         >
-          Activate a program
+          Get set up
           <ArrowRight className="h-3.5 w-3.5" />
         </Link>
       </div>

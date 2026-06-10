@@ -48,6 +48,16 @@ from typing import Any
 #     - `navigator` — lists/dispatches surface set (dock, launcher, breadcrumb)
 #     - `chrome` — structural framing (top bar, status bar, brand mark)
 #
+#   ADR-331 D1 (guided ordered presentation):
+#     - `sequence` — an ordered list of steps, each a *derived* status
+#       (incomplete/complete computed from substrate at render time) + an
+#       action affordance. The guided presentation of substrate that a
+#       Dashboard presents random-access. Invariant: a Sequence surface
+#       stores NO progress of its own — step status is always derived
+#       (the archetype-level encoding of ADR-331's no-wizard-state rule).
+#       Today: `/setup` (the only Sequence surface; generalizes cheaply
+#       if a second guided flow appears — ADR-331 open question #4).
+#
 # Per ADR-297 D11: chrome-vs-content is not a special case at the
 # architecture layer. Every operator-visible thing is a surface; the
 # archetype classifies its reading/writing shape. Visibility policy (always
@@ -69,6 +79,7 @@ ARCHETYPES = (
     "input",
     "navigator",
     "chrome",
+    "sequence",  # ADR-331 D1
 )
 
 
@@ -316,6 +327,28 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "default_pinned": False,
         "route": "/agents",  # _route_status: EXISTING — Reviewer detail + roster live here
         "summary": "Agent roster — Reviewer, specialists, platform integrations.",
+    },
+    {
+        # ADR-331 D1 (2026-06-10): the guided first-boot SEQUENCE rendering
+        # over the same workspace-state composition the /program drawer
+        # presents random-access. macOS Setup Assistant ⇄ System Settings:
+        # one substrate, two presentation registers. NO stored wizard state
+        # — every step's status is derived from substrate at render time
+        # (substrate_status authored? platform_connections active? harvest
+        # invocation in narrative?). `substrate_paths == []` is load-bearing:
+        # the surface owns no file; it reads api.workspace.getState(). The
+        # first-run redirect (auth/callback), the Home empty-state CTA, and
+        # the summon-index all point here. Re-enterable any time (the
+        # Migration-Assistant property).
+        "slug": "setup",
+        "register": "os-config",  # ADR-309/312 — it configures the OS, not an open file
+        "title": "Setup",
+        "archetype": "sequence",  # ADR-331 D1 — new archetype
+        "substrate_paths": [],  # reads api.workspace.getState() composition; owns no file
+        "icon_key": "rocket",
+        "default_pinned": False,  # summon-only after first run
+        "route": "/setup",  # _route_status: NEW in ADR-331 Phase 1
+        "summary": "Guided first-boot sequence — activate, author, connect, bring in reality.",
     },
     {
         "slug": "program",

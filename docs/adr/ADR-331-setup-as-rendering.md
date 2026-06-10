@@ -1,6 +1,6 @@
 # ADR-331 — Setup-as-Rendering: the `/setup` Sequence Surface and the Harvest Invocation
 
-**Status:** **Proposed** (2026-06-10) — drafted for operator ratification; no code landed
+**Status:** **Phase 1 Implemented** (2026-06-10) — `/setup` Sequence surface + sequence archetype + first-run/Home-CTA repoint landed (D1, D2, D6 CTA). Regression gate `api/test_adr331_setup_rendering.py` 11/11 PASS; ADR-297 P1 kernel-surface gate 7/7 PASS; FE `tsc --noEmit` clean. Phases 2 (harvest invocation + scope picker) + 3 (multi-file upload) pending. *(Two pre-existing ADR-312 D9 gate failures — `/api/cockpit` mount folding — are a concurrent lane's in-flight work, orthogonal to this ADR; verified identical with ADR-331 changes stashed.)*
 **Date:** 2026-06-10
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Hat:** A (system canon — real-operator-facing)
@@ -176,13 +176,15 @@ The boundary discipline: `/setup` is the *ordered* presentation, Home is the *op
 
 ---
 
-## 10. Phased implementation (for ratification — no code landed yet)
+## 10. Phased implementation
 
-1. **Phase 1 — `/setup` surface (D1, D2).** Register `setup` in `KERNEL_SURFACES`; build the Sequence-archetype renderer over `api.workspace.getState()`; repoint the first-run redirect (`auth/callback`), the home CTA (`HomeRenderer`), and confirm the summon-index picks it up via the compositor. Pure FE + one registry entry. *(Sequence archetype added to ADR-198 catalog in the same commit.)*
+1. **Phase 1 — `/setup` surface (D1, D2). ✅ Implemented 2026-06-10.** Registered `setup` in `KERNEL_SURFACES` (archetype `sequence`, register `os-config`, `substrate_paths: []`, summon-only); added `sequence` to the Python `ARCHETYPES` tuple + the TS `Archetype` union (drift-gate parity); built `SetupSequence` (the Sequence renderer over `api.workspace.getState()` — five derived steps, every status computed from substrate, zero stored progress) + the `/setup` route page (`SurfacePage` wrapper); repointed the first-run redirect (`auth/callback` → `/setup?first_run=1`) + the Home empty-state CTA (`HomeRenderer` → `/setup`, "Get set up"); registered the `rocket` icon; added `/setup` to `PROTECTED_PREFIXES`. Steps 1–3 (pick program · author constitution · connect platforms) fully derived + actioned via existing affordances; steps 4–5 (bring in reality · first artifact) render with Phase-1-honest derivation (uploads-presence; Home pointer) — step 4's action gains the harvest scope picker in Phase 2 without changing the surface shape. Pure FE + one registry entry.
 2. **Phase 2 — harvest invocation + scope picker (D3, D4).** Named harvest agent / harvest-shaped addressed turn with attributed write (`agent:harvest`); the metadata-only dry-run endpoint (reuses read-tool count/list shape, no writes); the `/setup` "bring in reality" custom picker UI (source/range selector over active connections + inline dry-run estimate + confirm-to-fire). Selection state ephemeral — no persistence.
 3. **Phase 3 — multi-file upload (D5).** Extend `/documents/upload` to accept a file list + `.zip` expansion; FE multi-select on the upload affordance.
 
-Each phase lands green. Regression gate `api/test_adr331_setup_rendering.py` covers: (a) `setup` present in `KERNEL_SURFACES` with `archetype="sequence"` + `register="os-config"`; (b) no stored-state assertion (the surface owns no substrate path — `substrate_paths == []`); (c) `agent:harvest` validates against `is_valid_author`; (d) multi-file upload writes N attributed `/workspace/uploads/*.md` rows from one call.
+Each phase lands green. Regression gate `api/test_adr331_setup_rendering.py` covers: (a) `setup` present in `KERNEL_SURFACES` with `archetype="sequence"` + `register="os-config"`; (b) no stored-state assertion (the surface owns no substrate path — `substrate_paths == []`); (c) `agent:harvest` validates against `is_valid_author`; (d) multi-file upload writes N attributed `/workspace/uploads/*.md` rows from one call. *(Phase 1 lands assertions (a)+(b)+the sequence-archetype Python/TS parity + redirect/CTA/icon/protected-route + (c); the dry-run-no-writes and (d) multi-file assertions extend in place per phase, per ADR-287 conformance-gate discipline.)*
+
+**WORKSPACE doc cascade — deferred (Phase 1 note).** `docs/design/WORKSPACE.md` carries the per-surface contracts but is mid-refactor by a concurrent ADR-297/312 lane and explicitly defers known framing drift ("tracked as follow-up, not silently rewritten here"). Adding the `/setup` surface contract there now would conflict with that lane and violate its own deferral discipline. The authoritative `/setup` inventory is `api/services/kernel_surfaces.py` (updated) + this ADR; the WORKSPACE.md surface-contract entry for `/setup` lands with the doc's next coherence pass (tracked alongside the existing deferred drift), not piecemeal here.
 
 **Prompt-change protocol:** Phase 2 adds/changes a harvest-shaped LLM-facing prompt — `api/prompts/CHANGELOG.md` entry required in that commit.
 

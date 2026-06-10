@@ -22,6 +22,7 @@ import {
   MessageCircle,
   Package,
   Palette,
+  Rocket,
   Scale,
   ScrollText,
   Settings,
@@ -61,6 +62,8 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   'message-circle': MessageCircle,
   package: Package,
   palette: Palette,
+  // ADR-331 D1: rocket glyph for the /setup guided first-boot sequence.
+  rocket: Rocket,
   scale: Scale,
   // ADR-297 D18.2 (2026-05-22): scroll-text registered for the Feed
   // surface, disambiguating it from the universal ChatDrawer FAB
