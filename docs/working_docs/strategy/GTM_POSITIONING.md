@@ -123,7 +123,7 @@ The artifact class is a **full delegate on day one with zero platform connection
 ## 7. Open Items & Follow-ups
 
 1. ~~**The layman ICP noun**~~ — **RESOLVED 2026-06-10** (verb-frame; see §2). The wedge pressure-test ("isn't this just hobbyists?") remains live for the first real-stranger conversations — the wince/consequence filter is the answer to stress.
-2. **Pricing ADR** — per-operation seat tiers, delegation-level pricing, Layer-1 free tier; amends ADR-172/291 posture. **Forced now by the marketing refactor** (/pricing page cannot be rewritten without it).
+2. ~~**Pricing ADR**~~ — **RATIFIED 2026-06-10 as [ADR-334](../../adr/ADR-334-per-operation-pricing.md)**: Supervised $149 / Delegated $299 / Autonomous $499 per operation/month (entitlement = settable AUTONOMY ceiling; included usage $15/$30/$60 via existing refill machinery); bare workspace free forever (the ADR-172 balance model re-scoped to Layer-1); 14-day no-card trial with $10 grant; annual = 10×. The /pricing page rewrites against it.
 3. **Path-A proof decision** — whether the founder-run operation's record becomes the lead traction asset. Middle path on the table: lead with the *judgment trail* (attributed verdicts, calibration deltas, the seat refusing operator pressure per ADR-319), not the returns. Own session.
 4. **Lead-vertical call** — which bounded-operation community gets the first concentrated push.
 
