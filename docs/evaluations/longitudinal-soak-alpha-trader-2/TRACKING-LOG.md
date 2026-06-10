@@ -53,3 +53,28 @@ The survival-audit queries are in [`SURVIVAL-QUERIES.md`](SURVIVAL-QUERIES.md) (
 - The **curve view does not exist yet** — the improvement read (NEXT-5) will be an ad-hoc query over `workspace_file_versions` (`_money_truth.md` diff-sequence) + `execution_events`, deploy-marker-stamped. Promote to a kernel mirror only if running the track proves the query insufficient (demand-pull).
 
 **Next read**: first survival-audit pass after the soak has accumulated ≥1 full cron day (NEXT-3b → NEXT-4). Watch for: any `mode=judgment` wake with `status=success` + `output_tokens IS NULL` (silent-wake machine fault, S9), any `execution_events.status != success`, `tasks` slugs drifting from `_recurrences.yaml`, `balance_usd` burn rate vs the $50/mo envelope, and market-holiday next-fire correctness.
+
+---
+
+## 2026-06-10 02:40 UTC — BASELINE (tool-validation read · NOT a survival verdict)
+
+**Deploy-marker**: `fc859fe` (unchanged since genesis).
+
+**Window**: genesis (02:22) → 02:40 UTC — ~18 min, all off-hours (US market closed; opens 13:30 UTC).
+
+**Why this is NOT a survival verdict** (§6 rule 6): the workspace has lived only off-hours minutes; only the activation-burst mechanical trackers have run. No judgment wake has fired. This read exists to **validate the instrument** ([`SURVIVAL-QUERIES.md`](SURVIVAL-QUERIES.md)) against live substrate and establish the baseline — the real survival read comes after the first full market session.
+
+**Checks 1–6, all green** (instrument runs clean against the live schema):
+
+| # | Check | Result | Receipt |
+|---|---|---|---|
+| 1 | Silent-wake (S9) | ✅ 0 rows | `mode=judgment ∧ success ∧ output_tokens IS NULL` empty |
+| 2 | Failure triage | ✅ 0 rows | no `status != success` events |
+| 3 | Stuck locks | ✅ 0 rows | no `wake_queue.status='locked'` |
+| 4 | Budget burn | ✅ healthy | balance $30, 0 LLM events, $0 cost (only mechanical wakes — zero-cost by design) |
+| 5 | Schedule health | ✅ green | 11/11 future `next_run_at`, 0 due, 0 paused, all semantic schedules resolved to today's 13:30 UTC session |
+| 6 | Stale-index drift | ✅ 11 = 11 | `tasks` slugs ≡ `_recurrences.yaml` slugs (grep anchor correctly excludes the `dedup: stable` false-positive) |
+
+**Read**: instrument validated; baseline clean. The all-green is *expected* for an off-hours window with no judgment activity — it confirms the queries are correct and the workspace came up healthy, nothing more. Survival is **not yet exercised**.
+
+**Next read (the first real survival pass)**: after today's US market session — judgment wakes (`signal-evaluation`, `pre-market-brief`) first fire ~13:00–13:45 UTC. Re-run the same 6 checks then; the verdict becomes meaningful once `mode=judgment` events exist in the window.
