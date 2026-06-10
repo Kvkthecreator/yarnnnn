@@ -45,6 +45,8 @@ That seam is already visibly present in the repo, unnamed: every existing eval-s
 
 **Method**: the operator-proxy fires the agent into a thesis-relevant situation; the harness captures the full trace; the operator reads the trace against the thesis and writes a prose finding. The harness's job is **trace completeness** (every tool-call, every log, every output captured and legible), not classification.
 
+> **Both Suite A and Suite B are EPISODIC** — fire one situation, read once. They prove the *mechanism*. The self-improving *thesis* ("improves with tenure", FOUNDATIONS DP24 / ADR-327 D6) is **longitudinal** — a curve over weeks that can only be observed, not fired — and is a separate surface: see [`LONGITUDINAL-TRACKING.md`](LONGITUDINAL-TRACKING.md). The episodic suites here are that track's pre-flight gate. The seam this doc names (agnostic-vs-specific) and the seam that doc names (episodic-vs-continuous) are orthogonal.
+
 ---
 
 ## §3 The subtlety the legacy framing fused: THREE axes, not two
