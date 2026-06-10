@@ -21,6 +21,15 @@ first principles (§3).
 design (settled by evidence from the invariant build + background funnel, not by
 another positioning session).
 
+> **Successor (2026-06-10, same day):**
+> `reality-in-current-standing-and-setup-as-rendering-2026-06-10.md` refines §3:
+> the "three invariants" re-key as **four flows** (context in · work out ·
+> outcomes in · the loop); Invariants 1+2 collapse into one consequence-pipe arc
+> (live + retrospective intake, attestation-stamped); a dual-tracking creep in
+> the setup framing is caught and retracted (harvest is an invocation, not a
+> subsystem — the substrate is the record). Scoped handoff for the audit/ADR
+> session: `SESSION-PROMPT-reality-in-and-setup-surface.md`.
+
 ---
 
 ## 1. The author-blindness filter (the operator's insight — hold this one)
