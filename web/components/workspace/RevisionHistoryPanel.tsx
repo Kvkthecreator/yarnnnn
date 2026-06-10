@@ -150,7 +150,7 @@ export function RevisionHistoryPanel({
     setLoading(true);
     setError(null);
     try {
-      const result = await api.workspace.listRevisions(path, limit);
+      const result = await api.workspace.listRevisions({ path }, limit);
       setRevisions(result.revisions || []);
     } catch (e) {
       setError(e instanceof APIError ? e.message : String(e));

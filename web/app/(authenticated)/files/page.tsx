@@ -38,12 +38,14 @@ import {
   Loader2,
   FolderOpen,
   X,
+  Info,
 } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import type { DeskSurface } from '@/types/desk';
 import { api } from '@/lib/api/client';
+import { cn } from '@/lib/utils';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
-import { RecentlyAuthored } from '@/components/workspace/RecentlyAuthored';
+import { NodeDetailsPanel } from '@/components/workspace/NodeDetailsPanel';
 import { UploadButton } from '@/components/workspace/UploadButton';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
@@ -315,6 +317,12 @@ export default function ContextPage() {
   const [fileTreeLoading, setFileTreeLoading] = useState(false);
   const [phase, setPhase] = useState<'setup' | 'ready' | 'active' | null>(null);
 
+  // ADR-329 (amended): node Details ("Get Info") — provenance as a per-node
+  // property, opened on demand (header ⓘ toggle or tree right-click), not a
+  // standing left-rail feed. Tied to the current selection; collapses to a
+  // header section above the content.
+  const [detailsOpen, setDetailsOpen] = useState(false);
+
   // D19 split-pane state — the surface owns its own tree pane.
   const [treePaneOpen, setTreePaneOpen] = useState(true);
   const [treeWidth, setTreeWidth] = useState(TREE_PANE_DEFAULT);
@@ -513,25 +521,34 @@ export default function ContextPage() {
     router.replace(`/files?path=${encodeURIComponent(node.path)}`, { scroll: false });
   }, [router]);
 
-  // Path-based select (ADR-329 D2: RecentlyAuthored hands back a path, not a
-  // TreeNode — the file may not be in the visible tree, e.g. a `_`-prefixed
-  // path is hidden from the explorer but a revision row can still target it;
-  // syntheticNodeForPath resolves the viewer).
+  // Path-based select — a path string, not a TreeNode. The file may not be in
+  // the visible tree (e.g. a folder-Details revision row deep-links into a
+  // `_`-prefixed file hidden from the explorer); syntheticNodeForPath resolves
+  // the viewer. Selecting via a folder-Details row also drops Details back to
+  // the (newly-selected) node's own scope.
   const handleExplorerSelect_byPath = useCallback((path: string) => {
     setSelectedPath(path);
     router.replace(`/files?path=${encodeURIComponent(path)}`, { scroll: false });
+  }, [router]);
+
+  // ADR-329 (amended): right-click "Get Info" on a tree node → select it (so
+  // Details scopes to it) and open the Details panel.
+  const handleGetInfo = useCallback((node: TreeNode) => {
+    setSelectedPath(node.path);
+    router.replace(`/files?path=${encodeURIComponent(node.path)}`, { scroll: false });
+    setDetailsOpen(true);
   }, [router]);
 
   // D19 (2026-05-22): the prior plusMenuActions + chat empty-state
   // block were ThreePanelLayout-side affordances. Chat affordances
   // now live in the universal ChatDrawer FAB (singular summon path).
 
-  // Tree pane content. ADR-329 D2: "Recently authored" feed leads the
-  // substrate surface — the operator's "what changed in my workspace" glance
-  // — above the full explorer tree. Self-hides when nothing authored yet.
+  // Tree pane content. ADR-329 (amended): the standing "Recently authored"
+  // feed is gone — provenance is now a per-node Details property ("Get Info",
+  // right-click a node or the header ⓘ), not a permanent rail. The tree is the
+  // surface; Details rides the selected node.
   const treePaneContent = (
     <div className="flex-1 overflow-y-auto">
-      <RecentlyAuthored onSelectPath={handleExplorerSelect_byPath} selectedPath={selectedPath} />
       {fileTreeLoading && treeNodes.length === 0 ? (
         <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -543,6 +560,7 @@ export default function ContextPage() {
             nodes={treeNodes}
             selectedPath={selectedPath || undefined}
             onSelect={handleExplorerSelect}
+            onGetInfo={handleGetInfo}
           />
         </div>
       ) : (
@@ -605,7 +623,34 @@ export default function ContextPage() {
             <SurfaceIdentityHeader
               title={selectedNode.name}
               metadata={getNodeMetadata(selectedNode)}
+              actions={
+                <button
+                  onClick={() => setDetailsOpen((o) => !o)}
+                  title={detailsOpen ? 'Hide details' : 'Get Info'}
+                  aria-pressed={detailsOpen}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors',
+                    detailsOpen
+                      ? 'border-primary/40 bg-primary/10 text-primary'
+                      : 'border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+                  )}
+                >
+                  <Info className="w-3.5 h-3.5" />
+                  Details
+                </button>
+              }
             />
+            {/* ADR-329 (amended): node Details ("Get Info") — provenance as a
+                per-node property. File → revision chain (revert/diff); folder →
+                subtree recent changes. Collapsible section above the content,
+                scoped to the selected node. */}
+            {detailsOpen && (
+              <NodeDetailsPanel
+                node={selectedNode}
+                onSelectPath={handleExplorerSelect_byPath}
+                onRevert={loadExplorer}
+              />
+            )}
             <div className="flex-1 overflow-auto">
               {/* DELIVERABLE recurrence substrate roots render DeliverableMiddle
                   (ADR-180 + ADR-231 D2). Path shape: /workspace/operation/reports/{slug}. */}

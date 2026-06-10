@@ -100,7 +100,7 @@ export function WorkspaceFileView({
         // Surface head-revision authorship (ADR-209 enrichment).
         // Non-fatal — if revision fetch fails, attribution just stays hidden.
         try {
-          const revs = await api.workspace.listRevisions(path, 1);
+          const revs = await api.workspace.listRevisions({ path }, 1);
           if (!cancelled && revs?.revisions?.[0]?.authored_by) {
             const raw = revs.revisions[0].authored_by;
             const label =

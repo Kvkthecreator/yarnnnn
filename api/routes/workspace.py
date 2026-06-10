@@ -69,26 +69,6 @@ class RecentArtifactsResponse(BaseModel):
     artifacts: list[RecentArtifact]
 
 
-class RecentRevision(BaseModel):
-    """One authored substrate change across the workspace (ADR-329 D2).
-
-    Distinct from RecentArtifact: a RecentArtifact is a delivered *output*
-    (a report). A RecentRevision is an authored *substrate change* — any
-    mutation to Layer 1 (workspace_file_versions per ADR-209), regardless
-    of whether it produced a deliverable. This is the data behind the
-    Files "Recently authored" feed: what the system authored in the
-    workspace, and by whom.
-    """
-    path: str                              # full workspace_files path
-    authored_by: Optional[str] = None      # ADR-209 attribution taxonomy
-    message: Optional[str] = None          # authorship trailer
-    created_at: Optional[str] = None       # revision timestamp
-
-
-class RecentRevisionsResponse(BaseModel):
-    revisions: list[RecentRevision]
-
-
 # =============================================================================
 # GET /workspace/nav — Structured navigation (ADR-154: Agent OS model)
 # =============================================================================
@@ -633,83 +613,6 @@ async def get_recent_artifacts(
 
 
 # =============================================================================
-# GET /workspace/recent-revisions — Recently authored substrate (ADR-329 D2)
-# =============================================================================
-# The Files "Recently authored" feed. Reads authored substrate changes across
-# the WHOLE workspace from workspace_file_versions (ADR-209 revision chain),
-# ordered by recency, with ADR-209 authored_by attribution. This answers
-# "what did the system author in my workspace while I was away, and by whom?"
-#
-# Distinct from /recent-artifacts (delivered outputs / reports). This is the
-# substrate-change feed — any Layer-1 mutation, deliverable or not.
-#
-# Layer-1-only (ADR-328 D6): surfaces ONLY authored substrate fields (path,
-# authored_by, message, created_at). No Layer-2 leakage (no embeddings, no
-# search internals). Read-only, workspace-scoped. Browser-consumed only —
-# no scheduler/MCP impact.
-#
-# Hidden paths: `_`-prefixed machine-config files and signals/ temporal logs
-# are excluded — same hide rule the Files explorer applies (files/page.tsx
-# isHidden). They're system-accumulated state, not authored substrate the
-# operator audits.
-
-# System-strict path prefixes excluded from the authored-substrate feed.
-_RECENT_REV_EXCLUDE_DIRS = ("/workspace/context/signals",)
-
-
-def _is_authored_substrate_path(path: str) -> bool:
-    """True if a revision path is operator-auditable authored substrate.
-
-    Mirrors the Files explorer hide rule (files/page.tsx isHidden):
-    drop `_`-prefixed machine-config files and temporal signal logs.
-    """
-    filename = path.rsplit("/", 1)[-1]
-    if filename.startswith("_"):
-        return False
-    for prefix in _RECENT_REV_EXCLUDE_DIRS:
-        if path.startswith(prefix):
-            return False
-    return True
-
-
-@router.get("/workspace/recent-revisions", response_model=RecentRevisionsResponse)
-async def get_recent_revisions(
-    auth: UserClient,
-    limit: int = Query(20, ge=1, le=50),
-) -> RecentRevisionsResponse:
-    """Recently authored substrate changes across the workspace (ADR-329 D2)."""
-    try:
-        # Over-fetch to absorb the post-query hide-filter, then trim to limit.
-        result = (
-            auth.client.table("workspace_file_versions")
-            .select("path, authored_by, message, created_at")
-            .eq("user_id", auth.user_id)
-            .order("created_at", desc=True)
-            .limit(limit * 3)
-            .execute()
-        )
-        revisions: list[RecentRevision] = []
-        for row in result.data or []:
-            path = row.get("path") or ""
-            if not _is_authored_substrate_path(path):
-                continue
-            revisions.append(
-                RecentRevision(
-                    path=path,
-                    authored_by=row.get("authored_by"),
-                    message=row.get("message"),
-                    created_at=row.get("created_at"),
-                )
-            )
-            if len(revisions) >= limit:
-                break
-        return RecentRevisionsResponse(revisions=revisions)
-    except Exception as e:
-        logger.error(f"[WORKSPACE_API] Recent revisions read failed: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# =============================================================================
 # PATCH /workspace/file — Edit file content
 # =============================================================================
 
@@ -809,6 +712,11 @@ class RevisionSummary(BaseModel):
     message: str
     created_at: str
     parent_version_id: Optional[str] = None
+    # Populated only in the subtree (folder Details) case — revisions there
+    # span multiple files, so each row carries the file it changed. Omitted
+    # (None) for the single-path (file Details) case where the path is the
+    # query input and identical for every row.
+    path: Optional[str] = None
 
 
 class RevisionDetail(BaseModel):
@@ -840,27 +748,76 @@ class RevisionDiffResponse(BaseModel):
 @router.get("/workspace/revisions", response_model=RevisionListResponse)
 async def list_revisions_route(
     auth: UserClient,
-    path: str = Query(..., description="Absolute workspace path (e.g., /workspace/constitution/MANDATE.md)"),
+    path: Optional[str] = Query(
+        None,
+        description="Absolute workspace path for FILE Details (e.g., /workspace/constitution/MANDATE.md). Exactly one of {path, path_prefix} is required.",
+    ),
+    path_prefix: Optional[str] = Query(
+        None,
+        description="Absolute workspace folder path for FOLDER Details — returns recent revisions across the subtree (e.g., /workspace/context/portfolio). Exactly one of {path, path_prefix} is required.",
+    ),
     limit: int = Query(10, ge=1, le=100, description="Max revisions to return (newest first)"),
 ) -> RevisionListResponse:
-    """ADR-209 Phase 4: return the revision chain for a workspace path.
+    """ADR-209 Phase 4 + ADR-329 (amended): the revision chain for a node.
 
-    Newest first. Used by the RevisionHistoryPanel component to render
-    "who has edited this file, when, with what message."
+    Two scopes — node Details (ADR-329) renders both off this one route:
+      - `path` (file Details): the revision chain for a single file, newest
+        first. Drives RevisionHistoryPanel's revert/diff (RevisionSummary.path
+        is None — the path is the query input).
+      - `path_prefix` (folder Details): recent revisions across a folder's
+        subtree, newest first, each row carrying the file it changed
+        (RevisionSummary.path populated). Read-only aggregate — no revert
+        (reverting an aggregate is meaningless; revert lives on file Details).
+
+    Used by the Files surface NodeDetailsPanel.
     """
-    try:
-        from services.authored_substrate import list_revisions
-
-        rows = list_revisions(
-            auth.client,
-            user_id=auth.user_id,
-            path=path,
-            limit=limit,
+    if (path is None) == (path_prefix is None):
+        raise HTTPException(
+            status_code=400,
+            detail="Provide exactly one of {path, path_prefix}.",
         )
-        revisions = [RevisionSummary(**r) for r in rows]
-        return RevisionListResponse(path=path, count=len(revisions), revisions=revisions)
+    try:
+        if path is not None:
+            # File Details — exact-path chain via the substrate helper.
+            from services.authored_substrate import list_revisions
+
+            rows = list_revisions(
+                auth.client,
+                user_id=auth.user_id,
+                path=path,
+                limit=limit,
+            )
+            revisions = [RevisionSummary(**r) for r in rows]
+            return RevisionListResponse(path=path, count=len(revisions), revisions=revisions)
+
+        # Folder Details — subtree scan over workspace_file_versions, newest
+        # first. Carries per-row path. Same Layer-1-only field set (ADR-328 D6).
+        result = (
+            auth.client.table("workspace_file_versions")
+            .select("id, path, authored_by, author_identity_uuid, message, created_at, parent_version_id")
+            .eq("user_id", auth.user_id)
+            .like("path", f"{path_prefix}%")
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        revisions = [
+            RevisionSummary(
+                id=r["id"],
+                authored_by=r.get("authored_by") or "system",
+                author_identity_uuid=r.get("author_identity_uuid"),
+                message=r.get("message") or "",
+                created_at=str(r.get("created_at") or ""),
+                parent_version_id=r.get("parent_version_id"),
+                path=r.get("path"),
+            )
+            for r in (result.data or [])
+        ]
+        return RevisionListResponse(path=path_prefix, count=len(revisions), revisions=revisions)
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"[WORKSPACE_API] list_revisions failed for {path}: {e}")
+        logger.error(f"[WORKSPACE_API] list_revisions failed for {path or path_prefix}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

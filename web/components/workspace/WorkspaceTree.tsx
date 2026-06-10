@@ -8,7 +8,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes } from 'lucide-react';
+import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { WorkspaceTreeNode } from '@/types';
 import { FileIcon } from '@/components/workspace/FileIcon';
@@ -17,9 +17,45 @@ interface WorkspaceTreeProps {
   nodes: WorkspaceTreeNode[];
   selectedPath?: string;
   onSelect: (node: WorkspaceTreeNode) => void;
+  /**
+   * ADR-329 (amended): right-click "Get Info" → open the node Details panel.
+   * The OS Get-Info convention — provenance is a property of the node, opened
+   * on demand, not a standing rail.
+   */
+  onGetInfo?: (node: WorkspaceTreeNode) => void;
 }
 
-export function WorkspaceTree({ nodes, selectedPath, onSelect }: WorkspaceTreeProps) {
+// Custom fixed-position context menu (the project has no radix/shadcn menu
+// primitive — same pattern as shell/chrome/TopBarSurface). Dismiss on
+// click-out + Escape.
+interface ContextMenuState {
+  node: WorkspaceTreeNode;
+  x: number;
+  y: number;
+}
+
+export function WorkspaceTree({ nodes, selectedPath, onSelect, onGetInfo }: WorkspaceTreeProps) {
+  const [menu, setMenu] = useState<ContextMenuState | null>(null);
+
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenu(null); };
+    window.addEventListener('click', close);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [menu]);
+
+  const openMenu = onGetInfo
+    ? (node: WorkspaceTreeNode, e: React.MouseEvent) => {
+        e.preventDefault();
+        setMenu({ node, x: e.clientX, y: e.clientY });
+      }
+    : undefined;
+
   return (
     <div className="text-sm">
       {nodes.map((node) => (
@@ -29,8 +65,26 @@ export function WorkspaceTree({ nodes, selectedPath, onSelect }: WorkspaceTreePr
           depth={0}
           selectedPath={selectedPath}
           onSelect={onSelect}
+          onContextMenu={openMenu}
         />
       ))}
+
+      {menu && onGetInfo && (
+        <div
+          className="fixed z-50 min-w-[160px] rounded-md border border-border bg-popover py-1 shadow-md"
+          style={{ left: menu.x, top: menu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            onClick={() => { onGetInfo(menu.node); setMenu(null); }}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-accent/60 transition-colors"
+          >
+            <Info className="w-3.5 h-3.5 text-muted-foreground" />
+            Get Info
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -40,9 +94,10 @@ interface TreeItemProps {
   depth: number;
   selectedPath?: string;
   onSelect: (node: WorkspaceTreeNode) => void;
+  onContextMenu?: (node: WorkspaceTreeNode, e: React.MouseEvent) => void;
 }
 
-function TreeItem({ node, depth, selectedPath, onSelect }: TreeItemProps) {
+function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu }: TreeItemProps) {
   const [expanded, setExpanded] = useState(depth < 1); // Auto-expand first level
   const isFolder = node.type === 'folder';
   const isSelected = selectedPath === node.path;
@@ -71,6 +126,7 @@ function TreeItem({ node, depth, selectedPath, onSelect }: TreeItemProps) {
     <div>
       <button
         onClick={handleClick}
+        onContextMenu={onContextMenu ? (e) => onContextMenu(node, e) : undefined}
         className={cn(
           "w-full flex items-center gap-1.5 py-1 px-2 rounded-sm text-left hover:bg-accent/50 transition-colors",
           isSelected && "bg-primary/10 text-primary font-medium",
@@ -106,6 +162,7 @@ function TreeItem({ node, depth, selectedPath, onSelect }: TreeItemProps) {
               depth={depth + 1}
               selectedPath={selectedPath}
               onSelect={onSelect}
+              onContextMenu={onContextMenu}
             />
           ))}
         </div>

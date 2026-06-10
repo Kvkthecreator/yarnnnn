@@ -1041,30 +1041,28 @@ export const api = {
         }>;
       }>(`/api/workspace/recent-artifacts?limit=${limit}`),
 
-    // ADR-329 D2: recently authored substrate changes across the whole
-    // workspace (Layer-1 revisions per ADR-209), with authored_by
-    // attribution. Distinct from recentArtifacts (delivered outputs) —
-    // this is the substrate-change feed: "what did the system author, by
-    // whom." Powers the Files "Recently authored" section.
-    recentRevisions: (limit: number = 20) =>
-      request<{
-        revisions: Array<{
-          path: string;
-          authored_by: string | null;
-          message: string | null;
-          created_at: string | null;
-        }>;
-      }>(`/api/workspace/recent-revisions?limit=${limit}`),
-
     editFile: (path: string, content: string, summary?: string, message?: string) =>
       request<{ success: boolean; path: string; updated_at: string }>(
         `/api/workspace/file`,
         { method: "PATCH", body: JSON.stringify({ path, content, summary, message }) }
       ),
 
-    // ADR-209 Phase 4: Authored Substrate revision API
-    listRevisions: (path: string, limit: number = 10) =>
-      request<{
+    // ADR-209 Phase 4 + ADR-329 (amended): the revision chain for a node.
+    // Node Details (ADR-329) renders both scopes off this one route:
+    //   - { path }        → FILE Details: exact-path chain (revert/diff).
+    //   - { pathPrefix }   → FOLDER Details: recent revisions across the
+    //                        subtree, each row carrying the file it changed
+    //                        (revisions[].path populated). Read-only aggregate.
+    // Exactly one of { path, pathPrefix } must be provided.
+    listRevisions: (
+      scope: { path: string; pathPrefix?: never } | { path?: never; pathPrefix: string },
+      limit: number = 10,
+    ) => {
+      const q =
+        scope.path !== undefined
+          ? `path=${encodeURIComponent(scope.path)}`
+          : `path_prefix=${encodeURIComponent(scope.pathPrefix)}`;
+      return request<{
         path: string;
         count: number;
         revisions: Array<{
@@ -1074,10 +1072,11 @@ export const api = {
           message: string;
           created_at: string;
           parent_version_id: string | null;
+          // Populated only in the folder (pathPrefix) case.
+          path?: string | null;
         }>;
-      }>(
-        `/api/workspace/revisions?path=${encodeURIComponent(path)}&limit=${limit}`
-      ),
+      }>(`/api/workspace/revisions?${q}&limit=${limit}`);
+    },
 
     readRevision: (path: string, revisionId: string) =>
       request<{

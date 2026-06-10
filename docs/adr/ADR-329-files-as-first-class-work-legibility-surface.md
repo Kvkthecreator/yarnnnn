@@ -1,11 +1,35 @@
 # ADR-329 — Files as the Operator's Substrate Surface: Five File Verbs, Two Operator / Two System / One Shared
 
-> **Status**: IMPLEMENTED (2026-06-08). Drafted + implemented by KVK + Claude. Frontend re-composition + one read-only route + one route-behavior change; no schema change.
+> **Status**: IMPLEMENTED (2026-06-08). **Amended 2026-06-10** (D2 reshape — see Amendment 1). Drafted + implemented by KVK + Claude. Frontend re-composition + one read-only route + one route-behavior change; no schema change.
 > **Date**: 2026-06-08
 > **Authors**: KVK, Claude
 > **Hat**: A (System Editor) — reshapes the operator-facing Files surface real operators inherit.
 > **Dimensional classification**: **Channel** (Axiom 6 — how the operator perceives + acts on authored work) primary; **Substrate** (Axiom 1 — Layer 1 made legible) + **Mechanism** (Axiom 5 — the file-verb permission carve) secondary.
 > **Upstream discourse**: [substrate-portability-swap-test-2026-06-08.md](../analysis/substrate-portability-swap-test-2026-06-08.md) ("the OS metaphor's frontend payoff is the two things only Layer 1 can show that a Finder cannot: attribution/provenance, and the permission topology made legible") + [ADR-328](ADR-328-substrate-portability-invariant.md) (Layer 1 is the authored, attributed, portable substrate; Layer 2 is reconstructable cache).
+
+---
+
+## Amendment 1 (2026-06-10) — provenance is a per-node Details property, not a standing feed
+
+**What changed:** D2's "workspace-wide *feed*" (`RecentlyAuthored` left-rail) is replaced by **per-node Details** ("Get Info"), the OS Properties/Get-Info convention. The `read`-includes-provenance principle (D1) is **preserved and generalized**: provenance is now a property of the *selected node* (file **or** folder), surfaced on demand via right-click "Get Info" or a header **Details** (ⓘ) toggle — not a permanent rail competing with the tree.
+
+**Why:** the standing feed had three operator-observed problems, all traceable to the feed *shape* (not the data):
+1. **Two stacked recency views** — the left-rail workspace feed *and* the center-pane revision history rendered together, with no visible distinction between "workspace-wide substrate delta" and "this file's chain." Confusing by construction.
+2. **"authored" reads as jargon** — the operator wanted OS-native vocabulary. "Get Info" / "Details" is the universal convention; the *content* still shows who-touched-what, but the container is named like every other OS.
+3. **The data is fundamentally per-node** — provenance/history is a property of a thing, not a workspace-level stream. Treating it as a Details inspector (scoped to whatever is selected — file, folder, or domain) is the honest shape and strictly more capable: the deleted feed could only point at *files*; Details describes *folders/domains* too (subtree recent changes).
+
+**Net effect on the five verbs:** unchanged. `read`-includes-provenance (verbs 1–2) is now delivered through one Details surface scoped to the node, replacing the feed + the body-level revision panel. `add`/`delete`/`edit`/`index` (verbs 3–6) untouched.
+
+**Implementation (shipped 2026-06-10):**
+- **DELETED:** `web/components/workspace/RecentlyAuthored.tsx` + `api.workspace.recentRevisions` client method + `GET /api/workspace/recent-revisions` route + `RecentRevision`/`RecentRevisionsResponse` models (single-caller, no other consumers). Singular Implementation — no parallel feed survives.
+- **NEW:** `web/components/workspace/NodeDetailsPanel.tsx` — the Details panel. **File node** → embeds `RevisionHistoryPanel` (the existing ADR-209 Phase 4 chain with revert/diff). **Folder node** → read-only subtree recent-changes list (each row = the file that changed + author + age, deep-linking into the file). Reverting an aggregate is meaningless; revert stays on file Details.
+- **ROUTE EXTENDED:** `GET /api/workspace/revisions` now accepts *either* `path` (file Details — exact chain) *or* `path_prefix` (folder Details — subtree scan, newest first, each row carrying `path`). One route, two scopes. `RevisionSummary.path` is populated only in the subtree case.
+- **MOVED:** the full revision chain (`RevisionHistoryPanel`) folded out of `ContentViewer`'s file body and into Details. The **always-visible** "Last edited by …" header glance (ADR-236 Cluster B) **stays** on the file view — that 1-line attribution is D1's promoted-provenance glance; only the heavy panel moved.
+- **INVOCATION:** right-click any tree node → "Get Info" (custom fixed-position context menu — the project has no radix/shadcn menu primitive; mirrors `shell/chrome/TopBarSurface`) + a **Details** (ⓘ) toggle in `SurfaceIdentityHeader`'s `actions` slot when a node is selected. Collapsible section above the content; tied to the current selection.
+
+**Carried-over second-order finding (NOT fixed here):** the explorer tree hides `_`-prefixed substrate, yet most deep-links (Home cockpit faces, folder-Details rows) target exactly those hidden files — so the tree can't "follow you" to the most-navigated nodes. This Amendment makes the hidden file *reachable + inspectable* (Get-Info on a folder-Details row deep-links into it; `syntheticNodeForPath` resolves the viewer), but the tree-honesty question (stop hiding `_*` vs. de-emphasize them) is left to a follow-on. The "doesn't follow me like Finder" complaint is *reduced* (Details now describes any node, hidden or not), not fully resolved.
+
+**Preserves:** D1 (read-includes-provenance — now via Details + the header glance), D3–D6 (add/delete/edit/index verbs), ADR-209 (revision chain is the data; revert = new revision), ADR-328 D6 (Layer-1-only — no embeddings/search internals in Details). **Supersedes:** D2 as originally written (the *feed* shape; the underlying intent — "the operator can see what the system authored, and by whom" — survives as the Details property).
 
 ---
 
@@ -48,9 +72,13 @@ This maps 1:1 to ADR-320's caller×root topology: the operator owns `uploads/`; 
 
 ### 1. read — provenance is promoted to first-class on the file view.
 
+> **Amended 2026-06-10 (Amendment 1):** preserved + generalized. The full `RevisionHistoryPanel` moved from the file *body* into the per-node **Details** panel ("Get Info"); the always-visible "Last edited by …" header glance stays on the file view. Provenance now scopes to any node (file or folder), not just text files.
+
 When a file is selected, its authored-by + revision history is a first-class element of the file view, not a buried panel. The `RevisionHistoryPanel` (ADR-209 Phase 4) — which previously rendered on Brand/Task/Agent views but **never on the Files surface itself** — now renders on every text-shaped file (markdown/text/csv/html). This is `git log`/`blame` as the file view's substrate-trust layer: who authored this claim, how it evolved, whether it's been judged. Promotion of existing components, not new build.
 
 ### 2. read — "Recently authored" is a first-class view (the work-legibility surface).
+
+> **SUPERSEDED 2026-06-10 (Amendment 1):** the standing workspace-wide *feed* (`RecentlyAuthored`) is replaced by **per-node Details** ("Get Info") — the OS Properties convention. The intent below ("the operator can see what the system authored, and by whom") survives as a per-node property; the *feed shape + the "Recently authored" name* do not. Read Amendment 1 (top of file) for the current design. The text below is preserved as the original decision.
 
 Files leads with a reverse-chronological feed of authored substrate changes: *what the system authored in the workspace, and by whom*, grouped by author-class with relative time, each row deep-linking to the file. Reads a new read-only route `GET /api/workspace/recent-revisions` over `workspace_file_versions` (ADR-209). This is the literal "supplement the work done in the system" surface — it makes accumulation watchable.
 
