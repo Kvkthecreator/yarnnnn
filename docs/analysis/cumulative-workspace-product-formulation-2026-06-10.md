@@ -22,6 +22,18 @@ formulation → ratification.
 **Status:** Ratified framing. One open edge carried forward (the layman ICP
 noun); two follow-ups named (pricing ADR; Path-A-proof session).
 
+> **Successor (2026-06-10, same day):**
+> `author-blindness-and-invariant-capabilities-2026-06-10.md` — the ICP lock-in
+> discourse produced (1) the **author-blindness filter** (acts whose value is
+> invariant to who performed them; the artifact class SPLITS — decision-support
+> passes, audience-facing personal authorship fails as a lead), (2) the
+> **general-in-architecture / narrow-in-motion / horizontal-as-background**
+> posture, and (3) the **invariant capability set** (ground-truth ingestion
+> generalized · history ingestion + retrospective reconciliation · artifact
+> quality) as the committed build direction. This doc's §4.2 wedge discussion is
+> further filtered by author-blindness; the ICP lock is deliberately open,
+> settled by evidence from the invariant build.
+
 ---
 
 ## 1. The June-2026 competitive reassessment — claim by claim
