@@ -40,12 +40,12 @@ import {
   ArrowRight,
   Link2,
   Power,
-  Upload,
   Home as HomeIcon,
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
+import { HarvestPicker } from '@/components/library/HarvestPicker';
 
 type WorkspaceState = Awaited<ReturnType<typeof api.workspace.getState>>;
 type ProgramItem = WorkspaceState['available_programs'][number];
@@ -212,17 +212,12 @@ export function SetupSequence() {
       key: 'bring-in-reality',
       title: 'Bring in your reality',
       detail:
-        'Your accumulated context — drives, docs, channel history — is what makes the workspace cumulative. Upload it, or (soon) harvest connected sources directly.',
-      // Phase-1 derivation: uploads present. Phase 2 adds the
-      // harvest-invocation-in-narrative signal (D3) + the scope picker (D4).
+        'Your accumulated context — channel history, docs, repos — is what makes the workspace cumulative. Harvest your connected sources directly, curated into context domains.',
+      // Derivation: uploads present OR a harvest has run (uploads-presence is
+      // the kernel signal available without a per-harvest narrative read; the
+      // picker's onHarvested refresh re-checks after a run). ADR-331 D3/D4.
       done: uploadsPresent === true,
-      action: (
-        <StepAction
-          icon={<Upload className="w-3.5 h-3.5" />}
-          label="Upload context"
-          onClick={() => navigateToSurface('feed')}
-        />
-      ),
+      action: <HarvestPicker onHarvested={refresh} />,
     },
     {
       key: 'first-artifact',

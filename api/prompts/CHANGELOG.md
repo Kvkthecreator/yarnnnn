@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.10.2] - ADR-331 Phase 2: harvest invocation system prompt
+
+**LLM-facing change**: new harvest-shaped system prompt + per-run brief in
+`api/services/harvest.py` (`_compose_harvest_prompt` / `_compose_harvest_brief`).
+Fired by the `/setup` "bring in reality" step's Confirm (ADR-331 D3). A headless
+LLM call (same machinery as DispatchSpecialist per ADR-261 D7) with the scoped
+platform read tools + WriteFile, attributed `agent:harvest`.
+
+The prompt's discipline: READ the picked sources → CURATE (keep durable signal:
+decisions, commitments, facts, relationships, open threads; drop noise) → ROUTE
+each kept piece into the right context domain (named from the directory registry;
+the prompt forbids inventing domains) → SUMMARIZE (a harvested file is a distilled
+note, one per coherent topic, not a transcript paste) → WRITE via WriteFile →
+STOP with a one-paragraph closing note. Explicit boundary: harvest is not a
+judgment seat — it reads, curates, and writes context; it does not propose
+actions or touch governance.
+
+**Expected behavior**: a new operator's pre-YARNNN reality (Slack/Notion/GitHub)
+enters the workspace as curated, attributed, domain-routed substrate via a
+button-driven scope picker — not a raw dump, not continuous sync (ADR-153
+stands). Per-harvest LLM cost (bounded ≤12 rounds, Sonnet).
+
+**Why**: closes flow 1's catch-up door (ADR-331 D3/D4) — the "bring your
+track record, get a calibration trail in hour one" onboarding motion.
+
+---
+
 ## [2026.06.10.1] - ADR-333: compose as lazy projection + the author piece-composition spec
 
 **LLM-facing change**: new production spec at

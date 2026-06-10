@@ -158,9 +158,75 @@ def test_phase2_agent_harvest_author_validates():
     )
 
 
-# Phase 2 dry-run endpoint + Phase 3 multi-file upload assertions land with
-# their respective implementation commits (this file extends per phase, per
-# the ADR-287 conformance-gate discipline of one gate, extended in place).
+def test_phase2_harvest_caller_identity_is_agent_harvest():
+    """D3: the harvest service attributes writes as agent:harvest (the
+    caller_identity that flows to WriteFile's authored_by)."""
+    from services.harvest import HARVEST_CALLER_IDENTITY
+
+    assert HARVEST_CALLER_IDENTITY == "agent:harvest"
+
+
+def test_phase2_harvest_dry_run_does_no_writes():
+    """D4: the dry-run is metadata-only — no write/WriteFile/write_revision
+    in the dry-run path. We assert the source never imports a write primitive
+    in the dry-run function body (static guard against accidental writes)."""
+    import inspect
+
+    from services.harvest import harvest_dry_run
+
+    src = inspect.getsource(harvest_dry_run)
+    for banned in ("write_revision", "WriteFile", "handle_write_file"):
+        assert banned not in src, (
+            f"ADR-331 D4: harvest_dry_run must perform NO writes (found {banned!r})"
+        )
+
+
+def test_phase2_harvest_scope_normalization_drops_unknown_providers():
+    """D4: the picker's ephemeral scope is normalized; unknown providers are
+    dropped, known ones (slack/notion/github) survive with their range."""
+    from services.harvest import _normalize_sources
+
+    scope = {"sources": [
+        {"provider": "slack", "id": "C1", "range_days": 30},
+        {"provider": "bogus", "id": "x"},
+        {"provider": "notion", "id": "p1"},
+    ]}
+    norm = _normalize_sources(scope)
+    assert [s["provider"] for s in norm] == ["slack", "notion"]
+    assert norm[0]["range_days"] == 30
+
+
+def test_phase2_harvest_not_in_default_providers_or_new_primitive():
+    """D3 anti-goal: harvest adds no new primitive. The harvest service uses
+    execute_primitive + existing read tools; it does not register a primitive
+    handler. Assert no 'harvest' handler in the primitive registry."""
+    from services.primitives.registry import HANDLERS
+
+    assert not any("harvest" in name.lower() for name in HANDLERS), (
+        "ADR-331 D3: harvest must NOT register a new primitive — it's an "
+        "invocation using existing read tools + WriteFile."
+    )
+
+
+def test_phase2_harvest_route_registered():
+    """D3/D4: the /harvest/dry-run + /harvest/run endpoints are registered."""
+    from routes import harvest as harvest_route
+
+    paths = {r.path for r in harvest_route.router.routes}
+    assert "/harvest/dry-run" in paths
+    assert "/harvest/run" in paths
+
+
+def test_phase2_changelog_entry_present():
+    """Prompt-change protocol: the harvest prompt requires a CHANGELOG entry."""
+    changelog = _read(REPO_ROOT / "api" / "prompts" / "CHANGELOG.md")
+    assert "ADR-331 Phase 2: harvest invocation system prompt" in changelog, (
+        "ADR-331 Phase 2 adds a harvest-shaped LLM prompt — CHANGELOG entry required."
+    )
+
+
+# Phase 3 multi-file upload assertions land with the Phase 3 commit (this file
+# extends per phase, per the ADR-287 conformance-gate discipline).
 
 
 if __name__ == "__main__":
