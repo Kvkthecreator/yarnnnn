@@ -16,6 +16,48 @@ consequence-pipe arc; a retraction recorded in §3 below).
 
 ---
 
+## 0. Re-verification corrections (added 2026-06-10, scoped audit/ADR session)
+
+The scoped session (`SESSION-PROMPT-reality-in-and-setup-surface.md`)
+re-verified every receipt in §1–§4 against live code before drafting the two
+ADRs. **All four-flow claims hold** (provider count = 2, alpha-author declares
+no ground-truth, single-file 25MB upload, calibration mirror reads
+`substrate_abi.ground_truth` and degrades to cadence-only when absent). Three
+**non-claim drifts** were found — cosmetic to the argument, material to the
+ADR's code-pointers, so corrected here in place:
+
+1. **First-run redirect target moved.** §1/§4 below (and the SESSION-PROMPT)
+   describe the redirect as `/settings?tab=workspace&first_run=1` (ADR-244 D5).
+   ADR-297 (atomic-surface migration) already moved it: `web/app/auth/callback/page.tsx`
+   now redirects first-run operators to **`/program?first_run=1`**, rendering
+   `ProgramLifecycleDrawer` over `api.workspace.getState()`. The "anti-welcome
+   settings tab" premise is now "the `/program` lifecycle drawer" — still a
+   reference/random-access surface, not a guided sequence, so §4's
+   sequence-vs-reference argument **stands**; ADR-331 amends ADR-297's redirect,
+   not ADR-244 D5.
+
+2. **Domain substrate paths moved `context/` → `operation/`.** ADR-320
+   (constitution/operation/governance topological cut) relocated accumulated
+   domain context to `operation/{domain}/`; governance to `governance/`;
+   constitution to `constitution/`. The reconciler writes
+   `/workspace/operation/{domain}/_money_truth.md`. Wherever §1–§4 say
+   `context/{domain}/` or `context/_shared/`, read `operation/{domain}/` and
+   `constitution/` + `governance/` respectively.
+
+3. **The surface model is ADR-297 atomic surfaces, not page-as-container.**
+   §4's "build `/setup` (FE route)" lands as a **kernel atomic surface** in the
+   `KERNEL_SURFACES` registry (`api/services/kernel_surfaces.py`), consumed by
+   the compositor's `surfaces[]` registry and the summon-index — fully
+   consonant with §4's "one substrate, two renderings." ADR-331 frames `/setup`
+   this way.
+
+**One stale-prose note (not a code path):** `outcomes/base.py` docstrings still
+reference the dropped `action_outcomes` SQL table; ADR-195 v2 moved persistence
+to filesystem `_money_truth.md`. The TypedDict and provider contract are
+correct; only the prose lags. ADR-330 notes it for a same-commit docstring fix.
+
+---
+
 ## 1. The four flows — current standing (audited against live `api/`, 2026-06-10)
 
 The "three invariants" framing dissolves into a flow picture: the operation's
@@ -145,5 +187,11 @@ artifact lands.
    (multi-signal per MANIFEST oracle shape), so the second active program's
    loop lights up.
 5. **Bare-kernel default** — does the no-program workspace deserve a "default
-   program" bundle so horizontal users land in something shaped? (Raised, not
-   discussed — carried open.)
+   program" bundle so horizontal users land in something shaped? ~~(Raised, not
+   discussed — carried open.)~~ **CLOSED 2026-06-10** by
+   `four-flow-completeness-and-program-floor-2026-06-10.md` §3: Direction A
+   (bare-kernel-product-floor, ratified 2026-06-01) reaffirmed and strengthened
+   — a program IS a flow-declaration set; a "default program" would be a
+   declaration set with no operation behind it. No default program; the
+   singular path is signup → resting kernel → `/setup` → pick program → walk
+   its declared flows to completeness.
