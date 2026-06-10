@@ -25,11 +25,24 @@ has no overrides directory; she runs the bundle template as-is.
 
 ## Files
 
+Paths are current-canon (ADR-308/309 register split + ADR-320 collapse):
+`constitution/` for pure intent (MANDATE), `operation/` for the working
+substrate (trading domain). The pre-ADR-320 `context/` layout these files
+used to ship was migrated 2026-06-10 (it had been silently writing
+contaminating duplicates at dead paths on every clean-slate).
+
 | Override | Bundle template | Why differs |
 |---|---|---|
-| `context/_shared/MANDATE.md` | `docs/programs/alpha-trader/reference-workspace/context/_shared/MANDATE.md` | Stat-arb pair-trading vs single-name signal model — primary action is a two-leg beta-neutral pair, not a single-ticker momentum entry |
-| `context/trading/_operator_profile.md` | `docs/programs/alpha-trader/reference-workspace/context/trading/_operator_profile.md` | 6 cointegrated pairs + z-score signals vs 5 single-name signals; different universe; different sizing formula |
-| `context/trading/_risk.md` | `docs/programs/alpha-trader/reference-workspace/context/trading/_risk.md` | Stat-arb-shaped risk: per-pair vol target replaces per-position risk %; correlation caps replace sector caps |
+| `constitution/MANDATE.md` | `docs/programs/alpha-trader/reference-workspace/constitution/MANDATE.md` | Stat-arb pair-trading vs single-name signal model — primary action is a two-leg beta-neutral pair, not a single-ticker momentum entry |
+| `operation/trading/_operator_profile.md` | `docs/programs/alpha-trader/reference-workspace/operation/trading/_operator_profile.md` | 6 cointegrated pairs + z-score signals vs 5 single-name signals; different universe; different sizing formula |
+| `operation/trading/_risk.md` | `docs/programs/alpha-trader/reference-workspace/operation/trading/_risk.md` | Stat-arb-shaped risk: per-pair vol target replaces per-position risk %; correlation caps replace sector caps |
+
+**MANDATE heading carries the program slug `alpha-trader`** (not `alpha-trader-2`),
+so `parse_active_program_slug` validates against `_all_slugs()` for the ADR-244 D4
+re-fork capture on clean-slate. The persona's stat-arb identity lives in the
+MANDATE body sections, not the heading — same convention as the bundle's ADR-292
+heading-normalization. A heading like `# Mandate — alpha-trader-2` is NOT a valid
+bundle slug and silently breaks clean-slate re-fork.
 
 ## Re-applying
 

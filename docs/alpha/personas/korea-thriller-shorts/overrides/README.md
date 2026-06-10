@@ -21,11 +21,11 @@ Files mirror substrate paths they override. `activate_persona.py` Step 4 walks e
 
 | Override | Bundle template overridden | Why differs |
 |---|---|---|
-| `context/_shared/MANDATE.md` | `docs/programs/alpha-author/reference-workspace/context/_shared/MANDATE.md` | AI-video-gen-shot-prompt Primary Action; shoot-ready criterion; canon-sync discipline with netflix-script-author; synthetic stress-test framing |
-| `context/authored/_voice.md` | `docs/programs/alpha-author/reference-workspace/context/authored/_voice.md` | Single voice (prompt-writer), character-canon-aware; shot-spec format; AI-video-gen-specific anti-patterns (no "mysterious figure", no adjective stacks, no "in the style of"); per-tool syntax accepted; visual stress-state translation rules for Jaewon |
-| `context/authored/_editorial.md` | `docs/programs/alpha-author/reference-workspace/context/authored/_editorial.md` | Shoot-ready criterion as load-bearing audit; per-tool editorial criteria (Higgsfield/Sora/Runway/Veo); sync-discipline with netflix-script-author; long-arc-specific cadence |
-| `context/authored/_entities.md` | `docs/programs/alpha-author/reference-workspace/context/authored/_entities.md` | Shared-canon vs visual-canon distinction; sync discipline with netflix-script-author; cross-workspace canon-drift as failure mode |
-| `context/authored/entities/jaewon.md` | *(mirror — same file in netflix-script-author overrides)* | Identical content to netflix-script-author. When canon evolves, both update via PR. |
+| `constitution/MANDATE.md` | `docs/programs/alpha-author/reference-workspace/constitution/MANDATE.md` | AI-video-gen-shot-prompt Primary Action; shoot-ready criterion; canon-sync discipline with netflix-script-author; synthetic stress-test framing |
+| `operation/authored/_voice.md` | `docs/programs/alpha-author/reference-workspace/operation/authored/_voice.md` | Single voice (prompt-writer), character-canon-aware; shot-spec format; AI-video-gen-specific anti-patterns (no "mysterious figure", no adjective stacks, no "in the style of"); per-tool syntax accepted; visual stress-state translation rules for Jaewon |
+| `operation/authored/_editorial.md` | `docs/programs/alpha-author/reference-workspace/operation/authored/_editorial.md` | Shoot-ready criterion as load-bearing audit; per-tool editorial criteria (Higgsfield/Sora/Runway/Veo); sync-discipline with netflix-script-author; long-arc-specific cadence |
+| `operation/authored/_entities.md` | `docs/programs/alpha-author/reference-workspace/operation/authored/_entities.md` | Shared-canon vs visual-canon distinction; sync discipline with netflix-script-author; cross-workspace canon-drift as failure mode |
+| `operation/authored/entities/jaewon.md` | *(mirror — same file in netflix-script-author overrides)* | Identical content to netflix-script-author. When canon evolves, both update via PR. |
 
 ## Source material
 
@@ -33,7 +33,7 @@ Premise SHARED with netflix-script-author (same operator prompt from 2026-05-18 
 
 Format ADDED by operator request 2026-05-18: short-form authoring for AI-video-gen tools (Higgsfield was the named example). Format-specific voice + editorial + entity-substrate authored by Claude on operator's behalf with the synthetic-stress-test framing explicit in MANDATE.
 
-`entities/jaewon.md` copied verbatim from `docs/alpha/personas/netflix-script-author/overrides/context/authored/entities/jaewon.md` as starting shared canon. Future canon evolution syncs across both workspaces via PR discipline (see `_entities.md` sync section).
+`entities/jaewon.md` copied verbatim from `docs/alpha/personas/netflix-script-author/overrides/operation/authored/entities/jaewon.md` as starting shared canon. Future canon evolution syncs across both workspaces via PR discipline (see `_entities.md` sync section).
 
 ## Activation flow
 
@@ -53,7 +53,7 @@ When operator's stance evolves, changes happen in TWO places:
 1. The workspace at `/workspace/` via chat-authored edits.
 2. The override file here via PR — so next `activate_persona.py` run + future workspace resets land on updated stance.
 
-**For shared-canon entities specifically**: changes happen across BOTH this workspace's override directory AND `docs/alpha/personas/netflix-script-author/overrides/context/authored/entities/{slug}.md`. Both PRs in the same change set. Re-run `activate_persona.py` for both personas to land the sync.
+**For shared-canon entities specifically**: changes happen across BOTH this workspace's override directory AND `docs/alpha/personas/netflix-script-author/overrides/operation/authored/entities/{slug}.md`. Both PRs in the same change set. Re-run `activate_persona.py` for both personas to land the sync.
 
 ## Graduation path
 

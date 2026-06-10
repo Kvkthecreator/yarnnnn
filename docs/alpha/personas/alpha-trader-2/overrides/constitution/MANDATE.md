@@ -1,5 +1,14 @@
-# Mandate — alpha-trader-2 (Stat-Arb Pairs)
+# Mandate — alpha-trader
 
+<!-- Heading carries the program slug "alpha-trader" so parse_active_program_slug
+     validates against _all_slugs() (ADR-244 D4 program-capture on L2/L4 re-fork).
+     This persona's stat-arb-pairs identity lives in the body sections below, not
+     the heading — same convention as the bundle's ADR-292 heading-normalization
+     (the prior heading "alpha-trader-2 (Stat-Arb Pairs)" was not a valid bundle
+     slug and broke clean-slate re-fork; corrected when the overrides dir was
+     migrated off the pre-ADR-320 context/ paths). -->
+
+> Persona: **alpha-trader-2 — Stat-Arb Pairs** (parallel-loop test of the alpha-trader program).
 > Workspace authored 2026-04-28 by operator on behalf via Phase B parallel-loop test.
 
 ## Primary Action

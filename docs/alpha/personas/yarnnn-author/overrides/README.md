@@ -12,9 +12,9 @@ Files mirror substrate paths they override. `activate_persona.py` Step 4 walks e
 
 | Override | Bundle template overridden | Why differs |
 |---|---|---|
-| `context/_shared/MANDATE.md` | `docs/programs/alpha-author/reference-workspace/context/_shared/MANDATE.md` | YARNNN founder-corpus Primary Action; thesis-trail success criteria; cross-publish discipline per content/OPS.md |
-| `context/authored/_voice.md` | `docs/programs/alpha-author/reference-workspace/context/authored/_voice.md` | Claim-first em-dash-fluent founder voice; specific anti-patterns including marketing-speak intensifiers; do/don't examples from canonical docs |
-| `context/authored/_editorial.md` | `docs/programs/alpha-author/reference-workspace/context/authored/_editorial.md` | Thesis-compounding ship/hold criteria; architecture-grounded over speculation rule; cross-publish-specific criteria for LinkedIn/X/Medium derivatives |
+| `constitution/MANDATE.md` | `docs/programs/alpha-author/reference-workspace/constitution/MANDATE.md` | YARNNN founder-corpus Primary Action; thesis-trail success criteria; cross-publish discipline per content/OPS.md |
+| `operation/authored/_voice.md` | `docs/programs/alpha-author/reference-workspace/operation/authored/_voice.md` | Claim-first em-dash-fluent founder voice; specific anti-patterns including marketing-speak intensifiers; do/don't examples from canonical docs |
+| `operation/authored/_editorial.md` | `docs/programs/alpha-author/reference-workspace/operation/authored/_editorial.md` | Thesis-compounding ship/hold criteria; architecture-grounded over speculation rule; cross-publish-specific criteria for LinkedIn/X/Medium derivatives |
 
 ## Source material
 
@@ -50,7 +50,7 @@ Same discipline as `docs/alpha/personas/alpha-trader-2/overrides/`.
 
 - Reference-workspace bundle templates (those live in `docs/programs/alpha-author/reference-workspace/`)
 - Generic alpha-author principles (those live in the bundle)
-- Per-piece corpus content (`/workspace/context/authored/{piece-slug}/content.md` — operator-authored at workspace runtime, not in the alpha-ops registry)
+- Per-piece corpus content (`/workspace/operation/authored/{piece-slug}/content.md` — operator-authored at workspace runtime, not in the alpha-ops registry)
 - Live `_signal.md` data (accumulated by recurrences at workspace runtime)
 
 The override directory is for *operator authored stance about THIS workspace*, not for any data that recurrences write.

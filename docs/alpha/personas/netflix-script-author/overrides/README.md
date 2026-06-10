@@ -20,11 +20,11 @@ Files mirror substrate paths they override. `activate_persona.py` Step 4 walks e
 
 | Override | Bundle template overridden | Why differs |
 |---|---|---|
-| `context/_shared/MANDATE.md` | `docs/programs/alpha-author/reference-workspace/context/_shared/MANDATE.md` | Modern Korea Thomas-Crown-Joker thriller series-specific Primary Action; pre-audience honest signal as sole audit; framed honestly as synthetic stress-test persona |
-| `context/authored/_voice.md` | `docs/programs/alpha-author/reference-workspace/context/authored/_voice.md` | Multi-voice architecture — author voice (stage directions, action) + per-character voices declared at `entities/{character-slug}.md`; screenplay-specific anti-patterns (BEAT, generic noir, exposition-as-dialogue); tonal-control declarations cross-voice |
-| `context/authored/_editorial.md` | `docs/programs/alpha-author/reference-workspace/context/authored/_editorial.md` | Series-bible discipline; long-arc-specific cadence (corpus-coherence-check + revision-audit + outcome-reconciliation); pre-audience honest signal as sole audit |
-| `context/authored/_entities.md` | `docs/programs/alpha-author/reference-workspace/context/authored/_entities.md` | Roster index with declared principal characters (Jaewon); entity-continuity discipline notes for screenplay-specific failure modes |
-| `context/authored/entities/jaewon.md` | *(no bundle template — new file)* | Principal character entity. Voice fingerprint (Joker-thematic + Thomas-Crown register, Korean honorific calibration, code-switching rules); stress-state behavior declaration; do/don't examples. |
+| `constitution/MANDATE.md` | `docs/programs/alpha-author/reference-workspace/constitution/MANDATE.md` | Modern Korea Thomas-Crown-Joker thriller series-specific Primary Action; pre-audience honest signal as sole audit; framed honestly as synthetic stress-test persona |
+| `operation/authored/_voice.md` | `docs/programs/alpha-author/reference-workspace/operation/authored/_voice.md` | Multi-voice architecture — author voice (stage directions, action) + per-character voices declared at `entities/{character-slug}.md`; screenplay-specific anti-patterns (BEAT, generic noir, exposition-as-dialogue); tonal-control declarations cross-voice |
+| `operation/authored/_editorial.md` | `docs/programs/alpha-author/reference-workspace/operation/authored/_editorial.md` | Series-bible discipline; long-arc-specific cadence (corpus-coherence-check + revision-audit + outcome-reconciliation); pre-audience honest signal as sole audit |
+| `operation/authored/_entities.md` | `docs/programs/alpha-author/reference-workspace/operation/authored/_entities.md` | Roster index with declared principal characters (Jaewon); entity-continuity discipline notes for screenplay-specific failure modes |
+| `operation/authored/entities/jaewon.md` | *(no bundle template — new file)* | Principal character entity. Voice fingerprint (Joker-thematic + Thomas-Crown register, Korean honorific calibration, code-switching rules); stress-state behavior declaration; do/don't examples. |
 
 ## Source material
 
@@ -67,6 +67,6 @@ The revision-pulse recurrence (`revision-audit`, ADR-283 step 2) was authored sp
 ## What does NOT go here
 
 - Reference-workspace bundle templates (those live in `docs/programs/alpha-author/reference-workspace/`)
-- The screenplay itself (lives at `/workspace/context/authored/screenplay/content.md` or similar — operator-authored at workspace runtime, not in the alpha-ops registry)
-- Per-character entity files (those land in `/workspace/context/authored/entities/{character-slug}.md` at workspace runtime per ADR-283 step 2)
+- The screenplay itself (lives at `/workspace/operation/authored/screenplay/content.md` or similar — operator-authored at workspace runtime, not in the alpha-ops registry)
+- Per-character entity files (those land in `/workspace/operation/authored/entities/{character-slug}.md` at workspace runtime per ADR-283 step 2)
 - Live `_signal.md` data (accumulated by recurrences at workspace runtime)
