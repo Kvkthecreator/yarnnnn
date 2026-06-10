@@ -266,12 +266,15 @@ export const api = {
     // List workspace uploads
     list: () => request<WorkspaceUploadListResponse>("/api/documents"),
 
-    // Persistent upload — returns workspace_path
-    upload: async (file: File) => {
+    // ADR-331 D5: persistent upload — one or more files (+ .zip) in one call.
+    // Accepts a single File or a File[]; returns a batch result (per-file
+    // success/error). A .zip is expanded server-side. Non-transactional.
+    upload: async (fileOrFiles: File | File[]) => {
+      const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
       const headers = await getAuthHeaders();
       delete (headers as Record<string, string>)["Content-Type"];
       const formData = new FormData();
-      formData.append("file", file);
+      for (const f of files) formData.append("files", f);
       const response = await fetch(`${API_BASE_URL}/api/documents/upload`, {
         method: "POST",
         credentials: "include",

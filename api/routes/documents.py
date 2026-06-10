@@ -16,7 +16,7 @@ import logging
 
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
-from typing import Optional
+from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,11 +30,22 @@ router = APIRouter()
 # Response Models
 # =============================================================================
 
-class UploadResponse(BaseModel):
-    workspace_path: str
+# ADR-331 D5: per-file result inside a batch upload. Non-transactional —
+# each file succeeds or fails independently; the batch is never rolled back.
+class UploadResultItem(BaseModel):
     filename: str
-    processing_status: str
-    message: str
+    success: bool
+    workspace_path: Optional[str] = None
+    word_count: Optional[int] = None
+    error: Optional[str] = None
+
+
+class BatchUploadResponse(BaseModel):
+    # ADR-331 D5: one call, N files (multi-select + .zip expansion). The
+    # single-file caller gets a one-element results list — one path, not two.
+    results: List[UploadResultItem]
+    succeeded: int
+    failed: int
 
 
 class WorkspaceUploadItem(BaseModel):
@@ -60,62 +71,60 @@ ALLOWED_TYPES = {
     "text/markdown": "md",
 }
 
-MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB
+MAX_FILE_SIZE = 25 * 1024 * 1024  # 25MB per file
+_ALLOWED_EXTS = ("pdf", "docx", "txt", "md")
 
 
-@router.post("/documents/upload", response_model=UploadResponse)
-async def upload_document(
-    auth: UserClient,
-    file: UploadFile = File(...),
-    project_id: Optional[str] = Form(None),  # accepted for compat, ignored
-):
-    """Persistent document upload (ADR-249 Type B).
+def _resolve_file_type(content_type: str, filename: str) -> Optional[str]:
+    """Resolve a file to its processing type, or None if unsupported."""
+    if content_type in ALLOWED_TYPES:
+        return ALLOWED_TYPES[content_type]
+    ext = (filename or "").rsplit(".", 1)[-1].lower()
+    return ext if ext in _ALLOWED_EXTS else None
 
-    Extracts text → writes /workspace/uploads/{slug}.md via authored substrate.
-    Original binary stored in Supabase Storage (documents bucket).
-    YARNNN sees the file immediately in its compact index via ListFiles.
+
+async def _process_single_upload(
+    *, content: bytes, content_type: str, filename: str, user_id: str, service,
+) -> UploadResultItem:
+    """The single-file pipeline, callable N times (ADR-331 D5 + ADR-249 Type B).
+
+    Storage upload → extract text → write /workspace/uploads/{slug}.md via
+    authored substrate (attributed operator, ADR-209). Never raises — returns
+    a per-file UploadResultItem so a batch can report partial success.
+    process_document's _unique_upload_path guarantees N files → N distinct rows.
     """
-    content_type = file.content_type or ""
-    if content_type not in ALLOWED_TYPES:
-        ext = (file.filename or "").split(".")[-1].lower()
-        if ext not in ("pdf", "docx", "txt", "md"):
-            raise HTTPException(
-                status_code=400,
-                detail=f"Unsupported file type: {content_type}. Allowed: PDF, DOCX, TXT, MD"
-            )
-        file_type = ext
-    else:
-        file_type = ALLOWED_TYPES[content_type]
-
-    content = await file.read()
+    file_type = _resolve_file_type(content_type, filename)
+    if file_type is None:
+        return UploadResultItem(
+            filename=filename, success=False,
+            error=f"Unsupported file type. Allowed: {', '.join(t.upper() for t in _ALLOWED_EXTS)}",
+        )
     if len(content) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=400, detail=f"File too large. Max {MAX_FILE_SIZE // (1024*1024)}MB")
+        return UploadResultItem(
+            filename=filename, success=False,
+            error=f"File too large. Max {MAX_FILE_SIZE // (1024*1024)}MB",
+        )
     if len(content) < 10:
-        raise HTTPException(status_code=400, detail="File is empty or too small")
+        return UploadResultItem(filename=filename, success=False, error="File is empty or too small")
 
     import uuid
     document_id = str(uuid.uuid4())
-    storage_path = f"{auth.user_id}/{document_id}/original.{file_type}"
-    filename = file.filename or f"document.{file_type}"
+    storage_path = f"{user_id}/{document_id}/original.{file_type}"
 
     # Store binary in Supabase Storage
     try:
-        service = get_service_client()
         storage_result = service.storage.from_("documents").upload(
             path=storage_path,
             file=content,
-            file_options={"content-type": content_type or f"application/{file_type}"}
+            file_options={"content-type": content_type or f"application/{file_type}"},
         )
         if hasattr(storage_result, "error") and storage_result.error:
-            raise HTTPException(status_code=500, detail=f"Storage error: {storage_result.error}")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Storage upload error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
+            return UploadResultItem(filename=filename, success=False, error=f"Storage error: {storage_result.error}")
+    except Exception as e:  # noqa: BLE001 — per-file isolation, batch must not abort
+        logger.error(f"[DOCUMENTS] Storage upload error for {filename}: {e}", exc_info=True)
+        return UploadResultItem(filename=filename, success=False, error=f"Failed to upload file: {e}")
 
-    # Extract text and write /workspace/uploads/{slug}.md
-    service = get_service_client()
+    # Extract text + write /workspace/uploads/{slug}.md
     result = await process_document(
         document_id=document_id,
         file_content=content,
@@ -123,26 +132,113 @@ async def upload_document(
         filename=filename,
         file_size=len(content),
         storage_path=storage_path,
-        user_id=auth.user_id,
+        user_id=user_id,
         db_client=service,
     )
-
     if not result.get("success"):
-        # Clean up storage on failure
+        # Clean up storage on processing failure
         try:
             service.storage.from_("documents").remove([storage_path])
         except Exception:
             pass
-        raise HTTPException(status_code=422, detail=result.get("error", "Processing failed"))
+        return UploadResultItem(filename=filename, success=False, error=result.get("error", "Processing failed"))
 
-    workspace_path = result["workspace_path"]
-    word_count = result.get("word_count", 0)
+    return UploadResultItem(
+        filename=filename, success=True,
+        workspace_path=result["workspace_path"],
+        word_count=result.get("word_count", 0),
+    )
 
-    return UploadResponse(
-        workspace_path=workspace_path,
-        filename=filename,
-        processing_status="completed",
-        message=f"Added to workspace: {workspace_path} ({word_count} words)"
+
+def _expand_zip(content: bytes) -> List[tuple]:
+    """Expand a .zip into (filename, bytes) tuples for supported entries.
+
+    ADR-331 D5: the archive is a transport envelope — expanded and discarded,
+    never retained as a blob. Each entry is processed through the same
+    single-file path. Directories, hidden/system entries, unsupported types,
+    and oversized entries are filtered (oversize re-checked per entry in
+    _process_single_upload). Returns [] on a corrupt archive.
+    """
+    import io
+    import zipfile
+
+    out: List[tuple] = []
+    try:
+        with zipfile.ZipFile(io.BytesIO(content)) as zf:
+            for info in zf.infolist():
+                name = info.filename
+                if info.is_dir():
+                    continue
+                base = name.rsplit("/", 1)[-1]
+                # Skip hidden / macOS resource-fork / system entries
+                if not base or base.startswith(".") or name.startswith("__MACOSX/"):
+                    continue
+                ext = base.rsplit(".", 1)[-1].lower() if "." in base else ""
+                if ext not in _ALLOWED_EXTS:
+                    continue
+                # Guard against zip-bomb single entries before reading.
+                if info.file_size > MAX_FILE_SIZE:
+                    continue
+                try:
+                    out.append((base, zf.read(info)))
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(f"[DOCUMENTS] zip entry {name} unreadable: {e}")
+    except zipfile.BadZipFile:
+        logger.warning("[DOCUMENTS] corrupt .zip archive — no entries expanded")
+    return out
+
+
+@router.post("/documents/upload", response_model=BatchUploadResponse)
+async def upload_documents(
+    auth: UserClient,
+    files: List[UploadFile] = File(...),
+    project_id: Optional[str] = Form(None),  # accepted for compat, ignored
+):
+    """Persistent document upload — multi-file + .zip (ADR-331 D5, ADR-249 Type B).
+
+    Accepts one or more files in a single call. A .zip is expanded server-side
+    to per-file uploads (the archive is a transport envelope, not retained).
+    Each file flows through the SAME single-file path (extract text →
+    /workspace/uploads/{slug}.md via authored substrate, attributed operator).
+    Non-transactional: per-file results are reported; partial success is fine.
+
+    Singular Implementation: this is the one upload endpoint. The single-file
+    caller sends one file and gets a one-element results list — no parallel
+    bulk-ingestion subsystem, no background job, no progress table (ADR-331 D5).
+    """
+    service = get_service_client()
+
+    # Build the work list: each file, with .zip entries expanded inline.
+    work: List[tuple] = []  # (filename, content_type, bytes)
+    for f in files:
+        raw = await f.read()
+        fname = f.filename or "document"
+        is_zip = (f.content_type == "application/zip") or fname.lower().endswith(".zip")
+        if is_zip:
+            for entry_name, entry_bytes in _expand_zip(raw):
+                work.append((entry_name, "", entry_bytes))  # type resolved by extension
+        else:
+            work.append((fname, f.content_type or "", raw))
+
+    if not work:
+        raise HTTPException(
+            status_code=400,
+            detail="No supported files. Allowed: PDF, DOCX, TXT, MD (or a .zip of those).",
+        )
+
+    results: List[UploadResultItem] = []
+    for fname, ctype, content in work:
+        item = await _process_single_upload(
+            content=content, content_type=ctype, filename=fname,
+            user_id=auth.user_id, service=service,
+        )
+        results.append(item)
+
+    succeeded = sum(1 for r in results if r.success)
+    return BatchUploadResponse(
+        results=results,
+        succeeded=succeeded,
+        failed=len(results) - succeeded,
     )
 
 

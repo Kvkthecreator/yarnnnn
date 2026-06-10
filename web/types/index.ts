@@ -81,11 +81,20 @@ export interface WorkspaceUpload {
   uploaded_at: string; // YYYY-MM-DD
 }
 
-export interface WorkspaceUploadResponse {
-  workspace_path: string;
+// ADR-331 D5: batch upload response (multi-file + .zip). The single-file
+// caller gets a one-element results list — one shape, no parallel path.
+export interface UploadResultItem {
   filename: string;
-  processing_status: "completed" | "failed";
-  message: string;
+  success: boolean;
+  workspace_path?: string | null;
+  word_count?: number | null;
+  error?: string | null;
+}
+
+export interface WorkspaceUploadResponse {
+  results: UploadResultItem[];
+  succeeded: number;
+  failed: number;
 }
 
 export interface DocumentDownloadResponse {
