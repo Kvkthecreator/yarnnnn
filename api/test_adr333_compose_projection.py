@@ -71,12 +71,46 @@ def test_composer_is_root_agnostic():
 
 
 def test_composer_selects_authored_root_for_authored_kind():
-    """The composer body must resolve authored_root for artifact_kind='authored'
-    and default the surface to 'article' (per the piece-composition spec)."""
+    """The composer body must resolve authored_root for artifact_kind='authored'."""
     src = (API_ROOT / "services" / "compose" / "task_html.py").read_text()
     assert "authored_root" in src, "composer must import/use authored_root"
     assert 'artifact_kind == "authored"' in src
-    assert '"article"' in src, "authored pieces default to surface_type=article"
+
+
+def test_composer_normalizes_list_sections_shape():
+    """E2E finding (2026-06-10 soak): the Reviewer reliably writes sys_manifest
+    `sections` as an ordered LIST, not the report-path dict. The composer must
+    normalize both shapes at the input boundary (one tolerant boundary, not a
+    dual render path). Source-level guard so the normalizer isn't silently
+    reverted to dict-only `.items()`."""
+    src = (API_ROOT / "services" / "compose" / "task_html.py").read_text()
+    assert "isinstance(raw_sections, list)" in src, (
+        "composer must accept the list-shaped sections the Reviewer reliably produces"
+    )
+    assert "isinstance(raw_sections, dict)" in src, (
+        "composer must still accept the canonical report-path dict shape"
+    )
+
+
+def test_composer_resolves_numeric_prefixed_partials():
+    """E2E finding: the Reviewer names partials `{N}-{slug}.md` (single or multi
+    digit) while the manifest slug is bare. The composer must strip the numeric
+    ordering prefix when matching files to slugs."""
+    src = (API_ROOT / "services" / "compose" / "task_html.py").read_text()
+    assert r're.sub(r"^\d+-"' in src or "re.sub(r'^\\d+-'" in src, (
+        "composer must strip a leading numeric ordering prefix from partial filenames"
+    )
+
+
+def test_composer_maps_article_surface_to_report():
+    """E2E finding: the render engine's surface vocabulary has no 'article' —
+    the article form IS its `report` surface. The composer maps the synonym at
+    the boundary rather than registering a new render-side type."""
+    src = (API_ROOT / "services" / "compose" / "task_html.py").read_text()
+    assert 'resolved_surface == "article"' in src
+    assert 'resolved_surface = "report"' in src, (
+        "article surface must map to the render engine's report layout"
+    )
 
 
 # =============================================================================

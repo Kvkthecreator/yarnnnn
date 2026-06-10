@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from typing import Optional
 
 import httpx
@@ -67,7 +68,12 @@ async def compose_task_output_html(
 
     if artifact_kind == "authored":
         root = authored_root(task_slug)
-        default_surface = "article"
+        # authored pieces render as a flowing article — which IS the render
+        # engine's `report` surface (vertically-stacked section-kind dispatch,
+        # render/compose.py default). We do not invent a separate render-side
+        # surface type ("article" is not in the engine's vocabulary); `report`
+        # already produces the article form. (ADR-333 — Singular Implementation.)
+        default_surface = "report"
     else:
         root = report_root(task_slug)
         default_surface = "report"
@@ -90,18 +96,80 @@ async def compose_task_output_html(
         return None
 
     resolved_surface = surface_type or sys_manifest.get("surface_type") or default_surface
+    # "article" is the operator/spec vocabulary for a flowing piece; the render
+    # engine implements that as `report` (its default vertically-stacked
+    # section-kind layout). Map the synonym at the boundary so a manifest that
+    # declares surface_type: article still renders. (ADR-333.)
+    if resolved_surface == "article":
+        resolved_surface = "report"
     resolved_title = (
         title
         or sys_manifest.get("title")
         or task_slug.replace("-", " ").title()
     )
 
+    # Normalize the `sections` shape at the input boundary. The report path
+    # (ADR-170) writes an object keyed by slug; the Reviewer authoring an
+    # authored piece reliably writes an ordered list of {slug, kind, title}.
+    # Both are valid representations of the same thing — accept either, reduce
+    # to one internal list of (slug, meta) in order. ONE tolerant boundary, not
+    # a dual render path (same discipline as ADR-166's legacy `**Class:**` remap).
     raw_sections = sys_manifest.get("sections") or {}
+    normalized: list[tuple[str, dict]] = []
+    if isinstance(raw_sections, dict):
+        # object-keyed-by-slug, rendered in declaration order (Python dicts
+        # preserve insertion order)
+        normalized = [(slug, meta or {}) for slug, meta in raw_sections.items()]
+    elif isinstance(raw_sections, list):
+        # ordered list of section objects; the slug is the `slug` field
+        for entry in raw_sections:
+            if not isinstance(entry, dict):
+                continue
+            slug = entry.get("slug") or entry.get("file") or ""
+            # strip a trailing .md and any leading NN- prefix from a file ref
+            slug = slug.rsplit("/", 1)[-1]
+            if slug.endswith(".md"):
+                slug = slug[:-3]
+            normalized.append((slug, entry))
+
+    # Resolve each section's partial file. The Reviewer names partials with a
+    # numeric prefix (`{NN}-{slug}.md`); the manifest slug is the bare slug.
+    # Try the explicit `file` field first, then the bare slug, then a
+    # prefix-globbed match — meeting the on-disk convention without forcing the
+    # LLM to echo the exact filename in the manifest.
+    # Glob the actual section partial files so we can resolve the manifest slug
+    # against the on-disk `{NN}-{slug}.md` convention (the Reviewer numbers
+    # partials for ordering but the manifest slug is the bare slug).
+    sections_dir_abs = f"{folder_abs}/sections/"
+    file_by_slug: dict[str, str] = {}
+    try:
+        rows = (
+            client.table("workspace_files")
+            .select("path")
+            .eq("user_id", user_id)
+            .like("path", f"{sections_dir_abs}%.md")
+            .execute()
+        ).data or []
+    except Exception:
+        rows = []
+    for row in rows:
+        fname = (row.get("path") or "").rsplit("/", 1)[-1]
+        if not fname.endswith(".md"):
+            continue
+        base = fname[:-3]
+        # strip a leading numeric ordering prefix (one or more digits + "-",
+        # e.g. "1-architectures" or "01-architectures" → "architectures")
+        bare = re.sub(r"^\d+-", "", base)
+        file_by_slug[bare] = fname
+
     sections_payload: list[dict] = []
     fallback_markdown_parts: list[str] = []
 
-    for sec_slug, sec_meta in raw_sections.items():
-        sec_content = await um.read(_strip_ws(f"{folder_abs}/sections/{sec_slug}.md"))
+    for sec_slug, sec_meta in normalized:
+        # file resolution: explicit field → globbed prefix match → bare slug
+        explicit = (sec_meta.get("file") or "").rsplit("/", 1)[-1]
+        fname = explicit or file_by_slug.get(sec_slug) or f"{sec_slug}.md"
+        sec_content = await um.read(_strip_ws(f"{folder_abs}/sections/{fname}"))
         if not sec_content:
             continue
         sections_payload.append({

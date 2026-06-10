@@ -38,6 +38,19 @@ deliverable_preferences:
     description: "Quarter-end voice fingerprint audit — does the declared _voice.md still match the corpus, or has voice evolved enough that the declaration needs operator-authored update?"
     active: true
 
+  # ADR-333: the program's first PRODUCTION (non-audit) deliverable. The
+  # Reviewer composes a published piece — authoring structure natively
+  # (kind:-tagged sections where a kind carries the argument better than
+  # prose, per the piece-composition spec). Cadence is `null` (no fixed
+  # preference): a composed piece is produced when the operator has a piece
+  # to compose, not on a clock. The Reviewer authors the actual recurrence
+  # from judgment + operator intent when a draft is ready for composition.
+  - slug: compose-piece
+    spec: /workspace/operation/specs/piece-composition.md
+    cadence: null
+    description: "Compose a published piece as a structured article — author kind-tagged sections (comparison-table / mermaid / callout spine; metric-cards/status-matrix/trend-chart with real substrate data; generated images exceptional) where structure carries the argument better than prose. Output is the composed-HTML projection of content.md + sections/assets, pulled at consumption (ADR-333)."
+    active: true
+
 
 # =============================================================================
 # operator_notifications — operator-addressing observability opt-ins (ADR-299)

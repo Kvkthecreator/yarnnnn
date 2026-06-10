@@ -66,6 +66,24 @@ The authored piece's dated composition folder (mirrors the report topology, unde
 
 `content.md` stays the operator's canonical authored source. The composed piece is the **projection** of `{content.md's prose + the produced sections/assets}` — it is never a competing source of truth. (ADR-283 preserved; projection axiom §6 D6.)
 
+## The `sys_manifest.json` shape (canonical — match it exactly)
+
+The composer (ADR-170 + ADR-213) reads `sections` as a **JSON object keyed by section slug** — NOT a list. Each section partial file is `{n}-{slug}.md` and its slug key in the manifest is `{slug}` (without the numeric prefix). The composer renders sections in the order they appear in the object. Required shape:
+
+```json
+{
+  "surface_type": "article",
+  "title": "Money-Truth As A File, Not A Dashboard",
+  "sections": {
+    "architectures-comparison": { "kind": "comparison-table", "title": "The Two Architectures" },
+    "dashboard-failure-modes":  { "kind": "narrative",        "title": "Why The Dashboard Architecture Breaks Autonomy" },
+    "money-truth-computation":  { "kind": "mermaid",          "title": "How Money-Truth Gets Computed" }
+  }
+}
+```
+
+The section partial for `architectures-comparison` lives at `{date}/sections/01-architectures-comparison.md`; its key in `sections` is `architectures-comparison`. **Do not write `sections` as a list/array** — a list shape (`[{slug, kind, ...}]`) is non-canonical and the composer cannot read it. Object-keyed-by-slug, rendered in declaration order, is the contract.
+
 ## Format: composed HTML *article*, not slides
 
 The output form is a composed HTML **article** (`surface_type: "article"`) — sections stack vertically, each rendered in its kind, with the em-dash-fluent connective prose between the diagrams carrying the argument. The voice's strength is exactly that connective prose; slides would fragment it into bullet-shards and discard the connective tissue. Slides remain a legitimate *separate* derivative (via `repurpose`) if a piece ever needs a deck — never the default form.

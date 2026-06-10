@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Money-Truth As A File, Not A Dashboard</title>
+<style>
+
+:root {
+  --brand-primary: #1a56db;
+  --brand-primary-light: #e1effe;
+  --brand-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --brand-bg: #ffffff;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --border: #e5e7eb;
+  --border-light: #f3f4f6;
+  --surface: #f9fafb;
+  --radius: 8px;
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --brand-bg: #0a0a0a;
+    --text-primary: #e5e7eb;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --border: #27272a;
+    --border-light: #18181b;
+    --surface: #18181b;
+    --brand-primary: #60a5fa;
+    --brand-primary-light: #1e3a5f;
+  }
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--brand-font);
+  color: var(--text-primary);
+  background: var(--brand-bg);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 { line-height: 1.3; font-weight: 600; }
+h1 { font-size: 2rem; margin-bottom: 1rem; }
+h2 { font-size: 1.5rem; margin-top: 2rem; margin-bottom: 0.75rem; color: var(--text-primary); }
+h3 { font-size: 1.25rem; margin-top: 1.5rem; margin-bottom: 0.5rem; }
+h4 { font-size: 1.1rem; margin-top: 1.25rem; margin-bottom: 0.5rem; color: var(--text-secondary); }
+
+p { margin-bottom: 1rem; }
+
+a { color: var(--brand-primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+strong { font-weight: 600; }
+
+ul, ol { margin-bottom: 1rem; padding-left: 1.5rem; }
+li { margin-bottom: 0.25rem; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.925rem;
+}
+th, td {
+  padding: 0.625rem 0.875rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+th {
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: var(--surface);
+  border-bottom: 2px solid var(--border);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+}
+tr:hover { background: var(--border-light); }
+
+code {
+  background: var(--surface);
+  padding: 0.125rem 0.375rem;
+  border-radius: 4px;
+  font-size: 0.875em;
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+pre {
+  background: var(--surface);
+  padding: 1rem;
+  border-radius: var(--radius);
+  overflow-x: auto;
+  margin: 1rem 0;
+  border: 1px solid var(--border);
+}
+pre code { background: none; padding: 0; }
+
+blockquote {
+  border-left: 3px solid var(--brand-primary);
+  margin: 1.5rem 0;
+  padding: 0.75rem 1.25rem;
+  color: var(--text-secondary);
+  background: var(--brand-primary-light);
+  border-radius: 0 var(--radius) var(--radius) 0;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 2rem 0;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  margin: 1.5rem 0;
+  display: block;
+}
+
+/* Image with caption (from alt text) */
+figure {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+figure img {
+  margin: 0 auto 0.5rem;
+}
+figcaption {
+  font-size: 0.825rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Video embeds */
+video {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  margin: 1.5rem 0;
+  display: block;
+  background: var(--surface);
+}
+
+/* Mermaid diagram container */
+pre.mermaid {
+  background: transparent;
+  border: none;
+  padding: 1rem 0;
+  text-align: center;
+  overflow: visible;
+}
+
+@media print {
+  body { font-size: 11pt; }
+  a { color: inherit; }
+  video { display: none; }
+}
+
+
+.document {
+  max-width: min(800px, 100%);
+  margin: 0 auto;
+  padding: 3rem 2rem;
+}
+
+.document h1 {
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+
+.document .subtitle {
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  margin-top: -1rem;
+  margin-bottom: 2rem;
+}
+
+@media print {
+  .document { max-width: none; padding: 0; }
+}
+
+
+/* metric-cards */
+.metric-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.mc-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem 1rem;
+  text-align: center;
+}
+.mc-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+.mc-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* entity-grid */
+.entity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.eg-card {
+  background: var(--brand-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+}
+.eg-name {
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+.eg-desc {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+.eg-prop {
+  display: flex;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  margin-bottom: 0.25rem;
+}
+.eg-key {
+  color: var(--text-muted);
+  min-width: 80px;
+  flex-shrink: 0;
+}
+.eg-val { color: var(--text-primary); }
+
+/* comparison-table */
+table.comparison-table td:first-child,
+table.comparison-table th:first-child {
+  font-weight: 600;
+  background: var(--surface);
+  color: var(--text-primary);
+  border-right: 2px solid var(--border);
+  min-width: 120px;
+}
+
+/* data-table */
+table.data-table {
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+}
+table.data-table td { padding: 0.4rem 0.75rem; }
+
+/* status-matrix */
+.status-matrix { margin: 1.5rem 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.sm-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--surface);
+  border-radius: calc(var(--radius) / 2);
+  border: 1px solid var(--border-light);
+}
+.sm-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0.5rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+.sm-done    { background: #d1fae5; color: #065f46; }
+.sm-progress{ background: #dbeafe; color: #1e40af; }
+.sm-blocked { background: #fee2e2; color: #991b1b; }
+.sm-pending { background: #f3f4f6; color: #4b5563; }
+.sm-skip    { background: #f3f4f6; color: #9ca3af; }
+.sm-label { font-size: 0.9rem; font-weight: 500; flex: 1; }
+.sm-note { font-size: 0.8rem; color: var(--text-muted); }
+
+/* timeline */
+.timeline { margin: 1.5rem 0; position: relative; padding-left: 1.5rem; }
+.timeline::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--border);
+}
+.tl-entry {
+  position: relative;
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.tl-marker {
+  position: absolute;
+  left: -1.5rem;
+  top: 4px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--brand-primary);
+  border: 2px solid var(--brand-bg);
+  flex-shrink: 0;
+}
+.tl-date {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--brand-primary);
+  margin-bottom: 0.2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.tl-desc { font-size: 0.9rem; color: var(--text-secondary); }
+
+/* Phase 5d: surface×kind overrides */
+/* dashboard: wide-hint signals card-wide layout for the layout function */
+.dashboard-wide-hint { grid-column: 1 / -1; }
+
+/* deck: section wrapper carries kind metadata for slide sizing */
+.deck-section { width: 100%; }
+
+/* section wrappers */
+.section-callout {
+  background: var(--brand-primary-light);
+  border-left: 4px solid var(--brand-primary);
+  padding: 1rem 1.25rem;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  margin: 1.5rem 0;
+}
+.section-checklist { margin: 1.5rem 0; }
+.section-narrative { margin: 1.5rem 0; }
+
+</style>
+</head>
+<body>
+<div class="document">
+<h1>Money-Truth As A File, Not A Dashboard</h1>
+<div class="section-kind-comparison-table" data-kind="comparison-table"><h2>The Architectures Compared</h2>
+<h1 id="the-architectures-compared">The Architectures Compared</h1>
+<p>kind: comparison-table</p>
+<h2 id="table">Table</h2>
+<table class="comparison-table">
+<thead>
+<tr>
+<th>Dimension</th>
+<th>Architecture A (Dashboard)</th>
+<th>Architecture B (Substrate File)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Storage</strong></td>
+<td>UI-layer rendering (dashboard)</td>
+<td>Versioned file in workspace (<code>_performance.md</code>)</td>
+</tr>
+<tr>
+<td><strong>Readers</strong></td>
+<td>Humans (operator viewing UI)</td>
+<td>All actors—reviewer, cockpit, operator</td>
+</tr>
+<tr>
+<td><strong>AI Access</strong></td>
+<td>None—data in rendering layer, not substrate</td>
+<td>Native—file is substrate the AI reads on every decision</td>
+</tr>
+<tr>
+<td><strong>Update Mechanism</strong></td>
+<td>Metrics computed, rendered live</td>
+<td>Metrics computed, written to file, versioned</td>
+</tr>
+<tr>
+<td><strong>Auditability</strong></td>
+<td>Dashboard state is ephemeral; no revision history</td>
+<td>All versions retained; attributed to compute agent; timestamps preserved</td>
+</tr>
+<tr>
+<td><strong>Integration</strong></td>
+<td>Dashboard is separate from decision substrate</td>
+<td>Performance is part of decision substrate; decisions read the same file</td>
+</tr>
+</tbody>
+</table>
+<h2 id="rationale">Rationale</h2>
+<p>The table makes visible the <em>dimensionality</em> of the choice: Architecture A and B differ on six load-bearing points, and the differences compound. Dashboard is presentation-shaped; substrate file is decision-substrate-shaped. The prose version—listing "Architecture A has X, Architecture B has Y" point by point—requires readers to mentally construct the parallel structure. The table IS the structure: six rows × two columns makes the contrast legible in parallel form. The reader <em>sees</em> the differences rather than constructing them from narrative.</p>
+<hr></div>
+
+<div class="section-narrative"><h2>The Failure Modes</h2>
+<h1 id="the-failure-modes">The Failure Modes</h1>
+<p>kind: narrative</p>
+<p>In architecture A, the autonomous AI has no access to its own performance history. The reviewer agent emits a verdict based on principles, but it can't reason against "we lost three trades in a row last week" because the loss data lives in a chart the AI doesn't read.</p>
+<p><strong>Same-mistake repetition.</strong> The AI keeps approving the same kind of proposal even after bad outcomes pile up. The dashboard shows the losses. The AI doesn't see the dashboard. The next verdict is identical to the prior verdicts. The operator has to manually intervene with "stop doing that," which defeats autonomy.</p>
+<p><strong>Drift goes unnoticed.</strong> When the AI's behavior is slowly degrading, the only signal is in metrics the AI doesn't read. The operator notices eventually if they watch the dashboard closely. The AI never notices. Self-correction is impossible.</p>
+<p><strong>Reviewer calibration is operator-mediated.</strong> When the reviewer needs to be more conservative because performance has been weak, the only way to communicate that is operator edits to the principles file. The reviewer can't adjust autonomously based on its own performance because it can't see its own performance. The human remains the bottleneck.</p>
+<hr></div>
+
+<div class="section-kind-mermaid" data-kind="mermaid"><h2>The Money-Truth Loop</h2>
+<h1 id="the-money-truth-loop">The Money-Truth Loop</h1>
+<p>kind: mermaid</p>
+<p>asset: /workspace/operation/authored/money-truth-remake/2026-06-10/assets/money-truth-pipeline.mmd<br>
+asset_format: flowchart</p>
+<h2 id="diagram">Diagram</h2>
+<p>The 4-step pipeline with loop closure:</p>
+<ul>
+<li><strong>Step 1: Fetch</strong> — AI reads from outcome-substrate (external results).</li>
+<li><strong>Step 2: Compute</strong> — AI or substrate-mirroring computes performance metrics (P&amp;L, win rate, drawdown).</li>
+<li><strong>Step 3: Write</strong> — Performance written to <code>/workspace/context/{domain}/_performance.md</code> (attributed, versioned).</li>
+<li><strong>Step 4: Integrate</strong> — Reviewer and cockpit read the same file; reviewer applies to next verdict; <strong>loop closes back to Step 1</strong>.</li>
+</ul>
+<h2 id="rationale">Rationale</h2>
+<p>The 4-step pipeline with the arrow looping from Step 4 back to Step 1 is the <em>visual weight</em> of the argument. The loop closure—where the AI reads its own performance before the next decision—is the architectural moment the piece defends. Prose stating "then step 4, and then it loops back" loses what the diagram shows: the visual emphasis of the closing arrow, the moment where the AI becomes informed about its own outcomes. The diagram carries the loop-closure thesis that prose would need to assert repeatedly.</p>
+<hr></div>
+
+<div class="section-narrative"><h2>What Substrate Enables</h2>
+<h1 id="what-substrate-enables">What Substrate Enables</h1>
+<p>kind: narrative</p>
+<p>When performance lives in <code>_performance.md</code> and the reviewer reads it, several patterns become natural.</p>
+<p><strong>Performance-aware verdicts.</strong> The reviewer reads "we lost 4 of last 6 paper trades, drawdown 2.1%" before deciding on the next proposal. If the principles say "tighten conviction threshold after recent losses," the reviewer applies that automatically. The verdict reflects current performance state, not static principles.</p>
+<p><strong>Calibration loop closure.</strong> When recent performance suggests principles are too aggressive, the reviewer can flag this in the decision log ("recent losses suggest conviction threshold should rise by 0.5 sigma"). The operator reads the log, decides whether to update principles. The loop closes through visible reviewer judgment, not operator vigilance. The operator remains informed; the AI becomes informed too.</p>
+<p><strong>Cross-actor coherence.</strong> The cockpit shows the same <code>_performance.md</code> the reviewer reads. The operator's reading of performance and the reviewer's reading of performance are the same. There's no "the dashboard says X but the AI is acting like Y" mismatch. Substrate is the source of truth.</p>
+<p><strong>Audit completeness.</strong> Performance is part of the substrate. It's attributed (who computed it, when, from what source data). It's versioned (every recomputation produces a new revision). The operator can ask "what did the reviewer see when it approved this proposal?" and get an exact answer by reading the substrate state at that decision timestamp.</p>
+<p>The substrate architecture makes autonomous AI <strong>actually autonomous</strong>—capable of reading its own performance and adjusting its own behavior within operator-set principles.</p>
+<hr></div>
+
+<div class="section-narrative"><h2>Pick Once</h2>
+<h1 id="pick-once">Pick Once</h1>
+<p>kind: narrative</p>
+<p>The choice is binary. Performance tracking in a dashboard, or in the substrate the AI reads. You can't optimize for both—the architectural shapes conflict. A dashboard is designed for human consumption (visual drill-in, filtering, comparative visualization). A substrate file is designed for machine readability (attributed, versioned, queryable). They're different channels for different readers.</p>
+<p>If you want autonomous AI that learns from what it does, the choice is made: performance lives in the substrate, the AI reads it on every verdict, the loop closes. If you choose the dashboard, accept that the AI runs blind—and scale the operator accordingly, because they become the performance-feedback bottleneck forever.</p>
+<hr></div>
+
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'default',
+    flowchart: { useMaxWidth: true, htmlLabels: true },
+    securityLevel: 'loose',
+  });
+</script>
+</body>
+</html>

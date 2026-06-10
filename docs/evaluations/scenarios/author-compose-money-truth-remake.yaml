@@ -1,0 +1,173 @@
+scenario_schema_version: 1
+scenario: author-compose-money-truth-remake
+description: |
+  THE COMPOSITION THESIS (ADR-333). author-produce-corpus-piece proved the
+  Reviewer can AUTHOR flat prose to content.md. This scenario proves the next
+  layer: can the Reviewer author a piece with STRUCTURE NATIVE TO THE ACT —
+  emitting kind:-tagged section partials (comparison-table / mermaid / callout
+  spine) where a section-kind carries the argument better than prose would,
+  per the piece-composition spec (the alpha-author program's first PRODUCTION,
+  non-audit, spec)?
+
+  THE A/B CONTROL. The subject is a deliberate RE-MAKE of an existing strong
+  FLAT post — `money-truth-as-a-file-not-a-dashboard` (content/posts/, 104-post
+  corpus, published 2026-04-07). That post has structure latent in its prose
+  the flat form hides:
+    - "The Two Architectures" (A dashboard vs B substrate, point by point)
+      → comparison-table
+    - "predictable failure modes" (3 named patterns: same-mistake repetition /
+      drift unnoticed / operator-mediated calibration) → status-matrix
+    - "How Money-Truth Gets Computed" (4-step deterministic pipeline:
+      fetch → compute → write → idempotency) → mermaid flow
+    - "What this article answers (plain language)" gloss → callout
+  The flat post is the control; the composed re-make is the treatment. The
+  A/B is direct and clean (same argument, two forms).
+
+  CRITERION (declared per docs/evaluations/README.md criterion-declaration
+  discipline). Measured against:
+    - ADR-333 D5 (structure is native to authoring — the Reviewer emits
+      kind:-tagged sections as part of the single authoring act, no separate
+      enrich step) +
+    - piece-composition.md §1 (the "could this be a paragraph without loss?"
+      gate — a section-kind earns its place only when it carries the argument
+      better than prose; richness = argument-fidelity-gain, NEVER asset count) +
+    - piece-composition.md §2 palette ranking (comparison-table + mermaid +
+      callout spine; metric-cards/status-matrix/trend-chart only with real
+      substrate data; generated images Tier-3/exceptional, one max).
+
+  PASS-BAR (substrate-receipt-backed, NOT narration). The pass is real
+  workspace_file_versions revisions, attributed reviewer:ai:*, at:
+    - /workspace/operation/authored/money-truth-remake/content.md (the prose), AND
+    - /workspace/operation/authored/money-truth-remake/{date}/sections/*.md
+      (≥1 kind:-tagged section partial — the composition substrate), AND
+    - /workspace/operation/authored/money-truth-remake/{date}/sys_manifest.json
+      (the section→kind map the composer reads).
+  An empty / narrate-only / flat-content.md-only turn is NOT a pass — the
+  COMPOSITION substrate (sections + sys_manifest) must exist on disk. Then the
+  consumption-pull surface (GET /api/authored/money-truth-remake/render) must
+  return composed HTML (verified post-run, ADR-333 D6).
+
+  ANTI-GAMING (the criterion measures the opposite of asset-count by
+  construction). A piece with one well-placed comparison-table + one mermaid
+  scores HIGHER than one with five decorative charts. The §1 gate is the
+  judgment under test: does the Reviewer place kinds where they carry
+  argument, and leave prose as prose where prose carries it? A composed piece
+  that fragments the em-dash-fluent connective voice into bullet-shards FAILS
+  voice-integrity even if every section is individually justified.
+
+persona: yarnnn-author
+
+setup:
+  # Autonomous so the Reviewer has full authoring + substrate-write authority.
+  - write_substrate:
+      path: /workspace/governance/_autonomy.yaml
+      authored_by: operator-proxy:scenario-runner:acting-as-yarnnn-author
+      message: "author-compose-money-truth-remake: establish autonomous for full authoring authority"
+      content: |
+        ---
+        tier: canon
+        note: "author-compose-money-truth-remake eval — autonomous (full authoring authority)"
+        ---
+        default:
+          delegation: autonomous
+          ceiling_cents: 20000
+          never_auto: []
+
+  # Seed the ADR-333 production spec into the live workspace. This workspace
+  # was activated 2026-05-18 (before ADR-333), so it has the 8 audit specs but
+  # not the piece-composition production spec. Seeding it here is the in-
+  # discipline way to make the composition capability available for the soak
+  # (attributed bundle content, single-source-of-truth from the bundle file —
+  # NOT a hand-authored duplicate). The frontmatter is stripped as it would be
+  # at fork time. (This pre-activated-before-bundle-update gap is itself a
+  # finding the soak surfaces — see findings.md.)
+  - write_substrate_from_file:
+      path: /workspace/operation/specs/piece-composition.md
+      source: docs/programs/alpha-author/reference-workspace/operation/specs/piece-composition.md
+      authored_by: system:bundle-fork
+      message: "seed ADR-333 piece-composition production spec (bundle update post-activation)"
+
+  # Seed the FLAT BASELINE as source input. The Reviewer reasons from substrate
+  # (Axiom 1) — the source post lives in the YARNNN repo's blog (content/posts/),
+  # NOT in this operator's workspace. Without seeding it, the Reviewer correctly
+  # refuses to fabricate a re-make of content it can't read (verified on the
+  # first run: it deferred with a Clarify asking where the source lives — the
+  # citation-verifiability discipline working as designed). We seed the flat
+  # post as the operator's draft source so the re-make has real input substrate.
+  # This IS the A/B control: the seeded flat post is the baseline; the composed
+  # output the Reviewer produces is the treatment.
+  - write_substrate_from_file:
+      path: /workspace/operation/authored/money-truth-remake/source-flat.md
+      source: content/posts/money-truth-as-a-file-not-a-dashboard.md
+      authored_by: operator-proxy:scenario-runner:acting-as-yarnnn-author
+      message: "seed the flat money-truth post as source input for the composed re-make (A/B baseline)"
+
+turns:
+  # ── Turn 1: the composition ask — AUTHOR + COMPOSE a re-make ─────────────
+  - send_message: |
+      Reviewer, I want you to re-make one of our strongest existing posts as a
+      *composed* piece — structured, not flat. The source is our published post
+      "Money-Truth As A File, Not A Dashboard" (the architecture argument: where
+      you put performance data — dashboard vs substrate file — determines whether
+      autonomous AI can learn from outcomes). I've put the flat source in your
+      workspace at /workspace/operation/authored/money-truth-remake/source-flat.md
+      — read it first; that's the prose you're re-making.
+
+      The flat version is strong but text-heavy — the structure the argument is
+      already reasoning in is hidden in the prose. Re-make it as a composed
+      article per the piece-composition spec at
+      /workspace/operation/specs/piece-composition.md. Author the prose in our
+      voice (claim-first, em-dash-fluent, anti-slop floor), AND decide structure
+      as you author: where a section-kind carries the argument better than prose,
+      emit it as a kind:-tagged section. Apply the gate the spec names — "could
+      this be a paragraph without loss?" — per section. Don't decorate; place a
+      kind only where it earns its place.
+
+      The source's latent structure is real: the "two architectures" passage is
+      a contrast (a comparison-table); the "failure modes" passage is a named-
+      pattern set (a status-matrix); the "how money-truth gets computed" passage
+      is a 4-step pipeline (a mermaid flow); the plain-language gloss is a
+      callout. Use the spine the spec ranks (comparison-table + mermaid +
+      callout); reach for status-matrix only if the pattern set genuinely reads
+      better as a matrix; no generated images (this argument is architectural,
+      not evocative).
+
+      Write:
+        - the prose to /workspace/operation/authored/money-truth-remake/content.md
+          (+ a profile.md with status: draft),
+        - the kind:-tagged section partials to
+          /workspace/operation/authored/money-truth-remake/{today}/sections/{n}-{slug}.md,
+        - the section→kind map to
+          /workspace/operation/authored/money-truth-remake/{today}/sys_manifest.json
+          (surface_type: article; sections: {slug: {kind, title}}).
+
+      Author and compose it now. The composition substrate (sections +
+      sys_manifest) is the deliverable — not narration about it.
+    expect:
+      - reviewer_responded
+      - content_md_written              # interpretation hint — verified against substrate
+      - sections_partials_written       # ≥1 kind:-tagged section partial
+      - sys_manifest_written            # section→kind map present
+      - kinds_earn_their_place          # §1 gate applied — no decoration
+
+  # ── Turn 2: the gate self-report (the judgment-under-test, made legible) ──
+  - send_message: |
+      Now make your structural judgment legible. For each non-prose section you
+      composed, name the kind and answer the gate explicitly: what argument does
+      this kind carry that prose could NOT carry as well? And name at least one
+      passage you DELIBERATELY left as prose where a kind would have been
+      decoration — show me you applied the gate in both directions, not just
+      "add a table everywhere you can." If you placed a generated image, justify
+      why a diagram-kind couldn't carry it (the spec caps images at one,
+      exceptional).
+    expect:
+      - reviewer_responded
+      - names_kind_argument_fidelity_per_section
+      - names_a_passage_kept_as_prose_on_purpose
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages
