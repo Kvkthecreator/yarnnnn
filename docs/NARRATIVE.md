@@ -1,272 +1,181 @@
 # YARNNN Narrative Architecture
 
 **Purpose**: Canonical reference for how the YARNNN story is structured and sequenced across all surfaces — decks, videos, applications, landing pages, conversations.
-**Status**: Active (v4.2)
-**Date**: 2026-04-20
-**Supersedes**: v4.1 (2026-04-20 earlier same day) — nav-destination vocabulary finalized to **Overview / Team / Work / Context / Review** + ambient YARNNN rail per ADR-198 v2. Prior SaaS-dashboard drift ("Mission Control / Workshop / Ledger / Chronicle") rejected. Retired-terminology line cleaned.
-**Prior supersede**: v4 (2026-04-17) — Beat 3 reframed around cockpit model.
+**Status**: Active (v5.0)
+**Date**: 2026-06-10
+**Supersedes**: v4.2 (2026-04-20) — a full rebuild, not a patch. v4.2 was written before the June-2026 platform moves (OpenAI workspace agents; Cowork Projects + scheduled tasks + memory-curation) and before the cumulative-workspace / judgment-seat reframe. Its Beat 1 ("no one is building work context") has been falsified by events; its Beat 3 ("the team you build by chatting," Specialist palette, pre-ADR-216 vocabulary) is retired; its entry wedge ("solo consultants, $1.14B SAM") is superseded by the bounded-operation psychographic; its motion ($19/mo volume) is superseded by high-ACV expansion-led.
+**Grounded in**: `docs/ESSENCE.md` v14 · `docs/analysis/cumulative-workspace-product-formulation-2026-06-10.md` · `docs/analysis/usp-spine-and-act-shape-personas-2026-06-09.md` · `docs/analysis/positioning-judgment-seat-psychographic-2026-06-08.md` · `docs/analysis/moat-architecture-audit-2026-06-08.md` · THESIS (four commitments)
 
 **Related docs:**
-- [ESSENCE.md](ESSENCE.md) — What we believe and how the product works
-- [GTM_POSITIONING.md](GTM_POSITIONING.md) — Specific language, ICPs, and messaging toolkit
+- [ESSENCE.md](ESSENCE.md) — what we believe and how the product works
+- [GTM_POSITIONING.md](working_docs/strategy/GTM_POSITIONING.md) — specific language, ICP, and messaging toolkit (v4)
 
 ---
 
-## Why This Document Exists
+## The Macro Decision: One Surviving Thesis, Told Honestly
 
-YARNNN has a strong product thesis and sharp messaging. What was missing was a canonical answer to: **in what order do we tell this story, and what role does each beat play?**
+v4.2 ran on the platform-cycle thesis ("the application layer always emerges; no one is building work context"). The second half is no longer true — the platforms moved into work context in 2026. Telling a story the audience can falsify from their own news feed destroys credibility. The v5 narrative runs on the **surviving, narrower, stronger thesis**:
 
-Without this, the deck drifts from the website, the video script contradicts the application essay, and each new surface reinvents the narrative from scratch. This document prevents that.
+> **Platforms build delegates. They will not build the layer that holds delegates accountable** — for the same structural reason ratings agencies aren't run by the banks they rate. A platform judging its own model's agents has a self-audit problem. A neutral, model-agnostic seat does not.
 
----
+And beneath it, the product thesis:
 
-## The Macro Decision: Two Structural Theses, One Product
+> **Everyone is making AI work *episodic*. YARNNN makes work *cumulative*** — the substrate is the asset, the agents are the labor, the Reviewer is the management, the artifacts are the dividends.
 
-YARNNN's narrative is built on two interconnected structural arguments:
+The work-economy thesis (human-first → agent-first work) survives from v4.2 intact — it is now visibly happening, which makes it Beat 4 evidence rather than Beat 4 speculation.
 
-### Thesis 1: The Platform-Cycle Thesis
-
-Let's be honest about the current moment: it genuinely looks like the big LLM providers will own every layer. Claude has Code, Cowork, desktop agents. ChatGPT has memory, browsing, GPTs. Google is embedding Gemini into everything. Coding agents — Cursor, Devin, Claude Code — are proof that LLM-native companies *can* build application-layer products. The prevailing market assumption is that OpenAI, Anthropic, or Google will just do everything. And right now, that assumption feels correct.
-
-But every prior platform cycle felt exactly the same way. In 2008, Google looked like it would own everything on the web. In 2012, Facebook looked like it would own all of social commerce. In 2015, AWS looked like it would own every cloud application. The platform provider always looks invincible — until the application layer emerges and proves that domain-specific, context-specific value can't be built by a general-purpose platform. Google didn't become Salesforce. Facebook didn't become Shopify. AWS didn't become Datadog.
-
-We can't see the future with certainty. But we're making the aggressive bet that this cycle rhymes — not because LLMs are weak (they're extraordinary), but because general-purpose platforms optimize for breadth, and work context requires depth. They build for everyone, which structurally means they build for no one specifically.
-
-Notice which application layer the LLM providers built first: code. Code is the most structured, most verifiable, most legible domain for AI — the easiest layer for a model provider to own because their core capability maps directly to the output. Work context — your clients, your projects, your communication patterns across platforms — is the opposite: unstructured, personal, cross-platform, and domain-specific. That's why no LLM provider is building it, even as they build coding agents.
-
-The bet: the application layer for work context will emerge the same way every prior application layer has. And no one is building it yet.
-
-### Thesis 2: The Work-Economy Thesis
-
-Work itself is shifting. We're in an early-stage but accelerating transition from human-first work to agent-first work. Today, professionals use AI as an assistant — they prompt, they review, they re-prompt. But the trajectory is clear: more work will be delegated to, executed by, and coordinated between AI agents. The people who used to do the work will supervise, direct, and audit.
-
-This transition won't happen overnight. It's happening now, unevenly, across industries and roles. But it creates a category need: a context layer that bridges human-directed work today and agent-coordinated work tomorrow. Whoever builds that layer — where accumulated work context powers both human-facing autonomy and agent-to-agent coordination — owns the category.
-
-### How the two theses connect
-
-Thesis 1 is a pattern-recognition bet: the application layer will emerge because it always does, even when it looks like it won't. Thesis 2 says that layer will matter *more than usual* because the shift from human-first to agent-first work creates enormous demand for persistent, structured context that no single LLM provider will build.
-
-Together, they form the conviction: the AI shift will rhyme with prior platform cycles, but the stakes are higher. The context layer isn't just another SaaS category — it's the substrate for how work gets done in the agent era.
-
-YARNNN sits at the intersection: an application layer on top of LLMs (Thesis 1) built for the transition from human-first to agent-first work (Thesis 2). We can't predict the exact shape of the future. We can build for the structural pattern that every platform cycle has produced — and we can build now, while no one else is.
-
-**The decision**: YARNNN leads with what the product is and does today — a working autonomous agent powered by accumulated context. The structural theses land in the middle as the insight that explains *why* it works and *why* it will matter more over time. The macro vision is not the opener — it's the "aha" that reframes everything after the audience has seen the product.
-
-This is not thesis-last — it's thesis-as-revelation.
+The sequencing decision stands from v4: lead with what the product is and does today; the structural thesis lands mid-story as the "aha." Thesis-as-revelation, not thesis-first.
 
 ---
 
 ## The Six Narrative Beats
 
-Every YARNNN presentation — regardless of surface — follows this sequence. Individual beats can be expanded or compressed, but the order holds.
+### Beat 1: The Problem (The Honest Read of 2026)
 
-### Beat 1: The Problem (The Honest Bet)
+**Role**: Establish that the founder sees the landscape exactly as it is — including the parts that look bad for them — and has found the durable gap inside it.
 
-**Role**: Create intellectual respect and curiosity. The audience should think: "This founder sees the same landscape I do — but is framing it in a way I hadn't considered."
+**The claim**: The agent flood arrived. Workspace agents run scheduled workflows in the cloud. Persistent project workspaces ship with memory that "improves between runs." Every platform now sells you a delegate, and the delegates are genuinely good. But look at what they all have in common: **the same vendor that builds the delegate grades the delegate.** Memory you can't read or correct. Actions with no attributed trail. "Improvement" you have to take on faith. The more work you hand these systems, the bigger the question gets: *who approved that, against what rules, and was the judgment any good?* No platform will answer it about their own agents — structurally can't, for the same reason banks don't run their own ratings agencies. And underneath: all of them make work **episodic**. Every artifact is generated fresh; nothing you correct today makes tomorrow's output better. The two gaps are the same gap: **nothing is owned, so nothing compounds and nothing is accountable.**
 
-**The claim**: Right now, it looks like the big LLM providers will own everything. Claude has coding agents, desktop tools, browser extensions. ChatGPT has memory, plugins, GPTs. Google is embedding Gemini everywhere. The market consensus is that these companies will consume every layer of the stack.
+**Why this works**: It concedes the incumbents' strength fully (no falsifiable "AI forgets everything," no "nobody is building this"), then names a gap that gets *bigger* as the incumbents succeed. The agent flood is the setup, not the threat.
 
-We think that's wrong — or more precisely, we think the pattern will rhyme with every prior platform cycle. In 2008, Google looked invincible on the web. In 2012, Facebook looked like it would own social commerce. In 2015, AWS looked like it would own every cloud application. The platform provider always looks like it will do everything — until the application layer emerges and proves that domain-specific value can't be built by a general-purpose platform.
+**What to avoid**: Don't claim platforms haven't built persistence — they have, and the audience knows. Don't lead with "cumulative" jargon before the contrast lands. Don't say "audit" as the headline (it reads as compliance middleware); say *accountable* and *yours*.
 
-We can't predict the future with certainty. But we can read the structural pattern: general-purpose platforms optimize for breadth. Work context requires depth. They build for everyone, which means they build for no one specifically. And the first application layer they *did* build — coding agents — is the easiest case: structured input, verifiable output, the LLM's core capability mapping directly to the product. Work context (your clients, your projects, your communication patterns across platforms) is the hard case. That's why no one is building it yet.
-
-**Why this works**: It names the elephant in the room that most founders in the AI space avoid. Instead of pretending incumbents aren't a threat, it acknowledges the market uncertainty directly and then makes a specific, historically grounded argument for why the pattern will hold. VCs fund founders who see reality clearly and make informed bets — not founders who ignore the competitive landscape.
-
-**What to avoid**: Don't overstate certainty ("they will NEVER build this") — the honesty is the strength. Don't say "AI forgets everything" (overstated and easily dismissed). Don't dismiss Claude/ChatGPT as inferior — acknowledge they're extraordinary, then frame the structural gap. Don't lead with the work-economy shift yet — that's Beat 4's territory. Beat 1 is about the platform-cycle pattern and the specific gap in the current landscape.
-
-**Visceral opener options**:
-- "Right now, it looks like OpenAI and Anthropic will own everything. Every platform cycle looks that way — until it doesn't."
-- "Everyone assumes the LLM providers will just build it all. That's what they said about Google. About Facebook. About AWS."
-- "The AI landscape has one prevailing assumption: the platform providers will eat every layer. We're betting that's wrong — and history is on our side."
-- "AI tools are getting extraordinarily good at general intelligence. Nobody is building your specific intelligence. We think that's the pattern, not the exception."
+**Visceral openers**:
+- "Every platform now sells you an AI delegate. None of them will tell you whether its judgment is any good — because they're grading their own homework."
+- "AI agents got good. Owning what they do for you didn't."
+- "Everything your AI does today is episodic. Fix its output and you've fixed nothing — tomorrow it starts from the same place."
 
 ### Beat 2: Proof of Demand (Validation)
 
-**Role**: Establish that the appetite for this category is real, not hypothetical.
+**Role**: Establish the appetite is real and rising.
 
-**The claim**: ClawdBot/OpenClaw proved the appetite is massive. 17,830 GitHub stars in 24 hours — fastest single-day growth in GitHub history. What drove that explosion wasn't a better chatbot. It was the promise of AI that's *yours* — personalized, persistent, and capable of operating in your context. But 95% of people couldn't use it (VPS provisioning, security issues, no recurring workflows). The demand is validated. The accessible product doesn't exist yet.
+**The claim**: Two proof streams. (1) *Adoption*: agent delegation is mainstream — scheduled agents, chief-of-staff products, an entire memory-layer category; the demand for "AI that's yours, persistent, operating in your context" was proven explosively (ClawdBot's 17k-stars-in-24h moment) and has since been productized by every major platform. (2) *Anxiety*: enterprise governance coverage now calls autonomous agents "a black box of risk that current business controls cannot manage"; the management literature is inventing "agent managers" as a role. Demand for delegation is proven. Demand for *accountable* delegation is forming exactly on schedule — and nobody owns it.
 
-**Why this works**: ClawdBot bridges "this is a structural category gap" (Beat 1) to "and people desperately want someone to fill it." It's demand validation for the *category*, not for a specific feature. The "but 95% couldn't use it" creates the opening.
+**Adaptation note**: For technical/VC audiences, the governance-anxiety citations land hard. ClawdBot is now a historical footnote, not the centerpiece.
 
-**Adaptation note**: For audiences unfamiliar with ClawdBot, this beat can be shortened to a single proof point with the number and the pivot. For technical or VC audiences, the full story lands powerfully.
+### Beat 3: Meet the Product (The Cumulative Workspace)
 
-### Beat 3: Meet the Product (The Application Layer)
+**Role**: Introduce YARNNN concretely. The product is the workspace; the experience is the standing delegate; the differentiator is that everything compounds and everything is accountable.
 
-**Role**: Introduce YARNNN as a concrete, living product — the application layer that Beat 1 said was missing. YARNNN is the product *and* the super-agent the user talks to. There is no separate name for the conversational layer.
+**The claim**: Meet YARNNN — **the workspace where work is cumulative.** You author your context — your domain knowledge, your rules, your voice — and agents you create produce work from it: briefs, decks, articles, trades, on cadence, in your absence. Three things make this categorically different from a chat session or a platform agent:
 
-**The claim**: Meet YARNNN — the super-agent you talk to. You describe your work; you create the Agents that do it. Each Agent is a persistent domain expert — yours, authored through conversation, with its own identity, memory, and accumulated context in its domain. YARNNN drafts the right Specialist Team for each task from a palette of six role-types (Researcher, Analyst, Writer, Tracker, Designer, Reporting). Agents connect to the platforms where your work lives (Slack, Notion, GitHub, Alpaca, Lemon Squeezy), accumulate context from every cycle, and operate autonomously. They produce on schedule. The team gets richer every cycle. You supervise — the team you built keeps working.
+1. **Everything is traceable.** Every file has an author; every change has a revision; every artifact traces to its sources. The deck your agent built cites the sub-files it was composed from.
+2. **Corrections compound.** Fix one substrate file and every future artifact inherits the fix. Work here is monotonically improving; work everywhere else resets.
+3. **Judgment is independent.** Proposed actions pass through a Reviewer — a judgment seat you author the principles for, whose verdicts are reconciled against what actually happened. Not a safety filter; a calibrated record of whether the calls were right.
 
-**And you work inside YARNNN.** The operator surface is a cockpit, not a report factory. Overview shows what's happening and what needs you. Team is where you supervise your agents. Work is where you check what's running and what's producing. Context is where you see what your workspace knows. Review is the audit trail for past decisions. YARNNN is with you as an ambient rail on every surface — not a page you travel to. External distribution (emails to your CFO, Slack posts to your team, PDF exports) happens — but as a derivative of work you operated in the cockpit, not as the primary output. The operator operates *here*.
+**And you work inside YARNNN.** The cockpit shows what's running, what needs you, and the judgment trail. You set the delegation dial — manual, bounded, autonomous — and the operation runs at the level of trust it has earned. External distribution (email, exports, posts) is the derivative last mile; the operation lives here.
 
-This isn't a better chatbot or a memory add-on for existing LLMs. It's a new layer: an authored team operated from a cockpit, powered by your accumulated context. The switching cost is the team itself — you built it, you run it, it's yours.
+**Beat 3 internal layers**: (a) product intro (the workspace + the delegate experience), (b) Day-1 proof (author context, watch the first artifact synthesize from it with provenance; or: bring your existing track record, watch the seat reconcile it into an instant calibration trail), (c) value trajectory (Day 1 the asset exists; Day 30 corrections have compounded; Day 90 the operation contradicts nothing, forgets nothing, and the judgment trail reads like a track record).
 
-**Beat 3 has three internal layers** (these can be separate slides or combined depending on surface):
+**Key vocabulary rules** (full discipline in GLOSSARY + GTM v4):
+- "YARNNN" names the product and the conversational surface. Never "TP"/"Thinking Partner."
+- The relationship noun is **delegate**, always welded to **judgment**, never to **task**. ("You delegate a judgment, not a chore.")
+- Agents are *created* through conversation, *yours*, *accountable*. Never "hired," never pre-built.
+- The Reviewer is "the judgment seat" / "the seat that holds them accountable." Never "safety layer," "guardrail," "approval workflow."
+- Capability adjectives (*persistent, compounds, autonomous, runs in your absence*) **never appear without their mechanism** (*owned, attributed, judged against what actually happened*). The bare adjectives are incumbent copy now.
 
-**(a) Product introduction**: What YARNNN is and what it connects to. YARNNN is the super-agent — you talk to YARNNN, you create Agents with it, and YARNNN drafts Specialist Teams per task. Three platform integrations live (Slack, Notion, GitHub). The emphasis is on authorship: this is *your* team, built by chatting.
-
-**(b) Day 1 proof**: Your first Agent is created within minutes of the first conversation. Before/after demonstration — describing work, then seeing an Agent emerge and produce. The point: authorship is immediate; switching cost begins with Agent one.
-
-**(c) Value trajectory**: How the team improves over time. Day 1: the first Agent emerges from conversation. Day 30: multiple Agents, each with accumulated domain context, running on schedule. Day 90: the team's understanding of your work is deep enough that starting over elsewhere means rebuilding the team from zero.
-
-**Key vocabulary rules** (see [GLOSSARY.md](architecture/GLOSSARY.md) for full discipline):
-- "YARNNN" names both the product and the conversational super-agent. Never introduce "TP" or "Thinking Partner" in user-facing copy.
-- Agents are *created*, never *hired*. Creation happens through conversation.
-- Teams are *drafted* by YARNNN per task, not composed or assembled.
-- Specialists are YARNNN's palette — infrastructure, not user-addressed. Don't surface Specialists as things users manage.
-- "Autonomous" and "authored" are the lead adjectives. Authored implies ownership; autonomous implies it keeps running.
-- The supervision model ("you supervise, the team operates") is part of the product identity.
-
-**Thesis-protection rule**: Beat 3 describes *value increasing over time*. It does NOT use the words "moat," "switching costs," "compounding," or "irreplaceable." Those words belong to Beats 4 and 5. The product section shows the trajectory; the insight section names what it means.
-
-**What to avoid**: Don't frame YARNNN as "what ChatGPT should have been" (positions as an improvement, not a category). Don't lead with architecture or the four-layer model (that's Beat 5 defensibility). Don't call it an "AI wrapper" or "middleware." Don't describe Agents as pre-built or ready-out-of-the-box — authorship is the point.
+**Thesis-protection rule** (unchanged): Beat 3 shows value increasing; "moat," "switching costs," "compounding" as *named concepts* wait for Beats 4–5.
 
 ### Beat 4: The Insight (Thesis as Revelation)
 
-**Role**: The "aha" moment. Reframe why this product works when others don't, and why it will matter more over time. This is where both structural theses land.
+**Role**: Reframe why this works when others don't, and why it matters more every quarter.
 
-**The claim**: Context is what makes autonomy meaningful. Without accumulated context, autonomous AI is just random — it can execute but it doesn't know what to execute or for whom. With accumulated context *and* an authored team, it's irreplaceable — the team is literally yours.
+**The claim**: Work is shifting from human-first to agent-first — that's no longer a prediction, it's the product news of 2026. As execution gets delegated, the human contribution concentrates into exactly two things: **the context only you have, and the judgment only you can authorize.** That's the insight: in an agent-first economy, *execution commoditizes; context and judgment compound.* So the durable product isn't a better delegate — delegates are the commodity layer now. It's the system where your context is an owned asset that every delegate draws from, and your judgment is an installed seat that every consequential action passes through — with a track record that proves whether it's any good. The compounding loop: author context → agents produce from it → outcomes reconcile against ground truth → corrections and calibration flow back into the substrate → every future cycle starts from a higher floor. After 90 days, the asset is irreplaceable not because of lock-in but because of accumulation: starting over anywhere else means starting from zero — episodic again.
 
-But the insight goes deeper. Work itself is shifting from human-first to agent-first. Today, professionals direct AI. Tomorrow, AI agents will coordinate with other AI agents to execute complex work. In both cases — whether a human is prompting or an agent is coordinating — the critical substrate is the same: persistent, accumulated understanding of the work, held by an authored team. YARNNN is building that substrate.
-
-**The compounding loop**: Describe your work → YARNNN and you create Agents and tasks together → connect your tools → context accumulates from every cycle → Agents produce on cadence powered by real context → your edits and feedback deepen Agent expertise → the team grows over time as new work surfaces → repeat. Your team after 90 days is incomparably better than day one — and it's *your* team. Starting over elsewhere means rebuilding from zero. This is true whether the "user" is you or another agent acting on your behalf.
-
-**Why this works**: The audience already knows what the product is (Beat 3). Now they understand *why* it's structurally different. The platform-cycle argument (Beat 1) established that the layer will exist. The work-economy argument now lands as the reason the layer will be *enormous*. YARNNN isn't just an application on top of today's LLMs — it's the context layer for the shift from human-first to agent-first work.
-
-**This is where "moat," "switching costs," and "compounding" can first appear.** These words are reserved for Beats 4 and 5.
+**This is where "moat," "switching costs," "compounding," "agent-first" first appear.**
 
 ### Beat 5: The Moat (Defensibility)
 
-**Role**: Answer "why can't someone just build this?" and "why won't incumbents eat your lunch?"
+**Role**: Answer "why can't the platforms eat this?" — the question is sharper in 2026 because they visibly moved up the stack.
 
-**The claim**: Accumulated context creates real switching costs. Every sync cycle deepens what the system knows. A new competitor starts from zero — no accumulated context to draw from. 90 days of accumulated context is irreplaceable.
+**The claim**: Four properties, enforced in code, not claimed in copy:
 
-**Why LLM providers are unlikely to build this**: This is the platform-cycle bet applied specifically. Yes, LLM providers are expanding aggressively — Claude Code, Cowork, ChatGPT plugins, Gemini extensions. They've proven they *can* build application-layer products. But they chose the easiest application layer first (code), and their structural incentive is breadth: serve everyone, improve the general model, expand the platform. Building deep, cross-platform, user-specific work context is an application-layer problem that requires different data models, different feedback loops, and different product priorities than what a foundation model company optimizes for. Google *could* have built Salesforce. The question was never capability — it was priority and structural fit. The same logic applies here.
+1. **The improvement loop closes against ground truth the agent cannot author** — outcomes, costs, and calibration are written by the kernel, mechanically; the agent can't grade its own homework.
+2. **Total attribution** — substrate cannot be mutated anonymously; every revision is authored, parent-pointered, content-addressed. No incumbent context layer exposes this.
+3. **The governance boundary holds** — the agent can tune its cadence but cannot raise its own budget or loosen its own delegation. DIY stacks and platform agents have no equivalent.
+4. **Per-workspace sovereignty** — your asset is yours; no cross-workspace learning; blast radius is one operator.
 
-**Why incumbents face structural headwinds**:
-- **ChatGPT/Claude**: Extraordinary general assistants. Improving memory, expanding tools. But their architecture is model-centric, not context-centric. They accumulate some preferences; they don't accumulate your full work context across platforms and use it for autonomous scheduled output. They're the engine — we're building the vehicle.
-- **Agent startups**: Can execute autonomously, but generically. No persistent understanding of *your* work. Impressive demos, weak on repeat performance for the same user over time.
-- **Workspace AI (Notion AI, etc.)**: Trapped inside one platform. Can't synthesize across tools. Context is siloed by design.
+**Why platforms face structural headwinds here**: not capability — incentive and position. Their economics want more autonomy with less friction; accountable autonomy *is* friction, productized. And the seat only has value if it's independent — a platform refereeing its own model's agents is the bank running the ratings agency. Model-agnostic neutrality is YARNNN's by construction and theirs by impossibility. Memory startups have the opposite problem: they have substrate ambitions but no operation — context with no action loop is a wiki (THESIS: remove any commitment and the composition degrades to a known-inferior form).
 
-**Architecture as defensibility** (not as product description): Persistent agents with accumulated domain knowledge. 135+ architecture decision records. Built from day one for multi-platform context accumulation and agent interoperability (MCP).
+**Architecture as evidence**: 300+ ADRs; attribution enforced at the write path; the calibration loop live in the alpha programs. Architecture appears here, as defensibility, never as product description.
 
-**Why this works**: Architecture appears here — not in the product introduction — because its role is to answer the defensibility question, not to describe the product experience.
+### Beat 6: The Opportunity (Market + Motion + Timing)
 
-### Beat 6: The Opportunity (Market + Timing + Ask)
+**Role**: The business case, with the motion matched to the psychographic.
 
-**Role**: Frame the business case with emphasis on timing.
+**The claim**: The buyer is a psychographic, not an occupation: **someone with something that's theirs to run, that they can't be continuously present for, and who refuses to let it reset** — the operator of a bounded operation (a portfolio, a channel, a pipeline, a shop, a book of business) with a repeating consequential decision and a track record they're not learning from. This is a **premium, high-ACV, expansion-led** business: land narrow on operations with fast feedback loops, price per running operation tiered by delegation level (the trust dial *is* the pricing axis), expand through tight communities that talk to themselves. Hundreds of operators paying real money is a real business; this was never a $19/mo volume play.
 
-**The claim**: Entry wedge is solo consultants with recurring client obligations. $1.14B SAM. Expansion to founders, executives, teams. $500K–$1M seed round.
+**Why now**:
+- The agent flood is creating the accountability gap faster than anyone is filling it.
+- The work-economy shift is no longer thesis — it's adoption data.
+- The memory/context category is being funded but has no judgment layer; the agent category is exploding but has no owned substrate. The composition is unoccupied.
+- Positioning windows at platform velocity close in months, not years. The window for "the accountable one" is open now.
 
-**Why now — the inflection point**:
-- ClawdBot proved explosive demand for personalized, persistent AI (Jan 2026)
-- The transition from human-first to agent-first work is accelerating — YARNNN is built for both sides
-- No one owns the context + autonomy layer yet
-- Every platform cycle's application layer forms within 3–5 years of the platform maturing. LLMs are 3 years in. The window is now.
-- Architecture is built — need team to scale
-
-**The interoperability angle**: YARNNN is designed to be model-agnostic and protocol-native (MCP). As the ecosystem moves toward agent interoperability, YARNNN's position as the shared context layer becomes more valuable, not less. This is the optionality beyond the current product.
+**The interoperability angle**: the substrate is model-agnostic and protocol-native (MCP). As agent interoperability matures, the owned, attributed workspace becomes the natural system of record other agents read and write through — the seat's jurisdiction grows with the ecosystem, not against it.
 
 ---
 
 ## Vocabulary Rules (Global)
 
-These apply across all surfaces — deck, website, video, applications:
-
 | Always say | Instead of | Reasoning |
 |------------|-----------|-----------|
-| "YARNNN, your super-agent" | "Thinking Partner" or "TP" | Product and conversational layer share one name (ADR-189) |
-| "Describe your work. Create the agents that do it." | "Agents that know your work out of the box" | Authored-team positioning — the team is built, not provisioned |
-| "The team you build by chatting" | "Pre-built agent roster" | Authorship is the moat; a pre-built roster undermines it |
-| "Create an Agent" (verb: create) | "Hire an agent" / "Author an agent" | "Create" is neutral and universally understood; "hire" implies catalog |
-| "YARNNN drafts the Team" | "YARNNN composes the team" / "assembles the team" | "Draft" is precise about per-task iterative selection |
-| "Agents are yours" | "Agents for you" | Ownership vs. service; authorship register |
-| "Already knows your work" | "Context-aware" | Active and concrete vs. passive and abstract |
-| "Agents produce on schedule" | "Autonomous output capability" | Describes the experience, not the architecture |
-| "Gets richer every cycle" | "Accumulated intelligence" | Human language vs. technical jargon |
-| "You supervise, the team operates" | "Human-in-the-loop" | Frames the user as powerful, not as a safety mechanism |
-| "Accumulated context" | "Persistent memory" | Memory is one input; context is the whole picture |
-| "One agent, two modes" | "Chat + agent engine" | Unified architecture story, not two separate systems |
-| "The application layer for work" | "AI wrapper" or "middleware" | Category language, not diminishing language |
-| "Built for the transition" | "Future-proof" | Specific and directional vs. generic marketing speak |
-| "You work inside YARNNN" / "The cockpit" | "YARNNN sends you reports" | Cockpit framing per ADR-198 — operator operates here, not consumes documents elsewhere |
-| "External distribution" | "Deliverables" / "Output reports" | External distribution is a derivative Channel; cockpit is primary |
-| "Overview / Team / Work / Context / Review" | "Dashboard" / "Metrics page" / "Admin panel" / "Roster" | Operator-native nav vocabulary. Each label survives the sentence test — "let me check the Overview", "open Team", "see Review". SaaS-dashboard drift ("Mission Control / Workshop / Ledger / Chronicle") rejected. |
+| "The workspace where work is cumulative" | "AI memory" / "context layer" | Product identity; memory is a commodity category now |
+| "Standing delegate" (welded to *judgment*) | "AI assistant" / "agent that does your tasks" | You delegate a judgment, not a chore |
+| "The judgment seat" / "the seat that holds them accountable" | "Human-in-the-loop" / "approval workflow" / "guardrails" | The seat compounds in value; a checkbox doesn't |
+| "Owned, attributed, judged against what actually happened" | bare "persistent / compounds / autonomous" | Bare capability adjectives are incumbent copy as of mid-2026 |
+| "Corrections compound" / "nothing resets" | "It learns from feedback" | Mechanism vs. vibe; every incumbent claims learning |
+| "Your agents, accountable" | "Trustworthy AI" | Concrete and structural vs. generic |
+| "Calibration trail / track record" | "Audit log" | A track record proves judgment quality; a log is compliance furniture |
+| "Delegation dial" (manual → bounded → autonomous) | "Permission levels" | The operator's trust decision, priced and earned |
+| "Authored, not inferred" | "Context-aware" | The stance, in three words |
+| "Create an Agent" | "Hire an agent" | Authorship register (unchanged from v4) |
+| "You supervise; the operation runs" | "Human-in-the-loop" | Frames operator as principal, not safety mechanism |
+| "External distribution" | "Deliverables" | Distribution is the derivative last mile; the operation lives in the cockpit |
 
-**Retired terminology** (do not use in new copy): "TP," "Thinking Partner," "hire an agent," "compose a team," "author an agent," "roster" (in the workspace-scoped sense), "craft" (in the specialist sense), "dashboard" (in the reporting-view sense — use "Overview"), "deliverable" as a primary noun (say "work" for what the team produces; "distribution" for what ships externally). See [GLOSSARY.md](architecture/GLOSSARY.md).
+**Retired in v5** (beyond v4.2's retirements, which all still hold): "the team you build by chatting" as the lead frame (authorship survives; the *team* frame undersells the workspace-as-asset), "five domain experts," "$19/month," "solo consultants" wedge, "Specialist" as user-facing noun, the one-liner *"It runs on your behalf. It gets better the longer it does"* (verbally commoditized — see ESSENCE v14 retired-seeds note), "platform-cycle" as Beat 1 opener (the 2008/Google analogy is retired; the surviving thesis is the self-audit argument).
 
 ---
 
 ## Thesis-Timing Rules
 
-These rules govern when specific language can appear in the narrative sequence. They exist to protect the "thesis-as-revelation" effect.
-
 | Language | First appears | Rationale |
 |----------|--------------|-----------|
-| "Moat" | Beat 4 (Insight) at the earliest | Naming it too early flattens the reveal |
-| "Switching costs" | Beat 4 or 5 | Same — the audience needs to see the product before they hear the defensibility claim |
-| "Compounding" / "compounds" | Beat 4 | Beat 3 shows value *growing*; Beat 4 names it as *compounding* |
-| "Irreplaceable" | Beat 4 or 5 | The strongest claim — needs setup to land |
-| "Agent-first work" | Beat 4 | The macro shift is the second thesis — it lands as part of the insight, not the opener |
-| "Platform cycle" | Beat 1 | This is the structural argument that opens the problem — it can appear early |
-| "Application layer" | Beat 1 or 3 | Describes the gap (Beat 1) or the product identity (Beat 3) |
+| "Self-audit problem" / ratings-agency argument | Beat 1 | It IS the problem statement now |
+| "Cumulative vs episodic" | Beat 1 (contrast) / Beat 3 (mechanism) | The contrast hooks; the mechanism sells |
+| "Moat" / "switching costs" / "compounding" (named) | Beat 4 | Protect the revelation |
+| "Agent-first work" | Beat 4 | Now evidence, not speculation — but still the insight, not the opener |
+| "Irreplaceable" / "the asset" | Beat 4–5 | Needs the trajectory shown first |
+| Architecture / ADR count / write-path enforcement | Beat 5 only | Defensibility evidence, never product description |
+| Pricing / motion | Beat 6 | After value is established |
 
 ---
 
 ## Surface Adaptation Guide
 
-The six beats are the canonical sequence. Here's how they compress for different surfaces:
-
-### IR Deck (16 slides, ~10 min)
-All six beats, fully expanded. The deck is the master version. Beat 1 gets two slides (contrarian opener + structured category gap). Beat 3 gets two to three slides (product overview + Day 1 proof + value trajectory). Beat 4 is a single high-impact slide. Beat 5 can be one or two slides (moat + positioning). Beat 6 gets three to four slides (market, comps, traction, pricing). Founder and Ask close.
-
-### 1-Minute Video
-Beats 1 → 3 → 4 compressed. Problem as contrarian hook (8 sec) → "Meet YARNNN — describe your work, create the agents that do it" (25 sec) → the insight / why this matters now (15 sec) → CTA (12 sec). Skip proof of demand (no time) and detailed moat (wrong format for talking-head video). The video's job is to make people want to learn more, not to close the deal.
-
-### Written VC Application (500–1000 words)
-All six beats in prose form. Beat 1 (contrarian thesis) and Beat 5 (moat/defensibility) get the most space because applications reward structural arguments and evidence. Beat 3 (product) is a paragraph, not a demo. Beat 4 (insight) bridges the product and the vision. The work-economy thesis is woven through rather than front-loaded.
-
-### Landing Page
-Beat 1 (headline — contrarian or problem statement) → Beat 3 (hero + how it works) → Beat 4 (why it's different / the insight) → Beat 6 (CTA). Proof of demand and moat are secondary sections or social proof elements.
-
-### Elevator Pitch (30 seconds)
-Beat 1 + Beat 3: "Every platform cycle produces an application layer the platform provider doesn't own. LLMs are no different. We built YARNNN — you describe your work, YARNNN creates the Agents that do it, and those Agents connect to your Slack, Notion, and GitHub, accumulate your work context, and produce on schedule. The team is yours — built by chatting. It's the application layer for work — and no one else is building it."
-
-### Creative Supplement (1-pager, visual asset)
-Beat 3 + Beat 4 as visual: product screenshot or mockup showing the workfloor with agents and tasks. The compounding loop diagram. The platform-cycle parallel as a simple visual (prior cycles → application layers → LLMs → YARNNN). Minimal text — the visual does the work.
+- **IR deck (~16 slides)**: all six beats. Beat 1 two slides (agent flood + the self-audit gap). Beat 3 three slides (workspace → Day-1 proof → trajectory). Beat 5 includes the four code-enforced properties as a single table slide.
+- **1-minute video**: Beats 1 → 3 → 4. Hook: "Every platform sells you a delegate; none will tell you if its judgment is any good." Product: the cumulative workspace in one visual (fix a file → three artifacts improve). Close: the insight + CTA.
+- **Written VC application**: all six in prose; Beats 1 and 5 get the most space; Beat 6 carries the motion argument (high-ACV, not volume).
+- **Landing page**: Beat 1 headline (accountability gap or episodic/cumulative contrast) → Beat 3 hero → Beat 4 insight → Beat 6 CTA.
+- **Elevator pitch (30s)**: "Every platform now sells you an AI delegate — and grades its own homework. YARNNN is the workspace where work is cumulative: your context is an owned, attributed asset; agents you create produce work from it; and every consequential call passes through a judgment seat with a track record. Fix something once, everything after inherits it. The longer it runs, the better it gets — and it's yours."
 
 ---
 
 ## Anti-Patterns
 
-Patterns that have been explicitly rejected and why:
+All v4.2 anti-patterns hold (no "AI forgets everything"; no false certainty about incumbents; no thesis-first or architecture-first sequencing; no feature lists; no "better ChatGPT"; no pre-built roster framing; no overplayed A2A). v5 adds:
 
-**"AI forgets everything" problem framing**: Overstates the case. ChatGPT has memory. Claude has Projects. Saying "AI forgets" invites the objection "but they're adding that" and undermines the founder's credibility. The honest framing is: LLMs are extraordinary and getting better, but no one is building the application-specific context layer for work. The gap is structural, not a bug being fixed.
+**Bare-capability copy**: leading with "persistent," "autonomous," "self-improving," "runs while you sleep" — these are now the *incumbents'* words. Using them without the mechanism makes YARNNN indistinguishable from the commodity it isn't. Always carry the mechanism.
 
-**False certainty about incumbents**: Stating "they will NEVER build this" or "they CAN'T do this" is dismissive and easily disproven (Claude Code and Cowork prove LLM providers can build application layers). The honest version is: "the structural incentives and historical patterns suggest they won't prioritize this — and here's why." Framing YARNNN's position as an informed bet, not a guaranteed outcome, is more credible and more fundable.
+**"Nobody is building work context"**: falsified April–June 2026. The honest claim is the narrower one: everybody is building delegates; nobody is building accountable, owned, cumulative ones — and the platforms structurally won't.
 
-**Thesis-first sequencing**: Leading with "context is what makes autonomy meaningful" or "we're building for the agent-first economy" before showing the product. Rejected because it signals a research project, not a product company. Successful agent companies never lead with thesis.
+**Audit-middleware framing**: positioning YARNNN as an auditor *of other people's agents* as the lead. The governance capability is real optionality (and Beat 5 ammunition), but the product is the agent platform whose agents are accountable — not a compliance layer bolted onto someone else's runtime.
 
-**Architecture-first sequencing**: Leading with the four-layer model or unified agent architecture. Rejected because it positions YARNNN as infrastructure, not as a product. Architecture is a defensibility argument, not a product description.
-
-**Feature-list presentation**: "We have integrations, we have a chat agent, we have scheduled agents, we have memory." Rejected because it sounds like any other AI tool. The narrative arc (problem → demand → product → insight → moat → opportunity) creates a story. A feature list doesn't.
-
-**"Better ChatGPT" positioning**: Comparing directly to ChatGPT as the primary competitor. Rejected because it commoditizes YARNNN. The comparison is against the *category* landscape — application layers, not chatbot features. "Not another chatbot, not another agent framework" — something structurally different.
-
-**Underselling YARNNN as Day 1 hero**: Treating YARNNN (the conversational super-agent) as one feature among many. YARNNN is the primary interface, the Day 1 value, and the relationship anchor. It should be introduced as the product itself, not as a component.
-
-**Pre-built roster framing**: Saying "your roster of agents is ready" or showing a populated `/agents` page on signup. ADR-189 deliberately retires the pre-scaffolded roster. Signup shows zero Agents; the first Agent is authored through conversation within minutes. Pre-built roster framing undermines the authorship moat — the team's value is that it's *yours*, built up over time.
-
-**Overplaying the A2A vision before product validation**: Leading with agent-to-agent coordination as the headline before the human-facing product is established. The agent-first future is part of the thesis (Beat 4) and the timing argument (Beat 6), not the product introduction (Beat 3). YARNNN works for humans today — that's the proof. The vision is where it goes.
+**Demo that requires tenure**: selling compounding with a demo that can't show it. First sessions must show either *correction-compounding* (fix one file, watch artifacts improve) or the *retrospective audit* (reconcile an existing track record into an instant calibration trail). Never ask a stranger to imagine Day 90.
 
 ---
 
 ## Maintenance
 
-Update this document when:
-- Narrative sequencing is tested and refined based on audience feedback (VC meetings, user conversations)
-- New competitive entrants change the positioning landscape
-- Product capabilities shift the emphasis (e.g., if A2A coordination becomes a live feature, it moves from Beat 4/6 vision to Beat 3 product)
-- A new surface type requires adaptation guidance
-- Foundation model providers make capability moves that require repositioning (e.g., if Claude ships cross-platform persistent context, the competitor framing needs updating)
+Update when: narrative is tested against real audiences; a platform ships an attributed-substrate or independent-judgment equivalent (re-examine Beat 5 immediately); the layman ICP noun lands (GTM v4 open item — propagate into Beat 6); a program's reconciled track record becomes publishable evidence (Path-A-proof decision — would reshape Beat 2).
 
-This document is the rubric for all external storytelling. ESSENCE.md defines what we believe. GTM_POSITIONING.md defines how we say it. NARRATIVE.md defines the order in which we say it and why.
+This document is the rubric for external storytelling. ESSENCE defines what we believe. GTM_POSITIONING defines how we say it. NARRATIVE defines the order and why.

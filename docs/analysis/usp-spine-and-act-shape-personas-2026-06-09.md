@@ -22,6 +22,19 @@ retired — see §5).
 frame, the act-shape persona reality.** One open edge remains (the layman ICP
 noun, §6) — explicitly deferred to the GTM regroup.
 
+> **Successor (2026-06-10):** `cumulative-workspace-product-formulation-2026-06-10.md`
+> ran the GTM regroup this doc deferred to, against fresh June-2026 competitive
+> evidence. The spine / USP / psychographic / act-shape map all SURVIVE. Three
+> corrections layer on: (1) the §2 one-liner copy seed (*"It runs on your behalf.
+> It gets better the longer it does."*) is **retired** — verbally commoditized by
+> Hermes / OpenAI workspace agents / Cowork memory-curation; copy must carry the
+> mechanism. (2) the §7 open (a)-vs-(b) sequencing question is **answered**: lead
+> claim = the cumulative workspace + accountable judgment; activation wedge =
+> fast-ground-truth bounded operations; the artifact class is served and sold
+> day-one with mechanism-led copy (it is also the least differentiated terrain —
+> incumbents' home turf). (3) the cascade landed: ESSENCE v14, NARRATIVE v5,
+> GTM_POSITIONING v4. The layman-noun edge (§6) remains open.
+
 ---
 
 ## 1. The spine — four beats, not one word

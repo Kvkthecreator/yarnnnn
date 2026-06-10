@@ -3,13 +3,26 @@
 **Purpose**: Canonical product narrative. What YARNNN is, what users are buying, and what must remain true as the implementation evolves.
 **Status**: Active
 **Date**: 2026-01-28
-**Updated**: 2026-06-02 (v13.0 — substrate-first rewrite. The product is re-centered on **authored, attributed, portable context** as the floor (the Phase-1 wedge), with **declared intent + a judgment seat + ground-truth evaluation** as the additive judgment layer on top (Phase 2). Supersedes the v12.x "team you build by chatting / money-truth cockpit" framing. Grounded in THESIS (four commitments), the sequenced-moat-strategy analysis (substrate as floor, judgment as rider), ADR-310/311 (one moat, two faces — cockpit + interop), ADR-222 (kernel/program OS framing), ADR-216 (orchestration vs judgment), ADR-231 (task abstraction sunset). Money-truth demoted from a universal product element to a program-specific flavor of ground truth.)
+**Updated**: 2026-06-10 (v14.0 — **the cumulative workspace**. Product identity re-centered on *the workspace where work is cumulative*: the substrate is the asset, the agents are the labor, the Reviewer is the management, the artifacts are the dividends. Ratified in the 2026-06-10 business-model regroup against fresh June-2026 competitive evidence — see `docs/analysis/cumulative-workspace-product-formulation-2026-06-10.md`. The v13.0 two-layer structure (substrate floor + judgment layer) is preserved; what changes: (a) the external lead is the **judgment seat**, with substrate portability as supporting proof, because capability claims ("persistent," "compounds," "runs in your absence") have been verbally commoditized by platform incumbents while the accountable-judgment claim remains unoccupied; (b) the competitive posture is canonized — *capability parity arrives in waves; differentiate on structure, ownership, accountability*; (c) the neutrality card is named — a platform judging its own model's agents has a self-audit problem; a model-agnostic seat does not.)
+**Prior**: v13.0 (2026-06-02 — substrate-first rewrite; grounded in THESIS four commitments, ADR-310/311 one-moat-two-faces, ADR-222 kernel/program framing, ADR-209 authored substrate, ADR-216 orchestration vs judgment.)
 
 ---
 
 ## Core Thesis
 
-YARNNN is the **authored context layer that travels with you** — and, when you're ready, an operation that runs on it under a judgment you control.
+**YARNNN is the workspace where work is cumulative.**
+
+> The substrate is the asset. The agents are the labor. The Reviewer is the management. The artifacts are the dividends. Buyers come for the dividends; they stay for the asset.
+
+Every other AI system makes work *episodic*: an artifact generated in a session is constant-quality regardless of tenure, and correcting it improves nothing. In YARNNN, artifacts are synthesized from an authored, attributed substrate — which makes them different in three structural ways:
+
+1. **Provenance** — every claim traces to an attributed, revisioned file.
+2. **Consistency** — every artifact draws from the same substrate; the operation cannot contradict itself across outputs.
+3. **Correction-compounding** — fix a sub-file once and every future artifact inherits the fix. Quality is monotonically improving in tenure, not constant.
+
+A slide deck composed from substrate sub-files, a trade proposed against accumulated signals and a calibration trail — same mechanism, different program. This is why the architecture is what it is.
+
+The workspace is the **authored context layer that travels with you** — and, when you're ready, an operation that runs on it under a judgment you control.
 
 There are two layers, and the lower one stands on its own:
 
@@ -98,11 +111,11 @@ Loop 1 is the product's floor. Loop 2 is the deepening.
 
 ## Why This Is Different
 
-Most AI systems fail recurring, high-context work for one of two reasons: they are **session-based** (forget context between runs) or **persistent but inferred** (the context is scraped, shallow, and the operator can't see or carry it).
+Most AI systems fail recurring, high-context work for one of two reasons: they are **session-based** (work is episodic; nothing compounds) or **persistent but inferred** (the context is scraped, shallow, and the operator can't see, correct, or carry it).
 
-Every major platform is building an inferred-context layer (OpenAI Memory, Microsoft Copilot + Graph, Google Workspace Intelligence, Anthropic Projects). All infer context from activity. Inferred context commoditizes as model capability saturates.
+**The competitive reality (June 2026):** the platform incumbents now *market* persistence and compounding. Workspace agents run on schedules in the cloud; persistent project workspaces ship with scheduled memory-curation sold as "agents that improve between runs." The capability *claims* have commoditized. The *mechanisms* have not: incumbent compounding is inferred-memory curation — unattributed, uninspectable, unjudged. YARNNN's compounding is authored substrate plus a judgment seat calibrated against ground truth the agent cannot author. The posture this demands of every external surface: **never lead with a capability adjective ("persistent," "compounds," "runs in your absence") without carrying the mechanism — owned, attributed, judged against what actually happened.** Capability parity arrives in waves; YARNNN differentiates on what waves don't wash out — structure, ownership, accountability.
 
-YARNNN's position is the opposite stance: **context is authored, attributed, retained, and portable.** It does not commoditize — it gets richer per operator per month of use, and it travels across any model, any agent layer, any future incumbent. On top of that authored floor, an independent judgment seat makes the operation trustworthy in a way a self-critiquing producer never can.
+YARNNN's stance: **context is authored, attributed, retained, and portable.** It does not commoditize — it gets richer per operator per month of use, and it travels across any model, any agent layer, any future incumbent. On top of that authored floor, an independent judgment seat makes the operation trustworthy in a way a self-critiquing producer never can — and in a way a *platform* never can, because a platform judging its own model's agents has a self-audit problem. A neutral, model-agnostic seat does not. That neutrality is YARNNN's by construction and the platforms' by impossibility.
 
 ## The Moat
 
@@ -126,21 +139,26 @@ YARNNN is not:
 
 ## Canonical Positioning
 
-External framing is Path B (YARNNN as a platform for operators), per the communication discipline in THESIS + ADR-210.
+External framing is Path B (YARNNN as a platform for operators), per the communication discipline in THESIS + ADR-210. **The judgment seat leads; the cumulative substrate is the proof beneath it** (ratified 2026-06-10).
 
 **Primary:**
-> Author your context once. Carry it into every AI.
+> The workspace where work is cumulative — run by agents you own, under a judgment you control.
 
 **Short form:**
-> Your context, attributed and portable.
+> Everyone's selling you delegates. Nobody's selling the seat that holds them accountable.
+
+**The USP (per the hardened spine — Entrust → Judgment → Continuity → Compounding):**
+> A standing delegate that produces the work — and makes the calls — on your behalf, the way you would, on a workspace where nothing resets.
 
 **Expanded:**
-> YARNNN is the authored context layer that travels with you. You author your work — attributed, retained, sovereign — and reach it from any LLM you already use. Activate a program and that same substrate gets a declared mandate, an independent Reviewer, and an operation that runs in your absence under a judgment you control. The substrate is the floor; judgment is what you add on top.
+> YARNNN is the workspace where work is cumulative. You author your context — attributed, retained, sovereign — and agents you own produce work from it: every artifact traceable to its sources, every correction inherited by everything that comes after. Activate a program and the operation runs in your absence under an independent Reviewer whose judgment is calibrated against what actually happened — not against its own confidence. The substrate is the asset; the agents are the labor; the Reviewer is the management; the artifacts are the dividends.
+
+**Retired copy seeds** (do not use — verbally commoditized by incumbents as of June 2026): *"It runs on your behalf. It gets better the longer it does."* and any bare capability claim (persistent / compounds / runs-while-you're-away) without its mechanism.
 
 Short forms that remain valid in voice-variation contexts:
 
-- **Your context, everywhere you think.**
 - **Authored, not inferred.**
+- **Your work, cumulative. Your agents, accountable.**
 - **The substrate that follows you — judged when you're ready.**
 
 ## Source Of Truth Hierarchy
@@ -148,6 +166,7 @@ Short forms that remain valid in voice-variation contexts:
 For product narrative and architecture, use this order:
 
 1. `docs/ESSENCE.md` — product essence and stable value proposition (this doc)
+1a. `docs/analysis/cumulative-workspace-product-formulation-2026-06-10.md` — the ratified formulation + June-2026 competitive reassessment this version stands on
 2. `docs/architecture/THESIS.md` — the philosophical claim and the four commitments
 3. `docs/architecture/FOUNDATIONS.md` — first-principles cognitive architecture (six dimensions, eight axioms)
 4. `docs/adr/ADR-310-judged-substrate-interop-face.md` + `ADR-311-primitive-interop-surface.md` — one moat, two faces; the interop surface
