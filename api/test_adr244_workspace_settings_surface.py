@@ -24,6 +24,9 @@ WORKSPACE_ROUTE = REPO_ROOT / "api" / "routes" / "workspace.py"
 PROGRAMS_ROUTE = REPO_ROOT / "api" / "routes" / "programs.py"
 MEMORY_ROUTE = REPO_ROOT / "api" / "routes" / "memory.py"
 ACCOUNT_ROUTE = REPO_ROOT / "api" / "routes" / "account.py"
+# L2 purge+reinit+refork is a single service fn (clear_workspace_for_user)
+# imported back into account.py; the program-capture parser lives here too.
+WORKSPACE_PURGE_SVC = REPO_ROOT / "api" / "services" / "workspace_purge.py"
 
 WORKSPACE_SECTION_FE = REPO_ROOT / "web" / "components" / "settings" / "WorkspaceSection.tsx"
 SETTINGS_PAGE_FE = REPO_ROOT / "web" / "app" / "(authenticated)" / "settings" / "page.tsx"
@@ -113,16 +116,31 @@ def assertion_6_deactivate_endpoint_registered():
 
 def assertion_7_l2_l4_preserve_program():
     """clear_workspace + reset_account capture active_program_slug pre-purge
-    and pass to initialize_workspace during reinit."""
-    src = ACCOUNT_ROUTE.read_text()
-    # Both purge paths must reference the parser
-    assert src.count("parse_active_program_slug") >= 2, \
-        "L2 + L4 must both capture active_program_slug pre-purge"
-    # Both reinit paths must thread program_slug
-    assert src.count("program_slug=prior_program_slug") >= 2, \
-        "L2 + L4 reinit must pass program_slug to initialize_workspace"
+    and pass to initialize_workspace during reinit.
+
+    Post-refactor (services/workspace_purge.py): the L2 capture+purge+reinit
+    is a single service fn (clear_workspace_for_user) and the shared program-
+    capture helper (capture_active_program_slug, wrapping parse_active_program_slug
+    + _all_slugs validation) lives in the service. The behavior is verified
+    across both files — the route delegates, the service holds the parser."""
+    account_src = ACCOUNT_ROUTE.read_text()
+    purge_src = WORKSPACE_PURGE_SVC.read_text()
+
+    # The parser lives in the service (single home); the route uses the
+    # shared capture helper for both L2 (via clear_workspace_for_user) and L4.
+    assert "parse_active_program_slug" in purge_src, \
+        "program-capture parser must live in workspace_purge service"
+    assert account_src.count("capture_active_program_slug") >= 2, \
+        "L2 (import) + L4 (call) must both use the shared capture helper"
+    # L2 delegates to the single service fn; L4 still threads program_slug in-route.
+    assert "clear_workspace_for_user" in account_src, \
+        "L2 route must delegate to the single clear_workspace_for_user service fn"
+    assert "program_slug=prior_program_slug" in account_src, \
+        "L4 reinit must thread program_slug to initialize_workspace"
+    assert "program_slug=prior_program_slug" in purge_src, \
+        "L2 service reinit must thread program_slug to initialize_workspace"
     # Stale "essential tasks" message must be gone (audit gap #2)
-    assert "essential tasks" not in src.lower(), \
+    assert "essential tasks" not in account_src.lower(), \
         "Stale 'essential tasks' wording must be removed (ADR-206 collapsed signup tasks)"
 
 

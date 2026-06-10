@@ -41,6 +41,17 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from services.supabase import UserClient, get_service_client
+# Mechanical DB helpers + the L2 clear-workspace entry point live in
+# services.workspace_purge (single home, ADR-209 FK ordering / ADR-298 wake
+# purge). Imported back here so L1/L3/L4 keep their single implementation and
+# the L2 route delegates rather than inlining the purge sequence.
+from services.workspace_purge import (
+    _delete_rows,
+    _delete_workspace_files,
+    _null_head_version_pointers,
+    capture_active_program_slug,
+    clear_workspace_for_user,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -96,45 +107,9 @@ class NotificationPreferencesUpdate(BaseModel):
 # Internal Helpers
 # =============================================================================
 
-def _is_missing_relation_error(error: Exception) -> bool:
-    message = str(error).lower()
-    return "relation" in message and "does not exist" in message
-
-
-def _delete_rows(client, table: str, user_id: str, *, user_column: str = "user_id", optional: bool = False) -> int:
-    """Delete all rows in a user-scoped table. Returns count deleted."""
-    try:
-        count_result = client.table(table).select("*", count="exact").eq(user_column, user_id).execute()
-        count = count_result.count or 0
-        if count > 0:
-            client.table(table).delete().eq(user_column, user_id).execute()
-        return count
-    except Exception as e:
-        if optional and _is_missing_relation_error(e):
-            return 0
-        if optional:
-            logger.warning(f"[ACCOUNT] Optional delete failed for {table}: {e}")
-            return 0
-        raise
-
-
-def _delete_workspace_files(client, user_id: str, path_prefix: str | None = None) -> int:
-    """Delete workspace_files rows, optionally filtered by path prefix."""
-    try:
-        query = client.table("workspace_files").select("*", count="exact").eq("user_id", user_id)
-        if path_prefix:
-            query = query.like("path", f"{path_prefix}%")
-        count_result = query.execute()
-        count = count_result.count or 0
-        if count > 0:
-            dq = client.table("workspace_files").delete().eq("user_id", user_id)
-            if path_prefix:
-                dq = dq.like("path", f"{path_prefix}%")
-            dq.execute()
-        return count
-    except Exception as e:
-        logger.warning(f"[ACCOUNT] workspace_files delete failed (prefix={path_prefix}): {e}")
-        return 0
+# _is_missing_relation_error / _delete_rows / _delete_workspace_files /
+# _null_head_version_pointers relocated to services.workspace_purge (single
+# home for the L2 mechanical purge helpers) and imported above.
 
 
 def _count_rows(client, table: str, user_id: str, *, user_column: str = "user_id", optional: bool = False) -> int:
@@ -182,30 +157,8 @@ def _count_workspace_pattern(client, user_id: str, like_pattern: str) -> int:
         return 0
 
 
-def _null_head_version_pointers(client, user_id: str) -> None:
-    """Null out `workspace_files.head_version_id` for the user before
-    wiping `workspace_file_versions`.
-
-    ADR-209 added `workspace_files.head_version_id → workspace_file_versions.id`
-    as a FK without ON DELETE semantics. Deleting the revision first
-    violates the constraint; deleting files first violates the inverse
-    relationship. Correct order: null pointers → delete revisions →
-    delete files. This helper is L2/L4/L5's prerequisite for a clean
-    wipe.
-
-    No-op when the user has no rows. Swallows errors (best-effort cleanup)
-    because the subsequent delete will surface the real constraint
-    violation if something is still wrong.
-    """
-    try:
-        (
-            client.table("workspace_files")
-            .update({"head_version_id": None})
-            .eq("user_id", user_id)
-            .execute()
-        )
-    except Exception as e:  # noqa: BLE001
-        logger.warning(f"[ACCOUNT] null head_version_id failed for {user_id}: {e}")
+# _null_head_version_pointers relocated to services.workspace_purge (imported
+# above). Still used by L4/L5 via that import.
 
 
 def _delete_workspace_file_versions_by_path(client, user_id: str, path_prefix: str) -> int:
@@ -556,92 +509,16 @@ async def clear_workspace(auth: UserClient) -> OperationResult:
     job is to restore substrate skeletons + the YARNNN heartbeat, not tasks.
     """
     user_id = auth.user_id
-    deleted: dict[str, int] = {}
 
     try:
         client = get_service_client()
 
-        # ADR-244 D4: capture the active program slug BEFORE purge so we can
-        # re-fork the bundle during reinit. Operator's *choice* of program
-        # survives the L2 reset; their authored content does not (it's part
-        # of what they chose to clear).
-        prior_program_slug: Optional[str] = None
-        try:
-            from services.workspace import UserMemory
-            from services.workspace_paths import CONSTITUTION_MANDATE_PATH
-            from services.programs import parse_active_program_slug
-            from services.bundle_reader import _all_slugs
-
-            um = UserMemory(client, user_id)
-            mandate_pre = await um.read(CONSTITUTION_MANDATE_PATH)
-            candidate = parse_active_program_slug(mandate_pre)
-            if candidate and candidate in _all_slugs():
-                prior_program_slug = candidate
-                logger.info(
-                    f"[ACCOUNT] User {user_id} L2 — captured active program "
-                    f"for re-fork: {prior_program_slug}"
-                )
-        except Exception as pre_err:
-            # Non-fatal — preservation is a best-effort enhancement, not a
-            # correctness invariant. Operator can re-activate from the
-            # Workspace tab if this slips.
-            logger.warning(f"[ACCOUNT] L2 program capture failed: {pre_err}")
-
-        # --- Phase 1: Purge ---
-        # ADR-209 FK order: workspace_files.head_version_id → workspace_file_versions.id.
-        # Null the pointer first so revisions can be wiped without violating
-        # the FK; then wipe the revision chain; then wipe the files.
-        _null_head_version_pointers(client, user_id)
-        deleted["workspace_file_versions"] = _delete_rows(client, "workspace_file_versions", user_id)
-
-        # Workspace filesystem — the primary data store
-        deleted["workspace_files"] = _delete_workspace_files(client, user_id)
-
-        # Relational tables referencing agents/tasks
-        deleted["tasks"] = _delete_rows(client, "tasks", user_id, optional=True)
-        deleted["agents"] = _delete_rows(client, "agents", user_id)
-        # ADR-194 Reviewer proposal queue — prior proposals must not survive reset
-        deleted["action_proposals"] = _delete_rows(client, "action_proposals", user_id)
-        deleted["chat_sessions"] = _delete_rows(client, "chat_sessions", user_id)
-        deleted["activity_log"] = _delete_rows(client, "activity_log", user_id)
-        deleted["event_trigger_log"] = _delete_rows(client, "event_trigger_log", user_id, optional=True)
-        # Uploaded documents: workspace_files with /workspace/uploads/* paths
-        # are purged via the workspace_files cascade below (user_id scoped delete)
-        # Notifications scoped to this user
-        deleted["notifications"] = _delete_rows(client, "notifications", user_id, optional=True)
-        # ADR-298 wake queue — transient Reviewer-execution compute. `user_id` is
-        # NOT FK-cascaded to auth.users (RLS service-role-only, transient by design),
-        # so it survives a workspace wipe unless purged explicitly. Stale `pending`
-        # rows would otherwise drain a Reviewer wake against substrate that no
-        # longer exists after reinit.
-        deleted["wake_queue"] = _delete_rows(client, "wake_queue", user_id, optional=True)
-        # MCP OAuth tokens — user's active MCP sessions should not survive a workspace clear
-        for table in ("mcp_oauth_codes", "mcp_oauth_access_tokens", "mcp_oauth_refresh_tokens"):
-            deleted[table] = _delete_rows(client, table, user_id, optional=True)
-
-        logger.info(f"[ACCOUNT] User {user_id} cleared workspace: {deleted}")
-
-        # --- Phase 2: Reinit ---
-        # Restore the fresh-account invariants: YARNNN agent + Reviewer substrate +
-        # _shared workspace skeletons + memory skeletons. Per ADR-206, ZERO operational
-        # tasks at signup — back-office tasks materialize on trigger.
-        # Per ADR-244 D4, re-fork the captured program (if any) so the operator
-        # lands on the same program with bundle templates back in place.
-        # Failures here are logged but don't fail the request — the purge succeeded,
-        # and the lazy init path in /api/workspace/state remains as a safety net.
-        reinit_summary: dict = {}
-        try:
-            from services.workspace_init import initialize_workspace
-            reinit_summary = await initialize_workspace(
-                client, user_id, program_slug=prior_program_slug
-            )
-            logger.info(
-                f"[ACCOUNT] User {user_id} reinit after clear: "
-                f"{len(reinit_summary.get('agents_created', []))} agents, "
-                f"program={reinit_summary.get('activated_program')}"
-            )
-        except Exception as reinit_err:
-            logger.error(f"[ACCOUNT] Workspace reinit after clear failed for {user_id}: {reinit_err}")
+        # Single L2 implementation: capture active program → purge → reinit +
+        # re-fork. The same body serves the service-key harness path (soak/eval
+        # clean-slate by user_id). See services/workspace_purge.py.
+        summary = await clear_workspace_for_user(client, user_id)
+        deleted = summary["deleted"]
+        reinit_summary = summary["reinit_summary"]
 
         program_msg = (
             f" — re-forked program {reinit_summary['activated_program']}"
@@ -776,24 +653,8 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         # ADR-244 D4: same as L2 — capture the active program slug pre-purge
         # so the reinit can re-fork the bundle. Operator chose Reset, not
         # "Reset and unactivate program"; preservation is the right default.
-        prior_program_slug: Optional[str] = None
-        try:
-            from services.workspace import UserMemory
-            from services.workspace_paths import CONSTITUTION_MANDATE_PATH
-            from services.programs import parse_active_program_slug
-            from services.bundle_reader import _all_slugs
-
-            um = UserMemory(client, user_id)
-            mandate_pre = await um.read(CONSTITUTION_MANDATE_PATH)
-            candidate = parse_active_program_slug(mandate_pre)
-            if candidate and candidate in _all_slugs():
-                prior_program_slug = candidate
-                logger.info(
-                    f"[ACCOUNT] User {user_id} L4 — captured active program "
-                    f"for re-fork: {prior_program_slug}"
-                )
-        except Exception as pre_err:
-            logger.warning(f"[ACCOUNT] L4 program capture failed: {pre_err}")
+        # Shared single implementation with L2 (services.workspace_purge).
+        prior_program_slug = await capture_active_program_slug(client, user_id)
 
         # --- Phase 1: Purge ---
         # ADR-209 FK order: workspace_files.head_version_id → workspace_file_versions.id.
