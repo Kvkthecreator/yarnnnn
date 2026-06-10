@@ -145,3 +145,54 @@ late-bound.
   RSS-the-contract vs every reader). Declaration + observation-contract +
   calibrated attention is a representation bet; "N integrations" is a
   mechanism bet. YARNNN makes the first kind.
+
+---
+
+## 8. Addendum (2026-06-10, later same day) — feasibility verified + route-(i) program assembly hardened
+
+**MCP feasibility (evidence-checked):** the ecosystem matured into exactly the
+shape §5–§6 assumed. The official registry is live with a queryable API
+(registry.modelcontextprotocol.io — "an app store for MCP servers"); remote
+servers standardized on OAuth 2.1 with `.well-known` discovery (servers
+classed as OAuth resource servers, June-2025 spec); the 2026-07-28 release
+candidate moves the protocol to a stateless HTTP core — a structural fit for
+stateless-computation-over-substrate. Crawl-stage implementation = small
+build: MCP client in the API (same SDK family as the existing FastMCP
+server), bindings stored on the `platform_connections` pattern (encrypted
+tokens, existing OAuth machinery), foreign tools surfacing as dynamic entries
+in the existing capability-gated dispatch. Hard parts are non-protocol:
+per-server consent UX, tool-schema heterogeneity, community-server quality
+variance, injection surface (already disciplined — distill-only,
+Reviewer-gated), foreign-call cost (budget gate already meters).
+
+**Route (i) — program assembly via inference (hardened in-session):** the
+operator proposed the setup loop close as two routes — *"explain your
+workspace so we can infer from it"* OR *"pick from curated yarnnn-authored
+programs."* Route (ii) is ADR-331 step 1 (built territory). Route (i) is the
+deferred operator-assembled-program horizon (ADR-312) re-entering through a
+structured door, made **specifiable by the four-flow model**: inference's job
+= **drafting the four flow declarations** (constitution · watches/domains ·
+deliverable specs · ground-truth declaration) from the operator's explanation
++ uploads + harvest; the operator ratifies the draft; it forks like any
+bundle. It remains *a program* — assembly, never freehand workspace-level
+declarations — so ADR-332 D3's singular path survives intact.
+
+**The gating correction (the operator's closing question, answered):** route
+(i)'s viability does NOT ride on perception breadth — it rides on **flow-3
+declarability**. ADR-330's CSV fallback gives ground truth a universal floor;
+331's harvest + uploads + websearch floor flow 1 — so a *thin but honest*
+route (i) is feasible right after 330+331, before any MCP client. Arc-3 adds
+*richness* (world-present watches, registry resolution as a setup step), not
+viability. Where a described operation has no declarable ground truth, the
+flow-completeness vocabulary supplies the honest sentence: "this program runs
+flow-incomplete — knowledge mode, no calibration."
+
+**The dependency ordering (ratified):** 330/331 implementation → arc-3 crawl
+(MCP client, manual bindings; ADR drafted with ratification pause) →
+**program-assembly ADR** (route i — a named future ADR, added to ADR-332 §5's
+ledger) → walk (registry resolution inside setup). One workspace mantra for
+the resist-half: Direction A's line stays — no *operating* workspace without
+a program; the bare workspace remains a coherent resting state (Layer-1
+floor + interop trojan); what's new is that **no onboarding path dead-ends in
+programlessness** — `/setup` always confronts the program decision via the
+two-route card.
