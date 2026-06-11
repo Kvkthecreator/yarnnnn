@@ -258,7 +258,7 @@ def test_only_writefile_is_path_addressed():
     """ADR-307: WriteFile is the only path-addressed queueable (governance
     lock + diff). The others gate on delegation alone (no path)."""
     from services.primitives.permission import _PATH_ADDRESSED_QUEUEABLE
-    assert _PATH_ADDRESSED_QUEUEABLE == frozenset({"WriteFile"})
+    assert _PATH_ADDRESSED_QUEUEABLE == frozenset({"WriteFile", "EditFile", "DeleteFile", "MoveFile"})  # ADR-337
 
 
 def test_non_path_primitive_gates_on_delegation_only():

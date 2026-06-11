@@ -361,6 +361,77 @@ def write_revision(
     return new_revision_id
 
 
+def delete_live_file(
+    db_client: Any,
+    *,
+    user_id: str,
+    path: str,
+    authored_by: str,
+    message: str,
+) -> Optional[str]:
+    """Remove a file from the live view with an attributed tombstone (ADR-337 D2).
+
+    Two steps, both attributed:
+      1. Insert a tombstone revision carrying the file's CURRENT blob (no new
+         blob) — the chain records who deleted, when, why, and what the
+         content was at deletion time.
+      2. Delete the workspace_files live row (the operation ADR-209 already
+         sanctions for deletions; this helper makes it attributed).
+
+    Deletion is a view change, not information loss: ListRevisions /
+    ReadRevision query the chain, not the live row, so the full history
+    (including the tombstone) survives. Restore is the canonical ADR-209 D7
+    revert-as-write: read a prior revision, write it back.
+
+    Returns the tombstone revision id, or None when the path has no live row.
+    Raises ValueError on empty authored_by/message (same contract as
+    write_revision).
+    """
+    if not authored_by or not authored_by.strip():
+        raise ValueError("authored_by is required and must be non-empty")
+    if not message or not message.strip():
+        raise ValueError("message is required and must be non-empty")
+
+    live = (
+        db_client.table("workspace_files")
+        .select("id, content")
+        .eq("user_id", user_id)
+        .eq("path", path)
+        .limit(1)
+        .execute()
+    ).data or []
+    if not live:
+        return None
+
+    current_content = live[0].get("content") or ""
+    sha = _sha256(current_content)
+    # The blob almost certainly exists (it backs the head revision), but
+    # upsert is idempotent and covers legacy rows that predate the chain.
+    _upsert_blob(db_client, sha, current_content)
+    parent_version_id = _read_head_revision_id(db_client, user_id, path)
+
+    tombstone_id = _insert_revision(
+        db_client,
+        user_id=user_id,
+        path=path,
+        blob_sha=sha,
+        parent_version_id=parent_version_id,
+        authored_by=authored_by,
+        author_identity_uuid=None,
+        message=message,
+    )
+
+    db_client.table("workspace_files").delete().eq(
+        "user_id", user_id
+    ).eq("path", path).execute()
+
+    logger.info(
+        f"[AUTHORED_SUBSTRATE] deleted live file {user_id}:{path} by "
+        f"{authored_by} (tombstone={tombstone_id}; revisions retained)"
+    )
+    return tombstone_id
+
+
 # ---------------------------------------------------------------------------
 # Read helpers (primitive-facing versions land in Phase 3)
 # ---------------------------------------------------------------------------

@@ -1,5 +1,7 @@
 # ADR-209: Authored Substrate — Content-Addressed Revisions with Authored-By Attribution
 
+> **Extended by ADR-337 (2026-06-11)**: the file-layer verb set gains `EditFile` (surgical replacement), `DeleteFile` (attributed tombstone + live-row removal — the revision chain this ADR built is what makes deletion a view change, not information loss), and `MoveFile`. This ADR's D10 scoped out branching + replication but was silent on delete/move; ADR-337 closes that silence.
+>
 > **Status**: **Phases 1–5 Implemented 2026-04-23 — ADR FULLY IMPLEMENTED.** Deprecation manifest closed. Phase 1: substrate foundation + backfill. Phase 2: write-path unification + legacy deletion. Phase 3: read-side primitives + compact-index authorship signal + prompt posture. Phase 4: HTTP revision endpoints + cockpit UI + inference-meta simplification. Phase 5: schema cleanup (Migration 159 — dropped `workspace_files.version`, tightened lifecycle constraint, deleted legacy `/history/` artifact row), regression-guard test, final grep gate. Full test suite: 65/65 (11 Phase 1 + 14 Phase 2 + 15 Phase 3 + 13 Phase 4 + 12 Phase 5).
 > **Date**: 2026-04-23
 > **Authors**: KVK, Claude

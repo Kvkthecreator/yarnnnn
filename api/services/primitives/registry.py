@@ -56,6 +56,11 @@ from .scaffold import MANAGE_DOMAINS_TOOL, handle_manage_domains
 from .workspace import (
     READ_FILE_TOOL, handle_read_file,
     WRITE_FILE_TOOL, handle_write_file,
+    # ADR-337 — working-tree verbs (the rm/mv/Edit half of the repo analogy;
+    # YARNNN names + safety semantics, Claude Code parameter contracts).
+    EDIT_FILE_TOOL, handle_edit_file,
+    DELETE_FILE_TOOL, handle_delete_file,
+    MOVE_FILE_TOOL, handle_move_file,
     SEARCH_FILES_TOOL, handle_search_files,
     QUERY_KNOWLEDGE_TOOL, handle_query_knowledge,
     LIST_FILES_TOOL, handle_list_files,
@@ -254,6 +259,12 @@ CHAT_PRIMITIVES = [
     # ReadAgentFile stays headless-only (inter-agent coordination per ADR-116).
     READ_FILE_TOOL,
     WRITE_FILE_TOOL,
+    # ADR-337 — working-tree verbs: surgical edit, attributed delete
+    # (revision chain retained), attributed move. Same gate semantics as
+    # WriteFile (path-addressed, governance-lock DENY).
+    EDIT_FILE_TOOL,
+    DELETE_FILE_TOOL,
+    MOVE_FILE_TOOL,
     SEARCH_FILES_TOOL,
     LIST_FILES_TOOL,
     # ADR-325: Embed — explicit make-AI-ready (consequential, autonomy-gated).
@@ -303,7 +314,7 @@ CHAT_PRIMITIVES = [
     LIST_REVISIONS_TOOL,
     READ_REVISION_TOOL,
     DIFF_REVISIONS_TOOL,
-]  # 27 tools — ADR-296 v2 D2 added ManageHook (substrate-event hook lifecycle)
+]  # 31 tools — ADR-337 added EditFile/DeleteFile/MoveFile (working-tree verbs)
 
 # Headless mode: background agent execution.
 # Base registry only. Provider-native platform tools are added dynamically per
@@ -321,9 +332,12 @@ HEADLESS_PRIMITIVES = [
     # mechanical-mode recurrences (ADR-263); also LLM-callable for the rare
     # case a specialist needs to refresh substrate before reasoning.
     SYNC_PLATFORM_STATE_TOOL,
-    # File layer (5)
+    # File layer (8) — ADR-337 added EditFile/DeleteFile/MoveFile
     READ_FILE_TOOL,
     WRITE_FILE_TOOL,
+    EDIT_FILE_TOOL,
+    DELETE_FILE_TOOL,
+    MOVE_FILE_TOOL,
     SEARCH_FILES_TOOL,
     QUERY_KNOWLEDGE_TOOL,
     LIST_FILES_TOOL,
@@ -359,7 +373,7 @@ HEADLESS_PRIMITIVES = [
     LIST_REVISIONS_TOOL,
     READ_REVISION_TOOL,
     DIFF_REVISIONS_TOOL,
-]  # 23 static tools + dynamic platform_* — ADR-296 v2 D2 added ManageHook
+]  # 29 static tools + dynamic platform_* — ADR-337 added EditFile/DeleteFile/MoveFile
 
 # Combined list — for handler registration and backwards compatibility
 PRIMITIVES = list({t["name"]: t for t in CHAT_PRIMITIVES + HEADLESS_PRIMITIVES}.values())
@@ -423,6 +437,15 @@ REVIEWER_PRIMITIVES = [
     QUERY_KNOWLEDGE_TOOL,
     # Self-substrate writes — own notebook (lock check enforces /workspace/persona/ + non-locked paths)
     WRITE_FILE_TOOL,
+    # ADR-337 — working-tree verbs. The Reviewer is these verbs' primary
+    # customer: ADR-275 housekeeping cadence runs as Reviewer wakes, and
+    # hygiene without delete/move is a duty without hands. Same-family file
+    # verbs (not novel-surface tools like the 2026-05-25 email canary that
+    # collapsed output) — the standing soak watches post-deploy output
+    # volume per ADR-337 D5; a collapse fingerprint reverts this placement.
+    EDIT_FILE_TOOL,
+    DELETE_FILE_TOOL,
+    MOVE_FILE_TOOL,
     # ADR-296 v2 D3: FireInvocation REMOVED. Reviewer does not self-invoke.
     # Direction primitive (Reviewer says, System Agent executes)
     PROPOSE_ACTION_TOOL,
@@ -476,7 +499,7 @@ REVIEWER_PRIMITIVES = [
     SYNC_PLATFORM_STATE_TOOL,
     # Conversation
     CLARIFY_TOOL,
-]  # 21 tools — ADR-296 v2 D2 added ManageHook; ADR-299 Discovery 4 reverted Path A 2026-05-25
+]  # 24 tools — ADR-337 added EditFile/DeleteFile/MoveFile (D5: same-family verbs; soak watches output volume)
 
 
 # =============================================================================
@@ -543,6 +566,10 @@ HANDLERS: dict[str, Callable] = {
     # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
     "ReadFile": handle_read_file,
     "WriteFile": handle_write_file,
+    # ADR-337 — working-tree verbs
+    "EditFile": handle_edit_file,
+    "DeleteFile": handle_delete_file,
+    "MoveFile": handle_move_file,
     "SearchFiles": handle_search_files,
     "QueryKnowledge": handle_query_knowledge,
     "ListFiles": handle_list_files,

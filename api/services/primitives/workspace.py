@@ -160,13 +160,156 @@ via the Authored Substrate (ADR-209) with attribution + revision chain.""",
 }
 
 
+EDIT_FILE_TOOL = {
+    "name": "EditFile",
+    "description": """Surgically replace a string within a workspace file (file layer, ADR-337 D1).
+
+Prefer this over WriteFile for ANY change to an existing file — appending one
+entry, fixing one threshold, updating one section. Regenerating a whole file
+to change part of it is wasteful and truncation-prone.
+
+Contract:
+- old_string must match the file content EXACTLY (including whitespace) and,
+  unless replace_all=true, must be UNIQUE in the file — include surrounding
+  context to disambiguate.
+- The edit lands as one attributed revision (ADR-209); prior content is
+  retained in the revision chain.
+- An edit may not empty the file — removing a file is DeleteFile, by intent.
+
+  EditFile(path='persona/principles.md', old_string='threshold: 5', new_string='threshold: 8')""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Path (same addressing as WriteFile — workspace-relative for scope='workspace', agent-relative for scope='agent').",
+            },
+            "old_string": {
+                "type": "string",
+                "description": "Exact text to replace. Must exist in the file; must be unique unless replace_all=true.",
+            },
+            "new_string": {
+                "type": "string",
+                "description": "Replacement text (must differ from old_string).",
+            },
+            "replace_all": {
+                "type": "boolean",
+                "description": "Replace every occurrence of old_string (default false).",
+            },
+            "scope": {
+                "type": "string",
+                "enum": ["workspace", "agent"],
+                "description": "Address-space selector, same semantics as WriteFile.",
+            },
+            "authored_by": {
+                "type": "string",
+                "description": "ADR-209 attribution. Defaults to the caller identity from auth.",
+            },
+            "message": {
+                "type": "string",
+                "description": "ADR-209 commit-style message describing the change (optional).",
+            },
+        },
+        "required": ["path", "old_string", "new_string"],
+    },
+}
+
+
+DELETE_FILE_TOOL = {
+    "name": "DeleteFile",
+    "description": """Remove a file from the live workspace view; the revision chain retains everything (ADR-337 D2).
+
+Deletion is a VIEW change, not information loss: an attributed tombstone
+revision records who deleted, when, and the content at deletion; ListRevisions /
+ReadRevision still work on the path afterward, and restore is ReadRevision +
+WriteFile (ADR-209 D7 revert-as-write).
+
+Use for substrate hygiene: superseded scratch files, dead duplicates after a
+move, stale artifacts that mislead future reads. Governance-locked paths
+cannot be deleted (same locks as WriteFile).
+
+  DeleteFile(path='system/old-draft-notes.md', message='superseded by system/notes.md')""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Path of the file to remove (same addressing as WriteFile).",
+            },
+            "scope": {
+                "type": "string",
+                "enum": ["workspace", "agent"],
+                "description": "Address-space selector, same semantics as WriteFile.",
+            },
+            "authored_by": {
+                "type": "string",
+                "description": "ADR-209 attribution. Defaults to the caller identity from auth.",
+            },
+            "message": {
+                "type": "string",
+                "description": "Why this file is being removed (recorded on the tombstone revision; optional but encouraged).",
+            },
+        },
+        "required": ["path"],
+    },
+}
+
+
+MOVE_FILE_TOOL = {
+    "name": "MoveFile",
+    "description": """Move/rename a workspace file to a new path as one attributed operation (ADR-337 D3).
+
+Writes the current content as a revision at new_path, then removes the old
+live row with a tombstone revision pointing at the destination. Both paths
+are checked against governance locks. Refuses to overwrite an existing
+destination — if the destination must be replaced, DeleteFile it first
+(explicit intent).
+
+  MoveFile(path='operation/notes/draft.md', new_path='operation/competitors/acme/notes.md')""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "Current path of the file (same addressing as WriteFile).",
+            },
+            "new_path": {
+                "type": "string",
+                "description": "Destination path (same addressing; must not already exist).",
+            },
+            "scope": {
+                "type": "string",
+                "enum": ["workspace", "agent"],
+                "description": "Address-space selector, same semantics as WriteFile.",
+            },
+            "authored_by": {
+                "type": "string",
+                "description": "ADR-209 attribution. Defaults to the caller identity from auth.",
+            },
+            "message": {
+                "type": "string",
+                "description": "Why this file is moving (recorded on both revisions; optional).",
+            },
+        },
+        "required": ["path", "new_path"],
+    },
+}
+
+
 SEARCH_FILES_TOOL = {
     "name": "SearchFiles",
     "description": """Search the workspace filesystem for content (file layer).
 
-This is a FILE LAYER primitive — it searches filesystem content via BM25
-full-text. For semantic search over accumulated context domains, use
-QueryKnowledge. For entity search by database table, use SearchEntities.
+This is a FILE LAYER primitive — it searches filesystem content. For semantic
+search over accumulated context domains, use QueryKnowledge. For entity search
+by database table, use SearchEntities.
+
+Two match modes (ADR-337 D4):
+- match='semantic' (default) — BM25 full-text relevance ranking.
+- match='exact' — case-insensitive substring match over content and path
+  (the grep shape). Use when hunting a literal string: a path fragment, a
+  config key, an exact phrase.
+  SearchFiles(query='operation/portfolio', match='exact')
 
 Two scopes (ADR-235 Option A):
 
@@ -183,7 +326,12 @@ Ephemeral scratch files (working/) are excluded from search by default.
         "properties": {
             "query": {
                 "type": "string",
-                "description": "Search query.",
+                "description": "Search query (semantic terms, or the literal string when match='exact').",
+            },
+            "match": {
+                "type": "string",
+                "enum": ["semantic", "exact"],
+                "description": "Match mode: 'semantic' (default, BM25 ranked) or 'exact' (case-insensitive literal substring over content + path).",
             },
             "scope": {
                 "type": "string",
@@ -422,6 +570,22 @@ def _default_file_scope(auth: Any) -> str:
     pre-ADR-235 behavior. Either caller can override explicitly.
     """
     return "agent" if getattr(auth, "agent", None) else "workspace"
+
+
+def _resolve_gate_paths(name: str, input: dict) -> list[str]:
+    """ADR-337: every workspace-relative path a path-addressed verb targets.
+
+    WriteFile / EditFile / DeleteFile address one path; MoveFile addresses
+    two (source + destination) — a move into or out of a governance-locked
+    subtree must DENY just like a write would.
+    """
+    keys = ("path", "new_path") if name == "MoveFile" else ("path",)
+    paths: list[str] = []
+    for key in keys:
+        candidate = _resolve_workspace_path_for_gate({**input, "path": input.get(key, "")})
+        if candidate:
+            paths.append(candidate)
+    return paths
 
 
 def _resolve_workspace_path_for_gate(input: dict) -> Optional[str]:
@@ -666,6 +830,303 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
     return {"success": True, "path": path, "mode": mode, "scope": "agent"}
 
 
+# =============================================================================
+# ADR-337 — working-tree verbs (EditFile / DeleteFile / MoveFile)
+# =============================================================================
+
+
+def _exact_snippet(content: str, query: str, radius: int = 120) -> str:
+    """Snippet around the first case-insensitive occurrence of query."""
+    idx = content.lower().find(query.lower())
+    if idx < 0:
+        return content[:radius]
+    start = max(0, idx - radius // 2)
+    end = min(len(content), idx + len(query) + radius // 2)
+    return ("…" if start > 0 else "") + content[start:end] + ("…" if end < len(content) else "")
+
+
+def _exact_search(auth: Any, query: str, prefix: str) -> dict:
+    """ADR-337 D4 — case-insensitive literal substring search (grep shape).
+
+    Matches content OR path. Returns paths + a snippet around the first
+    content occurrence. Read-only; no ranking — deterministic results.
+    """
+    if not query:
+        return {"success": False, "error": "missing_query", "message": "query is required"}
+    escaped = query.replace("%", r"\%").replace("_", r"\_")
+    try:
+        rows = (
+            auth.client.table("workspace_files")
+            .select("path, content")
+            .eq("user_id", auth.user_id)
+            .like("path", f"{prefix}/%")
+            .or_(f"content.ilike.%{escaped}%,path.ilike.%{escaped}%")
+            .limit(40)
+            .execute()
+        ).data or []
+    except Exception as e:
+        logger.warning(f"[SEARCH_FILES] exact search failed: {e}")
+        rows = []
+    return {
+        "success": True,
+        "match": "exact",
+        "query": query,
+        "path_prefix": prefix,
+        "count": len(rows),
+        "results": [
+            {
+                "path": r["path"],
+                "snippet": _exact_snippet(r.get("content") or "", query),
+            }
+            for r in rows
+        ],
+    }
+
+
+def _normalize_workspace_rel(path: str) -> str:
+    """Strip absolute /workspace/ prefixes the model may echo from
+    cockpit-awareness (same normalization as handle_write_file)."""
+    if path.startswith("/workspace/"):
+        return path[len("/workspace/"):]
+    if path.startswith("workspace/"):
+        return path[len("workspace/"):]
+    return path
+
+
+def _apply_edit(
+    content: str, old_string: str, new_string: str, replace_all: bool
+) -> tuple[Optional[str], Optional[dict]]:
+    """Pure edit application (ADR-337 D1 — the Claude Code Edit contract).
+
+    Returns (new_content, None) on success or (None, error_dict) on failure.
+    Errors mirror the contract the model's trained prior expects:
+    old_string_not_found / old_string_not_unique / no_change.
+    """
+    if not old_string:
+        return None, {"success": False, "error": "missing_old_string",
+                      "message": "old_string is required and must be non-empty."}
+    if old_string == new_string:
+        return None, {"success": False, "error": "no_change",
+                      "message": "old_string and new_string are identical — nothing to do."}
+    count = content.count(old_string)
+    if count == 0:
+        return None, {"success": False, "error": "old_string_not_found",
+                      "message": "old_string was not found in the file. It must match the current content exactly, including whitespace."}
+    if count > 1 and not replace_all:
+        return None, {"success": False, "error": "old_string_not_unique",
+                      "message": f"old_string appears {count} times. Include more surrounding context to make it unique, or pass replace_all=true."}
+    if replace_all:
+        return content.replace(old_string, new_string), None
+    return content.replace(old_string, new_string, 1), None
+
+
+def _resolved_author_and_message(auth: Any, input: dict, default_message: str) -> tuple[str, str]:
+    """ADR-288 D2 attribution resolution shared by the ADR-337 verbs —
+    identical semantics to handle_write_file."""
+    caller = getattr(auth, "caller_identity", None) or "system:unknown"
+    if caller == "system:unknown":
+        logger.warning(
+            "[FILE_VERBS] auth.caller_identity missing — attributing as 'system:unknown'. "
+            "Auth construction site needs to set caller_identity per ADR-288 D1."
+        )
+    resolved_author = input.get("authored_by") or caller
+    resolved_message = input.get("message") or default_message
+    return resolved_author, resolved_message
+
+
+async def handle_edit_file(auth: Any, input: dict) -> dict:
+    """Handle EditFile primitive (ADR-337 D1) — surgical string replacement.
+
+    The replacement contract is Claude Code's Edit shape (borrowed model
+    prior); the write lands through the same Authored Substrate path as
+    WriteFile (one attributed revision). An edit may not empty the file —
+    that intent belongs to DeleteFile.
+    """
+    from services.workspace import AgentWorkspace, UserMemory, get_agent_slug
+
+    path = input.get("path", "")
+    old_string = input.get("old_string", "")
+    new_string = input.get("new_string", "")
+    replace_all = bool(input.get("replace_all", False))
+    scope = input.get("scope") or _default_file_scope(auth)
+
+    if not path:
+        return {"success": False, "error": "missing_path", "message": "path is required"}
+
+    if scope == "workspace":
+        path = _normalize_workspace_rel(path)
+        um = UserMemory(auth.client, auth.user_id)
+        existing = await um.read(path)
+        if existing is None:
+            return {"success": False, "error": "file_not_found",
+                    "message": f"No file at /workspace/{path}. EditFile requires an existing file — use WriteFile to create one."}
+
+        new_content, err = _apply_edit(existing, old_string, new_string, replace_all)
+        if err:
+            return err
+        if not new_content.strip():
+            return {"success": False, "error": "empty_content_blocked",
+                    "message": "This edit would empty the file. Removing a file is DeleteFile, by intent — not an edit side-effect."}
+
+        resolved_author, resolved_message = _resolved_author_and_message(
+            auth, input, f"EditFile workspace {path}"
+        )
+        ok = await um.write(
+            path, new_content,
+            summary=f"Workspace edit: {path}",
+            authored_by=resolved_author, message=resolved_message,
+        )
+        if not ok:
+            return {"success": False, "error": "write_failed", "message": f"Failed to write: /workspace/{path}"}
+        await _emit_workspace_activity(auth, path, new_content)
+        return {"success": True, "scope": "workspace", "path": f"/workspace/{path}",
+                "replacements": (existing.count(old_string) if replace_all else 1)}
+
+    # scope == "agent"
+    agent = getattr(auth, "agent", None)
+    if not agent:
+        return {"success": False, "error": "no_agent_context",
+                "message": "EditFile scope='agent' requires agent context. Use scope='workspace' for operator-shared paths."}
+    ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
+    existing = await ws.read(path)
+    if existing is None:
+        return {"success": False, "error": "file_not_found", "message": f"No file at {path}."}
+    new_content, err = _apply_edit(existing, old_string, new_string, replace_all)
+    if err:
+        return err
+    if not new_content.strip():
+        return {"success": False, "error": "empty_content_blocked",
+                "message": "This edit would empty the file. Removing a file is DeleteFile, by intent."}
+    ok = await ws.write(path, new_content)
+    if not ok:
+        return {"success": False, "error": "write_failed", "message": f"Failed to write: {path}"}
+    return {"success": True, "scope": "agent", "path": path,
+            "replacements": (existing.count(old_string) if replace_all else 1)}
+
+
+async def handle_delete_file(auth: Any, input: dict) -> dict:
+    """Handle DeleteFile primitive (ADR-337 D2) — remove from the live view.
+
+    Attributed tombstone revision + live-row removal via
+    authored_substrate.delete_live_file. The revision chain (including the
+    tombstone) is retained; restore is ReadRevision + WriteFile (ADR-209 D7).
+    """
+    from services.authored_substrate import delete_live_file
+    from services.workspace import get_agent_slug
+
+    path = input.get("path", "")
+    scope = input.get("scope") or _default_file_scope(auth)
+    if not path:
+        return {"success": False, "error": "missing_path", "message": "path is required"}
+
+    if scope == "workspace":
+        rel = _normalize_workspace_rel(path)
+        abs_path = f"/workspace/{rel}"
+    else:
+        agent = getattr(auth, "agent", None)
+        if not agent:
+            return {"success": False, "error": "no_agent_context",
+                    "message": "DeleteFile scope='agent' requires agent context."}
+        abs_path = f"/agents/{get_agent_slug(agent)}/{path}"
+
+    resolved_author, resolved_message = _resolved_author_and_message(
+        auth, input, f"DeleteFile {abs_path}"
+    )
+    if not resolved_message.startswith("DeleteFile"):
+        resolved_message = f"DeleteFile: {resolved_message}"
+
+    tombstone_id = delete_live_file(
+        auth.client,
+        user_id=auth.user_id,
+        path=abs_path,
+        authored_by=resolved_author,
+        message=resolved_message,
+    )
+    if tombstone_id is None:
+        return {"success": False, "error": "file_not_found",
+                "message": f"No live file at {abs_path}."}
+    return {"success": True, "scope": scope, "path": abs_path,
+            "tombstone_revision_id": tombstone_id,
+            "note": "Revision chain retained — restore via ReadRevision + WriteFile."}
+
+
+async def handle_move_file(auth: Any, input: dict) -> dict:
+    """Handle MoveFile primitive (ADR-337 D3) — relocation as one attributed op.
+
+    Revision at new_path with current content, then tombstone + live-row
+    removal at the old path. Refuses to overwrite an existing destination.
+    """
+    from services.authored_substrate import delete_live_file
+    from services.workspace import UserMemory, get_agent_slug
+
+    path = input.get("path", "")
+    new_path = input.get("new_path", "")
+    scope = input.get("scope") or _default_file_scope(auth)
+    if not path or not new_path:
+        return {"success": False, "error": "missing_path", "message": "path and new_path are required"}
+
+    if scope == "workspace":
+        rel_src = _normalize_workspace_rel(path)
+        rel_dst = _normalize_workspace_rel(new_path)
+        abs_src = f"/workspace/{rel_src}"
+        abs_dst = f"/workspace/{rel_dst}"
+    else:
+        agent = getattr(auth, "agent", None)
+        if not agent:
+            return {"success": False, "error": "no_agent_context",
+                    "message": "MoveFile scope='agent' requires agent context."}
+        slug = get_agent_slug(agent)
+        abs_src = f"/agents/{slug}/{path}"
+        abs_dst = f"/agents/{slug}/{new_path}"
+
+    if abs_src == abs_dst:
+        return {"success": False, "error": "no_change", "message": "path and new_path are identical."}
+
+    rows = (
+        auth.client.table("workspace_files")
+        .select("path, content")
+        .eq("user_id", auth.user_id)
+        .in_("path", [abs_src, abs_dst])
+        .execute()
+    ).data or []
+    by_path = {r["path"]: r for r in rows}
+    if abs_src not in by_path:
+        return {"success": False, "error": "file_not_found", "message": f"No live file at {abs_src}."}
+    if abs_dst in by_path:
+        return {"success": False, "error": "destination_exists",
+                "message": f"{abs_dst} already exists. DeleteFile it first if replacement is intended."}
+
+    content = by_path[abs_src].get("content") or ""
+    resolved_author, base_message = _resolved_author_and_message(
+        auth, input, f"move {abs_src} -> {abs_dst}"
+    )
+
+    # Step 1 — revision at destination. Route through UserMemory.write so
+    # workspace-scope moves keep activity/lifecycle semantics; agent scope
+    # writes through the same authored-substrate path via absolute write.
+    from services.authored_substrate import write_revision
+    write_revision(
+        auth.client,
+        user_id=auth.user_id,
+        path=abs_dst,
+        content=content,
+        authored_by=resolved_author,
+        message=f"MoveFile: from {abs_src} — {base_message}",
+        summary=f"Moved from {abs_src}",
+    )
+
+    # Step 2 — tombstone + live-row removal at the source.
+    delete_live_file(
+        auth.client,
+        user_id=auth.user_id,
+        path=abs_src,
+        authored_by=resolved_author,
+        message=f"MoveFile: to {abs_dst} — {base_message}",
+    )
+
+    return {"success": True, "scope": scope, "path": abs_src, "new_path": abs_dst}
+
+
 async def handle_search_files(auth: Any, input: dict) -> dict:
     """Handle SearchFiles primitive (ADR-168: renamed from SearchWorkspace; ADR-235 Option A: scope='workspace').
 
@@ -680,6 +1141,23 @@ async def handle_search_files(auth: Any, input: dict) -> dict:
     query = input.get("query", "")
     scope = input.get("scope") or _default_file_scope(auth)
     path_prefix = input.get("path_prefix")
+    match = input.get("match") or "semantic"
+
+    # ADR-337 D4 — exact mode: case-insensitive literal substring over
+    # content + path (the grep shape). Read-only; works for both scopes by
+    # prefix selection.
+    if match == "exact":
+        if scope == "workspace":
+            prefix = "/workspace"
+            if path_prefix:
+                prefix = path_prefix if path_prefix.startswith("/") else f"/workspace/{path_prefix.lstrip('/')}"
+        else:
+            agent = getattr(auth, "agent", None)
+            if not agent:
+                return {"success": False, "error": "no_agent_context",
+                        "message": "SearchFiles scope='agent' requires agent context."}
+            prefix = f"/agents/{get_agent_slug(agent)}"
+        return _exact_search(auth, query, prefix)
 
     if scope == "workspace":
         # Direct RPC call with workspace-wide prefix (or sub-prefix if requested).

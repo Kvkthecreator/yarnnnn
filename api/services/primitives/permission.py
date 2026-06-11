@@ -132,6 +132,11 @@ def action_class_for(name: str) -> str:
 # the delegation decision (manual/bounded → queue, autonomous → apply).
 GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
     "WriteFile",
+    # ADR-337 — working-tree verbs. Same gate semantics as WriteFile:
+    # path-addressed (governance-lock DENY; bounded/manual QUEUE).
+    "EditFile",
+    "DeleteFile",
+    "MoveFile",
     "Schedule",
     "ManageHook",
     "ManageAgent",
@@ -146,8 +151,12 @@ GATE_QUEUEABLE_PRIMITIVES: frozenset[str] = frozenset({
 })
 
 #: Subset of GATE_QUEUEABLE_PRIMITIVES that are path-addressed (governance-lock
-#: + diff apply). Only WriteFile today.
-_PATH_ADDRESSED_QUEUEABLE: frozenset[str] = frozenset({"WriteFile"})
+#: + diff apply). WriteFile + the ADR-337 working-tree verbs. MoveFile is
+#: dual-path-addressed — the gate checks BOTH source and destination via
+#: `_resolve_gate_paths`.
+_PATH_ADDRESSED_QUEUEABLE: frozenset[str] = frozenset({
+    "WriteFile", "EditFile", "DeleteFile", "MoveFile",
+})
 
 
 async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[PermissionDecision, str]:
@@ -182,13 +191,13 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
     # ADR-310 D2). This branch precedes the non_reviewer short-circuit so the
     # foreign caller does NOT inherit the operator/headless free-pass.
     if getattr(auth, "caller_identity", "") == "yarnnn:mcp":
-        if name in _PATH_ADDRESSED_QUEUEABLE:  # WriteFile today
+        if name in _PATH_ADDRESSED_QUEUEABLE:  # WriteFile + ADR-337 verbs
             from services.primitives.workspace import (
-                _resolve_workspace_path_for_gate, _is_path_locked, _caller_class,
+                _resolve_gate_paths, _is_path_locked, _caller_class,
             )
-            path = _resolve_workspace_path_for_gate(input)
-            if path is not None and _is_path_locked(_caller_class(auth), path):
-                return PermissionDecision.DENY, f"mcp_topology_locked:{path}"
+            for path in _resolve_gate_paths(name, input):
+                if _is_path_locked(_caller_class(auth), path):
+                    return PermissionDecision.DENY, f"mcp_topology_locked:{path}"
         return PermissionDecision.APPLY, "mcp_caller_unlocked_path"
 
     # Autonomy gate scoped to Reviewer-runtime calls (ADR-293).
@@ -210,17 +219,19 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
 
         substrate_path = ""
         if name in _PATH_ADDRESSED_QUEUEABLE:
-            # Path-addressed (WriteFile): resolve the target path; non-workspace
-            # scope is not autonomy-gated; governance lock → bypass-immune DENY.
+            # Path-addressed (WriteFile + ADR-337 verbs): resolve every target
+            # path (MoveFile has two); non-workspace scope is not autonomy-gated;
+            # governance lock on ANY target → bypass-immune DENY.
             from services.primitives.workspace import (
-                _resolve_workspace_path_for_gate, _is_path_locked, _caller_class,
+                _resolve_gate_paths, _is_path_locked, _caller_class,
             )
-            path = _resolve_workspace_path_for_gate(input)
-            if path is None:
+            gate_paths = _resolve_gate_paths(name, input)
+            if not gate_paths:
                 return PermissionDecision.APPLY, "non_workspace_scope"
-            if _is_path_locked(_caller_class(auth), path):
-                return PermissionDecision.DENY, f"topology_locked:{path}"
-            substrate_path = path
+            for path in gate_paths:
+                if _is_path_locked(_caller_class(auth), path):
+                    return PermissionDecision.DENY, f"topology_locked:{path}"
+            substrate_path = gate_paths[0]
 
         # Delegation decision (manual/bounded → queue; autonomous → apply).
         # For non-path-addressed primitives substrate_path="" — never_auto

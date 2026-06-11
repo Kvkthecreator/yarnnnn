@@ -6,6 +6,47 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.11.2] - ADR-337: working-tree verbs — EditFile / DeleteFile / MoveFile + SearchFiles exact match
+
+**LLM-facing changes** (new tool contracts on all three surfaces — chat 28→31,
+headless 26→29, Reviewer 21→24):
+
+- **`EditFile`** — surgical string replacement with the Claude Code `Edit`
+  parameter contract (`old_string`/`new_string`/`replace_all` — borrowed trained
+  prior: uniqueness-of-match, surrounding-context disambiguation). One attributed
+  revision; may not empty a file (`empty_content_blocked` — removal is
+  `DeleteFile`, by intent). Tool description steers: prefer EditFile over
+  WriteFile for ANY change to an existing file — kills the whole-file-rewrite
+  shape that collided with the output-token ceiling (the 0-byte class fixed in
+  [2026.06.11.1]).
+- **`DeleteFile`** — attributed tombstone revision + live-row removal. Tool
+  description teaches the safety model: deletion is a view change, the revision
+  chain retains everything, restore is ReadRevision + WriteFile. Framed for
+  substrate hygiene (superseded scratch, dead duplicates, stale artifacts).
+- **`MoveFile`** — relocation as one attributed operation; refuses destination
+  overwrite; both paths governance-lock-checked (dual-path-addressed gate).
+- **`SearchFiles`** gains `match='exact'` — case-insensitive literal substring
+  over content + path (the grep shape) alongside the default BM25 semantic mode.
+
+**Gating**: all three new verbs are consequential, path-addressed
+gate-queueable (join `WriteFile` in `_PATH_ADDRESSED_QUEUEABLE`) — governance
+locks DENY, bounded/manual QUEUE, autonomous applies. Reviewer placement is
+deliberate per ADR-337 D5 (same-family file verbs, not novel-surface tools);
+the standing soak watches post-deploy Reviewer output volume against the
+2026-05-25 tool-count canary fingerprint.
+
+**Expected behavior**: the Reviewer can practice substrate stewardship —
+surgical edits instead of full rewrites, attributed cleanup of litter,
+re-organization of misplaced files — at its ADR-275-authored housekeeping
+cadence. Cockpit-awareness tool block updates automatically (generated from
+REVIEWER_PRIMITIVES).
+
+**Why**: the 2026-06-11 holistic audit found the Claude Code analogy
+implemented at the cognitive altitude but missing the working-tree verb half;
+every observed pollution pathology mapped onto a missing verb. See ADR-337.
+
+---
+
 ## [2026.06.11.1] - Write-integrity guards: truncation + empty-content (0-byte WriteFile class)
 
 **LLM-facing changes** (no prompt text changed — tool-contract + loop behavior):
