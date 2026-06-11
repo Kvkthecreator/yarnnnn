@@ -197,3 +197,23 @@ The §1 Hat-B fixture repair above, executed. alpha-trader-2's `track-universe` 
 - **Script** (auditable, defensive — aborts unless the exact nulled block is present): `api/scripts/alpha_ops/restore_track_universe_schedule.py`.
 
 **Soak state going forward**: the next TENURE-READ should confirm `track-universe` fired 3× during the 2026-06-11 RTH session and that `signal-evaluation` at 13:45 read FRESH intraday snapshots (not the 02:24 stale data that confounded the 2026-06-10 read). If fresh, the stale-data confound is closed and the soak's perception layer is clean for tenure observation.
+
+---
+
+## 2026-06-11 04:45 UTC — Scoped perception read (Check 7 first execution)
+
+**Deploy-marker**: `7872322`. Scope: Check 7 (perception-field liveness, added 2026-06-11) only — not a full survival read; checks 1–6 unread this entry.
+
+**Verdict: Check 7 RED (universe watch stale), root-caused, self-heal predicted.**
+
+| Watch | Observed | Verdict |
+|---|---|---|
+| `regime` → `_regime.yaml` | latest 2026-06-10 20:30:38 UTC (= `@market_close + 30min` exact) | **GREEN** |
+| `universe` → `{TICKER}.yaml` ×5 | latest 2026-06-10 02:24 UTC (genesis fire only); all three 06-10 RTH fires missed | **RED — stale ~26h** |
+| Declared-vs-observed set | `_universe.yaml` {AAPL, MSFT, NVDA, SPY, TSLA} == observed 5 ticker files | **GREEN** |
+
+**Cross-check** (per the instrument's own instruction): `execution_events` shows track-universe fired once 06-10 02:24 (`success`, mechanical) and never again; `tasks` shows `next_run_at = 2026-06-11 13:45 UTC`, not paused. **Root cause**: the track-universe schedule was altered and then restored to bundle-default (`0099c61`, soak-hygiene, 2026-06-11); the restore recomputed `next_run_at` forward, dropping 06-10's three fires. Known churn, not a new silent fault — but the gap is real: the trader operated 06-10's RTH on genesis-stale ticker indicators while regime stayed fresh.
+
+**Falsifiable prediction**: universe watch self-heals at 2026-06-11 13:45 UTC (next scheduled fire). The next read MUST verify ≥1 fresh `{TICKER}.yaml` revision after 13:45 UTC; if absent, this escalates from restore-churn to a live scheduling fault.
+
+**Instrument note**: first execution of Check 7 caught a genuine staleness the narrative would never surface (mechanical successes are feed-silent by design, ADR-277) — the absence-is-perceivable principle (ADR-335 D5-governance) doing exactly what it was ratified to do.
