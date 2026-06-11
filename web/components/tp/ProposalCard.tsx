@@ -166,7 +166,24 @@ function deriveReviewerPosture(
 // the fallback shows all keys formatted so unknown types are never silent.
 
 function SubstrateDiff({ diff }: { diff?: { path: string; before: string; after: string } }) {
-  if (!diff) return null;
+  // ADR-338 D4.3: a substrate proposal MUST show its diff at approval time.
+  // Pre-fix this returned null when diff was absent (operator approved blind)
+  // and rendered an empty <pre> when `after` was empty/whitespace — the exact
+  // NULL-content WriteFile failure class the journey week surfaced (a
+  // content-less write approved blind, executed as an empty file). Both cases
+  // now render an explicit warning so the operator sees what they're binding.
+  if (!diff) {
+    return (
+      <div className="rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 flex items-start gap-2">
+        <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+        <div className="text-[11px] text-amber-700 dark:text-amber-400">
+          No diff available for this write. The change can&apos;t be previewed — approve only if you
+          know what it does.
+        </div>
+      </div>
+    );
+  }
+  const afterIsEmpty = !diff.after || diff.after.trim() === '';
   return (
     <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 space-y-1">
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
@@ -179,9 +196,22 @@ function SubstrateDiff({ diff }: { diff?: { path: string; before: string; after:
       ) : (
         <div className="text-[11px] text-muted-foreground italic">new file</div>
       )}
-      <pre className="text-[11px] font-mono text-emerald-700/90 dark:text-emerald-400/90 whitespace-pre-wrap break-all max-h-48 overflow-y-auto border-t border-border/40 pt-1">
-        {diff.after}
-      </pre>
+      {afterIsEmpty ? (
+        // ADR-338 D4.3: empty `after` = the NULL-content write. Make it loud,
+        // not a blank pane the operator mistakes for "nothing to show."
+        <div className="flex items-start gap-2 border-t border-amber-500/40 pt-1.5">
+          <ShieldAlert className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+          <div className="text-[11px] text-amber-700 dark:text-amber-400">
+            This write would set the file to <span className="font-medium">empty content</span>
+            {diff.before ? ' — wiping the text shown above.' : '.'} Reject unless that&apos;s
+            deliberate.
+          </div>
+        </div>
+      ) : (
+        <pre className="text-[11px] font-mono text-emerald-700/90 dark:text-emerald-400/90 whitespace-pre-wrap break-all max-h-48 overflow-y-auto border-t border-border/40 pt-1">
+          {diff.after}
+        </pre>
+      )}
     </div>
   );
 }
