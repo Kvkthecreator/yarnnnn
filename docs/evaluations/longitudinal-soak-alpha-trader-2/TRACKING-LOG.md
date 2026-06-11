@@ -182,3 +182,18 @@ Ran the same TENURE-READ Read-2 (self-amendment trail on cadence) against **kvk*
 2. **Hat-A (narrow, optional)**: even an isolated occurrence shows the Reviewer *can* botch a cadence-edit's effect-vs-intent and mis-narrate it. Worth a small canon consideration — does the persona-frame / recurrence-edit guidance warn against schedule-deletion-as-retiming? — but this is a **low-severity nudge**, not a systematic flaw, given n=1 across two workspaces. Do NOT over-correct on a single occurrence (the 2026-05-25 over-broad-criterion lesson). Re-evaluate only if a second workspace reproduces it.
 
 **The instrument's value, restated honestly**: TENURE-READ surfaced a real judgment slip the survival check couldn't see — AND the cross-check discipline (run it against a sibling workspace before escalating) correctly down-graded it from "systematic Hat-A ADR" to "isolated n=1 + soak-hygiene fixture." That two-step (surface on one workspace → cross-check on a sibling before escalating) is the right tenure-read protocol and should be the default when a self-amendment-trail finding looks systematic.
+
+---
+
+## 2026-06-11 00:54 UTC — SOAK-HYGIENE: track-universe schedule RESTORED (§1 follow-up done)
+
+The §1 Hat-B fixture repair above, executed. alpha-trader-2's `track-universe` is restored to the bundle-default ADR-268 three-snapshot RTH schedule so future tenure reads aren't confounded by self-inflicted stale data. **This is fixture hygiene, not a system change** — it reverts the workspace to the state the bundle shipped, which the agent's isolated day-1 slip corrupted; written through the canonical attributed write path (ADR-209), matching the prior stewardship-finding `system:eval-cleanup` cleanup precedent.
+
+**Receipts:**
+- **Restore revision**: `07ef6a29-aed6-4e7b-8ce2-1a6bfe36c734`, `authored_by: system:eval-cleanup`, parented to the slip revision `0756ffe7` (the null is preserved in history per ADR-209 — repair sits on top, nothing destroyed).
+- **Schedule restored**: `track-universe` now carries `["@market_open + 15min", "@market_open + 3h", "@market_close - 1h"]` (live-verified).
+- **Index recomputed**: `tasks.track-universe.next_run_at` was NULL → now `2026-06-11 13:45:00+00` (next RTH); `last_run_at` preserved. The tracker will fire 3×/RTH-day again starting tomorrow's session.
+- **Integrity preserved**: 11 tasks = 11 yaml slugs (no drift introduced by the edit).
+- **Script** (auditable, defensive — aborts unless the exact nulled block is present): `api/scripts/alpha_ops/restore_track_universe_schedule.py`.
+
+**Soak state going forward**: the next TENURE-READ should confirm `track-universe` fired 3× during the 2026-06-11 RTH session and that `signal-evaluation` at 13:45 read FRESH intraday snapshots (not the 02:24 stale data that confounded the 2026-06-10 read). If fresh, the stale-data confound is closed and the soak's perception layer is clean for tenure observation.
