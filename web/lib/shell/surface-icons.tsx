@@ -23,6 +23,7 @@ import {
   Package,
   Palette,
   Rocket,
+  Rss,
   Scale,
   ScrollText,
   Settings,
@@ -64,6 +65,8 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   palette: Palette,
   // ADR-331 D1: rocket glyph for the /setup guided first-boot sequence.
   rocket: Rocket,
+  // ADR-338 D4.1: rss glyph for the /sources standing-watch surface.
+  rss: Rss,
   scale: Scale,
   // ADR-297 D18.2 (2026-05-22): scroll-text registered for the Feed
   // surface, disambiguating it from the universal ChatDrawer FAB

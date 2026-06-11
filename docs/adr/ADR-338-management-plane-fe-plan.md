@@ -111,3 +111,10 @@ Each item: ADR-245 discipline (L2 in `content-shapes/`, exactly one canonical L3
 7. **Principles thresholds editor (D4.6)** — surface `high_impact_threshold_cents` + add serialize() to `principles.ts`; PrinciplesCard gains a structured threshold editor. Risk-envelope deferred (no substrate consumer). **Contract:** direct-manipulation thresholds. Gate: principles round-trip.
 
 **Items 1–3 are the trust core** (they each eliminate a named consent-line violation from the audit). 4–7 are completeness. Build in order; each green before the next.
+
+---
+
+## Part 4 — Build Log
+
+- **Item 1 — never_auto schema completion** — **Implemented** (commit `916bdbc`). `autonomy.ts` parse() extracts `never_auto` (block-list + inline `[]`) from the `default:` block; serialize() emits it structurally exactly once (duplicate-key shadow eliminated). New `setNeverAuto` mutation + `NeverAutoEditor` (structured list, no YAML) + bounded-is-schema-inert copy. Gate `api/test_adr338_never_auto.py` 20/20 (behavioral round-trip via real TS). Contract: direct-manipulation, writeShape → WriteFile.
+- **Item 2 — Sources/watch editor** — **Implemented**. New `GET /api/sources` (`api/routes/sources.py`) reads the active bundle's `substrate_abi.watches`, pairs declared `_sources.yaml` with observed `_watch_signal.yaml` per-source health (Check-7 shape) — kernel-agnostic, path from bundle not constant (ADR-224 boundary). New L2 `content-shapes/sources.ts` + canonical L3 `SourcesCard` + `/sources` kernel surface (register: os-config, sibling of Connectors — both transport/driver bindings). Validated against live anr-scout substrate (2 sources, both observed ok, 8 entries each). Gate `api/test_adr338_sources.py` 35/35. Contract: direct-manipulation source rows (add/remove/edit), observed health read-only.

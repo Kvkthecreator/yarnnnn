@@ -50,6 +50,7 @@ import { META as budgetMeta } from './budget';
 import { META as snapshotMeta } from './snapshot';
 import { META as moneyTruthMeta } from './money-truth';
 import { META as principlesMeta } from './principles';
+import { META as sourcesMeta } from './sources';
 
 export const CONTENT_SHAPES: Readonly<Record<string, ContentShape>> = Object.freeze({
   autonomy: autonomyMeta,
@@ -62,6 +63,7 @@ export const CONTENT_SHAPES: Readonly<Record<string, ContentShape>> = Object.fre
   snapshot: snapshotMeta,
   money_truth: moneyTruthMeta,
   principles: principlesMeta,
+  sources: sourcesMeta,
 });
 
 // ---------------------------------------------------------------------------

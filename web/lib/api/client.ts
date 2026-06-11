@@ -828,6 +828,32 @@ export const api = {
       queue_depth: number;
     }>('/api/budget'),
 
+  // ADR-338 D4.1: the standing-watch "drivers" view — declared web sources
+  // (_sources.yaml) paired with observed per-source health (_watch_signal.yaml),
+  // the Check-7 declared-vs-observed shape. Kernel-agnostic: declaration_path
+  // comes from the active bundle's watch declaration, not a kernel constant.
+  sources: () =>
+    request<{
+      watches: Array<{
+        watch_id: string;
+        program_slug: string | null;
+        shape: string | null;
+        recurrence: string | null;
+        declaration_path: string;
+        signal_path: string | null;
+        declared: Array<{ id: string; url: string; attestation: string; max_entries: number }>;
+        observed: Array<{
+          id: string;
+          status: string;
+          observed_at: string | null;
+          entry_count: number;
+          error: string | null;
+        }>;
+        observed_at: string | null;
+        source_cap: number;
+      }>;
+    }>('/api/sources'),
+
   // ADR-231: Recurrences endpoints (was `tasks`; renamed in Phase 3.8)
   recurrences: {
     list: (statusOrOpts?: string | { status?: string; include_system?: boolean }) => {

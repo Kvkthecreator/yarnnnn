@@ -35,6 +35,7 @@ const PROTECTED_PREFIXES = [
   "/context", // redirect stub → /files (2026-06-01 — slug/route/label coherence)
   "/activity",
   "/connectors",
+  "/sources", // ADR-338 D4.1 — standing-watch drivers surface
   "/operation", // redirect stub → /mandate
   "/memory",
   "/system",

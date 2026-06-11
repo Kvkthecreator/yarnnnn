@@ -417,6 +417,26 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "route": "/connectors",
         "summary": "OAuth + API-key platform integrations (Slack, Notion, GitHub, Alpaca, Lemon Squeezy, etc.). Live connection state + per-platform substrate.",
     },
+    {
+        # ADR-338 D4.1 (2026-06-11): the standing-watch "drivers" view. Sibling
+        # of Connectors in the os-config register — both bind transports the
+        # operation perceives through. Connectors binds head platforms (OAuth);
+        # Sources binds the generic web/RSS standing watch (ADR-336). Reads the
+        # active bundle's declared watch sources (_sources.yaml) paired with
+        # observed per-source health (_watch_signal.yaml). Kernel-agnostic: the
+        # declaration path comes from the bundle's substrate_abi.watches, not a
+        # kernel constant (ADR-224 boundary). substrate_paths is [] — the surface
+        # reads GET /api/sources, which resolves the per-bundle paths server-side.
+        "slug": "sources",
+        "register": "os-config",  # ADR-312 D5 — a transport/driver binding
+        "title": "Sources",
+        "archetype": "dashboard",
+        "substrate_paths": [],  # per-bundle _sources.yaml + _watch_signal.yaml, resolved via GET /api/sources
+        "icon_key": "rss",
+        "default_pinned": False,
+        "route": "/sources",  # _route_status: NEW in ADR-338 D4.1
+        "summary": "Standing-watch sources — the web/RSS feeds the operation reads on cadence, with observed per-source health. A portfolio of attention, not a crawler.",
+    },
     # =========================================================================
     # ADR-297 D11 — Chrome surfaces (Universal Surface Application)
     # ADR-297 D12 — Top-center merged dock-bar (2026-05-21)

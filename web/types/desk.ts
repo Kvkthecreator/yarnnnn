@@ -38,7 +38,8 @@ export type KernelSurfaceSlug =
   | 'queue'
   | 'activity'
   | 'settings'
-  | 'connectors';
+  | 'connectors'
+  | 'sources';  // ADR-338 D4.1 — standing-watch drivers view
 
 export type DeskSurface =
   // ADR-297: atomic kernel surface — slug identifies which surface
@@ -65,7 +66,7 @@ export type DeskSurface =
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   'feed', 'home', 'recurrence', 'budget', 'autonomy', 'mandate', 'principles',
   'identity', 'files', 'agents', 'program', 'queue', 'activity',
-  'settings', 'connectors',
+  'settings', 'connectors', 'sources',
 ] as const;
 
 export function isKernelSurfaceSlug(s: string): s is KernelSurfaceSlug {

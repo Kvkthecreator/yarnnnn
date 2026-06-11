@@ -44,6 +44,7 @@ import FilesPage from '@/app/(authenticated)/files/page';
 // only auth + docs + marketing.
 import SettingsPage from '@/app/(authenticated)/settings/page';
 import ConnectorsPage from '@/app/(authenticated)/connectors/page';
+import SourcesPage from '@/app/(authenticated)/sources/page';
 
 export const KERNEL_SURFACE_REGISTRY: Record<KernelSurfaceSlug, ComponentType> = {
   feed: FeedPage,
@@ -64,6 +65,7 @@ export const KERNEL_SURFACE_REGISTRY: Record<KernelSurfaceSlug, ComponentType> =
   files: FilesPage,
   settings: SettingsPage,
   connectors: ConnectorsPage,
+  sources: SourcesPage,  // ADR-338 D4.1 — standing-watch drivers view
 };
 
 export function resolveSurfaceComponent(slug: KernelSurfaceSlug): ComponentType {
