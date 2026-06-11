@@ -21,6 +21,8 @@ The A&R journey (2026-06-11, Stages 1–3 PASS) is structurally the consumer sha
 
 The bar for each phase: **stable, tested, verified — eval-gated like everything else this week** (episodic gate → standing instrument → tenure read).
 
+> **Sequencing ≠ importance (operator-ratified nuance, 2026-06-11).** The phase order below is dependency/cost order — what can land first. The **importance order is nearly inverted**: P3 (the loop-closer — without graded judgment there is no self-improvement) and P2 (the standing watch — the consumer's primary perception) ARE the product; P4 is their packaging; P1 is merely the cheapest gap to close and goes first only because it costs nothing. Resourcing decisions follow importance; the build calendar follows dependency.
+
 | # | Investment | Status today | Build size | Why this leverage |
 |---|---|---|---|---|
 | **P1** | **Rung 2 exercised** — websearch as agent-attested evidence inside judgment, distilled (never dumped) into substrate | `WebSearch` primitive LIVE in kernel registry; alpha-author declares the capability; never exercised in a judgment eval | ~zero build; one eval turn (anr-scout: "verify Mara Voss's claimed numbers") + observation-discipline read | Closes the only untested built rung; gives the consumer's evidence-gathering half its receipts |

@@ -1,0 +1,27 @@
+scenario_schema_version: 1
+scenario: anr-scout-rung2-approve
+description: |
+  Operator approvals for the rung-2 verification cycle's queued writes
+  (queued under manual; the delegation graduation to autonomous landed
+  after these were proposed). Commits the websearch verification
+  appendix + entity profile + standing intent + judgment log.
+
+persona: anr-scout
+setup: []
+turns:
+  - approve_proposal:
+      id: d5102b77-3075-4200-9b87-e7a9b0dd742d
+      reasoning: "Operator approval — verification appendix is exactly what I asked for: honest null, provenance named, label-head asks listed."
+  - approve_proposal:
+      id: 079db2c1-0218-4a05-a10a-4e682c705d89
+      reasoning: "Operator approval — entity profile for the mara-voss corpus entity."
+  - approve_proposal:
+      id: 010223e5-f7be-4715-b26d-200ecfdeefcc
+      reasoning: "Operator approval — standing intent update."
+  - approve_proposal:
+      id: d8a7b410-28a7-426f-8303-4de884acbf09
+      reasoning: "Operator approval — judgment log for the verification cycle."
+capture:
+  - revision_chain
+  - action_proposals
+  - token_usage_by_caller
