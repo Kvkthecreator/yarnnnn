@@ -228,6 +228,20 @@ substrate_abi:
   # ADR-330 D2 attestation field is load-bearing for non-trading verticals.
   ground_truth: operation/authored/_signal.md
 
+  # ADR-335 D9 — four-flow N/A declaration. alpha-author's context-in (flow 1)
+  # flows through operator-curated uploads + websearch (ADR-331 Mode-A
+  # harvest), not a standing platform watch; the lean shape is valid per
+  # ADR-332 §2 (perception is a flow, never a gate). Audience watches
+  # (operation/audience/ track-* mechanical recurrences) activate with
+  # publishing-platform capabilities per ADR-283 step 2 — at which point a
+  # `watches:` block replaces this rationale.
+  flows_na:
+    perception: >-
+      Context-in flows through operator-curated uploads + websearch (ADR-331
+      Mode-A harvest); no standing platform watch pre-audience. Audience
+      watches activate with publishing-platform capabilities (ADR-283 step 2),
+      at which point a watches: block replaces this rationale.
+
   # Path zones this program contributes beyond the kernel-universal set.
   path_zones:
     - path: operation/authored

@@ -268,6 +268,36 @@ def get_ground_truth_for_workspace(user_id: str, client: Any) -> Optional[str]:
     return None
 
 
+def get_watches_for_workspace(user_id: str, client: Any) -> list[dict[str, Any]]:
+    """ADR-335 D2: return the active bundles' declared watches
+    (`substrate_abi.watches`) — the perception twin of
+    `get_ground_truth_for_workspace` above.
+
+    Each entry preserves its bundle declaration shape
+    (`{id, shape, declaration, recurrence, distills_to}`) tagged with
+    `_program_slug` (same origin-tagging convention as
+    `get_substrate_abi_for_workspace`). A watch is a Layer-1 perception
+    declaration: WHAT the operation watches (shape, not vendor), WHERE the
+    operator edits it (declaration substrate), WHICH recurrence enacts its
+    cadence (the Trigger pointer — cadence lives on the recurrence,
+    singular), and WHERE observations distill to (attributed signal
+    substrate per the ADR-335 D3 observation contract).
+
+    Returns [] when no active bundle declares watches — perception is a
+    flow, never a gate (ADR-332 §2); consumers (calibration mirror at Walk,
+    setup surfaces) degrade gracefully on empty.
+    """
+    watches: list[dict[str, Any]] = []
+    for bundle in bundles_active_for_workspace(user_id, client):
+        abi = bundle.get("substrate_abi") or {}
+        if not isinstance(abi, dict):
+            continue
+        for decl in abi.get("watches", []) or []:
+            if isinstance(decl, dict):
+                watches.append({**decl, "_program_slug": bundle.get("slug")})
+    return watches
+
+
 # ADR-293 (2026-05-19): `get_path_zone_locks_for_workspace` DELETED.
 # Bundle path_zones `role: operator-canon` is preserved as informational
 # metadata (declares author-of-origin for surface labeling + first-fork-

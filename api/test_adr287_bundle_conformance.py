@@ -413,3 +413,151 @@ def test_adr286_d3_deferred_bundle_path_readiness():
             f"\nADR-286 D3 readiness for deferred bundle '{bundle.name}': "
             f"{len(present)}/13 program-owned paths shipped"
         )
+
+
+# =============================================================================
+# ADR-335 — Perception Field: watches + the general four-flow conformance gate
+# =============================================================================
+#
+# Per ADR-335 D9 (enacting ADR-332 D4, deferred from ADR-330 D4's
+# first-instance): every ACTIVE program declares all four flows — context-in
+# (substrate_abi.watches OR an explicit flows_na.perception rationale),
+# work-out (capabilities), outcomes-in (substrate_abi.ground_truth), the loop
+# (>=1 judgment-mode recurrence) — or explicitly marks a flow N/A with
+# rationale via `substrate_abi.flows_na.{perception|work_out|outcomes|loop}`.
+# Deferred bundles get the readiness-print pattern (ADR-286 precedent), not
+# the strict gate. Per ADR-335 D2: watch declarations are well-formed and
+# their recurrence pointers resolve.
+
+_FOUR_FLOW_NA_KEYS = ("perception", "work_out", "outcomes", "loop")
+
+
+def _manifest(bundle_dir: Path) -> dict:
+    return yaml.safe_load((bundle_dir / "MANIFEST.yaml").read_text()) or {}
+
+
+def _four_flow_state(bundle_dir: Path) -> dict[str, bool]:
+    """Compute each flow's declared-or-NA state for a bundle. Derivation-first
+    (singular declarations — the gate reads the canonical slot for each flow),
+    with flows_na as the explicit escape hatch."""
+    data = _manifest(bundle_dir)
+    abi = data.get("substrate_abi") or {}
+    flows_na = abi.get("flows_na") or {}
+
+    def _na(key: str) -> bool:
+        rationale = flows_na.get(key)
+        return isinstance(rationale, str) and bool(rationale.strip())
+
+    watches = abi.get("watches") or []
+    judgment_recurrences = [
+        r for r in _load_recurrences(bundle_dir)
+        if (r.get("mode") or "judgment") == "judgment"
+    ]
+    return {
+        "perception": (isinstance(watches, list) and len(watches) > 0) or _na("perception"),
+        "work_out": bool(data.get("capabilities")) or _na("work_out"),
+        "outcomes": bool((abi.get("ground_truth") or "").strip()) or _na("outcomes"),
+        "loop": len(judgment_recurrences) > 0 or _na("loop"),
+    }
+
+
+def test_adr335_d9_active_bundles_declare_four_flows():
+    """ADR-335 D9: every ACTIVE bundle declares all four flows or marks the
+    absent flow N/A with rationale. Perception is a flow, never a gate
+    (ADR-332 §2) — the lean uploads+websearch shape satisfies flow 1 via
+    flows_na.perception, never by silence."""
+    active = [
+        b for b in _all_active_or_deferred_bundles()
+        if _manifest(b).get("status") == "active"
+    ]
+    assert active, "no active bundles found in docs/programs/"
+    for bundle in active:
+        state = _four_flow_state(bundle)
+        missing = [flow for flow, ok in state.items() if not ok]
+        assert not missing, (
+            f"bundle '{bundle.name}' is flow-incomplete: {missing} neither "
+            f"declared nor marked N/A-with-rationale in substrate_abi.flows_na. "
+            f"Per ADR-335 D9 + ADR-332 D4, every active program declares all "
+            f"four flows (context-in / work-out / outcomes-in / the loop) or "
+            f"explicitly marks a flow N/A with rationale."
+        )
+
+
+def test_adr335_d9_flows_na_keys_are_valid():
+    """flows_na declarations use only the four canonical flow keys with
+    non-empty string rationales — no freehand flow vocabulary."""
+    for bundle in _all_active_or_deferred_bundles():
+        abi = _manifest(bundle).get("substrate_abi") or {}
+        flows_na = abi.get("flows_na") or {}
+        for key, rationale in flows_na.items():
+            assert key in _FOUR_FLOW_NA_KEYS, (
+                f"bundle '{bundle.name}' declares flows_na.{key} — not a "
+                f"canonical flow key {_FOUR_FLOW_NA_KEYS}"
+            )
+            assert isinstance(rationale, str) and rationale.strip(), (
+                f"bundle '{bundle.name}' flows_na.{key} must carry a non-empty "
+                f"rationale string (an N/A without rationale is silence, not "
+                f"a declaration)"
+            )
+
+
+def test_adr335_d2_watch_declarations_well_formed():
+    """ADR-335 D2: every declared watch carries id + shape + distills_to;
+    when a recurrence pointer is present it resolves to a recurrence slug in
+    the bundle's _recurrences.yaml (the cadence lives ON the recurrence —
+    singular — so a dangling pointer means a watch with no Trigger)."""
+    for bundle in _all_active_or_deferred_bundles():
+        abi = _manifest(bundle).get("substrate_abi") or {}
+        watches = abi.get("watches") or []
+        if not watches:
+            continue
+        recurrence_slugs = {r.get("slug") for r in _load_recurrences(bundle)}
+        for watch in watches:
+            assert isinstance(watch, dict), (
+                f"bundle '{bundle.name}' has a non-dict watches entry: {watch!r}"
+            )
+            for field in ("id", "shape", "distills_to"):
+                value = watch.get(field)
+                assert isinstance(value, str) and value.strip(), (
+                    f"bundle '{bundle.name}' watch {watch.get('id')!r} missing "
+                    f"required field '{field}' (ADR-335 D2 declaration shape)"
+                )
+            rec = watch.get("recurrence")
+            if rec is not None:
+                assert rec in recurrence_slugs, (
+                    f"bundle '{bundle.name}' watch '{watch['id']}' points at "
+                    f"recurrence '{rec}' which does not exist in the bundle's "
+                    f"_recurrences.yaml — a watch with no Trigger never fires"
+                )
+
+
+def test_adr335_d2_trader_universe_is_kernel_declared_watch():
+    """The migration receipt: alpha-trader's _universe.yaml is a
+    kernel-declared watch (declaration field) enacted by track-universe,
+    not trader-private vocabulary. This is the third trader-private pattern
+    promoted to a kernel slot (ground_truth per ADR-330, /setup per ADR-331,
+    watches per ADR-335)."""
+    trader = PROGRAMS_ROOT / "alpha-trader"
+    abi = _manifest(trader).get("substrate_abi") or {}
+    watches = abi.get("watches") or []
+    universe = [w for w in watches if w.get("id") == "universe"]
+    assert universe, "alpha-trader does not declare the 'universe' watch"
+    assert universe[0].get("declaration") == "operation/trading/_universe.yaml"
+    assert universe[0].get("recurrence") == "track-universe"
+
+
+def test_adr335_d9_deferred_bundles_four_flow_readiness():
+    """Deferred bundles are exempt from the strict four-flow gate (D9 reads
+    'every active program'); print readiness per the ADR-286 D3 pattern so
+    the graduation gap is legible without forcing backfill."""
+    deferred = [
+        b for b in _all_active_or_deferred_bundles()
+        if _manifest(b).get("status") == "deferred"
+    ]
+    for bundle in deferred:
+        state = _four_flow_state(bundle)
+        declared = [flow for flow, ok in state.items() if ok]
+        print(
+            f"\nADR-335 D9 four-flow readiness for deferred bundle "
+            f"'{bundle.name}': {len(declared)}/4 flows declared ({declared})"
+        )

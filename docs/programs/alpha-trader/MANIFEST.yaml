@@ -195,6 +195,33 @@ substrate_abi:
   # realized P&L + per-signal attribution in _money_truth.md.
   ground_truth: operation/trading/_money_truth.md
 
+  # ADR-335 D2 — the program's declared watches: the perception twin of
+  # `ground_truth` above. The third trader-private pattern promoted to a
+  # kernel slot (after ground_truth per ADR-330 and the /setup flow-walk per
+  # ADR-331): _universe.yaml stops being trader-private vocabulary and
+  # becomes a kernel-declared watch. Each watch is a Layer-1 declaration:
+  # WHAT the operation watches (`shape` — a perception shape, never a
+  # vendor), WHERE the operator edits it (`declaration` — operator-editable
+  # watch substrate), WHICH recurrence enacts its cadence (`recurrence` —
+  # the Trigger pointer; the cadence itself lives ON the recurrence in
+  # _recurrences.yaml, singular, never duplicated here), and WHERE
+  # observations distill to (`distills_to` — attributed signal substrate
+  # per the ADR-335 D3 observation contract). Attestation is a
+  # per-observation property (D3), not a static declaration field.
+  # Read by bundle_reader.get_watches_for_workspace — same loader pattern
+  # as get_ground_truth_for_workspace.
+  watches:
+    - id: universe
+      shape: instrument_price_oracle
+      declaration: operation/trading/_universe.yaml
+      recurrence: track-universe
+      distills_to: "operation/trading/{TICKER}.yaml"
+    - id: regime
+      shape: market_regime
+      declaration: operation/trading/_operator_profile.md
+      recurrence: track-regime
+      distills_to: operation/trading/_regime.yaml
+
   # Path zones this program contributes beyond the kernel-universal set.
   #
   # ADR-293 (2026-05-19): `role: operator-canon` is INFORMATIONAL metadata
@@ -244,6 +271,15 @@ substrate_abi:
     - key: signal_files
       path: operation/trading/_signals_summary.md
       optional: true
+    # ADR-335 Crawl-A: the watch declaration joins the wake envelope so the
+    # Reviewer perceives its portfolio of attention (which tickers the
+    # operation watches) — the Layer-1 substrate it manages (re-declares,
+    # prunes) under the perception-field model. The transport stays
+    # invisible: judgment is substrate-aware, transport-blind (ADR-335 D3);
+    # this entry is the declaration, never the device.
+    - key: watch_declaration
+      path: operation/trading/_universe.yaml
+      optional: false
 
 activation_preconditions: []  # already active
 

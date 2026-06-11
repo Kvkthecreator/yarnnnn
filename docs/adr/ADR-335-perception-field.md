@@ -1,7 +1,7 @@
 # ADR-335 — The Perception Field: Watches, the Observation Contract, and Transports-as-Drivers
 
-**Status:** **Proposed (draft — ratification pause)** (2026-06-10) — drafted for operator ratification per the Stage-C fence. **No code lands on this ADR until ratified.** This is arc 3 of the three-arc reality-in sequence (ADR-330 outcomes-in · ADR-331 doors/setup · this = senses). Its conceptual foundation was *fixed* by [ADR-332 D5](ADR-332-four-flow-completeness-model.md) so it cannot drift; this ADR turns that fixed foundation into a buildable shape.
-**Date:** 2026-06-10
+**Status:** **Accepted (ratified 2026-06-11) — Crawl-A Implemented same-day.** Drafted 2026-06-10 under the Stage-C fence; operator ratified 2026-06-11 after the runtime audit (§3b). **Crawl-A landed**: D2 `substrate_abi.watches` slot (alpha-trader's `_universe.yaml` promoted to kernel-declared watch; `watch_declaration` joins the Reviewer wake envelope per ADR-281) + D3 observation contract (convention-first, ratified) + D8 FOUNDATIONS v9.3 (Axiom 1 eighth sub-clause + Derived Principle 27) + GLOSSARY v2.5 (perception field canonical; Watch + Observation entries) + D9 general four-flow conformance gate (`api/test_adr287_bundle_conformance.py`, 16/16; alpha-author declares `flows_na.perception`). **Crawl-B (D4 MCP client) demand-pulled; D6/D7 Walk gated empirically per §12.** This is arc 3 of the three-arc reality-in sequence (ADR-330 outcomes-in · ADR-331 doors/setup · this = senses). Its conceptual foundation was *fixed* by [ADR-332 D5](ADR-332-four-flow-completeness-model.md) so it cannot drift.
+**Date:** 2026-06-10 (ratified + Crawl-A 2026-06-11)
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Hat:** A (system canon — real-operator-facing) — but **drafted under the Hat-B fence**: ratification gates the Hat-A landing.
 
@@ -70,6 +70,18 @@ Live, 2026-06-10, alpha-trader bundle:
 
 ---
 
+## 3b. Pre-ratification runtime audit (2026-06-11) — five flags, five receipts
+
+The ratification audit checked the watch model against the live runtime. All five flags resolved without new machinery; one draft claim was corrected:
+
+1. **Mechanical wake path** — mechanical recurrences (the watch-read shape) dispatch deterministically via `services/wake.py::_dispatch_mechanical` (mode fork at `wake.py:359`; funnel decision `"mechanical"`), no Reviewer wake, no LLM. Watches with mechanical reads slot into this path unchanged.
+2. **Feed weight** — mechanical successes emit **zero** narrative entries by design (ADR-277, `wake.py:1148-1173`); failures + capability transitions emit (material weight on transition). A 3×-daily watch produces no feed spam; binding failures surface as evidence. Nothing to build.
+3. **Cost governance (draft claim corrected)** — the pace gate the draft's discourse cited was deleted by ADR-327; cost governance is the wake-funnel window budget, which meters judgment-mode LLM costs only (`wake.py:441-512`). Mechanical external reads (Alpaca in `TrackUniverse`) are zero-LLM and unmetered. §7's foreign-call-cost hard part updated accordingly; MCP-call metering is a Crawl-B item.
+4. **Reviewer envelope** — per ADR-281, envelope additions are bundle-declared (`substrate_abi.reviewer_wake_envelope`), zero kernel edits. Crawl-A adds `watch_declaration` (→ `_universe.yaml`) to alpha-trader's envelope so the Reviewer perceives its portfolio of attention. **No persona-frame edit at Crawl-A** — watch-management posture is Run-stage; per Derived Principle 22 it will land in `principles.md`/substrate, not the frame, when Run arrives.
+5. **Surface moment** — the perception field already surfaces through program home sections (`TraderRegime` renders `_regime.yaml`, `TraderPositions` merges per-ticker indicator substrate, per ADR-273/312). No perception dashboard; future programs declare their own home sections via SURFACES.yaml.
+
+---
+
 ## 4. D1 — The three-layer cut
 
 Perception is not data ingestion. The kernel question is never "how do we get data in" — it is **"what does this operation believe about the world, on what evidence, attested by whom, as of when."** Three layers, each with a distinct durability class:
@@ -90,7 +102,7 @@ OS framing pays rent: **transports are device drivers; MCP is USB; the registry 
 
 The perception twin of `substrate_abi.ground_truth` (ADR-330 D4). A bundle declares its watches; the kernel reads the declaration the same way `bundle_reader.get_ground_truth_for_workspace` reads ground-truth.
 
-**Draft shape (to refine at ratification):**
+**Landed shape (ratification refinement, 2026-06-11):**
 ```yaml
 substrate_abi:
   ground_truth: operation/trading/_money_truth.md     # ADR-330
@@ -98,15 +110,15 @@ substrate_abi:
     - id: universe
       shape: instrument_price_oracle                  # perception SHAPE, not a vendor
       declaration: operation/trading/_universe.yaml   # operator-editable watch substrate
-      cadence: "@market_open + 15min; @market_open + 3h; @market_close - 1h"
-      distills_to: operation/trading/{TICKER}.yaml    # the attributed signal substrate
-      attestation: platform                           # ADR-330 enum (resolved per binding at runtime)
+      recurrence: track-universe                      # the Trigger pointer — cadence lives ON the recurrence
+      distills_to: "operation/trading/{TICKER}.yaml"  # the attributed signal substrate
     - id: regime
       shape: market_regime
       declaration: operation/trading/_operator_profile.md
-      cadence: "@market_open"
+      recurrence: track-regime
       distills_to: operation/trading/_regime.yaml
 ```
+Two refinements from the draft shape, both ratified 2026-06-11: (1) **`cadence` string replaced by a `recurrence` slug pointer** — the cadence already lives on the recurrence declaration in `_recurrences.yaml` (semantic schedules, authoritative); duplicating it in the MANIFEST would create dual-declaration drift (Singular Implementation). The conformance gate asserts the pointer resolves. (2) **static `attestation` field dropped** — attestation is a per-observation property (D3), resolved per binding at runtime, never a static declaration attribute.
 - **Shape, not vendor** (the durability dividend, foundation §6): a bundle declares a perception *shape* ("continuous price oracle"); the vendor binding (Alpaca, an MCP server) is **late-bound at setup-time** — exactly where ADR-331's sequence lives. Bundles get *more* durable.
 - **`new bundle_reader.get_watches_for_workspace(user_id, client)`** mirrors `get_ground_truth_for_workspace` (iterates active-for-workspace bundles). No new loader pattern.
 - **The trader's `_universe.yaml` is the first instance** — it stops being trader-private and becomes a kernel-declared watch. (Migration: add the `watches:` block to alpha-trader's MANIFEST; the file + recurrences are unchanged.)
@@ -137,7 +149,7 @@ Reality enters only as an **observation** — the perception twin of `OutcomeCan
 YARNNN is already an MCP *server* (ADR-169 — context out). The symmetric move: **one MCP-client implementation in the kernel.** This is the architecturally-scalable form of "integration-maxxing" — and the only transport-layer investment that earns kernel status, because one implementation makes the ecosystem build the driver catalog for free, forever.
 
 - **Feasibility (verified, foundation §8):** the official registry is live with a queryable API (`registry.modelcontextprotocol.io`); remote servers standardized on OAuth 2.1 + `.well-known` discovery; the protocol is moving to a stateless HTTP core (a structural fit for stateless-computation-over-substrate). Crawl-stage build is small: MCP client in the API (same SDK family as the existing FastMCP server), bindings on the `platform_connections` pattern, foreign tools surfacing as dynamic entries in the existing capability-gated dispatch.
-- **Hard parts are non-protocol** (named, not solved here): per-server consent UX, tool-schema heterogeneity, community-server quality variance, injection surface (already disciplined — distill-only, Reviewer-gated), foreign-call cost (the budget gate already meters).
+- **Hard parts are non-protocol** (named, not solved here): per-server consent UX, tool-schema heterogeneity, community-server quality variance, injection surface (already disciplined — distill-only, Reviewer-gated), and **foreign-call cost metering** — corrected by the 2026-06-11 runtime audit (§3b): the wake-funnel window budget (ADR-327) meters *judgment-mode LLM* costs only; mechanical-mode external reads are zero-LLM and deliberately unmetered today (the Alpaca calls in `TrackUniverse` are unmetered precedent). MCP foreign-call metering for mechanical-mode watches is a named Crawl-B resolution item, not already-solved.
 - **Binding is an epistemic + security act (D5 qualification 2):** every binding carries an attestation grade from registry provenance; foreign tool output is untrusted input.
 
 **The head/tail split + the ADR-076 receipt (discourse-earned 2026-06-11).** YARNNN has retreated from MCP-as-transport once: [ADR-076](ADR-076-eliminate-mcp-gateway.md) (2026-02-25) deleted the MCP Gateway — a local Node subprocess proxying 3 Slack REST calls — for operational reasons (subprocess lifecycle, extra service, extra language), and its Mitigated section left the door open verbatim: *"If a future platform has an MCP server that genuinely adds value beyond REST, we can evaluate then."* This D4 is the evaluate-then moment, and the protocol shape changed underneath (remote streamable-HTTP, OAuth 2.1, `.well-known` discovery, official registry) — the specific things ADR-076 retreated from no longer exist. Two consequences are binding:
@@ -201,7 +213,7 @@ ADR-332 D4 deferred the *general* conformance assertion to arc-3; ADR-330 D4 was
 
 | Stage | What ships | Trust shape | Demand-pull trigger |
 |---|---|---|---|
-| **Crawl** | `substrate_abi.watches` slot (D2) + observation contract (D3) + kernel MCP client (D4) with operator-pasted server configs (manual binding) + FOUNDATIONS axiom-text (D8) + conformance gate (D9). alpha-trader's `_universe.yaml` migrated to a kernel-declared watch. | Operator authorizes each binding explicitly. | bundle #3, first non-trader watch need, or alpha-author post-330 deepening (ADR-332 D5) |
+| **Crawl** | **Crawl-A ✅ SHIPPED 2026-06-11**: `substrate_abi.watches` slot (D2) + observation contract (D3, convention) + FOUNDATIONS axiom-text (D8) + conformance gate (D9) + `get_watches_for_workspace` reader + `watch_declaration` in the Reviewer wake envelope. alpha-trader's `_universe.yaml` migrated to a kernel-declared watch. **Crawl-B (pending, demand-pulled)**: kernel MCP client (D4) with operator-pasted server configs (manual binding). | Operator authorizes each binding explicitly. | Crawl-B: bundle #3, first non-trader watch need, or alpha-author post-330 deepening (ADR-332 D5) |
 | **Walk** | Registry search resolves declared watches into **proposed** bindings (the marketplace move, D7) + one generic cadenced web/RSS transport for connectionless workspaces + per-watch calibration read (D6). | Proposal → operator authorization; attestation grade from registry provenance. | a watch needs a transport the workspace hasn't connected |
 | **Run** | The Reviewer notices a perception gap against the mandate and itself **proposes** a new watch + transport — perception management under the same propose/approve loop as capital actions. | Fully inside the existing judgment loop; delegation-level gated. | the Reviewer demonstrably needs perception it doesn't have |
 
@@ -236,10 +248,11 @@ ADR-332 D4 deferred the *general* conformance assertion to arc-3; ADR-330 D4 was
 
 ---
 
-## 15. Open questions (carried, not resolved — resolved at ratification or later)
+## 15. Open questions
 
-1. **Observation contract form** — typed `Observation` TypedDict vs substrate convention. (Lean: convention-first; promote on second-program demand — §6.)
+1. **Observation contract form** — **RESOLVED at ratification (2026-06-11): convention-first.** The observation contract is a substrate convention (the trader's `{TICKER}.yaml` / `_regime.yaml` shape proves it); a typed `Observation` TypedDict is promoted only on second-program demand.
 2. **Watch calibration metric** — what exactly "earned its attention" measures for non-trading watches without a clean `by_signal` analog. (Walk-stage; the trader's expectancy is the template, generalization TBD.)
 3. **Registry provenance → attestation grade mapping** — official vs community vs unverified server → which enum value. (Walk-stage, D7.)
 4. **Webhook / push ingestion** — pull + wake-on-event (existing wake sources) first; push deferred (foundation §7).
-5. **`N/A`-flow rationale schema** — how a bundle marks a flow N/A in MANIFEST for the D9 gate. (Resolve at the conformance-gate commit.)
+5. **`N/A`-flow rationale schema** — **RESOLVED at the conformance-gate commit (2026-06-11): `substrate_abi.flows_na.{perception|work_out|outcomes|loop}: <rationale string>`.** Derivation-first: the gate reads each flow's canonical slot (watches / capabilities / ground_truth / judgment-mode recurrences) so nothing is declared twice; `flows_na` is the explicit escape hatch, and an N/A without rationale fails the gate (silence is not a declaration). First instance: alpha-author's `flows_na.perception`.
+6. **Foreign-call cost metering for mechanical-mode watches** (added by the §3b audit) — mechanical external reads are unmetered today (Alpaca precedent); resolve when the MCP client lands (Crawl-B).
