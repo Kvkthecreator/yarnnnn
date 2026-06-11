@@ -1,6 +1,6 @@
 # ADR-338 — The Management Plane: Operating the Operation Is First-Class Product Surface
 
-**Status:** **Accepted (2026-06-11)** — framing + program-of-work ADR. No code lands in this ADR; the implementation session is scoped by the carry-over prompt in the ratifying session and begins with the FE management-surface audit.
+**Status:** **Accepted (2026-06-11)** — framing + program-of-work ADR. **D4 program of work IMPLEMENTED 2026-06-11** — all 7 FE items shipped (FE audit → IA decision → builds). See the companion [ADR-338 FE plan](ADR-338-management-plane-fe-plan.md) for the audit receipts, the IA decision (the management plane coheres on the existing os-config register + menu-bar vitals — no new container), per-item interaction contracts, and the build log (gates: 136 assertions across 6 ADR-338 gates; ADR-297 parity 147/147; ADR-287 conformance 16/16).
 **Date:** 2026-06-11
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Hat:** A (system canon)

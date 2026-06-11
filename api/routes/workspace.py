@@ -1053,6 +1053,11 @@ class ProgramItem(BaseModel):
     # bundle MANIFEST's `phases[].label` field. The FE renders this instead
     # of the raw enum slug (no more bare "OBSERVATION" tokens).
     current_phase_label: Optional[str] = None
+    # ADR-338 D4.5: the installer "what this program will do" preview — the
+    # program's four-flow declaration (DP26) surfaced BEFORE activation. Shape:
+    # {flows:[{key,label,present,summary|rationale}], capabilities, watch_count,
+    #  ground_truth}. None when the helper can't read the bundle.
+    flow_preview: Optional[dict] = None
 
 
 class SubstrateFileStatus(BaseModel):
@@ -1225,6 +1230,9 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
                 (p.get("label") for p in phases if p.get("key") == current_phase),
                 None,
             )
+            # ADR-338 D4.5: the installer four-flow preview (shared helper —
+            # same canonical slots the activatable route + the D9 gate read).
+            from services.bundle_reader import four_flow_preview
             available_programs.append(ProgramItem(
                 slug=manifest.get("slug"),
                 title=manifest.get("title"),
@@ -1234,6 +1242,7 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
                 oracle=manifest.get("oracle") or {},
                 current_phase=current_phase,
                 current_phase_label=current_phase_label,
+                flow_preview=four_flow_preview(slug),
             ))
     except Exception as exc:
         logger.warning(f"[WORKSPACE_STATE] available_programs read failed: {exc}")

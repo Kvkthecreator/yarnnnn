@@ -649,6 +649,20 @@ export const api = {
           deferred: boolean;
           oracle: Record<string, unknown>;
           current_phase: string | null;
+          current_phase_label?: string | null;
+          // ADR-338 D4.5 — installer four-flow preview (see workspace.getState).
+          flow_preview: {
+            flows: Array<{
+              key: 'perception' | 'work_out' | 'outcomes' | 'loop';
+              label: string;
+              present: boolean;
+              summary?: string;
+              rationale?: string | null;
+            }>;
+            capabilities: string[];
+            watch_count: number;
+            ground_truth: string | null;
+          } | null;
         }>;
       }>("/api/programs/activatable"),
 
@@ -991,6 +1005,20 @@ export const api = {
           // bundle MANIFEST's phases[].label. FE renders this — never the
           // bare enum slug.
           current_phase_label: string | null;
+          // ADR-338 D4.5: the installer "what this program will do" preview —
+          // the program's four-flow declaration (DP26) BEFORE activation.
+          flow_preview: {
+            flows: Array<{
+              key: 'perception' | 'work_out' | 'outcomes' | 'loop';
+              label: string;
+              present: boolean;
+              summary?: string;
+              rationale?: string | null;
+            }>;
+            capabilities: string[];
+            watch_count: number;
+            ground_truth: string | null;
+          } | null;
         }>;
         substrate_status: {
           mandate: { path: string; state: 'skeleton' | 'authored' | 'missing'; last_revised_at: string | null };

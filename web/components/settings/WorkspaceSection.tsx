@@ -37,6 +37,10 @@ import {
   Link2,
   FileText,
   ExternalLink,
+  Eye,
+  PenLine,
+  CheckCircle2,
+  RefreshCw,
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
@@ -399,6 +403,60 @@ function ProgramRow({
           </button>
         )}
       </div>
+
+      {/* ADR-338 D4.5 — the installer "what this program will do" panel:
+          the program's four-flow declaration shown BEFORE activation, so the
+          operator gives informed consent to the fork (the consent moment,
+          ADR-338 D3). Shown for not-yet-active programs (incl. deferred —
+          the operator sees what they'd get). */}
+      {!isActive && program.flow_preview && <FlowPreview preview={program.flow_preview} />}
+    </div>
+  );
+}
+
+const FLOW_ICONS: Record<string, typeof Eye> = {
+  perception: Eye,
+  work_out: PenLine,
+  outcomes: CheckCircle2,
+  loop: RefreshCw,
+};
+
+function FlowPreview({
+  preview,
+}: {
+  preview: NonNullable<ProgramItem['flow_preview']>;
+}) {
+  return (
+    <div className="mt-3 rounded-md border border-border/60 bg-muted/10 px-3 py-2.5 space-y-2">
+      <p className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+        What this program does
+      </p>
+      <ul className="space-y-1.5">
+        {preview.flows.map((f) => {
+          const Icon = FLOW_ICONS[f.key] ?? Eye;
+          return (
+            <li key={f.key} className="flex items-start gap-2">
+              <Icon
+                className={`w-3.5 h-3.5 shrink-0 mt-0.5 ${
+                  f.present ? 'text-foreground/70' : 'text-muted-foreground/40'
+                }`}
+              />
+              <div className="min-w-0 flex-1">
+                <span className="text-xs font-medium">{f.label}</span>
+                <span className="text-xs text-muted-foreground">
+                  {' '}
+                  ·{' '}
+                  {f.present
+                    ? f.summary
+                    : f.rationale
+                      ? `not applicable — ${f.rationale}`
+                      : 'not applicable'}
+                </span>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

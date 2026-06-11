@@ -90,7 +90,7 @@ async def list_activatable_programs(auth: UserClient) -> dict:
     Auth-scoped only as a permission boundary — bundle availability is
     not user-specific (every authenticated operator sees the same list).
     """
-    from services.bundle_reader import _all_slugs, _load_manifest
+    from services.bundle_reader import _all_slugs, _load_manifest, four_flow_preview
 
     items = []
     for slug in _all_slugs():
@@ -119,6 +119,12 @@ async def list_activatable_programs(auth: UserClient) -> dict:
             "oracle": manifest.get("oracle") or {},
             "current_phase": current_phase,
             "current_phase_label": current_phase_label,
+            # ADR-338 D4.5 — the installer "what this program will do" panel:
+            # the program's four-flow declaration (DP26) surfaced BEFORE the
+            # operator activates. Same canonical slots the D9 conformance gate
+            # reads (perception / work-out / outcomes / loop) + capabilities +
+            # ground truth. None for a manifest the helper can't read.
+            "flow_preview": four_flow_preview(slug),
         })
     return {"schema_version": 1, "programs": items}
 

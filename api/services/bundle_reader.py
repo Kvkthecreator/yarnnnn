@@ -69,6 +69,113 @@ def get_bundle_version(slug: str) -> Optional[str]:
 # pace gate. The `minimum_pace:` MANIFEST key is removed from all bundles.
 
 
+def _load_bundle_recurrences(slug: str) -> list[dict[str, Any]]:
+    """Read a bundle's reference-workspace `_recurrences.yaml` entries.
+
+    Used by the installer-preview four-flow derivation (the loop flow is
+    'declared' when the bundle ships ≥1 judgment-mode recurrence). Returns []
+    on any read/parse miss — preview degrades, never crashes.
+    """
+    path = _BUNDLE_ROOT / slug / "reference-workspace" / "_recurrences.yaml"
+    if not path.exists():
+        return []
+    try:
+        with path.open() as f:
+            data = yaml.safe_load(f) or {}
+    except Exception as exc:
+        logger.warning("[BUNDLE_READER] recurrences parse failed for %s: %s", slug, exc)
+        return []
+    recs = data.get("recurrences") if isinstance(data, dict) else None
+    if not isinstance(recs, list):
+        return []
+    return [r for r in recs if isinstance(r, dict)]
+
+
+# ADR-338 D4.5 — the four canonical flows (DP26 / ADR-335 D9). Surfaced
+# pre-activation as the installer "what this program will do" panel.
+_FLOW_LABELS: dict[str, str] = {
+    "perception": "Perceives",
+    "work_out": "Produces",
+    "outcomes": "Attests",
+    "loop": "Learns",
+}
+
+
+def four_flow_preview(slug: str) -> Optional[dict[str, Any]]:
+    """ADR-338 D4.5 — the installer "what this program will do" declaration.
+
+    Derives the program's four-flow shape (DP26) from its MANIFEST + bundle
+    recurrences, mirroring the conformance gate's `_four_flow_state`
+    (test_adr287_bundle_conformance.py) so the operator-facing preview and
+    the CI gate read the SAME canonical slots. Each flow is either present
+    (with a one-line substrate-derived summary) or N/A (with the bundle's
+    `flows_na` rationale — perception is a flow, never a gate, ADR-332 §2).
+
+    Also surfaces the capability list (what transports it binds) + watch
+    count + ground-truth path, so the operator sees what they're committing
+    to BEFORE the fork (the consent moment, ADR-338 D3).
+
+    Returns None when the bundle/manifest is missing.
+    """
+    manifest = _load_manifest(slug)
+    if not manifest:
+        return None
+    abi = manifest.get("substrate_abi") or {}
+    flows_na = abi.get("flows_na") or {}
+    watches = abi.get("watches") or []
+    ground_truth = (abi.get("ground_truth") or "").strip()
+    capabilities = manifest.get("capabilities") or []
+    judgment_recurrences = [
+        r for r in _load_bundle_recurrences(slug)
+        if (r.get("mode") or "judgment") == "judgment"
+    ]
+
+    def _na_rationale(key: str) -> Optional[str]:
+        r = flows_na.get(key)
+        return r.strip() if isinstance(r, str) and r.strip() else None
+
+    cap_keys = [c.get("key") for c in capabilities if isinstance(c, dict) and c.get("key")]
+
+    flows: list[dict[str, Any]] = []
+    # perception
+    if isinstance(watches, list) and len(watches) > 0:
+        shapes = ", ".join(str(w.get("shape") or w.get("id")) for w in watches if isinstance(w, dict))
+        flows.append({"key": "perception", "label": _FLOW_LABELS["perception"],
+                      "present": True, "summary": f"Standing watch: {shapes}"})
+    else:
+        flows.append({"key": "perception", "label": _FLOW_LABELS["perception"],
+                      "present": False, "rationale": _na_rationale("perception")})
+    # work_out
+    if capabilities:
+        flows.append({"key": "work_out", "label": _FLOW_LABELS["work_out"],
+                      "present": True, "summary": f"{len(cap_keys)} capabilit{'y' if len(cap_keys) == 1 else 'ies'}: {', '.join(cap_keys)}"})
+    else:
+        flows.append({"key": "work_out", "label": _FLOW_LABELS["work_out"],
+                      "present": False, "rationale": _na_rationale("work_out")})
+    # outcomes
+    if ground_truth:
+        flows.append({"key": "outcomes", "label": _FLOW_LABELS["outcomes"],
+                      "present": True, "summary": f"Ground truth: {ground_truth}"})
+    else:
+        flows.append({"key": "outcomes", "label": _FLOW_LABELS["outcomes"],
+                      "present": False, "rationale": _na_rationale("outcomes")})
+    # loop
+    if judgment_recurrences:
+        n = len(judgment_recurrences)
+        flows.append({"key": "loop", "label": _FLOW_LABELS["loop"],
+                      "present": True, "summary": f"{n} judgment recurrence{'s' if n != 1 else ''} on cadence"})
+    else:
+        flows.append({"key": "loop", "label": _FLOW_LABELS["loop"],
+                      "present": False, "rationale": _na_rationale("loop")})
+
+    return {
+        "flows": flows,
+        "capabilities": cap_keys,
+        "watch_count": len(watches) if isinstance(watches, list) else 0,
+        "ground_truth": ground_truth or None,
+    }
+
+
 @lru_cache(maxsize=1)
 def _all_slugs() -> tuple[str, ...]:
     """Discover bundle slugs by listing docs/programs/ subdirectories."""
