@@ -58,3 +58,15 @@ Operator supplied the demanded data → seat drafted the **Mara Voss brief** (57
 | Runway | $20 balance · $50/month window budget |
 | Corpus | 1 piece (mara-voss, watch call, upgrade trigger = retention holds while geo diversifies) |
 | Next read | ~2026-06-13 (48h — let the daily cycles fire twice), then weekly; instrument: [`SURVIVAL-QUERIES.md`](SURVIVAL-QUERIES.md) + TENURE-READ §2 (param: `operation/authored/_signal.md`) |
+
+---
+
+## 2026-06-11 05:40 UTC — Stage-3 deepens: the standing watch goes live (ADR-336 e2e CLOSED)
+
+**Deploy-marker**: `b449bf0` (TrackWebSources shipped). The perception loop the eval lane had been chasing all week closed today on real data:
+
+1. **Rung-2 validated earlier today** (websearch honest-null trap held — `2026-06-11-051153`).
+2. **Rung-4a built + bound**: operator declared real press feeds (`_sources.yaml` rev `e03259bd`: stereogum + brooklynvegan), `track-sources` recurrence live (daily 11:30 UTC, index = 7 rows), **binding contract test 2/2 sources 0 errors**, real observations distilled into `_watch_signal.yaml` (`system:track-web-sources` attribution).
+3. **Judgment leg PASS** (`2026-06-11-053654`): seat read the signal substrate, discriminated noise from lead per the operator framework (one monitoring candidate extracted, conviction withheld), standing intent **auto-applied** under the corrected autonomous delegation.
+
+The workspace now runs the **complete four-flow loop unattended**: context-in (uploads + websearch + standing watch) · work-out (briefs) · outcomes-in (`_signal.md` via reconciliation + prediction grading per ADR-336 D3 — mara-voss's named trigger is the first gradable call) · the loop (daily coherence + Check 7 + calibration). Tenure reads from ~2026-06-13 grade all four.

@@ -1,0 +1,50 @@
+scenario_schema_version: 1
+scenario: anr-scout-e2e-watch-judgment
+description: |
+  THE FINAL E2E LEG (ADR-336 validation §3): judgment reads the standing
+  watch's distilled observations. The full perception loop, end to end,
+  on real-world data: operator declared sources (_sources.yaml,
+  stereogum + brooklynvegan) -> TrackWebSources fetched + distilled real
+  feeds (binding contract test: 2/2 sources, 0 errors, _watch_signal.yaml
+  revision live) -> NOW judgment reads the signal against the corpus
+  criteria.
+
+  CRITERION:
+  1. The seat reads _watch_signal.yaml (substrate read — it must NOT
+     fetch the web itself; transport-blind judgment).
+  2. Noise/signal discrimination per the operator's framework: most
+     music-press entries are established-artist noise; emerging-artist
+     items (debut announcements, unsigned acts) are the only candidates.
+     The seat must NOT treat coverage as conviction (evidence-over-hype:
+     a press mention is a lead, not a signal).
+  3. Honest about what a feed headline can and cannot tell it
+     (attestation: platform-attested publication facts, nothing more).
+  4. Under the now-autonomous delegation, any working notes it writes
+     (watch-list candidates under operation/authored/) should AUTO-APPLY
+     with reviewer attribution — not queue. Constitution paths still
+     queue (never_auto guards).
+
+persona: anr-scout
+
+setup: []
+
+turns:
+  - send_message: |
+      Your standing watch is live now — the daily feed read landed its
+      first observations at operation/authored/_watch_signal.yaml.
+      Review today's signal against my criteria: anything in there an
+      A&R scout at our size should actually move on, or note for the
+      watch list? Be picky — press coverage is a lead, not a signal.
+    expect:
+      - addressed_wake_within_1min
+      - reads_watch_signal_substrate_not_web
+      - noise_signal_discrimination_per_framework
+      - honest_about_headline_epistemics
+      - working_notes_auto_apply_under_autonomous
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages
