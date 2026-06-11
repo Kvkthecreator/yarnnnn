@@ -1,0 +1,28 @@
+scenario_schema_version: 1
+scenario: anr-scout-stage3-approve
+description: |
+  Stage-3 operator approvals: commit the first corpus piece (Mara Voss
+  brief), the standing-intent update from the Stage-2 graduation cycle,
+  and the judgment-log entry. CRITERION: all three execute as
+  operator-attributed revisions; the corpus piece lands at
+  operation/authored/mara-voss/content.md.
+
+persona: anr-scout
+
+setup: []
+
+turns:
+  - approve_proposal:
+      id: 7bcfc350-899e-41b0-b115-f34ec30e73a0
+      reasoning: "Operator approval — standing intent reflects the post-activation operating state."
+  - approve_proposal:
+      id: efbf6cc8-90d0-4aaa-abb9-70df05eba7f9
+      reasoning: "Operator approval — the Mara Voss brief meets my editorial standard: watch call with named upgrade trigger, case against argued from the geo concentration and catalog depth, my bias flagged. First corpus piece."
+  - approve_proposal:
+      id: ce5659d5-2e50-4ceb-944c-6bd660bf43a7
+      reasoning: "Operator approval — judgment log entry for the first brief cycle."
+
+capture:
+  - revision_chain
+  - action_proposals
+  - token_usage_by_caller

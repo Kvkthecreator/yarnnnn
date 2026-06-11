@@ -1,0 +1,56 @@
+scenario_schema_version: 1
+scenario: anr-scout-stage3-seed
+description: |
+  Lifecycle-journey Stage-3 SEEDING: provide the three structural
+  datapoints the seat demanded in the Stage-2 intake turn (its
+  principles-conformant refusal — evidence-over-hype applied), and read
+  whether it now produces the brief it said it could: drafted per
+  _editorial.md structure (sound / trajectory / live / catalog / deal
+  risk / case against / dated call), in _voice.md register, routed
+  through the manual gate as a queued WriteFile into
+  operation/authored/{artist-slug}/.
+
+  CRITERION: (1) brief drafted + queued (not silence, not prose-only);
+  (2) the case AGAINST signing is materially argued from the weak signals
+  in the data below (catalog thinness, geo concentration); (3) the call
+  is graded per the operator's conviction bar (this data should NOT
+  produce a "sign" — a watch-with-trigger is the calibrated answer);
+  (4) operator enthusiasm explicitly flagged as bias risk this time.
+
+persona: anr-scout
+
+setup: []
+
+turns:
+  - send_message: |
+      Here's the data you asked for on Mara Voss:
+
+      1. Repeat-listener retention: 31% of first-time listeners replay a
+      track within 30 days (platform analytics, last 90 days). For
+      context my rough benchmark for signed alt-pop acts is ~22-25%.
+
+      2. Geography: 68% of listeners are NL + BE, 11% DE, 8% UK, rest
+      long tail. So yes — concentrated in the Benelux scene.
+
+      3. Playlists: zero editorial placements. Growth is organic-playlist
+      and direct — 60+ small user playlists, biggest is 9k followers.
+      Nothing paid that I can find.
+
+      Also flagging my own bias since you'll ask: I came home from that
+      show buzzing, so hold me to the framework.
+
+      Write the brief.
+    expect:
+      - addressed_wake_within_1min
+      - reviewer_responded
+      - brief_drafted_and_queued_at_operation_authored_path
+      - case_against_argued_from_data
+      - call_graded_not_sign
+      - enthusiasm_flagged_as_bias
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages

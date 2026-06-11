@@ -563,11 +563,20 @@ personas:
       # verify.py runs at activation time per ADR-230.
       agent_count: 1
       active_roles: [thinking_partner]
+      # Corrected 2026-06-11 against the live activation receipt (tasks index
+      # = 6 rows): the bundle's _recurrences.yaml evolved past the 4-slug list
+      # this row originally copied from yarnnn-author (pre-ship-audit retired;
+      # compose-piece + weekly-corpus-review + quarterly-voice-audit added in
+      # the ADR-333 era). NOTE: corpus-coherence-check cadence on THIS
+      # workspace is operator-accelerated to daily (revision baba8d9d) — a
+      # per-operator cadence edit, not a bundle invariant.
       scaffolded_recurrences:
-        - pre-ship-audit
+        - compose-piece
         - corpus-coherence-check
-        - revision-audit
         - outcome-reconciliation
+        - quarterly-voice-audit
+        - revision-audit
+        - weekly-corpus-review
       platform_connections: 0
       core_files:
         - /workspace/_recurrences.yaml

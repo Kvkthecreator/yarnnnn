@@ -1,0 +1,51 @@
+scenario_schema_version: 1
+scenario: anr-scout-stage1-approve
+description: |
+  Lifecycle-journey Stage-1 COMPLETION (operator-side act): approve the
+  five constitution/persona WriteFile proposals the seat queued in
+  2026-06-11-013544-anr-scout-stage1-seat-formation, then verify via a
+  read-back turn that the seat now reports the constitution as LIVE
+  substrate (skeleton→authored transition).
+
+  CRITERION: (1) all five proposals execute — MANDATE/BRAND/IDENTITY/
+  principles/standing_intent land as revisions with reviewer attribution
+  + operator approval trail (ADR-209 + ADR-307); (2) the post-approval
+  read-back reflects the new substrate state (MANDATE now exists) and
+  correctly names the remaining gap (no program activated — Stage 2).
+
+persona: anr-scout
+
+setup: []
+
+turns:
+  - approve_proposal:
+      id: 4315c8f1-21cb-47a3-a42b-1218f7bb83de
+      reasoning: "Operator approval — MANDATE matches my declaration (Stage-1 completion)."
+  - approve_proposal:
+      id: 6e8d2ffe-ad5e-4f02-adc0-12c90899440d
+      reasoning: "Operator approval — BRAND/voice structure matches my declaration."
+  - approve_proposal:
+      id: e5e1c22b-a1dc-40fc-9132-3dd8082bb37a
+      reasoning: "Operator approval — Reviewer identity matches the judgment role I described."
+  - approve_proposal:
+      id: 226e125c-61d0-4422-b158-d48a1c20f670
+      reasoning: "Operator approval — principles capture my evidence-over-hype framework."
+  - approve_proposal:
+      id: c2d482dc-2820-4adc-848a-e0cdc651ef67
+      reasoning: "Operator approval — standing intent reflects the forming state."
+  - send_message: |
+      I've approved everything in the queue. Quick check: is my
+      constitution live now? What's the next step to get this operation
+      actually running?
+    expect:
+      - addressed_wake_within_1min
+      - reviewer_responded
+      - readback_reports_constitution_live
+      - readback_names_program_activation_as_next_step
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages
