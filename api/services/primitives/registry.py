@@ -92,6 +92,8 @@ from .mirror_recent_execution import handle_mirror_recent_execution
 # mechanical primitives — they author recurrences that name them).
 from .track_universe import handle_track_universe
 from .track_regime import handle_track_regime
+# ADR-336 (enacts ADR-335 D7): generic web/RSS standing-watch transport.
+from .track_web_sources import handle_track_web_sources
 from .repurpose import REPURPOSE_OUTPUT_TOOL, handle_repurpose_output
 from .propose_action import (
     PROPOSE_ACTION_TOOL, handle_propose_action,
@@ -531,6 +533,12 @@ HANDLERS: dict[str, Callable] = {
     # surface; not LLM-callable.
     "TrackUniverse": handle_track_universe,
     "TrackRegime": handle_track_regime,
+    # ADR-336 (enacts ADR-335 D7): the generic web/RSS standing-watch
+    # transport — fetches declared sources (_sources.yaml), distills
+    # deterministically into signal substrate per the ADR-335 D3 observation
+    # contract. Program-agnostic: paths arrive as directive kwargs
+    # (declaration= / distills_to=). Dispatcher-only; not LLM-callable.
+    "TrackWebSources": handle_track_web_sources,
     "ManageDomains": handle_manage_domains,
     # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
     "ReadFile": handle_read_file,

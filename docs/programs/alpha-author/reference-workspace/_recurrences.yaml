@@ -221,6 +221,26 @@ recurrences:
       implied.
     display_name: "Outcome Reconciliation"
 
+  # ── track-sources — the standing web/RSS watch (ADR-336 / ADR-335 D7) ────
+  #
+  # Mechanical, deterministic, zero-LLM. Fetches the operator-declared
+  # sources (_sources.yaml; EMPTY = deliberate no-op — the lean
+  # uploads+websearch shape stays valid, perception is a flow never a gate)
+  # and distills them into _watch_signal.yaml per the ADR-335 D3 observation
+  # contract (source_ref + attestation + observed_at + bounded entries).
+  # Scheduled 30min before corpus-coherence-check's default window so
+  # judgment reads a FRESH watch signal (the envelope carries watch_signal
+  # per MANIFEST reviewer_wake_envelope). Judgment never fetches the web for
+  # standing perception — it reads this substrate (substrate-aware,
+  # transport-blind per ADR-335 D3).
+  - slug: track-sources
+    schedule: "30 11 * * *"   # daily 11:30 UTC — 30min before the coherence window
+    mode: mechanical
+    required_capabilities: []
+    prompt: |
+      @primitive: TrackWebSources(declaration="operation/authored/_sources.yaml", distills_to="operation/authored/_watch_signal.yaml")
+    display_name: "Track Sources (standing watch)"
+
 # ADR-275: weekly-corpus-review and quarterly-voice-audit (operator
 # deliverable cadence) live in /workspace/governance/_preferences.yaml.
 # The Reviewer reads _preferences.yaml at every wake and authors Schedule(

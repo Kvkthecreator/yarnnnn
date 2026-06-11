@@ -1,0 +1,18 @@
+---
+tier: authored
+prompt: "Which web sources should your standing watch read? Declare RSS/Atom feeds here (press, industry, scene, creators you track). Empty = no standing watch — uploads + websearch remain your context-in. Changes take effect on the next track-sources run (daily 11:30 UTC)."
+---
+# _sources.yaml — operator-declared standing-watch sources (ADR-336)
+# Machine-parsed by TrackWebSources via yaml.safe_load.
+#
+# Each source: {id, url, attestation?: platform|operator|agent (default
+# platform — a first-party publisher feed attests its own publication
+# facts), max_entries?: int (default 8, cap 20)}. Source count cap: 12 —
+# this is a portfolio of attention, not a crawler (ADR-335 D5).
+#
+# The watch distills into operation/authored/_watch_signal.yaml (the
+# ADR-335 D3 observation contract); judgment reads that substrate at every
+# wake. Calibration prunes this list over tenure — a source that never
+# feeds a consequential judgment is a pruning candidate.
+
+sources: []

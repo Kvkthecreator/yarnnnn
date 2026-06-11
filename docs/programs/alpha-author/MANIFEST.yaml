@@ -228,19 +228,23 @@ substrate_abi:
   # ADR-330 D2 attestation field is load-bearing for non-trading verticals.
   ground_truth: operation/authored/_signal.md
 
-  # ADR-335 D9 — four-flow N/A declaration. alpha-author's context-in (flow 1)
-  # flows through operator-curated uploads + websearch (ADR-331 Mode-A
-  # harvest), not a standing platform watch; the lean shape is valid per
-  # ADR-332 §2 (perception is a flow, never a gate). Audience watches
-  # (operation/audience/ track-* mechanical recurrences) activate with
-  # publishing-platform capabilities per ADR-283 step 2 — at which point a
-  # `watches:` block replaces this rationale.
-  flows_na:
-    perception: >-
-      Context-in flows through operator-curated uploads + websearch (ADR-331
-      Mode-A harvest); no standing platform watch pre-audience. Audience
-      watches activate with publishing-platform capabilities (ADR-283 step 2),
-      at which point a watches: block replaces this rationale.
+  # ADR-336 (2026-06-11, enacting ADR-335 D7): the `flows_na.perception`
+  # rationale that lived here said "audience watches activate … at which
+  # point a `watches:` block replaces this rationale" — this is that block.
+  # alpha-author's standing watch is the generic web/RSS transport
+  # (TrackWebSources): the operator declares press/industry/interest feeds
+  # in _sources.yaml; the track-sources mechanical recurrence distills them
+  # into _watch_signal.yaml per the ADR-335 D3 observation contract. The
+  # template ships EMPTY sources — empty = deliberate no-op, so the lean
+  # uploads+websearch shape stays valid (perception is a flow, never a
+  # gate). Uploads + websearch remain rungs 1-2 of context-in primacy
+  # (ADR-335 §4); this watch is the rung-4a standing extension.
+  watches:
+    - id: interest-sources
+      shape: web_press_feed
+      declaration: operation/authored/_sources.yaml
+      recurrence: track-sources
+      distills_to: operation/authored/_watch_signal.yaml
 
   # Path zones this program contributes beyond the kernel-universal set.
   path_zones:
@@ -273,6 +277,12 @@ substrate_abi:
     - key: audience_signal_md
       path: operation/audience/_signal.md
       optional: true                  # accumulated by track-* mechanical recurrences when audience-bearing — empty by default
+    # ADR-336: the standing watch's distilled observations join the wake
+    # envelope so judgment reads the watch signal as substrate (ADR-281 —
+    # zero kernel edits; substrate-aware, transport-blind per ADR-335 D3).
+    - key: watch_signal
+      path: operation/authored/_watch_signal.yaml
+      optional: true                  # empty until the operator declares sources in _sources.yaml
 
 activation_preconditions:
   # alpha-author is `status: deferred` per ADR-283 honest-state framing.
