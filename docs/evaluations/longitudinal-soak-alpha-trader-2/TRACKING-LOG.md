@@ -78,3 +78,42 @@ The survival-audit queries are in [`SURVIVAL-QUERIES.md`](SURVIVAL-QUERIES.md) (
 **Read**: instrument validated; baseline clean. The all-green is *expected* for an off-hours window with no judgment activity — it confirms the queries are correct and the workspace came up healthy, nothing more. Survival is **not yet exercised**.
 
 **Next read (the first real survival pass)**: after today's US market session — judgment wakes (`signal-evaluation`, `pre-market-brief`) first fire ~13:00–13:45 UTC. Re-run the same 6 checks then; the verdict becomes meaningful once `mode=judgment` events exist in the window.
+
+---
+
+## 2026-06-11 00:17 UTC — SURVIVAL VERDICT: **SURVIVING** (first real pass — RTH judgment captured)
+
+**Deploy-marker**: genesis ran under `fc859fe`; the June-10 RTH judgment wakes + this read execute under **`0cb26b0`** (API `dep-d8kvile8…` + unified-scheduler `dep-d8kviku8…`, both `live` 2026-06-10 23:56 UTC). The intervening commits (`6995b6a` GTM site copy, `3a974b8`/`0cb26b0` GTM + ADR-335 draft) are **docs/GTM only — zero code touching the trader loop, scheduler, wake path, or bundle** (verified: ADR-335 is a Proposed draft under a Stage-C no-code fence; the GTM commits touch `web/` marketing pages + `docs/`). So this is a **labeled deploy boundary with no behavioral delta on the observed system** — the survival read is honest across it. *(§3 deploy-marker discipline: boundary noted, improvement-vs-architectural-shift stays distinguishable; here the shift is null for the trader loop.)*
+
+**Window**: genesis (02:22 UTC, 2026-06-10) → 00:17 UTC (2026-06-11) — ~22 hours, **spanning one full US market session** (June 10 RTH, 13:30–20:00 UTC). This is the first window with real `mode=judgment` activity — the read the baseline deferred to.
+
+**Why this IS a survival verdict** (§6 rule 6): three judgment wakes fired unattended on `cron_tick` during RTH, all cycles closed. The operation lived a full market day scheduler-fired, operator-absent. Survival is now genuinely exercised, not just instrument-validated.
+
+**Checks 1–6, all green:**
+
+| # | Check | Result | Receipt |
+|---|---|---|---|
+| 1 | Silent-wake (S9) | ✅ 0 rows | `mode=judgment ∧ success ∧ output_tokens IS NULL` empty — all 3 judgment wakes carry non-NULL output (6669 / 2709 / 2361) |
+| 2 | Failure triage | ✅ 0 rows | zero `status != success` across **672** total events |
+| 3 | Stuck locks | ✅ 0 rows | zero `wake_queue.status='locked'`; **672/672** completed, lane=live |
+| 4 | Budget burn | ✅ healthy | balance **$30.00** intact; 3 LLM events, **$0.71** total, max single wake **$0.33** (under the $1.00/wake ceiling); runway effectively unbounded at this burn |
+| 5 | Schedule health | ✅ green | 11/11 future `next_run_at` (all semantic schedules resolved to 2026-06-11 13:30 UTC session), 0 paused, 0 wrongly-due |
+| 6 | Stale-index drift | ✅ 11 = 11 | `tasks` slugs ≡ `_recurrences.yaml` slugs, identical sets |
+
+**The RTH judgment loop (the load-bearing receipt)** — three unattended judgment wakes, all `cron_tick`, all cycles closed:
+
+| slug | wake_source | rounds | in/out tokens | cost | fired (UTC) |
+|---|---|---|---|---|---|
+| `pre-market-brief` | cron_tick | 12 | 64078 / 6669 | $0.330 | 13:01:45 |
+| `signal-evaluation` | cron_tick | 4 | 46278 / 2709 | $0.215 | 13:45:59 |
+| `outcome-reconciliation` | cron_tick | 3 | 43467 / 2361 | $0.163 | 21:01:08 |
+
+The schedule fired the right wakes at the right semantic times (pre-market −30min → 13:01; signal-eval +15min → 13:45; reconciliation +1h → 21:01), unattended, with the operation correctly quiet off-hours.
+
+**One non-fault clarified**: `track-universe` shows NULL `schedule`/`next_run_at` in the Check-5 table. **This is correct** — `_recurrences.yaml` declares it `schedule: null, mode: mechanical, fire_on_activation: true`: a primitive (`@primitive: TrackUniverse()`) fired by activation + the signal-evaluation flow, not a cron-scheduled recurrence. It fired at genesis (02:24) and is not expected to carry a `next_run_at`. Not index drift, not a schedule fault.
+
+**Read**: **SURVIVING.** The alpha-trader operation lived a full unattended market day — judgment loop fired on the cron clock, every cycle closed, zero silent-wakes, zero failures, zero stuck locks, budget intact, schedule healthy, index in sync. The §6 rule-6 gate is now cleared: this window captured real judgment events and they're clean, so the ledger becomes readable as improvement evidence on subsequent passes. **This is the first true unattended scheduler-fired multi-day survival receipt for any alpha-trader workspace** — every prior trader eval was harness-fired (catch-up audit §9.4 + genesis caveat).
+
+**Honest scope of what this does NOT yet prove**: survival ≠ improvement. June 10 was (apparently) a no-trade day — the judgment loop *closed* but no capital signal fired, so this proves the operation *survives* tenure, not that the self-improving loop *improves* on an earned ledger (that's the curve read, NEXT-5, which needs reconciled-trade accumulation). A boring market day tests survival, not the judgment loop's edge. The stewardship/ADR-327 self-improvement behaviors are validated *episodically* (harness-fired, 2026-06-05 + 2026-06-09 on kvk); this soak is the *longitudinal* companion — it must accumulate real trades before the improvement curve is readable.
+
+**Next read**: after ≥3 more cron days, OR immediately following the first window that contains a fired capital signal (a `signal-evaluation` that emits a `submit_order_bracket` proposal + its `outcome-reconciliation` fold). Re-run the 6 checks; if still SURVIVING and a real trade has reconciled, begin the improvement-curve read (NEXT-5: `_money_truth.md` diff-sequence + `by_signal` expectancy trajectory, deploy-marker-stamped).
