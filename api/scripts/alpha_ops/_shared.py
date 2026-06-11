@@ -65,7 +65,12 @@ class Persona:
     # at load_registry() time against docs/programs/{program}/MANIFEST.yaml.
     # Persona slug and program slug are independent — alpha-trader + alpha-
     # trader-2 both have program="alpha-trader".
-    program: str
+    # 2026-06-11 (eval-canon lifecycle journey): `program: null` is valid for
+    # bare-kernel personas — the Stage-0 floor subjects that never activate a
+    # program (Direction A: program-activation is the OPERATING floor;
+    # ADR-320: a bare workspace is coherent, not empty). The field must
+    # still be DECLARED explicitly — an absent field stays a fail-fast error.
+    program: str | None
     platform: dict[str, Any]
     context_domains: list[str]
     credentials_env: dict[str, str]
@@ -96,18 +101,28 @@ class Registry:
 _PROGRAMS_ROOT = REPO_ROOT / "docs" / "programs"
 
 
-def _validate_program(persona_slug: str, program_slug: str | None) -> str:
+def _validate_program(
+    persona_slug: str, program_slug: str | None, *, declared: bool
+) -> str | None:
     """ADR-230 D1: every persona must declare a `program` field whose
     target bundle exists at docs/programs/{program}/. Fail fast at load
     time so any operation against an unlinked persona errors with a
     clear message instead of silently using kernel defaults later.
+
+    2026-06-11 (eval-canon lifecycle journey): an EXPLICIT `program: null`
+    is valid — it marks a bare-kernel persona (Stage-0 floor subject that
+    never forks a bundle). An ABSENT field is still fail-fast: the null
+    must be a declared decision, never an omission.
     """
+    if program_slug is None and declared:
+        return None
     if not program_slug:
         raise SystemExit(
             f"persona '{persona_slug}' has no `program` field. "
             f"Per ADR-230 D1 every persona must declare which program it "
-            f"activates (e.g. `program: alpha-trader`). Add the field to "
-            f"docs/alpha/personas.yaml."
+            f"activates (e.g. `program: alpha-trader`), or declare an "
+            f"explicit `program: null` for a bare-kernel (Stage-0 floor) "
+            f"persona. Add the field to docs/alpha/personas.yaml."
         )
     bundle_dir = _PROGRAMS_ROOT / program_slug
     manifest = bundle_dir / "MANIFEST.yaml"
@@ -131,7 +146,9 @@ def load_registry() -> Registry:
             email=p["email"],
             user_id=p["user_id"],
             workspace_id=p["workspace_id"],
-            program=_validate_program(p["slug"], p.get("program")),
+            program=_validate_program(
+                p["slug"], p.get("program"), declared="program" in p
+            ),
             platform=p["platform"],
             context_domains=p.get("context_domains", []),
             credentials_env=p.get("credentials_env", {}),

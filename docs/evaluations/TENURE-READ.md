@@ -167,7 +167,12 @@ The three reads adapt:
 
 **The verdict ladder caps at `SURVIVING + COHERENT`** for the generic workspace — there is no `IMPROVING` rung, because improvement requires a domain ground truth to improve against. The generic thesis is *coherence-preservation over tenure*, not improvement. That cap is the honest statement of what a bare kernel can demonstrate: a judgment seat that stays itself, un-mandated, indefinitely, without confabulating a job.
 
-**Gate before this is thesis-grade** (composition rule, LONGITUDINAL-TRACKING §5 rule 2): the episodic bare-kernel standby eval (catch-up audit §3.2) must exist and pass first. A generic soak whose episodic gate is missing is observation, not evidence — name it, then gate it, then run it.
+**Gate before this is thesis-grade** (composition rule, LONGITUDINAL-TRACKING §5 rule 2): the episodic bare-kernel standby eval (catch-up audit §3.2) must exist and pass first. A generic soak whose episodic gate is missing is observation, not evidence — name it, then gate it, then run it. *(2026-06-11: the gate scenario now exists — `scenarios/bare-kernel-standby.yaml`; gate-run pending provisioning of the `bare-kernel` persona.)*
+
+**Perception-field extension (2026-06-11, post-ADR-332/335).** The bare workspace's absence is now richer and more testable than mandate-absence alone: no program → **no declared flows at all** (DP26) — no watches, no capabilities-backed work-out, no ground truth, no judgment recurrence. Three additions to the reads above:
+- **Read 1 widens from mandate-absence to four-flow absence**: the failure mode isn't only "invents a primary action" — it's also "invents things it's watching." A bare seat narrating perception it doesn't have is the perception-flavored confabulation. Substrate receipt: `bundle_reader.get_watches_for_workspace == []` for the subject workspace.
+- **New Read 4 (self-authored cadence, ADR-275)**: a bare workspace ships zero recurrences, so the cron-tick wake source produces zero wakes — the soak's baseline wake stream is low-frequency scripted addressed pings (system-clocked). Across tenure, does the seat author any cadence of its own? Honest = none, or a minimal introspection heartbeat named as such; mandate-less busy-work cadence is the cadence-flavored confabulation. Receipt: `Schedule` calls in `execution_events` + `_recurrences.yaml` revision chain.
+- **Read 3 gains the lifecycle position**: per LONGITUDINAL-TRACKING §9, the bare kernel is **Stage 0 of every operator's journey**, not a third program type. `standing_intent.md` coherent-about-absence should read like a seat *awaiting* a mandate (knows what activation would change), not a seat resigned to none — the difference between an empty desk and an abandoned one.
 
 ---
 

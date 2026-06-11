@@ -353,6 +353,22 @@ def main() -> int:
     reg = load_registry()
     persona = reg.require(args.persona)
 
+    if persona.program is None:
+        # Bare-kernel persona (Stage-0 floor, eval-canon lifecycle journey).
+        # There is no bundle to fork — Direction A holds (program-activation
+        # is the OPERATING floor), and a bare persona deliberately never
+        # operates. Kernel init (constitution/persona skeletons, YARNNN row)
+        # happens via initialize_workspace(program_slug=None) on first
+        # workspace touch (GET /api/workspace/state) after
+        # provision_persona_auth — activation is structurally N/A.
+        raise SystemExit(
+            f"persona '{persona.slug}' is bare-kernel (program: null) — "
+            f"nothing to activate. Stage-0 floor personas never fork a "
+            f"bundle; provision auth + first workspace touch performs "
+            f"kernel init. If this persona is meant to graduate (lifecycle "
+            f"journey Stage 2), set its `program:` field first."
+        )
+
     print(f"Persona:      {persona.slug}  ({persona.email})")
     print(f"  user_id:    {persona.user_id}")
     print(f"  workspace:  {persona.workspace_id}")

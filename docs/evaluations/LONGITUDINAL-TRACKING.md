@@ -115,3 +115,24 @@ A longitudinal soak runs two complementary instruments per read, both over the s
 | [`TENURE-READ.md`](TENURE-READ.md) | MIND | "was the reasoning good, and is it improving?" | 3 substrate reads → prose finding + tenure verdict |
 
 **Survival gates quality** (§5 rule 2): never read a TENURE-READ as improvement evidence on a window whose survival pass is red. The tenure verdict ladder — `SURVIVING` (machine) → `SURVIVING + COHERENT` (mind reasons well, no curve yet) → `IMPROVING` (the DP24 thesis, only on an earned ground-truth ledger) — is the soak's progress measure. Most early reads land at COHERENT; `IMPROVING` requires accumulated outcomes. The generic/bare-kernel soak caps at COHERENT by construction (no domain ground truth to improve against — TENURE-READ §5).
+
+---
+
+## §9 The lifecycle-journey spine (2026-06-11 re-center)
+
+**The re-center**: the eval spine mirrors the operator lifecycle, not the program catalog. Prior framing treated soaks as per-program-type islands (trader / author / generic-as-third-type). But the ratified product canon says every workspace **starts bare** — ADR-320: the workspace's durable entity is the judgment seat; a pre-operation (bare) workspace is *coherent, not empty*; constitution+persona authoring is the first act, not a "phase" — while Direction A (bare-kernel-product-floor memo, 2026-06-01) holds that *operating* requires a program. The two compose into one lifecycle, and the lifecycle is what the suite validates:
+
+| Stage | State | What the eval asserts | Instrument |
+|---|---|---|---|
+| **0 — Bare seat** | signup-state; kernel init only; no program | Honest absence across **all four flows** (DP26/DP27 — no confabulated mandate, watches, work, or loop); coherent memory | episodic gate: `scenarios/bare-kernel-standby.yaml`; longitudinal: the Stage-0 floor soak (TENURE-READ §5) |
+| **1 — Seat formation** | operator authors constitution + persona through chat | The seat guides first-authoring honestly; MANDATE/IDENTITY transition skeleton→authored with operator attribution | journey eval turns (graduation read #1) |
+| **2 — Program attachment** | activation forks a bundle; flows become declared | The transition: honest-absence posture → flow-complete operation; recurrences scaffold; envelope gains program keys; `get_watches_for_workspace` goes `[]` → declared | journey eval turns (graduation read #2 — the highest-value single read in the suite) |
+| **3 — Operating tenure** | the existing soak shape | SURVIVAL + TENURE-READ as today (trader: alpha-trader-2, live; author: anr-scout post-graduation) | §8 two-instrument soak |
+
+**Two standing subjects, two theses** (personas.yaml):
+- **`bare-kernel`** — stays at Stage 0 *forever*. Thesis: coherence-preservation un-mandated over tenure (TENURE-READ §5; caps at SURVIVING + COHERENT). Its wake stream: low-frequency scripted addressed pings (system-clocked) — a bare workspace has zero recurrences, so cron-tick alone produces zero wakes; the soak design must name its wake source explicitly. A named §5-adjacent read: does the un-mandated seat author *any* cadence (ADR-275 self-authoring)? The honest answer is none-or-minimal-introspection; mandate-less busy-work cadence is confabulation.
+- **`anr-scout`** — the journey subject (A&R scout at an indie music company; scouting-brief corpus). Walks Stage 0 → 1 → 2 (activates alpha-author; the corpus shape fits — scouting briefs are an authored corpus with voice + editorial judgment) → 3. This is the e2e validation of the core workflow itself: the graduation moments (Stage 1→2 especially) are evals no per-program soak can produce.
+
+**Gate-before-tenure still binds at every stage**: the Stage-0 episodic gate (`bare-kernel-standby`) must pass before the Stage-0 soak is evidence; the journey's Stage-2 graduation read must pass before its Stage-3 tenure is read as program evidence.
+
+**Future rung (recorded, not built)**: when route-i (operator-assembled programs, ADR-332 §5 ledger) and ADR-335 Crawl-B/D7 land, the journey persona's Stage-2 changes shape — assembly-from-inference instead of bundle pick, watches bound through registry-resolved transports. The A&R persona is deliberately chosen so the same persona re-runs that future journey without redesign.

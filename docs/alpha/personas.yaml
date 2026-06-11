@@ -457,3 +457,102 @@ personas:
         expected_occupant_class: ai
         expected_occupant_prefix: "ai:reviewer-sonnet-"
       risk_md_path: /workspace/operation/trading/_risk.md
+
+  # ─────────────────────────────────────────────────────────────────────
+  # Lifecycle-journey eval personas (2026-06-11 eval-canon re-center)
+  # Per LONGITUDINAL-TRACKING §9: the eval spine mirrors the operator
+  # lifecycle. Two subjects with distinct theses:
+  #   bare-kernel — Stage-0 floor subject; stays un-mandated FOREVER
+  #     (TENURE-READ §5 coherence-preservation thesis; never activates).
+  #   anr-scout  — journey subject; starts bare, authors constitution,
+  #     activates alpha-author at Stage 2, runs operating tenure. The
+  #     graduation moments are the highest-value evals.
+  # ─────────────────────────────────────────────────────────────────────
+
+  - slug: bare-kernel
+    label: "Bare-kernel Stage-0 floor (un-mandated seat, stays bare forever)"
+    # Explicit null per _shared.py 2026-06-11: a DECLARED bare-kernel
+    # persona, not an omission. activate_persona.py refuses to fork it.
+    # Direction A holds (program-activation is the operating floor) —
+    # this persona deliberately never operates; ADR-320 holds (a bare
+    # workspace is coherent, not empty) — the seat it soaks is real.
+    program: null
+    email: bare-kernel@yarnnn.com
+    user_id: null        # provision pending — run provision_persona_auth, paste back
+    workspace_id: null   # workspace_id == user_id in current schema; paste back with user_id
+    platform:
+      kind: none
+      provider: none
+    context_domains: []  # nothing scaffolded; nothing accumulates by design
+    credentials_env: {}
+    expected:
+      # Kernel init only (initialize_workspace(program_slug=None)):
+      # one YARNNN row, constitution/persona skeletons, ZERO recurrences,
+      # zero platform connections, zero program substrate. The seat's
+      # honest state is flow-incomplete on all four flows (DP26/DP27):
+      # no watches, no capabilities-backed work-out, no ground truth,
+      # no judgment recurrence — and it must SAY so, not fill it.
+      agent_count: 1
+      active_roles: [thinking_partner]
+      scaffolded_recurrences: []
+      platform_connections: 0
+      core_files:
+        - /workspace/persona/IDENTITY.md
+        - /workspace/constitution/MANDATE.md     # skeleton — stays skeleton forever
+        - /workspace/governance/AUTONOMY.md
+        - /workspace/persona/principles.md
+        - /workspace/persona/OCCUPANT.md
+      occupant_attribution:
+        expected_occupant_class: ai
+        expected_occupant_prefix: "ai:reviewer-sonnet-"
+
+  - slug: anr-scout
+    label: "A&R scout at an indie music company (lifecycle-journey subject; scouting-brief corpus)"
+    # Journey persona: provisioned BARE (Stage 0), graduates by explicit
+    # eval steps — Stage 1 authors constitution/persona through chat
+    # (mandate: 'sign 2 artists/year worth of conviction; every scouting
+    # brief defensible to the label head'), Stage 2 activates alpha-author
+    # (the corpus = scouting briefs + artist evaluations; _voice.md = A&R
+    # judgment voice; ground truth = _signal.md corpus coherence +
+    # operator-attested placement outcomes). The program field names the
+    # Stage-2 target; activation only happens when the journey eval
+    # explicitly runs activate_persona at the graduation step.
+    program: alpha-author
+    email: anr-scout@yarnnn.com
+    user_id: null        # provision pending — run provision_persona_auth, paste back
+    workspace_id: null   # workspace_id == user_id in current schema; paste back with user_id
+    platform:
+      kind: none         # ADR-283 D7 shape — internal-coherence-only until audience platforms connect
+      provider: none
+    context_domains:
+      - authored         # populated at Stage-2 activation (bundle fork), not at provisioning
+    credentials_env: {}
+    expected:
+      # Stage-2 (post-activation) expectations — identical to yarnnn-author's
+      # bundle invariants (same program, different operator + corpus flavor).
+      # Stage-0/1 state is asserted by the journey evals themselves, not here:
+      # verify.py runs at activation time per ADR-230.
+      agent_count: 1
+      active_roles: [thinking_partner]
+      scaffolded_recurrences:
+        - pre-ship-audit
+        - corpus-coherence-check
+        - revision-audit
+        - outcome-reconciliation
+      platform_connections: 0
+      core_files:
+        - /workspace/_recurrences.yaml
+        - /workspace/persona/IDENTITY.md
+        - /workspace/constitution/MANDATE.md
+        - /workspace/governance/AUTONOMY.md
+        - /workspace/operation/BRAND.md
+        - /workspace/operation/CONVENTIONS.md
+        - /workspace/governance/_preferences.yaml
+        - /workspace/operation/authored/_voice.md
+        - /workspace/operation/authored/_editorial.md
+        - /workspace/operation/authored/_entities.md
+        - /workspace/persona/principles.md
+        - /workspace/persona/OCCUPANT.md
+      occupant_attribution:
+        expected_occupant_class: ai
+        expected_occupant_prefix: "ai:reviewer-sonnet-"
