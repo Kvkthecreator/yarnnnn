@@ -57,6 +57,15 @@ personas:
   - slug: alpha-trader
     label: "Simons-inspired systematic retail trader"
     program: alpha-trader   # ADR-230 D1: bundle at docs/programs/alpha-trader/
+    # STATE NOTE (2026-06-11 substrate audit): this workspace was purged to a
+    # bare kernel on 2026-05-29 01:02 UTC (kernel re-init by system:user-memory;
+    # the prior revision chain was deleted — total revisions now 12, oldest
+    # 2026-05-29) and has NOT been re-activated since. Live state: 11 files
+    # (kernel skeleton), 0 task rows, 0 recurrences — but the Alpaca
+    # platform_connection SURVIVED the purge and is still active. The
+    # `expected` block below describes POST-ACTIVATION invariants and does not
+    # hold today; run `activate_persona.py --persona alpha-trader` before
+    # treating verify.py failures on this row as regressions.
     email: seulkim88@gmail.com
     user_id: 2be30ac5-b3cf-46b1-aeb8-af39cd351af4
     workspace_id: b7e1b9bc-ffb3-478e-bd05-dcae01a8a6b1

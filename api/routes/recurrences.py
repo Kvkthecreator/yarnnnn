@@ -500,62 +500,87 @@ async def get_run_status(slug: str, auth: UserClient) -> RunStatusResponse:
 
 # =============================================================================
 # Output reads (slug-templated substrate per ADR-262 D1)
+#
+# 2026-06-11: discovery + read no longer key on output.md alone. The Reviewer
+# writes section partials + sys_manifest.json (ADR-213 substrate shape); a
+# composed output.md may be absent (pre-market-brief) or empty (a truncated
+# write). Folder discovery walks ANY file under the dated folder; the read
+# path falls back to the singular compose helper (compose_task_output_html)
+# when output.md is missing/empty — substrate is canonical, HTML is the view.
 # =============================================================================
+
+
+def _derive_date_folders(paths: list[str], substrate_root: str) -> list[str]:
+    """Pure: distinct first-level subfolder names under substrate_root,
+    newest-first. Root-level files (e.g. run_log.md) are excluded — a date
+    folder is any segment that CONTAINS files, i.e. the rel path has a '/'."""
+    folders: set[str] = set()
+    prefix_len = len(substrate_root) + 1
+    for path in paths:
+        if not path.startswith(substrate_root + "/"):
+            continue
+        rel = path[prefix_len:]
+        if "/" not in rel:
+            continue  # file at root, not a dated folder
+        folders.add(rel.split("/")[0])
+    return sorted(folders, reverse=True)
+
+
+def _list_date_folders(auth: UserClient, substrate_root: str) -> list[str]:
+    """Query all substrate paths under the root and derive dated folders."""
+    rows = (
+        auth.client.table("workspace_files")
+        .select("path")
+        .eq("user_id", auth.user_id)
+        .like("path", f"{substrate_root}/%")
+        .execute()
+    ).data or []
+    return _derive_date_folders([r["path"] for r in rows], substrate_root)
+
+
+async def _read_output_for_folder(
+    auth: UserClient, slug: str, substrate_root: str, date_folder: str
+) -> TaskOutputLatest:
+    """Read a dated output folder: output.md when present and non-empty,
+    else compose HTML from section substrate via the singular compose path."""
+    um = UserMemory(auth.client, auth.user_id)
+    output_md = await um.read(_strip_ws_prefix(f"{substrate_root}/{date_folder}/output.md"))
+    if output_md and output_md.strip():
+        return TaskOutputLatest(content=output_md, date=date_folder)
+
+    from services.compose.task_html import compose_task_output_html
+    html_content = await compose_task_output_html(
+        auth.client, auth.user_id, slug, date_folder
+    )
+    if html_content:
+        return TaskOutputLatest(html_content=html_content, date=date_folder)
+    return TaskOutputLatest()
 
 
 @router.get("/{slug}/outputs")
 async def list_recurrence_outputs(slug: str, auth: UserClient) -> list[TaskOutputEntry]:
     """List dated output folders under /workspace/operation/reports/{slug}/."""
     substrate_root = report_root(slug)
-
-    result = (
-        auth.client.table("workspace_files")
-        .select("path, content")
-        .eq("user_id", auth.user_id)
-        .like("path", f"{substrate_root}/%/output.md")
-        .execute()
-    ).data or []
-
-    entries = []
-    for row in result:
-        path = row["path"]
-        rel = path[len(substrate_root) + 1:]
-        date_folder = rel.split("/")[0]
-        entries.append(TaskOutputEntry(
+    return [
+        TaskOutputEntry(
             folder=date_folder,
             date=date_folder,
             status="active",
             renderable=True,
             manifest=None,
-        ))
-    entries.sort(key=lambda e: e.date, reverse=True)
-    return entries
+        )
+        for date_folder in _list_date_folders(auth, substrate_root)
+    ]
 
 
 @router.get("/{slug}/outputs/latest")
 async def get_latest_recurrence_output(slug: str, auth: UserClient) -> TaskOutputLatest:
-    """Latest output for a recurrence."""
+    """Latest output for a recurrence (output.md, else composed sections)."""
     substrate_root = report_root(slug)
-
-    latest = (
-        auth.client.table("workspace_files")
-        .select("path, content")
-        .eq("user_id", auth.user_id)
-        .like("path", f"{substrate_root}/%/output.md")
-        .order("updated_at", desc=True)
-        .limit(1)
-        .execute()
-    ).data or []
-    if not latest:
+    folders = _list_date_folders(auth, substrate_root)
+    if not folders:
         return TaskOutputLatest()
-    row = latest[0]
-    rel = row["path"][len(substrate_root) + 1:]
-    date_folder = rel.split("/")[0]
-
-    return TaskOutputLatest(
-        content=row.get("content"),
-        date=date_folder,
-    )
+    return await _read_output_for_folder(auth, slug, substrate_root, folders[0])
 
 
 @router.get("/{slug}/outputs/{date_folder}")
@@ -563,11 +588,7 @@ async def get_recurrence_output_by_date(
     slug: str, date_folder: str, auth: UserClient
 ) -> TaskOutputLatest:
     substrate_root = report_root(slug)
-    um = UserMemory(auth.client, auth.user_id)
-    output_md = await um.read(_strip_ws_prefix(f"{substrate_root}/{date_folder}/output.md"))
-    if not output_md:
-        return TaskOutputLatest()
-    return TaskOutputLatest(content=output_md, date=date_folder)
+    return await _read_output_for_folder(auth, slug, substrate_root, date_folder)
 
 
 # =============================================================================
@@ -586,18 +607,10 @@ async def export_recurrence_output(
     substrate_root = report_root(slug)
 
     if not date_folder:
-        latest = (
-            auth.client.table("workspace_files")
-            .select("path")
-            .eq("user_id", auth.user_id)
-            .like("path", f"{substrate_root}/%/output.md")
-            .order("updated_at", desc=True)
-            .limit(1)
-            .execute()
-        ).data or []
-        if not latest:
+        folders = _list_date_folders(auth, substrate_root)
+        if not folders:
             raise HTTPException(status_code=404, detail="No output found")
-        date_folder = latest[0]["path"][len(substrate_root) + 1:].split("/")[0]
+        date_folder = folders[0]
 
     from services.compose.task_html import compose_task_output_html
     html_content = await compose_task_output_html(

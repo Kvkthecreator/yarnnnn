@@ -1124,12 +1124,18 @@ async def invoke_reviewer(
             tool_choice = {"type": "any"} if _round == 0 else {"type": "auto"}
             await _emit({"phase": "round_start", "round": rounds_used, "trigger": trigger})
 
+            # 8192 (raised from 2048, 2026-06-11): composed deliverables
+            # (weekly-performance-review output.md, _signal.md rollups) are
+            # 5-10KB of markdown — JSON-escaped tool input for a single
+            # WriteFile regularly exceeded 2048 output tokens, truncating the
+            # call mid-input. max_tokens is a ceiling, not a cost — only
+            # generated tokens bill.
             response = await chat_completion_with_tools(
                 messages=messages,
                 system=_system_prompt(),
                 tools=tools,
                 model=model,
-                max_tokens=2048,
+                max_tokens=8192,
                 tool_choice=tool_choice,
             )
 
@@ -1143,6 +1149,18 @@ async def invoke_reviewer(
             total_cache_create += int(usage.get("cache_creation_input_tokens", 0) or 0)
 
             tool_uses = response.tool_uses or []
+
+            # Truncation guard (2026-06-11): when generation hits the
+            # max_tokens ceiling mid-tool-call, the final tool_use block's
+            # input is INCOMPLETE — the API salvages partial JSON, so a
+            # WriteFile arrives with `path` set and `content` missing.
+            # Executing it writes a 0-byte revision over real substrate
+            # (observed: weekly-performance-review output.md ×12 empty
+            # writes; yarnnn-author _signal.md ground truth wiped to 0
+            # bytes on 2026-06-09). The truncated block must NOT execute;
+            # the model gets an is_error tool_result instructing it to
+            # re-issue in smaller parts.
+            response_truncated = getattr(response, "stop_reason", None) == "max_tokens"
 
             # Append assistant turn for multi-round history
             assistant_content: list[dict] = []
@@ -1237,10 +1255,35 @@ async def invoke_reviewer(
 
             tool_results: list[dict] = []
             clarify_called_this_round = False
-            for tu in tool_uses:
+            for _tu_idx, tu in enumerate(tool_uses):
                 name = tu.name
                 inp = tu.input or {}
                 tu_id = tu.id
+
+                # Truncation guard: the FINAL tool_use of a max_tokens-cut
+                # response carries incomplete input — never execute it (and
+                # never record a truncated ReturnVerdict). Earlier blocks in
+                # the same response completed before the cut and run normally.
+                if response_truncated and _tu_idx == len(tool_uses) - 1:
+                    logger.warning(
+                        "[REVIEWER] truncated tool call NOT executed: tool=%s "
+                        "trigger=%s user=%s round=%d — max_tokens ceiling hit "
+                        "mid-input",
+                        name, trigger, user_id[:8], rounds_used,
+                    )
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tu_id,
+                        "is_error": True,
+                        "content": (
+                            f"TRUNCATED — this {name} call hit the output-token "
+                            "ceiling mid-generation and was NOT executed (its "
+                            "input arrived incomplete). Re-issue it in smaller "
+                            "parts: for a large WriteFile, write the file across "
+                            "multiple calls using mode='append'."
+                        ),
+                    })
+                    continue
 
                 if name == "ReturnVerdict":
                     verdict_raw = inp

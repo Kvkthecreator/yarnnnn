@@ -15,9 +15,9 @@ Asserts the recurrence-mode + SyncPlatformState architecture is in place:
   - Schedule(action='update') honors mode in changes dict
   - invoke_reviewer trigger Literal narrowed to ["addressed", "reactive"]
   - _TRIGGER_FRAMING dict has 'addressed' + 'reactive' keys, no 'scheduled'
-  - invocation_dispatcher.dispatch default trigger is "reactive" (not "scheduled")
-  - invocation_dispatcher exports _dispatch_mechanical helper
-  - invocation_dispatcher exports _parse_primitive_directive helper
+  - wake.py (dispatch absorbed from invocation_dispatcher by the ADR-296 v2
+    wake migration) exports _dispatch_mechanical helper
+  - wake.py exports _parse_primitive_directive helper
   - unified_scheduler dispatches with trigger="reactive"
 
   ADR-264 (SyncPlatformState):
@@ -280,7 +280,9 @@ def main() -> None:
 
     print()
     print("--- Section 5: ADR-263 dispatcher branch + helpers ---")
-    disp_mod = assert_import_succeeds("services.invocation_dispatcher")
+    # Wake migration (ADR-296 v2): invocation_dispatcher dissolved into
+    # services/wake.py — the mechanical-dispatch helpers live there now.
+    disp_mod = assert_import_succeeds("services.wake")
     if disp_mod is not None:
         # _dispatch_mechanical helper
         if hasattr(disp_mod, "_dispatch_mechanical"):

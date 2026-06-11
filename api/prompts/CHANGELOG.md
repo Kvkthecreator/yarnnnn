@@ -6,6 +6,44 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.11.1] - Write-integrity guards: truncation + empty-content (0-byte WriteFile class)
+
+**LLM-facing changes** (no prompt text changed — tool-contract + loop behavior):
+
+- `api/agents/reviewer_agent.py`: dispatch-loop `max_tokens` raised 2048 → 8192.
+  Composed deliverables (weekly-performance-review output.md, _signal.md
+  rollups) are 5-10KB of markdown; JSON-escaped into one WriteFile input they
+  regularly exceeded 2048 output tokens and the call truncated mid-input.
+- `api/agents/reviewer_agent.py`: truncation guard — when
+  `stop_reason == "max_tokens"`, the FINAL tool_use block of the response
+  (the one cut mid-input) is NOT executed; the model receives an `is_error`
+  tool_result instructing it to re-issue in smaller `mode='append'` parts.
+  A truncated ReturnVerdict is likewise not recorded.
+- `api/services/primitives/workspace.py` (`WriteFile`): empty/whitespace
+  content is rejected with `error=empty_content_blocked`. Previously a
+  truncated tool input (missing `content` key) defaulted to `""` and
+  silently overwrote real substrate with a 0-byte revision.
+
+**Expected behavior**: no more 0-byte WriteFile bursts. Receipts that
+motivated this (2026-06-11 alpha substrate audit): kvk
+`weekly-performance-review/2026-06-08/output.md` — 12 consecutive 0-byte
+revisions over 4 minutes, run ended with an empty deliverable; yarnnn-author
+`operation/authored/_signal.md` — 4,908 bytes of ground truth wiped to 0
+bytes on 2026-06-09 by nine consecutive empty writes. Both fingerprints are
+the same failure: max_tokens cut mid-tool-JSON → partial input salvaged →
+`content` dropped → 0-byte write accepted → model retried into the same
+ceiling.
+
+**Companion (non-LLM) fix**: `api/routes/recurrences.py` output routes now
+discover dated folders from ANY substrate file (sections/ + sys_manifest.json,
+not just output.md) and fall back to the singular compose helper
+(`compose_task_output_html`, ADR-213/ADR-333 lazy projection) when output.md
+is missing or empty — the cockpit no longer claims "No output yet" while 8KB
+of section substrate exists. Regression gate:
+`api/test_write_integrity_guards.py` (13 assertions).
+
+---
+
 ## [2026.06.10.2] - ADR-331 Phase 2: harvest invocation system prompt
 
 **LLM-facing change**: new harvest-shaped system prompt + per-run brief in

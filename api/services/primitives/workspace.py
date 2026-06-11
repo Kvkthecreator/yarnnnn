@@ -542,6 +542,24 @@ async def handle_write_file(auth: Any, input: dict) -> dict:
     authored_by = input.get("authored_by")
     message = input.get("message")
 
+    # Empty-content guard (2026-06-11): a missing `content` key silently
+    # defaulted to "" and overwrote real substrate with 0-byte files — the
+    # observed failure mode when an LLM caller's tool input arrives truncated
+    # (max_tokens cut mid-JSON drops `content`, keeps `path`). There is no
+    # legitimate LLM write of an empty file: clearing a file is expressed by
+    # writing a stub note, and placeholder seeding is system-side (UserMemory
+    # direct). Defense-in-depth pair to the reviewer-loop truncation guard.
+    if not content.strip():
+        return {
+            "success": False,
+            "error": "empty_content_blocked",
+            "message": (
+                f"WriteFile requires non-empty content — refusing a 0-byte write to "
+                f"'{path or '(missing path)'}'. If your previous attempt was truncated, "
+                "re-issue the write in smaller parts using mode='append'."
+            ),
+        }
+
     if scope == "workspace":
         # ADR-235 Option A: workspace-relative paths via UserMemory. Reaches
         # operator-shared substrate (context/, memory/, review/, reports/, ...).
