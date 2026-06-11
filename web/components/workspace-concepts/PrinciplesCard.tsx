@@ -79,11 +79,11 @@ export function PrinciplesCard({
 
   if (variant === 'headline') {
     if (loading || !data?.hasPrinciples) return null;
-    const thresholds = data.domains.filter(d => d.autoApproveDisplay);
+    const thresholds = data.domains.filter(d => d.highImpactDisplay);
     return (
       <p className={cn('text-xs text-muted-foreground truncate', className)}>
         {thresholds.length > 0
-          ? thresholds.map(d => `${d.name}: auto-approve below ${d.autoApproveDisplay}`).join(' · ')
+          ? thresholds.map(d => `${d.name}: flag ≥ ${d.highImpactDisplay}`).join(' · ')
           : `${data.domains.length} domain${data.domains.length !== 1 ? 's' : ''} declared`}
       </p>
     );
@@ -113,7 +113,7 @@ export function PrinciplesCard({
             {data.domains.map(d => (
               <li key={d.name} className="text-xs text-muted-foreground">
                 <span className="capitalize font-medium">{d.name}</span>
-                {d.autoApproveDisplay && <span className="text-muted-foreground/70"> · auto-approve below {d.autoApproveDisplay}</span>}
+                {d.highImpactDisplay && <span className="text-muted-foreground/70"> · flag outcomes ≥ {d.highImpactDisplay}</span>}
               </li>
             ))}
           </ul>
@@ -153,9 +153,20 @@ export function PrinciplesCard({
           {data.domains.map(d => (
             <div key={d.name} className="rounded-lg border border-border/60 bg-card px-3 py-2.5 space-y-1.5">
               <p className="text-xs font-semibold capitalize">{d.name}</p>
+              {/* ADR-338 D4.6 — high_impact_threshold_cents: the actual
+                  machine-parsed threshold in _principles.yaml. Large realized
+                  outcomes at/above it route to the task feedback loop. */}
+              {d.highImpactDisplay && (
+                <p className="text-xs text-muted-foreground">
+                  Outcomes ≥ <span className="font-medium text-foreground">{d.highImpactDisplay}</span> flagged for review
+                </p>
+              )}
+              {/* Legacy: only shown if a prose file still mentions it. The
+                  execution ceiling now lives on /autonomy (ADR-261 D5). */}
               {d.autoApproveDisplay && (
                 <p className="text-xs text-muted-foreground">
                   Auto-approve below <span className="font-medium text-foreground">{d.autoApproveDisplay}</span>
+                  <span className="text-muted-foreground/50"> · now set on Autonomy</span>
                 </p>
               )}
               {d.rejectConditions.length > 0 && (

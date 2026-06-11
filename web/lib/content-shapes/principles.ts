@@ -34,10 +34,19 @@ export const META: ContentShapeMeta = {
 
 export interface DomainPrinciples {
   name: string;
-  /** Parsed auto_approve_below_cents value if declared. */
+  /** Parsed auto_approve_below_cents value if declared.
+   *  @deprecated ADR-261 D5 — folded into _autonomy.yaml::ceiling_cents. Kept
+   *  only to read legacy prose that still mentions it; the canonical
+   *  execution ceiling lives on /autonomy, not here. */
   autoApproveCents: number | null;
-  /** Dollar string for display e.g. "$500". Null if not set. */
+  /** Dollar string for display e.g. "$500". Null if not set. @deprecated — see above. */
   autoApproveDisplay: string | null;
+  /** ADR-338 D4.6 / ADR-195 Phase 5 — the actual machine-parsed threshold in
+   *  _principles.yaml: realized outcomes ≥ this route to the task feedback.md
+   *  (high-impact → feedback loop). null when not declared for the domain. */
+  highImpactCents: number | null;
+  /** Dollar string for display e.g. "$500". Null if not set. */
+  highImpactDisplay: string | null;
   /** Bullet items under ### Reject conditions. */
   rejectConditions: string[];
 }
@@ -84,7 +93,14 @@ export function parse(content: string): PrinciplesData {
           .filter(l => l.length > 0 && !l.startsWith('#'))
       : [];
 
-    domains.push({ name, autoApproveCents, autoApproveDisplay, rejectConditions });
+    domains.push({
+      name,
+      autoApproveCents,
+      autoApproveDisplay,
+      highImpactCents: null,  // prose doesn't carry it; merged from _principles.yaml
+      highImpactDisplay: null,
+      rejectConditions,
+    });
   }
 
   return {
@@ -106,12 +122,15 @@ export function parse(content: string): PrinciplesData {
 // Strips tier frontmatter block (--- tier: authored ... ---) before parsing.
 
 export interface YamlThresholds {
-  /** Map of domain name → auto_approve_below_cents */
+  /** Map of domain name → auto_approve_below_cents (@deprecated — ADR-261 D5). */
   domains: Record<string, number | null>;
+  /** ADR-338 D4.6 — map of domain name → high_impact_threshold_cents (the
+   *  actual machine-parsed threshold in _principles.yaml, ADR-195 Phase 5). */
+  highImpact: Record<string, number | null>;
 }
 
 export function parseYaml(content: string): YamlThresholds {
-  const result: YamlThresholds = { domains: {} };
+  const result: YamlThresholds = { domains: {}, highImpact: {} };
   // Strip tier frontmatter block
   const stripped = content.replace(/^---\s*\n[\s\S]*?\n---\s*\n/, '');
   let currentDomain: string | null = null;
@@ -122,13 +141,18 @@ export function parseYaml(content: string): YamlThresholds {
     if (domainMatch) {
       currentDomain = domainMatch[1];
       result.domains[currentDomain] = null;
+      result.highImpact[currentDomain] = null;
       continue;
     }
-    // Threshold field under a domain
+    // Threshold fields under a domain
     if (currentDomain) {
-      const thresholdMatch = line.match(/^\s+auto_approve_below_cents:\s*(\d+)/);
-      if (thresholdMatch) {
-        result.domains[currentDomain] = parseInt(thresholdMatch[1], 10);
+      const autoApprove = line.match(/^\s+auto_approve_below_cents:\s*(\d+)/);
+      if (autoApprove) {
+        result.domains[currentDomain] = parseInt(autoApprove[1], 10);
+      }
+      const highImpact = line.match(/^\s+high_impact_threshold_cents:\s*(\d+)/);
+      if (highImpact) {
+        result.highImpact[currentDomain] = parseInt(highImpact[1], 10);
       }
     }
   }
@@ -145,23 +169,35 @@ export function mergeThresholds(
   prose: PrinciplesData,
   yaml: YamlThresholds,
 ): PrinciplesData {
+  const cents = (n: number | null) => (n !== null ? `$${(n / 100).toLocaleString()}` : null);
   const merged = prose.domains.map(d => {
-    const yamlCents = yaml.domains[d.name.toLowerCase()] ?? null;
-    if (yamlCents === null) return d;
+    const key = d.name.toLowerCase();
+    const yamlCents = yaml.domains[key] ?? null;
+    const hiCents = yaml.highImpact[key] ?? null;
     return {
       ...d,
-      autoApproveCents: yamlCents,
-      autoApproveDisplay: `$${(yamlCents / 100).toLocaleString()}`,
+      ...(yamlCents !== null
+        ? { autoApproveCents: yamlCents, autoApproveDisplay: cents(yamlCents) }
+        : {}),
+      highImpactCents: hiCents,
+      highImpactDisplay: cents(hiCents),
     };
   });
-  // Add yaml-only domains (not present in prose)
+  // Add yaml-only domains (not present in prose) — union both threshold maps.
   const proseNames = new Set(prose.domains.map(d => d.name.toLowerCase()));
-  for (const [name, cents] of Object.entries(yaml.domains)) {
+  const yamlNames = Array.from(
+    new Set([...Object.keys(yaml.domains), ...Object.keys(yaml.highImpact)]),
+  );
+  for (const name of yamlNames) {
     if (!proseNames.has(name)) {
+      const aac = yaml.domains[name] ?? null;
+      const hic = yaml.highImpact[name] ?? null;
       merged.push({
         name,
-        autoApproveCents: cents,
-        autoApproveDisplay: cents !== null ? `$${(cents / 100).toLocaleString()}` : null,
+        autoApproveCents: aac,
+        autoApproveDisplay: cents(aac),
+        highImpactCents: hic,
+        highImpactDisplay: cents(hic),
         rejectConditions: [],
       });
     }
