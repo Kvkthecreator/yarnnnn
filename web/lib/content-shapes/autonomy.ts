@@ -79,6 +79,18 @@ export interface AutonomyDomain {
 export interface AutonomyMeta {
   default_delegation?: AutonomyDelegation | string;
   default_ceiling_cents?: number;
+  /**
+   * ADR-338 D4.2 — the hard safety list under `default:`. Each entry is
+   * either a bare string (action_type substring match) or a `path:`-prefixed
+   * string (substrate-path prefix match). Backend-enforced by
+   * `review_policy._check_never_auto` (api/services/review_policy.py:267-303):
+   * any action matching an entry ALWAYS routes to the Queue regardless of
+   * delegation level. Pre-ADR-338 the FE parser ignored this list and the
+   * serializer dropped it into opaque body text — making it kernel-enforced
+   * but FE-invisible (the schema-inert-edit + duplicate-key-shadow failure
+   * class). Now extracted + round-tripped structurally.
+   */
+  default_never_auto?: string[];
   domains?: Record<string, AutonomyDomain>;
   /** ADR-248 D3: ISO-8601 UTC timestamp. While non-expired, every
    *  proposal defers regardless of delegation. */
@@ -115,7 +127,27 @@ export function parse(content: string): AutonomyMeta {
   let currentDomain: string | null = null;
   let inDefault = false;
   let inDomains = false;
+  // ADR-338 D4.2: when we're inside a `never_auto:` list under `default:`,
+  // collect subsequent `- item` lines until the indentation breaks out.
+  let inNeverAutoList = false;
   for (const line of yaml.split('\n')) {
+    // ADR-338 D4.2: collect list items for the never_auto list before the
+    // comment/blank skip — a `- entry` line is neither comment nor blank, but
+    // we must catch it while inNeverAutoList. A blank line inside a YAML block
+    // list does not terminate it; a non-list, less/equal-indented key does.
+    if (inNeverAutoList) {
+      const itemMatch = line.match(/^\s{4,}-\s*(.*)$/);
+      if (itemMatch) {
+        const item = itemMatch[1].trim().replace(/^['"]|['"]$/g, '').replace(/\s*#.*$/, '').trim();
+        if (item) (meta.default_never_auto ||= []).push(item);
+        continue;
+      }
+      // A comment or blank line inside the list block is tolerated (does not
+      // terminate). Any other line ends the list — fall through to normal
+      // dispatch so the line is still processed.
+      if (/^\s*#/.test(line) || /^\s*$/.test(line)) continue;
+      inNeverAutoList = false;
+    }
     // Skip comment lines and blank lines
     if (/^\s*#/.test(line) || /^\s*$/.test(line)) continue;
     if (/^default:\s*$/.test(line)) {
@@ -151,6 +183,17 @@ export function parse(content: string): AutonomyMeta {
       meta.domains![currentDomain] = {};
       continue;
     }
+    // ADR-338 D4.2: `never_auto:` with no inline value under `default:` opens
+    // a block list. (`never_auto: []` is the empty-inline form, handled by the
+    // scalar branch below — it stays an empty list, no items follow.)
+    if (inDefault) {
+      const neverAutoOpen = line.match(/^\s{2}never_auto:\s*$/);
+      if (neverAutoOpen) {
+        meta.default_never_auto ||= [];
+        inNeverAutoList = true;
+        continue;
+      }
+    }
     const fieldMatch = line.match(/^\s+([a-z_]+):\s*(.*)$/);
     if (!fieldMatch) continue;
     const k = fieldMatch[1].trim();
@@ -165,6 +208,20 @@ export function parse(content: string): AutonomyMeta {
         meta.default_delegation = _normalizeDelegation(v);
       }
       if (k === 'ceiling_cents') meta.default_ceiling_cents = Number(v);
+      // ADR-338 D4.2: inline empty list `never_auto: []` (the bundle default).
+      if (k === 'never_auto') {
+        meta.default_never_auto ||= [];
+        if (v && v !== '[]') {
+          // Inline flow-list form: never_auto: [a, b]
+          const inner = v.replace(/^\[|\]$/g, '').trim();
+          if (inner) {
+            for (const part of inner.split(',')) {
+              const item = part.trim().replace(/^['"]|['"]$/g, '').trim();
+              if (item) meta.default_never_auto.push(item);
+            }
+          }
+        }
+      }
     } else if (inDomains && currentDomain) {
       const dom = meta.domains![currentDomain];
       if (k === 'delegation' || k === 'level') {
@@ -227,13 +284,38 @@ export function serialize(meta: AutonomyMeta, body: string = '', tierBlock: stri
   // Commit G (2026-05-11): paused_until + pause_reason emitted as top-level
   // keys (ADR-248 D3); reads + writes round-trip cleanly.
   const lines: string[] = [];
-  if (meta.default_delegation !== undefined || meta.default_ceiling_cents !== undefined) {
+  // ADR-338 D4.2: emit the `default:` block whenever ANY default-scoped field
+  // is present — including never_auto, even if delegation/ceiling are unset.
+  const hasNeverAuto = meta.default_never_auto !== undefined;
+  if (
+    meta.default_delegation !== undefined ||
+    meta.default_ceiling_cents !== undefined ||
+    hasNeverAuto
+  ) {
     lines.push('default:');
     if (meta.default_delegation !== undefined) {
       lines.push(`  delegation: ${meta.default_delegation}`);
     }
     if (meta.default_ceiling_cents !== undefined) {
       lines.push(`  ceiling_cents: ${meta.default_ceiling_cents}`);
+    }
+    // ADR-338 D4.2: emit never_auto structurally. Empty list → inline `[]`
+    // (matches the bundle default shape); non-empty → block list. This is
+    // the SINGLE structural emission — the duplicate-key-shadow class is
+    // eliminated because the body-strip below removes any prior never_auto.
+    if (hasNeverAuto) {
+      const entries = meta.default_never_auto!;
+      if (entries.length === 0) {
+        lines.push('  never_auto: []');
+      } else {
+        lines.push('  never_auto:');
+        for (const entry of entries) {
+          // Quote entries that contain yaml-special chars (colon, etc.) — a
+          // `path:`-prefixed entry must round-trip without breaking the parse.
+          const needsQuote = /[:#]/.test(entry);
+          lines.push(needsQuote ? `    - "${entry.replace(/"/g, '\\"')}"` : `    - ${entry}`);
+        }
+      }
     }
   }
   if (meta.domains && Object.keys(meta.domains).length > 0) {
@@ -335,6 +417,10 @@ export interface UseAutonomyResult {
   setPause: (untilIso: string | null, reason: string) => Promise<void>;
   /** Lift the pause immediately. */
   clearPause: () => Promise<void>;
+  /** ADR-338 D4.2: replace the never_auto hard-safety list. Each entry is a
+   *  bare action-type substring or a `path:`-prefixed substrate path. Any
+   *  matching action ALWAYS routes to the Queue regardless of delegation. */
+  setNeverAuto: (entries: string[]) => Promise<void>;
 }
 
 export function useAutonomy(opts?: { initialContent?: string | null }): UseAutonomyResult {
@@ -443,6 +529,28 @@ export function useAutonomy(opts?: { initialContent?: string | null }): UseAuton
     });
   };
 
+  // ADR-338 D4.2: the never_auto hard-safety list. Replaces the whole list
+  // (the editor passes the post-edit set). Backend-enforced by
+  // review_policy._check_never_auto — any matching action ALWAYS queues.
+  // Routing through serialize() emits it structurally once, killing the
+  // duplicate-key-shadow failure class at the write path.
+  const setNeverAuto = async (entries: string[]) => {
+    const cleaned = entries.map((e) => e.trim()).filter(Boolean);
+    const next: AutonomyMeta = {
+      ...(meta ?? {}),
+      // delegation must be present for the default block to be meaningful;
+      // default to manual if unset (the safe floor).
+      default_delegation: meta?.default_delegation ?? 'manual',
+      default_never_auto: cleaned,
+    };
+    const content = serialize(next, rawBody, tierBlock);
+    setMeta(next);
+    const { writeShape } = await import('./write');
+    await writeShape('autonomy', 'governance/_autonomy.yaml', content, {
+      message: `never_auto list → ${cleaned.length} ${cleaned.length === 1 ? 'guard' : 'guards'}`,
+    });
+  };
+
   const effectiveDelegation = resolveEffectiveLevel(meta);
   const summary = formatAutonomySummary(meta ?? {});
 
@@ -469,5 +577,6 @@ export function useAutonomy(opts?: { initialContent?: string | null }): UseAuton
     setLevel: setDelegation,  // back-compat alias
     setPause,
     clearPause,
+    setNeverAuto,
   };
 }

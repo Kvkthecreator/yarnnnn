@@ -24,7 +24,7 @@
  */
 
 import { useState } from 'react';
-import { ShieldCheck, ArrowRight } from 'lucide-react';
+import { ShieldCheck, ArrowRight, Lock, Plus, X } from 'lucide-react';
 import { useAutonomy, type AutonomyLevel } from '@/lib/content-shapes/autonomy';
 import { cn } from '@/lib/utils';
 import type { WorkspaceRevisionSummary } from '@/types';
@@ -70,14 +70,17 @@ const LEVELS: {
   {
     value: 'bounded',
     label: 'Bounded',
-    description: 'Acts autonomously within your declared ceiling. Flags above it.',
-    consequence: 'The Reviewer will auto-execute actions within your declared ceiling. Higher-impact actions will still wait for approval.',
+    // ADR-338 D4.2: surface the schema-inert reality. `bounded` applies the
+    // ceiling to capital actions only; substrate writes (file edits) queue
+    // under BOTH manual and bounded — only `autonomous` auto-applies them.
+    description: 'Capital actions auto-execute within your ceiling. Substrate edits still queue for approval.',
+    consequence: 'The Reviewer will auto-execute capital actions within your declared ceiling. Substrate writes (file edits) STILL wait for your approval — only Autonomous auto-applies those. Higher-impact capital actions also wait.',
   },
   {
     value: 'autonomous',
     label: 'Autonomous',
     description: 'Full delegation within declared boundaries. You review outcomes.',
-    consequence: 'The Reviewer will auto-execute every action up to the ceiling without first checking in. You review outcomes after the fact.',
+    consequence: 'The Reviewer will auto-execute every action — capital AND substrate edits — up to the ceiling without first checking in. You review outcomes after the fact.',
   },
 ];
 
@@ -88,7 +91,7 @@ export function AutonomyCard({
   lastRevision,
   className,
 }: AutonomyCardProps) {
-  const { meta, loading, effectiveLevel, summary, setLevel } = useAutonomy({ initialContent });
+  const { meta, loading, effectiveLevel, summary, setLevel, setNeverAuto } = useAutonomy({ initialContent });
 
   // Confirm-modal state (full variant only — compact + chip never mutate).
   const [pendingLevel, setPendingLevel] = useState<AutonomyLevel | null>(null);
@@ -201,6 +204,14 @@ export function AutonomyCard({
         </div>
       )}
 
+      {/* ADR-338 D4.2: the never_auto hard-safety list — the override that
+          ALWAYS routes a matching action to the Queue regardless of the dial
+          above. Surfacing it here makes the kernel-enforced-but-invisible
+          failure class (and the duplicate-key-shadow) structurally
+          impossible: the operator sees + edits the same list the kernel
+          enforces, written through serialize() exactly once. */}
+      {!loading && <NeverAutoEditor entries={meta?.default_never_auto ?? []} onSave={setNeverAuto} />}
+
       <ConfirmDialChange
         open={pendingLevel !== null && pendingMeta !== undefined}
         dialName="autonomy"
@@ -215,6 +226,136 @@ export function AutonomyCard({
           await setLevel(next);
         }}
       />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// NeverAutoEditor — ADR-338 D4.2 hard-safety list
+// ---------------------------------------------------------------------------
+//
+// Structured list editor (no hand-typed YAML). Each entry is either a bare
+// action-type substring (e.g. `retraction`) or a `path:`-prefixed substrate
+// path (e.g. `path: constitution/`). Add via the input, remove via the X.
+// Saves the whole post-edit set through useAutonomy.setNeverAuto — which
+// serializes it structurally, eliminating the opaque-body + duplicate-key
+// shadow. Direct-manipulation contract (the act changes what the operation
+// may auto-do — above the consent line).
+
+function NeverAutoEditor({
+  entries,
+  onSave,
+}: {
+  entries: string[];
+  onSave: (entries: string[]) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState('');
+  const [pathPrefix, setPathPrefix] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const add = async () => {
+    const raw = draft.trim();
+    if (!raw) return;
+    const entry = pathPrefix ? `path: ${raw.replace(/^path:\s*/, '')}` : raw;
+    if (entries.includes(entry)) {
+      setDraft('');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave([...entries, entry]);
+      setDraft('');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (entry: string) => {
+    setSaving(true);
+    try {
+      await onSave(entries.filter((e) => e !== entry));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="rounded-lg border border-border/60 px-4 py-3 space-y-2">
+      <div className="flex items-center gap-1.5">
+        <Lock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <h4 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Never auto-execute
+        </h4>
+      </div>
+      <p className="text-[11px] text-muted-foreground/70">
+        Hard safety overrides. A matching action always waits for your approval — regardless of the
+        level above. Add an action type (e.g. <code className="text-[10px]">retraction</code>) or a path
+        (e.g. <code className="text-[10px]">constitution/</code>).
+      </p>
+
+      {entries.length > 0 ? (
+        <ul className="flex flex-wrap gap-1.5">
+          {entries.map((entry) => (
+            <li
+              key={entry}
+              className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-foreground/80"
+            >
+              <span className="font-mono text-[10px]">{entry}</span>
+              <button
+                type="button"
+                onClick={() => remove(entry)}
+                disabled={saving}
+                aria-label={`Remove ${entry}`}
+                className="text-muted-foreground hover:text-foreground disabled:opacity-40"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-[11px] text-muted-foreground/40 italic">
+          No overrides — actions follow the level above.
+        </p>
+      )}
+
+      <div className="flex items-center gap-1.5 pt-0.5">
+        <button
+          type="button"
+          onClick={() => setPathPrefix((p) => !p)}
+          className={cn(
+            'shrink-0 rounded-md px-1.5 py-1 text-[10px] font-medium transition-colors',
+            pathPrefix
+              ? 'bg-primary/10 text-primary'
+              : 'bg-muted/40 text-muted-foreground hover:text-foreground',
+          )}
+          title="Toggle: match by substrate path instead of action type"
+        >
+          {pathPrefix ? 'path:' : 'type'}
+        </button>
+        <input
+          type="text"
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              void add();
+            }
+          }}
+          placeholder={pathPrefix ? 'constitution/' : 'retraction'}
+          disabled={saving}
+          className="flex-1 rounded-md border border-border/60 bg-transparent px-2 py-1 text-xs outline-none focus:border-border disabled:opacity-40"
+        />
+        <button
+          type="button"
+          onClick={() => void add()}
+          disabled={saving || !draft.trim()}
+          className="shrink-0 inline-flex items-center gap-1 rounded-md bg-muted/60 px-2 py-1 text-[11px] font-medium hover:bg-muted disabled:opacity-40"
+        >
+          <Plus className="h-3 w-3" /> Add
+        </button>
+      </div>
     </div>
   );
 }
