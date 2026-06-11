@@ -61,6 +61,8 @@ The track is a **report over substrate that already exists** — not new instrum
 
 **The gap is presentation, not retention** — nothing is lost; there is just no curve *view*. Closing it is a report/query, optionally promoted to a first-class kernel mirror later **only if running the track proves it load-bearing** (demand-pull, not speculation).
 
+> **The reconstruction report now has an instrument: [`TENURE-READ.md`](TENURE-READ.md) (2026-06-11).** It is the MIND-axis companion to the soak's `SURVIVAL-QUERIES.md` (MACHINE axis) — three reads over retained substrate (the ground-truth-curve revision chain, the self-amendment trail, the intent-coherence prose read), parameterized by the program's `substrate_abi.ground_truth` declaration (ADR-188/ADR-330 agnosticism: trader → `_money_truth.md`, author → `_voice.md`, generic → no curve, see TENURE-READ §5). Survival gates; quality is the thesis evidence. The instrument's first run (alpha-trader-2, 2026-06-11) validated the shape AND surfaced a real judgment-effect divergence (a day-1 cadence edit that nulled `track-universe`'s RTH schedule) that the green survival check structurally could not see — the qualitative half earning its keep on run one.
+
 ### §4.1 Who owns the clock, and how Claude fits
 
 The crux of "how does a session-bound assistant handle a weeks-long phenomenon": **Claude does not own the loop — the system does.**
@@ -89,7 +91,7 @@ The time axis is handled by **separating the clock (system-owned, continuous) fr
 Feasibility is green but not yet exercised end to end. Before the longitudinal track can produce thesis-grade evidence:
 
 - **Multi-week unattended survival is architected but never validated.** Proven ≈36h on kvk; all evals to date were *harness-fired*, never a planned *scheduler-fired* multi-week run with explicit survival criteria (zero silent-wakes, zero stuck locks, budget not exhausted, market-holiday next-fire correct). Rule 6: survival before improvement.
-- **The curve view does not exist yet** (§4 — presentation gap; the data is retained).
+- **The curve view does not exist yet** (§4 — presentation gap; the data is retained). *Partially closed 2026-06-11*: [`TENURE-READ.md`](TENURE-READ.md) is the reproducible reconstruction-report instrument (the MIND-axis qualitative read); a built curve-*view* component remains demand-pull (promote only if the ad-hoc query proves insufficient across real reads, §5 rule 4).
 - **Meaningful capital loops are slow** (days-to-a-week between genuine trader signals per the alpha-trader session notes) — a "boring week with no signals" tests survival, not the judgment loop. The track's window must be long enough to capture real judgment events.
 
 These are the prerequisites, not blockers — each is a concrete next step, not a redesign.
@@ -101,4 +103,15 @@ These are the prerequisites, not blockers — each is a concrete next step, not 
 - **Extends** EVAL-PHILOSOPHY §2 (standing-intent-across-time / ownership-over-tenure) — names the surface that observes the thing the philosophy says is the product.
 - **Sibling to** EVAL-ARCHITECTURE Suite A / Suite B — adds the episodic-vs-continuous axis the two-suite seam (agnostic-vs-specific) did not cover. Does not supersede them; the dev-eval suite is the longitudinal track's pre-flight gate (§2 composition rule).
 - **Reuses** EVAL-SUITE-DISCIPLINE §6 prose-read shape for the tracking-log entries, and README's substrate-receipt discipline (every claim carries a revision_id / execution_event id / reproducible query).
-- **No new harness apparatus** beyond a trajectory-reconstruction report — deliberately, per the over-investment lesson (the best historical eval session was the one that ignored the apparatus and read substrate in prose).
+- **No new harness apparatus** beyond a trajectory-reconstruction report — deliberately, per the over-investment lesson (the best historical eval session was the one that ignored the apparatus and read substrate in prose). The one instrument that exists is [`TENURE-READ.md`](TENURE-READ.md) — and it is exactly a reproducible substrate-prose-read, not apparatus.
+
+## §8 The two soak instruments (the MACHINE + MIND halves)
+
+A longitudinal soak runs two complementary instruments per read, both over the same window + deploy-marker:
+
+| Instrument | Axis | Question | Output |
+|---|---|---|---|
+| `longitudinal-soak-*/SURVIVAL-QUERIES.md` | MACHINE | "did it run?" (cycles close, no faults) | 6 SQL checks, green/red → survival verdict |
+| [`TENURE-READ.md`](TENURE-READ.md) | MIND | "was the reasoning good, and is it improving?" | 3 substrate reads → prose finding + tenure verdict |
+
+**Survival gates quality** (§5 rule 2): never read a TENURE-READ as improvement evidence on a window whose survival pass is red. The tenure verdict ladder — `SURVIVING` (machine) → `SURVIVING + COHERENT` (mind reasons well, no curve yet) → `IMPROVING` (the DP24 thesis, only on an earned ground-truth ledger) — is the soak's progress measure. Most early reads land at COHERENT; `IMPROVING` requires accumulated outcomes. The generic/bare-kernel soak caps at COHERENT by construction (no domain ground truth to improve against — TENURE-READ §5).

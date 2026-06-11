@@ -117,3 +117,46 @@ The schedule fired the right wakes at the right semantic times (pre-market −30
 **Honest scope of what this does NOT yet prove**: survival ≠ improvement. June 10 was (apparently) a no-trade day — the judgment loop *closed* but no capital signal fired, so this proves the operation *survives* tenure, not that the self-improving loop *improves* on an earned ledger (that's the curve read, NEXT-5, which needs reconciled-trade accumulation). A boring market day tests survival, not the judgment loop's edge. The stewardship/ADR-327 self-improvement behaviors are validated *episodically* (harness-fired, 2026-06-05 + 2026-06-09 on kvk); this soak is the *longitudinal* companion — it must accumulate real trades before the improvement curve is readable.
 
 **Next read**: after ≥3 more cron days, OR immediately following the first window that contains a fired capital signal (a `signal-evaluation` that emits a `submit_order_bracket` proposal + its `outcome-reconciliation` fold). Re-run the 6 checks; if still SURVIVING and a real trade has reconciled, begin the improvement-curve read (NEXT-5: `_money_truth.md` diff-sequence + `by_signal` expectancy trajectory, deploy-marker-stamped).
+
+---
+
+## 2026-06-11 00:45 UTC — TENURE-READ (quality over genesis → 00:45, first run of the [`../TENURE-READ.md`](../TENURE-READ.md) instrument)
+
+**Deploy-marker**: `0cb26b0` (same as the survival verdict above; intervening commits docs/GTM-only — null behavioral delta on the trader loop).
+**Survival gate**: ✅ **SURVIVING** (the survival verdict above, 2026-06-11 00:17 — all 6 checks green). Quality is readable as evidence.
+**Window**: genesis (02:22, 2026-06-10) → 00:45 (2026-06-11) — ~22h, one full US RTH session, 3 judgment wakes, **0 reconciled outcomes** (no-trade day).
+**This entry validates the TENURE-READ instrument on its first run** — the three reads ran clean against live substrate and surfaced a real quality finding a survival check structurally cannot see.
+
+### Read 1 — ground-truth curve: **bootstrap-empty → INCONCLUSIVE-on-improvement**
+
+`_money_truth.md` has exactly **1 revision** (rev `reviewer:ai:reviewer-sonnet-v8`, 2026-06-10 21:01, "Bootstrap initialization | zero fills yet"). Content: `total_reconciled_trades: 0`, `bootstrap_status: active`, all rolling windows (7d/30d/90d) = 0. **There is no curve yet** — the operation is 21 days old (activated 2026-05-20) but has executed zero trades, so there is no outcome basis. This is the expected bootstrap state, NOT a finding. The improvement curve becomes readable only once real trades reconcile (LONGITUDINAL-TRACKING §6: meaningful capital loops are slow). **INCONCLUSIVE-on-improvement; the measurand is primed but empty.**
+
+### Read 2 — self-amendment trail: **one Reviewer edit — and it's a NARRATION-VS-EFFECT DIVERGENCE (the finding)**
+
+Exactly one Reviewer-authored amendment in the window: `_recurrences.yaml` rev `0756ffe7` (2026-06-10 13:01:25), message *"updated recurrence track-universe: ['schedule']"*, fired inside the `pre-market-brief` wake. The judgment_log narrated it as: *"Identified cadence gap (track-universe @ 09:45 racing signal-evaluation @ 09:45) and **advanced universe tracker to 09:40 ET to ensure fresh bars precede signal evaluation.**"*
+
+**The substrate shows the edit did the OPPOSITE of its stated rationale.** Before/after diff on the `track-universe` block (receipts: before rev `5f7a3499`, after rev `0756ffe7`):
+
+- **Before** (bundle-fork): a real multi-snapshot RTH schedule — `schedule: ["@market_open + 15min", "@market_open + 3h", …]` (ADR-268 three RTH snapshots).
+- **After** (Reviewer edit): `schedule: null, mode: mechanical, fire_on_activation: true`.
+
+The Reviewer didn't "advance the tracker to 09:40" — it **nulled the schedule entirely**, converting `track-universe` to a fire-on-activation-only primitive. This is not confabulation in the dangerous sense (there IS a receipt; a real edit happened) — but the edit's *effect contradicts its narrated rationale*, and it has a material consequence (Read 3 below).
+
+### Read 3 — intent coherence: **standing_intent carries forward cleanly (strong) — but the day-1 edit cost the operation fresh data (the consequence)**
+
+The intent layer is genuinely strong: `standing_intent.md` evolves across all 3 wakes (revs at 13:01, 13:45, 21:01 — not flat-overwritten), names the *exact* next-cycle entry trigger ("Signal 1 momentum: RSI crossing into 55–75 while price > SMA50 + volume > 1.5×"), the precise sizing ("Stop = 2× ATR(14); target = 3× ATR; regime scalar 0.5x"), tracks an **intraday regime flip** (VIX 24.27 inactive → 25.68 active, scalar 1.0x → 0.5x), and rates its own confidence "medium" with a reason ("bootstrap is the correct phase; first entry seeds `_money_truth.md`"). This is the standing-intent-across-time the philosophy says IS the product. **Coherent.**
+
+**But the consequence of the Read-2 edit lands here, confirmed by substrate**: `track-universe` fired **exactly once — 02:24 UTC at genesis — and NEVER during RTH** (execution_events: single `track-universe` row, 02:24). The per-ticker snapshots (`NVDA/AAPL/MSFT/SPY/TSLA.yaml`) are **all stamped 02:24** — never refreshed intraday. So when `signal-evaluation` fired at 13:45, it evaluated against **11-hour-old pre-market settlement data**, not fresh intraday bars. The "all RSI 40–53, no fire" verdict was rendered on stale data. The brief's own freshness note even half-saw this ("Universe tracker last ran 02:24Z … fresh intraday bars arriving at market open + 40min") — but the agent then nulled the very schedule that would have delivered them.
+
+### Tenure verdict: **SURVIVING + COHERENT, with FINDING: self-inflicted-stale-data (judgment-effect divergence)**
+
+The reasoning *quality* is high (rule-cited, forward-carrying, regime-aware, confidence-rated) — this is an owner's mind. But the one self-amendment it made on day 1 silently degraded its own perception: it nulled `track-universe`'s RTH schedule under a rationale ("advance to 09:40 for fresh bars") that the edit's effect contradicts, and ran the whole market day on stale snapshots as a result. No trade was at stake (no signal fired), so the cost was zero *this* window — but on a day a signal DID fire, the operation would propose against 11-hour-old data.
+
+**Classification of the finding** (per TENURE-READ §2 four-cause): this needs a forensic cause assignment before it's actionable —
+- **Cause (b) reasoning** if the Reviewer genuinely intended to null the schedule but mis-narrated, OR genuinely misunderstood the recurrence shape (thought nulling = advancing).
+- **Cause (a/c) substrate/envelope** if the `track-universe` recurrence shape (a `mode: mechanical` entry whose schedule the agent CAN edit but whose semantics it may not fully perceive in the envelope) made the edit's effect non-obvious — i.e. the agent edited a field it didn't have enough envelope context to edit safely.
+- **The tell that points toward (a/c)**: `track-universe` is mechanical/fire-on-activation; an agent reasoning about "cadence" may not have realized that nulling `schedule` on a mechanical recurrence stops RTH firing entirely rather than re-timing it. This smells like an **envelope/perception gap**, not a reasoning failure — which (if confirmed) is a Hat-A flag (the recurrence-edit envelope should surface the consequence of a schedule edit), not a Reviewer-judgment fault.
+
+**Recommended follow-up** (Hat-B → Hat-A handoff, NOT done this session): (1) re-fire a `pre-market-brief` in a controlled (episodic) read to see whether the agent, shown `track-universe`'s mechanical shape explicitly, still nulls it — that isolates cause (b) reasoning from cause (a/c) envelope. (2) If it's an envelope gap, the Hat-A fix is surfacing schedule-edit consequences in the recurrence-edit envelope. (3) Independently: kvk (the primary trader workspace) should be checked for the same edit — if the Reviewer does this on every fresh trader workspace, it's a systematic day-1 perception degradation worth an ADR. **This is the exact class of finding the qualitative tenure-read exists to surface — invisible to the green survival check, material to the operation's perception.**
+
+**Next TENURE-READ**: paired with the next survival pass (≥3 cron days, or first reconciled trade). Re-check whether `track-universe` recovered its RTH schedule (it won't on its own — the null persists), and whether the stale-data condition recurs on subsequent sessions. If kvk shows the same day-1 null, escalate to a Hat-A envelope/perception finding.
