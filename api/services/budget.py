@@ -93,6 +93,24 @@ def _window_floor_iso(window: str) -> str:
     return floor.isoformat()
 
 
+def window_elapsed_days(window: str) -> float:
+    """Days elapsed since the current window's floor (ADR-338 D4.4 runway input).
+
+    Used to derive an observed daily burn = window_spend / elapsed_days. The
+    floor is 0-elapsed at the instant the window rolls over; we clamp to a
+    minimum so a same-instant read doesn't divide by zero (the route guards
+    burn==0 anyway). Returns a float; e.g. 0.5 = twelve hours into the window.
+    """
+    from datetime import timedelta  # local import — module already imports datetime
+
+    now = datetime.now(timezone.utc)
+    floor = datetime.fromisoformat(_window_floor_iso(window))
+    elapsed = (now - floor).total_seconds() / 86400.0
+    # Clamp to a small positive floor: a fresh window shouldn't report
+    # infinite/zero-day burn; the route treats burn==0 as "not enough data".
+    return max(elapsed, 1.0 / 24.0)  # at least one hour of window
+
+
 def load_budget(client: Any, user_id: str) -> Budget:
     """Resolve the workspace's `_budget.yaml` with kernel-default
     fall-through. Always returns a usable Budget — no exceptions propagate

@@ -43,6 +43,12 @@ class BudgetResponse(BaseModel):
     remaining_usd: float        # max(0, amount - spend)
     per_wake_ceiling_usd: float # runaway floor — single-fire cap
     queue_depth: int = 0        # pending wakes (single lane post-ADR-327)
+    # ADR-338 D4.4 — runway framing: balance + observed burn → time remaining.
+    # daily_burn = window_spend / days-elapsed-in-window (observed, not projected
+    # from history). runway_days = remaining / daily_burn. Both null/None when
+    # there isn't enough spend this window to project (fresh window, zero spend).
+    daily_burn_usd: Optional[float] = None
+    runway_days: Optional[float] = None
 
 
 @router.get("", response_model=BudgetResponse)
@@ -53,7 +59,7 @@ async def get_budget(auth: UserClient) -> BudgetResponse:
     (ADR-291) over the current budget window. Falls back to kernel defaults
     ($50/monthly) when no `_budget.yaml` is authored.
     """
-    from services.budget import load_budget, window_spend
+    from services.budget import load_budget, window_spend, window_elapsed_days
     from services.wake_queue import queue_depth
 
     budget = load_budget(auth.client, auth.user_id)
@@ -70,11 +76,28 @@ async def get_budget(auth: UserClient) -> BudgetResponse:
         logger.warning("[BUDGET] queue_depth failed: %s", exc)
         depth = 0
 
+    remaining = max(0.0, budget.amount_usd - spent)
+
+    # ADR-338 D4.4 — runway: observed daily burn → days of remaining balance.
+    # daily_burn = window_spend / days-elapsed. None when spend is ~0 (no signal
+    # to project from yet). runway_days = remaining / daily_burn; clamps high.
+    daily_burn: Optional[float] = None
+    runway_days: Optional[float] = None
+    if spent > 0.005:  # > half a cent — enough to have a real burn signal
+        elapsed = window_elapsed_days(budget.window)
+        burn = spent / elapsed if elapsed > 0 else None
+        if burn and burn > 0:
+            daily_burn = round(burn, 4)
+            # Cap the displayed runway at 999 days — beyond that it's "plenty."
+            runway_days = round(min(remaining / burn, 999.0), 1)
+
     return BudgetResponse(
         amount_usd=round(budget.amount_usd, 2),
         window=budget.window,
         window_spend_usd=round(spent, 2),
-        remaining_usd=round(max(0.0, budget.amount_usd - spent), 2),
+        remaining_usd=round(remaining, 2),
         per_wake_ceiling_usd=round(budget.per_wake_ceiling_usd, 2),
         queue_depth=depth,
+        daily_burn_usd=daily_burn,
+        runway_days=runway_days,
     )

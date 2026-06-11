@@ -826,6 +826,9 @@ export const api = {
       remaining_usd: number;
       per_wake_ceiling_usd: number;
       queue_depth: number;
+      // ADR-338 D4.4 — runway framing (null until there's enough spend signal).
+      daily_burn_usd: number | null;
+      runway_days: number | null;
     }>('/api/budget'),
 
   // ADR-338 D4.1: the standing-watch "drivers" view — declared web sources

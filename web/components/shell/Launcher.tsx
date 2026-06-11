@@ -7,10 +7,18 @@
  * workspace. Opens from TopBarSurface's launcher trigger button or
  * Escape-closes. Type to filter; Enter to navigate; click to navigate.
  *
- * Surface grouping per ADR-297 D4 — subtle tier headers ("Workspace" /
- * "<Program>" / "Custom"). Tier groups derived from surface.tier values
- * emitted by the compositor (per kernel_surface_entries + program bundle
- * SURFACES.yaml surfaces[]).
+ * Surface grouping per ADR-297 D4 — subtle tier headers. Tier groups derived
+ * from surface.tier values emitted by the compositor (per
+ * kernel_surface_entries + program bundle SURFACES.yaml surfaces[]).
+ *
+ * ADR-338 D4 IA Move A (2026-06-11): the kernel tier splits by `register` into
+ * three subtle groups — "Constitution" (intent), "Applications" (application),
+ * "System Settings" (os-config). This is what makes the management plane
+ * *cohere as a plane* in the one place the operator sees the full surface
+ * index: the os-config register (the governance dials) reads as a group, the
+ * macOS System-Settings analog (ADR-338 D2). No new container — the existing
+ * `register` data becomes a visible grouping dimension. Program + composed
+ * tiers keep their single-group shape.
  *
  * D14.1 (2026-05-22): the per-row Keep toggle is DELETED. macOS
  * Launchpad has no pin affordance — clicking an app opens it; "Keep
@@ -46,6 +54,23 @@ interface SurfaceGroup {
   surfaces: Surface[];
 }
 
+// ADR-338 D4 IA Move A: kernel surfaces split by register. Order top→bottom
+// follows the operator's reading: what the operation IS (Constitution), what
+// it DOES (Applications), how the OS BEHAVES (System Settings). Surfaces with
+// no register (legacy / chrome that slipped through) fall to Applications.
+const KERNEL_REGISTER_GROUPS: { key: string; label: string; register: string }[] = [
+  { key: 'kernel:intent', label: 'Constitution', register: 'intent' },
+  { key: 'kernel:application', label: 'Applications', register: 'application' },
+  { key: 'kernel:os-config', label: 'System Settings', register: 'os-config' },
+];
+
+function kernelRegisterGroupFor(s: Surface): { key: string; label: string } {
+  const match = KERNEL_REGISTER_GROUPS.find((g) => g.register === s.register);
+  // Default unregistered kernel surfaces to Applications (the operator's work
+  // surfaces) — never silently drop a surface from the index.
+  return match ?? { key: 'kernel:application', label: 'Applications' };
+}
+
 function groupSurfaces(
   surfaces: Surface[],
   bundleTitleBySlug: Record<string, string>
@@ -56,8 +81,9 @@ function groupSurfaces(
     let groupKey: string;
     let groupLabel: string;
     if (s.tier === 'kernel') {
-      groupKey = 'kernel';
-      groupLabel = 'Workspace';
+      const g = kernelRegisterGroupFor(s);
+      groupKey = g.key;
+      groupLabel = g.label;
     } else if (s.tier === 'composed') {
       groupKey = 'composed';
       groupLabel = 'Custom';
@@ -73,12 +99,17 @@ function groupSurfaces(
     groups.get(groupKey)!.surfaces.push(s);
   });
 
-  // Order: kernel first, then program groups (insertion order from compositor),
-  // then composed.
+  // Order: the three kernel register groups (Constitution → Applications →
+  // System Settings) first, then program groups (compositor insertion order),
+  // then composed. Empty kernel groups are skipped (only present if they have
+  // surfaces).
   const ordered: SurfaceGroup[] = [];
-  if (groups.has('kernel')) ordered.push(groups.get('kernel')!);
+  for (const g of KERNEL_REGISTER_GROUPS) {
+    if (groups.has(g.key)) ordered.push(groups.get(g.key)!);
+  }
+  const kernelKeys = new Set(KERNEL_REGISTER_GROUPS.map((g) => g.key));
   Array.from(groups.entries()).forEach(([key, group]) => {
-    if (key !== 'kernel' && key !== 'composed') ordered.push(group);
+    if (!kernelKeys.has(key) && key !== 'composed') ordered.push(group);
   });
   if (groups.has('composed')) ordered.push(groups.get('composed')!);
   return ordered;

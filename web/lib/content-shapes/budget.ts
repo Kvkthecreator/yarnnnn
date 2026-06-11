@@ -218,6 +218,9 @@ export interface BudgetUtilization {
   remaining_usd: number;
   per_wake_ceiling_usd: number;
   queue_depth: number;
+  // ADR-338 D4.4 — runway framing (null until enough spend signal this window).
+  daily_burn_usd?: number | null;
+  runway_days?: number | null;
 }
 
 export interface UseBudgetResult {

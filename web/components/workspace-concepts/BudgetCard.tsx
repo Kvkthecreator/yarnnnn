@@ -81,6 +81,36 @@ function pct(spend: number, amount: number): number {
   return Math.min(100, Math.round((spend / amount) * 100));
 }
 
+// ADR-338 D4.4 — runway line. Frames balance + observed burn as time
+// remaining ("~12 days left at this pace"). Returns null when the backend
+// has no burn signal yet (fresh window / zero spend) — runway only becomes
+// honest once there's spend to project from.
+function runwayLine(u: {
+  runway_days?: number | null;
+  daily_burn_usd?: number | null;
+}): React.ReactNode {
+  if (u.runway_days == null || u.daily_burn_usd == null) return null;
+  const days = u.runway_days;
+  const burn = u.daily_burn_usd;
+  // Phrase the time horizon in the operator's terms.
+  let horizon: string;
+  if (days >= 999) horizon = 'plenty of runway at this pace';
+  else if (days >= 60) horizon = `~${Math.round(days)} days left at this pace`;
+  else if (days >= 1) horizon = `~${days.toFixed(days < 10 ? 1 : 0)} days left at this pace`;
+  else horizon = 'less than a day left at this pace';
+  const tone =
+    days < 3
+      ? 'text-destructive'
+      : days < 14
+        ? 'text-amber-600 dark:text-amber-400'
+        : 'text-muted-foreground/70';
+  return (
+    <p className={cn('text-[11px]', tone)}>
+      {horizon} <span className="text-muted-foreground/50">· ${burn.toFixed(2)}/day burn</span>
+    </p>
+  );
+}
+
 export function BudgetCard({
   variant = 'full',
   onOpen,
@@ -137,6 +167,9 @@ export function BudgetCard({
           style={{ width: `${pct(utilization.window_spend_usd, utilization.amount_usd)}%` }}
         />
       </div>
+      {/* ADR-338 D4.4 — runway: observed burn → time remaining. Null until
+          there's enough spend this window to project. */}
+      {runwayLine(utilization)}
       {utilization.queue_depth > 0 && (
         <p className="text-[11px] text-muted-foreground/70">
           {utilization.queue_depth} wake(s) pending in the queue
