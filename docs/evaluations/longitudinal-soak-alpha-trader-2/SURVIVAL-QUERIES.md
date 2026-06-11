@@ -131,6 +131,32 @@ grep -oE '^\s*-?\s*slug:\s*[a-z0-9][a-z0-9-]+' /tmp/rec.yaml | sed -E 's/.*slug:
 
 ---
 
+## Check 7 — Perception-field liveness (ADR-335, added 2026-06-11)
+
+**The standing eval of the perception route.** For each watch the program declares in `substrate_abi.watches` (alpha-trader: `universe` → `{TICKER}.yaml` via track-universe; `regime` → `_regime.yaml` via track-regime), the distilled signal substrate must be **fresher than its cadence tolerance** — declaration → mechanical read → distilled attributed substrate, verified as a loop, every read. Absence is the failure signal (the ADR-335 D5-governance principle: binding failures surface as *absent observations*, read from the record — no freshness table, this query IS the read).
+
+**This check is deliberately transport-blind.** It reads the observation-contract layer (revision freshness on the `distills_to` substrate), not the transport — so when a watch's transport changes (Alpaca Direct API today; an MCP-client binding at Crawl-B; web/RSS at D7), this check applies **unchanged**. The Crawl-B-specific addition will be a small per-binding contract test at binding time (call the foreign tool once, validate distillation) — the tenure instrument is already written.
+
+```sql
+-- Latest distilled observation per watched substrate path.
+-- Green: universe tickers ≤ 1 trading day old (49h weekend-tolerant);
+--        _regime.yaml ≤ 1 trading day old.
+-- Red: any watched path absent or stale → the watch's transport/binding
+--      failed silently OR the recurrence stopped firing (cross-check
+--      execution_events for the watch's recurrence slug).
+SELECT path, max(created_at) AS latest_observation, count(*) AS total_revisions
+FROM workspace_file_versions
+WHERE user_id = '29a74c63-0c9c-4998-b8bb-56dd0d810a4e'
+  AND (path ~ '/workspace/operation/trading/[A-Z]+\.yaml'
+       OR path = '/workspace/operation/trading/_regime.yaml')
+GROUP BY path
+ORDER BY latest_observation DESC;
+```
+
+**Also assert the declared universe matches the observed universe**: the ticker set in `_universe.yaml` (the operator's watch declaration) must equal the set of `{TICKER}.yaml` paths above — a declared-but-never-observed ticker is a dead watch; an observed-but-undeclared ticker is an unauthorized watch (both are findings).
+
+---
+
 ## Reading the results into the tracking log
 
-A survival read appends a dated TRACKING-LOG entry with: deploy-marker (current `origin/main` commit the Render services run), the window covered (since last read), checks 1–6 results (green/finding + receipts), and a verdict — **SURVIVING** (all green) or **FINDING: <class>** (with the failing check + substrate-receipt). Only after a SURVIVING verdict holds across a window that captured real judgment events does the improvement curve (NEXT-5) become readable as evidence.
+A survival read appends a dated TRACKING-LOG entry with: deploy-marker (current `origin/main` commit the Render services run), the window covered (since last read), checks 1–7 results (green/finding + receipts), and a verdict — **SURVIVING** (all green) or **FINDING: <class>** (with the failing check + substrate-receipt). Only after a SURVIVING verdict holds across a window that captured real judgment events does the improvement curve (NEXT-5) become readable as evidence.
