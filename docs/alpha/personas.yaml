@@ -478,8 +478,8 @@ personas:
     # workspace is coherent, not empty) — the seat it soaks is real.
     program: null
     email: bare-kernel@yarnnn.com
-    user_id: null        # provision pending — run provision_persona_auth, paste back
-    workspace_id: null   # workspace_id == user_id in current schema; paste back with user_id
+    user_id: 4c106786-c9b4-41cb-982d-0f5a8cc35923      # provisioned 2026-06-11
+    workspace_id: 4c106786-c9b4-41cb-982d-0f5a8cc35923 # workspace_id == user_id in current schema
     platform:
       kind: none
       provider: none
@@ -496,12 +496,24 @@ personas:
       active_roles: [thinking_partner]
       scaffolded_recurrences: []
       platform_connections: 0
+      # Actually-seeded set per the 2026-06-11 kernel-init receipt
+      # (initialize_workspace(program_slug=None) seeds 10 files; IDENTITY/
+      # MANDATE/AUTONOMY/principles are NOT seeded on the bare path — the
+      # init logs INCOMPLETE for IDENTITY.md; whether that warning is stale
+      # post-ADR-320 or a real seeding gap is an open Hat-A question, see
+      # docs/evaluations/2026-06-11-011705-bare-kernel-standby/findings.md
+      # observation 2).
       core_files:
-        - /workspace/persona/IDENTITY.md
-        - /workspace/constitution/MANDATE.md     # skeleton — stays skeleton forever
-        - /workspace/governance/AUTONOMY.md
-        - /workspace/persona/principles.md
+        - /workspace/constitution/PRECEDENT.md
+        - /workspace/governance/_budget.yaml
+        - /workspace/persona/_principles.yaml
+        - /workspace/persona/calibration.md
+        - /workspace/persona/handoffs.md
         - /workspace/persona/OCCUPANT.md
+        - /workspace/system/_playbook.md
+        - /workspace/system/style.md
+        - /workspace/system/notes.md
+        - /workspace/_workspace_guide.md
       occupant_attribution:
         expected_occupant_class: ai
         expected_occupant_prefix: "ai:reviewer-sonnet-"
@@ -519,8 +531,8 @@ personas:
     # explicitly runs activate_persona at the graduation step.
     program: alpha-author
     email: anr-scout@yarnnn.com
-    user_id: null        # provision pending — run provision_persona_auth, paste back
-    workspace_id: null   # workspace_id == user_id in current schema; paste back with user_id
+    user_id: 89f467f1-3ff9-4877-a898-ff5599ab4b08      # provisioned 2026-06-11
+    workspace_id: 89f467f1-3ff9-4877-a898-ff5599ab4b08 # workspace_id == user_id in current schema
     platform:
       kind: none         # ADR-283 D7 shape — internal-coherence-only until audience platforms connect
       provider: none
