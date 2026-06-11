@@ -514,9 +514,17 @@ personas:
         - /workspace/system/style.md
         - /workspace/system/notes.md
         - /workspace/_workspace_guide.md
+      # Corrected 2026-06-11 per the anr-scout Stage-1 run: bare workspaces
+      # carry the kernel-init OCCUPANT default (`human`) forever — the
+      # `ai:` overwrite happens at bundle-fork, which this persona never
+      # runs. The runtime occupant IS the AI Reviewer, so this is a known
+      # substrate-runtime drift on the bare path (ADR-284 D3 — open Hat-A
+      # question, see 2026-06-11-013544 findings observation 1). The
+      # expectation below records what the substrate WILL say, not what
+      # the runtime is.
       occupant_attribution:
-        expected_occupant_class: ai
-        expected_occupant_prefix: "ai:reviewer-sonnet-"
+        expected_occupant_class: human
+        expected_occupant_prefix: "human"
 
   - slug: anr-scout
     label: "A&R scout at an indie music company (lifecycle-journey subject; scouting-brief corpus)"
