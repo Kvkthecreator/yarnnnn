@@ -48,7 +48,16 @@ yarnnn-author-housekeeping-genesis.yaml §description).
    a dirty workspace will routinely exhaust. Options if it recurs: the
    Reviewer authors the cadence FIRST (one round) and lets the recurrence
    do incremental cleanup; or addressed-wake round budget gets revisited.
-   Watch, don't fix.
+   ~~Watch, don't fix.~~ **OVERTURNED 2026-06-12 by the round-economics
+   audit** (`docs/analysis/wake-round-economics-audit-2026-06-12.md`):
+   round-by-round receipts (Render logs + decoded REST queries) show 7/20
+   rounds were drill-down forced by ListFiles' one-level names-only
+   projection, 3/20 were silently zero-yield SearchFiles(exact) literal-
+   phrase queries, and emission was strictly serial. Counterfactual floor
+   under a recursive metadata listing ≈ 9–12 rounds — the full task,
+   including criterion d, fits the existing budget. Fix locus: perception
+   contract (audit D1–D3), NOT round budget (D4 rejected), NOT a D7
+   mechanical mirror (D5 deferred with sharper push-shaped trigger).
 2. **Harness gap (first run, 2026-06-12-004408 folder):** the runner
    reported `turns_executed: 1` with an empty response when the feed
    route's balance gate fired (`balance_exhausted`, effective −$0.28).
