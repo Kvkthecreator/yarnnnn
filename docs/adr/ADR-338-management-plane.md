@@ -1,6 +1,6 @@
 # ADR-338 — The Management Plane: Operating the Operation Is First-Class Product Surface
 
-**Status:** **Accepted (2026-06-11)** — framing + program-of-work ADR. **D4 program of work IMPLEMENTED 2026-06-11** — all 7 FE items shipped (FE audit → IA decision → builds). See the companion [ADR-338 FE plan](ADR-338-management-plane-fe-plan.md) for the audit receipts, the IA decision (the management plane coheres on the existing os-config register + menu-bar vitals — no new container), per-item interaction contracts, and the build log (gates: 136 assertions across 6 ADR-338 gates; ADR-297 parity 147/147; ADR-287 conformance 16/16).
+**Status:** **Accepted (2026-06-11)** — framing + program-of-work ADR. **D4 program of work IMPLEMENTED 2026-06-11** — all 7 FE items shipped (FE audit → IA decision → builds). See the companion [ADR-338 FE plan](ADR-338-management-plane-fe-plan.md) for the audit receipts, the IA decision (the management plane coheres on the existing os-config register + menu-bar vitals — no new container), per-item interaction contracts, and the build log (gates: 136 assertions across 6 ADR-338 gates; ADR-297 parity 147/147; ADR-287 conformance 16/16). **§7 (added 2026-06-12) records a STANDING OPEN QUESTION** surfaced by walking the live surfaces — the consequence-legibility gap and where the OS analogy points the better answer; it is owned by the next management-plane ADR and must be resolved before more panes are built.
 **Date:** 2026-06-11
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Hat:** A (system canon)
@@ -66,3 +66,49 @@ All of these are L3 affordances over existing parsers/contracts (ADR-245's machi
 - Does not rename existing surfaces; it names the program of work that fills them.
 
 **Dimensional classification**: **Channel** (Axiom 6, primary) + **Purpose** (Axiom 3 — the operator's ontology of ownership). Canonized as FOUNDATIONS **Derived Principle 28** + GLOSSARY v2.6 ("Management plane" + App Store/driver vocabulary rows) in the same commit.
+
+---
+
+## 7. Standing question (opened 2026-06-12): the consequence-legibility gap — and where the OS analogy points
+
+> **Status: OPEN — design question, not a decision. Recorded here so it shapes the *next* management-plane ADR before any more panes are built. No code follows from this section.**
+
+The D4 program shipped (all 7 items — see [the FE plan + build log](ADR-338-management-plane-fe-plan.md)). Walking the live Sources surface against a real operator's eyes surfaced a gap that the regression gates could not: **the surfaces are legible about the *mechanism* and silent about the *consequence*.**
+
+### 7.1 The gap, concretely
+
+The Sources pane renders `_sources.yaml` faithfully — an input box, the watch's cadence pointer (`· track-sources`), an empty/observed state. What it does **not** convey:
+
+- **What the field *is* in the operator's ontology.** "RSS feed URL" is the mechanism. The operator's concept is *"a website I'm telling my agent to keep an eye on."* The surface speaks the file's language, not the operator's.
+- **The downstream chain.** Declaring a source has real, traceable consequences (all verified in substrate): the `track-sources` recurrence fetches it on cadence → distills into `_watch_signal.yaml` → that file sits in the **Reviewer's wake envelope** → so the agent reasons against it at every wake → which shapes what it proposes → which lands in the Queue. The surface shows step 1 and a faint trace of step 2; steps 3–6 are invisible. An operator cannot infer that *what they type here becomes their agent's perception, daily.*
+
+This is not an ADR-338 regression — **D3 (the consent line) explicitly demands legibility**, and "legible" must include legibility-of-consequence, not just legibility-of-mechanism. The shipped surfaces delivered the mechanism half of D3 and under-delivered the consequence half. The same gap is latent in Autonomy, Budget, and Principles — every yaml-backed pane presents a file, not a consequence.
+
+### 7.2 The higher-level question this forces
+
+The cheap fix (add "what this does / what happens next" copy to each pane) is real but treats the symptom. The operator's intuition — and the reason this is recorded as an ADR section, not a backlog ticket — is that the **framing needs a higher-altitude FE-experience decision** the D4 program did not make:
+
+**Where does the management plane *teach*?** Two candidate models, currently un-chosen:
+
+- **(A) Standing reference surfaces** (what shipped). Each concern is an os-config pane you return to. Teaching, if any, lives in the pane's own copy. Risk: panes accumulate into death-by-a-thousand-config-screens; the operator meets each pane cold, with no moment that explains the consequence in context.
+- **(B) Taught-in-context, then graduates to reference.** The consequence is taught *at the moment of first use* — inside the guided flow (`/setup`, the Sequence surface, ADR-331 "bring in reality" step) — where "add a source → here's what your agent now perceives" can be shown as cause-and-effect. The standing pane becomes the *return-to-tune* surface only after the operator has been taught once.
+
+Choosing A vs. B (or a synthesis) reshapes all four panes at once. It is a Purpose-dimension question (the operator's ontology of ownership, Axiom 3) wearing a Channel-dimension costume.
+
+### 7.3 The hint in the MacBook/OS analogy (D2's unexploited half)
+
+D2 mapped the *system* side of the Mac experience (App Store / Installer / Drivers / System Settings panes / Permission dialog). The build consumed the **structural** half of that map (where things live). It left the **pedagogical** half unmined — and that is where the better answer likely resides:
+
+- **macOS System Settings panes don't just hold config — they show what the setting *affects*.** Toggle "Night Shift" and you see a live preview + "from sunset to sunrise." The pane teaches the consequence at the point of the control. Our panes show the control and hide the consequence.
+- **The Installer (D2's "what this app needs") *previews before it commits*** — and ADR-338 D4.5 *did* build this (the four-flow `FlowPreview` panel). That preview pattern — "here's what this will do, shown before you commit" — is exactly the consequence-legibility the *other* panes lack. The installer got it; the standing panes didn't. The analogy already contains the answer; it was applied unevenly.
+- **macOS Setup Assistant teaches the consequential acts once, in sequence** (this is model B above). The Mac doesn't drop a new user onto a wall of System Settings panes — it walks the consent moments (Apple ID, iCloud, Touch ID) in a guided flow, *then* leaves the panes as reference. ADR-331's `/setup` Sequence surface is the YARNNN analog and is the natural venue for option B.
+
+**Hypothesis to test (not yet decided):** the management plane's teaching belongs in the guided flow (the Setup Assistant analog), with the standing panes carrying a *consequence preview* (the Installer/Night-Shift analog) rather than bare file rendering. The structural OS map (D2) is sound; what's missing is its **pedagogical** application — *legible-and-owned* (D3) requires the operator to *see the consequence at the moment of the act*, which the App Store/Installer/Setup-Assistant experience does deliberately and our panes do not yet.
+
+### 7.4 Disposition
+
+- This question is **owned by the next management-plane ADR** (un-numbered; to be drafted when KVK chooses a direction). That ADR should: (a) pick A / B / synthesis for where teaching happens; (b) decide whether the standing panes carry a consequence-preview affordance generalized from the D4.5 installer pattern; (c) re-evaluate whether a standalone `/sources` surface earns its place or folds into the guided flow.
+- The right vehicle to *measure* the gap before deciding is a **Hat-B evaluation** (`docs/evaluations/…-management-plane-consequence-legibility/`) with the criterion "a real operator can infer, from the surface alone, what a management act changes downstream" — expected vs. observed, walked against the anr-scout workspace. That finding becomes the next ADR's forcing evidence.
+- Until that ADR: **no more management panes are added, and no consequence-copy is bolted on piecemeal** — the fix is a framing decision, and bolting copy onto four panes independently would entrench model A by default. Recorded here so the default doesn't win by inertia.
+
+**Dimensional note:** the open question is primarily **Purpose** (Axiom 3 — the operator's ontology, the "why this matters to me" the panes must carry) projected through **Channel** (Axiom 6 — where and how it's shown). It does not reopen any D1–D6 decision; it names the un-made FE-experience decision those decisions left standing.
