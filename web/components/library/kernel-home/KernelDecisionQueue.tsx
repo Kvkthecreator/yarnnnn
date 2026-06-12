@@ -19,6 +19,11 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Inbox, ArrowRight } from 'lucide-react';
 import { api } from '@/lib/api/client';
+// ADR-340 P4 F3: the single operator-language labeler — this file's
+// inline label map + actionLabel() consolidated into the shared module
+// (Singular Implementation; ProposalCard + AttentionCenter use the
+// same import).
+import { proposalActionLabel } from '@/lib/proposal-labels';
 
 const COMPACT_LIMIT = 4;
 
@@ -26,29 +31,8 @@ interface PendingProposal {
   id: string;
   primitive: string;
   family: 'capital' | 'substrate';
+  decision_context?: Record<string, unknown> | null;
   created_at: string;
-}
-
-// Plain-language label for a pending action. The operator sees what the
-// action DOES in their words, not the primitive name. Known primitives map
-// to a human verb; unknown ones fall back to a de-jargoned title-case.
-const PRIMITIVE_LABELS: Record<string, string> = {
-  WriteFile: 'Save a workspace change',
-  EditFile: 'Edit a workspace file',
-  Schedule: 'Change a schedule',
-  ManageRecurrence: 'Change a schedule',
-  FireInvocation: 'Run a task now',
-  RuntimeDispatch: 'Generate an asset',
-  InferContext: 'Update your context',
-};
-
-function actionLabel(primitive: string): string {
-  if (PRIMITIVE_LABELS[primitive]) return PRIMITIVE_LABELS[primitive];
-  // platform_trading_submit_order → "Trading submit order"
-  const base = primitive.includes('_')
-    ? primitive.replace(/^platform_/, '').replace(/_/g, ' ')
-    : primitive.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
-  return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
 export function KernelDecisionQueue() {
@@ -111,7 +95,7 @@ export function KernelDecisionQueue() {
                 aria-hidden
               />
               <span className="flex-1 min-w-0 text-sm text-foreground truncate">
-                {actionLabel(p.primitive)}
+                {proposalActionLabel(p)}
               </span>
             </Link>
           </li>

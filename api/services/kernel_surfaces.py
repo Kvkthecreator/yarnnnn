@@ -258,7 +258,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "clock",
         "default_pinned": False,
         "route": "/recurrence",
-        "summary": "Recurrences, substrate-event hooks, standing intent, and wake telemetry.",
+        "summary": "What's on the schedule — the recurring work this workspace runs, what fires when, and what your agent is standing watch on.",  # ADR-340 P4 F1: operator vocabulary
     },
     {
         # ADR-327 (2026-06-08) — budget repurposed from /pace (ADR-300, which
@@ -441,7 +441,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "activity",
         "default_pinned": False,
         "route": "/activity",  # _route_status: NEW in Phase 2 — current /activity is deleted per ADR-163; reinstated as surface-mode
-        "summary": "Execution-event log — every wake, every dispatch, every cost.",
+        "summary": "What ran and what it cost — the execution log behind the Feed's story. Open when you're checking the machinery, not the narrative.",  # ADR-340 P4 F1: operator vocabulary
     },
     # ADR-297 D19.4 (2026-05-22) — Settings + Connectors promoted from
     # legacy pages to atomic kernel surfaces. Reverses D19.7 ("settings

@@ -66,6 +66,17 @@ export function SourcesCard({ variant = 'full', className }: SourcesCardProps) {
 
   return (
     <div className={cn('space-y-4', className)}>
+      {/* ADR-340 P4 F2 — consequence preview (the Night-Shift pattern,
+          ADR-338 §7.3): the pane teaches what the declaration DOES, not
+          just what the file says. Full variant only — the compact overlay
+          is a glance, not the teaching moment. */}
+      {variant === 'full' && (
+        <p className="text-xs text-muted-foreground/80 rounded-md bg-muted/40 border border-border/50 px-3 py-2">
+          What you declare here becomes your agent&apos;s perception: each source is
+          fetched on the watch&apos;s cadence, distilled into a signal file, and read at
+          every wake — it shapes what your agent notices and what reaches your Queue.
+        </p>
+      )}
       {watches.map((w) => (
         <WatchEditor key={w.declaration_path} watch={w} onSave={setSources} compact={variant === 'compact'} />
       ))}

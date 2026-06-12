@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import api from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { proposalActionLabel } from '@/lib/proposal-labels';
 import { useReviewerPersona } from '@/lib/reviewer-persona';
 import { InteractiveModal } from './InteractiveModal';
 
@@ -103,20 +104,12 @@ type ReviewerPosture = 'approve_advisory' | 'defer' | 'rejected' | 'none';
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** ADR-307: human label from (primitive, family). Substrate writes show the
- * target path; capital actions show provider · tool. */
+/** ADR-307: human label from (primitive, family). ADR-340 P4 F3: the
+ * inline implementation consolidated into the shared lib/proposal-labels
+ * module (Singular Implementation — same labeler as the Home decision
+ * slot + AttentionCenter). */
 function formatProposalLabel(p: ProposalData): string {
-  if (p.family === 'substrate') {
-    const dc = (p.decision_context ?? {}) as Record<string, unknown>;
-    const path = (dc.path as string) ?? ((dc.diff as { path?: string })?.path) ?? '';
-    return path ? `Write · ${path}` : 'Substrate write';
-  }
-  // capital: primitive is a platform tool name (platform_trading_submit_order)
-  const prim = p.primitive.replace(/^platform_/, '');
-  const [provider, ...rest] = prim.split('_');
-  const tool = rest.join(' ');
-  const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
-  return tool ? `${cap(provider)} · ${cap(tool)}` : cap(prim);
+  return proposalActionLabel(p);
 }
 
 function formatExpiresAt(iso: string): string {

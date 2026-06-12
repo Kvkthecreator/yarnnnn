@@ -34,6 +34,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { proposalActionLabel } from '@/lib/proposal-labels';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { cn } from '@/lib/utils';
@@ -200,9 +201,13 @@ export function AttentionCenter() {
     [foregroundSurface, router],
   );
 
+  // ADR-340 P4 F3: operator-language labels via the shared labeler —
+  // Stage-1 eval found the primitive slug rendering at the moment of
+  // highest consequence ("platform_trading_submit_order"); the operator's
+  // concept is "a trade wants my approval."
   const proposalLabel = (p: PendingProposal) => {
     const scope = p.task_slug || p.agent_slug;
-    return `${p.primitive}${p.family === 'capital' ? ' · capital' : ''}${scope ? ` · ${scope}` : ''}`;
+    return `${proposalActionLabel(p)}${scope ? ` · ${scope}` : ''}`;
   };
 
   return (

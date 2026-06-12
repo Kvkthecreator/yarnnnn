@@ -23,9 +23,10 @@
  * See docs/design/WORKSPACE-COMPONENTS.md §2.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ShieldCheck, ArrowRight, Lock, Plus, X } from 'lucide-react';
 import { useAutonomy, type AutonomyLevel } from '@/lib/content-shapes/autonomy';
+import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type { WorkspaceRevisionSummary } from '@/types';
 import { RevisionFootnote } from './RevisionFootnote';
@@ -95,6 +96,49 @@ export function AutonomyCard({
 
   // Confirm-modal state (full variant only — compact + chip never mutate).
   const [pendingLevel, setPendingLevel] = useState<AutonomyLevel | null>(null);
+
+  // ADR-340 P4 F2 — live consequence preview (the Night-Shift pattern).
+  // The static per-level consequence copy tells the rule; this tells the
+  // operator what the switch does to THEIR workspace RIGHT NOW, derived
+  // from the live pending queue (no new state — pure derivation, the
+  // same discipline as the AttentionCenter). Full variant only.
+  const [pendingCounts, setPendingCounts] = useState<{ capital: number; total: number } | null>(null);
+  useEffect(() => {
+    if (variant !== 'full') return;
+    let cancelled = false;
+    api.proposals
+      .list('pending', 50)
+      .then((r) => {
+        if (cancelled) return;
+        const proposals = r.proposals || [];
+        setPendingCounts({
+          capital: proposals.filter((pr) => pr.family === 'capital').length,
+          total: proposals.length,
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [variant]);
+
+  const liveConsequence = (target: AutonomyLevel): string => {
+    if (!pendingCounts) return '';
+    const { capital, total } = pendingCounts;
+    if (total === 0) {
+      return 'Nothing is pending right now — this changes how future actions are handled.';
+    }
+    if (target === 'manual') {
+      return `Right now: ${total} pending action${total === 1 ? '' : 's'} — all will keep waiting for your approval.`;
+    }
+    if (target === 'bounded') {
+      return capital > 0
+        ? `Right now: ${capital} pending capital action${capital === 1 ? '' : 's'} would become eligible to auto-execute within your ceiling on the next wake.`
+        : `Right now: ${total} pending action${total === 1 ? '' : 's'} (none capital) — substrate writes still wait for you.`;
+    }
+    // autonomous
+    return `Right now: ${total} pending action${total === 1 ? '' : 's'} would become eligible to execute without you.`;
+  };
 
   if (variant === 'chip') {
     if (loading || !effectiveLevel) return null;
@@ -217,7 +261,11 @@ export function AutonomyCard({
         dialName="autonomy"
         fromLabel={currentMeta?.label ?? 'current'}
         toLabel={pendingMeta?.label ?? ''}
-        consequence={pendingMeta?.consequence ?? ''}
+        consequence={
+          pendingLevel
+            ? [pendingMeta?.consequence ?? '', liveConsequence(pendingLevel)].filter(Boolean).join(' ')
+            : (pendingMeta?.consequence ?? '')
+        }
         onCancel={() => setPendingLevel(null)}
         onConfirm={async () => {
           if (!pendingLevel) return;
