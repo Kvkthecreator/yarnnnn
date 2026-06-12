@@ -20,11 +20,12 @@
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { RefreshCw, CheckCircle2, XCircle, MinusCircle, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import type { ExecutionEvent } from '@/types';
 
 type ModeFilter = 'all' | 'judgment' | 'mechanical';
@@ -276,7 +277,9 @@ function FilterPill({
 
 export default function ActivityPage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
+  // ADR-297 D19.6: ?slug= is intra-surface filter state — clear it
+  // without a pathname flip (no router.replace off /desktop).
+  const { setSurfaceParams } = useSurfacePreferences();
   // Schedule tab's "View runs →" deep-link arrives as /activity?slug=X.
   // Pre-filter the execution-events query to that slug. Chip in the
   // filter row surfaces the active slug + X to clear.
@@ -315,11 +318,8 @@ export default function ActivityPage() {
   );
 
   const clearSlugFilter = useCallback(() => {
-    const sp = new URLSearchParams(searchParams.toString());
-    sp.delete('slug');
-    const qs = sp.toString();
-    router.replace(qs ? `/activity?${qs}` : '/activity', { scroll: false });
-  }, [router, searchParams]);
+    setSurfaceParams({ slug: null });
+  }, [setSurfaceParams]);
 
   return (
     <div className="flex flex-col h-full">

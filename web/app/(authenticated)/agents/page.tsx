@@ -23,15 +23,18 @@
  */
 
 import { useMemo } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { getAgentSlug } from '@/lib/agent-identity';
 import { AgentContentView } from '@/components/agents/AgentContentView';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 
 export default function AgentsPage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
+  // ADR-297 D19.6: ?agent=X is intra-surface deep-link state — update it
+  // without a pathname flip (no router.push, which would leave /desktop).
+  const { setSurfaceParams } = useSurfacePreferences();
   const { agents, tasks, loading } = useAgentsAndRecurrences();
 
   const agentFromUrl = searchParams.get('agent');
@@ -67,10 +70,10 @@ export default function AgentsPage() {
     );
   }
 
-  // List mode — roster (Reviewer + Domain Agents). D19.4: clicking a
-  // card updates intra-surface URL state (?agent=X); no router.push
-  // to another surface; no cross-window opening — same surface,
-  // different deep-link.
+  // List mode — roster (Reviewer + Domain Agents). D19.4 + D19.6: clicking
+  // a card updates intra-surface URL state (?agent=X) via setSurfaceParams —
+  // no pathname flip, no cross-window opening; same surface, different
+  // deep-link.
   const reviewer = agents.find(a => a.agent_class === 'reviewer');
   const domainAgents = agents.filter(a => a.agent_class !== 'reviewer');
 
@@ -81,7 +84,7 @@ export default function AgentsPage() {
           <div>
             <p className="text-sm font-medium text-muted-foreground mb-3">Systemic</p>
             <button
-              onClick={() => router.push('/agents?agent=reviewer', { scroll: false })}
+              onClick={() => setSurfaceParams({ agent: 'reviewer' })}
               className="w-full text-left rounded-lg border border-border/60 bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
             >
               <p className="text-sm font-medium">Reviewer</p>
@@ -96,7 +99,7 @@ export default function AgentsPage() {
               {domainAgents.map(a => (
                 <button
                   key={a.id}
-                  onClick={() => router.push(`/agents?agent=${encodeURIComponent(getAgentSlug(a))}`, { scroll: false })}
+                  onClick={() => setSurfaceParams({ agent: getAgentSlug(a) })}
                   className="text-left rounded-lg border border-border/60 bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
                 >
                   <p className="text-sm font-medium">{a.title}</p>

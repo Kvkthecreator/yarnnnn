@@ -26,7 +26,7 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
@@ -34,6 +34,7 @@ import { useRecurrenceDetail } from '@/hooks/useRecurrenceDetail';
 import { APIError, api } from '@/lib/api/client';
 import { RecurrenceList } from '@/components/work/RecurrenceList';
 import { WorkDetail } from '@/components/work/WorkDetail';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 
 type ActionNotice = { kind: 'info' | 'success' | 'error'; text: string } | null;
 
@@ -73,7 +74,9 @@ function SurfaceState({
 
 export default function RecurrencePage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
+  // ADR-297 D19.6: ?task= / ?agent= are intra-surface deep-link state —
+  // update them without a pathname flip (no router.push off /desktop).
+  const { setSurfaceParams } = useSurfacePreferences();
   const { sendMessage } = useNarrative();
   // ADR-219 Commit 4: opt into narrative fetch — Cadence is the surface
   // that renders recent-activity headlines from session_messages.
@@ -175,27 +178,20 @@ export default function RecurrencePage() {
     sendMessage(prompt);
   }, [sendMessage]);
 
-  // Click row in list mode → URL transition to detail mode
+  // Click row in list mode → detail mode (intra-surface deep-link, no
+  // pathname flip). setSurfaceParams merges onto the current query.
   const handleSelect = useCallback((slug: string) => {
-    const sp = new URLSearchParams(searchParams.toString());
-    sp.set('task', slug);
-    router.push(`/recurrence?${sp.toString()}`, { scroll: false });
-  }, [router, searchParams]);
+    setSurfaceParams({ task: slug });
+  }, [setSurfaceParams]);
 
-  // Clear agent filter chip in list mode
+  // Clear agent filter chip in list mode (null deletes the key).
   const handleClearAgentFilter = useCallback(() => {
-    const sp = new URLSearchParams(searchParams.toString());
-    sp.delete('agent');
-    const qs = sp.toString();
-    router.replace(qs ? `/recurrence?${qs}` : '/recurrence', { scroll: false });
-  }, [router, searchParams]);
+    setSurfaceParams({ agent: null });
+  }, [setSurfaceParams]);
 
   const handleBackToList = useCallback(() => {
-    const sp = new URLSearchParams(searchParams.toString());
-    sp.delete('task');
-    const qs = sp.toString();
-    router.replace(qs ? `/recurrence?${qs}` : '/recurrence', { scroll: false });
-  }, [router, searchParams]);
+    setSurfaceParams({ task: null });
+  }, [setSurfaceParams]);
 
   // D19 (2026-05-22): the prior "+menu" PlusMenuAction array and the
   // chat-panel empty-state block were ThreePanelLayout-side affordances.

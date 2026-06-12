@@ -107,6 +107,34 @@ export interface SurfacePreferences {
    * hit — caller consumes `capHit` for UX).
    */
   navigateToSurface: (slug: string, params?: Record<string, string>) => boolean;
+  /**
+   * ADR-297 D19.6 (2026-06-12): the sanctioned INTRA-surface deep-link
+   * verb. Updates the foregrounded surface's URL params (`?agent=X`,
+   * `?task=Y`, `?slug=Z`) WITHOUT a pathname flip — the window-manager
+   * baseline (pathname `/desktop`) is preserved.
+   *
+   * Distinct from `navigateToSurface` (cross-surface): that verb flips
+   * pathname to the target surface route (correct when you genuinely
+   * move surfaces). `setSurfaceParams` is for "I'm already in this
+   * surface, change which entity it shows" — switching agents in the
+   * Agents window, selecting a recurrence in the Recurrence window. A
+   * pathname flip there is the disruption: it trips the pathname→
+   * foreground effect + SurfaceViewport pathnameSlug resolution +
+   * closeSurface URL-sync, all of which branch on whether pathname is
+   * the `/desktop` baseline (operator-observed KVK 2026-06-12).
+   *
+   * Mechanism: `window.history.replaceState(null, '', <current-pathname>?<params>)`.
+   * Next 14.2 natively patches replaceState (app-router.js) so the Next
+   * router syncs — `useSearchParams()` re-renders with the new param —
+   * but NO navigation event fires, so the shell effects stay quiet.
+   * Surfaces keep reading `useSearchParams()` as their single source of
+   * truth (no parallel component state; Singular Implementation).
+   *
+   * Pass a param value of `null` (or '') to DELETE that key (e.g.
+   * back-to-list clears `?task=`). Keys not mentioned are preserved.
+   * No-op on the server (guards `typeof window`).
+   */
+  setSurfaceParams: (params: Record<string, string | null>) => void;
   isKept: (slug: string) => boolean;
   isOpen: (slug: string) => boolean;
   /** D15: update a single window's geometry (called from drag + resize). */
@@ -459,6 +487,30 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
     [foregroundSurface, composition.surfaces, router]
   );
 
+  // ADR-297 D19.6 (2026-06-12): intra-surface deep-link update with NO
+  // pathname flip. See interface docstring. Uses the native History API
+  // (Next 14.2 patches replaceState → router syncs useSearchParams,
+  // no navigation event) to keep the window-manager pathname baseline.
+  const setSurfaceParams = useCallback(
+    (params: Record<string, string | null>): void => {
+      if (typeof window === 'undefined') return;
+      const url = new URL(window.location.href);
+      Object.entries(params).forEach(([k, v]) => {
+        if (v == null || v === '') url.searchParams.delete(k);
+        else url.searchParams.set(k, v);
+      });
+      // Preserve current pathname; only the query changes. replaceState
+      // (not pushState) — switching the shown entity is not a new history
+      // entry the operator should Back-button through.
+      window.history.replaceState(
+        null,
+        '',
+        url.pathname + (url.search ? url.search : '') + url.hash
+      );
+    },
+    []
+  );
+
   // D19.1: toggle macOS-style zoom for a window. Saves prior geometry
   // on the way up; restores it on the way down. Raises the window
   // (zoom is a focus gesture).
@@ -630,6 +682,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       closeSurface: doCloseSurface,
       foregroundSurface,
       navigateToSurface,
+      setSurfaceParams,
       isKept,
       isOpen,
       setWindowState: updateWindowState,
@@ -654,6 +707,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       doCloseSurface,
       foregroundSurface,
       navigateToSurface,
+      setSurfaceParams,
       isKept,
       isOpen,
       updateWindowState,
