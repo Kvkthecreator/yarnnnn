@@ -45,6 +45,17 @@ interface StatusItemPopoverProps {
   footerTarget: { kind: 'surface'; slug: KernelSurfaceSlug } | { kind: 'route'; href: string };
   /** Footer link copy (e.g. "Autonomy Settings…") */
   footerLabel: string;
+  /**
+   * Optional second footer link (ADR-339 P1). Added for the merged
+   * money chip — Budget Settings (atomic surface) + Billing Settings
+   * (intra-surface deep-link) are both legitimate edit targets of one
+   * popover after the Budget chip absorbed the Balance chip.
+   */
+  secondaryFooterTarget?:
+    | { kind: 'surface'; slug: KernelSurfaceSlug }
+    | { kind: 'route'; href: string };
+  /** Copy for the optional second footer link */
+  secondaryFooterLabel?: string;
   /** Optional class override for the trigger button */
   className?: string;
 }
@@ -65,6 +76,8 @@ export function StatusItemPopover({
   popoverBody,
   footerTarget,
   footerLabel,
+  secondaryFooterTarget,
+  secondaryFooterLabel,
   className,
 }: StatusItemPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -94,16 +107,18 @@ export function StatusItemPopover({
     return () => document.removeEventListener('keydown', handleKey);
   }, [isOpen]);
 
-  const handleFooterClick = () => {
+  const handleFooterClick = (
+    target: { kind: 'surface'; slug: KernelSurfaceSlug } | { kind: 'route'; href: string },
+  ) => {
     setIsOpen(false);
-    if (footerTarget.kind === 'surface') {
+    if (target.kind === 'surface') {
       // ADR-297 D19.2: kernel-surface nav via foregroundSurface
-      foregroundSurface(footerTarget.slug);
+      foregroundSurface(target.slug);
     } else {
       // ADR-297 D19.2 Effect A: route with query params mounts the
       // surface as a window on first paint. Used for intra-surface
       // deep-links like /settings?tab=billing.
-      router.push(footerTarget.href);
+      router.push(target.href);
     }
   };
 
@@ -143,11 +158,20 @@ export function StatusItemPopover({
           <div className="px-3 py-2 text-sm">{popoverBody}</div>
           <button
             type="button"
-            onClick={handleFooterClick}
+            onClick={() => handleFooterClick(footerTarget)}
             className="w-full text-left px-3 py-2 text-xs text-primary hover:bg-muted border-t border-border transition-colors"
           >
             {footerLabel} →
           </button>
+          {secondaryFooterTarget && secondaryFooterLabel && (
+            <button
+              type="button"
+              onClick={() => handleFooterClick(secondaryFooterTarget)}
+              className="w-full text-left px-3 py-2 text-xs text-primary hover:bg-muted border-t border-border transition-colors"
+            >
+              {secondaryFooterLabel} →
+            </button>
+          )}
         </div>
       )}
     </div>

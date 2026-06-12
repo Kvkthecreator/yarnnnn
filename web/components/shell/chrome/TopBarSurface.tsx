@@ -65,6 +65,7 @@ import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { isKernelSurfaceSlug } from '@/types/desk';
 import { HOME_ROUTE } from '@/lib/routes';
 import { UserMenu } from '../UserMenu';
+import { AttentionCenter } from '../AttentionCenter';
 import { SystemStatusCluster } from '../system-status/SystemStatusCluster';
 import { useShellChrome } from '../ShellChromeContext';
 import type { Surface } from '@/lib/compositor/types';
@@ -454,14 +455,15 @@ export function TopBarSurface() {
         )}
       </nav>
 
-      {/* Right region — agent-OS menu-bar status cluster (D20) +
-          UserMenu (D19.4). shrink-0 + fixed width pinned to viewport
-          right edge. The status cluster (Autonomy · Pace · Balance ·
-          Connections) sits to the left of the UserMenu, separated by
-          a small gap. Cluster collapses to a single rollup chip on
-          <md screens per D20 §D4. */}
+      {/* Right region — agent-OS menu-bar status cluster (D20,
+          consolidated to Autonomy · Money · Connections per ADR-339 P1)
+          + AttentionCenter (ADR-339 D3 — the Notification Center
+          analog: EVENTS demanding the operator, distinct chrome role
+          from the cluster's standing STATE) + UserMenu (D19.4).
+          shrink-0 + fixed width pinned to viewport right edge. */}
       <div className="flex shrink-0 items-center gap-2">
         <SystemStatusCluster />
+        <AttentionCenter />
         <UserMenu email={userEmail} />
       </div>
 

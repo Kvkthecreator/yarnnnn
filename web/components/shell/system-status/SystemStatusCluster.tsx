@@ -1,22 +1,25 @@
 'use client';
 
 /**
- * SystemStatusCluster — agent-OS menu-bar status cluster (ADR-297 D20).
+ * SystemStatusCluster — agent-OS menu-bar status cluster (ADR-297 D20;
+ * consolidated by ADR-339 P1).
  *
- * Four kernel-general status chips in the Right region of the top bar,
- * between the Dock and UserMenu. macOS Wi-Fi/battery/clock analog:
- * always-visible operator-level standing state about the system's
- * capacity to do work.
+ * Three kernel-general status chips in the Right region of the top bar,
+ * between the Dock and UserMenu. macOS Control Center / menu-bar-extras
+ * analog: always-visible operator-level standing STATE about the
+ * system's capacity to do work. Events that demand the operator are a
+ * different chrome role — the AttentionCenter (Notification Center
+ * analog, ADR-339 D3), a sibling top-bar item, never a chip here.
  *
  * Order (kernel-priority, left-to-right):
- *   1. Autonomy   — governance (what the agent CAN do)
- *   2. Pace       — tempo (what the agent WILL do soon)
- *   3. Balance    — runway (battery analog)
- *   4. Connections — reach (Wi-Fi analog)
+ *   1. Autonomy    — governance (what the agent CAN do)
+ *   2. Money       — budget envelope + balance runway (battery analog;
+ *                    Budget absorbed Balance per ADR-339 P1)
+ *   3. Connections — reach (Wi-Fi analog)
  *
  * Responsive collapse:
- *   md+   → all four chips inline
- *   <md   → single rollup chip (Cpu icon) → popover with all four
+ *   md+   → all three chips inline
+ *   <md   → single rollup chip (Cpu icon) → popover with all three
  *           items stacked vertically. Mirrors macOS Control Center.
  *
  * Read-only popovers per D20 §D2 — every mutation routes to the
@@ -29,13 +32,12 @@ import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { cn } from '@/lib/utils';
 import { AutonomyStatusItem } from './AutonomyStatusItem';
 import { BudgetStatusItem } from './BudgetStatusItem';
-import { BalanceStatusItem } from './BalanceStatusItem';
 import { ConnectionsStatusItem } from './ConnectionsStatusItem';
 
 export function SystemStatusCluster() {
   return (
     <>
-      {/* md+ — all four chips inline */}
+      {/* md+ — all three chips inline */}
       <div
         className="hidden md:flex items-center gap-0.5 shrink-0"
         role="group"
@@ -43,14 +45,13 @@ export function SystemStatusCluster() {
       >
         <AutonomyStatusItem />
         <BudgetStatusItem />
-        <BalanceStatusItem />
         <ConnectionsStatusItem />
       </div>
 
       {/* <md — collapsed rollup. Single Cpu chip opens a popover that
-          stacks all four items in a 4-column row. Each item keeps its
-          own popover trigger; operator can drill into any one for
-          detail. Mirrors macOS Control Center on smaller displays. */}
+          stacks all three items in a row. Each item keeps its own
+          popover trigger; operator can drill into any one for detail.
+          Mirrors macOS Control Center on smaller displays. */}
       <div
         className="flex md:hidden items-center shrink-0"
         role="group"
@@ -112,7 +113,6 @@ function MobileRollup() {
           <div className="flex items-center gap-1">
             <AutonomyStatusItem />
             <BudgetStatusItem />
-            <BalanceStatusItem />
             <ConnectionsStatusItem />
           </div>
         </div>
