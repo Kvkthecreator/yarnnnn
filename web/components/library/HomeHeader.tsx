@@ -42,12 +42,49 @@ import { api } from '@/lib/api/client';
 import { useAutonomy } from '@/lib/content-shapes/autonomy';
 import type { AutonomyDelegation } from '@/lib/content-shapes/autonomy';
 import { parse as parseMandate } from '@/lib/content-shapes/mandate';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useHome } from './HomeContext';
 import { cn } from '@/lib/utils';
 
 const MANDATE_PATH = '/workspace/constitution/MANDATE.md';
-// Atomic Autonomy surface (renamed from /delegation 2026-05-24).
-const AUTONOMY_EDIT_HREF = '/autonomy';
+// ADR-340 P2: Autonomy is a Governance pane inside System Settings
+// (was the atomic /autonomy window; that route is now a redirect stub).
+const AUTONOMY_EDIT_HREF = '/settings?pane=autonomy';
+
+// ---------------------------------------------------------------------------
+// Constitution links — ADR-340 P3
+// ---------------------------------------------------------------------------
+
+/**
+ * ConstitutionLinks — the constitution band is the canonical DOOR to the
+ * three constitution mirrors (ADR-340 D5: mandate/principles/identity
+ * leave the launcher's at-rest top level; flat search still finds them).
+ * Quiet trio of links opening the mirror windows via foregroundSurface.
+ */
+function ConstitutionLinks() {
+  const { foregroundSurface } = useSurfacePreferences();
+  const items: { slug: string; label: string }[] = [
+    { slug: 'mandate', label: 'Mandate' },
+    { slug: 'principles', label: 'Principles' },
+    { slug: 'identity', label: 'Identity' },
+  ];
+  return (
+    <div className="mt-2 flex items-center gap-1 text-[11px] text-muted-foreground/60">
+      {items.map((item, i) => (
+        <span key={item.slug} className="flex items-center gap-1">
+          {i > 0 && <span aria-hidden>·</span>}
+          <button
+            type="button"
+            onClick={() => foregroundSurface(item.slug)}
+            className="hover:text-foreground hover:underline underline-offset-4 transition-colors"
+          >
+            {item.label}
+          </button>
+        </span>
+      ))}
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Autonomy display
@@ -130,6 +167,7 @@ export function HomeHeader() {
                 Author in chat
               </button>
             </div>
+            <ConstitutionLinks />
           </div>
           <AutonomyBadge
             level={effectiveLevel as AutonomyDelegation | null}
@@ -160,6 +198,7 @@ export function HomeHeader() {
               {supportingLines.slice(0, 3).join(' · ')}
             </p>
           )}
+          <ConstitutionLinks />
         </div>
         <div className="flex items-center gap-3 shrink-0 mt-0.5">
           {/* Autonomy posture — links to Reviewer Autonomy tab for editing */}

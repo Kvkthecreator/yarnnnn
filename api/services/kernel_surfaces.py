@@ -118,6 +118,24 @@ ARCHETYPES = (
 # content surface; absent on chrome (chrome is the window manager's own
 # framing, neither register).
 #
+# `launcher_tier` field (ADR-340 P3, 2026-06-12): the launcher's AT-REST
+# grouping — derived from the operator's standing loop (ADR-340 D2/D5),
+# NOT from the register (registers stay code-level taxonomy; ADR-338 IA
+# Move A's register grouping is superseded by this tier model):
+#   - "primary"     — the loop: Home (dwell) · Feed (read) · Queue (decide)
+#                     · Files (artifacts). Foregrounded at rest.
+#   - "system"      — System Settings, the one os-config door (panes fold
+#                     inside it per `pane_of`).
+#   - "utilities"   — present, searchable, de-prioritized: Setup, Activity,
+#                     Recurrence, Agents (the Activity-Monitor class).
+#   - "search-only" — hidden at rest, found by flat search (ADR-340 D5
+#                     "search stays flat"): the constitution mirrors
+#                     (mandate/principles/identity — their door is the
+#                     Home constitution band, ADR-312 slot #1) and the
+#                     pane-grade Settings panes (their door is System
+#                     Settings).
+# Chrome entries (route="") have no tier — never listed.
+#
 # `pane_of` field (ADR-340 P2, 2026-06-12): pane-grade surfaces. A surface
 # carrying `pane_of: "<parent-slug>"` is NOT window-grade — it renders as a
 # sidebar pane INSIDE its parent's window (the macOS System Settings shape:
@@ -173,6 +191,7 @@ ARCHETYPES = (
 KERNEL_SURFACES: list[dict[str, Any]] = [
     {
         "slug": "feed",
+        "launcher_tier": "primary",  # ADR-340 P3
         "register": "application",  # ADR-309 two-register model
         "title": "Feed",
         "archetype": "stream",
@@ -200,6 +219,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # as the kernel default. The atomic Home surface hosts HomeRenderer.
         # (Was: ADR-297 D1 cockpit, the 13th kernel surface.)
         "slug": "home",
+        "launcher_tier": "primary",  # ADR-340 P3
         "register": "application",  # ADR-309 / ADR-312 D5 two-register model
         "title": "Home",
         "archetype": "dashboard",
@@ -226,6 +246,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # (Recurring vs Reactive grouping; Pace's tempo tagline), NOT as
         # this surface's name. /cadence kept as a redirect stub.
         "slug": "recurrence",
+        "launcher_tier": "utilities",  # ADR-340 P3
         "register": "application",  # ADR-309 two-register model
         "title": "Recurrence",
         "archetype": "dashboard",
@@ -249,6 +270,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # adjacent before transitioning into Mechanism (Autonomy) and Identity
         # (Identity / Brand / Principles) per axiom order.
         "slug": "budget",
+        "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 (was `settings`)
         "pane_of": "settings",  # ADR-340 P2 — Governance pane in System Settings
         "pane_group": "Governance",
@@ -272,6 +294,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # level. At the operator surface the broader concept is Autonomy.
         # /delegation kept as a redirect stub for bookmark safety.
         "slug": "autonomy",
+        "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 (was `settings`)
         "pane_of": "settings",  # ADR-340 P2 — Governance pane in System Settings
         "pane_group": "Governance",
@@ -287,6 +310,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "mandate",
+        "launcher_tier": "search-only",  # ADR-340 P3
         "register": "intent",  # ADR-312 D5 — constitution band, slot #1 (was `settings`)
         "title": "Mandate",
         "archetype": "document",
@@ -300,6 +324,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "principles",
+        "launcher_tier": "search-only",  # ADR-340 P3
         "register": "intent",  # ADR-312 D5 — constitution band (was `settings`)
         "title": "Principles",
         "archetype": "document",
@@ -314,6 +339,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "identity",
+        "launcher_tier": "search-only",  # ADR-340 P3
         "register": "intent",  # ADR-312 D5 — constitution band (was `settings`)
         "title": "Identity",
         "archetype": "document",
@@ -332,6 +358,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # surface is removed.
     {
         "slug": "files",
+        "launcher_tier": "primary",  # ADR-340 P3
         "register": "application",  # ADR-309 two-register model
         "title": "Files",
         "archetype": "browser",
@@ -343,6 +370,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "agents",
+        "launcher_tier": "utilities",  # ADR-340 P3
         "register": "application",  # ADR-309 two-register model
         "title": "Agents",
         "archetype": "roster",
@@ -365,6 +393,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # the summon-index all point here. Re-enterable any time (the
         # Migration-Assistant property).
         "slug": "setup",
+        "launcher_tier": "utilities",  # ADR-340 P3
         "register": "os-config",  # ADR-309/312 — it configures the OS, not an open file
         "title": "Setup",
         "archetype": "sequence",  # ADR-331 D1 — new archetype
@@ -376,6 +405,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "program",
+        "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 (was `settings`)
         "pane_of": "settings",  # ADR-340 P2 — Program pane in System Settings
         "pane_group": "Program",
@@ -391,6 +421,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "queue",
+        "launcher_tier": "primary",  # ADR-340 P3
         "register": "application",  # ADR-309 two-register model
         "title": "Queue",
         "archetype": "queue",
@@ -402,6 +433,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "activity",
+        "launcher_tier": "utilities",  # ADR-340 P3
         "register": "application",  # ADR-309 two-register model
         "title": "Activity",
         "archetype": "stream",
@@ -423,6 +455,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # remain as window-internal deep-link state per D19.4.
     {
         "slug": "settings",
+        "launcher_tier": "system",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 (was `settings`)
         "title": "System Settings",
         "archetype": "dashboard",
@@ -439,6 +472,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "connectors",
+        "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 (was `settings`)
         "pane_of": "settings",  # ADR-340 P2 — Perception & transports pane
         "pane_group": "Perception & transports",
@@ -461,6 +495,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # kernel constant (ADR-224 boundary). substrate_paths is [] — the surface
         # reads GET /api/sources, which resolves the per-bundle paths server-side.
         "slug": "sources",
+        "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 — a transport/driver binding
         "pane_of": "settings",  # ADR-340 P2 — Perception & transports pane
         "pane_group": "Perception & transports",

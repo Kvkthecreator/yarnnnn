@@ -118,18 +118,20 @@ def test_runway_response_shape() -> None:
 # ---------------------------------------------------------------------------
 
 def test_launcher_register_grouping() -> None:
-    print("\n[launcher] kernel tier splits by register (management plane coheres)")
+    # ADR-340 P3 (2026-06-12) SUPERSEDES IA Move A's register grouping:
+    # the launcher's at-rest sort key is the act-derived `launcher_tier`
+    # (Workspace / System / Utilities; search-only hidden at rest), not
+    # the register. The management-plane coherence IA Move A bought now
+    # lives in the System Settings pane fold (ADR-340 P2) — the os-config
+    # register reads as ONE door instead of a launcher group. Registers
+    # stay code-level taxonomy (ADR-309/312 unchanged).
+    print("\n[launcher] act-tier grouping (ADR-340 P3 supersedes register grouping)")
     src = _read("components/shell/Launcher.tsx")
-    check("KERNEL_REGISTER_GROUPS declared", "KERNEL_REGISTER_GROUPS" in src)
-    check("Constitution group (intent)", "'Constitution'" in src and "register: 'intent'" in src)
-    check("Applications group (application)", "'Applications'" in src and "register: 'application'" in src)
-    check("System Settings group (os-config)", "'System Settings'" in src and "register: 'os-config'" in src)
-    check("kernel surfaces routed by register", "kernelRegisterGroupFor" in src)
-    check("unregistered kernel surface defaults to Applications (no silent drop)",
-          "Applications" in src and "?? { key: 'kernel:application'" in src)
-    # Old flat 'Workspace' kernel group label is gone (now three register groups).
-    check("old flat 'Workspace' kernel label removed",
-          "groupLabel = 'Workspace'" not in src)
+    check("register grouping removed", "KERNEL_REGISTER_GROUPS" not in src)
+    check("act-tier groups declared", "KERNEL_TIER_GROUPS" in src)
+    check("kernel surfaces routed by launcher_tier", "kernelTierGroupFor" in src)
+    check("no-tier fallback never silently drops a surface",
+          "?? { key: 'kernel:utilities'" in src)
 
 
 def main() -> int:

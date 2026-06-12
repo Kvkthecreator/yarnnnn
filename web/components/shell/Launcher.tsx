@@ -11,14 +11,25 @@
  * from surface.tier values emitted by the compositor (per
  * kernel_surface_entries + program bundle SURFACES.yaml surfaces[]).
  *
- * ADR-338 D4 IA Move A (2026-06-11): the kernel tier splits by `register` into
- * three subtle groups — "Constitution" (intent), "Applications" (application),
- * "System Settings" (os-config). This is what makes the management plane
- * *cohere as a plane* in the one place the operator sees the full surface
- * index: the os-config register (the governance dials) reads as a group, the
- * macOS System-Settings analog (ADR-338 D2). No new container — the existing
- * `register` data becomes a visible grouping dimension. Program + composed
- * tiers keep their single-group shape.
+ * ADR-340 P3 (2026-06-12) — act-derived launcher IA, two modes:
+ *
+ *   AT REST (no query): the kernel tier groups by `launcher_tier` —
+ *   "Workspace" (primary: Home · Feed · Queue · Files, the standing
+ *   loop), "System" (System Settings, the one os-config door), and
+ *   "Utilities" (Setup · Activity · Recurrence · Agents). `search-only`
+ *   surfaces are HIDDEN at rest — the constitution mirrors' door is the
+ *   Home constitution band (ADR-312 slot #1); the Settings panes' door
+ *   is System Settings. This supersedes ADR-338 IA Move A's register
+ *   grouping: registers stay code-level taxonomy (ADR-309/312
+ *   unchanged); the operator-facing sort key is the act tier.
+ *
+ *   SEARCHING (query non-empty): FLAT — every navigable surface
+ *   including search-only mirrors and pane-grade panes matches by
+ *   title/summary/slug (ADR-340 D5 "search stays flat"; the Spotlight
+ *   role). Selecting a pane opens System Settings at that pane via
+ *   foregroundSurface resolution (ADR-340 P2).
+ *
+ * Program + composed tiers keep their single-group shape in both modes.
  *
  * D14.1 (2026-05-22): the per-row Keep toggle is DELETED. macOS
  * Launchpad has no pin affordance — clicking an app opens it; "Keep
@@ -54,21 +65,22 @@ interface SurfaceGroup {
   surfaces: Surface[];
 }
 
-// ADR-338 D4 IA Move A: kernel surfaces split by register. Order top→bottom
-// follows the operator's reading: what the operation IS (Constitution), what
-// it DOES (Applications), how the OS BEHAVES (System Settings). Surfaces with
-// no register (legacy / chrome that slipped through) fall to Applications.
-const KERNEL_REGISTER_GROUPS: { key: string; label: string; register: string }[] = [
-  { key: 'kernel:intent', label: 'Constitution', register: 'intent' },
-  { key: 'kernel:application', label: 'Applications', register: 'application' },
-  { key: 'kernel:os-config', label: 'System Settings', register: 'os-config' },
+// ADR-340 P3: kernel surfaces group by `launcher_tier` (the act-derived
+// at-rest IA). Order top→bottom follows visit-frequency: the standing
+// loop (Workspace), the one config door (System), then the utility
+// class. `search-only` surfaces never appear at rest. Kernel surfaces
+// missing a tier (a registry omission) fall to Utilities — never
+// silently drop a surface from the index.
+const KERNEL_TIER_GROUPS: { key: string; label: string; tier: string }[] = [
+  { key: 'kernel:primary', label: 'Workspace', tier: 'primary' },
+  { key: 'kernel:system', label: 'System', tier: 'system' },
+  { key: 'kernel:utilities', label: 'Utilities', tier: 'utilities' },
 ];
 
-function kernelRegisterGroupFor(s: Surface): { key: string; label: string } {
-  const match = KERNEL_REGISTER_GROUPS.find((g) => g.register === s.register);
-  // Default unregistered kernel surfaces to Applications (the operator's work
-  // surfaces) — never silently drop a surface from the index.
-  return match ?? { key: 'kernel:application', label: 'Applications' };
+function kernelTierGroupFor(s: Surface): { key: string; label: string } | null {
+  if (s.launcher_tier === 'search-only') return null;
+  const match = KERNEL_TIER_GROUPS.find((g) => g.tier === s.launcher_tier);
+  return match ?? { key: 'kernel:utilities', label: 'Utilities' };
 }
 
 function groupSurfaces(
@@ -81,7 +93,8 @@ function groupSurfaces(
     let groupKey: string;
     let groupLabel: string;
     if (s.tier === 'kernel') {
-      const g = kernelRegisterGroupFor(s);
+      const g = kernelTierGroupFor(s);
+      if (!g) return; // search-only: hidden at rest (found via flat search)
       groupKey = g.key;
       groupLabel = g.label;
     } else if (s.tier === 'composed') {
@@ -99,15 +112,14 @@ function groupSurfaces(
     groups.get(groupKey)!.surfaces.push(s);
   });
 
-  // Order: the three kernel register groups (Constitution → Applications →
-  // System Settings) first, then program groups (compositor insertion order),
-  // then composed. Empty kernel groups are skipped (only present if they have
-  // surfaces).
+  // Order: the three kernel act-tier groups (Workspace → System →
+  // Utilities) first, then program groups (compositor insertion order),
+  // then composed. Empty kernel groups are skipped.
   const ordered: SurfaceGroup[] = [];
-  for (const g of KERNEL_REGISTER_GROUPS) {
+  for (const g of KERNEL_TIER_GROUPS) {
     if (groups.has(g.key)) ordered.push(groups.get(g.key)!);
   }
-  const kernelKeys = new Set(KERNEL_REGISTER_GROUPS.map((g) => g.key));
+  const kernelKeys = new Set(KERNEL_TIER_GROUPS.map((g) => g.key));
   Array.from(groups.entries()).forEach(([key, group]) => {
     if (!kernelKeys.has(key) && key !== 'composed') ordered.push(group);
   });
@@ -164,6 +176,11 @@ export function Launcher({
         s.slug.toLowerCase().includes(q)
     );
   }, [navigableSurfaces, query]);
+
+  // ADR-340 P3 two modes: at rest → act-tier groups (search-only hidden);
+  // searching → FLAT across every navigable surface incl. search-only
+  // mirrors + pane-grade panes (the Spotlight role; D5 "search stays flat").
+  const isSearching = query.trim().length > 0;
 
   const grouped = useMemo(
     () => groupSurfaces(filtered, bundleTitleBySlug),
@@ -228,11 +245,49 @@ export function Launcher({
           </button>
         </form>
 
-        {/* Surface list */}
+        {/* Surface list — flat when searching (Spotlight role), act-tier
+            groups at rest (Dock/Launchpad role). ADR-340 P3. */}
         <div className="max-h-[60vh] overflow-y-auto">
-          {grouped.length === 0 ? (
+          {isSearching ? (
+            filtered.length === 0 ? (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">
+                No surfaces match &ldquo;{query}&rdquo;
+              </div>
+            ) : (
+              <div className="py-2">
+                {filtered.map((surface) => {
+                  const Icon = resolveSurfaceIcon(surface.icon_key);
+                  return (
+                    <button
+                      key={surface.slug}
+                      type="button"
+                      onClick={() => navigate(surface)}
+                      className="flex w-full items-center gap-3 px-4 py-2 text-left hover:bg-muted/60"
+                    >
+                      <div className="flex h-8 w-8 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                        <Icon className="h-4 w-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium">
+                          {surface.title}
+                          {surface.pane_of && (
+                            <span className="ml-2 text-xs font-normal text-muted-foreground">
+                              System Settings pane
+                            </span>
+                          )}
+                        </div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {surface.summary}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )
+          ) : grouped.length === 0 ? (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-              No surfaces match &ldquo;{query}&rdquo;
+              No surfaces available
             </div>
           ) : (
             grouped.map((group) => (
