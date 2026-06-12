@@ -369,12 +369,14 @@ def test_list_files_authored_by_filter(client) -> None:
             "authored_by": "operator",
         }))
         files = result.get("files") or []
+        # ADR-339 D1: entries are dicts with path/bytes/updated_at/authored_by.
+        file_paths = [f.get("path") for f in files]
         filters = result.get("filters_applied") or {}
 
         ok = (
             result.get("success") is True
-            and "operator-file.md" in files
-            and "agent-file.md" not in files
+            and "operator-file.md" in file_paths
+            and "agent-file.md" not in file_paths
             and filters.get("authored_by") == "operator"
         )
         record(

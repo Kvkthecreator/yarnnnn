@@ -187,6 +187,10 @@ Three layers, per Axiom 5's determinism-to-judgment spectrum:
    (any live file outside `_workspace_guide.md`'s declared roots is residue by
    definition), 0-byte anomalies. Named here; shipped when the housekeeping cadence
    first wants a sensor (ADR-305 discipline — no dead substrate ahead of a reader).
+   **Trigger sharpened by ADR-339 D5 (2026-06-12)**: pull-shaped sensing is covered
+   by the recursive metadata `ListFiles` (bytes column makes 0-byte anomalies
+   visible in any listing); this layer ships only if push-shaped anomaly *wakes*
+   are wanted.
 3. **Reviewer judgment**: what is litter vs. load-bearing — decided at the
    Reviewer's own ADR-275-authored housekeeping cadence, executed with these verbs,
    attributed in the chain, gated by ADR-307.

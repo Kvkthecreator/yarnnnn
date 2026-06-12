@@ -89,4 +89,4 @@ D1–D3 are read-contract and documentation changes; they touch no judgment prom
 
 ## Implementation status
 
-Decisions D1–D3 are **ratified-by-discourse, not yet implemented** — they amend the ListFiles/SearchFiles primitive contracts (chat + headless + Reviewer surfaces) and Reviewer tool guidance, so they take a small ADR or an ADR-337 amendment plus `api/prompts/CHANGELOG.md` entry in the implementing commit. The eval findings.md observation 1 ("watch, don't fix") is amended to point here.
+**Implemented same day as ADR-339** (`docs/adr/ADR-339-working-tree-perception-economics.md`): migration 185 (`content_bytes`), `handle_list_files` rewrite (recursive + metadata, both scopes), exact-search zero-yield echo, batching capability notes, `api/prompts/CHANGELOG.md` `[2026.06.12.1]`. The eval findings.md observation 1 ("watch, don't fix") is amended to point here.

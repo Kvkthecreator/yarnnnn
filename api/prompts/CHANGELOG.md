@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.12.1] - ADR-339: working-tree perception economics — recursive ListFiles, exact-search legibility, batching note
+
+**LLM-facing changes** (tool contracts on all three surfaces — counts unchanged):
+
+- **`ListFiles`** description rewritten: ONE call now returns the FULL subtree
+  with per-file metadata (`path` / `bytes` / `updated_at` / head `authored_by`);
+  the drill-down walk is explicitly proscribed ("do NOT walk directories level
+  by level"); `ListFiles(scope='workspace')` named as the `git status`-shaped
+  working-tree view. Handler rewritten to match (the one-level names-only
+  projection deleted). Evidence: 7/20 rounds of the housekeeping-genesis wake
+  were contract-forced drill-down
+  (docs/analysis/wake-round-economics-audit-2026-06-12.md).
+- **`SearchFiles`** exact-mode warning added: matches ONE literal substring —
+  multi-word queries match only as exact phrases; hunt terms one call per term.
+  Zero-yield results now carry an explicit message saying so (3/20 rounds were
+  silently zero-yield multi-word phrases that hid 3 live conflict-backup files).
+- **`ReadFile`** gains a batching capability note: independent reads may be
+  issued together in a single turn. Capability documentation, NOT the
+  round-counter nudge class ADR-303's population audit deleted.
+
+**Expected behavior**: read-heavy wakes (hygiene, audits) complete perception
+in ~1-3 rounds instead of ~10-18; output-token baseline for judgment wakes
+shifts DOWN (less tool JSON) — re-baseline the ADR-337 canary before reading
+a drop as collapse.
+
 ## [2026.06.11.2] - ADR-337: working-tree verbs — EditFile / DeleteFile / MoveFile + SearchFiles exact match
 
 **LLM-facing changes** (new tool contracts on all three surfaces — chat 28→31,

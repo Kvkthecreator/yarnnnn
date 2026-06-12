@@ -76,6 +76,10 @@ task substrate, etc.
   ReadFile(scope='agent', path='AGENT.md')
   ReadFile(scope='agent', path='system/playbook-outputs.md')
 
+Independent reads batch: when reading several known paths (sibling files, a
+report's sections), issue the ReadFile calls together in a single turn rather
+than one per turn.
+
 For semantic search across accumulated context domains, use QueryKnowledge.""",
     "input_schema": {
         "type": "object",
@@ -310,6 +314,9 @@ Two match modes (ADR-337 D4):
   (the grep shape). Use when hunting a literal string: a path fragment, a
   config key, an exact phrase.
   SearchFiles(query='operation/portfolio', match='exact')
+  IMPORTANT: exact matches ONE literal substring — a multi-word query matches
+  only that exact phrase, not the individual terms. To hunt several terms,
+  issue one call per term (independent calls can be batched in a single turn).
 
 Two scopes (ADR-235 Option A):
 
@@ -386,20 +393,31 @@ For path-based browsing, use ListFiles instead.""",
 
 LIST_FILES_TOOL = {
     "name": "ListFiles",
-    "description": """List files in the workspace filesystem (file layer, path-based).
+    "description": """List the workspace filesystem as a tree with metadata (file layer, path-based).
+
+ONE call returns the FULL subtree under `path` — every file recursively, each
+with metadata:
+  path        — relative path, directly usable as the `path` argument of
+                ReadFile / EditFile / DeleteFile / MoveFile in the same scope
+  bytes       — content size (0 = empty file; empty files are usually litter)
+  updated_at  — last mutation time
+  authored_by — head-revision author (operator / yarnnn:* / agent:* /
+                reviewer:* / system:*)
+
+Do NOT walk directories level by level — one ListFiles call per subtree is
+enough. ListFiles(scope='workspace') with no path is the whole working tree
+(the `git status`-shaped view: what exists, how big, who last touched it).
 
 This is a FILE LAYER primitive — it enumerates paths in the workspace
 filesystem. For entity listing by database table, use ListEntities.
 
 Two scopes (ADR-235 Option A):
 
-**scope='workspace'** (chat default) — list operator-shared substrate.
-Pass `path` to scope a subdirectory (e.g. 'operation/', 'reports/', 'system/').
-  ListFiles(scope='workspace')                          # top-level workspace folders (the five roots)
-  ListFiles(scope='workspace', path='operation/')       # accumulated domains
-  ListFiles(scope='workspace', path='operation/reports/') # task report folders
+**scope='workspace'** (chat default) — operator-shared substrate.
+  ListFiles(scope='workspace')                            # full working tree
+  ListFiles(scope='workspace', path='operation/reports/') # one subtree
 
-**scope='agent'** (headless default) — list within the calling agent's workspace.
+**scope='agent'** (headless default) — the calling agent's workspace.
 Ephemeral (working/) and archived files are hidden by default.
 
 ADR-209 Phase 3 filters (all optional, both scopes):
@@ -867,9 +885,10 @@ def _exact_search(auth: Any, query: str, prefix: str) -> dict:
     except Exception as e:
         logger.warning(f"[SEARCH_FILES] exact search failed: {e}")
         rows = []
-    return {
+    out = {
         "success": True,
         "match": "exact",
+        "semantics": "case-insensitive literal substring over content and path",
         "query": query,
         "path_prefix": prefix,
         "count": len(rows),
@@ -881,6 +900,18 @@ def _exact_search(auth: Any, query: str, prefix: str) -> dict:
             for r in rows
         ],
     }
+    # ADR-339 D2 — zero-yield legibility: a silent count:0 on a multi-word
+    # query reads as "nothing exists" when the real cause is phrase-too-
+    # specific (receipts: 3 live conflict-backup files hidden behind a
+    # 5-word literal phrase, wake-round-economics-audit-2026-06-12).
+    if not rows:
+        out["message"] = (
+            f"No matches for the LITERAL substring '{query}'. Multi-word "
+            "queries only match as exact phrases — to hunt several terms, "
+            "issue one call per term (independent calls can be batched in a "
+            "single turn), or use match='semantic'."
+        )
+    return out
 
 
 def _normalize_workspace_rel(path: str) -> str:
@@ -1319,19 +1350,108 @@ async def handle_query_knowledge(auth: Any, input: dict) -> dict:
     }
 
 
+_LIST_FILES_MAX = 500
+
+
+def _parse_iso_ts(value: str):
+    """Parse an ISO-8601 timestamp tolerantly (Z suffix, missing tz)."""
+    from datetime import datetime, timezone
+
+    try:
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
+
+
+def _list_tree(
+    auth: Any,
+    abs_prefix: str,
+    rel_base: str,
+    authored_by: str,
+    since: str,
+    until: str,
+) -> tuple[list[dict], bool]:
+    """ADR-339 D1 — one-call recursive listing with metadata.
+
+    Returns (entries, truncated). Each entry carries `path` (relative to
+    rel_base — directly usable as the `path` argument of ReadFile / EditFile /
+    DeleteFile / MoveFile in the same scope), `bytes` (content size; 0 = empty
+    file), `updated_at`, and `authored_by` (head revision author).
+
+    The ADR-209 Phase 3 filters apply to the HEAD revision — the documented
+    "most-recent revision" semantics (the pre-ADR-339 implementation matched
+    ANY revision in the window; that drift dies here).
+    """
+    try:
+        rows = (
+            auth.client.table("workspace_files")
+            .select(
+                "path, content_bytes, updated_at, "
+                "workspace_file_versions!head_version_id(authored_by, created_at)"
+            )
+            .eq("user_id", auth.user_id)
+            .like("path", f"{abs_prefix}%")
+            .in_("lifecycle", ["active", "delivered"])
+            .order("path")
+            .limit(_LIST_FILES_MAX + 1)
+            .execute()
+        ).data or []
+    except Exception as e:
+        logger.warning(f"[LIST_FILES] tree query failed: {e}")
+        rows = []
+
+    truncated = len(rows) > _LIST_FILES_MAX
+    since_dt = _parse_iso_ts(since) if since else None
+    until_dt = _parse_iso_ts(until) if until else None
+
+    entries: list[dict] = []
+    for r in rows[:_LIST_FILES_MAX]:
+        head = r.get("workspace_file_versions") or {}
+        head_author = head.get("authored_by") or ""
+        head_at = head.get("created_at") or r.get("updated_at") or ""
+        if authored_by and not head_author.startswith(authored_by):
+            continue
+        if since_dt or until_dt:
+            head_dt = _parse_iso_ts(head_at) if head_at else None
+            if head_dt is None:
+                continue
+            if since_dt and head_dt < since_dt:
+                continue
+            if until_dt and head_dt > until_dt:
+                continue
+        p = r["path"]
+        entries.append({
+            "path": p[len(rel_base):] if p.startswith(rel_base) else p,
+            "bytes": r.get("content_bytes"),
+            "updated_at": r.get("updated_at"),
+            "authored_by": head_author or None,
+        })
+    return entries, truncated
+
+
 async def handle_list_files(auth: Any, input: dict) -> dict:
-    """Handle ListFiles primitive (ADR-168: renamed from ListWorkspace; ADR-235 Option A: scope='workspace').
+    """Handle ListFiles primitive (ADR-168 rename; ADR-235 scopes; ADR-339 D1).
+
+    ADR-339 D1: recursive listing with metadata — ONE call returns the full
+    subtree under `path` with bytes / updated_at / head authored_by. The
+    one-level names-only projection (and the drill-down walk it forced —
+    receipts in docs/analysis/wake-round-economics-audit-2026-06-12.md) is
+    deleted.
 
     Two scopes:
-      - 'workspace' (default for chat): direct DB enumeration under /workspace/{path}.
-        Returns direct children (folders + files); pass `path` to scope.
-      - 'agent' (default when agent context present): scoped list within the
-        calling agent's workspace.
+      - 'workspace' (default for chat): operator-shared substrate. Returned
+        paths are workspace-relative from the root regardless of the `path`
+        filter passed.
+      - 'agent' (default when agent context present): the calling agent's
+        workspace. Returned paths are relative to the agent root.
 
-    ADR-209 Phase 3: supports authored_by / since / until filters in both scopes
-    via a join against workspace_file_versions.
+    ADR-209 Phase 3 filters (authored_by / since / until) apply to each
+    file's head revision.
     """
-    from services.workspace import AgentWorkspace, get_agent_slug
+    from services.workspace import get_agent_slug
 
     path = input.get("path", "")
     scope = input.get("scope") or _default_file_scope(auth)
@@ -1340,159 +1460,49 @@ async def handle_list_files(auth: Any, input: dict) -> dict:
     until = (input.get("until") or "").strip()
 
     if scope == "workspace":
-        # Direct DB query — list under /workspace/{path or ''}
-        # Tolerate callers passing absolute paths (e.g. '/workspace/context/').
-        # Normalise to workspace-relative before prepending /workspace/.
-        prefix = "/workspace/"
-        if path:
-            sub = path.strip().lstrip("/")
-            # If caller passed absolute path including leading 'workspace/',
-            # strip that — otherwise we'd query /workspace/workspace/...
-            if sub.startswith("workspace/"):
-                sub = sub[len("workspace/"):]
-            if sub and not sub.endswith("/"):
-                sub += "/"
-            prefix = f"/workspace/{sub}" if sub else "/workspace/"
+        # Tolerate callers passing absolute paths (e.g. '/workspace/operation/').
+        rel_base = "/workspace/"
+        sub = (path or "").strip().lstrip("/")
+        if sub.startswith("workspace/"):
+            sub = sub[len("workspace/"):]
+        if sub and not sub.endswith("/"):
+            sub += "/"
+        abs_prefix = f"/workspace/{sub}" if sub else "/workspace/"
+    else:
+        agent = getattr(auth, "agent", None)
+        if not agent:
+            return {
+                "success": False,
+                "error": "no_agent_context",
+                "message": "ListFiles scope='agent' requires agent context. Use scope='workspace' for operator-shared paths.",
+            }
+        rel_base = f"/agents/{get_agent_slug(agent)}/"
+        sub = (path or "").strip().lstrip("/")
+        if sub and not sub.endswith("/"):
+            sub += "/"
+        abs_prefix = rel_base + sub
 
-        try:
-            q = (
-                auth.client.table("workspace_files")
-                .select("path")
-                .eq("user_id", auth.user_id)
-                .like("path", f"{prefix}%")
-                .in_("lifecycle", ["active", "delivered"])
-            )
-            result = q.order("path").execute()
-            abs_paths = [r["path"] for r in (result.data or [])]
-        except Exception as e:
-            logger.warning(f"[LIST_FILES] workspace list failed: {e}")
-            abs_paths = []
+    entries, truncated = _list_tree(auth, abs_prefix, rel_base, authored_by, since, until)
 
-        # Apply ADR-209 filters if any provided.
-        if authored_by or since or until:
-            try:
-                fq = (
-                    auth.client.table("workspace_file_versions")
-                    .select("path")
-                    .eq("user_id", auth.user_id)
-                    .like("path", f"{prefix}%")
-                )
-                if authored_by:
-                    fq = fq.like("authored_by", f"{authored_by}%")
-                if since:
-                    fq = fq.gte("created_at", since)
-                if until:
-                    fq = fq.lte("created_at", until)
-                fq = fq.order("created_at", desc=True)
-                fres = fq.execute()
-                matched_abs = {row.get("path") for row in (fres.data or []) if row.get("path")}
-            except Exception as e:
-                logger.warning(f"[LIST_FILES] workspace filter query failed: {e}")
-                matched_abs = set()
-            abs_paths = [p for p in abs_paths if p in matched_abs]
-
-        # Project to direct children of prefix.
-        direct = set()
-        for p in abs_paths:
-            remainder = p[len(prefix):] if p.startswith(prefix) else p
-            if not remainder:
-                continue
-            if "/" in remainder:
-                direct.add(remainder.split("/", 1)[0] + "/")
-            else:
-                direct.add(remainder)
-
-        files = sorted(direct)
-        return {
-            "success": True,
-            "scope": "workspace",
-            "path": prefix,
-            "files": files,
-            "count": len(files),
-            "filters_applied": {
-                "authored_by": authored_by or None,
-                "since": since or None,
-                "until": until or None,
-            } if (authored_by or since or until) else None,
-        }
-
-    agent = getattr(auth, "agent", None)
-    if not agent:
-        return {
-            "success": False,
-            "error": "no_agent_context",
-            "message": "ListFiles scope='agent' requires agent context. Use scope='workspace' for operator-shared paths.",
-        }
-
-    ws = AgentWorkspace(auth.client, auth.user_id, get_agent_slug(agent))
-    files = await ws.list(path)
-
-    # ADR-209 Phase 3 filters: authored_by (prefix match) + since/until
-    # (timestamp window on most-recent revision). If any filter present,
-    # intersect `files` with the set of paths whose head revision matches.
-    if authored_by or since or until:
-        # Resolve the requested list to absolute paths so we can match against
-        # workspace_file_versions rows. ws.list() returns paths relative to the
-        # `prefix` passed in (or relative to /agents/{slug}/ when path="").
-        from services.workspace import AgentWorkspace as _AW  # for _full_path access
-        if path and not path.endswith("/"):
-            path_for_prefix = path + "/"
-        else:
-            path_for_prefix = path
-        full_prefix = ws._full_path(path_for_prefix) if path_for_prefix else ws._base + "/"
-
-        q = (
-            auth.client.table("workspace_file_versions")
-            .select("path, authored_by, created_at")
-            .eq("user_id", auth.user_id)
-            .like("path", f"{full_prefix}%")
-        )
-        if authored_by:
-            # Prefix match — 'agent:' or 'operator' or 'system:outcome-reconciliation'
-            q = q.like("authored_by", f"{authored_by}%")
-        if since:
-            q = q.gte("created_at", since)
-        if until:
-            q = q.lte("created_at", until)
-
-        # Order by created_at DESC and take first occurrence per path
-        # (approximates "most-recent revision matches"). PostgREST doesn't
-        # expose DISTINCT ON, so we post-process in Python.
-        q = q.order("created_at", desc=True)
-
-        try:
-            result = q.execute()
-        except Exception as e:
-            logger.warning(f"[LIST_FILES] ADR-209 filter query failed: {e}")
-            result = type("X", (), {"data": []})()
-
-        matched_abs_paths = set()
-        for row in (result.data or []):
-            p = row.get("path")
-            if p and p not in matched_abs_paths:
-                matched_abs_paths.add(p)
-
-        # Filter `files` (relative paths) to those whose absolute path is in matched
-        prefix_strip = full_prefix
-        filtered = []
-        for rel in files:
-            candidate = prefix_strip + rel if not rel.endswith("/") else None
-            if candidate and candidate in matched_abs_paths:
-                filtered.append(rel)
-        files = filtered
-
-    return {
+    result = {
         "success": True,
-        "scope": "agent",
-        "path": path or "/",
-        "files": files,
-        "count": len(files),
+        "scope": scope,
+        "path": abs_prefix,
+        "files": entries,
+        "count": len(entries),
         "filters_applied": {
             "authored_by": authored_by or None,
             "since": since or None,
             "until": until or None,
         } if (authored_by or since or until) else None,
     }
+    if truncated:
+        result["truncated"] = True
+        result["message"] = (
+            f"Listing capped at {_LIST_FILES_MAX} entries — pass a narrower "
+            "`path` prefix to see the rest."
+        )
+    return result
 
 
 # ADR-153: _fallback_platform_content_search DELETED — platform_content sunset.
