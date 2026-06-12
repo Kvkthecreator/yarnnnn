@@ -27,13 +27,19 @@
  *               moved to natural-home paths in ADR-231 Phase 3.7.
  *   Uploads   — user-contributed source material (/workspace/uploads/).
  *
- * Deep-link params:
- *   ?domain={key}  — navigate to a context domain folder
- *   ?path={path}   — navigate to any workspace path (incl. /workspace/operation/reports/{slug}/)
+ * Deep-link params (COLD-LOAD ONLY, per ADR-297 D19.2):
+ *   ?domain={key}  — seed selection to a context domain folder on entry
+ *   ?path={path}   — seed selection to any workspace path on entry
+ *
+ * These params are read once on mount to seed `selectedPath` (e.g. a shared
+ * link, or a cross-surface navigation via navigateToSurface('files', {path})).
+ * In-surface file/folder clicks DO NOT write the URL — selection is component
+ * state. Writing `/files?path=…` on every click flipped pathname away from
+ * /desktop and disrupted the launcher/topbar (operator-observed KVK 2026-06-12).
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
   FolderOpen,
@@ -321,7 +327,6 @@ function formatNodeTimestamp(value: string): string {
 
 export default function ContextPage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { loadScopedHistory, sendMessage } = useNarrative();
 
   const domainParam = searchParams.get('domain');
@@ -542,10 +547,16 @@ export default function ContextPage() {
     }
   }, [pathParam, domainParam, treeNodes]);
 
+  // ADR-297 D19.2: in-surface selection is component state, NOT a URL write.
+  // The Files surface runs as a window on the Desktop (pathname `/desktop`);
+  // writing `/files?path=…` on every click flipped pathname → /files, which
+  // tripped AuthenticatedLayout's pathname→foreground effect + SurfaceViewport's
+  // pathnameSlug resolution, disrupting the launcher/topbar (operator-observed
+  // KVK 2026-06-12). `?path=` survives only as a COLD-LOAD deep-link (read on
+  // entry to seed selectedPath) — it is never written from intra-surface clicks.
   const handleExplorerSelect = useCallback((node: TreeNode) => {
     setSelectedPath(node.path);
-    router.replace(`/files?path=${encodeURIComponent(node.path)}`, { scroll: false });
-  }, [router]);
+  }, []);
 
   // Path-based select — a path string, not a TreeNode. The file may not be in
   // the visible tree (e.g. a folder-Details revision row deep-links into a
@@ -554,16 +565,14 @@ export default function ContextPage() {
   // the (newly-selected) node's own scope.
   const handleExplorerSelect_byPath = useCallback((path: string) => {
     setSelectedPath(path);
-    router.replace(`/files?path=${encodeURIComponent(path)}`, { scroll: false });
-  }, [router]);
+  }, []);
 
   // ADR-329 (amended): right-click "Get Info" on a tree node → select it (so
   // Details scopes to it) and open the Details panel.
   const handleGetInfo = useCallback((node: TreeNode) => {
     setSelectedPath(node.path);
-    router.replace(`/files?path=${encodeURIComponent(node.path)}`, { scroll: false });
     setDetailsOpen(true);
-  }, [router]);
+  }, []);
 
   // D19 (2026-05-22): the prior plusMenuActions + chat empty-state
   // block were ThreePanelLayout-side affordances. Chat affordances
@@ -693,8 +702,9 @@ export default function ContextPage() {
                   onDeleted={() => {
                     // ADR-329: file archived — clear selection + refresh the
                     // tree (the archived file self-filters out server-side).
+                    // ADR-297 D19.2: clearing selection is component state, no
+                    // URL write (the window stays put on the Desktop).
                     setSelectedPath(null);
-                    router.replace('/files', { scroll: false });
                     loadExplorer();
                   }}
                 />
