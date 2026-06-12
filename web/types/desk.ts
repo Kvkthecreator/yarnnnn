@@ -34,6 +34,7 @@ export type KernelSurfaceSlug =
   | 'identity'
   | 'files'
   | 'agents'
+  | 'setup'  // ADR-331 D1 — guided first-boot Sequence surface
   | 'program'
   | 'queue'
   | 'activity'
@@ -65,7 +66,7 @@ export type DeskSurface =
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   'feed', 'home', 'recurrence', 'budget', 'autonomy', 'mandate', 'principles',
-  'identity', 'files', 'agents', 'program', 'queue', 'activity',
+  'identity', 'files', 'agents', 'setup', 'program', 'queue', 'activity',
   'settings', 'connectors', 'sources',
 ] as const;
 

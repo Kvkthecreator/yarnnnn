@@ -223,24 +223,28 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Recurrences, substrate-event hooks, standing intent, and wake telemetry.",
     },
     {
-        # ADR-300 (2026-05-22) — pace promoted from cockpit-tab section
-        # (ADR-298 D5 original) to atomic kernel surface. Document archetype,
-        # operator-only edit, mirrors /autonomy's shape. Slotted between
-        # /recurrence and /autonomy to keep Trigger-dimension surfaces
-        # (Recurrence + Pace) adjacent before transitioning into Mechanism
-        # (Autonomy) and Identity (Identity / Brand / Principles) per
-        # axiom order. (/autonomy was renamed from /delegation 2026-05-24.)
-        "slug": "pace",
+        # ADR-327 (2026-06-08) — budget repurposed from /pace (ADR-300, which
+        # promoted pace from a cockpit-tab section to an atomic kernel surface).
+        # Pace retired: "how often the agent works" is the Reviewer's allocation
+        # problem within the dollar budget, not an operator dial. Document
+        # archetype, operator-only edit, mirrors /autonomy's shape. Slotted
+        # between /recurrence and /autonomy to keep Trigger-dimension surfaces
+        # adjacent before transitioning into Mechanism (Autonomy) and Identity
+        # (Identity / Brand / Principles) per axiom order.
+        "slug": "budget",
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "title": "Pace",
+        "title": "Budget",
         "archetype": "document",
         "substrate_paths": [
-            "/workspace/governance/_pace.yaml",
+            "/workspace/governance/_budget.yaml",
         ],
-        "icon_key": "gauge",
+        "icon_key": "wallet",
         "default_pinned": False,
-        "route": "/pace",  # _route_status: NEW in ADR-300
-        "summary": "Workspace rhythm — how often the agent works. Edit kind on the surface; complex fields via chat.",
+        # ADR-327 D7/Phase 5: pace retired → /budget is the canonical surface.
+        # The backend surface entry was missed in the ADR-327 FE collapse and
+        # carried the stale `pace` slug/route until the ADR-338 surface audit.
+        "route": "/budget",  # _route_status: repurposed from /pace (ADR-300)
+        "summary": "The operation's dollar spend envelope — declared budget plus window-to-date utilization. The Reviewer allocates wakes within it.",
     },
     {
         # 2026-05-24 design polish: renamed from "delegation" to "autonomy"

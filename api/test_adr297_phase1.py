@@ -119,7 +119,7 @@ def test_kernel_surfaces_module() -> None:
         "feed",
         "home",  # ADR-312 D1 — renamed from `cockpit` (was ADR-297 D1)
         "recurrence",  # 2026-06-03 — renamed from `cadence` (substrate already spoke "recurrence")
-        "pace",  # ADR-300 (2026-05-22) — atomic Pace surface
+        "budget",  # ADR-327 (2026-06-08) — repurposed from /pace; pace retired
         "autonomy",  # 2026-05-24 design polish — renamed from "delegation"
         "mandate",
         "principles",
@@ -127,9 +127,11 @@ def test_kernel_surfaces_module() -> None:
         # ADR-309: `brand` deleted — Identity surface owns Brand.
         "files",
         "agents",
+        "setup",  # ADR-331 D1 — guided first-boot Sequence surface
         "program",
         "queue",
         "activity",
+        "sources",  # ADR-338 D4.1 — standing-watch drivers view
         # ADR-297 D19.4 (2026-05-22): settings + connectors promoted
         # from legacy pages to atomic kernel surfaces. Reverses D19.7.
         # Inside the authenticated workspace, every surface is a window.
@@ -148,6 +150,14 @@ def test_kernel_surfaces_module() -> None:
     _assert(
         "dock" not in slugs,
         "D12: `dock` kernel surface absent (responsibilities absorbed into top-bar)",
+    )
+
+    # ADR-327 Phase 5: `pace` retired → `/budget`. The backend surface entry
+    # carried the stale `pace` slug until the ADR-338 surface audit. Guard
+    # against the retired slug sneaking back into the registry.
+    _assert(
+        "pace" not in slugs,
+        "ADR-327: `pace` kernel surface absent (retired → budget)",
     )
 
     # ADR-297 D16: `chat-composer` slug DELETED from registry.

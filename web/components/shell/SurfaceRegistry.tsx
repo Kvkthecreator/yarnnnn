@@ -37,6 +37,11 @@ import QueuePage from '@/app/(authenticated)/queue/page';
 import ActivityPage from '@/app/(authenticated)/activity/page';
 import AgentsPage from '@/app/(authenticated)/agents/page';
 import FilesPage from '@/app/(authenticated)/files/page';
+// ADR-331 D1: the guided first-boot Sequence surface. Built as a page +
+// SetupSequence renderer but never registered as a kernel surface until the
+// ADR-338 surface audit — the launcher's "Setup" link was a dead no-op
+// because isKernelSurfaceSlug('setup') was false.
+import SetupPage from '@/app/(authenticated)/setup/page';
 // ADR-297 D19.4 (2026-05-22) — Settings + Connectors promoted from
 // legacy pages to atomic kernel surfaces. Reverses D19.7. Inside the
 // authenticated workspace, every surface is a window mounted on the
@@ -63,6 +68,7 @@ export const KERNEL_SURFACE_REGISTRY: Record<KernelSurfaceSlug, ComponentType> =
   activity: ActivityPage,
   agents: AgentsPage,
   files: FilesPage,
+  setup: SetupPage,  // ADR-331 D1 — guided first-boot Sequence
   settings: SettingsPage,
   connectors: ConnectorsPage,
   sources: SourcesPage,  // ADR-338 D4.1 — standing-watch drivers view

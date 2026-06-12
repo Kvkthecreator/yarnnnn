@@ -6,8 +6,8 @@ Asserts the kernel home contract invariants:
   1. Surface rename — the kernel surface is `home` (slug + route + title),
      not `cockpit`. Singular Implementation: `cockpit` slug/route are gone.
   2. Register split — mandate/principles/identity carry register `intent`;
-     autonomy/pace/connectors/program/settings carry `os-config`; the
-     `application` register is unchanged.
+     autonomy/budget/connectors/program/settings/setup carry `os-config`; the
+     `application` register is unchanged. (ADR-327: `pace` retired → `budget`.)
   3. No trader-noun leak in the kernel — slot #2 (ground-truth hero) names a
      GENERIC contract, not a trader component. `money_truth` content-shape's
      CANONICAL_L3 must not be a `Trader*` component (it is the alpha-trader
@@ -83,7 +83,10 @@ def test_register_split_intent_vs_os_config():
             f"ADR-312 D5: '{slug}' belongs to the `intent` register."
         )
     # `os-config` register — the OS configuring itself.
-    for slug in ("autonomy", "pace", "connectors", "program", "settings"):
+    # ADR-327: `pace` retired → `budget` is the canonical os-config governance
+    # dial. `setup` (ADR-331) is also os-config (it configures the OS, not an
+    # open file).
+    for slug in ("autonomy", "budget", "connectors", "program", "settings", "setup"):
         assert by_slug[slug]["register"] == "os-config", (
             f"ADR-312 D5: '{slug}' belongs to the `os-config` register."
         )
