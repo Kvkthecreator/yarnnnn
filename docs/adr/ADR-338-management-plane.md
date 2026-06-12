@@ -1,6 +1,6 @@
 # ADR-338 — The Management Plane: Operating the Operation Is First-Class Product Surface
 
-**Status:** **Accepted (2026-06-11)** — framing + program-of-work ADR. **D4 program of work IMPLEMENTED 2026-06-11** — all 7 FE items shipped (FE audit → IA decision → builds). See the companion [ADR-338 FE plan](ADR-338-management-plane-fe-plan.md) for the audit receipts, the IA decision (the management plane coheres on the existing os-config register + menu-bar vitals — no new container), per-item interaction contracts, and the build log (gates: 136 assertions across 6 ADR-338 gates; ADR-297 parity 147/147; ADR-287 conformance 16/16). **§7 (added 2026-06-12) records a STANDING OPEN QUESTION** surfaced by walking the live surfaces — the consequence-legibility gap and where the OS analogy points the better answer; it is owned by the next management-plane ADR and must be resolved before more panes are built.
+**Status:** **Accepted (2026-06-11)** — framing + program-of-work ADR. **D4 program of work IMPLEMENTED 2026-06-11** — all 7 FE items shipped (FE audit → IA decision → builds). See the companion [ADR-338 FE plan](ADR-338-management-plane-fe-plan.md) for the audit receipts, the IA decision (the management plane coheres on the existing os-config register + menu-bar vitals — no new container), per-item interaction contracts, and the build log (gates: 136 assertions across 6 ADR-338 gates; ADR-297 parity 147/147; ADR-287 conformance 16/16). **§7 (added 2026-06-12) recorded a STANDING OPEN QUESTION — RESOLVED same day by [ADR-339](ADR-339-operator-experience-model.md)** (the operator experience model): teaching = guided flow (model B, the Setup-Assistant analog) + consequence previews on standing panes (the D4.5 installer pattern generalized); `/sources` folds into the System Settings pane-fold rather than holding standalone primary placement. §7 preserved below as the question's trace.
 **Date:** 2026-06-11
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Hat:** A (system canon)
@@ -71,7 +71,7 @@ All of these are L3 affordances over existing parsers/contracts (ADR-245's machi
 
 ## 7. Standing question (opened 2026-06-12): the consequence-legibility gap — and where the OS analogy points
 
-> **Status: OPEN — design question, not a decision. Recorded here so it shapes the *next* management-plane ADR before any more panes are built. No code follows from this section.**
+> **Status: RESOLVED (2026-06-12) by [ADR-339](ADR-339-operator-experience-model.md) D7** — the synthesis this section's §7.3 hypothesized: teaching lives in the guided flow (`/setup`, model B); standing panes carry consequence previews (the installer pattern generalized); the framing decision §7.2 demanded landed as the mirror/composition model (FOUNDATIONS Derived Principle 29). The section is preserved verbatim below as the question's trace and forcing evidence.
 
 The D4 program shipped (all 7 items — see [the FE plan + build log](ADR-338-management-plane-fe-plan.md)). Walking the live Sources surface against a real operator's eyes surfaced a gap that the regression gates could not: **the surfaces are legible about the *mechanism* and silent about the *consequence*.**
 
