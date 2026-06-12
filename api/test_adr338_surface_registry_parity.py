@@ -83,11 +83,19 @@ def _fe_registry_slugs() -> set[str]:
     return set(re.findall(r"^\s*([a-z-]+):", m.group(1), re.MULTILINE))
 
 
+def _backend_pane_slugs() -> set[str]:
+    """ADR-340 P2: pane-grade surfaces — registry entries with `pane_of`."""
+    from services.kernel_surfaces import kernel_pane_slugs
+
+    return kernel_pane_slugs()
+
+
 def test_three_way_parity() -> None:
-    print("\n[parity] backend navigable == FE allowlist == FE registry")
+    print("\n[parity] backend navigable == FE allowlist; registry = window-grade only")
     backend = _backend_navigable_slugs()
     allow = _fe_allowlist_slugs()
     reg = _fe_registry_slugs()
+    panes = _backend_pane_slugs()
 
     check("backend navigable slugs parse non-empty", bool(backend))
     check("FE allowlist parses non-empty", bool(allow))
@@ -103,15 +111,23 @@ def test_three_way_parity() -> None:
         allow <= backend,
         f"not in backend: {sorted(allow - backend)}",
     )
+    # ADR-340 P2: pane-grade surfaces (pane_of set) deliberately have NO
+    # window component — they render as sidebar panes inside their parent.
+    # The FE registry must cover exactly the WINDOW-GRADE navigable set.
     check(
-        "allowlist == registry (every navigable slug has a component)",
-        allow == reg,
-        f"allow∖reg={sorted(allow - reg)} reg∖allow={sorted(reg - allow)}",
+        "registry == window-grade navigable set (allowlist minus panes)",
+        reg == allow - panes,
+        f"(allow-panes)∖reg={sorted((allow - panes) - reg)} reg∖(allow-panes)={sorted(reg - (allow - panes))}",
     )
     check(
-        "all three sets identical",
-        backend == allow == reg,
-        f"backend={sorted(backend)} allow={sorted(allow)} reg={sorted(reg)}",
+        "no pane-grade slug carries a window component",
+        not (reg & panes),
+        f"pane slugs with window components: {sorted(reg & panes)}",
+    )
+    check(
+        "pane set is exactly the ADR-340 D4 fold",
+        panes == {"budget", "autonomy", "program", "connectors", "sources"},
+        f"panes={sorted(panes)}",
     )
 
 

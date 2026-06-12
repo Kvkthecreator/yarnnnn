@@ -20,12 +20,21 @@ import {
   Database,
   History,
 } from "lucide-react";
-import { api } from "@/lib/api/client";
+import { api, APIError } from "@/lib/api/client";
 import { humanizeSlug } from "@/lib/schedule";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { createClient } from "@/lib/supabase/client";
 import { useNarrative } from "@/contexts/NarrativeContext";
+// ADR-340 P2 — pane-grade surfaces folded into System Settings. The five
+// former os-config windows (Connectors, Sources, Autonomy, Budget, Program)
+// render as sidebar panes here; their old routes are ADR-308 redirect stubs.
+import { AlertCircle, Rocket, Package, Rss, ShieldCheck, Wallet } from "lucide-react";
+import { AutonomyCard } from "@/components/workspace-concepts/AutonomyCard";
+import { BudgetCard } from "@/components/workspace-concepts/BudgetCard";
+import { SourcesCard } from "@/components/workspace-concepts/SourcesCard";
+import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
+import { ProgramLifecycleDrawer } from "@/components/library/ProgramLifecycleDrawer";
 
 interface DangerZoneStats {
   workspace_files: number;
@@ -47,7 +56,50 @@ interface NotificationPreferences {
   email_agent_failed: boolean;
 }
 
-type SettingsTab = "billing" | "usage" | "account";
+// ADR-340 P2: the pane union — the three legacy tabs (General group) +
+// the five pane-grade surfaces folded in from the os-config register.
+// `?pane=` is canonical; `?tab=` accepted as legacy alias for the three
+// original tabs (billing/usage/account call sites predate the fold).
+type SettingsTab =
+  | "billing"
+  | "usage"
+  | "account"
+  | "connectors"
+  | "sources"
+  | "autonomy"
+  | "budget"
+  | "program";
+
+const PANE_GROUPS: { label: string; panes: { key: SettingsTab; label: string; icon: typeof User }[] }[] = [
+  {
+    label: "General",
+    panes: [
+      { key: "billing", label: "Billing", icon: CreditCard },
+      { key: "usage", label: "Usage", icon: BarChart3 },
+      { key: "account", label: "Account", icon: User },
+    ],
+  },
+  {
+    label: "Perception & transports",
+    panes: [
+      { key: "connectors", label: "Connectors", icon: Link2 },
+      { key: "sources", label: "Sources", icon: Rss },
+    ],
+  },
+  {
+    label: "Governance",
+    panes: [
+      { key: "autonomy", label: "Autonomy", icon: ShieldCheck },
+      { key: "budget", label: "Budget", icon: Wallet },
+    ],
+  },
+  {
+    label: "Program",
+    panes: [{ key: "program", label: "Program", icon: Package }],
+  },
+];
+
+const ALL_PANES: SettingsTab[] = PANE_GROUPS.flatMap((g) => g.panes.map((p) => p.key));
 type DangerAction =
   | "work-history"
   | "workspace"
@@ -58,17 +110,20 @@ type DangerAction =
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { navigateToSurface } = useSurfacePreferences();
+  const { navigateToSurface, setSurfaceParams } = useSurfacePreferences();
   const searchParams = useSearchParams();
   const { clearMessages } = useNarrative();
   const tabParam = searchParams.get("tab");
+  // ADR-340 P2: `?pane=` is the canonical intra-surface deep-link param
+  // (`?tab=` kept as legacy alias). Any pane in the union is addressable.
+  const paneParam = searchParams.get("pane");
   // ADR-215 R3 (2026-04-24): `memory` tab retired — identity/brand/profile
   // are substrate, edited on Files (/files?path=/workspace/constitution|governance|operation/… (ADR-320 roots)).
   // Legacy `?tab=memory` redirects to Files IDENTITY.md via effect below.
-  const initialTab: SettingsTab =
-    tabParam === "usage" ? "usage" :
-    tabParam === "account" ? "account" :
-    "billing";
+  const requestedPane = paneParam ?? tabParam;
+  const initialTab: SettingsTab = ALL_PANES.includes(requestedPane as SettingsTab)
+    ? (requestedPane as SettingsTab)
+    : "billing";
   const subscriptionSuccess = searchParams.get("subscription") === "success";
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
@@ -80,6 +135,16 @@ export default function SettingsPage() {
       router.replace("/files?path=%2Fworkspace%2Fcontext%2F_shared%2FIDENTITY.md");
     }
   }, [tabParam, router]);
+
+  // ADR-340 P2: sync the active pane when a deep-link arrives while the
+  // window is already mounted (foregroundSurface('budget') pushes
+  // /settings?pane=budget; useSearchParams updates; the sidebar follows).
+  useEffect(() => {
+    if (requestedPane && ALL_PANES.includes(requestedPane as SettingsTab)) {
+      setActiveTab(requestedPane as SettingsTab);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedPane]);
 
   const [dangerStats, setDangerStats] = useState<DangerZoneStats | null>(null);
   const [isLoadingDangerStats, setIsLoadingDangerStats] = useState(false);
@@ -322,13 +387,58 @@ export default function SettingsPage() {
     }
   }, [purgeSuccess]);
 
+  // ADR-340 P2: sidebar pane selection. setSurfaceParams keeps the URL's
+  // ?pane= in sync without a navigation event (D19.6 replaceState path),
+  // so deep-links survive reload and the legacy ?tab= alias is cleared.
+  const selectPane = (pane: SettingsTab) => {
+    setActiveTab(pane);
+    setSurfaceParams({ pane, tab: null });
+  };
+
   return (
-    <div className="h-full overflow-y-auto">
-    <div className="max-w-3xl mx-auto p-6">
+    <div className="h-full flex">
+      {/* ADR-340 P2 — macOS System Settings shape: one door, sidebar of
+          grouped panes. The three legacy tabs live in the General group;
+          the five former os-config windows (Connectors, Sources, Autonomy,
+          Budget, Program) are pane-grade surfaces folded in (their old
+          routes are ADR-308 redirect stubs → /settings?pane=…). */}
+      <nav
+        aria-label="Settings panes"
+        className="w-44 sm:w-52 shrink-0 border-r border-border overflow-y-auto py-3 px-2 space-y-4"
+      >
+        {PANE_GROUPS.map((group) => (
+          <div key={group.label}>
+            <div className="px-2 pb-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+              {group.label}
+            </div>
+            {group.panes.map((pane) => {
+              const Icon = pane.icon;
+              const isActive = activeTab === pane.key;
+              return (
+                <button
+                  key={pane.key}
+                  onClick={() => selectPane(pane.key)}
+                  className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors ${
+                    isActive
+                      ? "bg-muted text-foreground font-medium"
+                      : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                  }`}
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {pane.label}
+                </button>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+
+      <div className="flex-1 overflow-y-auto">
+      <div className="max-w-3xl mx-auto p-6">
       {/* ADR-297 D19.4 (2026-05-22): outer page-shape title h1 DELETED.
           Settings is now an atomic kernel surface — the WindowFrame
-          title bar (D14) renders "Settings"; duplicating it inside the
-          body is page-shape chrome that the window paradigm rejects. */}
+          title bar (D14) renders "System Settings"; duplicating it inside
+          the body is page-shape chrome that the window paradigm rejects. */}
 
       {/* Subscription Success Banner */}
       {showSubscriptionSuccess && (
@@ -345,48 +455,40 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="flex gap-1 mb-8 border-b border-border overflow-x-auto">
-        <button
-          onClick={() => setActiveTab("billing")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "billing"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <CreditCard className="w-4 h-4" />
-            Billing
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveTab("usage")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "usage"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <BarChart3 className="w-4 h-4" />
-            Usage
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveTab("account")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "account"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <User className="w-4 h-4" />
-            Account
-          </span>
-        </button>
-      </div>
+      {/* ADR-340 P2 — pane-grade surfaces folded from the os-config register */}
+      {activeTab === "connectors" && (
+        <section className="mb-8">
+          <ConnectedIntegrationsSection
+            title="Connectors"
+            description="Connect platforms to give your agents data. Platforms are infrastructure — connect once, agents read automatically."
+            redirectTo="/settings?pane=connectors"
+          />
+        </section>
+      )}
+
+      {activeTab === "sources" && (
+        <section className="mb-8">
+          <SourcesCard variant="full" />
+        </section>
+      )}
+
+      {activeTab === "autonomy" && (
+        <section className="mb-8">
+          <AutonomyCard variant="full" />
+        </section>
+      )}
+
+      {activeTab === "budget" && (
+        <section className="mb-8">
+          <BudgetCard variant="full" />
+        </section>
+      )}
+
+      {activeTab === "program" && (
+        <section className="mb-8">
+          <ProgramPaneBody onRerunSetup={() => navigateToSurface("setup")} />
+        </section>
+      )}
 
       {/* Billing Tab */}
       {activeTab === "billing" && (
@@ -903,6 +1005,58 @@ export default function SettingsPage() {
       )}
 
     </div>
+    </div>
+    </div>
+  );
+}
+
+/**
+ * ProgramPaneBody — the Program pane (ADR-340 P2). Absorbs the former
+ * /program window's state-fetch wrapper around ProgramLifecycleDrawer
+ * (ADR-244 lifecycle surface), plus the "re-run setup" affordance the
+ * ADR-340 D4 grouping places here (Setup itself stays a window-grade
+ * Sequence surface per ADR-331; this is just its re-entry door).
+ */
+function ProgramPaneBody({ onRerunSetup }: { onRerunSetup: () => void }) {
+  const [state, setState] = useState<Awaited<ReturnType<typeof api.workspace.getState>> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = async () => {
+    try {
+      const next = await api.workspace.getState();
+      setState(next);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof APIError ? err.message : "Failed to load program state");
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>{error}</span>
+        </div>
+      )}
+      {!state && !error && (
+        <div className="flex items-center justify-center py-10">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      )}
+      {state && <ProgramLifecycleDrawer state={state} onMutation={refresh} />}
+      <button
+        onClick={onRerunSetup}
+        className="flex items-center gap-2 text-sm text-primary hover:underline"
+      >
+        <Rocket className="w-4 h-4" />
+        Re-run setup
+      </button>
     </div>
   );
 }

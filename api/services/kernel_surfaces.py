@@ -118,6 +118,23 @@ ARCHETYPES = (
 # content surface; absent on chrome (chrome is the window manager's own
 # framing, neither register).
 #
+# `pane_of` field (ADR-340 P2, 2026-06-12): pane-grade surfaces. A surface
+# carrying `pane_of: "<parent-slug>"` is NOT window-grade — it renders as a
+# sidebar pane INSIDE its parent's window (the macOS System Settings shape:
+# one door, nested panes; depth under one well-named door is cheap, breadth
+# at the top level is expensive — ADR-340 D4). The entry STAYS in the
+# registry so the launcher's flat search still finds it (ADR-340 D5:
+# "search stays flat") and its metadata (icon, summary, substrate_paths)
+# stays canonical. Consumers:
+#   - window manager: `foregroundSurface(pane-slug)` resolves to the parent
+#     window + `?pane=` param (web/lib/shell/useSurfacePreferences.tsx)
+#   - viewport + dock: pane-grade slugs are filtered from window mounting
+#   - routes: the pane's legacy route is an ADR-308 server redirect stub →
+#     `{parent.route}?pane={slug}`
+# `pane_group` is the sidebar section label inside the parent container.
+# Registers (below) are unchanged — pane-grade is orthogonal to register;
+# it states WINDOW-GRADE vs PANE-GRADE, not which register owns the surface.
+#
 # ADR-312 D5 split ADR-309's single `settings` register — it conflated
 # *the OS configuring itself* with *the operation declaring what it is*:
 #   - `intent`       — the operation's authored intent: the constitution.
@@ -233,6 +250,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # (Identity / Brand / Principles) per axiom order.
         "slug": "budget",
         "register": "os-config",  # ADR-312 D5 (was `settings`)
+        "pane_of": "settings",  # ADR-340 P2 — Governance pane in System Settings
+        "pane_group": "Governance",
         "title": "Budget",
         "archetype": "document",
         "substrate_paths": [
@@ -241,9 +260,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "wallet",
         "default_pinned": False,
         # ADR-327 D7/Phase 5: pace retired → /budget is the canonical surface.
-        # The backend surface entry was missed in the ADR-327 FE collapse and
-        # carried the stale `pace` slug/route until the ADR-338 surface audit.
-        "route": "/budget",  # _route_status: repurposed from /pace (ADR-300)
+        # ADR-340 P2: pane-grade — /budget is a redirect stub → /settings?pane=budget.
+        "route": "/budget",
         "summary": "The operation's dollar spend envelope — declared budget plus window-to-date utilization. The Reviewer allocates wakes within it.",
     },
     {
@@ -255,6 +273,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # /delegation kept as a redirect stub for bookmark safety.
         "slug": "autonomy",
         "register": "os-config",  # ADR-312 D5 (was `settings`)
+        "pane_of": "settings",  # ADR-340 P2 — Governance pane in System Settings
+        "pane_group": "Governance",
         "title": "Autonomy",
         "archetype": "document",
         "substrate_paths": [
@@ -357,6 +377,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     {
         "slug": "program",
         "register": "os-config",  # ADR-312 D5 (was `settings`)
+        "pane_of": "settings",  # ADR-340 P2 — Program pane in System Settings
+        "pane_group": "Program",
         "title": "Program",
         "archetype": "document",
         "substrate_paths": [
@@ -402,17 +424,24 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     {
         "slug": "settings",
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "title": "Settings",
+        "title": "System Settings",
         "archetype": "dashboard",
         "substrate_paths": [],  # account/workspace/billing config — DB + Stripe
         "icon_key": "settings",
         "default_pinned": False,
         "route": "/settings",
-        "summary": "Workspace + account preferences — billing, profile, plan, theme. Tabs for Billing / Usage / Profile preserved as ?tab= intra-surface state.",
+        # ADR-340 P2: THE os-config window — the one door. Sidebar panes:
+        # General (Billing / Usage / Account, the legacy tabs) + the five
+        # pane-grade surfaces above (Connectors, Sources, Autonomy, Budget,
+        # Program), grouped per ADR-340 D4. `?pane=` is the intra-surface
+        # deep-link param (`?tab=` accepted as legacy alias).
+        "summary": "System Settings — the one os-config door. Governance dials, transports, program lifecycle, billing, account. Sidebar panes; ?pane= deep-links.",
     },
     {
         "slug": "connectors",
         "register": "os-config",  # ADR-312 D5 (was `settings`)
+        "pane_of": "settings",  # ADR-340 P2 — Perception & transports pane
+        "pane_group": "Perception & transports",
         "title": "Connectors",
         "archetype": "dashboard",
         "substrate_paths": [],  # platform_connections DB table
@@ -433,6 +462,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # reads GET /api/sources, which resolves the per-bundle paths server-side.
         "slug": "sources",
         "register": "os-config",  # ADR-312 D5 — a transport/driver binding
+        "pane_of": "settings",  # ADR-340 P2 — Perception & transports pane
+        "pane_group": "Perception & transports",
         "title": "Sources",
         "archetype": "dashboard",
         "substrate_paths": [],  # per-bundle _sources.yaml + _watch_signal.yaml, resolved via GET /api/sources
@@ -542,9 +573,18 @@ def kernel_surface_slugs() -> set[str]:
     return {entry["slug"] for entry in KERNEL_SURFACES}
 
 
+def kernel_pane_slugs() -> set[str]:
+    """Slugs of pane-grade surfaces (ADR-340 P2) — registry entries
+    carrying `pane_of`. These render as sidebar panes inside their
+    parent's window, never as windows of their own. Used by test gates
+    and the FE parity check."""
+    return {entry["slug"] for entry in KERNEL_SURFACES if entry.get("pane_of")}
+
+
 __all__ = [
     "ARCHETYPES",
     "KERNEL_SURFACES",
     "kernel_surface_entries",
     "kernel_surface_slugs",
+    "kernel_pane_slugs",
 ]

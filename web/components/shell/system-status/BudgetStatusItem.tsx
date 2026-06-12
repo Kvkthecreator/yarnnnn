@@ -2,7 +2,7 @@
 
 /**
  * BudgetStatusItem — the merged MONEY chip in the agent-OS menu-bar
- * status cluster (ADR-327, supersedes PaceStatusItem; ADR-339 P1,
+ * status cluster (ADR-327, supersedes PaceStatusItem; ADR-340 P1,
  * absorbs BalanceStatusItem).
  *
  * One chip answers the operator's money question whole: the declared
@@ -10,13 +10,13 @@
  * account funds that back it (balance, spend to date). ADR-327 D8's own
  * logic ("the budget is only honest paired with where-it-went") extends
  * to funds — runway is only honest as envelope paired with balance.
- * Pre-ADR-339 these were two adjacent chips (wallet + credit card);
- * the redundancy was an operator-flagged finding in the ADR-339
+ * Pre-ADR-340 these were two adjacent chips (wallet + credit card);
+ * the redundancy was an operator-flagged finding in the ADR-340
  * discourse.
  *
  * Consumes api.budget() + api.integrations.getLimits(). Read-only
  * popover; mutations happen on the /budget atomic surface (envelope)
- * and /settings?tab=billing (top-up, subscription) via the two footer
+ * and /settings?pane=billing (top-up, subscription) via the two footer
  * links.
  *
  * Icon discipline (ADR-297 D20): the chip icon is the canonical /budget
@@ -219,7 +219,7 @@ export function BudgetStatusItem() {
       popoverBody={popoverBody}
       footerTarget={{ kind: 'surface', slug: 'budget' }}
       footerLabel="Budget Settings"
-      secondaryFooterTarget={{ kind: 'route', href: '/settings?tab=billing' }}
+      secondaryFooterTarget={{ kind: 'route', href: '/settings?pane=billing' }}
       secondaryFooterLabel="Billing Settings"
     />
   );

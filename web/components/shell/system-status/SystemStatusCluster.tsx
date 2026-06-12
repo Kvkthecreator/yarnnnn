@@ -2,19 +2,19 @@
 
 /**
  * SystemStatusCluster — agent-OS menu-bar status cluster (ADR-297 D20;
- * consolidated by ADR-339 P1).
+ * consolidated by ADR-340 P1).
  *
  * Three kernel-general status chips in the Right region of the top bar,
  * between the Dock and UserMenu. macOS Control Center / menu-bar-extras
  * analog: always-visible operator-level standing STATE about the
  * system's capacity to do work. Events that demand the operator are a
  * different chrome role — the AttentionCenter (Notification Center
- * analog, ADR-339 D3), a sibling top-bar item, never a chip here.
+ * analog, ADR-340 D3), a sibling top-bar item, never a chip here.
  *
  * Order (kernel-priority, left-to-right):
  *   1. Autonomy    — governance (what the agent CAN do)
  *   2. Money       — budget envelope + balance runway (battery analog;
- *                    Budget absorbed Balance per ADR-339 P1)
+ *                    Budget absorbed Balance per ADR-340 P1)
  *   3. Connections — reach (Wi-Fi analog)
  *
  * Responsive collapse:

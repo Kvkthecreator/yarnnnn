@@ -46,7 +46,7 @@ interface StatusItemPopoverProps {
   /** Footer link copy (e.g. "Autonomy Settings…") */
   footerLabel: string;
   /**
-   * Optional second footer link (ADR-339 P1). Added for the merged
+   * Optional second footer link (ADR-340 P1). Added for the merged
    * money chip — Budget Settings (atomic surface) + Billing Settings
    * (intra-surface deep-link) are both legitimate edit targets of one
    * popover after the Budget chip absorbed the Balance chip.

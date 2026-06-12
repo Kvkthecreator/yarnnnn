@@ -268,6 +268,18 @@ export interface Surface {
    * every content surface; absent on chrome.
    */
   register?: SurfaceRegister;
+  /**
+   * ADR-340 P2 — pane-grade surface. When present, this surface renders
+   * as a sidebar pane INSIDE the named parent's window (macOS System
+   * Settings shape), never as a window of its own. The window manager
+   * resolves foregroundSurface(pane-slug) → parent window + `?pane=`
+   * param; the viewport + dock filter pane-grade slugs from window
+   * mounting. The entry stays in surfaces[] so launcher search stays
+   * flat (ADR-340 D5).
+   */
+  pane_of?: string;
+  /** Sidebar section label inside the parent container (ADR-340 D4). */
+  pane_group?: string;
   title: string;
   archetype: Archetype;
   substrate_paths: string[];

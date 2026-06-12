@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * AttentionCenter — the agent-OS Notification Center (ADR-339 D3, P1).
+ * AttentionCenter — the agent-OS Notification Center (ADR-340 D3, P1).
  *
  * One top-bar item answering "what wants me since I last looked." It is
  * a DIFFERENT chrome role from the SystemStatusCluster: the cluster is
@@ -9,7 +9,7 @@
  * this is the Notification Center analog (EVENTS demanding the
  * operator). macOS keeps these deliberately separate; so do we.
  *
- * Binding discipline (ADR-339 D3 / Derived Principle 29): attention is
+ * Binding discipline (ADR-340 D3 / Derived Principle 29): attention is
  * DERIVED, NEVER STORED. No notifications table exists or may exist —
  * every row here is a live derivation over already-ratified substrate:
  *
@@ -26,7 +26,7 @@
  * window-manager preferences (lib/shell/surface-preferences.ts) — it is
  * a read cursor, not workspace state, and never touches substrate.
  *
- * Consequence (ADR-339 D3): mirror surfaces stop being attention
+ * Consequence (ADR-340 D3): mirror surfaces stop being attention
  * destinations — the operator arrives at the Queue by routing, not by
  * remembering to check it.
  */
@@ -192,7 +192,7 @@ export function AttentionCenter() {
     (target: 'queue' | 'feed' | 'billing') => {
       setIsOpen(false);
       if (target === 'billing') {
-        router.push('/settings?tab=billing');
+        router.push('/settings?pane=billing');
       } else {
         foregroundSurface(target);
       }

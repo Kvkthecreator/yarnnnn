@@ -1499,7 +1499,7 @@ def format_compact_index(
         )
 
     # ADR-246: active program + capability-gap signal. Only surfaces when
-    # a bundle is forked. TP can deep-link to /settings?tab=workspace when
+    # a bundle is forked. TP can deep-link to /settings?pane=program when
     # the operator asks about lifecycle ops.
     active_program = ws.get("active_program_slug")
     if active_program:
@@ -1697,7 +1697,7 @@ def format_compact_index(
     lines.append("- `/workspace/system/recent.md` — recent material non-conversation events (ADR-221)")
     # ADR-246: Workspace settings surface — operator-facing program lifecycle
     # (activate / switch / deactivate / inspect substrate status / capability gaps).
-    lines.append("- `/settings?tab=workspace` — program lifecycle, substrate status, capability gaps (ADR-244)")
+    lines.append("- `/settings?pane=program` — program lifecycle, substrate status, capability gaps (ADR-340 P2 pane; was ADR-244 tab)")
 
     # --- Agent health flags (only if flagged) ---
     flagged = ws.get("agents_flagged", [])

@@ -24,15 +24,12 @@ import type { KernelSurfaceSlug } from '@/types/desk';
 import FeedPage from '@/app/(authenticated)/feed/page';
 import HomePage from '@/app/(authenticated)/home/page';
 import RecurrencePage from '@/app/(authenticated)/recurrence/page';
-import BudgetPage from '@/app/(authenticated)/budget/page';
 // ADR-327: /pace retired from the surface registry — it is now a route-level
 // redirect stub (app/(authenticated)/pace/page.tsx → /budget) handled by Next
 // file routing, not a mounted kernel surface.
-import AutonomyPage from '@/app/(authenticated)/autonomy/page';
 import MandatePage from '@/app/(authenticated)/mandate/page';
 import PrinciplesPage from '@/app/(authenticated)/principles/page';
 import IdentityPage from '@/app/(authenticated)/identity/page';
-import ProgramPage from '@/app/(authenticated)/program/page';
 import QueuePage from '@/app/(authenticated)/queue/page';
 import ActivityPage from '@/app/(authenticated)/activity/page';
 import AgentsPage from '@/app/(authenticated)/agents/page';
@@ -43,37 +40,34 @@ import FilesPage from '@/app/(authenticated)/files/page';
 // because isKernelSurfaceSlug('setup') was false.
 import SetupPage from '@/app/(authenticated)/setup/page';
 // ADR-297 D19.4 (2026-05-22) — Settings + Connectors promoted from
-// legacy pages to atomic kernel surfaces. Reverses D19.7. Inside the
-// authenticated workspace, every surface is a window mounted on the
-// Desktop; the legacy isLegacyNonAtomicRoute branch tightens to catch
-// only auth + docs + marketing.
+// legacy pages to atomic kernel surfaces. Reverses D19.7.
+// ADR-340 P2 (2026-06-12) — System Settings becomes the ONE os-config
+// window: budget / autonomy / program / connectors / sources are
+// PANE-GRADE (registry `pane_of: "settings"`) and render as sidebar
+// panes inside SettingsPage. They have NO window component — their
+// slugs resolve to `undefined` here, the window manager resolves
+// foregroundSurface(pane-slug) → settings + ?pane=, and their old
+// routes are ADR-308 redirect stubs.
 import SettingsPage from '@/app/(authenticated)/settings/page';
-import ConnectorsPage from '@/app/(authenticated)/connectors/page';
-import SourcesPage from '@/app/(authenticated)/sources/page';
 
-export const KERNEL_SURFACE_REGISTRY: Record<KernelSurfaceSlug, ComponentType> = {
+export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, ComponentType>> = {
   feed: FeedPage,
   home: HomePage,
   recurrence: RecurrencePage,
-  budget: BudgetPage,
-  autonomy: AutonomyPage,
   // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone
   // surface — the Identity surface (IdentityBrandCard) co-renders it.
   // /brand is a server redirect → /identity (ADR-308).
   mandate: MandatePage,
   principles: PrinciplesPage,
   identity: IdentityPage,
-  program: ProgramPage,
   queue: QueuePage,
   activity: ActivityPage,
   agents: AgentsPage,
   files: FilesPage,
   setup: SetupPage,  // ADR-331 D1 — guided first-boot Sequence
-  settings: SettingsPage,
-  connectors: ConnectorsPage,
-  sources: SourcesPage,  // ADR-338 D4.1 — standing-watch drivers view
+  settings: SettingsPage,  // ADR-340 P2 — System Settings, the one os-config door
 };
 
-export function resolveSurfaceComponent(slug: KernelSurfaceSlug): ComponentType {
+export function resolveSurfaceComponent(slug: KernelSurfaceSlug): ComponentType | undefined {
   return KERNEL_SURFACE_REGISTRY[slug];
 }

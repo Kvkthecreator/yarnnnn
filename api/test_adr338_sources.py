@@ -255,9 +255,15 @@ def test_registration_coherence() -> None:
     # FE slug union + array
     desk = _read("types/desk.ts")
     check("FE KernelSurfaceSlug includes 'sources'", "'sources'" in desk)
-    # Registry mount
+    # ADR-340 P2: sources is PANE-GRADE — no window component. It renders
+    # as a Perception & transports pane inside System Settings; /sources
+    # is an ADR-308 redirect stub.
     reg = _read("components/shell/SurfaceRegistry.tsx")
-    check("SurfaceRegistry mounts SourcesPage", "sources: SourcesPage" in reg)
+    check("SurfaceRegistry does NOT window-mount sources (pane-grade)", "sources: SourcesPage" not in reg)
+    settings_page = _read("app/(authenticated)/settings/page.tsx")
+    check("System Settings renders SourcesCard pane", "SourcesCard" in settings_page)
+    sources_stub = _read("app/(authenticated)/sources/page.tsx")
+    check("/sources is a server redirect stub", "redirect('/settings?pane=sources')" in sources_stub)
     # Middleware prefix
     mw = _read("lib/supabase/middleware.ts")
     check("middleware protects /sources", '"/sources"' in mw)

@@ -54,7 +54,7 @@ export function ProBadge({
   if (linkToBilling) {
     return (
       <Link
-        href="/settings?tab=billing"
+        href="/settings?pane=billing"
         className="hover:opacity-80 transition-opacity"
         title={isPro ? "Manage subscription" : "Upgrade to Pro"}
       >
@@ -120,7 +120,7 @@ export function ProFeature({
       </div>
       <div className="absolute inset-0 flex items-center justify-center bg-background/80 backdrop-blur-[1px] rounded-lg">
         <Link
-          href="/settings?tab=billing"
+          href="/settings?pane=billing"
           className="flex flex-col items-center gap-2 p-4 text-center hover:opacity-80 transition-opacity"
         >
           <ProLabel />

@@ -1,32 +1,15 @@
-'use client';
-
 /**
- * /budget — atomic Budget surface (ADR-327).
+ * /budget → /settings?pane=budget redirect stub (ADR-340 P2).
  *
- * Renders /workspace/governance/_budget.yaml via the kernel-library
- * BudgetCard (full variant). Budget is the Trigger-dimension dial of the
- * Budget + Autonomy + Identity operator trifecta — the operation's dollar
- * spend envelope. Supersedes the /pace surface (ADR-300): pace retired;
- * "how often the agent works" is the Reviewer's allocation problem within
- * this budget, not an operator dial.
- *
- * The card shows the declared envelope (amount + window, editable) AND
- * window-to-date utilization from GET /api/budget (the execution_events
- * cost ledger) — the budget is only honest paired with where-it-went
- * (ADR-327 D8).
+ * Budget is pane-grade — a Governance pane inside the System Settings
+ * window (the macOS one-door shape), no longer a window of its own. The
+ * BudgetCard substrate rendering is unchanged; only the surface tier
+ * moved. Pure server transport per ADR-308 — `redirect()`, never a
+ * client-side useEffect redirect.
  */
 
-import { SurfacePage } from '@/components/shell/SurfacePage';
-import { BudgetCard } from '@/components/workspace-concepts/BudgetCard';
+import { redirect } from 'next/navigation';
 
-export default function BudgetPage() {
-  return (
-    <SurfacePage
-      iconKey="wallet"
-      title="Budget"
-      summary="The operation's dollar spend envelope. The Reviewer allocates wakes within it — it decides how often to work; you decide how much it costs."
-    >
-      <BudgetCard variant="full" />
-    </SurfacePage>
-  );
+export default function BudgetRedirect() {
+  redirect('/settings?pane=budget');
 }

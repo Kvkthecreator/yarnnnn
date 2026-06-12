@@ -131,12 +131,16 @@ export function TopBarSurface() {
   // for a deleted bundle) are silently skipped. Home is filtered out of
   // both — its render is owned by the fixed anchor slot, not the
   // kept/open registry.
+  // ADR-340 P2: pane-grade surfaces (pane_of set) never render as Dock
+  // icons — they're sidebar panes inside their parent's window, not
+  // windows. Stale persisted kept/open entries from before the System
+  // Settings fold are filtered the same way the viewport filters them.
   const keptSurfaces: Surface[] = useMemo(
     () =>
       kept
         .filter((slug) => slug !== HOME_SLUG)
         .map((slug) => surfaceBySlug.get(slug))
-        .filter((s): s is Surface => Boolean(s)),
+        .filter((s): s is Surface => Boolean(s) && !s!.pane_of),
     [kept, surfaceBySlug]
   );
 
@@ -145,7 +149,7 @@ export function TopBarSurface() {
       open
         .filter((slug) => !kept.includes(slug) && slug !== HOME_SLUG)
         .map((slug) => surfaceBySlug.get(slug))
-        .filter((s): s is Surface => Boolean(s)),
+        .filter((s): s is Surface => Boolean(s) && !s!.pane_of),
     [open, kept, surfaceBySlug]
   );
 
@@ -456,8 +460,8 @@ export function TopBarSurface() {
       </nav>
 
       {/* Right region — agent-OS menu-bar status cluster (D20,
-          consolidated to Autonomy · Money · Connections per ADR-339 P1)
-          + AttentionCenter (ADR-339 D3 — the Notification Center
+          consolidated to Autonomy · Money · Connections per ADR-340 P1)
+          + AttentionCenter (ADR-340 D3 — the Notification Center
           analog: EVENTS demanding the operator, distinct chrome role
           from the cluster's standing STATE) + UserMenu (D19.4).
           shrink-0 + fixed width pinned to viewport right edge. */}

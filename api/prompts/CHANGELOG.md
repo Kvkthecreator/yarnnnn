@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.12.2] - ADR-340 P2: compact-index settings pointer — pane param
+
+**LLM-facing change** (compact index, `working_memory.py`):
+
+- The Key Files pointer `/settings?tab=workspace` (stale since the ADR-297
+  /program promotion) updates to `/settings?pane=program` — System Settings
+  is now the one os-config window with sidebar panes (ADR-340 P2); the
+  Program pane carries the lifecycle + capability-gap view the pointer
+  describes. Expected behavior: YARNNN deep-links operators to a live pane
+  instead of a tab that no longer exists.
+
 ## [2026.06.12.1] - ADR-339: working-tree perception economics — recursive ListFiles, exact-search legibility, batching note
 
 **LLM-facing changes** (tool contracts on all three surfaces — counts unchanged):

@@ -75,8 +75,13 @@ def test_registries_swapped() -> None:
     check("'budget' in KernelSurfaceSlug", "| 'budget'" in desk)
     check("'pace' removed from slug union", "| 'pace'" not in desk)
     surf = _read("components/shell/SurfaceRegistry.tsx")
-    check("BudgetPage imported", "import BudgetPage" in surf)
-    check("budget: BudgetPage registered", "budget: BudgetPage" in surf)
+    # ADR-340 P2: budget is PANE-GRADE — no window component. It renders
+    # as a Governance pane inside System Settings; /budget is an ADR-308
+    # redirect stub. The ADR-327 substance (BudgetCard as the canonical
+    # budget rendering, pace retired) is unchanged.
+    check("budget not window-mounted (pane-grade per ADR-340 P2)", "budget: BudgetPage" not in surf)
+    settings_page = _read("app/(authenticated)/settings/page.tsx")
+    check("System Settings renders BudgetCard pane", "BudgetCard" in settings_page)
     check("pace removed from registry map", "pace: PacePage" not in surf)
     shapes = _read("lib/content-shapes/index.ts")
     check("budget shape registered", "budget: budgetMeta" in shapes)

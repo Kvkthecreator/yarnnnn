@@ -1,4 +1,4 @@
-"""ADR-339 P1 gate — attention center + status-cluster consolidation.
+"""ADR-340 P1 gate — attention center + status-cluster consolidation.
 
 Python file-assertion gate (no JS test runner, per ADR-236 Rule 3 + the
 ADR-300/327 gate precedent). Verifies the two P1 builds:
@@ -13,7 +13,7 @@ ADR-300/327 gate precedent). Verifies the two P1 builds:
 
 Usage:
     cd api
-    python test_adr339_p1_attention.py
+    python test_adr340_p1_attention.py
 """
 
 from __future__ import annotations
@@ -44,7 +44,7 @@ def _read(rel: str) -> str:
 
 
 def test_balance_chip_absorbed() -> None:
-    print("\n[merge] Budget chip absorbs Balance chip (ADR-339 P1 Build A)")
+    print("\n[merge] Budget chip absorbs Balance chip (ADR-340 P1 Build A)")
     check(
         "BalanceStatusItem.tsx deleted",
         not (_WEB / "components/shell/system-status/BalanceStatusItem.tsx").exists(),
@@ -58,7 +58,7 @@ def test_balance_chip_absorbed() -> None:
     check("BudgetStatusItem keeps the /budget surface footer", "slug: 'budget'" in budget)
     check(
         "BudgetStatusItem carries the billing secondary footer",
-        "secondaryFooterTarget" in budget and "/settings?tab=billing" in budget,
+        "secondaryFooterTarget" in budget and "/settings?pane=billing" in budget,
     )
     check(
         "low-balance thresholds preserved from the absorbed chip",
@@ -129,7 +129,7 @@ def test_topbar_mounts_attention() -> None:
 
 
 def main() -> int:
-    print("ADR-339 P1 gate — attention center + status-cluster consolidation")
+    print("ADR-340 P1 gate — attention center + status-cluster consolidation")
     test_balance_chip_absorbed()
     test_cluster_is_three_chips()
     test_popover_secondary_footer()

@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-12
 **Participants:** KVK (operator/founder) + Claude (collaborator)
-**Status:** Discourse capture — **ratified same day as [ADR-339](../adr/ADR-339-operator-experience-model.md)** (the operator experience model; FOUNDATIONS Derived Principle 29 + GLOSSARY v2.7), which absorbs the ADR reserved by [ADR-338 §7.4](../adr/ADR-338-management-plane.md). This document is the discourse trace; ADR-339 is the decision record.
+**Status:** Discourse capture — **ratified same day as [ADR-340](../adr/ADR-340-operator-experience-model.md)** (the operator experience model; FOUNDATIONS Derived Principle 29 + GLOSSARY v2.7), which absorbs the ADR reserved by [ADR-338 §7.4](../adr/ADR-338-management-plane.md). This document is the discourse trace; ADR-340 is the decision record.
 **Hat:** A-adjacent (canon discourse; the ratification lands in an ADR).
 
 > **Trigger:** Walking the live launcher (17 surfaces, grouped Constitution / Applications / System Settings) against the founder's own eyes: *"even for me, I'm confused where I'm supposed to look for work. Queue, feed, activity, recurrence seem similar yet different… the constitution surfaces seem like flat set-ups."* Plus the standing question already recorded at ADR-338 §7 (consequence-legibility), which this discourse generalizes.

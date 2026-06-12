@@ -367,7 +367,10 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
     [userId, composition.surfaces, pathname, router]
   );
 
-  const foregroundSurface = useCallback(
+  // Window-grade open/raise/restore (the pre-ADR-340 foregroundSurface
+  // body). Internal — call sites use foregroundSurface, which resolves
+  // pane-grade slugs to their parent before delegating here.
+  const foregroundWindowGrade = useCallback(
     (slug: string): boolean => {
       if (!userId) return false;
       const alreadyOpen = open.includes(slug);
@@ -458,6 +461,31 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       return true;
     },
     [userId, open, computeNextZ, compactWindowZ, persistWindowStates]
+  );
+
+  // ADR-340 P2 — pane-grade resolution wrapper. A surface carrying
+  // `pane_of` is not window-grade: foreground its PARENT window and
+  // deliver the pane selection via the parent's route + `?pane=` param
+  // (atomic surfaces read deep-link state from useSearchParams, so the
+  // param must reach the URL — the same Effect-A transport
+  // navigateToSurface uses). Call sites stay pane-blind:
+  // foregroundSurface('budget') just works whether budget is a window
+  // or a pane of System Settings.
+  const foregroundSurface = useCallback(
+    (slug: string): boolean => {
+      const surfaces = composition.surfaces || [];
+      const entry = surfaces.find((s) => s.slug === slug);
+      const parentSlug = entry?.pane_of;
+      if (parentSlug && parentSlug !== slug) {
+        const parent = surfaces.find((s) => s.slug === parentSlug);
+        const parentRoute = parent?.route || `/${parentSlug}`;
+        const ok = foregroundWindowGrade(parentSlug);
+        if (ok) router.push(`${parentRoute}?pane=${slug}`);
+        return ok;
+      }
+      return foregroundWindowGrade(slug);
+    },
+    [composition.surfaces, foregroundWindowGrade, router]
   );
 
   // ADR-297 D19.5 (navigation enactment, 2026-05-30): the single

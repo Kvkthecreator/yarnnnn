@@ -73,6 +73,19 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
     firstSegment && isKernelSurfaceSlug(firstSegment) ? firstSegment : null;
   const isDesktopRoute = pathname === '/desktop';
 
+  // ADR-340 P2 — pane-grade slugs never mount as windows. Stale persisted
+  // `open` entries (an operator who had /budget open as a window before the
+  // System Settings fold) are filtered here; foregroundSurface resolves any
+  // new pane-slug calls to the parent window + ?pane= before they reach
+  // `open`. Data-driven from the registry's pane_of field, no hardcoded set.
+  const paneSlugs = (() => {
+    const set = new Set<string>();
+    (composition.surfaces || []).forEach((s) => {
+      if (s.pane_of) set.add(s.slug);
+    });
+    return set;
+  })();
+
   // D19.3 (2026-05-22) — mountSlugs filters minimized windows out of
   // the render set so they vanish visually while their slugs stay in
   // the `open` registry (so the Dock icon retains its open-indicator).
@@ -82,6 +95,7 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
     if (pathnameSlug) set.add(pathnameSlug);
     return Array.from(set)
       .filter(isKernelSurfaceSlug)
+      .filter((slug) => !paneSlugs.has(slug))
       .filter((slug) => !windowStates[slug]?.minimized);
   })();
 
@@ -130,8 +144,8 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
   // renders, full-bleed inside the Desktop layer.
   if (viewport.isMobile && hasWindows) {
     const slug = visibleSlug;
-    if (slug) {
-      const Component = resolveSurfaceComponent(slug);
+    const Component = slug ? resolveSurfaceComponent(slug) : undefined;
+    if (slug && Component) {
       return (
         <Desktop hasWindows={true}>
           <div className="absolute inset-3 sm:inset-4">
@@ -156,6 +170,10 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
     <Desktop hasWindows={hasWindows}>
       {mountSlugs.map((slug) => {
         const Component = resolveSurfaceComponent(slug);
+        // Pane-grade or unknown slugs have no window component (ADR-340
+        // P2) — already filtered from mountSlugs, this is the defensive
+        // backstop for a stale slug that slipped through.
+        if (!Component) return null;
         const isVisible = slug === visibleSlug;
         const ws = windowStates[slug];
         // Skip rendering before window state hydrates — prevents flash
