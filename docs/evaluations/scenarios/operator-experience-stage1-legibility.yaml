@@ -1,0 +1,80 @@
+scenario_schema_version: 1
+scenario: operator-experience-stage1-legibility
+description: |
+  OPERATOR EXPERIENCE STAGE-1 LEGIBILITY — the Hat-B evaluation reserved
+  by ADR-338 §7.4 and ratified into the ADR-340 validation plan (Stage 1,
+  post-P3 / pre-P4). Measures the operator-facing legibility of the
+  P1–P3 surfaces against a live workspace; its findings are the FORCING
+  EVIDENCE for P4 (Home re-derivation + consequence previews), per the
+  "measure before deriving" pattern.
+
+  NOTE ON AXIS: this is neither a MACHINE suite (the structural
+  invariants are already covered by api/test_adr340_p{1,2,3}_*.py gates)
+  nor a MIND suite (no Reviewer judgment is read). It is the
+  operator-experience read ADR-338 §7.4 explicitly reserved as a Hat-B
+  evaluation: expected-vs-observed on what the surfaces SHOW, walked
+  against real substrate.
+
+  CRITERIA (per the criterion-declaration discipline):
+
+  C1 — LAUNCHER ACT-LEGIBILITY (ADR-340 D5 + the §10/discourse widened
+  criterion: "can the operator infer, from the launcher alone, what to
+  do next and why").
+    Canon: ADR-340 D2 (standing loop) + D5 (launcher re-sort) +
+    FOUNDATIONS DP29 ("compositions foreground; mirrors are reachable,
+    never the default").
+    Operationalization: render the at-rest launcher for the live
+    workspace (kernel registry × launcher_tier; the workspace's active
+    bundle declares no program-tier surfaces, receipt below). For each
+    visible row, ask: does title+summary+group answer (a) which act it
+    serves, (b) when to visit? Does the at-rest set foreground the
+    standing loop and hide mirrors?
+
+  C2 — CONSEQUENCE LEGIBILITY (ADR-338 §7.4 original criterion: "a real
+  operator can infer, from the surface alone, what a management act
+  changes downstream").
+    Canon: ADR-338 D3 (consent line demands legibility-of-consequence)
+    + §7.1 (the Sources worked example: declare → fetch → distill →
+    wake envelope → reasoning → Queue).
+    Operationalization: read the System Settings panes (Sources,
+    Autonomy, Budget) as shipped and ask whether the downstream chain
+    is inferable from pane copy alone.
+    PRE-FLIGHT CRITERION AUDIT: this criterion measures an affordance
+    EXPLICITLY DEFERRED to P4 (consequence previews, ADR-340 D7). The
+    expected outcome is a PRECISE GAP MEASUREMENT, not a regression
+    flag — the finding sizes P4, it does not indict P1–P3.
+
+  C3 — ATTENTION ROUTING (ADR-340 D3: "mirrors stop being attention
+  destinations; the operator arrives at the Queue by routing").
+    Operationalization: against the live workspace's real demand state
+    (pending action_proposals, material-weight narrative, balance),
+    derive what the AttentionCenter badge + dropdown show, and ask
+    whether a cold operator can tell WHAT demands them without opening
+    the Queue.
+
+  C4 — CONSTITUTION DOOR (ADR-340 D5: the Home constitution band is the
+  canonical route to the constitution mirrors).
+    Operationalization: against the live MANDATE.md state, derive what
+    the band renders (authored headline vs author-CTA) and confirm the
+    ConstitutionLinks trio routes to all three mirrors.
+
+  LIMITATION (declared): the inference reads are performed by the
+  developer-collaborator simulating a cold operator from surface text
+  alone (no canon knowledge admitted into the inference step). The
+  operator's own browser smoke walk completes Stage 1; findings.md
+  carries the checklist. A criterion this anthropic cannot be fully
+  machine-evaluated — that is why it is an evaluation, not a gate.
+
+requires:
+  - live workspace 2abf3f96-118b-4987-9d95-40f2d9be9a18 (kvk, alpha-trader
+    bundle active, trading connection active)
+  - main @ 5c8b06d (P1 e35a20e + P2 be6944d + P3 5c8b06d all landed)
+
+method: |
+  Substrate reads only (psql + registry import) — no Reviewer wake is
+  fired; no workspace mutation of any kind. The launcher/settings/
+  attention/band renderings are reconstructed deterministically from
+  (a) services.kernel_surfaces (the registry the compositor emits
+  verbatim — passthrough receipt in findings) and (b) the workspace's
+  live demand substrate (action_proposals / session_messages weights /
+  balance / MANDATE.md head revision).
