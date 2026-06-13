@@ -39,6 +39,17 @@ web/components/library/
 - **No new component shipped without a bundle (or kernel-default middle) that uses it.** The library grows because programs demand it, not on speculation.
 - **Program-specific components register in the universal `LIBRARY_COMPONENTS` dict** alongside kernel components — the registry is one flat namespace keyed by `kind`. Folder location is filesystem signal for human readers and future contributors; it does not affect dispatch.
 
+## Responsive convention (mobile-safe layout)
+
+> **Why this exists**: Home renders in a narrow phone viewport (~390px) as well as on desktop. A fixed multi-column grid that fits a wide card overflows its cells on a phone — the `TraderMoneyTruth` `grid-cols-3` collision (operator screenshot, 2026-06-12) was exactly this. There is no render-at-width test in the suite, so responsive bugs are invisible to gates unless a convention is enforced statically.
+
+Two rules, enforced by `api/test_library_responsive.py` (a grep gate — it does not render; it pins the at-rest source):
+
+1. **Metric/column grids are mobile-first.** Any `grid-cols-N` (N ≥ 2) MUST pair with a phone fallback: write `grid-cols-1 sm:grid-cols-N` (stack on phones, N-up from `sm:`). A bare `grid-cols-3` is a gate failure. Single-column grids and grids that already declare a `sm:`/`md:`/`lg:` breakpoint pass.
+2. **Rows with right-aligned metadata wrap.** A `flex … justify-between` row whose right cluster carries metrics/timestamps (the headline-plus-tape shape, e.g. `TraderRegime`) MUST use `flex-wrap` so the cluster drops below the headline on narrow widths instead of colliding. (Advisory in the gate — `flex-wrap` is recommended, not hard-failed, because not every justify-between row has overflow risk.)
+
+The convention is scoped to `components/library/` (the kernel + program component library this README owns). Components elsewhere in `web/components/` are not gated here; if a future finding shows the same class of bug outside the library, widen the gate's scope rather than copying the rule.
+
 ## Current set (alpha-trader, post-ADR-273 Phase 5)
 
 All program-data routes mounted at `/api/programs/alpha-trader/*` per ADR-312 D9.
