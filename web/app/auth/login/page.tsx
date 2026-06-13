@@ -153,7 +153,12 @@ function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="mt-1 bg-white/50 border-[#1a1a1a]/10 focus:border-[#1a1a1a]/30"
+                // Auth is a deliberately LIGHT-themed surface (bg-[#faf8f5] +
+                // glass-card-light); the base Input has no text color so it
+                // inherits text-foreground, which is WHITE in dark mode →
+                // invisible white-on-white. Pin dark text + placeholder to
+                // the page's #1a1a1a, theme-independent.
+                className="mt-1 bg-white/50 border-[#1a1a1a]/10 text-[#1a1a1a] placeholder:text-[#1a1a1a]/40 focus:border-[#1a1a1a]/30"
                 placeholder="you@example.com"
               />
             </div>
@@ -168,7 +173,9 @@ function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="mt-1 bg-white/50 border-[#1a1a1a]/10 focus:border-[#1a1a1a]/30"
+                // Same fix as email — dark text on the light auth surface
+                // so typed characters are visible in dark mode.
+                className="mt-1 bg-white/50 border-[#1a1a1a]/10 text-[#1a1a1a] placeholder:text-[#1a1a1a]/40 focus:border-[#1a1a1a]/30"
                 placeholder="••••••••"
                 minLength={6}
               />
