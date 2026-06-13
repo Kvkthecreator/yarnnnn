@@ -153,7 +153,7 @@ export function HomeHeader() {
 
   if (parsed.isEmpty) {
     return (
-      <header className="w-full px-6 py-5 border-b border-border/60">
+      <header className="w-full px-4 py-4 sm:px-6 sm:py-5 border-b border-border/60">
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 min-w-0">
             <div className="rounded-md border border-dashed border-amber-300 bg-amber-50/50 px-4 py-3 text-sm text-amber-900">
@@ -187,7 +187,7 @@ export function HomeHeader() {
   const supportingLines = parsed.successCriteria;
 
   return (
-    <header className="w-full px-6 py-5 border-b border-border/60">
+    <header className="w-full px-4 py-4 sm:px-6 sm:py-5 border-b border-border/60">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-semibold text-foreground line-clamp-2">

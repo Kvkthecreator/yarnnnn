@@ -128,7 +128,11 @@ export function TraderMoneyTruth() {
           {formatRelativeAsOf(data.as_of)}
         </span>
       </div>
-      <div className="grid grid-cols-3 gap-6">
+      {/* Responsive metric grid: single column on phones (the text-2xl
+          currency values overflow a 3-up grid below ~sm, colliding
+          across cells), 3-up from sm+. Equity spans the full row on its
+          own line on mobile so the day-Δ stays readable. */}
+      <div className="grid grid-cols-1 gap-y-4 sm:grid-cols-3 sm:gap-6">
         <div>
           <div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground/60">
             Equity
@@ -137,7 +141,7 @@ export function TraderMoneyTruth() {
             {formatCurrency(data.equity)}
           </div>
           <div className={`mt-1 flex items-center gap-1 text-sm ${pnlColor}`}>
-            <PnlIcon className="h-3.5 w-3.5" />
+            <PnlIcon className="h-3.5 w-3.5 shrink-0" />
             <span className="tabular-nums">
               {pnlPositive ? '+' : ''}
               {formatCurrency(dayPnl)} ({formatPnlPct(data.day_pnl_pct)})

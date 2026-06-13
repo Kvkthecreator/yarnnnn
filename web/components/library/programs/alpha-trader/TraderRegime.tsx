@@ -115,14 +115,18 @@ export function TraderRegime() {
 
   return (
     <section className={cn(
-      'rounded-md border px-3 py-2 flex items-center justify-between gap-3',
+      // Wrap to a second line on narrow viewports: the headline + the
+      // tape metrics (SPY/VIXY/as-of) collide on phones when forced onto
+      // one row. flex-wrap lets the metric cluster drop below the
+      // headline; items-baseline keeps them aligned when they share a row.
+      'rounded-md border px-3 py-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1',
       TONE_CLS[tone],
     )}>
-      <div className="flex items-center gap-2 text-[13px] font-medium">
-        <Activity className="h-3.5 w-3.5" />
+      <div className="flex items-center gap-2 text-[13px] font-medium min-w-0">
+        <Activity className="h-3.5 w-3.5 shrink-0" />
         <span>{headline}</span>
         {stale && (
-          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-900">
+          <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-100 text-amber-900 shrink-0">
             stale
           </span>
         )}

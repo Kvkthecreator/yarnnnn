@@ -249,10 +249,20 @@ def test_author_program_reshaped_to_hero_and_pieces():
 
 def test_decision_queue_is_plain_language():
     """Plain-language pass: the decision queue maps primitives to operator verbs
-    and drops the substrate/capital jargon word from the row."""
-    src = _read(LIBRARY_DIR / "kernel-home" / "KernelDecisionQueue.tsx")
-    assert "PRIMITIVE_LABELS" in src and "Save a workspace change" in src, (
-        "KernelDecisionQueue must map primitives to plain verbs (PRIMITIVE_LABELS)."
+    and drops the substrate/capital jargon word from the row.
+
+    ADR-340 P4 F3 (2026-06-12): the inline PRIMITIVE_LABELS map was
+    consolidated into the shared web/lib/proposal-labels.ts module
+    (Singular Implementation). The plain-language guarantee now lives
+    there; the slot imports proposalActionLabel. Assert the shared
+    module carries the operator verbs + the slot uses it."""
+    slot = _read(LIBRARY_DIR / "kernel-home" / "KernelDecisionQueue.tsx")
+    labels = _read(WEB / "lib" / "proposal-labels.ts")
+    assert "proposalActionLabel" in slot, (
+        "KernelDecisionQueue must use the shared proposalActionLabel (ADR-340 P4 F3)."
+    )
+    assert "Save a workspace change" in labels and "Submit a trade order" in labels, (
+        "lib/proposal-labels.ts must map primitives to plain operator verbs."
     )
 
 

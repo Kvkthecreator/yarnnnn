@@ -107,7 +107,7 @@ export function HomeRenderer({ onOpenChatDraft }: HomeRendererProps) {
         {/* Slot #1 — Constitution band (kernel, always) */}
         <HomeHeader />
 
-        <div className="flex flex-col gap-4 px-6 py-6 bg-muted/20">
+        <div className="flex flex-col gap-4 px-4 py-5 sm:px-6 sm:py-6 bg-muted/20">
           {/* Slot #3 — Decision queue (kernel-universal; self-hides) */}
           <KernelDecisionQueue />
 
