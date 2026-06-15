@@ -197,7 +197,7 @@ This doc is the baseline. The nuances to re-evaluate against it, in priority ord
 3. **Domain-boundary review (§2)** — are any two concern-domains still blurred in code (the ADR-340 "locally defensible, globally incoherent" failure)? Candidate suspects: D3 perception vs D4 execution (the watch→recurrence seam), D6 calibration vs D7 seat (the one cross-class `calibration.md` write).
 4. **Flow-incompleteness remediation** — alpha-author's flow-3 (ground-truth) declaration; the general four-flow conformance gate's coverage as programs are added.
 5. **Interop frontier** — sequence Phase-1 primitive surface (substrate moat) → Phase-2 judgment rider, against the portability promise the positioning leans on.
-6. **Positioning hooks carried from the metaphor doc** — internal-frame-vs-external-lead; which fiduciary; whether the inherent-base-use-case pattern earns a FOUNDATIONS Derived Principle.
+6. **Positioning hooks** — ✅ RESOLVED 2026-06-15, landed in ESSENCE v14.2 "The Framing Lens (internal)": internal frame only (external lead unchanged); both fiduciaries register-dependent; no FOUNDATIONS Derived Principle.
 
 Once §7.1–7.3 are walked, this benchmark hardens into the canonical scope/standing reference (candidate home: a `docs/architecture/` feature-scope doc, or an extension of SERVICE-MODEL.md), and the positioning hooks (§7.6) feed the ESSENCE/NARRATIVE cascade.
 

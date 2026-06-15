@@ -5,6 +5,7 @@
 **Date**: 2026-01-28
 **Updated**: 2026-06-10 (v14.0 — **the cumulative workspace**. Product identity re-centered on *the workspace where work is cumulative*: the substrate is the asset, the agents are the labor, the Reviewer is the management, the artifacts are the dividends. Ratified in the 2026-06-10 business-model regroup against fresh June-2026 competitive evidence — see `docs/analysis/cumulative-workspace-product-formulation-2026-06-10.md`. The v13.0 two-layer structure (substrate floor + judgment layer) is preserved; what changes: (a) the external lead is the **judgment seat**, with substrate portability as supporting proof, because capability claims ("persistent," "compounds," "runs in your absence") have been verbally commoditized by platform incumbents while the accountable-judgment claim remains unoccupied; (b) the competitive posture is canonized — *capability parity arrives in waves; differentiate on structure, ownership, accountability*; (c) the neutrality card is named — a platform judging its own model's agents has a self-audit problem; a model-agnostic seat does not.)
 **v14.1 amendment** (2026-06-10, ADR-332): the cumulative asset's world-facing half — the workspace also accumulates the declared universe's distilled history (the perception field). One paragraph added to Core Thesis.
+**v14.2 amendment** (2026-06-15): adds "The Framing Lens (internal)" — names the two-layer model as the *inherent base use case → accretion* pattern (Floor = an operating system; Generality = a fiduciary + an operation), and records *why* the external lead is the judgment seat. Internal reasoning frame only — no external copy change. Derivation: `docs/analysis/floor-and-fiduciary-positioning-2026-06-15.md` + `docs/analysis/yarnnn-product-feature-scope-and-standing-2026-06-15.md`.
 **Prior**: v13.0 (2026-06-02 — substrate-first rewrite; grounded in THESIS four commitments, ADR-310/311 one-moat-two-faces, ADR-222 kernel/program framing, ADR-209 authored substrate, ADR-216 orchestration vs judgment.)
 
 ---
@@ -139,6 +140,19 @@ YARNNN is not:
 - **a safety-filter wrapper** — the Reviewer is an independent judgment seat that compounds in value, not a post-hoc guardrail bolted onto a producer.
 - **uncontrolled autonomous action** — the model is supervised autonomy: declared mandate, gated actions, a legible cockpit, and an operator who is never structurally absent.
 - **a money-making claim for every workspace** — money-truth is one program's flavor of ground truth (trading), not a universal product element. The universal is *authored, portable substrate*.
+
+## The Framing Lens (internal): inherent base use case → accretion
+
+> **Internal reasoning frame, not external copy.** This section names *why* the positioning leads the way it does. It introduces no new external one-liners — those stay as ratified under Canonical Positioning. Derivation: `docs/analysis/floor-and-fiduciary-positioning-2026-06-15.md` + `docs/analysis/yarnnn-product-feature-scope-and-standing-2026-06-15.md`.
+
+General-purpose technologies never ship general-purpose. They enter through one always-on, zero-configuration **floor** — the inherent base use case, valuable the instant it exists — and the generality *accretes* on the floor (the PC sold via VisiCalc, not Turing-completeness; the iPhone shipped before the App Store existed). YARNNN's two layers are this pattern:
+
+- **The Floor is an operating system** — authored, attributed, portable substrate. General-purpose, always-on, valuable before any program. (ADR-222 makes the OS framing literal.)
+- **The Generality is a fiduciary + an operation** — activate a program and the floor runs the four flows (perception → work → outcomes → loop, ADR-332) under an independent judgment seat that compounds over tenure.
+
+The structural reason this is hard — and defensible: **scale-and-generality and compounding-personal-judgment have never coexisted in one artifact.** Generality scales by being impersonal (a phone line, an operating system — judgment-free is *why* it scales); fiduciary judgment is valuable by being personal and unscalable (a private banker, a family doctor — non-transferable is *why* it's valuable). YARNNN fuses them: authored substrate makes personal context scalable and portable; an occupant-rotating seat makes fiduciary judgment instantiable in software.
+
+This is the reason the external lead is the **judgment seat** and the proof beneath it is the **cumulative substrate** (ratified 2026-06-10): the floor (OS) is the commoditized-but-necessary base; the fiduciary seat is the half no general-purpose technology has ever carried. The fiduciary analogy is **register-dependent** — *private banker* in technical/precise register (double-entry ledger ≈ ADR-209's attributed revision chain), *family doctor* in tenure/independence register (the un-fakeable follow-up lab ≈ ground-truth the agent cannot author). The frame to reject is **"AI chief of staff / AI employee"** — pure labor with no owned floor; the incumbent commodity.
 
 ## Canonical Positioning
 

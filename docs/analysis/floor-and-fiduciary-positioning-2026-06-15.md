@@ -240,15 +240,15 @@ Two FE classes (both shipped, ADR-340 P1–P4): **mirror surfaces** (one ↔ one
 
 ## 11. Open questions for discourse + proposed canon cascade (deferred)
 
-**Open for discourse:**
-- Is the fused frame the right external lead, or does it stay internal (a reasoning frame) while external copy keeps ESSENCE v14's seat-led / substrate-proof sequencing? (My lean: the fusion is the *internal reasoning frame* that *justifies* the existing external sequencing — it may not need to surface verbatim externally.)
-- Which fiduciary reads best — private banker (precise ledger analog, but lock-in/opacity baggage) or family doctor (strongest tenure/independence intuition, un-fakeable-outcome analog)? Or keep both as register-dependent variants?
-- Does "inherent base use case → accretion" deserve a named FOUNDATIONS Derived Principle, or is it sufficiently carried by ESSENCE's two-layer structure already?
+**Resolved 2026-06-15 (operator) — landed in ESSENCE v14.2 "The Framing Lens (internal)":**
+- *Internal frame only.* The fusion is the internal reasoning frame that justifies ESSENCE v14's seat-led / substrate-proof external sequencing. No external one-liner change. THESIS untouched (revision discipline — a lens, not a new commitment). NARRATIVE external beats unchanged.
+- *Both fiduciaries, register-dependent.* Private banker in technical/precise register (ledger ≈ ADR-209 revision chain); family doctor in tenure/independence register (un-fakeable follow-up lab ≈ ground-truth). "AI chief of staff / AI employee" named as the frame to reject.
+- *No FOUNDATIONS Derived Principle.* Positioning, carried by ESSENCE's two-layer structure — FOUNDATIONS untouched.
 
-**Proposed canon cascade (only after discourse converges — NOT in this doc):**
-- `docs/ESSENCE.md` — possibly a "floor / generality" framing note + the fusion one-liner under Canonical Positioning (additive; the two-layer model already carries the substance).
-- `docs/NARRATIVE.md` — Beat 3 could adopt the fusion frame for "Meet the Product"; vocabulary rules gain the fiduciary analogy + the explicit rejection of "chief of staff."
-- `docs/architecture/FOUNDATIONS.md` — *only if* §11 discourse decides the inherent-base-use-case pattern warrants a Derived Principle (it may not — it is positioning, not architecture).
-- New companion doc under `docs/architecture/` — a positioning architecture doc if the frame proves load-bearing across surfaces.
+**Canon cascade — executed 2026-06-15 (scoped to the resolutions above):**
+- `docs/ESSENCE.md` — ✅ v14.2: added "The Framing Lens (internal)" before Canonical Positioning; Canonical Positioning one-liners unchanged.
+- `docs/architecture/THESIS.md` — intentionally NOT edited (revision discipline; the fusion is a lens on the existing four commitments, not a new one).
+- `docs/NARRATIVE.md` — intentionally NOT edited (internal-frame-only; external beats hold). The "chief of staff / AI employee" anti-pattern is a candidate light touch if a future discourse promotes the frame externally.
+- `docs/architecture/FOUNDATIONS.md` — NOT edited (no Derived Principle, per resolution).
 
-Until then: this is a Hat-B finding. It recommends; it does not amend.
+This Hat-B finding's positioning questions are now resolved and reflected in canon.
