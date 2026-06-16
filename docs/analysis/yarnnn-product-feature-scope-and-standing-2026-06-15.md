@@ -50,9 +50,9 @@ The eleven domains YARNNN is actually built from. Each is a distinct concern wit
 | D3 | **Perception / context-in** | Watches, observation contract, transports | `operation/{domain}/` | `substrate_abi.watches`, `*_tracker.py`, `recurrence.py` | Kernel slot + Program decl | Generality (flow 1) | ◑ (Crawl-A ✅) |
 | D4 | **Execution / work-out** | Recurrences, dispatch, specialists, compose | `operation/` | `invocation_dispatcher.py`, `dispatch_helpers.py`, `scheduling.py`, `dispatch_specialist.py` | Kernel | Generality (flow 2) | ✅ |
 | D5 | **Ground-truth / outcomes-in** | Reconciler, outcome candidates, money-truth | `operation/{domain}/_money_truth.md` | `services/outcomes/`, `substrate_abi.ground_truth` | Kernel slot + Program decl | Generality (flow 3) | ◑ (trader ✅; generic slot ▷) |
-| D6 | **Calibration / the loop** | Calibration trail, by_signal, attention-pruning | `persona/calibration.md` + money-truth `by_signal` | `mirror_calibration.py` (ADR-327), `ledger.py` | Kernel | Generality (flow 4) | ◑ (alpha live; per-watch Walk-stage) |
+| D6 | **Calibration / the loop** | Calibration trail, by_signal, attention-pruning | `system/_calibration.md` (live) + money-truth `by_signal` | `mirror_calibration.py` (ADR-327), `ledger.py` | Kernel | Generality (flow 4) | ◑ (alpha live; per-watch Walk-stage) |
 | D7 | **Judgment seat (Reviewer)** | Persona, principles, wake, verdicts | `persona/` + `constitution/` | `reviewer_agent.py`, `occupant_contract.py`, `reviewer_envelope.py`, `wake*.py`, `review_proposal_dispatch.py` | Kernel (seat) + Program (persona template) | Generality | ✅ |
-| D8 | **Governance** | Autonomy / budget / pace ceilings + write-locks | `governance/` | `workspace_paths.py` (`CALLER_WRITE_POLICY`), `pace.py`, `review_policy.py` | Kernel | Floor boundary | ◑ (ceilings ✅; five-root P2–P5 in progress) |
+| D8 | **Governance** | Autonomy / budget / pace ceilings + write-locks | `governance/` | `workspace_paths.py` (`CALLER_WRITE_POLICY`), `pace.py`, `review_policy.py` | Kernel | Floor boundary | ✅ (lock-gate unified + five-root migrated; ADR-320 banner stale — F1) |
 | D9 | **Orchestration surface (YARNNN/feed)** | The chat/feed shell the operator addresses | `system/` (memory) | `api/agents/yarnnn.py`, `routes/feed.py`, `prompts/` | Kernel | both | ✅ |
 | D10 | **FE / compositor** | Mirrors, compositions, standing loop, attention | reads all | `web/components/library/`, `web/lib/compositor/`, `content-shapes/`, `kernel_surfaces.py` | Kernel | both | ✅ (ADR-340 P1–P4) |
 | D11 | **Program / bundle** | Manifest, surfaces, reference-workspace, activation | forks into all roots | `docs/programs/{slug}/`, `bundle_reader.py`, `programs.py` (fork) | Program | Generality | ✅ (alpha-trader); ◑ (alpha-author flow-3) |
@@ -70,7 +70,7 @@ The Floor is flow-agnostic. Its features are the substrate (D1), the topology (w
 | **Authored substrate** | Every file has a declared author; nothing silently lost | Files (mirror, ADR-329) | `ReadFile` returns content + `authored_by` | ✅ | ADR-209 |
 | **Content-addressed retention** | Dedup via `workspace_blobs` (sha256) | — | — | ✅ | ADR-209 |
 | **Revision chain** | Parent-pointered history per path; walkable | RevisionHistoryPanel | `ListRevisions`/`ReadRevision`/`DiffRevisions` — *the killer interop primitive* | ✅ (interop-exposed P1) | ADR-209 / ADR-311 §3 |
-| **Five-root topology** | Directory = permission (`access(2)`); governance/constitution/persona/operation/system | Settings + Files paths | foreign writes locked to commons | ◑ canon P1; P2–P5 in progress | ADR-320 |
+| **Five-root topology** | Directory = permission (`access(2)`); governance/constitution/persona/operation/system | Settings + Files paths | foreign writes locked to commons | ✅ migrated (one `_is_path_locked`; legacy roots gone) — verified 2026-06-16 | ADR-320 |
 | **Interop face (portability)** | Kernel file+revision primitives in MCP mode, scoped to commons; protocol-agnostic | (the foreign LLM IS the surface) | `ReadFile`·`ListFiles`·`SearchFiles`·`QueryKnowledge`·`WriteFile`(gated)·revision reads | ◑ gate ✅, rebuild phased (P1 substrate / P2 judgment rider / P3 shared-workspace ⊘) | ADR-310/311 |
 | **Write gate (single permission point)** | Every consequential write traverses one ADR-307 gate; foreign caller lock-set | — | foreign `WriteFile` DENYs governance + seat | ✅ | `test_adr310_mcp_write_gate.py` 12/12 |
 
@@ -123,7 +123,7 @@ A program (D11) is a flow-declaration set. Each flow scoped end-to-end: mechanis
 | Aspect | Detail |
 |---|---|
 | Mechanism | outcomes reconcile against Reviewer verdicts → calibration trail densifies (`mirror_calibration.py`, ADR-327); `by_signal` expectancy |
-| Substrate root | `persona/calibration.md` (the one system-write into the seat) + money-truth `by_signal` |
+| Substrate root | `system/_calibration.md` (live trail, system-written + seat-read; ADR-327) + money-truth `by_signal`. *Note: `persona/calibration.md` (ADR-320 D6) is seeded but has no live writer — F2 in the domain-boundary review.* |
 | FE surface | Home judgment trail + Reviewer detail (`persona/` mirrors) |
 | Interop | ADR-311 Phase 2 — reads gain a judgment-standing rider when a verdict exists |
 | Kernel vs program | fully kernel (calibration is universal machinery) |
@@ -176,7 +176,7 @@ Two FE classes, both shipped: **mirror surfaces** (one ↔ one substrate concern
 **What is partial (the frontier):**
 - **Interop face** — gate shipped, primitive-surface rebuild phased (Phase 1 substrate moat is the near-term unlock; Phase 2 judgment rider; Phase 3 shared-workspace deferred). *This is the floor's portability promise, partially owed.*
 - **Perception field** — Crawl-A shipped; the MCP-client transport + registry resolution are demand-pulled.
-- **Five-root topology** — canon P1 done; P2–P5 (code + bundle + migration) in progress.
+- **Five-root topology** — ✅ migration complete in code (verified 2026-06-16, F1); ADR-320 status banner stale.
 - **Ground-truth generalization** — proven for trader, generic slot declared; non-trader programs owe their ground-truth flavor.
 
 **What it means for YARNNN as standing:**
@@ -194,7 +194,7 @@ This doc is the baseline. The nuances to re-evaluate against it, in priority ord
 
 1. **Live-code standing verification** — convert every ◑/▷ in §2–4 into a verified status against the running system (substrate receipts: revision_ids, execution_event ids, conformance-gate results). The benchmark claims; the re-eval proves.
 2. **FE↔feature gap audit** — §5's named gap (non-trader Home slot bindings) plus a full surface-by-surface check that every shipped feature has its mirror and every act has its composition.
-3. **Domain-boundary review (§2)** — are any two concern-domains still blurred in code (the ADR-340 "locally defensible, globally incoherent" failure)? Candidate suspects: D3 perception vs D4 execution (the watch→recurrence seam), D6 calibration vs D7 seat (the one cross-class `calibration.md` write).
+3. **Domain-boundary review (§2)** — ✅ **DONE 2026-06-16, no blur** — see [`domain-boundary-review-2026-06-16.md`](domain-boundary-review-2026-06-16.md). All three audited seams CLEAN (D3↔D4 watch→recurrence; D6↔D7 calibration write; D8 lock-gate + ownership). Surfaced F1 (D8 standing ◑→✅, corrected here), F2 (dual calibration substrate — `persona/calibration.md` seeded-but-unwritten vs live `system/_calibration.md`; Hat-A reconciliation queued), F3 (budget constant name — verify in step 1 above).
 4. **Flow-incompleteness remediation** — alpha-author's flow-3 (ground-truth) declaration; the general four-flow conformance gate's coverage as programs are added.
 5. **Interop frontier** — sequence Phase-1 primitive surface (substrate moat) → Phase-2 judgment rider, against the portability promise the positioning leans on.
 6. **Positioning hooks** — ✅ RESOLVED 2026-06-15, landed in ESSENCE v14.2 "The Framing Lens (internal)": internal frame only (external lead unchanged); both fiduciaries register-dependent; no FOUNDATIONS Derived Principle.
