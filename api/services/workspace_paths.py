@@ -30,7 +30,7 @@ IS the permission taxonomy — `access(2)` for the agent OS (Derived Principle 1
       │     IDENTITY.md (the operator's judgment, embodied — absorbs the legacy
       │       operator operating-posture file), principles.md (+_principles.yaml),
       │       judgment_log.md,
-      │     OCCUPANT.md, handoffs.md, calibration.md, standing_intent.md.
+      │     OCCUPANT.md, handoffs.md, standing_intent.md.
       │     OS analog: the process's own address space / working set.
       ├── operation/     THE WORK the agent operates on / produces. Many writers.
       │     BRAND.md, CONVENTIONS.md, _voice.md-class style files, specs/, reports/,
@@ -118,7 +118,6 @@ PERSONA_PRINCIPLES_YAML_PATH = "persona/_principles.yaml"  # machine-parsed thre
 PERSONA_JUDGMENT_LOG_PATH = "persona/judgment_log.md"     # append-only judgment lineage
 PERSONA_OCCUPANT_PATH = "persona/OCCUPANT.md"             # who currently fills the seat
 PERSONA_HANDOFFS_PATH = "persona/handoffs.md"             # append-only rotation log
-PERSONA_CALIBRATION_PATH = "persona/calibration.md"       # judgments-vs-outcomes trail
 PERSONA_STANDING_INTENT_PATH = "persona/standing_intent.md"  # forward-looking working state (ADR-284)
 
 PERSONA_FILES = (
@@ -127,7 +126,6 @@ PERSONA_FILES = (
     PERSONA_JUDGMENT_LOG_PATH,
     PERSONA_OCCUPANT_PATH,
     PERSONA_HANDOFFS_PATH,
-    PERSONA_CALIBRATION_PATH,
     PERSONA_STANDING_INTENT_PATH,
 )
 
@@ -185,10 +183,7 @@ SYSTEM_FILES = (
 # Caller classes (matched by authored_by prefix in the gate):
 #   - "reviewer"  — the seat occupant. Amends constitution/ + persona/ +
 #                   operation/; locked from governance/ (its own ceilings) and
-#                   system/ (orchestration's, not the seat's). The one
-#                   cross-class exception (reconciler → persona/calibration.md)
-#                   is the reconciler's "system" caller writing a named path,
-#                   handled at that writer's identity, NOT a hole here.
+#                   system/ (orchestration's, not the seat's).
 #   - "mcp"       — foreign LLM (yarnnn:mcp). Lowest trust. Writes ONLY the
 #                   operation/ commons; locked from everything else.
 #   - "agent"     — domain agent / specialist. Writes operation/ (domain-scoped
@@ -197,10 +192,11 @@ SYSTEM_FILES = (
 #   - "operator"  — the human. Writes everything except system/ (orchestration
 #                   runtime state is not hand-edited).
 #   - "system"    — deterministic actors (reconciler, mirrors, cleanup). Write
-#                   system/ + operation/ + the named persona/calibration.md;
-#                   locked from governance/ constitution/ + the rest of persona/.
-#                   (Enforced by the named-path discipline at each system writer,
-#                   not by a prefix — system writers target specific paths.)
+#                   system/ + operation/ only; locked from governance/
+#                   constitution/ persona/. (No persona/ exception: calibration
+#                   evidence lives in system/_calibration.md per ADR-327, not in
+#                   persona/ — ADR-320 D6 cross-class write retired 2026-06-16.)
+#                   Enforced by named-path discipline at each system writer.
 CALLER_WRITE_POLICY: dict[str, tuple[str, ...]] = {
     "reviewer": (GOVERNANCE_ROOT, SYSTEM_ROOT),
     "mcp": (GOVERNANCE_ROOT, CONSTITUTION_ROOT, PERSONA_ROOT, SYSTEM_ROOT),

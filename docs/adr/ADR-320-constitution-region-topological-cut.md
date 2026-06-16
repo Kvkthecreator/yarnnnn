@@ -1,8 +1,12 @@
 # ADR-320 — Workspace Permission Topology: Five Roots, One Gate, `access(2)` for the Agent OS
 
-> **Status**: ACCEPTED (2026-06-05). Decisions D1–D9 RESOLVED. Ratified by KVK. Canon-first phase (P1: FOUNDATIONS DP25 + Axiom 1 subsection + v9.0 + THESIS two-poles sharpening + GLOSSARY five-region vocabulary) landing alongside this status flip. P2–P5 (code + bundles + eval suite + live migration) in progress.
-> **Date**: 2026-06-05
+> **Status**: ACCEPTED (2026-06-05). Decisions D1–D9 RESOLVED. Ratified by KVK. Canon-first phase (P1) landed. **P2–P5 (code + gate) IMPLEMENTED** — verified by the 2026-06-16 domain-boundary review (`test_adr320_permission_topology.py` green; one unified `_is_path_locked` + `CALLER_WRITE_POLICY`; five-root migration complete in code; legacy `context/_shared/ review/ memory/` gone).
+> **Date**: 2026-06-05 (amended 2026-06-16)
 > **Authors**: KVK, Claude
+>
+> **Amendment (2026-06-16 — domain-boundary review, `docs/analysis/domain-boundary-review-2026-06-16.md`):** two post-ratification corrections where canon described intent the code never built:
+> 1. **D6 `persona/calibration.md` cross-class write — RETIRED.** It was never implemented: no live writer ever targeted `persona/calibration.md` (the reconciler writes `operation/`; calibration evidence lives in `system/_calibration.md` per ADR-327). The `system` caller writes `system/ + operation/` only — **the named-path persona/ exception is removed**, which *simplifies* the topology (no cross-class write exists). All inline references below to the "one cross-class write" / `persona/calibration.md` (footnote ¹, the per-caller locked-from lists, D6, the claim-tiering note, and the P3 step) are **superseded by this amendment**. `persona/` is now seat-written, full stop.
+> 2. **Compute-ceiling filename:** the live file is `governance/_budget.yaml` (ADR-327), not `_token_budget.yaml` (lines 22/38 are stale).
 > **Upstream discourse**: [personified-judgment-seat-vs-task-harness-2026-06-05.md](../analysis/personified-judgment-seat-vs-task-harness-2026-06-05.md) (the commissioned-tool vs delegated-agent axis) + [personified-seat-canon-sketches-2026-06-05.md](../analysis/personified-seat-canon-sketches-2026-06-05.md) (the canon amendments this enables).
 > **Dimensional classification**: **Substrate** (Axiom 1 — filesystem topology) + **Identity** (Axiom 2 — person/operation/system orthogonality) + **Channel** (Axiom 6 — the lock IS the legible permission surface) primary.
 > **Canon backing**: ADR-222 + Derived Principle 16 (literal OS framing) — this ADR *implements the agent OS's permission model*, correcting the filesystem toward the OS analogy it already committed to.

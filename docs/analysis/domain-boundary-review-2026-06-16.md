@@ -72,8 +72,10 @@ The live self-improving-loop trail is `system/_calibration.md`. ADR-327's `syste
 - (b) if `persona/calibration.md` is meant to be a *distinct per-occupant* trail (vs `system/_calibration.md`'s cadence/attention evidence), it is **flow-incomplete** — build its writer.
 Default lean: (a). The seam is clean either way; this is dead-substrate hygiene + an ADR-320/ADR-327 reconciliation, not a boundary violation.
 
+**RESOLVED 2026-06-16 — option (a), retired.** Deeper investigation sharpened the finding: `persona/calibration.md` (ADR-320 D6, *per-occupant verdict-vs-outcome*) is **not** a duplicate of `system/_calibration.md` (ADR-327, *cadence-vs-outcome*); they were distinct concerns. But `persona/calibration.md`'s writer — the `back-office-reviewer-calibration` task — was removed in the ADR-260/261 `back_office/` collapse, leaving a seeded-once skeleton with no live writer (confirmed: zero `write_revision` targets it; no bundle declares the recurrence). Retired across 6 code sites + 1 test (constant, `PERSONA_FILES`, seed, reapply entry, `DEFAULT_REVIEW_CALIBRATION_MD`, workspace-guide entry, stale comment, `test_adr286` survivor) — gates green (ADR-286 8/8, ADR-320 pass; import smoke confirms `SYSTEM_CALIBRATION_PATH` intact). ADR-320 D6's cross-class write exception is removed → the `system` caller writes `system/ + operation/` only (topology *simpler*). ADR-320 amended (status banner). Verdict-calibration, if wanted later, is a deliberate build on the ADR-327 `system/` mirror pattern — not the resurrected `persona/` path.
+
 ### F3 — Minor: governance budget constant naming (verify in Step 2)
-The governance budget constant reads `GOVERNANCE_BUDGET_PATH = "governance/_budget.yaml"` (sweep C), while canon prose (CLAUDE.md, ADR-320 tree) references `_token_budget.yaml`. Likely a benign rename; **flag for Step 2** to confirm one canonical name and update whichever side is stale.
+The governance budget constant reads `GOVERNANCE_BUDGET_PATH = "governance/_budget.yaml"` (sweep C), while canon prose (CLAUDE.md, ADR-320 tree) references `_token_budget.yaml`. **RESOLVED 2026-06-16:** the live name is `governance/_budget.yaml` (ADR-327 renamed it from the pre-327 `_token_budget.yaml`). ADR-320 lines 22/38 corrected via the status-banner amendment. (CLAUDE.md's `_token_budget.yaml` mentions live in the ADR-293/ADR-320 historical summaries — left for a separate doc-rot sweep, not load-bearing.)
 
 ---
 
@@ -84,5 +86,5 @@ The governance budget constant reads `GOVERNANCE_BUDGET_PATH = "governance/_budg
 
 ## What this unblocks
 - **Domain-boundary review (§7.3): COMPLETE — no blur.** The eleven-domain separation holds in code.
-- **Step 2 (live-code standing verification)** can proceed with one boundary risk retired. Step 2 should resolve F2 (calibration substrate reconciliation) and F3 (budget constant name), and convert the remaining ◑/▷ standings to verified.
-- **Two Hat-A items queued** (not done here): ADR-320 status-banner flip (F1); calibration-substrate reconciliation + stale-comment fix (F2).
+- **Step 2 (live-code standing verification)** can proceed with all three findings closed and one boundary risk retired. Step 2 converts the remaining ◑/▷ standings to verified.
+- **All three findings closed (2026-06-16):** F1 (ADR-320 banner flipped + benchmark D8 → ✅); F2 (`persona/calibration.md` retired across code + test + ADR-320 amendment, gates green); F3 (budget name confirmed `governance/_budget.yaml`, ADR-320 corrected). No Hat-A items left open from this review.
