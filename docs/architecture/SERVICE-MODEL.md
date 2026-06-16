@@ -1,7 +1,7 @@
 # YARNNN Service Model
 
 > **Status**: Canonical
-> **Date**: 2026-03-29 (v1.6 revision 2026-04-20; taxonomy/autonomy hardening amended 2026-04-24; invocation/narrative amendment 2026-04-25; v1.7 OS framing canonized 2026-04-27; v1.8 ADR-296 v2 wake architecture amendments canonized 2026-05-20)
+> **Date**: 2026-03-29 (v1.6 revision 2026-04-20; taxonomy/autonomy hardening amended 2026-04-24; invocation/narrative amendment 2026-04-25; v1.7 OS framing canonized 2026-04-27; v1.8 ADR-296 v2 wake architecture amendments canonized 2026-05-20; v1.9 Frame 6 feature-scope model canonized 2026-06-16)
 > **Scope**: End-to-end service model — how the system works, from user intent to delivered output.
 > **Rule**: This is the single document that describes the complete system. Deep-dive docs are linked, not duplicated.
 
@@ -108,6 +108,40 @@ The framing dissolves "workspace type / workspace mode" as housing for vertical 
 **Home as composition (ADR-312, 2026-06-02).** The operator-facing default surface is **Home** (renamed from Cockpit), and it is a *composition over the workspace's present constituents*, not a fixed program dashboard. The kernel owns six Home slots (constitution band · ground-truth hero · decision queue · live entities · recent artifacts · judgment trail); the program weights/labels/shapes them via the compositor — it does not invent slots, and the kernel never hardcodes a program noun in a slot. A bare kernel renders substrate-forward (the constitution-band CTA is the onboarding entry), not as a de-activated trader dashboard. The two windowed registers (ADR-309) refine to three (ADR-312 D5): `intent` (the constitution — mandate/principles/identity) · `os-config` (autonomy/pace/connectors/program/settings) · `application`. Program data routes are program-scoped (`/api/programs/alpha-trader/*`); pace is a kernel governance dial (`/api/pace`).
 
 Deep dive: [ADR-222](../adr/ADR-222-agent-native-operating-system-framing.md) + [ADR-312](../adr/ADR-312-home-as-composition.md). Implementation roadmap: [os-framing-implementation-roadmap.md](os-framing-implementation-roadmap.md).
+
+---
+
+### Frame 6 — Feature Scope: Floor / Generality × Four Flows × Concern-Domains (the locating model)
+
+Every feature in YARNNN is located on **four orthogonal axes**. Keeping them separate is the antidote to "locally defensible, globally incoherent" ([ADR-340](../adr/ADR-340-operator-experience-model.md)); confusing them is how scope drifts. This frame is the canonical engineering reference for *where a feature sits*; the dated **live standing** lives in the benchmark it points to, not here (canon states the durable model, not the snapshot).
+
+**Axis 1 — Layer (the two-layer product model, ESSENCE).** The **Floor** = authored, attributed, portable substrate + the interop face — general-purpose, always-on, *flow-agnostic medium*, valuable before any program. The **Generality** = a program (ADR-222 application) that activates an operation under the judgment seat. The Floor is what the flows inscribe on; the program is what runs them.
+
+**Axis 2 — Flow (FOUNDATIONS Derived Principle 26 / [ADR-332](../adr/ADR-332-four-flow-completeness-model.md)).** A program is a *flow-declaration set* running four flows: **1 perception** (context in — watches/observation, [ADR-335](../adr/ADR-335-perception-field.md)) · **2 work** (artifacts/actions out) · **3 outcomes** (ground-truth in, [ADR-330](../adr/ADR-330-ground-truth-intake.md)) · **4 loop** (calibration). *General-purpose* = the Floor; *autonomous* = flows 1→2 on cadence; *self-improving* = flows 3→4 against ground truth the agent cannot author. **Flow-completeness is the diagnosis** (ADR-332 D2): a program that "feels partial" has an undeclared flow; the conformance gate (`test_adr287_bundle_conformance`) asserts all four are declared or `flows_na` with rationale.
+
+**Axis 3 — Concern-domain (the separation-of-concerns reference).** The eleven concerns YARNNN is built from, each with one code home:
+
+| # | Concern-domain | Layer | Kernel / Program | Canonical code home |
+|---|---|---|---|---|
+| D1 | Substrate (authored, attributed, revisioned) | Floor | Kernel | `authored_substrate.py`; `workspace_files`/`_blobs`/`_file_versions` |
+| D2 | Interop face (file+revision primitives over MCP) | Floor | Kernel | `api/mcp_server/`, `permission.py` gate |
+| D3 | Perception (watches, observation contract) | Generality (flow 1) | Kernel slot + program decl | `substrate_abi.watches`, `bundle_reader.py`, `recurrence.py` |
+| D4 | Execution (scheduler → walker → dispatcher) | Generality (flow 2) | Kernel | `invocation_dispatcher.py`, `scheduling.py`, `dispatch_specialist.py` |
+| D5 | Ground-truth (reconciler, outcome candidates) | Generality (flow 3) | Kernel slot + program decl | `services/outcomes/`, `substrate_abi.ground_truth` |
+| D6 | Calibration (the loop, attention-pruning) | Generality (flow 4) | Kernel | `mirror_calibration.py`, `system/_calibration.md`, `ledger.py` |
+| D7 | Judgment seat (Reviewer) | Generality | Kernel seat + program persona | `reviewer_agent.py`, `reviewer_envelope.py`, `wake*.py` |
+| D8 | Governance (autonomy/budget/pace + write-locks) | Floor boundary | Kernel | `workspace_paths.py` (`CALLER_WRITE_POLICY`), `pace.py` |
+| D9 | Orchestration surface (the shell) | both | Kernel | `api/agents/yarnnn.py`, `routes/feed.py` |
+| D10 | FE / compositor (mirrors, compositions, attention) | both | Kernel | `web/components/library/`, `web/lib/compositor/`, `kernel_surfaces.py` |
+| D11 | Program / bundle | Generality | Program | `docs/programs/{slug}/`, `bundle_reader.py`, `programs.py` |
+
+Mental model: *D1–D2 is the line; D11 declares what runs on it; D3–D7 is the running operation; D8 is its leash; D9–D10 is how you watch it.* The kernel↔program boundary (Frame 5) cuts here: D1–D2, D4, D6–D10 are kernel; D3/D5 are kernel slots filled by program declarations; D11 is the program.
+
+**Axis 4 — Standing (Implemented / Partial / Declared / Deferred).** Not canonized here — standing is verified against live code and goes stale; it lives in the dated benchmark.
+
+**FE corollary (ADR-340 "mirror once, compose few," Derived Principle 29).** Two FE classes: **mirror surfaces** (one ↔ one substrate concern — the raw escape hatch, one per concern) and **composition surfaces** (one ↔ one operator *act* of the standing loop: Decide/Read/Dwell/Tune/Amend/Setup). Home is the canonical composition over the six kernel slots (Frame 5); the kernel renders all six always (self-hiding when empty), programs weight #2/#4.
+
+Live standing snapshot + receipts (re-verified, not canon): [`docs/analysis/yarnnn-product-feature-scope-and-standing-2026-06-15.md`](../analysis/yarnnn-product-feature-scope-and-standing-2026-06-15.md). Positioning lens (the floor as an operating system, the seat as a fiduciary): [`docs/analysis/floor-and-fiduciary-positioning-2026-06-15.md`](../analysis/floor-and-fiduciary-positioning-2026-06-15.md).
 
 ---
 
@@ -542,3 +576,4 @@ Product health surfaces through existing patterns: daily update enrichment (busi
 | 2026-04-20 | v1.4 — FOUNDATIONS v5.1 alignment. Added Architectural Preamble on Axiom 0 (filesystem is substrate; four permitted DB row kinds). "Three Layers of Cognition" → "Four Layers of Cognition, One Filesystem Substrate" (Reviewer added per ADR-194). Deployed Services reduced from 5 to 4 (yarnnn-platform-sync removed per ADR-153 — this was stale). Key files table extended with outcome reconciliation and action proposal queue. |
 | 2026-04-20 | v1.5 — FOUNDATIONS v6.0 alignment. Architectural Preamble restructured into two frames: Six Dimensions (new Axiom 0 dimensional model) + Filesystem Substrate (renumbered Axiom 1, content preserved). Axiom references updated throughout (filesystem substrate: Ax0→Ax1; ground-truth substrate / money-truth instance: Ax7→Ax8 — see ADR-282 for the kernel/instance vocabulary discipline; recursion: Ax2→Ax7). Doc now aligned with dimensional-purity discipline per Derived Principle 1. |
 | 2026-04-20 | v1.6 — Cockpit service model ratified per ADR-198 v2. Preamble extends to three frames (Six Dimensions + Filesystem Substrate + Cockpit). "What YARNNN Is" rewritten to lead with cockpit framing; operator works inside YARNNN, external distribution is derivative. Surface Architecture section rewritten: ADR-163 nav (Chat/Work/Agents/Context) superseded by ADR-198 v2 nav — **Overview / Team / Work / Context / Review** + ambient YARNNN rail. Five operator-native destinations (Team and Work are peer destinations — agents-as-identity vs tasks-as-activity). Five archetype patterns (Document / Dashboard / Queue / Briefing / Stream) compose inside destinations per ADR-198 §3. Activity-absorbed routing updated to post-cockpit locations. |
+| 2026-06-16 | v1.9 — Added **Frame 6** (Feature Scope: Floor/Generality × Four Flows × Concern-Domains — the four-axis locating model + the eleven concern-domains with code homes + the FE mirror/composition corollary). Canonizes the durable scope framework; the dated live-standing snapshot lives in the linked benchmark, not here. Derived from the 2026-06-16 re-evaluation pass (domain-boundary review + standing verification + FE gap audit). |
