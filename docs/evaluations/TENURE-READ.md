@@ -25,7 +25,7 @@ The instrument is **program-agnostic by construction** (ADR-188 + ADR-330): it r
 | Program | `substrate_abi.ground_truth` (the measurand) | Thesis the curve tests |
 |---|---|---|
 | **alpha-trader** | `operation/trading/_money_truth.md` (realized P&L + per-signal expectancy) | *Does expectancy improve, and do dead signals get retired on the evidence, over tenure?* |
-| **yarnnn-author** | `operation/authored/_voice.md` (voice-fingerprint + anti-slop floor) | *Does voice-adherence hold and the corpus cohere across pieces, over tenure?* |
+| **yarnnn-author** | `operation/authored/_signal.md` (corpus-coherence rollup: audit accuracy + voice-flag rate + ship cadence — the bundle's `substrate_abi.ground_truth`) | *Does audit accuracy hold, voice cohere, and cadence stay honored across pieces, over tenure?* |
 | **generic / bare-kernel** | *(none — no program ground truth)* | *Does an un-mandated judgment seat stay coherent + non-confabulating across tenure?* See §5. |
 
 Everything below the ground-truth read is **shared across all programs** (persona substrate is kernel-universal: `/workspace/persona/{judgment_log,standing_intent,principles,calibration}.md`). Only Read 1's path and the thesis change per program. That is the whole parameterization — one binding, not a fork.
@@ -146,19 +146,19 @@ The shape (3 reads, revision-chain + events + prose) is identical across program
 
 | | **alpha-trader** | **yarnnn-author** | **generic / bare-kernel** |
 |---|---|---|---|
-| Read 1 ground-truth | `_money_truth.md` expectancy curve | `_voice.md` adherence + corpus coherence | *(none — §5 intent-coherence is the whole read)* |
+| Read 1 ground-truth | `_money_truth.md` expectancy curve | `_signal.md` corpus-coherence rollup (audit accuracy + voice-flag rate + cadence) | *(none — §5 intent-coherence is the whole read)* |
 | Read 2 self-amendment canon | `_operator_profile.md` signals + `_recurrences.yaml` cadence | `_voice.md` voice rules + audit cadence | `principles.md` only (no domain canon to amend) |
 | Read 3 intent | trade-readiness forward plan | next-piece + drift-watch plan | honest-absence + memory-accumulation plan |
 | `IMPROVING` means | expectancy bends up, dead signals retired | voice holds, corpus coheres, drift caught | *(N/A — see §5: the bar is COHERENT, not IMPROVING)* |
 | Improvement cadence | days-to-a-week (signal-gated) | per-piece (faster) | continuous (every addressed wake) |
 
-The author soak (`richness-soak-yarnnn-author`) inherits this instrument with `_voice.md` as ground truth, when it stands up. The generic soak is §5.
+The author soak (`richness-soak-yarnnn-author`) inherits this instrument with `_signal.md` as ground truth (the bundle's `substrate_abi.ground_truth`), when it stands up. The generic soak is §5.
 
 ---
 
 ## §5 The generic / bare-kernel workspace tenure thesis (the hardest, most honest read)
 
-A non-program default workspace has **no `_money_truth.md`, no `_voice.md`** — no domain ground truth to improve against. Its tenure thesis is the kernel-universal floor every program inherits, and it is the ADR-314 standby posture read *longitudinally* (the episodic side is flagged MISSING in the 2026-06-04 catch-up audit §3.2):
+A non-program default workspace has **no `_money_truth.md`, no `_signal.md`** — no domain ground truth to improve against. Its tenure thesis is the kernel-universal floor every program inherits, and it is the ADR-314 standby posture read *longitudinally* (the episodic side is flagged MISSING in the 2026-06-04 catch-up audit §3.2):
 
 > **A judgment seat installed in a workspace with no declared mandate reasons HONESTLY about the absence of primary intent, accumulates COHERENT memory across wakes, and NEVER confabulates a primary action that doesn't exist — and this holds across tenure, not just on the first wake.**
 

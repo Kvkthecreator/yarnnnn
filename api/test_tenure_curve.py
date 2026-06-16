@@ -91,6 +91,40 @@ Prose only, no numbers in frontmatter.
 
 NO_FRONTMATTER = "# Money truth\n\nJust a body, no fence.\n"
 
+# --- author ground-truth fixtures (_signal.md shape, corpus-coherence-rollup) -
+# Distinct field names from the trader — the cross-program regression: the
+# author's accumulation counters are audits_total / pieces_shipped /
+# voice_flags_total / drafts_audited, NOT reconciled_trades / sample_count.
+
+AUTHOR_BOOTSTRAP = """---
+rolling_windows:
+  30d:
+    audits_total: 0
+    pieces_shipped: 0
+    voice_flags_total: 0
+calibration:
+  voice_audit_accuracy_30d: 0.0
+---
+# Corpus Signal
+
+Workspace newly activated. Calibration begins from this point forward.
+"""
+
+# Audits run, nothing shipped yet — the exact case the trader-only regex missed.
+AUTHOR_AUDITED_NOT_SHIPPED = """---
+rolling_windows:
+  30d:
+    audits_total: 6
+    pieces_shipped: 0
+    voice_flags_total: 2
+calibration:
+  voice_audit_accuracy_30d: 0.83
+  revision_audit_findings_30d:
+    drafts_audited: 6
+---
+# Corpus Signal
+"""
+
 
 def test_frontmatter_extraction() -> None:
     print("test_frontmatter_extraction")
@@ -122,6 +156,28 @@ def test_ledger_size() -> None:
           ledger_size(flatten_numeric(extract_frontmatter(ONE_POINT))) == 4.0)
     check("narrative-only ledger == 0",
           ledger_size(flatten_numeric(extract_frontmatter(NARRATIVE_ONLY))) == 0.0)
+
+
+def test_author_shape_cross_program() -> None:
+    """The cross-program regression: author _signal.md counters must register,
+    and accuracy ratios must NOT masquerade as samples."""
+    print("test_author_shape_cross_program")
+    boot = flatten_numeric(extract_frontmatter(AUTHOR_BOOTSTRAP))
+    check("author bootstrap ledger == 0 (all counters 0)", ledger_size(boot) == 0.0)
+    acc = flatten_numeric(extract_frontmatter(AUTHOR_AUDITED_NOT_SHIPPED))
+    # audits_total=6 / drafts_audited=6 are the accumulation signal; pieces_shipped=0.
+    check("author audited-not-shipped ledger == 6 (audits register)",
+          ledger_size(acc) == 6.0, str(ledger_size(acc)))
+    # the accuracy ratio 0.83 must be excluded by the integer filter
+    check("voice_audit_accuracy ratio excluded from ledger",
+          0.83 not in [v for k, v in acc.items() if "audit" in k and float(v).is_integer()])
+    # and the bootstrap author shape reports INCONCLUSIVE, not a false curve
+    pts = [_point(AUTHOR_BOOTSTRAP, "t0"), _point(AUTHOR_BOOTSTRAP, "t1")]
+    check("author bootstrap → INCONCLUSIVE", "BOOTSTRAP-EMPTY" in mechanical_verdict(pts))
+    # an audited-not-shipped revision is a real sampled datapoint
+    one = [_point(AUTHOR_BOOTSTRAP, "t0"), _point(AUTHOR_AUDITED_NOT_SHIPPED, "t1")]
+    check("author audited → SINGLE DATAPOINT (not bootstrap)",
+          "SINGLE DATAPOINT" in mechanical_verdict(one), mechanical_verdict(one))
 
 
 def _point(content: str, ts: str) -> CurvePoint:
@@ -170,6 +226,7 @@ def main() -> int:
         test_frontmatter_extraction,
         test_flatten_numeric,
         test_ledger_size,
+        test_author_shape_cross_program,
         test_mechanical_verdict,
         test_trajectory_and_render,
     ):

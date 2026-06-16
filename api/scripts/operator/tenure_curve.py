@@ -79,8 +79,13 @@ _PERSONAS_YAML = _REPO_ROOT / "docs" / "alpha" / "personas.yaml"
 
 # Keys whose values count as "ledger size" — the presence of real samples is
 # what distinguishes a primed-but-empty ground truth from an accumulating one.
+# Covers both program shapes: trader (_money_truth.md: reconciled_trades,
+# sample_count) and author (_signal.md: audits_total, pieces_shipped,
+# voice_flags_total, drafts_audited). Integer-only filtering in ledger_size()
+# keeps ratio metrics (accuracy, expectancy_r, zscore) out of the sample count.
 _SAMPLE_KEY_RE = re.compile(
-    r"(?i)(sample|count|\bn_|num_|trades|reconciled|fills|pieces|wakes|audited)"
+    r"(?i)(sample|count|_total\b|\bn_|num_|trades|reconciled|fills|"
+    r"pieces|wakes|audit|draft|flag|shipped)"
 )
 
 
@@ -151,9 +156,18 @@ def flatten_numeric(data: Any, prefix: str = "") -> dict[str, float]:
 
 
 def ledger_size(flat: dict[str, float]) -> float:
-    """The max value among sample-shaped keys — the proxy for "how much real
-    history has accumulated". Zero (or no sample keys) == bootstrap-empty."""
-    matched = [v for k, v in flat.items() if _SAMPLE_KEY_RE.search(k)]
+    """The max value among sample-shaped, integer-valued keys — the proxy for
+    "how much real history has accumulated". Zero (or no sample keys) ==
+    bootstrap-empty.
+
+    Integer-only is the discriminator that keeps ratio metrics out of the
+    count: a sample count is a whole number (12 trades, 6 audits), whereas
+    `voice_audit_accuracy_30d: 0.83` or `expectancy_r: 0.31` are ratios that
+    happen to share a keyword. Without this filter a fractional accuracy on a
+    zero-sample workspace could masquerade as a datapoint.
+    """
+    matched = [v for k, v in flat.items()
+               if _SAMPLE_KEY_RE.search(k) and float(v).is_integer()]
     return max(matched) if matched else 0.0
 
 
