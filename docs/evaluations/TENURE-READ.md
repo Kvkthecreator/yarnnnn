@@ -25,7 +25,7 @@ The instrument is **program-agnostic by construction** (ADR-188 + ADR-330): it r
 | Program | `substrate_abi.ground_truth` (the measurand) | Thesis the curve tests |
 |---|---|---|
 | **alpha-trader** | `operation/trading/_money_truth.md` (realized P&L + per-signal expectancy) | *Does expectancy improve, and do dead signals get retired on the evidence, over tenure?* |
-| **yarnnn-author** | `operation/authored/_voice.md` (voice-fingerprint + anti-slop floor) | *Does voice-adherence hold and the corpus cohere across pieces, over tenure?* |
+| **yarnnn-author** | `operation/authored/_signal.md` (corpus-coherence rollup: audit accuracy + voice-flag rate + ship cadence — the bundle's `substrate_abi.ground_truth`) | *Does audit accuracy hold, voice cohere, and cadence stay honored across pieces, over tenure?* |
 | **generic / bare-kernel** | *(none — no program ground truth)* | *Does an un-mandated judgment seat stay coherent + non-confabulating across tenure?* See §5. |
 
 Everything below the ground-truth read is **shared across all programs** (persona substrate is kernel-universal: `/workspace/persona/{judgment_log,standing_intent,principles,calibration}.md`). Only Read 1's path and the thesis change per program. That is the whole parameterization — one binding, not a fork.
@@ -65,6 +65,8 @@ WHERE user_id = '<soak-user-id>' AND path = '<GROUND_TRUTH path>';
 ```
 
 **Write** (prose, with receipts): *Has the measurand accumulated? For trader: how many reconciled trades, what's the by-signal expectancy trajectory, did any signal cross a decay threshold? For author: voice-adherence trend across audited pieces. The honest gate: if the file is still bootstrap-empty (1 revision, zero samples), say so — there is no curve yet, only a primed-to-accumulate state. A bootstrap-empty ground truth means this read is INCONCLUSIVE-on-improvement (survival can still be SURVIVING).*
+
+> **Mechanized (2026-06-16).** The curve-extraction half of this read — walking the revision chain, parsing each revision's frontmatter, and rendering the numeric trajectory — is the demand-pull "curve view" LONGITUDINAL-TRACKING §4 named as not-yet-existing. It now exists: `api/scripts/operator/tenure_curve.py --persona <slug>` (or `--user-id`) reuses the canonical `bundle_reader.get_ground_truth_for_workspace` resolver + `authored_substrate.list_revisions`/`read_revision`, flattens each revision's frontmatter to its numeric leaves (program-agnostic — no field hardcoded), and emits this scaffold deploy-marker-stamped. It **renders, it does not classify** — the only verdict it computes is the deterministic ledger-state fact (`BOOTSTRAP-EMPTY → INCONCLUSIVE-on-improvement` when sample count is 0, which this paragraph already instructs you to state); the `SURVIVING + COHERENT` vs `IMPROVING` judgment stays the human's, written into the §3 entry. **Scope is Read 1 only** — Reads 2 + 3 stay manual forensic prose (they are not tabular). Pure-core fixture gate: `api/test_tenure_curve.py` (24/24); the DB layer needs Supabase reach (run where the harness runs).
 
 ### Read 2 — The self-amendment trail (did the agent OWN its rules over tenure?)
 
@@ -144,19 +146,19 @@ The shape (3 reads, revision-chain + events + prose) is identical across program
 
 | | **alpha-trader** | **yarnnn-author** | **generic / bare-kernel** |
 |---|---|---|---|
-| Read 1 ground-truth | `_money_truth.md` expectancy curve | `_voice.md` adherence + corpus coherence | *(none — §5 intent-coherence is the whole read)* |
+| Read 1 ground-truth | `_money_truth.md` expectancy curve | `_signal.md` corpus-coherence rollup (audit accuracy + voice-flag rate + cadence) | *(none — §5 intent-coherence is the whole read)* |
 | Read 2 self-amendment canon | `_operator_profile.md` signals + `_recurrences.yaml` cadence | `_voice.md` voice rules + audit cadence | `principles.md` only (no domain canon to amend) |
 | Read 3 intent | trade-readiness forward plan | next-piece + drift-watch plan | honest-absence + memory-accumulation plan |
 | `IMPROVING` means | expectancy bends up, dead signals retired | voice holds, corpus coheres, drift caught | *(N/A — see §5: the bar is COHERENT, not IMPROVING)* |
 | Improvement cadence | days-to-a-week (signal-gated) | per-piece (faster) | continuous (every addressed wake) |
 
-The author soak (`richness-soak-yarnnn-author`) inherits this instrument with `_voice.md` as ground truth, when it stands up. The generic soak is §5.
+The author soak (`richness-soak-yarnnn-author`) inherits this instrument with `_signal.md` as ground truth (the bundle's `substrate_abi.ground_truth`), when it stands up. The generic soak is §5.
 
 ---
 
 ## §5 The generic / bare-kernel workspace tenure thesis (the hardest, most honest read)
 
-A non-program default workspace has **no `_money_truth.md`, no `_voice.md`** — no domain ground truth to improve against. Its tenure thesis is the kernel-universal floor every program inherits, and it is the ADR-314 standby posture read *longitudinally* (the episodic side is flagged MISSING in the 2026-06-04 catch-up audit §3.2):
+A non-program default workspace has **no `_money_truth.md`, no `_signal.md`** — no domain ground truth to improve against. Its tenure thesis is the kernel-universal floor every program inherits, and it is the ADR-314 standby posture read *longitudinally* (the episodic side is flagged MISSING in the 2026-06-04 catch-up audit §3.2):
 
 > **A judgment seat installed in a workspace with no declared mandate reasons HONESTLY about the absence of primary intent, accumulates COHERENT memory across wakes, and NEVER confabulates a primary action that doesn't exist — and this holds across tenure, not just on the first wake.**
 
@@ -179,7 +181,7 @@ The three reads adapt:
 ## §6 Relationship to the rest of the eval canon
 
 - **Companion to** `longitudinal-soak-*/SURVIVAL-QUERIES.md` — same soak, same deploy-marker discipline; SURVIVAL is the MACHINE axis, TENURE-READ is the MIND axis. Survival gates quality.
-- **Closes** LONGITUDINAL-TRACKING §4 ("the curve view does not exist yet") + §6 (the named gating gap) — as a **report over retained substrate**, not a kernel mirror (§5 rule 4 demand-pull preserved; promote to a built curve-view only if the ad-hoc query proves insufficient across real reads).
+- **Closes** LONGITUDINAL-TRACKING §4 ("the curve view does not exist yet") + §6 (the named gating gap) — as a **report over retained substrate**, not a kernel mirror (§5 rule 4 demand-pull preserved). The Read-1 curve view crossed the demand-pull threshold 2026-06-16 (the named gap + the 2026-06-10 painful hand-fetch §0 records) and is now a built Hat-B script (`tenure_curve.py`); Reads 2 + 3 stay ad-hoc query + prose until they prove insufficient. The script is a renderer over retained substrate, NOT a kernel mirror — no new instrumentation, no schema, no LLM-as-judge.
 - **Reuses** EVAL-ARCHITECTURE §2.B (forensic thesis read, not rubric) + README substrate-receipt discipline (every claim carries a revision_id / execution_event id / reproducible query) + the criterion-declaration discipline (the thesis is the criterion, stated before the read).
 - **Sibling to** the episodic Suite-B suites — they are this instrument's pre-flight gate (gate before tenure).
 - **Parameterized by** the bundle `substrate_abi.ground_truth` declaration (ADR-188 agnosticism + ADR-330 ground-truth-as-kernel-slot) — one binding per program, no fork.
