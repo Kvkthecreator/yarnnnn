@@ -178,6 +178,19 @@ Substrate receipt (`platform_connections`, queried 2026-06-18 via the ACCESS.md 
 
 ---
 
+## 9. Open Question A resolved (2026-06-18) — connection vs watch fork closed
+
+The amendment's deferred Open Question A (*should "connect a platform" become a special case of "declare a watch"?*) was reasoned to closure this session. **Verdict: NO — structurally, not pragmatically.** Receipt-grade reasoning (ADR-343 read directly):
+
+- A **watch is a declaration** in the *aperture* (ADR-343 §31, verbatim: *"the perception field's watch portfolio per ADR-335 **is** an aperture — the selection surface of what the operation perceives"*). Judgment-layer; carries intent + cadence + `distills_to`.
+- A **connection is a transport**, below the *"declaration sovereign over transport"* boundary (ADR-343 §47); transport-blind to judgment (ADR-335 §6). Carries only `url` + `auth` + `attestation_grade`.
+- They sit on **opposite sides of the one boundary the kernel enforces three ways** (ADR-335 §6 transport-blindness, ADR-307 gate, ADR-320 topology). A watch *consumes* a connection (D5: *declare a watch → resolve a transport*; the connection is step 2's output); it is not *made of* one. "Connection = special case of watch" **inverts the dependency** and would collapse the boundary that licenses transport-blind judgment.
+- They unify only **compositionally**: shared derived-tier gate (§5) + shared aperture roof (watches *are* apertures, connections *feed* them). `aperture selects → transport serves → gate licenses`. Two layers of one stack.
+
+Full resolution text: [ADR-335 amendment §E.A](../adr/ADR-335-AMENDMENT-derived-trust-tier.md). The two binding shapes (§7b Q4) are confirmed **permanent and correct**, not transitional. Surviving adjacent (separate) thread: whether *orphan* capability bindings should be deprecated (connections only in service of a declared watch) — a watch-first tightening, distinct from this fork, left open.
+
+---
+
 ## Cross-links
 
 - [ADR-335 Perception Field](../adr/ADR-335-perception-field.md) — §6 transport-blind judgment, §7 D4 (amend target), §8 D5 watch-first, §12 staging, §13 implementation (binding storage, amend target).

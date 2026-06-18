@@ -3,7 +3,7 @@
 **Date:** 2026-06-18
 **Status:** **Draft amendment — awaiting operator ratification.** Does not land in ADR-335 or FOUNDATIONS until ratified (the ADR-335 Stage-C fence still applies to Crawl-B; this amendment is a *framing correction* to the ratified Crawl-A canon, scoped to the not-yet-built D4 client).
 **Hat:** A (System Editor) — this edits canon. Authored from the Hat-B finding [`2026-06-18-head-tail-split-consequence-radius-FINDING.md`](../evaluations/2026-06-18-head-tail-split-consequence-radius-FINDING.md) (Discipline rule 5: an evaluation that contradicts an ADR's claim is followed by an amendment).
-**Amends:** ADR-335 §7 (D4 head/tail split) + §13/§14 (binding storage) + §15 (open question #3) + a new §7b (existing connections).
+**Amends:** ADR-335 §7 (D4 head/tail split) + §13/§14 (binding storage) + §15 (open question #3) + a new §7b (existing connections). **Closes** the connection-vs-watch fork (§E.A, resolved 2026-06-18: NO — they are opposite sides of the declaration/transport boundary, compositional not reductive).
 **Does NOT change:** the Crawl-A implementation already shipped (D2 watches slot, D3 observation contract, D8 axiom-text, D9 conformance gate). Those are untouched. This amends only the *not-yet-built* D4 client's framing + storage model.
 
 ---
@@ -136,7 +136,22 @@ One additive migration, no data reshaping, no downtime:
 
 ## E. Open questions this amendment leaves (deliberately)
 
-- **A. Unify "connect a platform" into "declare a watch"?** (from Q4) Should ADR-207 capability-unlock become a special case of ADR-335 D5 watch-declaration, collapsing the two binding shapes into one? Plausible, attractive for conceptual unity, but a real ADR with real migration weight (every existing connection would re-home into a watch). **Out of scope; named for a deliberate later decision.**
+- **A. Unify "connect a platform" into "declare a watch"? — RESOLVED 2026-06-18: NO, structurally (not pragmatically). Fork closed.**
+
+  The original question — should ADR-207 capability-unlock become a *special case* of ADR-335 D5 watch-declaration, collapsing the two binding shapes into one? — was reasoned to closure against ADR-343 (aperture) + the declaration/transport boundary the kernel already enforces three ways (ADR-335 §6 transport-blindness, ADR-307 gate, ADR-320 topology).
+
+  **The two are not unifiable because they sit on opposite sides of that boundary:**
+  - A **watch is a declaration** — aperture-resident (ADR-343 §31: *"the perception field's watch portfolio per ADR-335 **is** an aperture — the selection surface of what the operation perceives"*). It carries intent + cadence + a `distills_to` target. It lives in the **judgment layer**.
+  - A **connection is a transport** — below the *"declaration sovereign over transport"* boundary (ADR-343 §47). It carries only `url` + `auth` + `attestation_grade`. It is **transport-blind to judgment** (ADR-335 §6).
+
+  **The dependency runs one direction only: a watch *consumes* a connection; it is not *made of* one.** D5's flow is literally *"declare a watch → resolve a transport"* — the connection is the *output of step 2*, the resolved transport. Making a connection "a kind of watch" inverts this dependency and would collapse the very boundary that licenses transport-blind judgment. You cannot express "connect Slack" as a watch without inventing an incoherent one (*watch nothing, on no cadence, distilling nowhere*) — the watch contract (D3: `watch_id`, `source_ref`, cadence, `distills_to`) has required fields a bare capacity cannot fill. A connection is a **noun** (an available wire); a watch is a **verb** (a standing act of perception). Different kinds.
+
+  **What *does* unify — compositionally, not reductively:** (1) the **derived-tier gate** (§A/§B of this amendment) is shared — it licenses which transport may serve which read's flow-role, blind to whether the binding arose from capability-unlock or watch-resolution; (2) the **aperture concept** (ADR-343) is the judgment-layer roof — watches *are* apertures, and connections *feed* apertures. The relationship is `aperture (watches, declared) selects → transport (connections, attested) serves → derived-tier gate licenses`. Two layers of one stack, not two altitudes of one thing and not two unrelated mechanisms.
+
+  **Consequence:** the two binding shapes from §7b Q4 (capability binding, `watch_id` NULL, connection-scoped; watch binding, `watch_id` set, watch-scoped) **coexist permanently and correctly** — they are the transport-layer footprints of two distinct declaration-layer acts (ADR-207 *connect* vs ADR-335 *declare-a-watch*). Not a wart; a boundary. The `watch_id`-nullable column (§C/§14) is the *correct* model, not a transitional one.
+
+  **Surviving adjacent thread (NOT this fork, named for separate deliberation):** *should bare capability bindings (orphan connections with no declared watch) eventually be deprecated, so a connection only ever exists in service of a declared watch?* This is a constraint on *when a connection may exist*, not a collapse of the two shapes — a real tightening of the watch-first discipline (D5) onto the capability surface, with its own migration weight. Distinct from Question A; deliberately left open.
+
 - **B. Foreign-call metering as a Crawl-B precondition** (from the finding §8.3) — an unmetered mechanical executor calling arbitrary `OPEN`-grade servers scales the cost surface with the openness D4 sells. The grade does not bound *cost*, only *trust*. Metering must land with the client, not after. **Restated here as binding on the Crawl-B commit.**
 - **C. The ADR-076 server-auth-shape ghost** (finding §7) — the premise "the things ADR-076 retreated from no longer exist" is reasoned from protocol maturity, not a real server bound end-to-end. **Crawl-B increment 1 (bind one real OAuth-2.1 server, GitHub-via-MCP recommended) is the receipt that discharges it.** The empirical gate ADR-335 §12 places on Walk should be pulled forward to *also* gate Crawl-B's first binding.
 
