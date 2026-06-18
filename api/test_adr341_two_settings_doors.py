@@ -54,21 +54,29 @@ def test_two_container_surfaces() -> None:
     check("workspace-settings is window-grade (no pane_of)", not by_slug["workspace-settings"].get("pane_of"))
 
 
-def test_configure_tier_holds_both_doors() -> None:
-    print("\n[tier] the `configure` tier holds both doors; `system` retired (D3)")
+def test_two_settings_tiers() -> None:
+    print("\n[tier] two separate Settings groups, Operation above System (D3)")
     from services.kernel_surfaces import KERNEL_SURFACES
 
     tiers = {e["slug"]: e.get("launcher_tier") for e in KERNEL_SURFACES if e.get("route")}
     check(
-        "configure tier == {settings, workspace-settings}",
-        {s for s, t in tiers.items() if t == "configure"} == {"settings", "workspace-settings"},
-        str({s: t for s, t in tiers.items() if t in ("configure", "system")}),
+        "workspace-settings → workspace-config tier",
+        tiers.get("workspace-settings") == "workspace-config",
+        str({s: t for s, t in tiers.items() if "config" in str(t) or t == "system"}),
     )
-    check("system tier retired (no members)", not any(t == "system" for t in tiers.values()))
-    # Launcher renders a Configure group.
+    check("settings → system-config tier", tiers.get("settings") == "system-config")
+    check("legacy single-member `system` tier retired", not any(t == "system" for t in tiers.values()))
+    check("the old `configure` lump retired", not any(t == "configure" for t in tiers.values()))
+    # Launcher renders two separate groups, Operation ordered above System.
     launcher = _read("components/shell/Launcher.tsx")
-    check("Launcher KERNEL_TIER_GROUPS has Configure", "'Configure'" in launcher and "tier: 'configure'" in launcher)
-    check("Launcher no longer groups a System tier", "tier: 'system'" not in launcher)
+    check("Launcher group: Operation (workspace-config)",
+          "label: 'Operation'" in launcher and "tier: 'workspace-config'" in launcher)
+    check("Launcher group: System (system-config)",
+          "label: 'System'" in launcher and "tier: 'system-config'" in launcher)
+    check(
+        "Operation group ordered above System group",
+        launcher.index("tier: 'workspace-config'") < launcher.index("tier: 'system-config'"),
+    )
 
 
 def test_pane_homing() -> None:
@@ -136,7 +144,7 @@ def test_constitution_band_preserved() -> None:
 
 if __name__ == "__main__":
     test_two_container_surfaces()
-    test_configure_tier_holds_both_doors()
+    test_two_settings_tiers()
     test_pane_homing()
     test_registers_unchanged()
     test_shared_shell_singular_impl()

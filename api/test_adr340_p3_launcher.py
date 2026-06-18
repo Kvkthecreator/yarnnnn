@@ -50,13 +50,19 @@ def test_registry_tiers() -> None:
         "primary == the standing loop (home/feed/queue/files)",
         {s for s, t in tiers.items() if t == "primary"} == {"home", "feed", "queue", "files"},
     )
-    # ADR-341: the `system` single-member tier is retired; both Settings
-    # doors live in the `configure` tier (the OS vs the operation).
+    # ADR-341: the two Settings doors are SEPARATE tier groups —
+    # workspace-config (Operation) above system-config (System). The old
+    # single `system` / `configure` lumps are retired.
     check(
-        "configure == the two Settings doors (settings + workspace-settings)",
-        {s for s, t in tiers.items() if t == "configure"} == {"settings", "workspace-settings"},
+        "workspace-config == {workspace-settings}",
+        {s for s, t in tiers.items() if t == "workspace-config"} == {"workspace-settings"},
     )
-    check("system tier retired (no members)", {s for s, t in tiers.items() if t == "system"} == set())
+    check(
+        "system-config == {settings}",
+        {s for s, t in tiers.items() if t == "system-config"} == {"settings"},
+    )
+    check("legacy system + configure tiers retired",
+          not any(t in ("system", "configure") for t in tiers.values()))
     check(
         "utilities == setup/recurrence/agents (activity folded to a recurrence pane, ADR-340 D8)",
         {s for s, t in tiers.items() if t == "utilities"} == {"setup", "recurrence", "agents"},
@@ -74,10 +80,12 @@ def test_registry_tiers() -> None:
 def test_launcher_two_modes() -> None:
     print("\n[launcher] act-tier groups at rest; flat when searching")
     src = _read("components/shell/Launcher.tsx")
-    # ADR-341: the at-rest tier groups are Workspace / Configure / Utilities
-    # ("System" single-door tier retired; "Configure" holds both doors).
-    check("KERNEL_TIER_GROUPS declared (Workspace/Configure/Utilities)",
-          "'Workspace'" in src and "'Configure'" in src and "'Utilities'" in src and "KERNEL_TIER_GROUPS" in src)
+    # ADR-341: at-rest groups are Workspace / Operation / System / Utilities
+    # (the two Settings doors are separate labeled groups, Operation above
+    # System).
+    check("KERNEL_TIER_GROUPS declared (Workspace/Operation/System/Utilities)",
+          "'Workspace'" in src and "'Operation'" in src and "'System'" in src
+          and "'Utilities'" in src and "KERNEL_TIER_GROUPS" in src)
     check("search-only hidden at rest", "search-only" in src and "return null" in src)
     check("flat list when searching (Spotlight role)", "isSearching" in src)
     check("pane rows labeled as Settings panes in search", "Settings pane" in src)

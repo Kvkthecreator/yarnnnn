@@ -124,14 +124,17 @@ ARCHETYPES = (
 # Move A's register grouping is superseded by this tier model):
 #   - "primary"     — the loop: Home (dwell) · Feed (read) · Queue (decide)
 #                     · Files (artifacts). Foregrounded at rest.
-#   - "configure"   — the two Settings doors (ADR-341): System Settings (the
-#                     OS governing the agent — Governance + account) and
-#                     Workspace Settings (this operation — Constitution +
-#                     Operation + Perception). Panes fold inside each per
-#                     `pane_of`. Supersedes ADR-340 P3's single-member
-#                     "system" tier — two objects (the OS vs the operation,
-#                     the ADR-320 governance/ vs constitution/+operation/
-#                     root split), two doors.
+#   - "workspace-config" — Workspace Settings (this operation: Constitution
+#                     + Operation + Perception). Its own launcher group
+#                     "Operation", rendered ABOVE System (ADR-341).
+#   - "system-config" — System Settings (the OS governing the agent:
+#                     Governance + account). Its own launcher group
+#                     "System", below Operation. Panes fold inside each
+#                     door per `pane_of`. The two doors are separate groups
+#                     — two objects (the operation vs the OS, the ADR-320
+#                     constitution/+operation/ vs governance/ root split),
+#                     not one "Configure" lump (supersedes ADR-340 P3's
+#                     single-member "system" tier).
 #   - "utilities"   — present, searchable, de-prioritized: Setup, Recurrence,
 #                     Agents (the Activity-Monitor class; Activity folded to
 #                     a Recurrence pane per ADR-340 D8).
@@ -481,7 +484,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # remain as window-internal deep-link state per D19.4.
     {
         "slug": "settings",
-        "launcher_tier": "configure",  # ADR-341 (was "system", ADR-340 P3)
+        "launcher_tier": "system-config",  # ADR-341 — own group "System", below Operation
         "register": "os-config",  # ADR-312 D5 (was `settings`)
         "title": "System Settings",
         "archetype": "dashboard",
@@ -507,7 +510,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # read/manage; their first-class door stays the Home band per
         # ADR-312 D5), Operation (Program), Perception (Connectors, Sources).
         "slug": "workspace-settings",
-        "launcher_tier": "configure",  # ADR-341 — the operation-config door
+        "launcher_tier": "workspace-config",  # ADR-341 — own group "Operation", above System
         "register": "application",  # a windowed app like `settings`
         "title": "Workspace Settings",
         "archetype": "dashboard",
