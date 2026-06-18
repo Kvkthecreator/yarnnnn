@@ -1,0 +1,33 @@
+# _expected_output.yaml — the operation's output contract (ADR-345).
+# Operator declares; the Reviewer reads + holds itself accountable (DP30);
+# the Reviewer never authors this (governance, like _budget.yaml).
+# The prose companion is constitution/MANDATE.md ## Expected Output —
+# keep the two in agreement.
+#
+# Orthogonal to _budget.yaml (Rhythm: how often the agent works) and
+# _autonomy.yaml (Witness dial: which orders you witness). This file is
+# WHAT the operation owes when it works.
+
+expected_output:
+  # KIND — the artifact this operation produces.
+  kind: trade
+
+  # DELIVERY-CADENCE — the rhythm of delivery, NOT a hard quota.
+  # `per-signal-when-fires`: the MARKET originates the trigger. The operation
+  # owes a trade when a declared signal fires within the rules, and owes ZERO
+  # when none fires. A fast Rhythm (waking every minute) with zero output is
+  # ON-CONTRACT, not a shortfall — this is the load-bearing case for why
+  # Expected Output is orthogonal to Rhythm. A genuine shortfall is STRUCTURAL
+  # (no live signal can fire — the standing-obligation §Dormancy-driven case in
+  # principles.md), never "the market was quiet."
+  delivery_cadence: per-signal-when-fires
+
+  # BAR — pointer to where the quality floor lives (NOT duplicated here).
+  # The floor is persona/principles.md (hard rejection rules + capital-EV) +
+  # operation/trading/_risk.md (sizing/stops/var/caps). Never relaxed to
+  # produce a trade.
+  bar: "principles.md hard rejection rules + capital-EV thresholds + _risk.md envelope"
+
+  # No rough_volume target — a systematic strategy's output is set by how often
+  # the market presents a valid signal, not by an operator volume goal. A volume
+  # quota here would be the exact Goodhart pressure the floor exists to resist.

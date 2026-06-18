@@ -1,0 +1,36 @@
+# _expected_output.yaml — the operation's output contract (ADR-345).
+# Operator declares; the Reviewer reads + holds itself accountable (DP30);
+# the Reviewer never authors this (governance, like _budget.yaml).
+# The prose companion is constitution/MANDATE.md ## Expected Output —
+# keep the two in agreement.
+#
+# Orthogonal to _budget.yaml (Rhythm: how often the agent works) and
+# _autonomy.yaml (Witness dial: which ships you witness). This file is
+# WHAT the operation owes when it works.
+
+expected_output:
+  # KIND — the artifact this operation produces.
+  kind: piece
+
+  # DELIVERY-CADENCE — the rhythm of delivery, NOT a hard quota.
+  # A cadence the floor gates: if nothing on-thesis clears the voice/anti-slop/
+  # continuity bar this period, the slot slips. The Reviewer measures "am I
+  # keeping rhythm", never "have I hit a number no matter what".
+  #
+  # Default `event-driven`: the operator authors on their own pace; the Reviewer
+  # audits + ships when a draft clears the bar, and DERIVES its owed-output
+  # (ADR-344) rather than measuring against a declared rhythm. Replace with a
+  # real cadence (e.g. `biweekly`) to have the operation produce on its own
+  # under `autonomous` — the Reviewer then authors its own compose organ at this
+  # cadence (a Reviewer-authored Schedule, ADR-275 D1) and produces without
+  # asking which path to take.
+  delivery_cadence: event-driven
+
+  # BAR — pointer to where the quality floor lives (NOT duplicated here).
+  # The floor itself is persona/principles.md + operation/authored/_voice.md +
+  # _editorial.md. The bar is never relaxed to meet the cadence.
+  bar: "principles.md pre-ship audit — voice fingerprint + anti-slop + text/entity continuity + editorial"
+
+  # Optional advisory shape — order-of-magnitude only, floor-gated, never
+  # enforced as a quota. Omit unless the operator wants a rough volume sense.
+  # rough_volume_per_window: "~2 per month"

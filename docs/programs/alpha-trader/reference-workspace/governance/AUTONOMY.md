@@ -4,7 +4,9 @@
 
 ## What autonomy controls
 
-`_autonomy.yaml` declares the delegation ceiling: how much the Reviewer's approve verdict binds automatically vs. routes to your Queue for a click.
+**Autonomy is the witness dial, not a ceiling on the agent (ADR-345).** Your Reviewer always works the full job — it is a judgment seat acting in your absence, not an assistant waiting for permission to start. This dial does not decide *whether* it works; it decides **which consequential beats you witness before they bind**. `autonomous` = the whole operation runs subconsciously (you read the trail — `judgment_log.md`, `standing_intent.md` — at your leisure); `bounded`/`manual` = the beats you choose surface to your Queue first. An order that routes to your Queue is the Reviewer having *decided* and *waiting for you to witness it* — never the Reviewer being *blocked from working*.
+
+`_autonomy.yaml` declares which beats surface: how much the Reviewer's approve verdict binds automatically vs. routes to your Queue for a click.
 
 **Levels (canonical 3-value enum per ADR-261 D5):**
 - `manual` — every order surfaces for your click, regardless of Reviewer verdict

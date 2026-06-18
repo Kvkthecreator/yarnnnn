@@ -60,6 +60,7 @@ from services.workspace_paths import (
     GOVERNANCE_AUTONOMY_PATH,
     GOVERNANCE_PREFERENCES_PATH,
     GOVERNANCE_BUDGET_PATH,
+    GOVERNANCE_EXPECTED_OUTPUT_PATH,
     SPECS_PREFIX,
     SYSTEM_SCHEDULE_INDEX_PATH,
     SYSTEM_RECENT_EXECUTION_PATH,
@@ -91,6 +92,14 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     # read returns empty (no _budget.yaml authored yet) the helper still
     # yields ("budget_yaml", "") so the ReviewerContext key is present.
     ("budget_yaml", GOVERNANCE_BUDGET_PATH),
+    # ADR-345: the operation's output contract (Expected Output) — what the
+    # workspace owes (kind + delivery-cadence + bar). Orthogonal to budget
+    # (Rhythm = rate of attention; Expected Output = the deliverable). The
+    # standing-obligation check (DP30) reads it declared-then-derive: when
+    # present it is the shared referent for "behind on the contract"; when
+    # empty the ADR-344 derivation is the fallback. Empty string keeps the
+    # ReviewerContext key present (same shape as budget_yaml).
+    ("expected_output_yaml", GOVERNANCE_EXPECTED_OUTPUT_PATH),
     # — Seat Occupant (ADR-284) — current occupant identity, runtime-truth-aligned
     ("occupant_md", PERSONA_OCCUPANT_PATH),
     # — Standing Intent (ADR-284) — what the Reviewer was watching for last cycle.

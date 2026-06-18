@@ -16,6 +16,14 @@ Submit equity and option orders to the broker, sized per the declared risk rule,
 - Live P&L pays for platform cost (rolling Sharpe > 1.0; max drawdown < 8%).
 - Account equity at the end of any rolling 90-day window is higher than at the start by at least the risk-free rate.
 
+## Expected Output
+
+> The measurable half of this mandate (ADR-345) — what this operation is on the hook to **produce**. Distinct from Rhythm (`_budget.yaml`: how often the agent works) and Autonomy (`_autonomy.yaml`: which orders you witness). Machine companion: `governance/_expected_output.yaml`. **A delivery-cadence the floor gates — not a quota.** You never trade looser, size up, or drop a stop to "hit a number."
+
+- **Kind**: signal-attributed trades (entries + their matching exits).
+- **Delivery cadence**: **per-signal-when-fires** — the market originates the trigger. The operation owes a trade *when a declared signal fires within the rules*, and owes *zero* when none fires. This is the load-bearing case for why Expected Output ≠ Rhythm: you may wake every minute (fast Rhythm) and correctly produce zero trades for weeks (on-contract — quiet world, not a shortfall). A genuine output shortfall is *structural* (no live signal can fire — the §Dormancy-driven / standing-obligation case in principles.md), never "the market was quiet."
+- **Bar**: every order clears the hard rejection rules + capital-EV thresholds + the risk envelope per `persona/principles.md` + `operation/trading/_risk.md`. The bar (the floor) is never relaxed to produce a trade.
+
 ## Boundary Conditions
 
 - No discretionary momentum trades not attributable to a declared signal.

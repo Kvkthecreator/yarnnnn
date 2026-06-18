@@ -668,9 +668,22 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
     # ground truth says the work is, within the declared envelope.
     if ctx.get("budget_yaml"):
         parts += [
-            "## _budget.yaml — Operator's spend envelope (allocate wakes within it)",
+            "## _budget.yaml — Operator's spend envelope (Rhythm: allocate wakes within it)",
             "",
             ctx["budget_yaml"],
+            "",
+        ]
+    # ADR-345: the output contract — what this operation OWES (kind +
+    # delivery-cadence + bar). Orthogonal to budget (Rhythm = how often you
+    # work; Expected Output = what you owe when you do). Read it as the
+    # declared referent for the standing-obligation check (DP30): is actual
+    # output keeping the declared contract? When absent, derive owed-output
+    # per ADR-344. A delivery-cadence is floor-gated — never a quota to hit.
+    if ctx.get("expected_output_yaml"):
+        parts += [
+            "## _expected_output.yaml — Operator's output contract (what you owe; a floor-gated cadence, NOT a quota)",
+            "",
+            ctx["expected_output_yaml"],
             "",
         ]
     # ADR-284 (2026-05-17): seat-occupant declaration + standing intent are

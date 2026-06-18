@@ -83,6 +83,11 @@ GOVERNANCE_BUDGET_PATH = "governance/_budget.yaml"
 # Operator's deliverable-cadence preferences (ADR-275). Reviewer reads + reconciles
 # via Schedule; operator owns the content.
 GOVERNANCE_PREFERENCES_PATH = "governance/_preferences.yaml"
+# The operation's output contract (ADR-345) — what the workspace owes:
+# kind + delivery-cadence + bar. The machine face of MANDATE ## Expected Output.
+# Governance: operator-declared, Reviewer reads-not-authors (sibling to _budget.yaml).
+# The standing-obligation check (DP30) reads it declared-then-derive (ADR-344 fallback).
+GOVERNANCE_EXPECTED_OUTPUT_PATH = "governance/_expected_output.yaml"
 
 
 # =============================================================================

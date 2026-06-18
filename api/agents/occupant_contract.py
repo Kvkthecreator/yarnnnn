@@ -143,6 +143,13 @@ class ReviewerContext(TypedDict, total=False):
     # Pre-loaded so the Reviewer reasons about wake allocation within the
     # operator's declared envelope (the self-improving loop, ADR-327 D6).
     budget_yaml: str
+    # ADR-345 — the operation's output contract (Expected Output): what the
+    # workspace owes (kind + delivery-cadence + bar). Orthogonal to budget
+    # (Rhythm = how often the agent works; Expected Output = what it owes when
+    # it does). The machine face of MANDATE ## Expected Output. The standing-
+    # obligation check (DP30) reads it declared-then-derive (ADR-344 fallback).
+    # Empty string when no _expected_output.yaml is authored (key always present).
+    expected_output_yaml: str
     # ADR-284: seat occupant + standing intent. The canonical envelope helper
     # populates both via `_UNIVERSAL_ENVELOPE_DECLS`; the renderer at
     # `_build_user_message` reads them via `ctx.get(...)`. Declaring them

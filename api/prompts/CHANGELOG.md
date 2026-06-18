@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.19.1] - ADR-345: Expected Output in the wake envelope + autonomy-as-witness reframe
+
+**LLM-facing changes:**
+
+- **New envelope input** (`reviewer_envelope.py` + `reviewer_agent.py::_build_user_message`):
+  `_expected_output.yaml` (the operation's output contract — kind + delivery-
+  cadence + bar) joins the wake envelope as `expected_output_yaml`, rendered
+  under "## _expected_output.yaml — Operator's output contract (what you owe; a
+  floor-gated cadence, NOT a quota)". The standing-obligation check (DP30/ADR-344)
+  now reads the *declared* contract first; derivation is the fallback when absent.
+  Empty string when no sidecar authored (key always present, like budget_yaml).
+- **Concept separation surfaced to the Reviewer**: the `_budget.yaml` header line
+  relabeled "Rhythm: allocate wakes within it" to mark it as the rate-of-attention
+  dial, explicitly orthogonal to Expected Output (what it owes). A fast Rhythm with
+  zero output is on-contract (a trader between signals); the two never derive.
+- **Autonomy-as-witness reframe** (bundle `AUTONOMY.md` prose — read by the
+  Reviewer + operator): "What autonomy controls" flipped from "delegation ceiling"
+  → "the witness dial." The agent always works the full job; the dial decides which
+  consequential beats surface before they bind. QUEUE = decided-and-waiting-for-
+  witness, never blocked. No code change (the gate already behaves this way).
+- **Expected behavior**: a Reviewer on a workspace with a declared Expected Output
+  reasons "am I keeping the declared contract?" against a shared referent (not a
+  derived guess), and under `autonomous` authors its own production organ at the
+  declared cadence rather than Clarifying "what should I produce?" (a Clarify there
+  is now a missing-contract symptom).
+- Canon: GLOSSARY v2.8 (Rhythm · Expected Output · Witness dial) + ADR-345.
+
 ## [2026.06.18.3] - ADR-344: the standing obligation — wake-time operability self-check
 
 **LLM-facing change** (Reviewer persona-frame, `reviewer_agent.py::_compute_minimal_frame`):
