@@ -1,27 +1,15 @@
-'use client';
-
 /**
- * /identity — atomic Identity + Brand surface (ADR-297 D1).
+ * /identity → /workspace-settings?pane=identity redirect stub.
  *
- * Renders /workspace/persona/IDENTITY.md + BRAND.md via the
- * kernel-library IdentityBrandCard (full variant; self-fetches per ADR-266
- * D8). Per ADR-297 D1's surface table, Identity and Brand are nominally
- * separate atomic concepts, but the existing card co-renders them — the
- * /identity surface serves both and /brand redirects here as a sibling
- * for now. Splitting is a follow-on if operator demand surfaces.
+ * ADR-341 (2026-06-18): Identity (+ Brand, co-rendered) is a Constitution
+ * pane inside Workspace Settings (read/manage via IdentityBrandCard full
+ * variant). Its FIRST-CLASS door stays the Home constitution band
+ * (ADR-312 D5). /brand also redirects here (sibling). Pure server
+ * transport per ADR-308.
  */
 
-import { SurfacePage } from '@/components/shell/SurfacePage';
-import { IdentityBrandCard } from '@/components/workspace-concepts/IdentityBrandCard';
+import { redirect } from 'next/navigation';
 
-export default function IdentityPage() {
-  return (
-    <SurfacePage
-      iconKey="user-circle"
-      title="Identity & Brand"
-      summary="Operator persona and brand voice. Edit via chat."
-    >
-      <IdentityBrandCard variant="full" />
-    </SurfacePage>
-  );
+export default function IdentityRedirect() {
+  redirect('/workspace-settings?pane=identity');
 }

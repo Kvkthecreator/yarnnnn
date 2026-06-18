@@ -80,7 +80,9 @@ def _fe_registry_slugs() -> set[str]:
     m = re.search(r"KERNEL_SURFACE_REGISTRY.*?=.*?\{(.*?)\n\};", reg, re.DOTALL)
     if not m:
         return set()
-    return set(re.findall(r"^\s*([a-z-]+):", m.group(1), re.MULTILINE))
+    # ADR-341: hyphenated slugs (workspace-settings) require a quoted key in
+    # JS; match both bare (`feed:`) and quoted (`'workspace-settings':`) keys.
+    return set(re.findall(r"^\s*'?([a-z-]+)'?:", m.group(1), re.MULTILINE))
 
 
 def _backend_pane_slugs() -> set[str]:
@@ -125,8 +127,15 @@ def test_three_way_parity() -> None:
         f"pane slugs with window components: {sorted(reg & panes)}",
     )
     check(
-        "pane set is exactly the ADR-340 D4 fold",
-        panes == {"budget", "autonomy", "program", "connectors", "sources"},
+        "pane set is the ADR-341 two-door fold + ADR-340 D8 activity",
+        panes == {
+            # System Settings (Governance) — ADR-341
+            "budget", "autonomy",
+            # Workspace Settings (Operation/Perception/Constitution) — ADR-341
+            "program", "connectors", "sources", "mandate", "identity", "principles",
+            # Recurrence (Machinery) — ADR-340 D8
+            "activity",
+        },
         f"panes={sorted(panes)}",
     )
 

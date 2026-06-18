@@ -1,24 +1,14 @@
-'use client';
-
 /**
- * /principles — atomic Principles surface (ADR-297 D1).
+ * /principles → /workspace-settings?pane=principles redirect stub.
  *
- * Renders /workspace/persona/principles.md + /workspace/persona/_principles.yaml
- * via the kernel-library PrinciplesCard (full variant; self-fetches per
- * ADR-266 D8). Principles are the Reviewer's judgment framework.
+ * ADR-341 (2026-06-18): Principles is a Constitution pane inside Workspace
+ * Settings (read/manage via PrinciplesCard full variant). Its FIRST-CLASS
+ * door stays the Home constitution band (ADR-312 D5). Pure server
+ * transport per ADR-308.
  */
 
-import { SurfacePage } from '@/components/shell/SurfacePage';
-import { PrinciplesCard } from '@/components/workspace-concepts/PrinciplesCard';
+import { redirect } from 'next/navigation';
 
-export default function PrinciplesPage() {
-  return (
-    <SurfacePage
-      iconKey="scale"
-      title="Principles"
-      summary="The Reviewer's judgment framework and decision thresholds. Edit via chat."
-    >
-      <PrinciplesCard variant="full" />
-    </SurfacePage>
-  );
+export default function PrinciplesRedirect() {
+  redirect('/workspace-settings?pane=principles');
 }

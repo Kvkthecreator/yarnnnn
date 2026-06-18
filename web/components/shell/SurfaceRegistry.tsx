@@ -27,11 +27,21 @@ import RecurrencePage from '@/app/(authenticated)/recurrence/page';
 // ADR-327: /pace retired from the surface registry — it is now a route-level
 // redirect stub (app/(authenticated)/pace/page.tsx → /budget) handled by Next
 // file routing, not a mounted kernel surface.
-import MandatePage from '@/app/(authenticated)/mandate/page';
-import PrinciplesPage from '@/app/(authenticated)/principles/page';
-import IdentityPage from '@/app/(authenticated)/identity/page';
+// ADR-341 (2026-06-18) — the constitution surfaces (mandate/principles/
+// identity) become PANE-GRADE under Workspace Settings (registry
+// `pane_of: "workspace-settings"`): their *Card full variants render as
+// Constitution panes inside WorkspaceSettingsPage. No window component —
+// their slugs resolve to `undefined` here, foregroundSurface(slug) →
+// workspace-settings + ?pane=, and /mandate //principles //identity are
+// ADR-308 redirect stubs. Their FIRST-CLASS door stays the Home
+// constitution band (ADR-312 D5) — HomeHeader consumes the cards
+// directly, independent of these (now-deleted) page routes.
 import QueuePage from '@/app/(authenticated)/queue/page';
-import ActivityPage from '@/app/(authenticated)/activity/page';
+// ADR-340 D8 (2026-06-18) — Machinery consolidation. Activity is PANE-GRADE
+// under Recurrence (registry `pane_of: "recurrence"`): the Runs lens rendered
+// inside RecurrencePage (shared ActivityLog body). No window component — the
+// slug resolves to `undefined` here, foregroundSurface('activity') → recurrence
+// + ?pane=activity, and /activity is an ADR-308 redirect stub.
 import AgentsPage from '@/app/(authenticated)/agents/page';
 import FilesPage from '@/app/(authenticated)/files/page';
 // ADR-331 D1: the guided first-boot Sequence surface. Built as a page +
@@ -49,6 +59,7 @@ import SetupPage from '@/app/(authenticated)/setup/page';
 // foregroundSurface(pane-slug) → settings + ?pane=, and their old
 // routes are ADR-308 redirect stubs.
 import SettingsPage from '@/app/(authenticated)/settings/page';
+import WorkspaceSettingsPage from '@/app/(authenticated)/workspace-settings/page';  // ADR-341 — the second Settings door
 
 export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, ComponentType>> = {
   feed: FeedPage,
@@ -57,15 +68,15 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone
   // surface — the Identity surface (IdentityBrandCard) co-renders it.
   // /brand is a server redirect → /identity (ADR-308).
-  mandate: MandatePage,
-  principles: PrinciplesPage,
-  identity: IdentityPage,
+  // ADR-341 (2026-06-18): mandate/principles/identity are pane-grade under
+  // workspace-settings; no window component (resolve to undefined here).
   queue: QueuePage,
-  activity: ActivityPage,
+  // ADR-340 D8 — `activity` is pane-grade under recurrence; no window component.
   agents: AgentsPage,
   files: FilesPage,
   setup: SetupPage,  // ADR-331 D1 — guided first-boot Sequence
-  settings: SettingsPage,  // ADR-340 P2 — System Settings, the one os-config door
+  settings: SettingsPage,  // ADR-341 — System Settings, the OS-governance door
+  'workspace-settings': WorkspaceSettingsPage,  // ADR-341 — the operation-config door
 };
 
 export function resolveSurfaceComponent(slug: KernelSurfaceSlug): ComponentType | undefined {

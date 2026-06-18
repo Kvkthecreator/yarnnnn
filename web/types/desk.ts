@@ -39,6 +39,7 @@ export type KernelSurfaceSlug =
   | 'queue'
   | 'activity'
   | 'settings'
+  | 'workspace-settings'  // ADR-341 — the second Settings door (the operation)
   | 'connectors'
   | 'sources';  // ADR-338 D4.1 — standing-watch drivers view
 
@@ -67,7 +68,7 @@ export type DeskSurface =
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   'feed', 'home', 'recurrence', 'budget', 'autonomy', 'mandate', 'principles',
   'identity', 'files', 'agents', 'setup', 'program', 'queue', 'activity',
-  'settings', 'connectors', 'sources',
+  'settings', 'workspace-settings', 'connectors', 'sources',
 ] as const;
 
 export function isKernelSurfaceSlug(s: string): s is KernelSurfaceSlug {

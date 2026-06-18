@@ -1,14 +1,14 @@
 /**
- * /connectors → /settings?pane=connectors redirect stub (ADR-340 P2).
+ * /connectors → /workspace-settings?pane=connectors redirect stub.
  *
- * Connectors is pane-grade — a Perception & transports pane inside the
- * System Settings window (the drivers view, ADR-338 D2), no longer a
- * window of its own. ConnectedIntegrationsSection is unchanged; only
- * the surface tier moved. Pure server transport per ADR-308.
+ * ADR-341 (2026-06-18): Connectors is a Perception pane inside Workspace
+ * Settings (the operation's transports), re-homed from System Settings
+ * (ADR-340 P2). ConnectedIntegrationsSection is unchanged; only the door
+ * moved. Pure server transport per ADR-308.
  */
 
 import { redirect } from 'next/navigation';
 
 export default function ConnectorsRedirect() {
-  redirect('/settings?pane=connectors');
+  redirect('/workspace-settings?pane=connectors');
 }

@@ -15,13 +15,15 @@
  *
  *   AT REST (no query): the kernel tier groups by `launcher_tier` —
  *   "Workspace" (primary: Home · Feed · Queue · Files, the standing
- *   loop), "System" (System Settings, the one os-config door), and
- *   "Utilities" (Setup · Activity · Recurrence · Agents). `search-only`
- *   surfaces are HIDDEN at rest — the constitution mirrors' door is the
- *   Home constitution band (ADR-312 slot #1); the Settings panes' door
- *   is System Settings. This supersedes ADR-338 IA Move A's register
- *   grouping: registers stay code-level taxonomy (ADR-309/312
- *   unchanged); the operator-facing sort key is the act tier.
+ *   loop), "Configure" (ADR-341: System Settings + Workspace Settings,
+ *   the two doors — the OS vs the operation), and "Utilities" (Setup ·
+ *   Recurrence · Agents). `search-only` surfaces are HIDDEN at rest —
+ *   the constitution mirrors' first-class door is the Home constitution
+ *   band (ADR-312 slot #1; their pane door is Workspace Settings); the
+ *   Settings panes' door is their parent container. This supersedes
+ *   ADR-338 IA Move A's register grouping: registers stay code-level
+ *   taxonomy (ADR-309/312 unchanged); the operator-facing sort key is
+ *   the act tier.
  *
  *   SEARCHING (query non-empty): FLAT — every navigable surface
  *   including search-only mirrors and pane-grade panes matches by
@@ -73,7 +75,10 @@ interface SurfaceGroup {
 // silently drop a surface from the index.
 const KERNEL_TIER_GROUPS: { key: string; label: string; tier: string }[] = [
   { key: 'kernel:primary', label: 'Workspace', tier: 'primary' },
-  { key: 'kernel:system', label: 'System', tier: 'system' },
+  // ADR-341 (2026-06-18): the `configure` tier holds BOTH Settings doors
+  // — System Settings (the OS) + Workspace Settings (the operation).
+  // Supersedes ADR-340 P3's single-member `system` tier.
+  { key: 'kernel:configure', label: 'Configure', tier: 'configure' },
   { key: 'kernel:utilities', label: 'Utilities', tier: 'utilities' },
 ];
 
@@ -165,6 +170,16 @@ export function Launcher({
     () => surfaces.filter((s) => s.route !== ''),
     [surfaces]
   );
+
+  // ADR-341: parent-container slug → title, for labeling pane rows in
+  // search ("Workspace Settings pane" / "System Settings pane" / etc.).
+  const parentTitleBySlug = useMemo(() => {
+    const map: Record<string, string> = {};
+    surfaces.forEach((s) => {
+      map[s.slug] = s.title;
+    });
+    return map;
+  }, [surfaces]);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return navigableSurfaces;
@@ -271,8 +286,13 @@ export function Launcher({
                         <div className="text-sm font-medium">
                           {surface.title}
                           {surface.pane_of && (
+                            // ADR-341: label by the parent door's title —
+                            // panes now belong to System Settings,
+                            // Workspace Settings, or Recurrence (ADR-340 D8).
                             <span className="ml-2 text-xs font-normal text-muted-foreground">
-                              System Settings pane
+                              {parentTitleBySlug[surface.pane_of]
+                                ? `${parentTitleBySlug[surface.pane_of]} pane`
+                                : 'Settings pane'}
                             </span>
                           )}
                         </div>

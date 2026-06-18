@@ -50,15 +50,22 @@ def test_registry_tiers() -> None:
         "primary == the standing loop (home/feed/queue/files)",
         {s for s, t in tiers.items() if t == "primary"} == {"home", "feed", "queue", "files"},
     )
-    check("system == settings (the one door)", {s for s, t in tiers.items() if t == "system"} == {"settings"})
+    # ADR-341: the `system` single-member tier is retired; both Settings
+    # doors live in the `configure` tier (the OS vs the operation).
     check(
-        "utilities == setup/activity/recurrence/agents",
-        {s for s, t in tiers.items() if t == "utilities"} == {"setup", "activity", "recurrence", "agents"},
+        "configure == the two Settings doors (settings + workspace-settings)",
+        {s for s, t in tiers.items() if t == "configure"} == {"settings", "workspace-settings"},
+    )
+    check("system tier retired (no members)", {s for s, t in tiers.items() if t == "system"} == set())
+    check(
+        "utilities == setup/recurrence/agents (activity folded to a recurrence pane, ADR-340 D8)",
+        {s for s, t in tiers.items() if t == "utilities"} == {"setup", "recurrence", "agents"},
     )
     check(
-        "search-only == constitution mirrors + Settings panes",
+        "search-only == constitution mirrors + Settings panes + activity",
         {s for s, t in tiers.items() if t == "search-only"}
-        == {"mandate", "principles", "identity", "budget", "autonomy", "program", "connectors", "sources"},
+        == {"mandate", "principles", "identity", "budget", "autonomy", "program",
+            "connectors", "sources", "activity"},
     )
     chrome = [e for e in KERNEL_SURFACES if not e.get("route")]
     check("chrome entries carry no tier", all(not e.get("launcher_tier") for e in chrome))
@@ -67,11 +74,13 @@ def test_registry_tiers() -> None:
 def test_launcher_two_modes() -> None:
     print("\n[launcher] act-tier groups at rest; flat when searching")
     src = _read("components/shell/Launcher.tsx")
-    check("KERNEL_TIER_GROUPS declared (Workspace/System/Utilities)",
-          "'Workspace'" in src and "'System'" in src and "'Utilities'" in src and "KERNEL_TIER_GROUPS" in src)
+    # ADR-341: the at-rest tier groups are Workspace / Configure / Utilities
+    # ("System" single-door tier retired; "Configure" holds both doors).
+    check("KERNEL_TIER_GROUPS declared (Workspace/Configure/Utilities)",
+          "'Workspace'" in src and "'Configure'" in src and "'Utilities'" in src and "KERNEL_TIER_GROUPS" in src)
     check("search-only hidden at rest", "search-only" in src and "return null" in src)
     check("flat list when searching (Spotlight role)", "isSearching" in src)
-    check("pane rows labeled as System Settings panes in search", "System Settings pane" in src)
+    check("pane rows labeled as Settings panes in search", "Settings pane" in src)
     check("register grouping deleted (superseded)", "KERNEL_REGISTER_GROUPS" not in src)
     check("Surface type declares launcher_tier", "launcher_tier?:" in _read("lib/compositor/types.ts"))
 

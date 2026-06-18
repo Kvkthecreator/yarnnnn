@@ -1,23 +1,15 @@
-'use client';
-
 /**
- * /mandate — atomic Mandate surface (ADR-297 D1).
+ * /mandate → /workspace-settings?pane=mandate redirect stub.
  *
- * Renders /workspace/constitution/MANDATE.md via the kernel-library
- * MandateCard (full variant; self-fetches per ADR-266 D8).
+ * ADR-341 (2026-06-18): Mandate is a Constitution pane inside Workspace
+ * Settings (read/manage via MandateCard full variant). Its FIRST-CLASS
+ * door stays the Home constitution band (ADR-312 D5 — HomeHeader renders
+ * the card directly, independent of this route). Pure server transport
+ * per ADR-308.
  */
 
-import { SurfacePage } from '@/components/shell/SurfacePage';
-import { MandateCard } from '@/components/workspace-concepts/MandateCard';
+import { redirect } from 'next/navigation';
 
-export default function MandatePage() {
-  return (
-    <SurfacePage
-      iconKey="target"
-      title="Mandate"
-      summary="Your standing intent — the Primary Action this workspace is built around. Edit via chat."
-    >
-      <MandateCard variant="full" />
-    </SurfacePage>
-  );
+export default function MandateRedirect() {
+  redirect('/workspace-settings?pane=mandate');
 }

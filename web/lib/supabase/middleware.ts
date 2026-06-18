@@ -40,6 +40,7 @@ const PROTECTED_PREFIXES = [
   "/memory",
   "/system",
   "/settings",
+  "/workspace-settings", // ADR-341 — the second Settings door (the operation)
   "/integrations",
   "/docs",
   // Legacy routes still protected for redirect stubs

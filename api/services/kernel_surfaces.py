@@ -124,16 +124,24 @@ ARCHETYPES = (
 # Move A's register grouping is superseded by this tier model):
 #   - "primary"     — the loop: Home (dwell) · Feed (read) · Queue (decide)
 #                     · Files (artifacts). Foregrounded at rest.
-#   - "system"      — System Settings, the one os-config door (panes fold
-#                     inside it per `pane_of`).
-#   - "utilities"   — present, searchable, de-prioritized: Setup, Activity,
-#                     Recurrence, Agents (the Activity-Monitor class).
+#   - "configure"   — the two Settings doors (ADR-341): System Settings (the
+#                     OS governing the agent — Governance + account) and
+#                     Workspace Settings (this operation — Constitution +
+#                     Operation + Perception). Panes fold inside each per
+#                     `pane_of`. Supersedes ADR-340 P3's single-member
+#                     "system" tier — two objects (the OS vs the operation,
+#                     the ADR-320 governance/ vs constitution/+operation/
+#                     root split), two doors.
+#   - "utilities"   — present, searchable, de-prioritized: Setup, Recurrence,
+#                     Agents (the Activity-Monitor class; Activity folded to
+#                     a Recurrence pane per ADR-340 D8).
 #   - "search-only" — hidden at rest, found by flat search (ADR-340 D5
 #                     "search stays flat"): the constitution mirrors
-#                     (mandate/principles/identity — their door is the
-#                     Home constitution band, ADR-312 slot #1) and the
-#                     pane-grade Settings panes (their door is System
-#                     Settings).
+#                     (mandate/principles/identity — their FIRST-CLASS door
+#                     is the Home constitution band, ADR-312 slot #1; their
+#                     read/manage pane door is Workspace Settings, ADR-341)
+#                     and the pane-grade Settings panes (their door is the
+#                     System or Workspace Settings container per `pane_of`).
 # Chrome entries (route="") have no tier — never listed.
 #
 # `pane_of` field (ADR-340 P2, 2026-06-12): pane-grade surfaces. A surface
@@ -312,6 +320,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "mandate",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "intent",  # ADR-312 D5 — constitution band, slot #1 (was `settings`)
+        "pane_of": "workspace-settings",  # ADR-341 — Constitution read/manage pane (band stays first-class, ADR-312 D5)
+        "pane_group": "Constitution",
         "title": "Mandate",
         "archetype": "document",
         "substrate_paths": [
@@ -326,6 +336,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "principles",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "intent",  # ADR-312 D5 — constitution band (was `settings`)
+        "pane_of": "workspace-settings",  # ADR-341 — Constitution read/manage pane (band stays first-class, ADR-312 D5)
+        "pane_group": "Constitution",
         "title": "Principles",
         "archetype": "document",
         "substrate_paths": [
@@ -341,6 +353,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "identity",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "intent",  # ADR-312 D5 — constitution band (was `settings`)
+        "pane_of": "workspace-settings",  # ADR-341 — Constitution read/manage pane (band stays first-class, ADR-312 D5)
+        "pane_group": "Constitution",
         "title": "Identity",
         "archetype": "document",
         "substrate_paths": [
@@ -407,8 +421,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "program",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "pane_of": "settings",  # ADR-340 P2 — Program pane in System Settings
-        "pane_group": "Program",
+        "pane_of": "workspace-settings",  # ADR-341 — Operation pane (was settings, ADR-340 P2)
+        "pane_group": "Operation",
         "title": "Program",
         "archetype": "document",
         "substrate_paths": [
@@ -432,15 +446,27 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Pending proposals awaiting Reviewer or operator decision.",
     },
     {
+        # ADR-340 D8 (2026-06-18) — Machinery consolidation. Activity folds
+        # to pane-grade under Recurrence: the two surfaces are one operator
+        # concern ("the machinery") seen at two moments — declaration
+        # (_recurrences.yaml, "what fires when") and execution
+        # (execution_events, "did it run, what did it cost"). Declaration-led:
+        # /recurrence is the window, Activity is the Runs lens reached via
+        # ?pane=activity. Generic P2 pane_of mechanism (nothing hardcodes
+        # `settings` as the only valid parent). Mirror discipline intact —
+        # the substrate read + route + deep-link all survive (§11/§12); only
+        # the launcher tile count drops (Utilities 4 → 3).
         "slug": "activity",
-        "launcher_tier": "utilities",  # ADR-340 P3
+        "launcher_tier": "search-only",  # ADR-340 D8 — pane-grade, hidden at rest, found via flat search
         "register": "application",  # ADR-309 two-register model
+        "pane_of": "recurrence",  # ADR-340 D8 — Runs lens inside the Recurrence window
+        "pane_group": "Machinery",
         "title": "Activity",
         "archetype": "stream",
         "substrate_paths": [],  # execution_events DB table
         "icon_key": "activity",
         "default_pinned": False,
-        "route": "/activity",  # _route_status: NEW in Phase 2 — current /activity is deleted per ADR-163; reinstated as surface-mode
+        "route": "/activity",  # ADR-308 server redirect stub → /recurrence?pane=activity (ADR-340 D8)
         "summary": "What ran and what it cost — the execution log behind the Feed's story. Open when you're checking the machinery, not the narrative.",  # ADR-340 P4 F1: operator vocabulary
     },
     # ADR-297 D19.4 (2026-05-22) — Settings + Connectors promoted from
@@ -455,7 +481,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # remain as window-internal deep-link state per D19.4.
     {
         "slug": "settings",
-        "launcher_tier": "system",  # ADR-340 P3
+        "launcher_tier": "configure",  # ADR-341 (was "system", ADR-340 P3)
         "register": "os-config",  # ADR-312 D5 (was `settings`)
         "title": "System Settings",
         "archetype": "dashboard",
@@ -463,19 +489,40 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "settings",
         "default_pinned": False,
         "route": "/settings",
-        # ADR-340 P2: THE os-config window — the one door. Sidebar panes:
-        # General (Billing / Usage / Account, the legacy tabs) + the five
-        # pane-grade surfaces above (Connectors, Sources, Autonomy, Budget,
-        # Program), grouped per ADR-340 D4. `?pane=` is the intra-surface
-        # deep-link param (`?tab=` accepted as legacy alias).
-        "summary": "System Settings — the one os-config door. Governance dials, transports, program lifecycle, billing, account. Sidebar panes; ?pane= deep-links.",
+        # ADR-341 (2026-06-18): System Settings is now THE OS door — the OS
+        # governing the agent, program-agnostic. Sidebar panes: Governance
+        # (Autonomy, Budget — the governance/ root, agent-can't-write) +
+        # General (Billing / Usage / Account, the legacy tabs). The
+        # operation-config panes (Program, Connectors, Sources) moved to the
+        # Workspace Settings door. `?pane=` is the intra-surface deep-link
+        # param (`?tab=` accepted as legacy alias).
+        "summary": "System Settings — how the OS governs the agent. Autonomy, budget, billing, account. Program-agnostic, machine-level.",
+    },
+    {
+        # ADR-341 (2026-06-18) — the second Settings door. Configures THIS
+        # operation (the constitution/ + operation/ + persona/ roots, all
+        # agent-amends per ADR-320) vs System Settings' OS governance.
+        # Container surface; renders the shared pane shell with its own pane
+        # set. Sidebar groups: Constitution (Mandate/Identity/Principles —
+        # read/manage; their first-class door stays the Home band per
+        # ADR-312 D5), Operation (Program), Perception (Connectors, Sources).
+        "slug": "workspace-settings",
+        "launcher_tier": "configure",  # ADR-341 — the operation-config door
+        "register": "application",  # a windowed app like `settings`
+        "title": "Workspace Settings",
+        "archetype": "dashboard",
+        "substrate_paths": [],  # constitution/ + operation/ + persona/ reads
+        "icon_key": "folder-kanban",
+        "default_pinned": False,
+        "route": "/workspace-settings",
+        "summary": "Workspace Settings — what this operation is. Mandate, identity, principles, program, connectors, sources.",
     },
     {
         "slug": "connectors",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "pane_of": "settings",  # ADR-340 P2 — Perception & transports pane
-        "pane_group": "Perception & transports",
+        "pane_of": "workspace-settings",  # ADR-341 — Perception pane (was settings, ADR-340 P2)
+        "pane_group": "Perception",
         "title": "Connectors",
         "archetype": "dashboard",
         "substrate_paths": [],  # platform_connections DB table
@@ -497,8 +544,8 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "sources",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 — a transport/driver binding
-        "pane_of": "settings",  # ADR-340 P2 — Perception & transports pane
-        "pane_group": "Perception & transports",
+        "pane_of": "workspace-settings",  # ADR-341 — Perception pane (was settings, ADR-340 P2)
+        "pane_group": "Perception",
         "title": "Sources",
         "archetype": "dashboard",
         "substrate_paths": [],  # per-bundle _sources.yaml + _watch_signal.yaml, resolved via GET /api/sources
