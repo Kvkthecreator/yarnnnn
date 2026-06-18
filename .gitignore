@@ -93,3 +93,6 @@ Resume_*.docx
 
 # Analysis source dumps (large, third-party)
 docs/analysis/src_claudeCC/
+
+# ADR-335 Crawl-B local validation venv (Python 3.11, mcp SDK) — not source
+api/.venv-mcp/
