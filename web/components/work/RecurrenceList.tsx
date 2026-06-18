@@ -398,8 +398,8 @@ function ScheduleRow({
 
   // Declaration-lens signals only — what this recurrence is scheduled
   // to do and when. Execution detail (what happened, did it succeed,
-  // cost) lives on /activity, the execution-lens surface. The deep-link
-  // below routes the operator there for that question.
+  // cost) lives in the Runs lens of this same window (ADR-340 D8). The
+  // deep-link below routes the operator there for that question.
   const lastMaterial = narrativeSlice?.last_material ?? null;
   const timeSignal = isActive && task.next_run_at
     ? `Next: ${formatRelativeTime(task.next_run_at)}`
@@ -471,10 +471,11 @@ function ScheduleRow({
         </span>
       )}
 
-      {/* Execution-lens deep-link — routes to /activity filtered by slug.
+      {/* Execution-lens deep-link — the Runs lens of this same window
+          (ADR-340 D8), pre-filtered to this recurrence's slug.
           stopPropagation so the link click doesn't also trigger row select. */}
       <Link
-        href={`/activity?slug=${encodeURIComponent(task.slug)}`}
+        href={`/recurrence?pane=activity&slug=${encodeURIComponent(task.slug)}`}
         onClick={(e) => e.stopPropagation()}
         className="shrink-0 text-[10px] text-muted-foreground/40 hover:text-foreground hover:underline underline-offset-4 transition-colors"
         title="See execution history for this recurrence"

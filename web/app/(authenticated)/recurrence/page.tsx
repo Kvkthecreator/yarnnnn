@@ -14,11 +14,19 @@
  * moved to the dedicated /home atomic surface (ADR-312). This surface is
  * a single-mode recurrence list answering "what runs, and when?"
  *
- * Two modes (substrate-unchanged):
- *   - List mode (no `?task=` param): full-width RecurrenceList — search,
- *     agent filter, cadence groups (Recurring · Reactive).
- *   - Detail mode (`?task={slug}`): kind-aware recurrence detail via
- *     WorkDetail dispatching the middle band on task.output_kind (ADR-166).
+ * Two lenses on one machinery concern (ADR-340 D8 — Activity folded in):
+ *   - Schedule lens (default): the declaration view — "what's scheduled, what
+ *     fires when." List mode (no `?task=`): full-width RecurrenceList. Detail
+ *     mode (`?task={slug}`): kind-aware recurrence detail via WorkDetail.
+ *   - Runs lens (`?pane=activity`): the execution view — "did it run, what did
+ *     it cost." Renders the shared ActivityLog (one Activity body; the former
+ *     standalone /activity page is now an ADR-308 redirect stub). `?slug=` is
+ *     the Runs lens's intra-surface filter (deep-link from a Schedule row's
+ *     "View runs →" pre-filters to one recurrence).
+ *
+ * Declaration-led: the Schedule lens is the default — authored substrate
+ * (_recurrences.yaml) before the execution ledger, and it survives the empty
+ * workspace (declarations exist before runs). The header toggle switches lenses.
  *
  * The `?agent={slug}` query param is preserved as a deep-link shortcut
  * (window-internal state per D19.4 — like Figma's ?node-id=X). Stale
@@ -34,6 +42,8 @@ import { useRecurrenceDetail } from '@/hooks/useRecurrenceDetail';
 import { APIError, api } from '@/lib/api/client';
 import { RecurrenceList } from '@/components/work/RecurrenceList';
 import { WorkDetail } from '@/components/work/WorkDetail';
+import { ActivityLog } from '@/components/activity/ActivityLog';
+import { cn } from '@/lib/utils';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 
 type ActionNotice = { kind: 'info' | 'success' | 'error'; text: string } | null;
@@ -84,6 +94,20 @@ export default function RecurrencePage() {
 
   const agentFilter = searchParams.get('agent');
   const taskSlugFromUrl = searchParams.get('task');
+  // ADR-340 D8: ?pane=activity selects the Runs (execution) lens; default
+  // (absent) is the Schedule (declaration) lens. ?slug= is the Runs lens's
+  // intra-surface filter (deep-link from a Schedule row pre-filters to one
+  // recurrence). Both are window-internal state per D19.6 — toggled via
+  // setSurfaceParams without a pathname flip.
+  const activeLens = searchParams.get('pane') === 'activity' ? 'runs' : 'schedule';
+  const runsSlugFilter = searchParams.get('slug');
+  const showRuns = activeLens === 'runs';
+  const setLens = useCallback((lens: 'schedule' | 'runs') => {
+    setSurfaceParams({ pane: lens === 'runs' ? 'activity' : null });
+  }, [setSurfaceParams]);
+  const clearRunsSlugFilter = useCallback(() => {
+    setSurfaceParams({ slug: null });
+  }, [setSurfaceParams]);
   // ADR-297: tab framing dissolved on Cadence. Cockpit lives at /cockpit;
   // this surface is a single-mode recurrence list. Stale ?tab=… query
   // params are silently ignored.
@@ -199,10 +223,59 @@ export default function RecurrencePage() {
   // path; operators ask "set up new work" via the drawer instead of
   // through a per-surface action button.
 
+  // ADR-340 D8: the lens toggle (Schedule ↔ Runs) is a persistent header,
+  // rendered above every body state so the operator can always cross between
+  // the declaration and execution views. Hidden only in task-detail mode,
+  // where the WorkDetail surface owns its own header chrome + back affordance.
+  const lensToggle = !taskSlugFromUrl ? (
+    <div className="flex items-center gap-1 px-4 sm:px-6 pt-3 shrink-0">
+      <button
+        onClick={() => setLens('schedule')}
+        className={cn(
+          'px-3 py-1.5 text-xs rounded-md border transition-colors',
+          !showRuns
+            ? 'border-foreground/30 bg-foreground/5 text-foreground'
+            : 'border-border text-muted-foreground hover:bg-muted/50',
+        )}
+      >
+        Schedule
+      </button>
+      <button
+        onClick={() => setLens('runs')}
+        className={cn(
+          'px-3 py-1.5 text-xs rounded-md border transition-colors',
+          showRuns
+            ? 'border-foreground/30 bg-foreground/5 text-foreground'
+            : 'border-border text-muted-foreground hover:bg-muted/50',
+        )}
+      >
+        Runs
+      </button>
+    </div>
+  ) : null;
+
+  // ADR-340 D8 Runs lens: the shared ActivityLog (execution-events body).
+  // Independent of the schedule-data loading/error guards below — it owns
+  // its own loading + error state. Renders for both list-mode and any
+  // ?pane=activity arrival (deep-link from /activity redirect stub).
+  if (showRuns && !taskSlugFromUrl) {
+    return (
+      <div className="flex h-full flex-1 min-w-0 min-h-0 flex-col bg-background">
+        {lensToggle}
+        <div className="flex-1 min-h-0">
+          <ActivityLog slugFilter={runsSlugFilter} onClearSlugFilter={clearRunsSlugFilter} />
+        </div>
+      </div>
+    );
+  }
+
   if (loading && !tasks.length && !agents.length && !taskSlugFromUrl) {
     return (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+      <div className="flex flex-col h-full">
+        {lensToggle}
+        <div className="flex flex-1 items-center justify-center">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
       </div>
     );
   }
@@ -210,6 +283,7 @@ export default function RecurrencePage() {
   if (!taskSlugFromUrl && error && !tasks.length && !agents.length) {
     return (
       <div className="flex h-full flex-1 flex-col bg-background">
+        {lensToggle}
         <SurfaceState
           title="Failed to load work"
           description="The work index could not be loaded right now. Retry the workspace fetch."
@@ -229,6 +303,7 @@ export default function RecurrencePage() {
 
   return (
     <div className="flex h-full flex-1 min-w-0 min-h-0 flex-col overflow-y-auto bg-background">
+      {lensToggle}
       {taskSlugFromUrl ? (
         taskDetailLoading && !selectedRecurrenceDetail ? (
           <div className="flex flex-1 items-center justify-center">

@@ -93,12 +93,19 @@ def test_recurrence_migrated() -> None:
 
 
 def test_activity_migrated() -> None:
-    print("\n[activity] intra-surface ?slug= clear via setSurfaceParams")
-    src = _read("app/(authenticated)/activity/page.tsx")
-    check("imports useSurfacePreferences", "useSurfacePreferences" in src)
-    check("clear uses setSurfaceParams({ slug: null })", "setSurfaceParams({ slug: null })" in src)
-    check("no router.replace('/activity write", "router.replace(" not in src)
-    check("no useRouter import", "useRouter" not in src)
+    # ADR-340 D8 (2026-06-18): Activity folded to pane-grade under Recurrence —
+    # the Runs lens. The /activity page is now an ADR-308 server redirect stub
+    # (no intra-surface nav of its own); the ?slug= clear moved into the
+    # Recurrence window, where the Runs lens owns it via setSurfaceParams.
+    print("\n[activity] folded to the Recurrence Runs lens (ADR-340 D8)")
+    stub = _read("app/(authenticated)/activity/page.tsx")
+    check("/activity is a redirect stub → /recurrence?pane=activity", "/recurrence?pane=activity" in stub)
+    check("/activity stub is server transport (no 'use client')", "'use client'" not in stub)
+    # The intra-surface ?slug= clear now lives in the Recurrence window's
+    # Runs lens (the host owns the filter param; ActivityLog is host-driven).
+    rec = _read("app/(authenticated)/recurrence/page.tsx")
+    check("Runs lens clear uses setSurfaceParams({ slug: null })", "setSurfaceParams({ slug: null })" in rec)
+    check("Recurrence imports useSurfacePreferences", "useSurfacePreferences" in rec)
 
 
 def test_files_off_url() -> None:

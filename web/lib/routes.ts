@@ -53,7 +53,8 @@
 //   /context       → /files                            (2026-06-01 — slug/route/label coherence)
 //   /system        → /settings                         (system tab removed 2026-05-02)
 //   /operation     → /mandate                          (ADR-297 — atomic surface; routes.ts doc corrected 2026-05-30)
-//   /backend       → /activity                         (ADR-265 — operator-readable rename)
+//   /backend       → /recurrence?pane=activity         (ADR-265 rename; ADR-340 D8 fold to Runs lens)
+//   /activity      → /recurrence?pane=activity         (ADR-340 D8 — Machinery consolidation, Runs lens)
 //
 // =============================================================================
 // ADR-297 §D17 (2026-05-22): HOME_ROUTE flips /feed → /desktop. The
@@ -78,7 +79,11 @@ export const FILES_ROUTE = "/files";
 // WORKSPACE_CONFIG_ROUTE ("/workspace") deleted 2026-05-30 — ADR-297
 // dissolved the /workspace container into atomic surfaces (mandate,
 // autonomy, principles, etc.); the constant had zero consumers.
-export const ACTIVITY_ROUTE = "/activity";           // Workspace-wide activity ledger (execution_events, ADR-250 + ADR-265).
+// ADR-340 D8 (2026-06-18): Activity folded to pane-grade under Recurrence —
+// the Runs lens. /activity survives as an ADR-308 redirect stub; this constant
+// repoints to the canonical live destination so any future consumer mounts the
+// Runs lens directly. (Zero consumers at repoint time.)
+export const ACTIVITY_ROUTE = "/recurrence?pane=activity"; // Execution ledger (execution_events) — Runs lens of the Recurrence window.
 export const CONNECTORS_ROUTE = "/connectors"; // Platform connections — Slack, Notion, GitHub, Lemon Squeezy, Alpaca.
 // ADR-272: System Agent dissolved as a cockpit entity (ADR-251 reversed).
 // Only Reviewer remains as a systemic detail surface. Legacy URLs
