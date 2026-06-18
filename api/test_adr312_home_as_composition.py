@@ -17,8 +17,9 @@ Asserts the kernel home contract invariants:
   4. The four-face fallback (ADR-228) stays deleted — no MoneyTruthFace /
      PerformanceFace / TrackingFace / MandateFace in the library.
   5. The cockpit-route fold (D9) — no `/api/cockpit/*` route survives;
-     trader data routes live under `/api/programs/alpha-trader/*`; pace is a
-     kernel governance dial under `/api/pace`.
+     trader data routes live under `/api/programs/alpha-trader/*`; the kernel
+     governance dial mounts at `/api/budget` (repurposed from `/api/pace` per
+     ADR-327, which retired pace).
 
 Same Python-test-over-source pattern as ADR-237/238/239/240/241 per
 ADR-236 Rule 3.
@@ -286,22 +287,29 @@ def test_four_face_fallback_deleted():
 
 def test_cockpit_route_module_folded():
     """ADR-312 D9: api/routes/cockpit.py is folded — trader data → alpha_trader
-    route, pace → kernel pace route. No cockpit route module survives."""
+    route, the governance dial → a kernel route. No cockpit route module survives.
+
+    ADR-327 amendment: pace retired and repurposed to budget — the kernel
+    governance dial that ADR-312 D9 mounted as `pace.py` is now `budget.py`
+    (`api/routes/pace.py` DELETED by ADR-327; `/budget` is the dial)."""
     assert not (REPO_ROOT / "api" / "routes" / "cockpit.py").exists(), (
         "ADR-312 D9: api/routes/cockpit.py must be folded into alpha_trader.py "
-        "(trader data) + pace.py (kernel governance) — no cockpit route survives."
+        "(trader data) + budget.py (kernel governance, ADR-327) — no cockpit route survives."
     )
     assert (REPO_ROOT / "api" / "routes" / "alpha_trader.py").exists(), (
         "ADR-312 D9: trader data routes live in api/routes/alpha_trader.py."
     )
-    assert (REPO_ROOT / "api" / "routes" / "pace.py").exists(), (
-        "ADR-312 D9: pace folds to the kernel route api/routes/pace.py."
+    assert (REPO_ROOT / "api" / "routes" / "budget.py").exists(), (
+        "ADR-312 D9 + ADR-327: the kernel governance dial folds to api/routes/budget.py "
+        "(pace retired + repurposed to budget per ADR-327; pace.py deleted)."
     )
 
 
 def test_no_api_cockpit_mount_in_main():
     """ADR-312 D9: main.py mounts alpha_trader at /api/programs/alpha-trader and
-    pace at /api/pace — no /api/cockpit router mount survives."""
+    the governance dial at a kernel route — no /api/cockpit router mount survives.
+
+    ADR-327 amendment: the dial mounts at `/api/budget` (pace retired)."""
     main_src = _read(REPO_ROOT / "api" / "main.py")
     # No live router mount on /api/cockpit. (Explanatory comments naming the
     # old path are allowed; an include_router(... "/api/cockpit") is not.)
@@ -315,14 +323,16 @@ def test_no_api_cockpit_mount_in_main():
     assert "/api/programs/alpha-trader" in main_src, (
         "ADR-312 D9: alpha_trader router mounts at /api/programs/alpha-trader."
     )
-    assert 'prefix="/api/pace"' in main_src, (
-        "ADR-312 D9: pace router mounts at the kernel /api/pace."
+    assert 'prefix="/api/budget"' in main_src, (
+        "ADR-312 D9 + ADR-327: the kernel governance dial mounts at /api/budget "
+        "(repurposed from /api/pace per ADR-327)."
     )
 
 
 def test_no_api_cockpit_callers_in_frontend():
     """ADR-312 D9: the FE client + components call /api/programs/alpha-trader/*
-    and /api/pace — no live api.cockpit caller survives."""
+    and the governance dial (`api.budget()` per ADR-327, repurposed from the
+    retired `api.pace()`) — no live api.cockpit caller survives."""
     import subprocess
 
     web = REPO_ROOT / "web"
