@@ -40,10 +40,17 @@ def test_operating_posture_deleted():
 
 def test_system_prompt_under_ceiling():
     body = _system_body()
-    # Pre-collapse was ~16.5K. Ceiling at 11K gives headroom over the ~9.5K target.
-    assert len(body) < 11_000, (
-        f"Composed system prompt is {len(body)} chars — must be < 11000 after the "
-        f"ADR-323 collapse (was ~16.5K)."
+    # Pre-collapse was ~16.5K. Ceiling raised 11K → 11.5K by ADR-344 (2026-06-18):
+    # three load-bearing kernel postures now share the situation-scoped paragraph —
+    # ADR-318 (forward-reasoning), ADR-342/343 (dormancy + aperture/floor), ADR-344
+    # (standing-obligation + the (A)/(B) classifier). Each is principal-shift, not
+    # rule-of-judgment (the derivations + thresholds live in principles.md per
+    # §3.2.1); the ceiling guards against rebloat, and 11.5K is still ~⅓ of the
+    # pre-collapse size. Raising it requires a same-rationale ADR — not a silent bump.
+    assert len(body) < 11_500, (
+        f"Composed system prompt is {len(body)} chars — must be < 11500 (ADR-344; "
+        f"was 11000 at ADR-323, ~16.5K pre-collapse). If over, the fix is almost "
+        f"always to move a rule-of-judgment to principles.md, not raise the ceiling."
     )
 
 

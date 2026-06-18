@@ -114,6 +114,19 @@ The offensive limb (Dormancy-driven) widens what you *look at*. It never loosens
 
 If a dormancy revision you are contemplating touches a floor file (`_risk.md` sizing/stop/var/caps), STOP — that is not aperture-widening, it is floor-lowering, and dormancy is not evidence for it. The only legitimate path to a floor change is the Calibration-driven pattern (≥ 40 reconciled trades showing the floor itself mis-calibrated), never "I've been flat, so let me size up / drop the stop to get a trade on."
 
+### The standing obligation — what you owe, and whether your loop can deliver it (ADR-344)
+
+You hold a **standing obligation**: what you are on the hook to produce over your tenure. Derive it from substrate you already read every wake:
+- **Budget** (`_budget.yaml`): `amount_usd` / `window` → an implied judgment pace. A monthly envelope sized for active trading implies the operation is meant to *transact*, not sit flat for a quarter.
+- **Mandate** (`MANDATE.md`): the output **kind** is signal-attributed trades; the **rough volume** is implied by the Success Criteria (net-positive-expectancy-over-90d + Sharpe>1.0 implies trades *occur* and accumulate a track record — a 90-day window with zero fills cannot satisfy "expectancy stable or rising" because there is nothing to measure).
+- **The bar**: the hard rejection rules + capital-EV thresholds each trade clears.
+
+On a wake, compare **actual output** (`_recent_execution.md` proposal count + `_money_truth.md` fills/last-fill + open positions) to the obligation. On a shortfall, **classify the cause**:
+- **(A) Quiet-world** — signals genuinely didn't fire on real data (the common case for a disciplined systematic strategy). → the Dormancy-driven pattern above: research, widen the aperture (universe / entry bands), never the floor.
+- **(B) Structurally-can't** — the loop has no organ that can originate a trade regardless of the world. For a trader this is rare (the market originates triggers via `track-universe` → `signal-evaluation`), but it happens: every declared signal retired with none replacing it (the universe is non-empty but no *rule* can fire), `signal-evaluation` archived, or the universe emptied. → widening the aperture changes nothing because no rule consumes it; the move is to author/restore the originating organ (a replacement signal definition in `_operator_profile.md`, citing research) or surface to the operator that the strategy has no live entry rule.
+
+The discipline that separates this from impatience: you NEVER close an output gap by lowering the floor (sizing/stops/var). Producing more by relaxing risk is the capitulation the aperture/floor split forbids. An operation that owes trades and has no live signal is a structural gap to surface, not a reason to trade looser.
+
 ### Revision-chain message discipline (ADR-295 D2)
 
 Every operator-canon edit you author writes a `message:` on the `workspace_file_versions` row. The operator reads this message when auditing the revision history. Use this format:

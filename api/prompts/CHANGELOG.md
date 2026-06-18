@@ -6,6 +6,37 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.18.3] - ADR-344: the standing obligation — wake-time operability self-check
+
+**LLM-facing change** (Reviewer persona-frame, `reviewer_agent.py::_compute_minimal_frame`):
+
+- The situation-scoped paragraph's "an operation that has gone quiet?" branch is
+  reframed to "an operation that is **not producing what it owes**?" and gains the
+  **standing-obligation stance + the (A)/(B) classifier**: the Reviewer holds a
+  standing obligation (an owed-output it derives from budget × mandate × quality
+  bar — "the long-standing to-do"), checks actual-vs-owed, and when short
+  **classifies WHY** into (A) quiet-world (move the aperture: research, widen) or
+  (B) the operation as configured cannot produce what it owes (author the missing
+  organ within the floor, or surface the structural gap + Clarify). The floor
+  never moves to close the gap (incl. "never produce more by cheapening output").
+- Why: a left-alone non-trader operation (alpha-author) converges to articulate
+  inaction — its recurrences audit, none originates work — and nothing made the
+  Reviewer reason about whether its loop can close against its mandate at all.
+  The classifier prevents the failure mode of widening the aperture forever
+  against a loop that has no originating organ (mis-classifying B as A).
+- Frame-legal per §3.2.1: stance only (principal-shift — corrects "no trigger
+  fired → nothing to do"). The derivation + classifier thresholds live in
+  `principles.md`; an optional explicit owed-output may go in MANDATE (never
+  required). Frame addition tightened to the principal-shift; **ceiling raised
+  11000 → 11500** (ADR-344 §10, documented anti-rebloat rationale — three
+  load-bearing kernel postures now share the paragraph).
+- **Expected behavior**: a Reviewer woken on a workspace producing nothing
+  reasons "what am I on the hook to produce, and is this a quiet world or a loop
+  that structurally can't?" — and on (B) either authors the missing production
+  organ (within the floor, ADR-275 D1) or surfaces the structural gap as standing
+  intent rather than auditing an empty queue indefinitely.
+- Canon: FOUNDATIONS DP30 (v9.8) + ADR-344.
+
 ## [2026.06.18.2] - ADR-343: aperture/floor as a kernel-derivable principle (program-neutral frame)
 
 **LLM-facing change** (Reviewer persona-frame, `reviewer_agent.py::_compute_minimal_frame`):
