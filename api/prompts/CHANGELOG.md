@@ -6,6 +6,35 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.18.2] - ADR-343: aperture/floor as a kernel-derivable principle (program-neutral frame)
+
+**LLM-facing change** (Reviewer persona-frame, `reviewer_agent.py::_compute_minimal_frame`):
+
+- The ADR-342 offensive-limb paragraph is **generalized from trader-flavored to
+  program-neutral**. The trader-specific examples ("the universe, the entry
+  bands, the watch set" / "sizing, stops, var, caps") are replaced by the two
+  **kernel definitions + a derive-obligation**: the Reviewer is told its
+  operation has an **aperture** (the selection surface of what it engages) and a
+  **floor** (per-act integrity + the honesty of its outcomes — an outcome can
+  never be fabricated), and that it must **derive both from its own MANDATE +
+  ground-truth substrate** (the kernel names the category, never the instance).
+- Why: the trader-flavored frame meant non-trader programs (alpha-author, future
+  author-like programs) inherited the offensive-limb *stance* but had no
+  aperture/floor *definition* to apply it through. Now every program with a
+  production mandate inherits the capacity to derive its own split.
+- Frame-legal per §3.2.1: the definition + derive-obligation is principal-shift
+  (corrects the "dormancy → permission to relax constraints" prior), names no
+  program noun, carries no program rule. The trader's worked split stays in its
+  `principles.md` as one derived instance (a calibration anchor), not the source
+  of the capability.
+- **Expected behavior**: a Reviewer on ANY program, woken under dormancy,
+  reasons "what is my aperture / what is my floor" from its mandate + ground
+  truth, widens the aperture, and refuses to lower the floor — without needing
+  program-specific dormancy prose. Validated on alpha-author (derived
+  floor=anti-slop/voice+can't-fake-a-ship / aperture=topic+source+format with no
+  hand-authored rules).
+- Canon: FOUNDATIONS DP24 amendment (v9.7) + ADR-343.
+
 ## [2026.06.18.1] - ADR-342: persona-frame offensive limb — dormancy as ground-truth evidence
 
 **LLM-facing change** (Reviewer persona-frame, `reviewer_agent.py::_compute_minimal_frame`):
