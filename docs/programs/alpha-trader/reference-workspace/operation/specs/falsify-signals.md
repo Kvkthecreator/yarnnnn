@@ -108,12 +108,17 @@ Honest list of fidelity gaps:
 - **Not money-truth.** `/workspace/operation/trading/_money_truth.md`
   is broker-confirmed outcomes from live (paper or real) trading.
   These findings are synthetic.
-- **Not a permanent research function.** `falsify-signals` is a
-  bootstrap recurrence (ADR-270) — fires once on activation, then only
-  on explicit operator `FireInvocation`. If observation shows ongoing
-  falsification matters, a future bundle revision adds a periodic
-  schedule. The decision is earned by evidence, not authored
-  pre-emptively.
+- **A standing research capability, Reviewer-driven (ADR-342).** This
+  writes the same findings shape in two modes: (1) the **bootstrap** mode
+  (ADR-270) — fires once on activation to seed replay findings from zero;
+  and (2) the **dormancy** mode — the Reviewer authors a strategy-vitality
+  cadence (per ADR-275 D1, Reviewer-authored, NOT bundle-scaffolded) and,
+  when it perceives persistent dormancy per principles.md §Dormancy-driven,
+  researches the premise HERE *before* proposing any aperture-widening.
+  Research-first is the discipline: a finding precedes a `_universe.yaml` /
+  `_operator_profile.md` widening, never the reverse. The capability is
+  permanent; the cadence is the Reviewer's to author on evidence, not the
+  bundle's to pre-schedule.
 - **Not Reviewer judgment.** The Reviewer reads these findings + live
   `_money_truth.md` at proposal time and weighs both per principles.md.
   Findings are evidence, not verdicts.

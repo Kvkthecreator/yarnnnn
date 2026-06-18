@@ -65,7 +65,8 @@ PRESSURE_MARKER = "pressure never"                        # the safety invariant
 ADR_CITE = "319"                                          # cites the canon
 
 for slug in active:
-    principles = PROGRAMS / slug / "reference-workspace" / "review" / "principles.md"
+    # ADR-320 topological cut moved review/ → persona/ (the seat's reasoning files).
+    principles = PROGRAMS / slug / "reference-workspace" / "persona" / "principles.md"
     check(f"[{slug}] principles.md exists", principles.exists(), str(principles))
     if not principles.exists():
         continue

@@ -338,3 +338,17 @@ recurrences:
   # is attributed `reviewer:ai:reviewer-sonnet-v8` via dispatch-layer
   # injection (ADR-274). The audit trail is workspace_file_versions on
   # _recurrences.yaml (intent) + execution_events (outcome).
+  #
+  # ADR-342 (dormancy / the offensive limb): a STRATEGY-VITALITY cadence
+  # — a periodic judgment wake to read production-vitality evidence
+  # (recent_execution_md proposal count, _money_truth.md last-fill,
+  # judgment_log stand-down run) and act on the Dormancy-driven pattern
+  # in principles.md (research → ONE bounded aperture-widening, never the
+  # floor) — is ALSO Reviewer-authored, NOT bundle-scaffolded (ADR-275
+  # D1: bundles ship capability + maintenance + reactive only, never
+  # introspection cadence). The bundle gives the posture (persona-frame
+  # offensive limb) + the rules (principles.md §Dormancy-driven +
+  # §aperture/floor split) + the research organ (operation/specs/
+  # falsify-signals.md, now a standing capability); the Reviewer authors
+  # the WHEN via Schedule when it perceives persistent dormancy. The
+  # research path it drives is /workspace/research/findings/{signal_id}.md.

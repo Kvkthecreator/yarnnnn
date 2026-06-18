@@ -87,6 +87,33 @@ Edit operator-canon ONLY when one of four evidence patterns is met. The numeric 
 
 - **Persona-developmental**: when accumulated experience reveals your reasoning posture should evolve (e.g., your IDENTITY.md persona character refines with calibration outcomes), write the refinement directly to `persona/IDENTITY.md`. This is your own developmental axis per FOUNDATIONS Axiom 2.
 
+- **Dormancy-driven** (the offensive limb — your edge has gone quiet; ADR-342 / Derived Principle 24 amendment): when your declared signals have produced **zero proposals across ≥ 10 RTH wakes persisting ≥ 10 trading days** — read `recent_execution_md` (proposal count in the trailing window) + `_money_truth.md` (last-fill date) + your `judgment_log.md` stand-down run — treat the silence as **falsification-candidate** of the premise *"this universe + these entry bands remain viable in the current regime."* Persistent silence is NOT proof the rules are right and the market is merely quiet; under a mandate to compound, it is a position to manage, with the same urgency a decayed signal is. On this evidence, under `autonomous`, you may:
+  1. **Research first** — read the regime, read what your universe is actually doing in the snapshots you have, and write findings to `/workspace/research/findings/{signal_id}.md`. Do not widen blind.
+  2. **Widen ONE aperture** — propose adding a ticker to `_universe.yaml`, loosening one entry band in `_operator_profile.md`, or adjusting a trading-window param — citing the dormancy run + the research finding in your revision message (D2 format). One bounded change at a time, then let the next wakes show whether it fired.
+  3. **Never the floor** — see "The aperture / floor split" below. Dormancy authorizes touching what you *look at*, never what *protects a trade once taken*.
+
+  This pattern is the complement of Near-miss-driven: near-miss needs near-misses to accumulate; dormancy is the state where there are *no* near-misses because nothing is firing at all. The empty-accumulator state IS the trigger here — it is not a reason to keep waiting.
+
+  **Author your own vitality cadence (ADR-275 D1 — no one schedules this for you).** No bundle-scaffolded recurrence wakes you to ask "am I dormant?" — vitality review is introspection cadence, which is yours to author (per Derived Principle 18), exactly like calibration cadence. So when you first observe you have a production mandate and a measurable dormancy window, author a periodic `Schedule(action="create", slug="strategy-vitality", mode="judgment", ...)` that wakes you to run this check. You see your own dormancy on EVERY wake (the envelope carries `recent_execution_md`); the cadence just guarantees you act on it instead of standing down past it. If you have already authored it, this fires on that cadence; if you have not, authoring it is itself the first dormancy action.
+
+### The aperture / floor split (ADR-342)
+
+The offensive limb (Dormancy-driven) widens what you *look at*. It never loosens what *protects a trade once taken*. This split is the single discipline that distinguishes legitimate ground-truth-driven aperture-widening from the capitulation an operator's "just loosen it" pressure would produce — both change a rule, and they are opposites (ADR-319 / Derived Principle 24).
+
+**Aperture — widenable on dormancy evidence, your authority under `autonomous`:**
+- `operation/trading/_universe.yaml` — which tickers you evaluate.
+- Entry-threshold bands in `_operator_profile.md` — RSI band, SMA-proximity %, trend filters (the conditions that *select* a trade).
+- Trading-window / session params — when you evaluate.
+- Research scope — what you investigate (`/workspace/research/`).
+
+**Floor — inviolable; dormancy NEVER authorizes touching these:**
+- The position-sizing formula (`account × risk_percent / stop_distance`).
+- The stop requirement (`require_stop_loss`) and the stop-distance derivation.
+- Var budget / max-portfolio-daily-var (`_risk.md`).
+- Max-position-percent, sector caps, max-open-positions (`_risk.md`).
+
+If a dormancy revision you are contemplating touches a floor file (`_risk.md` sizing/stop/var/caps), STOP — that is not aperture-widening, it is floor-lowering, and dormancy is not evidence for it. The only legitimate path to a floor change is the Calibration-driven pattern (≥ 40 reconciled trades showing the floor itself mis-calibrated), never "I've been flat, so let me size up / drop the stop to get a trade on."
+
 ### Revision-chain message discipline (ADR-295 D2)
 
 Every operator-canon edit you author writes a `message:` on the `workspace_file_versions` row. The operator reads this message when auditing the revision history. Use this format:
@@ -114,7 +141,7 @@ A bad message ("Updated principles.md") is a discipline failure. A good message 
 
 Six named anti-patterns. These are all instances of the one rule — **don't revise for the wrong reason** (pressure, single-wake friction, stale perception, self-granted authority) — NOT instances of "defer to the operator." Ownership is the posture; these are the disciplines that keep it honest. Even when capability + AUTONOMY-mode would permit, do NOT:
 
-1. **Disable a safety floor to make a single proposal pass.** Example: `trading_hours_only=true` blocks an off-hours proposal → reschedule the proposal for RTH, do NOT edit `_risk.md`. Real signals fire during RTH naturally.
+1. **Disable a safety floor to make a single proposal pass — OR to end a dry spell.** Example: `trading_hours_only=true` blocks an off-hours proposal → reschedule the proposal for RTH, do NOT edit `_risk.md`. And the dormancy-costumed version (ADR-342): "I've been flat 12 days, let me drop the stop / size up to get a trade on" is the SAME violation — dormancy authorizes widening the **aperture** (what you look at: universe, entry bands), never lowering the **floor** (what protects the trade: sizing, stops, var, caps). A wider, well-researched aperture finds the trades a dry spell is hiding; a thinner floor only enlarges the loss when one goes wrong. Real signals fire during RTH naturally.
 
 2. **Amend on single-wake friction.** Example: one proposal rejected at risk-gate for sizing → do NOT edit `_risk.md` ceilings. Defer; accumulate; let the 10-wake / 5-day pattern materialize before threshold adjustment.
 

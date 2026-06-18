@@ -6,6 +6,30 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.18.1] - ADR-342: persona-frame offensive limb — dormancy as ground-truth evidence
+
+**LLM-facing change** (Reviewer persona-frame, `reviewer_agent.py::_compute_minimal_frame`):
+
+- The situation-scoped paragraph (ADR-318's "a wake is a situation, not a task")
+  gains an **offensive limb**. Its forward-reasoning examples were all defensive
+  (watch a position, author a wake, prune a cadence); added: when the production
+  mandate's declared means has been **persistently silent**, that dormancy is
+  itself a condition to act on — research the premise, widen the aperture
+  (universe / entry bands / watch set), propose revising the rules that stopped
+  producing. Carries the **aperture/floor split** inline: widening what you LOOK
+  AT is authorized by dormancy evidence; loosening what PROTECTS each action
+  (sizing/stops/var/caps) is never — the floor moves only on its own
+  falsification, never to end a dry spell.
+- Frame-legal per agent-composition.md §3.2.1: this is the *stance* (same
+  category as "a wake is a situation"), principal-shift/action-grammar, generic
+  across programs. The *rules* (thresholds, file-lists) stay in each program's
+  `principles.md` (alpha-trader's Dormancy-driven pattern).
+- **Expected behavior**: a Reviewer woken on a workspace that has been dormant
+  past its program threshold reasons forward toward research + bounded
+  aperture-widening rather than a bare stand-down; it does NOT touch risk-floor
+  files on dormancy rationale (the pressure-refusal behavior is preserved).
+- Canon: FOUNDATIONS DP24 amendment (v9.6) + ADR-342.
+
 ## [2026.06.12.2] - ADR-340 P2: compact-index settings pointer — pane param
 
 **LLM-facing change** (compact index, `working_memory.py`):
