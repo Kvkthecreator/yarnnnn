@@ -37,6 +37,9 @@ import RecurrencePage from '@/app/(authenticated)/recurrence/page';
 // constitution band (ADR-312 D5) — HomeHeader consumes the cards
 // directly, independent of these (now-deleted) page routes.
 import QueuePage from '@/app/(authenticated)/queue/page';
+// ADR-346 (2026-06-19) — the Operation composition window (Decide · Read ·
+// Tune). Window-grade (no pane_of) like Home; its panes reuse mirror bodies.
+import OperationPage from '@/app/(authenticated)/operation/page';
 // ADR-340 D8 (2026-06-18) — Machinery consolidation. Activity is PANE-GRADE
 // under Recurrence (registry `pane_of: "recurrence"`): the Runs lens rendered
 // inside RecurrencePage (shared ActivityLog body). No window component — the
@@ -71,6 +74,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   // ADR-341 (2026-06-18): mandate/principles/identity are pane-grade under
   // workspace-settings; no window component (resolve to undefined here).
   queue: QueuePage,
+  operation: OperationPage,  // ADR-346 — the operating-work composition (Resolve · Understand · Tune)
   // ADR-340 D8 — `activity` is pane-grade under recurrence; no window component.
   agents: AgentsPage,
   files: FilesPage,

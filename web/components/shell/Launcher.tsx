@@ -14,11 +14,13 @@
  * ADR-340 P3 (2026-06-12) — act-derived launcher IA, two modes:
  *
  *   AT REST (no query): the kernel tier groups by `launcher_tier` —
- *   "Workspace" (primary: Home · Feed · Queue · Files, the standing
- *   loop), then the two Settings doors as SEPARATE labeled groups
- *   (ADR-341): "Operation" (Workspace Settings) ABOVE "System" (System
- *   Settings) — two objects, the operation vs the OS, not one
- *   "Configure" lump — then "Utilities" (Setup · Recurrence · Agents).
+ *   "Workspace" (primary: Home · Operation · Files, the standing-loop
+ *   compositions — ADR-346 promoted Operation and demoted Feed/Queue,
+ *   which Operation now fronts), then the two Settings doors as SEPARATE
+ *   labeled groups (ADR-341): "Operation" (Workspace Settings) ABOVE
+ *   "System" (System Settings) — two objects, the operation vs the OS,
+ *   not one "Configure" lump — then "Utilities" (Setup · Recurrence ·
+ *   Agents · Feed · Queue).
  *   `search-only` surfaces are HIDDEN at rest — the constitution
  *   mirrors' first-class door is the Home constitution band (ADR-312
  *   slot #1; their pane door is Workspace Settings); the Settings panes'

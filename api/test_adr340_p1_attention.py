@@ -110,11 +110,14 @@ def test_attention_center() -> None:
         ".post(" not in src and "request<" not in src and "fetch(" not in src,
     )
     check(
-        "rows deep-link via foregroundSurface (ADR-297 D19.2)",
-        "foregroundSurface" in src,
+        # ADR-346: rows now deep-link into the Operation composition (the
+        # surface that CARRIES controls) via navigateToSurface, which writes
+        # the ?pane= param — instead of bare foregroundSurface to the mirrors.
+        "rows deep-link into Operation via navigateToSurface (ADR-346)",
+        "navigateToSurface('operation'" in src,
     )
-    check("Queue deep-link present", "'queue'" in src)
-    check("Feed deep-link present", "'feed'" in src)
+    check("Decide rows → Resolve pane", "goTo('resolve')" in src)
+    check("Read rows → Understand pane", "goTo('understand')" in src)
 
 
 def test_topbar_mounts_attention() -> None:

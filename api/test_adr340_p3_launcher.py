@@ -47,8 +47,11 @@ def test_registry_tiers() -> None:
 
     check("every navigable surface declares a tier", all(tiers.values()), str({k: v for k, v in tiers.items() if not v}))
     check(
-        "primary == the standing loop (home/feed/queue/files)",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "feed", "queue", "files"},
+        # ADR-346: primary == the standing-loop COMPOSITIONS. Operation joins
+        # Home as the second composition (Decide·Read·Tune); Feed + Queue
+        # demote to utilities — Operation fronts them.
+        "primary == the standing-loop compositions (home/operation/files)",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "operation", "files"},
     )
     # ADR-341: the two Settings doors are SEPARATE tier groups —
     # workspace-config (Operation) above system-config (System). The old
@@ -64,8 +67,11 @@ def test_registry_tiers() -> None:
     check("legacy system + configure tiers retired",
           not any(t in ("system", "configure") for t in tiers.values()))
     check(
-        "utilities == setup/recurrence/agents (activity folded to a recurrence pane, ADR-340 D8)",
-        {s for s, t in tiers.items() if t == "utilities"} == {"setup", "recurrence", "agents"},
+        # ADR-346: feed + queue join utilities (demoted from primary —
+        # Operation fronts them; they stay complete + reachable mirrors).
+        "utilities == setup/recurrence/agents/feed/queue (ADR-346 demotes feed+queue; activity is a recurrence pane per ADR-340 D8)",
+        {s for s, t in tiers.items() if t == "utilities"}
+        == {"setup", "recurrence", "agents", "feed", "queue"},
     )
     check(
         "search-only == constitution mirrors + Settings panes + activity",

@@ -19,9 +19,14 @@
  *     notification classification; nothing is re-classified here)
  *   - runway warnings (low balance)                      → api.integrations.getLimits
  *
- * Every row is a pure deep-link into the event's real home (Queue /
- * Feed / billing) via foregroundSurface (ADR-297 D19.2) — the center
- * owns no content. The "last looked" cursor is client-side presentation
+ * Every row deep-links into the operator's real home for the act. Per
+ * ADR-346 the bell now lands on the Operation composition — the surface
+ * that CARRIES controls — instead of the bare mirrors: Decide rows →
+ * operation?pane=resolve (the Queue body, where you approve); Read rows →
+ * operation?pane=understand (the Feed narrative); billing warning →
+ * settings?pane=billing. The mirrors stay reachable behind Operation
+ * (the escape hatch), but the bell stops being a dead-end router that
+ * can only point. The "last looked" cursor is client-side presentation
  * state in localStorage, same single-device-continuity stance as the
  * window-manager preferences (lib/shell/surface-preferences.ts) — it is
  * a read cursor, not workspace state, and never touches substrate.
@@ -87,7 +92,9 @@ export function AttentionCenter() {
   const [lowBalance, setLowBalance] = useState<number | null>(null);
   const [lastSeen, setLastSeen] = useState<string | null>(() => readLastSeen());
   const containerRef = useRef<HTMLDivElement>(null);
-  const { foregroundSurface } = useSurfacePreferences();
+  // ADR-346: navigateToSurface (not foregroundSurface) — it writes the
+  // ?pane= param so the bell lands on the right Operation act.
+  const { navigateToSurface } = useSurfacePreferences();
   const router = useRouter();
 
   useEffect(() => {
@@ -189,16 +196,19 @@ export function AttentionCenter() {
     });
   }, []);
 
+  // ADR-346: the bell lands on the Operation composition (the surface that
+  // carries controls) — Decide rows → Resolve pane, Read rows → Understand
+  // pane — instead of the bare mirrors. Billing stays a System Settings pane.
   const goTo = useCallback(
-    (target: 'queue' | 'feed' | 'billing') => {
+    (target: 'resolve' | 'understand' | 'billing') => {
       setIsOpen(false);
       if (target === 'billing') {
         router.push('/settings?pane=billing');
       } else {
-        foregroundSurface(target);
+        navigateToSurface('operation', { pane: target });
       }
     },
-    [foregroundSurface, router],
+    [navigateToSurface, router],
   );
 
   // ADR-340 P4 F3: operator-language labels via the shared labeler —
@@ -270,7 +280,7 @@ export function AttentionCenter() {
                   <button
                     key={p.id}
                     type="button"
-                    onClick={() => goTo('queue')}
+                    onClick={() => goTo('resolve')}
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
                   >
                     <span className="text-foreground">{proposalLabel(p)}</span>
@@ -279,7 +289,7 @@ export function AttentionCenter() {
                 {proposals.length > MAX_ROWS_PER_SECTION && (
                   <button
                     type="button"
-                    onClick={() => goTo('queue')}
+                    onClick={() => goTo('resolve')}
                     className="w-full text-left px-3 py-1.5 text-[11px] text-muted-foreground hover:bg-muted transition-colors"
                   >
                     +{proposals.length - MAX_ROWS_PER_SECTION} more pending…
@@ -297,7 +307,7 @@ export function AttentionCenter() {
                   <button
                     key={e.id}
                     type="button"
-                    onClick={() => goTo('feed')}
+                    onClick={() => goTo('understand')}
                     className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
                   >
                     <span className="block text-foreground truncate">{e.headline}</span>
@@ -324,10 +334,10 @@ export function AttentionCenter() {
 
           <button
             type="button"
-            onClick={() => goTo('queue')}
+            onClick={() => goTo('resolve')}
             className="w-full text-left px-3 py-2 text-xs text-primary hover:bg-muted border-t border-border transition-colors"
           >
-            Open Queue →
+            Open Operation →
           </button>
         </div>
       )}

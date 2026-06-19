@@ -1,0 +1,137 @@
+"""ADR-346 gate — the Operation surface: a composition for Decide·Read·Tune.
+
+Python file-assertion gate (no JS test runner, per ADR-236 Rule 3). Verifies
+the Operation composition is registered window-grade, fronts the three
+operating-work mirrors as panes that REUSE the mirror bodies (one body, two
+mounts — the ADR-340 D8 rule), the mirrors survive (NOT redirect stubs, NOT
+pane-grade), Feed+Queue demoted to utilities, and the Attention bell lands on
+the Operation panes (the surface that carries controls).
+
+Usage:
+    cd api
+    python test_adr346_operation_composition.py
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+_API_ROOT = Path(__file__).resolve().parent
+_WEB = _API_ROOT.parent / "web"
+
+PASSED = 0
+FAILED = 0
+
+
+def check(label: str, condition: bool, detail: str = "") -> None:
+    global PASSED, FAILED
+    if condition:
+        print(f"  ✓ {label}")
+        PASSED += 1
+    else:
+        print(f"  ✗ {label}{(' — ' + detail) if detail else ''}")
+        FAILED += 1
+
+
+def _read(rel: str) -> str:
+    p = _WEB / rel
+    return p.read_text() if p.exists() else ""
+
+
+def test_registry_window_grade() -> None:
+    print("\n[registry] operation is a window-grade primary composition")
+    from services.kernel_surfaces import KERNEL_SURFACES
+
+    by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
+    op = by_slug.get("operation")
+    check("operation surface registered", op is not None)
+    if not op:
+        return
+    check("window-grade (no pane_of — a composition, not a pane)", "pane_of" not in op)
+    check("launcher_tier == primary (the default operating destination)", op.get("launcher_tier") == "primary")
+    check("register == application (a windowed composition)", op.get("register") == "application")
+    check("route == /operation", op.get("route") == "/operation")
+    check("composes substrate (substrate_paths empty — owns no files)", op.get("substrate_paths") == [])
+    check("archetype == dashboard", op.get("archetype") == "dashboard")
+
+
+def test_mirrors_survive() -> None:
+    print("\n[mirrors] Queue/Feed/Recurrence stay complete + reachable (ADR-346 D1)")
+    from services.kernel_surfaces import KERNEL_SURFACES
+
+    by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
+    for slug in ("queue", "feed", "recurrence"):
+        e = by_slug.get(slug)
+        check(f"{slug} still registered as a navigable surface", bool(e and e.get("route")))
+        check(f"{slug} NOT pane-grade (stays a window mirror, not absorbed)", e is not None and "pane_of" not in e)
+
+    # The mirrors must NOT become redirect stubs — they keep their real bodies.
+    for slug in ("queue", "feed", "recurrence"):
+        src = _read(f"app/(authenticated)/{slug}/page.tsx")
+        check(f"/{slug} is a real surface, not a redirect stub",
+              "'use client'" in src and "redirect(" not in src,
+              "found redirect() — mirror was stubbed")
+
+    # Feed + Queue demoted primary → utilities (Operation fronts them).
+    check("feed demoted to utilities", by_slug["feed"].get("launcher_tier") == "utilities")
+    check("queue demoted to utilities", by_slug["queue"].get("launcher_tier") == "utilities")
+
+
+def test_one_body_two_mounts() -> None:
+    print("\n[reuse] panes reuse mirror bodies — one body, two mounts (ADR-340 D8 rule)")
+    # QueueBody extracted + mounted by BOTH the mirror and the Operation pane.
+    qbody = _read("components/queue/QueueBody.tsx")
+    check("QueueBody component exists", "export function QueueBody" in qbody)
+    check("QueueBody owns the proposal data-load", "api.proposals.list" in qbody)
+
+    queue_page = _read("app/(authenticated)/queue/page.tsx")
+    check("the /queue mirror mounts QueueBody", "QueueBody" in queue_page and "api.proposals.list" not in queue_page)
+
+    op = _read("app/(authenticated)/operation/page.tsx")
+    check("Resolve pane mounts QueueBody", "QueueBody" in op)
+    check("Understand pane mounts FeedSurface", "FeedSurface" in op)
+    check("Tune pane mounts RecurrenceList", "RecurrenceList" in op)
+    check("each pane offers an escape hatch into the full mirror",
+          "Open full Queue" in op and "Open full Recurrence" in op)
+    check("mounts the shared SettingsPaneShell (Singular Implementation)",
+          "SettingsPaneShell" in op and "fullBleed" in op)
+    check("three Operate panes: resolve/understand/tune",
+          all(k in op for k in ('"resolve"', '"understand"', '"tune"')))
+
+
+def test_registry_and_parity() -> None:
+    print("\n[wiring] operation in the FE registry + slug allowlist")
+    reg = _read("components/shell/SurfaceRegistry.tsx")
+    check("SurfaceRegistry maps operation → OperationPage",
+          "operation: OperationPage" in reg and "OperationPage" in reg)
+    desk = _read("types/desk.ts")
+    check("operation in KernelSurfaceSlug union", "'operation'" in desk)
+    check("operation in KERNEL_SURFACE_SLUGS array", "'operation'" in desk and "KERNEL_SURFACE_SLUGS" in desk)
+
+
+def test_attention_lands_on_operation() -> None:
+    print("\n[bell] the Attention center routes into the Operation panes")
+    src = _read("components/shell/AttentionCenter.tsx")
+    check("uses navigateToSurface (writes ?pane=)", "navigateToSurface('operation'" in src)
+    check("Decide rows → Resolve pane", "goTo('resolve')" in src)
+    check("Read rows → Understand pane", "goTo('understand')" in src)
+    check("footer relabeled Open Operation →", "Open Operation →" in src)
+    check("billing warning still → System Settings billing pane", "/settings?pane=billing" in src)
+    check("no longer routes to the bare queue/feed mirrors",
+          "goTo('queue')" not in src and "goTo('feed')" not in src)
+
+
+def main() -> int:
+    print("ADR-346 gate — the Operation composition surface")
+    test_registry_window_grade()
+    test_mirrors_survive()
+    test_one_body_two_mounts()
+    test_registry_and_parity()
+    test_attention_lands_on_operation()
+    print(f"\n{PASSED} passed, {FAILED} failed")
+    return 1 if FAILED else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

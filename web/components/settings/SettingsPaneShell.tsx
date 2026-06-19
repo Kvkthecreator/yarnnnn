@@ -45,6 +45,15 @@ interface SettingsPaneShellProps {
   renderPane: (activePane: string) => React.ReactNode;
   /** Optional banner row above the body (e.g. subscription success). */
   banner?: React.ReactNode;
+  /**
+   * ADR-346 — drop the centered `max-w-3xl mx-auto p-6` body wrapper so the
+   * pane owns its own layout. Config doors (System / Workspace Settings) want
+   * the constrained card column (default false); the Operation composition's
+   * full-bleed panes (FeedSurface, RecurrenceList) fill the pane region.
+   */
+  fullBleed?: boolean;
+  /** Sidebar section header label (default "Settings panes" for a11y). */
+  navLabel?: string;
 }
 
 export function SettingsPaneShell({
@@ -52,6 +61,8 @@ export function SettingsPaneShell({
   defaultPane,
   renderPane,
   banner,
+  fullBleed = false,
+  navLabel = "Settings panes",
 }: SettingsPaneShellProps) {
   const { setSurfaceParams } = useSurfacePreferences();
   const searchParams = useSearchParams();
@@ -81,7 +92,7 @@ export function SettingsPaneShell({
   return (
     <div className="h-full flex">
       <nav
-        aria-label="Settings panes"
+        aria-label={navLabel}
         className="w-44 sm:w-52 shrink-0 border-r border-border overflow-y-auto py-3 px-2 space-y-4"
       >
         {paneGroups.map((group) => (
@@ -111,12 +122,19 @@ export function SettingsPaneShell({
         ))}
       </nav>
 
-      <div className="flex-1 overflow-y-auto">
-        <div className="max-w-3xl mx-auto p-6">
+      {fullBleed ? (
+        <div className="flex-1 min-w-0 min-h-0 overflow-hidden flex flex-col">
           {banner}
           {renderPane(activePane)}
         </div>
-      </div>
+      ) : (
+        <div className="flex-1 overflow-y-auto">
+          <div className="max-w-3xl mx-auto p-6">
+            {banner}
+            {renderPane(activePane)}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -201,8 +201,14 @@ ARCHETYPES = (
 
 KERNEL_SURFACES: list[dict[str, Any]] = [
     {
+        # ADR-346 (2026-06-19) — Feed demoted primary → utilities. With the
+        # Operation composition fronting it (Understand pane), Feed stops being
+        # a default destination and becomes a reachable mirror (the escape
+        # hatch). The substrate read + route + deep-links all survive; only the
+        # launcher prominence drops (ADR-340 D1 "mirror once, compose few" —
+        # the cost optimized is launcher breadth, not surface count).
         "slug": "feed",
-        "launcher_tier": "primary",  # ADR-340 P3
+        "launcher_tier": "utilities",  # ADR-346 (was primary, ADR-340 P3)
         "register": "application",  # ADR-309 two-register model
         "title": "Feed",
         "archetype": "stream",
@@ -248,6 +254,35 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "default_pinned": False,
         "route": "/home",  # ADR-312 D1 (was /cockpit)
         "summary": "The operation, rendered — constitution, ground-truth, decision queue, live entities, recent artifacts, judgment trail. Composition over the workspace's present constituents.",
+    },
+    {
+        # ADR-346 (2026-06-19) — the Operation surface, the SECOND composition
+        # window (Home was the first, serving Dwell). A composition OVER the
+        # operational mirrors, not a new mirror: one door for operating the
+        # recurring work, with three SettingsPaneShell panes = the three acts
+        # ADR-340 D2 named but never built a composition for:
+        #   Resolve   (Decide) → the Queue body over action_proposals
+        #   Understand (Read)   → FeedSurface narrative + the run ledger
+        #   Tune      (Tune)    → RecurrenceList + Schedule/Runs lens toggle
+        # Window-grade (no pane_of) — its panes are composition VIEWS that reuse
+        # mirror bodies (one body, two mounts, the ADR-340 D8 rule), each with
+        # an "Open full ___ →" escape hatch. substrate_paths [] — it composes
+        # action_proposals + session_messages + _recurrences.yaml/execution_events.
+        # Primary tier: the default destination for operating work; the mirrors
+        # it fronts (Feed, Queue) demote to utilities in the same ADR.
+        "slug": "operation",
+        "launcher_tier": "primary",  # ADR-346 — the operating-work composition, prominent
+        "register": "application",  # a windowed composition like home / workspace-settings
+        "title": "Operation",
+        "archetype": "dashboard",  # composition over multiple substrates
+        "substrate_paths": [],  # composes action_proposals + session_messages + _recurrences.yaml
+        "icon_key": "gauge",
+        # Not default-pinned — matches Home (the other primary composition);
+        # ADR-297 D5 keeps Feed as the sole default-pinned surface. Operators
+        # pin Operation via the dock affordance after first use (Launchpad model).
+        "default_pinned": False,
+        "route": "/operation",
+        "summary": "Operate the recurring work in one place — resolve what wants you, understand what just happened, tune what's scheduled.",
     },
     {
         # Renamed cadence → recurrence (2026-06-03). The surface's
@@ -437,8 +472,13 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "summary": "Active program bundle, phase, and capability gaps.",
     },
     {
+        # ADR-346 (2026-06-19) — Queue demoted primary → utilities. The
+        # Operation composition fronts it (Resolve pane mounts the same Queue
+        # body over the same action_proposals — ADR-307 one gate, one queue
+        # preserved). Queue stays the complete decide mirror, reachable +
+        # searchable; the Attention bell + Operation are now the default route in.
         "slug": "queue",
-        "launcher_tier": "primary",  # ADR-340 P3
+        "launcher_tier": "utilities",  # ADR-346 (was primary, ADR-340 P3)
         "register": "application",  # ADR-309 two-register model
         "title": "Queue",
         "archetype": "queue",
