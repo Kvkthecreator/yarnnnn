@@ -1296,17 +1296,24 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
 
     activation_state = "none"
     active_program_slug: Optional[str] = None
+    # Active-program derivation and activation-state classification are
+    # independent reads; keep them in separate try-blocks so a failure in
+    # one never silently nulls the other. (Regression: 7e777bf dropped the
+    # classifier's make_client_fn param while this call still passed it,
+    # raising TypeError that swallowed the program slug for every workspace.)
     try:
-        activation_state = _classify_activation_state(
-            auth.user_id,
-            mandate_content,
-            lambda: auth.client,
-        )
         candidate = parse_active_program_slug(mandate_content)
         if candidate and candidate in _all_slugs():
             active_program_slug = candidate
     except Exception as exc:
-        logger.warning(f"[WORKSPACE_STATE] activation derivation failed: {exc}")
+        logger.warning(f"[WORKSPACE_STATE] active-program derivation failed: {exc}")
+    try:
+        activation_state = _classify_activation_state(
+            auth.user_id,
+            mandate_content,
+        )
+    except Exception as exc:
+        logger.warning(f"[WORKSPACE_STATE] activation-state classification failed: {exc}")
 
     # ─── Step 3: available programs (activatable list) ──────────────────
     available_programs: list[ProgramItem] = []
