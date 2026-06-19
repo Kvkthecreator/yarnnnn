@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-18
 **Hat:** B (External Developer of the System) — surfaces a finding; recommends a Hat-A amendment to ADR-335. Does **not** itself amend canon.
-**Status:** Open — recommends an ADR-335 amendment before Crawl-B (D4 MCP client) is built.
+**Status:** **RESOLVED 2026-06-19** — the recommended amendment ([ADR-335-AMENDMENT-derived-trust-tier.md](../adr/ADR-335-AMENDMENT-derived-trust-tier.md)) was ratified and patched into ADR-335 §7/§13/§14/§15. The head/tail category is retired; transport trust is a derived tier. ADR-076 ghost discharged by receipt (§7). Open Question A (connection vs watch) closed `NO` (§9).
 **Trigger:** Cross-analysis of Vercel's Eve announcement (2026-06-18) → operator interrogation: "what's the difference between a head driver and MCP? is this architecturally right?" → on pushback, the directive: *reason to the first-principles structure that is future-proof and won't force a fundamental rewrite later — not to any particular phrasing.*
 **Amends target:** [ADR-335 §7 (D4)](../adr/ADR-335-perception-field.md) — the head/tail split text (lines ~163–166) and §13 (binding storage claim, line ~252).
 
