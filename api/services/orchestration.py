@@ -1166,28 +1166,42 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "tools": ["platform_slack_list_channels", "platform_slack_get_channel_history"],
         "platform_connection_requirement": {"platform": "slack", "status": "active"},
     },
-    # ADR-304 D2 (2026-05-27): `write_slack` (operator DM send) DELETED
-    # from kernel CAPABILITIES. The operator-DM send (platform_slack_send_message)
-    # is operator-addressing system infrastructure under ADR-299 D1 + ADR-304 D1's
-    # distinguishing test (addressee structurally pinned to operator's own
-    # Slack DM, never LLM-supplied). It now lives in
-    # SYSTEM_INFRASTRUCTURE_TOOLS as SLACK_SEND_MESSAGE_TOOL. The
-    # `write_slack` capability key is reserved for future audience-
-    # addressing extensions per ADR-304 D5 (e.g., a future channel-send
-    # tool would re-declare write_slack here pointing to the new tool).
+    # ADR-304 amendment (2026-06-19): `write_slack` is KERNEL-UNIVERSAL — the
+    # audience-addressing channel-send the operator confirmed as an ambient
+    # capability (no per-program friction), WITH the ADR-307 uniform gate as the
+    # safety floor (ambient capability, gated act; NOT ungated). This points at
+    # the audience-write tool (platform_slack_send_to_channel), NOT the
+    # operator-DM send (platform_slack_send_message), which stays system
+    # infrastructure per ADR-304 D1 (addressee pinned to the operator's own DM).
+    # `feeds: action` ⇒ required_tier=HIGH (a primary external write); a
+    # platform-grade Slack connection satisfies it. Symmetric with read_slack
+    # being kernel-universal: both are capability-bundle-shaped, not program-
+    # shaped (ADR-224 §1). The Reviewer is excluded — it has NO platform write
+    # tool in REVIEWER_PRIMITIVES; it reaches external effect only via
+    # ProposeAction (ADR-299 D8 / ADR-304 D6, preserved).
+    "write_slack": {
+        "category": "tool", "runtime": "external:slack", "feeds": "action",
+        "tools": ["platform_slack_send_to_channel"],
+        "platform_connection_requirement": {"platform": "slack", "status": "active"},
+    },
     "read_notion": {
         "category": "tool", "runtime": "external:notion", "feeds": "context",
         "tools": ["platform_notion_search", "platform_notion_get_page"],
         "platform_connection_requirement": {"platform": "notion", "status": "active"},
     },
-    # ADR-304 D2 (2026-05-27): `write_notion` (operator-designated-page
-    # comment) DELETED from kernel CAPABILITIES. The comment write
-    # (platform_notion_create_comment) is operator-addressing system
-    # infrastructure — addressee structurally pinned to operator's
-    # designated_page_id from integration metadata. It now lives in
-    # SYSTEM_INFRASTRUCTURE_TOOLS as NOTION_CREATE_COMMENT_TOOL. The
-    # `write_notion` capability key is reserved for future audience-
-    # addressing extensions per ADR-304 D5 (page-create, block-append).
+    # ADR-304 amendment (2026-06-19): `write_notion` is KERNEL-UNIVERSAL —
+    # audience-addressing page-create + block-append (shared-Notion drafting),
+    # the ambient capability the operator confirmed, WITH the ADR-307 gate as
+    # the safety floor. Points at the audience-write tools, NOT the operator-
+    # designated-page comment (platform_notion_create_comment, which stays
+    # system infrastructure per ADR-304 D1). `feeds: action` ⇒ HIGH tier.
+    # Reviewer excluded (no platform write in REVIEWER_PRIMITIVES; ProposeAction
+    # only — ADR-299 D8 / ADR-304 D6).
+    "write_notion": {
+        "category": "tool", "runtime": "external:notion", "feeds": "action",
+        "tools": ["platform_notion_create_page", "platform_notion_append_block"],
+        "platform_connection_requirement": {"platform": "notion", "status": "active"},
+    },
     "read_github": {
         "category": "tool", "runtime": "external:github", "feeds": "context",
         "tools": ["platform_github_list_repos", "platform_github_get_issues"],

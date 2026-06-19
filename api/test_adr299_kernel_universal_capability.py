@@ -187,45 +187,53 @@ def test_notion_create_comment_lifted_out_of_notion_tools() -> None:
     )
 
 
-def test_write_slack_and_write_notion_not_in_capabilities() -> None:
-    """ADR-304 D2: write_slack + write_notion capability keys DELETED
-    from kernel CAPABILITIES. They are reserved for future audience-
-    addressing extensions per ADR-304 D5; today's operator-addressing
-    writes live in SYSTEM_INFRASTRUCTURE_TOOLS."""
-    from services.orchestration import CAPABILITIES
+def test_write_slack_and_write_notion_are_kernel_universal_audience_writes() -> None:
+    """ADR-304 amendment (2026-06-19): write_slack + write_notion are KERNEL-
+    UNIVERSAL audience-write capabilities (the operator-confirmed ambient
+    capability), declared in kernel CAPABILITIES with `feeds: action` ⇒ HIGH
+    tier, WITH the ADR-307 uniform gate as the safety floor.
+
+    Reverses ADR-304 D2 (which deleted these keys). The invariant that MUST
+    hold: they point at the AUDIENCE-write tools, NEVER back at the operator-
+    addressing infrastructure tools (platform_slack_send_message /
+    platform_notion_create_comment, which stay in SYSTEM_INFRASTRUCTURE_TOOLS
+    per ADR-304 D1)."""
+    from services.orchestration import CAPABILITIES, required_tier
 
     for cap_name in ("write_slack", "write_notion"):
-        assert cap_name not in CAPABILITIES, (
-            f"{cap_name} is present in CAPABILITIES — ADR-304 D2 deleted "
-            f"the capability registration. The operator-addressing tool "
-            f"this used to reference is now SYSTEM_INFRASTRUCTURE_TOOLS. "
-            f"If a bundle needs an audience-addressing {cap_name} extension, "
-            f"the capability declaration lives in the BUNDLE MANIFEST, "
-            f"not in kernel CAPABILITIES."
+        assert cap_name in CAPABILITIES, (
+            f"{cap_name} must be in kernel CAPABILITIES — the ADR-304 amendment "
+            f"(2026-06-19) makes audience-writes kernel-universal (ambient, no "
+            f"per-program friction)."
         )
+        cap = CAPABILITIES[cap_name]
+        assert cap.get("feeds") == "action", (
+            f"{cap_name} must declare `feeds: action` so required_tier=HIGH "
+            f"(it is a primary external write)."
+        )
+        assert required_tier(cap) == "HIGH", f"{cap_name} required_tier must be HIGH"
+        # Points at audience-write tools, never the operator-addressing infra.
+        tools = set(cap.get("tools") or [])
+        assert "platform_slack_send_message" not in tools
+        assert "platform_notion_create_comment" not in tools
 
-
-def test_write_slack_and_write_notion_not_in_resolution_maps() -> None:
-    """ADR-304 D2: PLATFORM_TOOLS_BY_CAPABILITY + CAPABILITY_PROVIDER_MAP
-    must NOT contain write_slack or write_notion entries. The maps are
-    free of the deleted capability keys."""
-    from services.platform_tools import (
-        PLATFORM_TOOLS_BY_CAPABILITY,
-        CAPABILITY_PROVIDER_MAP,
+    assert "platform_slack_send_to_channel" in (CAPABILITIES["write_slack"].get("tools") or [])
+    assert {"platform_notion_create_page", "platform_notion_append_block"} <= set(
+        CAPABILITIES["write_notion"].get("tools") or []
     )
 
-    for cap_name in ("write_slack", "write_notion"):
-        assert cap_name not in PLATFORM_TOOLS_BY_CAPABILITY, (
-            f"{cap_name} is present in PLATFORM_TOOLS_BY_CAPABILITY — "
-            f"ADR-304 D2 deleted it. Audience-addressing extensions under "
-            f"this key would need to register a NEW tool, not reuse the "
-            f"existing operator-addressing tool that's now in "
-            f"SYSTEM_INFRASTRUCTURE_TOOLS."
-        )
-        assert cap_name not in CAPABILITY_PROVIDER_MAP, (
-            f"{cap_name} is present in CAPABILITY_PROVIDER_MAP — "
-            f"ADR-304 D2 deleted it."
-        )
+
+def test_operator_addressing_writes_stay_system_infrastructure() -> None:
+    """ADR-304 D1 (preserved by the 2026-06-19 amendment): the operator-DM Slack
+    send + operator-page Notion comment remain operator-addressing system
+    infrastructure. The kernel-universal write_slack / write_notion audience
+    capabilities point at DISTINCT audience tools (asserted in the
+    capabilities test), never at these infra tools."""
+    from services.platform_tools import SYSTEM_INFRASTRUCTURE_TOOLS
+
+    infra_names = {t.get("name") for t in SYSTEM_INFRASTRUCTURE_TOOLS}
+    assert "platform_slack_send_message" in infra_names
+    assert "platform_notion_create_comment" in infra_names
 
 
 def test_email_send_to_operator_tool_schema_constrained() -> None:
@@ -430,6 +438,28 @@ def test_reviewer_primitives_excludes_all_system_infrastructure_tools() -> None:
     )
 
 
+def test_reviewer_primitives_excludes_all_platform_write_tools() -> None:
+    """ADR-304 D6 (preserved by the 2026-06-19 kernel-universal amendment): the
+    Reviewer reaches external effect ONLY via ProposeAction. It has NO platform
+    write tool — neither the new kernel-universal audience-writes (write_slack /
+    write_notion → channel post / page create / block append) nor any capital
+    write. Making audience-writes kernel-universal must NOT leak a platform
+    write into the Reviewer surface; the seat stays propose-only."""
+    from services.primitives.registry import REVIEWER_PRIMITIVES
+    from services.platform_tools import is_platform_tool
+
+    reviewer_tool_names = {t.get("name") for t in REVIEWER_PRIMITIVES}
+    platform_in_reviewer = {n for n in reviewer_tool_names if is_platform_tool(n or "")}
+    assert not platform_in_reviewer, (
+        f"Reviewer surface includes platform tools: {platform_in_reviewer}. "
+        "ADR-299 D8 / ADR-304 D6: the Reviewer is propose-only — it reaches "
+        "external effect via ProposeAction, never a direct platform write. "
+        "Kernel-universal audience-writes (ADR-304 amendment) surface to "
+        "task-bearing agent paths via PLATFORM_TOOLS_BY_CAPABILITY, NOT to "
+        "REVIEWER_PRIMITIVES."
+    )
+
+
 def test_bundle_capability_resolution_not_regressed() -> None:
     """The workspace-capability resolution path is unchanged by the rewrite.
     read_trading still maps to trading provider + its tools."""
@@ -465,8 +495,9 @@ if __name__ == "__main__":
         test_system_infrastructure_tools_contains_operator_addressing_writes,
         test_slack_send_message_lifted_out_of_slack_tools,
         test_notion_create_comment_lifted_out_of_notion_tools,
-        test_write_slack_and_write_notion_not_in_capabilities,
-        test_write_slack_and_write_notion_not_in_resolution_maps,
+        test_write_slack_and_write_notion_are_kernel_universal_audience_writes,
+        test_operator_addressing_writes_stay_system_infrastructure,
+        test_reviewer_primitives_excludes_all_platform_write_tools,
         test_email_send_to_operator_tool_schema_constrained,
         test_handler_refuses_llm_supplied_addressee_fields,
         test_send_operator_email_not_in_capability_resolution_maps,

@@ -2,6 +2,8 @@
 
 **Status**: Implemented 2026-05-27 — Checkpoints 1 + 2 land atomically.
 
+> **Amendment (2026-06-19) — D5 revised: audience-writes are KERNEL-UNIVERSAL, not bundle-MANIFEST-declared.** See [§"Amendment — kernel-universal audience-writes"](#amendment-2026-06-19--kernel-universal-audience-writes) below. The operator confirmed audience-addressing Slack/Notion writes as an **ambient capability** (first-class, no per-program friction), gated by the ADR-307 uniform gate as the safety floor (ambient capability, gated act; NOT ungated). `write_slack` / `write_notion` are re-declared in kernel `CAPABILITIES` with `feeds: action` (⇒ HIGH tier per the 2026-06-19 derived-tier gate), pointing at the new audience-write tools — symmetric with `read_slack` / `read_notion` already being kernel-universal (capability-bundle-shaped, not program-shaped, per ADR-224 §1). D1 (operator-DM/comment stay system infrastructure) and D6 (Reviewer-exclusion) are **preserved verbatim**. This revises D5's "audience-addressing extensions declare via bundle MANIFEST" to "kernel-universal in CAPABILITIES" for these two capabilities; bundle-declared extension remains available for genuinely program-specific audience writes.
+
 **Date**: 2026-05-27
 
 **Authors**: KVK, Claude
@@ -196,6 +198,34 @@ Smoke test: `python api/scripts/operator/email_wire_smoke_test.py kvk` — syste
 - **ADR-283** D7 + step 2: alpha-author bundle's deferred audience-addressing extensions land cleanly under ADR-304 D5.
 - **2026-05-25 v5 canary RESOLUTION**: the empirical basis for D6 (Reviewer surface preserved at 21 primitives; all 3 system-infrastructure tools excluded).
 
+## Amendment (2026-06-19) — kernel-universal audience-writes
+
+**The operator's directive:** make Slack + Notion audience-writes first-class and **kernel-universal** — ambient, no per-program friction — *with* the consequential-action gate as the safety floor. The operator was explicit: "ambient capability, gated act; NOT ungated."
+
+**What changes:** D5's "audience-addressing extensions declare via bundle MANIFEST" is revised. `write_slack` + `write_notion` re-enter kernel `CAPABILITIES` as **kernel-universal** audience-write capabilities:
+
+```python
+"write_slack":  {"category": "tool", "runtime": "external:slack",  "feeds": "action",
+                 "tools": ["platform_slack_send_to_channel"],
+                 "platform_connection_requirement": {"platform": "slack",  "status": "active"}},
+"write_notion": {"category": "tool", "runtime": "external:notion", "feeds": "action",
+                 "tools": ["platform_notion_create_page", "platform_notion_append_block"],
+                 "platform_connection_requirement": {"platform": "notion", "status": "active"}},
+```
+
+- **`feeds: action` ⇒ `required_tier` HIGH** (the 2026-06-19 derived-tier gate, ADR-335 amendment). An audience-write is a *primary external action*; only a platform-grade binding satisfies it. The existing first-party Slack/Notion connections backfill to `platform` grade (migration 186), so they pass.
+- **Symmetric with the reads.** `read_slack` / `read_notion` are *already* kernel-universal (in `CAPABILITIES`, not bundle-declared) because they are **capability-bundle-shaped, not program-shaped** (ADR-224 §1's explicit carve). The audience-writes inherit the same classification — this is not a kernel/program boundary violation; it is the writes joining the reads where they already live.
+- **The gate is the safety floor (ADR-307 Phase 5).** These capabilities surface the new audience-write tools (`external-write` family) to task-bearing agent paths; every call passes `resolve_permission`, which QUEUEs under manual/bounded (operator approves the send from the cockpit) and APPLYs under autonomous. Ambient capability, gated act.
+
+**What is preserved verbatim:**
+- **D1 — operator-addressing stays system infrastructure.** `platform_slack_send_message` (operator's own DM) and `platform_notion_create_comment` (operator's designated page) remain in `SYSTEM_INFRASTRUCTURE_TOOLS`. The kernel-universal `write_slack` / `write_notion` point at the **audience** tools, NEVER back at these operator-addressing tools. The addressee distinction (operator-identity vs LLM-supplied audience) is exactly what separates the two families.
+- **D6 — Reviewer-exclusion.** The Reviewer has NO platform write tool in `REVIEWER_PRIMITIVES` (neither audience nor capital). It reaches external effect only via `ProposeAction`. Kernel-universal audience-writes surface to task-bearing agent paths via `PLATFORM_TOOLS_BY_CAPABILITY`, never to the Reviewer. Guard: `test_reviewer_primitives_excludes_all_platform_write_tools`.
+- **D5's bundle-MANIFEST path remains** for genuinely program-specific audience writes (a bundle can still declare its own `write_<platform>` extension); it is no longer the *only* path for Slack/Notion.
+
+**Receipts:** `api/services/orchestration.py` (`write_slack` / `write_notion` in `CAPABILITIES`, `feeds: action`); regression gate `api/test_adr299_kernel_universal_capability.py` (16/16) — `test_write_slack_and_write_notion_are_kernel_universal_audience_writes`, `test_operator_addressing_writes_stay_system_infrastructure`, `test_reviewer_primitives_excludes_all_platform_write_tools`. The tools + `PLATFORM_TOOLS_BY_CAPABILITY` / `CAPABILITY_PROVIDER_MAP` wiring land in the follow-on tool-build commit (ADR-307 Phase 5 family routing carries them). Builds on [ADR-307 Phase 5](ADR-307-unified-permission-taxonomy.md#phase-5--close-the-platform-write-bypass-2026-06-19) (the uniform gate the safety floor relies on) + [ADR-335 derived-tier amendment](ADR-335-AMENDMENT-derived-trust-tier.md) (`feeds: action` → HIGH).
+
 ## Status
 
 **Implemented 2026-05-27** — Checkpoints 1 + 2 land atomically per the second user confirmation. ADR-300 number was taken; this ADR is **ADR-304** in sequence.
+
+**Amended 2026-06-19** — audience-writes made kernel-universal (above). Tools build in the follow-on commit.
