@@ -149,6 +149,7 @@ async def main():
     deleted["chat_sessions"] = _delete_rows(client, "chat_sessions", KVK_USER_ID)
 
     deleted["execution_events"] = _delete_rows(client, "execution_events", KVK_USER_ID, optional=True)
+    deleted["wake_queue"] = _delete_rows(client, "wake_queue", KVK_USER_ID, optional=True)
     deleted["activity_log"] = _delete_rows(client, "activity_log", KVK_USER_ID, optional=True)
     deleted["notifications"] = _delete_rows(client, "notifications", KVK_USER_ID, optional=True)
     deleted["agents"] = _delete_rows(client, "agents", KVK_USER_ID)
@@ -156,7 +157,10 @@ async def main():
     logger.info(f"  purge results: {deleted}")
 
     # Preserved: auth.users (user identity) + platform_connections (so reinit
-    # detects the active alpaca paper connection for bundle activation).
+    # detects the active alpaca paper connection for bundle activation) + the
+    # workspaces row itself (this script never touches it, so balance_usd +
+    # subscription survive — unlike the L4 full_account_reset which deletes +
+    # recreates the workspaces row, wiping balance).
     preserved_conns = (
         client.table("platform_connections")
         .select("platform, status", count="exact")
@@ -165,6 +169,14 @@ async def main():
         .execute()
     )
     logger.info(f"  preserved: {preserved_conns.count} active platform connection(s)")
+    ws = (
+        client.table("workspaces")
+        .select("balance_usd")
+        .eq("owner_id", KVK_USER_ID)
+        .execute()
+    )
+    bal = (ws.data or [{}])[0].get("balance_usd")
+    logger.info(f"  preserved: balance_usd = {bal} (workspaces row untouched)")
 
     # ====================================================================
     # Phase 2: re-initialize with program_slug="alpha-trader"
