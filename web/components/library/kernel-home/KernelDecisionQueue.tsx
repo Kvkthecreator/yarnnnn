@@ -35,10 +35,26 @@ interface PendingProposal {
   created_at: string;
 }
 
-export function KernelDecisionQueue() {
-  const [proposals, setProposals] = useState<PendingProposal[] | null>(null);
+interface KernelDecisionQueueProps {
+  /**
+   * ADR-312 home-bundle: when the Home pre-fetches the pending queue (one
+   * bundled call), it passes it here and the slot skips its self-fetch.
+   * Standalone mounts omit it and self-fetch.
+   */
+  initialProposals?: PendingProposal[];
+}
+
+export function KernelDecisionQueue({ initialProposals }: KernelDecisionQueueProps = {}) {
+  const [proposals, setProposals] = useState<PendingProposal[] | null>(
+    initialProposals ?? null,
+  );
 
   useEffect(() => {
+    // Primed by the home-bundle — nothing to fetch.
+    if (initialProposals !== undefined) {
+      setProposals(initialProposals);
+      return;
+    }
     let cancelled = false;
     api.proposals
       .list('pending', COMPACT_LIMIT + 1)
@@ -51,7 +67,7 @@ export function KernelDecisionQueue() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialProposals]);
 
   // Self-hide: loading or empty renders nothing (honest cold-start Home).
   if (!proposals || proposals.length === 0) return null;

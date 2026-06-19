@@ -37,10 +37,25 @@ interface Artifact {
   updated_at: string | null;
 }
 
-export function KernelRecentArtifacts() {
-  const [artifacts, setArtifacts] = useState<Artifact[] | null>(null);
+interface KernelRecentArtifactsProps {
+  /**
+   * ADR-312 home-bundle: pre-fetched delivered outputs from the Home's single
+   * bundled call. When present the slot skips its self-fetch; standalone
+   * mounts omit it and self-fetch.
+   */
+  initialArtifacts?: Artifact[];
+}
+
+export function KernelRecentArtifacts({ initialArtifacts }: KernelRecentArtifactsProps = {}) {
+  const [artifacts, setArtifacts] = useState<Artifact[] | null>(
+    initialArtifacts ?? null,
+  );
 
   useEffect(() => {
+    if (initialArtifacts !== undefined) {
+      setArtifacts(initialArtifacts);
+      return;
+    }
     let cancelled = false;
     api.workspace
       .recentArtifacts(COMPACT_LIMIT)
@@ -53,7 +68,7 @@ export function KernelRecentArtifacts() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialArtifacts]);
 
   if (!artifacts || artifacts.length === 0) return null;
 

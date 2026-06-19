@@ -42,9 +42,15 @@ interface UseCompositionResult {
   reload: () => Promise<void>;
 }
 
-export function useComposition(): UseCompositionResult {
-  const [data, setData] = useState<SurfacesResponse>(EMPTY_RESPONSE);
-  const [loading, setLoading] = useState<boolean>(true);
+export function useComposition(
+  opts?: { initialData?: SurfacesResponse },
+): UseCompositionResult {
+  // Pre-primed path (ADR-312 home-bundle): when the parent already fetched
+  // surfaces (the Home reads them inside the single home-bundle call), prime
+  // the hook and skip the self-fetch. Mounts without initialData self-fetch.
+  const initial = opts?.initialData;
+  const [data, setData] = useState<SurfacesResponse>(initial ?? EMPTY_RESPONSE);
+  const [loading, setLoading] = useState<boolean>(initial === undefined);
   const [error, setError] = useState<string | null>(null);
 
   const load = async () => {
@@ -64,8 +70,15 @@ export function useComposition(): UseCompositionResult {
   };
 
   useEffect(() => {
+    // Primed: nothing to fetch; keep the response the parent supplied.
+    if (initial !== undefined) {
+      setData(initial);
+      setLoading(false);
+      return;
+    }
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial]);
 
   return { data, loading, error, reload: load };
 }

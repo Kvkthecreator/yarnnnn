@@ -120,14 +120,37 @@ function AutonomyBadge({ level, summary }: { level: AutonomyDelegation | null; s
 // HomeHeader
 // ---------------------------------------------------------------------------
 
-export function HomeHeader() {
-  const { onOpenChatDraft } = useHome();
-  const { effectiveLevel, summary: autonomySummary, loading: autonomyLoading } = useAutonomy();
+interface HomeHeaderProps {
+  /**
+   * ADR-312 home-bundle: raw MANDATE.md + _autonomy.yaml content from the
+   * Home's single bundled call. When present the band primes from them and
+   * skips its two self-fetches (mandate file + useAutonomy's _autonomy.yaml
+   * read). `null` is a valid primed value (file absent). Standalone reuse
+   * (none passed) self-fetches both.
+   */
+  initialMandate?: string | null;
+  initialAutonomy?: string | null;
+}
 
-  const [mandate, setMandate] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
+export function HomeHeader({ initialMandate, initialAutonomy }: HomeHeaderProps = {}) {
+  const { onOpenChatDraft } = useHome();
+  const primed = initialMandate !== undefined;
+  const { effectiveLevel, summary: autonomySummary, loading: autonomyLoading } = useAutonomy(
+    // useAutonomy already supports a pre-primed path via initialContent.
+    primed ? { initialContent: initialAutonomy } : undefined,
+  );
+
+  const [mandate, setMandate] = useState<string | null>(
+    primed ? (initialMandate ?? '') : null,
+  );
+  const [loaded, setLoaded] = useState(primed);
 
   useEffect(() => {
+    if (primed) {
+      setMandate(initialMandate ?? '');
+      setLoaded(true);
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
@@ -140,7 +163,7 @@ export function HomeHeader() {
       }
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [primed, initialMandate]);
 
   if (!loaded || autonomyLoading) return null;
 

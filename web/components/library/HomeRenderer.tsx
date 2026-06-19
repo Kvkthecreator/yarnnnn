@@ -54,6 +54,8 @@ import { KernelRecentArtifacts } from './kernel-home/KernelRecentArtifacts';
 import { KernelJudgmentTrail } from './kernel-home/KernelJudgmentTrail';
 import { api } from '@/lib/api/client';
 
+type HomeBundle = Awaited<ReturnType<typeof api.workspace.getHomeBundle>>;
+
 interface HomeRendererProps {
   /**
    * Chat-draft handler. Forwarded into HomeContext so any home slot
@@ -64,52 +66,61 @@ interface HomeRendererProps {
 
 export function HomeRenderer({ onOpenChatDraft }: HomeRendererProps) {
   const handleOpenChatDraft = onOpenChatDraft ?? (() => { /* no-op */ });
-  const { data: composition } = useComposition();
-  const programSections = getProgramSections(composition);
-  const hasProgramSections = programSections.length > 0;
 
-  // Read activation state only when no program_sections are declared —
-  // the CTA is the only branch that needs the slug. Avoids an extra
-  // network round-trip for the common activated path.
-  const [activeProgramSlug, setActiveProgramSlug] = useState<string | null>(null);
-  const [stateLoaded, setStateLoaded] = useState(false);
+  // ADR-312 home-bundle: one call fetches composition + all three
+  // kernel-universal slots + the two constitution-band files, replacing the
+  // prior per-slot fan-out (composition → conditional state → 3 slots →
+  // mandate + autonomy). We prime every child off this single response; each
+  // child keeps its self-fetch fallback for standalone reuse elsewhere.
+  const [bundle, setBundle] = useState<HomeBundle | null>(null);
+  const [bundleLoaded, setBundleLoaded] = useState(false);
   useEffect(() => {
-    if (hasProgramSections) {
-      setStateLoaded(true);
-      return;
-    }
     let cancelled = false;
-    (async () => {
-      try {
-        const state = await api.workspace.getState();
-        if (!cancelled) setActiveProgramSlug(state.active_program_slug);
-      } catch {
-        // Network failure: render activation CTA optimistically — the
-        // operator can still navigate to the Program surface.
-      } finally {
-        if (!cancelled) setStateLoaded(true);
-      }
-    })();
+    api.workspace
+      .getHomeBundle()
+      .then((b) => {
+        if (!cancelled) setBundle(b);
+      })
+      .catch(() => {
+        // Bundle unreachable: children fall back to self-fetch (no props
+        // primed) so the Home never breaks — the "cockpit never breaks"
+        // invariant carried over from useComposition's empty fallback.
+      })
+      .finally(() => {
+        if (!cancelled) setBundleLoaded(true);
+      });
     return () => {
       cancelled = true;
     };
-  }, [hasProgramSections]);
+  }, []);
 
-  // The activation CTA renders ONLY when there is genuinely nothing to
-  // show in Layer 2 — no program sections AND no activated program. With a
-  // program activated, the program sections render; either way the three
-  // kernel-universal slots render below (each self-hides when empty).
-  const showActivationCTA = !hasProgramSections && stateLoaded && !activeProgramSlug;
+  // Prime the compositor hook from the bundle when present; otherwise it
+  // self-fetches (graceful degradation if the bundle call failed).
+  const { data: composition } = useComposition(
+    bundle ? { initialData: bundle.surfaces } : undefined,
+  );
+  const programSections = getProgramSections(composition);
+  const hasProgramSections = programSections.length > 0;
+
+  // Activation slug derived from the bundle's composition (active_bundles) —
+  // no separate getState() round-trip. The CTA renders only when there is
+  // genuinely nothing to show: no program sections AND no activated bundle.
+  const activeProgramSlug = bundle?.surfaces.active_bundles?.[0]?.slug ?? null;
+  const showActivationCTA =
+    !hasProgramSections && bundleLoaded && !activeProgramSlug;
 
   return (
     <HomeProvider value={{ onOpenChatDraft: handleOpenChatDraft }}>
       <section aria-label="Home" className="border-b border-border/60">
         {/* Slot #1 — Constitution band (kernel, always) */}
-        <HomeHeader />
+        <HomeHeader
+          initialMandate={bundle?.mandate}
+          initialAutonomy={bundle?.autonomy_yaml}
+        />
 
         <div className="flex flex-col gap-4 px-4 py-5 sm:px-6 sm:py-6 bg-muted/20">
           {/* Slot #3 — Decision queue (kernel-universal; self-hides) */}
-          <KernelDecisionQueue />
+          <KernelDecisionQueue initialProposals={bundle?.proposals} />
 
           {/* Slots #2 + #4 — program-declared hero + entities */}
           {hasProgramSections &&
@@ -118,10 +129,10 @@ export function HomeRenderer({ onOpenChatDraft }: HomeRendererProps) {
             )}
 
           {/* Slot #5 — Recent artifacts (kernel-universal; self-hides) */}
-          <KernelRecentArtifacts />
+          <KernelRecentArtifacts initialArtifacts={bundle?.recent_artifacts} />
 
           {/* Slot #6 — Judgment trail (kernel-universal; self-hides) */}
-          <KernelJudgmentTrail />
+          <KernelJudgmentTrail initialContent={bundle?.judgment_log} />
 
           {/* Cold-start CTA — only when there is nothing else to show */}
           {showActivationCTA && (

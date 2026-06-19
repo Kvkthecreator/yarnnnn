@@ -37,10 +37,27 @@ function VerdictIcon({ decision }: { decision: ReviewerDecision['decision'] }) {
   return <Eye className="h-3 w-3 text-muted-foreground/50 shrink-0" />;
 }
 
-export function KernelJudgmentTrail() {
-  const [decisions, setDecisions] = useState<ReviewerDecision[] | null>(null);
+interface KernelJudgmentTrailProps {
+  /**
+   * ADR-312 home-bundle: raw judgment_log.md content from the Home's single
+   * bundled call (null when the file doesn't exist yet). When provided the
+   * slot parses it directly and skips its self-fetch; standalone mounts omit
+   * it and self-fetch the file. Note `null` is a valid primed value (file
+   * absent) — only `undefined` means "not primed, go fetch".
+   */
+  initialContent?: string | null;
+}
+
+export function KernelJudgmentTrail({ initialContent }: KernelJudgmentTrailProps = {}) {
+  const [decisions, setDecisions] = useState<ReviewerDecision[] | null>(
+    initialContent !== undefined ? parseDecisions(initialContent ?? '') : null,
+  );
 
   useEffect(() => {
+    if (initialContent !== undefined) {
+      setDecisions(parseDecisions(initialContent ?? ''));
+      return;
+    }
     let cancelled = false;
     api.workspace
       .getFile(DECISIONS_PATH)
@@ -56,7 +73,7 @@ export function KernelJudgmentTrail() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialContent]);
 
   if (!decisions || decisions.length === 0) return null;
 

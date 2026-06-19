@@ -54,6 +54,10 @@ import type {
   AdminExecutionStats,
   AdminUserRow,
 } from "@/types/admin";
+// ADR-312 home-bundle: the bundle's `surfaces` field is the full compositor
+// SurfacesResponse (including surfaces[]), so useComposition can be primed
+// from it directly. Type-only import — erased at runtime, no layering cost.
+import type { SurfacesResponse } from "@/lib/compositor/types";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -1048,6 +1052,21 @@ export const api = {
         identity: WorkspaceFileWithRevision;
         brand: WorkspaceFileWithRevision;
       }>("/api/workspace/setup-bundle"),
+
+    // ADR-312: bundled read for the Home page mount. Collapses the per-slot
+    // fan-out (composition + state + 3 kernel slots + mandate + autonomy) into
+    // one call. The kernel slots keep their self-fetch fallback (they render
+    // standalone elsewhere) — when HomeRenderer passes data props they skip it.
+    getHomeBundle: () =>
+      request<{
+        surfaces: SurfacesResponse;
+        proposals: Awaited<ReturnType<typeof api.proposals.list>>['proposals'];
+        current_occupant: Awaited<ReturnType<typeof api.proposals.list>>['current_occupant'];
+        recent_artifacts: Awaited<ReturnType<typeof api.workspace.recentArtifacts>>['artifacts'];
+        judgment_log: string | null;
+        mandate: string | null;
+        autonomy_yaml: string | null;
+      }>("/api/workspace/home-bundle"),
 
     // ADR-154: Structured navigation for Agent OS workfloor.
     // ADR-236 Item 6 (2026-04-29): `mode` and `essential` removed from

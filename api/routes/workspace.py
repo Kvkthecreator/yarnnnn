@@ -1485,3 +1485,100 @@ async def get_workspace_setup_bundle(
         identity=_build("identity", identity_content),
         brand=_build("brand", brand_content),
     )
+
+
+# =============================================================================
+# GET /workspace/home-bundle — Single bundled read for the Home (ADR-312)
+# =============================================================================
+# Performance: the Home (ADR-312 six-slot composition) previously fanned out
+# up to 6 browser round-trips on mount — composition (useComposition) + a
+# conditional workspace-state read (CTA branch) + 3 kernel-slot reads
+# (proposals / recent-artifacts / judgment_log) + 2 constitution-band reads
+# (MANDATE.md + _autonomy.yaml inside HomeHeader) — several of them in a
+# composition→slots waterfall. This collapses the kernel-owned reads into one
+# call, mirroring the ADR-266 setup-bundle pattern (7→1).
+#
+# Singular Implementation: this composes the EXISTING handlers
+# (get_workspace_surfaces / list_proposals / get_recent_artifacts) rather than
+# re-querying — one source of truth per slot. The kernel slots keep their
+# self-fetch fallback on the frontend (they render standalone elsewhere), so
+# this endpoint is an optimization, not a new contract surface. Browser-only —
+# no scheduler/MCP caller.
+
+class HomeBundleResponse(BaseModel):
+    """ADR-312: bundled read for the Home page mount.
+
+    `surfaces` mirrors GET /programs/surfaces verbatim (consumed by
+    useComposition initialData). `proposals` is the slot-#3 pending queue,
+    `recent_artifacts` slot #5, `judgment_log` slot #6 raw content (parsed
+    client-side by the canonical decisions L2 parser). `mandate` +
+    `autonomy_yaml` feed the constitution band (HomeHeader). Each consumer
+    self-hides on empty, so absent constituents stay honest.
+    """
+    surfaces: dict
+    proposals: list[dict]
+    current_occupant: dict
+    recent_artifacts: list[RecentArtifact]
+    judgment_log: Optional[str] = None
+    mandate: Optional[str] = None
+    autonomy_yaml: Optional[str] = None
+
+
+@router.get("/workspace/home-bundle", response_model=HomeBundleResponse)
+async def get_home_bundle(
+    request: Request,
+    auth: UserClient,
+) -> HomeBundleResponse:
+    """ADR-312: one bundled read for the Home, replacing the per-slot fan-out.
+
+    Composition + the three kernel-universal slots + the two constitution-band
+    files, issued in parallel. Composes existing handlers (Singular
+    Implementation) so each slot has one query path.
+    """
+    import asyncio
+    from services.workspace import UserMemory
+    from services.workspace_paths import (
+        CONSTITUTION_MANDATE_PATH,
+        GOVERNANCE_AUTONOMY_YAML_PATH,
+        PERSONA_JUDGMENT_LOG_PATH,
+    )
+    from routes.programs import get_workspace_surfaces
+    from routes.proposals import list_proposals
+
+    um = UserMemory(auth.client, auth.user_id)
+
+    async def _read(rel_path: str) -> Optional[str]:
+        try:
+            return await um.read(rel_path)
+        except Exception:
+            return None
+
+    # All reads in parallel. The kernel-slot handlers are async and take the
+    # same auth; the two constitution files go through UserMemory. Slot #5
+    # (recent_artifacts) reuses get_recent_artifacts; slot #3 reuses
+    # list_proposals; composition reuses get_workspace_surfaces.
+    (
+        surfaces,
+        proposals_envelope,
+        artifacts_response,
+        mandate_content,
+        autonomy_yaml_content,
+        judgment_log_content,
+    ) = await asyncio.gather(
+        get_workspace_surfaces(auth),
+        list_proposals(auth, status="pending", limit=5),
+        get_recent_artifacts(auth, limit=3),
+        _read(CONSTITUTION_MANDATE_PATH),
+        _read(GOVERNANCE_AUTONOMY_YAML_PATH),
+        _read(PERSONA_JUDGMENT_LOG_PATH),
+    )
+
+    return HomeBundleResponse(
+        surfaces=surfaces,
+        proposals=proposals_envelope.get("proposals", []),
+        current_occupant=proposals_envelope.get("current_occupant", {}),
+        recent_artifacts=artifacts_response.artifacts,
+        judgment_log=judgment_log_content,
+        mandate=mandate_content,
+        autonomy_yaml=autonomy_yaml_content,
+    )
