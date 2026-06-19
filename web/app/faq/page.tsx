@@ -69,12 +69,12 @@ const faqSections: FaqSection[] = [
       {
         question: "What does it cost?",
         answer:
-          "The workspace is free forever — your files, your context, reachable from any AI. When you run an operation on it, seats start at $149/month, priced by how much you delegate, not by features: Supervised ($149), Delegated ($299), Autonomous ($499). Each includes a usage balance you can read line by line.",
+          "The workspace is free forever — your files, your context, reachable from any AI. It's pay-as-you-go: when you run an operation, you pay only the usage it draws, metered at transparent rates and read line by line, with a hard stop at zero. No seats, no subscription, no feature gates. Every workspace starts with a $3 balance; top up from $10 when you need more.",
       },
       {
-        question: "What happens when the trial ends, the balance hits zero, or I cancel?",
+        question: "What happens when my balance hits zero, or I stop running an operation?",
         answer:
-          "Nothing is deleted. If the balance hits zero, the operation stops — top up to resume. If you cancel, the operation deactivates. In every case the workspace and every file remain yours, free.",
+          "Nothing is deleted. If the balance hits zero, the operation pauses — top up to resume. If you stop running an operation, it simply stops drawing usage. In every case the workspace and every file remain yours, free.",
       },
     ],
   },

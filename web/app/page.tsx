@@ -272,12 +272,12 @@ export default function LandingPage() {
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-2xl md:text-3xl font-medium mb-4 text-[#1a1a1a]">
-              Free to keep. Priced when it runs for you.
+              Free to keep. Pay only for what runs.
             </h2>
             <p className="text-[#1a1a1a]/50 mb-10 max-w-xl mx-auto leading-relaxed">
               The workspace is free forever — your files, your context, reachable from any AI you
-              use. When you&apos;re ready to run an operation on it, seats start at $149/month —
-              priced by how much you delegate, not by features.
+              use. When you run an operation on it, you pay only the usage it draws — metered at
+              transparent rates, read line by line. No seats, no subscription.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link

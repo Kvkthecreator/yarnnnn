@@ -111,8 +111,8 @@ export default function InvestPage() {
                     </p>
                     <p className="text-white/50 text-sm leading-relaxed">
                       Raised to take the dogfooded alpha to its first paying operators — harden the
-                      calibration loop against live outcomes, ship the seat-checkout entitlements,
-                      and land narrow in one high-ACV community. The full deck and terms on request.
+                      calibration loop against live outcomes, validate what those operators will pay
+                      for, and land narrow in one high-ACV community. The full deck and terms on request.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -233,11 +233,12 @@ export default function InvestPage() {
                 <SpotlightCard variant="dark" className="md:col-span-2" spotlightColor="rgba(14,165,233,0.05)">
                   <div className="p-6 h-full">
                     <div className="text-xs text-white/30 uppercase tracking-wider mb-3">The dial</div>
-                    <h3 className="text-base font-medium mb-2">Delegation, priced and earned</h3>
+                    <h3 className="text-base font-medium mb-2">Delegation, earned</h3>
                     <p className="text-white/50 text-xs leading-relaxed">
-                      Manual → bounded → autonomous. The trust dial the operator controls is the
-                      pricing axis — pay more as you delegate more. The governance boundary is held
-                      in code.
+                      Manual → bounded → autonomous. The trust dial the operator controls is held in
+                      code. Today the model is pay-as-you-go on transparent usage; whether
+                      delegation level becomes the pricing axis is a hypothesis we validate against
+                      real operators, not assume.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -307,7 +308,7 @@ export default function InvestPage() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-12">
                 {([
-                  { title: "Premium, high-ACV", desc: "Priced per running operation, tiered by delegation level. The value is the call made correctly and the asset that compounds — not compute." },
+                  { title: "Value, not compute", desc: "Pay-as-you-go on transparent usage today; the long-run motion prices the call made correctly and the asset that compounds — what real operators pay for is what we'll validate, not assume." },
                   { title: "Land narrow", desc: "Bounded operations with fast feedback loops — a portfolio, a channel, a pipeline, a shop, a book of business." },
                   { title: "Expansion-led", desc: "Grow through tight communities that talk to themselves. Hundreds of operators paying real money is a real business — never a volume play." },
                 ] as const).map((item) => (

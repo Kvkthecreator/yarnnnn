@@ -9,40 +9,22 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA } from "@/lib/cta";
 
 export const metadata = getMarketingMetadata({
-  title: "Pricing — priced by trust, not by features",
+  title: "Pricing — pay for what runs, nothing you don't",
   description:
-    "The workspace is free forever. When you run an operation on it, seats start at $149/month — priced by how much you delegate, not by features. 14-day trial.",
+    "The workspace is free forever. Running an operation costs only the usage it draws — metered at transparent rates, read line by line, hard stop at zero. No seats, no subscription, no feature gates.",
   path: "/pricing",
-  keywords: ["yarnnn pricing", "ai operation pricing", "per-operation pricing", "delegation pricing", "ai seat pricing", "solopreneur ai pricing"],
+  keywords: ["yarnnn pricing", "pay as you go ai", "usage-based ai pricing", "ai operation pricing", "transparent ai usage", "no subscription ai"],
 });
 
-// ADR-334 three-seat model. CHECKOUT GUARD (spec §0.8): seat checkout (P1–P3)
-// is unbuilt; all CTAs route to CTA.signup under "seat trials open soon" framing.
-const SEATS = [
-  {
-    name: "Supervised",
-    price: "$149",
-    tagline: "Every consequential action waits for you",
-    usage: "$15/mo usage included",
-    highlight: false,
-    features: ["Full workspace, full trail", "Manual delegation — nothing acts without your approval"],
-  },
-  {
-    name: "Delegated",
-    price: "$299",
-    tagline: "Acts within ceilings you declare",
-    usage: "$30/mo usage included",
-    highlight: true,
-    features: ["Everything in Supervised", "Bounded autonomy — acts within the limits you set"],
-  },
-  {
-    name: "Autonomous",
-    price: "$499",
-    tagline: "Runs the framework you authored",
-    usage: "$60/mo usage included",
-    highlight: false,
-    features: ["Everything in Delegated", "Full autonomy within your declared framework"],
-  },
+// ADR-172/291 balance model is the SOLE active pricing model (ADR-334 seat tiers
+// demoted to deferred hypothesis 2026-06-19). This page reflects pay-as-you-go:
+// free workspace + metered usage drawn from a balance. No seat tiers advertised,
+// no checkout beyond the live bare-workspace signup. cta.ts::seatCheckout stays null.
+
+const PAYG_POINTS = [
+  "The full product on every workspace — files, chat, context reachable from any AI you use (MCP), and operations when you run them. No features locked behind a tier.",
+  "Usage is metered at transparent rates and drawn from your balance. You read every line — there is no opaque bill.",
+  "Hard stop at zero. The operation pauses; nothing is lost; you resume by topping up. You never owe a surprise.",
 ];
 
 export default function PricingPage() {
@@ -55,33 +37,11 @@ export default function PricingPage() {
     offers: [
       {
         "@type": "Offer",
-        name: "Workspace",
+        name: "Workspace + usage",
+        description:
+          "Free workspace with a $3 starting balance; pay-as-you-go usage drawn from balance, topped up as needed.",
         price: "0",
         priceCurrency: "USD",
-        url: `${BRAND.url}/pricing`,
-      },
-      {
-        "@type": "Offer",
-        name: "Supervised seat",
-        price: "149",
-        priceCurrency: "USD",
-        billingDuration: "P1M",
-        url: `${BRAND.url}/pricing`,
-      },
-      {
-        "@type": "Offer",
-        name: "Delegated seat",
-        price: "299",
-        priceCurrency: "USD",
-        billingDuration: "P1M",
-        url: `${BRAND.url}/pricing`,
-      },
-      {
-        "@type": "Offer",
-        name: "Autonomous seat",
-        price: "499",
-        priceCurrency: "USD",
-        billingDuration: "P1M",
         url: `${BRAND.url}/pricing`,
       },
     ],
@@ -101,11 +61,12 @@ export default function PricingPage() {
             {/* Header */}
             <div className="text-center mb-16">
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-6 tracking-tight">
-                Priced by trust, not by features.
+                Pay for what runs.
               </h1>
               <p className="text-white/50 text-lg max-w-2xl mx-auto">
-                Every plan is the full product. The only thing a tier changes is how much the
-                operation may do without your approval — and how much usage is included.
+                The workspace is free. When an operation runs on it, you pay only the
+                usage it draws — metered at transparent rates, read line by line. No seats,
+                no subscription, no feature gates.
               </p>
             </div>
 
@@ -121,8 +82,8 @@ export default function PricingPage() {
                     </div>
                     <p className="text-white/50 text-sm max-w-md leading-relaxed">
                       The substrate: files, uploads, chat, your context reachable from any AI you
-                      use (MCP). No running operation. Includes a $3 usage credit; top-ups
-                      available.
+                      use (MCP). Starts with a $3 usage balance. Top up whenever you want to run
+                      more — only what you use is ever charged.
                     </p>
                   </div>
                   <Link
@@ -135,60 +96,42 @@ export default function PricingPage() {
               </SpotlightCard>
             </div>
 
-            {/* Seat cards */}
-            <p className="text-center text-white/40 text-sm mb-6">
-              Seats — per operation / month <span className="text-white/25">·</span> annual = 10× (two months free)
-            </p>
-            <div className="grid md:grid-cols-3 gap-6 mb-6">
-              {SEATS.map((seat) => (
-                <SpotlightCard
-                  key={seat.name}
-                  variant="dark"
-                  spotlightColor={seat.highlight ? "rgba(255,255,255,0.10)" : undefined}
-                  spotlightSize={400}
-                  className={`flex flex-col ${seat.highlight ? "ring-1 ring-white/20" : ""}`}
-                >
-                  <div className="p-7 flex flex-col flex-1">
-                    {seat.highlight && (
-                      <div className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 mb-3">
-                        Most operators start here
-                      </div>
-                    )}
-                    <h3 className="text-xl font-medium mb-1">{seat.name}</h3>
-                    <div className="flex items-baseline gap-1 mb-1">
-                      <span className="text-3xl font-medium">{seat.price}</span>
-                      <span className="text-white/40 text-sm">/mo</span>
-                    </div>
-                    <p className="text-white/50 text-sm mb-4">{seat.tagline}</p>
-                    <p className="text-emerald-400/80 text-xs mb-6">{seat.usage}</p>
-
-                    <ul className="space-y-3 flex-1 mb-6">
-                      {seat.features.map((f) => (
-                        <li key={f} className="flex items-start gap-3 text-sm text-white/70">
-                          <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                          <span>{f}</span>
-                        </li>
-                      ))}
-                    </ul>
-
-                    {/* CHECKOUT GUARD §0.8 — routes to bare-workspace signup, not a seat purchase */}
+            {/* Pay-as-you-go card */}
+            <div className="max-w-3xl mx-auto mb-6">
+              <SpotlightCard variant="dark" spotlightSize={500} className="ring-1 ring-white/15">
+                <div className="p-8">
+                  <div className="text-[10px] font-mono uppercase tracking-wider text-emerald-400 mb-3">
+                    How running costs work
+                  </div>
+                  <div className="flex items-baseline gap-2 mb-5">
+                    <h2 className="text-2xl font-medium">Usage</h2>
+                    <span className="text-white/40 text-sm">pay-as-you-go · no subscription</span>
+                  </div>
+                  <ul className="space-y-4">
+                    {PAYG_POINTS.map((p) => (
+                      <li key={p} className="flex items-start gap-3 text-sm text-white/70 leading-relaxed">
+                        <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>{p}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="mt-7">
                     <Link
                       href={CTA.signup}
-                      className={`block w-full text-center px-6 py-3 font-medium rounded-full transition-colors ${
-                        seat.highlight
-                          ? "bg-white text-black hover:bg-white/90"
-                          : "border border-white/20 text-white hover:bg-white/10"
-                      }`}
+                      className="inline-block text-center px-6 py-3 bg-white text-black font-medium rounded-full hover:bg-white/90 transition-colors"
                     >
                       Start free
                     </Link>
+                    <span className="ml-4 text-white/40 text-sm">
+                      Top-ups from $10 when you need more.
+                    </span>
                   </div>
-                </SpotlightCard>
-              ))}
+                </div>
+              </SpotlightCard>
             </div>
 
             <p className="text-center text-white/40 text-sm mb-16">
-              Seat trials open soon — 14 days, any tier, no card. Start free on the workspace today.
+              No card to start. The $3 balance is enough to feel the loop before you spend a cent.
             </p>
 
             {/* Three honest paragraphs */}
@@ -198,8 +141,8 @@ export default function PricingPage() {
                   <h3 className="text-lg font-medium mb-3">What&apos;s an operation?</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
                     An activated program running on your workspace — your newsletter operation,
-                    your portfolio operation. Each runs on its own seat with its own dial. The
-                    workspace itself is never paid.
+                    your portfolio operation. It draws usage from your balance while it runs. The
+                    workspace itself is always free.
                   </p>
                 </div>
               </SpotlightCard>
@@ -207,19 +150,20 @@ export default function PricingPage() {
                 <div className="p-6">
                   <h3 className="text-lg font-medium mb-3">What&apos;s &ldquo;usage&rdquo;?</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Every model call is metered at transparent rates and drawn from your included
-                    balance — you can read every line of it. Most operations use a fraction of
-                    what&apos;s included; heavy months top up from $10.
+                    Every model call is metered at transparent rates and drawn from your balance —
+                    you can read every line of it. Most workspaces spend a few dollars a month;
+                    heavier months top up from $10. You only ever pay for what actually ran.
                   </p>
                 </div>
               </SpotlightCard>
               <SpotlightCard variant="dark" spotlightSize={500}>
                 <div className="p-6">
-                  <h3 className="text-lg font-medium mb-3">Why per-operation?</h3>
+                  <h3 className="text-lg font-medium mb-3">Why not a subscription?</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Because the value isn&apos;t compute — it&apos;s the calls made correctly and
-                    the asset that compounds. You pay for a running operation you trust, at the
-                    level you trust it.
+                    Because you shouldn&apos;t pay for a month you didn&apos;t run. Pricing follows
+                    the work: an idle workspace costs nothing, an active operation costs what it
+                    draws. As real usage teaches us what a fair plan looks like, we&apos;ll offer
+                    one — we won&apos;t guess one ahead of you.
                   </p>
                 </div>
               </SpotlightCard>
@@ -230,17 +174,17 @@ export default function PricingPage() {
               <SpotlightCard variant="dark" spotlightSize={500}>
                 <div className="p-6 space-y-4 text-white/50 text-sm leading-relaxed">
                   <p>
-                    <strong className="text-white/70">Trial.</strong> When seat trials open, every
-                    plan offers 14 days on any tier with no card required — the trial&apos;s job is
-                    a felt calibration trail, not a feature tour.
+                    <strong className="text-white/70">Starting balance.</strong> Every workspace
+                    begins with a $3 usage credit — enough to author your context and watch the
+                    correction loop firsthand before you spend anything.
                   </p>
                   <p>
                     <strong className="text-white/70">If your balance hits zero,</strong> the
-                    operation stops — nothing is lost. Top up to resume.
+                    operation pauses — nothing is lost. Top up to resume.
                   </p>
                   <p>
-                    <strong className="text-white/70">If you cancel,</strong> the operation
-                    deactivates. The workspace and every file remain yours, free.
+                    <strong className="text-white/70">If you stop running an operation,</strong> it
+                    simply stops drawing usage. The workspace and every file remain yours, free.
                   </p>
                 </div>
               </SpotlightCard>

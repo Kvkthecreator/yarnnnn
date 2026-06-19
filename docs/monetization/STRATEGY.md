@@ -1,8 +1,8 @@
 # yarnnn Platform Billing Strategy
 
-> **Status**: Updated for ADR-291 unified cost ledger (2026-05-18). **DIRECTION SUPERSEDED 2026-06-10 by [ADR-334](../adr/ADR-334-per-operation-pricing.md) (Ratified — per-operation pricing: delegation-tiered seats $149/$299/$499 per operation; the balance model below is RE-SCOPED, not deleted — it becomes the free Layer-1 tier + the usage layer beneath every seat; Pro $19/mo retires).** This doc describes the still-live machinery; full rewrite lands at ADR-334 P5 (after P1–P3). Until then read it WITH ADR-334.
+> **Status**: Updated for ADR-291 unified cost ledger (2026-05-18). **This is the sole active pricing model (as of 2026-06-19).** The balance gate below — pay-as-you-go: $3 signup grant, top-ups, hard stop at zero, no tiers, no seats — is what ships and what charges. [ADR-334](../adr/ADR-334-per-operation-pricing.md) (per-operation delegation-tiered seats, $149/$299/$499) was **demoted 2026-06-19 from "Ratified direction" to "Deferred hypothesis"** — parked as one candidate, evidence-gated (zero external users + the desire axis unvalidated; see ADR-334 Amendment 2026-06-19). The balance model is therefore NOT re-scoped to a sub-layer; it stands alone as the whole model until the seat hypothesis clears its unblock conditions.
 > **Supersedes**: Previous 2-tier subscription + work credits model (ADR-100)
-> **Related**: ADR-334 (per-operation pricing — current direction), ADR-171 (token spend metering, amended by ADR-291), ADR-172 (usage-first billing, amended by ADR-291 + re-scoped by ADR-334), ADR-250 (execution telemetry), ADR-291 (unified cost ledger)
+> **Related**: ADR-334 (per-operation seats — **deferred hypothesis**, not active), ADR-171 (token spend metering, amended by ADR-291), ADR-172 (usage-first billing — **the active model**, amended by ADR-291), ADR-250 (execution telemetry), ADR-291 (unified cost ledger)
 
 ---
 
