@@ -2,7 +2,9 @@
 
 **Date:** 2026-06-19
 **Hat:** B — surfaces a finding; recommends a Hat-A refactor (uniform-gate extension) + the feature that rides on it (kernel-universal Slack/Notion audience-writes). Does not itself change canon/code.
-**Status:** Open — recommends the gate refactor as a focused session before building the writes, because the path touches live capital actions (`submit_order` + `risk_gate`).
+**Status:** **RESOLVED 2026-06-19** — all three recommended commits landed on `main`: (1) ADR-307 Phase 5 gate refactor (`f8b57a1`) — consequential platform writes engage the uniform gate; family-shaped enqueue (substrate/capital/**external-write**); the three trading writes' bespoke `mode == autonomous` branches deleted, `check_risk_limits` retained as a pre-gate domain check; an operator-approved replay (`_proposal_id`) applies without re-gating; live capital path verified unregressed (`test_adr307_platform_write_gate.py` 13/13 + `test_risk_gate_rule_battery.py` 14/14). (2) ADR-304 amendment (`bb51f16`) — `write_slack` / `write_notion` re-declared kernel-universal in `CAPABILITIES` (`feeds: action` → HIGH), Reviewer-exclusion preserved (`test_adr299_*` 16/16). (3) Tools built (`8d103a5`) — `platform_slack_send_to_channel` + `platform_notion_create_page` + `platform_notion_append_block` (new `notion_client` methods), registered in `PLATFORM_TOOLS_BY_CAPABILITY`, CHANGELOG `[2026.06.19.4]`. The measurement that grounded the deletion (§2 risk #1): no live caller ever set `_mode="autonomous"` on a trading tool — the autonomous-propose branch was dead in the post-ADR-296 architecture, so removing it was safe.
+
+> **Original status (preserved):** Open — recommends the gate refactor as a focused session before building the writes, because the path touches live capital actions (`submit_order` + `risk_gate`).
 **Trigger:** Operator request for first-class, kernel-universal (ambient, no per-program friction) Slack/Notion audience-writes → operator clarification: *"autonomy mode is the approval gating for agent execution… that logic should be streamlined."* The clarification is architecturally correct and names a real gap.
 
 ---
