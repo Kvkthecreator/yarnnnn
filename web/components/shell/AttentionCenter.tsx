@@ -197,8 +197,10 @@ export function AttentionCenter() {
   }, []);
 
   // ADR-346: the bell lands on the Operation composition (the surface that
-  // carries controls) — Decide rows → Resolve pane, Read rows → Understand
-  // pane — instead of the bare mirrors. Billing stays a System Settings pane.
+  // carries controls) — "To do" rows → the resolve pane, "Activity" rows →
+  // the understand pane (the labels match the Attention section headers so
+  // the bell + surface speak one language; pane keys unchanged). Billing
+  // stays an account pane. Instead of the bare mirrors.
   const goTo = useCallback(
     (target: 'resolve' | 'understand' | 'billing') => {
       setIsOpen(false);
@@ -274,7 +276,7 @@ export function AttentionCenter() {
             {proposals.length > 0 && (
               <div className="border-b border-border/60">
                 <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Needs your decision
+                  To do
                 </div>
                 {proposals.slice(0, MAX_ROWS_PER_SECTION).map((p) => (
                   <button
@@ -301,7 +303,7 @@ export function AttentionCenter() {
             {materialEvents.length > 0 && (
               <div>
                 <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                  Since you last looked
+                  Activity
                 </div>
                 {materialEvents.slice(0, MAX_ROWS_PER_SECTION).map((e) => (
                   <button
@@ -326,8 +328,8 @@ export function AttentionCenter() {
 
             {!hasWarning && proposals.length === 0 && materialEvents.length === 0 && (
               <p className="px-3 py-4 text-xs text-muted-foreground">
-                Nothing needs you. Pending decisions, material events, and
-                runway warnings surface here.
+                Nothing needs you. To-dos, activity, and runway warnings
+                surface here.
               </p>
             )}
           </div>

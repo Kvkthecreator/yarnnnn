@@ -6,9 +6,14 @@
  * carries the three operating-work acts ADR-340 D2 named but never built a
  * composition for:
  *
- *   Resolve   (Decide) → the Queue body over action_proposals
- *   Understand (Read)  → the Feed narrative + the run ledger (escape hatch)
- *   Tune      (Tune)   → the recurring-work list (escape hatch → full Recurrence)
+ *   "To do"    (Decide, pane key `resolve`)    → the Queue body over action_proposals
+ *   "Activity" (Read, pane key `understand`)   → the Feed narrative + run ledger (escape hatch)
+ *   "Schedule" (Tune, pane key `tune`)         → the recurring-work list (escape hatch → full Recurrence)
+ *
+ * Label pass (2026-06-19): the operator-facing labels are plain words ("To
+ * do" / "Activity" / "Schedule"); the Attention center uses the SAME words
+ * for its section headers so the bell and this surface speak one language.
+ * Pane keys + act identities (Decide/Read/Tune, ADR-340 D2) are unchanged.
  *
  * It is a COMPOSITION over the operational mirrors, not a new mirror: it owns
  * no substrate and no state, and each pane reuses an existing mirror BODY
@@ -34,13 +39,19 @@ import { QueueBody } from "@/components/queue/QueueBody";
 import { FeedSurface } from "@/components/feed-surface/FeedSurface";
 import { RecurrenceList } from "@/components/work/RecurrenceList";
 
+// ADR-346 label pass (2026-06-19): the act labels are plain operator words
+// — "To do" (the queue), "Activity" (what happened), "Schedule" (the
+// recurring work). The Attention center's section headers use the SAME
+// words so the bell and the surface it lands on speak one language. The
+// pane KEYS (resolve/understand/tune) are unchanged — they are URL params
+// + the ADR-340 D2 act identities (Decide/Read/Tune); only the labels change.
 const PANE_GROUPS: PaneGroup[] = [
   {
     label: "Operate",
     panes: [
-      { key: "resolve", label: "Resolve", icon: ClipboardCheck },
-      { key: "understand", label: "Understand", icon: ScrollText },
-      { key: "tune", label: "Tune", icon: Clock },
+      { key: "resolve", label: "To do", icon: ClipboardCheck },
+      { key: "understand", label: "Activity", icon: ScrollText },
+      { key: "tune", label: "Schedule", icon: Clock },
     ],
   },
 ];
@@ -83,7 +94,7 @@ export default function OperationPage() {
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
-              title="Resolve"
+              title="To do"
               subtitle="What wants your decision — approve or reject below."
               link={<MirrorLink label="Open full Queue" onClick={() => navigateToSurface("queue")} />}
             />
@@ -99,7 +110,7 @@ export default function OperationPage() {
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
-              title="Understand"
+              title="Activity"
               subtitle="What just happened — the narrative of every invocation."
               link={<MirrorLink label="Open run ledger" onClick={() => navigateToSurface("recurrence", { pane: "activity" })} />}
             />
@@ -145,7 +156,7 @@ function TunePane({ onSelect, onOpenFull }: { onSelect: (slug: string) => void; 
   return (
     <div className="flex h-full flex-col">
       <PaneHeader
-        title="Tune"
+        title="Schedule"
         subtitle="The recurring work — pick a row to pause, run now, or edit."
         link={<MirrorLink label="Open full Recurrence" onClick={onOpenFull} />}
       />
