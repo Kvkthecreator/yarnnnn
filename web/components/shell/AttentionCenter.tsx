@@ -9,27 +9,31 @@
  * this is the Notification Center analog (EVENTS demanding the
  * operator). macOS keeps these deliberately separate; so do we.
  *
+ * The bell is the glanceable HEAD of the Operation surface (ADR-346) — the
+ * same object at two zooms. It is a TEMPORAL triad (past · present · future),
+ * not merely "what needs you," and it speaks the SAME operator words as the
+ * Operation panes so the bell and the surface it lands on read as one thing:
+ *
+ *   - "To do"     (present — what wants my decision)  → pending action_proposals
+ *                  → Operation ?pane=resolve (the Queue body, where you approve)
+ *   - "Activity"  (past — what just happened)          → material-weight narrative
+ *                  since last looked → Operation ?pane=understand (the Feed)
+ *   - "Coming up" (future — what's scheduled next)     → recurrence next_run_at
+ *                  → Operation ?pane=tune (the Schedule list)
+ *   - runway warning (low balance)                     → settings ?pane=billing
+ *
+ * Operator-vocabulary partition (the deliberate one): the bell NEVER shows
+ * engine words (wake / recurrence / invocation / proposal). Those stay in
+ * substrate + ADRs + the run-ledger detail. "Coming up" rows show the
+ * recurrence's operator-facing TITLE + a relative time, never "next wake."
+ *
  * Binding discipline (ADR-340 D3 / Derived Principle 29): attention is
- * DERIVED, NEVER STORED. No notifications table exists or may exist —
- * every row here is a live derivation over already-ratified substrate:
- *
- *   - pending `action_proposals` (the Decide act)        → api.proposals.list
- *   - material-weight narrative since last looked (Read) → api.feed.globalHistory
- *     (the ADR-219 weight taxonomy — material/routine — IS the
- *     notification classification; nothing is re-classified here)
- *   - runway warnings (low balance)                      → api.integrations.getLimits
- *
- * Every row deep-links into the operator's real home for the act. Per
- * ADR-346 the bell now lands on the Operation composition — the surface
- * that CARRIES controls — instead of the bare mirrors: Decide rows →
- * operation?pane=resolve (the Queue body, where you approve); Read rows →
- * operation?pane=understand (the Feed narrative); billing warning →
- * settings?pane=billing. The mirrors stay reachable behind Operation
- * (the escape hatch), but the bell stops being a dead-end router that
- * can only point. The "last looked" cursor is client-side presentation
- * state in localStorage, same single-device-continuity stance as the
- * window-manager preferences (lib/shell/surface-preferences.ts) — it is
- * a read cursor, not workspace state, and never touches substrate.
+ * DERIVED, NEVER STORED. No notifications table exists or may exist — every
+ * row is a live derivation over already-ratified substrate (proposals,
+ * ADR-219 material narrative, recurrence next_run_at, balance). The "Coming
+ * up" limb adds NO state — next_run_at already rides on every recurrence
+ * (api.recurrences.list). The "last looked" cursor is client-side
+ * presentation state in localStorage (a read cursor, not workspace state).
  *
  * Consequence (ADR-340 D3): mirror surfaces stop being attention
  * destinations — the operator arrives at the Queue by routing, not by
@@ -40,6 +44,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { proposalActionLabel } from '@/lib/proposal-labels';
+import { formatRelativeTime } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { cn } from '@/lib/utils';
@@ -66,6 +71,16 @@ interface MaterialEvent {
   created_at: string;
 }
 
+// "Coming up" — a derived view over each recurrence's next_run_at. No new
+// state: next_run_at already rides on the recurrence list (ADR-340 D3
+// derived-never-stored preserved). title is the operator-facing label —
+// never the engine "recurrence/wake" word.
+interface UpcomingFire {
+  slug: string;
+  title: string;
+  next_run_at: string;
+}
+
 function readLastSeen(): string | null {
   if (typeof window === 'undefined' || typeof localStorage === 'undefined') return null;
   try {
@@ -89,6 +104,7 @@ export function AttentionCenter() {
   const [isOpen, setIsOpen] = useState(false);
   const [proposals, setProposals] = useState<PendingProposal[]>([]);
   const [materialEvents, setMaterialEvents] = useState<MaterialEvent[]>([]);
+  const [upcoming, setUpcoming] = useState<UpcomingFire[]>([]);
   const [lowBalance, setLowBalance] = useState<number | null>(null);
   const [lastSeen, setLastSeen] = useState<string | null>(() => readLastSeen());
   const containerRef = useRef<HTMLDivElement>(null);
@@ -101,11 +117,13 @@ export function AttentionCenter() {
     let cancelled = false;
 
     const derive = async () => {
-      const [proposalsResult, historyResult, limitsResult] = await Promise.allSettled([
-        api.proposals.list('pending', 20),
-        api.chat.globalHistory(1),
-        api.integrations.getLimits(),
-      ]);
+      const [proposalsResult, historyResult, limitsResult, recurrencesResult] =
+        await Promise.allSettled([
+          api.proposals.list('pending', 20),
+          api.chat.globalHistory(1),
+          api.integrations.getLimits(),
+          api.recurrences.list({ status: 'active' }),
+        ]);
       if (cancelled) return;
 
       if (proposalsResult.status === 'fulfilled') {
@@ -144,6 +162,19 @@ export function AttentionCenter() {
       if (limitsResult.status === 'fulfilled') {
         const balance = (limitsResult.value as { balance_usd: number }).balance_usd;
         setLowBalance(balance <= LOW_BALANCE_THRESHOLD_USD ? balance : null);
+      }
+
+      if (recurrencesResult.status === 'fulfilled') {
+        // "Coming up" — future-only next_run_at, non-paused, soonest first.
+        // Pure derivation over the recurrence list (next_run_at already rides
+        // on every row; no new state, ADR-340 D3 preserved). The title is the
+        // operator-facing label — never the engine "recurrence/wake" word.
+        const now = Date.now();
+        const fires: UpcomingFire[] = (recurrencesResult.value || [])
+          .filter((r) => !r.paused && r.next_run_at && Date.parse(r.next_run_at) > now)
+          .map((r) => ({ slug: r.slug, title: r.title, next_run_at: r.next_run_at as string }))
+          .sort((a, b) => Date.parse(a.next_run_at) - Date.parse(b.next_run_at));
+        setUpcoming(fires);
       }
     };
 
@@ -202,7 +233,7 @@ export function AttentionCenter() {
   // the bell + surface speak one language; pane keys unchanged). Billing
   // stays an account pane. Instead of the bare mirrors.
   const goTo = useCallback(
-    (target: 'resolve' | 'understand' | 'billing') => {
+    (target: 'resolve' | 'understand' | 'tune' | 'billing') => {
       setIsOpen(false);
       if (target === 'billing') {
         router.push('/settings?pane=billing');
@@ -301,7 +332,7 @@ export function AttentionCenter() {
             )}
 
             {materialEvents.length > 0 && (
-              <div>
+              <div className={upcoming.length > 0 ? 'border-b border-border/60' : undefined}>
                 <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
                   Activity
                 </div>
@@ -326,12 +357,49 @@ export function AttentionCenter() {
               </div>
             )}
 
-            {!hasWarning && proposals.length === 0 && materialEvents.length === 0 && (
-              <p className="px-3 py-4 text-xs text-muted-foreground">
-                Nothing needs you. To-dos, activity, and runway warnings
-                surface here.
-              </p>
+            {/* "Coming up" (future limb) — next scheduled fires, soonest
+                first. Reference, not a demand: it does NOT inflate the badge
+                (the badge counts only what NEEDS you — To do + unseen
+                Activity). Deep-links to the Schedule pane. */}
+            {upcoming.length > 0 && (
+              <div>
+                <div className="px-3 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+                  Coming up
+                </div>
+                {upcoming.slice(0, MAX_ROWS_PER_SECTION).map((u) => (
+                  <button
+                    key={u.slug}
+                    type="button"
+                    onClick={() => goTo('tune')}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+                  >
+                    <span className="text-foreground">{u.title}</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      {' · '}{formatRelativeTime(u.next_run_at)}
+                    </span>
+                  </button>
+                ))}
+                {upcoming.length > MAX_ROWS_PER_SECTION && (
+                  <button
+                    type="button"
+                    onClick={() => goTo('tune')}
+                    className="w-full text-left px-3 py-1.5 text-[11px] text-muted-foreground hover:bg-muted transition-colors"
+                  >
+                    +{upcoming.length - MAX_ROWS_PER_SECTION} more scheduled…
+                  </button>
+                )}
+              </div>
             )}
+
+            {!hasWarning &&
+              proposals.length === 0 &&
+              materialEvents.length === 0 &&
+              upcoming.length === 0 && (
+                <p className="px-3 py-4 text-xs text-muted-foreground">
+                  Nothing here yet. To-dos, activity, what&apos;s coming up, and
+                  runway warnings surface here.
+                </p>
+              )}
           </div>
 
           <button

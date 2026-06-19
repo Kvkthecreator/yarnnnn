@@ -118,6 +118,19 @@ def test_attention_center() -> None:
     )
     check("Decide rows → Resolve pane", "goTo('resolve')" in src)
     check("Read rows → Understand pane", "goTo('understand')" in src)
+    # 2026-06-19 label/temporal pass: the bell is a TEMPORAL triad (past ·
+    # present · future), the glanceable head of the Operation surface, and
+    # speaks the SAME operator words as the Operation panes.
+    check("derives 'Coming up' (future limb) from recurrences", "api.recurrences.list" in src)
+    check("'Coming up' is future-only, non-paused, soonest-first",
+          "next_run_at" in src and "!r.paused" in src)
+    check("'Coming up' rows → Schedule pane (goTo('tune'))", "goTo('tune')" in src)
+    check("'Coming up' is derivation-only — NO new state (next_run_at rides the list)",
+          "setUpcoming" in src and "request<" not in src)
+    check("section headers match the Operation pane labels (To do / Activity / Coming up)",
+          "To do" in src and "Activity" in src and "Coming up" in src)
+    check("badge stays demand-only — Coming up does NOT inflate it",
+          "proposals.length + unseenMaterial.length" in src)
 
 
 def test_topbar_mounts_attention() -> None:

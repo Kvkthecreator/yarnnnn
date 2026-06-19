@@ -73,6 +73,17 @@ The Attention center (`AttentionCenter.tsx`, ADR-340 D3) repoints from the bare 
 
 The bell's binding discipline is untouched — still derived, never stored, no `notifications` table (ADR-340 D3 / DP29). Only the routing *target* changes from mirror to composition, which is precisely what *"compositions foreground; mirrors are reachable from compositions, never the default"* (line 37) prescribes.
 
+### 5a. Amendment (2026-06-19) — the bell is the glanceable head of Operation: a temporal triad, one vocabulary
+
+Operator feedback after the initial label pass: the bell was framed as "what needs you" but is really **what happened · what needs me · what's coming up** — a *temporal* triad (past · present · future) — and it spoke a different language than the surface it lands on. Two corrections, no new state:
+
+- **The bell and the Operation surface are one object at two zooms**, and now share one vocabulary — the same operator words on both: **To do** (present, `?pane=resolve`) · **Activity** (past, `?pane=understand`) · **Coming up** (future, `?pane=tune`). The bell's section headers == the Operation pane labels.
+- **The future limb was missing and is now built.** "Coming up" derives the next scheduled fires from each recurrence's `next_run_at` (future-only, non-paused, soonest-first) — a pure derivation over `api.recurrences.list` (the field already rides every recurrence row), so ADR-340 D3's *derived-never-stored* invariant holds with **zero new state**. Rows deep-link to the Schedule pane.
+- **The badge stays demand-only** (`proposals + unseen Activity`). "Coming up" is *reference, not a demand* — a scheduled fire is not something that needs you — so it does **not** inflate the urgent count. The dropdown is the full glance; the badge is the demand subset.
+- **Operator-vocabulary partition** (the operator's deeper question — "what happens to wakes/recurrence?"): the bell speaks operator words only (To do · Activity · Coming up · Schedule). The engine words (*wake · recurrence · invocation · proposal*) stay in substrate + ADRs + the run-ledger detail (the escape hatch). "Coming up" rows show the recurrence's operator-facing **title**, never "next wake."
+
+Header stays **"Attention"** (= worth attending to; the three limbs clarify the breadth — it is not only "demands you"). The Operation pane labels moved from the abstract *Resolve/Understand/Tune* to plain *To do/Activity/Schedule* in the same pass (the ADR-340 D2 act identities Decide/Read/Tune + the pane KEYS are unchanged — labels only). Gate: `test_adr340_p1_attention` (+6 assertions for the temporal triad), 33/33; `test_adr346` 36/36 (asserts pane keys + bodies, not labels — unaffected).
+
 ## 6. What this does NOT change
 
 - **The mirrors** — Queue/Feed/Recurrence/Activity keep identical bodies, routes, and deep-link params. They lose only primary-launcher prominence (Feed/Queue).
