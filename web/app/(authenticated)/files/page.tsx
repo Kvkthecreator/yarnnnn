@@ -54,6 +54,7 @@ import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { RecentlyAuthored } from '@/components/workspace/RecentlyAuthored';
 import { UploadButton } from '@/components/workspace/UploadButton';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
+import { NodeDetailsPanel } from '@/components/workspace/NodeDetailsPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
 
@@ -574,15 +575,6 @@ export default function ContextPage() {
     setDetailsOpen(true);
   }, []);
 
-  // Path-based select (ADR-329 D2: RecentlyAuthored hands back a path, not a
-  // TreeNode — the file may not be in the visible tree, e.g. a `_`-prefixed
-  // path is hidden from the explorer but a revision row can still target it;
-  // syntheticNodeForPath resolves the viewer).
-  const handleExplorerSelect_byPath = useCallback((path: string) => {
-    setSelectedPath(path);
-    router.replace(`/files?path=${encodeURIComponent(path)}`, { scroll: false });
-  }, [router]);
-
   // D19 (2026-05-22): the prior plusMenuActions + chat empty-state
   // block were ThreePanelLayout-side affordances. Chat affordances
   // now live in the universal ChatDrawer FAB (singular summon path).
@@ -711,8 +703,8 @@ export default function ContextPage() {
                   onDeleted={() => {
                     // ADR-329: file archived — clear selection + refresh the
                     // tree (the archived file self-filters out server-side).
+                    // D19.2: selection is component state, never a URL write.
                     setSelectedPath(null);
-                    router.replace('/files', { scroll: false });
                     loadExplorer();
                   }}
                 />
