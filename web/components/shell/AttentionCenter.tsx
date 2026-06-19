@@ -238,7 +238,7 @@ export function AttentionCenter() {
       if (target === 'billing') {
         router.push('/settings?pane=billing');
       } else {
-        navigateToSurface('operation', { pane: target });
+        navigateToSurface('notifications', { pane: target });
       }
     },
     [navigateToSurface, router],
@@ -267,8 +267,8 @@ export function AttentionCenter() {
               : 'text-muted-foreground hover:bg-muted hover:text-foreground',
           isOpen && 'bg-muted',
         )}
-        title="Attention"
-        aria-label={`Attention center${badgeCount > 0 ? ` — ${badgeCount} items` : ''}`}
+        title="Notifications"
+        aria-label={`Notifications${badgeCount > 0 ? ` — ${badgeCount} items` : ''}`}
         aria-expanded={isOpen}
       >
         <Bell className="w-4 h-4 shrink-0" />
@@ -287,10 +287,10 @@ export function AttentionCenter() {
           style={{ zIndex: Z_POPOVER }}
           className="absolute top-full right-0 mt-1 w-80 max-w-[calc(100vw-1rem)] bg-background border border-border rounded-lg shadow-lg overflow-hidden"
           role="dialog"
-          aria-label="Attention center"
+          aria-label="Notifications"
         >
           <div className="px-3 py-2 border-b border-border bg-muted/30 text-sm font-medium">
-            Attention
+            Notifications
           </div>
 
           <div className="max-h-96 overflow-y-auto">
@@ -407,7 +407,7 @@ export function AttentionCenter() {
             onClick={() => goTo('resolve')}
             className="w-full text-left px-3 py-2 text-xs text-primary hover:bg-muted border-t border-border transition-colors"
           >
-            Open Operation →
+            Open Notifications →
           </button>
         </div>
       )}

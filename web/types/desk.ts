@@ -38,7 +38,7 @@ export type KernelSurfaceSlug =
   | 'setup'  // ADR-331 D1 — guided first-boot Sequence surface
   | 'program'
   | 'queue'
-  | 'operation'  // ADR-346 — the Operation composition (Decide · Read · Tune)
+  | 'notifications'  // ADR-346/349 — the operating-work composition (was 'operation')
   | 'activity'
   | 'settings'
   | 'workspace-settings'  // ADR-341 — the second Settings door (the operation)
@@ -69,7 +69,7 @@ export type DeskSurface =
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
   'feed', 'home', 'recurrence', 'budget', 'autonomy', 'expected-output', 'mandate', 'principles',
-  'identity', 'files', 'agents', 'setup', 'program', 'queue', 'operation', 'activity',
+  'identity', 'files', 'agents', 'setup', 'program', 'queue', 'notifications', 'activity',
   'settings', 'workspace-settings', 'connectors', 'sources',
 ] as const;
 

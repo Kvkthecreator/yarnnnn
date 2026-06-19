@@ -13,18 +13,19 @@
  *
  * ADR-340 P3 (2026-06-12) — act-derived launcher IA, two modes:
  *
- *   AT REST (no query): the kernel tier groups by `launcher_tier` —
- *   "Workspace" (primary: Home · Operation · Files, the standing-loop
- *   compositions — ADR-346 promoted Operation and demoted Feed/Queue,
- *   which Operation now fronts), then the two Settings doors as SEPARATE
- *   labeled groups (ADR-341): "Operation" (Workspace Settings) ABOVE
- *   "System" (System Settings) — two objects, the operation vs the OS,
- *   not one "Configure" lump — then "Utilities" (Setup · Recurrence ·
- *   Agents · Feed · Queue).
+ *   AT REST (no query): the kernel tier groups by `launcher_tier` (ADR-349
+ *   re-sort) — "Workspace" (primary: Home · Notifications · Files · Agents,
+ *   the standing loop; Notifications is the operating-work composition that
+ *   fronts Feed/Queue/Recurrence; Agents is the judgment seat upgraded to
+ *   first-class), then the two Settings doors as SEPARATE labeled groups
+ *   (ADR-349 D4): "Workspace Settings" (the operation) ABOVE "System
+ *   Settings" (the account/machine). The Utilities tier dissolved — the
+ *   fronted mirrors + Setup are `search-only`.
  *   `search-only` surfaces are HIDDEN at rest — the constitution
  *   mirrors' first-class door is the Home constitution band (ADR-312
  *   slot #1; their pane door is Workspace Settings); the Settings panes'
- *   door is their parent container. Registers stay code-level taxonomy
+ *   door is their parent container; the fronted mirrors (Feed/Queue/
+ *   Recurrence) + Setup are summoned by name. Registers stay code-level taxonomy
  *   (ADR-309/312 unchanged); the operator-facing sort key is the act
  *   tier.
  *
@@ -77,19 +78,26 @@ interface SurfaceGroup {
 // missing a tier (a registry omission) fall to Utilities — never
 // silently drop a surface from the index.
 const KERNEL_TIER_GROUPS: { key: string; label: string; tier: string }[] = [
+  // ADR-349 (2026-06-19) — the launcher IA re-sort (closes ADR-340 §9). At
+  // rest = the standing loop + two settings doors. The mirrors (Feed/Queue/
+  // Recurrence) the Notifications composition fronts go search-only (summon by
+  // name, not browse); Setup goes search-only (a motion you re-enter); Agents
+  // upgrades to the Workspace tier (the judgment seat is first-class). The
+  // Utilities tier dissolves. The operator re-split settings into two doors
+  // (D4): Workspace Settings (the operation) above System Settings (the
+  // account/machine).
   { key: 'kernel:primary', label: 'Workspace', tier: 'primary' },
-  // ADR-347 (2026-06-19): the two-door split (ADR-341) is reversed. ONE
-  // Settings door (the operation's settings) in one "Configure" tier; the
-  // account moved to the UserMenu (the search-only `settings` slug), so the
-  // "System" group is gone. workspace-config + system-config → configure.
-  { key: 'kernel:configure', label: 'Settings', tier: 'configure' },
-  { key: 'kernel:utilities', label: 'Utilities', tier: 'utilities' },
+  { key: 'kernel:workspace-config', label: 'Workspace Settings', tier: 'workspace-config' },
+  { key: 'kernel:system-config', label: 'System Settings', tier: 'system-config' },
 ];
 
 function kernelTierGroupFor(s: Surface): { key: string; label: string } | null {
   if (s.launcher_tier === 'search-only') return null;
+  // ADR-349: an un-tiered navigable surface is hidden at rest (treated like
+  // search-only) — a registry omission should not invent a tile in a dead
+  // group (the Utilities tier is gone). Flat search still finds it.
   const match = KERNEL_TIER_GROUPS.find((g) => g.tier === s.launcher_tier);
-  return match ?? { key: 'kernel:utilities', label: 'Utilities' };
+  return match ?? null;
 }
 
 function groupSurfaces(
@@ -121,9 +129,9 @@ function groupSurfaces(
     groups.get(groupKey)!.surfaces.push(s);
   });
 
-  // Order: the three kernel act-tier groups (Workspace → System →
-  // Utilities) first, then program groups (compositor insertion order),
-  // then composed. Empty kernel groups are skipped.
+  // Order: the three kernel act-tier groups (Workspace → Workspace Settings
+  // → System Settings, ADR-349) first, then program groups (compositor
+  // insertion order), then composed. Empty kernel groups are skipped.
   const ordered: SurfaceGroup[] = [];
   for (const g of KERNEL_TIER_GROUPS) {
     if (groups.has(g.key)) ordered.push(groups.get(g.key)!);

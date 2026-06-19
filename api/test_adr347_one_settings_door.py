@@ -52,16 +52,22 @@ def test_one_door_registry() -> None:
     from services.kernel_surfaces import KERNEL_SURFACES
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
-    # The one door.
+    # ADR-349 D4 re-split the launcher into two doors — the operation door
+    # (workspace-settings) + the account/System Settings door (settings). The
+    # ADR-347 SUBSTANCE persists (region split, editability rule §3,
+    # account-region = the human/principal); only the launcher PROJECTION
+    # changed (one tier → two). Titles/tiers below reflect the post-349 state.
     ws = by_slug["workspace-settings"]
-    check("workspace-settings titled 'Settings' (the one door)", ws["title"] == "Settings")
-    check("workspace-settings in the `configure` tier", ws.get("launcher_tier") == "configure")
+    check("workspace-settings titled 'Workspace Settings' (the operation door)",
+          ws["title"] == "Workspace Settings")
+    check("workspace-settings in the workspace-config tier", ws.get("launcher_tier") == "workspace-config")
     check("workspace-settings is window-grade", not ws.get("pane_of"))
-    # The account window.
+    # The account / System Settings door.
     acct = by_slug["settings"]
-    check("settings titled 'Account' (the account window)", acct["title"] == "Account")
-    check("settings is search-only (UserMenu-reached, not a door)",
-          acct.get("launcher_tier") == "search-only")
+    check("settings titled 'System Settings' (the account/machine door)",
+          acct["title"] == "System Settings")
+    check("settings in the system-config tier (re-promoted to a door, ADR-349 D4)",
+          acct.get("launcher_tier") == "system-config")
     check("settings is window-grade (account window)", not acct.get("pane_of"))
 
 
@@ -78,20 +84,22 @@ def test_contract_group() -> None:
           not any(e.get("pane_group") == "Governance" for e in KERNEL_SURFACES))
 
 
-def test_no_two_door_tiers() -> None:
-    print("\n[tiers] the two-door tier pair is retired (supersedes ADR-341 D3)")
+def test_settings_tiers() -> None:
+    # ADR-347 D3 collapsed to one `configure` tier; ADR-349 D4 re-split into
+    # two doors per operator decision. The ADR-347 account/operation SUBSTANCE
+    # is intact — this asserts the post-349 launcher projection.
+    print("\n[tiers] two settings doors (ADR-349 D4 re-split of ADR-347 D3)")
     from services.kernel_surfaces import KERNEL_SURFACES
 
     tiers = {e.get("launcher_tier") for e in KERNEL_SURFACES if e.get("route")}
-    check("workspace-config tier retired", "workspace-config" not in tiers)
-    check("system-config tier retired", "system-config" not in tiers)
-    check("configure tier present (the one door)", "configure" in tiers)
-    # Launcher mirrors this — one Settings group.
+    check("workspace-config tier present (operation door)", "workspace-config" in tiers)
+    check("system-config tier present (account door)", "system-config" in tiers)
+    check("the ADR-347 `configure` lump retired", "configure" not in tiers)
     launcher = _read("components/shell/Launcher.tsx")
-    check("Launcher declares the Settings (configure) group",
-          "label: 'Settings'" in launcher and "tier: 'configure'" in launcher)
-    check("Launcher dropped the two-door groups",
-          "tier: 'workspace-config'" not in launcher and "tier: 'system-config'" not in launcher)
+    check("Launcher declares the Workspace Settings group",
+          "label: 'Workspace Settings'" in launcher and "tier: 'workspace-config'" in launcher)
+    check("Launcher declares the System Settings group",
+          "label: 'System Settings'" in launcher and "tier: 'system-config'" in launcher)
 
 
 def test_account_moved_to_usermenu() -> None:
@@ -143,7 +151,7 @@ def main() -> int:
     print("ADR-347 gate — one Settings door; account → UserMenu")
     test_one_door_registry()
     test_contract_group()
-    test_no_two_door_tiers()
+    test_settings_tiers()
     test_account_moved_to_usermenu()
     test_account_window_is_account_only()
     test_redirect_stubs_point_to_one_door()

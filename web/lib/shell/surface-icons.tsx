@@ -14,6 +14,7 @@ import {
   Activity,
   Box,
   Clock,
+  FolderKanban,
   FolderOpen,
   Gauge,
   Home,
@@ -39,6 +40,9 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   activity: Activity,
   clock: Clock,
   folder: FolderOpen,
+  // ADR-349 D4: the Workspace Settings (operation) door — distinct from the
+  // System Settings gear so the two launcher doors read apart.
+  'folder-kanban': FolderKanban,
   // ADR-297 D20 amendment (2026-05-25): gauge registered for the
   // /pace surface. Pre-fix the Dock + Launcher rendered Box as
   // fallback because `gauge` was missing — visible inconsistency

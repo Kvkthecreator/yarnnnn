@@ -118,11 +118,11 @@ def test_attention_center() -> None:
         ".post(" not in src and "request<" not in src and "fetch(" not in src,
     )
     check(
-        # ADR-346: rows now deep-link into the Operation composition (the
+        # ADR-346/349: rows deep-link into the Notifications composition (the
         # surface that CARRIES controls) via navigateToSurface, which writes
-        # the ?pane= param — instead of bare foregroundSurface to the mirrors.
-        "rows deep-link into Operation via navigateToSurface (ADR-346)",
-        "navigateToSurface('operation'" in src,
+        # the ?pane= param. ADR-349 D2 renamed operation → notifications.
+        "rows deep-link into Notifications via navigateToSurface (ADR-346/349)",
+        "navigateToSurface('notifications'" in src,
     )
     check("Decide rows → Resolve pane", "goTo('resolve')" in src)
     check("Read rows → Understand pane", "goTo('understand')" in src)

@@ -209,7 +209,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # launcher prominence drops (ADR-340 D1 "mirror once, compose few" —
         # the cost optimized is launcher breadth, not surface count).
         "slug": "feed",
-        "launcher_tier": "utilities",  # ADR-346 (was primary, ADR-340 P3)
+        "launcher_tier": "search-only",  # ADR-349 — fronted by Notifications; summon by name (was utilities, ADR-346)
         "register": "application",  # ADR-309 two-register model
         "title": "Feed",
         "archetype": "stream",
@@ -271,19 +271,22 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # action_proposals + session_messages + _recurrences.yaml/execution_events.
         # Primary tier: the default destination for operating work; the mirrors
         # it fronts (Feed, Queue) demote to utilities in the same ADR.
-        "slug": "operation",
-        "launcher_tier": "primary",  # ADR-346 — the operating-work composition, prominent
+        # ADR-349 (2026-06-19): renamed operation → notifications. The window
+        # and the topbar Attention bell are the same object at two zooms (their
+        # vocabulary was unified by ADR-346 §5a: To do · Activity · Coming up);
+        # they now take one name — Notifications. The bell is the glance, this
+        # window is the full surface. Pane keys (resolve/understand/tune) +
+        # the ADR-340 D2 act identities (Decide/Read/Tune) are unchanged.
+        "slug": "notifications",
+        "launcher_tier": "primary",  # ADR-346/349 — the operating-work composition, Workspace tier
         "register": "application",  # a windowed composition like home / workspace-settings
-        "title": "Operation",
+        "title": "Notifications",
         "archetype": "dashboard",  # composition over multiple substrates
         "substrate_paths": [],  # composes action_proposals + session_messages + _recurrences.yaml
         "icon_key": "gauge",
-        # Not default-pinned — matches Home (the other primary composition);
-        # ADR-297 D5 keeps Feed as the sole default-pinned surface. Operators
-        # pin Operation via the dock affordance after first use (Launchpad model).
         "default_pinned": False,
-        "route": "/operation",
-        "summary": "Operate the recurring work in one place — resolve what wants you, understand what just happened, tune what's scheduled.",
+        "route": "/notifications",
+        "summary": "Operate the recurring work in one place — what wants your decision, what just happened, what's coming up.",
     },
     {
         # Renamed cadence → recurrence (2026-06-03). The surface's
@@ -293,7 +296,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # (Recurring vs Reactive grouping; Pace's tempo tagline), NOT as
         # this surface's name. /cadence kept as a redirect stub.
         "slug": "recurrence",
-        "launcher_tier": "utilities",  # ADR-340 P3
+        "launcher_tier": "search-only",  # ADR-349 — fronted by Notifications (Schedule pane); summon by name (was utilities)
         "register": "application",  # ADR-309 two-register model
         "title": "Recurrence",
         "archetype": "dashboard",
@@ -453,7 +456,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         "slug": "agents",
-        "launcher_tier": "utilities",  # ADR-340 P3
+        "launcher_tier": "primary",  # ADR-349 D3 — the judgment seat (who acts for you) is first-class, Workspace tier
         "register": "application",  # ADR-309 two-register model
         "title": "Agents",
         "archetype": "roster",
@@ -476,7 +479,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # the summon-index all point here. Re-enterable any time (the
         # Migration-Assistant property).
         "slug": "setup",
-        "launcher_tier": "utilities",  # ADR-340 P3
+        "launcher_tier": "search-only",  # ADR-349 D5 — a motion you re-enter (Home CTA + Workspace Settings); off the at-rest launcher
         "register": "os-config",  # ADR-309/312 — it configures the OS, not an open file
         "title": "Setup",
         "archetype": "sequence",  # ADR-331 D1 — new archetype
@@ -509,7 +512,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # preserved). Queue stays the complete decide mirror, reachable +
         # searchable; the Attention bell + Operation are now the default route in.
         "slug": "queue",
-        "launcher_tier": "utilities",  # ADR-346 (was primary, ADR-340 P3)
+        "launcher_tier": "search-only",  # ADR-349 — fronted by Notifications (To do pane); summon by name (was utilities, ADR-346)
         "register": "application",  # ADR-309 two-register model
         "title": "Queue",
         "archetype": "queue",
@@ -556,23 +559,24 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     {
         # ADR-347 (2026-06-19) — the two-door split is reversed. This surface
         # is NO LONGER a launcher door. It shrinks to the ACCOUNT window the
-        # UserMenu opens: the human/principal's concern (Billing · Usage ·
-        # Account), program-agnostic and cross-workspace — NOT an operation
-        # setting. Governance (Autonomy/Budget) moved OUT to the one
-        # operation-settings door (workspace-settings, the Contract group).
-        # `launcher_tier: search-only` — reached via the UserMenu (its primary
-        # door) or flat search, never a peer door. Title stays "Settings" for
-        # the UserMenu affordance; the General-only pane set lives on the page.
+        # the human/principal's concern (Billing · Usage · Account),
+        # program-agnostic and cross-workspace — the machine/account level, NOT
+        # operation config. Governance (Autonomy/Budget) lives on the
+        # operation door (workspace-settings, the Contract group).
+        # ADR-349 D4 (2026-06-19): the operator re-split the launcher into two
+        # settings doors — this re-promotes to an at-rest launcher door titled
+        # "System Settings" (the machine), `system-config` tier. Still ALSO
+        # reachable from the UserMenu (two doors, one window — fine).
         "slug": "settings",
-        "launcher_tier": "search-only",  # ADR-347 — account window, UserMenu-reached (was system-config door)
+        "launcher_tier": "system-config",  # ADR-349 D4 — re-promoted to a launcher door (was search-only/UserMenu-only, ADR-347)
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "title": "Account",
+        "title": "System Settings",
         "archetype": "dashboard",
         "substrate_paths": [],  # account/billing — DB + Stripe; user_id-scoped (ADR-171/172)
-        "icon_key": "user",
+        "icon_key": "settings",
         "default_pinned": False,
         "route": "/settings",
-        "summary": "Account — billing, usage, and data/privacy. The human/principal's concern (user_id-scoped), reached from the avatar menu. Not an operation setting.",
+        "summary": "System Settings — the machine/account level: billing, usage, and data/privacy. Program-agnostic, cross-workspace (user_id-scoped). Also reachable from the avatar menu.",
     },
     {
         # ADR-341 (2026-06-18) created the second door; ADR-347 (2026-06-19)
@@ -585,16 +589,20 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # operating contract, moved in by ADR-347), Operation (Program),
         # Perception (Connectors, Sources). The account moved OUT to the
         # UserMenu (ADR-347 D2).
+        # ADR-349 D4 (2026-06-19): the operator re-split the launcher into two
+        # settings doors. This is the OPERATION door, titled "Workspace
+        # Settings", `workspace-config` tier (above System Settings). Distinct
+        # icon (folder-kanban) so it reads apart from the System Settings gear.
         "slug": "workspace-settings",
-        "launcher_tier": "configure",  # ADR-347 — the one Settings door (was workspace-config; system-config retired)
+        "launcher_tier": "workspace-config",  # ADR-349 D4 — the operation door (re-split from ADR-347's one `configure` tier)
         "register": "application",  # a windowed app like `settings`
-        "title": "Settings",
+        "title": "Workspace Settings",
         "archetype": "dashboard",
         "substrate_paths": [],  # constitution/ + governance/ + operation/ + persona/ reads
-        "icon_key": "settings",
+        "icon_key": "folder-kanban",
         "default_pinned": False,
         "route": "/workspace-settings",
-        "summary": "Settings — what this operation is and how it runs. Constitution (mandate/identity/principles), Contract (budget/autonomy/expected output), Program, Connectors, Sources.",
+        "summary": "Workspace Settings — what this operation is and how it runs. Constitution (mandate/identity/principles), Contract (budget/autonomy/expected output), Program, Connectors, Sources.",
     },
     {
         "slug": "connectors",

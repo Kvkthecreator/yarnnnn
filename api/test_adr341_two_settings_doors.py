@@ -51,36 +51,35 @@ def test_two_container_surfaces() -> None:
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
     check("settings surface present", "settings" in by_slug)
     check("workspace-settings surface present", "workspace-settings" in by_slug)
-    # ADR-347: `settings` is the account window (UserMenu-reached);
-    # `workspace-settings` is THE one Settings door (titled "Settings").
-    check("settings titled 'Account' (ADR-347)", by_slug["settings"]["title"] == "Account")
-    check("workspace-settings titled 'Settings' (ADR-347 — the one door)", by_slug["workspace-settings"]["title"] == "Settings")
+    # ADR-349 D4 re-split into two launcher doors: `settings` is the account /
+    # System Settings door; `workspace-settings` is the operation door.
+    check("settings titled 'System Settings' (ADR-349 D4)", by_slug["settings"]["title"] == "System Settings")
+    check("workspace-settings titled 'Workspace Settings' (ADR-349 D4)", by_slug["workspace-settings"]["title"] == "Workspace Settings")
     # Containers are window-grade (not panes themselves).
     check("settings is window-grade (no pane_of)", not by_slug["settings"].get("pane_of"))
     check("workspace-settings is window-grade (no pane_of)", not by_slug["workspace-settings"].get("pane_of"))
 
 
 def test_two_settings_tiers() -> None:
-    print("\n[tier] one Settings door; account → UserMenu (ADR-347, supersedes D3)")
+    print("\n[tier] two settings doors re-split (ADR-349 D4)")
     from services.kernel_surfaces import KERNEL_SURFACES
 
     tiers = {e["slug"]: e.get("launcher_tier") for e in KERNEL_SURFACES if e.get("route")}
-    # ADR-347: the one Settings door is in the `configure` tier; the account
-    # window (`settings` slug) is search-only (UserMenu-reached, not a door).
+    # ADR-349 D4: Workspace Settings (operation, workspace-config) above
+    # System Settings (account, system-config). The ADR-347 `configure` lump
+    # is retired.
     check(
-        "workspace-settings → configure tier (the one door)",
-        tiers.get("workspace-settings") == "configure",
+        "workspace-settings → workspace-config tier (operation door)",
+        tiers.get("workspace-settings") == "workspace-config",
         str({s: t for s, t in tiers.items() if "config" in str(t)}),
     )
-    check("settings → search-only (account window, UserMenu-reached)", tiers.get("settings") == "search-only")
-    check("legacy `workspace-config` tier retired", not any(t == "workspace-config" for t in tiers.values()))
-    check("legacy `system-config` tier retired", not any(t == "system-config" for t in tiers.values()))
-    # Launcher renders one Settings group.
+    check("settings → system-config tier (account door)", tiers.get("settings") == "system-config")
+    check("ADR-347 `configure` lump retired", not any(t == "configure" for t in tiers.values()))
     launcher = _read("components/shell/Launcher.tsx")
-    check("Launcher group: Settings (configure)",
-          "label: 'Settings'" in launcher and "tier: 'configure'" in launcher)
-    check("the two-door Launcher groups retired (no workspace-config/system-config tiers)",
-          "tier: 'workspace-config'" not in launcher and "tier: 'system-config'" not in launcher)
+    check("Launcher group: Workspace Settings (workspace-config)",
+          "label: 'Workspace Settings'" in launcher and "tier: 'workspace-config'" in launcher)
+    check("Launcher group: System Settings (system-config)",
+          "label: 'System Settings'" in launcher and "tier: 'system-config'" in launcher)
 
 
 def test_pane_homing() -> None:

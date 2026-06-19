@@ -40,18 +40,19 @@ def _read(rel: str) -> str:
 
 
 def test_registry_window_grade() -> None:
-    print("\n[registry] operation is a window-grade primary composition")
+    print("\n[registry] notifications is a window-grade primary composition")
     from services.kernel_surfaces import KERNEL_SURFACES
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
-    op = by_slug.get("operation")
-    check("operation surface registered", op is not None)
+    # ADR-349 D2: operation → notifications (window + bell = one name).
+    op = by_slug.get("notifications")
+    check("notifications surface registered", op is not None)
     if not op:
         return
     check("window-grade (no pane_of — a composition, not a pane)", "pane_of" not in op)
     check("launcher_tier == primary (the default operating destination)", op.get("launcher_tier") == "primary")
     check("register == application (a windowed composition)", op.get("register") == "application")
-    check("route == /operation", op.get("route") == "/operation")
+    check("route == /notifications", op.get("route") == "/notifications")
     check("composes substrate (substrate_paths empty — owns no files)", op.get("substrate_paths") == [])
     check("archetype == dashboard", op.get("archetype") == "dashboard")
 
@@ -73,9 +74,11 @@ def test_mirrors_survive() -> None:
               "'use client'" in src and "redirect(" not in src,
               "found redirect() — mirror was stubbed")
 
-    # Feed + Queue demoted primary → utilities (Operation fronts them).
-    check("feed demoted to utilities", by_slug["feed"].get("launcher_tier") == "utilities")
-    check("queue demoted to utilities", by_slug["queue"].get("launcher_tier") == "utilities")
+    # ADR-349: the fronted mirrors go search-only (summon by name, not browse)
+    # — the Utilities tier dissolved; Notifications fronts them.
+    check("feed is search-only (fronted by Notifications)", by_slug["feed"].get("launcher_tier") == "search-only")
+    check("queue is search-only (fronted by Notifications)", by_slug["queue"].get("launcher_tier") == "search-only")
+    check("recurrence is search-only (fronted by Notifications)", by_slug["recurrence"].get("launcher_tier") == "search-only")
 
 
 def test_one_body_two_mounts() -> None:
@@ -88,7 +91,8 @@ def test_one_body_two_mounts() -> None:
     queue_page = _read("app/(authenticated)/queue/page.tsx")
     check("the /queue mirror mounts QueueBody", "QueueBody" in queue_page and "api.proposals.list" not in queue_page)
 
-    op = _read("app/(authenticated)/operation/page.tsx")
+    # ADR-349 D2: the composition page renamed operation → notifications.
+    op = _read("app/(authenticated)/notifications/page.tsx")
     check("Resolve pane mounts QueueBody", "QueueBody" in op)
     check("Understand pane mounts FeedSurface", "FeedSurface" in op)
     check("Tune pane mounts RecurrenceList", "RecurrenceList" in op)
@@ -96,27 +100,30 @@ def test_one_body_two_mounts() -> None:
           "Open full Queue" in op and "Open full Recurrence" in op)
     check("mounts the shared SettingsPaneShell (Singular Implementation)",
           "SettingsPaneShell" in op and "fullBleed" in op)
-    check("three Operate panes: resolve/understand/tune",
+    check("three panes: resolve/understand/tune (keys unchanged through rename)",
           all(k in op for k in ('"resolve"', '"understand"', '"tune"')))
 
 
 def test_registry_and_parity() -> None:
-    print("\n[wiring] operation in the FE registry + slug allowlist")
+    print("\n[wiring] notifications in the FE registry + slug allowlist")
     reg = _read("components/shell/SurfaceRegistry.tsx")
-    check("SurfaceRegistry maps operation → OperationPage",
-          "operation: OperationPage" in reg and "OperationPage" in reg)
+    check("SurfaceRegistry maps notifications → NotificationsPage",
+          "notifications: NotificationsPage" in reg and "NotificationsPage" in reg)
     desk = _read("types/desk.ts")
-    check("operation in KernelSurfaceSlug union", "'operation'" in desk)
-    check("operation in KERNEL_SURFACE_SLUGS array", "'operation'" in desk and "KERNEL_SURFACE_SLUGS" in desk)
+    check("notifications in KernelSurfaceSlug union", "'notifications'" in desk)
+    check("notifications in KERNEL_SURFACE_SLUGS array", "'notifications'" in desk and "KERNEL_SURFACE_SLUGS" in desk)
+    # /operation is an ADR-308 redirect stub → /notifications (bookmark safety).
+    stub = _read("app/(authenticated)/operation/page.tsx")
+    check("/operation → /notifications redirect stub", "redirect('/notifications')" in stub)
 
 
 def test_attention_lands_on_operation() -> None:
-    print("\n[bell] the Attention center routes into the Operation panes")
+    print("\n[bell] the Notifications bell routes into the Notifications panes")
     src = _read("components/shell/AttentionCenter.tsx")
-    check("uses navigateToSurface (writes ?pane=)", "navigateToSurface('operation'" in src)
+    check("uses navigateToSurface (writes ?pane=)", "navigateToSurface('notifications'" in src)
     check("Decide rows → Resolve pane", "goTo('resolve')" in src)
     check("Read rows → Understand pane", "goTo('understand')" in src)
-    check("footer relabeled Open Operation →", "Open Operation →" in src)
+    check("footer relabeled Open Notifications →", "Open Notifications →" in src)
     check("billing warning still → System Settings billing pane", "/settings?pane=billing" in src)
     check("no longer routes to the bare queue/feed mirrors",
           "goTo('queue')" not in src and "goTo('feed')" not in src)

@@ -47,37 +47,33 @@ def test_registry_tiers() -> None:
 
     check("every navigable surface declares a tier", all(tiers.values()), str({k: v for k, v in tiers.items() if not v}))
     check(
-        # ADR-346: primary == the standing-loop COMPOSITIONS. Operation joins
-        # Home as the second composition (Decide·Read·Tune); Feed + Queue
-        # demote to utilities — Operation fronts them.
-        "primary == the standing-loop compositions (home/operation/files)",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "operation", "files"},
+        # ADR-349 D1/D3: primary == the standing loop — Home + Notifications
+        # (the composition, was 'operation') + Files + Agents (the judgment
+        # seat upgraded to first-class).
+        "primary == the standing loop (home/notifications/files/agents)",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "notifications", "files", "agents"},
     )
-    # ADR-347: the two-door split (ADR-341) is reversed — ONE Settings door
-    # (the operation's settings) in the `configure` tier; the account window
-    # (`settings` slug) is search-only (UserMenu-reached). The
-    # workspace-config + system-config tier pair is retired.
+    # ADR-349 D4: two settings doors re-split — Workspace Settings (operation)
+    # + System Settings (account). The `configure` lump (ADR-347) is retired.
     check(
-        "configure == {workspace-settings} (the one Settings door)",
-        {s for s, t in tiers.items() if t == "configure"} == {"workspace-settings"},
-    )
-    check("legacy workspace-config + system-config tiers retired",
-          not any(t in ("workspace-config", "system-config", "system") for t in tiers.values()))
-    check(
-        # ADR-346: feed + queue join utilities (demoted from primary —
-        # Operation fronts them; they stay complete + reachable mirrors).
-        "utilities == setup/recurrence/agents/feed/queue (ADR-346 demotes feed+queue; activity is a recurrence pane per ADR-340 D8)",
-        {s for s, t in tiers.items() if t == "utilities"}
-        == {"setup", "recurrence", "agents", "feed", "queue"},
+        "workspace-config == {workspace-settings} (the operation door)",
+        {s for s, t in tiers.items() if t == "workspace-config"} == {"workspace-settings"},
     )
     check(
-        # ADR-347: the account window (`settings`) joins search-only
-        # (UserMenu-reached, not a door); expected-output (ADR-348) joins as
-        # a Contract pane.
-        "search-only == constitution mirrors + Settings panes + account window + activity",
+        "system-config == {settings} (the account/System Settings door)",
+        {s for s, t in tiers.items() if t == "system-config"} == {"settings"},
+    )
+    check("legacy `configure` lump retired", not any(t == "configure" for t in tiers.values()))
+    check("Utilities tier dissolved (no member carries it)",
+          not any(t == "utilities" for t in tiers.values()))
+    check(
+        # ADR-349: the fronted mirrors (feed/queue/recurrence), Setup, and all
+        # panes go search-only. Agents upgraded to primary (D3).
+        "search-only == mirrors + Setup + panes (the at-rest-hidden set)",
         {s for s, t in tiers.items() if t == "search-only"}
         == {"mandate", "principles", "identity", "budget", "autonomy", "expected-output",
-            "program", "connectors", "sources", "settings", "activity"},
+            "program", "connectors", "sources", "activity",
+            "feed", "queue", "recurrence", "setup"},
     )
     chrome = [e for e in KERNEL_SURFACES if not e.get("route")]
     check("chrome entries carry no tier", all(not e.get("launcher_tier") for e in chrome))
@@ -86,11 +82,11 @@ def test_registry_tiers() -> None:
 def test_launcher_two_modes() -> None:
     print("\n[launcher] act-tier groups at rest; flat when searching")
     src = _read("components/shell/Launcher.tsx")
-    # ADR-347: at-rest groups are Workspace / Settings / Utilities (the
-    # two-door split is reversed — one Settings door; account → UserMenu).
-    check("KERNEL_TIER_GROUPS declared (Workspace/Settings/Utilities)",
-          "'Workspace'" in src and "'Settings'" in src
-          and "'Utilities'" in src and "KERNEL_TIER_GROUPS" in src)
+    # ADR-349 D4: at-rest groups are Workspace / Workspace Settings / System
+    # Settings (the Utilities tier dissolved; two settings doors re-split).
+    check("KERNEL_TIER_GROUPS declared (Workspace/Workspace Settings/System Settings)",
+          "'Workspace'" in src and "'Workspace Settings'" in src
+          and "'System Settings'" in src and "KERNEL_TIER_GROUPS" in src)
     check("search-only hidden at rest", "search-only" in src and "return null" in src)
     check("flat list when searching (Spotlight role)", "isSearching" in src)
     check("pane rows labeled as Settings panes in search", "Settings pane" in src)

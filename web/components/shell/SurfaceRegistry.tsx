@@ -39,7 +39,7 @@ import RecurrencePage from '@/app/(authenticated)/recurrence/page';
 import QueuePage from '@/app/(authenticated)/queue/page';
 // ADR-346 (2026-06-19) — the Operation composition window (Decide · Read ·
 // Tune). Window-grade (no pane_of) like Home; its panes reuse mirror bodies.
-import OperationPage from '@/app/(authenticated)/operation/page';
+import NotificationsPage from '@/app/(authenticated)/notifications/page';
 // ADR-340 D8 (2026-06-18) — Machinery consolidation. Activity is PANE-GRADE
 // under Recurrence (registry `pane_of: "recurrence"`): the Runs lens rendered
 // inside RecurrencePage (shared ActivityLog body). No window component — the
@@ -76,7 +76,7 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   // ADR-341 (2026-06-18): mandate/principles/identity are pane-grade under
   // workspace-settings; no window component (resolve to undefined here).
   queue: QueuePage,
-  operation: OperationPage,  // ADR-346 — the operating-work composition (Resolve · Understand · Tune)
+  notifications: NotificationsPage,  // ADR-346/349 — the operating-work composition (was 'operation')
   // ADR-340 D8 — `activity` is pane-grade under recurrence; no window component.
   agents: AgentsPage,
   files: FilesPage,

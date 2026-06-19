@@ -78,9 +78,9 @@ def test_registry_pane_model() -> None:
         "workspace-settings is a container window (no pane_of on itself)",
         not by_slug["workspace-settings"].get("pane_of"),
     )
-    # ADR-347: `settings` = the account window; `workspace-settings` = the one door.
-    check("settings titled 'Account' (ADR-347)", by_slug["settings"]["title"] == "Account")
-    check("workspace-settings titled 'Settings' (ADR-347)", by_slug["workspace-settings"]["title"] == "Settings")
+    # ADR-349 D4: `settings` = the account/System Settings door; `workspace-settings` = the operation door.
+    check("settings titled 'System Settings' (ADR-349 D4)", by_slug["settings"]["title"] == "System Settings")
+    check("workspace-settings titled 'Workspace Settings' (ADR-349 D4)", by_slug["workspace-settings"]["title"] == "Workspace Settings")
     check(
         "setup stays window-grade (Sequence surface, ADR-331)",
         not by_slug["setup"].get("pane_of"),
