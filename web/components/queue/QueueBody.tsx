@@ -30,11 +30,22 @@ interface Occupant {
   display_label: string;
 }
 
-const FAMILY_META: Record<'capital' | 'substrate', { label: string; help: string; dot: string }> = {
+type QueueFamily = 'capital' | 'external-write' | 'substrate';
+
+// ADR-307 (2026-06-19): external-write joins capital + substrate. Audience-
+// addressing sends (Slack channel post, Notion page/block, email blast) the
+// operator must approve under bounded/manual — a third-party-affecting effect,
+// not a money move and not a file diff.
+const FAMILY_META: Record<QueueFamily, { label: string; help: string; dot: string }> = {
   capital: {
     label: 'Money-moving',
     help: 'Actions that move capital or bind an external transaction.',
     dot: 'bg-amber-500',
+  },
+  'external-write': {
+    label: 'Outbound messages',
+    help: 'Posts, pages, or emails sent to an audience outside your workspace.',
+    dot: 'bg-violet-500',
   },
   substrate: {
     label: 'Workspace changes',
@@ -108,7 +119,7 @@ export function QueueBody() {
               </span>
             </div>
           )}
-          {(['capital', 'substrate'] as const).map((family) => {
+          {(['capital', 'external-write', 'substrate'] as const).map((family) => {
             const group = proposals.filter((p) => p.family === family);
             if (group.length === 0) return null;
             const meta = FAMILY_META[family];

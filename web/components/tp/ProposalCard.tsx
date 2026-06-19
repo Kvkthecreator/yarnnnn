@@ -36,10 +36,11 @@ export interface ProposalData {
   /** ADR-307: the primitive replayed on approve (e.g. 'WriteFile',
    * 'platform_trading_submit_order'). Replaces action_type. */
   primitive: string;
-  /** ADR-307: 'capital' | 'substrate' — render discriminator. */
-  family: 'capital' | 'substrate';
+  /** ADR-307: 'capital' | 'external-write' | 'substrate' — render discriminator. */
+  family: 'capital' | 'external-write' | 'substrate';
   /** ADR-307: family-shaped operator decision context.
    * capital: {rationale, expected_effect, reversibility, risk_warnings}.
+   * external-write: {effect:{channel|to|page,...,preview}, gate_reason}.
    * substrate: {diff:{path,before,after}, message, path, mode}. */
   decision_context?: Record<string, unknown>;
   expires_at: string;
@@ -74,6 +75,25 @@ function normalizeProposal(p: ProposalData): NormalizedProposal {
       reversibility: 'reversible', // substrate writes revert via the revision chain (ADR-209)
       risk_warnings: [],
       diff,
+    };
+  }
+  if (p.family === 'external-write') {
+    // ADR-307 external-write: the decision_context is {effect, gate_reason}.
+    // Render the effect preview (channel/recipient/title + content preview) as
+    // the expected_effect line — the operator approves a *send*, not a diff.
+    const effect = (dc.effect ?? {}) as Record<string, unknown>;
+    const preview = (effect.preview as string) ?? '';
+    const target =
+      (effect.channel as string) ??
+      (effect.to as string) ??
+      (effect.page as string) ??
+      (effect.parent as string) ??
+      '';
+    return {
+      rationale: (effect.title as string) || (target ? `Send to ${target}` : 'Outbound message'),
+      expected_effect: [target ? `To: ${target}` : '', preview].filter(Boolean).join(' — '),
+      reversibility: 'soft-reversible',
+      risk_warnings: [],
     };
   }
   // capital family

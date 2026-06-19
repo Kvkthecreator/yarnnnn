@@ -200,6 +200,62 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
                     return PermissionDecision.DENY, f"mcp_topology_locked:{path}"
         return PermissionDecision.APPLY, "mcp_caller_unlocked_path"
 
+    # ADR-307 (2026-06-19): consequential platform writes engage the gate
+    # REGARDLESS of caller. The autonomy decision moves out of the platform
+    # tools (submit_order's bespoke `mode==autonomous` branch is deleted) into
+    # this ONE place. These calls arrive from specialist/headless paths
+    # (reviewer_caller=False), so they must be handled BEFORE the
+    # non-Reviewer short-circuit below — otherwise they'd inherit the
+    # operator/headless free-pass and never gate.
+    #
+    # An approved-proposal REPLAY (ExecuteProposal injects `_proposal_id`) is
+    # already operator-authorized: it applies without re-gating (no loop).
+    from services.platform_tools import (
+        is_consequential_platform_tool, consequential_platform_family,
+    )
+    if is_consequential_platform_tool(name):
+        if input.get("_proposal_id"):
+            return PermissionDecision.APPLY, "approved_proposal_replay"
+        try:
+            from services.review_policy import (
+                load_autonomy, autonomy_for_domain, should_auto_apply,
+            )
+            family = consequential_platform_family(name) or "external-write"
+            autonomy = load_autonomy(auth.client, auth.user_id)
+            autonomy_policy = autonomy_for_domain(autonomy, "")
+            if family == "capital":
+                # Capital safety floor: a direct capital call with no proposal
+                # is irreversible money movement → the irreversible-always-queue
+                # rule routes it to the operator under manual/bounded; only an
+                # explicit `autonomous` delegation auto-binds. (The live capital
+                # path never lands here — it flows ProposeAction → approve →
+                # ExecuteProposal replay, recognized above by `_proposal_id`.)
+                allowed, gate_reason = should_auto_apply(
+                    autonomy_policy=autonomy_policy,
+                    action_class="capital",
+                    verdict="approve",
+                    reversibility="irreversible",
+                    caller_identity=getattr(auth, "caller_identity", "") or "",
+                )
+            else:
+                # external-write is consequential-non-capital, gated like
+                # substrate (manual/bounded → queue, autonomous → apply).
+                allowed, gate_reason = should_auto_apply(
+                    autonomy_policy=autonomy_policy,
+                    action_class="substrate",
+                    substrate_path="",
+                    caller_identity=getattr(auth, "caller_identity", "") or "",
+                )
+        except Exception as exc:  # fail closed — queue rather than apply
+            logger.warning(
+                "[PERMISSION] platform-write gate failed for %s: %s — failing "
+                "closed (QUEUE).", name, exc,
+            )
+            return PermissionDecision.QUEUE, f"gate_error:{exc}"
+        if allowed:
+            return PermissionDecision.APPLY, f"autonomy_allows:{gate_reason}"
+        return PermissionDecision.QUEUE, f"autonomy_requires_approval:{gate_reason}"
+
     # Autonomy gate scoped to Reviewer-runtime calls (ADR-293).
     if not getattr(auth, "reviewer_caller", False):
         return PermissionDecision.APPLY, "non_reviewer_caller"

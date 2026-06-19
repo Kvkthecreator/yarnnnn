@@ -107,6 +107,7 @@ from .propose_action import (
 )
 from services.platform_tools import (
     is_platform_tool, handle_platform_tool, get_platform_tools_for_agent,
+    is_consequential_platform_tool, consequential_platform_family,
 )
 
 # ---------------------------------------------------------------------------
@@ -599,6 +600,120 @@ _CHAT_TOOL_NAMES = {t["name"] for t in CHAT_PRIMITIVES}
 _HEADLESS_TOOL_NAMES = {t["name"] for t in HEADLESS_PRIMITIVES}
 
 
+def _platform_write_preview(name: str, input: dict) -> dict:
+    """A compact, operator-legible effect preview for an external-write
+    proposal's decision_context. Family-shaped (external-write): the WHO + the
+    WHAT, never a file diff. Strips dispatch-layer underscore keys."""
+    visible = {k: v for k, v in (input or {}).items() if not k.startswith("_")}
+    if name == "platform_slack_send_to_channel":
+        return {
+            "channel": visible.get("channel_id") or visible.get("channel"),
+            "preview": (visible.get("text") or "")[:280],
+        }
+    if name == "platform_notion_create_page":
+        return {
+            "parent": visible.get("parent_page_id") or visible.get("parent"),
+            "title": visible.get("title"),
+            "preview": (visible.get("content") or "")[:280],
+        }
+    if name == "platform_notion_append_block":
+        return {
+            "page": visible.get("page_id") or visible.get("block_id"),
+            "preview": (visible.get("content") or visible.get("text") or "")[:280],
+        }
+    if name in ("platform_email_send", "platform_email_send_bulk"):
+        return {
+            "to": visible.get("to") or visible.get("recipients"),
+            "subject": visible.get("subject"),
+            "preview": (visible.get("body") or visible.get("text") or "")[:280],
+        }
+    return {k: v for k, v in visible.items()}
+
+
+async def _enqueue_platform_write_proposal(
+    auth: Any, name: str, input: dict, reason: str
+) -> dict:
+    """ADR-307 (2026-06-19): a consequential platform write the uniform gate
+    ruled QUEUE becomes a family-shaped action_proposals row. ONE gate
+    decision, family-shaped enqueue — never one queue forcing every effect into
+    a file-diff shape.
+
+      capital        — trading/commerce money movers. decision_context carries
+                       {rationale, expected_effect, reversibility,
+                       risk_warnings} so the cockpit renders the order-ticket
+                       card and the outcome reconciler keys identically to a
+                       ProposeAction-originated capital proposal. (In practice
+                       the capital path reaches the broker via ProposeAction →
+                       ExecuteProposal; this branch is the safety floor for any
+                       non-proposal direct capital call under bounded/manual.)
+      external-write — audience-addressing sends. decision_context carries the
+                       effect preview (channel/recipient/title + content
+                       preview) — the operator approves a *send*, not a diff.
+
+    On approve, ExecuteProposal replays execute_primitive(name, inputs) with
+    `_proposal_id` injected — recognized by the gate as an approved replay and
+    applied without re-gating (no loop).
+    """
+    from .propose_action import enqueue_gated_action, build_trading_expected_effect
+
+    family = consequential_platform_family(name) or "external-write"
+    source = getattr(auth, "caller_identity", "") or None
+    task_slug = getattr(auth, "task_slug", None)
+    agent_slug = getattr(auth, "agent_slug", None)
+
+    if family == "capital":
+        # action_type label for audit/reconciler continuity (the platform-tool
+        # primitive name minus the `platform_<provider>_` prefix, dotted).
+        parts = name.split("_", 2)  # platform / provider / verb
+        provider = parts[1] if len(parts) > 1 else ""
+        verb = parts[2] if len(parts) > 2 else name
+        action_type = f"{provider}.{verb}"
+        decision_context = {
+            "rationale": input.get("rationale") or f"Gated {action_type} ({reason}).",
+            "expected_effect": (
+                build_trading_expected_effect(action_type, input)
+                if provider == "trading"
+                else f"{action_type}: {_platform_write_preview(name, input)}"
+            ),
+            "reversibility": "irreversible",
+            "risk_warnings": [],
+            "gate_reason": reason,
+        }
+        ttl_hours = 1  # capital family: short TTL (matches DEFAULT_TTL_HOURS)
+    else:
+        decision_context = {
+            "effect": _platform_write_preview(name, input),
+            "gate_reason": reason,
+        }
+        ttl_hours = 6  # external-write: soft-reversible default window
+
+    enq = await enqueue_gated_action(
+        auth,
+        primitive=name,
+        inputs=input,
+        family=family,
+        decision_context=decision_context,
+        source=source,
+        task_slug=task_slug,
+        agent_slug=agent_slug,
+        ttl_hours=ttl_hours,
+    )
+    if not enq.get("success"):
+        return {"success": False, "error": "queue_failed", "message": str(enq), "primitive": name}
+    return {
+        "success": True,
+        "queued": True,
+        "proposal_id": enq["proposal_id"],
+        "family": family,
+        "message": (
+            f"{name} requires operator approval under the current autonomy mode "
+            f"({reason}). Queued as a {family} proposal — the operator approves "
+            f"it from the cockpit. The action runs on approval."
+        ),
+        "primitive": name,
+    }
+
+
 async def _enqueue_substrate_proposal(auth: Any, name: str, input: dict, reason: str) -> dict:
     """ADR-307 D4: a Reviewer consequential call the gate ruled QUEUE becomes a
     family='substrate' action_proposals row. The operator approves later; on
@@ -672,22 +787,58 @@ async def _enqueue_substrate_proposal(auth: Any, name: str, input: dict, reason:
     }
 
 
+async def _run_platform_tool(auth: Any, name: str, input: dict) -> dict:
+    """Dispatch a platform tool to its provider handler with uniform error
+    shaping. The gate (resolve_permission below) runs BEFORE this for
+    consequential platform writes; reads reach here on the fast path."""
+    try:
+        return await handle_platform_tool(auth, name, input)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": "platform_tool_error",
+            "message": str(e),
+            "tool": name,
+        }
+
+
 async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
     """
     Execute a primitive by name.
 
-    ADR-050: Platform tools (platform_*) are routed to MCP Gateway.
+    ADR-307 (2026-06-19): the platform-tool path no longer unconditionally
+    bypasses the uniform permission gate. Platform READS (and operator-
+    addressing infrastructure) keep the fast early-return — they are non-
+    consequential and the gate would only add latency. Consequential platform
+    WRITES (capital / external-write per `consequential_platform_family`) fall
+    through to `resolve_permission` so the autonomy decision is made in the ONE
+    place (no primitive hand-rolls its own autonomy branch — submit_order's
+    bespoke branch is deleted). On QUEUE the gate routes to the family-shaped
+    enqueue (capital → capital proposal; external-write → external-write
+    proposal). The operator-approved replay (ExecuteProposal injects
+    `_proposal_id`) is recognized and applied without re-gating.
     """
+    from .permission import resolve_permission, PermissionDecision
+
     if is_platform_tool(name):
-        try:
-            return await handle_platform_tool(auth, name, input)
-        except Exception as e:
+        # Reads + operator-addressing infra: never gate (fast path, unchanged).
+        if not is_consequential_platform_tool(name):
+            return await _run_platform_tool(auth, name, input)
+        # Consequential platform write: pass the uniform gate.
+        decision, reason = await resolve_permission(auth, name, input)
+        if decision == PermissionDecision.DENY:
             return {
                 "success": False,
-                "error": "platform_tool_error",
-                "message": str(e),
-                "tool": name,
+                "error": "governance_locked",
+                "message": (
+                    f"{name} is not permitted under the current autonomy mode "
+                    f"({reason})."
+                ),
+                "primitive": name,
             }
+        if decision == PermissionDecision.QUEUE:
+            return await _enqueue_platform_write_proposal(auth, name, input, reason)
+        return await _run_platform_tool(auth, name, input)
 
     handler = HANDLERS.get(name)
     if not handler:

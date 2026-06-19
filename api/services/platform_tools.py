@@ -2120,7 +2120,14 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         if not all([ticker, side, qty, order_type]):
             return {"success": False, "error": "ticker, side, qty, and order_type are required"}
 
-        # ADR-192 Phase 2: pre-trade risk gate
+        # ADR-192 Phase 2: pre-trade risk gate (the trader's position-sizing /
+        # stops / VaR envelope). ADR-307 (2026-06-19): this is a DOMAIN
+        # pre-check, NOT autonomy gating. The autonomy decision (queue vs apply)
+        # is owned by the uniform gate (resolve_permission) above this handler;
+        # the bespoke `mode == autonomous` → ProposeAction branch is DELETED.
+        # The risk gate stays here because it is trader-domain logic the uniform
+        # gate cannot know — a rejection is a hard floor: never auto-execute an
+        # order that breaches the risk envelope.
         from services.risk_gate import check_risk_limits
         mode = tool_input.get("_mode", "supervised")
         proposed = {
@@ -2135,28 +2142,6 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             mode=mode,
         )
         if not gate.get("approved"):
-            # ADR-193 Phase 3: autonomous rejection → emit proposal; supervised → hard error
-            if mode == "autonomous":
-                from services.primitives.propose_action import (
-                    handle_propose_action, build_trading_expected_effect,
-                )
-                prop_result = await handle_propose_action(auth, {
-                    "action_type": "trading.submit_order",
-                    "inputs": proposed,
-                    "rationale": f"Risk gate rejected autonomous execution: {gate.get('reason')}. Review limits or approve override.",
-                    "expected_effect": build_trading_expected_effect("trading.submit_order", proposed),
-                    "reversibility": "irreversible",
-                    "risk_warnings": [gate.get("reason", "")] + (gate.get("warnings") or []),
-                    "expires_in_hours": 1,
-                })
-                return {
-                    "success": False,
-                    "error": "risk_limit_violation_proposed",
-                    "message": f"Risk gate rejected; proposal emitted for user review.",
-                    "proposal_id": prop_result.get("proposal_id"),
-                    "proposal": prop_result.get("proposal"),
-                    "mode": mode,
-                }
             return {
                 "success": False,
                 "error": "risk_limit_violation",
@@ -2219,6 +2204,8 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         if not all([ticker, side, qty, tp, sl_stop]):
             return {"success": False, "error": "ticker, side, qty, take_profit_limit_price, and stop_loss_stop_price are required"}
 
+        # ADR-307 (2026-06-19): risk gate = domain pre-check; autonomy gating
+        # owned by the uniform gate. Bespoke autonomous→propose branch deleted.
         from services.risk_gate import check_risk_limits
         mode = tool_input.get("_mode", "supervised")
         proposed = {
@@ -2235,27 +2222,6 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             mode=mode,
         )
         if not gate.get("approved"):
-            if mode == "autonomous":
-                from services.primitives.propose_action import (
-                    handle_propose_action, build_trading_expected_effect,
-                )
-                prop_result = await handle_propose_action(auth, {
-                    "action_type": "trading.submit_bracket_order",
-                    "inputs": proposed,
-                    "rationale": f"Risk gate rejected autonomous execution: {gate.get('reason')}. Review limits or approve override.",
-                    "expected_effect": build_trading_expected_effect("trading.submit_bracket_order", proposed),
-                    "reversibility": "irreversible",
-                    "risk_warnings": [gate.get("reason", "")] + (gate.get("warnings") or []),
-                    "expires_in_hours": 1,
-                })
-                return {
-                    "success": False,
-                    "error": "risk_limit_violation_proposed",
-                    "message": "Risk gate rejected; proposal emitted for user review.",
-                    "proposal_id": prop_result.get("proposal_id"),
-                    "proposal": prop_result.get("proposal"),
-                    "mode": mode,
-                }
             return {
                 "success": False,
                 "error": "risk_limit_violation",
@@ -2293,6 +2259,8 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
         if not all([ticker, side, qty]):
             return {"success": False, "error": "ticker, side, and qty are required"}
 
+        # ADR-307 (2026-06-19): risk gate = domain pre-check; autonomy gating
+        # owned by the uniform gate. Bespoke autonomous→propose branch deleted.
         from services.risk_gate import check_risk_limits
         mode = tool_input.get("_mode", "supervised")
         proposed = {
@@ -2307,27 +2275,6 @@ async def _handle_trading_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             mode=mode,
         )
         if not gate.get("approved"):
-            if mode == "autonomous":
-                from services.primitives.propose_action import (
-                    handle_propose_action, build_trading_expected_effect,
-                )
-                prop_result = await handle_propose_action(auth, {
-                    "action_type": "trading.submit_trailing_stop",
-                    "inputs": proposed,
-                    "rationale": f"Risk gate rejected autonomous execution: {gate.get('reason')}. Review limits or approve override.",
-                    "expected_effect": build_trading_expected_effect("trading.submit_trailing_stop", proposed),
-                    "reversibility": "irreversible",
-                    "risk_warnings": [gate.get("reason", "")] + (gate.get("warnings") or []),
-                    "expires_in_hours": 1,
-                })
-                return {
-                    "success": False,
-                    "error": "risk_limit_violation_proposed",
-                    "message": "Risk gate rejected; proposal emitted for user review.",
-                    "proposal_id": prop_result.get("proposal_id"),
-                    "proposal": prop_result.get("proposal"),
-                    "mode": mode,
-                }
             return {
                 "success": False,
                 "error": "risk_limit_violation",
@@ -2603,3 +2550,97 @@ async def _handle_email_tool(auth: Any, tool: str, tool_input: dict) -> dict:
 def is_platform_tool(tool_name: str) -> bool:
     """Check if a tool name is a platform tool."""
     return tool_name.startswith("platform_")
+
+
+# =============================================================================
+# ADR-307 platform-write gate classifier (2026-06-19)
+# =============================================================================
+#
+# Consequential platform writes must pass the uniform permission gate
+# (ADR-307 D1) — the platform-tool early-return in execute_primitive bypassed
+# it, forcing submit_order to hand-roll its own autonomy branch. This is the
+# single source of truth for "which platform tools are consequential, and which
+# consequence FAMILY they belong to," so the gate routes a QUEUE outcome to the
+# family-appropriate enqueue (capital / external-write) — never one queue
+# forcing a Slack post into a file-diff shape.
+#
+# Two families (substrate is the file-layer family, never a platform tool):
+#   capital        — irreversible money/transaction actions. Carry a domain
+#                    risk gate (trading: check_risk_limits) + capital-shaped
+#                    decision_context (action_type/expected_effect/
+#                    reversibility/risk_warnings). Today every capital write
+#                    reaches the broker only via ProposeAction → operator
+#                    approve → ExecuteProposal replay (the autonomy decision
+#                    lives at the propose layer); the gate is the safety floor
+#                    catching any non-proposal direct call.
+#   external-write — consequential third-party-affecting writes that are
+#                    neither file nor capital: audience-addressing sends
+#                    (Slack channel post, Notion page/block, email blast).
+#                    decision_context = the effect (recipient/channel/preview).
+#
+# Reads (list/get/search/history) and operator-addressing infrastructure
+# (platform_*_send_to_operator, the operator-DM/comment tools that are
+# structurally pinned to the operator's own identity — ADR-299/304) are NOT
+# consequential platform writes: they keep the fast early-return.
+
+# Capital-family platform writes (money / transaction movement).
+_CAPITAL_PLATFORM_TOOLS: frozenset[str] = frozenset({
+    # Trading (ADR-187 + ADR-192) — every write is capital movement / position
+    # management against a live (paper or real) broker account.
+    "platform_trading_submit_order",
+    "platform_trading_submit_bracket_order",
+    "platform_trading_submit_trailing_stop",
+    "platform_trading_update_order",
+    "platform_trading_cancel_order",
+    "platform_trading_cancel_all_orders",
+    "platform_trading_close_position",
+    "platform_trading_partial_close",
+    "platform_trading_add_to_watchlist",
+    "platform_trading_remove_from_watchlist",
+    # Commerce (ADR-183 + ADR-192) — refunds/checkouts/pricing bind real money
+    # transactions or counterparty-facing catalog state.
+    "platform_commerce_create_checkout",
+    "platform_commerce_create_product",
+    "platform_commerce_update_product",
+    "platform_commerce_create_discount",
+    "platform_commerce_issue_refund",
+    "platform_commerce_update_variant",
+    "platform_commerce_bulk_update_variant_prices",
+    "platform_commerce_create_variant",
+    "platform_commerce_update_customer",
+})
+
+# External-write-family platform tools (audience-addressing sends — the LLM
+# supplies the addressee; affects a third party). The Slack/Notion audience-
+# write tools (ADR-304 amendment, built this arc) join here.
+_EXTERNAL_WRITE_PLATFORM_TOOLS: frozenset[str] = frozenset({
+    # Email blasts (ADR-192 Phase 4) — audience send, LLM supplies `to:`.
+    "platform_email_send",
+    "platform_email_send_bulk",
+    # Slack/Notion audience-writes (ADR-304 amendment 2026-06-19).
+    "platform_slack_send_to_channel",
+    "platform_notion_create_page",
+    "platform_notion_append_block",
+})
+
+
+def consequential_platform_family(tool_name: str) -> Optional[str]:
+    """Return the consequence family ('capital' | 'external-write') for a
+    consequential platform write, or None for reads / operator-addressing
+    infrastructure (which keep the fast early-return and never gate).
+
+    The single classifier the uniform gate (ADR-307) consults to decide (a)
+    whether a platform tool engages the gate at all and (b) which family-shaped
+    enqueue a QUEUE outcome routes to.
+    """
+    if tool_name in _CAPITAL_PLATFORM_TOOLS:
+        return "capital"
+    if tool_name in _EXTERNAL_WRITE_PLATFORM_TOOLS:
+        return "external-write"
+    return None
+
+
+def is_consequential_platform_tool(tool_name: str) -> bool:
+    """A platform tool that mutates external state / moves money / addresses a
+    third party — must pass the uniform permission gate (ADR-307)."""
+    return consequential_platform_family(tool_name) is not None

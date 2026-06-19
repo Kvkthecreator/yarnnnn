@@ -21,7 +21,7 @@
 
 export interface ProposalLike {
   primitive: string;
-  family?: 'capital' | 'substrate' | string;
+  family?: 'capital' | 'external-write' | 'substrate' | string;
   decision_context?: Record<string, unknown> | null;
 }
 
@@ -44,6 +44,12 @@ const PRIMITIVE_LABELS: Record<string, string> = {
   platform_commerce_create_product: 'Create a product',
   platform_commerce_update_product: 'Update a product',
   platform_commerce_create_discount: 'Create a discount',
+  // External-write audience sends (ADR-307 2026-06-19 / ADR-304 amendment).
+  platform_slack_send_to_channel: 'Post to a Slack channel',
+  platform_notion_create_page: 'Create a Notion page',
+  platform_notion_append_block: 'Append to a Notion page',
+  platform_email_send: 'Send an email',
+  platform_email_send_bulk: 'Send a bulk email',
 };
 
 const cap = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
