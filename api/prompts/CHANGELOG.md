@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.19.2] - Trading emit-contract guard at propose time (execution-gap finding)
+
+**LLM-facing changes:**
+
+- **New propose-time validation on trading ProposeAction** (`services/primitives/
+  propose_action.py::handle_propose_action` + new `services/primitives/
+  trading_emit_contract.py`): when the Reviewer emits `trading.submit_order` /
+  `trading.submit_bracket_order` / `trading.submit_trailing_stop`, the inputs are
+  validated against the executor schema BEFORE the proposal is stored. Known
+  field-name drifts are deterministically repaired (`stop_loss_price` →
+  `stop_loss_stop_price`; a stop-bearing `submit_order` is promoted to
+  `submit_bracket_order` so the stop survives the risk gate; drifted entry/TP
+  aliases renamed); an unrepairable emit fails LOUDLY with a new
+  `trading_emit_contract` error that names the missing fields + the correct
+  schema.
+- **Expected behavior change**: closes the 2026-06-19 finding
+  (`docs/evaluations/2026-06-19-execution-emit-contract-gap-FINDING.md`) — the
+  signal-evaluation Reviewer reasoned a stop correctly but serialized it as a
+  plain `submit_order` with `stop_loss_price`, invisible to the risk gate, which
+  rejected "no stop" at execution. Now the stop reaches the gate in the shape the
+  gate reads. If the model still emits an incomplete order, it gets an actionable
+  error at propose time instead of a silent `rejected_at_execution`.
+- **NOT a floor change** (FOUNDATIONS DP24): repairs change order SHAPE, never
+  VALUES. A repaired order carries its real qty/stop, so the risk gate still
+  rejects oversized/over-risk orders downstream. Test battery
+  `api/test_trading_emit_contract.py` 31/31; risk-gate battery 14/14 unchanged.
+
 ## [2026.06.19.1] - ADR-345: Expected Output in the wake envelope + autonomy-as-witness reframe
 
 **LLM-facing changes:**

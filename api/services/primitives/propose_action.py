@@ -78,6 +78,17 @@ def build_trading_expected_effect(action_type: str, inputs: dict) -> str:
 # `action_type` (e.g. "trading.submit_order"), which resolves once at insert to
 # the platform-tool `primitive` stored on the row. This is naming, not dispatch
 # authority — handle_execute_proposal reads the stored `primitive`, never this.
+# Trading entry action_types subject to the emit-contract guard (2026-06-19
+# finding). These are the order-emitting types whose inputs are passed RAW to
+# the broker primitive — field-name drift between judgment and execution is the
+# class of bug the guard closes. Exits/admin (cancel/close/watchlist) are not
+# stop-bearing entries, so they're out of scope.
+TRADING_EMIT_CONTRACT_TYPES = frozenset({
+    "trading.submit_order",
+    "trading.submit_bracket_order",
+    "trading.submit_trailing_stop",
+})
+
 ACTION_TYPE_TO_PRIMITIVE: dict[str, str] = {
     # Trading (ADR-187 + ADR-192)
     "trading.submit_order":                 "platform_trading_submit_order",
@@ -271,6 +282,26 @@ async def handle_propose_action(auth: Any, input: dict) -> dict:
     # Validation
     if not action_type:
         return {"success": False, "error": "action_type is required"}
+
+    # Trading emit-contract guard (2026-06-19 finding): the signal-evaluation
+    # Reviewer reasons a stop correctly but serializes it into a shape no
+    # executor reads (plain submit_order + stop_loss_price). Repair the known
+    # drifts to the executor's exact schema at PROPOSE time, or fail loudly here
+    # — never let a stop-bearing decision die silently at execution as "no
+    # stop". This does NOT relax the floor (DP24); it makes the already-correct
+    # stop reach the gate. May promote submit_order → submit_bracket_order, so
+    # it runs before ACTION_TYPE_TO_PRIMITIVE resolves.
+    if action_type in TRADING_EMIT_CONTRACT_TYPES:
+        from services.primitives.trading_emit_contract import validate_and_repair_trading_emit
+        check = validate_and_repair_trading_emit(action_type, inputs)
+        if check["error"]:
+            return {"success": False, "error": "trading_emit_contract", "message": check["error"]}
+        action_type = check["action_type"]
+        inputs = check["inputs"]
+        emit_repairs = check["repaired"]
+    else:
+        emit_repairs = []
+
     primitive = ACTION_TYPE_TO_PRIMITIVE.get(action_type)
     if not primitive:
         return {
@@ -304,6 +335,11 @@ async def handle_propose_action(auth: Any, input: dict) -> dict:
         "reversibility": reversibility,
         "risk_warnings": input.get("risk_warnings") or [],
     }
+    # Record any deterministic emit-contract repairs on the proposal so the
+    # audit trail stays honest about what shape the model emitted vs. what was
+    # stored (2026-06-19 finding). Empty list when the emit was already clean.
+    if emit_repairs:
+        decision_context["emit_repairs"] = emit_repairs
 
     try:
         enq = await enqueue_gated_action(
