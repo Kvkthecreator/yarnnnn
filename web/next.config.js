@@ -1,12 +1,18 @@
 // ADR-250 Phase 1 — Sentry Next.js plugin wraps the config
 const { withSentryConfig } = require("@sentry/nextjs");
 
+// Bundle analyzer — opt-in via ANALYZE=true (no effect on normal builds).
+//   ANALYZE=true npm run build  → opens treemap reports in browser
+const withBundleAnalyzer = require("@next/bundle-analyzer")({
+  enabled: process.env.ANALYZE === "true",
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // Vercel handles SSR natively
 };
 
-module.exports = withSentryConfig(nextConfig, {
+module.exports = withBundleAnalyzer(withSentryConfig(nextConfig, {
   // Sentry webpack plugin options
   silent: true,           // suppress build output noise
   org: process.env.SENTRY_ORG,
@@ -22,4 +28,4 @@ module.exports = withSentryConfig(nextConfig, {
   // when the old sentry.edge.config.ts no longer exists.
   autoInstrumentMiddleware: false,
   autoInstrumentServerFunctions: false,
-});
+}));

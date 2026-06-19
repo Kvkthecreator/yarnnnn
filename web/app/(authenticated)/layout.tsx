@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import type { Metadata } from "next";
+import { createClient } from '@/lib/supabase/server';
 import AuthenticatedLayout from '@/components/shell/AuthenticatedLayout';
 
 export const metadata: Metadata = {
@@ -23,11 +24,25 @@ export const metadata: Metadata = {
  * - Single desk view (one surface at a time)
  * - TP always present at bottom
  * - Domain browser as escape hatch
+ *
+ * Auth gating: middleware.ts (updateSession) is the SOLE gate — it refreshes
+ * the session server-side and redirects unauthenticated requests to
+ * /auth/login before this layout renders. We read the user here (server-side,
+ * zero client round-trip) only to hand userEmail to the chrome. The shell no
+ * longer blocks first paint on a redundant client-side getUser() — the
+ * client retains a sign-out *listener* (live invalidation), not a gate.
  */
-export default function Layout({ children }: { children: React.ReactNode }) {
+export default async function Layout({ children }: { children: React.ReactNode }) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <Suspense fallback={<LayoutFallback />}>
-      <AuthenticatedLayout>{children}</AuthenticatedLayout>
+      <AuthenticatedLayout userEmail={user?.email ?? undefined}>
+        {children}
+      </AuthenticatedLayout>
     </Suspense>
   );
 }

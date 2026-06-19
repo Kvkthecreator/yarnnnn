@@ -30,7 +30,7 @@
  *   - The main content region (SurfaceViewport + children fallback)
  */
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { NarrativeProvider, useNarrative } from '@/contexts/NarrativeContext';
@@ -47,58 +47,35 @@ import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
+  /**
+   * Resolved server-side in app/(authenticated)/layout.tsx. The shell no
+   * longer fetches the user client-side or blocks first paint on it —
+   * middleware.ts is the gate. This prop just feeds the chrome (UserMenu).
+   */
+  userEmail?: string;
 }
 
-export default function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
-  const [userEmail, setUserEmail] = useState<string | undefined>();
-  const [loading, setLoading] = useState(true);
+export default function AuthenticatedLayout({ children, userEmail }: AuthenticatedLayoutProps) {
   const router = useRouter();
   const supabase = createClient();
 
+  // Live sign-out invalidation only — NOT an auth gate. Middleware already
+  // refreshed + gated the session server-side before this component rendered;
+  // re-checking with getUser() here only added a redundant round-trip behind a
+  // full-screen spinner. We keep the listener so a sign-out in another tab (or
+  // an expired session surfaced by onAuthStateChange) bounces to login live.
   useEffect(() => {
-    const loginRedirect = () => {
-      const next = `${window.location.pathname}${window.location.search}`;
-      router.replace(`/auth/login?next=${encodeURIComponent(next)}`);
-    };
-
-    const checkAuth = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        loginRedirect();
-        return;
-      }
-
-      setUserEmail(user.email ?? undefined);
-      setLoading(false);
-    };
-
-    checkAuth();
-
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
-        loginRedirect();
+        const next = `${window.location.pathname}${window.location.search}`;
+        router.replace(`/auth/login?next=${encodeURIComponent(next)}`);
       }
     });
 
     return () => subscription.unsubscribe();
   }, [router, supabase.auth]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-brand mb-2">yarnnn</h1>
-          <p className="text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <BreadcrumbProvider>
