@@ -183,6 +183,12 @@ async def build_working_memory(
     # Reviewer/wake path never read this signal. The classifier survives as a
     # status signal, not a prompt-engagement trigger.)
     activation_state = _classify_activation_state(user_id, mandate_content)
+    # Active program slug — resolved once, shared by the slug field and the
+    # capability-gap walk below. Same derivation as the workspace-state
+    # surface (routes/workspace.py via services.programs). Lazy import to
+    # match the module's managed bundle_reader↔programs import cycle.
+    from services.programs import resolve_active_program_slug, compute_capability_gaps
+    _active_program_slug = resolve_active_program_slug(mandate_content)
 
     working_memory = {
         "preferences": _extract_preferences_from_file(memory_files.get("style.md")),
@@ -258,13 +264,15 @@ async def build_working_memory(
             **_extract_autonomy_pause(autonomy_content),
             # ADR-246: Active program slug parsed from MANDATE.md heading
             # marker (per ADR-244 D2 + services/programs.py). None if no
-            # bundle template is forked.
-            "active_program_slug": _parse_active_program_for_workspace_state(mandate_content),
+            # bundle template is forked. Shared derivation with the
+            # workspace-state surface (routes/workspace.py).
+            "active_program_slug": _active_program_slug,
             # ADR-246: Capability gaps — bundle declares X but platform Y
-            # not connected. Slim mirror of the ADR-244 surface signal.
-            # Empty list when no active program or no gaps.
-            "capability_gaps": _compute_capability_gaps_for_workspace_state(
-                mandate_content, platforms
+            # not connected. Same shape + derivation as the ADR-244 surface
+            # signal. Empty list when no active program or no gaps.
+            "capability_gaps": compute_capability_gaps(
+                _active_program_slug,
+                {p.get("platform") for p in (platforms or []) if p.get("status") == "active"},
             ),
         },
     }
@@ -360,68 +368,6 @@ def _classify_activation_state(
         return "post_fork_pre_author"
 
     return "operational"
-
-
-def _parse_active_program_for_workspace_state(mandate_content: Optional[str]) -> Optional[str]:
-    """ADR-246: thin wrapper around services.programs.parse_active_program_slug
-    + bundle registry validation. Returns the active program slug only when
-    the bundle is registered. None for kernel-default mandate or unknown slugs.
-    """
-    try:
-        from services.programs import parse_active_program_slug
-        from services.bundle_reader import _all_slugs
-
-        candidate = parse_active_program_slug(mandate_content)
-        if candidate and candidate in _all_slugs():
-            return candidate
-    except Exception:
-        pass
-    return None
-
-
-def _compute_capability_gaps_for_workspace_state(
-    mandate_content: Optional[str], platforms: list[dict]
-) -> list[dict]:
-    """ADR-246: slim mirror of the ADR-244 surface's capability_gaps logic.
-
-    For the active bundle (parsed from MANDATE.md heading marker), return
-    the list of capabilities whose required platform is not currently
-    connected (status='active' on platform_connections).
-
-    Empty list when:
-      - no active program (kernel-default mandate)
-      - active program has no required platform capabilities
-      - all required platforms are connected
-
-    Format (slim — same shape as ADR-244 D2's CapabilityGap, minus path):
-      [{"capability": str, "platform": str, "connected": bool}, ...]
-    """
-    slug = _parse_active_program_for_workspace_state(mandate_content)
-    if not slug:
-        return []
-    try:
-        from services.bundle_reader import _load_manifest
-
-        manifest = _load_manifest(slug) or {}
-        connected = {p.get("platform") for p in (platforms or []) if p.get("status") == "active"}
-        gaps: list[dict] = []
-        seen: set[tuple] = set()
-        for cap in manifest.get("capabilities") or []:
-            req = cap.get("requires_connection")
-            if not req:
-                continue
-            key = (cap.get("name") or "", req)
-            if key in seen:
-                continue
-            seen.add(key)
-            gaps.append({
-                "capability": cap.get("name") or req,
-                "platform": req,
-                "connected": req in connected,
-            })
-        return gaps
-    except Exception:
-        return []
 
 
 def _classify_richness(content: Optional[str]) -> str:

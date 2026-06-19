@@ -6,6 +6,32 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.19.3] - Single activation derivation: workspace-state surface ↔ working-memory
+
+**LLM-facing changes:**
+
+- **`workspace_state.active_program_slug` + `workspace_state.capability_gaps`**
+  (the YARNNN compact-index signals from `services/working_memory.py::
+  build_working_memory`) now derive from the SAME `services.programs` helpers
+  the `/api/workspace/state` cockpit surface uses — no longer a parallel
+  re-implementation. New shared helpers: `resolve_active_program_slug(mandate)`
+  (parse + bundle-registry membership in one) and `compute_capability_gaps(
+  slug, connected_platforms)` (the manifest requires_connection walk). Deleted
+  the working-memory-local duplicates `_parse_active_program_for_workspace_state`
+  + `_compute_capability_gaps_for_workspace_state`.
+- **Expected behavior change**: none intended — the signal values are
+  unchanged (verified: same shape `[{capability, platform, connected}]`, same
+  dedup, same `cap.get("name") or requires_connection` fallback). This is a
+  Singular-Implementation consolidation prompted by a real drift: the
+  surface and working-memory computed activation independently, so a stale
+  call site (commit 7e777bf dropping `_classify_activation_state`'s
+  make_client_fn param) left the cockpit popover showing "No active program —
+  knowledge mode" for kvk's alpha-trader workspace while the Reviewer path saw
+  the program correctly. One derivation → can't drift again. (Fix commit
+  077cdd0; refactor this commit.)
+
+---
+
 ## [2026.06.19.2] - Trading emit-contract guard at propose time (execution-gap finding)
 
 **LLM-facing changes:**

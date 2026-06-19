@@ -106,6 +106,77 @@ def strip_program_marker_from_mandate(mandate_content: str) -> str:
     return "".join(lines)
 
 
+def resolve_active_program_slug(mandate_content: Optional[str]) -> Optional[str]:
+    """Parse the active program slug from MANDATE.md AND validate it against
+    the bundle registry. Returns the slug only when it's a registered bundle.
+
+    This is the validated wrapper around `parse_active_program_slug` — the
+    parse-then-membership-check pairing both the workspace-state surface
+    (`routes/workspace.py`) and working memory (`working_memory.py`) need.
+    Singular implementation: the parse/validate dance lives here once, not
+    re-inlined per caller (the divergence that let a stale call site silently
+    null the slug on one surface while the other stayed correct).
+    """
+    try:
+        from services.bundle_reader import _all_slugs
+
+        candidate = parse_active_program_slug(mandate_content)
+        if candidate and candidate in _all_slugs():
+            return candidate
+    except Exception:  # pragma: no cover — defensive; never block the read
+        pass
+    return None
+
+
+def compute_capability_gaps(
+    program_slug: Optional[str], connected_platforms: set[str]
+) -> list[dict]:
+    """Return the active bundle's required-platform capability gaps.
+
+    For each capability in the program's manifest that declares
+    `requires_connection: <platform>`, emit one gap row noting whether that
+    platform is currently connected. Deduped on (capability-name, platform).
+
+    Empty list when:
+      - no active program (`program_slug` is None)
+      - active program has no required-platform capabilities
+      - (gaps with `connected: True` are still returned — the caller decides
+        whether "connected" counts as a gap; the surface renders N/M connected)
+
+    Format: [{"capability": str, "platform": str, "connected": bool}, ...].
+
+    Single source of the manifest-walk logic — both `routes/workspace.py`
+    (surface) and `working_memory.py` (prompt signal) consume this. Callers
+    fetch `connected_platforms` themselves (the surface via the RLS client,
+    working memory from its already-fetched platform list) and map the dict
+    into their own response shape.
+    """
+    if not program_slug:
+        return []
+    try:
+        from services.bundle_reader import _load_manifest
+
+        manifest = _load_manifest(program_slug) or {}
+        gaps: list[dict] = []
+        seen: set[tuple] = set()
+        for cap in manifest.get("capabilities") or []:
+            req = cap.get("requires_connection")
+            if not req:
+                continue
+            key = (cap.get("name") or "", req)
+            if key in seen:
+                continue
+            seen.add(key)
+            gaps.append({
+                "capability": cap.get("name") or req,
+                "platform": req,
+                "connected": req in connected_platforms,
+            })
+        return gaps
+    except Exception:  # pragma: no cover — defensive; never block the read
+        return []
+
+
 # =============================================================================
 # ADR-226: Reference-workspace fork (relocated from workspace_init.py 2026-05-03)
 # =============================================================================

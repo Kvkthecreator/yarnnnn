@@ -1233,7 +1233,7 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
     )
     from services.working_memory import _classify_activation_state
     from services.bundle_reader import _all_slugs, _load_manifest
-    from services.programs import parse_active_program_slug
+    from services.programs import resolve_active_program_slug, compute_capability_gaps
 
     # ─── Step 1: lazy roster scaffolding ────────────────────────────────
     try:
@@ -1294,19 +1294,15 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
     um = UserMemory(auth.client, auth.user_id)
     mandate_content = await um.read(CONSTITUTION_MANDATE_PATH)
 
-    activation_state = "none"
-    active_program_slug: Optional[str] = None
     # Active-program derivation and activation-state classification are
     # independent reads; keep them in separate try-blocks so a failure in
     # one never silently nulls the other. (Regression: 7e777bf dropped the
     # classifier's make_client_fn param while this call still passed it,
     # raising TypeError that swallowed the program slug for every workspace.)
-    try:
-        candidate = parse_active_program_slug(mandate_content)
-        if candidate and candidate in _all_slugs():
-            active_program_slug = candidate
-    except Exception as exc:
-        logger.warning(f"[WORKSPACE_STATE] active-program derivation failed: {exc}")
+    # Both the slug-resolve and the capability-gap walk now go through the
+    # shared services.programs helpers — same derivation working_memory uses.
+    active_program_slug: Optional[str] = resolve_active_program_slug(mandate_content)
+    activation_state = "none"
     try:
         activation_state = _classify_activation_state(
             auth.user_id,
@@ -1394,10 +1390,12 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
         logger.warning(f"[WORKSPACE_STATE] timestamp lookup failed: {exc}")
 
     # ─── Step 5: capability gaps (active bundle's required platforms) ───
+    # Manifest-walk logic lives in services.programs.compute_capability_gaps
+    # (shared with working_memory). Here we fetch connected platforms via the
+    # RLS client, then map the shared dict shape into the response model.
     capability_gaps: list[CapabilityGap] = []
     if active_program_slug:
         try:
-            manifest = _load_manifest(active_program_slug) or {}
             connections = (
                 auth.client.table("platform_connections")
                 .select("platform")
@@ -1406,20 +1404,14 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
                 .execute()
             )
             connected = {r["platform"] for r in (connections.data or [])}
-            seen: set[str] = set()
-            for cap in manifest.get("capabilities") or []:
-                req = cap.get("requires_connection")
-                if not req:
-                    continue
-                key = (cap.get("name") or "", req)
-                if key in seen:
-                    continue
-                seen.add(key)
-                capability_gaps.append(CapabilityGap(
-                    capability=cap.get("name") or req,
-                    requires_platform=req,
-                    connected=(req in connected),
-                ))
+            capability_gaps = [
+                CapabilityGap(
+                    capability=g["capability"],
+                    requires_platform=g["platform"],
+                    connected=g["connected"],
+                )
+                for g in compute_capability_gaps(active_program_slug, connected)
+            ]
         except Exception as exc:
             logger.warning(f"[WORKSPACE_STATE] capability_gaps lookup failed: {exc}")
 
