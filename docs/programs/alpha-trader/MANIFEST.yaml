@@ -154,6 +154,13 @@ capabilities:
     category: tool
     runtime: external:trading
     requires_connection: trading        # platform_connections.platform value
+    # ADR-335 derived-trust-tier: this read IS the money-truth read — account +
+    # positions + portfolio history reconcile into ground_truth (_money_truth.md).
+    # Its correctness is constitutive of the program's ground-truth ⇒ HIGH tier ⇒
+    # admits only a platform-grade binding (today: the hand-authored Direct API
+    # Alpaca client). Money-truth never flows through a community server — a
+    # theorem of the derived-tier gate, not a special case.
+    feeds: ground_truth
     tools:
       - platform_trading_get_account
       - platform_trading_get_positions
@@ -164,6 +171,9 @@ capabilities:
     category: tool
     runtime: external:trading
     requires_connection: trading
+    # ADR-335 derived-trust-tier: a consequential act (capital movement) — the
+    # program's primary action ⇒ HIGH tier ⇒ platform-grade binding only.
+    feeds: action
     tools:
       - platform_trading_submit_order
       - platform_trading_cancel_order

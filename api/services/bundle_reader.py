@@ -594,6 +594,11 @@ def _normalize_bundle_capability(cap: dict[str, Any], bundle: dict[str, Any]) ->
     result: dict[str, Any] = {
         "category": cap.get("category", "tool"),
         "runtime": cap.get("runtime"),
+        # ADR-335 derived-trust-tier: the capability's declared flow-role.
+        # `required_tier` reads this. Default `context` (OPEN tier) when a
+        # bundle omits it — the conformance gate (ADR-287) asserts presence,
+        # so the default is a safety floor, not the expected path.
+        "feeds": cap.get("feeds", "context"),
         "platform_connection_requirement": (
             {"platform": rc, "status": "active"} if rc else None
         ),

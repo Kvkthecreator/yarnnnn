@@ -106,6 +106,10 @@ capabilities:
     category: tool
     runtime: external:commerce
     requires_connection: commerce         # platform_connections.platform value
+    # ADR-335 derived-trust-tier: revenue + customers + subscribers reconcile
+    # into the program's ground-truth (revenue/cohort-truth) ⇒ HIGH tier ⇒
+    # platform-grade binding only.
+    feeds: ground_truth
     tools:
       - platform_commerce_list_products
       - platform_commerce_get_subscribers
@@ -116,6 +120,9 @@ capabilities:
     category: tool
     runtime: external:commerce
     requires_connection: commerce
+    # ADR-335 derived-trust-tier: a consequential act (product/discount/refund
+    # mutation) — the program's primary action ⇒ HIGH tier ⇒ platform-grade only.
+    feeds: action
     tools:
       - platform_commerce_create_product
       - platform_commerce_update_product

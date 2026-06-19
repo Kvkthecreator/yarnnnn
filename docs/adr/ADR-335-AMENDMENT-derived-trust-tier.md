@@ -31,7 +31,13 @@ required_tier(read, program) =
     OPEN   otherwise
 ```
 
-**The gate** (replaces the `platform`-enum match at `api/services/orchestration.py:1363-1364`):
+> **Implementation correction (2026-06-19, Increment A).** As written above, `read ∈ ground_truth` is a *type mismatch*: `substrate_abi.ground_truth` is a substrate **path** string (`operation/trading/_money_truth.md`), and a read is a **capability** (`read_trading`) — set-membership of a verb in a path does not compute, and the membership relation was declared *nowhere* in substrate. The principle ("role is declared, not inferred") was right; the *mechanism* was missing. **Resolved by a declared `feeds` field on each capability** (`feeds: ground_truth | action | context`), so `required_tier` reads a declared fact directly rather than inferring it from path-proximity (which would have reintroduced the proxy this whole amendment retired). The implemented function is:
+> ```
+> required_tier(capability) = HIGH if capability.feeds in (ground_truth, action) else OPEN
+> ```
+> `feeds` is declared in kernel `CAPABILITIES` (orchestration.py) and bundle `MANIFEST.yaml` capability entries, asserted by the ADR-287 conformance gate (`test_adr335_derived_tier_connection_capabilities_declare_feeds`). `write_*` ⇒ `action`; the read that reconciles `ground_truth` ⇒ `ground_truth`; attention-only reads ⇒ `context`. Kernel platform-integration reads (`read_slack/notion/github`) are `context` — a *program* needing one at ground-truth tier declares a watch (D5), it does not re-grade the kernel capability.
+
+**The gate** (replaces the trust-decision in the `platform`-enum match at `api/services/orchestration.py:1363-1364`):
 ```
 binding permitted for (read, program)  ⇔  attestation_grade(binding) ≥ required_tier(read, program)
 ```

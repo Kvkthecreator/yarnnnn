@@ -335,6 +335,36 @@ def test_adr330_d4_bundle_declares_ground_truth():
         )
 
 
+def test_adr335_derived_tier_connection_capabilities_declare_feeds():
+    """ADR-335 derived-trust-tier (ratified 2026-06-19): every bundle capability
+    that requires a connection must declare `feeds: ground_truth|action|context`.
+
+    `feeds` is the DECLARED flow-role the derived-tier gate reads to compute
+    `required_tier` (never inferred — inference would reintroduce the proxy the
+    head/tail retirement killed). A connection-gated capability without `feeds`
+    would silently default to OPEN tier (orchestration._normalize_bundle_capability),
+    admitting a weaker-grade transport to serve a possibly-constitutive read.
+    The gate must fail loud at conformance time, not silently downgrade."""
+    valid = {"ground_truth", "action", "context"}
+    for bundle in _all_active_or_deferred_bundles():
+        manifest = yaml.safe_load((bundle / "MANIFEST.yaml").read_text()) or {}
+        for cap in manifest.get("capabilities") or []:
+            if not isinstance(cap, dict):
+                continue
+            if not cap.get("requires_connection"):
+                continue  # connectionless capabilities never reach the tier gate
+            feeds = cap.get("feeds")
+            assert feeds in valid, (
+                f"bundle '{bundle.name}' capability '{cap.get('key')}' requires a "
+                f"connection but declares feeds={feeds!r}. ADR-335 derived-trust-tier "
+                f"requires every connection-gated capability to declare its flow-role "
+                f"(ground_truth|action|context) so required_tier is derived from a "
+                f"declared fact, not inferred. A write/act -> 'action'; a read that "
+                f"reconciles ground_truth -> 'ground_truth'; an attention-only read "
+                f"-> 'context'."
+            )
+
+
 def test_adr330_d4_ground_truth_within_declared_path_zone():
     """ADR-330 D4 + ADR-287 discipline: the declared ground_truth path must
     fall within one of the bundle's declared substrate_abi.path_zones. A

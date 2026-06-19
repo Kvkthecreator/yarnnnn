@@ -1127,25 +1127,42 @@ def get_agent_class_and_domain(role: str) -> tuple[str, str | None]:
 # `platform_connections` row exists for the user. `capability_available()`
 # enforces this at task dispatch; callers should surface a clear
 # "connect {platform} first" error to the operator.
+#
+# ADR-335 derived-trust-tier (ratified 2026-06-19): each entry also declares
+# `feeds` — the capability's flow-role, the DECLARED fact `required_tier` reads
+# (never inferred — that would reintroduce the proxy the head/tail retirement
+# killed). Three values:
+#   "action"       — a consequential write/act (write_*). Constitutive of a
+#                    primary action ⇒ required_tier HIGH.
+#   "ground_truth" — a read whose correctness is constitutive of the program's
+#                    ground-truth (the money-truth read) ⇒ required_tier HIGH.
+#   "context"      — a read that feeds attention only; a wrong/missing read
+#                    degrades a watch, never an act or ground-truth ⇒ OPEN.
+# Kernel platform-integration reads (read_slack/notion/github) are generic
+# context reads — `feeds: context`. A program that needs one of them at
+# ground-truth tier declares a watch (ADR-335 D5), it does not re-grade the
+# kernel capability. Internal/cognitive/asset capabilities are gradeless
+# (`feeds: context`) — they carry no platform_connection_requirement so the
+# tier is never consulted (the gate returns available before reaching it).
 
 CAPABILITIES: dict[str, dict[str, Any]] = {
     # -- Cognitive (prompt-driven, no dedicated tool) --
-    "summarize":         {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
-    "detect_change":     {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
-    "alert":             {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
-    "cross_reference":   {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
-    "data_analysis":     {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
-    "investigate":       {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
-    "produce_markdown":  {"category": "cognitive", "runtime": "internal", "platform_connection_requirement": None},
+    "summarize":         {"category": "cognitive", "runtime": "internal", "feeds": "context", "platform_connection_requirement": None},
+    "detect_change":     {"category": "cognitive", "runtime": "internal", "feeds": "context", "platform_connection_requirement": None},
+    "alert":             {"category": "cognitive", "runtime": "internal", "feeds": "context", "platform_connection_requirement": None},
+    "cross_reference":   {"category": "cognitive", "runtime": "internal", "feeds": "context", "platform_connection_requirement": None},
+    "data_analysis":     {"category": "cognitive", "runtime": "internal", "feeds": "context", "platform_connection_requirement": None},
+    "investigate":       {"category": "cognitive", "runtime": "internal", "feeds": "context", "platform_connection_requirement": None},
+    "produce_markdown":  {"category": "cognitive", "runtime": "internal", "feeds": "context", "platform_connection_requirement": None},
 
     # -- Tool-backed (internal primitives) --
-    "web_search":        {"category": "tool", "runtime": "internal", "tool": "WebSearch", "platform_connection_requirement": None},
-    "read_workspace":    {"category": "tool", "runtime": "internal", "tool": "ReadFile", "platform_connection_requirement": None},
-    "search_knowledge":  {"category": "tool", "runtime": "internal", "tool": "QueryKnowledge", "platform_connection_requirement": None},
+    "web_search":        {"category": "tool", "runtime": "internal", "tool": "WebSearch", "feeds": "context", "platform_connection_requirement": None},
+    "read_workspace":    {"category": "tool", "runtime": "internal", "tool": "ReadFile", "feeds": "context", "platform_connection_requirement": None},
+    "search_knowledge":  {"category": "tool", "runtime": "internal", "tool": "QueryKnowledge", "feeds": "context", "platform_connection_requirement": None},
 
     # -- Platform runtime (provider-native external capabilities) --
     "read_slack": {
-        "category": "tool", "runtime": "external:slack",
+        "category": "tool", "runtime": "external:slack", "feeds": "context",
         "tools": ["platform_slack_list_channels", "platform_slack_get_channel_history"],
         "platform_connection_requirement": {"platform": "slack", "status": "active"},
     },
@@ -1159,7 +1176,7 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     # addressing extensions per ADR-304 D5 (e.g., a future channel-send
     # tool would re-declare write_slack here pointing to the new tool).
     "read_notion": {
-        "category": "tool", "runtime": "external:notion",
+        "category": "tool", "runtime": "external:notion", "feeds": "context",
         "tools": ["platform_notion_search", "platform_notion_get_page"],
         "platform_connection_requirement": {"platform": "notion", "status": "active"},
     },
@@ -1172,7 +1189,7 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
     # `write_notion` capability key is reserved for future audience-
     # addressing extensions per ADR-304 D5 (page-create, block-append).
     "read_github": {
-        "category": "tool", "runtime": "external:github",
+        "category": "tool", "runtime": "external:github", "feeds": "context",
         "tools": ["platform_github_list_repos", "platform_github_get_issues"],
         "platform_connection_requirement": {"platform": "github", "status": "active"},
     },
@@ -1336,12 +1353,50 @@ def get_capability_requirement(capability_name: str) -> Optional[dict]:
     return cap.get("platform_connection_requirement")
 
 
+# ADR-335 derived-trust-tier (ratified 2026-06-19): trust is a DERIVED tier, not
+# a platform class. The grade order reuses the ADR-330 D2 attestation enum
+# (api/services/outcomes/base.py) verbatim — platform > operator > agent.
+_GRADE_ORDER = {"platform": 2, "operator": 1, "agent": 0}
+
+
+def required_tier(capability: dict[str, Any]) -> str:
+    """The trust tier a transport must carry to serve this capability's read.
+
+    DERIVED from the capability's declared `feeds` flow-role (never inferred):
+      feeds in (ground_truth, action) -> HIGH  (constitutive of ground-truth or
+                                                 a primary action)
+      feeds == context (or absent)    -> OPEN   (feeds attention only)
+
+    HIGH admits only a platform-grade binding; OPEN admits any grade. The tier
+    is computed here, stored nowhere (FOUNDATIONS DP7).
+    """
+    return "HIGH" if capability.get("feeds") in ("ground_truth", "action") else "OPEN"
+
+
+def _grade_satisfies_tier(attestation_grade: str, tier: str) -> bool:
+    """A binding's attestation grade satisfies a required tier iff:
+    HIGH requires platform-grade (gold); OPEN accepts any known grade.
+    """
+    if tier == "OPEN":
+        return attestation_grade in _GRADE_ORDER
+    return _GRADE_ORDER.get(attestation_grade, -1) >= _GRADE_ORDER["platform"]
+
+
 def capability_available(user_id: str, capability_name: str, client: Any) -> bool:
     """Check whether a capability can fire for this user right now.
 
-    Internal capabilities (no platform requirement) are always available.
-    Platform-gated capabilities require an active `platform_connections`
-    row matching the declared requirement.
+    ADR-335 derived-trust-tier gate (the ONE gate — absorbs the prior
+    `platform_connection_requirement` platform-enum match):
+
+      - Internal capabilities (no platform requirement) are always available.
+      - A connection-gated capability is available iff an active
+        `platform_connections` row exists whose `attestation_grade` satisfies
+        `required_tier(capability)`. HIGH (ground_truth/action reads) admits
+        only a platform-grade binding; OPEN (context reads) admits any grade.
+
+    Existing first-party connections backfill to `platform` (gold, migration
+    186), so they satisfy every tier — this generalization is a strict
+    superset of the prior platform-match gate and regresses nothing.
 
     Unknown capability names return False — callers should surface the
     mismatch so the operator can correct the recurrence YAML declaration.
@@ -1355,17 +1410,21 @@ def capability_available(user_id: str, capability_name: str, client: Any) -> boo
     req = cap.get("platform_connection_requirement")
     if req is None:
         return True
+    tier = required_tier(cap)
     try:
-        row = (
+        rows = (
             client.table("platform_connections")
-            .select("id")
+            .select("attestation_grade")
             .eq("user_id", user_id)
             .eq("platform", req["platform"])
             .eq("status", req["status"])
-            .limit(1)
             .execute()
         )
-        return bool(row.data)
+        # Available iff at least one matching binding's grade satisfies the tier.
+        return any(
+            _grade_satisfies_tier(r.get("attestation_grade", "platform"), tier)
+            for r in (rows.data or [])
+        )
     except Exception:
         # Deterministic gate — failing a lookup reports unavailable rather
         # than masking misconfiguration.
