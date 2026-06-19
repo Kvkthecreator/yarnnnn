@@ -193,6 +193,49 @@ def test_external_write_replay_applies_without_regate():
 # is GONE from the trading writes (Singular Implementation).
 # ---------------------------------------------------------------------------
 
+def test_external_write_enqueue_shapes_decision_context():
+    """The external-write family enqueue carries an EFFECT preview
+    (channel/recipient + content preview), never a file diff or capital fields.
+    Verifies _platform_write_preview + the family dispatch in
+    _enqueue_platform_write_proposal."""
+    from services.primitives import registry
+
+    slack = registry._platform_write_preview(
+        "platform_slack_send_to_channel",
+        {"channel_id": "C9", "text": "ship it", "_proposal_id": "x"},
+    )
+    assert slack == {"channel": "C9", "preview": "ship it"}, slack
+
+    page = registry._platform_write_preview(
+        "platform_notion_create_page",
+        {"parent_page_id": "P1", "title": "Q3 report", "content": "body here"},
+    )
+    assert page == {"parent": "P1", "title": "Q3 report", "preview": "body here"}, page
+
+    # The dispatch-layer _proposal_id never leaks into the preview.
+    assert "_proposal_id" not in slack
+
+
+def test_capital_and_external_write_tools_registered():
+    """The audience-write tools exist (Commit 3) and the kernel-universal
+    capabilities point at them — not at the operator-addressing infra tools."""
+    from services.platform_tools import (
+        PLATFORM_TOOLS_BY_CAPABILITY, CAPABILITY_PROVIDER_MAP,
+        SLACK_TOOLS, NOTION_TOOLS,
+    )
+    slack_names = {t["name"] for t in SLACK_TOOLS}
+    notion_names = {t["name"] for t in NOTION_TOOLS}
+    assert "platform_slack_send_to_channel" in slack_names
+    assert "platform_notion_create_page" in notion_names
+    assert "platform_notion_append_block" in notion_names
+    assert PLATFORM_TOOLS_BY_CAPABILITY["write_slack"] == ["platform_slack_send_to_channel"]
+    assert PLATFORM_TOOLS_BY_CAPABILITY["write_notion"] == [
+        "platform_notion_create_page", "platform_notion_append_block",
+    ]
+    assert CAPABILITY_PROVIDER_MAP["write_slack"] == "slack"
+    assert CAPABILITY_PROVIDER_MAP["write_notion"] == "notion"
+
+
 def test_risk_gate_survives_in_trading_writes():
     from services import platform_tools
     src = inspect.getsource(platform_tools._handle_trading_tool)

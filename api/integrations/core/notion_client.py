@@ -475,6 +475,92 @@ class NotionAPIClient:
 
         return all_results
 
+    async def create_page(
+        self,
+        access_token: str,
+        parent_page_id: str,
+        title: str,
+        content: Optional[str] = None,
+    ) -> dict[str, Any]:
+        """Create a child page under a parent page (ADR-304 amendment audience-
+        write). Creates a page titled `title` under `parent_page_id`; if
+        `content` is provided, seeds it as paragraph blocks.
+
+        Args:
+            access_token: OAuth access token (operator's Notion integration).
+            parent_page_id: UUID of the parent page the new page nests under.
+            title: The new page's title.
+            content: Optional initial body (plain text / basic markdown), split
+                into paragraph blocks.
+
+        Returns:
+            The created page object (carries `id`, `url`).
+        """
+        body: dict[str, Any] = {
+            "parent": {"page_id": parent_page_id},
+            "properties": {
+                "title": {"title": self._text_to_rich_text(title or "Untitled")},
+            },
+        }
+        if content:
+            body["children"] = self._text_to_paragraph_blocks(content)
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.notion.com/v1/pages",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Notion-Version": NOTION_VERSION,
+                    "Content-Type": "application/json",
+                },
+                json=body,
+                timeout=30.0,
+            )
+            if response.status_code not in (200, 201):
+                error_data = response.json()
+                raise RuntimeError(
+                    f"Notion API error: {error_data.get('message', response.text)}"
+                )
+            return response.json()
+
+    async def append_block(
+        self,
+        access_token: str,
+        block_id: str,
+        content: str,
+    ) -> dict[str, Any]:
+        """Append paragraph block(s) to an existing page or block (ADR-304
+        amendment audience-write). Uses PATCH /blocks/{id}/children.
+
+        Args:
+            access_token: OAuth access token.
+            block_id: UUID of the page or block to append children to (a page
+                is a block in Notion's model).
+            content: Text to append, split into paragraph blocks.
+
+        Returns:
+            The append response (carries the created `results` blocks).
+        """
+        body = {"children": self._text_to_paragraph_blocks(content)}
+
+        async with httpx.AsyncClient() as client:
+            response = await client.patch(
+                f"https://api.notion.com/v1/blocks/{block_id}/children",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Notion-Version": NOTION_VERSION,
+                    "Content-Type": "application/json",
+                },
+                json=body,
+                timeout=30.0,
+            )
+            if response.status_code not in (200, 201):
+                error_data = response.json()
+                raise RuntimeError(
+                    f"Notion API error: {error_data.get('message', response.text)}"
+                )
+            return response.json()
+
     def _text_to_rich_text(self, text: str) -> list[dict[str, Any]]:
         """
         Convert plain text to Notion rich text format.
@@ -488,6 +574,44 @@ class NotionAPIClient:
                 "text": {"content": text},
             }
         ]
+
+    def _text_to_paragraph_blocks(self, text: str) -> list[dict[str, Any]]:
+        """Split plain text / basic markdown into Notion paragraph blocks.
+
+        One block per non-empty line; each block's text chunked at Notion's
+        2000-char-per-rich-text-object limit so long lines don't 400. Blank
+        lines become empty paragraph spacers (preserving visual structure).
+        """
+        NOTION_RICH_TEXT_LIMIT = 2000
+        blocks: list[dict[str, Any]] = []
+        for line in (text or "").split("\n"):
+            if not line.strip():
+                blocks.append({
+                    "object": "block",
+                    "type": "paragraph",
+                    "paragraph": {"rich_text": []},
+                })
+                continue
+            # Chunk long lines into ≤2000-char rich-text objects (same block).
+            chunks = [
+                line[i:i + NOTION_RICH_TEXT_LIMIT]
+                for i in range(0, len(line), NOTION_RICH_TEXT_LIMIT)
+            ]
+            blocks.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [
+                        {"type": "text", "text": {"content": c}} for c in chunks
+                    ]
+                },
+            })
+        # Notion caps children at 100 per request; cap defensively.
+        return blocks[:100] if blocks else [{
+            "object": "block",
+            "type": "paragraph",
+            "paragraph": {"rich_text": []},
+        }]
 
 
 # Singleton instance

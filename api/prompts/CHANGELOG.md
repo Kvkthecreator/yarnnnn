@@ -6,6 +6,44 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.19.4] - Kernel-universal Slack/Notion audience-writes + the ADR-307 platform-write gate
+
+**LLM-facing changes:**
+
+- **New audience-write tools (ADR-304 amendment):**
+  - `platform_slack_send_to_channel` (channel_id, text, optional thread_ts) —
+    post to a SHARED Slack channel. Distinct from `platform_slack_send_message`
+    (the operator's own DM, system infrastructure).
+  - `platform_notion_create_page` (parent_page_id, title, optional content) —
+    create a page in a SHARED Notion workspace.
+  - `platform_notion_append_block` (page_id, content) — append to a Notion page.
+  These surface to task-bearing agent paths (YARNNN chat, headless specialists)
+  via the kernel-universal `write_slack` / `write_notion` capabilities — ambient
+  (no per-program friction), `feeds: action` ⇒ HIGH tier. The Reviewer does NOT
+  receive them (it reaches external effect only via `ProposeAction`, ADR-304 D6).
+- **Gate behavior (ADR-307 Phase 5):** every consequential platform write now
+  passes the uniform permission gate at `execute_primitive` (the platform-tool
+  path no longer bypasses it). Under supervised / bounded autonomy an audience-
+  write is QUEUED for operator approval (external-write family proposal — the
+  operator sees the channel/recipient + a content preview, NOT a file diff);
+  under autonomous it sends directly. An operator-approved replay applies
+  without re-gating.
+- **Expected behavior change:** an agent that calls an audience-write under
+  bounded autonomy gets a `{queued: true, proposal_id, family: "external-write"}`
+  result instead of an immediate send — it should narrate that the message is
+  queued for the operator, not claim it was sent. The three trading writes'
+  bespoke `mode == autonomous` → ProposeAction branch is deleted; the risk gate
+  (`check_risk_limits`) remains a hard pre-check that rejects risk-breaching
+  orders. The live capital path (ProposeAction → approve → ExecuteProposal) is
+  unchanged in shape.
+- **Files:** `api/services/platform_tools.py` (tool defs + handlers +
+  `consequential_platform_family` classifier), `api/integrations/core/notion_client.py`
+  (`create_page` + `append_block`), `api/services/orchestration.py`
+  (`write_slack` / `write_notion` in CAPABILITIES), `api/services/primitives/registry.py`
+  + `permission.py` (the gate). ADR-307 Phase 5 + ADR-304 amendment.
+
+---
+
 ## [2026.06.19.3] - Single activation derivation: workspace-state surface ↔ working-memory
 
 **LLM-facing changes:**

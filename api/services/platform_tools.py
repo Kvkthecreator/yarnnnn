@@ -142,6 +142,47 @@ Parameters:
             "required": ["channel_id"]
         }
     },
+    # ADR-304 amendment (2026-06-19): audience-addressing channel send. The LLM
+    # supplies the channel — affects a third-party audience, so it passes the
+    # ADR-307 uniform gate (external-write family; QUEUEs under bounded/manual).
+    # Distinct from platform_slack_send_message (operator's own DM, system
+    # infrastructure). Surfaced via the kernel-universal write_slack capability.
+    {
+        "name": "platform_slack_send_to_channel",
+        "description": """Post a message to a Slack channel (audience-addressing).
+
+Use to publish to a shared Slack channel — a status update, a digest, an alert
+the team sees. This is a consequential outbound action: under supervised /
+bounded autonomy it is QUEUED for operator approval before sending; under
+autonomous it sends directly.
+
+Workflow:
+1. platform_slack_list_channels() → find the channel_id for the target channel
+2. platform_slack_send_to_channel(channel_id="C...", text="...") → post
+
+Parameters:
+- channel_id: Channel ID (C...) — get from platform_slack_list_channels
+- text: The message body (Slack mrkdwn supported)
+- thread_ts: Optional — reply into an existing thread (the parent message ts)""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "channel_id": {
+                    "type": "string",
+                    "description": "Channel ID (C...). Get from platform_slack_list_channels."
+                },
+                "text": {
+                    "type": "string",
+                    "description": "Message body (Slack mrkdwn supported)."
+                },
+                "thread_ts": {
+                    "type": "string",
+                    "description": "Optional. Reply into an existing thread (parent message ts)."
+                }
+            },
+            "required": ["channel_id", "text"]
+        }
+    },
 ]
 
 # ADR-304 D1 (2026-05-27): platform_notion_create_comment is operator-
@@ -219,6 +260,78 @@ Returns the page title and its text content as plain text blocks. Do NOT use Rea
     # ADR-304 D1 + D2: platform_notion_create_comment lifted to
     # NOTION_CREATE_COMMENT_TOOL and registered in SYSTEM_INFRASTRUCTURE_TOOLS.
     # Singular Implementation: tool defined once at module level.
+    #
+    # ADR-304 amendment (2026-06-19): audience-addressing Notion writes — page
+    # create + block append into a SHARED Notion workspace (the LLM supplies the
+    # parent/page, affecting a third-party audience). Consequential outbound:
+    # passes the ADR-307 uniform gate (external-write family). Distinct from
+    # platform_notion_create_comment (operator's designated page, system infra).
+    # Surfaced via the kernel-universal write_notion capability.
+    {
+        "name": "platform_notion_create_page",
+        "description": """Create a new Notion page under a parent page (audience-addressing).
+
+Use to publish a new document into a shared Notion workspace — a report, a
+draft, a meeting note. Consequential outbound: QUEUED for operator approval
+under supervised / bounded autonomy; sends directly under autonomous.
+
+Workflow:
+1. platform_notion_search(query="...") → find the parent page, get its id
+2. platform_notion_create_page(parent_page_id="<id>", title="...", content="...")
+
+Parameters:
+- parent_page_id: UUID of the parent page the new page nests under
+- title: The new page's title
+- content: Optional initial body (plain text / basic markdown; one paragraph per line)""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "parent_page_id": {
+                    "type": "string",
+                    "description": "Parent page UUID. Get from platform_notion_search."
+                },
+                "title": {
+                    "type": "string",
+                    "description": "The new page's title."
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Optional initial body (plain text / basic markdown)."
+                }
+            },
+            "required": ["parent_page_id", "title"]
+        }
+    },
+    {
+        "name": "platform_notion_append_block",
+        "description": """Append content to an existing Notion page (audience-addressing).
+
+Use to add to a shared Notion page — append a section, a daily entry, an update.
+Consequential outbound: QUEUED for operator approval under supervised / bounded
+autonomy; sends directly under autonomous.
+
+Workflow:
+1. platform_notion_search(query="...") → find the page, get its id
+2. platform_notion_append_block(page_id="<id>", content="...")
+
+Parameters:
+- page_id: UUID of the page (or block) to append to
+- content: Text to append (plain text / basic markdown; one paragraph per line)""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "page_id": {
+                    "type": "string",
+                    "description": "Page (or block) UUID to append to. Get from platform_notion_search."
+                },
+                "content": {
+                    "type": "string",
+                    "description": "Text to append (plain text / basic markdown)."
+                }
+            },
+            "required": ["page_id", "content"]
+        }
+    },
 ]
 
 # ADR-131: Gmail and Calendar tools removed (sunset)
@@ -1025,18 +1138,18 @@ PLATFORM_TOOLS_BY_PROVIDER = {
 
 PLATFORM_TOOLS_BY_CAPABILITY = {
     "read_slack": ["platform_slack_list_channels", "platform_slack_get_channel_history"],
-    # ADR-304 D2: `write_slack` (operator DM) reclassified to
-    # SYSTEM_INFRASTRUCTURE_TOOLS as SLACK_SEND_MESSAGE_TOOL. The capability
-    # name is reserved for audience-addressing extensions per ADR-304 D5
-    # (e.g., a future platform_slack_send_to_channel tool would declare
-    # `write_slack` here, pointing to the new tool, NOT to
-    # platform_slack_send_message).
+    # ADR-304 amendment (2026-06-19): `write_slack` is the KERNEL-UNIVERSAL
+    # audience-addressing channel send. Points at the audience tool
+    # (send_to_channel), NOT the operator-DM send (send_message, which stays in
+    # SYSTEM_INFRASTRUCTURE_TOOLS per ADR-304 D1). Surfaces to task-bearing
+    # agent paths; gated by the ADR-307 uniform gate (external-write family).
+    "write_slack": ["platform_slack_send_to_channel"],
     "read_notion": ["platform_notion_search", "platform_notion_get_page"],
-    # ADR-304 D2: `write_notion` (operator-designated-page comment)
-    # reclassified to SYSTEM_INFRASTRUCTURE_TOOLS as NOTION_CREATE_COMMENT_TOOL.
-    # The capability name is reserved for audience-addressing extensions
-    # per ADR-304 D5 (e.g., future platform_notion_create_page,
-    # platform_notion_append_block).
+    # ADR-304 amendment (2026-06-19): `write_notion` is the KERNEL-UNIVERSAL
+    # audience-addressing page-create + block-append. Points at the audience
+    # tools, NOT the operator-designated-page comment (create_comment, system
+    # infrastructure per ADR-304 D1). Gated by the ADR-307 uniform gate.
+    "write_notion": ["platform_notion_create_page", "platform_notion_append_block"],
     "read_github": [
         "platform_github_list_repos", "platform_github_get_issues",
         "platform_github_get_repo_metadata", "platform_github_get_readme",
@@ -1089,13 +1202,13 @@ PLATFORM_TOOLS_BY_CAPABILITY = {
 
 CAPABILITY_PROVIDER_MAP = {
     "read_slack": "slack",
-    # ADR-304 D2: write_slack removed — operator-DM send is system
-    # infrastructure (SLACK_SEND_MESSAGE_TOOL). The key is reserved for
-    # future audience-addressing extensions per D5.
+    # ADR-304 amendment (2026-06-19): write_slack is kernel-universal audience
+    # send (platform_slack_send_to_channel) — surfaces via the slack provider.
+    "write_slack": "slack",
     "read_notion": "notion",
-    # ADR-304 D2: write_notion removed — operator-page comment is system
-    # infrastructure (NOTION_CREATE_COMMENT_TOOL). The key is reserved for
-    # future audience-addressing extensions per D5.
+    # ADR-304 amendment (2026-06-19): write_notion is kernel-universal audience
+    # write (create_page + append_block) — surfaces via the notion provider.
+    "write_notion": "notion",
     "read_github": "github",
     "read_commerce": "commerce",
     "write_commerce": "commerce",
@@ -1400,6 +1513,27 @@ async def _handle_slack_tool(auth: Any, tool: str, tool_input: dict) -> dict:
             }
         return {"success": False, "error": result.get("error", "Slack API error")}
 
+    # ADR-304 amendment (2026-06-19): audience-addressing channel send. Passes
+    # the ADR-307 uniform gate BEFORE reaching here (external-write family); the
+    # handler just sends. Same Slack wire as send_message (chat.postMessage),
+    # different addressee semantics (LLM-supplied channel vs operator's own DM).
+    elif tool == "send_to_channel":
+        if not tool_input.get("channel_id") or not tool_input.get("text"):
+            return {"success": False, "error": "channel_id and text are required"}
+        result = await slack_client.post_message(
+            bot_token=bot_token,
+            channel_id=tool_input["channel_id"],
+            text=tool_input["text"],
+            thread_ts=tool_input.get("thread_ts"),
+        )
+        if result.get("ok"):
+            return {
+                "success": True,
+                "result": {"ts": result.get("ts"), "channel": result.get("channel")},
+                "message": f"Posted to channel {result.get('channel')}",
+            }
+        return {"success": False, "error": result.get("error", "Slack API error")}
+
     elif tool == "list_channels":
         channels = await slack_client.list_channels(bot_token=bot_token)
         result_dict: dict = {
@@ -1656,6 +1790,45 @@ async def _execute_notion_tool(
             "comment_id": result.get("id"),
             "page_id": page_id,
             "message": "Comment added to Notion page",
+        }
+
+    # ADR-304 amendment (2026-06-19): audience-addressing writes. These pass the
+    # ADR-307 uniform gate BEFORE reaching here (external-write family) — by the
+    # time the handler runs the action is either operator-approved (replay) or
+    # autonomous-applied. No self-gating here.
+    elif tool == "create_page":
+        parent_page_id = args.get("parent_page_id")
+        title = args.get("title")
+        if not parent_page_id or not title:
+            return {"success": False, "error": "parent_page_id and title are required"}
+        result = await notion_client.create_page(
+            access_token=access_token,
+            parent_page_id=parent_page_id,
+            title=title,
+            content=args.get("content"),
+        )
+        return {
+            "success": True,
+            "page_id": result.get("id"),
+            "url": result.get("url"),
+            "message": f"Created Notion page '{title}'",
+        }
+
+    elif tool == "append_block":
+        page_id = args.get("page_id")
+        content = args.get("content")
+        if not page_id or not content:
+            return {"success": False, "error": "page_id and content are required"}
+        result = await notion_client.append_block(
+            access_token=access_token,
+            block_id=page_id,
+            content=content,
+        )
+        return {
+            "success": True,
+            "page_id": page_id,
+            "appended_blocks": len(result.get("results") or []),
+            "message": "Appended content to Notion page",
         }
 
     else:
