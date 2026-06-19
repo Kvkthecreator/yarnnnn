@@ -35,6 +35,8 @@ Everything else (Feed, Queue, Recurrence, Activity, Setup, the constitution + co
 
 The Operation composition surface and the topbar Attention bell are **the same object at two zooms** (ADR-346 §5a unified their vocabulary: To do · Activity · Coming up). To finish the streamline, they take **one name**: **Notifications**. The bell is the glance; the window is the full surface. Title/label/route rename `operation` → `notifications`; the bell header and "Open →" link rename to match. The **pane keys** (`resolve`/`understand`/`tune`) and the ADR-340 D2 act identities (Decide/Read/Tune) are **unchanged**.
 
+**One name, one icon (icon unification, 2026-06-19):** the rename gave the two zooms one *name* but left them two *glyphs* — the AttentionCenter rendered `Bell` while the surface declared `icon_key: "gauge"` (a vestige of the ADR-327-retired `/pace` surface), so the Launcher tile + Dock icon read as a gauge while the top-bar glance read as a bell. "Same object at two zooms" requires one glyph too. The surface's `icon_key` becomes **`bell`** (new registry entry mapping to the same lucide `Bell` the AttentionCenter uses); the top-bar glance, the Launcher tile, and the Dock icon now all carry the Bell. The orphaned `gauge` mapping (no surface declared it after this) is deleted per Singular Implementation.
+
 > **On-record dissent (operator overrode):** the collaborator argued against "Notifications" — the surface is where the operator *approves capital actions* (the ADR-307 consent gate) and *tunes schedules* (mutations); only 1 of its 3 panes is passive receipt, so "Notifications" names an action surface as a dismissable tray. The operator held the call after the argument. Recorded so the rationale isn't lost; the decision is the operator's.
 
 ### D3 — Agents upgrades to the Workspace (primary) tier
@@ -78,7 +80,8 @@ With the mirrors → search-only, Setup → search-only, and Agents → primary,
 
 ## 5. Implementation
 
-- `api/services/kernel_surfaces.py` — `operation`→`notifications` (slug/title/route); `agents` tier → `primary`; `feed`/`queue`/`recurrence` tier → `search-only`; `setup` tier → `search-only`; `settings` tier `search-only`→`system-config` + title "Account"→"System Settings"; `workspace-settings` tier `configure`→`workspace-config`.
+- `api/services/kernel_surfaces.py` — `operation`→`notifications` (slug/title/route); `agents` tier → `primary`; `feed`/`queue`/`recurrence` tier → `search-only`; `setup` tier → `search-only`; `settings` tier `search-only`→`system-config` + title "Account"→"System Settings"; `workspace-settings` tier `configure`→`workspace-config`; notifications `icon_key` `gauge`→`bell` (§D2 icon unification).
+- `web/lib/shell/surface-icons.tsx` — register `bell` → lucide `Bell` (the AttentionCenter's glyph); delete the orphaned `gauge` mapping + import (no surface declares gauge after notifications moves off it).
 - `web/components/shell/Launcher.tsx` — `KERNEL_TIER_GROUPS` → Workspace / Workspace Settings / System Settings; Utilities removed; un-tiered fallback → hidden-at-rest.
 - `web/components/shell/AttentionCenter.tsx` — header + "Open →" → "Notifications"; routes to `notifications` slug.
 - `web/app/(authenticated)/notifications/page.tsx` — renamed from `operation/`; `web/app/(authenticated)/operation/` → ADR-308 redirect stub → `/notifications`.

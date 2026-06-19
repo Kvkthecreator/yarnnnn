@@ -283,7 +283,12 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Notifications",
         "archetype": "dashboard",  # composition over multiple substrates
         "substrate_paths": [],  # composes action_proposals + session_messages + _recurrences.yaml
-        "icon_key": "gauge",
+        # ADR-349 D2: the Notifications window IS the top-bar bell at a second
+        # zoom ("one name, two zooms"). It carries the SAME bell glyph the
+        # AttentionCenter renders, so the Launcher tile, Dock icon, and top-bar
+        # bell read as one object. (Was "gauge" — a vestige of the ADR-327-
+        # retired /pace surface; that orphan mapping is removed FE-side.)
+        "icon_key": "bell",
         "default_pinned": False,
         "route": "/notifications",
         "summary": "Operate the recurring work in one place — what wants your decision, what just happened, what's coming up.",

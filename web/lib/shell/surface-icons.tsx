@@ -12,11 +12,11 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Activity,
+  Bell,
   Box,
   Clock,
   FolderKanban,
   FolderOpen,
-  Gauge,
   Home,
   Inbox,
   Link2,
@@ -38,19 +38,20 @@ import {
 
 const ICON_REGISTRY: Record<string, LucideIcon> = {
   activity: Activity,
+  // ADR-349 D2: the Notifications surface IS the topbar bell at a second zoom
+  // ("one name, two zooms"). It carries the SAME Bell glyph the AttentionCenter
+  // renders, so the launcher tile + Dock icon + top-bar bell read as one
+  // object. Singular Implementation: one canonical icon for Notifications,
+  // used everywhere it surfaces (top-bar glance, Launcher tile, Dock icon).
+  bell: Bell,
   clock: Clock,
   folder: FolderOpen,
   // ADR-349 D4: the Workspace Settings (operation) door — distinct from the
   // System Settings gear so the two launcher doors read apart.
   'folder-kanban': FolderKanban,
-  // ADR-297 D20 amendment (2026-05-25): gauge registered for the
-  // /pace surface. Pre-fix the Dock + Launcher rendered Box as
-  // fallback because `gauge` was missing — visible inconsistency
-  // between Dock icon (Box) and SystemStatusCluster icon (Activity).
-  // Singular Implementation: one canonical icon per surface, used
-  // everywhere it surfaces (Dock, Launcher, status cluster).
-  gauge: Gauge,
-  // ADR-327: wallet glyph for the /budget surface (supersedes /pace's gauge).
+  // ADR-327: wallet glyph for the /budget surface (supersedes /pace's gauge —
+  // the `gauge` key was removed ADR-349 D2 once Notifications stopped borrowing
+  // it; no surface declares gauge anymore).
   wallet: Wallet,
   // 2026-06-03: home glyph for the Home surface (post ADR-312
   // cockpit→home rename). Replaces square-activity, which no longer
