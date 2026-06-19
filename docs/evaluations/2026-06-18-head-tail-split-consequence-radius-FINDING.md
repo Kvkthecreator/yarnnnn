@@ -168,6 +168,28 @@ Substrate receipt (`platform_connections`, queried 2026-06-18 via the ACCESS.md 
 
 **What unblocks the deletions:** one real operator OAuth connection per platform (or a Hat-B operator-proxy connection) → run Gate-2 token acceptance + Gate-3 surface coverage against the real encrypted token → green Gate-2/3 authorizes that platform's `*_client.py` deletion in a focused migration commit. Until then, GitHub/Notion/Slack head drivers **remain**, and the MCP client serves *new* tail bindings only — which is the singular model honoring itself (one gate, transport chosen by tested grade-availability per platform), not a parallel implementation.
 
+### 7b-bis. The auth-server finding (2026-06-19) — only GitHub is migration-*worthy*; Slack/Notion stay
+
+Probing each MCP server's RFC-9728 `authorization_servers` against the OAuth endpoint that minted YARNNN's stored token corrects §7b's "3 platforms read-migration-eligible" optimism:
+
+| Platform | MCP server `authorization_servers` | YARNNN token minted by | Same auth server? | Verdict |
+|---|---|---|---|---|
+| **GitHub** | `github.com/login/oauth` | `github.com/login/oauth` (oauth.py:91) | ✅ **yes** | **Migration-worthy** — the stored token *is* the right token (receipt §7). Deletion still gated on a real connection to test (DB has zero github rows). |
+| **Notion** | `mcp.notion.com` | `api.notion.com` (platform) | ❌ **no** | **Stays head.** MCP server runs its OWN auth server, requires a token *it* minted with *its* scopes — the platform-API token is structurally wrong. The 2026 form of the Feb `ntn_` ghost. |
+| **Slack** | `mcp.slack.com` | `slack.com/oauth` (platform) | ❌ **no** | **Stays head.** Same — `mcp.slack.com` is a separate auth server demanding MCP-specific scopes (`search:read.public`, `canvases:read`) Slack's platform OAuth doesn't offer. |
+
+**The structural fact:** a platform's MCP server is migration-*worthy* only when it delegates to the platform's *own* OAuth (so YARNNN's existing token works). GitHub does; Slack and Notion stand up their *own* MCP auth servers. Collapsing Slack/Notion onto MCP would require building a new OAuth flow per MCP server + re-authorizing every operator — **for a read that's OPEN-tier and already served at `platform`-grade by the Direct API client.** The derived-tier model argues *against* this: zero trust gain, real fragility added (a controlled platform-grade transport traded for a community-grade dependency). **Slack/Notion head drivers staying is the correct outcome, not a gap.**
+
+**Corrected collapse map:**
+```
+GitHub head driver  -> migration-worthy; collapse when a real connection exists to test  (1 driver, gated)
+Slack head driver   -> STAYS (separate MCP auth server; OPEN-tier read already platform-grade; no gain)
+Notion head driver  -> STAYS (same)
+Alpaca / LemonSqueezy -> STAY (action/ground-truth, HIGH-tier, Direct API)
+open tail (Linear, Sentry, ...) -> MCP bindings, zero per-platform code (the seamless answer)
+```
+Net: the head/tail *collapse* is real for exactly one existing platform (GitHub) and correctly refused for the rest. The derived-tier gate doing its job — it won't trade a platform-grade transport for a fragile one with no tier benefit.
+
 ---
 
 ## 8. Recommended next commits (Hat-A, separate from this finding)
