@@ -127,11 +127,11 @@ def test_three_way_parity() -> None:
         f"pane slugs with window components: {sorted(reg & panes)}",
     )
     check(
-        "pane set is the ADR-341 two-door fold + ADR-340 D8 activity",
+        "pane set is the ADR-347 one-door fold + ADR-340 D8 activity",
         panes == {
-            # System Settings (Governance) — ADR-341
-            "budget", "autonomy",
-            # Workspace Settings (Operation/Perception/Constitution) — ADR-341
+            # The one Settings door — Contract (ADR-347/348)
+            "budget", "autonomy", "expected-output",
+            # The one Settings door — Operation/Perception/Constitution (ADR-347)
             "program", "connectors", "sources", "mandate", "identity", "principles",
             # Recurrence (Machinery) — ADR-340 D8
             "activity",

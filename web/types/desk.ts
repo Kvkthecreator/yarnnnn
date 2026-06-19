@@ -29,6 +29,7 @@ export type KernelSurfaceSlug =
   | 'recurrence'
   | 'budget'
   | 'autonomy'
+  | 'expected-output'  // ADR-348 — Expected Output pane (Contract group)
   | 'mandate'
   | 'principles'
   | 'identity'
@@ -67,7 +68,7 @@ export type DeskSurface =
   | { type: 'idle' };
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
-  'feed', 'home', 'recurrence', 'budget', 'autonomy', 'mandate', 'principles',
+  'feed', 'home', 'recurrence', 'budget', 'autonomy', 'expected-output', 'mandate', 'principles',
   'identity', 'files', 'agents', 'setup', 'program', 'queue', 'operation', 'activity',
   'settings', 'workspace-settings', 'connectors', 'sources',
 ] as const;

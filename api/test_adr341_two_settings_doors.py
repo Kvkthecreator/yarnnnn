@@ -1,12 +1,16 @@
-"""ADR-341 gate — Two Settings Doors: System Settings + Workspace Settings.
+"""ADR-341 gate — Settings doors.
 
-Python file-assertion gate (no JS test runner, per ADR-236 Rule 3). Verifies
-the ADR-340 D4 "one door" consolidation splits into two coherent doors:
-System Settings (the OS governing the agent — governance/ root) and Workspace
-Settings (this operation — constitution/ + operation/ + persona/ roots). The
-split is substrate-backed (ADR-320 roots), expressed as `pane_of` membership
-(registers unchanged, ADR-340 principle), Singular-Implementation via one
-shared SettingsPaneShell.
+Python file-assertion gate (no JS test runner, per ADR-236 Rule 3).
+
+**ADR-347 (2026-06-19) SUPERSEDES ADR-341 D1/D3/D6** — the two-door split is
+reversed. ADR-341's substrate-backed split (governance/ vs constitution/) was
+cut on the wrong axis: the operator navigates by "machine vs operation," not
+"agent-can-write vs can't." So Governance (Autonomy/Budget = per-operation
+config) moves INTO the one operation-settings door (the "Contract" group),
+and the account (Billing/Usage/Account = the human/principal, user_id-scoped)
+moves OUT to the UserMenu. This gate is updated to the post-ADR-347 reality;
+the parts ADR-341 still owns (shared SettingsPaneShell, constitution band
+preserved, registers-as-code-taxonomy) are unchanged.
 
 Usage:
     cd api
@@ -41,63 +45,64 @@ def _read(rel: str, root: Path = _WEB) -> str:
 
 
 def test_two_container_surfaces() -> None:
-    print("\n[registry] two Settings container surfaces (D1)")
+    print("\n[registry] settings containers (D1, post-ADR-347)")
     from services.kernel_surfaces import KERNEL_SURFACES
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
     check("settings surface present", "settings" in by_slug)
     check("workspace-settings surface present", "workspace-settings" in by_slug)
-    check("settings titled 'System Settings'", by_slug["settings"]["title"] == "System Settings")
-    check("workspace-settings titled 'Workspace Settings'", by_slug["workspace-settings"]["title"] == "Workspace Settings")
+    # ADR-347: `settings` is the account window (UserMenu-reached);
+    # `workspace-settings` is THE one Settings door (titled "Settings").
+    check("settings titled 'Account' (ADR-347)", by_slug["settings"]["title"] == "Account")
+    check("workspace-settings titled 'Settings' (ADR-347 — the one door)", by_slug["workspace-settings"]["title"] == "Settings")
     # Containers are window-grade (not panes themselves).
     check("settings is window-grade (no pane_of)", not by_slug["settings"].get("pane_of"))
     check("workspace-settings is window-grade (no pane_of)", not by_slug["workspace-settings"].get("pane_of"))
 
 
 def test_two_settings_tiers() -> None:
-    print("\n[tier] two separate Settings groups, Operation above System (D3)")
+    print("\n[tier] one Settings door; account → UserMenu (ADR-347, supersedes D3)")
     from services.kernel_surfaces import KERNEL_SURFACES
 
     tiers = {e["slug"]: e.get("launcher_tier") for e in KERNEL_SURFACES if e.get("route")}
+    # ADR-347: the one Settings door is in the `configure` tier; the account
+    # window (`settings` slug) is search-only (UserMenu-reached, not a door).
     check(
-        "workspace-settings → workspace-config tier",
-        tiers.get("workspace-settings") == "workspace-config",
-        str({s: t for s, t in tiers.items() if "config" in str(t) or t == "system"}),
+        "workspace-settings → configure tier (the one door)",
+        tiers.get("workspace-settings") == "configure",
+        str({s: t for s, t in tiers.items() if "config" in str(t)}),
     )
-    check("settings → system-config tier", tiers.get("settings") == "system-config")
-    check("legacy single-member `system` tier retired", not any(t == "system" for t in tiers.values()))
-    check("the old `configure` lump retired", not any(t == "configure" for t in tiers.values()))
-    # Launcher renders two separate groups, Operation ordered above System.
+    check("settings → search-only (account window, UserMenu-reached)", tiers.get("settings") == "search-only")
+    check("legacy `workspace-config` tier retired", not any(t == "workspace-config" for t in tiers.values()))
+    check("legacy `system-config` tier retired", not any(t == "system-config" for t in tiers.values()))
+    # Launcher renders one Settings group.
     launcher = _read("components/shell/Launcher.tsx")
-    check("Launcher group: Operation (workspace-config)",
-          "label: 'Operation'" in launcher and "tier: 'workspace-config'" in launcher)
-    check("Launcher group: System (system-config)",
-          "label: 'System'" in launcher and "tier: 'system-config'" in launcher)
-    check(
-        "Operation group ordered above System group",
-        launcher.index("tier: 'workspace-config'") < launcher.index("tier: 'system-config'"),
-    )
+    check("Launcher group: Settings (configure)",
+          "label: 'Settings'" in launcher and "tier: 'configure'" in launcher)
+    check("the two-door Launcher groups retired (no workspace-config/system-config tiers)",
+          "tier: 'workspace-config'" not in launcher and "tier: 'system-config'" not in launcher)
 
 
 def test_pane_homing() -> None:
-    print("\n[panes] panes fold into the right door (D6)")
+    print("\n[panes] panes fold into the one door (ADR-347, supersedes D6)")
     from services.kernel_surfaces import KERNEL_SURFACES
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
-    # System Settings — Governance (the governance/ root, agent-can't-write).
-    for slug in ("budget", "autonomy"):
-        check(f"{slug} → System Settings", by_slug[slug].get("pane_of") == "settings")
-        check(f"{slug} grouped Governance", by_slug[slug].get("pane_group") == "Governance")
-    # Workspace Settings — Operation + Perception (constitution/ + operation/).
+    # ADR-347: Governance (Budget=Rhythm, Autonomy=Witness) + Expected Output
+    # = the Contract group, in the ONE operation-settings door.
+    for slug in ("budget", "autonomy", "expected-output"):
+        check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
+        check(f"{slug} grouped Contract", by_slug[slug].get("pane_group") == "Contract")
+    # Operation + Perception (constitution/ + operation/).
     for slug in ("program",):
-        check(f"{slug} → Workspace Settings", by_slug[slug].get("pane_of") == "workspace-settings")
+        check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug} grouped Operation", by_slug[slug].get("pane_group") == "Operation")
     for slug in ("connectors", "sources"):
-        check(f"{slug} → Workspace Settings", by_slug[slug].get("pane_of") == "workspace-settings")
+        check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug} grouped Perception", by_slug[slug].get("pane_group") == "Perception")
-    # Workspace Settings — Constitution (the persona/ + constitution/ roots).
+    # Constitution (the persona/ + constitution/ roots).
     for slug in ("mandate", "identity", "principles"):
-        check(f"{slug} → Workspace Settings", by_slug[slug].get("pane_of") == "workspace-settings")
+        check(f"{slug} → the one Settings door", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug} grouped Constitution", by_slug[slug].get("pane_group") == "Constitution")
 
 

@@ -26,14 +26,12 @@ import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { createClient } from "@/lib/supabase/client";
 import { useNarrative } from "@/contexts/NarrativeContext";
-// ADR-341 (2026-06-18) — System Settings is now the OS-governance door.
-// Governance (Autonomy, Budget) + General (Billing, Usage, Account). The
-// operation-config panes (Program, Connectors, Sources) moved to the
-// Workspace Settings door. The shared SettingsPaneShell renders the
-// sidebar + pane switch (Singular Implementation, ADR-341 D5).
-import { ShieldCheck, Wallet } from "lucide-react";
-import { AutonomyCard } from "@/components/workspace-concepts/AutonomyCard";
-import { BudgetCard } from "@/components/workspace-concepts/BudgetCard";
+// ADR-347 (2026-06-19) — the two-door split is reversed. This `settings`
+// surface shrinks to the ACCOUNT window the UserMenu opens: Billing · Usage ·
+// Account (the human/principal's concern, user_id-scoped — NOT an operation
+// setting). Governance (Autonomy, Budget) moved to the one operation-settings
+// door (workspace-settings, the Contract group). The shared SettingsPaneShell
+// renders the sidebar + pane switch (Singular Implementation, ADR-341 D5).
 import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 
 interface DangerZoneStats {
@@ -56,27 +54,19 @@ interface NotificationPreferences {
   email_agent_failed: boolean;
 }
 
-// ADR-341 (2026-06-18): System Settings = the OS-governance door.
-// Governance (Autonomy, Budget — the governance/ root) + General (Billing,
-// Usage, Account). `?pane=` is canonical; `?tab=` accepted as legacy alias
-// for billing/usage/account (call sites predate the fold).
+// ADR-347 (2026-06-19): the `settings` surface is the ACCOUNT window —
+// Billing · Usage · Account (user_id-scoped, the human/principal's concern,
+// reached from the UserMenu). Governance (Autonomy, Budget) moved to the one
+// operation-settings door. `?pane=` is canonical; `?tab=` accepted as legacy
+// alias for billing/usage/account (call sites predate the fold).
 type SettingsTab =
   | "billing"
   | "usage"
-  | "account"
-  | "autonomy"
-  | "budget";
+  | "account";
 
 const PANE_GROUPS: PaneGroup[] = [
   {
-    label: "Governance",
-    panes: [
-      { key: "autonomy", label: "Autonomy", icon: ShieldCheck },
-      { key: "budget", label: "Budget", icon: Wallet },
-    ],
-  },
-  {
-    label: "General",
+    label: "Account",
     panes: [
       { key: "billing", label: "Billing", icon: CreditCard },
       { key: "usage", label: "Usage", icon: BarChart3 },
@@ -371,19 +361,6 @@ export default function SettingsPage() {
   // panes (billing/usage/account) are the heavier blocks below.
   const renderPane = (pane: string) => (
     <>
-      {/* ADR-340 P2 — Governance panes */}
-      {pane === "autonomy" && (
-        <section className="mb-8">
-          <AutonomyCard variant="full" />
-        </section>
-      )}
-
-      {pane === "budget" && (
-        <section className="mb-8">
-          <BudgetCard variant="full" />
-        </section>
-      )}
-
       {/* Billing Tab */}
       {pane === "billing" && (
         <section className="mb-8">

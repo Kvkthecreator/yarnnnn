@@ -124,17 +124,17 @@ ARCHETYPES = (
 # Move A's register grouping is superseded by this tier model):
 #   - "primary"     — the loop: Home (dwell) · Feed (read) · Queue (decide)
 #                     · Files (artifacts). Foregrounded at rest.
-#   - "workspace-config" — Workspace Settings (this operation: Constitution
-#                     + Operation + Perception). Its own launcher group
-#                     "Operation", rendered ABOVE System (ADR-341).
-#   - "system-config" — System Settings (the OS governing the agent:
-#                     Governance + account). Its own launcher group
-#                     "System", below Operation. Panes fold inside each
-#                     door per `pane_of`. The two doors are separate groups
-#                     — two objects (the operation vs the OS, the ADR-320
-#                     constitution/+operation/ vs governance/ root split),
-#                     not one "Configure" lump (supersedes ADR-340 P3's
-#                     single-member "system" tier).
+#   - "configure"   — the ONE Settings door (ADR-347): the operation's
+#                     settings — Constitution + Contract (Rhythm/Witness/
+#                     Expected Output) + Operation + Perception. Its own
+#                     launcher group "Settings". ADR-347 reversed ADR-341's
+#                     two-door split: the account (Billing/Usage/Account) is
+#                     the human/principal's concern → moved to the UserMenu
+#                     (the `settings` slug becomes the account window,
+#                     search-only); Governance (Autonomy/Budget) is
+#                     per-operation config → moved INTO this door's Contract
+#                     group. The "workspace-config" + "system-config" tier
+#                     pair (ADR-341 D3) collapses to this one tier.
 #   - "utilities"   — present, searchable, de-prioritized: Setup, Recurrence,
 #                     Agents (the Activity-Monitor class; Activity folded to
 #                     a Recurrence pane per ADR-340 D8).
@@ -142,9 +142,10 @@ ARCHETYPES = (
 #                     "search stays flat"): the constitution mirrors
 #                     (mandate/principles/identity — their FIRST-CLASS door
 #                     is the Home constitution band, ADR-312 slot #1; their
-#                     read/manage pane door is Workspace Settings, ADR-341)
+#                     read/manage pane door is the one Settings door, ADR-347)
 #                     and the pane-grade Settings panes (their door is the
-#                     System or Workspace Settings container per `pane_of`).
+#                     Settings container per `pane_of`); plus the account
+#                     window (the `settings` slug, UserMenu-reached, ADR-347).
 # Chrome entries (route="") have no tier — never listed.
 #
 # `pane_of` field (ADR-340 P2, 2026-06-12): pane-grade surfaces. A surface
@@ -318,8 +319,13 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "budget",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "pane_of": "settings",  # ADR-340 P2 — Governance pane in System Settings
-        "pane_group": "Governance",
+        # ADR-347 (2026-06-19): the two-door split is reversed — Governance
+        # moves OUT of the dissolved System Settings door INTO the one
+        # operation-settings door (workspace-settings), as the "Contract"
+        # group (Rhythm · Witness · Expected Output — the operating contract).
+        # Budget (Rhythm) is per-operation config, not machine config.
+        "pane_of": "workspace-settings",  # ADR-347 — Contract pane in the one Settings door
+        "pane_group": "Contract",
         "title": "Budget",
         "archetype": "document",
         "substrate_paths": [
@@ -328,7 +334,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "icon_key": "wallet",
         "default_pinned": False,
         # ADR-327 D7/Phase 5: pace retired → /budget is the canonical surface.
-        # ADR-340 P2: pane-grade — /budget is a redirect stub → /settings?pane=budget.
+        # ADR-347: pane-grade — /budget is a redirect stub → /workspace-settings?pane=budget.
         "route": "/budget",
         "summary": "The operation's dollar spend envelope — declared budget plus window-to-date utilization. The Reviewer allocates wakes within it.",
     },
@@ -342,8 +348,10 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "slug": "autonomy",
         "launcher_tier": "search-only",  # ADR-340 P3
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "pane_of": "settings",  # ADR-340 P2 — Governance pane in System Settings
-        "pane_group": "Governance",
+        # ADR-347 (2026-06-19): Governance → the one operation-settings door's
+        # Contract group (Witness dial = per-operation config, not machine).
+        "pane_of": "workspace-settings",  # ADR-347 — Contract pane in the one Settings door
+        "pane_group": "Contract",
         "title": "Autonomy",
         "archetype": "document",
         "substrate_paths": [
@@ -353,6 +361,29 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "default_pinned": False,
         "route": "/autonomy",  # _route_status: NEW 2026-05-24 (renamed from /delegation)
         "summary": "How much the Reviewer can execute without operator approval. Switching levels requires confirmation.",
+    },
+    {
+        # ADR-348 (2026-06-19) — Expected Output, operator-facing. ADR-345
+        # shipped the concept + governance/_expected_output.yaml referent +
+        # wake-envelope wiring backend-only; this is the FE the operator
+        # sees + sets. The third Contract-group member (Rhythm · Witness ·
+        # Expected Output). Governance-region: operator authors, Reviewer
+        # reads-not-authors (ADR-345 / ADR-320). A floor-gated delivery
+        # cadence, NEVER a quota (ADR-345 Goodhart guard).
+        "slug": "expected-output",
+        "launcher_tier": "search-only",  # ADR-340 P3 — pane-grade
+        "register": "os-config",  # governance-region machine config (like budget/autonomy)
+        "pane_of": "workspace-settings",  # ADR-347 — Contract pane in the one Settings door
+        "pane_group": "Contract",
+        "title": "Expected Output",
+        "archetype": "document",
+        "substrate_paths": [
+            "/workspace/governance/_expected_output.yaml",
+        ],
+        "icon_key": "target",
+        "default_pinned": False,
+        "route": "/expected-output",  # _route_status: NEW 2026-06-19 (ADR-348)
+        "summary": "What the operation owes when it works — the output contract (kind + delivery-cadence + bar). A floor-gated cadence, never a quota.",
     },
     {
         "slug": "mandate",
@@ -523,42 +554,47 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     # (?tab=billing on Settings; per-platform expansion on Connectors)
     # remain as window-internal deep-link state per D19.4.
     {
+        # ADR-347 (2026-06-19) — the two-door split is reversed. This surface
+        # is NO LONGER a launcher door. It shrinks to the ACCOUNT window the
+        # UserMenu opens: the human/principal's concern (Billing · Usage ·
+        # Account), program-agnostic and cross-workspace — NOT an operation
+        # setting. Governance (Autonomy/Budget) moved OUT to the one
+        # operation-settings door (workspace-settings, the Contract group).
+        # `launcher_tier: search-only` — reached via the UserMenu (its primary
+        # door) or flat search, never a peer door. Title stays "Settings" for
+        # the UserMenu affordance; the General-only pane set lives on the page.
         "slug": "settings",
-        "launcher_tier": "system-config",  # ADR-341 — own group "System", below Operation
+        "launcher_tier": "search-only",  # ADR-347 — account window, UserMenu-reached (was system-config door)
         "register": "os-config",  # ADR-312 D5 (was `settings`)
-        "title": "System Settings",
+        "title": "Account",
         "archetype": "dashboard",
-        "substrate_paths": [],  # account/workspace/billing config — DB + Stripe
-        "icon_key": "settings",
+        "substrate_paths": [],  # account/billing — DB + Stripe; user_id-scoped (ADR-171/172)
+        "icon_key": "user",
         "default_pinned": False,
         "route": "/settings",
-        # ADR-341 (2026-06-18): System Settings is now THE OS door — the OS
-        # governing the agent, program-agnostic. Sidebar panes: Governance
-        # (Autonomy, Budget — the governance/ root, agent-can't-write) +
-        # General (Billing / Usage / Account, the legacy tabs). The
-        # operation-config panes (Program, Connectors, Sources) moved to the
-        # Workspace Settings door. `?pane=` is the intra-surface deep-link
-        # param (`?tab=` accepted as legacy alias).
-        "summary": "System Settings — how the OS governs the agent. Autonomy, budget, billing, account. Program-agnostic, machine-level.",
+        "summary": "Account — billing, usage, and data/privacy. The human/principal's concern (user_id-scoped), reached from the avatar menu. Not an operation setting.",
     },
     {
-        # ADR-341 (2026-06-18) — the second Settings door. Configures THIS
-        # operation (the constitution/ + operation/ + persona/ roots, all
-        # agent-amends per ADR-320) vs System Settings' OS governance.
-        # Container surface; renders the shared pane shell with its own pane
-        # set. Sidebar groups: Constitution (Mandate/Identity/Principles —
-        # read/manage; their first-class door stays the Home band per
-        # ADR-312 D5), Operation (Program), Perception (Connectors, Sources).
+        # ADR-341 (2026-06-18) created the second door; ADR-347 (2026-06-19)
+        # makes it THE one Settings door — the operation's settings. It
+        # configures THIS operation (the constitution/ + operation/ + persona/
+        # + governance/ roots). Container surface; renders the shared pane
+        # shell. Sidebar groups: Constitution (Mandate/Identity/Principles —
+        # read/manage; first-class door stays the Home band, ADR-312 D5),
+        # Contract (Budget=Rhythm · Autonomy=Witness · Expected Output — the
+        # operating contract, moved in by ADR-347), Operation (Program),
+        # Perception (Connectors, Sources). The account moved OUT to the
+        # UserMenu (ADR-347 D2).
         "slug": "workspace-settings",
-        "launcher_tier": "workspace-config",  # ADR-341 — own group "Operation", above System
+        "launcher_tier": "configure",  # ADR-347 — the one Settings door (was workspace-config; system-config retired)
         "register": "application",  # a windowed app like `settings`
-        "title": "Workspace Settings",
+        "title": "Settings",
         "archetype": "dashboard",
-        "substrate_paths": [],  # constitution/ + operation/ + persona/ reads
-        "icon_key": "folder-kanban",
+        "substrate_paths": [],  # constitution/ + governance/ + operation/ + persona/ reads
+        "icon_key": "settings",
         "default_pinned": False,
         "route": "/workspace-settings",
-        "summary": "Workspace Settings — what this operation is. Mandate, identity, principles, program, connectors, sources.",
+        "summary": "Settings — what this operation is and how it runs. Constitution (mandate/identity/principles), Contract (budget/autonomy/expected output), Program, Connectors, Sources.",
     },
     {
         "slug": "connectors",

@@ -53,19 +53,16 @@ def test_registry_tiers() -> None:
         "primary == the standing-loop compositions (home/operation/files)",
         {s for s, t in tiers.items() if t == "primary"} == {"home", "operation", "files"},
     )
-    # ADR-341: the two Settings doors are SEPARATE tier groups —
-    # workspace-config (Operation) above system-config (System). The old
-    # single `system` / `configure` lumps are retired.
+    # ADR-347: the two-door split (ADR-341) is reversed — ONE Settings door
+    # (the operation's settings) in the `configure` tier; the account window
+    # (`settings` slug) is search-only (UserMenu-reached). The
+    # workspace-config + system-config tier pair is retired.
     check(
-        "workspace-config == {workspace-settings}",
-        {s for s, t in tiers.items() if t == "workspace-config"} == {"workspace-settings"},
+        "configure == {workspace-settings} (the one Settings door)",
+        {s for s, t in tiers.items() if t == "configure"} == {"workspace-settings"},
     )
-    check(
-        "system-config == {settings}",
-        {s for s, t in tiers.items() if t == "system-config"} == {"settings"},
-    )
-    check("legacy system + configure tiers retired",
-          not any(t in ("system", "configure") for t in tiers.values()))
+    check("legacy workspace-config + system-config tiers retired",
+          not any(t in ("workspace-config", "system-config", "system") for t in tiers.values()))
     check(
         # ADR-346: feed + queue join utilities (demoted from primary —
         # Operation fronts them; they stay complete + reachable mirrors).
@@ -74,10 +71,13 @@ def test_registry_tiers() -> None:
         == {"setup", "recurrence", "agents", "feed", "queue"},
     )
     check(
-        "search-only == constitution mirrors + Settings panes + activity",
+        # ADR-347: the account window (`settings`) joins search-only
+        # (UserMenu-reached, not a door); expected-output (ADR-348) joins as
+        # a Contract pane.
+        "search-only == constitution mirrors + Settings panes + account window + activity",
         {s for s, t in tiers.items() if t == "search-only"}
-        == {"mandate", "principles", "identity", "budget", "autonomy", "program",
-            "connectors", "sources", "activity"},
+        == {"mandate", "principles", "identity", "budget", "autonomy", "expected-output",
+            "program", "connectors", "sources", "settings", "activity"},
     )
     chrome = [e for e in KERNEL_SURFACES if not e.get("route")]
     check("chrome entries carry no tier", all(not e.get("launcher_tier") for e in chrome))
@@ -86,11 +86,10 @@ def test_registry_tiers() -> None:
 def test_launcher_two_modes() -> None:
     print("\n[launcher] act-tier groups at rest; flat when searching")
     src = _read("components/shell/Launcher.tsx")
-    # ADR-341: at-rest groups are Workspace / Operation / System / Utilities
-    # (the two Settings doors are separate labeled groups, Operation above
-    # System).
-    check("KERNEL_TIER_GROUPS declared (Workspace/Operation/System/Utilities)",
-          "'Workspace'" in src and "'Operation'" in src and "'System'" in src
+    # ADR-347: at-rest groups are Workspace / Settings / Utilities (the
+    # two-door split is reversed — one Settings door; account → UserMenu).
+    check("KERNEL_TIER_GROUPS declared (Workspace/Settings/Utilities)",
+          "'Workspace'" in src and "'Settings'" in src
           and "'Utilities'" in src and "KERNEL_TIER_GROUPS" in src)
     check("search-only hidden at rest", "search-only" in src and "return null" in src)
     check("flat list when searching (Spotlight role)", "isSearching" in src)
@@ -106,7 +105,7 @@ def test_constitution_band_door() -> None:
     for slug in ("mandate", "principles", "identity"):
         check(f"band links to {slug}", f"slug: '{slug}'" in src)
     check("links open via foregroundSurface", "foregroundSurface(item.slug)" in src)
-    check("autonomy badge points at the Settings pane", "/settings?pane=autonomy" in src)
+    check("autonomy badge points at the Contract pane (ADR-347)", "/workspace-settings?pane=autonomy" in src)
 
 
 def main() -> int:

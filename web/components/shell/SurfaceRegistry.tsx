@@ -54,15 +54,17 @@ import FilesPage from '@/app/(authenticated)/files/page';
 import SetupPage from '@/app/(authenticated)/setup/page';
 // ADR-297 D19.4 (2026-05-22) — Settings + Connectors promoted from
 // legacy pages to atomic kernel surfaces. Reverses D19.7.
-// ADR-340 P2 (2026-06-12) — System Settings becomes the ONE os-config
-// window: budget / autonomy / program / connectors / sources are
-// PANE-GRADE (registry `pane_of: "settings"`) and render as sidebar
-// panes inside SettingsPage. They have NO window component — their
-// slugs resolve to `undefined` here, the window manager resolves
-// foregroundSurface(pane-slug) → settings + ?pane=, and their old
-// routes are ADR-308 redirect stubs.
+// ADR-347 (2026-06-19) — the two-door split (ADR-341) is reversed.
+// `workspace-settings` is THE one Settings door (the operation's settings);
+// budget / autonomy / expected-output / program / connectors / sources are
+// PANE-GRADE (registry `pane_of: "workspace-settings"`) and render as
+// sidebar panes inside it. They have NO window component — their slugs
+// resolve to `undefined` here; the window manager resolves
+// foregroundSurface(pane-slug) → workspace-settings + ?pane=, and their old
+// routes are ADR-308 redirect stubs. The `settings` slug is now the ACCOUNT
+// window the UserMenu opens (billing/usage/account), kept as a windowed page.
 import SettingsPage from '@/app/(authenticated)/settings/page';
-import WorkspaceSettingsPage from '@/app/(authenticated)/workspace-settings/page';  // ADR-341 — the second Settings door
+import WorkspaceSettingsPage from '@/app/(authenticated)/workspace-settings/page';  // ADR-347 — the one Settings door
 
 export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, ComponentType>> = {
   feed: FeedPage,
@@ -79,8 +81,8 @@ export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, Componen
   agents: AgentsPage,
   files: FilesPage,
   setup: SetupPage,  // ADR-331 D1 — guided first-boot Sequence
-  settings: SettingsPage,  // ADR-341 — System Settings, the OS-governance door
-  'workspace-settings': WorkspaceSettingsPage,  // ADR-341 — the operation-config door
+  settings: SettingsPage,  // ADR-347 — the account window (UserMenu-reached: billing/usage/account)
+  'workspace-settings': WorkspaceSettingsPage,  // ADR-347 — the ONE Settings door (the operation)
 };
 
 export function resolveSurfaceComponent(slug: KernelSurfaceSlug): ComponentType | undefined {

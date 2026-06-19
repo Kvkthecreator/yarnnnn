@@ -78,11 +78,11 @@ interface SurfaceGroup {
 // silently drop a surface from the index.
 const KERNEL_TIER_GROUPS: { key: string; label: string; tier: string }[] = [
   { key: 'kernel:primary', label: 'Workspace', tier: 'primary' },
-  // ADR-341 (2026-06-18): the two Settings doors are their OWN labeled
-  // groups, Workspace Settings ABOVE System Settings — two objects (the
-  // operation vs the OS), not one "Configure" lump. Order top→bottom.
-  { key: 'kernel:workspace-config', label: 'Operation', tier: 'workspace-config' },
-  { key: 'kernel:system-config', label: 'System', tier: 'system-config' },
+  // ADR-347 (2026-06-19): the two-door split (ADR-341) is reversed. ONE
+  // Settings door (the operation's settings) in one "Configure" tier; the
+  // account moved to the UserMenu (the search-only `settings` slug), so the
+  // "System" group is gone. workspace-config + system-config → configure.
+  { key: 'kernel:configure', label: 'Settings', tier: 'configure' },
   { key: 'kernel:utilities', label: 'Utilities', tier: 'utilities' },
 ];
 

@@ -47,9 +47,10 @@ import { useHome } from './HomeContext';
 import { cn } from '@/lib/utils';
 
 const MANDATE_PATH = '/workspace/constitution/MANDATE.md';
-// ADR-340 P2: Autonomy is a Governance pane inside System Settings
-// (was the atomic /autonomy window; that route is now a redirect stub).
-const AUTONOMY_EDIT_HREF = '/settings?pane=autonomy';
+// ADR-347: Autonomy (Witness) is a Contract pane inside the ONE Settings
+// door (the operation's settings); the dissolved System Settings door's
+// account moved to the UserMenu. The /autonomy route is a redirect stub.
+const AUTONOMY_EDIT_HREF = '/workspace-settings?pane=autonomy';
 
 // ---------------------------------------------------------------------------
 // Constitution links — ADR-340 P3

@@ -29,6 +29,7 @@ import {
   Settings,
   ShieldCheck,
   Target,
+  User,
   UserCircle,
   Users,
   Wallet,
@@ -75,6 +76,9 @@ const ICON_REGISTRY: Record<string, LucideIcon> = {
   settings: Settings,
   'shield-check': ShieldCheck,
   target: Target,
+  // ADR-347: user glyph for the account window (the `settings` slug,
+  // UserMenu-reached — billing/usage/privacy, the human/principal).
+  user: User,
   'user-circle': UserCircle,
   users: Users,
 };

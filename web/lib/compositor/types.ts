@@ -281,19 +281,19 @@ export interface Surface {
   /** Sidebar section label inside the parent container (ADR-340 D4). */
   pane_group?: string;
   /**
-   * ADR-340 P3 / ADR-341 — the launcher's at-rest grouping, derived from
-   * the operator's standing loop (NOT from the register): `primary` (the
-   * loop compositions: Home/Operation + Files) · `workspace-config`
-   * (Workspace Settings door, ADR-341 "Operation" group) · `system-config`
-   * (System Settings door, ADR-341 "System" group) · `utilities` (present,
-   * de-prioritized — incl. the mirrors Operation fronts per ADR-346) ·
-   * `search-only` (hidden at rest; found by flat search — constitution
-   * mirrors + Settings panes).
+   * ADR-340 P3 / ADR-341 / ADR-347 — the launcher's at-rest grouping,
+   * derived from the operator's standing loop (NOT from the register):
+   * `primary` (the loop compositions: Home/Operation + Files) · `configure`
+   * (the ONE Settings door, ADR-347 — the operation's settings; the
+   * account moved to the UserMenu, so ADR-341's `workspace-config` +
+   * `system-config` pair collapses to this one tier) · `utilities`
+   * (present, de-prioritized — incl. the mirrors Operation fronts per
+   * ADR-346) · `search-only` (hidden at rest; found by flat search —
+   * constitution mirrors + Settings panes + the account window).
    */
   launcher_tier?:
     | 'primary'
-    | 'workspace-config'
-    | 'system-config'
+    | 'configure'
     | 'utilities'
     | 'search-only';
   title: string;

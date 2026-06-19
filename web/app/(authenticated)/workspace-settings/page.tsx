@@ -1,28 +1,32 @@
 "use client";
 
 /**
- * /workspace-settings — Workspace Settings, the second Settings door
- * (ADR-341, 2026-06-18).
+ * /workspace-settings — the ONE Settings door (ADR-347, 2026-06-19;
+ * created by ADR-341, 2026-06-18).
  *
- * Configures THIS operation (the ADR-320 constitution/ + operation/ +
- * persona/ roots, all agent-amends) vs System Settings' OS governance
- * (governance/ root, agent-can't-write). Mounts the shared
- * SettingsPaneShell (Singular Implementation, ADR-341 D5) with the
- * operation-config pane set.
+ * ADR-347 reversed ADR-341's two-door split: this is now THE Settings door
+ * — the operation's settings. It configures THIS operation (the ADR-320
+ * constitution/ + governance/ + operation/ + persona/ roots). The account
+ * (Billing/Usage/Account) moved OUT to the UserMenu (the human/principal's
+ * concern, ADR-347 D2). Mounts the shared SettingsPaneShell (Singular
+ * Implementation, ADR-341 D5).
  *
  * Sidebar groups:
  *   - Constitution: Mandate · Identity · Principles — read/manage panes
  *     reusing the existing *Card full variants (read-mostly, "Edit via
  *     chat"; ADR-244 read-mostly + ADR-206 D6). Their FIRST-CLASS door
- *     stays the Home constitution band (ADR-312 D5 preserved); this is
- *     the durable pane door.
+ *     stays the Home constitution band (ADR-312 D5 preserved).
+ *   - Contract (ADR-347/ADR-348): Budget (Rhythm) · Autonomy (Witness) ·
+ *     Expected Output — the operating contract. Operator-authored
+ *     governance-region → inline editors (ADR-347 §3). Moved in from the
+ *     dissolved System Settings door.
  *   - Operation: Program — the program lifecycle (ADR-244).
  *   - Perception: Connectors · Sources — the transports the operation
  *     perceives through (ADR-338 D4.1).
  */
 
 import { useEffect, useState } from "react";
-import { Target, UserCircle, Scale, Package, Link2, Rss, AlertCircle, Rocket, Loader2 } from "lucide-react";
+import { Target, UserCircle, Scale, Package, Link2, Rss, AlertCircle, Rocket, Loader2, Wallet, ShieldCheck, Crosshair } from "lucide-react";
 import { api, APIError } from "@/lib/api/client";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
@@ -30,12 +34,16 @@ import { MandateCard } from "@/components/workspace-concepts/MandateCard";
 import { IdentityBrandCard } from "@/components/workspace-concepts/IdentityBrandCard";
 import { PrinciplesCard } from "@/components/workspace-concepts/PrinciplesCard";
 import { SourcesCard } from "@/components/workspace-concepts/SourcesCard";
+import { AutonomyCard } from "@/components/workspace-concepts/AutonomyCard";
+import { BudgetCard } from "@/components/workspace-concepts/BudgetCard";
+import { ExpectedOutputCard } from "@/components/workspace-concepts/ExpectedOutputCard";
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 import { ProgramLifecycleDrawer } from "@/components/library/ProgramLifecycleDrawer";
 
-// ADR-341: pane keys match the kernel registry slugs for pane-grade
-// surfaces (mandate/identity/principles/program/connectors/sources), so
-// foregroundSurface(slug) → workspace-settings + ?pane=slug resolves here.
+// ADR-341/347: pane keys match the kernel registry slugs for pane-grade
+// surfaces (mandate/identity/principles/budget/autonomy/expected-output/
+// program/connectors/sources), so foregroundSurface(slug) →
+// workspace-settings + ?pane=slug resolves here.
 const PANE_GROUPS: PaneGroup[] = [
   {
     label: "Constitution",
@@ -43,6 +51,16 @@ const PANE_GROUPS: PaneGroup[] = [
       { key: "mandate", label: "Mandate", icon: Target },
       { key: "identity", label: "Identity", icon: UserCircle },
       { key: "principles", label: "Principles", icon: Scale },
+    ],
+  },
+  {
+    // ADR-347/ADR-348 — the operating contract, gathered: Rhythm · Witness
+    // · Expected Output. Moved in from the dissolved System Settings door.
+    label: "Contract",
+    panes: [
+      { key: "budget", label: "Budget", icon: Wallet },
+      { key: "autonomy", label: "Autonomy", icon: ShieldCheck },
+      { key: "expected-output", label: "Expected Output", icon: Crosshair },
     ],
   },
   {
@@ -79,6 +97,26 @@ export default function WorkspaceSettingsPage() {
         return (
           <section className="mb-8">
             <PrinciplesCard variant="full" />
+          </section>
+        );
+      // ADR-347/ADR-348 — the Contract group (Rhythm · Witness · Expected
+      // Output). Operator-authored governance-region → inline editors.
+      case "budget":
+        return (
+          <section className="mb-8">
+            <BudgetCard variant="full" />
+          </section>
+        );
+      case "autonomy":
+        return (
+          <section className="mb-8">
+            <AutonomyCard variant="full" />
+          </section>
+        );
+      case "expected-output":
+        return (
+          <section className="mb-8">
+            <ExpectedOutputCard variant="full" />
           </section>
         );
       case "program":

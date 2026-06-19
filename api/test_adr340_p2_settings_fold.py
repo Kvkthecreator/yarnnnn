@@ -23,13 +23,20 @@ PASSED = 0
 FAILED = 0
 
 # ADR-340 P2 folded five os-config surfaces into one door. ADR-341
-# (2026-06-18) splits the door in two: Governance panes stay in System
-# Settings; operation-config panes move to Workspace Settings (+ the
-# constitution mirrors gain a pane door there). The pane *mechanism* is
-# unchanged — only which door each pane folds into.
-SYSTEM_SETTINGS_PANES = {"budget", "autonomy"}
-WORKSPACE_SETTINGS_PANES = {"program", "connectors", "sources", "mandate", "identity", "principles"}
-EXPECTED_PANES = SYSTEM_SETTINGS_PANES | WORKSPACE_SETTINGS_PANES
+# (2026-06-18) split it in two; ADR-347 (2026-06-19) REVERSED the split —
+# ALL operation panes (Governance/Contract included) fold into the ONE
+# Settings door (`workspace-settings`); the account moves to the UserMenu
+# (the `settings` slug is the account window, not a pane parent). The pane
+# *mechanism* is unchanged — only which door each pane folds into.
+# ACCOUNT_PANES (billing/usage/account) are page-local tabs on the account
+# window, NOT registry pane-grade surfaces, so they are not in the registry.
+ALL_SETTINGS_PANES = {
+    "budget", "autonomy", "expected-output",  # Contract (ADR-347/348)
+    "program",                                  # Operation
+    "connectors", "sources",                    # Perception
+    "mandate", "identity", "principles",        # Constitution
+}
+EXPECTED_PANES = ALL_SETTINGS_PANES
 
 
 def check(label: str, condition: bool, detail: str = "") -> None:
@@ -59,12 +66,8 @@ def test_registry_pane_model() -> None:
         check(f"{slug} is pane-grade", slug in panes, f"panes={sorted(panes)}")
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
-    # Governance panes fold into System Settings (the OS door).
-    for slug in sorted(SYSTEM_SETTINGS_PANES):
-        check(f"{slug}: pane_of == 'settings'", by_slug[slug].get("pane_of") == "settings")
-        check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
-    # Operation-config + constitution panes fold into Workspace Settings.
-    for slug in sorted(WORKSPACE_SETTINGS_PANES):
+    # ADR-347: ALL operation panes fold into the ONE Settings door.
+    for slug in sorted(ALL_SETTINGS_PANES):
         check(f"{slug}: pane_of == 'workspace-settings'", by_slug[slug].get("pane_of") == "workspace-settings")
         check(f"{slug}: carries pane_group", bool(by_slug[slug].get("pane_group")))
     check(
@@ -75,15 +78,16 @@ def test_registry_pane_model() -> None:
         "workspace-settings is a container window (no pane_of on itself)",
         not by_slug["workspace-settings"].get("pane_of"),
     )
-    check("settings titled 'System Settings'", by_slug["settings"]["title"] == "System Settings")
-    check("workspace-settings titled 'Workspace Settings'", by_slug["workspace-settings"]["title"] == "Workspace Settings")
+    # ADR-347: `settings` = the account window; `workspace-settings` = the one door.
+    check("settings titled 'Account' (ADR-347)", by_slug["settings"]["title"] == "Account")
+    check("workspace-settings titled 'Settings' (ADR-347)", by_slug["workspace-settings"]["title"] == "Settings")
     check(
         "setup stays window-grade (Sequence surface, ADR-331)",
         not by_slug["setup"].get("pane_of"),
     )
-    # ADR-341 grouping (two doors, second-order sidebar sections)
-    check("autonomy grouped Governance", by_slug["autonomy"]["pane_group"] == "Governance")
-    check("budget grouped Governance", by_slug["budget"]["pane_group"] == "Governance")
+    # ADR-347 grouping — the Contract group gathers Rhythm/Witness/Expected Output.
+    for slug in ("budget", "autonomy", "expected-output"):
+        check(f"{slug} grouped Contract", by_slug[slug]["pane_group"] == "Contract")
     check("connectors grouped Perception", by_slug["connectors"]["pane_group"] == "Perception")
     check("sources grouped Perception", by_slug["sources"]["pane_group"] == "Perception")
     check("program grouped Operation", by_slug["program"]["pane_group"] == "Operation")
@@ -100,44 +104,43 @@ def test_settings_container() -> None:
     check("shell accepts ?tab= legacy alias", 'searchParams.get("tab")' in shell)
     check("shell syncs URL via setSurfaceParams", "setSurfaceParams({ pane" in shell)
 
+    # ADR-347: the `settings` page is the ACCOUNT window (billing/usage/account).
     sys_src = _read("app/(authenticated)/settings/page.tsx")
-    check("System Settings mounts SettingsPaneShell", "SettingsPaneShell" in sys_src)
-    check("System Settings declares PANE_GROUPS", "PANE_GROUPS" in sys_src)
-    for needle, label in [
-        ("AutonomyCard", "Autonomy pane body"),
-        ("BudgetCard", "Budget pane body"),
-    ]:
-        check(f"System Settings: {label}", needle in sys_src)
+    check("Account window mounts SettingsPaneShell", "SettingsPaneShell" in sys_src)
+    check("Account window declares PANE_GROUPS", "PANE_GROUPS" in sys_src)
+    check("Account window has no governance cards (moved to the one door)",
+          "AutonomyCard" not in sys_src and "BudgetCard" not in sys_src)
 
+    # ADR-347: the ONE Settings door carries Constitution + Contract +
+    # Operation + Perception pane bodies.
     ws_src = _read("app/(authenticated)/workspace-settings/page.tsx")
-    check("Workspace Settings mounts SettingsPaneShell", "SettingsPaneShell" in ws_src)
-    check("Workspace Settings declares PANE_GROUPS", "PANE_GROUPS" in ws_src)
+    check("Settings door mounts SettingsPaneShell", "SettingsPaneShell" in ws_src)
+    check("Settings door declares PANE_GROUPS", "PANE_GROUPS" in ws_src)
     for needle, label in [
         ("MandateCard", "Mandate pane body"),
         ("IdentityBrandCard", "Identity pane body"),
         ("PrinciplesCard", "Principles pane body"),
+        ("BudgetCard", "Budget (Rhythm) pane body"),
+        ("AutonomyCard", "Autonomy (Witness) pane body"),
+        ("ExpectedOutputCard", "Expected Output pane body"),
         ("ConnectedIntegrationsSection", "Connectors pane body"),
         ("SourcesCard", "Sources pane body"),
         ("ProgramLifecycleDrawer", "Program pane body"),
     ]:
-        check(f"Workspace Settings: {label}", needle in ws_src)
-    check("Workspace Settings Program pane carries re-run-setup door", "Re-run setup" in ws_src)
+        check(f"Settings door: {label}", needle in ws_src)
+    check("Settings door Program pane carries re-run-setup door", "Re-run setup" in ws_src)
 
 
 def test_redirect_stubs() -> None:
-    print("\n[stubs] old routes are ADR-308 server redirects to the right door (ADR-341)")
-    door = {
-        **{s: "settings" for s in SYSTEM_SETTINGS_PANES},
-        **{s: "workspace-settings" for s in WORKSPACE_SETTINGS_PANES},
-    }
-    # Governance panes (budget/autonomy) have no standalone route file —
-    # they were never window-grade with a stub. Only check slugs that have
-    # a page.tsx stub (the re-homed + constitution routes).
-    for slug in sorted(WORKSPACE_SETTINGS_PANES):
+    print("\n[stubs] old routes are ADR-308 server redirects to the one door (ADR-347)")
+    # ADR-347: ALL panes fold into the one Settings door. Only check slugs
+    # that have a page.tsx stub (budget/autonomy/expected-output + the
+    # re-homed + constitution routes; some panes never had a window route).
+    for slug in sorted(ALL_SETTINGS_PANES):
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
         if not stub:
             continue
-        target = f"/{door[slug]}?pane={slug}"
+        target = f"/workspace-settings?pane={slug}"
         check(f"/{slug} → {target}", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
 
@@ -161,6 +164,7 @@ def test_registry_prune() -> None:
     for slug, comp in [
         ("budget", "BudgetPage"),
         ("autonomy", "AutonomyPage"),
+        ("expected-output", "ExpectedOutputPage"),
         ("program", "ProgramPage"),
         ("connectors", "ConnectorsPage"),
         ("sources", "SourcesPage"),
