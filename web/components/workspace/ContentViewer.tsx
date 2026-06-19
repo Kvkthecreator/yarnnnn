@@ -12,6 +12,7 @@ import { Download, ExternalLink, FileText, Folder, Loader2, Trash2 } from 'lucid
 import { api } from '@/lib/api/client';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
+import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { FileIcon } from '@/components/workspace/FileIcon';
 // ADR-236 Files page rework (2026-04-30): SubstrateEditor deleted. Direct
 // inline editing of substrate files is removed per the original assessment
@@ -484,12 +485,16 @@ function FileView({
           </div>
         )}
 
-        {/* ADR-329 D1 (amended): the head-revision author still rides the
-            header above ("Last edited by …") as the always-visible provenance
-            glance. The full revision chain (revert/diff) moved OUT of the file
-            body and INTO the node Details panel ("Get Info"), so there is one
-            provenance surface, not a body panel competing with it. See
-            NodeDetailsPanel. */}
+        {/* ADR-329 D1: provenance promoted to a first-class element of the
+            file view. The authored, attributed revision chain (ADR-209) is
+            the moat made visible — "who authored this claim, how did it
+            evolve, has it been judged." Rendered for text-shaped authored
+            substrate (markdown/text/csv/html); binary kinds (image/pdf/
+            download) don't carry an operator-auditable authoring story.
+            The panel is itself collapsible — open it to walk the history. */}
+        {file.content && (kind === 'markdown' || kind === 'text' || kind === 'csv' || kind === 'html') && (
+          <RevisionHistoryPanel path={file.path} />
+        )}
       </div>
     </div>
   );

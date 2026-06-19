@@ -51,7 +51,7 @@ import type { DeskSurface } from '@/types/desk';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
-import { NodeDetailsPanel } from '@/components/workspace/NodeDetailsPanel';
+import { RecentlyAuthored } from '@/components/workspace/RecentlyAuthored';
 import { UploadButton } from '@/components/workspace/UploadButton';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
@@ -574,16 +574,25 @@ export default function ContextPage() {
     setDetailsOpen(true);
   }, []);
 
+  // Path-based select (ADR-329 D2: RecentlyAuthored hands back a path, not a
+  // TreeNode — the file may not be in the visible tree, e.g. a `_`-prefixed
+  // path is hidden from the explorer but a revision row can still target it;
+  // syntheticNodeForPath resolves the viewer).
+  const handleExplorerSelect_byPath = useCallback((path: string) => {
+    setSelectedPath(path);
+    router.replace(`/files?path=${encodeURIComponent(path)}`, { scroll: false });
+  }, [router]);
+
   // D19 (2026-05-22): the prior plusMenuActions + chat empty-state
   // block were ThreePanelLayout-side affordances. Chat affordances
   // now live in the universal ChatDrawer FAB (singular summon path).
 
-  // Tree pane content. ADR-329 (amended): the standing "Recently authored"
-  // feed is gone — provenance is now a per-node Details property ("Get Info",
-  // right-click a node or the header ⓘ), not a permanent rail. The tree is the
-  // surface; Details rides the selected node.
+  // Tree pane content. ADR-329 D2: "Recently authored" feed leads the
+  // substrate surface — the operator's "what changed in my workspace" glance
+  // — above the full explorer tree. Self-hides when nothing authored yet.
   const treePaneContent = (
     <div className="flex-1 overflow-y-auto">
+      <RecentlyAuthored onSelectPath={handleExplorerSelect_byPath} selectedPath={selectedPath} />
       {fileTreeLoading && treeNodes.length === 0 ? (
         <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -702,9 +711,8 @@ export default function ContextPage() {
                   onDeleted={() => {
                     // ADR-329: file archived — clear selection + refresh the
                     // tree (the archived file self-filters out server-side).
-                    // ADR-297 D19.2: clearing selection is component state, no
-                    // URL write (the window stays put on the Desktop).
                     setSelectedPath(null);
+                    router.replace('/files', { scroll: false });
                     loadExplorer();
                   }}
                 />
