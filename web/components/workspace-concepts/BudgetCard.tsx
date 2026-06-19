@@ -25,7 +25,8 @@
  */
 
 import { useState } from 'react';
-import { Wallet, ArrowRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Wallet, ArrowRight, CreditCard } from 'lucide-react';
 import {
   useCockpitBudget,
   budgetWindowLabel,
@@ -120,6 +121,7 @@ export function BudgetCard({
 }: BudgetCardProps) {
   const { meta, utilization, loading, summary, setBudget } = useCockpitBudget({ initialContent });
   const [pendingWindow, setPendingWindow] = useState<BudgetWindow | null>(null);
+  const router = useRouter();
 
   const amount = meta?.amount_usd ?? utilization?.amount_usd ?? null;
   const window = meta?.window ?? utilization?.window ?? null;
@@ -304,6 +306,24 @@ export function BudgetCard({
               No budget declared — the kernel default ($50/monthly) applies until you set one.
             </p>
           )}
+
+          {/* Account funds footer (2026-06-19). The budget above is THIS
+              operation's spend envelope; the balance that funds it is the
+              account's — billing/top-up live on the account (ADR-347). The
+              link lives here on the pane, not on the top-bar money glance. */}
+          <div className="border-t border-border/60 pt-3 flex items-center justify-between gap-3">
+            <p className="text-[11px] text-muted-foreground/70">
+              The balance that funds this envelope lives on your account.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push('/settings?pane=billing')}
+              className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline shrink-0"
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              Balance &amp; billing
+            </button>
+          </div>
         </div>
       )}
 

@@ -56,9 +56,13 @@ def test_balance_chip_absorbed() -> None:
         "api.integrations.getLimits()" in budget,
     )
     check("BudgetStatusItem keeps the /budget surface footer", "slug: 'budget'" in budget)
+    # 2026-06-19: the money chip is a GLANCE, not a settings map — it has ONE
+    # footer (the /budget surface). Billing is account config; it moved to the
+    # Budget PANE (BudgetCard "Balance & billing →") + the UserMenu account
+    # window (ADR-347). No billing link on the menu-bar glance.
     check(
-        "BudgetStatusItem carries the billing secondary footer",
-        "secondaryFooterTarget" in budget and "/settings?pane=billing" in budget,
+        "BudgetStatusItem dropped the billing secondary footer (glance, not settings map)",
+        "secondaryFooterTarget" not in budget and "pane=billing" not in budget,
     )
     check(
         "low-balance thresholds preserved from the absorbed chip",
@@ -80,14 +84,18 @@ def test_cluster_is_three_chips() -> None:
 
 
 def test_popover_secondary_footer() -> None:
-    print("\n[popover] StatusItemPopover supports an optional second footer")
+    print("\n[popover] StatusItemPopover is one-footer (2026-06-19, Singular Impl)")
+    # The secondary-footer prop was added (ADR-340 P1) only for the merged
+    # money chip's billing link. That link moved to the Budget pane, so the
+    # prop has no consumer and was removed (Singular Implementation — no dead
+    # dual-path). A status GLANCE routes to exactly one surface.
     src = _read("components/shell/system-status/StatusItemPopover.tsx")
-    check("secondaryFooterTarget prop declared", "secondaryFooterTarget?:" in src)
-    check("secondaryFooterLabel prop declared", "secondaryFooterLabel?:" in src)
-    check(
-        "secondary footer renders conditionally",
-        "secondaryFooterTarget && secondaryFooterLabel" in src,
-    )
+    check("secondaryFooterTarget prop removed", "secondaryFooterTarget" not in src)
+    check("secondaryFooterLabel prop removed", "secondaryFooterLabel" not in src)
+    check("popover keeps its single footerTarget/footerLabel", "footerTarget" in src and "footerLabel" in src)
+    # The billing link now lives on the Budget pane (BudgetCard).
+    card = _read("components/workspace-concepts/BudgetCard.tsx")
+    check("BudgetCard carries the Balance & billing link", "pane=billing" in card and "billing" in card.lower())
 
 
 def test_attention_center() -> None:

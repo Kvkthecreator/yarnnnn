@@ -45,17 +45,6 @@ interface StatusItemPopoverProps {
   footerTarget: { kind: 'surface'; slug: KernelSurfaceSlug } | { kind: 'route'; href: string };
   /** Footer link copy (e.g. "Autonomy Settings…") */
   footerLabel: string;
-  /**
-   * Optional second footer link (ADR-340 P1). Added for the merged
-   * money chip — Budget Settings (atomic surface) + Billing Settings
-   * (intra-surface deep-link) are both legitimate edit targets of one
-   * popover after the Budget chip absorbed the Balance chip.
-   */
-  secondaryFooterTarget?:
-    | { kind: 'surface'; slug: KernelSurfaceSlug }
-    | { kind: 'route'; href: string };
-  /** Copy for the optional second footer link */
-  secondaryFooterLabel?: string;
   /** Optional class override for the trigger button */
   className?: string;
 }
@@ -76,8 +65,6 @@ export function StatusItemPopover({
   popoverBody,
   footerTarget,
   footerLabel,
-  secondaryFooterTarget,
-  secondaryFooterLabel,
   className,
 }: StatusItemPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -163,15 +150,6 @@ export function StatusItemPopover({
           >
             {footerLabel} →
           </button>
-          {secondaryFooterTarget && secondaryFooterLabel && (
-            <button
-              type="button"
-              onClick={() => handleFooterClick(secondaryFooterTarget)}
-              className="w-full text-left px-3 py-2 text-xs text-primary hover:bg-muted border-t border-border transition-colors"
-            >
-              {secondaryFooterLabel} →
-            </button>
-          )}
         </div>
       )}
     </div>

@@ -15,9 +15,12 @@
  * discourse.
  *
  * Consumes api.budget() + api.integrations.getLimits(). Read-only
- * popover; mutations happen on the /budget atomic surface (envelope)
- * and /settings?pane=billing (top-up, subscription) via the two footer
- * links.
+ * popover — a GLANCE (standing state), not a config hub. The ONE footer
+ * link opens the /budget surface (the operation's envelope). Billing
+ * (top-up, subscription) is account config — it lives on the Budget pane
+ * itself (BudgetCard "Balance & billing →") and the UserMenu account
+ * window, NOT on this menu-bar glance (2026-06-19; ADR-347 account/operation
+ * split). A glance routes to one surface; it is not a settings map.
  *
  * Icon discipline (ADR-297 D20): the chip icon is the canonical /budget
  * surface icon resolved via `resolveSurfaceIcon('wallet')` — same glyph
@@ -219,8 +222,6 @@ export function BudgetStatusItem() {
       popoverBody={popoverBody}
       footerTarget={{ kind: 'surface', slug: 'budget' }}
       footerLabel="Budget Settings"
-      secondaryFooterTarget={{ kind: 'route', href: '/settings?pane=billing' }}
-      secondaryFooterLabel="Billing Settings"
     />
   );
 }
