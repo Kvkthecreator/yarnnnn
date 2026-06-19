@@ -51,7 +51,7 @@ import type { DeskSurface } from '@/types/desk';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
-import { RecentlyAuthored } from '@/components/workspace/RecentlyAuthored';
+import { RecentRevisions } from '@/components/workspace/RecentRevisions';
 import { UploadButton } from '@/components/workspace/UploadButton';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
 import { NodeDetailsPanel } from '@/components/workspace/NodeDetailsPanel';
@@ -579,12 +579,12 @@ export default function ContextPage() {
   // block were ThreePanelLayout-side affordances. Chat affordances
   // now live in the universal ChatDrawer FAB (singular summon path).
 
-  // Tree pane content. ADR-329 D2: "Recently authored" feed leads the
-  // substrate surface — the operator's "what changed in my workspace" glance
-  // — above the full explorer tree. Self-hides when nothing authored yet.
+  // Tree pane content — just the explorer tree (the sidebar Recently-authored
+  // feed is deleted per ADR-329 Amendment 2; the workspace-wide recency view
+  // now lives in the center pane as the Finder "Recents" empty-state, where
+  // filenames are readable. Singular Implementation: one recency view).
   const treePaneContent = (
     <div className="flex-1 overflow-y-auto">
-      <RecentlyAuthored onSelectPath={handleExplorerSelect_byPath} selectedPath={selectedPath} />
       {fileTreeLoading && treeNodes.length === 0 ? (
         <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
           <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -712,11 +712,14 @@ export default function ContextPage() {
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center max-w-xs">
-              <FolderOpen className="w-8 h-8 text-muted-foreground/15 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">Select a file or folder from the explorer</p>
-            </div>
+          // ADR-329 Amendment 2: the center pane's empty state IS the Finder
+          // "Recents" view — a columnar glance of recent authored changes
+          // across the workspace, replacing the bare "select a file"
+          // placeholder. Selecting a row swaps to the node view; the
+          // workspace-wide recency question lives here (center pane), the
+          // per-node history question lives in Get Info/Details.
+          <div className="flex-1 min-h-0">
+            <RecentRevisions onSelectPath={handleExplorerSelect_byPath} />
           </div>
         )}
       </div>

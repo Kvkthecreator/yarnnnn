@@ -1,11 +1,34 @@
 # ADR-329 — Files as the Operator's Substrate Surface: Five File Verbs, Two Operator / Two System / One Shared
 
-> **Status**: IMPLEMENTED (2026-06-08). **Amended 2026-06-10** (D2 reshape — see Amendment 1). Drafted + implemented by KVK + Claude. Frontend re-composition + one read-only route + one route-behavior change; no schema change.
+> **Status**: IMPLEMENTED (2026-06-08). **Amended 2026-06-10** (D2 reshape — see Amendment 1). **Amended 2026-06-19** (D2 re-ratified in its Finder shape — see Amendment 2). Drafted + implemented by KVK + Claude. Frontend re-composition + one read-only route + one route-behavior change; no schema change.
 > **Date**: 2026-06-08
 > **Authors**: KVK, Claude
 > **Hat**: A (System Editor) — reshapes the operator-facing Files surface real operators inherit.
 > **Dimensional classification**: **Channel** (Axiom 6 — how the operator perceives + acts on authored work) primary; **Substrate** (Axiom 1 — Layer 1 made legible) + **Mechanism** (Axiom 5 — the file-verb permission carve) secondary.
 > **Upstream discourse**: [substrate-portability-swap-test-2026-06-08.md](../analysis/substrate-portability-swap-test-2026-06-08.md) ("the OS metaphor's frontend payoff is the two things only Layer 1 can show that a Finder cannot: attribution/provenance, and the permission topology made legible") + [ADR-328](ADR-328-substrate-portability-invariant.md) (Layer 1 is the authored, attributed, portable substrate; Layer 2 is reconstructable cache).
+
+---
+
+## Amendment 2 (2026-06-19) — the workspace-wide recency view is canon, in its Finder **Recents** shape (center pane, not sidebar feed)
+
+**Status correction first.** Amendment 1 deleted `RecentlyAuthored.tsx` + the `recent-revisions` route. A later commit (`ba22d0b`) re-added them as a sidebar feed leading the Files surface — **without amending this ADR**. So for a window the code ran a shape the canon had retired, and the sidebar feed sat *next to* the `NodeDetailsPanel` that replaced it. Operator-observed (KVK 2026-06-19, against the live Files window vs macOS Finder Recents): the sidebar feed truncates filenames to illegibility (`judgment_…`, `OCCUPANT.…`) in the 280px rail, while the wide center pane sits empty (`Select a file or folder`). The Finder analog is the inverse — Recents *fills the main pane* with readable, columnar rows.
+
+**What changed:** the workspace-wide recency view is **re-ratified** as canon, **as a Finder-faithful `Recents` view in the center pane** (the empty-state of the surface), **not** as the sidebar feed Amendment 1 rightly killed. The component is `RecentRevisions` (renamed from `RecentlyAuthored`); it renders a columnar table (**Name · Where · Author · When**, full filenames, full-width) when no node is selected. The OS-native label is **"Recents"** (Finder's word), not "Recently authored."
+
+**Why this is NOT a revival of what Amendment 1 killed** — Amendment 1 raised three objections; the Finder shape answers each rather than re-incurring it:
+1. *"Two stacked recency views"* — the center Recents table renders **only when nothing is selected**; the per-node revision view (NodeDetailsPanel) renders **only when something is selected**. They are **mutually exclusive by construction** — they can never co-render, so there is no stacking. (Amendment 1's failure was a *sidebar feed* that co-rendered with the body revision panel; that specific shape stays dead.)
+2. *"'authored' reads as jargon"* — fixed: the view is labeled **"Recents"** (OS-native), and rows show **plain who/where/when**, not "authored substrate delta."
+3. *"The data is fundamentally per-node"* — half-true, and Finder itself draws the line we now draw: **per-node history is Get Info/Details** (this file's chain), **workspace-wide "what changed while I was away" is the Recents view** (a different question, not a per-node property). Amendment 1 conflated "the feed *shape* was wrong in the sidebar" with "a workspace-wide view is wrong." Amendment 2 separates them: the *shape* (sidebar feed) stays retired; the *workspace-wide question* gets its honest Finder home (center pane).
+
+**Net effect on the five verbs:** unchanged (same as Amendment 1). `read`-includes-provenance now has **two complementary surfaces**, matching Finder: the **Recents** view (workspace-wide glance, center pane, empty-state) + **Get Info/Details** (per-node history, on selection). `add`/`delete`/`edit`/`index` untouched.
+
+**Implementation (shipped 2026-06-19):**
+- **RESTORED + RESHAPED:** `web/components/workspace/RecentRevisions.tsx` (renamed from the re-added `RecentlyAuthored.tsx`) — a Finder-style **Recents table** for the center pane: columns **Name · Where · Author · When**, full filenames (no truncation), `Where` derived from the path's section, `When` Finder-relative. Rows deep-link into the file (`onSelectPath`). The cramped sidebar mount is **deleted** — Singular Implementation: one recency view, in the center pane.
+- **CENTER-PANE EMPTY STATE:** `files/page.tsx` renders `<RecentRevisions>` in the center pane when `selectedNode` is null (replacing the bare `Select a file or folder` placeholder). Selecting a row (or any tree node) swaps the center pane to the node view; deselecting returns to Recents — exactly Finder's Recents↔file behavior.
+- **ROUTE:** `GET /api/workspace/recent-revisions` (re-added by `ba22d0b`) is **kept** — it is the right data source for the workspace-wide view. (Amendment 1 deleted it only because the feed shape was wrong; the data question is valid.)
+- **GET INFO/DETAILS:** `NodeDetailsPanel` (Amendment 1) is **retained unchanged** — it answers the per-node question, complementary to Recents.
+
+**Preserves:** D1 (read-includes-provenance — now via Recents + Details + the header glance), D3–D6 (verbs), ADR-209 (revision chain is the data), ADR-328 D6 (Layer-1-only). **Supersedes:** Amendment 1's deletion of the workspace-wide view *as a concept* (the sidebar-feed *shape* it killed stays dead; the center-pane Finder shape is the re-ratified form). **Amends:** the `ba22d0b` re-add (which was unratified) is now ratified in corrected form.
 
 ---
 

@@ -20,9 +20,12 @@
  * Both read Layer-1 only (ADR-328 D6): path / authored_by / message /
  * created_at. No embeddings, no search internals.
  *
- * This replaces the deleted RecentlyAuthored left-rail feed: the same
- * authored-substrate data, surfaced as a scoped node property instead of a
- * permanent workspace-wide rail.
+ * Per-node history (Get Info), complementary to the workspace-wide Recents
+ * view (ADR-329 Amendment 2, `RecentRevisions`, center-pane empty-state):
+ * Details answers "this file's chain"; Recents answers "what changed across
+ * the workspace while I was away." Same Layer-1 data, two Finder-faithful
+ * scopes — they never co-render (Details on selection; Recents when nothing
+ * is selected).
  */
 
 import { useEffect, useState, useCallback } from 'react';
