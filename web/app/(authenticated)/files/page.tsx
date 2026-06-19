@@ -45,6 +45,7 @@ import {
   FolderOpen,
   X,
   Info,
+  History,
 } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import type { DeskSurface } from '@/types/desk';
@@ -579,10 +580,14 @@ export default function ContextPage() {
   // block were ThreePanelLayout-side affordances. Chat affordances
   // now live in the universal ChatDrawer FAB (singular summon path).
 
-  // Tree pane content — just the explorer tree (the sidebar Recently-authored
-  // feed is deleted per ADR-329 Amendment 2; the workspace-wide recency view
-  // now lives in the center pane as the Finder "Recents" empty-state, where
-  // filenames are readable. Singular Implementation: one recency view).
+  // Tree pane content — a "Recents" sidebar nav item (ADR-329 Amendment 2)
+  // above the explorer tree. Clicking it deselects the current node, which
+  // returns the center pane to the Finder "Recents" view (the empty-state).
+  // This is Finder's sidebar Recents item — the navigational way BACK to the
+  // recency view once you've opened a file. Active (highlighted) when nothing
+  // is selected. The cramped sidebar feed it replaces is deleted; the recency
+  // DATA lives in the center pane where filenames are readable (Singular
+  // Implementation: one recency view, reached by this nav item).
   const treePaneContent = (
     <div className="flex-1 overflow-y-auto">
       {fileTreeLoading && treeNodes.length === 0 ? (
@@ -592,6 +597,20 @@ export default function ContextPage() {
         </div>
       ) : treeNodes.length > 0 ? (
         <div className="p-2">
+          <button
+            onClick={() => setSelectedPath(null)}
+            aria-current={selectedPath === null ? 'page' : undefined}
+            className={cn(
+              'w-full flex items-center gap-2 px-2 py-1.5 mb-1 rounded-md text-left text-sm transition-colors',
+              selectedPath === null
+                ? 'bg-primary/10 text-foreground font-medium'
+                : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+            )}
+            title="Recent changes across the workspace"
+          >
+            <History className="w-4 h-4 shrink-0" />
+            <span>Recents</span>
+          </button>
           <WorkspaceTree
             nodes={treeNodes}
             selectedPath={selectedPath || undefined}
