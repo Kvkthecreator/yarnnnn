@@ -142,10 +142,17 @@ from services.platform_tools import (
 
 CLARIFY_TOOL = {
     "name": "Clarify",
-    "description": """Ask the user for input before proceeding.
+    "description": """Surface a decision only the operator can make (ADR-352).
 
-Use when you need more information or want to offer choices.
-Appears as a focused prompt.""",
+This is the structural-gap escalation valve, NOT a way to enumerate operational
+options. Under a delegated (`autonomous`) mandate you act — pick the disciplined
+action your framework names and execute it; asking to choose is unavailable and
+will be denied. Clarify is reachable under `autonomous` ONLY for an ADR-344 (B)
+gap: the operation cannot produce what its mandate owes (a declared output with
+no organ to originate it), or a floor/mandate change only the operator can
+authorize. Set `structural_gap=true` in that case and name the missing organ.
+Under `bounded`/`manual` delegation the operator wants to witness, so asking is
+freely available.""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -157,6 +164,16 @@ Appears as a focused prompt.""",
                 "type": "array",
                 "items": {"type": "string"},
                 "description": "Optional list of choices"
+            },
+            "structural_gap": {
+                "type": "boolean",
+                "description": (
+                    "ADR-344 (B) marker. Set true ONLY when surfacing a "
+                    "structural gap (a declared output with no organ to "
+                    "originate it) or a floor/mandate change only the operator "
+                    "can authorize — the one ask `autonomous` permits. Never "
+                    "set true to enumerate operational options."
+                ),
             }
         },
         "required": ["question"]
@@ -855,6 +872,27 @@ async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
     from .permission import resolve_permission, PermissionDecision
     decision, reason = await resolve_permission(auth, name, input)
     if decision == PermissionDecision.DENY:
+        # ADR-352: a denied Clarify under `autonomous` is the ask-gate telling
+        # the seat to ACT, not a governance-locked path. Give it forward
+        # guidance (ADR-318: reason forward from a denied call) instead of the
+        # path-lock message.
+        if name == "Clarify" and reason == "ask_denied:autonomous_default_is_act":
+            return {
+                "success": False,
+                "error": "ask_denied",
+                "message": (
+                    "Asking is not available under `autonomous` delegation — the "
+                    "operator delegated this work to you. Do NOT enumerate options. "
+                    "Pick the most disciplined action your framework names and "
+                    "execute it (propose, author standing_intent, refresh, research). "
+                    "If you genuinely cannot produce what your mandate owes — a "
+                    "declared output with no organ to originate it, or a floor/"
+                    "mandate change only the operator can authorize (ADR-344 (B)) — "
+                    "re-call Clarify with structural_gap=true, naming the missing "
+                    "organ. That is the only ask `autonomous` permits."
+                ),
+                "primitive": name,
+            }
         return {
             "success": False,
             "error": "governance_locked",

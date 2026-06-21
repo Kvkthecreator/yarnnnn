@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.21.2] - ADR-352: ask-vs-act becomes a governance-derived outcome (Clarify joins the gate)
+
+**LLM-facing changes:**
+
+- **`services/primitives/registry.py` (CLARIFY_TOOL description + schema)** — rewritten from the permissive "Ask the user for input… use when you want to offer choices" to the structural-gap escalation framing. New optional input `structural_gap: bool` is the machine-checkable carrier of the ADR-344 (B) classification (a declared output with no organ, or a floor/mandate change only the operator can authorize). The description tells the model: under `autonomous` you act; asking-to-choose is unavailable and will be denied; the one permitted ask is `structural_gap=true`.
+- **`services/primitives/permission.py`** — `Clarify` REMOVED from `READ_ONLY_PRIMITIVES`; it is now a gate-owned primitive. New ask-gate branch in `resolve_permission`: Reviewer-authored `Clarify` resolves from the witness dial (`_autonomy.yaml` delegation) — `bounded`/`manual` → APPLY (operator wants to witness); `autonomous` → DENY unless `structural_gap=true`. Non-Reviewer callers APPLY. A denied Clarify returns an `ask_denied` result whose message instructs the seat to act or re-call with `structural_gap=true` (forward guidance per ADR-318).
+- **`agents/reviewer_agent.py` (persona-frame SHRINKS)** — the minimal-frame "asking is the rare exception" sentence and the addressed-trigger "DO NOT enumerate options" paragraph are collapsed to single clauses that point at the runtime enforcement (the ask-gate). The standing-obligation (B) clause now names `Clarify(structural_gap=true)` as the one permitted ask. Net: less prose, enforcement moved from persuasion to the gate (consistent with agent-composition.md §3.2.1 "code-enforced → no prose enumeration").
+- **Expected behavior:** under `autonomous` + a production mandate, the Reviewer can no longer bounce an enumerated A/B choice back to the operator when it should act — the gate denies it and the seat picks the disciplined action (propose / standing_intent / refresh / research). The genuine structural-gap surface (ADR-344 (B)) survives via the `structural_gap` flag. Fixes the run-to-run ask-vs-act variance documented in `docs/evaluations/2026-06-21-kvk-clarify-variance-ask-vs-act/`.
+
 ## [2026.06.21.1] - ADR-351 Phase 1: addressed Reviewer cycle streams reasoning token-by-token
 
 **LLM-facing changes:**

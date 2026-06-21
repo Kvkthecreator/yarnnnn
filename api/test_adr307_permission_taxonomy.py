@@ -67,14 +67,21 @@ def test_every_read_primitive_is_read_only():
         "GetSystemState", "DiscoverAgents", "list_integrations",
         # external read
         "WebSearch",
-        # narration
-        "Clarify", "ReturnVerdict",
+        # narration — ReturnVerdict only. `Clarify` is gate-owned per ADR-352
+        # (the witness dial governs whether asking is available); it is
+        # deliberately NOT read-only.
+        "ReturnVerdict",
     ]
     for name in must_be_read_only:
         assert is_read_only(name), (
             f"{name} must be declared read_only per ADR-307 D2 "
             "(reads/narration never gate)"
         )
+    # ADR-352 — Clarify was reclassified out of read_only.
+    assert not is_read_only("Clarify"), (
+        "Clarify is gate-owned per ADR-352 — it must NOT be read_only "
+        "(the ask-gate derives APPLY/DENY from the witness dial)."
+    )
 
 
 def test_consequential_default_is_fail_closed():

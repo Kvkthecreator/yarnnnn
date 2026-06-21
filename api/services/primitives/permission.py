@@ -79,11 +79,13 @@ READ_ONLY_PRIMITIVES: frozenset[str] = frozenset({
     "list_integrations",
     # External read
     "WebSearch",
-    # Narration / interaction (non-consequential — emit narrative, mutate no
-    # operator/operational substrate). ReturnVerdict closes the Reviewer turn;
-    # Clarify surfaces a question. Neither is a substrate mutation or external
-    # effect that the operator must pre-approve.
-    "Clarify",
+    # Narration (non-consequential — emit narrative, mutate no
+    # operator/operational substrate). ReturnVerdict closes the Reviewer turn.
+    # NOTE: `Clarify` is deliberately NOT here (ADR-352). Asking the operator to
+    # choose instead of acting is the inverse of binding-without-witness, so the
+    # witness dial (`_autonomy.yaml` delegation, ADR-345) governs whether asking
+    # is available — exactly as it governs binding. Clarify is a gate-owned
+    # primitive; the ask-gate branch in resolve_permission derives APPLY/DENY.
     "ReturnVerdict",
 })
 
@@ -182,6 +184,40 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
     # Read-only / narration → never gates (ADR-307 D2).
     if is_read_only(name):
         return PermissionDecision.APPLY, "read_only"
+
+    # Ask-gate — ADR-352. Clarify is governed by the witness dial, not free.
+    # Asking the operator to choose instead of acting is the inverse of
+    # binding-without-witness; the same delegation dial that decides which
+    # binds without witness decides whether asking is available.
+    #   - bounded/manual  → APPLY (the operator wants to witness; asking is
+    #     theirs to receive).
+    #   - autonomous      → DENY, UNLESS the call carries structural_gap=true
+    #     (the ADR-344 (B) escalation: the operation cannot produce what it
+    #     owes, or a floor/mandate change only the operator can authorize).
+    #     A quiet-world (A) condition resolves to ACT, never to a Clarify.
+    # Scoped to the Reviewer seat (like the autonomy gate, ADR-293); operator/
+    # headless/MCP callers are not the installed judgment and may ask freely.
+    if name == "Clarify":
+        if not getattr(auth, "reviewer_caller", False):
+            return PermissionDecision.APPLY, "ask_permitted:non_reviewer_caller"
+        try:
+            from services.review_policy import load_autonomy, autonomy_for_domain
+            delegation = (
+                autonomy_for_domain(load_autonomy(auth.client, auth.user_id), "")
+                .get("delegation", "manual")
+            )
+        except Exception as exc:  # fail open for asking — a witness-mode default
+            logger.warning(
+                "[PERMISSION] ask-gate failed for Clarify: %s — defaulting to "
+                "APPLY (witness mode).", exc,
+            )
+            return PermissionDecision.APPLY, f"ask_gate_error:{exc}"
+        if delegation in ("bounded", "manual"):
+            return PermissionDecision.APPLY, f"ask_permitted:witness_mode:{delegation}"
+        # autonomous
+        if input.get("structural_gap") is True:
+            return PermissionDecision.APPLY, "ask_permitted:structural_gap"
+        return PermissionDecision.DENY, "ask_denied:autonomous_default_is_act"
 
     # Foreign-LLM (MCP) caller gate — ADR-310 follow-on.
     # The MCP caller is lower-trust than operator/Reviewer: it may contribute to
