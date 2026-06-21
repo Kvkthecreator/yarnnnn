@@ -1642,6 +1642,14 @@ async def stream_addressed_wake(
         phase = event.get("phase")
         tool_name = event.get("tool", "?")
 
+        # ADR-351 Phase 1: reasoning tokens stream as their own SSE event so
+        # the frontend appends them to the live Reviewer bubble as they arrive
+        # (not buffered to the terminal reviewer_response). Distinct type so
+        # the consumer never has to demux text out of generic progress frames.
+        if phase == "text_delta":
+            yield {"type": "text_delta", "text": event.get("text", ""), "round": event.get("round")}
+            continue
+
         yield {"type": "progress", "event": event}
 
         if phase == "tool_end":
@@ -1686,6 +1694,9 @@ async def stream_addressed_wake(
             break
         phase = event.get("phase")
         tool_name = event.get("tool", "?")
+        if phase == "text_delta":
+            yield {"type": "text_delta", "text": event.get("text", ""), "round": event.get("round")}
+            continue
         yield {"type": "progress", "event": event}
         if phase == "tool_end":
             summary = event.get("summary", "")

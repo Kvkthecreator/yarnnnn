@@ -49,7 +49,7 @@ import logging
 import re
 from typing import Any, Literal, Optional, TypedDict
 
-from services.anthropic import chat_completion_with_tools
+from services.anthropic import chat_completion_with_tools, chat_completion_with_tools_stream
 # ADR-291: token_usage substrate sunset — cost ledger writes flow through
 # `record_execution_event()` in the dispatcher, fed by ReviewerOutput fields.
 
@@ -1158,14 +1158,43 @@ async def invoke_reviewer(
             # WriteFile regularly exceeded 2048 output tokens, truncating the
             # call mid-input. max_tokens is a ceiling, not a cost — only
             # generated tokens bill.
-            response = await chat_completion_with_tools(
-                messages=messages,
-                system=_system_prompt(),
-                tools=tools,
-                model=model,
-                max_tokens=8192,
-                tool_choice=tool_choice,
-            )
+            # ADR-351 Phase 1: the addressed trigger (operator chat turn over
+            # the SSE-streamed wake) uses the tool-aware STREAMING call so the
+            # Reviewer's reasoning reaches the operator token-by-token as it
+            # generates — fulfilling ADR-260 §D6 (its streaming half was never
+            # built; the blocking call buffered the whole block to cycle-end).
+            # reactive/scheduled wakes have no live operator listening and keep
+            # the blocking call (ADR-351 §4 + §6 Phase 3 deferral). The
+            # returned ChatResponse is identical in both branches, so the
+            # downstream loop (truncation guard, usage, tool dispatch) is
+            # untouched.
+            if trigger == "addressed":
+                async def _on_text_delta(chunk: str) -> None:
+                    await _emit({
+                        "phase": "text_delta",
+                        "round": rounds_used,
+                        "trigger": trigger,
+                        "text": chunk,
+                    })
+
+                response = await chat_completion_with_tools_stream(
+                    messages=messages,
+                    system=_system_prompt(),
+                    tools=tools,
+                    model=model,
+                    max_tokens=8192,
+                    tool_choice=tool_choice,
+                    on_text_delta=_on_text_delta,
+                )
+            else:
+                response = await chat_completion_with_tools(
+                    messages=messages,
+                    system=_system_prompt(),
+                    tools=tools,
+                    model=model,
+                    max_tokens=8192,
+                    tool_choice=tool_choice,
+                )
 
             usage = response.usage or {}
             total_input += int(usage.get("input_tokens", 0) or 0)

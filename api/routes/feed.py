@@ -1185,6 +1185,14 @@ async def global_chat(
                         success = ev.get("success", True)
                         yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'tool_end', 'tool': tool_name, 'summary': summary, 'success': success})}\n\n"
 
+                elif etype == "text_delta":
+                    # ADR-351 Phase 1: relay the Reviewer's reasoning tokens as
+                    # they generate. The terminal reviewer_response (below)
+                    # remains the persist+finalize point; this carries the live
+                    # text so Phase 2's FE can append it to a streaming bubble
+                    # instead of waiting for the whole block at cycle-end.
+                    yield f"data: {json.dumps({'reviewer_progress': True, 'phase': 'text_delta', 'text': event.get('text', ''), 'round': event.get('round')})}\n\n"
+
                 elif etype == "agent_narration":
                     tool_name = event.get("tool", "?")
                     narration = event.get("narration", "")

@@ -7,11 +7,14 @@ ADR-007: Tool infrastructure for agent authority
 
 import os
 import logging
-from typing import AsyncGenerator, Optional, Any, Union
+from typing import AsyncGenerator, Awaitable, Callable, Optional, Any, Union
 from dataclasses import dataclass
 from anthropic import AsyncAnthropic
 
 logger = logging.getLogger(__name__)
+
+# ADR-351: async callback receiving each reasoning-text chunk as it streams.
+TextDeltaCallback = Callable[[str], Awaitable[None]]
 
 
 @dataclass
@@ -256,6 +259,84 @@ async def chat_completion_with_tools(
 
     response = await client.messages.create(**kwargs)
     return _parse_response(response)
+
+
+async def chat_completion_with_tools_stream(
+    messages: list[dict],
+    system: str | list[dict],
+    tools: list[dict],
+    model: str = "claude-sonnet-4-6",
+    max_tokens: int = 4096,
+    tool_choice: Optional[dict] = None,
+    on_text_delta: Optional["TextDeltaCallback"] = None,
+) -> ChatResponse:
+    """
+    Tool-aware STREAMING chat completion (ADR-351 Phase 1).
+
+    Identical contract to chat_completion_with_tools() — returns the SAME
+    ChatResponse (content blocks, stop_reason, text, tool_uses, usage incl.
+    cache metrics) so the Reviewer loop's downstream handling (truncation
+    guard, usage accounting, tool dispatch) is untouched. The only addition
+    is on_text_delta: an async callback invoked with each reasoning-text
+    chunk AS IT GENERATES, so the addressed wake can relay text_delta SSE
+    events and the operator watches the Reviewer reason in real time instead
+    of receiving the whole block at cycle-end.
+
+    Why this exists: chat_completion_stream() (above) is tool-LESS. The
+    Reviewer loop needs tools, so it took the blocking chat_completion_with_tools().
+    With a blocking call there is nothing to stream — that is the ADR-260 §D6
+    spec/implementation divergence ADR-351 closes. This is the tool-aware
+    streaming variant the streaming spec always assumed.
+
+    Args:
+        messages: List of {"role": "user"|"assistant", "content": str|list}
+        system: System prompt (string or content blocks with cache_control)
+        tools: List of tool definitions
+        model: Model ID
+        max_tokens: Maximum response tokens
+        tool_choice: Optional {"type": "auto"|"any"|"tool", "name": "..."}
+        on_text_delta: Optional async callback(str) invoked per reasoning chunk.
+                       Best-effort — exceptions are swallowed so a flaky relay
+                       never breaks the LLM cycle.
+
+    Returns:
+        ChatResponse identical in shape to chat_completion_with_tools().
+    """
+    client = get_anthropic_client()
+
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "system": _prepare_system(system),
+        "messages": messages,
+        "tools": tools,
+        "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
+    }
+    if tool_choice:
+        kwargs["tool_choice"] = tool_choice
+
+    async with client.messages.stream(**kwargs) as stream:
+        if on_text_delta is not None:
+            async for text in stream.text_stream:
+                try:
+                    await on_text_delta(text)
+                except Exception as cb_exc:  # noqa: BLE001 — relay must never break the cycle
+                    logger.debug("[STREAM] on_text_delta raised: %s", cb_exc)
+        else:
+            # No relay subscriber — still must drain the stream so the
+            # final message assembles. Iterating text_stream is the SDK's
+            # supported drain path.
+            async for _ in stream.text_stream:
+                pass
+
+        final = await stream.get_final_message()
+
+    # get_final_message() returns the same Message shape messages.create()
+    # returns — content blocks (text + tool_use, with partial-JSON salvage
+    # for a truncated trailing tool_use), stop_reason, and usage. Parsing it
+    # through the SAME _parse_response() guarantees an identical ChatResponse,
+    # including cache_read/cache_creation metrics for the ADR-291 cost ledger.
+    return _parse_response(final)
 
 
 async def chat_completion_stream(

@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.21.1] - ADR-351 Phase 1: addressed Reviewer cycle streams reasoning token-by-token
+
+**LLM-facing changes:**
+
+- **`agents/reviewer_agent.py`** — the `addressed` trigger (operator chat turn over the SSE-streamed wake) now uses a tool-aware STREAMING LLM call (`chat_completion_with_tools_stream`) instead of the blocking `chat_completion_with_tools`. The Reviewer's reasoning reaches the operator token-by-token as it generates, fulfilling ADR-260 §D6 (whose streaming half was specified but never built — the blocking call buffered the whole reasoning block to cycle-end). `reactive`/`scheduled` wakes keep the blocking call (no live operator listening; ADR-351 §4 + §6 Phase 3 deferral).
+- **No prompt/persona-frame text changed.** Intent-narration is the persona reasoning aloud (already in the model's behavior) — Phase 1 simply stops buffering it. ADR-306/323 frame ceiling untouched.
+- **Expected behavior:** identical verdicts/actions (the returned `ChatResponse` is shape-identical incl. usage/cache metrics — ADR-291 cost ledger preserved); the only observable change is that an addressed turn's reasoning now emits as `text_delta` SSE events during the cycle rather than one block at the end. Frontend live-render is ADR-351 Phase 2 (not in this change).
+- Gate: `test_adr351_streaming_tools.py` (8/8). Sibling gates green: ADR-291/247/289/276/303 (59/59).
+
 ## [2026.06.19.4] - Kernel-universal Slack/Notion audience-writes + the ADR-307 platform-write gate
 
 **LLM-facing changes:**
