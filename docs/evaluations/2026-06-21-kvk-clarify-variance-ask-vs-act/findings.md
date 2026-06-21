@@ -89,6 +89,20 @@ This converts the streamlining instinct into something deterministic: the frame 
 
 ---
 
+## 5b. Resolution + live verification (2026-06-21)
+
+Fixed in **ADR-352** (commits `b443a91` gate+frame+canon, `e27759d` loop-recovery). The first deploy's unit gate passed but a 5× live batch showed 4/5 still deferring — the gate fired DENY correctly but two downstream sites swallowed it (loop closed the turn on a denied Clarify; persistence leaked the denied question). Both fixed.
+
+**Post-fix 5× live batch (kvk, `autonomous`, deploy e27759d, execution_events 05:11–05:15):**
+
+| metric | pre-fix (v1) | post-fix (e27759d) |
+|---|---|---|
+| clarify-only deferrals (the bug) | 4 / 5 | **0 / 5** |
+| acted (standing_intent / refresh / stand-down) | 1 / 5 | **5 / 5** |
+| leaked clarify questions in DB | 4 | **0** |
+
+Narration across the post-fix runs is the target posture — the seat figuring out how to reach the mandate, not asking: *"waiting is framework-required, not deferral"* · *"forcing a trade today would prove the opposite of what we want to prove"* · *"I am not re-litigating my judgment each time they ask — that would be deference dressed as iteration."* **Criterion met: 0 clarify-only deferrals across 5 runs.** Variance eliminated, not merely shifted.
+
 ## 6. Receipts index
 
 - Run 1 (violation): `session_messages` session `fc05d847-5dfa-4782-883e-a489d9c66e2e` seq 2 (metadata `tools_used:["Clarify"]`, `clarify_options:["A: Wait…","B: Override…"]`) + `execution_events` row 2026-06-21 03:27:39 (`addressed/escalate`, tool_rounds 6, $0.308).
