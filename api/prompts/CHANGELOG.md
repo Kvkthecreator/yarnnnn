@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.21.3] - ADR-350: the standing obligation rendered (Notifications → To do)
+
+**Not an LLM-facing change** (FE-only render; recorded for completeness). The Reviewer's wake-time owed-vs-actual derivation (ADR-344/DP30) was diagnosed silently; ADR-350 surfaces it.
+
+- `web/components/queue/StandingBand.tsx` mounts above the proposal queue in the "To do" pane: Read-1 = the declared output contract (`governance/_expected_output.yaml`, reusing the ADR-348 hook); Read-2 = the Reviewer's `persona/standing_intent.md` rendered as **prose as-is** (no field-parsing — forward-compatible with posture-layer reshaping). Framed as a Decide, never "blocked" (ADR-345 witness reframe). Reads substrate, never authors it (no new primitive/schema — ADR-344 §7).
+- Forward path now open via **ADR-352** (`structural_gap` on Clarify): a (B) structural gap is now machine-tagged on the gated proposal, so a future band revision can surface it as a distinct Decide affordance — the deferral in ADR-350's note is now unblocked as a follow-on.
+- Gate: `test_adr350_standing_band.py` (7/7 FE source-guards) + `web/ tsc --noEmit` clean.
+
 ## [2026.06.21.2] - ADR-352: ask-vs-act becomes a governance-derived outcome (Clarify joins the gate)
 
 **LLM-facing changes:**

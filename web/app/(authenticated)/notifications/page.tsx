@@ -33,6 +33,7 @@ import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { useAgentsAndRecurrences } from "@/hooks/useAgentsAndRecurrences";
 import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { QueueBody } from "@/components/queue/QueueBody";
+import { StandingBand } from "@/components/queue/StandingBand";
 import { FeedSurface } from "@/components/feed-surface/FeedSurface";
 import { RecurrenceList } from "@/components/work/RecurrenceList";
 
@@ -96,6 +97,10 @@ export default function OperationPage() {
               link={<MirrorLink label="Open full Queue" onClick={() => navigateToSurface("queue")} />}
             />
             <div className="flex-1 overflow-y-auto p-6">
+              {/* ADR-350: the standing obligation (owed-vs-actual + the
+                  Reviewer's standing intent) renders above the discrete
+                  proposals — an unmet mandate is the deepest "to do". */}
+              <StandingBand />
               <QueueBody />
             </div>
           </div>
