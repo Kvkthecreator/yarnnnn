@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.21.4] - ADR-352 loop-recovery: a gate-denied Clarify must not be swallowed downstream
+
+**LLM-facing changes:**
+
+- **`agents/reviewer_agent.py`** — the close-the-turn nudge after Clarify (`clarify_called_this_round`) now requires the Clarify to have SUCCEEDED. A gate-DENIED Clarify (autonomous, no structural_gap) no longer fires the "question surfaced → ReturnVerdict(stand_down)" nudge — the loop continues so the occupant reads the `ask_denied` guidance and acts this same wake. (Found by the 5× live batch: the first deploy's gate fired DENY correctly, but the loop closed the turn anyway.)
+- **`services/reviewer_chat_surfacing.py`** — a blocked Clarify no longer leaks its enumerated `clarify_question`/`options` to the operator-facing message; it renders as a blocked action. (The live SSE path already guarded on success; the persistence path did not.)
+- **`services/primitives/permission.py`** — ask-gate decision extracted to `_resolve_ask_gate` + always-on `[ASK-GATE]` decision log line (telemetry, no behavior change).
+- **Expected behavior:** under `autonomous`, the occupant that reaches for an enumerated Clarify now gets denied AND the turn does not close on it — it proceeds to act (propose / standing_intent / refresh). Removes the residual variance the [2026.06.21.2] gate alone did not close.
+
 ## [2026.06.21.3] - ADR-350: the standing obligation rendered (Notifications → To do)
 
 **Not an LLM-facing change** (FE-only render; recorded for completeness). The Reviewer's wake-time owed-vs-actual derivation (ADR-344/DP30) was diagnosed silently; ADR-350 surfaces it.

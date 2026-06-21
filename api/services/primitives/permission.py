@@ -161,6 +161,43 @@ _PATH_ADDRESSED_QUEUEABLE: frozenset[str] = frozenset({
 })
 
 
+def _resolve_ask_gate(auth: Any, input: dict) -> tuple[PermissionDecision, str]:
+    """ADR-352 ask-gate. Clarify is governed by the witness dial, not free.
+
+    Asking the operator to choose instead of acting is the inverse of
+    binding-without-witness; the same delegation dial that decides which acts
+    bind without witness decides whether asking is available.
+      - non-reviewer caller → APPLY (operator/headless/MCP are not the
+        installed judgment; the dial does not govern their asking).
+      - bounded/manual      → APPLY (the operator wants to witness; asking is
+        theirs to receive).
+      - autonomous          → DENY, UNLESS structural_gap=true (the ADR-344 (B)
+        escalation: the operation cannot produce what it owes, or a floor/
+        mandate change only the operator can authorize). A quiet-world (A)
+        condition resolves to ACT, never to a Clarify.
+    """
+    if not getattr(auth, "reviewer_caller", False):
+        return PermissionDecision.APPLY, "ask_permitted:non_reviewer_caller"
+    try:
+        from services.review_policy import load_autonomy, autonomy_for_domain
+        delegation = (
+            autonomy_for_domain(load_autonomy(auth.client, auth.user_id), "")
+            .get("delegation", "manual")
+        )
+    except Exception as exc:  # fail open for asking — a witness-mode default
+        logger.warning(
+            "[PERMISSION] ask-gate failed for Clarify: %s — defaulting to "
+            "APPLY (witness mode).", exc,
+        )
+        return PermissionDecision.APPLY, f"ask_gate_error:{exc}"
+    if delegation in ("bounded", "manual"):
+        return PermissionDecision.APPLY, f"ask_permitted:witness_mode:{delegation}"
+    # autonomous
+    if input.get("structural_gap") is True:
+        return PermissionDecision.APPLY, "ask_permitted:structural_gap"
+    return PermissionDecision.DENY, "ask_denied:autonomous_default_is_act"
+
+
 async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[PermissionDecision, str]:
     """The single permission gate (ADR-307 D1). Called by execute_primitive
     BEFORE dispatching to a handler.
@@ -198,26 +235,17 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
     # Scoped to the Reviewer seat (like the autonomy gate, ADR-293); operator/
     # headless/MCP callers are not the installed judgment and may ask freely.
     if name == "Clarify":
-        if not getattr(auth, "reviewer_caller", False):
-            return PermissionDecision.APPLY, "ask_permitted:non_reviewer_caller"
-        try:
-            from services.review_policy import load_autonomy, autonomy_for_domain
-            delegation = (
-                autonomy_for_domain(load_autonomy(auth.client, auth.user_id), "")
-                .get("delegation", "manual")
-            )
-        except Exception as exc:  # fail open for asking — a witness-mode default
-            logger.warning(
-                "[PERMISSION] ask-gate failed for Clarify: %s — defaulting to "
-                "APPLY (witness mode).", exc,
-            )
-            return PermissionDecision.APPLY, f"ask_gate_error:{exc}"
-        if delegation in ("bounded", "manual"):
-            return PermissionDecision.APPLY, f"ask_permitted:witness_mode:{delegation}"
-        # autonomous
-        if input.get("structural_gap") is True:
-            return PermissionDecision.APPLY, "ask_permitted:structural_gap"
-        return PermissionDecision.DENY, "ask_denied:autonomous_default_is_act"
+        decision, reason = _resolve_ask_gate(auth, input)
+        # ADR-352 — always-on gate-decision telemetry. One line per Clarify so
+        # the live logs (and the eval harness) read the exact decision+reason
+        # rather than inferring it from downstream surfacing.
+        logger.info(
+            "[ASK-GATE] decision=%s reason=%s reviewer=%s structural_gap=%s",
+            decision.value, reason,
+            getattr(auth, "reviewer_caller", False),
+            input.get("structural_gap"),
+        )
+        return decision, reason
 
     # Foreign-LLM (MCP) caller gate — ADR-310 follow-on.
     # The MCP caller is lower-trust than operator/Reviewer: it may contribute to

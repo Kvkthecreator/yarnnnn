@@ -1447,7 +1447,12 @@ async def invoke_reviewer(
                     "content": result_text,
                 })
 
-                if name == "Clarify":
+                # ADR-352: only a Clarify the ask-gate ALLOWED surfaces a
+                # question and closes the turn. A DENIED Clarify (autonomous,
+                # no structural_gap) returned an `ask_denied` result — the loop
+                # must NOT treat it as "question surfaced / close now"; it lets
+                # the occupant read the deny guidance and act this same wake.
+                if name == "Clarify" and actions_taken[-1]["success"]:
                     clarify_called_this_round = True
 
             if verdict_raw is not None:

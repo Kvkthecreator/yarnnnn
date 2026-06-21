@@ -73,6 +73,15 @@ This is the Claude Code precedent applied honestly (`docs/analysis/claude-code-p
 - **Risk**: a legitimate operator-decision-required ask under `autonomous` gets DENY'd because the occupant didn't set `structural_gap`. Mitigation: the DENY message explicitly instructs the re-call with `structural_gap=true`; the occupant gets one cheap round to reclassify. This is strictly better than the status quo (a quiet-world Clarify that should never have fired).
 - **Revert**: re-add `"Clarify"` to `READ_ONLY_PRIMITIVES` and drop the ask-gate branch. One-commit revertible. The frame trim is independently revertible from git history.
 
+## 6b. Loop-recovery — the DENY must not be swallowed downstream (added after live batch)
+
+The first deploy's unit gate passed but a 5× live batch (kvk, `autonomous`) showed 4/5 still ending in a Clarify deferral. The gate was firing DENY correctly; **two downstream sites swallowed it**:
+
+- **Bug 1 (`reviewer_agent.py`)** — `invoke_reviewer` set `clarify_called_this_round = True` on *any* Clarify call, so a gate-DENIED Clarify still fired the "question surfaced → ReturnVerdict(stand_down)" nudge and closed the turn. Fix: gate the flag on `actions_taken[-1]["success"]` — a denied Clarify lets the loop continue so the seat reads the deny guidance and acts this same wake.
+- **Bug 2 (`reviewer_chat_surfacing.py`)** — `surface_reviewer_actions` stamped `clarify_question`/`options` onto the persisted operator-facing message for *any* Clarify, so a DENIED Clarify's enumerated A/B question leaked to the operator as if it had been asked (the live SSE path at `wake.py:1660` already guarded on `success`; the persistence path did not). Fix: gate the question/options stamp on `success` — a blocked Clarify renders as a blocked action, not a surfaced question.
+
+Lesson: a gate decision is only as good as the call sites that honor its result. The DENY result (`success=False`) must be respected by **every** consumer of the action record — loop-continuation logic AND operator surfacing. Always-on `[ASK-GATE]` decision telemetry (`permission.py::_resolve_ask_gate` + the log line) was added so a live eval reads the gate decision directly rather than inferring it from downstream surfacing.
+
 ## 7. Verification
 
 - Regression gate: `api/test_adr352_ask_gate.py` — asserts (a) `Clarify` not in `READ_ONLY_PRIMITIVES`, (b) autonomous + no structural_gap → DENY, (c) autonomous + structural_gap → APPLY, (d) bounded/manual → APPLY, (e) non-reviewer caller → APPLY.

@@ -563,7 +563,13 @@ async def surface_reviewer_actions(
         # question + options stamped on metadata so a future FE
         # response-affordance can render inline buttons without re-parsing
         # the body text.
-        if tool == "Clarify":
+        # ADR-352: only a Clarify the ask-gate ALLOWED (success) surfaces a
+        # question + options to the operator. A DENIED Clarify (autonomous, no
+        # structural_gap) must NOT leak its enumerated question as if it had
+        # been asked — it renders as a blocked action (narrate_reviewer_action_
+        # blocked above) and the seat acts instead. Without this guard the
+        # operator sees an A/B question the gate actually refused.
+        if tool == "Clarify" and success:
             row_role = "reviewer"
             clarify_input = action.get("input") or {}
             if isinstance(clarify_input, dict):
