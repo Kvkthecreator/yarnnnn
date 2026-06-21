@@ -836,35 +836,66 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                   totalTokens: event.usage.total_tokens,
                 });
               } else if (event.reviewer_progress) {
-                // ADR-258: Reviewer is mid-loop — surface tool-call progress
-                // as a transient streaming-status indicator. Cleared when
-                // reviewer_response arrives. NOT a chat bubble; the bubble
-                // arrives only when the Reviewer actually responds.
-                const tool = event.tool ?? '?';
                 const phase = event.phase;
-                let label: string;
-                // Map tool to a human verb so the operator sees what the
-                // Reviewer is *doing*, not the primitive name.
-                if (tool === 'ReadFile' || tool === 'ListFiles' || tool === 'SearchFiles') {
-                  label = phase === 'tool_start' ? 'Reviewer is reading substrate...' : 'Reviewer read substrate';
-                } else if (tool === 'ListRevisions' || tool === 'ReadRevision' || tool === 'DiffRevisions') {
-                  label = phase === 'tool_start' ? 'Reviewer is checking history...' : 'Reviewer checked history';
-                } else if (tool === 'GetSystemState' || tool === 'SearchEntities' || tool === 'LookupEntity' || tool === 'list_integrations') {
-                  label = phase === 'tool_start' ? 'Reviewer is checking system state...' : 'Reviewer checked system state';
-                } else if (tool === 'FireInvocation') {
-                  label = phase === 'tool_start' ? 'Reviewer is commissioning a recurrence...' : 'Reviewer fired a recurrence';
-                } else if (tool === 'ProposeAction') {
-                  label = phase === 'tool_start' ? 'Reviewer is preparing a proposal...' : 'Reviewer submitted a proposal';
-                } else if (tool === 'WriteFile') {
-                  label = phase === 'tool_start' ? 'Reviewer is writing notes...' : 'Reviewer wrote notes';
-                } else if (tool === 'Clarify') {
-                  label = phase === 'tool_start' ? 'Reviewer is preparing a question...' : 'Reviewer prepared a question';
-                } else if (tool === 'WebSearch') {
-                  label = phase === 'tool_start' ? 'Reviewer is searching the web...' : 'Reviewer searched the web';
+
+                // ADR-351 Phase 2: the Reviewer's reasoning streams token-by-
+                // token. On the first delta, insert a streaming REVIEWER bubble
+                // (the stream_start analog the Reviewer path never had — see the
+                // comment at the stream_start branch) and append progressively,
+                // mirroring the System Agent content path above. The bubble is
+                // TRANSIENT: when reviewer_response arrives, fetchAndSetHistory()
+                // replaces the whole scoped history with DB truth, dropping this
+                // placeholder and rendering the authoritative ReviewerCard. So
+                // the operator watches the reasoning build, then it settles into
+                // the persisted card — no duplicate.
+                if (phase === 'text_delta') {
+                  const chunk: string = event.text ?? '';
+                  if (!chunk) continue;
+                  if (!streamingMessageId) {
+                    streamingMessageId = crypto.randomUUID();
+                    // role:'reviewer' is what MessageDispatch keys the
+                    // reviewer-bubble on (MessageDispatch.tsx:77), matching a
+                    // real Reviewer history row.
+                    const reviewerPlaceholder: TPMessage = {
+                      id: streamingMessageId,
+                      role: 'reviewer',
+                      content: '',
+                      blocks: [],
+                      timestamp: new Date(),
+                      narrative: { pulse: 'addressed', weight: 'material' },
+                    };
+                    dispatch({ type: 'ADD_MESSAGE', message: reviewerPlaceholder });
+                  }
+                  assistantContent += chunk;
+                  const lastBlock = blocks[blocks.length - 1];
+                  if (lastBlock?.type === 'text') {
+                    lastBlock.content += chunk;
+                  } else {
+                    blocks.push({ type: 'text', content: chunk });
+                  }
+                  // The streaming BUBBLE is the surface for the reasoning text —
+                  // do NOT echo it into the transient status line (that would
+                  // duplicate the whole block into the 11px status row). Clear
+                  // status.content so the panel's `streaming && content` guard
+                  // hides the line while the bubble carries the words. This is
+                  // the 'streaming' state of D3's thinking/streaming/settled.
+                  if (assistantContent.length % 50 < chunk.length || chunk.includes('\n')) {
+                    setStatus({ type: 'streaming', content: '' });
+                    updateStreamingMessage();
+                  }
                 } else {
-                  label = phase === 'tool_start' ? `Reviewer is using ${tool}...` : `Reviewer used ${tool}`;
+                  // ADR-351 D4: the per-tool label map ("Reviewer is reading
+                  // substrate…" et al.) is DELETED. It was a frontend guess at
+                  // what a primitive name meant, standing in for narration that
+                  // now arrives as the persona's own streamed reasoning above.
+                  // The transient tool status carries ONLY a judgment-shaped,
+                  // tool-agnostic line (ADR-338 DP28 consent line — never the
+                  // primitive name, never the mechanism). It is secondary to
+                  // the streaming reasoning; it just signals "still working."
+                  if (phase === 'tool_start') {
+                    setStatus({ type: 'streaming', content: 'Reviewer is working through it…' });
+                  }
                 }
-                setStatus({ type: 'streaming', content: label });
               } else if (event.reviewer_response) {
                 // Reviewer spoke — reload history immediately so ReviewerCard renders.
                 // CRITICAL: use fetchAndSetHistory() (unguarded), not loadScopedHistory()

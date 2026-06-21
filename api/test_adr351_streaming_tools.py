@@ -255,5 +255,48 @@ def test_feed_forwards_text_delta_event():
     assert "'phase': 'text_delta'" in src
 
 
+# --------------------------------------------------------------------------
+# 7 — Phase 2 frontend source-guards (the web package has no JS test runner,
+#     so these guard the load-bearing FE invariants from the Python gate —
+#     same pattern as the wake/feed source-guards above. tsc --noEmit is the
+#     companion type gate, run separately in web/.)
+# --------------------------------------------------------------------------
+
+import os
+
+_WEB = os.path.join(os.path.dirname(__file__), "..", "web")
+
+
+def _read_web(rel: str) -> str:
+    with open(os.path.join(_WEB, rel), encoding="utf-8") as fh:
+        return fh.read()
+
+
+def test_frontend_handles_text_delta_with_streaming_reviewer_bubble():
+    src = _read_web("contexts/NarrativeContext.tsx")
+    # the text_delta phase is handled (Phase 2 progressive render)
+    assert "phase === 'text_delta'" in src
+    # a streaming REVIEWER bubble is inserted (role:'reviewer' → reviewer-bubble)
+    assert "role: 'reviewer'" in src
+
+
+def test_frontend_tool_name_label_map_is_deleted():
+    """ADR-351 D4: the per-tool guess map ('Reviewer is reading substrate…'
+    et al.) must be gone — it was a stand-in for narration that now streams
+    from the persona itself. This is the exact copy the operator disliked."""
+    src = _read_web("contexts/NarrativeContext.tsx")
+    assert "Reviewer is reading substrate" not in src
+    assert "Reviewer is checking history" not in src
+    assert "Reviewer is checking system state" not in src
+    # the consent-line guard (ADR-338 DP28): no raw primitive name leaks into
+    # the transient status as `Reviewer is using {tool}`
+    assert "Reviewer is using ${tool}" not in src
+
+
+def test_reviewer_role_is_first_class_in_role_union():
+    src = _read_web("types/index.ts")
+    assert '| "reviewer"' in src
+
+
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-q"]))
