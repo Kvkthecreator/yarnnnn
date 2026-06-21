@@ -267,6 +267,62 @@ function ProposalInputs({ primitive, inputs }: { primitive: string; inputs?: Rec
     );
   }
 
+  // ADR-307 external-write (audience-addressing sends): surface the
+  // destination + the message body as a legible card, not a raw key/value
+  // dump. The operator is approving "send THIS to THERE" — show it that way.
+  if (
+    primitive === 'platform_slack_send_to_channel' ||
+    primitive === 'platform_notion_create_page' ||
+    primitive === 'platform_notion_append_block' ||
+    primitive === 'platform_email_send' ||
+    primitive === 'platform_email_send_bulk'
+  ) {
+    const destination =
+      (inputs.channel_id as string) ??
+      (inputs.parent_page_id as string) ??
+      (inputs.page_id as string) ??
+      (inputs.to as string) ??
+      (inputs.recipients as string) ??
+      '';
+    const destLabel =
+      primitive === 'platform_slack_send_to_channel' ? 'Channel'
+      : primitive.startsWith('platform_notion_') ? 'Page'
+      : 'To';
+    const title = inputs.title as string | undefined;
+    const body =
+      (inputs.text as string) ??
+      (inputs.content as string) ??
+      (inputs.body as string) ??
+      '';
+    return (
+      <div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 space-y-1.5">
+        <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+          Outbound message
+        </div>
+        {destination && (
+          <div className="flex gap-2 text-xs">
+            <span className="text-muted-foreground shrink-0">{destLabel}</span>
+            <span className="font-mono text-foreground break-all">{destination}</span>
+          </div>
+        )}
+        {title && (
+          <div className="flex gap-2 text-xs">
+            <span className="text-muted-foreground shrink-0">Title</span>
+            <span className="text-foreground break-words">{title}</span>
+          </div>
+        )}
+        {body && (
+          <div className="text-xs">
+            <div className="text-muted-foreground mb-0.5">Message</div>
+            <div className="rounded bg-background/60 border border-border/40 px-2 py-1.5 text-foreground whitespace-pre-wrap break-words max-h-48 overflow-y-auto">
+              {body}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // All other action types — generic key/value display so the operator
   // always sees the structured payload they're approving.
   return <GenericInputsTable inputs={inputs} />;
