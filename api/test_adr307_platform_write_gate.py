@@ -236,6 +236,39 @@ def test_capital_and_external_write_tools_registered():
     assert CAPABILITY_PROVIDER_MAP["write_notion"] == "notion"
 
 
+def test_action_proposals_family_constraint_permits_external_write():
+    """The action_proposals.family CHECK constraint MUST permit 'external-write'
+    — the schema half of ADR-307 Phase 5.
+
+    Migration 181 created the constraint with only ('capital','substrate');
+    Phase 5 added the external-write family in CODE but the original commit did
+    NOT migrate the constraint, so every external-write enqueue's INSERT was
+    rejected by the DB — the queue silently failed. The unit gates mock the
+    insert and never hit the constraint; only the live E2E probe surfaced it
+    (2026-06-19, yarnnn-author). Migration 187 extends the constraint; this test
+    is the static guard that code (emits 'external-write') and schema (must
+    permit it) cannot drift apart again.
+    """
+    repo = API_DIR.parent
+    migrations = repo / "supabase" / "migrations"
+    # The authoritative constraint is whatever the LAST migration touching
+    # action_proposals_family_check declares. Find it and assert all three.
+    constraint_defs = []
+    for f in sorted(migrations.glob("*.sql")):
+        text = f.read_text()
+        if "action_proposals_family_check" in text and "CHECK" in text:
+            constraint_defs.append((f.name, text))
+    assert constraint_defs, "no migration defines action_proposals_family_check"
+    last_name, last_text = constraint_defs[-1]
+    for fam in ("capital", "substrate", "external-write"):
+        assert f"'{fam}'" in last_text, (
+            f"family CHECK in {last_name} omits '{fam}'. The gate emits "
+            f"'external-write' for audience-writes (registry.py "
+            f"_enqueue_platform_write_proposal); the constraint must permit it "
+            f"or every audience-write enqueue is rejected by the DB."
+        )
+
+
 def test_risk_gate_survives_in_trading_writes():
     from services import platform_tools
     src = inspect.getsource(platform_tools._handle_trading_tool)

@@ -79,3 +79,22 @@ The requested feature (kernel-universal Slack/Notion writes) **cannot be built c
 - [ADR-299](../adr/ADR-299-kernel-universal-operator-addressing-capability.md) — operator-addressing vs audience-addressing line; D8 Reviewer-exclusion.
 - [derived-trust-tier amendment](../adr/ADR-335-AMENDMENT-derived-trust-tier.md) — `feeds: action` → HIGH tier, the gate that serves the new write capabilities.
 - `api/services/primitives/registry.py:681,705` · `permission.py:172,211` · `platform_tools.py:2132,2137` — the receipts.
+
+---
+
+## Live E2E validation (2026-06-19) — Slack audience-write proven end-to-end; a schema gap the unit gates missed
+
+`yarnnn-author` (workspace `0b7a852d`) connected Slack + Notion, unblocking the behavioral proof the resolution flagged as the next probe. Run via `api/scripts/operator/probe_audience_writes.py` (Hat-B, operator-proxy JWT, deployed API).
+
+**Expected:** under `manual` delegation, a specialist audience-write QUEUEs a `family='external-write'` proposal (the safety floor); approve → real send.
+
+**Observed (first run) — a real gap the unit gates could not catch.** The specialist DID call `platform_slack_send_to_channel` (in `tools_called`), but **zero `external-write` proposals were ever created.** Root cause: `action_proposals_family_check` (migration 181) permitted only `('capital','substrate')` — `external-write` violated the CHECK, so `enqueue_gated_action`'s INSERT was rejected and the queue silently failed (`queue_failed`, no row). **ADR-307 Phase 5 shipped the `external-write` family in code (`f8b57a1`) but never migrated the constraint.** The 14 unit gates mock the insert and never hit the CHECK — only the live probe against real substrate surfaced it. This is the substrate-receipts discipline working as intended.
+
+**Fix (Hat-A):** migration `187_external_write_family.sql` extends the constraint to `('capital','substrate','external-write')`, applied to the live DB; static guard `test_action_proposals_family_constraint_permits_external_write` prevents code↔schema drift recurring; ADR-307 D12 records it.
+
+**Observed (re-run, post-fix) — full chain PASS:**
+- addressed wake → Reviewer `DispatchSpecialist` → `family='substrate'` proposal `c3f01daf` (the dispatch itself gated under manual).
+- approve dispatch → specialist (designer) ran, called `platform_slack_send_to_channel` → uniform gate QUEUEd **`family='external-write'` proposal `55b79758`**, `source='specialist:designer'`, `decision_context={effect:{channel:'C07U53YMK0C', preview:'yarnnn audience-write E2E test — please ignore'}, gate_reason:'autonomy_requires_approval:…manual…'}` — effect-shaped, NOT a file diff.
+- approve external-write → `ExecuteProposal` replayed `execute_primitive('platform_slack_send_to_channel', {…, _proposal_id})` → gate saw `_proposal_id` → APPLY (no re-gate) → **real Slack message landed** (`execution_result.success=true, ts='1781855958.433739', channel='C07U53YMK0C'`).
+
+**Receipts:** capability gate `capability_available(write_slack)=True` (HIGH tier, platform-grade binding) · dispatch proposal `c3f01daf` · external-write proposal `55b79758` (executed) · Slack `ts=1781855958.433739` · specialist `execution_events` `3dda56c0`/`867927d6`/`341e1c7e` (07:59, status=success). The Notion half rides the identical code path (same gate, same `_enqueue_platform_write_proposal`, same family); the Slack chain is the load-bearing proof.
