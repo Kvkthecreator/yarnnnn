@@ -32,7 +32,7 @@ The corpus voice (per `_voice.md`) is **claim-first, architecture-grounded, em-d
 - **`callout`** — the "what this answers (plain language)" gloss. When a passage is the plain-language restatement of a dense claim, it is a callout.
 
 ### Tier 2 — earns its place sometimes (only with REAL substrate data)
-- **`metric-cards`** — only when there are *real* headline numbers the piece reports on. **Never for invented stats.** Cards must cite substrate; a card whose number cannot be traced to a workspace file does not ship.
+- **`metric-cards`** — only when there are *real* headline numbers the piece reports on. **Never for invented stats.** Every card's number must trace to a **Source** (the `source_ref` of the observation that grounded it — a repo path, a URL, the ground-truth file's reconciled value; ADR-357 / DP31), cited so a reader can verify it. A number that cannot be traced to a resolvable Source does not ship. (Trace to the Source — where the number came from in the world — NOT to the internal workspace file the distilled copy happens to live in.)
 - **`status-matrix`** — for named-pattern sets (e.g. "3 failure modes," "4 flows"). Good fit, used sparingly.
 - **`trend-chart`** — only when there is a *real* series to plot (e.g. a piece visualizing the workspace's own accumulation curve — genuinely novel and honest because the data is real substrate). **Never decorative trend lines.**
 
@@ -92,7 +92,7 @@ The output form is a composed HTML **article** (`surface_type: "article"`) — s
 
 - **Argument-fidelity per section**: every non-prose section passes the gate — it carries an argument the prose could not carry as well. A section that fails the gate is rewritten as prose, not kept for coverage.
 - **Voice integrity**: the connective prose between sections is still the corpus voice (claim-first, em-dash-fluent per `_voice.md`). Structure must not fragment voice into bullet-shards. A composed piece that reads as voiceless scaffolding fails this criterion even if every section is individually justified.
-- **Real data only for Tier 2**: every `metric-cards` number and `trend-chart` series traces to workspace substrate. No invented statistics. A number that cannot be sourced does not ship.
+- **Real data only for Tier 2, traced to Source**: every `metric-cards` number and `trend-chart` series traces to a resolvable **Source** (the observation's `source_ref` — where it came from in the world; ADR-357 / DP31), not merely to the internal workspace file the distilled copy lives in. No invented statistics. A claim or number with no resolvable Source does not ship.
 - **Images are exceptional**: at most one generated `image` per piece, only when it carries a concept the diagram-kinds cannot. Default to none.
 - **Idempotent**: the composition substrate is rewritten only when the piece materially changes. Re-running on unchanged prose produces the same sections.
 - **Substrate, not HTML**: this step writes `sections/` + manifests + asset URLs. It does not call the render service. (Projection axiom — the render is pulled at consumption.)

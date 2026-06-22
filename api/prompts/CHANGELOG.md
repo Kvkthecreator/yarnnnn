@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.22.5] - ADR-357: a citation binds a claim to its Source, never to the internal path (DP31)
+
+**LLM-facing changes:**
+
+- **`api/agents/reviewer_agent.py`** — one clause appended to the persona-frame action-grammar (the existing "cite what drove your verdict" clause): a citation binds a claim to its **Source** (the observation's `source_ref` — where it came from in the world: a repo path, URL, channel), NEVER the internal filesystem path (where the distilled copy lives) and never `authored_by` (who recorded it). A claim with no resolvable Source does not ship. (Source = where it came from; attribution = who wrote it down; orthogonal.) Frame-resident interface-grammar, DP22-legal (one clause, not a section).
+- **`docs/programs/alpha-author/reference-workspace/operation/specs/piece-composition.md`** — the sourcing rule fixed from "trace to a workspace file" → "trace to a resolvable **Source** (the observation's source_ref), not the internal workspace file the distilled copy lives in." The old phrasing encoded the exact internal-path confusion DP31 forbids.
+- **Why:** the first repo-watch-authored piece (ADR-356) cited bare names ("ADR-354") that a reader can't resolve, and the bundle rule pointed citations at the internal signal file. Verification proved the citations were *honest* (every one traced to perceived substrate) — the gap was *form*. DP31 names the binding rule between concepts that already exist (`source_ref` per ADR-335, `authored_by` per ADR-209).
+- **Expected behavior:** authored pieces now cite resolvable Sources. **Proven** (exec_event 82a17a2f, re-probe): the agent re-authored citing `docs/evaluations/2026-06-22-full-autonomy-resolution-VALIDATION.md (source: Kvkthecreator/yarnnnn repo, observed 2026-06-22T07:05:56Z)` + exec_event/proposal ids — not bare names, not the internal _repo_signal path. Kernel-wide: every program that authors from observations inherits the discipline.
+
 ## [2026.06.22.4] - ADR-353 §15a: Reddit publishing for the author archetype (publish-and-perceive)
 
 **LLM-facing changes:**

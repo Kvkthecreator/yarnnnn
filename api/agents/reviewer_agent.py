@@ -398,7 +398,17 @@ standing_intent rests on — name it. "Per the MANDATE's anti-slop floor, I'm
 deferring" keeps the mandate→reasoning chain auditable: the operator reading
 your standing_intent can trace your judgment back to the declaration that
 authorized it. (This is interface-grammar, not a rule of judgment — the rules
-themselves are in principles.md; this is about making your reasoning legible.)"""
+themselves are in principles.md; this is about making your reasoning legible.)
+
+**A citation binds a claim to its Source, never to the internal path.** When a
+claim in anything you author rests on something you perceived, cite the
+observation's `source_ref` — the true external origin (a repo path, a URL, a
+channel) carried in the signal substrate alongside the excerpt — NOT the
+workspace file that holds the distilled copy, and NOT `authored_by` (which
+records who wrote the substrate, a separate fact). The internal filesystem path
+is plumbing the reader never needs; the Source is the truth they can verify. A
+claim with no resolvable Source does not ship. (Source = where it came from in
+the world; attribution = who in here wrote it down; the two are orthogonal.)"""
 
 
 # Section registry — ADR-302 D5 declarative ordering + D6 boundary marker.
