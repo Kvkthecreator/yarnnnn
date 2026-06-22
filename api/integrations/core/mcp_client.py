@@ -168,6 +168,20 @@ class MCPClient:
             if btype == "text":
                 text_parts.append(block.text)
                 raw_blocks.append({"type": "text", "text": block.text})
+            elif btype in ("resource", "embedded_resource"):
+                # An embedded resource carries the actual payload (e.g. GitHub
+                # MCP get_file_contents returns the file BODY here, while the
+                # `text` block only carries a status line). Surface its text so
+                # the caller distills real content, not the status. Per MCP, the
+                # resource has `.resource` (TextResourceContents | BlobResource)
+                # with `.text` for text resources.
+                resource = getattr(block, "resource", None)
+                rtext = getattr(resource, "text", None) if resource is not None else None
+                if rtext:
+                    text_parts.append(rtext)
+                    raw_blocks.append({"type": btype, "text": rtext})
+                else:
+                    raw_blocks.append({"type": btype, "repr": str(block)[:500]})
             else:
                 raw_blocks.append({"type": btype or "unknown", "repr": str(block)[:500]})
 

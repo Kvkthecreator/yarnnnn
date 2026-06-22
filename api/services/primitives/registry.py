@@ -99,6 +99,9 @@ from .track_universe import handle_track_universe
 from .track_regime import handle_track_regime
 # ADR-336 (enacts ADR-335 D7): generic web/RSS standing-watch transport.
 from .track_web_sources import handle_track_web_sources
+# ADR-335 Crawl-B Increment B (enacts ADR-335 D4/D5): generic MCP-transport
+# standing-watch executor (the first binding reads a repo via GitHub MCP).
+from .track_foreign import handle_track_foreign
 from .repurpose import REPURPOSE_OUTPUT_TOOL, handle_repurpose_output
 from .propose_action import (
     PROPOSE_ACTION_TOOL, handle_propose_action,
@@ -580,6 +583,14 @@ HANDLERS: dict[str, Callable] = {
     # contract. Program-agnostic: paths arrive as directive kwargs
     # (declaration= / distills_to=). Dispatcher-only; not LLM-callable.
     "TrackWebSources": handle_track_web_sources,
+    # ADR-335 Crawl-B Increment B (enacts ADR-335 D4/D5): the generic
+    # MCP-transport standing-watch executor — reads declared foreign-source
+    # paths (_repo_sources.yaml) through a watch-bound MCP connection, distills
+    # into signal substrate per the D3 observation contract. Every foreign call
+    # routes through the metered executor (read_foreign_tool). First binding:
+    # repo file reads via GitHub MCP get_file_contents. Dispatcher-only; not
+    # LLM-callable.
+    "TrackForeign": handle_track_foreign,
     "ManageDomains": handle_manage_domains,
     # File layer (ADR-168 Commit 4: renamed from ReadWorkspace/WriteWorkspace/etc.)
     "ReadFile": handle_read_file,

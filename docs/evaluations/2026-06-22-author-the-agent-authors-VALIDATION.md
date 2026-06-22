@@ -44,9 +44,22 @@ The agent's refusal was therefore *doubly* correct: the cited sources were not j
 | Is the agent passive? | No — three correct floor-stops this session (trader VaR floor; author authorship boundary [now removed]; author citation-verifiability). Forward-reasoning to a real floor every time, never silent stand-down. The ADR-354 collapse is what lets it reason forward to the floor. |
 | Why no authored piece yet? | Not passivity, not authorship-cap (fixed) — a **perception-field gap**: no driver makes the repo perceivable to the workspace. |
 
-## Recommendation (Hat-A, deferred — its own design task)
+## Recommendation (Hat-A) — UPDATED: it's Crawl-B Increment B, not a new driver
 
-A repo/filesystem source driver — an **ADR-336 sibling** (`TrackRepoSources` or a filesystem watch: a mechanical, zero-LLM, dispatcher-only primitive that distills declared repo paths into `_watch_signal.yaml` per the ADR-335 D3 observation contract). With it declared in `_sources.yaml`, a repo-subject author workspace can perceive + cite its subject, and the agent authors with verifiable citations under ADR-355. Until then, a repo-subject author workspace is a not-yet-supported case (the operator can still paste source material into substrate manually, but that is a workaround, not the architecture).
+Initial framing ("build a repo/filesystem driver") was **corrected by the operator's challenge ("don't we already have the infra?")** and then by receipts. The infra is ~90% shipped:
+- `api/integrations/core/mcp_client.py` — the transport-pure MCP client (the generic driver for watches no hand-authored driver serves).
+- `api/services/foreign_read.py::read_foreign_tool` — the **metered mechanical executor** (Crawl-B Increment A, the §282 metering precondition RESOLVED: every foreign read records to the `execution_events` cost ledger).
+- Crawl-A watch representation: `substrate_abi.watches` slot, the D3 observation contract, `platform_connections.watch_id` + `attestation_grade` columns.
+- The GitHub MCP bind was proven (2026-06-18 receipt: HTTP 200, 44 tools).
+
+**Empirical check resolved (2026-06-22):** via the proven `mcp_client.list_tools` path with a gh token, the GitHub MCP server (`https://api.githubcopilot.com/mcp/`) exposes **`get_file_contents`** + `search_code` + `list_commits` + `get_commit` among its 44 tools. Arbitrary repo file reads — exactly what a YARNNN-about-YARNNN author workspace needs to read `docs/adr/*.md` and cite it verifiably — are **available**. The MCP transport serves this watch.
+
+**The remaining work is Crawl-B Increment B — a grounded wire-up, no unknowns:**
+1. A `TrackForeign` mechanical primitive (sibling of `TrackWebSources`/`TrackUniverse`) that calls the existing `read_foreign_tool(tool_name="get_file_contents", ...)` for declared repo paths and distills the result into `_watch_signal.yaml` per the D3 observation contract.
+2. The alpha-author bundle declares a repo watch in `MANIFEST.substrate_abi.watches` + a `_sources.yaml`-style declaration listing the repo + paths (program-declared, not workspace-declared, per ADR-335 §259).
+3. A `platform_connections` binding row: `server_url=https://api.githubcopilot.com/mcp/`, encrypted GitHub token, `watch_id` set, `attestation_grade=platform`.
+
+With this, a repo-subject author workspace perceives + cites its subject, and the agent authors with verifiable citations under ADR-355 — closing the loop your question opened. This is the named demand-pull trigger for Crawl-B (ADR-335 §237: "alpha-author post-330 deepening").
 
 ## ADR-355 shipped (this session)
 Bundle: MANDATE boundary + Rule #5 + Draft/Pre-ship lifecycle reframed; piece-composition.md internal contradiction resolved; CONVENTIONS aligned. CHANGELOG [2026.06.22.2]. Conformance 18/18. Pushed to yarnnn-author live.

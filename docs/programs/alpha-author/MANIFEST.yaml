@@ -245,6 +245,19 @@ substrate_abi:
       declaration: operation/authored/_sources.yaml
       recurrence: track-sources
       distills_to: operation/authored/_watch_signal.yaml
+    # ADR-335 Crawl-B (D4/D5): the repository standing watch — for an author
+    # workspace whose SUBJECT is a code/doc repo (e.g. YARNNN-about-YARNNN).
+    # Reads declared repo file paths through a watch-bound MCP transport (GitHub
+    # MCP get_file_contents) so the agent authors with verifiable citations to
+    # the exact repo path. Ships EMPTY (repo: "", sources: []) — a repo-subject
+    # workspace declares its repo; others leave it a no-op. Requires a
+    # watch-bound platform_connections row (watch_id set) for the server key.
+    - id: repo-sources
+      shape: repo_file_read
+      declaration: operation/authored/_repo_sources.yaml
+      recurrence: track-repo
+      distills_to: operation/authored/_repo_signal.yaml
+      transport: mcp
 
   # Path zones this program contributes beyond the kernel-universal set.
   path_zones:
@@ -283,6 +296,13 @@ substrate_abi:
     - key: watch_signal
       path: operation/authored/_watch_signal.yaml
       optional: true                  # empty until the operator declares sources in _sources.yaml
+    # ADR-335 Crawl-B: the repository watch's distilled observations join the
+    # wake envelope so judgment reads the repo signal as substrate and cites
+    # the exact repo path. Empty until a repo-subject workspace declares repo +
+    # paths in _repo_sources.yaml (substrate-aware, transport-blind per D3).
+    - key: repo_signal
+      path: operation/authored/_repo_signal.yaml
+      optional: true
 
 activation_preconditions:
   # alpha-author is `status: deferred` per ADR-283 honest-state framing.

@@ -204,6 +204,28 @@ recurrences:
       @primitive: TrackWebSources(declaration="operation/authored/_sources.yaml", distills_to="operation/authored/_watch_signal.yaml")
     display_name: "Track Sources (standing watch)"
 
+  # ── track-repo — the standing repository watch (ADR-335 Crawl-B / D4-D5) ──
+  #
+  # Mechanical, deterministic, zero-LLM. For an author workspace whose SUBJECT
+  # is a code/doc repository: reads operator-declared repo file paths
+  # (_repo_sources.yaml; EMPTY = deliberate no-op) through a watch-bound MCP
+  # transport (the GitHub MCP server's get_file_contents) and distills them into
+  # _repo_signal.yaml per the ADR-335 D3 observation contract (source_ref +
+  # attestation + observed_at + bounded excerpt). Every foreign call routes
+  # through the metered executor (read_foreign_tool → execution_events). Judgment
+  # never calls the foreign server for perception — it reads this substrate +
+  # each source_ref to author with VERIFIABLE citations to the exact repo path.
+  # Scheduled before the compose/coherence windows so judgment reads a FRESH
+  # repo signal. Distinct distills_to from track-sources (the two watches don't
+  # collide on one signal file).
+  - slug: track-repo
+    schedule: "0 11 * * *"   # daily 11:00 UTC — before track-sources + the compose window
+    mode: mechanical
+    required_capabilities: []
+    prompt: |
+      @primitive: TrackForeign(declaration="operation/authored/_repo_sources.yaml", distills_to="operation/authored/_repo_signal.yaml", tool="get_file_contents")
+    display_name: "Track Repo (standing repository watch)"
+
 # ADR-275: weekly-corpus-review and quarterly-voice-audit (operator
 # deliverable cadence) live in /workspace/governance/_preferences.yaml.
 # The Reviewer reads _preferences.yaml at every wake and authors Schedule(

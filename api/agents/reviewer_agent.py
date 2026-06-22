@@ -802,6 +802,30 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
         # bundle's `_workspace_guide.md` directing where to read.
         parts += ["## _money_truth.md — Track record (with by_signal frontmatter)", "", ctx["ground_truth_md"], ""]
 
+    # Generic program-envelope renderer (ADR-281 D2 — bundle declares its
+    # envelope; the kernel renders without a per-key site). Any key the active
+    # bundle declared in substrate_abi.reviewer_wake_envelope that has NO bespoke
+    # render site above is emitted here under its own header, so the agent
+    # perceives it. This closes the pre-ADR-336 gap where watch_signal /
+    # repo_signal landed in the context dict but never reached the wake message.
+    # Bespoke-rendered program keys (operator_profile_md, risk_md, ground_truth_md,
+    # signal_files) are skipped — they already have richer, instance-aware headers.
+    _BESPOKE_PROGRAM_KEYS = {
+        "operator_profile_md", "risk_md", "ground_truth_md", "signal_files",
+    }
+    _ENVELOPE_KEY_HEADERS = {
+        "watch_signal": "## _watch_signal.yaml — Standing web/RSS watch (distilled observations)",
+        "repo_signal": "## _repo_signal.yaml — Standing repository watch (distilled file excerpts; cite each source_ref)",
+    }
+    for pkey in (ctx.get("_program_envelope_keys") or []):
+        if pkey in _BESPOKE_PROGRAM_KEYS:
+            continue
+        value = ctx.get(pkey)
+        if not value or not str(value).strip():
+            continue
+        header = _ENVELOPE_KEY_HEADERS.get(pkey, f"## {pkey} (program substrate)")
+        parts += [header, "", str(value), ""]
+
     # Trigger-specific (ADR-260 D2 amended by ADR-263: addressed | reactive)
     # `reactive` covers two sub-shapes — proposal arrival (specialized
     # reactive handler per ADR-247) and judgment-mode recurrence fire

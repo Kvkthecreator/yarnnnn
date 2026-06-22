@@ -333,6 +333,13 @@ async def load_reviewer_governance_envelope(
         program_results = await _asyncio.gather(*program_tasks)
         for key, value in zip(program_keys, program_results):
             envelope[key] = value
+        # Record which keys came from the bundle envelope so the wake-message
+        # renderer can emit ANY program-declared signal generically — without a
+        # per-key render site in _build_user_message. Without this, a bundle key
+        # that has no bespoke renderer (e.g. watch_signal, repo_signal) lands in
+        # the dict but never reaches the agent (the pre-ADR-336 gap). The
+        # generic renderer skips keys already rendered with a bespoke header.
+        envelope["_program_envelope_keys"] = list(program_keys)
 
     # --- Operating Context (ADR-274 + ADR-301 D5 consolidation) ---
     # Composed here so the envelope helper is the singular envelope

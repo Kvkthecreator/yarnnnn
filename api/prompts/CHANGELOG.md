@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.22.3] - ADR-356: TrackForeign + the repository watch (ADR-335 Crawl-B Increment B)
+
+**LLM-facing changes:**
+
+- **`api/agents/reviewer_agent.py`** — generic program-envelope renderer in `_build_user_message`: any bundle-declared `reviewer_wake_envelope` key with no bespoke render site (e.g. `watch_signal`, `repo_signal`) now renders into the wake message under its own header. Closes a pre-ADR-336 gap where bundle envelope keys landed in the context dict but never reached the agent. `repo_signal` gets a header directing the agent to cite each `source_ref`.
+- **`api/services/reviewer_envelope.py`** — records `_program_envelope_keys` so the renderer can emit program keys generically (no per-key kernel edit for future bundles).
+- **`docs/programs/alpha-author/`** — the bundle declares a repository watch: `_repo_sources.yaml` (EMPTY by default; a repo-subject workspace declares `repo` + file paths), a `track-repo` mechanical recurrence (`@primitive: TrackForeign`), a `repo-sources` entry in `substrate_abi.watches`, and `repo_signal` in the wake envelope. For an author workspace whose SUBJECT is a repo, the agent now perceives + cites the repo.
+- **Not LLM-facing (recorded for completeness):** `api/services/primitives/track_foreign.py` (new mechanical primitive — reads declared repo paths via the GitHub MCP `get_file_contents` tool through the metered `read_foreign_tool`, distills to `_repo_signal.yaml`); `api/integrations/core/mcp_client.py` (extracts embedded-resource content — the GitHub MCP file body — into `.text`).
+- **Expected behavior:** a YARNNN-about-YARNNN (or any repo-subject) author workspace can declare its repo; `track-repo` distills the declared files into perceivable substrate; the agent authors pieces citing the exact repo paths (ADR-355 full autonomy + ADR-335 perception field). Validated E2E: agent perceived 3 ADRs → authored a 6,696-char in-voice essay citing them → proposed the WriteFile (pending under manual witness). Receipts: `docs/evaluations/2026-06-22-author-the-agent-authors-VALIDATION.md`; exec_event 6a912c26; 3 `foreign-read:repo_sources` ledger rows.
+
 ## [2026.06.22.2] - ADR-355: the agent authors (alpha-author boundary reframe — full autonomy, full accountability)
 
 **LLM-facing changes (alpha-author bundle):**

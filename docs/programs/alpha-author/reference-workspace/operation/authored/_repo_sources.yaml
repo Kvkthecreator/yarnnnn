@@ -1,0 +1,26 @@
+---
+tier: authored
+prompt: "Which repository files should your standing repo-watch read? This watch is for an author workspace whose SUBJECT is a code/doc repository (e.g. authoring about your own product). Declare the repo + the file paths the agent should perceive + cite. Empty sources = deliberate no-op (the lean uploads+websearch shape stays valid). Changes take effect on the next track-repo run."
+---
+# _repo_sources.yaml — operator-declared repository standing-watch (ADR-335 Crawl-B)
+#
+# Machine-parsed by TrackForeign via yaml.safe_load. The MCP analog of
+# _sources.yaml (web/RSS): instead of feeds, this declares repo file paths read
+# through a watch-bound MCP transport (the GitHub MCP server's get_file_contents
+# tool). TrackForeign distills each file into operation/authored/_repo_signal.yaml
+# per the ADR-335 D3 observation contract — judgment reads the excerpts + the
+# source_ref so it can author with VERIFIABLE citations to the exact repo path.
+#
+# Binding: requires an active watch-bound platform_connections row for the
+# declared `server` key (watch_id set; server_url in metadata; token encrypted).
+# Without a binding, track-repo is a recorded no-op (binding_missing) — the watch
+# is declared, the transport is resolved separately (ADR-335 D5).
+#
+# This template ships EMPTY (sources: []) — a repo-subject workspace declares its
+# own repo + paths; a non-repo author workspace leaves it empty (no-op). Source
+# count cap: 20 — a portfolio of attention, not a crawler (ADR-335 D5).
+
+server: github                 # platform key of the watch-bound MCP connection
+repo: ""                       # "owner/name" — the repository to perceive
+sources: []                    # [{id, path, attestation?: platform|operator|agent}]
+distills_to: operation/authored/_repo_signal.yaml
