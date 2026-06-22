@@ -28,7 +28,10 @@ from __future__ import annotations
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-BUNDLE_REVIEW = REPO_ROOT / "docs/programs/alpha-trader/reference-workspace/review"
+# ADR-320 constitution-region topological cut renamed review/ → persona/.
+# This constant was stale (the dir no longer exists); fixed 2026-06-22 as part
+# of the ADR-354 bundle-conformance impact sweep.
+BUNDLE_REVIEW = REPO_ROOT / "docs/programs/alpha-trader/reference-workspace/persona"
 BUNDLE_RECURRENCES = REPO_ROOT / "docs/programs/alpha-trader/reference-workspace/_recurrences.yaml"
 
 
@@ -111,56 +114,22 @@ def test_principles_md_distinguishes_judgment_from_observation() -> None:
 
 
 # -----------------------------------------------------------------------------
-# 3. _recurrences.yaml — judgment-mode prompts paired with standing_intent update
+# 3. _recurrences.yaml — judgment-mode prompts (SUPERSEDED by ADR-354)
 # -----------------------------------------------------------------------------
-
-def test_signal_evaluation_prompt_pairs_standdown_with_standing_intent() -> None:
-    src = _read(BUNDLE_RECURRENCES)
-    # Find the signal-evaluation prompt block
-    se_idx = src.find("- slug: signal-evaluation")
-    assert se_idx != -1, "signal-evaluation recurrence must be defined"
-    next_slug = src.find("\n  - slug:", se_idx + 1)
-    block = src[se_idx:next_slug if next_slug != -1 else len(src)]
-    assert "standing_intent.md" in block, (
-        "signal-evaluation prompt must direct standing_intent.md update on "
-        "no-fire path per ADR-284 D8"
-    )
-    assert "ADR-284" in block, (
-        "signal-evaluation prompt must cite ADR-284 for the standing-intent contract"
-    )
-    # Standing-down without updating standing_intent is the failure mode we're closing.
-    assert "without updating standing_intent" in block.lower(), (
-        "signal-evaluation prompt must explicitly name the failure mode "
-        "(stand-down without standing_intent update)"
-    )
-
-
-def test_trade_proposal_prompt_pairs_standdown_with_standing_intent() -> None:
-    src = _read(BUNDLE_RECURRENCES)
-    tp_idx = src.find("- slug: trade-proposal")
-    assert tp_idx != -1, "trade-proposal recurrence must be defined"
-    next_slug = src.find("\n  - slug:", tp_idx + 1)
-    block = src[tp_idx:next_slug if next_slug != -1 else len(src)]
-    assert "standing_intent.md" in block, (
-        "trade-proposal prompt entry-path stand-down must direct standing_intent.md update"
-    )
-    assert "ADR-284" in block, (
-        "trade-proposal prompt must cite ADR-284"
-    )
-
-
-def test_outcome_reconciliation_prompt_pairs_standdown_with_standing_intent() -> None:
-    src = _read(BUNDLE_RECURRENCES)
-    or_idx = src.find("- slug: outcome-reconciliation")
-    assert or_idx != -1, "outcome-reconciliation recurrence must be defined"
-    next_slug = src.find("\n  - slug:", or_idx + 1)
-    block = src[or_idx:next_slug if next_slug != -1 else len(src)]
-    assert "standing_intent.md" in block, (
-        "outcome-reconciliation prompt no-fill stand-down must direct standing_intent.md update"
-    )
-    assert "ADR-284" in block, (
-        "outcome-reconciliation prompt must cite ADR-284"
-    )
+# ADR-284 D6/D8 originally required each judgment-mode recurrence PROMPT to
+# re-script "stand down → WriteFile standing_intent → ReturnVerdict". ADR-354
+# (2026-06-22) INVERTED that: re-scripting the close in the prompt pre-empts the
+# standing-obligation (DP30) reasoning the kernel frame owns (the concrete
+# procedure beats the thin frame — the full-autonomy probe). ADR-284's GUARANTEE
+# (no-fire cycles leave forward-looking evidence) is preserved — it now lives in
+# the frame ("close every cycle with a verdict or a standing_intent write") and
+# is enforced by `test_adr287_bundle_conformance.py::
+# test_adr354_judgment_recurrences_do_not_rescript_the_close` (which asserts the
+# INVERSE — the close-scripting markers are ABSENT). The three prompt-string
+# tests that lived here (signal-evaluation / trade-proposal / outcome-
+# reconciliation) are deleted per Singular Implementation; one of them already
+# asserted on `trade-proposal`, a slug deleted by ADR-296. Enforcement moved
+# home; the old home is removed, not duplicated.
 
 
 # -----------------------------------------------------------------------------
@@ -211,9 +180,8 @@ if __name__ == "__main__":
     test_identity_md_lifecycle_no_actionable_branch_updated()
     test_principles_md_declares_standing_intent_under_action_posture()
     test_principles_md_distinguishes_judgment_from_observation()
-    test_signal_evaluation_prompt_pairs_standdown_with_standing_intent()
-    test_trade_proposal_prompt_pairs_standdown_with_standing_intent()
-    test_outcome_reconciliation_prompt_pairs_standdown_with_standing_intent()
+    # Section 3 (prompt-string standing_intent tests) SUPERSEDED by ADR-354 —
+    # enforcement moved to test_adr287_bundle_conformance.py (no-rescript invariant).
     test_deliverable_recurrences_unchanged()
     test_phase1_envelope_decls_still_present()
-    print("ADR-284 Phase 2: 11/11 PASS")
+    print("ADR-284 Phase 2: 8/8 PASS (3 prompt-string tests superseded by ADR-354)")

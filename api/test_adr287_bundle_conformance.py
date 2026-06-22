@@ -127,25 +127,44 @@ def test_adr284_d8_bundle_principles_references_standing_intent():
         )
 
 
-def test_adr284_d6_judgment_recurrences_pair_with_standing_intent():
-    """ADR-284 D6: every judgment-mode recurrence in every active/deferred
-    bundle's _recurrences.yaml must pair stand-down with a standing-intent
-    update directive in its prompt. Without this the Reviewer's no-fire
-    cycle leaves no forward-looking evidence in substrate."""
+def test_adr354_judgment_recurrences_do_not_rescript_the_close():
+    """ADR-354 (supersedes ADR-284 D6's prompt-string assertion): a judgment-mode
+    recurrence prompt must NOT re-script cycle-closing. ADR-284 D6's intent —
+    no-fire cycles leave forward-looking evidence — is now owned by the KERNEL
+    FRAME ("close every cycle with a verdict or a standing_intent write",
+    reviewer_agent.py::_compute_minimal_frame), not the prompt. A prompt that
+    re-scripts a terminal "else → WriteFile standing_intent THEN
+    ReturnVerdict(stand_down)" pre-empts the standing-obligation (DP30)
+    reasoning the frame owns: the concrete procedure beats the thin frame
+    (the 2026-06-22 full-autonomy probe). So the conformance direction INVERTS:
+    the close-scripting markers must be ABSENT.
+
+    Singular Implementation: ADR-284 D6's evidence guarantee is preserved (the
+    frame still mandates the standing_intent write on a no-fire cycle); only its
+    ENFORCEMENT HOME moved from prompt-string to frame. This test guards the new
+    home's invariant — prompts stay operator-instruction-only."""
+    # Markers of a re-scripted close (the anti-pattern ADR-354 deletes).
+    RESCRIPT_MARKERS = [
+        'returnverdict(verdict="stand_down',
+        "then returnverdict",
+        "required even when",
+        "text-only response without returnverdict is\n      forbidden",
+    ]
     for bundle in _all_active_or_deferred_bundles():
         for entry in _load_recurrences(bundle):
-            mode = entry.get("mode", "judgment")  # default judgment per ADR-263 backward-compat
+            mode = entry.get("mode", "judgment")
             if mode != "judgment":
                 continue
-            prompt = entry.get("prompt", "") or ""
+            prompt = (entry.get("prompt", "") or "").lower()
             slug = entry.get("slug", "<unknown>")
-            assert "standing_intent" in prompt, (
-                f"bundle '{bundle.name}' recurrence '{slug}' is judgment-mode "
-                f"but the prompt does not reference standing_intent.md. "
-                f"ADR-284 D6 requires every judgment-mode recurrence to pair "
-                f"stand-down with a standing-intent update directive. "
-                f"Without it, no-fire cycles leave operator with no evidence "
-                f"of forward-looking judgment — only observation."
+            hit = [m for m in RESCRIPT_MARKERS if m in prompt]
+            assert not hit, (
+                f"bundle '{bundle.name}' recurrence '{slug}' re-scripts the "
+                f"cycle close in its prompt ({hit}). ADR-354: the frame owns "
+                f"cycle-closing; the prompt carries only the operator's "
+                f"instruction. Delete the terminal stand-down script — the "
+                f"frame's 'close every cycle with a verdict or a standing_intent "
+                f"write' already guarantees the no-fire evidence."
             )
 
 
@@ -591,3 +610,63 @@ def test_adr335_d9_deferred_bundles_four_flow_readiness():
             f"\nADR-335 D9 four-flow readiness for deferred bundle "
             f"'{bundle.name}': {len(declared)}/4 flows declared ({declared})"
         )
+
+
+# ── ADR-354 D3 — perception-field discipline (generalized across bundles) ────
+# A signal/quality rule a recurrence prompt asks the Reviewer to evaluate may
+# reference ONLY fields the program's perception field emits (DP27 / ADR-335).
+# A rule naming an absent field is structurally unevaluable, and the occupant
+# rationalizes the gap rather than recognizing it (the 2026-06-22 probe: Signal 1
+# keyed on "20-day high" + current-bar volume — fields track-universe never
+# emits). This lifts the trader-specific check (test_trading_pipeline_architecture.py
+# §5) to the bundle-conformance layer so EVERY program inherits it.
+#
+# Mechanism: a bundle whose reference-workspace ships an _operator_profile.md with
+# field-keyed "### Signal N:" triggers gets checked; the emitted vocabulary is the
+# snapshot-schema fields (from operation/specs/ticker-snapshot.md or equivalent) +
+# regime fields. Programs without field-keyed rules (e.g. alpha-author, whose
+# quality bar is prose) are a clean no-op. DORMANT-marked signals are skipped.
+
+# Field-shaped tokens that, if present in a non-dormant trigger, name data the
+# perception field does NOT emit. Program-neutral: each is a known absent-field
+# pattern. Extend as new programs add field-keyed rules.
+_ABSENT_FIELD_MARKERS = {
+    "20-day high": "no period-high field in the snapshot schema",
+    "20 day high": "no period-high field in the snapshot schema",
+    "volume > 1.5": "no current-bar volume field (only volume_20d_avg)",
+    "earnings surprise": "no earnings feed in the perception field",
+    "price gap": "no gap field in the perception field",
+    "relative-strength rank": "no cross-ticker RS field in the perception field",
+}
+
+
+def test_adr354_signal_rules_reference_only_emitted_perception_fields():
+    """ADR-354 D3 (generalized): in every active/deferred bundle, a NON-DORMANT
+    signal trigger in operation/trading/_operator_profile.md (or equivalent
+    field-keyed rule file) references only fields the perception field emits.
+    DORMANT-marked signals are exempt (their feed is declared absent). Bundles
+    without a field-keyed rule file are a clean no-op."""
+    import re
+    for bundle in _all_active_or_deferred_bundles():
+        profile = (
+            bundle / "reference-workspace" / "operation" / "trading"
+            / "_operator_profile.md"
+        )
+        if not profile.is_file():
+            continue  # program has no field-keyed signal rules (e.g. alpha-author)
+        text = profile.read_text()
+        headers = re.findall(r"^### Signal \d+:[^\n]*", text, flags=re.MULTILINE)
+        blocks = re.split(r"^### Signal \d+:", text, flags=re.MULTILINE)[1:]
+        for hdr, blk in zip(headers, blocks):
+            if "DORMANT" in hdr:
+                continue
+            trig_m = re.search(r"\*\*Trigger:\*\*([^\n]*)", blk)
+            trig = (trig_m.group(1) if trig_m else "").lower()
+            absent = [why for marker, why in _ABSENT_FIELD_MARKERS.items() if marker in trig]
+            assert not absent, (
+                f"bundle '{bundle.name}' {hdr.strip()[:40]}… non-dormant trigger "
+                f"references absent perception field(s): {absent}. ADR-354 D3: a "
+                f"signal rule may reference only emitted perception fields, or be "
+                f"marked DORMANT. Rewrite the rule to emitted fields, or mark the "
+                f"signal DORMANT if its feed does not exist."
+            )
