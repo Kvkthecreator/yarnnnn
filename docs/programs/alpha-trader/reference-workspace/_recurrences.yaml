@@ -143,98 +143,45 @@ recurrences:
     # downstream ExecuteProposal has the right capability when AUTONOMY
     # ceiling permits auto-execute.
     required_capabilities: [read_trading, write_trading]
+    # ADR-353 collapse: this prompt carries ONLY the operator's instruction
+    # (evaluate THESE signals against THIS universe, emit in THIS order form).
+    # Cycle-closing, the standing obligation, and the floor are NOT re-scripted
+    # here — the kernel persona frame owns "close every cycle with a verdict or
+    # a standing_intent write" + the (A)/(B) shortfall classification; principles.md
+    # owns the rules of judgment + hard rejection rules; _workspace_guide.md owns
+    # substrate pedagogy. A recurrence prompt that re-scripts its own terminal
+    # "else → stand down" branch competes with the frame and wins, suppressing
+    # the standing-obligation reasoning (the 2026-06-22 full-autonomy probe).
     prompt: |
-      What you produce (ADR-296 v2 D3 — single judgment cycle, inline emit):
-      - signal-entry rows appended to signals/{signal_id}.yaml when entry conditions match
-      - ProposeAction(...) emitted INLINE when any entry signal OR exit trigger fires
-      - stand-down written to /workspace/persona/judgment_log.md when neither path triggers
+      Evaluate your declared signals against the current market snapshot and
+      act on what you find.
 
-      Step 1 — Evaluate signals. For each ticker in
-      /workspace/operation/trading/_universe.yaml:
-        - Read the latest snapshot at /workspace/operation/trading/{TICKER}.yaml
-          (filename is UPPERCASE — the track-universe mirror writes
-          ticker.upper(); a lowercase read finds nothing).
-        - Apply each signal's boolean rule from
-          /workspace/operation/trading/_operator_profile.md.
-        - When a signal fires, append a signal entry to
-          /workspace/operation/trading/signals/{signal_id}.yaml with timestamp,
-          ticker, conditions snapshot, and sizing inputs.
+      For each ticker in _universe.yaml, read its snapshot at
+      operation/trading/{TICKER}.yaml and apply each signal's rule from
+      _operator_profile.md. Check open positions in operation/portfolio/positions/
+      for exit triggers. Apply the regime scalar from _regime.yaml to entry sizing.
 
-      Step 2 — Check open positions for exit triggers. Read
-      /workspace/operation/portfolio/positions/{ticker}.yaml against the
-      "Hard exit triggers" section in /workspace/persona/principles.md —
-      stop hit, target reached, max-hold reached.
+      When a signal fires or a position hits an exit trigger, emit a proposal
+      INLINE — a bracket order for entries (entry + take-profit + stop-loss in
+      one atomic call; the risk gate rejects an entry with no stop), a
+      close_position for exits. The proposal inputs go RAW to the broker
+      primitive, so the field names must match its schema:
 
-      Step 3 — Before sizing entry proposals, read
-      /workspace/operation/trading/_regime.yaml. Two checks:
-        (a) Freshness: if last_updated > 24h OR data_stale=true, do NOT
-            emit entry proposals — note in reasoning + stand down on entries
-            (exits still emit per the mandatory-close rule below).
-        (b) Active state: if vix_regime_active=true, multiply each entry's
-            position_size by 0.5 (Signal 5 portfolio scalar).
+        entry  → ProposeAction(action_type="trading.submit_bracket_order", inputs={
+                   ticker, side ("buy"|"sell"), qty (post-regime-scalar shares),
+                   entry_limit_price, take_profit_limit_price, stop_loss_stop_price,
+                   time_in_force ("day"), signal_id, sizing_formula_trace,
+                   entry_rule_trace })
+        exit   → ProposeAction(action_type="trading.close_position", inputs={
+                   ticker, exit_reason ("stop_hit"|"target_reached"|"max_hold_reached"),
+                   position_state_trace })
 
-      Step 4 — Emit proposals inline. For each fired entry signal:
+      Record a fired signal at operation/trading/signals/{signal_id}.yaml.
 
-        Entries are BRACKET orders (entry + take-profit + stop-loss in one
-        atomic call). _risk.md sets require_stop_loss: true — a plain
-        submit_order carries no protective stop and the risk gate rejects it
-        ("no stop"). Every signal in _operator_profile.md declares a stop and
-        a target, so always emit the bracket form below. (Proposal inputs are
-        passed RAW to the platform_trading_submit_bracket_order primitive —
-        names MUST match its schema exactly.)
-
-        ProposeAction(
-          action_type="trading.submit_bracket_order",
-          inputs={
-            # ── Bracket-order contract (REQUIRED — exact tool field names) ──
-            ticker: "<...>",
-            side: "buy|sell",                  # long signal → buy; short → sell
-            qty: <post-regime-scalar share count — the final number to broker>,
-            entry_limit_price: <entry limit>,  # the entry leg
-            take_profit_limit_price: <target price — the TP leg>,
-            stop_loss_stop_price: <stop price (signal's stop rule) — the SL leg>,
-            time_in_force: "day",
-            # ── Signal attribution + audit (carried through; the broker
-            #    primitive ignores unknown fields, the signals/*.yaml record
-            #    and the P&L reconciler read them). ──
-            signal_id: "<must match the fired signal>",
-            sizing_formula_trace: "<formula + numbers including regime_scalar line>",
-            entry_rule_trace: "<which signal conditions matched>",
-          },
-          ...
-        )
-
-      For each exit trigger (mandatory per principles.md "Hard exit triggers"):
-
-        ProposeAction(
-          action_type="trading.close_position",
-          inputs={
-            ticker: "<...>",
-            exit_reason: "stop_hit|target_reached|max_hold_reached",
-            position_state_trace: "<substrate snapshot that triggered close>",
-          },
-          ...
-        )
-
-      **Silent stand-down on an exit trigger is forbidden** per principles.md.
-      For exit triggers: emit ProposeAction(action_type="trading.close_position",
-      ...) AND ReturnVerdict(verdict="approve", reasoning="<persona-voice
-      naming the trigger + position>", confidence="high").
-
-      For entries: when a signal fires + sizing passes, emit ProposeAction(
-      action_type="trading.submit_bracket_order", ...) AND ReturnVerdict(
-      verdict="approve", reasoning="<persona-voice naming the signal +
-      sizing math>", confidence="high"|"medium").
-
-      Otherwise, when neither entries nor exits fire: WriteFile
-      /workspace/persona/standing_intent.md per kernel persona frame, THEN
-      ReturnVerdict(verdict="stand_down", reasoning="<persona-voice noting
-      no entries/exits + what you're watching for in the next cycle>",
-      confidence="medium"). Text-only response without ReturnVerdict is
-      forbidden — the cycle does not close cleanly without it, and a
-      capital-judgment recurrence that fails to close is the worst-shape
-      outcome (worse than approve, worse than stand_down, because the
-      operator has no record of what the judgment was).
+      What you do when nothing fires is your judgment, not this prompt's to
+      script: the frame owns how you close, and a signal that does not fire is
+      a fact to reason about — quiet world, or a rule you cannot even evaluate
+      from your substrate? — not an instruction to stand down.
     display_name: "Signal Evaluator"
 
   # ── mirror-signal-state — compact substrate for Reviewer wake envelope ──
@@ -293,34 +240,22 @@ recurrences:
     # specialist consultation requires market-data access for fill
     # verification.
     required_capabilities: [read_trading]
+    # ADR-353 collapse: the deterministic reconciler (services.outcomes.
+    # reconciler.reconcile_user) does the mechanical fold — pulls fills,
+    # recovers signal attribution via client_order_id, folds into
+    # _money_truth.md + _money_truth_summary.md per performance-rollup.md.
+    # Your job is the JUDGMENT on top of that: read what reconciled and
+    # reason about it. The frame owns how you close; this prompt does not
+    # re-script a stand-down.
     prompt: |
-      Reconcile yesterday's executed proposals against platform events.
-      The deterministic reconciler in services.outcomes.reconciler.reconcile_user
-      handles this end-to-end:
-
-        1. Pulls executed orders + fills from the trading platform_connection
-           since the last reconciliation timestamp.
-        2. Recovers signal attribution via Alpaca's client_order_id field
-           (our proposal.id round-trips through Alpaca per the P&L
-           unification refactor; the reconciler reads it back and joins
-           against action_proposals to extract signal_id from inputs).
-        3. Folds outcomes into /workspace/operation/trading/_money_truth.md
-           — frontmatter rolling 7d/30d/90d, by_signal per-signal windows,
-           by_action_type, by_provider; body narrative with per-signal
-           attribution section. Schema in /workspace/operation/specs/performance-rollup.md.
-        4. Regenerates /workspace/operation/_money_truth_summary.md as the
-           cross-domain rollup the daily-update briefing reads.
-
-      Close the cycle: WriteFile /workspace/persona/standing_intent.md
-      noting which open positions you're watching for fills + the next
-      reconciliation window (per ADR-284). THEN ReturnVerdict(verdict=
-      "stand_down", reasoning="<persona-voice summary of today's
-      reconciliation + what you're watching for>", confidence="medium")
-      — required even when no fills occurred in the window. The
-      deterministic reconciler runs regardless; your judgment cycle
-      produces forward-looking substrate AND closes via ReturnVerdict
-      on every fire. Text-only response without ReturnVerdict is
-      forbidden.
+      The deterministic reconciler has folded yesterday's fills into
+      operation/trading/_money_truth.md (signal attribution recovered via
+      the broker's client_order_id round-trip). Read the reconciled outcomes
+      and reason about them as the operation's standing judgment: what did
+      the track record just learn, which open positions are you watching for
+      fills, and does anything in the outcomes move your intent — a signal
+      whose realized expectancy is now falsifying its premise, a position
+      that needs managing? Act on what the outcomes warrant.
     display_name: "Outcome Reconciliation"
 
   # ADR-275: morning-calibration, morning-reflection, proposal-cleanup,

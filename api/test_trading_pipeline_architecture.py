@@ -126,5 +126,59 @@ check(
     '"ticker": ticker.upper()' in tu_src,
 )
 
+# ── 5. perception-field conformance (ADR-354) ───────────────────────────────
+# Root invariant: a NON-DORMANT signal trigger in _operator_profile.md may
+# reference ONLY fields the perception field emits. The 2026-06-22 full-autonomy
+# probe found Signal 1 referencing "20-day high" + a current-bar "volume > 1.5x"
+# surge — fields track_universe NEVER emits — so the signal was structurally
+# unfireable and the occupant fabricated a "wait for RTH" story to explain a
+# permanent gap. This check makes that class of bug fail CI instead of silently
+# shipping a signal no substrate can satisfy.
+#
+# Emitted perception vocabulary = the snapshot fields (expected_fields above) +
+# regime-state fields (_regime.yaml) the rules legitimately reference. A trigger
+# token that looks like a data field but is outside this set is the bug.
+PERCEPTION_VOCAB = expected_fields | {
+    # regime-state fields from _regime.yaml (Signal 5 / regime scalar)
+    "vix_regime_active", "vixy_close", "vixy_sma_20", "trend_regime",
+    # derived comparisons the rules express in prose against emitted fields
+    "sma_20", "sma_50", "sma_200",
+}
+# Field-shaped tokens that, if present in a non-dormant trigger, indicate a
+# reference to data the perception field does NOT emit. (The probe's two.)
+ABSENT_FIELD_MARKERS = {
+    "20-day high": "no period-high field emitted (use price vs sma_20)",
+    "20 day high": "no period-high field emitted",
+    "volume > 1.5": "no current-bar volume emitted (only volume_20d_avg)",
+    "earnings surprise": "no earnings feed in the perception field",
+    "price gap": "no gap field in the perception field",
+    "relative-strength rank": "no cross-ticker RS field in the perception field",
+}
+
+_profile = (
+    Path(__file__).resolve().parent.parent / "docs" / "programs" / "alpha-trader"
+    / "reference-workspace" / "operation" / "trading" / "_operator_profile.md"
+).read_text()
+
+# Walk signal blocks; a block is DORMANT if its header carries "DORMANT".
+import re as _re  # noqa: E402
+_blocks = _re.split(r"^### Signal \d+:", _profile, flags=_re.MULTILINE)[1:]
+_headers = _re.findall(r"^### Signal \d+:[^\n]*", _profile, flags=_re.MULTILINE)
+for _hdr, _blk in zip(_headers, _blocks):
+    _dormant = "DORMANT" in _hdr
+    # Only the **Trigger:** line is the evaluable rule.
+    _trig_m = _re.search(r"\*\*Trigger:\*\*([^\n]*)", _blk)
+    _trig = (_trig_m.group(1) if _trig_m else "").lower()
+    _sig = _hdr.strip().rstrip()
+    if _dormant:
+        check(f"{_sig[:34]}… correctly marked DORMANT (feed absent, won't be evaluated)", True)
+        continue
+    _absent = [why for marker, why in ABSENT_FIELD_MARKERS.items() if marker in _trig]
+    check(
+        f"{_sig[:34]}… non-dormant trigger references only emitted fields (ADR-354)",
+        not _absent,
+        f"references absent perception field(s): {_absent}",
+    )
+
 print(f"\n{PASS} passed, {FAIL} failed")
 sys.exit(1 if FAIL else 0)

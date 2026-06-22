@@ -13,8 +13,19 @@ trading wishlist — these are the instruments signals operate on.)
 
 ## Declared signals (initial set; evolves via quarterly audit)
 
+> **Perception-field discipline (ADR-354).** A signal's trigger may reference
+> ONLY fields the perception field actually emits. The `track-universe` mirror
+> writes per-ticker snapshots with exactly: `price`, `sma_20`, `sma_50`,
+> `sma_200`, `rsi_14`, `atr_14`, `volume_20d_avg` (schema:
+> operation/specs/ticker-snapshot.md), and `_regime.yaml` carries the VIX
+> regime state. A trigger that names a field outside that set cannot be
+> evaluated — it is not "pending data," it is structurally unfireable until
+> the perception field is extended to emit the field. Signals 3 and 4 below
+> are marked DORMANT for exactly this reason: their feeds do not yet exist.
+
 ### Signal 1: Momentum-breakout
-- **Trigger:** 20-day high + price > 50-day SMA + RSI(14) between 55–75 + volume > 1.5x 20-day avg
+- **Trigger:** price > sma_20 + price > sma_50 + RSI(14) between 55–75 + volume_20d_avg ≥ liquidity floor
+- **Rationale:** price above both the 20d and 50d SMA in a 55–75 RSI band is the momentum-breakout state the original "20-day high + volume surge" formulation selected for, expressed in fields the perception field emits. Current-bar volume is not emitted, so liquidity is enforced by the 20d-average floor rather than a single-bar surge. (Per ADR-354: the trigger keys only on emitted fields; the breakout intent lives in this rationale, not in an unevaluable field name.)
 - **Entry:** next-day open or on-trigger-day close (configurable)
 - **Stop-loss:** 2× ATR(14) below entry
 - **Target:** 3× ATR(14) above entry OR trailing stop at 1.5× ATR(14) after +2× ATR
@@ -31,7 +42,12 @@ trading wishlist — these are the instruments signals operate on.)
 - **Max hold:** 10 trading days
 - **Historical baseline (to establish):** target win rate ≥55%, avg win ~equal to avg loss, Sharpe ≥0.6
 
-### Signal 3: Post-earnings drift (PEAD)
+### Signal 3: Post-earnings drift (PEAD) — DORMANT (perception feed absent)
+> **DORMANT until an earnings feed is added to the perception field.** This
+> trigger needs `earnings_surprise` + `price_gap` fields that `track-universe`
+> does not emit. Per ADR-354 this is a STRUCTURAL gap, not "pending data" — do
+> not evaluate it every wake expecting it to fire. To activate: extend the
+> perception field to emit earnings data, then un-mark this signal.
 - **Trigger:** earnings surprise >5% + price gap >3% in surprise direction + hold universe match
 - **Entry:** day+1 after earnings at open
 - **Stop-loss:** 2× ATR(14) against entry direction
@@ -40,7 +56,14 @@ trading wishlist — these are the instruments signals operate on.)
 - **Max hold:** 10 trading days
 - **Historical baseline (to establish):** target win rate ≥50%, asymmetric payoff (avg win ≥1.75× avg loss)
 
-### Signal 4: Sector-rotation-momentum
+### Signal 4: Sector-rotation-momentum — DORMANT (perception feed absent)
+> **DORMANT until a cross-ticker relative-strength feed is added.** This
+> trigger needs a `relative_strength_rank` across a 9-sector set that
+> `track-universe` (per-ticker, no cross-ticker ranking) does not emit. Per
+> ADR-354 this is a STRUCTURAL gap. To activate: add a sector-RS computation
+> to the perception field, then un-mark. (The "momentum state per Signal 1
+> rules" sub-clause IS evaluable once Signal 1 keys on emitted fields; the
+> RS-rank gate is the missing piece.)
 - **Trigger:** ETF (SMH/XLK/XLY/XLF) relative-strength rank in top 2 of 9 sectors over 20-day window + sector ETF itself in momentum state per Signal 1 rules
 - **Entry:** on ETF (not individual stock)
 - **Stop-loss:** 2× ATR(14) below entry

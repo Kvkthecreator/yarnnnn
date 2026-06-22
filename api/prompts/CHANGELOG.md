@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.22.1] - ADR-354: recurrence-prompt collapse + perception-field discipline (the ADR-306 collapse reaches the recurrence layer)
+
+**LLM-facing changes:**
+
+- **`docs/programs/alpha-trader/reference-workspace/_recurrences.yaml`** — both judgment-mode recurrence prompts collapsed to operator-instruction-only (ADR-306 logic, applied to the recurrence layer it never reached):
+  - `signal-evaluation` 4,414 → 1,573 chars. The re-scripted terminal close (*"Otherwise, when neither entries nor exits fire: WriteFile standing_intent, THEN ReturnVerdict(stand_down)"*) is **deleted** — it was a complete, low-effort, operator-blessed exit that fired before the standing-obligation (DP30) reasoning was ever consulted, suppressing it. The frame already owns cycle-closing + the (A)/(B) classification. The prompt's closing line now points at the question instead of pre-empting it: *"a signal that does not fire is a fact to reason about — quiet world, or a rule you cannot even evaluate from your substrate? — not an instruction to stand down."* Bracket/close-order schema retained (tool contract); duplicated principles/pedagogy removed.
+  - `outcome-reconciliation` 1,538 → 534 chars. Delegates the close to the frame; asks for the judgment on top of the deterministic reconciler instead of re-scripting a mandatory stand-down.
+- **`docs/programs/alpha-trader/reference-workspace/operation/trading/_operator_profile.md`** — signal rules rewritten to reference ONLY emitted perception fields (DP27). Signal 1 was keying on "20-day high" + "current-bar volume > 1.5×" — fields `track-universe` never emits — so it was structurally unfireable and the occupant fabricated a "wait for RTH" timing story to explain a permanent gap. Now: `price > sma_20 + price > sma_50 + RSI ∈ [55,75] + volume_20d_avg ≥ liquidity floor`. Signals 3 (PEAD) + 4 (sector-RS) marked DORMANT (feeds structurally absent).
+- **`api/test_trading_pipeline_architecture.py`** — §5 conformance invariant: a non-dormant signal trigger may reference only emitted perception fields; CI rejects an absent-field reference (14/14).
+- **Expected behavior:** the Reviewer, on a coherent autonomous workspace with a satisfied floor, now originates → approves → executes a capital action on its own initiative (validated: proposal `fc7ee88e`, autonomous self-approve, broker submit; blocked only by the `trading_hours_only` hard floor off-hours). Removes the procedural stand-down attractor + the unevaluable-rule fabrication that together produced the "never acts" passivity. No forcing function; the fix is *less* instruction, per ADR-306. Full receipts: `docs/evaluations/2026-06-22-full-autonomy-resolution-VALIDATION.md`.
+
 ## [2026.06.21.4] - ADR-352 loop-recovery: a gate-denied Clarify must not be swallowed downstream
 
 **LLM-facing changes:**
