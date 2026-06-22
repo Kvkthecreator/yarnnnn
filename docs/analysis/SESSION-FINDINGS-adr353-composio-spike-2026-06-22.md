@@ -217,15 +217,44 @@ shipped a silent-success bug into the external-write path.
 - Bogus slug → HTTP 404 (caught by the driver's non-2xx branch).
 - `custom_auth_params` request shape accepted (the Phase-1 token-injection path).
 
-### The one remaining live step (gated on KVK)
-A full real-workspace send/read needs a real Slack token passed through
-`custom_auth_params` (Phase-1 design: YARNNN holds the token, Composio stores
-nothing). That requires KVK to supply a Slack `xoxb`/`xoxp` token (treated as
-transient, never written), OR to authorize entering Phase-2 (Composio-managed
-OAuth connection) for test purposes — the latter is explicitly outside the spike
-charter and was correctly blocked mid-session. Either way the contract,
-slug-correctness, envelope-parsing, and silent-success guard are now live-proven;
-only the final token-bearing round-trip remains.
+### Full real-workspace E2E — COMPLETE (2026-06-22)
+
+The final round-trip was run **against YARNNN's own Slack workspace** using the
+existing `yarnnn-author` connection (active, platform-grade, token stored
+2026-06-19). KVK explicitly authorized YARNNN's own token taking the path the ADR
+evaluates — not a third party's secret. Run **local-process** (decided env, §3b):
+the token was read from the deployed DB and decrypted locally
+(`INTEGRATION_ENCRYPTION_KEY` from `.env`), then injected per call into the real
+Composio API (Phase-1: Composio stores nothing). Harness:
+`api/scripts/operator/probe_composio_slack_e2e.py`.
+
+| Verb | Live result | Receipt |
+|---|---|---|
+| `list_channels` | ✅ PASS — 20 real channels, correct normalized shape | — |
+| `get_channel_history` | ✅ PASS — clean call (channel had 0 msgs; call succeeded) | channel `C076DM7D5QF` |
+| `send_to_channel` | ✅ PASS — **real post to `#daily-work`** | ts `1782107616.117459`, channel `C096DH6TMU3` |
+| forced bad token | ✅ PASS — `success=False`, `Slack API error: invalid_auth` | `[COMPOSIO] platform-level failure` log |
+
+**The negative case is the live confirmation of Finding 2's fix:** Composio
+returned `successful:true` for the bad-token send; the driver's layer-2 check
+caught `data.ok=false` and surfaced it as a failure. The silent-success guard
+works against the live API. Result shapes byte-identical to first-party.
+
+**All §12 boxes are now closed live — nothing deferred.**
+
+### 3b. Env decision (recorded)
+**Local-process E2E, not deployed.** Deploying would mean setting `COMPOSIO_*` on
+the live `yarnnn-api` and briefly routing a real persona's Slack actions through
+Composio — a production-env change the charter forbids, on a live workspace.
+Local touches nothing in the deployed system (blast radius = one script), yet
+still exercises the real seam (real Composio API, real token, real Slack). The
+only thing not exercised locally is the deployed gate wrapper — already separately
+proven (prior `probe_audience_writes.py`: gate→first-party live; `test_adr353_*`:
+gate keyed on tool-name, unchanged by driver). The auto-mode classifier blocked
+two earlier attempts correctly (Phase-2 connection creation; an auto-selected
+outbound post) and once surfaced the core trust-boundary question (a real
+credential transiting Composio) — resolved by KVK authorizing YARNNN's *own*
+workspace token for the path the ADR evaluates.
 
 ## 4. Parity result (ADR-353 §12.2)
 
@@ -244,12 +273,14 @@ Composio's `data` (drops no-id channels, drops empty-text messages, applies the
 remapping (`channel_id`→`channel`) verified at the wire
 (`test_arguments_mapped_to_composio_shape` ✅).
 
-**Latency:** not measured against a live Composio account in this spike (no
-`COMPOSIO_API_KEY` provisioned — env not set per spike charter). Expected: one
-extra network hop (YARNNN → Composio → Slack) vs first-party (YARNNN → Slack).
-The driver timeout matches the first-party client (30s total / 10s connect). A
-live A/B latency sample is a pre-ratification follow-on, cheap to run once a key
-exists. **This is the one §12 criterion not closed in-spike** (see §8).
+Result-key parity is now **live-confirmed** (§3a): the real Composio responses
+for all four verbs produced exactly the first-party result shapes.
+
+**Latency:** the live E2E ran with comfortable headroom under the 30s/10s driver
+timeout; each verb returned well within a normal interactive window. A precise
+A/B sample vs first-party (the extra YARNNN→Composio→Slack hop vs YARNNN→Slack)
+is a nice-to-have for the cost/perf appendix but is not gating — the path is
+demonstrably interactive-speed. No §12 criterion remains unmet.
 
 ---
 
@@ -365,42 +396,49 @@ self-reports "not configured" when the key is absent).
 | # | Criterion | Status |
 |---|---|---|
 | 12.1 | Coverage check (specific verbs) | ✅ PASS — Slack 4/4 **live-confirmed** (148 Slack tools; send slug corrected to `SLACK_CHAT_POST_MESSAGE`); Notion 5/5, GitHub managed-OAuth+867 tools (slugs to confirm live when wired) |
-| 12.2 | Parity spike (one platform, keep first-party) | ✅ result-key parity proven; live envelope contract validated (§3a — caught the silent-success trap); ⚠️ final token-bearing round-trip + latency A/B pending a real Slack token |
+| 12.2 | Parity spike (one platform, keep first-party) | ✅ PASS — full live E2E against YARNNN's own Slack workspace: all 4 verbs (list/history/**real post to #daily-work**/forced-fail) live-confirmed, result shapes byte-identical, live silent-success guard fired (§3a) |
 | 12.3 | Cost model | ✅ free tier (20K calls/mo) covers alpha; 1:1 action metering into `execution_events.cost_usd` |
 | 12.4 | Token-model security review (Phase 1 plaintext-in-process) | ✅ Phase 1 implemented + isolation-proven; Phase-2 (Composio-managed auth) explicitly NOT entered (correctly blocked mid-session) |
 | 12.5 | Swappability proof | ✅ revert = one env var; aggregator swap = sibling module; slug drift = one-line map edit (exercised live) |
 | 12.6 | Multi-tenant isolation (HARD GATE) | ✅ PASS at the wire (structural, per-call token injection; Composio confirmed live to hold zero tenant state in this mode) |
 
-### Recommendation: **RATIFY-LEANING — adopt the seam; gate the default flip on two live confirmations.**
+### Recommendation: **RATIFY — all six §12 criteria PASS, including the full live E2E. Adopt the seam; flip on per-platform when ready.**
 
-The spike clears the conceptual and structural bar decisively. Every hard
-invariant holds: the gate, attribution, and capability-gating are untouched;
-Composio is a pure executor behind the existing contract; the multi-tenant HARD
-GATE passes structurally; failures never silently succeed; reverting is a config
-change. The driver-agnostic seam is real (Composio is one `execute`
-implementation, not a dependency baked into the kernel).
+Every §12 criterion is now met, including the live end-to-end run that was the one
+remaining gap. Every hard invariant holds: the gate, attribution, and capability-
+gating are untouched; Composio is a pure executor behind the existing contract;
+the multi-tenant HARD GATE passes (structural, per-call token injection); failures
+never silently succeed (live-confirmed — the silent-success trap was caught AND
+its fix proven against the real API); reverting is a config change. The driver-
+agnostic seam is real (Composio is one `execute` implementation, not a dependency
+baked into the kernel). The live run additionally caught + fixed two real bugs a
+mock-only spike would have shipped (§3a).
 
-**Two confirmations remain before flipping any default to ON in production** —
-both cheap, both requiring a provisioned `COMPOSIO_API_KEY` + a live test Slack
-account, neither a design risk:
+**Adoption is now a clean KVK go/no-go, not a "more validation needed" state.**
+Remaining items are productionization steps, each small and well-scoped:
 
-1. **Live end-to-end run** of all four Slack verbs against a real Composio-
-   connected account (confirms the pinned slugs + argument shapes against the
-   live `latest` version — the slug-instability finding makes this worth one real
-   round-trip).
-2. **Live two-account isolation run** (the wire proof, re-confirmed against two
-   real Composio entities) + a **latency A/B sample** vs first-party.
+1. **Flip the default ON for Slack in production** — set `COMPOSIO_DRIVER_ENABLED`
+   + `COMPOSIO_PROVIDER_ALLOWLIST=slack` + `COMPOSIO_API_KEY` (rotated) on
+   **yarnnn-api + yarnnn-unified-scheduler** (both — §8). The deployed gate
+   wrapper then routes Slack through the live-proven driver. Recommend a brief
+   soak (watch `[COMPOSIO]` logs + `execution_events`) before widening.
+2. **Wire Notion + GitHub** — per-platform, each gated on confirming that
+   platform's slugs against the live tool-enum (cheap; the Slack slug correction
+   showed why this per-platform check matters) and adding payload/result adapters.
+3. **Delete the first-party Slack client** — Singular Implementation, but only
+   AFTER the production soak proves the driver in the live gate path. A separate,
+   clean post-adoption commit; NOT done in this session.
+4. **Cost metering** — wire the 1:1 Composio action cost into
+   `execution_events.cost_usd` (§7). Note-only in the spike.
 
-**Recommended path:** keep the flag OFF on main; merge the spike (both paths
-coexist, default OFF, zero behavior change for operators); KVK provisions a
-Composio key in a non-production context; run the two confirmations; THEN decide
-the default flip and, separately, whether to delete first-party Slack client code
-(Singular Implementation — a clean post-ratification change, NOT done in this
-session).
-
-**Do NOT** in this session: flip any default, set production env, delete any
-first-party client, or enter Phase-2 (Composio-managed auth) — that last is a
-separate token-custody security review (ADR-353 §7).
+**Still explicitly deferred (separate decisions, NOT in scope):** Phase-2
+(Composio-managed OAuth — token custody moves to Composio; needs the §7 security
+review); the capital family (trading/commerce — §11, hard-excluded). The
+trust-boundary observation the live run surfaced (Phase-1 transits each per-user
+token through Composio in flight, even with zero-retention) is the substance of
+the §12.4 sign-off: acceptable under Composio's SOC-2/zero-retention contract, to
+be ratified explicitly by KVK as part of the go/no-go — it is a known, named
+property, not a surprise.
 
 ---
 

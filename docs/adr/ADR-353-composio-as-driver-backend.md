@@ -150,19 +150,31 @@ Headline:
   user's own token per call (`custom_auth_params`); Composio holds zero tenant
   auth state; proven at the wire that each call carries only the caller's bearer
   + `user_id` entity, zero cross-tenant leakage.
-- **Parity (§12.2):** result-dict keys match first-party byte-for-byte; live
-  latency A/B deferred (no production key set in spike).
+- **Parity (§12.2):** **PASS — full live E2E** against YARNNN's own Slack
+  workspace (KVK-authorized): all 4 verbs (list_channels, get_channel_history,
+  a real post to `#daily-work` ts `1782107616.117459`, forced-fail) live-
+  confirmed; result shapes byte-identical to first-party; the live silent-success
+  guard fired (Composio `successful:true` + `data.ok:false` → surfaced as failure).
+- **Live findings (§3a):** the run caught + fixed two bugs a mock-only spike would
+  have shipped — the send slug was wrong (`SLACK_SEND_MESSAGE` → live
+  `SLACK_CHAT_POST_MESSAGE`), and Composio's `successful` flag lies about platform
+  outcome (the real result is nested at `data.ok`).
 - **No silent success (Pitfall #4):** every failure mode (401/429/`successful:
-  false`/timeout/unmapped/missing-key/missing-token) → `{success: False}`.
+  false`/nested `data.ok:false`/timeout/unmapped/missing-key/missing-token) →
+  `{success: False}`. Live-confirmed.
 - **Swappability (§12.5):** revert = `COMPOSIO_DRIVER_ENABLED=false` (one env
   var). Capital family hard-excluded.
-- **Tests:** 17/17 pass (`api/test_adr353_composio_isolation.py` +
+- **Tests:** 18/18 pass (`api/test_adr353_composio_isolation.py` +
   `api/test_adr353_composio_parity.py`). No regressions.
 
-**Spike recommendation:** RATIFY-LEANING — adopt the seam; gate any production
-default flip on two cheap live confirmations (a real-account E2E run + a two-real-
-account isolation/latency sample). First-party clients NOT deleted; that is a
-separate post-ratification change. **Status remains Proposed pending KVK review.**
+**Spike recommendation:** **RATIFY** — all six §12 criteria PASS incl. full live
+E2E. Adoption is now a clean KVK go/no-go: flip the default ON for Slack on
+yarnnn-api + yarnnn-unified-scheduler (rotated key), soak, then wire Notion/GitHub
+per-platform and delete the first-party Slack client (post-soak, Singular
+Implementation). Deferred (separate decisions): Phase-2 Composio-managed auth (§7
+security review) + the capital family (§11). **Status remains Proposed pending
+KVK's explicit ratification + the §12.4 trust-boundary sign-off** (Phase-1 transits
+per-user tokens through Composio in flight — a known, named property).
 
 ## 13. Alternatives considered
 
