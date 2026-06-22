@@ -703,6 +703,60 @@ biggest advantage (auth) is absent.** For LinkedIn/X specifically, the call is
 genuinely open — Composio-with-BYO vs a first-party LinkedIn/X client is close,
 and should be decided when alpha-publisher is actually designed, not pre-committed.
 
+## 14. "Is publishing valid for alpha-author?" — the measure-not-steer resolution (2026-06-22)
+
+KVK kept circling the real question (Reddit + X + LinkedIn: is publishing valid for
+the author archetype at all?). The platform list doesn't settle it; the four-flow
+test does. Extended survey + resolution:
+
+### 14.1 Three-platform supply (live-surveyed, all BYO-credentials per §16)
+| Platform | Post verb | Engagement-read (outcomes-in) | Loop-closing? |
+|---|---|---|---|
+| **X / Twitter** | `CREATION_OF_A_POST` | **rich** — likers, retweeters, quotes, lookups | ✅ yes |
+| **Reddit** | `CREATE_REDDIT_POST` + `POST_REDDIT_COMMENT` | **rich** — `RETRIEVE_POST_COMMENTS`, threads, cross-subreddit search | ✅ yes |
+| **LinkedIn** | `CREATE_LINKED_IN_POST` | **thin** — only `GET_MY_INFO` / `GET_COMPANY_INFO` (no per-post engagement) | ❌ send-only |
+
+All three are **BYO-credentials** ⇒ none gets the §16 managed-OAuth auto-adopt; each
+is a deliberate first-party-vs-Composio call.
+
+### 14.2 The test — publishing is loop-valid only if the outcome feeds the corpus
+Per the four-flow model (ADR-332): a post the agent sends but never measures is
+*automation* (operator-side per ADR-283). A post the agent sends, measures, and
+learns from is *loop-closing* (work-out → outcomes-in → loop). The engagement-read
+column above IS the test: X/Reddit pass (rich reads), LinkedIn fails (send-only).
+
+### 14.3 RESOLUTION — "measure, but don't let it steer" (preserves the archetype)
+KVK's call, and it is the architecturally correct one: **publishing + engagement-
+read are valid for alpha-author, but engagement is OBSERVED ground-truth, NEVER a
+corpus driver.** The Reviewer may report "this landed / this didn't"; the corpus
+still compounds on its own **coherence** (the ADR-283 thesis), not on what got
+upvotes.
+
+This draws the bright line between the two archetypes:
+- **alpha-author (measure-not-steer):** post → measure reception → surface as
+  signal. Corpus compounds on coherence. **Engagement informs, never drives.**
+- **alpha-creator (steer):** post → measure → write more of what resonates. Corpus
+  optimizes for reach. This is the cadence-publishing archetype ADR-283 carved out
+  — a *different* bundle, not this one.
+
+The danger the resolution avoids: if audience-signal is allowed to drive the
+corpus, alpha-author silently becomes a growth-hacking bot (the Goodhart trap the
+archetype exists to prevent). "Measure-not-steer" keeps the author honest.
+
+### 14.4 Implication for the `alpha-publisher` bundle (when built)
+The resolution reshapes the §13.3 bundle: **`alpha-publisher` is a publish+PERCEIVE
+bundle, and the perceive half is load-bearing.** The send verbs (`write_reddit` /
+`write_x` / `write_linkedin`) are the cheap part; the engagement-read recurrences
+(`track-reddit` / `track-x`, populating `audience_signal` as *observation*) are
+what make it valid for the author archetype. The bundle's `principles.md` MUST
+state explicitly that **engagement informs but never drives the corpus** — or it
+silently degrades into alpha-creator. Platform fit (KVK): all three (X, Reddit,
+LinkedIn) are where build-in-public narrative lives, accepting LinkedIn is
+send-only (automation, not loop) and Reddit demands an authenticity-aware hand
+(its culture punishes bot-posting — a real per-platform constraint, not a Composio
+one). Still NOT built — gated on the §16 BYO-credential first-party-vs-Composio
+call per platform.
+
 ## 12. Sources (accessed 2026-06-22, input only)
 
 - [Slack — Composio Toolkit](https://docs.composio.dev/toolkits/slack)
