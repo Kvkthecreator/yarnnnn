@@ -188,3 +188,73 @@ def test_reddit_kernel_capabilities_present():
     assert CAPABILITIES["write_reddit"]["feeds"] == "action"
     assert CAPABILITIES["read_reddit"]["feeds"] == "context"
     assert CAPABILITIES["write_reddit"]["platform_connection_requirement"]["platform"] == "reddit"
+
+
+# --- hardened result adapter (live dry-run showed shapes vary) ----------------
+
+@pytest.mark.asyncio
+async def test_submit_post_deep_find_fallback(monkeypatch):
+    """An odd nesting still yields the post_id via the bounded deep search."""
+    from services import composio_driver
+    _mock_post(monkeypatch, body={
+        "successful": True,
+        "data": {"result": {"thing": {"name": "t3_deep", "permalink": "/r/x/abc"}}},
+    })
+    out = await composio_driver.execute(
+        "reddit", "submit_post", {"subreddit": "x", "title": "T", "text": "B"},
+        token="tok", user_id="u1",
+    )
+    assert out["success"] is True
+    assert out["result"]["post_id"] == "t3_deep"
+    assert out["result"]["url"] == "/r/x/abc"
+    assert "_unparsed" not in out["result"]
+
+
+@pytest.mark.asyncio
+async def test_submit_post_unparseable_success_surfaces_shape(monkeypatch):
+    """A successful body with NO findable id → _unparsed surfaced, not a crash,
+    not a misleading clean result."""
+    from services import composio_driver
+    _mock_post(monkeypatch, body={"successful": True, "data": {"weird": "shape"}})
+    out = await composio_driver.execute(
+        "reddit", "submit_post", {"subreddit": "x", "title": "T", "text": "B"},
+        token="tok", user_id="u1",
+    )
+    assert out["success"] is True          # both success layers passed
+    assert out["result"]["post_id"] is None
+    assert out["result"]["_unparsed"] == {"weird": "shape"}
+
+
+@pytest.mark.asyncio
+async def test_submit_post_non_dict_body_no_crash(monkeypatch):
+    """A non-dict success data body must not crash the adapter."""
+    from services import composio_driver
+    _mock_post(monkeypatch, body={"successful": True, "data": "just a string"})
+    out = await composio_driver.execute(
+        "reddit", "submit_post", {"subreddit": "x", "title": "T", "text": "B"},
+        token="tok", user_id="u1",
+    )
+    assert out["success"] is True
+    assert out["result"]["post_id"] is None
+    assert out["result"]["_unparsed"] == "just a string"
+
+
+@pytest.mark.asyncio
+async def test_get_comments_malformed_elements_tolerated(monkeypatch):
+    """Malformed comment elements (non-dict, missing body) are skipped, not fatal."""
+    from services import composio_driver
+    _mock_post(monkeypatch, body={
+        "successful": True,
+        "data": {"comments": [
+            "not-a-dict",
+            {"data": {"author": "a", "body": "ok", "score": 2}},
+            {"no_body": True},
+        ]},
+    })
+    out = await composio_driver.execute(
+        "reddit", "get_post_comments", {"post_id": "t3_x"},
+        token="tok", user_id="u1",
+    )
+    assert out["success"] is True
+    assert out["result"]["count"] == 1
+    assert out["result"]["comments"][0]["author"] == "a"

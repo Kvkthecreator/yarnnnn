@@ -255,37 +255,88 @@ def _slack_result(verb: str, data: dict) -> dict:
     raise _UnmappedVerb(f"slack:{verb}")
 
 
+def _deep_find(obj: Any, keys: tuple[str, ...], _depth: int = 0) -> Optional[Any]:
+    """Best-effort: return the first value found for any of `keys` anywhere in a
+    nested dict/list, bounded depth. Used to extract a Reddit post id/url without
+    hard-coding the exact nesting (the live dry-run, 2026-06-22, showed Reddit's
+    real response shapes vary and are messier than the action schema implies)."""
+    if _depth > 6:
+        return None
+    if isinstance(obj, dict):
+        for k in keys:
+            v = obj.get(k)
+            if v:
+                return v
+        for v in obj.values():
+            found = _deep_find(v, keys, _depth + 1)
+            if found:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = _deep_find(item, keys, _depth + 1)
+            if found:
+                return found
+    return None
+
+
 def _reddit_result(verb: str, data: dict) -> dict:
     """ADR-353 §15a. Re-derive a stable YARNNN result shape from Composio's Reddit
-    `data` (defensive — Reddit nests under data.json.data for posts). submit_post →
-    {post_id, url} (post_id feeds the later perceive read). get_post_comments →
-    {comments:[{author,body,score}], count} for audience_signal."""
+    `data`. HARDENED (live dry-run 2026-06-22): Reddit's real response shapes vary
+    and nest unpredictably, so this NEVER throws on a surprising-but-successful
+    body — it best-effort-extracts and, when it genuinely can't parse, returns the
+    raw shape under `_unparsed` so the caller sees "succeeded but unparsed" rather
+    than a crash or a misleading clean result. Reaching here means BOTH success
+    layers already passed (envelope.successful AND no _platform_level_error), so a
+    body we can't parse is an odd-shape success, not a failure.
+
+    submit_post → {post_id, url}. get_post_comments → {comments, count}."""
+    if not isinstance(data, dict):
+        # Defensive: a non-dict success body. Surface it rather than crash.
+        return {"post_id": None, "url": None, "_unparsed": data} if verb == "submit_post" \
+            else {"comments": [], "count": 0, "_unparsed": data}
+
     if verb == "submit_post":
-        # Reddit submit response: {json: {data: {id, name (t3_..), url}}}.
-        json_data = ((data.get("json") or {}).get("data")) or {}
-        post_id = json_data.get("name") or json_data.get("id") or data.get("name") or data.get("id")
-        url = json_data.get("url") or data.get("url")
-        return {"post_id": post_id, "url": url}
+        # Standard shape: {json: {data: {name (t3_..), id, url}}}. Fall back to a
+        # bounded deep search across whatever Reddit/Composio actually returned.
+        json_data = ((data.get("json") or {}).get("data")) if isinstance(data.get("json"), dict) else None
+        json_data = json_data if isinstance(json_data, dict) else {}
+        post_id = (
+            json_data.get("name") or json_data.get("id")
+            or data.get("name") or data.get("id")
+            or _deep_find(data, ("name", "id"))
+        )
+        url = json_data.get("url") or data.get("url") or _deep_find(data, ("url", "permalink"))
+        out: dict[str, Any] = {"post_id": post_id, "url": url}
+        if post_id is None:
+            # Odd-but-successful shape — surface it for debugging, don't pretend.
+            out["_unparsed"] = data
+            logger.warning("[COMPOSIO] reddit submit_post: success but post_id unparseable — shape surfaced")
+        return out
+
     if verb == "get_post_comments":
-        # Comments listing — Reddit returns a listing tree; flatten top-level.
+        # Comments listing — Reddit returns a listing tree; flatten top-level,
+        # tolerating multiple shapes. Never throws on a malformed element.
         raw = data.get("comments")
         if raw is None:
-            # Fall back to common listing shapes without over-assuming structure.
-            raw = data.get("children") or (data.get("data") or {}).get("children") or []
+            raw = (
+                data.get("children")
+                or (data.get("data") or {}).get("children") if isinstance(data.get("data"), dict) else None
+            ) or []
         comments = []
         for c in raw if isinstance(raw, list) else []:
-            body = c.get("body") if isinstance(c, dict) else None
-            if isinstance(c, dict) and isinstance(c.get("data"), dict):
-                body = body or c["data"].get("body")
-                author = c["data"].get("author")
-                score = c["data"].get("score")
-            else:
-                author = c.get("author") if isinstance(c, dict) else None
-                score = c.get("score") if isinstance(c, dict) else None
+            if not isinstance(c, dict):
+                continue
+            inner = c.get("data") if isinstance(c.get("data"), dict) else {}
+            body = c.get("body") or inner.get("body")
             if not body:
                 continue
-            comments.append({"author": author, "body": body, "score": score})
+            comments.append({
+                "author": c.get("author") or inner.get("author"),
+                "body": body,
+                "score": c.get("score") if c.get("score") is not None else inner.get("score"),
+            })
         return {"comments": comments, "count": len(comments)}
+
     raise _UnmappedVerb(f"reddit:{verb}")
 
 
