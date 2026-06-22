@@ -167,14 +167,20 @@ Headline:
 - **Tests:** 18/18 pass (`api/test_adr353_composio_isolation.py` +
   `api/test_adr353_composio_parity.py`). No regressions.
 
-**Spike recommendation:** **RATIFY** — all six §12 criteria PASS incl. full live
-E2E. Adoption is now a clean KVK go/no-go: flip the default ON for Slack on
-yarnnn-api + yarnnn-unified-scheduler (rotated key), soak, then wire Notion/GitHub
-per-platform and delete the first-party Slack client (post-soak, Singular
-Implementation). Deferred (separate decisions): Phase-2 Composio-managed auth (§7
-security review) + the capital family (§11). **Status remains Proposed pending
-KVK's explicit ratification + the §12.4 trust-boundary sign-off** (Phase-1 transits
-per-user tokens through Composio in flight — a known, named property).
+**Spike recommendation:** **RATIFY the seam** — all six §12 criteria PASS incl.
+full live E2E. **But scope adoption to NEW platforms, not a Slack-family re-route**
+(decision memo: findings §9a). The audit found the existing clients
+(Slack/Notion/GitHub) have callers beyond the driver seam (landscape sync,
+exporters) and that OAuth/token lifecycle stays first-party in Phase 1 — so
+re-routing already-built platforms buys partial maintenance savings while adding a
+token-transit dependency (weak). The strong case is the §1 thesis: the next
+platform with NO first-party client (Salesforce/HubSpot/Linear/…) gets wired with
+zero new client code. **Recommended next step: do NOT wire Notion/GitHub now;
+adopt Composio as the driver for the first genuinely-new platform need.** Deferred
+(separate decisions): Phase-2 Composio-managed auth (§7 review) + capital family
+(§11). **Status remains Proposed pending KVK's ratification + the §12.4 trust-
+boundary sign-off** (Phase-1 transits per-user tokens through Composio in flight —
+a known, named property).
 
 ## 13. Alternatives considered
 

@@ -442,6 +442,89 @@ property, not a surprise.
 
 ---
 
+## 9a. Adoption decision memo — scope the wiring AFTER the strategy (2026-06-22)
+
+KVK asked: wire Notion/GitHub, or step back? The disciplined answer (chosen):
+**decide adoption first; keep both paths until ONE decision; then collapse to
+one.** Wiring more platforms before the adopt/don't call risks building adapters
+we throw away and widening a parallel-path Singular-Implementation violation.
+This memo is the input to that call.
+
+### The decision is NOT "add two platforms." It's "what is Composio FOR?"
+
+The spike proved the seam works. The strategic question the seam was built to
+answer (discourse §6.6, ADR-353 §1): **is the value worth a third-party token-
+transit dependency?** Three honest framings, grounded in the code audit:
+
+**Framing A — Composio replaces the clients we already have (Slack/Notion/GitHub).**
+- *Value:* stop maintaining 3 execution clients (1,503 LOC:
+  slack 454 + notion 626 + github 423).
+- *Cost (the audit correction):* the execution clients are **not cleanly
+  deletable.** They have callers BEYOND the driver seam — `services/landscape.py`
+  (Slack source discovery: `list_channels_paginated`), `integrations/exporters/
+  {slack,notion}.py` (content delivery). Those use paginated/bulk methods the
+  driver doesn't expose. So adopting Composio for the *tool* path leaves the
+  client in place for sync/export, OR forces migrating those too. The "stop
+  maintaining hands" benefit is **partial** for already-built platforms.
+- *Plus:* OAuth + token lifecycle (`oauth.py` 408 LOC + `tokens.py`) stays
+  first-party in Phase 1 — connection machinery is NOT retired.
+- **Verdict on A: weak.** Re-routing working platforms through a third party, for
+  partial maintenance savings, while ADDING a token-transit dependency. Low
+  upside, real new cost.
+
+**Framing B — Composio is the treadmill-killer for platforms we DON'T have.**
+- *Value:* the next operator who needs Salesforce / HubSpot / Linear / Jira /
+  Google Drive / Asana — none of which have a first-party client — gets it with
+  **zero new client code, zero new OAuth config**. Composio catalogs 1,000+
+  toolkits. This is the actual §1 thesis ("stop walking the integration
+  treadmill"), and it has no first-party alternative to compete with — so the
+  token-transit cost buys a capability we otherwise simply wouldn't have.
+- *Cost:* same token-transit dependency, but now for NET-NEW capability, not a
+  re-route. The tradeoff is clearly positive.
+- **Verdict on B: strong.** This is where Composio earns its place.
+
+**Framing C — the trust-boundary cost (applies to both, the real gating item).**
+- Phase-1 transits each operator's platform token through Composio in flight
+  (zero-retention, but it leaves YARNNN's boundary). First-party sends the token
+  only to its issuer (slack.com). This is the §12.4 sign-off and it is KVK's to
+  accept — acceptable under Composio's SOC-2/zero-retention contract, but it is a
+  genuine posture change, especially as the platform count grows.
+
+### Recommendation: **ADOPT — but for NEW platforms, not as a Slack-family re-route.**
+
+The synthesis of A + B + C:
+
+1. **Keep Slack/Notion/GitHub first-party for now.** They work, they have non-
+   driver callers, and re-routing them buys little while adding token-transit
+   risk. Do NOT wire Notion/GitHub through Composio as the next step — that's
+   Framing A, the weak case. (The Slack path stays as the proven reference
+   implementation behind the flag, OFF.)
+2. **Adopt Composio as the driver for the FIRST genuinely-new platform request** —
+   when an operator needs a platform with no first-party client. That is the move
+   that proves the thesis with real upside and no wasted re-route work. The seam
+   is built and live-proven; adding a new platform = one slug-map entry + one
+   payload/result adapter pair (the §3a Slack pattern), no client, no OAuth code.
+3. **Revisit Slack-family deletion only IF** Composio becomes the standing driver
+   AND the non-driver callers (landscape/exporters) are migrated too — a later
+   Singular-Implementation cleanup, not now.
+4. **The token-transit sign-off (C)** is required before ANY production flip,
+   new-platform or re-route.
+
+### So: how to scope the next code session
+
+- **DON'T** wire Notion/GitHub now (Framing A — low value, throwaway risk).
+- **DO** wait for / pick a real new-platform need, then wire THAT through Composio
+  as the adoption proof (Framing B). Scope = 1 platform, the verbs an actual
+  recurrence needs, the adapter pattern already established.
+- **The seam is done.** No further driver work is needed until a new platform is
+  chosen. The right next artifact is KVK naming the first new-platform target (or
+  deferring until one arises organically per ADR-353 §14: "revisit when the next
+  platform request would otherwise mean writing another client").
+
+This keeps both paths until the one decision (adopt-for-new), honors Singular
+Implementation (no new parallelism for already-built platforms), and points the
+effort where the moat actually benefits.
+
 ## 10. Sources (accessed 2026-06-22, input only)
 
 - [Slack — Composio Toolkit](https://docs.composio.dev/toolkits/slack)
