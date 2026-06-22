@@ -1371,6 +1371,20 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
     for capability in (capabilities or []):
         provider = CAPABILITY_PROVIDER_MAP.get(capability)
         if not provider or provider not in connected_providers:
+            # ADR-353 §15: a requested capability we cannot satisfy is silently
+            # dropped here (the ADR-227 empty-deliverable failure mode). Capture
+            # it as a connection-demand signal — this is the discovery queue
+            # (real program demand), not catalog-browsing. unknown provider →
+            # unknown_capability (a Hat-A add candidate); known provider not in
+            # connected set → platform_not_connected (an operator-onboarding
+            # signal). Non-raising; never breaks tool loading.
+            from services.connection_demand import record_unmet_capability
+            record_unmet_capability(
+                auth.user_id,
+                capability,
+                reason="unknown_capability" if not provider else "platform_not_connected",
+                required_platform=provider,
+            )
             continue
         allowed_workspace_tool_names.update(PLATFORM_TOOLS_BY_CAPABILITY.get(capability, []))
 
