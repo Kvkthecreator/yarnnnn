@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.22.4] - ADR-353 §15a: Reddit publishing for the author archetype (publish-and-perceive)
+
+**LLM-facing changes:**
+
+- **`api/services/platform_tools.py`** — new `REDDIT_TOOLS`: `platform_reddit_submit_post` (the audience POST — external-write family, ADR-307 gated) + `platform_reddit_get_post_comments` (the PERCEIVE read — comments → audience_signal as observation). Tool descriptions carry the measure-not-steer + contribution-first ethic inline. Registered in `PLATFORM_TOOLS_BY_PROVIDER`, `PLATFORM_TOOLS_BY_CAPABILITY` (`write_reddit`/`read_reddit`), `CAPABILITY_PROVIDER_MAP`, `_EXTERNAL_WRITE_PLATFORM_TOOLS`, `_COMPOSIO_TOKEN_PLATFORM`.
+- **`api/services/orchestration.py`** — `read_reddit` + `write_reddit` added to kernel `CAPABILITIES` (kernel-universal, like slack/notion/github per ADR-224 §1). `write_reddit` feeds:action (HIGH tier, gate is the floor, Reviewer-excluded); `read_reddit` feeds:context.
+- **`docs/programs/alpha-author/`** — MANIFEST declares `read_reddit`/`write_reddit`; `_recurrences.yaml` adds `reddit-publish` (judgment — Reviewer decides whether/what to post, contribution-first; the post is gated) + `reddit-perceive` (judgment — read comments → audience_signal); `persona/principles.md` adds the `publish-measure-not-steer` rule (engagement INFORMS, never DRIVES — the bright line vs alpha-creator).
+- **Not LLM-facing (recorded):** `composio_driver.py` (reddit slug map `REDDIT_CREATE_REDDIT_POST`/`REDDIT_RETRIEVE_POST_COMMENTS` + payload/result adapters + reddit `data.json.errors` platform-level success check + reddit added to default allowlist — Composio-ONLY execution backend, no first-party reddit client); `integrations/core/{oauth,types}.py` (Reddit OAuth handler — BYO-credentials, Basic-auth token exchange, duration=permanent; `REDDIT` enum); ADR-283 D7 amended (publishing now in-archetype); ADR-353 §15a.
+- **Expected behavior:** a yarnnn-author workspace with an active reddit connection + `write_reddit` declared can autonomously post a corpus piece to a subreddit (gated by autonomy mode) and fold the comment reception back into `audience_signal` — WITHOUT the corpus optimizing toward engagement (measure-not-steer). Execution routes through Composio (`COMPOSIO_DRIVER_ENABLED` + reddit in allowlist).
+
 ## [2026.06.22.3] - ADR-356: TrackForeign + the repository watch (ADR-335 Crawl-B Increment B)
 
 **LLM-facing changes:**

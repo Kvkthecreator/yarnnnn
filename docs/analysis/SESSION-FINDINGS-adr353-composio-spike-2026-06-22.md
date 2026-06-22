@@ -808,6 +808,60 @@ observation) + autonomy, NOT on the *send* (which browser-automation already doe
 for LinkedIn/X). Build sequence when it happens: Reddit first (strict gain),
 measure-not-steer principles.md, perceive-recurrences as the load-bearing half.
 
+## 15b. BUILT — Reddit publishing in the alpha-author archetype (2026-06-22)
+
+KVK: "update yarnnn-author so its kernel and workspace can do automatic posting to
+Reddit." Built the full vertical slice. **Bundle-target decision reversed from
+§13.3:** KVK chose to **extend alpha-author** (not a separate alpha-publisher
+bundle) — the loop-completion argument won, so the author archetype now *includes*
+publish-and-perceive. ADR-283 D7 amended accordingly (publishing in-archetype; the
+measure-not-steer guard preserved as a rule of judgment, not a capability
+exclusion). §13.3's "different bundle" disposition is superseded.
+
+### What shipped (all on main this session)
+- **Kernel:** `read_reddit` + `write_reddit` in `orchestration.py::CAPABILITIES`
+  (kernel-universal, like slack/notion/github). `write_reddit` feeds:action (HIGH
+  tier, ADR-307 gate is the floor, Reviewer-excluded); `read_reddit` feeds:context.
+- **Tools:** `platform_reddit_submit_post` (external-write family) +
+  `platform_reddit_get_post_comments` (perceive read) in `platform_tools.py`, fully
+  registered across all maps + the external-write classifier.
+- **Driver (Composio-ONLY backend — no first-party reddit client exists):**
+  `composio_driver.py` reddit slug map (`REDDIT_CREATE_REDDIT_POST` /
+  `REDDIT_RETRIEVE_POST_COMMENTS`, live-confirmed schema) + payload adapters
+  (kind="self", flair_id default, post_id→article) + result adapters (post_id/url,
+  comments/count) + the **reddit silent-success guard** (`data.json.errors` is
+  Reddit's data.ok analogue — caught, regression-tested). Reddit added to the
+  default driver allowlist.
+- **OAuth (BYO-credentials, §16):** Reddit handler in `integrations/core/oauth.py`
+  (Basic-auth token exchange, `duration=permanent` for a refresh token, required
+  User-Agent) + `REDDIT` enum. The generic `/integrations/{provider}/callback`
+  route + generic `platform_connections` upsert handle persistence with zero route
+  changes.
+- **Bundle (alpha-author):** MANIFEST declares the capabilities; `_recurrences.yaml`
+  adds `reddit-publish` (judgment — contribution-first, gated post) +
+  `reddit-perceive` (judgment — comments → audience_signal); `principles.md` adds
+  `publish-measure-not-steer` (engagement INFORMS, never DRIVES — the bright line
+  vs alpha-creator).
+- **Tests:** `test_adr353_reddit_driver.py` (12) + prior ADR-353 suite (20) = 32/32.
+  CHANGELOG `[2026.06.22.4]`. ADR-283 D7 amended.
+
+### DEPLOYMENT CHECKLIST (not done this session — operator/Hat-A go-live steps)
+To make autonomous Reddit posting live for yarnnn-author:
+1. **Register a Reddit app** (https://www.reddit.com/prefs/apps — type "web app",
+   redirect `https://yarnnn-api.onrender.com/api/integrations/reddit/callback`).
+2. **Env vars** — set on **yarnnn-api + yarnnn-unified-scheduler** (Render parity,
+   §8): `REDDIT_CLIENT_ID`, `REDDIT_CLIENT_SECRET` (OAuth); `COMPOSIO_API_KEY` +
+   `COMPOSIO_DRIVER_ENABLED=true` (reddit is already in the default allowlist).
+   NOT on mcp-server / render.
+3. **Connect** — operator runs the Reddit OAuth flow (`/api/integrations/reddit/
+   connect`) → creates the `platform_connections` row.
+4. **Activate** — yarnnn-author's workspace already runs alpha-author; the
+   `reddit-publish` / `reddit-perceive` recurrences fire once the connection +
+   `COMPOSIO_DRIVER_ENABLED` are live. Under bounded/manual autonomy the first
+   posts QUEUE for approval; under autonomous they post directly.
+5. **§12.4 token-transit sign-off** still applies (the Reddit token transits
+   Composio in flight).
+
 ## 12. Sources (accessed 2026-06-22, input only)
 
 - [Slack — Composio Toolkit](https://docs.composio.dev/toolkits/slack)

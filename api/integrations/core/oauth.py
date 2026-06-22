@@ -100,6 +100,23 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
         ],
         redirect_path="/api/integrations/github/callback",
     ),
+    # ADR-353 §15a: Reddit OAuth (BYO-credentials — operator/YARNNN registers a
+    # Reddit app; §16 BYO-cred path). Token lands in platform_connections;
+    # the Composio driver executes with it (Phase-1: YARNNN owns auth, Composio
+    # owns execution — there is NO first-party reddit client).
+    "reddit": OAuthConfig(
+        provider="reddit",
+        client_id_env="REDDIT_CLIENT_ID",
+        client_secret_env="REDDIT_CLIENT_SECRET",
+        authorize_url="https://www.reddit.com/api/v1/authorize",
+        token_url="https://www.reddit.com/api/v1/access_token",
+        scopes=[
+            "identity",   # who the connected account is (metadata)
+            "submit",     # submit posts (write_reddit)
+            "read",       # read comments/listings (read_reddit / perceive)
+        ],
+        redirect_path="/api/integrations/reddit/callback",
+    ),
     # ADR-131: Gmail and Calendar OAuth configs removed (sunset)
 }
 
@@ -198,6 +215,18 @@ def get_authorization_url(provider: str, user_id: str, redirect_to: Optional[str
             "redirect_uri": config.redirect_uri,
             "scope": " ".join(config.scopes),
             "state": state,
+        }
+    elif provider == "reddit":
+        # ADR-353 §15a: Reddit OAuth — response_type=code, space-joined scopes,
+        # duration=permanent to receive a refresh token (Reddit access tokens
+        # expire in 1h; refresh keeps the connection alive without re-auth).
+        params = {
+            "client_id": config.client_id,
+            "response_type": "code",
+            "state": state,
+            "redirect_uri": config.redirect_uri,
+            "duration": "permanent",
+            "scope": " ".join(config.scopes),
         }
     else:
         raise ValueError(f"Unsupported provider: {provider}")
@@ -359,6 +388,66 @@ async def exchange_code_for_token(
                     "name": user_data.get("name"),
                     "scope": data.get("scope"),
                     "token_type": data.get("token_type"),
+                },
+                "status": IntegrationStatus.ACTIVE.value,
+                "redirect_to": redirect_to,
+            }
+
+        elif provider == "reddit":
+            # ADR-353 §15a: Reddit token exchange — HTTP Basic auth
+            # (client_id:secret), a descriptive User-Agent is REQUIRED by Reddit
+            # or the request is rejected/ratelimited. duration=permanent (set at
+            # authorize time) returns a refresh_token.
+            import base64
+            basic = base64.b64encode(
+                f"{config.client_id}:{config.client_secret}".encode()
+            ).decode()
+            response = await client.post(
+                config.token_url,
+                headers={
+                    "Authorization": f"Basic {basic}",
+                    "User-Agent": "yarnnn/1.0 (alpha-author publishing; ADR-353)",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+                data={
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": config.redirect_uri,
+                },
+            )
+            data = response.json()
+            if "error" in data or "access_token" not in data:
+                raise ValueError(
+                    f"Reddit OAuth error: {data.get('error', 'no access_token in response')}"
+                )
+
+            token_manager = get_token_manager()
+
+            # Fetch the connected account's identity for metadata (who posts).
+            me = await client.get(
+                "https://oauth.reddit.com/api/v1/me",
+                headers={
+                    "Authorization": f"Bearer {data['access_token']}",
+                    "User-Agent": "yarnnn/1.0 (alpha-author publishing; ADR-353)",
+                },
+            )
+            me_data = me.json() if me.status_code == 200 else {}
+
+            return {
+                "user_id": user_id,
+                "platform": provider,
+                "credentials_encrypted": token_manager.encrypt(data["access_token"]),
+                "refresh_token_encrypted": (
+                    token_manager.encrypt(data["refresh_token"])
+                    if data.get("refresh_token")
+                    else None
+                ),
+                "metadata": {
+                    "reddit_username": me_data.get("name"),
+                    "reddit_id": me_data.get("id"),
+                    "scope": data.get("scope"),
+                    "token_type": data.get("token_type"),
+                    "expires_in": data.get("expires_in"),
                 },
                 "status": IntegrationStatus.ACTIVE.value,
                 "redirect_to": redirect_to,

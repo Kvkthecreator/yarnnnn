@@ -446,6 +446,77 @@ Parameters:
     },
 ]
 
+# ── Reddit Tools (ADR-353 §15a: alpha-publisher / yarnnn-author publishing) ──
+#
+# Reddit executes ENTIRELY through the Composio driver (no first-party
+# _handle_reddit_tool — driver_enabled_for("reddit") short-circuits in
+# handle_platform_tool before the _handle_* dispatch). Singular Implementation by
+# construction: there is no parallel Reddit client to maintain or delete.
+#
+# write_reddit = the audience-addressing POST (consequential external-write, gated
+# by ADR-307). read_reddit = RETRIEVE_POST_COMMENTS — the PERCEIVE half that feeds
+# audience_signal as OBSERVATION (measure-not-steer, ADR-353 §14). The perceive
+# half is load-bearing: it is what makes publishing valid for the author archetype
+# (post → measure reception → corpus learns), not just a send button.
+REDDIT_TOOLS = [
+    {
+        "name": "platform_reddit_submit_post",
+        "description": """Submit a self (text) post to a subreddit (audience-addressing).
+
+Use to publish to a subreddit the operation participates in — a build-in-public
+update, a thesis post, a founder note. This is a consequential outbound action:
+under supervised / bounded autonomy it is QUEUED for operator approval before
+posting; under autonomous it posts directly.
+
+Reddit's culture punishes anything that reads as automated/promotional. Honor the
+operation's contribution-first ethic: the post must be valuable on its own terms.
+
+Parameters:
+- subreddit: target subreddit WITHOUT the r/ prefix (e.g. "startups", "SaaS")
+- title: the post title
+- text: the post body (Reddit markdown supported)""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "subreddit": {
+                    "type": "string",
+                    "description": "Target subreddit, no r/ prefix (e.g. 'startups')."
+                },
+                "title": {"type": "string", "description": "Post title."},
+                "text": {"type": "string", "description": "Post body (Reddit markdown)."},
+            },
+            "required": ["subreddit", "title", "text"]
+        }
+    },
+    {
+        "name": "platform_reddit_get_post_comments",
+        "description": """Retrieve comments on a Reddit post (the perceive / outcomes-in read).
+
+Use AFTER a post lands to measure reception — comment volume, sentiment, the
+questions readers raise. This populates audience_signal as OBSERVATION: it informs
+the corpus (what landed, what didn't) but NEVER drives it toward engagement-chasing
+(measure-not-steer).
+
+Parameters:
+- post_id: the Reddit post id (t3_... or the bare id) returned by submit_post
+- limit: max comments to retrieve (default 50)""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "post_id": {
+                    "type": "string",
+                    "description": "Reddit post id (from submit_post result)."
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Max comments to retrieve. Default 50."
+                },
+            },
+            "required": ["post_id"]
+        }
+    },
+]
+
 # ── Commerce Tools (ADR-183: Commerce Substrate) ──
 
 COMMERCE_TOOLS = [
@@ -1131,6 +1202,7 @@ PLATFORM_TOOLS_BY_PROVIDER = {
     "slack": SLACK_TOOLS,
     "notion": NOTION_TOOLS,
     "github": GITHUB_TOOLS,
+    "reddit": REDDIT_TOOLS,  # ADR-353 §15a — Composio-only execution backend
     "commerce": COMMERCE_TOOLS + COMMERCE_WRITE_TOOLS,
     "trading": TRADING_TOOLS + TRADING_WRITE_TOOLS,
     "email": EMAIL_TOOLS,
@@ -1155,6 +1227,11 @@ PLATFORM_TOOLS_BY_CAPABILITY = {
         "platform_github_get_repo_metadata", "platform_github_get_readme",
         "platform_github_get_releases",
     ],
+    # ADR-353 §15a: Reddit publishing for alpha-publisher / yarnnn-author.
+    # write_reddit = the audience POST (external-write family, gated). read_reddit
+    # = the perceive read (comments) that feeds audience_signal as observation.
+    "write_reddit": ["platform_reddit_submit_post"],
+    "read_reddit": ["platform_reddit_get_post_comments"],
     "read_commerce": [
         "platform_commerce_list_products", "platform_commerce_get_subscribers",
         "platform_commerce_get_revenue", "platform_commerce_get_customers",
@@ -1210,6 +1287,10 @@ CAPABILITY_PROVIDER_MAP = {
     # write (create_page + append_block) — surfaces via the notion provider.
     "write_notion": "notion",
     "read_github": "github",
+    # ADR-353 §15a: Reddit publishing — both capabilities surface via the reddit
+    # provider (Composio-only execution backend).
+    "write_reddit": "reddit",
+    "read_reddit": "reddit",
     "read_commerce": "commerce",
     "write_commerce": "commerce",
     "read_trading": "trading",
@@ -1512,6 +1593,7 @@ _COMPOSIO_TOKEN_PLATFORM = {
     "slack": "slack",
     "notion": "notion",
     "github": "github",
+    "reddit": "reddit",  # ADR-353 §15a
 }
 
 
@@ -2890,6 +2972,9 @@ _EXTERNAL_WRITE_PLATFORM_TOOLS: frozenset[str] = frozenset({
     "platform_slack_send_to_channel",
     "platform_notion_create_page",
     "platform_notion_append_block",
+    # Reddit audience post (ADR-353 §15a) — LLM supplies subreddit; third-party
+    # audience; consequential outbound → external-write family, ADR-307 gate.
+    "platform_reddit_submit_post",
 })
 
 

@@ -15,6 +15,7 @@ class IntegrationProvider(str, Enum):
     SLACK = "slack"
     NOTION = "notion"
     GITHUB = "github"  # ADR-147: GitHub platform integration
+    REDDIT = "reddit"  # ADR-353 §15a: Reddit publishing (Composio-only execution)
     GOOGLE = "google"  # ADR-131: sunset, kept for enum compat
     EMAIL = "email"  # Native, not MCP
     DOWNLOAD = "download"  # Native, not MCP

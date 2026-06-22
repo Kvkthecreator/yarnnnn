@@ -104,6 +104,7 @@ def test_runtime_kernel_sentinel_deleted_from_capabilities() -> None:
         "external:slack",
         "external:notion",
         "external:github",
+        "external:reddit",  # ADR-353 §15a: Reddit publishing (Composio-only)
     }
     for cap_name, cap_decl in CAPABILITIES.items():
         runtime = cap_decl.get("runtime")

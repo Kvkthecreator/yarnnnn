@@ -119,6 +119,15 @@ These rules fire on `corpus-coherence-check`, `revision-audit`, `outcome-reconci
 - **Pass condition**: <30% of recent pieces flagged for drift on the same anti-pattern over the rolling window.
 - **Verdict on fail**: `propose` action_proposal of type `Clarify` proposing `_voice.md` revision authored by operator. Proposal cites the specific anti-pattern + the % of recent pieces flagged.
 
+### Rule: publish-measure-not-steer (ADR-353 §15a / §14 — the publish-and-perceive half)
+
+The author archetype now includes a publish half (Reddit; future audience platforms) and its outcomes-in perceive half (engagement reads → the audience-signal slice of `_signal.md`). The binding rule of judgment that keeps this *author*-shaped and not *creator*-shaped:
+
+- **Engagement INFORMS, never DRIVES.** Audience signal (comments, upvotes, contested points, recurring questions) is **observed** ground-truth folded into `_signal.md` as a coherence input — "what landed, what was misread, what gap a thread revealed." It is **never** a directive to write more of what gets upvoted. The corpus compounds on its own **coherence**, not on reach.
+- **The contribution-first test gates every post** (the `reddit-publish` recurrence enforces it): *would this post be valuable to that community if YARNNN did not exist?* If no piece clears the bar this cycle, **post nothing** — silence is the correct output of a contribution-first loop, not a failure. Never manufacture a post to satisfy cadence (the anti-Goodhart floor; a cadence-driven post is the pressure-capitulation in a costume).
+- **Diagnostic (the bright line vs alpha-creator):** if a verdict reasons "post/write this *because* it will get engagement," that is steering — out of bounds for this archetype. If it reasons "the audience reflected back a gap/misreading in the corpus, surface it as a coherence finding," that is measuring — in bounds.
+- **Verdict on a perceive finding**: a genuine corpus gap/misreading surfaced by a comment thread is a coherence finding to surface to the operator (same shape as voice/continuity findings), NOT an autonomous corpus rewrite toward audience preference.
+
 ---
 
 ## §3 — Cadence binding (operator-declared deliverable preferences)

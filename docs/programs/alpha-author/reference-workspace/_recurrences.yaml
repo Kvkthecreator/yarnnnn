@@ -226,6 +226,75 @@ recurrences:
       @primitive: TrackForeign(declaration="operation/authored/_repo_sources.yaml", distills_to="operation/authored/_repo_signal.yaml", tool="get_file_contents")
     display_name: "Track Repo (standing repository watch)"
 
+  # ── JUDGMENT — Reddit publish (ADR-353 §15a) ─────────────────────────────
+  # The author archetype's publish half. The Reviewer decides WHETHER and WHAT
+  # to post from the ready corpus — it is judgment, not a mechanical blast. The
+  # actual platform_reddit_submit_post is consequential (external-write family,
+  # ADR-307): under bounded/manual it QUEUEs for operator approval; under
+  # autonomous it posts directly ("works while you sleep"). Reddit's culture
+  # punishes anything that reads as automated/promotional — the contribution-
+  # first ethic (would this be valuable if YARNNN didn't exist?) governs every
+  # post. Only fires when a reddit platform_connection is active.
+  - slug: reddit-publish
+    schedule: "0 15 * * 2"   # Tue 15:00 UTC — one considered post per week, max
+    mode: judgment
+    required_capabilities: [write_reddit]
+    prompt: |
+      Consider whether the corpus has a piece worth publishing to Reddit this
+      cycle. Read the recently-published corpus at
+      /workspace/operation/authored/{piece-slug}/content.md (status=published)
+      and the operator's voice fingerprint at /workspace/persona/_voice.md.
+
+      This is JUDGMENT, not a quota. Publish ONLY if there is a piece that
+      genuinely contributes to a specific subreddit's discourse on its own
+      terms. The contribution-first test is binding: would this post be valuable
+      to that community if YARNNN did not exist? If no piece clears that bar this
+      cycle, post nothing — silence is the correct output of a contribution-first
+      loop, not a failure. Never manufacture a post to satisfy cadence.
+
+      If a piece clears the bar:
+        - choose the subreddit whose audience the piece actually serves
+        - adapt the title + body to that subreddit's culture (NOT a raw cross-
+          post; Reddit punishes copy-paste promotion)
+        - call platform_reddit_submit_post(subreddit=..., title=..., text=...)
+        - record the post (subreddit, post_id, piece-slug) under
+          /workspace/operation/authored/_audience/reddit/ for the perceive loop
+
+      Engagement is something you will MEASURE (the reddit-perceive recurrence),
+      never something you optimize toward. The corpus compounds on coherence,
+      not on what gets upvoted (measure-not-steer).
+    display_name: "Reddit Publish"
+
+  # ── JUDGMENT — Reddit perceive (the outcomes-in / measure half) ──────────
+  # The load-bearing half: read comments on recent Reddit posts and fold them
+  # into audience_signal as OBSERVATION. This is what closes the loop (post →
+  # measure reception → corpus learns) and what makes publishing valid for the
+  # author archetype. Engagement INFORMS the corpus (what landed, what didn't,
+  # what questions readers raised) but NEVER drives it toward engagement-
+  # chasing — the bright line vs the alpha-creator archetype (ADR-353 §14).
+  - slug: reddit-perceive
+    schedule: "0 16 * * 4"   # Thu 16:00 UTC — ~2 days after the Tue publish window
+    mode: judgment
+    required_capabilities: [read_reddit]
+    prompt: |
+      Read reception on recently-published Reddit posts. For each post recorded
+      under /workspace/operation/authored/_audience/reddit/ in the last 14 days,
+      call platform_reddit_get_post_comments(post_id=...) and read the comment
+      thread.
+
+      Fold what you observe into the audience-signal slice of
+      /workspace/operation/authored/_signal.md per the corpus-coherence-rollup
+      schema: what resonated, what was contested, what questions recurred, where
+      the piece was misread.
+
+      This is OBSERVATION, not optimization. Surface what the audience reflected
+      back about the corpus — it informs the operator's authoring and the
+      Reviewer's coherence audits. It does NOT become a directive to write more
+      of what gets upvoted. If a comment thread reveals a genuine gap or
+      misreading in the corpus, that is a coherence finding to surface (measure-
+      not-steer); the corpus still compounds on its own coherence.
+    display_name: "Reddit Perceive"
+
 # ADR-275: weekly-corpus-review and quarterly-voice-audit (operator
 # deliverable cadence) live in /workspace/governance/_preferences.yaml.
 # The Reviewer reads _preferences.yaml at every wake and authors Schedule(

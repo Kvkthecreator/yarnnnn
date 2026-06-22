@@ -187,6 +187,32 @@ capabilities:
     tools:
       - websearch
 
+  # ADR-353 §15a (2026-06-22): Reddit publishing — the author archetype amended
+  # to include publish-and-perceive (ADR-283 D7 reversed; see ADR-283 §amendment
+  # + ADR-353 §15b). write_reddit = the audience POST (gated by ADR-307);
+  # read_reddit = the PERCEIVE read (comments → audience_signal as OBSERVATION,
+  # measure-not-steer §14). The perceive half is load-bearing: it is what makes
+  # publishing valid for the author archetype (post → measure → corpus learns),
+  # not a send button. Execution is Composio-ONLY (driver_enabled_for("reddit")) —
+  # no first-party reddit client exists. These are KERNEL capabilities (declared
+  # in api/services/orchestration.py::CAPABILITIES); the bundle DECLARES it needs
+  # them, exactly as it could declare read_slack. Connection: a reddit
+  # platform_connection (BYO-credentials OAuth, §16) gates surfacing.
+  - key: read_reddit
+    category: tool
+    runtime: external:reddit
+    requires_connection: reddit
+    feeds: context
+    tools:
+      - platform_reddit_get_post_comments
+  - key: write_reddit
+    category: tool
+    runtime: external:reddit
+    requires_connection: reddit
+    feeds: action
+    tools:
+      - platform_reddit_submit_post
+
   # ADR-304 D2 (2026-05-27): write_notion capability declaration removed.
   # The operator-comment Notion write (platform_notion_create_comment) is
   # now operator-addressing system infrastructure per ADR-304 D1, registered

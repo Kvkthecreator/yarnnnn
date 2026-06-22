@@ -1207,6 +1207,26 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "tools": ["platform_github_list_repos", "platform_github_get_issues"],
         "platform_connection_requirement": {"platform": "github", "status": "active"},
     },
+    # ADR-353 §15a: Reddit publishing. KERNEL-UNIVERSAL — Reddit is a generic
+    # platform integration any publishing/content program can use (not program-
+    # specific like trading is to alpha-trader), so it sits with slack/notion/
+    # github per the ADR-224 §1 capability-bundle-owned rule. A program declares
+    # it needs these (alpha-author does, via its MANIFEST) exactly as it declares
+    # read_slack. Execution is Composio-only (driver_enabled_for("reddit")); no
+    # first-party reddit client exists. write_reddit feeds:action (a primary
+    # external write ⇒ HIGH tier; the ADR-307 gate is the safety floor; Reviewer
+    # excluded — ProposeAction only). read_reddit feeds:context (the perceive
+    # read — comments → audience_signal as observation, measure-not-steer §14).
+    "read_reddit": {
+        "category": "tool", "runtime": "external:reddit", "feeds": "context",
+        "tools": ["platform_reddit_get_post_comments"],
+        "platform_connection_requirement": {"platform": "reddit", "status": "active"},
+    },
+    "write_reddit": {
+        "category": "tool", "runtime": "external:reddit", "feeds": "action",
+        "tools": ["platform_reddit_submit_post"],
+        "platform_connection_requirement": {"platform": "reddit", "status": "active"},
+    },
     # ADR-224: read/write_commerce + read/write_trading DELETED from kernel
     # CAPABILITIES. They are program-specific (commerce / trading oracle
     # shapes) and live in their respective program bundle MANIFEST.yaml

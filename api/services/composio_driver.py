@@ -126,6 +126,14 @@ _COMPOSIO_ACTION_MAP: dict[str, dict[str, str]] = {
         "get_readme": "GITHUB_GET_A_REPOSITORY_README",
         "get_releases": "GITHUB_LIST_RELEASES",
     },
+    # ADR-353 §15a — Reddit (live-confirmed slugs, tool-enum 2026-06-22).
+    # WIRED (in the allowlist): alpha-author / yarnnn-author publishing.
+    "reddit": {
+        # External-write family (gated upstream by ADR-307 before reaching here).
+        "submit_post": "REDDIT_CREATE_REDDIT_POST",
+        # The perceive read — comments → audience_signal as observation (§14).
+        "get_post_comments": "REDDIT_RETRIEVE_POST_COMMENTS",
+    },
 }
 
 
@@ -164,8 +172,28 @@ def _slack_arguments(verb: str, payload: dict) -> dict:
     raise _UnmappedVerb(f"slack:{verb}")
 
 
+def _reddit_arguments(verb: str, payload: dict) -> dict:
+    """ADR-353 §15a. Map YARNNN reddit tool_input → Composio arguments (live
+    schema confirmed 2026-06-22). submit needs subreddit/title/text + kind="self"
+    (text post) + flair_id (required by the action; empty string where the
+    subreddit imposes no flair). get_post_comments maps post_id → `article`."""
+    if verb == "submit_post":
+        return {
+            "subreddit": payload["subreddit"],
+            "title": payload["title"],
+            "text": payload["text"],
+            "kind": "self",          # self = text post (vs link)
+            "flair_id": payload.get("flair_id", ""),
+        }
+    if verb == "get_post_comments":
+        # Composio's RETRIEVE_POST_COMMENTS takes `article` (the post id).
+        return {"article": payload["post_id"]}
+    raise _UnmappedVerb(f"reddit:{verb}")
+
+
 _PAYLOAD_ADAPTERS = {
     "slack": _slack_arguments,
+    "reddit": _reddit_arguments,
 }
 
 
@@ -227,8 +255,43 @@ def _slack_result(verb: str, data: dict) -> dict:
     raise _UnmappedVerb(f"slack:{verb}")
 
 
+def _reddit_result(verb: str, data: dict) -> dict:
+    """ADR-353 §15a. Re-derive a stable YARNNN result shape from Composio's Reddit
+    `data` (defensive — Reddit nests under data.json.data for posts). submit_post →
+    {post_id, url} (post_id feeds the later perceive read). get_post_comments →
+    {comments:[{author,body,score}], count} for audience_signal."""
+    if verb == "submit_post":
+        # Reddit submit response: {json: {data: {id, name (t3_..), url}}}.
+        json_data = ((data.get("json") or {}).get("data")) or {}
+        post_id = json_data.get("name") or json_data.get("id") or data.get("name") or data.get("id")
+        url = json_data.get("url") or data.get("url")
+        return {"post_id": post_id, "url": url}
+    if verb == "get_post_comments":
+        # Comments listing — Reddit returns a listing tree; flatten top-level.
+        raw = data.get("comments")
+        if raw is None:
+            # Fall back to common listing shapes without over-assuming structure.
+            raw = data.get("children") or (data.get("data") or {}).get("children") or []
+        comments = []
+        for c in raw if isinstance(raw, list) else []:
+            body = c.get("body") if isinstance(c, dict) else None
+            if isinstance(c, dict) and isinstance(c.get("data"), dict):
+                body = body or c["data"].get("body")
+                author = c["data"].get("author")
+                score = c["data"].get("score")
+            else:
+                author = c.get("author") if isinstance(c, dict) else None
+                score = c.get("score") if isinstance(c, dict) else None
+            if not body:
+                continue
+            comments.append({"author": author, "body": body, "score": score})
+        return {"comments": comments, "count": len(comments)}
+    raise _UnmappedVerb(f"reddit:{verb}")
+
+
 _RESULT_ADAPTERS = {
     "slack": _slack_result,
+    "reddit": _reddit_result,
 }
 
 
@@ -396,10 +459,13 @@ def _platform_level_error(provider: str, data: dict) -> Optional[str]:
 
       - Slack: `data.ok == false`, reason in `data.error` (matches the first-party
         SlackAPIClient, which checks the same `ok` field).
+      - Reddit: a failed submit returns `data.json.errors` as a NON-EMPTY list
+        (e.g. [["SUBREDDIT_NOEXIST", "...", "sr"]]) while the outer `successful`
+        is still true — the same silent-success trap as Slack, different shape.
 
     Providers without a known nested contract return None here (outer `successful`
-    is the only available signal) — those providers are not in the spike allowlist,
-    so the conservative default never ships unverified.
+    is the only available signal) — those providers are not in the allowlist, so
+    the conservative default never ships unverified.
     """
     if not isinstance(data, dict):
         return None
@@ -408,6 +474,13 @@ def _platform_level_error(provider: str, data: dict) -> Optional[str]:
         # (defensive — a malformed shape falls through to the result adapter).
         if data.get("ok") is False:
             return f"Slack API error: {data.get('error', 'unknown')}"
+    if provider == "reddit":
+        # Reddit submit failures surface as data.json.errors (non-empty list).
+        errors = ((data.get("json") or {}).get("errors")) if isinstance(data.get("json"), dict) else None
+        if errors:
+            # errors is a list of [CODE, message, field] triples.
+            first = errors[0] if isinstance(errors, list) and errors else errors
+            return f"Reddit API error: {first}"
     return None
 
 
@@ -429,14 +502,18 @@ def _safe_error_detail(resp: httpx.Response) -> str:
 def driver_enabled_for(provider: str) -> bool:
     """True iff the Composio driver should execute for this provider RIGHT NOW.
 
-    Two conditions, both required (default OFF):
-      1. COMPOSIO_DRIVER_ENABLED is truthy.
-      2. `provider` is in COMPOSIO_PROVIDER_ALLOWLIST (comma-separated env;
-         defaults to "slack" — the only spike-scoped platform).
+    Two conditions, both required (master switch defaults OFF):
+      1. COMPOSIO_DRIVER_ENABLED is truthy (the master switch + presence of
+         COMPOSIO_API_KEY on yarnnn-api + yarnnn-unified-scheduler, §8).
+      2. `provider` is in COMPOSIO_PROVIDER_ALLOWLIST (comma-separated env).
+         Default allowlist: "slack,reddit". Slack = the live-proven reference
+         (§3a); Reddit = the ADR-353 §15a publishing path (Composio-ONLY backend —
+         there is no first-party reddit client, so Reddit can only work via the
+         driver). Other platforms (notion/github) stay first-party unless added.
 
     Capital family (trading/commerce) can NEVER be enabled here even if added to
     the env allowlist — they are hard-excluded (ADR-353 §11): out of scope, and
-    the spike must not route money-moving actions through a third party.
+    money-moving actions must not route through a third party.
     """
     if provider in ("trading", "commerce"):
         return False
@@ -445,7 +522,7 @@ def driver_enabled_for(provider: str) -> bool:
         return False
     allowlist = {
         p.strip().lower()
-        for p in os.getenv("COMPOSIO_PROVIDER_ALLOWLIST", "slack").split(",")
+        for p in os.getenv("COMPOSIO_PROVIDER_ALLOWLIST", "slack,reddit").split(",")
         if p.strip()
     }
     return provider in allowlist
