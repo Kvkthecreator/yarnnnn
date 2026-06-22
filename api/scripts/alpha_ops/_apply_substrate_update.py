@@ -43,10 +43,19 @@ async def main_async(persona_slug: str, scope: str) -> int:
         source="harness",
     )
     print(f"persona={persona_slug} scope={scope}")
-    print(f"actions: {len(report.actions)}")
+    print(f"bundle: {report.bundle_from} -> {report.bundle_to}  "
+          f"kernel: {report.kernel_from} -> {report.kernel_to}")
+    print(f"actions: {len(report.actions)}  "
+          f"skipped_operator_authored: {report.skipped_operator_authored}  "
+          f"skipped_aligned: {report.skipped_aligned}")
     for action in report.actions:
-        print(f"  {action.layer} {action.action} {action.path or ''}")
-    print(f"audit_log_path: {report.audit_log_path}")
+        print(f"  {action.layer} {action.path}: {action.change_summary}")
+    if report.config_conflicts:
+        print(f"config_conflicts: {len(report.config_conflicts)}")
+        for c in report.config_conflicts:
+            print(f"  {c.path} (prior at {c.backup_path})")
+    if report.error:
+        print(f"error: {report.error}")
     return 0
 
 
