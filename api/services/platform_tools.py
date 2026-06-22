@@ -1455,6 +1455,25 @@ async def handle_platform_tool(auth: Any, tool_name: str, tool_input: dict) -> d
     provider = parts[1]
     tool = "_".join(parts[2:])  # Handle multi-part tool names
 
+    # ADR-353 SPIKE (Proposed, default OFF): route external-read + external-write
+    # actions to the Composio driver instead of the first-party client, gated by
+    # COMPOSIO_DRIVER_ENABLED + a per-provider allowlist (Slack only). The gate
+    # (ADR-307 resolve_permission) and attribution (ADR-209 write_revision) are
+    # UPSTREAM/DOWNSTREAM of this function and unchanged — Composio is an executor
+    # behind the existing contract, never a gate or a substrate writer. The
+    # first-party path below remains the live default and is NOT deleted (spike,
+    # not migration — deletion is a separate post-ratification decision). Capital
+    # family (trading/commerce) is hard-excluded by driver_enabled_for (§11).
+    from services.composio_driver import driver_enabled_for
+    if driver_enabled_for(provider):
+        # When the driver is enabled for a provider it OWNS that provider — no
+        # silent fallback to first-party (Pitfall #4: a failure must surface as a
+        # failure, not be masked by a second attempt down the old path). Token
+        # errors, unmapped verbs, and Composio failures all return a
+        # {success: False} dict from this helper, identical in shape to the
+        # first-party handler.
+        return await _route_via_composio(auth, provider, tool, tool_input)
+
     # ADR-076: All platforms use Direct API
     if provider == "slack":
         return await _handle_slack_tool(auth, tool, tool_input)
@@ -1470,6 +1489,69 @@ async def handle_platform_tool(auth: Any, tool_name: str, tool_input: dict) -> d
         return await _handle_email_tool(auth, tool, tool_input)
     else:
         return {"success": False, "error": f"Unknown provider: {provider}"}
+
+
+# Provider → the platform_connections.platform value to look up the token under.
+# Identity for the spike-scoped providers; kept explicit so a future provider
+# whose connection key differs from its tool prefix is a one-line addition.
+_COMPOSIO_TOKEN_PLATFORM = {
+    "slack": "slack",
+    "notion": "notion",
+    "github": "github",
+}
+
+
+async def _route_via_composio(auth: Any, provider: str, tool: str, tool_input: dict) -> dict:
+    """ADR-353 Phase-1 token path: fetch the per-user encrypted token from
+    platform_connections, decrypt via the existing Fernet TokenManager, and pass
+    PLAINTEXT to the swappable Composio driver for a single execution call.
+
+    Composio holds no tenant auth state (token injected per call) — the
+    multi-tenant isolation property (ADR-353 §12.6) is structural: each call runs
+    against the token YARNNN fetched for THIS user_id and nothing else.
+
+    Returns the {success, result, error} handler shape. Never raises; never
+    returns a silent success on failure (Pitfall #4).
+    """
+    from services.composio_driver import execute as composio_execute
+
+    platform = _COMPOSIO_TOKEN_PLATFORM.get(provider)
+    if not platform:
+        return {"success": False, "error": f"Composio driver: unsupported provider {provider}"}
+
+    # Phase-1 token path — same fetch+decrypt the first-party handlers use.
+    try:
+        row = (
+            auth.client.table("platform_connections")
+            .select("credentials_encrypted, metadata")
+            .eq("user_id", auth.user_id)
+            .eq("platform", platform)
+            .eq("status", "active")
+            .single()
+            .execute()
+        )
+        if not row.data:
+            return {
+                "success": False,
+                "error": f"No active {platform} integration. Connect it in Settings.",
+            }
+        token = get_token_manager().decrypt(row.data["credentials_encrypted"])
+    except Exception as e:
+        logger.error("[COMPOSIO] Failed to get %s credentials: %s", platform, e)
+        return {"success": False, "error": f"Failed to get {platform} credentials"}
+
+    result = await composio_execute(
+        provider,
+        tool,
+        tool_input,
+        token=token,
+        user_id=auth.user_id,
+    )
+    logger.info(
+        "[COMPOSIO] routed %s_%s for user=%s → success=%s",
+        provider, tool, auth.user_id, result.get("success"),
+    )
+    return result
 
 
 async def _handle_slack_tool(auth: Any, tool: str, tool_input: dict) -> dict:
