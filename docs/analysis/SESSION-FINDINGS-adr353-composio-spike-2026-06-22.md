@@ -39,7 +39,7 @@ accounts remain).
 
 For the currently-connected platform set, confirmed that Composio exposes the
 **specific verbs our capabilities use**, not merely the platform. Source: Composio
-toolkit docs, accessed 2026-06-22 (see §10 Sources). Slug strings are version-
+toolkit docs, accessed 2026-06-22 (see §12 Sources). Slug strings are version-
 sensitive (see the finding below the matrix); the spike pins them in
 `_COMPOSIO_ACTION_MAP` so the kernel never sees a Composio slug.
 
@@ -525,7 +525,122 @@ This keeps both paths until the one decision (adopt-for-new), honors Singular
 Implementation (no new parallelism for already-built platforms), and points the
 effort where the moat actually benefits.
 
-## 10. Sources (accessed 2026-06-22, input only)
+## 11. Second-order implications — discourse + decisions (2026-06-22)
+
+After ratifying the seam (scoped to new-platform adoption, §9a), KVK opened the
+operator-facing second-order questions: FE / "what's connected", agent-capability
+wiring, tool discovery, overall UX, and "what am I missing." **The unifying
+finding: almost none of this needs new surfaces.** The ratified management-plane
+vocabulary (ADR-338: App Store / Installer / **Drivers** / System Settings) +
+operator-experience model (ADR-340) + Connectors-as-Perception-pane (ADR-341)
+already frame it. Composio is a **driver** in that exact, operator-ratified sense
+— it slots into the "Drivers" row (`platform_connections`), below the consent
+line. The governing stance KVK ratified: **Composio is pure mechanical substrate;
+the operator's world is unchanged; the kernel stays sovereign over what is a
+capability.**
+
+### 11.1 FE — "what's connected" (mostly answered by canon)
+Connections render via `ConnectedIntegrationsSection` (Connectors Perception pane,
+ADR-341) + the menu-bar `ConnectionsStatusItem` vital. ADR-338's "Drivers" row is
+literally `platform_connections`. **DECISION — the driver is invisible (ADR-338
+below-the-line):** the Connectors pane shows *what's connected + healthy*, never
+*which executor*. If an operator can tell a platform is Composio-backed vs first-
+party, the abstraction (ADR-353 §2) has leaked. Sole exception: a connector's own
+"bring-your-own-developer-credentials" requirement (ADR-353 §7, the X/Twitter
+case) surfaces as a *connection requirement* — a connection fact, not a backend
+fact.
+
+### 11.2 Agent capability wiring (fully answered — the elegant part)
+Capabilities are declared in bundle `MANIFEST.yaml` (`capabilities:` keys), gated
+by `capability_available()` against `platform_connections`, surfaced as tools by
+name. **The spike already proved this layer is backend-agnostic** — the gate and
+capability resolution key on the *capability* and *tool name*, both unchanged by
+which driver executes. A new Composio-backed platform wires identically: declare
+the capability, map it to a connection, add the driver adapter. The agent requests
+`write_<platform>`; the kernel gates it; the driver executes it. No new capability
+mechanism. **No work needed here beyond the per-platform adapter.**
+
+### 11.3 Tool discovery — DECISION: developer-explicit / curated (the load-bearing call)
+The one question with no prior canon. Composio offers 1,000+ toolkits / 20,000+
+tools; who decides which become YARNNN capabilities, and when?
+
+**DECISION: developer-explicit (curated). Discovery is a Hat-A act, not a runtime
+act.** Composio's catalog is YARNNN's *menu of cheap-to-add platforms*, NOT a
+runtime capability surface. Rationale, grounded in YARNNN's own principles:
+- **Kernel names the category, never the instance (ADR-222).** Dynamic tool
+  injection would surface Composio's slugs + argument schemas directly into the
+  agent's tool list — renting Composio's *tool ontology*, one step from renting
+  its judgment (the §10 line not to cross).
+- **The silent-success bug proves curation IS the safety layer.** Every Composio
+  tool needs a per-verb result adapter + a platform-level success check (the
+  `data.ok` finding, §3a). Auto-surfacing 20,000 untested tools ships unadapted
+  failures at scale.
+- **Gating + attribution require the tool to be known.** The external-write family
+  classification, the capability→provider map, the caller-depended result shape —
+  all require a named, classified tool. A dynamically-discovered tool has no
+  family, so the gate cannot classify it.
+
+Adding a platform stays a small, bounded task (the §3a Slack pattern: one slug-map
+entry + one adapter pair + one MANIFEST capability key). The operator's runtime is
+unchanged — they connect platforms YARNNN *supports*, exactly as today.
+
+### 11.4 Overall UX — DECISION: identical, first-party or Composio-backed
+The operator experience is the same regardless of backend: same Connectors pane,
+same capability gating, same ADR-307 approval cards, same ADR-209 attribution. The
+driver boundary (ADR-353 §2) is invisible above the waist by design.
+
+### 11.5 Points KVK was missing (all four to develop, per KVK)
+
+**(a) Composio-down health signal — REAL GAP, no current answer.** ADR-338 Check-7
+shows declared-vs-observed connection health. A Composio-backed connection's
+health now depends on *Composio's* uptime (the §10 reliability-incident risk). The
+Connectors pane's health signal must distinguish **"your token expired"**
+(operator-actionable) from **"Composio is down"** (wait-it-out, not actionable) —
+otherwise the operator chases a credential problem that isn't theirs. This needs a
+deliberate design when the first Composio platform ships: a backend-up-vs-
+credential-valid split in the health vital. Until then, the driver's loud-failure
+discipline (§5) at least surfaces *a* failure rather than a silent success.
+
+**(b) Phase-2 disconnect lifecycle — a Phase-2 gate item.** Today
+`platform_connections` rows are first-party-OAuth-created and deleted on disconnect
+(ADR-205 connection-bound lifecycle). Phase-1 (our token) keeps this clean —
+disconnect deletes our row, Composio holds nothing. **Phase-2 (Composio-managed
+OAuth) reopens it:** who revokes, where the token dies, what "disconnect" means
+when Composio holds the connected account. Flagged as a Phase-2 gate alongside the
+§7 token-custody security review — do not drift into Phase-2 without resolving it.
+
+**(c) Buyer-legibility tension — hold, unresolved (inherited from §6.6 + §14).**
+"Driver is invisible" (good architecture, 11.1) vs "connects to 1,000+ apps" (good
+sales). The Connectors pane is also marketing surface. The architecture decision
+(invisible driver) is right; the *pitch* may still want to foreground breadth
+("YARNNN connects to everything your operation runs on") even while the runtime
+hides the executor. These are not in conflict — the pitch sells the *capability
+reach* Composio unlocks; the UI hides the *mechanism*. The open question is
+whether the Connectors pane ever doubles as a "supported platforms" showcase, or
+whether breadth lives only in marketing copy. Parked, but named.
+
+**(d) Interop-face symmetry — the strategic shadow (park, but track).** ADR-353 is
+the "consume capability below" half. The symmetric half (ADR-310/311,
+discourse §6.6): does YARNNN *expose judgment upward* — the accountable-judgment
+kernel that *other* agent stacks call as THEIR driver — while consuming their
+hands as ours? Adopting the "we rent hands" posture sharpens the "do others rent
+our judgment" question: the more YARNNN is a *consumer* of the commoditized driver
+layer, the more its value concentrates in the one thing it does NOT rent (the
+seat + accumulated judged substrate), which is exactly what the interop face would
+sell upward. Much larger, least proven; not for this ADR. Tracked as the two-sided
+position the driver decision foreshadows.
+
+### 11.6 Net: what the second-order pass changes
+**Backend (this ADR): done + scoped.** **Operator surface: no new surfaces
+needed** — Composio slots into ADR-338's Drivers row, invisible. **One real new
+design item:** the Composio-down vs credential-invalid health split (11.5a), due
+when the first Composio platform ships. **Two parked-but-named strategy items:**
+buyer legibility (11.5c) + interop-face symmetry (11.5d). **One Phase-2 gate:**
+disconnect lifecycle (11.5b). No code is owed until a new-platform need is chosen
+(§9a); these decisions pre-resolve the surface questions so that wiring, when it
+comes, is mechanical.
+
+## 12. Sources (accessed 2026-06-22, input only)
 
 - [Slack — Composio Toolkit](https://docs.composio.dev/toolkits/slack)
 - [Slack MCP Server — Composio](https://composio.dev/toolkits/slack)

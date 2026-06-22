@@ -1,6 +1,8 @@
-# ADR-353 — Composio as the Driver Backend for External Hands (Proposed)
+# ADR-353 — Composio as the Driver Backend for External Hands (Accepted, scoped)
 
-**Status:** **Proposed (2026-06-22)** — exploratory scoping only. NOT ratified, NOT implemented. Adoption gated on the decision criteria in §12 (coverage check + single-platform parity spike + cost model + token-model security review). Drafted in Hat-B exploration mode; lands as Hat-A canon only if ratified.
+**Status:** **Accepted (2026-06-22) — scoped to new-platform adoption; the seam is canon, the default stays OFF.** Spike complete, all six §12 criteria PASS incl. full live E2E (findings §3a + §9a). Ratified scope (KVK, 2026-06-22): the Composio driver seam is adopted; the SLA is "adopt Composio as the executor for **platforms YARNNN has no first-party client for** — the next Salesforce/HubSpot/Linear/… is wired with zero new client code." **Already-built platforms (Slack/Notion/GitHub) stay first-party for now** — re-routing them is the weak case (partial maintenance savings + a new token-transit dependency; the existing clients also have non-driver callers — landscape sync, exporters). **Future absorption stays open:** if those existing paths later become cleanly absorbable into Composio (e.g. the non-driver callers migrate, or the maintenance/dependency math flips), streamlining them in is a follow-on amendment, not a re-decision — the seam already supports it. No production flip without the §12.4 token-transit sign-off. Drafted Hat-B; ratified as Hat-A canon.
+
+> **Second-order implications (FE / capability-wiring / tool-discovery / UX) are open and tracked separately** — see findings §11 ("Second-order implications") for the discourse agenda. This ADR ratifies the backend seam + adoption scope only; it does NOT decide the operator-facing surface.
 **Date:** 2026-06-22
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Hat:** A (system canon, if ratified) — touches `api/` integration layer.
