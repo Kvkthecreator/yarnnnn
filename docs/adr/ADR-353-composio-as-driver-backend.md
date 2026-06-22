@@ -246,6 +246,36 @@ the demand "queue" is a Render-logs search; promote to a table when volume
 justifies. Gate: `api/test_adr353_connection_demand.py` (5/5). This turns
 discovery from speculative catalog-curation into a queue of real program demand.
 
+## 16. Adoption criterion — managed-OAuth vs bring-your-own-credentials (2026-06-22)
+
+A refinement surfaced by the first real connector survey (findings §13, the
+author-publishing evaluation): **the managed-OAuth status of a connector is a
+first-class adoption criterion, not a footnote.**
+
+The reasoning: Composio's value is two things — managed OAuth + mechanical
+execution. When a connector ships Composio-**managed** OAuth (Slack, Notion), the
+operator connects in one click and YARNNN registers nothing; the treadmill-killer
+thesis (§1) is at full strength. When a connector requires
+**bring-your-own-developer-credentials** (LinkedIn, X — the latter after its
+pay-per-use move, §10), YARNNN (or each operator) must register a platform dev app
+*anyway* — so Composio's managed-OAuth advantage collapses and it reduces to just
+the verb mapping + transport. At that point a first-party client is competitive,
+because the expensive part (the OAuth app) is being done regardless.
+
+**The criterion (applied via the discovery tool, `scripts/operator/
+composio_discover.py`, which reports managed-vs-BYO per connector):**
+- **Managed-OAuth connector → strong adopt** via Composio (auth + execution both
+  rented; biggest win).
+- **BYO-credential connector → compare against first-party** before adopting —
+  Composio's biggest advantage (auth) is absent; weigh only the verb-mapping +
+  maintenance savings against the first-party alternative.
+
+This sharpens the ratified scope (§9a top banner): "adopt Composio for new
+platforms" becomes "adopt Composio for new **managed-OAuth** platforms by default;
+for BYO-credential platforms, make the first-party-vs-Composio call deliberately."
+The discovery tool surfaces the managed-vs-BYO flag precisely so this call is
+data-driven, not assumed.
+
 ## 13. Alternatives considered
 
 - **Keep building first-party direct clients (status quo).** Rejected as the integration treadmill — competing in the commodity layer with no edge (the §1 problem).

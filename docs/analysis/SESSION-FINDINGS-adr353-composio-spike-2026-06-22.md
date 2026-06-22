@@ -640,6 +640,69 @@ disconnect lifecycle (11.5b). No code is owed until a new-platform need is chose
 (§9a); these decisions pre-resolve the surface questions so that wiring, when it
 comes, is mechanical.
 
+## 13. Connector survey + the managed-OAuth adoption refinement (2026-06-22)
+
+Follow-on to §15: KVK challenged the ADR-283 "alpha-author needs no connectors"
+scope-lock — an author who writes a compounding corpus would benefit from
+publishing it (LinkedIn/Medium) AND from the engagement signal that publishing
+returns (the outcomes-in flow that closes the loop). Correct challenge: ADR-283
+itself named the revisit trigger ("if a real cadence-publishing operator emerges,
+that's a different bundle"), the `yarnnn-author` build-in-public workspace IS that
+operator, and alpha-author's `audience_signal` flow is already built to populate
+*when publishing connectors exist*. So this is real, in-scope demand — and it
+needs **systematic supply-discovery** to decide well.
+
+### 13.1 BUILT — the Composio discovery tool (the durable developer capability)
+`api/scripts/operator/composio_discover.py` — read-only survey of Composio's
+catalog for a named platform: resolves the toolkit, reports auth scheme +
+managed-vs-BYO, lists action slugs (filterable by verb). The supply-check half of
+§15, made repeatable instead of ad-hoc doc-reading. Creates nothing (no
+connections / auth configs / executions). This is the systematic "what does
+Composio offer for X" capability for Hat-A connector decisions.
+
+### 13.2 Survey result — author-publishing connectors
+Run 2026-06-22 against the publishing surface:
+
+| Platform | In Composio? | Post verb | Auth | Engagement-read (audience-signal) |
+|---|---|---|---|---|
+| **LinkedIn** | ✅ `linkedin` (22 tools) | `LINKEDIN_CREATE_LINKED_IN_POST` | OAUTH2, **BYO-credentials** | thin |
+| **X / Twitter** | ✅ `twitter` (78 tools) | `TWITTER_CREATION_OF_A_POST` | OAUTH2, **BYO-credentials** (X pay-per-use) | **rich** (likers, retweeters, lookups) |
+| **Medium** | ❌ not in catalog | — | — | — |
+| **Substack / beehiiv / Ghost** | ❌ not in catalog | — | — | — |
+
+Three findings: (1) the covered surface is **social (LinkedIn/X), not
+newsletter/blog** — Medium/Substack/Ghost aren't in Composio. (2) **Both require
+BYO-developer-credentials** (the §7 wrinkle, confirmed live). (3) X carries the
+**rich engagement-read side** — the outcomes-in flow that completes the author
+loop (post → measure reception → corpus learns), exactly what alpha-author's empty
+`audience_signal` schema is built to consume. Finding (3) is the strongest
+architectural argument *for* publishing: it's loop-completion, not convenience.
+
+### 13.3 DECISION — new `alpha-publisher` bundle, not extending alpha-author
+KVK: ship publishing as a **separate cadence-publishing bundle** (ADR-283's own
+prescribed path), keeping alpha-author corpus-pure. Two distinct archetypes, two
+bundles (Singular Implementation). `alpha-publisher` would declare
+`write_linkedin` / `write_x` + the engagement-read recurrences that populate
+`audience_signal`. NOT built this session — it's a bundle-design task gated on the
+BYO-credential decision below. alpha-author's scope-lock stands.
+
+### 13.4 ADOPTION REFINEMENT — managed-OAuth is an adoption criterion (canon update)
+The BYO-credential finding (13.2) refines ADR-353's adoption thesis, and it
+generalizes beyond publishing:
+
+> **Composio's core value is managed OAuth + execution. When a connector requires
+> bring-your-own-developer-credentials, the managed-OAuth value collapses — you
+> register the dev app regardless — and Composio reduces to just the verb mapping.
+> At that point a first-party client is competitive again.**
+
+So the treadmill-killer thesis is **strongest for managed-OAuth platforms, weakest
+for BYO-credential ones.** This becomes an explicit adoption criterion (ADR-353
+§16): when evaluating a new connector via the discovery tool, **managed-OAuth =
+strong adopt; BYO-credentials = compare against first-party, because Composio's
+biggest advantage (auth) is absent.** For LinkedIn/X specifically, the call is
+genuinely open — Composio-with-BYO vs a first-party LinkedIn/X client is close,
+and should be decided when alpha-publisher is actually designed, not pre-committed.
+
 ## 12. Sources (accessed 2026-06-22, input only)
 
 - [Slack — Composio Toolkit](https://docs.composio.dev/toolkits/slack)
