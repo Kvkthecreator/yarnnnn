@@ -757,6 +757,57 @@ send-only (automation, not loop) and Reddit demands an authenticity-aware hand
 one). Still NOT built — gated on the §16 BYO-credential first-party-vs-Composio
 call per platform.
 
+## 15a. yarnnn-author publishing — grounded in the live content strategy (2026-06-22)
+
+KVK pointed to `content/STRATEGY.md` + `content/OPS.md` to ground the lean toward
+yarnnn-author publishing. They do — and they sharpen the question from "which
+platforms" to "what does an API driver buy over the working browser path."
+
+### What the strategy docs establish (raises confidence)
+- The channel map (STRATEGY.md) already assigns **Reddit (Tier 1 "core GEO
+  channel"), X (3x/week), LinkedIn (ICP activation)** roles + cadence + voice —
+  the exact three platforms in question. Publishing isn't hypothetical; it is a
+  **live, running operation**. yarnnn-author is its production engine (Pillars 1/3/4
+  = a compounding founder/thesis corpus, which alpha-author's coherence-audit loop
+  already serves).
+- The contribution-first ethic + integrity guardrails ("would this be valuable if
+  YARNNN didn't exist?", "no frequency gaming", "no astroturfing") ARE the §14
+  measure-not-steer stance, stated as brand values. The archetype line is also the
+  declared content ethic.
+
+### The decisive operational finding (reframes the build)
+`content/OPS.md`: publishing today runs via **Claude-in-Chrome (visual browser
+automation) — NO APIs, NO developer accounts**; Reddit is **100% manual** (Chrome
+is blocked there; Kevin pastes). So the question is NOT "enable a missing
+capability" — it is **"migrate a working browser+manual workflow to an API
+driver."** That raises the bar: Composio's marquee value (managed OAuth) is absent
+(all three BYO-creds, §16) AND a zero-credential alternative (browser automation)
+already works.
+
+### RESOLUTION — valid, justified by autonomy + loop-closing, Reddit-first (KVK)
+**The justification is NOT "enable publishing" (it exists) — it is making
+publishing part of the AGENT'S autonomous loop AND piping engagement back as
+structured `audience_signal` substrate** (not eyeballed). That is the
+"works while you sleep" thesis (the doc's own Bet A) applied to YARNNN's own GTM —
+the deepest dogfood: YARNNN autonomously running YARNNN's build-in-public.
+
+**Reddit is the first target** — the one platform where Composio is a **strict
+improvement, not a migration**: today it is fully manual (Chrome blocked), so
+`CREATE_REDDIT_POST` + `RETRIEVE_POST_COMMENTS` (rich, loop-closing) is pure gain
+with no working path to displace. The binding constraint is Reddit's
+**authenticity culture** (it punishes bot-posting) — a *content* constraint the
+measure-not-steer ethic + contribution-first guardrails already address, not a
+driver constraint.
+
+### Net for the alpha-publisher bundle
+Validity is **resolved (yes)**; the build is **still gated** on the §16
+per-platform BYO-credential first-party-vs-Composio call — now with a third
+contender the §16 comparison must include: **browser-automation status quo.** The
+bundle's value rests on the *perceive* half (engagement → `audience_signal` as
+observation) + autonomy, NOT on the *send* (which browser-automation already does
+for LinkedIn/X). Build sequence when it happens: Reddit first (strict gain),
+measure-not-steer principles.md, perceive-recurrences as the load-bearing half.
+
 ## 12. Sources (accessed 2026-06-22, input only)
 
 - [Slack — Composio Toolkit](https://docs.composio.dev/toolkits/slack)
