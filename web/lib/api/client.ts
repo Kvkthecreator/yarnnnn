@@ -1036,6 +1036,11 @@ export const api = {
           requires_platform: string;
           connected: boolean;
         }>;
+        // Account-level inventory of active platform connections, independent
+        // of the active program's declared requirements. Lets the header chip
+        // show what's connected even when the program declares no required
+        // platforms — keeps it consistent with the Connectors pane.
+        connected_platforms: string[];
       }>("/api/workspace/state"),
 
     // ADR-266 D8: bundled read for /workspace page mount.

@@ -1201,6 +1201,14 @@ class WorkspaceStateResponse(BaseModel):
     available_programs: list[ProgramItem] = []
     substrate_status: SubstrateStatus
     capability_gaps: list[CapabilityGap] = []
+    # Account-level inventory of active platform_connections, independent of
+    # the active program's declared requirements. The header connections chip
+    # shows demand (capability_gaps) AND inventory (connected_platforms) so the
+    # two surfaces stay consistent — e.g. a program that declares no required
+    # platforms (alpha-author) no longer reads "No connections required" while
+    # the Connectors pane shows Slack/Notion/GitHub Connected. The pane reads
+    # the same platform_connections set via /api/integrations.
+    connected_platforms: list[str] = []
 
 
 def _classify_file_state(content: Optional[str]) -> str:
@@ -1389,21 +1397,26 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
     except Exception as exc:
         logger.warning(f"[WORKSPACE_STATE] timestamp lookup failed: {exc}")
 
-    # ─── Step 5: capability gaps (active bundle's required platforms) ───
-    # Manifest-walk logic lives in services.programs.compute_capability_gaps
-    # (shared with working_memory). Here we fetch connected platforms via the
-    # RLS client, then map the shared dict shape into the response model.
+    # ─── Step 5: connected platforms + capability gaps ──────────────────
+    # The active platform_connections set serves two surfaces: the inventory
+    # (connected_platforms — always populated, program-independent) and the
+    # demand check (capability_gaps — only when a program declares required
+    # platforms). Manifest-walk logic lives in services.programs
+    # .compute_capability_gaps (shared with working_memory); here we fetch the
+    # connected set once via the RLS client and feed both.
+    connected_platforms: list[str] = []
     capability_gaps: list[CapabilityGap] = []
-    if active_program_slug:
-        try:
-            connections = (
-                auth.client.table("platform_connections")
-                .select("platform")
-                .eq("user_id", auth.user_id)
-                .eq("status", "active")
-                .execute()
-            )
-            connected = {r["platform"] for r in (connections.data or [])}
+    try:
+        connections = (
+            auth.client.table("platform_connections")
+            .select("platform")
+            .eq("user_id", auth.user_id)
+            .eq("status", "active")
+            .execute()
+        )
+        connected = {r["platform"] for r in (connections.data or [])}
+        connected_platforms = sorted(connected)
+        if active_program_slug:
             capability_gaps = [
                 CapabilityGap(
                     capability=g["capability"],
@@ -1412,8 +1425,8 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
                 )
                 for g in compute_capability_gaps(active_program_slug, connected)
             ]
-        except Exception as exc:
-            logger.warning(f"[WORKSPACE_STATE] capability_gaps lookup failed: {exc}")
+    except Exception as exc:
+        logger.warning(f"[WORKSPACE_STATE] platform_connections lookup failed: {exc}")
 
     return WorkspaceStateResponse(
         has_agents=has_agents,
@@ -1422,6 +1435,7 @@ async def get_workspace_state(request: Request, auth: UserClient) -> WorkspaceSt
         available_programs=available_programs,
         substrate_status=substrate_status,
         capability_gaps=capability_gaps,
+        connected_platforms=connected_platforms,
     )
 
 

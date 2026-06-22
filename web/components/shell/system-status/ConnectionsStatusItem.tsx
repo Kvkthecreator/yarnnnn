@@ -65,43 +65,53 @@ export function ConnectionsStatusItem() {
   const connected = gaps.filter((g) => g.connected).length;
   const unmet = totalDeclared - connected;
 
+  // Account-level inventory — platforms the operator has connected, regardless
+  // of whether the active program requires them. The chip shows demand
+  // (gaps) AND inventory (connectedPlatforms) so it stays consistent with the
+  // Connectors pane: a program that declares no requirements no longer reads
+  // "No connections required" while Slack/Notion/GitHub sit Connected.
+  const connectedPlatforms = state.connected_platforms ?? [];
+  // Platforms required by the program already appear in `gaps`; list the rest
+  // (connected-but-not-required) separately so we never double-count.
+  const requiredPlatforms = new Set(gaps.map((g) => g.requires_platform));
+  const extraConnected = connectedPlatforms.filter((p) => !requiredPlatforms.has(p));
+
   const tone: StatusTone =
-    totalDeclared === 0 ? 'muted' : unmet > 0 ? 'warn' : 'ok';
+    totalDeclared > 0 ? (unmet > 0 ? 'warn' : 'ok') : 'muted';
 
   // ADR-297 D20 amendment: canonical surface icon for /connectors
   // (resolved from kernel_surfaces.icon_key = "link-2").
   const ConnectionsIcon = resolveSurfaceIcon('link-2');
 
   const tooltip =
-    totalDeclared === 0
-      ? 'No platforms declared by active program'
-      : `Connections: ${connected}/${totalDeclared}`;
+    totalDeclared > 0
+      ? `Connections: ${connected}/${totalDeclared} required`
+      : connectedPlatforms.length > 0
+        ? `${connectedPlatforms.length} platform${connectedPlatforms.length === 1 ? '' : 's'} connected`
+        : 'No platforms connected';
+
+  const headerLabel =
+    totalDeclared > 0
+      ? `${connected}/${totalDeclared} required connected`
+      : connectedPlatforms.length > 0
+        ? `${connectedPlatforms.length} connected`
+        : 'No connections';
 
   const popoverHeader = (
     <div className="flex items-center gap-2">
       <ConnectionsIcon className="w-3.5 h-3.5 shrink-0" />
-      <span className="text-sm font-medium">
-        {totalDeclared === 0
-          ? 'No connections required'
-          : `${connected}/${totalDeclared} connected`}
-      </span>
+      <span className="text-sm font-medium">{headerLabel}</span>
     </div>
   );
 
   const popoverBody = (
     <div className="space-y-1 text-muted-foreground text-xs">
-      {totalDeclared === 0 ? (
-        <p>
-          {state.active_program_slug
-            ? 'Active program declares no platform requirements.'
-            : 'No active program — workspace runs in knowledge mode.'}
-        </p>
-      ) : (
+      {totalDeclared > 0 && (
         <>
           <p>
             {unmet > 0
-              ? `${unmet} platform${unmet === 1 ? '' : 's'} unmet — agent runs in knowledge mode without it.`
-              : 'All declared platforms connected.'}
+              ? `${unmet} required platform${unmet === 1 ? '' : 's'} unmet — agent runs in knowledge mode without it.`
+              : 'All required platforms connected.'}
           </p>
           <div className="pt-1 space-y-0.5">
             {gaps.map((gap: CapabilityGap) => (
@@ -114,6 +124,40 @@ export function ConnectionsStatusItem() {
             ))}
           </div>
         </>
+      )}
+
+      {totalDeclared === 0 && connectedPlatforms.length === 0 && (
+        <p>
+          {state.active_program_slug
+            ? 'Active program declares no platform requirements.'
+            : 'No active program — workspace runs in knowledge mode.'}
+        </p>
+      )}
+
+      {/* Connected-but-not-required — the inventory the program doesn't
+          demand. Shown after any required rows so the header reflects what
+          the Connectors pane shows. */}
+      {extraConnected.length > 0 && (
+        <div className={totalDeclared > 0 ? 'pt-2 mt-1 border-t border-border/40' : ''}>
+          {totalDeclared > 0 && (
+            <p className="pb-1">Connected, not required by this program:</p>
+          )}
+          {totalDeclared === 0 && (
+            <p className="pb-1">
+              {state.active_program_slug
+                ? 'Active program requires no platforms. Connected anyway:'
+                : 'No active program. Connected platforms:'}
+            </p>
+          )}
+          <div className="space-y-0.5">
+            {extraConnected.map((platform) => (
+              <div key={platform} className="flex justify-between items-center">
+                <span className="capitalize">{platform}</span>
+                <span className="text-emerald-600">● connected</span>
+              </div>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
