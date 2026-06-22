@@ -100,12 +100,16 @@ def _api_key() -> Optional[str]:
 # out of scope per ADR-353 §11.
 _COMPOSIO_ACTION_MAP: dict[str, dict[str, str]] = {
     "slack": {
-        # Reads
+        # Reads — confirmed against the LIVE Composio tool-enum (2026-06-22).
         "list_channels": "SLACK_LIST_ALL_CHANNELS",
         "get_channel_history": "SLACK_FETCH_CONVERSATION_HISTORY",
-        # External-write family (gated upstream by ADR-307 before reaching here)
-        "send_message": "SLACK_SEND_MESSAGE",
-        "send_to_channel": "SLACK_SEND_MESSAGE",
+        # External-write family (gated upstream by ADR-307 before reaching here).
+        # LIVE slug is SLACK_CHAT_POST_MESSAGE — the spike's first guess
+        # (SLACK_SEND_MESSAGE, from a stale doc) does NOT exist in the live
+        # catalog. This correction is the slug-instability finding (ADR-353 §10)
+        # paying off: the live round-trip caught it before any default flip.
+        "send_message": "SLACK_CHAT_POST_MESSAGE",
+        "send_to_channel": "SLACK_CHAT_POST_MESSAGE",
     },
     # ── NOT wired in the spike (recorded from coverage check, ADR-353 §12.1) ──
     "notion": {
@@ -343,15 +347,32 @@ async def execute(
         logger.error("[COMPOSIO] Non-JSON response executing %s:%s — %s", provider, verb, e)
         return {"success": False, "result": None, "error": "Composio returned a non-JSON response"}
 
-    # Composio envelope: {successful: bool, data: {...}, error: ...}
-    # `successful: false` (with HTTP 200) is the platform-level error case —
-    # exactly the Slack `ok=false` analogue. Must NOT be reported as success.
+    # Composio envelope: {successful: bool, data: {...}, error: ..., log_id}.
+    #
+    # TWO success layers — BOTH must pass (confirmed against the LIVE API
+    # 2026-06-22, the finding the mocks could not catch):
+    #
+    #   1. envelope.successful — "Composio executed the tool and got a response."
+    #      This is TRUE even when the underlying platform action FAILED. A Slack
+    #      send with a bad token returns HTTP 200 + successful:True + error:None,
+    #      with the real failure buried at data.ok=false / data.error.
+    #   2. the PLATFORM-level success flag inside `data` — for Slack this is
+    #      `data.ok` (Slack's own contract; the first-party SlackAPIClient checks
+    #      the same field). Trusting only `successful` would report success on a
+    #      failed send — the exact Pitfall #4 / "reports success with 0 items"
+    #      silent-success bug. NEVER trust the outer flag alone.
     if not envelope.get("successful", False):
         err = envelope.get("error") or "Composio action failed"
-        logger.warning("[COMPOSIO] action unsuccessful %s:%s — %s", provider, verb, err)
+        logger.warning("[COMPOSIO] composio-level failure %s:%s — %s", provider, verb, err)
         return {"success": False, "result": None, "error": str(err)}
 
     data = envelope.get("data") or {}
+
+    # Platform-level success check (layer 2). Per-provider: Slack uses `ok`.
+    platform_err = _platform_level_error(provider, data)
+    if platform_err is not None:
+        logger.warning("[COMPOSIO] platform-level failure %s:%s — %s", provider, verb, platform_err)
+        return {"success": False, "result": None, "error": platform_err}
     try:
         result = result_adapter(verb, data)
     except _UnmappedVerb as e:
@@ -362,6 +383,32 @@ async def execute(
     if verb == "send_to_channel":
         out["message"] = f"Posted to channel {result.get('channel')}"
     return out
+
+
+def _platform_level_error(provider: str, data: dict) -> Optional[str]:
+    """Return a human error string if the PLATFORM-level outcome inside Composio's
+    `data` is a failure, else None.
+
+    Composio's outer `successful` flag only means "the call reached the platform";
+    the platform's own success contract lives in `data`. This is the layer that
+    prevents silent success (confirmed live 2026-06-22). Per-provider because each
+    platform signals failure differently:
+
+      - Slack: `data.ok == false`, reason in `data.error` (matches the first-party
+        SlackAPIClient, which checks the same `ok` field).
+
+    Providers without a known nested contract return None here (outer `successful`
+    is the only available signal) — those providers are not in the spike allowlist,
+    so the conservative default never ships unverified.
+    """
+    if not isinstance(data, dict):
+        return None
+    if provider == "slack":
+        # Slack always returns `ok`; absence + nonempty data is treated as ok
+        # (defensive — a malformed shape falls through to the result adapter).
+        if data.get("ok") is False:
+            return f"Slack API error: {data.get('error', 'unknown')}"
+    return None
 
 
 def _safe_error_detail(resp: httpx.Response) -> str:

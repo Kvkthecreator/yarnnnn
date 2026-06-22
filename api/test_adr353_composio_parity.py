@@ -84,7 +84,7 @@ async def test_send_to_channel_parity_keys(monkeypatch):
     """Composio send_to_channel returns the same result keys as first-party."""
     from services import composio_driver
 
-    _mock_post(monkeypatch, body={"successful": True, "data": {"ts": "1.2", "channel": "C9"}})
+    _mock_post(monkeypatch, body={"successful": True, "data": {"ok": True, "ts": "1.2", "channel": "C9"}})
     out = await composio_driver.execute(
         "slack", "send_to_channel",
         {"channel_id": "C9", "text": "hi"},
@@ -104,7 +104,7 @@ async def test_list_channels_parity_keys(monkeypatch):
 
     _mock_post(monkeypatch, body={
         "successful": True,
-        "data": {"channels": [
+        "data": {"ok": True, "channels": [
             {"id": "C1", "name": "general", "is_private": False, "is_archived": False},
             {"id": "C2", "name_normalized": "random", "is_private": True},
             {"name": "no-id-skipped"},  # dropped — matches first-party filter
@@ -127,7 +127,7 @@ async def test_get_channel_history_parity_keys(monkeypatch):
 
     _mock_post(monkeypatch, body={
         "successful": True,
-        "data": {"messages": [
+        "data": {"ok": True, "messages": [
             {"user": "U1", "text": "hello", "ts": "1.0",
              "reactions": [{"name": "+1", "count": 3}]},
             {"user": "U2", "text": "", "ts": "2.0"},  # empty text dropped
@@ -151,7 +151,7 @@ async def test_arguments_mapped_to_composio_shape(monkeypatch):
     """YARNNN input field names → Composio argument names (channel_id→channel)."""
     from services import composio_driver
 
-    captured = _mock_post(monkeypatch, body={"successful": True, "data": {"ts": "1", "channel": "C1"}})
+    captured = _mock_post(monkeypatch, body={"successful": True, "data": {"ok": True, "ts": "1", "channel": "C1"}})
     await composio_driver.execute(
         "slack", "send_to_channel",
         {"channel_id": "C1", "text": "hi", "thread_ts": "9.9"},
@@ -159,8 +159,9 @@ async def test_arguments_mapped_to_composio_shape(monkeypatch):
     )
     args = captured[0]["body"]["arguments"]
     assert args == {"channel": "C1", "text": "hi", "thread_ts": "9.9"}
-    # The slug is pinned in the URL, not leaked upward.
-    assert captured[0]["url"].endswith("/SLACK_SEND_MESSAGE")
+    # The slug is pinned in the URL, not leaked upward. Live slug confirmed
+    # against the Composio tool-enum (2026-06-22): SLACK_CHAT_POST_MESSAGE.
+    assert captured[0]["url"].endswith("/SLACK_CHAT_POST_MESSAGE")
 
 
 # ---------------------------------------------------------------------------
@@ -208,6 +209,31 @@ async def test_successful_false_in_body_no_silent_success(monkeypatch):
     assert out["success"] is False
     assert out["result"] is None
     assert "channel_not_found" in out["error"]
+
+
+@pytest.mark.asyncio
+async def test_composio_successful_true_but_platform_ok_false_no_silent_success(monkeypatch):
+    """THE LIVE-CAUGHT BUG (2026-06-22). Composio returns HTTP 200 +
+    successful:True + error:None even when the underlying Slack action FAILED —
+    the real failure is buried at data.ok=false / data.error. Trusting the outer
+    flag alone reports success on a failed send (Pitfall #4). The driver MUST
+    inspect the nested platform-level success flag."""
+    from services import composio_driver
+
+    # Exactly the live envelope shape observed for a bad-token Slack send.
+    _mock_post(monkeypatch, status_code=200, body={
+        "successful": True,
+        "error": None,
+        "log_id": "log_x",
+        "data": {"ok": False, "error": "invalid_auth"},
+    })
+    out = await composio_driver.execute(
+        "slack", "send_to_channel", {"channel_id": "C1", "text": "x"},
+        token="bad-token", user_id="u1",
+    )
+    assert out["success"] is False, "must NOT report success when data.ok is false"
+    assert out["result"] is None
+    assert "invalid_auth" in out["error"]
 
 
 @pytest.mark.asyncio

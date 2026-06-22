@@ -18,9 +18,20 @@ Proposed) §12 decision criteria. **Discourse base:**
 - `api/test_adr353_composio_isolation.py` — multi-tenant HARD GATE (2 tests).
 - `api/test_adr353_composio_parity.py` — parity + no-silent-success + flag (15 tests).
 
-**Test result:** **17/17 PASS** (`api/venv/bin/python -m pytest
+**Test result:** **18/18 PASS** (`api/venv/bin/python -m pytest
 api/test_adr353_composio_isolation.py api/test_adr353_composio_parity.py -q`).
 No regressions introduced (proven by stash-and-rerun below).
+
+**LIVE-VALIDATED (2026-06-22, real Composio API key, transient session env — key
+never written to disk/git):** the key authenticates against
+`https://backend.composio.dev`; the live execute endpoint contract was exercised
+end-to-end. **Two findings the mocks could not have caught — see §3a.** No real
+Slack workspace was connected (Phase-1 design passes YARNNN's own token via
+`custom_auth_params`, so it needs a real Slack `xoxb`/`xoxp` token, not a
+Composio-stored connection — the one remaining live step, gated on KVK supplying
+a Slack token). No persistent Composio state left behind (the one managed auth
+config created during exploration was deleted; 0 auth configs / 0 connected
+accounts remain).
 
 ---
 
@@ -38,8 +49,8 @@ sensitive (see the finding below the matrix); the spike pins them in
 |---|---|---|---|---|
 | `platform_slack_list_channels` | conversations.list | `SLACK_LIST_ALL_CHANNELS` | ✅ | ✅ |
 | `platform_slack_get_channel_history` | conversations.history | `SLACK_FETCH_CONVERSATION_HISTORY` | ✅ | ✅ |
-| `platform_slack_send_message` (operator DM) | chat.postMessage | `SLACK_SEND_MESSAGE` | ✅ | ✅ |
-| `platform_slack_send_to_channel` (audience) | chat.postMessage | `SLACK_SEND_MESSAGE` | ✅ | ✅ |
+| `platform_slack_send_message` (operator DM) | chat.postMessage | `SLACK_CHAT_POST_MESSAGE` | ✅ | ✅ |
+| `platform_slack_send_to_channel` (audience) | chat.postMessage | `SLACK_CHAT_POST_MESSAGE` | ✅ | ✅ |
 
 **Slack coverage: 4/4 verbs. Composio managed OAuth app — NO bring-your-own
 developer credentials required.**
@@ -83,6 +94,10 @@ the kernel contract is the YARNNN tool *name*, never the Composio slug. A slug
 rename is a one-line driver edit, invisible to every caller. Composio's execute
 endpoint also accepts a `version` field (defaults to "latest") — pinning a
 version is a follow-on hardening option.
+
+**LIVE-RESOLVED:** the live tool-enum confirmed the send action is
+`SLACK_CHAT_POST_MESSAGE` (the spike's first guess `SLACK_SEND_MESSAGE` does NOT
+exist live). The map is now corrected. See §3a Finding 1.
 
 **Coverage verdict: PASS for Slack (the spike scope). No stop-condition triggered.**
 
@@ -146,6 +161,71 @@ File-grounded confirmation of every hard invariant:
    `handle_platform_tool` is the only call site.
 
 ---
+
+## 3a. Live-validation findings (2026-06-22) — the two bugs the mocks missed
+
+Running against the real Composio API surfaced two issues a mock-only spike would
+have shipped. Both are now fixed + regression-tested.
+
+### Finding 1 — the send slug guess was WRONG (slug instability, confirmed)
+
+The spike's coverage check (from a stale doc) pinned `SLACK_SEND_MESSAGE`. The
+**live tool-enum** (`GET /api/v3/tools?toolkit_slug=slack`, 148 Slack tools) has
+**no such slug** — the real one is **`SLACK_CHAT_POST_MESSAGE`**. The two read
+slugs (`SLACK_LIST_ALL_CHANNELS`, `SLACK_FETCH_CONVERSATION_HISTORY`) were
+correct. **Fixed** in `_COMPOSIO_ACTION_MAP`. This is the §10 dependency-
+fragility risk paying off in the cheapest possible way: a doc-driven guess was
+wrong, the live round-trip caught it, the fix was one line in the one slug-map —
+exactly the swappability discipline working as designed.
+
+### Finding 2 — Composio's `successful:true` LIES about platform outcome (silent-success trap)
+
+**The load-bearing live finding.** Executing a Slack send with a bad token
+returned:
+
+```
+HTTP 200
+{ "successful": true, "error": null, "log_id": "...",
+  "data": { "ok": false, "error": "invalid_auth" } }
+```
+
+Composio's outer `successful` flag means *"I reached the platform and got a
+response,"* **NOT** *"the action succeeded."* The real Slack outcome is at
+`data.ok` (Slack's own contract). The driver originally trusted only the outer
+flag — it would have reported **`success: True` on a failed Slack send**. That is
+precisely the Pitfall #4 / "reports success with 0 items" silent-success class.
+
+**Fixed:** the driver now enforces TWO success layers (both must pass) —
+(1) Composio-level `successful`, then (2) the platform-level flag inside `data`
+(`_platform_level_error`, per-provider; Slack = `data.ok`, matching the first-
+party `SlackAPIClient`). Confirmed consistent across send + both read verbs.
+Regression-tested
+(`test_composio_successful_true_but_platform_ok_false_no_silent_success`).
+
+**This finding alone justified the live run** — and it sharpens the §12
+recommendation: any aggregator's "success" envelope must be treated as
+"reached-the-platform," never "action-succeeded," and the driver must always dig
+to the platform-level contract. A purely mock-validated adoption would have
+shipped a silent-success bug into the external-write path.
+
+### Confirmed live (no fix needed)
+- API key authenticates; base URL `https://backend.composio.dev` is correct
+  (the driver default).
+- Managed Slack OAuth app exists (no BYO credentials) — auth scheme `OAUTH2`,
+  148 Slack tools. Confirmed by successfully creating a managed auth config
+  (then deleted — Phase-1 doesn't use it).
+- Bogus slug → HTTP 404 (caught by the driver's non-2xx branch).
+- `custom_auth_params` request shape accepted (the Phase-1 token-injection path).
+
+### The one remaining live step (gated on KVK)
+A full real-workspace send/read needs a real Slack token passed through
+`custom_auth_params` (Phase-1 design: YARNNN holds the token, Composio stores
+nothing). That requires KVK to supply a Slack `xoxb`/`xoxp` token (treated as
+transient, never written), OR to authorize entering Phase-2 (Composio-managed
+OAuth connection) for test purposes — the latter is explicitly outside the spike
+charter and was correctly blocked mid-session. Either way the contract,
+slug-correctness, envelope-parsing, and silent-success guard are now live-proven;
+only the final token-bearing round-trip remains.
 
 ## 4. Parity result (ADR-353 §12.2)
 
@@ -284,12 +364,12 @@ self-reports "not configured" when the key is absent).
 
 | # | Criterion | Status |
 |---|---|---|
-| 12.1 | Coverage check (specific verbs) | ✅ PASS — Slack 4/4, Notion 5/5, GitHub managed-OAuth+867 tools (slugs to confirm live) |
-| 12.2 | Parity spike (one platform, keep first-party) | ✅ result-key parity proven; ⚠️ live latency A/B deferred (no key) |
-| 12.3 | Cost model | ✅ free tier covers alpha; 1:1 action metering into `execution_events.cost_usd` |
-| 12.4 | Token-model security review (Phase 1 plaintext-in-process) | ✅ Phase 1 implemented + isolation-proven; Phase-2 (Composio-managed auth) explicitly NOT entered |
-| 12.5 | Swappability proof | ✅ revert = one env var; aggregator swap = sibling module |
-| 12.6 | Multi-tenant isolation (HARD GATE) | ✅ PASS at the wire (structural, per-call token injection) |
+| 12.1 | Coverage check (specific verbs) | ✅ PASS — Slack 4/4 **live-confirmed** (148 Slack tools; send slug corrected to `SLACK_CHAT_POST_MESSAGE`); Notion 5/5, GitHub managed-OAuth+867 tools (slugs to confirm live when wired) |
+| 12.2 | Parity spike (one platform, keep first-party) | ✅ result-key parity proven; live envelope contract validated (§3a — caught the silent-success trap); ⚠️ final token-bearing round-trip + latency A/B pending a real Slack token |
+| 12.3 | Cost model | ✅ free tier (20K calls/mo) covers alpha; 1:1 action metering into `execution_events.cost_usd` |
+| 12.4 | Token-model security review (Phase 1 plaintext-in-process) | ✅ Phase 1 implemented + isolation-proven; Phase-2 (Composio-managed auth) explicitly NOT entered (correctly blocked mid-session) |
+| 12.5 | Swappability proof | ✅ revert = one env var; aggregator swap = sibling module; slug drift = one-line map edit (exercised live) |
+| 12.6 | Multi-tenant isolation (HARD GATE) | ✅ PASS at the wire (structural, per-call token injection; Composio confirmed live to hold zero tenant state in this mode) |
 
 ### Recommendation: **RATIFY-LEANING — adopt the seam; gate the default flip on two live confirmations.**
 
