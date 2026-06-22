@@ -85,11 +85,28 @@ def survey(term: str, grep_terms: list[str]) -> None:
         schemes = [a.get("mode") or a.get("name") or a for a in auth] if auth and isinstance(auth[0], dict) else auth
     else:
         schemes = auth
-    managed = detail.get("is_composio_managed", detail.get("composio_managed"))
+    # CORRECTED 2026-06-22 (calibrated against Slack/Gmail/Reddit): the managed
+    # signal is `composio_managed_auth_schemes` (non-empty list), NOT
+    # `is_composio_managed` (which is None for everything). BUT "managed" here
+    # means Composio manages the OAuth *flow* — `auth_config_details` still lists
+    # client_id/client_secret as auth_config_creation REQUIRED fields, i.e. you
+    # supply the app credentials (managed flow, BYO app). The clean zero-credential
+    # case is rare on Composio; treat "needs app creds" as the default and weigh
+    # leverage on demand + loop-closing, not auth-friction (§16 amended).
+    managed_schemes = detail.get("composio_managed_auth_schemes") or []
+    auth_details = detail.get("auth_config_details") or []
+    needs_app_creds = False
+    for ac in auth_details if isinstance(auth_details, list) else []:
+        req = (((ac or {}).get("fields") or {}).get("auth_config_creation") or {}).get("required") or []
+        if any(f.get("name") in ("client_id", "client_secret") for f in req if isinstance(f, dict)):
+            needs_app_creds = True
+            break
     meta = detail.get("meta", {}) or {}
     tools_count = meta.get("tools_count") or detail.get("tools_count")
     print(f"  auth scheme(s): {schemes}")
-    print(f"  composio-managed OAuth: {managed}   (False/None ⇒ likely BRING-YOUR-OWN dev credentials — §7 wrinkle)")
+    print(f"  composio-managed auth flow: {bool(managed_schemes)}  schemes={managed_schemes}")
+    print(f"  requires YOUR app credentials (client_id/secret): {needs_app_creds}  "
+          f"{'⇒ BYO-app: §16 — compare vs first-party' if needs_app_creds else '⇒ zero-credential: strong adopt'}")
     print(f"  total tools: {tools_count}")
 
     tools = toolkit_tools(slug)

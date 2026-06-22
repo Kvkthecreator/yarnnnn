@@ -246,35 +246,68 @@ the demand "queue" is a Render-logs search; promote to a table when volume
 justifies. Gate: `api/test_adr353_connection_demand.py` (5/5). This turns
 discovery from speculative catalog-curation into a queue of real program demand.
 
-## 16. Adoption criterion — managed-OAuth vs bring-your-own-credentials (2026-06-22)
+## 16. Adoption criterion — the three auth tiers (2026-06-22, CORRECTED 2026-06-22)
 
-A refinement surfaced by the first real connector survey (findings §13, the
-author-publishing evaluation): **the managed-OAuth status of a connector is a
-first-class adoption criterion, not a footnote.**
+> **CORRECTION.** §16 v1 said "managed-OAuth = strong adopt; BYO-credentials =
+> compare vs first-party," treating Slack as the frictionless managed case. That
+> was based on a **detector bug** in `composio_discover.py` (it read
+> `is_composio_managed`, which is `None` for every toolkit) and a false inference
+> (Slack "felt frictionless via Composio" only because YARNNN **already had** a
+> first-party `SLACK_CLIENT_ID`/`NOTION_CLIENT_ID` in env — we'd pre-paid the
+> app-registration cost years ago first-party). Calibrating the detector against
+> Slack/Gmail/Reddit revealed the real signal: `composio_managed_auth_schemes`
+> (non-empty for all three) means Composio manages the OAuth *flow* — but
+> `auth_config_details` lists `client_id`/`client_secret` as
+> `auth_config_creation` **required** fields, i.e. **you still bring the app.**
+> "Composio-managed OAuth" is *managed flow, BYO app* — NOT zero-credential. The
+> clean zero-credential OAuth case is essentially empty on Composio.
 
-The reasoning: Composio's value is two things — managed OAuth + mechanical
-execution. When a connector ships Composio-**managed** OAuth (Slack, Notion), the
-operator connects in one click and YARNNN registers nothing; the treadmill-killer
-thesis (§1) is at full strength. When a connector requires
-**bring-your-own-developer-credentials** (LinkedIn, X — the latter after its
-pay-per-use move, §10), YARNNN (or each operator) must register a platform dev app
-*anyway* — so Composio's managed-OAuth advantage collapses and it reduces to just
-the verb mapping + transport. At that point a first-party client is competitive,
-because the expensive part (the OAuth app) is being done regardless.
+**The corrected model — three auth tiers (per the live scan 2026-06-22):**
 
-**The criterion (applied via the discovery tool, `scripts/operator/
-composio_discover.py`, which reports managed-vs-BYO per connector):**
-- **Managed-OAuth connector → strong adopt** via Composio (auth + execution both
-  rented; biggest win).
-- **BYO-credential connector → compare against first-party** before adopting —
-  Composio's biggest advantage (auth) is absent; weigh only the verb-mapping +
-  maintenance savings against the first-party alternative.
+| Tier | Examples | What you bring | Friction |
+|---|---|---|---|
+| **OAuth + BYO-app** | Slack, Gmail, Notion, Linear, GitHub, Reddit, X, LinkedIn | a registered platform dev app (client_id + secret), per platform | **High** — app registration + sometimes a review queue (Reddit's API-access review; X pay-per-use; LinkedIn app review). This is the bulk of write/work platforms. |
+| **API-key service** | Exa, SerpAPI, Firecrawl, Perplexity, composio_search | one account + API key with that service | Medium — a credential, but no per-platform OAuth app/review. |
+| **Public / zero-credential** | Hacker News | nothing | **None** — works immediately. Rare. |
 
-This sharpens the ratified scope (§9a top banner): "adopt Composio for new
-platforms" becomes "adopt Composio for new **managed-OAuth** platforms by default;
-for BYO-credential platforms, make the first-party-vs-Composio call deliberately."
-The discovery tool surfaces the managed-vs-BYO flag precisely so this call is
-data-driven, not assumed.
+**The corrected criterion:** auth-tier is NOT the leverage axis I claimed — almost
+every *platform* (OAuth) connector is BYO-app, so "managed-OAuth = strong adopt"
+described a nearly-empty set. Composio's real value is the **verb mapping +
+execution + maintenance**, not auth (you bring the app regardless for OAuth tiers).
+So leverage is judged on:
+1. **Demand-grounded** (§15.1) — a program declares it;
+2. **Loop-closing** (§14) — has the outcomes-in read, not just a send;
+3. **Auth-tier as a COST input, not a yes/no** — OAuth+BYO-app carries
+   registration/review friction (budget for it; Reddit's review queue is the rule,
+   not the exception); API-key is lighter; public is free. For an OAuth platform
+   YARNNN already has a first-party app for (Slack/Notion/GitHub), the
+   marginal Composio cost is ~zero (app already paid) — so re-routing those is
+   cheaper than a *new* OAuth platform, though still the weak §13.4 case.
+
+**Implication for the roadmap (§17):** the lowest-friction *new* capability is a
+zero-credential or API-key connector that closes a perceive loop — not another
+BYO-app write platform. The discovery tool now reports the correct tier
+(`composio_managed auth flow` + `requires YOUR app credentials`) so this is
+data-driven.
+
+## 17. Connector roadmap — re-ranked by the corrected tiers (2026-06-22)
+
+Applying the corrected §16 (auth-tier as cost) + §15.1 (demand) + §14 (loop-closing)
+to the real candidates:
+
+| Candidate | Demand | Loop-closing | Auth tier | Verdict |
+|---|---|---|---|---|
+| **Reddit** | content strategy (Tier-1 GEO) | ✅ rich comment reads | OAuth+BYO-app (in review) | **In flight** — built, blocked on Reddit API-access review |
+| **Hacker News** | content strategy ("Show HN", not active yet) | ✅ comment threads | **public/zero-cred** | **Highest leverage-per-effort** — perceive loop, ships immediately, no friction wall |
+| **Exa / web search** | perception field (ADR-335) | n/a (read) | API-key | strong for context-in; lighter friction |
+| **X / Twitter** | content strategy (3x/wk) | ✅ rich engagement | OAuth+BYO-app (pay-per-use) | medium — same friction as Reddit + usage cost |
+| **LinkedIn** | content strategy (ICP) | ❌ thin reads (send-only) | OAuth+BYO-app (review) | weak — fails loop-closing (§14) |
+| **Gmail / Notion / Linear** | not currently declared | varies | OAuth+BYO-app | defer — no program demand (§15.1) |
+
+The roadmap's near-term shape: **Reddit (in flight) → Hacker News (zero-friction
+perceive, ships now) → API-key context tools (Exa) as perception-field demand
+warrants.** New BYO-app write platforms (X, Gmail, …) wait for explicit program
+demand AND a willingness to pay the registration/review friction.
 
 ## 13. Alternatives considered
 

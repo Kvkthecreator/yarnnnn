@@ -862,6 +862,47 @@ To make autonomous Reddit posting live for yarnnn-author:
 5. **§12.4 token-transit sign-off** still applies (the Reddit token transits
    Composio in flight).
 
+## 16. CORRECTION — the three auth tiers; §13.4/§16-v1 "managed-OAuth" claim was wrong (2026-06-22)
+
+While scoping a higher-leverage connector to build during Reddit's API-access
+review, the discovery tool surfaced a contradiction: Notion/Gmail/GoogleDrive all
+reported "managed OAuth: None" — yet Slack (which worked live) should have read
+"managed." Investigating revealed a **detector bug + a false inference**, and
+corrected a load-bearing claim:
+
+- **Detector bug:** `composio_discover.py` read `is_composio_managed` (None for
+  every toolkit). The real signal is `composio_managed_auth_schemes` (non-empty).
+  FIXED — the tool now reports `composio-managed auth flow` + `requires YOUR app
+  credentials` (parsed from `auth_config_details.auth_config_creation.required`).
+- **False inference:** "Composio-managed OAuth = frictionless, the strong-adopt
+  case (Slack)." Calibration against Slack/Gmail/Reddit showed all three are
+  *managed-flow but BYO-app* — `client_id`/`client_secret` are required creation
+  fields. **Slack felt frictionless only because YARNNN already had a first-party
+  `SLACK_CLIENT_ID` in env** (confirmed: `.env` has SLACK + NOTION client ids;
+  REDDIT absent — which is exactly why Reddit hit the wall). We'd pre-paid the
+  app cost first-party years ago.
+
+**Corrected model — three auth tiers** (ADR-353 §16, full table there):
+1. **OAuth + BYO-app** (Slack/Gmail/Notion/Linear/GitHub/Reddit/X/LinkedIn) — you
+   register a platform dev app; high friction, sometimes a review queue. The bulk
+   of write/work platforms.
+2. **API-key service** (Exa/SerpAPI/Firecrawl/Perplexity) — one account key;
+   lighter.
+3. **Public / zero-credential** (Hacker News) — nothing; rare.
+
+**What this corrects in the canon:** §16-v1's "managed-OAuth = strong adopt; BYO =
+compare vs first-party" described a nearly-empty set (clean zero-cred OAuth barely
+exists on Composio). Auth-tier is a **cost input**, not the leverage axis. Leverage
+= demand-grounded (§15.1) + loop-closing (§14) + an auth-tier you can clear.
+Connector roadmap re-ranked in ADR-353 §17: **Reddit (in flight) → Hacker News
+(zero-friction perceive, ships now) → API-key context tools** — new BYO-app write
+platforms wait for explicit demand + willingness to pay registration friction.
+
+**Status note (Reddit):** Reddit API-access request submitted 2026-06-22 (ticket
+`N23GN2-K94XN`) — the OAuth+BYO-app friction wall, awaiting Reddit's manual review.
+The full YARNNN-side stack (kernel + driver + OAuth + bundle, hardened) is built
+and waiting; nothing YARNNN-side is blocked. Re-engage on Reddit's approval email.
+
 ## 12. Sources (accessed 2026-06-22, input only)
 
 - [Slack — Composio Toolkit](https://docs.composio.dev/toolkits/slack)
