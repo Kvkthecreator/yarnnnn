@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.22.2] - ADR-355: the agent authors (alpha-author boundary reframe — full autonomy, full accountability)
+
+**LLM-facing changes (alpha-author bundle):**
+
+- **MANDATE.md** — the boundary "No content authored solely by AI... the operator authors; the Reviewer audits" is REFRAMED: the agent authors as the operator's installed judgment (FOUNDATIONS:240) and is accountable for clearing the voice + anti-slop + continuity floor on its own output. The anti-slop guarantee moves from "a human is in the authoring seat" to "every shipped piece clears the floor" (a human can write slop; the floor is objective). The operator is principal (authors voice/editorial/mandate) + witness (the autonomy dial, ADR-345). Rule #5 (attribution) + Draft lifecycle + Pre-ship-audit lines all reframed to agent-authors-then-self-audits.
+- **piece-composition.md** — resolved an internal contradiction (line 47 "the Reviewer authors the prose" vs line 67 "content.md is the operator's canonical source"): content.md is canonical AND agent-authored (or operator-co-authored), attributed via the revision chain. ADR-283 preserved (only the author is clarified, not the canonical status).
+- **CONVENTIONS.md** — per-piece content.md = agent-authored; the "AI-assisted flagged" vocabulary anti-pattern reframed (the bar is the floor, never authorship-location).
+- **Why this is canon-aligned, not a new stance:** ADR-345 §69/§71 already ratified "the agent always works the full job; the dial only routes which beats the operator witnesses" and explicitly named the alpha-author Clarify-instead-of-authoring as the *symptom* to fix. FOUNDATIONS:240 already says the agent IS the operator's judgment rendered autonomous. The old boundary was a stale pre-ADR-345 human-author-with-AI-editor carve.
+- **Driving evidence:** the 2026-06-22 origination probe — the agent refused to author ("MANDATE forbids me authoring content solely by AI") and surfaced a Clarify (exec_event e3c635e4). It was faithfully obeying the boundary; the boundary was the bug.
+- **Expected behavior:** under `compose-piece` with a declared piece intent, the agent now AUTHORS content.md (forward action) rather than refusing — then self-audits against the floor. Full receipts in the re-probe (docs/evaluations/).
+
 ## [2026.06.22.1] - ADR-354: recurrence-prompt collapse + perception-field discipline (the ADR-306 collapse reaches the recurrence layer)
 
 **LLM-facing changes:**

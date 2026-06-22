@@ -59,12 +59,12 @@ The corpus voice (per `_voice.md`) is **claim-first, architecture-grounded, em-d
 
 The authored piece's dated composition folder (mirrors the report topology, under the **authored** root — not the reports root):
 
-- Prose source (operator-canonical, ADR-283): `/workspace/operation/authored/{piece-slug}/content.md`
+- Prose source (canonical, ADR-283): `/workspace/operation/authored/{piece-slug}/content.md`
 - Composition substrate: `/workspace/operation/authored/{piece-slug}/{date}/sections/{n}-{slug}.md`
 - Section map: `/workspace/operation/authored/{piece-slug}/{date}/sys_manifest.json`
 - Asset manifest: `/workspace/operation/authored/{piece-slug}/{date}/manifest.json`
 
-`content.md` stays the operator's canonical authored source. The composed piece is the **projection** of `{content.md's prose + the produced sections/assets}` — it is never a competing source of truth. (ADR-283 preserved; projection axiom §6 D6.)
+`content.md` stays the canonical prose source — authored by the agent as the operator's installed judgment (FOUNDATIONS:240; ADR-355), or by the operator when they choose to author/co-author as principal. Either way it is canonical and attributed via the revision chain (ADR-209). The composed piece is the **projection** of `{content.md's prose + the produced sections/assets}` — it is never a competing source of truth. (ADR-283 preserved — only the author of content.md is clarified, not its canonical status; projection axiom §6 D6.)
 
 ## The `sys_manifest.json` shape (canonical — match it exactly)
 

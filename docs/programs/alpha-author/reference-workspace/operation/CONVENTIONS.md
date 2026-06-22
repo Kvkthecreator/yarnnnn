@@ -6,7 +6,7 @@
 
 - **Voice fingerprint** (operator-authored): `/workspace/operation/authored/_voice.md`. Declared once, refined as voice evolves through use. Read by Reviewer for every pre-ship audit.
 - **Editorial principles** (operator-authored): `/workspace/operation/authored/_editorial.md`. What gets shipped, what doesn't. Read by Reviewer for ship/defer/reject decisions.
-- **Per-piece content**: `/workspace/operation/authored/{piece-slug}/content.md` — the piece itself. Operator authors; Reviewer reads at pre-ship audit.
+- **Per-piece content**: `/workspace/operation/authored/{piece-slug}/content.md` — the piece itself. The agent authors from the operator's declared intent (`profile.md`) + corpus substrate, as the operator's installed judgment (ADR-355); the operator may co-author/revise as principal. Audited against the floor at pre-ship.
 - **Per-piece profile**: `/workspace/operation/authored/{piece-slug}/profile.md` — type, status, voice fingerprint match, continuity thread refs.
 - **Corpus signal** (multi-signal ground-truth substrate, ADR-282/283 instance): `/workspace/operation/authored/_signal.md`. Coherence-audit-owned for the corpus-coherence slice. Never hand-edited.
 - **Audience signal** (per-platform, when audience-bearing): `/workspace/operation/audience/{platform}/_signal.md`. Mechanical-recurrence-owned (track-linkedin / track-x / track-newsletter when those capabilities ship per ADR-283 step 2). Never hand-edited.
@@ -33,7 +33,7 @@ Drafts missing required envelope fields are rejected at Reviewer with a structur
 - "Engagement" used as success measure → flagged. Engagement is signal, not goal. Compound corpus is goal.
 - "Hot take" → flagged. Compounds-with-corpus framing required, not flash framing.
 - "Algorithm-friendly" → flagged. Voice is the priority; algorithm shape is downstream.
-- "AI-assisted" used without specifying *how* → flagged. Operator authors; Reviewer audits; what does AI assist with specifically?
+- "AI-generated" / "AI-assisted" used as if authorship-location were the quality bar → flagged. The agent authors as the operator's installed judgment (ADR-355); the bar is the floor every shipped piece clears (voice + anti-slop + continuity), not who typed it. The meaningful question is never "did AI write it" but "does it clear the floor".
 
 ## Time conventions
 

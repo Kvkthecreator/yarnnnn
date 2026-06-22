@@ -29,7 +29,7 @@ Author and ship pieces that compound into a recognizable body of work, attribute
 
 ## Boundary Conditions
 
-- No content authored solely by AI without operator's authorial intent — alpha-author is not an AI-content-generator. The operator authors; the Reviewer audits.
+- No content ships that fails the floor — alpha-author is not a slop generator. The agent authors as the operator's installed judgment (FOUNDATIONS:240 — the operator in authoring posture, not a separate principal) and is accountable for clearing the voice + anti-slop + continuity floor on its own output (ADR-355). The guarantee is the *floor every shipped piece clears*, not a human in the authoring seat — a human can write slop; the floor is objective and always applied. The operator is the **principal** (authors the voice/editorial/mandate the agent embodies) and the **witness** (per the autonomy dial — ADR-345: `autonomous` ships subconsciously, `manual`/`bounded` surfaces the ship to click); the operator may pre-/co-author any piece as principal, but authorship is not required of them.
 - No published pieces that contradict the corpus without explicit acknowledgment of the prior position.
 - No silent voice drift — if voice changes, change is operator-declared, not slow leak.
 - No "hot take" shipping that compromises long-arc thesis.
@@ -57,14 +57,14 @@ Example shapes (overwrite with your own — these are illustrative for the mediu
 2. **Continuity check before ship**: Every draft passes a Reviewer continuity audit before publication. No silent contradictions of prior corpus.
 3. **Anti-AI-slop**: Hard reject at Reviewer for the documented anti-patterns (`_voice.md` anti-patterns section + Reviewer's principles.md hard-reject list).
 4. **Cadence honored**: Operator declares cadence in `_preferences.yaml`. Reviewer flags missed cadence as feedback signal, not as block.
-5. **Attribution required**: Every piece attributable to operator's lived attention (reading, conversation, work, observation) — not LLM-generated from prompt.
+5. **Attribution + accountability**: Every piece is attributable to the operator-as-principal (the agent authors as their installed judgment, FOUNDATIONS:240) and the agent is accountable for it via the revision chain (ADR-209). The old "not LLM-generated from prompt" bar is carried by the floor, not by forbidding agent authorship: what must be absent is *slop* (the `_voice.md` anti-patterns + principles.md hard-reject list), enforced on every shipped piece regardless of who typed it.
 
 ## Authorial lifecycle
 
 Every piece the operation produces passes through three phases:
 
-- **Draft**: operator authors; lives in `/workspace/operation/authored/{piece-slug}/content.md`. Voice + continuity not yet enforced. Operator iterates freely.
-- **Pre-ship audit**: operator marks draft `ready_for_review`. Reviewer fires `pre-ship-audit` recurrence — voice fingerprint check, continuity check, anti-slop check. Reviewer approves, defers (with directive — e.g., "tighten anti-pattern in para 3"), or rejects (with reasoning).
+- **Draft**: the agent authors from the operator's declared piece intent (`profile.md`) + corpus substrate (`_voice.md`, `_editorial.md`, `_entities.md`), in voice; lives in `/workspace/operation/authored/{piece-slug}/content.md`. The operator may pre-/co-author or revise freely as principal. Voice + continuity not yet enforced at draft; the agent iterates toward the floor.
+- **Pre-ship audit**: a draft reaches `ready_for_review` (the agent advances its own draft when it judges it ready; the operator may also mark one). The `pre-ship-audit` fires — voice fingerprint check, continuity check, anti-slop check — the agent auditing its own (or the operator's) draft against the floor. It approves (→ ship, surfaced or subconscious per the witness dial), defers (with a directive it then acts on — e.g., "tighten anti-pattern in para 3"), or rejects (with reasoning). Self-authored then self-audited is the full-accountability loop (ADR-355): the same seat that wrote it clears it against the objective floor.
 - **Published**: piece moves to `published_at` state. Future revisions audited against published version (per ADR-209 revision chain — every edit attributed).
 
 ## Daily Discipline

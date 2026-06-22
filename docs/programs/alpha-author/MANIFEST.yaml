@@ -11,7 +11,7 @@ status: active
 # ADR-292: bundle version stamp. See alpha-trader/MANIFEST.yaml header
 # comment for the discipline. Bumped on any reference-workspace/ or specs/
 # change. Operator update flow consults this for "Bundle update available."
-version: 2026-06-22.1
+version: 2026-06-22.2
 date_created: 2026-05-15
 date_updated: 2026-05-20
 
