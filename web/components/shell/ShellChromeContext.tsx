@@ -19,16 +19,35 @@
  * the prior 'both can be open; launcher z-stacks above drawer'
  * behavior was confusing — closing launcher revealed drawer behind it
  * unexpectedly. Mutex is simpler mental model.
+ *
+ * ADR-316 posture-default tune (2026-06-23): the chat rail is co-visible
+ * chrome (a dockable rail, not an occluding overlay), so its natural
+ * resting state on desktop is OPEN — chat present beside the surface, not
+ * FAB-summoned. The open/closed choice now persists to localStorage
+ * (mirroring the rail-WIDTH persistence in ChatDrawer) so the operator's
+ * last posture survives reloads. Default-open on first load; the mobile
+ * overlay branch (ChatDrawer) is unaffected — it reads the same flag but
+ * renders as a full-screen takeover, where "default open" would occlude,
+ * so the persisted default is suppressed on mobile (see initializer).
  */
 
 import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
   type ReactNode,
 } from 'react';
+import { MOBILE_BREAKPOINT_PX } from '@/lib/shell/surface-preferences';
+
+// ADR-316 posture-default tune: the rail's open/closed posture persists
+// here, mirroring ChatDrawer's rail-WIDTH persistence. Default is OPEN on
+// desktop (co-visible chrome), suppressed on mobile (the overlay branch
+// would occlude). Unset → default-open-on-desktop is applied post-mount so
+// SSR renders closed and there is no hydration mismatch.
+const DRAWER_OPEN_KEY = 'yarnnn:shell:chat-drawer-open';
 
 interface ShellChromeContextValue {
   userEmail: string | undefined;
@@ -55,12 +74,39 @@ interface ShellChromeProviderProps {
 
 export function ShellChromeProvider({ userEmail, children }: ShellChromeProviderProps) {
   const [launcherOpen, setLauncherOpen] = useState(false);
+  // SSR renders closed (no stored read on the server); the post-mount
+  // effect below applies the persisted choice, or the default-open-on-
+  // desktop policy when unset. Keeping the SSR value `false` avoids a
+  // hydration mismatch (server can't read localStorage or viewport).
   const [drawerOpen, setDrawerOpen] = useState(false);
+
+  // ADR-316 posture default: on first client render, restore the
+  // persisted open/closed posture; when unset, default OPEN on desktop
+  // and CLOSED on mobile (the mobile overlay would occlude the surface).
+  useEffect(() => {
+    let stored: string | null = null;
+    try {
+      stored = window.localStorage.getItem(DRAWER_OPEN_KEY);
+    } catch {}
+    const isMobile = window.innerWidth < MOBILE_BREAKPOINT_PX;
+    if (stored === 'true') setDrawerOpen(true);
+    else if (stored === 'false') setDrawerOpen(false);
+    else setDrawerOpen(!isMobile); // unset → desktop default-open
+  }, []);
+
+  const persistDrawerOpen = useCallback((next: boolean) => {
+    try {
+      window.localStorage.setItem(DRAWER_OPEN_KEY, String(next));
+    } catch {}
+  }, []);
 
   // D18.1 mutex: openDrawer auto-closes launcher; openLauncher auto-
   // closes drawer. toggleDrawer (the FAB action) follows the same
   // rule when transitioning closed → open.
   const openLauncher = useCallback(() => {
+    // Mutex side-effect only — DON'T persist. Closing the rail because the
+    // launcher opened is transient; the operator's deliberate posture
+    // (set via the FAB / rail ×) is what gets remembered.
     setDrawerOpen(false);
     setLauncherOpen(true);
   }, []);
@@ -69,15 +115,20 @@ export function ShellChromeProvider({ userEmail, children }: ShellChromeProvider
   const openDrawer = useCallback(() => {
     setLauncherOpen(false);
     setDrawerOpen(true);
-  }, []);
-  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+    persistDrawerOpen(true);
+  }, [persistDrawerOpen]);
+  const closeDrawer = useCallback(() => {
+    setDrawerOpen(false);
+    persistDrawerOpen(false);
+  }, [persistDrawerOpen]);
   const toggleDrawer = useCallback(() => {
     setDrawerOpen((wasOpen) => {
       const willOpen = !wasOpen;
       if (willOpen) setLauncherOpen(false);
+      persistDrawerOpen(willOpen);
       return willOpen;
     });
-  }, []);
+  }, [persistDrawerOpen]);
 
   const value = useMemo<ShellChromeContextValue>(
     () => ({

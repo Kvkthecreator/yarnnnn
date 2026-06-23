@@ -41,12 +41,50 @@ const DRAWER_MIN = 320;
 const DRAWER_MAX = 720;
 const DRAWER_DEFAULT = 400;
 
-function loadStoredWidth(): number {
-  if (typeof window === 'undefined') return DRAWER_DEFAULT;
+// ADR-316 §5 — the posture dial. The rail's resting width expresses the
+// operator's posture on the foregrounded surface: WIDE when authoring (the
+// conversation IS the work — Home + the constitution mirrors), NARROW when
+// supervising (the operator mostly reads the surface, occasionally types —
+// the Queue + time-shaped reads). This is only the DEFAULT: once the
+// operator drags, their explicit width is persisted and wins everywhere
+// (Singular width store — one localStorage key, not per-surface state).
+const AUTHOR_WIDTH = 520;
+const SUPERVISE_WIDTH = 360;
+// Surfaces where the conversation leads the work → wider default.
+const AUTHOR_SURFACES = new Set([
+  'home',
+  'mandate',
+  'principles',
+  'identity',
+  'expected-output',
+]);
+// Surfaces where reading the surface leads and chat is a side-channel →
+// narrower default. Everything not named here falls to DRAWER_DEFAULT.
+const SUPERVISE_SURFACES = new Set([
+  'queue',
+  'feed',
+  'activity',
+  'recurrence',
+  'files',
+]);
+
+function posturalDefaultWidth(foregrounded: string | null): number {
+  if (foregrounded && AUTHOR_SURFACES.has(foregrounded)) return AUTHOR_WIDTH;
+  if (foregrounded && SUPERVISE_SURFACES.has(foregrounded)) return SUPERVISE_WIDTH;
+  return DRAWER_DEFAULT;
+}
+
+/**
+ * The operator's explicit width, if they've ever dragged the rail. Null
+ * when unset → the postural default applies. Returns a clamped number on
+ * the client, null on the server (SSR safety).
+ */
+function loadStoredWidth(): number | null {
+  if (typeof window === 'undefined') return null;
   const raw = window.localStorage.getItem(DRAWER_WIDTH_KEY);
-  if (!raw) return DRAWER_DEFAULT;
+  if (!raw) return null;
   const n = parseInt(raw, 10);
-  if (Number.isNaN(n)) return DRAWER_DEFAULT;
+  if (Number.isNaN(n)) return null;
   return Math.max(DRAWER_MIN, Math.min(DRAWER_MAX, n));
 }
 
@@ -74,12 +112,17 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   const surfaceOverride = foregrounded
     ? { type: 'atomic' as const, slug: foregrounded }
     : undefined;
-  const [width, setWidth] = useState(DRAWER_DEFAULT);
+  // `explicitWidth` is the operator's dragged width (null until they drag).
+  // The RESOLVED width is explicitWidth ?? posturalDefaultWidth(foregrounded)
+  // — so an un-dragged rail widens on authoring surfaces and narrows on
+  // supervise surfaces, while a dragged width is honored everywhere.
+  const [explicitWidth, setExplicitWidth] = useState<number | null>(null);
   const dragging = useRef(false);
+  const width = explicitWidth ?? posturalDefaultWidth(foregrounded);
 
-  // Hydrate width from localStorage on mount.
+  // Hydrate the operator's explicit width from localStorage on mount.
   useEffect(() => {
-    setWidth(loadStoredWidth());
+    setExplicitWidth(loadStoredWidth());
   }, []);
 
   // Escape-to-close.
@@ -106,10 +149,14 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
 
   useEffect(() => {
     if (isMobile) return;
+    let latest = explicitWidth ?? posturalDefaultWidth(foregrounded);
     const onMove = (e: MouseEvent) => {
       if (!dragging.current) return;
       const next = Math.max(DRAWER_MIN, Math.min(DRAWER_MAX, window.innerWidth - e.clientX));
-      setWidth(next);
+      latest = next;
+      // Dragging promotes the width to an EXPLICIT operator choice — from
+      // here on it overrides the postural default on every surface.
+      setExplicitWidth(next);
     };
     const onUp = () => {
       if (!dragging.current) return;
@@ -117,7 +164,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
       try {
-        window.localStorage.setItem(DRAWER_WIDTH_KEY, String(width));
+        window.localStorage.setItem(DRAWER_WIDTH_KEY, String(latest));
       } catch {}
     };
     document.addEventListener('mousemove', onMove);
@@ -126,7 +173,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
-  }, [width, isMobile]);
+  }, [explicitWidth, foregrounded, isMobile]);
 
   // D18.1: always render the wrapper; toggle opacity + pointer-events
   // based on `open`. The drawer body stays mounted across open/close
