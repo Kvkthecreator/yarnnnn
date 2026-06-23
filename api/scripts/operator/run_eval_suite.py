@@ -413,13 +413,16 @@ async def wait_for_completion(
         for ev in r.get("evaluations", []) or []:
             if ev.get("action") == "send_message" and ev.get("phase") == "turn":
                 addressed_turn_count += 1
-            elif ev.get("action") == "fire" and ev.get("phase") == "turn":
+            elif ev.get("action") in ("fire", "fire_cron") and ev.get("phase") == "turn":
                 # Only TURN fires are the measured Reviewer wake (setup fires like
                 # track-account are mechanical mirror-warming, not the thing under
-                # test). Mechanical judgment-vs-mechanical is further filtered
-                # server-side by the mode='judgment' query below, so a turn that
-                # fires a mechanical recurrence settles immediately (no judgment
-                # row → empty seen set → trivially done).
+                # test). Both `fire` (manual_fire) and `fire_cron` (cron_tick) are
+                # recurrence-fires that produce a judgment execution_event the gate
+                # must wait to settle — the query below matches BOTH wake_sources.
+                # Mechanical judgment-vs-mechanical is further filtered server-side
+                # by the mode='judgment' query below, so a turn that fires a
+                # mechanical recurrence settles immediately (no judgment row →
+                # empty seen set → trivially done).
                 slug = ev.get("slug")
                 if slug:
                     manual_fire_slugs.append(slug)
@@ -467,7 +470,9 @@ async def wait_for_completion(
             client.table("execution_events")
             .select("id")
             .eq("user_id", user_id)
-            .eq("wake_source", "manual_fire")
+            # Both recurrence-fire shapes: manual_fire ({fire:}) + cron_tick
+            # ({fire_cron:} — the faithful unattended-scheduler path).
+            .in_("wake_source", ["manual_fire", "cron_tick"])
             .eq("mode", "judgment")
             .gte("created_at", session_started_at.isoformat())
             .execute()
@@ -515,7 +520,7 @@ async def wait_for_completion(
             client.table("execution_events")
             .select("id, slug, status")
             .eq("user_id", user_id)
-            .eq("wake_source", "manual_fire")
+            .in_("wake_source", ["manual_fire", "cron_tick"])
             .eq("mode", "judgment")
             .gte("created_at", session_started_at.isoformat())
             .execute()

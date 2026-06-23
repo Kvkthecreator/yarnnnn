@@ -73,6 +73,16 @@ Schema (v1):
       - reject_proposal:
           id: "..."
           reason: "..."
+      - fire: <recurrence-slug>             # MEASURED recurrence fire via manual_fire
+        expect:                              # (operator-explicit; unconditional escalate)
+          - reviewer_responded
+      - fire_cron: <recurrence-slug>        # MEASURED recurrence fire via cron_tick —
+        expect:                              # the FAITHFUL unattended-scheduler path.
+          - reviewer_responded               # Goes through the funnel (can min-interval-
+                                             # skip / tier_2-gate), execution_event is
+                                             # wake_source='cron_tick'. Set _budget.yaml
+                                             # min_interval...seconds: 0 + keep balance>0
+                                             # for reliable back-to-back escalation.
     capture:
       - revision_chain
       - decisions_md
@@ -507,6 +517,30 @@ class ScenarioRunner:
                 obs["error"] = f"{type(exc).__name__}: {exc}"
             return obs
 
+        if "fire_cron" in turn:
+            # Fire a recurrence through the cron_tick wake source — the EXACT
+            # production scheduler path (services.wake_sources.cron_tick.
+            # dispatch_recurrence), NOT manual_fire. Use this when a scenario
+            # must prove the unattended "runs in absence" claim deterministically:
+            # the resulting execution_event is wake_source='cron_tick' (not
+            # 'manual_fire'), and the wake goes through the funnel
+            # (wake_evaluation.py) — so it can min-interval-skip or tier_2-gate
+            # exactly as a real cron tick does. For reliable back-to-back
+            # escalation, the scenario must set _budget.yaml
+            # min_interval_between_recurrence_fires_seconds: 0 and keep balance
+            # positive (else the funnel correctly skips). Added 2026-06-23 to
+            # collapse the manual-fire-vs-real-cron ambiguity into one harness.
+            slug = turn["fire_cron"]
+            obs["action"] = "fire_cron"
+            obs["slug"] = slug
+            try:
+                outcome = await _cron_fire(proxy.config.user_id, slug)
+                obs["result"] = "dispatched"
+                obs["wake_outcome"] = outcome
+            except Exception as exc:
+                obs["error"] = f"{type(exc).__name__}: {exc}"
+            return obs
+
         # Unknown turn shape — log and continue.
         obs["action"] = "unknown"
         obs["raw"] = turn
@@ -529,6 +563,29 @@ async def _manual_fire(user_id: str, slug: str) -> None:
     if target is None:
         raise ScenarioError(f"Recurrence slug={slug!r} not found in scenario user's _recurrences.yaml")
     await wake_manual_fire(client, user_id, target, context=None)
+
+
+async def _cron_fire(user_id: str, slug: str) -> dict:
+    """Fire a recurrence by slug through the cron_tick wake source.
+
+    The EXACT production scheduler path (`cron_tick.dispatch_recurrence`),
+    identical signature to manual_fire but `source="cron_tick"` — so the wake
+    goes through the funnel (mechanical bypass | min-interval/budget skip |
+    tier_2 gate | escalate) exactly as a real scheduler tick does, and the
+    execution_event is wake_source='cron_tick'. Returns the WakeOutcome dict so
+    the scenario log records whether the funnel escalated or skipped (a skip is
+    itself an honest observation, e.g. min_interval/balance).
+    """
+    from services.supabase import get_service_client
+    from services.recurrence import walk_workspace_recurrences
+    from services.wake_sources.cron_tick import dispatch_recurrence
+
+    client = get_service_client()
+    recurrences = walk_workspace_recurrences(client, user_id)
+    target = next((r for r in recurrences if r.slug == slug), None)
+    if target is None:
+        raise ScenarioError(f"Recurrence slug={slug!r} not found in scenario user's _recurrences.yaml")
+    return await dispatch_recurrence(client, user_id, target, context=None)
 
 
 async def _emit_proposal_from_template(user_id: str, template_name: str) -> dict:
