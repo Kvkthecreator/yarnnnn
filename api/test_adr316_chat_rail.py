@@ -125,12 +125,17 @@ def main() -> None:
         "SurfaceViewport clamps drag to desktop bounds, not raw viewport",
     )
 
-    # --- 5. ChatDrawer carries both layout modes (rail desktop, overlay mobile) ---
+    # --- 5. ChatDrawer carries a docked-rail AND an overlay layout mode ---
+    # ADR-358 (2026-06-23) generalized the mobile-overlay branch into an
+    # `overlayMode` branch (mobile + desktop layout mode); canvas keeps the
+    # docked rail. Assert the durable BEHAVIOR (chat has both a docked-rail
+    # path and a fixed-overlay path) rather than the old `if (isMobile)`
+    # literal — the overlay still serves mobile, just via overlayMode.
     drawer = _read("components/shell/chrome/ChatDrawer.tsx")
     _assert("ADR-316" in drawer, "ChatDrawer cites ADR-316")
     _assert(
-        "if (isMobile)" in drawer,
-        "ChatDrawer keeps the mobile overlay branch (split impossible <640px)",
+        "if (overlayMode)" in drawer and "railMode" in drawer,
+        "ChatDrawer carries both a docked-rail and a fixed-overlay path",
     )
 
     print("\n" + "=" * 60)

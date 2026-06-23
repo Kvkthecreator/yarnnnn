@@ -92,65 +92,88 @@ def main() -> None:
         "the layout toggle is hidden on mobile (mode is desktop-only)",
     )
 
-    # --- 3. ShellCompositor: child order IS the spatial paradigm ---
+    # --- 3. ShellCompositor: fixed order (surface, then rail) ---
+    # ADR-358 revised — chat always renders RIGHT of the surface column. In
+    # canvas it is a docked flex rail; in desktop/mobile it is a fixed
+    # overlay (zero flex space). So the order is fixed and the compositor no
+    # longer branches on layoutMode at all.
     comp = _read("components/shell/ShellCompositor.tsx")
     _assert("ADR-358" in comp, "ShellCompositor cites ADR-358")
     _assert(
-        "useShellChrome" in comp and "layoutMode" in comp,
-        "ShellCompositor reads layoutMode",
+        "layoutMode" not in comp,
+        "ShellCompositor no longer reads layoutMode (order is fixed)",
     )
+    main_open = comp.find("<main")
+    main_close = comp.find("</main>")
+    row = comp[main_open:main_close] if main_open != -1 else ""
     _assert(
-        "layoutMode === 'canvas'" in comp,
-        "ShellCompositor branches the flex row on canvas mode",
+        row.find("{surfaceColumn}") != -1
+        and row.find("{chatRail}") != -1
+        and row.find("{surfaceColumn}") < row.find("{chatRail}"),
+        "surface column renders before the chat rail (chat docks RIGHT)",
     )
-    # In canvas the chatRail must render BEFORE the surface column (left
-    # dock); in desktop AFTER (right dock). The canvas branch is the first
-    # ternary arm — assert chatRail precedes surfaceColumn there.
-    canvas_branch_start = comp.find("layoutMode === 'canvas' ? (")
-    _assert(canvas_branch_start != -1, "ShellCompositor has the canvas ternary")
-    if canvas_branch_start != -1:
-        # Within the canvas arm (up to the `: (` desktop arm), chatRail first.
-        desktop_arm = comp.find(") : (", canvas_branch_start)
-        canvas_arm = comp[canvas_branch_start:desktop_arm]
-        _assert(
-            canvas_arm.find("{chatRail}") < canvas_arm.find("{surfaceColumn}"),
-            "canvas mode docks the rail LEFT (chatRail before surfaceColumn)",
-        )
-        desktop_arm_text = comp[desktop_arm:comp.find("</main>", desktop_arm)]
-        _assert(
-            desktop_arm_text.find("{surfaceColumn}") < desktop_arm_text.find("{chatRail}"),
-            "desktop mode docks the rail RIGHT (surfaceColumn before chatRail)",
-        )
 
-    # --- 4. ChatDrawer: dock side + resize edge flip on layoutMode ---
+    # --- 4. ChatDrawer: railMode (canvas) vs overlayMode (desktop+mobile) ---
     drawer = _read("components/shell/chrome/ChatDrawer.tsx")
     _assert("ADR-358" in drawer, "ChatDrawer cites ADR-358")
     _assert(
         "useShellChrome" in drawer and "layoutMode === 'canvas'" in drawer,
-        "ChatDrawer derives dockLeft from canvas mode",
+        "ChatDrawer reads layoutMode",
     )
-    _assert("const dockLeft" in drawer, "ChatDrawer computes dockLeft")
-    # Resize math is anchored-edge-aware: left dock measures from the
-    # viewport left (e.clientX), right dock from the right (innerWidth − x).
+    # railMode is the ONLY docked posture: canvas on a wide viewport.
     _assert(
-        "dockLeft ? e.clientX : window.innerWidth - e.clientX" in drawer,
-        "resize width is measured from the anchored edge (dock-side aware)",
+        "const railMode = !isMobile && layoutMode === 'canvas'" in drawer,
+        "chat is a docked rail only in canvas on a wide viewport",
     )
-    # Border + handle flip: right border + handle-after-body when left-docked.
     _assert(
-        "dockLeft ? 'border-r' : 'border-l'" in drawer,
-        "the rail's border edge flips with the dock side",
+        "const overlayMode = !railMode" in drawer,
+        "everything else (desktop layout + mobile) is the summoned overlay",
     )
-    # One width store — the dragged width persists to the SAME key in both
-    # modes (Singular width store, not per-mode state).
+    # The overlay branch fires on overlayMode (not just isMobile) — this is
+    # what un-pins Desktop-mode chat.
+    _assert(
+        "if (overlayMode)" in drawer,
+        "the fixed-overlay branch fires on overlayMode (desktop un-pinned)",
+    )
+    # The Canvas rail docks RIGHT: border on the left edge, width measured
+    # from the viewport's right edge. (No left/right flip — one geometry.)
+    _assert(
+        "window.innerWidth - e.clientX" in drawer
+        and "dockLeft" not in drawer,
+        "the canvas rail docks RIGHT (innerWidth − clientX; no dockLeft flip)",
+    )
+    _assert(
+        "border-l border-border shadow-xl" in drawer,
+        "the right-docked rail's border is on its left edge",
+    )
+    # Chat never becomes a window (ADR-316 Alternative A stays rejected).
+    _assert(
+        "WindowFrame" not in drawer,
+        "chat is never a window — it is chrome in every mode",
+    )
+    # One width store across modes.
     _assert(
         drawer.count("DRAWER_WIDTH_KEY") >= 2,
-        "one width store (DRAWER_WIDTH_KEY) shared across dock sides",
+        "one width store (DRAWER_WIDTH_KEY) shared across modes",
     )
-    # Mobile overlay branch survives unchanged (ADR-316 preserved).
+
+    # --- 4b. Default-open posture is mode-aware ---
+    # Rail (canvas, wide) defaults OPEN; overlay (desktop/mobile) defaults
+    # CLOSED (it would otherwise pop open over the windows). And switching
+    # mode re-derives the posture.
+    ctx_open = ctx  # re-use the ShellChromeContext source read above
     _assert(
-        "if (isMobile)" in drawer,
-        "ChatDrawer keeps the mobile overlay branch (ADR-316 preserved)",
+        "const railMode = !isMobile && mode === 'canvas'" in ctx_open,
+        "drawer default-open is computed from railMode (canvas + wide)",
+    )
+    _assert(
+        "setDrawerOpen(railMode); // unset → open only when docked rail" in ctx_open,
+        "unset posture → open only when chat is the docked rail",
+    )
+    _assert(
+        "setLayoutMode" in ctx_open
+        and "setDrawerOpen(railMode)" in ctx_open.split("const setLayoutMode")[1],
+        "switching mode re-derives the chat posture (open canvas / close desktop)",
     )
 
     # --- 5. SurfaceViewport: canvas forces ONE full-bleed surface ---

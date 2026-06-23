@@ -12,12 +12,14 @@
  *   - `top`              → top-of-viewport chrome (today: TopBar)
  *   - `main`             → primary content area (a flex ROW: SurfaceViewport
  *                           window area flex-1 + main-rail command rail).
- *                           ADR-358: child order is the layout mode — rail
- *                           LEFT in canvas, RIGHT in desktop.
- *   - `main-rail`        → dockable command rail (ADR-316, today:
- *                           ChatDrawerSurface). Reduces the surface area;
- *                           never occludes it. ADR-358: docks left in
- *                           canvas mode, right in desktop mode.
+ *                           ADR-358: chat docks RIGHT as a flex rail in
+ *                           canvas; in desktop/mobile it is a fixed overlay
+ *                           (zero flex space) so the row is just the surface.
+ *   - `main-rail`        → chat (ADR-316/358, today: ChatDrawerSurface).
+ *                           Canvas: a right-docked rail that reduces the
+ *                           surface. Desktop/mobile: a fixed summoned
+ *                           overlay. Never occludes in canvas; floats in
+ *                           desktop.
  *   - `bottom-floating`  → floating affordance above main (today: Dock)
  *   - `bottom-fixed`     → fixed input region below main (today: unused)
  *   - `floating-overlay` → modal overlays summoned over main (today:
@@ -58,7 +60,6 @@ import {
   isChromeSurfaceSlug,
   type ChromeSurfaceSlug,
 } from './ChromeRegistry';
-import { useShellChrome } from './ShellChromeContext';
 import type { LayoutRegion, Surface } from '@/lib/compositor/types';
 
 interface ShellCompositorProps {
@@ -102,7 +103,6 @@ function partitionChromeByRegion(
 
 export function ShellCompositor({ children }: ShellCompositorProps) {
   const { data: composition } = useComposition();
-  const { layoutMode } = useShellChrome();
   const byRegion = partitionChromeByRegion(composition.surfaces || []);
 
   const mountRegion = (region: LayoutRegion) =>
@@ -111,19 +111,20 @@ export function ShellCompositor({ children }: ShellCompositorProps) {
       return <Component key={slug} />;
     });
 
-  // ADR-358 — the `main` flex row's child order is the spatial paradigm.
-  // CANVAS: chat-rail LEFT, surface column right (the ChatGPT/Claude
-  // convention). DESKTOP: surface column flex-1, chat-rail RIGHT (ADR-316
-  // verbatim). The rail's own border + resize-edge flip is ChatDrawer's
-  // concern; the compositor owns only sibling order here.
+  // ADR-358 (revised) — chat always renders to the RIGHT of the surface
+  // column. In CANVAS (wide) it is a docked flex-sibling RAIL that reduces
+  // the surface area. In DESKTOP/mobile it renders as a `position: fixed`
+  // overlay, which consumes ZERO flex space — so it floats out of this row
+  // regardless of order. Hence the order is fixed (surface, then rail); the
+  // docked-vs-overlay decision lives entirely in ChatDrawer.
   const surfaceColumn = (
     <div className="flex-1 min-w-0 overflow-hidden">
       <SurfaceViewport>{children}</SurfaceViewport>
     </div>
   );
-  // main-rail region — the dockable command rail (chat). It owns its own
-  // open/closed + width + dock-side state; renders null-width when closed
-  // (desktop) or as an overlay (mobile).
+  // main-rail region — chat. Owns its own open/closed + width + rail-vs-
+  // overlay state. Renders a right rail (canvas), a fixed overlay (desktop/
+  // mobile), or null-width when closed.
   const chatRail = mountRegion('main-rail');
 
   return (
@@ -134,26 +135,14 @@ export function ShellCompositor({ children }: ShellCompositorProps) {
             user menu). */}
         {mountRegion('top')}
 
-        {/* Main region — ADR-316 + ADR-358: a flex ROW. The window area
-            (SurfaceViewport) is flex-1; the command rail (chat) docks as a
-            flex sibling, reducing the window area instead of occluding it.
-            ADR-358 — child ORDER is the spatial paradigm: CANVAS docks the
-            rail LEFT (chat-interface convention), DESKTOP docks it RIGHT
-            (ADR-316). On mobile the rail renders itself as a full-screen
-            overlay (its own isMobile branch), so the row collapses to just
-            the window area there. */}
+        {/* Main region — ADR-316 + ADR-358: a flex ROW. The surface column
+            is flex-1. In CANVAS the chat rail docks RIGHT as a flex sibling
+            (reduces the surface, never occludes). In DESKTOP/mobile chat is
+            a fixed overlay (ChatDrawer's own branch) consuming zero flex
+            space, so the row is just the surface column there. */}
         <main className="flex-1 min-h-0 overflow-hidden flex flex-row">
-          {layoutMode === 'canvas' ? (
-            <>
-              {chatRail}
-              {surfaceColumn}
-            </>
-          ) : (
-            <>
-              {surfaceColumn}
-              {chatRail}
-            </>
-          )}
+          {surfaceColumn}
+          {chatRail}
         </main>
 
         {/* D12 + D16 (2026-05-21..22): bottom-floating + bottom-fixed

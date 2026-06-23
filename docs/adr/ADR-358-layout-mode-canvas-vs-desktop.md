@@ -1,6 +1,6 @@
 # ADR-358 — Layout Mode: Canvas vs Desktop. The Operator Chooses the Shell's Spatial Paradigm
 
-> **Status:** Implemented (2026-06-23; canvas-fill refinement same-day). `layoutMode ∈ {canvas, desktop}` in `ShellChromeContext` (persisted `yarnnn:shell:layout-mode`, default canvas, SSR-safe post-mount restore) · UserMenu Canvas·Desktop toggle (desktop-only) · ShellCompositor flex-order branch (rail left in canvas, right in desktop) · ChatDrawer dock-side + resize-edge flip · SurfaceViewport single-surface gate (`viewport.isMobile || canvasMode`) · WindowFrame `chromeless` prop · **Desktop layer drops the gray wallpaper + padding in canvas** (`canvasFill` → the one surface fills the column edge-to-edge; not a floating window on a desktop). Gates: `api/test_adr358_layout_mode.py` 39/39 · `api/test_adr316_chat_rail.py` 16/16 (amended — the main-rail mount assertion now checks the durable `{chatRail}`-inside-`<main>` behavior, not the literal call-site position) · `api/test_adr297_phase1.py` 163/163 · `api/test_adr309_two_registers.py` 9/9 · `web` `tsc --noEmit` clean.
+> **Status:** Implemented (2026-06-23; revised same-day after operator review — see D2/D3 revision notes). `layoutMode ∈ {canvas, desktop}` in `ShellChromeContext` (persisted `yarnnn:shell:layout-mode`, default canvas, SSR-safe). **Canvas:** surface fills the LEFT edge-to-edge (`canvasFill` drops the desktop wallpaper/padding; `WindowFrame` `chromeless` + non-interactive single-surface), chat docks RIGHT as a flex rail; side-to-side divider only. **Desktop:** ADR-297 D15 free-floating window manager unchanged + chat as a **summoned `position: fixed` overlay** (FAB-summoned, zero flex space — NOT a fixed rail), so Desktop no longer "feels like a fixed layout." Chat is chrome in every mode, never a window — `railMode` (canvas+wide) docks, `overlayMode` (desktop+mobile) summons. ShellCompositor order is fixed (surface, then rail); the docked-vs-overlay decision lives in ChatDrawer. Default-open posture is mode-aware (open canvas-rail / closed desktop-overlay) and re-derives on toggle. UserMenu Canvas·Desktop toggle (desktop-only). Gates: `api/test_adr358_layout_mode.py` 41/41 · `api/test_adr316_chat_rail.py` 16/16 (two assertions amended to durable behavior — `{chatRail}`-inside-`<main>`, and rail-vs-overlay paths instead of the old `if (isMobile)` literal) · `api/test_adr297_phase1.py` 163/163 · `api/test_adr309_two_registers.py` 9/9 · `web` `tsc --noEmit` clean.
 > **Authors:** KVK, Claude
 > **Resolves a contradiction created by:** [ADR-316](ADR-316-chat-as-dockable-rail.md) (chat as a *fixed* dockable rail — chrome, not a window) **vs** [ADR-297](ADR-297-surfaces-as-substrate-mirror.md) D15 (surfaces as a *free-floating* macOS window manager — draggable, resizable on all four edges, z-stacked, cascading). These two decisions assume two different spatial design languages. Until now the shell ran half in each.
 > **Amends:** [ADR-316](ADR-316-chat-as-dockable-rail.md) (the rail's left/right side + the "always a fixed rail" claim become **mode-conditional**) · [ADR-297](ADR-297-surfaces-as-substrate-mirror.md) D15 (the window manager's free-float + soft-cap-8 become **Desktop-mode-only**; Canvas mode caps visible windows at 1) · [compositor.md](../architecture/compositor.md) (the `main` flex row gains a mode discriminator).
@@ -19,11 +19,11 @@ The diagnosis is exact. There is no coherent third thing. There are **two whole 
 
 | | **Canvas** (chat-interface convention) | **Desktop** (macOS convention) |
 |---|---|---|
-| Chat | Fixed panel | Free (drawer / window) |
-| Surfaces | **One** artifact panel beside chat | **Many** floating windows |
+| Chat | Docked fixed rail (RIGHT) | **Summoned overlay** (FAB, floats — not pinned) |
+| Surfaces | **One** surface fills the column | **Many** floating windows |
 | Resize | **Side-to-side only** (one divider) | **All four edges + corners**, drag-anywhere |
-| Chat side | **Left** (ChatGPT/Claude convention) | Right rail (or a window) |
-| Mental model | ChatGPT / Claude / Cursor canvas | Finder desktop |
+| Chat side | **Right** (surface-left, chat-right) | Overlay slides in from the right, over the windows |
+| Mental model | ChatGPT / Claude / Cursor canvas | Finder desktop (everything floats, chat too) |
 | Window cap | **1 visible surface** | Soft cap 8 (ADR-297 D15.3) |
 
 ADR-316 picked "chat is fixed chrome." ADR-297 D15 picked "surfaces float freely." **Welded together, the operator sees a fixed rail beside a floating-window field — half ChatGPT, half Finder.** That mismatch is the fault this ADR resolves.
@@ -60,34 +60,38 @@ A new preference `yarnnn:shell:layout-mode` (localStorage, mirroring `yarnnn:she
 
 The toggle lives in the **UserMenu** ([web/components/shell/UserMenu.tsx](../../web/components/shell/UserMenu.tsx), the initials-avatar dropdown rendered right of TopBarSurface) — the OS "System Settings"-adjacent home for shell-wide preferences (ADR-338 management-plane vocabulary). A two-item segmented control or radio: **Canvas · Desktop**. Switching is instant (a render branch), non-destructive (no window state is discarded — Desktop's `window-state` localStorage survives a trip through Canvas and is restored on switch-back), and SSR-safe (server renders the default; the post-mount effect applies the stored choice, mirroring the `drawerOpen` initializer pattern exactly — no hydration mismatch).
 
-### D2 — Canvas mode: chat-LEFT + one artifact surface RIGHT, side-to-side divider only
+### D2 — Canvas mode: ONE surface fills the LEFT, chat docks RIGHT, side-to-side divider only
 
-In Canvas mode the `main` flex row inverts and constrains:
+> **Revised 2026-06-23 (operator review):** chat docks **RIGHT** in Canvas (surface fills the left). The original D2 put chat left (ChatGPT convention); the operator chose surface-left/chat-right (the artifact leads, chat is the assistant beside it). Equivalent geometry, opposite anchor.
 
 ```
 ┌──────────────────────────────────────────────────┐  top: TopBarSurface (chrome)
-├────────────────┬─────────────────────────────────┤
-│  ChatRail      │  SurfaceViewport                 │  main: flex row (Canvas)
-│  (LEFT,        │  (flex-1)                        │
-│   width,       │  ┌── ONE surface, full-bleed ─┐  │
-│   resizable)   │  │  HOME (no window chrome)   │  │
-│  [Viewing: X]  │  │                            │  │
-│  [conversation]│  └────────────────────────────┘  │
-│  [Ask YARNNN…] │                                  │
-└────────────────┴─────────────────────────────────┘
-        ↑ the ONLY resize handle: the side-to-side divider
+├─────────────────────────────────┬────────────────┤
+│  SurfaceViewport (flex-1)        │  ChatRail      │  main: flex row (Canvas)
+│  ┌── ONE surface, full-bleed ─┐  │  (RIGHT,       │
+│  │  HOME (no window chrome)   │  │   width,       │
+│  │  fills the column          │  │   resizable)   │
+│  │                            │  │  [Viewing: X]  │
+│  └────────────────────────────┘  │  [conversation]│
+│                                  │  [Ask YARNNN…] │
+└─────────────────────────────────┴────────────────┘
+                ↑ the ONLY resize handle: the side-to-side divider
 ```
 
 Concretely:
-- **Chat docks to the LEFT** (the ChatGPT/Claude/Cursor convention — conversation reads left-to-right into the artifact). In Desktop mode the rail stays RIGHT (ADR-316 verbatim). The side is mode-conditional in `ChatDrawer`'s desktop branch: `order` / which-edge-the-resize-handle-sits-on flips on `layoutMode`. The resize *math* is unchanged (clamp MIN/MAX); only the anchored edge flips.
-- **The left is ONE primary surface filling the column — not a desktop with a floating window on wallpaper.** This is the operator's load-bearing correction (2026-06-23): in Canvas the window area is *the surface*, sized to fill, immovable; the only resize is the chat↔surface divider. Concretely Canvas forces `MAX_VISIBLE = 1` *and* drops the desktop frame: the `Desktop` layer's gray wallpaper + padding are suppressed when a surface is mounted in canvas (`canvasFill = layoutMode === 'canvas' && hasWindows` → `bg-background`, no padding), so the surface fills edge-to-edge; `WindowFrame` renders `chromeless` (no title bar, no border, no rounding) and non-interactive (no drag/resize handles). Desktop mode keeps the D17 wallpaper + floating windows. The render path **reuses** `SurfaceViewport`'s existing single-surface `visibleSlug` branch — today gated on `viewport.isMobile && hasWindows` — extended to `viewport.isMobile || canvasMode`. Switching surface (Dock click / Launcher) replaces the visible one; the others stay mounted-but-hidden (D13 multi-mount lifecycle preserved — state is not lost). The FAB survives in both modes (chat is closable + re-summonable).
-- **The only resize is the divider** between chat-left and surface-right. No per-window resize, because there is one full-bleed surface.
+- **Chat docks to the RIGHT** (surface-left/chat-right — the artifact is the focus, chat the assistant beside it). The rail's border sits on its left edge; the drag handle is on its left edge; resize width = `innerWidth − e.clientX` (ADR-316 geometry, unchanged).
+- **The left is ONE primary surface filling the column — not a desktop with a floating window on wallpaper.** In Canvas the window area is *the surface*, sized to fill, immovable; the only resize is the chat↔surface divider. Canvas forces `MAX_VISIBLE = 1` *and* drops the desktop frame: the `Desktop` layer's gray wallpaper + padding are suppressed when a surface is mounted in canvas (`canvasFill = layoutMode === 'canvas' && hasWindows` → `bg-background`, no padding), so the surface fills edge-to-edge; `WindowFrame` renders `chromeless` (no title bar, no border, no rounding) and non-interactive (no drag/resize handles). The render path **reuses** `SurfaceViewport`'s single-surface `visibleSlug` branch — extended from `viewport.isMobile` to `viewport.isMobile || canvasMode`. Switching surface (Dock click / Launcher) replaces the visible one; the others stay mounted-but-hidden (D13 multi-mount lifecycle preserved).
+- **The only resize is the divider** between surface-left and chat-right. No per-window resize — there is one full-bleed surface.
 
-### D3 — Desktop mode: ADR-297 D15 window manager + chat as the ADR-316 right rail, both verbatim
+### D3 — Desktop mode: free-floating window manager + chat as a SUMMONED OVERLAY (not a fixed rail)
 
-Desktop mode is **today's shipped behavior, unchanged**: free-floating cascade windows (drag, resize-4-edges, z-stack, soft-cap-8) per ADR-297 D15, with chat as the right-docked rail per ADR-316. Nothing about Desktop mode is new — this ADR's only act on Desktop mode is to scope it behind `layoutMode === 'desktop'` so Canvas can be the alternative.
+> **Revised 2026-06-23 (operator review):** Desktop-mode chat is **not** a fixed right rail. The operator observed the rail "feels like a fixed layout, but it shouldn't" — in a free-floating desktop, a pinned rail is the one thing that doesn't float. So in Desktop mode chat reverts to the **pre-ADR-316 summoned overlay**: closed by default, FAB-summoned, a `position: fixed` right-side panel sliding over the floating windows; it consumes **zero flex space** (does not reduce/pin the layout). This restores the "everything floats in Desktop, chat included" coherence.
 
-**The one resolved question from the trigger discourse** — *"chat keeps the drawer aspect OR migrates to a surface"* — is resolved as **keep the drawer/rail**. Chat stays chrome (the ADR-316 chat-as-chrome decision holds in Desktop mode; ADR-316 Alternative A "chat as a tiled window" remains rejected for the same reason — the command channel must not compete for `MAX_OPEN_WINDOWS` slots or be closable like content). Canvas mode makes chat a *fixed* panel (still chrome, not a window); Desktop mode makes chat a *dockable* rail (still chrome). In neither mode is chat a window. **Chat is never a window** — that invariant survives both modes and keeps the boundary clean (window manager owns surfaces; chat is the channel over them).
+Desktop mode keeps the ADR-297 D15 window manager unchanged (free-floating cascade windows — drag, resize-4-edges, z-stack, soft-cap-8). What changes vs the first ADR-358 cut: chat is an **overlay**, not a rail.
+
+**The trigger-discourse question** — *"chat keeps the drawer aspect OR migrates to a surface"* — is resolved as **keep the drawer (overlay), reject chat-as-surface**. Recommendation rationale (delegated to the implementer, KVK 2026-06-23): chat-as-a-window would re-open ADR-316 Alternative A — the command channel must not be closable/buryable/cap-subject like content, and making it a window in Desktop but chrome in Canvas would re-introduce the very cross-mode inconsistency this ADR exists to kill. The overlay reuses the proven mobile branch (one component, one render path) and keeps the durable invariant: **chat is chrome in EVERY mode, never a window** — only *docked* (Canvas rail) vs *summoned* (Desktop/mobile overlay) varies. That is a one-axis variation, trivially extensible.
+
+The default-open posture is therefore mode-aware: **Canvas (wide) → rail defaults OPEN** (the two-panel composition); **Desktop + mobile → overlay defaults CLOSED** (it would otherwise pop open over the windows). Switching mode re-derives the posture (→Canvas opens the rail; →Desktop closes the overlay).
 
 ### D4 — Window geometry, cap, and Dehydration are mode-aware in exactly the spots ADR-316 D6 already touched
 

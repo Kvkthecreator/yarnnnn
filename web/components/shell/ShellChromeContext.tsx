@@ -111,38 +111,54 @@ export function ShellChromeProvider({ userEmail, children }: ShellChromeProvider
   // drawerOpen above).
   const [layoutMode, setLayoutModeState] = useState<LayoutMode>(DEFAULT_LAYOUT_MODE);
 
-  // ADR-316 posture default: on first client render, restore the
-  // persisted open/closed posture; when unset, default OPEN on desktop
-  // and CLOSED on mobile (the mobile overlay would occlude the surface).
+  // Posture default (ADR-316 + ADR-358 revised): on first client render,
+  // restore the persisted open/closed posture; when unset, the default
+  // depends on whether chat is a DOCKED RAIL or a SUMMONED OVERLAY:
+  //   - Canvas on desktop → chat is the docked rail of a two-panel
+  //     composition → default OPEN (chat present beside the surface).
+  //   - Desktop mode + mobile → chat is a fixed overlay that would cover
+  //     the windows/surface → default CLOSED (FAB-summoned).
   useEffect(() => {
+    // Read the layout mode first — the drawer default depends on it.
+    let storedMode: string | null = null;
+    try {
+      storedMode = window.localStorage.getItem(LAYOUT_MODE_KEY);
+    } catch {}
+    const mode: LayoutMode =
+      storedMode === 'canvas' || storedMode === 'desktop'
+        ? storedMode
+        : DEFAULT_LAYOUT_MODE;
+    if (mode !== DEFAULT_LAYOUT_MODE) setLayoutModeState(mode);
+
     let stored: string | null = null;
     try {
       stored = window.localStorage.getItem(DRAWER_OPEN_KEY);
     } catch {}
     const isMobile = window.innerWidth < MOBILE_BREAKPOINT_PX;
+    // Chat is a docked rail only in Canvas on a wide viewport; that is the
+    // only posture that defaults open.
+    const railMode = !isMobile && mode === 'canvas';
     if (stored === 'true') setDrawerOpen(true);
     else if (stored === 'false') setDrawerOpen(false);
-    else setDrawerOpen(!isMobile); // unset → desktop default-open
-
-    // ADR-358 — restore the persisted layout mode (default canvas when
-    // unset). Mobile ignores the mode (one arrangement is physically
-    // possible) but we still hydrate the stored value so a desktop reload
-    // honors it.
-    let storedMode: string | null = null;
-    try {
-      storedMode = window.localStorage.getItem(LAYOUT_MODE_KEY);
-    } catch {}
-    if (storedMode === 'canvas' || storedMode === 'desktop') {
-      setLayoutModeState(storedMode);
-    }
+    else setDrawerOpen(railMode); // unset → open only when docked rail
   }, []);
 
-  // ADR-358 — persist the operator's layout-mode choice. Same shape as
-  // persistDrawerOpen: write-through on every deliberate change.
+  // ADR-358 — persist the operator's layout-mode choice, and RE-DERIVE the
+  // chat posture: switching to Canvas opens the docked rail (chat present
+  // beside the surface); switching to Desktop closes the summoned overlay
+  // (it would otherwise pop open over the windows). A deliberate mode switch
+  // is a fresh intent, so it overrides the persisted open/closed posture
+  // (and writes the new posture through, keeping the two keys consistent).
   const setLayoutMode = useCallback((next: LayoutMode) => {
     setLayoutModeState(next);
     try {
       window.localStorage.setItem(LAYOUT_MODE_KEY, next);
+    } catch {}
+    const isMobile = window.innerWidth < MOBILE_BREAKPOINT_PX;
+    const railMode = !isMobile && next === 'canvas';
+    setDrawerOpen(railMode);
+    try {
+      window.localStorage.setItem(DRAWER_OPEN_KEY, String(railMode));
     } catch {}
   }, []);
 

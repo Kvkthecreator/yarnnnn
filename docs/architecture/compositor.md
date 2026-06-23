@@ -64,16 +64,20 @@ it; it does not cover it.
 **Two layout modes — the operator picks the spatial paradigm (ADR-358).** The
 shell's arrangement is an operator preference (`layoutMode ∈ {canvas, desktop}`
 in `ShellChromeContext`, persisted, default **canvas**), chosen at the UserMenu.
-The `main` flex row's child order *is* the mode: **Canvas** docks the chat rail
-**left** beside exactly one full-bleed surface (window chrome suppressed — the
-ChatGPT/Claude convention, side-to-side divider only); **Desktop** is the
-ADR-297 D15 free-floating window manager with the chat rail docked **right**.
-This resolves the cross-paradigm weld a fixed rail beside a floating-window
-field created — within a mode, chat and surfaces speak one spatial language.
-Singular Implementation: one compositor, one chat component, one window
-manager, with a mode discriminator over them; the window-manager core is
-mode-agnostic, and the `Viewing: X` ↔ `surfaceOverride` ↔ prompt-profile
-binding is identical in both modes.
+**Canvas:** one surface fills the column edge-to-edge (window chrome suppressed
+via `canvasFill` + `chromeless`) with chat docked as a flex **rail on the
+right** — the two-panel chat-interface composition, side-to-side divider only.
+**Desktop:** the ADR-297 D15 free-floating window manager, with chat as a
+**summoned `position: fixed` overlay** (FAB-summoned, floats over the windows,
+consumes zero flex space) — *not* a pinned rail, so "everything floats in
+Desktop, chat included." The `main` flex row order is fixed (surface, then
+rail); the docked-vs-overlay decision lives entirely in `ChatDrawer`
+(`railMode` vs `overlayMode`). Chat is chrome in every mode, **never** a window
+(ADR-316 Alternative A stays rejected — the command channel must not be
+closable/buryable like content). Singular Implementation: one compositor, one
+chat component, one window manager; the window-manager core is mode-agnostic,
+and the `Viewing: X` ↔ `surfaceOverride` ↔ prompt-profile binding is identical
+in every mode.
 
 **Agent-composed Applications** — the orchestration layer authoring a new
 Application by writing an application-manifest *file* in the substrate
