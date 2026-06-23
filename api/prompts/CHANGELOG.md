@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.23.2] - ADR-354 D1 reaches alpha-author: collapse the audit-recurrence prompts
+
+**LLM-facing changes:**
+
+- **`docs/programs/alpha-author/reference-workspace/_recurrences.yaml`** — the three judgment audit prompts (`corpus-coherence-check`, `revision-audit`, `outcome-reconciliation`) collapsed per ADR-354 D1: substrate pedagogy + procedural step-lists delegated to the spec files, rules of judgment to `principles.md`, cycle-close to the frame. Each prompt's named task now includes **production-state assessment** (Expected Output is a standing obligation; classify (A)/(B) per principles.md §2 owed-output rule), not only "audit the existing corpus." Char counts: corpus-coherence ~1,400→1,126, revision-audit ~2,000→952, outcome-reconciliation ~1,800→824.
+- **`docs/programs/alpha-author/MANIFEST.yaml`** — `version: 2026-06-22.2 → 2026-06-23.1`.
+- **Expected behavior:** on an EMPTY corpus under a declared weekly Expected Output, the author Reviewer's audit recurrences no longer no-op into a clean close. The audit-only scope was suppressing the standing-obligation (DP30) reasoning — even with the (B) compose-organ rule present in both frame and principles.md. The collapse makes the (B) "no organ originates a piece → author a compose organ or surface the gap" path reachable. Validated by re-running `author-expected-output-origination` (the three-run finding: 2026-06-23 sessions).
+- **Not LLM-facing (recorded):** `api/scripts/alpha_ops/_force_push_principles.py` stale bundle path fix (`review/` → `persona/`, post-ADR-320); ADR-354 §7 amendment.
+
+---
+
 ## [2026.06.23.1] - ADR-353 §17: Hacker News perceive connector (NO_AUTH, zero-credential)
 
 **LLM-facing changes:**

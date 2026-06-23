@@ -71,3 +71,34 @@ The integrity moat (ADR-209) was also confirmed operating at the capital-bind mo
 - `api/test_trading_pipeline_architecture.py` — §5 perception-field conformance invariant (D3).
 - `api/prompts/CHANGELOG.md` — `[2026.06.22.1]`.
 - Evaluations: the finding + validation cited above.
+
+## 7. Amendment — D1 reaches alpha-author (2026-06-23)
+
+The original implementation (2026-06-22) collapsed only the **alpha-trader**
+judgment prompts. A three-run controlled probe on **alpha-author**
+(`netflix-script-author`) showed the same pathology unaddressed there: the
+author's judgment recurrences (`corpus-coherence-check`, `revision-audit`,
+`outcome-reconciliation`) shipped **audit-scoped** prompts whose named task is
+"audit the existing corpus." On an empty corpus that task is satisfied by doing
+nothing, so the Reviewer closed cleanly **without ever reaching the
+standing-obligation (DP30 / principles.md §2 owed-output) reasoning** — even
+after the (B) compose-organ rule was confirmed present in both the frame
+(`reviewer_agent.py:368`) and the workspace `principles.md`. The audit-only
+*scope* was the obstruction, the same way the trader's re-scripted *close* was.
+
+D1 applied to alpha-author: the three audit prompts are collapsed to the
+operator's instruction + a production-state pointer (Expected Output is a
+standing obligation; classify (A)/(B) per principles.md §2), delegating the
+audit procedure/schema to the spec files, the rules to `principles.md`, and the
+close to the frame. This makes the (B) "no organ originates a piece → author a
+compose organ or surface the gap" path reachable on an empty corpus.
+
+Asymmetry note: the trader's `signal-evaluation` is already a *producer*
+recurrence (named task = evaluate + ProposeAction), so production was always in
+scope for it. The author bundle ships only *auditor* recurrences; the collapse
+here makes production-state a first-class part of what each audit recurrence
+asks about, rather than an emergent realization that the audit-only scope
+suppressed.
+
+- `docs/programs/alpha-author/reference-workspace/_recurrences.yaml` — three judgment audit prompts collapsed (D1); MANIFEST `version: 2026-06-23.1`.
+- Driving evaluations: `docs/evaluations/2026-06-23-070553-...` (clean baseline — seam survives all workspace-file corrections) + `docs/evaluations/2026-06-23-071317-...` (root cause localized to the audit-only recurrence prompt; principles.md was also stale, force-pushed via `_force_push_principles.py`).
