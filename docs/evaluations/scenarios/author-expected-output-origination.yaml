@@ -80,6 +80,47 @@ setup:
         default:
           delegation: autonomous
 
+  # AUTONOMY.md prose reconciled to the sidecar (finding 2026-06-23 run-1: the
+  # occupant cited "phase 0 = manual" from the LIVE AUTONOMY.md, NOT from the
+  # _autonomy.yaml sidecar — a 4th file carrying the audit-shaped self-model.
+  # The live prose hard-codes "operator drafts → Reviewer audits → operator
+  # approves", which is the SAME ADR-355 bug in another file. This setup write
+  # removes that framing for the controlled baseline: autonomous, and the agent
+  # ORIGINATES + ships (the operator witnesses, does not draft). Isolating this
+  # makes the autonomy variable unambiguous — if the seam STILL reproduces, it
+  # is the occupant self-model (frame/canon), not any workspace file.
+  - write_substrate:
+      path: /workspace/governance/AUTONOMY.md
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "scenario: AUTONOMY.md reconciled to autonomous + ADR-355 (agent originates, operator witnesses)"
+      content: |
+        # Autonomy — alpha-author
+
+        > Per ADR-254: machine-parsed delegation config lives in `_autonomy.yaml`
+        > (sibling). This file is prose for human + LLM reading. Edit the yaml to
+        > change ceilings.
+
+        ## What autonomy controls
+
+        `_autonomy.yaml` declares the **witness dial** (ADR-345): how much the
+        Reviewer's decision binds automatically vs. routes to the operator's
+        Queue for a witnessing click. Autonomy is NOT a ceiling on the agent's
+        work — the agent always works the full job (originates + ships scenes);
+        the dial only governs which beats the operator witnesses before they bind.
+
+        ## Current posture: autonomous
+
+        `delegation: autonomous` — the agent originates scenes against the
+        declared Expected Output and ships approved work autonomously. The
+        operator is principal + witness (ADR-355), not the author. QUEUE means
+        decided-and-waiting-for-witness, never blocked.
+
+        ## What autonomy does NOT control
+
+        - The Reviewer's evaluation framework (`principles.md` + `_principles.yaml`)
+        - The voice / editorial / entity substrate
+        - Whether a recurrence wakes the Reviewer (the recurrence `mode` field)
+
   # The declared output contract sidecar (ADR-345). Reviewer reads, never authors.
   - write_substrate:
       path: /workspace/governance/_expected_output.yaml
