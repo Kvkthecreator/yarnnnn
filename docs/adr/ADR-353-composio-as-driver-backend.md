@@ -298,7 +298,14 @@ to the real candidates:
 | Candidate | Demand | Loop-closing | Auth tier | Verdict |
 |---|---|---|---|---|
 | **Reddit** | content strategy (Tier-1 GEO) | ✅ rich comment reads | OAuth+BYO-app (in review) | **In flight** — built, blocked on Reddit API-access review |
-| **Hacker News** | content strategy ("Show HN") | ✅ comment threads | **public/zero-cred** | ✅ **SHIPPED 2026-06-23** — `read_hackernews` (search + item), live-validated E2E (no credential); alpha-author `hn-perceive` recurrence. The first connector live end-to-end with no friction wall. |
+| **Hacker News** | content strategy ("Show HN") | ✅ comment threads | **public/zero-cred** | ✅ **SHIPPED + DEPLOYED-VALIDATED 2026-06-23** — `read_hackernews` (search + item), live E2E (no credential); alpha-author `hn-perceive` recurrence. The first connector live end-to-end with no friction wall. |
+
+### §17 deployed-validation receipts (2026-06-23)
+The first connector validated through the **full deployed loop** (not just local):
+- **Local driver probe** — `composio_driver.execute("hackernews", "search_posts", …)` returned real HN posts on the corpus's themes (e.g. "The Five Pillars of AI Agent Accountability", "Intelligence may be scalable, but accountability is not") + `get_item` read a real thread (42 comments). Zero credential.
+- **Render env set** — `COMPOSIO_API_KEY` + `COMPOSIO_DRIVER_ENABLED=true` on yarnnn-api (deploy `dep-d8t1977lk1mc73ai04b0`, live 05:09:06Z) + yarnnn-unified-scheduler (deploy `dep-d8t199km0tmc73bp85s0`) — Render parity (§8).
+- **Bundle re-applied** to live yarnnn-author (ADR-292) — `hn-perceive` + `read_hackernews` landed in `/workspace/_recurrences.yaml` (verified `content LIKE '%hn-perceive%'` = true).
+- **Manual-fire → full deployed loop SUCCESS** — `wake_queue` `d9ed50e9-…` (lane `live`) → drained → `execution_events` **`40839cfd-a161-4dce-ad98-bf5f9435c821` `hn-perceive | success | 7 tool rounds | 203,727 in / 4,615 out tok | $0.41`**; Reviewer (`reviewer:ai:reviewer-sonnet-v8`) authored `judgment_log.md` at 05:17:25Z. The deployed scheduler → drainer → Reviewer → HN driver (prod env) → judgment path is proven with substrate-receipts. No action_proposal surfaced (a quiet-discourse close — correct measure-not-steer behavior, not a failure).
 | **Exa / web search** | perception field (ADR-335) | n/a (read) | API-key | strong for context-in; lighter friction |
 | **X / Twitter** | content strategy (3x/wk) | ✅ rich engagement | OAuth+BYO-app (pay-per-use) | medium — same friction as Reddit + usage cost |
 | **LinkedIn** | content strategy (ICP) | ❌ thin reads (send-only) | OAuth+BYO-app (review) | weak — fails loop-closing (§14) |
