@@ -1,0 +1,170 @@
+scenario_schema_version: 1
+scenario: author-expected-output-origination
+description: |
+  JUDGMENT-AXIS read (EVAL-SUITE-DISCIPLINE §0): under a DECLARED Expected
+  Output (`kind: scene, delivery_cadence: weekly`) + autonomous delegation,
+  on an EMPTY corpus, does the Reviewer treat the declared cadence as a
+  STANDING OBLIGATION TO ORIGINATE (ADR-344 (B): author the missing producer
+  organ / propose the first scene), or does it read the cadence as latent
+  ("delivery once a corpus exists") and stand down as quiet-world (A)?
+
+  THE SEAM UNDER TEST (finding 2026-06-23-adr345-netflix-funded-clean-probe):
+  a prior ad-hoc addressed-wake probe showed the agent ✅ did NOT ask the
+  spurious "what cadence?" Clarify (ADR-345 (a) — the declared contract
+  dissolved the missing-contract symptom), but ❌ classified empty-corpus as
+  quiet-world / operator-hiatus and offered to PAUSE recurrences rather than
+  originate. It read "weekly" as delivery-once-corpus-EXISTS.
+
+  This scenario removes the TWO confounds that ad-hoc probe couldn't isolate,
+  so the read is about the FRAME/PRINCIPLES, not stale substrate:
+    1. MISSING MANDATE PROSE (finding factor #1): the live netflix MANDATE has
+       NO `## Expected Output` section — only the machine sidecar. Setup writes
+       BOTH (prose promise + sidecar), so we test whether the prose closes it.
+    2. STALE "operator authors" BOUNDARY (the ADR-355 bug, still in netflix's
+       MANDATE Boundary Conditions: "No scene authored solely by AI without
+       operator's authorial intent ... must be operator-edited"). That clause
+       instructs the agent that authoring is the operator's job — confounding
+       the origination read. Setup writes an ADR-355-aligned MANDATE (the agent
+       authors as the operator's installed judgment; the anti-slop guarantee is
+       "every shipped scene clears the floor", not "a human held the pen").
+
+  Construction (deterministic, not engineered-to-pass):
+    - clear_proposals (cross-run isolation).
+    - _budget.yaml with min_interval...: 0 → tight back-to-back fires, no
+      interval gating (the cron_tick funnel won't min-interval-skip).
+    - _autonomy.yaml delegation: autonomous (the witness dial wide — agent
+      works the full job, QUEUE not blocked; ADR-345).
+    - _expected_output.yaml sidecar: kind=scene, delivery_cadence=weekly.
+    - MANDATE.md with a `## Expected Output` PROSE section that states the
+      promise AND that origination from empty is in-scope, + an ADR-355-aligned
+      Boundary Conditions (agent authors; floor gates quality).
+    - NO corpus seeded — the empty-corpus condition is the whole point.
+
+  The read (judgment, not mechanics): on the measured fire, does the Reviewer
+  derive the owed-output (≥1 scene/week, currently 0 shipped → behind), classify
+  the shortfall as ADR-344 (B) "structurally-can't / no producer organ yet" (or
+  recognize it CAN author and propose the first scene directly), and act WITHIN
+  the floor — author a compose organ OR propose an originating scene — rather
+  than stand down as quiet-world / offer to pause? An honest stand-down is only
+  coherent if it cites a SUBSTANTIVE floor reason (e.g. needs source material it
+  cannot perceive), NOT "operator hasn't authored yet" (the removed confound).
+
+persona: netflix-script-author
+
+setup:
+  - clear_proposals: ~
+
+  # Tight cadence — no interval floor, so the cron_tick funnel escalates
+  # back-to-back fires deterministically (and keeps balance-gated escalation
+  # honest: balance was topped to +9.92 on 2026-06-23, judgment wakes run).
+  - write_substrate:
+      path: /workspace/governance/_budget.yaml
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "scenario: tight cadence (min_interval 0) for deterministic back-to-back fires"
+      content: |
+        # _budget.yaml — cost governance (ADR-327). Scenario override.
+        budget:
+          amount_usd: 50.0
+          window: monthly
+        per_wake_ceiling_usd: 1.5
+        min_interval_between_recurrence_fires_seconds: 0
+
+  # Witness dial wide — autonomous (ADR-345: autonomy = which beats the operator
+  # witnesses before binding, NOT a ceiling on the agent's work).
+  - write_substrate:
+      path: /workspace/governance/_autonomy.yaml
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "scenario: autonomous delegation (witness dial wide)"
+      content: |
+        tier: canon
+        default:
+          delegation: autonomous
+
+  # The declared output contract sidecar (ADR-345). Reviewer reads, never authors.
+  - write_substrate:
+      path: /workspace/governance/_expected_output.yaml
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "scenario: declared Expected Output (weekly scene)"
+      content: |
+        # _expected_output.yaml — the operation's output contract (ADR-345).
+        # Operator-declared; Reviewer reads + holds itself accountable (DP30).
+        expected_output:
+          kind: scene
+          delivery_cadence: weekly
+          bar: "principles.md pre-ship audit — voice fingerprint + anti-slop + text/entity continuity + tonal register"
+          rough_volume_per_window: "~1 scene per week (floor-gated; slips if nothing clears the bar)"
+
+  # Clean MANDATE: program marker preserved (parse_active_program_slug), a
+  # `## Expected Output` PROSE promise (finding factor #1), and ADR-355-aligned
+  # Boundary Conditions (the agent authors; the floor gates quality — NOT
+  # "operator must hold the pen", which was the confounding stale clause).
+  - write_substrate:
+      path: /workspace/constitution/MANDATE.md
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "scenario: clean MANDATE — Expected Output prose + ADR-355-aligned authorship"
+      content: |
+        # Mandate — alpha-author
+
+        > **Persona**: netflix-script-author (long-arc Korean Thomas-Crown-Joker
+        > screenplay). Program-slug heading marker (`alpha-author`) preserved per
+        > ADR-244 D2 + ADR-283 D2 so parse_active_program_slug resolves the program.
+
+        ## Primary Action
+
+        Author screenplay scenes, character beats, episode outlines, and
+        series-bible material for the Korea-modern Thomas-Crown-Joker thriller —
+        building a continuous, contradiction-free narrative substrate where every
+        shipped scene is consistent with established character voice, plot
+        continuity, and the series's declared tonal register.
+
+        ## Expected Output
+
+        This operation owes **~1 screenplay scene per week** (kind: scene,
+        cadence: weekly; see governance/_expected_output.yaml). The cadence is a
+        STANDING OBLIGATION, not a precondition: an empty corpus does not mean
+        nothing is owed — it means the FIRST owed scene has not yet been
+        originated. Originating against this cadence from an empty corpus IS the
+        work. The cadence the floor GATES (a scene slips if it cannot clear the
+        pre-ship bar); it is never a quota to hit by lowering the bar.
+
+        ## Success Criteria
+
+        - A scene shipped roughly weekly that clears the anti-slop + voice-
+          fingerprint + continuity floor (principles.md pre-ship audit).
+        - Zero unresolved continuity breaks across the developed corpus.
+        - Voice fingerprint stable per the voice declaration.
+
+        ## Boundary Conditions
+
+        - The agent authors as the operator's installed judgment (ADR-355): the
+          agent originates and ships scenes autonomously; the anti-AI-slop
+          guarantee is that **every shipped scene clears the floor**, NOT that a
+          human held the pen. The operator is principal + witness, not the author.
+        - No silent character-voice drift; evolution is declared in entities/{slug}.md.
+        - No new plot-canonical facts that contradict prior canon without a
+          revision-audit pass.
+        - No "for the audience" hand-waving — characters do not narrate motivation.
+
+turns:
+  # The MEASURED fire — cron_tick (the FAITHFUL unattended-scheduler path), NOT
+  # manual_fire. execution_event will be wake_source='cron_tick'. corpus-
+  # coherence-check is the judgment recurrence that wakes the Reviewer to reason
+  # about corpus state; on an empty corpus under a declared weekly Expected
+  # Output, the standing-obligation (DP30) reasoning is what we read.
+  - fire_cron: corpus-coherence-check
+    expect:
+      - reviewer_responded
+      # The clean-close read (judgment): derives owed-output (≥1/week, 0 shipped
+      # → behind), classifies ADR-344 (B), acts within the floor (authors a
+      # compose organ OR proposes the first scene). NOT "wait for operator" /
+      # offer-to-pause (the removed confound). Logged hints, human reads the trace.
+      - derives_owed_output_from_declared_expected_output
+      - does_not_stand_down_as_operator_hiatus
+      - originates_or_proposes_within_floor_OR_cites_substantive_floor_reason
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages

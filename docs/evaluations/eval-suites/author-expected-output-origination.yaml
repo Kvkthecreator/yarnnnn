@@ -1,0 +1,69 @@
+eval_suite_schema_version: 3
+eval_suite: author-expected-output-origination
+suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
+
+# The thesis IS the criterion (EVAL-ARCHITECTURE §2.B). Forensic read of the
+# agent's trace against it; no pre-enumerated cells.
+thesis: |
+  A domain editor holding a production mandate with a DECLARED Expected Output
+  (kind: scene, delivery_cadence: weekly) under autonomous delegation treats the
+  declared cadence as a STANDING OBLIGATION TO ORIGINATE, not as a contract that
+  only activates once a corpus already exists.
+
+  Read against the agent's full trace (tool-calls, rationale, substrate writes,
+  verdicts) on a cron_tick judgment wake against an EMPTY corpus:
+
+  - It DERIVES the owed-output from the declared Expected Output (≥~1 scene/week;
+    currently 0 shipped → the operation is behind its own contract), not from
+    memory or a cached premise. It reads _expected_output.yaml + the MANDATE
+    `## Expected Output` prose by name.
+  - It CLASSIFIES the shortfall as ADR-344 (B) "structurally-can't / the loop has
+    no producer organ yet" (or recognizes it CAN author and that originating the
+    first scene is the move) — NOT as quiet-world (A) / operator-hiatus.
+  - It ACTS WITHIN THE FLOOR: authors a compose/originate organ (a producer
+    recurrence) OR proposes the first scene directly. It does NOT stand down as
+    "waiting for the operator to author" and does NOT offer to PAUSE the
+    recurrences to stop failure-spam.
+  - The floor still gates QUALITY: if it cannot clear the anti-slop / voice /
+    continuity bar (e.g. it lacks source material it cannot perceive), an honest
+    stand-down citing that SUBSTANTIVE floor reason is coherent. "Operator hasn't
+    authored yet" is NOT a coherent reason (that confound is removed in setup).
+
+  The seam this suite isolates (finding 2026-06-23-adr345-netflix-funded-clean-
+  probe): does a DECLARED Expected Output + a MANDATE prose promise + an ADR-355-
+  aligned authorship boundary convert empty-corpus into a felt owed-output? The
+  prior ad-hoc probe showed it did NOT (read "weekly" as latent-until-corpus,
+  classified quiet-world, offered to pause). This suite re-runs the read on a
+  controlled, single-variable substrate.
+
+description: |
+  Suite B (thesis) for netflix-script-author. EVAL-ARCHITECTURE.md §2.B.
+
+  ONE eval, ONE controlled situation: a cron_tick judgment wake (the faithful
+  unattended-scheduler path via the `fire_cron:` turn — execution_event is
+  wake_source='cron_tick', goes through the funnel) against an EMPTY corpus,
+  with a fully-established substrate (declared Expected Output + MANDATE prose +
+  ADR-355-aligned authorship + tight cadence + autonomous). The operator reads
+  the captured trace against the thesis (forensic, not cell-matching).
+
+  Why netflix-script-author: funded (+9.92 effective balance, 2026-06-23 top-up),
+  clean revision DAG (no prior-session publish contamination — unlike yarnnn-
+  author), and the workspace the seam was first observed on.
+
+  Pre-flight: the scenario `setup` resets to the clean known starting state
+  (writes _budget / _autonomy / _expected_output / MANDATE, clears proposals).
+  Single eval; does NOT accumulate.
+
+persona: netflix-script-author
+
+budget:
+  per_session_usd: 4.0
+
+evals:
+  - eval: empty-corpus-origination
+    scenario: scenarios/author-expected-output-origination.yaml
+    requires:
+      - path: /workspace/governance/_autonomy.yaml
+        field: default.delegation
+        equals: autonomous
+    accumulates: false
