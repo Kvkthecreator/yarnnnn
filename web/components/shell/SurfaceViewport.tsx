@@ -11,12 +11,17 @@
  *   - the ChatFAB (D17 §7 — moved off viewport-fixed)
  * Windows mount as absolute-positioned children of the Desktop layer.
  *
- * Resolution order (D17):
+ * Resolution order (D17 + ADR-358):
  *   1. mountSlugs = union of (registry-open) and (pathname-deep-link).
  *   2. Desktop layer ALWAYS renders.
  *   3. Desktop empty-state copy visible iff mountSlugs is empty.
- *   4. Mobile (<MOBILE_BREAKPOINT_PX): one window full-bleed inside Desktop.
- *   5. Desktop: all open windows absolute-positioned + z-stacked.
+ *   4. SINGLE-SURFACE (mobile OR canvas layout mode): one window full-bleed
+ *      inside Desktop. ADR-358 — canvas mode reuses the mobile single-
+ *      surface branch (the foregrounded `visibleSlug` only), with the
+ *      window frame suppressed (`chromeless`) so it reads as a canvas, not
+ *      a windowed app. Mobile keeps its frame (ADR-297 D15.2).
+ *   5. Desktop layout mode (wide): all open windows absolute-positioned +
+ *      z-stacked — the ADR-297 D15 window manager.
  *
  * Pathname behavior (D17):
  *   - /desktop → no pathnameSlug; Desktop renders + restores
@@ -34,6 +39,7 @@ import { usePathname } from 'next/navigation';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { useComposition } from '@/lib/compositor/useComposition';
 import { useViewport } from '@/lib/shell/useViewport';
+import { useShellChrome } from './ShellChromeContext';
 import { isKernelSurfaceSlug } from '@/types/desk';
 import type { KernelSurfaceSlug } from '@/types/desk';
 import { resolveSurfaceComponent } from './SurfaceRegistry';
@@ -59,6 +65,13 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
   } = useSurfacePreferences();
   const { data: composition } = useComposition();
   const viewport = useViewport();
+  const { layoutMode } = useShellChrome();
+  // ADR-358 — canvas layout mode renders ONE full-bleed surface (chromeless
+  // single-window), reusing the same branch mobile uses. Desktop layout
+  // mode keeps the ADR-297 D15 multi-window manager. On mobile the mode is
+  // irrelevant (single-surface either way).
+  const canvasMode = layoutMode === 'canvas';
+  const singleSurface = viewport.isMobile || canvasMode;
   // ADR-316: drag/resize clamping uses the DESKTOP box (reduced by the
   // command rail), falling back to the raw viewport before the Desktop
   // measures. Keeps windows from being draggable under the rail.
@@ -140,21 +153,26 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
 
   const hasWindows = mountSlugs.length > 0;
 
-  // Mobile single-window mode (D15). Only the foregrounded window
-  // renders, full-bleed inside the Desktop layer.
-  if (viewport.isMobile && hasWindows) {
+  // Single-surface mode (D15 mobile + ADR-358 canvas). Only the
+  // foregrounded window renders, full-bleed inside the Desktop layer.
+  // ADR-358 — in canvas mode the window frame is suppressed (`chromeless`)
+  // so the surface reads as a canvas pane beside chat, not a windowed app;
+  // mobile keeps the frame (ADR-297 D15.2). Canvas also drops the desktop
+  // inset so the surface fills its flex column edge-to-edge.
+  if (singleSurface && hasWindows) {
     const slug = visibleSlug;
     const Component = slug ? resolveSurfaceComponent(slug) : undefined;
     if (slug && Component) {
       return (
         <Desktop hasWindows={true}>
-          <div className="absolute inset-3 sm:inset-4">
+          <div className={canvasMode ? 'absolute inset-0' : 'absolute inset-3 sm:inset-4'}>
             <WindowFrame
               title={titleFor(slug)}
               isForegrounded={true}
               onRaise={() => raiseWindow(slug)}
               onClose={() => closeSurface(slug)}
               interactive={false}
+              chromeless={canvasMode}
             >
               <Component />
             </WindowFrame>

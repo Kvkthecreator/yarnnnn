@@ -11,10 +11,13 @@
  * Layout regions (ADR-297 D11 + ADR-316):
  *   - `top`              → top-of-viewport chrome (today: TopBar)
  *   - `main`             → primary content area (a flex ROW: SurfaceViewport
- *                           window area flex-1 + main-rail command rail)
- *   - `main-rail`        → dockable command rail docked right of the window
- *                           area (ADR-316, today: ChatDrawerSurface). Reduces
- *                           the surface area; never occludes it.
+ *                           window area flex-1 + main-rail command rail).
+ *                           ADR-358: child order is the layout mode — rail
+ *                           LEFT in canvas, RIGHT in desktop.
+ *   - `main-rail`        → dockable command rail (ADR-316, today:
+ *                           ChatDrawerSurface). Reduces the surface area;
+ *                           never occludes it. ADR-358: docks left in
+ *                           canvas mode, right in desktop mode.
  *   - `bottom-floating`  → floating affordance above main (today: Dock)
  *   - `bottom-fixed`     → fixed input region below main (today: unused)
  *   - `floating-overlay` → modal overlays summoned over main (today:
@@ -55,6 +58,7 @@ import {
   isChromeSurfaceSlug,
   type ChromeSurfaceSlug,
 } from './ChromeRegistry';
+import { useShellChrome } from './ShellChromeContext';
 import type { LayoutRegion, Surface } from '@/lib/compositor/types';
 
 interface ShellCompositorProps {
@@ -98,6 +102,7 @@ function partitionChromeByRegion(
 
 export function ShellCompositor({ children }: ShellCompositorProps) {
   const { data: composition } = useComposition();
+  const { layoutMode } = useShellChrome();
   const byRegion = partitionChromeByRegion(composition.surfaces || []);
 
   const mountRegion = (region: LayoutRegion) =>
@@ -105,6 +110,21 @@ export function ShellCompositor({ children }: ShellCompositorProps) {
       const Component = CHROME_SURFACE_REGISTRY[slug];
       return <Component key={slug} />;
     });
+
+  // ADR-358 — the `main` flex row's child order is the spatial paradigm.
+  // CANVAS: chat-rail LEFT, surface column right (the ChatGPT/Claude
+  // convention). DESKTOP: surface column flex-1, chat-rail RIGHT (ADR-316
+  // verbatim). The rail's own border + resize-edge flip is ChatDrawer's
+  // concern; the compositor owns only sibling order here.
+  const surfaceColumn = (
+    <div className="flex-1 min-w-0 overflow-hidden">
+      <SurfaceViewport>{children}</SurfaceViewport>
+    </div>
+  );
+  // main-rail region — the dockable command rail (chat). It owns its own
+  // open/closed + width + dock-side state; renders null-width when closed
+  // (desktop) or as an overlay (mobile).
+  const chatRail = mountRegion('main-rail');
 
   return (
     <>
@@ -114,20 +134,26 @@ export function ShellCompositor({ children }: ShellCompositorProps) {
             user menu). */}
         {mountRegion('top')}
 
-        {/* Main region — ADR-316: a flex ROW. The window area
-            (SurfaceViewport) is flex-1; the command rail (chat) docks to
-            its right as a flex sibling, reducing the window area instead
-            of occluding it. On mobile the rail renders itself as a
-            full-screen overlay (its own isMobile branch), so the row
-            collapses to just the window area there. */}
+        {/* Main region — ADR-316 + ADR-358: a flex ROW. The window area
+            (SurfaceViewport) is flex-1; the command rail (chat) docks as a
+            flex sibling, reducing the window area instead of occluding it.
+            ADR-358 — child ORDER is the spatial paradigm: CANVAS docks the
+            rail LEFT (chat-interface convention), DESKTOP docks it RIGHT
+            (ADR-316). On mobile the rail renders itself as a full-screen
+            overlay (its own isMobile branch), so the row collapses to just
+            the window area there. */}
         <main className="flex-1 min-h-0 overflow-hidden flex flex-row">
-          <div className="flex-1 min-w-0 overflow-hidden">
-            <SurfaceViewport>{children}</SurfaceViewport>
-          </div>
-          {/* main-rail region — the dockable command rail (chat). It owns
-              its own open/closed + width state; renders null-width when
-              closed (desktop) or as an overlay (mobile). */}
-          {mountRegion('main-rail')}
+          {layoutMode === 'canvas' ? (
+            <>
+              {chatRail}
+              {surfaceColumn}
+            </>
+          ) : (
+            <>
+              {surfaceColumn}
+              {chatRail}
+            </>
+          )}
         </main>
 
         {/* D12 + D16 (2026-05-21..22): bottom-floating + bottom-fixed

@@ -16,6 +16,13 @@
  * Reconciliation with per-surface PageHeader (D14 carryover): title
  * bar shows the surface name only; the per-surface PageHeader inside
  * `children` continues to render breadcrumb + actions.
+ *
+ * ADR-358 (2026-06-23): `chromeless` mode. In CANVAS layout the single
+ * full-bleed surface beside chat reads as a canvas pane, not a windowed
+ * app — so the title bar (traffic-lights + name) and the window border /
+ * rounding are suppressed. The surface body fills the frame edge-to-edge.
+ * Used by SurfaceViewport's single-surface branch when layoutMode is
+ * canvas; mobile single-surface keeps the frame (ADR-297 D15.2).
  */
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
@@ -56,6 +63,10 @@ interface WindowFrameProps {
   /** D15: whether drag/resize affordances are active. Disabled in
    *  single-window/mobile mode. */
   interactive?: boolean;
+  /** ADR-358: canvas-mode full-bleed. Suppresses the title bar +
+   *  border/rounding so the surface reads as a canvas pane, not a
+   *  windowed app. Implies non-interactive (no chrome to drag). */
+  chromeless?: boolean;
   children: React.ReactNode;
 }
 
@@ -91,6 +102,7 @@ export function WindowFrame({
   viewportHeight,
   onWindowStateChange,
   interactive = false,
+  chromeless = false,
   children,
 }: WindowFrameProps) {
   const dragRef = useRef<DragSession | null>(null);
@@ -241,17 +253,26 @@ export function WindowFrame({
       onMouseDownCapture={handleFrameMouseDownCapture}
       style={frameStyle}
       className={cn(
-        'flex flex-col overflow-hidden rounded-lg border bg-background shadow-sm transition-shadow',
+        'flex flex-col overflow-hidden bg-background transition-shadow',
+        // ADR-358 chromeless (canvas): no border, rounding, or shadow —
+        // the surface fills its container as a flat pane.
+        !chromeless && 'rounded-lg border shadow-sm',
         // Single-window mode: fill the parent.
         !interactive && 'h-full w-full',
-        isForegrounded ? 'border-border shadow-md' : 'border-border/60'
+        chromeless
+          ? 'border-transparent'
+          : isForegrounded
+            ? 'border-border shadow-md'
+            : 'border-border/60'
       )}
     >
       {/* Title bar — drag handle in multi-window mode. D19.1: macOS-
           shaped chrome. Traffic-lights (close/minimize/maximize) on the
           LEFT, title centered. Background windows dim the title text;
           traffic-lights turn neutral gray unless hovered or the window
-          is foregrounded. */}
+          is foregrounded. ADR-358: suppressed entirely in chromeless
+          (canvas) mode. */}
+      {!chromeless && (
       <div
         onMouseDown={(e) => {
           // Only initiate drag when clicking the bar itself, not the
@@ -314,6 +335,7 @@ export function WindowFrame({
           {title}
         </div>
       </div>
+      )}
 
       {/* Surface body. */}
       <div className="flex-1 min-h-0 overflow-hidden">{children}</div>

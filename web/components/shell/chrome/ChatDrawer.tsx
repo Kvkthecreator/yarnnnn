@@ -16,9 +16,20 @@
  *     surface area; it never occludes the surface. So "Viewing: X" is
  *     honest — the surface stays co-visible and reflows. Width is the
  *     posture dial (narrow=supervise, wide=author): default 400px,
- *     resizable 320–720px via left-edge drag, persisted to localStorage.
+ *     resizable 320–720px via edge drag, persisted to localStorage.
  *   - MOBILE (<640px): a full-screen overlay (split is impossible).
  *     "Viewing: X" degrades to a breadcrumb.
+ *
+ * ADR-358 — the desktop rail's DOCK SIDE follows the layout mode:
+ *   - CANVAS: rail docks LEFT (the ChatGPT/Claude convention). Border on
+ *     the right edge; drag handle on the right edge; resize width = the
+ *     cursor's distance from the viewport's left (e.clientX).
+ *   - DESKTOP: rail docks RIGHT (ADR-316 verbatim). Border on the left
+ *     edge; drag handle on the left edge; resize width = the cursor's
+ *     distance from the viewport's right (innerWidth − e.clientX).
+ * One component, one resize handler, one width store — the anchored edge
+ * is the only thing that flips. ShellCompositor owns sibling order; this
+ * component owns the rail's own border + handle placement + resize math.
  *
  * The conversation body is identical across both modes; only the outer
  * frame differs. surfaceOverride (→ agent context) + the "Viewing: X"
@@ -33,6 +44,7 @@ import { useReviewerPersona } from '@/lib/reviewer-persona';
 import { useViewport } from '@/lib/shell/useViewport';
 import { Z_DRAWER_BACKDROP, Z_DRAWER_BODY } from '@/lib/shell/z-tiers';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useShellChrome } from '../ShellChromeContext';
 import { useComposition } from '@/lib/compositor/useComposition';
 import { cn } from '@/lib/utils';
 
@@ -95,6 +107,11 @@ interface ChatDrawerProps {
 
 export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   const { isMobile } = useViewport();
+  const { layoutMode } = useShellChrome();
+  // ADR-358 — in CANVAS the rail docks LEFT (border + handle on the right
+  // edge, width measured from the viewport's left); in DESKTOP it docks
+  // RIGHT (border + handle on the left edge, width from the right).
+  const dockLeft = layoutMode === 'canvas';
   const personaName = useReviewerPersona();
   // ADR-297 D16 §5 + navigation enactment (2026-05-30): the surface the
   // operator is viewing is the WINDOW MANAGER's foregrounded slug — not
@@ -152,7 +169,12 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
     let latest = explicitWidth ?? posturalDefaultWidth(foregrounded);
     const onMove = (e: MouseEvent) => {
       if (!dragging.current) return;
-      const next = Math.max(DRAWER_MIN, Math.min(DRAWER_MAX, window.innerWidth - e.clientX));
+      // ADR-358 — the rail's width is the cursor's distance from the
+      // anchored edge. LEFT-docked (canvas): handle on the right edge →
+      // width = e.clientX. RIGHT-docked (desktop): handle on the left edge
+      // → width = innerWidth − e.clientX.
+      const raw = dockLeft ? e.clientX : window.innerWidth - e.clientX;
+      const next = Math.max(DRAWER_MIN, Math.min(DRAWER_MAX, raw));
       latest = next;
       // Dragging promotes the width to an EXPLICIT operator choice — from
       // here on it overrides the postural default on every surface.
@@ -173,7 +195,7 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
     };
-  }, [explicitWidth, foregrounded, isMobile]);
+  }, [explicitWidth, foregrounded, isMobile, dockLeft]);
 
   // D18.1: always render the wrapper; toggle opacity + pointer-events
   // based on `open`. The drawer body stays mounted across open/close
@@ -277,12 +299,26 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
   // window area (mounted by ShellCompositor's `main` flex row). When open
   // it occupies `width`px and the surface area reflows into the remaining
   // space — it never overlays the surface. When closed it collapses to
-  // zero width (animated) and the FAB re-summons it. The drag handle on
-  // the left edge is the posture dial (narrow = supervise, wide = author).
+  // zero width (animated) and the FAB re-summons it. The drag handle is
+  // the posture dial (narrow = supervise, wide = author).
+  //
+  // ADR-358 — the dock side follows the layout mode. CANVAS docks LEFT:
+  // border on the right edge, drag handle AFTER the body (on the right
+  // edge). DESKTOP docks RIGHT: border on the left edge, handle BEFORE the
+  // body (on the left edge). The handle is the same element either way;
+  // only its DOM position + the rail's border edge flip.
+  const handle = (
+    <div
+      onMouseDown={onMouseDown}
+      className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
+      title="Drag to resize"
+    />
+  );
   return (
     <div
       className={cn(
-        'h-full flex bg-background border-l border-border shadow-xl overflow-hidden transition-[width] duration-150',
+        'h-full flex bg-background border-border shadow-xl overflow-hidden transition-[width] duration-150',
+        dockLeft ? 'border-r' : 'border-l',
         open ? '' : 'pointer-events-none',
       )}
       style={{ width: open ? width : 0 }}
@@ -290,13 +326,17 @@ export function ChatDrawer({ open, onClose }: ChatDrawerProps) {
       aria-hidden={!open}
       aria-label={`Conversation with ${personaName ?? 'Reviewer'}`}
     >
-      {/* Drag handle — left edge of the rail. Drag left to widen. */}
-      <div
-        onMouseDown={onMouseDown}
-        className="w-1 shrink-0 cursor-col-resize bg-transparent hover:bg-primary/20 active:bg-primary/30 transition-colors"
-        title="Drag to resize"
-      />
-      {body}
+      {dockLeft ? (
+        <>
+          {body}
+          {handle}
+        </>
+      ) : (
+        <>
+          {handle}
+          {body}
+        </>
+      )}
     </div>
   );
 }

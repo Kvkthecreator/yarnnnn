@@ -89,15 +89,18 @@ def main() -> None:
         "mountRegion('main-rail')" in compositor,
         "ShellCompositor mounts the main-rail region",
     )
-    # The main-rail mount must appear INSIDE <main> ... </main>, not in the
-    # floating-overlay tail. Check ordering: the main-rail mount precedes
-    # the closing </main>, and the floating-overlay mount follows it.
+    # The main-rail mount must render INSIDE <main> ... </main>, not in the
+    # floating-overlay tail. ADR-358 (2026-06-23) hoisted the mount to a
+    # `chatRail` const so it can render on either side of the surface column
+    # (left in canvas, right in desktop); the const is then placed inside
+    # <main> via `{chatRail}`. Assert the durable BEHAVIOR (the rail renders
+    # inside <main>) rather than the literal call-site position.
     main_open = compositor.find("<main")
     main_close = compositor.find("</main>")
-    rail_mount = compositor.find("mountRegion('main-rail')")
+    rail_render = compositor.find("{chatRail}")
     _assert(
-        main_open != -1 and main_close != -1 and main_open < rail_mount < main_close,
-        "main-rail is mounted inside the <main> flex row",
+        main_open != -1 and main_close != -1 and main_open < rail_render < main_close,
+        "main-rail (chatRail) renders inside the <main> flex row",
     )
 
     # --- 4. Window geometry is desktop-relative (the D6 seam) ---

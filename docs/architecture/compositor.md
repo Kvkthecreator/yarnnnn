@@ -61,6 +61,20 @@ its prompt profile (ADR-186) — one gesture (`foregroundSurface`) both raises
 the window and scopes the conversation. Chrome that frames content sits beside
 it; it does not cover it.
 
+**Two layout modes — the operator picks the spatial paradigm (ADR-358).** The
+shell's arrangement is an operator preference (`layoutMode ∈ {canvas, desktop}`
+in `ShellChromeContext`, persisted, default **canvas**), chosen at the UserMenu.
+The `main` flex row's child order *is* the mode: **Canvas** docks the chat rail
+**left** beside exactly one full-bleed surface (window chrome suppressed — the
+ChatGPT/Claude convention, side-to-side divider only); **Desktop** is the
+ADR-297 D15 free-floating window manager with the chat rail docked **right**.
+This resolves the cross-paradigm weld a fixed rail beside a floating-window
+field created — within a mode, chat and surfaces speak one spatial language.
+Singular Implementation: one compositor, one chat component, one window
+manager, with a mode discriminator over them; the window-manager core is
+mode-agnostic, and the `Viewing: X` ↔ `surfaceOverride` ↔ prompt-profile
+binding is identical in both modes.
+
 **Agent-composed Applications** — the orchestration layer authoring a new
 Application by writing an application-manifest *file* in the substrate
 (everything-is-a-file extends to app definitions; the compositor reads

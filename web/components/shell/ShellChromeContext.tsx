@@ -29,6 +29,17 @@
  * overlay branch (ChatDrawer) is unaffected — it reads the same flag but
  * renders as a full-screen takeover, where "default open" would occlude,
  * so the persisted default is suppressed on mobile (see initializer).
+ *
+ * ADR-358 (2026-06-23): layout mode — the shell's spatial paradigm is an
+ * operator preference, not a fixed architectural fact. `layoutMode` carries
+ * the choice between CANVAS (chat-left + one full-bleed surface-right,
+ * side-to-side divider only — the ChatGPT/Claude convention) and DESKTOP
+ * (the ADR-297 D15 free-floating window manager + ADR-316 right-docked
+ * rail). It persists to localStorage (mirroring `drawerOpen`), defaults
+ * CANVAS, and is restored post-mount (SSR renders the default → no
+ * hydration mismatch). Three consumers read it: ShellCompositor (flex
+ * order), ChatDrawer (dock side), SurfaceViewport (single-vs-multi window).
+ * Mobile is mode-independent (one physically-possible arrangement).
  */
 
 import {
@@ -49,11 +60,26 @@ import { MOBILE_BREAKPOINT_PX } from '@/lib/shell/surface-preferences';
 // SSR renders closed and there is no hydration mismatch.
 const DRAWER_OPEN_KEY = 'yarnnn:shell:chat-drawer-open';
 
+// ADR-358 — the shell's spatial paradigm. CANVAS = chat-left + one
+// full-bleed surface-right (the chat-interface convention); DESKTOP = the
+// free-floating window manager + right-docked rail. Persisted, default
+// CANVAS, restored post-mount (SSR renders the default → no hydration
+// mismatch). Mode is desktop-only — on mobile both modes collapse to the
+// same single-surface + overlay-chat arrangement.
+export type LayoutMode = 'canvas' | 'desktop';
+const LAYOUT_MODE_KEY = 'yarnnn:shell:layout-mode';
+const DEFAULT_LAYOUT_MODE: LayoutMode = 'canvas';
+
 interface ShellChromeContextValue {
   userEmail: string | undefined;
   launcherOpen: boolean;
   openLauncher: () => void;
   closeLauncher: () => void;
+  /** ADR-358 — the operator's chosen spatial paradigm. Read by the
+   *  compositor (flex order), the chat rail (dock side), and the surface
+   *  viewport (single-vs-multi window). Default canvas. */
+  layoutMode: LayoutMode;
+  setLayoutMode: (mode: LayoutMode) => void;
   /** ADR-297 D16 — universal chat drawer open/close state.
    *  Mirrors launcherOpen. The FAB inside ChatDrawerSurface toggles
    *  this; the drawer body renders conditionally on it.
@@ -79,6 +105,11 @@ export function ShellChromeProvider({ userEmail, children }: ShellChromeProvider
   // desktop policy when unset. Keeping the SSR value `false` avoids a
   // hydration mismatch (server can't read localStorage or viewport).
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // ADR-358 — SSR renders the DEFAULT layout mode; the post-mount effect
+  // applies the persisted choice. Server can't read localStorage, so
+  // starting at the default avoids a hydration mismatch (same pattern as
+  // drawerOpen above).
+  const [layoutMode, setLayoutModeState] = useState<LayoutMode>(DEFAULT_LAYOUT_MODE);
 
   // ADR-316 posture default: on first client render, restore the
   // persisted open/closed posture; when unset, default OPEN on desktop
@@ -92,6 +123,27 @@ export function ShellChromeProvider({ userEmail, children }: ShellChromeProvider
     if (stored === 'true') setDrawerOpen(true);
     else if (stored === 'false') setDrawerOpen(false);
     else setDrawerOpen(!isMobile); // unset → desktop default-open
+
+    // ADR-358 — restore the persisted layout mode (default canvas when
+    // unset). Mobile ignores the mode (one arrangement is physically
+    // possible) but we still hydrate the stored value so a desktop reload
+    // honors it.
+    let storedMode: string | null = null;
+    try {
+      storedMode = window.localStorage.getItem(LAYOUT_MODE_KEY);
+    } catch {}
+    if (storedMode === 'canvas' || storedMode === 'desktop') {
+      setLayoutModeState(storedMode);
+    }
+  }, []);
+
+  // ADR-358 — persist the operator's layout-mode choice. Same shape as
+  // persistDrawerOpen: write-through on every deliberate change.
+  const setLayoutMode = useCallback((next: LayoutMode) => {
+    setLayoutModeState(next);
+    try {
+      window.localStorage.setItem(LAYOUT_MODE_KEY, next);
+    } catch {}
   }, []);
 
   const persistDrawerOpen = useCallback((next: boolean) => {
@@ -140,6 +192,8 @@ export function ShellChromeProvider({ userEmail, children }: ShellChromeProvider
       openDrawer,
       closeDrawer,
       toggleDrawer,
+      layoutMode,
+      setLayoutMode,
     }),
     [
       userEmail,
@@ -150,6 +204,8 @@ export function ShellChromeProvider({ userEmail, children }: ShellChromeProvider
       openDrawer,
       closeDrawer,
       toggleDrawer,
+      layoutMode,
+      setLayoutMode,
     ]
   );
 

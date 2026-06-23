@@ -18,15 +18,25 @@
  * dropdown header. Balance now lives in the top-bar agent-OS
  * SystemStatusCluster (slot 3). Header retains email + theme toggle.
  * Singular Implementation: one balance indicator in the workspace.
+ *
+ * ADR-358 (2026-06-23) — the UserMenu gains the LAYOUT-MODE control: a
+ * Canvas · Desktop segmented toggle. This is the operator's choice of the
+ * shell's spatial paradigm (chat-interface convention vs macOS window
+ * manager) — a shell-wide preference, the System-Settings-adjacent home
+ * (ADR-338 management-plane vocabulary). Desktop-only: mode is inert on
+ * mobile (one physically-possible arrangement), so the control is hidden
+ * below the breakpoint.
  */
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { Settings, LogOut, Sun, Moon, Monitor, User } from 'lucide-react';
+import { Settings, LogOut, Sun, Moon, Monitor, User, Columns2, LayoutGrid } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useShellChrome } from './ShellChromeContext';
+import { useViewport } from '@/lib/shell/useViewport';
 import { cn } from '@/lib/utils';
 
 interface UserMenuProps {
@@ -38,6 +48,8 @@ export function UserMenu({ email }: UserMenuProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const { foregroundSurface } = useSurfacePreferences();
+  const { layoutMode, setLayoutMode } = useShellChrome();
+  const { isMobile } = useViewport();
   const supabase = createClient();
   const { theme, setTheme } = useTheme();
 
@@ -143,6 +155,49 @@ export function UserMenu({ email }: UserMenuProps) {
                     title="System"
                   >
                     <Monitor className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ADR-358 — layout-mode control. Canvas (chat-left + one
+              full-bleed surface) vs Desktop (free-floating window manager
+              + right rail). The operator's choice of spatial paradigm.
+              Desktop-only: mode is inert on mobile (one arrangement is
+              physically possible), so the row is hidden below the
+              breakpoint. Same segmented-control grammar as the theme
+              toggle above. */}
+          {!isMobile && (
+            <div className="px-3 py-2 border-b border-border">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs text-muted-foreground">Layout</span>
+                <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5 shrink-0">
+                  <button
+                    onClick={() => setLayoutMode('canvas')}
+                    className={cn(
+                      'flex items-center gap-1 px-1.5 py-1 rounded text-[11px] transition-colors',
+                      layoutMode === 'canvas'
+                        ? 'bg-background shadow-sm'
+                        : 'hover:bg-background/50'
+                    )}
+                    title="Canvas — chat beside one surface"
+                  >
+                    <Columns2 className="w-3 h-3" />
+                    <span>Canvas</span>
+                  </button>
+                  <button
+                    onClick={() => setLayoutMode('desktop')}
+                    className={cn(
+                      'flex items-center gap-1 px-1.5 py-1 rounded text-[11px] transition-colors',
+                      layoutMode === 'desktop'
+                        ? 'bg-background shadow-sm'
+                        : 'hover:bg-background/50'
+                    )}
+                    title="Desktop — floating windows"
+                  >
+                    <LayoutGrid className="w-3 h-3" />
+                    <span>Desktop</span>
                   </button>
                 </div>
               </div>
