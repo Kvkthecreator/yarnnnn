@@ -63,10 +63,18 @@ function useIsFirstTime(): boolean {
 }
 
 export function Desktop({ hasWindows, children }: DesktopProps) {
-  const { toggleDrawer, drawerOpen } = useShellChrome();
+  const { toggleDrawer, drawerOpen, layoutMode } = useShellChrome();
   const { setDesktopBounds } = useSurfacePreferences();
   const isFirstTime = useIsFirstTime();
   const ref = useRef<HTMLDivElement>(null);
+  // ADR-358 — in CANVAS the window area is NOT a desktop with a floating
+  // window on wallpaper; it is ONE primary surface filling the column. So
+  // the desktop's gray wallpaper + padding are dropped (the surface fills
+  // edge-to-edge) and the empty-state copy is suppressed when a surface is
+  // mounted. The FAB stays (chat can be closed + re-summoned in either
+  // mode). In DESKTOP the wallpaper + padding + empty-state are the
+  // ADR-297 D17 desktop, unchanged.
+  const canvasFill = layoutMode === 'canvas' && hasWindows;
 
   // ADR-316: report the Desktop's own measured box to the window manager
   // so window geometry (cascade / maximize / drag-clamp) is relative to
@@ -86,7 +94,12 @@ export function Desktop({ hasWindows, children }: DesktopProps) {
   return (
     <div
       ref={ref}
-      className="relative h-full w-full bg-muted/30 p-3 sm:p-4 overflow-hidden"
+      className={cn(
+        'relative h-full w-full overflow-hidden',
+        // ADR-358 — canvas fills with one surface: no wallpaper, no
+        // padding. Desktop keeps the gray padded wallpaper (D17).
+        canvasFill ? 'bg-background' : 'bg-muted/30 p-3 sm:p-4',
+      )}
     >
       {/* Empty-state copy renders only when no windows are mounted.
           Context-aware: first-time operators get a richer welcome with

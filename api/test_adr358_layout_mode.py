@@ -181,6 +181,22 @@ def main() -> None:
         "canvas suppresses window chrome; mobile keeps it (chromeless=canvasMode)",
     )
 
+    # --- 5b. Desktop layer fills with ONE surface in canvas (no wallpaper) ---
+    # The operator's point: canvas's left is the PRIMARY SURFACE filling the
+    # column, NOT a desktop with a floating window on gray wallpaper. So the
+    # Desktop layer drops its padded gray wallpaper when a surface is mounted
+    # in canvas mode; desktop mode keeps the D17 wallpaper.
+    desktop = _read("components/shell/Desktop.tsx")
+    _assert("ADR-358" in desktop, "Desktop cites ADR-358")
+    _assert(
+        "layoutMode === 'canvas' && hasWindows" in desktop,
+        "Desktop derives canvasFill (canvas + a mounted surface)",
+    )
+    _assert(
+        "canvasFill ? 'bg-background' : 'bg-muted/30 p-3 sm:p-4'" in desktop,
+        "canvas fills edge-to-edge (no wallpaper/padding); desktop keeps it",
+    )
+
     # --- 6. WindowFrame: chromeless prop suppresses title bar + border ---
     wf = _read("components/shell/WindowFrame.tsx")
     _assert("ADR-358" in wf, "WindowFrame cites ADR-358")
