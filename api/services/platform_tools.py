@@ -517,6 +517,59 @@ Parameters:
     },
 ]
 
+# ── Hacker News Tools (ADR-353 §17: zero-credential perceive connector) ──
+#
+# HN executes through the Composio driver, NO_AUTH (no platform_connection, no
+# token — public read API). READ-ONLY by nature: HN has no public write API, so
+# this is a pure PERCEIVE connector (outcomes-in / world-mirror), not a publish
+# one. Surfaced via the kernel-universal `read_hackernews` capability. No write
+# capability, no external-write family entry.
+HACKERNEWS_TOOLS = [
+    {
+        "name": "platform_hackernews_search_posts",
+        "description": """Search Hacker News for posts/comments matching a query.
+
+Use to perceive the HN discourse on a topic — who is discussing it, what's
+resonating, competing theses, reception of a Show HN. Read-only; zero setup.
+
+Returns matching posts: title, author, points, num_comments, url, text.
+
+Parameters:
+- query: the search term (e.g. a product name, a concept, a thesis keyword)
+- size: max results (optional, default Composio/Algolia default)
+- tags: optional Algolia filter (e.g. "story", "comment", "show_hn")""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "description": "Search term."},
+                "size": {"type": "integer", "description": "Max results."},
+                "tags": {"type": "string", "description": "Optional filter: story | comment | show_hn"},
+            },
+            "required": ["query"]
+        }
+    },
+    {
+        "name": "platform_hackernews_get_item",
+        "description": """Read a Hacker News item (story or comment) by id, with its thread.
+
+Use AFTER search (or after a Show HN lands) to read the discussion — the post
+body + top-level comments (author + text). The perceive read that folds HN
+reception into audience_signal / world-mirror.
+
+Parameters:
+- item_id: the HN item id (the objectID from search, or an item id)
+- max_children: optional cap on comments retrieved""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "item_id": {"type": "string", "description": "HN item id (story or comment)."},
+                "max_children": {"type": "integer", "description": "Max comments to retrieve."},
+            },
+            "required": ["item_id"]
+        }
+    },
+]
+
 # ── Commerce Tools (ADR-183: Commerce Substrate) ──
 
 COMMERCE_TOOLS = [
@@ -1203,6 +1256,7 @@ PLATFORM_TOOLS_BY_PROVIDER = {
     "notion": NOTION_TOOLS,
     "github": GITHUB_TOOLS,
     "reddit": REDDIT_TOOLS,  # ADR-353 §15a — Composio-only execution backend
+    "hackernews": HACKERNEWS_TOOLS,  # ADR-353 §17 — NO_AUTH read-only perceive
     "commerce": COMMERCE_TOOLS + COMMERCE_WRITE_TOOLS,
     "trading": TRADING_TOOLS + TRADING_WRITE_TOOLS,
     "email": EMAIL_TOOLS,
@@ -1232,6 +1286,8 @@ PLATFORM_TOOLS_BY_CAPABILITY = {
     # = the perceive read (comments) that feeds audience_signal as observation.
     "write_reddit": ["platform_reddit_submit_post"],
     "read_reddit": ["platform_reddit_get_post_comments"],
+    # ADR-353 §17: Hacker News — read-only perceive (no write capability).
+    "read_hackernews": ["platform_hackernews_search_posts", "platform_hackernews_get_item"],
     "read_commerce": [
         "platform_commerce_list_products", "platform_commerce_get_subscribers",
         "platform_commerce_get_revenue", "platform_commerce_get_customers",
@@ -1291,6 +1347,8 @@ CAPABILITY_PROVIDER_MAP = {
     # provider (Composio-only execution backend).
     "write_reddit": "reddit",
     "read_reddit": "reddit",
+    # ADR-353 §17: Hacker News read — NO_AUTH provider.
+    "read_hackernews": "hackernews",
     "read_commerce": "commerce",
     "write_commerce": "commerce",
     "read_trading": "trading",
@@ -1447,11 +1505,17 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
             tools.append(tool)
             seen.add(tool_name)
 
+    # ADR-353 §17: NO_AUTH providers (Hacker News) have no platform_connection and
+    # need none — they are "always connected" for gating purposes. Fold them into
+    # the satisfied-provider set so read_hackernews surfaces without a connection.
+    from services.composio_driver import _NO_AUTH_PROVIDERS
+    satisfied_providers = set(connected_providers) | set(_NO_AUTH_PROVIDERS)
+
     # Layer 2: workspace capabilities — explicit request + provider gate.
     allowed_workspace_tool_names: set[str] = set()
     for capability in (capabilities or []):
         provider = CAPABILITY_PROVIDER_MAP.get(capability)
-        if not provider or provider not in connected_providers:
+        if not provider or provider not in satisfied_providers:
             # ADR-353 §15: a requested capability we cannot satisfy is silently
             # dropped here (the ADR-227 empty-deliverable failure mode). Capture
             # it as a connection-demand signal — this is the discovery queue
@@ -1469,7 +1533,7 @@ async def get_platform_tools_for_capabilities(auth: Any, capabilities: list[str]
             continue
         allowed_workspace_tool_names.update(PLATFORM_TOOLS_BY_CAPABILITY.get(capability, []))
 
-    for provider in sorted(connected_providers):
+    for provider in sorted(satisfied_providers):
         for tool in PLATFORM_TOOLS_BY_PROVIDER.get(provider, []):
             tool_name = tool.get("name")
             if tool_name in allowed_workspace_tool_names and tool_name not in seen:
@@ -1609,7 +1673,19 @@ async def _route_via_composio(auth: Any, provider: str, tool: str, tool_input: d
     Returns the {success, result, error} handler shape. Never raises; never
     returns a silent success on failure (Pitfall #4).
     """
-    from services.composio_driver import execute as composio_execute
+    from services.composio_driver import execute as composio_execute, _NO_AUTH_PROVIDERS
+
+    # NO_AUTH providers (ADR-353 §17, e.g. Hacker News) are public read connectors:
+    # no platform_connection, no token. Skip the token path entirely.
+    if provider in _NO_AUTH_PROVIDERS:
+        result = await composio_execute(
+            provider, tool, tool_input, token="", user_id=auth.user_id,
+        )
+        logger.info(
+            "[COMPOSIO] routed %s_%s (no-auth) for user=%s → success=%s",
+            provider, tool, auth.user_id, result.get("success"),
+        )
+        return result
 
     platform = _COMPOSIO_TOKEN_PLATFORM.get(provider)
     if not platform:

@@ -105,6 +105,7 @@ def test_runtime_kernel_sentinel_deleted_from_capabilities() -> None:
         "external:notion",
         "external:github",
         "external:reddit",  # ADR-353 §15a: Reddit publishing (Composio-only)
+        "external:hackernews",  # ADR-353 §17: HN read-only perceive (NO_AUTH)
     }
     for cap_name, cap_decl in CAPABILITIES.items():
         runtime = cap_decl.get("runtime")

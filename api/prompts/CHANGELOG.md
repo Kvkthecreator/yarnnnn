@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.23.1] - ADR-353 §17: Hacker News perceive connector (NO_AUTH, zero-credential)
+
+**LLM-facing changes:**
+
+- **`api/services/platform_tools.py`** — new `HACKERNEWS_TOOLS`: `platform_hackernews_search_posts` + `platform_hackernews_get_item` (READ-ONLY perceive; HN has no public write API). Registered in `PLATFORM_TOOLS_BY_PROVIDER`, `PLATFORM_TOOLS_BY_CAPABILITY` (`read_hackernews`), `CAPABILITY_PROVIDER_MAP`. NOT in `_EXTERNAL_WRITE_PLATFORM_TOOLS` (read-only) and NOT in `_COMPOSIO_TOKEN_PLATFORM` (no token). Gating folds NO_AUTH providers into `satisfied_providers` so `read_hackernews` surfaces without a platform_connection.
+- **`api/services/orchestration.py`** — `read_hackernews` in kernel `CAPABILITIES`, `feeds:context`, `platform_connection_requirement: None` (always available, like websearch). No write capability.
+- **`docs/programs/alpha-author/`** — MANIFEST declares `read_hackernews`; `_recurrences.yaml` adds `hn-perceive` (judgment — search HN for the corpus's themes + read threads → audience_signal as world-mirror observation, measure-not-steer §14).
+- **Not LLM-facing (recorded):** `composio_driver.py` (hackernews slug map `HACKERNEWS_SEARCH_POSTS`/`GET_ITEM_WITH_ID` + payload/result adapters fixed to the LIVE shapes [search→`data.response_data.hits`, item→`data.response_data` with `children`] + `_NO_AUTH_PROVIDERS` set + execute() skips token/custom_auth_params for NO_AUTH + hackernews in default allowlist); `_route_via_composio` NO_AUTH short-circuit (no token fetch); ADR-353 §17.
+- **Expected behavior:** any workspace (alpha-author first) can perceive the HN discourse on its themes + read Show HN reception with ZERO setup (no app, no OAuth, no review queue) — the zero-friction perceive connector, live-validated E2E 2026-06-23 (real HN search + item, no credential).
+
 ## [2026.06.22.5] - ADR-357: a citation binds a claim to its Source, never to the internal path (DP31)
 
 **LLM-facing changes:**

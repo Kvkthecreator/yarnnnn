@@ -1227,6 +1227,17 @@ CAPABILITIES: dict[str, dict[str, Any]] = {
         "tools": ["platform_reddit_submit_post"],
         "platform_connection_requirement": {"platform": "reddit", "status": "active"},
     },
+    # ADR-353 §17: Hacker News — NO_AUTH read-only perceive connector. Zero
+    # credential (no platform_connection), so platform_connection_requirement is
+    # None ⇒ always available (like websearch). feeds:context (the perceive read —
+    # HN discourse → audience_signal / world-mirror). NO write capability (HN has
+    # no public write API). Execution is Composio-ONLY (driver_enabled_for + the
+    # _NO_AUTH_PROVIDERS path); no first-party HN client.
+    "read_hackernews": {
+        "category": "tool", "runtime": "external:hackernews", "feeds": "context",
+        "tools": ["platform_hackernews_search_posts", "platform_hackernews_get_item"],
+        "platform_connection_requirement": None,
+    },
     # ADR-224: read/write_commerce + read/write_trading DELETED from kernel
     # CAPABILITIES. They are program-specific (commerce / trading oracle
     # shapes) and live in their respective program bundle MANIFEST.yaml

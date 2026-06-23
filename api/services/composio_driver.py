@@ -134,7 +134,19 @@ _COMPOSIO_ACTION_MAP: dict[str, dict[str, str]] = {
         # The perceive read — comments → audience_signal as observation (§14).
         "get_post_comments": "REDDIT_RETRIEVE_POST_COMMENTS",
     },
+    # ADR-353 §17 — Hacker News (NO_AUTH, read-only perceive; live-confirmed
+    # 2026-06-22). The zero-credential perceive connector: HN has no public write
+    # API, so this is pure outcomes-in (search the discourse, read a thread).
+    "hackernews": {
+        "search_posts": "HACKERNEWS_SEARCH_POSTS",
+        "get_item": "HACKERNEWS_GET_ITEM_WITH_ID",
+    },
 }
+
+
+# NO_AUTH providers (ADR-353 §17): public connectors that carry no credential.
+# `execute` skips the token requirement and omits custom_auth_params for these.
+_NO_AUTH_PROVIDERS: frozenset[str] = frozenset({"hackernews"})
 
 
 # =============================================================================
@@ -191,9 +203,28 @@ def _reddit_arguments(verb: str, payload: dict) -> dict:
     raise _UnmappedVerb(f"reddit:{verb}")
 
 
+def _hackernews_arguments(verb: str, payload: dict) -> dict:
+    """ADR-353 §17. HN read verbs (live schema confirmed 2026-06-22). search_posts
+    takes a query (+ optional size/tags); get_item takes an item_id."""
+    if verb == "search_posts":
+        args: dict[str, Any] = {"query": payload["query"]}
+        if payload.get("size"):
+            args["size"] = payload["size"]
+        if payload.get("tags"):
+            args["tags"] = payload["tags"]
+        return args
+    if verb == "get_item":
+        args = {"item_id": payload["item_id"]}
+        if payload.get("max_children"):
+            args["max_children"] = payload["max_children"]
+        return args
+    raise _UnmappedVerb(f"hackernews:{verb}")
+
+
 _PAYLOAD_ADAPTERS = {
     "slack": _slack_arguments,
     "reddit": _reddit_arguments,
+    "hackernews": _hackernews_arguments,
 }
 
 
@@ -340,9 +371,63 @@ def _reddit_result(verb: str, data: dict) -> dict:
     raise _UnmappedVerb(f"reddit:{verb}")
 
 
+def _hackernews_result(verb: str, data: dict) -> dict:
+    """ADR-353 §17. HN read results → stable YARNNN shapes (defensive, never throws
+    on a surprising body — same discipline as Reddit). search_posts uses the
+    Algolia HN index (data.response_data.hits, each with title/author/points/
+    num_comments/objectID/url/story_text). get_item returns a story/comment tree."""
+    if not isinstance(data, dict):
+        return {"posts": [], "count": 0, "_unparsed": data} if verb == "search_posts" \
+            else {"item": None, "_unparsed": data}
+
+    if verb == "search_posts":
+        rd = data.get("response_data") if isinstance(data.get("response_data"), dict) else data
+        hits = (rd or {}).get("hits") if isinstance(rd, dict) else None
+        posts = []
+        for h in hits if isinstance(hits, list) else []:
+            if not isinstance(h, dict):
+                continue
+            oid = h.get("objectID") or h.get("id")
+            posts.append({
+                "id": oid,
+                "title": h.get("title") or h.get("story_title"),
+                "author": h.get("author"),
+                "points": h.get("points"),
+                "num_comments": h.get("num_comments"),
+                "url": h.get("url") or (f"https://news.ycombinator.com/item?id={oid}" if oid else None),
+                "text": h.get("story_text") or h.get("comment_text"),
+            })
+        return {"posts": posts, "count": len(posts)}
+
+    if verb == "get_item":
+        # Live shape (confirmed 2026-06-22): the item IS data.response_data, with
+        # `author`/`children` directly on it; comments are the `children` tree.
+        item = data.get("response_data") if isinstance(data.get("response_data"), dict) else data
+        item = item if isinstance(item, dict) else {}
+        kids = item.get("children") or item.get("kids") or []
+        comments = []
+        for c in kids if isinstance(kids, list) else []:
+            if isinstance(c, dict):
+                body = c.get("text") or c.get("comment_text")
+                if body:
+                    comments.append({"author": c.get("author") or c.get("by"), "text": body})
+        return {
+            "id": item.get("id") or item.get("story_id") or item.get("objectID"),
+            "title": item.get("title"),
+            "author": item.get("author") or item.get("by"),
+            "points": item.get("points") if item.get("points") is not None else item.get("score"),
+            "text": item.get("text") or item.get("story_text"),
+            "comments": comments,
+            "num_comments": item.get("total_children_count") if item.get("total_children_count") is not None else len(comments),
+        }
+
+    raise _UnmappedVerb(f"hackernews:{verb}")
+
+
 _RESULT_ADAPTERS = {
     "slack": _slack_result,
     "reddit": _reddit_result,
+    "hackernews": _hackernews_result,
 }
 
 
@@ -393,7 +478,10 @@ async def execute(
         logger.error("[COMPOSIO] COMPOSIO_API_KEY not set — driver cannot execute %s:%s", provider, verb)
         return {"success": False, "result": None, "error": "Composio driver not configured (COMPOSIO_API_KEY missing)"}
 
-    if not token:
+    # NO_AUTH providers (ADR-353 §17, e.g. Hacker News) need no token at all —
+    # they are public read connectors. For everyone else, a missing token is a
+    # loud failure (no silent success).
+    if provider not in _NO_AUTH_PROVIDERS and not token:
         logger.error("[COMPOSIO] No platform token supplied for %s:%s", provider, verb)
         return {"success": False, "result": None, "error": f"No {provider} token available"}
 
@@ -417,17 +505,19 @@ async def execute(
         return {"success": False, "result": None, "error": f"Missing required field: {e}"}
 
     url = f"{COMPOSIO_API_BASE}/api/v3/tools/execute/{slug}"
-    body = {
+    body: dict[str, Any] = {
         "user_id": user_id,
         "arguments": arguments,
-        # Phase 1: inject OUR token per call. Composio executes with this bearer
-        # and stores no connected-account credential for this user (ADR-353 §7).
-        "custom_auth_params": {
+    }
+    # NO_AUTH providers (Hacker News) carry no credential — omit custom_auth_params
+    # entirely. For auth'd providers, Phase 1 injects OUR token per call; Composio
+    # stores no connected-account credential for this user (ADR-353 §7).
+    if provider not in _NO_AUTH_PROVIDERS:
+        body["custom_auth_params"] = {
             "parameters": [
                 {"name": "Authorization", "value": f"Bearer {token}", "in": "header"},
             ],
-        },
-    }
+        }
     headers = {"x-api-key": api_key, "Content-Type": "application/json"}
 
     try:
@@ -557,10 +647,11 @@ def driver_enabled_for(provider: str) -> bool:
       1. COMPOSIO_DRIVER_ENABLED is truthy (the master switch + presence of
          COMPOSIO_API_KEY on yarnnn-api + yarnnn-unified-scheduler, §8).
       2. `provider` is in COMPOSIO_PROVIDER_ALLOWLIST (comma-separated env).
-         Default allowlist: "slack,reddit". Slack = the live-proven reference
-         (§3a); Reddit = the ADR-353 §15a publishing path (Composio-ONLY backend —
-         there is no first-party reddit client, so Reddit can only work via the
-         driver). Other platforms (notion/github) stay first-party unless added.
+         Default allowlist: "slack,reddit,hackernews". Slack = the live-proven
+         reference (§3a); Reddit = the §15a publishing path (Composio-ONLY backend);
+         Hacker News = the §17 NO_AUTH read-only perceive connector (zero
+         credential, Composio-ONLY). Other platforms (notion/github) stay
+         first-party unless added.
 
     Capital family (trading/commerce) can NEVER be enabled here even if added to
     the env allowlist — they are hard-excluded (ADR-353 §11): out of scope, and
@@ -573,7 +664,7 @@ def driver_enabled_for(provider: str) -> bool:
         return False
     allowlist = {
         p.strip().lower()
-        for p in os.getenv("COMPOSIO_PROVIDER_ALLOWLIST", "slack,reddit").split(",")
+        for p in os.getenv("COMPOSIO_PROVIDER_ALLOWLIST", "slack,reddit,hackernews").split(",")
         if p.strip()
     }
     return provider in allowlist

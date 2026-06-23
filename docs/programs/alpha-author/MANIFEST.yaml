@@ -213,6 +213,19 @@ capabilities:
     tools:
       - platform_reddit_submit_post
 
+  # ADR-353 §17: Hacker News — NO_AUTH read-only perceive connector. Zero
+  # credential (no requires_connection), feeds:context. The HN-discourse perceive
+  # read: search what HN is saying about the corpus's topics + read Show HN
+  # reception → audience_signal / world-mirror. Pairs with the content strategy's
+  # "Show HN" channel (manual post, perceived here). Execution Composio-ONLY.
+  - key: read_hackernews
+    category: tool
+    runtime: external:hackernews
+    feeds: context
+    tools:
+      - platform_hackernews_search_posts
+      - platform_hackernews_get_item
+
   # ADR-304 D2 (2026-05-27): write_notion capability declaration removed.
   # The operator-comment Notion write (platform_notion_create_comment) is
   # now operator-addressing system infrastructure per ADR-304 D1, registered

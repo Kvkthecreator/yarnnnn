@@ -298,7 +298,7 @@ to the real candidates:
 | Candidate | Demand | Loop-closing | Auth tier | Verdict |
 |---|---|---|---|---|
 | **Reddit** | content strategy (Tier-1 GEO) | ✅ rich comment reads | OAuth+BYO-app (in review) | **In flight** — built, blocked on Reddit API-access review |
-| **Hacker News** | content strategy ("Show HN", not active yet) | ✅ comment threads | **public/zero-cred** | **Highest leverage-per-effort** — perceive loop, ships immediately, no friction wall |
+| **Hacker News** | content strategy ("Show HN") | ✅ comment threads | **public/zero-cred** | ✅ **SHIPPED 2026-06-23** — `read_hackernews` (search + item), live-validated E2E (no credential); alpha-author `hn-perceive` recurrence. The first connector live end-to-end with no friction wall. |
 | **Exa / web search** | perception field (ADR-335) | n/a (read) | API-key | strong for context-in; lighter friction |
 | **X / Twitter** | content strategy (3x/wk) | ✅ rich engagement | OAuth+BYO-app (pay-per-use) | medium — same friction as Reddit + usage cost |
 | **LinkedIn** | content strategy (ICP) | ❌ thin reads (send-only) | OAuth+BYO-app (review) | weak — fails loop-closing (§14) |

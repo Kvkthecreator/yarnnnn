@@ -295,6 +295,42 @@ recurrences:
       not-steer); the corpus still compounds on its own coherence.
     display_name: "Reddit Perceive"
 
+  # ── JUDGMENT — Hacker News perceive (ADR-353 §17, zero-credential) ───────
+  # The zero-friction perceive read: search HN for the corpus's topics + read the
+  # discourse. Two purposes: (1) world-mirror — what is HN saying about the themes
+  # the corpus argues (competing theses, reception of adjacent work); (2) Show HN
+  # reception — if a piece was posted to HN (manual, per content strategy), read
+  # its thread. Folds into audience_signal as OBSERVATION (measure-not-steer §14):
+  # informs the corpus about how its themes land in the wild; never steers it
+  # toward what gets upvoted. No connection required (NO_AUTH).
+  - slug: hn-perceive
+    schedule: "0 17 * * 1"   # Mon 17:00 UTC — weekly discourse scan
+    mode: judgment
+    required_capabilities: [read_hackernews]
+    prompt: |
+      Perceive the Hacker News discourse on the themes the corpus argues. Read the
+      operator's voice/positioning at /workspace/persona/_voice.md and the recent
+      corpus to know which themes matter, then:
+
+        - platform_hackernews_search_posts(query=<a theme/keyword the corpus owns>)
+          for the 1-3 themes most central to the corpus this period.
+        - For the most relevant / highest-engagement results, platform_hackernews_
+          get_item(item_id=...) to read the discussion.
+
+      Fold what you observe into the audience-signal slice of
+      /workspace/operation/authored/_signal.md per the corpus-coherence-rollup
+      schema: how the corpus's themes are being discussed in the wild, competing
+      framings, reception of adjacent work, gaps the discourse reveals.
+
+      This is OBSERVATION (world-mirror), not optimization. It informs the
+      operator's authoring and the Reviewer's coherence audits — it does NOT
+      become a directive to chase HN-popular topics. A genuine gap or counter-
+      argument the discourse surfaces is a coherence finding to consider, not a
+      mandate to rewrite toward the crowd (measure-not-steer). What you do when
+      the discourse is quiet on the corpus's themes is your judgment, not this
+      prompt's to script.
+    display_name: "Hacker News Perceive"
+
 # ADR-275: weekly-corpus-review and quarterly-voice-audit (operator
 # deliverable cadence) live in /workspace/governance/_preferences.yaml.
 # The Reviewer reads _preferences.yaml at every wake and authors Schedule(
