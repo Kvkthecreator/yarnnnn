@@ -1,0 +1,54 @@
+eval_suite_schema_version: 3
+eval_suite: author-heartbeat-composes
+suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
+
+thesis: |
+  A situation-forward HEARTBEAT wake (ADR-318 "a wake is a situation, not a
+  task") gets the author Reviewer to COMPOSE an actual scene from an empty
+  corpus under autonomous + a declared weekly Expected Output — where every
+  NAMED judgment recurrence (corpus-coherence-check; compose-screenplay-scene
+  fired on-demand) only DEFERRED (planned, scheduled, asked) and never composed.
+
+  The discourse hypothesis (docs/analysis/recurrences-as-task-labels-vs-the-
+  heartbeat-2026-06-23.md): the named recurrences were task-labels that imported
+  a deliberate-and-close posture onto labor-shaped work, so the agent narrated
+  composing instead of composing. A heartbeat has no task-label to perform the
+  shape of.
+
+  Read against the agent's full trace on the heartbeat fire:
+  - PASS: a new content.md scene exists under operation/authored/{slug}/ with
+    real prose (reviewer:* attributed) OR a WriteFile proposal carrying scene
+    content. The agent composed against the mandate, on this wake.
+  - FAIL: schedule_create / clarify / standing_intent-only with no scene. The
+    deferral reproduced; the task-label thesis is FALSIFIED — the cause is
+    deeper than the wake's framing. This is a legitimate, important outcome:
+    it says "production must be a distinct execution mode," not "reframe the wake."
+
+  Single-variable: identical substrate to the failed 2026-06-23 origination runs
+  (funded, autonomous, declared weekly scene, empty corpus); the ONLY change is
+  the wake fires under a situation-forward `heartbeat` recurrence instead of a
+  named task recurrence.
+
+description: |
+  Suite B (thesis) for netflix-script-author. The §5 probe from the
+  recurrences-as-task-labels discourse. ONE eval, ONE controlled situation: a
+  heartbeat fire (fire_cron → cron_tick judgment) against an empty corpus.
+
+  Why this matters: NO canon moves until this probe runs. PASS → the named-
+  judgment-recurrence directory is the over-engineering, and the heartbeat
+  reframe earns a Hat-A ADR. FAIL → the discourse is wrong; the cause is
+  production-as-distinct-mode, and we pivot. Prove before canon (ADR-352 §6b).
+
+persona: netflix-script-author
+
+budget:
+  per_session_usd: 4.0
+
+evals:
+  - eval: heartbeat-composes
+    scenario: scenarios/author-heartbeat-composes.yaml
+    requires:
+      - path: /workspace/governance/_autonomy.yaml
+        field: default.delegation
+        equals: autonomous
+    accumulates: false

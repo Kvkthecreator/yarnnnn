@@ -1,0 +1,185 @@
+scenario_schema_version: 1
+scenario: author-heartbeat-composes
+description: |
+  FIRST-PRINCIPLES PROBE (discourse 2026-06-23-recurrences-as-task-labels-vs-the-
+  heartbeat §5): does a SITUATION-FORWARD heartbeat — a judgment wake carrying
+  "you are awake; here is the operation's state and what it owes; serve the
+  mandate" with NO task-label slug, NO audit checklist, NO "author a scene"
+  script — get the agent to COMPOSE an actual scene, where every NAMED judgment
+  recurrence (corpus-coherence-check, and even compose-screenplay-scene fired
+  on-demand) only DEFERRED?
+
+  THE CONTROL (the failed runs, identical substrate): netflix-script-author,
+  funded, autonomous, declared Expected Output (weekly scene), EMPTY corpus,
+  has NEVER composed a content.md. On 2026-06-23:
+    - corpus-coherence-check (named audit recurrence) → audited-nothing, planned.
+    - compose-screenplay-scene (named producer recurrence) fired on-demand with
+      "Author a screenplay scene" in its prompt → wrote standing_intent planning
+      to compose "when it fires Monday" — it waited for ITSELF. Zero content.md.
+      (exec 08:11:14, the before-state.)
+
+  THE SINGLE VARIABLE: this scenario fires a `heartbeat` recurrence whose prompt
+  is situation-forward and TASK-LABEL-FREE. Same workspace, same funding, same
+  autonomy, same empty corpus, same declared weekly Expected Output. The ONLY
+  difference from the failed runs is that the wake is framed as a situation
+  (ADR-318: "a wake is a situation, not a task"), not as a named task.
+
+  HYPOTHESIS (the discourse's lean): the named recurrences were task-labels that
+  imported a deliberate-and-close posture onto labor-shaped work (composing
+  prose), so the agent narrated composing instead of composing. A situation-
+  forward heartbeat has no task-label to perform the shape of — so the agent
+  reasons "the mandate owes a scene, none exists, I am awake → I compose it."
+
+  PASS (product, not setup): a new content.md exists under
+  /workspace/operation/authored/{scene-slug}/ with actual prose, attributed
+  reviewer:*, status draft/ready_for_review — OR a WriteFile proposal carrying
+  the scene content. The agent COMPOSED.
+
+  FAIL (deferral reproduced): schedule_create, clarify, or a standing_intent-only
+  close with no scene content. If the heartbeat ALSO defers, the task-label
+  thesis is FALSIFIED — the cause is deeper than the wake's framing (the occupant
+  will not perform labor in a judgment wake; production must be a distinct mode),
+  and the discourse is on the wrong tree. This probe is designed to falsify
+  cleanly, not just confirm.
+
+persona: netflix-script-author
+
+setup:
+  - clear_proposals: ~
+
+  # Tight cadence so the heartbeat fire escalates deterministically (no interval skip).
+  - write_substrate:
+      path: /workspace/governance/_budget.yaml
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "probe: tight cadence (min_interval 0)"
+      content: |
+        budget:
+          amount_usd: 50.0
+          window: monthly
+        per_wake_ceiling_usd: 1.5
+        min_interval_between_recurrence_fires_seconds: 0
+
+  # Autonomous (witness dial wide) — identical to the failed runs.
+  - write_substrate:
+      path: /workspace/governance/_autonomy.yaml
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "probe: autonomous delegation"
+      content: |
+        tier: canon
+        default:
+          delegation: autonomous
+
+  # AUTONOMY.md prose reconciled to autonomous + ADR-355 (agent originates) —
+  # identical to the failed runs, so this is NOT a new variable.
+  - write_substrate:
+      path: /workspace/governance/AUTONOMY.md
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "probe: AUTONOMY.md reconciled to autonomous + ADR-355"
+      content: |
+        # Autonomy — alpha-author
+
+        > Per ADR-254: machine-parsed delegation config lives in `_autonomy.yaml`
+        > (sibling). This file is prose for human + LLM reading.
+
+        ## Current posture: autonomous
+
+        `delegation: autonomous` — the agent originates work against the declared
+        Expected Output and ships approved work autonomously. The operator is
+        principal + witness (ADR-345/ADR-355), not the author. QUEUE means
+        decided-and-waiting-for-witness, never blocked. Autonomy is NOT a ceiling
+        on the agent's work — the agent always works the full job.
+
+  # Declared Expected Output (weekly scene) — identical to the failed runs.
+  - write_substrate:
+      path: /workspace/governance/_expected_output.yaml
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "probe: declared Expected Output (weekly scene)"
+      content: |
+        expected_output:
+          kind: scene
+          delivery_cadence: weekly
+          bar: "principles.md pre-ship audit — voice fingerprint + anti-slop + text/entity continuity + tonal register"
+          rough_volume_per_window: "~1 scene per week (floor-gated; slips if nothing clears the bar)"
+
+  # Clean MANDATE (ADR-355-aligned authorship) — identical to the failed runs.
+  - write_substrate:
+      path: /workspace/constitution/MANDATE.md
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "probe: clean MANDATE — Expected Output prose + ADR-355 authorship"
+      content: |
+        # Mandate — alpha-author
+
+        > **Persona**: netflix-script-author (long-arc Korean Thomas-Crown-Joker
+        > screenplay). Program marker `alpha-author` preserved (parse_active_program_slug).
+
+        ## Primary Action
+
+        Author screenplay scenes, character beats, episode outlines, and
+        series-bible material for the Korea-modern Thomas-Crown-Joker thriller —
+        a continuous, contradiction-free narrative substrate where every shipped
+        scene is consistent with established character voice, plot continuity,
+        and the series's declared tonal register.
+
+        ## Expected Output
+
+        This operation owes **~1 screenplay scene per week** (kind: scene,
+        cadence: weekly). The cadence is a STANDING OBLIGATION, not a precondition:
+        an empty corpus means the FIRST owed scene has not yet been originated.
+        Originating against this cadence from an empty corpus IS the work. The
+        floor GATES the cadence (a scene slips if it cannot clear the pre-ship
+        bar); it is never a quota to hit by lowering the bar.
+
+        ## Success Criteria
+
+        - A scene shipped roughly weekly that clears the anti-slop + voice +
+          continuity floor (principles.md pre-ship audit).
+        - Zero unresolved continuity breaks across the corpus.
+
+        ## Boundary Conditions
+
+        - The agent authors as the operator's installed judgment (ADR-355): it
+          originates and ships scenes autonomously; the anti-slop guarantee is
+          that every shipped scene clears the floor, NOT that a human held the
+          pen. The operator is principal + witness, not the author.
+        - No silent character-voice drift; evolution declared in entities/{slug}.md.
+
+  # THE SINGLE VARIABLE: inject a situation-forward HEARTBEAT recurrence.
+  # No task-label slug (it is just "heartbeat"), no audit checklist, no "compose"
+  # script. The prompt names the SITUATION and hands off to the mandate + frame +
+  # principles. This is the ADR-318 "a wake is a situation, not a task" posture
+  # taken literally at the recurrence layer (discourse §3).
+  - append_recurrence:
+      slug: heartbeat
+      schedule: "0 9 * * *"
+      mode: judgment
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "probe: situation-forward heartbeat (no task-label)"
+      options:
+        display_name: "Heartbeat"
+      prompt: |
+        You are awake. You are the standing judgment for this operation.
+
+        The substrate in your envelope is the operation's current state — your
+        MANDATE and its Expected Output, your principles.md framework, the corpus
+        under /workspace/operation/authored/, the outcomes and watches. Read what
+        is true now and serve the mandate against it: do the work the operation
+        needs from you this wake.
+
+        This is not a task to interpret — it is a situation to act on. principles.md
+        is your framework; the frame owns how you close.
+
+turns:
+  # Fire the heartbeat via the faithful cron_tick path. The wake carries the
+  # situation, not a task. PASS = a composed content.md scene; FAIL = deferral.
+  - fire_cron: heartbeat
+    expect:
+      - reviewer_responded
+      - composes_a_scene_OR_proposes_scene_content    # PASS criterion (product)
+      - does_not_defer_to_a_future_recurrence_fire     # FAIL marker
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages
