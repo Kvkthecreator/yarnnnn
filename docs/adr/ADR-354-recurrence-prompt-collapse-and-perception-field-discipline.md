@@ -102,3 +102,43 @@ suppressed.
 
 - `docs/programs/alpha-author/reference-workspace/_recurrences.yaml` — three judgment audit prompts collapsed (D1); MANIFEST `version: 2026-06-23.1`.
 - Driving evaluations: `docs/evaluations/2026-06-23-070553-...` (clean baseline — seam survives all workspace-file corrections) + `docs/evaluations/2026-06-23-071317-...` (root cause localized to the audit-only recurrence prompt; principles.md was also stale, force-pushed via `_force_push_principles.py`).
+
+## 8. Amendment — author-first-under-autonomous for the (B) gap (2026-06-23)
+
+The §7 collapse made the standing obligation *reachable*, and the validation run
+(`docs/evaluations/2026-06-23-adr354-author-collapse-VALIDATION.md`) showed the
+Reviewer correctly classify (B) — but it **surfaced a permission-seeking Clarify**
+(*"authorize me to compose on cadence, or feed drafts"*) rather than authoring the
+compose organ. Under `autonomous` (autonomy-as-witness, ADR-345), asking
+permission to do what is already your standing authority is the passivity
+`autonomous` exists to retire.
+
+Diagnosis (substrate-receipted): the cause was the alpha-author `principles.md`
+§2 (B) text itself, which presented "Do ONE of: **author** … **or surface**" as
+*unordered* options and shipped a copy-paste **surface** script with no author
+script. The agent reached (B), saw two equal options, and copied the more
+concrete one — the same "concrete procedure beats abstract posture" pathology
+this ADR addresses, one layer down (a scripted *example phrasing* beating an
+abstract "author an organ"). The frame's (B) line has the same parallel "X, or
+Y" with no precedence — but the persona-frame is at its char ceiling (the
+`test_adr323` ceiling is pre-existing-over at 11,809 on HEAD, a separate
+rebloat finding), so per §3.2.1 + the ceiling-gate's own guidance, the
+precedence is instanced in `principles.md`, not added to the frame.
+
+Fix: alpha-author `principles.md` §2 (B) rewritten — **the default move is to
+AUTHOR the missing organ; under `autonomous` you author it, you do not ask
+permission**; the witness dial means the operator *witnesses* the authored organ.
+A structural-gap Clarify is narrowed to genuine operator-needs (a capability that
+does not exist, a floor change, a mandate reinterpretation). The "authorize me to
+compose" script is deleted.
+
+Parity: the **alpha-trader** `principles.md` (B) rule was already correctly
+ordered (*"author/restore the originating organ … or surface"*; *"Authoring is
+your authority; commissioning is not"*) — this brings alpha-author into parity.
+The precedence is **kernel-general** (a consequence of ADR-345); when the
+persona-frame ceiling regression is resolved, the bare precedence stance belongs
+in the frame, with principles.md instancing the program specifics (§3.2.1).
+
+- `docs/programs/alpha-author/reference-workspace/persona/principles.md` §2 (B) rewritten; MANIFEST `version: 2026-06-23.2`; CHANGELOG `[2026.06.23.3]`.
+- Validation: re-run of `author-expected-output-origination` after this fix (PASS = authors the compose organ, no permission-seeking Clarify).
+- Separate finding flagged: `test_adr323_frame_collapse_finished.py::test_system_prompt_under_ceiling` is pre-existing-failing on HEAD (frame 11,809 > 11,500 ceiling) — a rebloat from a prior session, not this change; the frame here is byte-identical to HEAD.

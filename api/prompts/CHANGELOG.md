@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.23.3] - alpha-author principles §2 (B): author-first-under-autonomous (stop asking permission to author what is yours)
+
+**LLM-facing changes:**
+
+- **`docs/programs/alpha-author/reference-workspace/persona/principles.md`** — §2 owed-output rule, (B) Structurally-can't bullet rewritten. The prior text presented "Do ONE of: author a compose organ … **or** surface the structural gap" as unordered options AND shipped a copy-paste *surface* script ("authorize me to compose on cadence, or feed drafts") with no script for the author branch. Under `autonomous`, the agent reached (B), saw two equal options, and copied the concrete surface script — asking permission to author what is already its authority (the validation-run Clarify). Rewrite: **the default move is to AUTHOR the missing organ, not ask for it**; authoring a `compose-next-piece` Schedule within the existing floor is within standing authority (ADR-275 D1), so under `autonomous` the agent authors it (the witness dial means the operator *witnesses* the authored organ, not that the agent waits for go-ahead — ADR-345). A structural-gap Clarify is narrowed to ONLY when closing needs what the agent cannot author (a missing capability, a floor change, a mandate reinterpretation). The "authorize me to compose" script is deleted.
+- **`docs/programs/alpha-author/MANIFEST.yaml`** — `version: 2026-06-23.1 → 2026-06-23.2`.
+- **Parity note (recorded):** the alpha-trader principles.md (B) rule was ALREADY correctly ordered ("author/restore the originating organ … or surface"; "Authoring is your authority; commissioning is not") — this brings alpha-author into parity. The precedence is kernel-general (a consequence of ADR-345 autonomy-as-witness); it is instanced per-program in principles.md because the persona-frame is at its char ceiling (see ADR-354 §8 + the pre-existing test_adr323 over-ceiling finding).
+- **Expected behavior:** on (B) under autonomous, the author Reviewer authors the compose organ (a Reviewer-authored Schedule routed through the existing pre-ship floor) rather than surfacing a permission-seeking Clarify. The Clarify path survives only for genuine operator-needs.
+
+---
+
 ## [2026.06.23.2] - ADR-354 D1 reaches alpha-author: collapse the audit-recurrence prompts
 
 **LLM-facing changes:**
