@@ -79,6 +79,17 @@ chat component, one window manager; the window-manager core is mode-agnostic,
 and the `Viewing: X` ↔ `surfaceOverride` ↔ prompt-profile binding is identical
 in every mode.
 
+**Window-namespaced deep-link params (ADR-358 D6).** Because navigation stays
+on the one `/desktop` baseline (D5), multiple windows share one query string —
+so each window's intra-surface params are namespaced by its slug: `?{slug}.{key}`
+(`workspace-settings.pane=autonomy`, `settings.pane=billing`,
+`recurrence.pane=activity`, `agents.agent=reviewer`). A window reads only its own
+namespace, so open windows never collide and each persists its own deep-link
+state. Singular Implementation: `scopeParamKey(slug, key)` forms the one prefix;
+`navigateToSurface(slug, params)` scopes by the target slug; surfaces use the
+`useSurfaceParam(slug)` hook (read/write their own params); `SettingsPaneShell`
+takes a `windowSlug` prop. Callers never hand-build the prefix.
+
 **Agent-composed Applications** — the orchestration layer authoring a new
 Application by writing an application-manifest *file* in the substrate
 (everything-is-a-file extends to app definitions; the compositor reads

@@ -11,5 +11,5 @@
 import { redirect } from 'next/navigation';
 
 export default function MandateRedirect() {
-  redirect('/workspace-settings?pane=mandate');
+  redirect('/workspace-settings?workspace-settings.pane=mandate');
 }

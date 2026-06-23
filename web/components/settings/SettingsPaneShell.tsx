@@ -10,18 +10,21 @@
  * `paneGroups` (the sidebar sections) + a `renderPane(activePane)`
  * body-renderer.
  *
- * Mechanism preserved from ADR-340 P2's SettingsPage:
+ * Mechanism (ADR-340 P2 + ADR-358 D6):
  *   - macOS System Settings shape: one door, sidebar of grouped panes.
- *   - `?pane=` is the canonical intra-surface deep-link param (`?tab=`
- *     accepted as a legacy alias for the System Settings General tabs).
- *   - foregroundSurface(pane-slug) → parent container + `?pane=`; the
+ *   - The pane is a WINDOW-NAMESPACED deep-link param (`{windowSlug}.pane=`,
+ *     ADR-358 D6) — `settings.pane` for the account door, `workspace-settings.pane`
+ *     for the operation door. Both doors can be open at once without their
+ *     pane selections colliding. (`?tab=` kept as a legacy alias for the
+ *     account door's General tabs.) Read/written via `useSurfaceParam(windowSlug)`.
+ *   - foregroundSurface(pane-slug) → parent container + `{parent}.pane=`; the
  *     pane resolution is generic (useSurfacePreferences reads `pane_of`),
  *     so a second container works with zero new window-manager code.
  */
 
 import { useState, useEffect, type ComponentType } from "react";
 import { useSearchParams } from "next/navigation";
-import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
+import { useSurfaceParam, useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 
 export interface PaneDef {
   /** Pane key — matches the registry slug for pane-grade surfaces, or a
@@ -37,9 +40,16 @@ export interface PaneGroup {
 }
 
 interface SettingsPaneShellProps {
+  /**
+   * ADR-358 D6 — the kernel slug of the WINDOW this shell renders inside
+   * (`settings` or `workspace-settings`). The pane is namespaced under it
+   * (`{windowSlug}.pane=`) so the two Settings doors never collide on a
+   * shared `?pane=`.
+   */
+  windowSlug: string;
   /** Sidebar sections, top→bottom. */
   paneGroups: PaneGroup[];
-  /** Default pane when no `?pane=`/`?tab=` is present. */
+  /** Default pane when no namespaced pane/`?tab=` is present. */
   defaultPane: string;
   /** Render the active pane's body. */
   renderPane: (activePane: string) => React.ReactNode;
@@ -57,6 +67,7 @@ interface SettingsPaneShellProps {
 }
 
 export function SettingsPaneShell({
+  windowSlug,
   paneGroups,
   defaultPane,
   renderPane,
@@ -64,10 +75,14 @@ export function SettingsPaneShell({
   fullBleed = false,
   navLabel = "Settings panes",
 }: SettingsPaneShellProps) {
+  // ADR-358 D6 — read/write this window's OWN namespaced pane key
+  // (`{windowSlug}.pane`). `useSurfaceParam` handles the prefix; `?tab=`
+  // stays a flat legacy alias read directly.
+  const surfaceParam = useSurfaceParam(windowSlug);
   const { setSurfaceParams } = useSurfacePreferences();
   const searchParams = useSearchParams();
-  const tabParam = searchParams.get("tab"); // legacy alias
-  const paneParam = searchParams.get("pane"); // canonical
+  const tabParam = searchParams.get("tab"); // legacy flat alias (account door)
+  const paneParam = surfaceParam.get("pane"); // canonical, window-namespaced
 
   const allPanes = paneGroups.flatMap((g) => g.panes.map((p) => p.key));
   const requestedPane = paneParam ?? tabParam;
@@ -76,7 +91,7 @@ export function SettingsPaneShell({
   const [activePane, setActivePane] = useState<string>(initial);
 
   // Sync active pane when a deep-link arrives while the window is already
-  // mounted (foregroundSurface('budget') pushes /settings?pane=budget).
+  // mounted (foregroundSurface('budget') sets workspace-settings.pane=budget).
   useEffect(() => {
     if (requestedPane && allPanes.includes(requestedPane)) {
       setActivePane(requestedPane);
@@ -86,7 +101,9 @@ export function SettingsPaneShell({
 
   const selectPane = (pane: string) => {
     setActivePane(pane);
-    setSurfaceParams({ pane, tab: null });
+    // Set this window's namespaced pane; clear the flat legacy `?tab=`.
+    surfaceParam.set({ pane });
+    setSurfaceParams({ tab: null });
   };
 
   return (

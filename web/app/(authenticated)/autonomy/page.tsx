@@ -11,5 +11,5 @@
 import { redirect } from 'next/navigation';
 
 export default function AutonomyRedirect() {
-  redirect('/workspace-settings?pane=autonomy');
+  redirect('/workspace-settings?workspace-settings.pane=autonomy');
 }

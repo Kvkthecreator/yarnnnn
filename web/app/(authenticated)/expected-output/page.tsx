@@ -12,5 +12,5 @@
 import { redirect } from 'next/navigation';
 
 export default function ExpectedOutputRedirect() {
-  redirect('/workspace-settings?pane=expected-output');
+  redirect('/workspace-settings?workspace-settings.pane=expected-output');
 }

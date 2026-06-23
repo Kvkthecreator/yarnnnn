@@ -12,7 +12,7 @@
  *
  * ADR-340 D8: Activity folded to pane-grade under Recurrence. This component is
  * the SINGLE Activity body (Singular Implementation) — rendered as the "Runs"
- * lens inside the Recurrence window (`/recurrence?pane=activity`). The former
+ * lens inside the Recurrence window (`/recurrence?recurrence.pane=activity`). The former
  * standalone `/activity` page is now an ADR-308 server redirect stub. The
  * declaration lens ("what's scheduled, when does it fire") is the Recurrence
  * window's default mode; this is the execution drill-down.

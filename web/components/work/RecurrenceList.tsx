@@ -475,7 +475,7 @@ function ScheduleRow({
           (ADR-340 D8), pre-filtered to this recurrence's slug.
           stopPropagation so the link click doesn't also trigger row select. */}
       <Link
-        href={`/recurrence?pane=activity&slug=${encodeURIComponent(task.slug)}`}
+        href={`/recurrence?recurrence.pane=activity&recurrence.slug=${encodeURIComponent(task.slug)}`}
         onClick={(e) => e.stopPropagation()}
         className="shrink-0 text-[10px] text-muted-foreground/40 hover:text-foreground hover:underline underline-offset-4 transition-colors"
         title="See execution history for this recurrence"

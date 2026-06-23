@@ -10,5 +10,5 @@
 import { redirect } from 'next/navigation';
 
 export default function ConnectorsRedirect() {
-  redirect('/workspace-settings?pane=connectors');
+  redirect('/workspace-settings?workspace-settings.pane=connectors');
 }

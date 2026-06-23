@@ -1,5 +1,5 @@
 /**
- * /activity → /recurrence?pane=activity redirect stub (ADR-340 D8).
+ * /activity → /recurrence?recurrence.pane=activity redirect stub (ADR-340 D8).
  *
  * Machinery consolidation: Activity folded to pane-grade under Recurrence —
  * the Runs (execution) lens inside the Recurrence window, no longer a window
@@ -17,5 +17,5 @@ export default function ActivityRedirect({
   searchParams: { slug?: string };
 }) {
   const slug = searchParams?.slug;
-  redirect(slug ? `/recurrence?pane=activity&slug=${encodeURIComponent(slug)}` : '/recurrence?pane=activity');
+  redirect(slug ? `/recurrence?recurrence.pane=activity&recurrence.slug=${encodeURIComponent(slug)}` : '/recurrence?recurrence.pane=activity');
 }

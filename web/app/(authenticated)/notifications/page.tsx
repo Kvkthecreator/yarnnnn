@@ -138,6 +138,7 @@ export default function OperationPage() {
 
   return (
     <SettingsPaneShell
+      windowSlug="notifications"
       paneGroups={PANE_GROUPS}
       defaultPane="resolve"
       renderPane={renderPane}

@@ -11,5 +11,5 @@
 import { redirect } from 'next/navigation';
 
 export default function IdentityRedirect() {
-  redirect('/workspace-settings?pane=identity');
+  redirect('/workspace-settings?workspace-settings.pane=identity');
 }

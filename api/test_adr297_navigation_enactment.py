@@ -187,6 +187,22 @@ def test_navigation_primitive_exists() -> None:
         "foregroundSurface + navigateToSurface + setSurfaceParams all "
         "deliver params via history.replaceState (pathname preserved)",
     )
+    # ADR-358 D6 (2026-06-23): intra-surface params are window-NAMESPACED
+    # (`{slug}.{key}`) so multiple open windows never collide on the shared
+    # /desktop query string. The prefix is formed in ONE place; the verbs
+    # scope by slug; surfaces use the useSurfaceParam(slug) hook.
+    _assert(
+        "export function scopeParamKey(slug: string, key: string)" in hook,
+        "scopeParamKey is the single namespacing helper (ADR-358 D6)",
+    )
+    _assert(
+        "export function useSurfaceParam(slug: string)" in hook,
+        "useSurfaceParam(slug) is the surface-scoped reader/writer hook (D6)",
+    )
+    _assert(
+        "url.searchParams.set(scopeParamKey(slug, k), v)" in hook,
+        "navigateToSurface namespaces params under the target slug (D6)",
+    )
 
 
 # =============================================================================

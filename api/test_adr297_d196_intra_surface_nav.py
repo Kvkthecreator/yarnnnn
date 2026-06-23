@@ -71,22 +71,27 @@ def test_verb_exists() -> None:
 
 
 def test_agents_migrated() -> None:
-    print("\n[agents] intra-surface ?agent= via setSurfaceParams")
+    # ADR-358 D6: intra-surface params are window-NAMESPACED. The Agents
+    # window reads/writes its own `agents.agent` via useSurfaceParam('agents')
+    # — p.get/p.set — which wraps setSurfaceParams under the hood.
+    print("\n[agents] intra-surface agent= via useSurfaceParam('agents')")
     src = _read("app/(authenticated)/agents/page.tsx")
-    check("imports useSurfacePreferences", "useSurfacePreferences" in src)
-    check("uses setSurfaceParams({ agent: ... })", "setSurfaceParams({ agent:" in src)
+    check("uses useSurfaceParam('agents')", "useSurfaceParam('agents')" in src)
+    check("writes namespaced agent via p.set({ agent: ... })", "p.set({ agent:" in src)
     check("no router.push('/agents?agent= write", "router.push(`/agents?agent=" not in src
           and "router.push('/agents?agent=" not in src)
     check("no useRouter import (intra-surface only)", "useRouter" not in src)
 
 
 def test_recurrence_migrated() -> None:
-    print("\n[recurrence] intra-surface ?task=/?agent= via setSurfaceParams")
+    # ADR-358 D6: the Recurrence window reads/writes its own task/agent/pane/
+    # slug via useSurfaceParam('recurrence') — p.get/p.set.
+    print("\n[recurrence] intra-surface task/agent via useSurfaceParam('recurrence')")
     src = _read("app/(authenticated)/recurrence/page.tsx")
-    check("imports useSurfacePreferences", "useSurfacePreferences" in src)
-    check("select uses setSurfaceParams({ task: slug })", "setSurfaceParams({ task: slug })" in src)
-    check("back-to-list deletes task (null)", "setSurfaceParams({ task: null })" in src)
-    check("clear-agent deletes agent (null)", "setSurfaceParams({ agent: null })" in src)
+    check("uses useSurfaceParam('recurrence')", "useSurfaceParam('recurrence')" in src)
+    check("select writes namespaced task via p.set({ task: slug })", "p.set({ task: slug })" in src)
+    check("back-to-list deletes task (null)", "p.set({ task: null })" in src)
+    check("clear-agent deletes agent (null)", "p.set({ agent: null })" in src)
     check("no router.push('/recurrence? write", "router.push(`/recurrence?" not in src)
     check("no router.replace('/recurrence write", "router.replace(" not in src)
     check("no useRouter import", "useRouter" not in src)
@@ -95,17 +100,19 @@ def test_recurrence_migrated() -> None:
 def test_activity_migrated() -> None:
     # ADR-340 D8 (2026-06-18): Activity folded to pane-grade under Recurrence —
     # the Runs lens. The /activity page is now an ADR-308 server redirect stub
-    # (no intra-surface nav of its own); the ?slug= clear moved into the
-    # Recurrence window, where the Runs lens owns it via setSurfaceParams.
+    # (no intra-surface nav of its own); the slug clear moved into the
+    # Recurrence window, where the Runs lens owns it.
+    # ADR-358 D6: stub + writes use the window-NAMESPACED recurrence params.
     print("\n[activity] folded to the Recurrence Runs lens (ADR-340 D8)")
     stub = _read("app/(authenticated)/activity/page.tsx")
-    check("/activity is a redirect stub → /recurrence?pane=activity", "/recurrence?pane=activity" in stub)
+    check("/activity is a redirect stub → /recurrence?recurrence.pane=activity",
+          "/recurrence?recurrence.pane=activity" in stub)
     check("/activity stub is server transport (no 'use client')", "'use client'" not in stub)
-    # The intra-surface ?slug= clear now lives in the Recurrence window's
-    # Runs lens (the host owns the filter param; ActivityLog is host-driven).
+    # The intra-surface slug clear now lives in the Recurrence window's Runs
+    # lens (the host owns the filter param; ActivityLog is host-driven).
     rec = _read("app/(authenticated)/recurrence/page.tsx")
-    check("Runs lens clear uses setSurfaceParams({ slug: null })", "setSurfaceParams({ slug: null })" in rec)
-    check("Recurrence imports useSurfacePreferences", "useSurfacePreferences" in rec)
+    check("Runs lens clear writes namespaced slug via p.set({ slug: null })", "p.set({ slug: null })" in rec)
+    check("Recurrence uses useSurfaceParam('recurrence')", "useSurfaceParam('recurrence')" in rec)
 
 
 def test_files_off_url() -> None:

@@ -34,7 +34,6 @@
  */
 
 import { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { AlertCircle, ArrowLeft, Loader2, RefreshCw } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
@@ -44,7 +43,7 @@ import { RecurrenceList } from '@/components/work/RecurrenceList';
 import { WorkDetail } from '@/components/work/WorkDetail';
 import { ActivityLog } from '@/components/activity/ActivityLog';
 import { cn } from '@/lib/utils';
-import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 
 type ActionNotice = { kind: 'info' | 'success' | 'error'; text: string } | null;
 
@@ -83,31 +82,31 @@ function SurfaceState({
 }
 
 export default function RecurrencePage() {
-  const searchParams = useSearchParams();
-  // ADR-297 D19.6: ?task= / ?agent= are intra-surface deep-link state —
-  // update them without a pathname flip (no router.push off /desktop).
-  const { setSurfaceParams } = useSurfacePreferences();
+  // ADR-297 D19.6 + ADR-358 D6: task/agent/pane/slug are this window's OWN
+  // intra-surface deep-link state — read/written under the `recurrence.`
+  // namespace, no pathname flip (no router.push off /desktop).
+  const p = useSurfaceParam('recurrence');
   const { sendMessage } = useNarrative();
   // ADR-219 Commit 4: opt into narrative fetch — Cadence is the surface
   // that renders recent-activity headlines from session_messages.
   const { agents, tasks, narrativeByTask, loading, error, reload } = useAgentsAndRecurrences({ includeNarrative: true });
 
-  const agentFilter = searchParams.get('agent');
-  const taskSlugFromUrl = searchParams.get('task');
-  // ADR-340 D8: ?pane=activity selects the Runs (execution) lens; default
-  // (absent) is the Schedule (declaration) lens. ?slug= is the Runs lens's
-  // intra-surface filter (deep-link from a Schedule row pre-filters to one
-  // recurrence). Both are window-internal state per D19.6 — toggled via
-  // setSurfaceParams without a pathname flip.
-  const activeLens = searchParams.get('pane') === 'activity' ? 'runs' : 'schedule';
-  const runsSlugFilter = searchParams.get('slug');
+  const agentFilter = p.get('agent');
+  const taskSlugFromUrl = p.get('task');
+  // ADR-340 D8: recurrence.pane=activity selects the Runs (execution) lens;
+  // default (absent) is the Schedule (declaration) lens. recurrence.slug= is
+  // the Runs lens's intra-surface filter (deep-link from a Schedule row
+  // pre-filters to one recurrence). Both are window-internal state per D19.6
+  // + D6 — toggled via the namespaced param, no pathname flip.
+  const activeLens = p.get('pane') === 'activity' ? 'runs' : 'schedule';
+  const runsSlugFilter = p.get('slug');
   const showRuns = activeLens === 'runs';
   const setLens = useCallback((lens: 'schedule' | 'runs') => {
-    setSurfaceParams({ pane: lens === 'runs' ? 'activity' : null });
-  }, [setSurfaceParams]);
+    p.set({ pane: lens === 'runs' ? 'activity' : null });
+  }, [p]);
   const clearRunsSlugFilter = useCallback(() => {
-    setSurfaceParams({ slug: null });
-  }, [setSurfaceParams]);
+    p.set({ slug: null });
+  }, [p]);
   // ADR-297: tab framing dissolved on Cadence. Cockpit lives at /cockpit;
   // this surface is a single-mode recurrence list. Stale ?tab=… query
   // params are silently ignored.
@@ -203,19 +202,19 @@ export default function RecurrencePage() {
   }, [sendMessage]);
 
   // Click row in list mode → detail mode (intra-surface deep-link, no
-  // pathname flip). setSurfaceParams merges onto the current query.
+  // pathname flip). The namespaced set merges onto the current query.
   const handleSelect = useCallback((slug: string) => {
-    setSurfaceParams({ task: slug });
-  }, [setSurfaceParams]);
+    p.set({ task: slug });
+  }, [p]);
 
   // Clear agent filter chip in list mode (null deletes the key).
   const handleClearAgentFilter = useCallback(() => {
-    setSurfaceParams({ agent: null });
-  }, [setSurfaceParams]);
+    p.set({ agent: null });
+  }, [p]);
 
   const handleBackToList = useCallback(() => {
-    setSurfaceParams({ task: null });
-  }, [setSurfaceParams]);
+    p.set({ task: null });
+  }, [p]);
 
   // D19 (2026-05-22): the prior "+menu" PlusMenuAction array and the
   // chat-panel empty-state block were ThreePanelLayout-side affordances.

@@ -100,9 +100,13 @@ def test_settings_container() -> None:
     # ADR-341: one shared SettingsPaneShell, two mounts.
     shell = _read("components/settings/SettingsPaneShell.tsx")
     check("SettingsPaneShell exists (Singular Implementation, ADR-341 D5)", "SettingsPaneShell" in shell)
-    check("shell reads ?pane= (canonical)", 'searchParams.get("pane")' in shell)
-    check("shell accepts ?tab= legacy alias", 'searchParams.get("tab")' in shell)
-    check("shell syncs URL via setSurfaceParams", "setSurfaceParams({ pane" in shell)
+    # ADR-358 D6: the pane is window-NAMESPACED (`{windowSlug}.pane`), read +
+    # written via useSurfaceParam(windowSlug) so the two Settings doors never
+    # collide on a flat `?pane=`.
+    check("shell scopes pane by windowSlug (useSurfaceParam)", "useSurfaceParam(windowSlug)" in shell)
+    check("shell reads its namespaced pane", 'surfaceParam.get("pane")' in shell)
+    check("shell accepts ?tab= legacy flat alias", 'searchParams.get("tab")' in shell)
+    check("shell writes its namespaced pane", "surfaceParam.set({ pane })" in shell)
 
     # ADR-347: the `settings` page is the ACCOUNT window (billing/usage/account).
     sys_src = _read("app/(authenticated)/settings/page.tsx")
@@ -140,7 +144,8 @@ def test_redirect_stubs() -> None:
         stub = _read(f"app/(authenticated)/{slug}/page.tsx")
         if not stub:
             continue
-        target = f"/workspace-settings?pane={slug}"
+        # ADR-358 D6: stubs redirect with the window-NAMESPACED pane param.
+        target = f"/workspace-settings?workspace-settings.pane={slug}"
         check(f"/{slug} → {target}", f"redirect('{target}')" in stub)
         check(f"/{slug} stub is server-side (no 'use client')", "'use client'" not in stub)
 
@@ -149,14 +154,14 @@ def test_window_manager_resolution() -> None:
     print("\n[nav] foregroundSurface resolves pane-grade slugs")
     src = _read("lib/shell/useSurfacePreferences.tsx")
     check("pane resolution wrapper present", "pane_of" in src and "foregroundWindowGrade" in src)
-    # ADR-358 (2026-06-23): the pane is delivered by setting `?pane=` on the
-    # CURRENT pathname via history.replaceState (preserving the /desktop
-    # baseline), not by router.push-ing the parent's page route. Assert the
-    # durable behavior — `?pane=` reaches the URL via searchParams.set —
-    # rather than the old `?pane=${slug}` parent-route template literal.
+    # ADR-358 D5+D6: the pane is delivered by setting the parent window's
+    # NAMESPACED pane key (`{parent}.pane`) on the CURRENT pathname via
+    # history.replaceState (preserving the /desktop baseline), not by
+    # router.push-ing the parent's page route. Assert the durable behavior —
+    # the namespaced pane key reaches the URL via searchParams.set.
     check(
-        "pane delivered via ?pane= without a pathname flip",
-        "searchParams.set('pane', slug)" in src,
+        "pane delivered via namespaced {parent}.pane without a pathname flip",
+        "searchParams.set(scopeParamKey(parentSlug, 'pane'), slug)" in src,
     )
     viewport = _read("components/shell/SurfaceViewport.tsx")
     check("viewport filters pane-grade slugs from window mounting", "paneSlugs" in viewport)

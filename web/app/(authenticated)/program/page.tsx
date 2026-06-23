@@ -11,5 +11,5 @@
 import { redirect } from 'next/navigation';
 
 export default function ProgramRedirect() {
-  redirect('/workspace-settings?pane=program');
+  redirect('/workspace-settings?workspace-settings.pane=program');
 }

@@ -36,7 +36,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { useComposition } from '@/lib/compositor/useComposition';
 import {
@@ -62,6 +62,33 @@ import {
   type WindowStateMap,
 } from './surface-preferences';
 import { WINDOW_Z_MAX } from './z-tiers';
+
+// ---------------------------------------------------------------------------
+// Window-namespaced deep-link params (ADR-358 D6, 2026-06-23)
+// ---------------------------------------------------------------------------
+//
+// Each window's intra-surface deep-link params are namespaced by the window's
+// slug: `?{slug}.{key}=value` (e.g. `workspace-settings.pane=autonomy`,
+// `settings.pane=billing`, `recurrence.pane=activity`, `agents.agent=reviewer`).
+//
+// WHY: `?pane=` (+ `?agent=`/`?task=`) were flat global query keys, but each
+// window has its OWN param vocabulary. With multiple windows open on the one
+// `/desktop` baseline (ADR-358 D5 keeps navigation on /desktop), a flat key
+// collided across windows — `/desktop?pane=connectors` rendered Billing
+// because the foregrounded `settings` window read `pane=connectors`, found no
+// match, and fell back to its default while the URL still said `connectors`
+// (operator-flagged 2026-06-23). Namespacing by slug means a window only ever
+// reads its own keys, so N open windows never collide and each remembers its
+// own deep-link state in the URL simultaneously. Future windows inherit this
+// for free — add a window, it gets its own namespace.
+//
+// Singular Implementation: callers NEVER hand-build the `${slug}.` prefix.
+// `navigateToSurface(slug, params)` namespaces under the TARGET slug; surfaces
+// read/write their own params through the `useSurfaceParam(slug)` hook (below).
+// `scopeParamKey` is the one place the prefix string is formed.
+export function scopeParamKey(slug: string, key: string): string {
+  return `${slug}.${key}`;
+}
 
 export interface SurfacePreferences {
   userId: string | null;
@@ -133,6 +160,12 @@ export interface SurfacePreferences {
    * Pass a param value of `null` (or '') to DELETE that key (e.g.
    * back-to-list clears `?task=`). Keys not mentioned are preserved.
    * No-op on the server (guards `typeof window`).
+   *
+   * ADR-358 D6 (2026-06-23): surfaces should NOT call this directly with bare
+   * keys — intra-surface params are window-NAMESPACED (`{slug}.{key}`), and
+   * the `useSurfaceParam(slug)` hook is the sanctioned reader/writer (it forms
+   * the prefix). `setSurfaceParams` remains the low-level writer the hook + the
+   * `?tab=` legacy alias call with already-formed keys.
    */
   setSurfaceParams: (params: Record<string, string | null>) => void;
   isKept: (slug: string) => boolean;
@@ -478,19 +511,18 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       const parentSlug = entry?.pane_of;
       if (parentSlug && parentSlug !== slug) {
         const ok = foregroundWindowGrade(parentSlug);
-        // ADR-358 (2026-06-23) — deliver the pane selection by updating the
-        // `?pane=` query via the History API, PRESERVING the current
-        // pathname (the `/desktop` baseline). Previously this pushed the
-        // parent's own page route (e.g. /workspace-settings) carrying the
-        // pane query — a real Next.js navigation that left the desktop SPA,
-        // reset the chat rail's open/closed posture, and broke the Canvas
-        // two-pane continuity. Per ADR-297 D19.6 the pane is intra-surface
-        // deep-link state; updating it must NOT flip the pathname. The
-        // foregrounded window reads `?pane=` from useSearchParams regardless
-        // of pathname.
+        // ADR-358 D5+D6 (2026-06-23) — deliver the pane selection by setting
+        // the PARENT window's namespaced pane key (`{parent}.pane=slug`) via
+        // the History API, PRESERVING the current pathname (the `/desktop`
+        // baseline). The namespace means this never collides with another
+        // open window's pane. Pre-D5 this router.push-ed the parent's page
+        // route, flipping the pathname (left the SPA, reset chat). Per
+        // ADR-297 D19.6 the pane is intra-surface state; it must NOT flip the
+        // pathname. The parent window reads its own `{parent}.pane` from
+        // useSearchParams regardless of pathname.
         if (ok && typeof window !== 'undefined') {
           const url = new URL(window.location.href);
-          url.searchParams.set('pane', slug);
+          url.searchParams.set(scopeParamKey(parentSlug, 'pane'), slug);
           window.history.replaceState(
             null,
             '',
@@ -499,30 +531,12 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
         }
         return ok;
       }
-      // Window-grade surface (no pane_of). ADR-358 (2026-06-23) — clear any
-      // stale `?pane=` left by a prior pane navigation. `?pane=` is a single
-      // global query param but each window has its OWN pane vocabulary
-      // (settings: billing/usage/account; workspace-settings: mandate/
-      // autonomy/connectors/…). Foregrounding a window while a foreign
-      // window's pane lingers made the URL and the rendered pane disagree —
-      // e.g. /desktop?pane=connectors with the account (settings) window
-      // showing Billing, because settings doesn't know `connectors` and
-      // falls back to its default (operator-flagged 2026-06-23). Dropping
-      // the stale pane on a window-grade foreground keeps URL ↔ render in
-      // sync; the window then opens at its own default pane.
-      const ok = foregroundWindowGrade(slug);
-      if (ok && typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        if (url.searchParams.has('pane')) {
-          url.searchParams.delete('pane');
-          window.history.replaceState(
-            null,
-            '',
-            url.pathname + (url.search || '') + url.hash
-          );
-        }
-      }
-      return ok;
+      // Window-grade surface (no pane_of). ADR-358 D6 — no stale-pane clear
+      // needed: each window's pane lives under its OWN namespace
+      // (`{slug}.pane`), so a backgrounded window's pane never bleeds into
+      // the one being foregrounded. The window reads its own key and opens
+      // at its remembered (or default) pane.
+      return foregroundWindowGrade(slug);
     },
     [composition.surfaces, foregroundWindowGrade]
   );
@@ -548,8 +562,12 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       // useSearchParams regardless of pathname.
       if (ok && params && Object.keys(params).length > 0 && typeof window !== 'undefined') {
         const url = new URL(window.location.href);
+        // ADR-358 D6 — namespace each param under the TARGET slug so it
+        // lands in that window's own vocabulary and never collides with
+        // another open window's same-named param. Callers pass bare keys
+        // (`{pane:'billing'}`); the prefix is formed here, once.
         Object.entries(params).forEach(([k, v]) => {
-          if (v != null && v !== '') url.searchParams.set(k, v);
+          if (v != null && v !== '') url.searchParams.set(scopeParamKey(slug, k), v);
         });
         window.history.replaceState(
           null,
@@ -808,4 +826,46 @@ export function useSurfacePreferences(): SurfacePreferences {
     );
   }
   return ctx;
+}
+
+// ---------------------------------------------------------------------------
+// useSurfaceParam(slug) — ADR-358 D6 window-namespaced deep-link params
+// ---------------------------------------------------------------------------
+//
+// The ergonomic, Singular reader/writer for a surface's OWN deep-link params.
+// A surface (page) knows its own kernel slug; it calls
+// `useSurfaceParam('recurrence')` and then reads/writes BARE keys —
+// `p.get('pane')`, `p.set({ pane: 'activity' })` — while the hook transparently
+// namespaces to `recurrence.pane` under the hood. This is the only sanctioned
+// way a surface touches the URL for its own state; it guarantees no surface
+// can read or clobber another window's params.
+//
+//   const p = useSurfaceParam('settings');
+//   const pane = p.get('pane');         // reads ?settings.pane=
+//   p.set({ pane: 'billing' });         // writes ?settings.pane=billing
+//   p.set({ pane: null });              // deletes ?settings.pane
+//
+// Read is reactive (wraps useSearchParams); write goes through
+// setSurfaceParams (history.replaceState, no pathname flip — ADR-358 D5).
+export function useSurfaceParam(slug: string): {
+  get: (key: string) => string | null;
+  set: (params: Record<string, string | null>) => void;
+} {
+  const { setSurfaceParams } = useSurfacePreferences();
+  const searchParams = useSearchParams();
+  const get = useCallback(
+    (key: string) => searchParams.get(scopeParamKey(slug, key)),
+    [searchParams, slug]
+  );
+  const set = useCallback(
+    (params: Record<string, string | null>) => {
+      const scoped: Record<string, string | null> = {};
+      for (const [k, v] of Object.entries(params)) {
+        scoped[scopeParamKey(slug, k)] = v;
+      }
+      setSurfaceParams(scoped);
+    },
+    [setSurfaceParams, slug]
+  );
+  return { get, set };
 }

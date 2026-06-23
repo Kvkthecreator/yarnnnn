@@ -131,7 +131,7 @@ export default function WorkspaceSettingsPage() {
             <ConnectedIntegrationsSection
               title="Connectors"
               description="Connect platforms to give your agents data. Platforms are infrastructure — connect once, agents read automatically."
-              redirectTo="/workspace-settings?pane=connectors"
+              redirectTo="/workspace-settings?workspace-settings.pane=connectors"
             />
           </section>
         );
@@ -147,7 +147,7 @@ export default function WorkspaceSettingsPage() {
   };
 
   return (
-    <SettingsPaneShell paneGroups={PANE_GROUPS} defaultPane="mandate" renderPane={renderPane} />
+    <SettingsPaneShell windowSlug="workspace-settings" paneGroups={PANE_GROUPS} defaultPane="mandate" renderPane={renderPane} />
   );
 }
 

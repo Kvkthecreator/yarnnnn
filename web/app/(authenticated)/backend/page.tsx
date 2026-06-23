@@ -16,5 +16,5 @@
 import { redirect } from 'next/navigation';
 
 export default function BackendRedirect() {
-  redirect('/recurrence?pane=activity');
+  redirect('/recurrence?recurrence.pane=activity');
 }

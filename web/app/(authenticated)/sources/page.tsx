@@ -10,5 +10,5 @@
 import { redirect } from 'next/navigation';
 
 export default function SourcesRedirect() {
-  redirect('/workspace-settings?pane=sources');
+  redirect('/workspace-settings?workspace-settings.pane=sources');
 }

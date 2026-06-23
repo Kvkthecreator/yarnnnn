@@ -10,5 +10,5 @@
 import { redirect } from 'next/navigation';
 
 export default function PrinciplesRedirect() {
-  redirect('/workspace-settings?pane=principles');
+  redirect('/workspace-settings?workspace-settings.pane=principles');
 }

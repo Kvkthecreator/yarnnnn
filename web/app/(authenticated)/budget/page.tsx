@@ -10,5 +10,5 @@
 import { redirect } from 'next/navigation';
 
 export default function BudgetRedirect() {
-  redirect('/workspace-settings?pane=budget');
+  redirect('/workspace-settings?workspace-settings.pane=budget');
 }

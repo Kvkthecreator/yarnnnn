@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { humanizeSlug } from "@/lib/schedule";
-import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
+import { useSurfacePreferences, useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { createClient } from "@/lib/supabase/client";
 import { useNarrative } from "@/contexts/NarrativeContext";
@@ -87,12 +87,15 @@ type DangerAction =
 export default function SettingsPage() {
   const router = useRouter();
   const { navigateToSurface } = useSurfacePreferences();
+  const accountParam = useSurfaceParam('settings');
   const searchParams = useSearchParams();
   const { clearMessages } = useNarrative();
   const tabParam = searchParams.get("tab");
-  // ADR-340 P2: `?pane=` is the canonical intra-surface deep-link param
-  // (`?tab=` kept as legacy alias). Any pane in the union is addressable.
-  const paneParam = searchParams.get("pane");
+  // ADR-358 D6: the pane is the WINDOW-NAMESPACED `settings.pane` (so the
+  // account door never collides with workspace-settings on a flat `?pane=`).
+  // `?tab=` kept as a flat legacy alias. The page derives `activeTab` from
+  // the same param the SettingsPaneShell reads — single source (the URL).
+  const paneParam = accountParam.get("pane");
   // ADR-215 R3 (2026-04-24): `memory` tab retired — identity/brand/profile
   // are substrate, edited on Files (/files?path=/workspace/constitution|governance|operation/… (ADR-320 roots)).
   // Legacy `?tab=memory` redirects to Files IDENTITY.md via effect below.
@@ -747,6 +750,7 @@ export default function SettingsPage() {
   return (
     <>
       <SettingsPaneShell
+        windowSlug="settings"
         paneGroups={PANE_GROUPS}
         defaultPane="billing"
         renderPane={renderPane}

@@ -325,7 +325,7 @@ export function ReviewerActivityPanel() {
                   <span className="text-rose-600/80 text-[10px]">· {r.error_reason}</span>
                 )}
                 <Link
-                  href={`/recurrence?pane=activity&slug=${encodeURIComponent(r.slug)}`}
+                  href={`/recurrence?recurrence.pane=activity&recurrence.slug=${encodeURIComponent(r.slug)}`}
                   className="ml-auto text-[10px] text-muted-foreground/40 hover:text-foreground hover:underline underline-offset-4 tabular-nums shrink-0"
                   title="See full execution detail in the Runs lens"
                 >
@@ -341,7 +341,7 @@ export function ReviewerActivityPanel() {
           Runs lens of the Recurrence window — ADR-340 D8). */}
       <div className="flex items-center gap-3 pt-1">
         <Link
-          href="/recurrence?pane=activity"
+          href="/recurrence?recurrence.pane=activity"
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground hover:underline underline-offset-4 transition-colors"
         >
           View all runs <ArrowRight className="h-3 w-3" />

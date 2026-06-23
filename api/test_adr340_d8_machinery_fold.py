@@ -87,7 +87,7 @@ def test_recurrence_two_lens() -> None:
     check("Recurrence imports the shared ActivityLog", "import { ActivityLog }" in src)
     check("?pane=activity selects the Runs lens", "'activity'" in src and "pane" in src)
     check("Schedule ↔ Runs lens toggle present", "Runs" in src and "Schedule" in src)
-    check("lens toggle syncs URL via setSurfaceParams", "setSurfaceParams({ pane" in src)
+    check("lens toggle syncs URL via setSurfaceParams", "p.set({ pane" in src)
     # Declaration-led: the default (no ?pane=) is the Schedule lens — the
     # RecurrenceList / WorkDetail declaration view is unchanged.
     check("declaration lens is the default (RecurrenceList retained)", "RecurrenceList" in src)
@@ -96,14 +96,14 @@ def test_recurrence_two_lens() -> None:
 def test_redirect_stub() -> None:
     print("\n[stub] /activity is an ADR-308 server redirect")
     stub = _read("app/(authenticated)/activity/page.tsx")
-    check("/activity → /recurrence?pane=activity", "/recurrence?pane=activity" in stub)
+    check("/activity → /recurrence?recurrence.pane=activity", "/recurrence?recurrence.pane=activity" in stub)
     check("/activity stub uses server redirect()", "redirect(" in stub)
     check("/activity stub is server-side (no 'use client')", "'use client'" not in stub)
     check("/activity stub preserves ?slug= bookmark", "searchParams" in stub and "slug" in stub)
     # /backend (legacy rename ancestor) points straight at the canonical
     # destination — no double redirect through the now-stub /activity.
     backend = _read("app/(authenticated)/backend/page.tsx")
-    check("/backend → /recurrence?pane=activity (no double redirect)", "/recurrence?pane=activity" in backend)
+    check("/backend → /recurrence?recurrence.pane=activity (no double redirect)", "/recurrence?recurrence.pane=activity" in backend)
 
 
 def test_registry_prune() -> None:
@@ -118,18 +118,18 @@ def test_deeplinks_repointed() -> None:
     print("\n[links] in-app deep-links target the Runs lens, not the stub")
     # The primary "View runs →" deep-link from a Schedule row.
     rlist = _read("components/work/RecurrenceList.tsx")
-    check("RecurrenceList 'View runs →' → /recurrence?pane=activity", "/recurrence?pane=activity" in rlist)
+    check("RecurrenceList 'View runs →' → /recurrence?recurrence.pane=activity", "/recurrence?recurrence.pane=activity" in rlist)
     check("RecurrenceList no longer points at /activity?slug=", "/activity?slug=" not in rlist)
     # Reviewer panel deep-links.
     rpanel = _read("components/agents/ReviewerActivityPanel.tsx")
-    check("ReviewerActivityPanel → /recurrence?pane=activity", "/recurrence?pane=activity" in rpanel)
+    check("ReviewerActivityPanel → /recurrence?recurrence.pane=activity", "/recurrence?recurrence.pane=activity" in rpanel)
     check("ReviewerActivityPanel no longer points at /activity?slug=", 'href={`/activity?slug=' not in rpanel)
     # Feed overlay link.
     overlay = _read("components/feed-surface/WorkspaceContextOverlay.tsx")
-    check("WorkspaceContextOverlay → /recurrence?pane=activity", "/recurrence?pane=activity" in overlay)
+    check("WorkspaceContextOverlay → /recurrence?recurrence.pane=activity", "/recurrence?recurrence.pane=activity" in overlay)
     # routes.ts constant repointed.
     routes = _read("lib/routes.ts")
-    check("ACTIVITY_ROUTE repointed to the Runs lens", 'ACTIVITY_ROUTE = "/recurrence?pane=activity"' in routes)
+    check("ACTIVITY_ROUTE repointed to the Runs lens", 'ACTIVITY_ROUTE = "/recurrence?recurrence.pane=activity"' in routes)
 
 
 def main() -> int:

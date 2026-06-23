@@ -23,21 +23,19 @@
  */
 
 import { useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { getAgentSlug } from '@/lib/agent-identity';
 import { AgentContentView } from '@/components/agents/AgentContentView';
-import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 
 export default function AgentsPage() {
-  const searchParams = useSearchParams();
-  // ADR-297 D19.6: ?agent=X is intra-surface deep-link state — update it
-  // without a pathname flip (no router.push, which would leave /desktop).
-  const { setSurfaceParams } = useSurfacePreferences();
+  // ADR-297 D19.6 + ADR-358 D6: agent=X is this window's OWN deep-link
+  // state — read/written under the `agents.` namespace, no pathname flip.
+  const p = useSurfaceParam('agents');
   const { agents, tasks, loading } = useAgentsAndRecurrences();
 
-  const agentFromUrl = searchParams.get('agent');
+  const agentFromUrl = p.get('agent');
 
   // Detail mode is URL-driven. Intra-surface state — D19.4: ?agent=X is
   // window-internal deep-link, not cross-surface navigation.
@@ -84,7 +82,7 @@ export default function AgentsPage() {
           <div>
             <p className="text-sm font-medium text-muted-foreground mb-3">Systemic</p>
             <button
-              onClick={() => setSurfaceParams({ agent: 'reviewer' })}
+              onClick={() => p.set({ agent: 'reviewer' })}
               className="w-full text-left rounded-lg border border-border/60 bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
             >
               <p className="text-sm font-medium">Reviewer</p>
@@ -99,7 +97,7 @@ export default function AgentsPage() {
               {domainAgents.map(a => (
                 <button
                   key={a.id}
-                  onClick={() => setSurfaceParams({ agent: getAgentSlug(a) })}
+                  onClick={() => p.set({ agent: getAgentSlug(a) })}
                   className="text-left rounded-lg border border-border/60 bg-card px-4 py-3 hover:bg-muted/30 transition-colors"
                 >
                   <p className="text-sm font-medium">{a.title}</p>
