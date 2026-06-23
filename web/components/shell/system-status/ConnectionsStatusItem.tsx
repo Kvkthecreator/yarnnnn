@@ -76,26 +76,42 @@ export function ConnectionsStatusItem() {
   const requiredPlatforms = new Set(gaps.map((g) => g.requires_platform));
   const extraConnected = connectedPlatforms.filter((p) => !requiredPlatforms.has(p));
 
-  const tone: StatusTone =
-    totalDeclared > 0 ? (unmet > 0 ? 'warn' : 'ok') : 'muted';
+  // The real connected inventory across the account (not just the program's
+  // required set). The header leads with this so 3 connected + 1 required
+  // gap never reads as "0/1 connected" (operator-flagged 2026-06-23).
+  const totalConnected = connectedPlatforms.length;
+
+  // Tone: a required gap is a SOFT condition — the agent degrades to
+  // knowledge mode, it does not break — so it is NOT an error/warn color.
+  // Keep the chip neutral (muted) when nothing's connected, and primary
+  // (ok) once any platform is connected, regardless of an unmet required
+  // gap. (operator-flagged 2026-06-23: 1-of-1 required unmet against 3
+  // connected should not paint the cluster orange.)
+  const tone: StatusTone = totalConnected > 0 ? 'ok' : 'muted';
 
   // ADR-297 D20 amendment: canonical surface icon for /connectors
   // (resolved from kernel_surfaces.icon_key = "link-2").
   const ConnectionsIcon = resolveSurfaceIcon('link-2');
 
-  const tooltip =
-    totalDeclared > 0
-      ? `Connections: ${connected}/${totalDeclared} required`
-      : connectedPlatforms.length > 0
-        ? `${connectedPlatforms.length} platform${connectedPlatforms.length === 1 ? '' : 's'} connected`
-        : 'No platforms connected';
+  const plural = (n: number) => (n === 1 ? '' : 's');
 
+  // Header + tooltip lead with the connected inventory; the required gap is
+  // a secondary clause, not the headline.
   const headerLabel =
-    totalDeclared > 0
-      ? `${connected}/${totalDeclared} required connected`
-      : connectedPlatforms.length > 0
-        ? `${connectedPlatforms.length} connected`
+    totalConnected > 0
+      ? unmet > 0
+        ? `${totalConnected} connected · ${unmet} required missing`
+        : `${totalConnected} connected`
+      : unmet > 0
+        ? `${unmet} required platform${plural(unmet)} missing`
         : 'No connections';
+
+  const tooltip =
+    totalConnected > 0
+      ? unmet > 0
+        ? `${totalConnected} connected · ${unmet} required missing`
+        : `${totalConnected} platform${plural(totalConnected)} connected`
+      : 'No platforms connected';
 
   const popoverHeader = (
     <div className="flex items-center gap-2">
@@ -110,14 +126,17 @@ export function ConnectionsStatusItem() {
         <>
           <p>
             {unmet > 0
-              ? `${unmet} required platform${unmet === 1 ? '' : 's'} unmet — agent runs in knowledge mode without it.`
+              ? `${unmet} required platform${plural(unmet)} not yet connected — the agent runs in knowledge mode until then.`
               : 'All required platforms connected.'}
           </p>
           <div className="pt-1 space-y-0.5">
             {gaps.map((gap: CapabilityGap) => (
               <div key={gap.capability} className="flex justify-between items-center">
                 <span className="capitalize">{gap.requires_platform}</span>
-                <span className={gap.connected ? 'text-emerald-600' : 'text-amber-600'}>
+                {/* A missing required platform is a SOFT condition (degrades
+                    to knowledge mode) — render it neutral/muted, not the
+                    amber error tone (operator-flagged 2026-06-23). */}
+                <span className={gap.connected ? 'text-emerald-600' : 'text-muted-foreground'}>
                   {gap.connected ? '● connected' : '○ not connected'}
                 </span>
               </div>

@@ -94,11 +94,50 @@ export function AutonomyStatusItem() {
     </div>
   );
 
+  // The hard safety list — actions/paths that ALWAYS queue regardless of
+  // delegation (default_never_auto). Per-domain overrides too. Surfacing
+  // these gives the popover the same key/value depth the Budget popover has.
+  const neverAuto = meta?.default_never_auto ?? [];
+  const domains = meta?.domains ?? {};
+  const domainNames = Object.keys(domains);
+
   const popoverBody = (
-    <div className="space-y-1 text-muted-foreground text-xs">
+    <div className="space-y-1.5 text-muted-foreground text-xs">
       <p>{isPaused && pause.reason ? `Reason: ${pause.reason}` : delegationDescription(effectiveDelegation)}</p>
-      {!isPaused && ceilingCents && effectiveDelegation === 'bounded' && (
-        <p>Ceiling per capital action: ${(ceilingCents / 100).toLocaleString()}.</p>
+
+      {!isPaused && (
+        <div className="pt-1 space-y-0.5">
+          {/* Ceiling — the per-action cap. Shown for any configured level
+              (it bounds even "Full auto"), not just bounded. */}
+          {ceilingCents != null && (
+            <div className="flex justify-between">
+              <span>Ceiling per action</span>
+              <span className="font-mono">${(ceilingCents / 100).toLocaleString()}</span>
+            </div>
+          )}
+          {/* The hard safety list — always queues regardless of level. */}
+          {neverAuto.length > 0 && (
+            <div className="flex justify-between gap-3">
+              <span className="shrink-0">Always queues</span>
+              <span className="text-right truncate" title={neverAuto.join(', ')}>
+                {neverAuto.length === 1
+                  ? neverAuto[0]
+                  : `${neverAuto.length} guarded actions`}
+              </span>
+            </div>
+          )}
+          {/* Per-domain overrides, if the operator set any. */}
+          {domainNames.length > 0 && (
+            <div className="flex justify-between">
+              <span>Domain overrides</span>
+              <span className="font-mono">{domainNames.length}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {!isPaused && effectiveDelegation === 'bounded' && ceilingCents != null && (
+        <p className="pt-0.5">Above the ceiling, capital actions queue for your approval.</p>
       )}
     </div>
   );

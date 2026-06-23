@@ -499,7 +499,30 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
         }
         return ok;
       }
-      return foregroundWindowGrade(slug);
+      // Window-grade surface (no pane_of). ADR-358 (2026-06-23) — clear any
+      // stale `?pane=` left by a prior pane navigation. `?pane=` is a single
+      // global query param but each window has its OWN pane vocabulary
+      // (settings: billing/usage/account; workspace-settings: mandate/
+      // autonomy/connectors/…). Foregrounding a window while a foreign
+      // window's pane lingers made the URL and the rendered pane disagree —
+      // e.g. /desktop?pane=connectors with the account (settings) window
+      // showing Billing, because settings doesn't know `connectors` and
+      // falls back to its default (operator-flagged 2026-06-23). Dropping
+      // the stale pane on a window-grade foreground keeps URL ↔ render in
+      // sync; the window then opens at its own default pane.
+      const ok = foregroundWindowGrade(slug);
+      if (ok && typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        if (url.searchParams.has('pane')) {
+          url.searchParams.delete('pane');
+          window.history.replaceState(
+            null,
+            '',
+            url.pathname + (url.search || '') + url.hash
+          );
+        }
+      }
+      return ok;
     },
     [composition.surfaces, foregroundWindowGrade]
   );
