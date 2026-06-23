@@ -48,7 +48,6 @@ import { formatRelativeTime } from '@/lib/formatting';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { Z_POPOVER } from '@/lib/shell/z-tiers';
 import { cn } from '@/lib/utils';
-import { useRouter } from 'next/navigation';
 
 const REFRESH_INTERVAL_MS = 60_000;
 const LOW_BALANCE_THRESHOLD_USD = 1.0;
@@ -111,7 +110,6 @@ export function AttentionCenter() {
   // ADR-346: navigateToSurface (not foregroundSurface) — it writes the
   // ?pane= param so the bell lands on the right Operation act.
   const { navigateToSurface } = useSurfacePreferences();
-  const router = useRouter();
 
   useEffect(() => {
     let cancelled = false;
@@ -236,12 +234,17 @@ export function AttentionCenter() {
     (target: 'resolve' | 'understand' | 'tune' | 'billing') => {
       setIsOpen(false);
       if (target === 'billing') {
-        router.push('/settings?pane=billing');
+        // ADR-358 (2026-06-23) — open the billing pane of the account
+        // (settings) window via navigateToSurface, which keeps the /desktop
+        // pathname (History-API param update). The prior router.push(
+        // '/settings?pane=billing') was a full-page nav that left the SPA
+        // and reset the chat rail.
+        navigateToSurface('settings', { pane: 'billing' });
       } else {
         navigateToSurface('notifications', { pane: target });
       }
     },
-    [navigateToSurface, router],
+    [navigateToSurface],
   );
 
   // ADR-340 P4 F3: operator-language labels via the shared labeler —

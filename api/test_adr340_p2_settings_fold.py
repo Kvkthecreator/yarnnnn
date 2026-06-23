@@ -149,7 +149,15 @@ def test_window_manager_resolution() -> None:
     print("\n[nav] foregroundSurface resolves pane-grade slugs")
     src = _read("lib/shell/useSurfacePreferences.tsx")
     check("pane resolution wrapper present", "pane_of" in src and "foregroundWindowGrade" in src)
-    check("pane delivery via parent route + ?pane=", "?pane=${slug}" in src)
+    # ADR-358 (2026-06-23): the pane is delivered by setting `?pane=` on the
+    # CURRENT pathname via history.replaceState (preserving the /desktop
+    # baseline), not by router.push-ing the parent's page route. Assert the
+    # durable behavior — `?pane=` reaches the URL via searchParams.set —
+    # rather than the old `?pane=${slug}` parent-route template literal.
+    check(
+        "pane delivered via ?pane= without a pathname flip",
+        "searchParams.set('pane', slug)" in src,
+    )
     viewport = _read("components/shell/SurfaceViewport.tsx")
     check("viewport filters pane-grade slugs from window mounting", "paneSlugs" in viewport)
     topbar = _read("components/shell/chrome/TopBarSurface.tsx")

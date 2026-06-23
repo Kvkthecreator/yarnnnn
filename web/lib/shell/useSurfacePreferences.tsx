@@ -477,15 +477,31 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       const entry = surfaces.find((s) => s.slug === slug);
       const parentSlug = entry?.pane_of;
       if (parentSlug && parentSlug !== slug) {
-        const parent = surfaces.find((s) => s.slug === parentSlug);
-        const parentRoute = parent?.route || `/${parentSlug}`;
         const ok = foregroundWindowGrade(parentSlug);
-        if (ok) router.push(`${parentRoute}?pane=${slug}`);
+        // ADR-358 (2026-06-23) — deliver the pane selection by updating the
+        // `?pane=` query via the History API, PRESERVING the current
+        // pathname (the `/desktop` baseline). Previously this pushed the
+        // parent's own page route (e.g. /workspace-settings) carrying the
+        // pane query — a real Next.js navigation that left the desktop SPA,
+        // reset the chat rail's open/closed posture, and broke the Canvas
+        // two-pane continuity. Per ADR-297 D19.6 the pane is intra-surface
+        // deep-link state; updating it must NOT flip the pathname. The
+        // foregrounded window reads `?pane=` from useSearchParams regardless
+        // of pathname.
+        if (ok && typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          url.searchParams.set('pane', slug);
+          window.history.replaceState(
+            null,
+            '',
+            url.pathname + (url.search || '') + url.hash
+          );
+        }
         return ok;
       }
       return foregroundWindowGrade(slug);
     },
-    [composition.surfaces, foregroundWindowGrade, router]
+    [composition.surfaces, foregroundWindowGrade]
   );
 
   // ADR-297 D19.5 (navigation enactment, 2026-05-30): the single
@@ -499,20 +515,28 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       // Only write the URL when there are params to deliver. Bare
       // navigation leaves the URL as-is per D19.2 (Dock dot is the
       // canonical foreground signal, not the URL).
-      if (ok && params && Object.keys(params).length > 0) {
-        const surfaces = composition.surfaces || [];
-        const target = surfaces.find((s) => s.slug === slug);
-        const route = target?.route || `/${slug}`;
-        const sp = new URLSearchParams();
+      //
+      // ADR-358 (2026-06-23) — deliver params via the History API,
+      // PRESERVING the current pathname (the `/desktop` baseline), instead
+      // of `router.push(`${route}?${qs}`)` which flipped the pathname to
+      // the surface's own page route (a real navigation that left the SPA
+      // and reset chat). Per ADR-297 D19.6, deep-link params are
+      // intra-surface state; the foregrounded window reads them from
+      // useSearchParams regardless of pathname.
+      if (ok && params && Object.keys(params).length > 0 && typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
         Object.entries(params).forEach(([k, v]) => {
-          if (v != null && v !== '') sp.set(k, v);
+          if (v != null && v !== '') url.searchParams.set(k, v);
         });
-        const qs = sp.toString();
-        router.push(qs ? `${route}?${qs}` : route);
+        window.history.replaceState(
+          null,
+          '',
+          url.pathname + (url.search || '') + url.hash
+        );
       }
       return ok;
     },
-    [foregroundSurface, composition.surfaces, router]
+    [foregroundSurface]
   );
 
   // ADR-297 D19.6 (2026-06-12): intra-surface deep-link update with NO

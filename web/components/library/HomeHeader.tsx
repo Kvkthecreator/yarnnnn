@@ -36,7 +36,6 @@
  */
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { MessageSquare, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useAutonomy } from '@/lib/content-shapes/autonomy';
@@ -47,10 +46,6 @@ import { useHome } from './HomeContext';
 import { cn } from '@/lib/utils';
 
 const MANDATE_PATH = '/workspace/constitution/MANDATE.md';
-// ADR-347: Autonomy (Witness) is a Contract pane inside the ONE Settings
-// door (the operation's settings); the dissolved System Settings door's
-// account moved to the UserMenu. The /autonomy route is a redirect stub.
-const AUTONOMY_EDIT_HREF = '/workspace-settings?pane=autonomy';
 
 // ---------------------------------------------------------------------------
 // Constitution links — ADR-340 P3
@@ -92,6 +87,13 @@ function ConstitutionLinks() {
 // ---------------------------------------------------------------------------
 
 function AutonomyBadge({ level, summary }: { level: AutonomyDelegation | null; summary: string }) {
+  // ADR-358 (2026-06-23) — open the Autonomy pane via foregroundSurface
+  // (which resolves the pane to its parent window + ?pane= WITHOUT flipping
+  // the pathname), NOT a <Link> to /workspace-settings?pane=autonomy. The
+  // <Link> did a full Next.js navigation that left the /desktop SPA and
+  // reset the chat rail — breaking the Canvas two-pane continuity. Matches
+  // the ConstitutionLinks pattern above.
+  const { foregroundSurface } = useSurfacePreferences();
   const Icon =
     level === 'autonomous' ? ShieldCheck :
     level === 'bounded' ? ShieldAlert :
@@ -103,8 +105,9 @@ function AutonomyBadge({ level, summary }: { level: AutonomyDelegation | null; s
     'text-muted-foreground/50';
 
   return (
-    <Link
-      href={AUTONOMY_EDIT_HREF}
+    <button
+      type="button"
+      onClick={() => foregroundSurface('autonomy')}
       className={cn(
         'flex items-center gap-1.5 text-[11px] font-medium hover:opacity-80 transition-opacity',
         colorClass,
@@ -113,7 +116,7 @@ function AutonomyBadge({ level, summary }: { level: AutonomyDelegation | null; s
     >
       {Icon && <Icon className="h-3 w-3 shrink-0" />}
       <span className="capitalize">{(level ?? 'manual').replace(/_/g, ' ')}</span>
-    </Link>
+    </button>
   );
 }
 

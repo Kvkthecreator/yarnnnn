@@ -25,7 +25,7 @@
  */
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { Wallet, ArrowRight, CreditCard } from 'lucide-react';
 import {
   useCockpitBudget,
@@ -121,7 +121,7 @@ export function BudgetCard({
 }: BudgetCardProps) {
   const { meta, utilization, loading, summary, setBudget } = useCockpitBudget({ initialContent });
   const [pendingWindow, setPendingWindow] = useState<BudgetWindow | null>(null);
-  const router = useRouter();
+  const { navigateToSurface } = useSurfacePreferences();
 
   const amount = meta?.amount_usd ?? utilization?.amount_usd ?? null;
   const window = meta?.window ?? utilization?.window ?? null;
@@ -317,7 +317,7 @@ export function BudgetCard({
             </p>
             <button
               type="button"
-              onClick={() => router.push('/settings?pane=billing')}
+              onClick={() => navigateToSurface('settings', { pane: 'billing' })}
               className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline shrink-0"
             >
               <CreditCard className="w-3.5 h-3.5" />

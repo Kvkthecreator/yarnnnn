@@ -164,6 +164,29 @@ def test_navigation_primitive_exists() -> None:
         re.search(r"navigateToSurface\s*:\s*\(", hook) is not None,
         "navigateToSurface is on the SurfacePreferences interface",
     )
+    # ADR-358 (2026-06-23): in-app surface navigation must PRESERVE the
+    # /desktop pathname (deliver pane/params via history.replaceState), never
+    # flip the pathname to a surface's own page route. A pathname flip is a
+    # real Next.js navigation that leaves the SPA, unmounts the shell, and
+    # resets the chat rail — breaking the Canvas two-pane continuity.
+    # Guard against the regression: the pane-resolution branch in
+    # foregroundSurface + the param branch in navigateToSurface must NOT
+    # router.push a `?pane=`/param route; they use history.replaceState.
+    _assert(
+        "router.push(`${parentRoute}?pane=" not in hook,
+        "foregroundSurface does NOT router.push a parent-route pane flip "
+        "(must preserve pathname via history.replaceState — ADR-358)",
+    )
+    _assert(
+        "router.push(qs ? `${route}?${qs}`" not in hook,
+        "navigateToSurface does NOT router.push a param route flip "
+        "(must preserve pathname via history.replaceState — ADR-358)",
+    )
+    _assert(
+        hook.count("window.history.replaceState") >= 3,
+        "foregroundSurface + navigateToSurface + setSurfaceParams all "
+        "deliver params via history.replaceState (pathname preserved)",
+    )
 
 
 # =============================================================================
