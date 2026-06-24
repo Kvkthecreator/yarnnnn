@@ -381,12 +381,12 @@ forward. When it doesn't, the task plus standing_intent is the whole
 cycle. This is judgment, not a checklist: reason about your forward state,
 don't run a fixed list.
 
-**Close every cycle with a verdict or a standing_intent write.** A cycle that
-fires an action closes with ReturnVerdict. A cycle that decides nothing
-material closes by writing /workspace/persona/standing_intent.md naming what
-you looked at and why nothing was warranted. Without one of those, you have
-observed, not judged. (On proposal-trigger wakes, ReturnVerdict is the
-substrate-of-record and comes first.)
+**Close every cycle with a verdict.** Answer the ask, then call ReturnVerdict —
+that IS the close. A cycle that decides nothing material still closes with
+ReturnVerdict (`stand_down`, reasoning naming what you looked at and why);
+optionally write standing_intent.md to carry forward what you're watching. (On
+proposal wakes, ReturnVerdict comes first.) Exiting WITHOUT a ReturnVerdict
+records the ask as unanswered — a fault, not a stand-down.
 
 **Narrate your direction in first person**, plainly. "The upstream data I'd
 judge against is stale; I've authored standing intent for when it refreshes"
@@ -1128,12 +1128,10 @@ async def invoke_reviewer(
         messages: list[dict] = [{"role": "user", "content": user_message}]
         actions_taken: list[dict] = []
         verdict_raw: dict | None = None
-        # ADR-303 amendment (P6, 2026-06-01): one-shot recovery for a verdict
-        # emitted as prose instead of a ReturnVerdict call. Set True after the
-        # first recovery nudge so a second text-only round falls through to the
-        # honest dispatcher fallback (with the recovered verdict, not a
-        # fabricated stand_down) instead of nudging forever.
-        verdict_recovery_nudged = False
+        # ADR-360 Stage 4: the verdict-in-prose recovery nudge + silent-exit
+        # synthesizer are deleted. A no-tool-call round breaks to the honest
+        # terminal (return None → caller records `failed`); `verdict_raw` is only
+        # ever set by a real model-authored ReturnVerdict now.
 
         # ADR-260 D8 + ADR-263 + 2026-05-21 population audit
         # (docs/evaluations/2026-05-21-014009-reviewer-round-budget-population-
@@ -1168,6 +1166,13 @@ async def invoke_reviewer(
             # On cancel: exit early with stand_down verdict; the caller
             # then resets the flag for the next session.
             if _check_session_cancellation(client, user_id):
+                # This is a DISTINCT stand_down — the operator pressed Stop, an
+                # explicit operator-authored close. It is NOT the inaction-default
+                # recovery net that ADR-360 Stage 4 deleted (a silent no-tool-call
+                # exit now returns None → recorded `failed`, the honest-unanswered
+                # path). Operator-Stop is a real, intended stand_down and survives.
+                # Kept inline (not extracted) because it reads 8 loop-local
+                # accumulators; a module-level helper would need all 8 as params.
                 logger.info(
                     "[REVIEWER] cancellation_requested honored at round %d/%d trigger=%s user=%s",
                     rounds_used, max_rounds, trigger, user_id[:8],
@@ -1273,78 +1278,24 @@ async def invoke_reviewer(
                 messages.append({"role": "assistant", "content": assistant_content})
 
             if not tool_uses:
-                text_fallback = (response.text or "").strip()
-                # ADR-303 amendment (P6, 2026-06-01) — verdict-in-prose recovery.
-                # Distinguish a synthesized-but-unwrapped verdict (the model
-                # wrote a real approve/defer/reject or a rule-by-rule audit as
-                # PROSE — the channel-shape mismatch) from a genuinely-confused
-                # P5 text-only exit. For the former we give the model ONE
-                # recovery nudge to re-emit as a ReturnVerdict, preserving its
-                # autonomy (ADR-303's stated reason for deferring in-loop
-                # intervention) rather than fabricating a contradicting
-                # `stand_down`.
-                detected_verdict = _looks_like_verdict(text_fallback)
-                if detected_verdict and not verdict_recovery_nudged:
-                    logger.warning(
-                        "[REVIEWER] verdict-in-prose detected (%s) round %d "
-                        "trigger=%s user=%s — issuing one-shot recovery nudge",
-                        detected_verdict, _round, trigger, user_id[:8],
-                    )
-                    verdict_recovery_nudged = True
-                    # The text-only assistant turn is already appended above.
-                    # Add a user-turn nudge and CONTINUE the loop (do not break).
-                    messages.append({
-                        "role": "user",
-                        "content": [{
-                            "type": "text",
-                            "text": (
-                                "You produced your verdict as prose, but a verdict "
-                                "is an ACTION — it must be a tool call to close the "
-                                "turn. If your full rule-by-rule audit is not yet in "
-                                "judgment_log.md, WriteFile it there first (it is the "
-                                "verdict-of-record). Then call ReturnVerdict("
-                                f"verdict='{detected_verdict}', reasoning='[one-sentence "
-                                "headline]', confidence=...) to close. Do not restate "
-                                "the full audit in reasoning — it lives in judgment_log.md."
-                            ),
-                        }],
-                    })
-                    continue
-
-                # P5 (text-only-mid-loop) OR P6-unrecovered (nudged once, still
-                # text-only). The dispatcher synthesizes the substrate side-effect
-                # contract per ADR-303 D2 — `standing_intent.md` write attributed
-                # `dispatcher:silent_exit_fallback` (distinct from `reviewer:...`
-                # per ADR-303 D6). When a verdict was detected but recovery
-                # failed, the synthesized verdict is the RECOVERED one (honest)
-                # not a fabricated `stand_down`.
-                if text_fallback:
-                    if detected_verdict and verdict_recovery_nudged:
-                        exit_class = "verdict_in_prose_unrecovered"
-                        recovered = detected_verdict
-                    else:
-                        exit_class = "text_only_mid_loop"
-                        recovered = None
-                    logger.warning(
-                        "[REVIEWER] %s round %d trigger=%s user=%s recovered=%s",
-                        exit_class, _round, trigger, user_id[:8], recovered,
-                    )
-                    await _dispatcher_write_silent_exit_standing_intent(
-                        client=client,
-                        user_id=user_id,
-                        exit_class=exit_class,
-                        exit_round=rounds_used,
-                        max_rounds=max_rounds,
-                        trigger=trigger,
-                        slug=context.get("recurrence_slug") if isinstance(context, dict) else None,
-                        prose=text_fallback,
-                        recovered_verdict=recovered,
-                    )
-                    verdict_raw = {
-                        "verdict": recovered or "stand_down",
-                        "reasoning": text_fallback[:1000],
-                        "confidence": "medium",
-                    }
+                # ADR-360 Stage 4: the silent-exit RECOVERY NET is deleted. A
+                # round that yields no tool call means the model did not close
+                # with ReturnVerdict. We no longer fabricate a verdict or write a
+                # dispatcher-attributed standing_intent to launder that into a
+                # clean `stand_down`. `verdict_raw` stays as-is (None unless an
+                # earlier ReturnVerdict set it), so the loop falls through to the
+                # honest terminal: invoke_reviewer returns None, which the caller
+                # (wake.py SILENT-WAKE path) records as a visible `failed`
+                # execution_event + a material "produced no judgment" narrative.
+                # An unanswered ask is visible AS unanswered (ADR-360 DP32) — not
+                # masked as a deliberate stand-down. The model's last prose, if
+                # any, is preserved in the log line for diagnosis.
+                _last_prose = (response.text or "").strip()
+                logger.warning(
+                    "[REVIEWER] no-tool-call exit round %d/%d trigger=%s user=%s "
+                    "(no recovery net — returns None → recorded failed). last_prose=%r",
+                    rounds_used, max_rounds, trigger, user_id[:8], _last_prose[:200],
+                )
                 break
 
             tool_results: list[dict] = []
@@ -1538,12 +1489,13 @@ async def invoke_reviewer(
         # `execution_events` row is now the sole authoritative record.
 
         if verdict_raw is None:
-            # P4 (budget-exhausted) per ADR-303 D1. The model worked through
-            # the full round budget without calling ReturnVerdict. The
-            # dispatcher synthesizes the substrate side-effect contract for
-            # this cell per ADR-303 D2 — `standing_intent.md` write attributed
-            # `dispatcher:silent_exit_fallback` (distinct from `reviewer:...`
-            # per ADR-303 D6).
+            # ADR-360 Stage 4: budget-exhausted with no ReturnVerdict. The
+            # RECOVERY NET is deleted — we no longer fabricate a `stand_down`
+            # verdict + dispatcher standing_intent to mask a non-judging wake as
+            # a clean close. Return None: the caller (wake.py SILENT-WAKE path)
+            # records a visible `failed` execution_event + a material "produced
+            # no judgment" narrative. An unanswered ask is visible AS unanswered
+            # (ADR-360 DP32). The model's last prose is logged for diagnosis.
             last_text = ""
             for m in reversed(messages):
                 if m.get("role") != "assistant":
@@ -1556,28 +1508,11 @@ async def invoke_reviewer(
                 if last_text:
                     break
             logger.warning(
-                "[REVIEWER] no ReturnVerdict after %d rounds trigger=%s user=%s",
-                max_rounds, trigger, user_id[:8],
+                "[REVIEWER] no ReturnVerdict after %d rounds trigger=%s user=%s "
+                "(no recovery net — returns None → recorded failed). last_prose=%r",
+                max_rounds, trigger, user_id[:8], last_text[:200],
             )
-            fallback_reasoning = last_text or (
-                "I was unable to reach a verdict within my round budget. "
-                "Substrate may need refresh — fire track-universe or signal-evaluation."
-            )
-            await _dispatcher_write_silent_exit_standing_intent(
-                client=client,
-                user_id=user_id,
-                exit_class="budget_exhausted",
-                exit_round=rounds_used,
-                max_rounds=max_rounds,
-                trigger=trigger,
-                slug=context.get("recurrence_slug") if isinstance(context, dict) else None,
-                prose=fallback_reasoning,
-            )
-            verdict_raw = {
-                "verdict": "stand_down",
-                "reasoning": fallback_reasoning,
-                "confidence": "low",
-            }
+            return None
 
         verdict = verdict_raw.get("verdict", "")
         reasoning = (verdict_raw.get("reasoning") or "").strip()
@@ -1653,179 +1588,6 @@ async def invoke_reviewer(
             trigger, user_id[:8] if user_id else "?", exc,
         )
         return None
-
-
-# ADR-303 amendment (P6 — verdict-in-prose) — 2026-06-01
-# The model can synthesize a full, correct verdict and emit it as a TEXT block
-# instead of wrapping it in ReturnVerdict (the channel-shape mismatch surfaced
-# by the moat-thesis audit: a long rule-by-rule audit document does not fit the
-# 2-5-sentence ReturnVerdict.reasoning field, so the model writes it as prose).
-# This is NOT P5-Confused ("unable to synthesize") — it is a correctly-reasoned
-# verdict in the wrong channel. `_looks_like_verdict` distinguishes the two so
-# the in-loop guard can recover the verdict instead of fabricating a
-# contradicting `stand_down`.
-_VERDICT_TOKEN_RE = re.compile(
-    r"\b(approve[d]?|reject[ed]?|defer(?:red)?|stand[\s_-]?down)\b",
-    re.IGNORECASE,
-)
-# Audit-structure markers — a rule-by-rule audit document the model produced as
-# prose. Their presence is strong evidence of a synthesized-but-unwrapped verdict.
-_AUDIT_STRUCTURE_RE = re.compile(
-    r"(##\s*Pre-Ship Audit|###\s*Rule\s*\d|voice-fingerprint-match|anti-slop)",
-    re.IGNORECASE,
-)
-
-
-def _looks_like_verdict(text: str) -> Optional[str]:
-    """Detect a synthesized-but-unwrapped verdict in a text-only response (P6).
-
-    Returns the canonical verdict token (`approve` | `reject` | `defer`) when the
-    prose clearly carries one OR carries audit-document structure (rule-by-rule
-    walk), else None. The token is derived for the dispatcher fallback so a
-    recovered verdict is honest (`reject` not a fabricated `stand_down`).
-
-    Heuristic, deliberately conservative: a None return routes to the existing
-    text_only_mid_loop path (no behavior change for genuinely-confused exits).
-    """
-    if not text or not text.strip():
-        return None
-    has_structure = bool(_AUDIT_STRUCTURE_RE.search(text))
-    m = _VERDICT_TOKEN_RE.search(text)
-    if not m and not has_structure:
-        return None
-    if m:
-        tok = m.group(1).lower()
-        if tok.startswith("approve"):
-            return "approve"
-        if tok.startswith("reject"):
-            return "reject"
-        if tok.startswith("defer"):
-            return "defer"
-        # "stand down" in prose is a real stand-down, not a wrong-channel verdict.
-        return None
-    # Audit structure present but no explicit verdict token → the model walked
-    # the rules but didn't state a headline. Treat as defer (operator-actionable:
-    # "the audit ran but the verdict line is missing") rather than stand_down.
-    return "defer"
-
-
-async def _dispatcher_write_silent_exit_standing_intent(
-    *,
-    client: Any,
-    user_id: str,
-    exit_class: str,
-    exit_round: int,
-    max_rounds: int,
-    trigger: str,
-    slug: Optional[str],
-    prose: str,
-    recovered_verdict: Optional[str] = None,
-) -> None:
-    """ADR-303 D2 + D6 — dispatcher-attributed substrate fallback for the
-    P4 (budget-exhausted) and P5 (text-only-mid-loop) posture cells.
-
-    Per ADR-303 D1, the Reviewer's possible cycle-exit shapes are exhaustively
-    enumerated as five cells. P1 (fired-correctly) and P2 (decided-nothing-
-    material) produce substrate via model-authored ReturnVerdict + WriteFile.
-    P4 + P5 exit without authoring any operator-readable substrate. Pre-
-    this commit, those exits left the operator with no visibility into
-    what the Reviewer was thinking — even though the model's last prose
-    was captured in memory.
-
-    This helper writes a structured `standing_intent.md` revision carrying:
-    - exit_class (`budget_exhausted` for P4, `text_only_mid_loop` for P5)
-    - exit_round + max_rounds (where in the budget the exit occurred)
-    - trigger + slug (which wake produced the silent exit)
-    - the last prose snippet (truncated to 600 chars, preserved verbatim)
-
-    Attribution is `dispatcher:silent_exit_fallback` per ADR-303 D6 — explicitly
-    distinct from `reviewer:{model}` so the operator and future evaluations
-    can tell model-authored intent from dispatcher-slot-filled fallback.
-
-    This is the load-bearing distinction that the reverted hotfix 9e7c1c7
-    failed to make. That hotfix attributed silent-exit substrate as
-    `reviewer:...`, contaminating the model-authorship signal. This helper
-    preserves the distinction at the attribution layer.
-
-    Failures during the dispatcher write are logged but never raised — the
-    parent fallback must still produce a verdict so the wake completes
-    cleanly at the queue.
-    """
-    from datetime import datetime, timezone
-    from services.authored_substrate import write_revision
-
-    timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    snippet = (prose or "").strip()
-    if len(snippet) > 600:
-        snippet = snippet[:600] + "…"
-    slug_line = f"trigger={trigger} slug={slug or '<n/a>'}"
-    # ADR-303 amendment (P6) — posture cell + synthesized-verdict line vary by class.
-    _POSTURE_CELLS = {
-        "budget_exhausted": "P4 (budget-exhausted)",
-        "text_only_mid_loop": "P5 (text-only-mid-loop)",
-        "verdict_in_prose_unrecovered": "P6 (verdict-in-prose, unrecovered)",
-    }
-    posture_cell = _POSTURE_CELLS.get(exit_class, "P5 (text-only-mid-loop)")
-    synthesized = recovered_verdict or "stand_down"
-    if exit_class == "verdict_in_prose_unrecovered":
-        verdict_line = (
-            f"- The Reviewer synthesized a verdict but emitted it as prose "
-            f"(channel-shape mismatch, P6) and did not re-wrap it after a "
-            f"recovery nudge. The dispatcher recovered `{synthesized}` from the "
-            f"prose below rather than fabricating a contradicting `stand_down`. "
-            f"This revision is dispatcher-authored, NOT reviewer-authored — "
-            f"distinguish via `authored_by` when reading."
-        )
-    else:
-        verdict_line = (
-            f"- The Reviewer did not call `ReturnVerdict`; the dispatcher "
-            f"synthesized a `{synthesized}` verdict using the last-prose snippet "
-            f"below. This revision is dispatcher-authored, NOT reviewer-"
-            f"authored — distinguish via `authored_by` when reading."
-        )
-    body = (
-        f"---\n"
-        f"as_of: {timestamp}\n"
-        f"horizon: short — until next wake\n"
-        f"silent_exit: {exit_class}\n"
-        f"posture_cell: {posture_cell}\n"
-        f"exit_round: {exit_round}\n"
-        f"max_rounds: {max_rounds}\n"
-        f"recovered_verdict: {synthesized}\n"
-        f"---\n\n"
-        f"# Standing intent — silent-exit fallback ({posture_cell})\n\n"
-        f"## Context\n"
-        f"- {slug_line}\n"
-        f"- This cycle exited via the silent-exit fallback path at "
-        f"round {exit_round}/{max_rounds}.\n"
-        f"{verdict_line}\n\n"
-        f"## Last-prose snippet (preserved verbatim, truncated to 600 chars)\n\n"
-        f"```\n{snippet or '<no text returned>'}\n```\n\n"
-        f"## What I'm watching for\n"
-        f"- Next wake on this slug should re-evaluate. If silent-exit "
-        f"recurs on the same slug + trigger pattern, the persona-frame "
-        f"or capability surface for this recurrence shape may need "
-        f"sharpening, or the substrate the Reviewer was reading may "
-        f"need refresh.\n"
-    )
-
-    try:
-        # write_revision is sync — first positional arg is db_client.
-        # See api/services/authored_substrate.py:264.
-        write_revision(
-            client,
-            user_id=user_id,
-            path="/workspace/persona/standing_intent.md",
-            content=body,
-            authored_by="dispatcher:silent_exit_fallback",
-            message=f"silent-exit fallback ({exit_class} @ round {exit_round}/{max_rounds})",
-        )
-    except Exception as exc:
-        logger.warning(
-            "[REVIEWER] dispatcher silent-exit standing_intent write failed "
-            "user=%s exit_class=%s: %s",
-            (user_id or "?")[:8], exit_class, exc,
-        )
 
 
 def _summarize_result(result: Any) -> str:

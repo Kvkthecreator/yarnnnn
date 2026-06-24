@@ -6,7 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.24.2] - ADR-360 Stage 4: delete the silent-exit recovery net; close-contract is answer-or-unanswered
+
+**LLM-facing changes:**
+- `api/agents/reviewer_agent.py::_compute_minimal_frame`: the cycle-close contract rewritten. WAS "Close every cycle with a verdict OR a standing_intent write" (a no-tool-call exit was laundered into a clean `stand_down` by the dispatcher). NOW "Close every cycle with a verdict" — answer the ask, call ReturnVerdict; exiting WITHOUT a ReturnVerdict records the ask as **unanswered (a fault, not a stand-down)**. `standing_intent.md` is optional carry-forward, not a required terminal move. Frame net +30 chars vs HEAD (ceiling overage is pre-existing prior-session rebloat, not this change).
+- `api/agents/reviewer_agent.py` loop: the **silent-exit RECOVERY NET deleted** (−238 LOC). Removed: `_looks_like_verdict` + verdict-token regexes, the verdict-in-prose recovery nudge, `_dispatcher_write_silent_exit_standing_intent` (the fabricated standing_intent), `_synthesize_silent_exit_verdict`, and both call sites. A no-tool-call round or budget-exhausted exit now `return None` → the caller (`wake.py` SILENT-WAKE path, unchanged) records a visible `failed` execution_event + a material "produced no judgment" narrative. **An unanswered ask is visible AS unanswered (ADR-360 DP32)** — the dispatcher no longer fabricates a verdict to mask non-judgment as a clean close.
+- `stand_down` stays a legitimate **model-authored** verdict (judged, nothing warranted); only the **fabricated-default** synthesis is removed.
+- Operator-Stop early-return (cancellation) is a DISTINCT, intended `stand_down` — untouched.
+- Tests: deleted `api/test_adr303_p6_verdict_in_prose.py` + `api/test_adr303_phase3_dispatcher_writes.py` (tested the now-deleted recovery net — Singular Implementation). Reviewer/wake gates: 62 passed; 2 pre-existing failures (bundle-prompt drift + frame-ceiling rebloat) both red on HEAD, ZERO new.
+- **Expected behavior**: a Reviewer wake that does not reach a model-authored ReturnVerdict is recorded as a failed/unanswered wake (visible, honest) instead of a fabricated `stand_down` no-op. Builds on ADR-360 Stages 1-3 (the ask-builder). Supersedes ADR-303's recovery-net machinery. **Note**: the full-loop E2E validation remains ungated (per operator decision 2026-06-24) — netflix test workspace exhausted; clean E2E pending a funded fresh-fork.
+
 ## [2026.06.24.1] - ADR-359: the occasion of work — computed wake-occasion + produce-close + non-performance (replaces frame-prose deferral)
+## ⚠️ SUPERSEDED by ADR-360 (this entry's code was reverted in ADR-360 Stage 1; the occasion logic re-homed in the ask-builder). Kept for history.
 
 **LLM-facing changes:**
 - `api/services/reviewer_envelope.py`: NEW `_compute_occasion_fact()` — computes the wake's occasion as a structural fact (owed-output from `_expected_output.yaml` + produced-artifact COUNT under `/workspace/operation/%/content.md` + occasion verdict now-vs-earned-later). Added `occasion_fact` to the envelope dict. DP19-aligned (bounded substrate read, same shape as `_inventory_specs`), NOT LLM-time state derivation.
