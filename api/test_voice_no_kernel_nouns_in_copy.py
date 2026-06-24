@@ -169,12 +169,6 @@ ALLOWLIST_PHASE2: list[str] = [
     # surfaces remain. SHRINK this list as each surface gets its copy pass (spec
     # §5 order: governance cards done → nav/empty-states → settings/marketing).
     "web/app/about/page.tsx::body: \"Fix something once and everythin",
-    "web/app/(authenticated)/settings/page.tsx::<div className=\"text-xs text-muted-fore",
-    "web/app/(authenticated)/settings/page.tsx::<li>Per-recurrence <code>_run_log.md</co",
-    "web/app/(authenticated)/settings/page.tsx::<strong>Preserved:</strong> all recurren",
-    "web/app/(authenticated)/settings/page.tsx::<li>{dangerStats?.workspace_files} works",
-    "web/app/(authenticated)/settings/page.tsx::<li>All recurrences, activity history, a",
-    "web/app/(authenticated)/settings/page.tsx::<li>{dangerStats?.agents} agents and all",
     "web/app/(authenticated)/notifications/page.tsx::link={<MirrorLink label=\"Open run ledge",
     "web/app/(authenticated)/notifications/page.tsx::link={<MirrorLink label=\"Open full Recu",
     "web/app/invest/page.tsx::<p className=\"text-white/60 font-medium",

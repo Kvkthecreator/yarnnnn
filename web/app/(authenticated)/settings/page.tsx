@@ -539,7 +539,7 @@ export default function SettingsPage() {
                 <div className="p-4 border border-border rounded-lg text-center">
                   <FolderKanban className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
                   <div className="text-2xl font-bold">{dangerStats.tasks}</div>
-                  <div className="text-xs text-muted-foreground">Recurrences</div>
+                  <div className="text-xs text-muted-foreground">Scheduled work</div>
                 </div>
                 <div className="p-4 border border-border rounded-lg text-center">
                   <Database className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
@@ -569,7 +569,7 @@ export default function SettingsPage() {
                         Clear Work History
                       </div>
                       <div className="text-sm text-muted-foreground">
-                        Delete {dangerStats.agent_runs} past run records and all dated output folders. Recurrences, agents, identity, and accumulated context are preserved.
+                        Delete {dangerStats.agent_runs} past run records and all dated output folders. Scheduled work, agents, identity, and accumulated context are preserved.
                       </div>
                     </div>
                     <button
@@ -802,10 +802,10 @@ export default function SettingsPage() {
                   <ul className="list-disc list-inside text-sm space-y-1">
                     <li>{dangerStats?.agent_runs} past invocation records</li>
                     <li>All dated output folders under <code>/workspace/operation/reports/&lt;slug&gt;/</code> (every past deliverable)</li>
-                    <li>Per-recurrence <code>_run_log.md</code> files under <code>/workspace/operation/reports/</code> and <code>/workspace/operation/operations/</code> (re-created on next run)</li>
+                    <li>The run log for each scheduled item (re-created on the next run)</li>
                   </ul>
                   <p className="mt-2 text-sm">
-                    <strong>Preserved:</strong> all recurrence YAML declarations, all agents, identity/brand/mandate, accumulated context domains, chat sessions, platform connections, operator-authored feedback (<code>_feedback.md</code>) and intent (<code>_intent.md</code>) files. Your next scheduled invocation will populate fresh outputs.
+                    <strong>Preserved:</strong> all your scheduled work, all agents, your identity, brand, and mandate, accumulated context, chat history, platform connections, and your saved feedback and intent. The next scheduled run will produce fresh outputs.
                   </p>
                 </>
               )}
@@ -816,14 +816,14 @@ export default function SettingsPage() {
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
                     <li>{dangerStats?.agents} agents and all their runs</li>
-                    <li>{dangerStats?.workspace_files} workspace files (memory, context, outputs, recurrence declarations)</li>
-                    <li>All recurrences, activity history, and work budget records</li>
+                    <li>{dangerStats?.workspace_files} workspace files (memory, context, outputs, scheduled work)</li>
+                    <li>All scheduled work, activity history, and budget records</li>
                   </ul>
                   <p className="mt-2 text-sm">
-                    Your workspace will be re-scaffolded to a fresh state: default agent roster,
-                    identity/brand templates, and back-office plumbing. Recurrences and context
-                    domains start empty — you author them via chat. Platform connections remain
-                    intact.
+                    Your workspace will be reset to a fresh state: the default agents,
+                    your identity and brand templates, and the behind-the-scenes setup.
+                    Scheduled work and context start empty — you set them up in chat.
+                    Platform connections stay intact.
                   </p>
                 </>
               )}
@@ -847,15 +847,15 @@ export default function SettingsPage() {
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
                     <li>{dangerStats?.workspace_files} workspace files</li>
-                    <li>{dangerStats?.agents} agents and all recurrences</li>
+                    <li>{dangerStats?.agents} agents and all scheduled work</li>
                     <li>{dangerStats?.platform_connections} platform connections</li>
                     <li>{dangerStats?.chat_sessions} chat sessions</li>
                     <li>All memories, documents, activity, and sync data</li>
                   </ul>
                   <p className="mt-2 text-sm">
-                    Your account will remain active with a freshly re-scaffolded workspace
-                    (default agents and back-office plumbing restored; recurrences and context
-                    domains start empty).
+                    Your account stays active with a freshly reset workspace
+                    (the default agents and behind-the-scenes setup restored; scheduled
+                    work and context start empty).
                   </p>
                 </>
               )}
