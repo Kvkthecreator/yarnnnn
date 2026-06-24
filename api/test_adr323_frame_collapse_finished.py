@@ -40,16 +40,25 @@ def test_operating_posture_deleted():
 
 def test_system_prompt_under_ceiling():
     body = _system_body()
-    # Pre-collapse was ~16.5K. Ceiling raised 11K → 11.5K by ADR-344 (2026-06-18):
-    # three load-bearing kernel postures now share the situation-scoped paragraph —
-    # ADR-318 (forward-reasoning), ADR-342/343 (dormancy + aperture/floor), ADR-344
-    # (standing-obligation + the (A)/(B) classifier). Each is principal-shift, not
-    # rule-of-judgment (the derivations + thresholds live in principles.md per
-    # §3.2.1); the ceiling guards against rebloat, and 11.5K is still ~⅓ of the
-    # pre-collapse size. Raising it requires a same-rationale ADR — not a silent bump.
-    assert len(body) < 11_500, (
-        f"Composed system prompt is {len(body)} chars — must be < 11500 (ADR-344; "
-        f"was 11000 at ADR-323, ~16.5K pre-collapse). If over, the fix is almost "
+    # Pre-collapse was ~16.5K. Ceiling raised 11K → 11.5K by ADR-344 (2026-06-18),
+    # then 11.5K → 12K by ADR-365b (2026-06-24): the operator-facing structure
+    # directive in _compute_minimal_frame (lead-with-takeaway / expand-codenames /
+    # flowing-prose, with concrete bad→good examples) is the same CLASS of content
+    # as the postures already here — interface-grammar (how the operator-addressed
+    # channel is consumed), not a rule of judgment. It is the FIRST operator-facing-
+    # voice content the frame has ever carried that is EVIDENCE-BACKED: an A/B eval
+    # (docs/evaluations/2026-06-24-adr365b-composed-prose-VALIDATION.md;
+    # probe_adr365b_composed_prose_ab_local.py) measured +49–79% readability on the
+    # documents the Reviewer composes (standing_intent/judgment_log), scored by an
+    # LLM judge on the three CC dimensions. The examples are load-bearing (cutting
+    # one drops the effect) and cannot be trimmed under the previous 11.5K without
+    # mangling principal-shift postures (ADR-352 witness-dial, absent-MANDATE
+    # reasoning). This bump IS the "same-rationale" justification the prior comment
+    # required — the directive earns its space with a measured win, not a silent
+    # bump. 12K is still ~⅔ of the pre-collapse size.
+    assert len(body) < 12_000, (
+        f"Composed system prompt is {len(body)} chars — must be < 12000 (ADR-365b; "
+        f"was 11500 at ADR-344, ~16.5K pre-collapse). If over, the fix is almost "
         f"always to move a rule-of-judgment to principles.md, not raise the ceiling."
     )
 
