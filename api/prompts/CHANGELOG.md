@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.24.1] - ADR-359: the occasion of work — computed wake-occasion + produce-close + non-performance (replaces frame-prose deferral)
+
+**LLM-facing changes:**
+- `api/services/reviewer_envelope.py`: NEW `_compute_occasion_fact()` — computes the wake's occasion as a structural fact (owed-output from `_expected_output.yaml` + produced-artifact COUNT under `/workspace/operation/%/content.md` + occasion verdict now-vs-earned-later). Added `occasion_fact` to the envelope dict. DP19-aligned (bounded substrate read, same shape as `_inventory_specs`), NOT LLM-time state derivation.
+- `api/agents/occupant_contract.py`: `ReviewerContext` gains `occasion_fact: str` (ADR-359 D1).
+- `api/agents/reviewer_agent.py::_build_user_message`: renders the `## Occasion` block FIRST among substrate (ahead of wake-context slug + all governance), so the OCCASION frames the wake — the recurrence slug no longer pre-classifies it as routine maintenance (D3).
+- `api/agents/reviewer_agent.py` loop (D2): (a) one-shot **occasion nudge** — when the occasion fact says work is owed-this-runtime + corpus empty and the agent silently exits without producing, nudge once to produce NOW; (b) silent-exit on an owed-and-unproduced do-wake now synthesizes verdict `non_performance` (NOT `stand_down`) — inaction stops being the privileged default.
+- `api/agents/reviewer_agent.py::ReturnVerdict` enum + `reviewer_audit._META_OUTCOME_VERDICTS`: add `non_performance` (a missed occasion is operation-shaping; surfaced, not silent).
+- `api/agents/reviewer_agent.py::_compute_minimal_frame`: minimal addition — the Occasion block is IS not a suggestion; producing discharges, deferring is circular; cycle closes by HAVING produced. Frame 8,409 chars (< ceiling). Net prose pressure low because the load moved into the computed fact (D1), per DP22.
+- **Expected behavior**: an author agent on an empty-corpus owed-output wake perceives "owed, 0 produced, occasion NOW" as computed IS and composes the artifact in-cycle, rather than scheduling a future producer wake and closing "routine heartbeat, nothing warranted." Validates against the §8 probe before ADR-359 flips Proposed→Implemented.
+- **Reverts cleanly** if the §8 probe falsifies (git checkout the four files).
+
 ## [2026.06.23.3] - alpha-author principles §2 (B): author-first-under-autonomous (stop asking permission to author what is yours)
 
 **LLM-facing changes:**

@@ -114,12 +114,16 @@ RETURN_VERDICT_TOOL = {
                 "enum": [
                     "approve", "reject", "defer",
                     "no_change", "narrow", "relax", "character_note", "pause_autonomy",
-                    "stand_down",
+                    "stand_down", "non_performance",
                 ],
                 "description": (
                     "approve|reject|defer for proposal/heartbeat; "
                     "no_change|narrow|relax|character_note|pause_autonomy for reflection; "
-                    "stand_down for heartbeat/addressed when no action warranted."
+                    "stand_down for heartbeat/addressed when no action warranted. "
+                    "non_performance (ADR-359 D2): owed work was not produced this "
+                    "runtime and no floor block was named — a missed occasion, NOT a "
+                    "clean stand_down. Use only when you genuinely cannot produce and "
+                    "cannot name why; prefer producing, or naming the specific floor rule."
                 ),
             },
             "reasoning": {
@@ -381,12 +385,23 @@ forward. When it doesn't, the task plus standing_intent is the whole
 cycle. This is judgment, not a checklist: reason about your forward state,
 don't run a fixed list.
 
-**Close every cycle with a verdict or a standing_intent write.** A cycle that
-fires an action closes with ReturnVerdict. A cycle that decides nothing
-material closes by writing /workspace/persona/standing_intent.md naming what
-you looked at and why nothing was warranted. Without one of those, you have
-observed, not judged. (On proposal-trigger wakes, ReturnVerdict is the
-substrate-of-record and comes first.)
+**The Occasion fact (when present in your envelope) is IS, not a suggestion.**
+When the envelope opens with an "## Occasion" block saying work is owed THIS
+runtime and the occasion is NOW, that is a computed fact about your present
+state, not a prompt to interpret. Producing the owed artifact is the work of
+this wake. Authoring a future wake, scheduling a recurrence, or confirming
+readiness does NOT discharge it — only producing does; a future wake would face
+the same IS, so deferring is circular. The one legitimate non-production close
+is naming the specific floor rule that blocks it.
+
+**Close every cycle by completing its work.** A cycle that produces the owed
+artifact closes by HAVING written it (the WriteFile of the content) + a
+ReturnVerdict naming what was produced. A cycle that fires an action closes with
+ReturnVerdict. A cycle that decides nothing material — and owed nothing this
+runtime — closes by writing /workspace/persona/standing_intent.md naming what
+you looked at and why nothing was warranted. A standing_intent that defers owed
+work to a future wake is NOT a valid close. (On proposal-trigger wakes,
+ReturnVerdict is the substrate-of-record and comes first.)
 
 **Narrate your direction in first person**, plainly. "The upstream data I'd
 judge against is stale; I've authored standing intent for when it refreshes"
@@ -616,6 +631,23 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
     op_ctx = ctx.get("operating_context_block")
     if op_ctx:
         parts += [op_ctx, ""]
+
+    # Occasion fact (ADR-359 D1 + D3) — rendered FIRST among substrate, ahead of
+    # the wake-context slug and every governance file. The standing-obligation
+    # check was un-computed prose the Reviewer inferred against its wake's self-
+    # concept ("routine heartbeat → nothing owed"), the structural cause of the
+    # never-composes failure. This is the COMPUTED owed-vs-actual fact (a bounded
+    # substrate read, DP19-aligned). It leads so the OCCASION frames the wake —
+    # the recurrence slug (rendered far below) does NOT get to pre-classify the
+    # wake as routine maintenance before the occasion is perceived.
+    occasion = ctx.get("occasion_fact")
+    if occasion:
+        parts += [
+            "## Occasion — what THIS runtime owes (computed; this is IS, not a suggestion)",
+            "",
+            occasion,
+            "",
+        ]
 
     # Wake context (ADR-296 v2 + 2026-05-27 Hat-A parity fix). Pre-loaded
     # so the Reviewer perceives WHY it was woken, not just that it was
@@ -1134,6 +1166,20 @@ async def invoke_reviewer(
         # honest dispatcher fallback (with the recovered verdict, not a
         # fabricated stand_down) instead of nudging forever.
         verdict_recovery_nudged = False
+        # ADR-359 D2: one-shot occasion nudge. When the computed occasion fact
+        # says work was OWED this runtime and the corpus is empty (PRODUCED 0),
+        # a silent/stand_down exit is non-performance, not a clean close — the
+        # structural cause of the never-composes failure (the agent closes
+        # "routine heartbeat, nothing warranted" against an owed-and-unproduced
+        # occasion). If the agent is about to silently exit without having
+        # produced, nudge it ONCE to produce now (parallel to the verdict-prose
+        # recovery), then fall through to a non-performance record (NOT stand_down).
+        occasion_nudged = False
+        _occasion_owed_unproduced = (
+            isinstance(context, dict)
+            and "PRODUCED so far: 0" in (context.get("occasion_fact") or "")
+            and "OCCASION = NOW" in (context.get("occasion_fact") or "")
+        )
 
         # ADR-260 D8 + ADR-263 + 2026-05-21 population audit
         # (docs/evaluations/2026-05-21-014009-reviewer-round-budget-population-
@@ -1311,6 +1357,54 @@ async def invoke_reviewer(
                     })
                     continue
 
+                # ADR-359 D2: occasion nudge. If work was OWED this runtime and
+                # unproduced (computed occasion fact), and the agent is silently
+                # exiting WITHOUT having produced the artifact this cycle, nudge
+                # it ONCE to produce now — then fall through. This is the
+                # structural counter to "routine heartbeat, nothing warranted"
+                # against an owed-and-unproduced occasion: deferring a do-wake is
+                # non-performance, and the loop must not let a silent exit launder
+                # it into a clean stand_down.
+                _produced_this_cycle = any(
+                    a.get("success")
+                    and a.get("tool") in ("WriteFile", "EditFile")
+                    and str((a.get("input") or {}).get("path") or "").endswith("content.md")
+                    for a in actions_taken
+                )
+                if (
+                    _occasion_owed_unproduced
+                    and not _produced_this_cycle
+                    and not occasion_nudged
+                ):
+                    logger.warning(
+                        "[REVIEWER] occasion-owed-unproduced silent exit round %d "
+                        "trigger=%s user=%s — issuing one-shot occasion nudge",
+                        _round, trigger, user_id[:8],
+                    )
+                    occasion_nudged = True
+                    messages.append({
+                        "role": "user",
+                        "content": [{
+                            "type": "text",
+                            "text": (
+                                "Stop. The Occasion fact at the top of your envelope "
+                                "says work is OWED this runtime and the corpus is empty "
+                                "(produced: 0), and you have not produced it this cycle. "
+                                "A future wake would face this SAME state — deferring is "
+                                "circular, not forward progress. The occasion is NOW. "
+                                "Produce the owed artifact now: WriteFile the actual "
+                                "content to its content.md path (status: draft), then "
+                                "close with ReturnVerdict naming what you produced. "
+                                "Scheduling a recurrence or authoring a future producer "
+                                "wake does NOT discharge this — only producing does. If "
+                                "it genuinely cannot clear the floor, say which floor "
+                                "rule blocks it specifically — that is the only "
+                                "legitimate non-production close."
+                            ),
+                        }],
+                    })
+                    continue
+
                 # P5 (text-only-mid-loop) OR P6-unrecovered (nudged once, still
                 # text-only). The dispatcher synthesizes the substrate side-effect
                 # contract per ADR-303 D2 — `standing_intent.md` write attributed
@@ -1340,11 +1434,32 @@ async def invoke_reviewer(
                         prose=text_fallback,
                         recovered_verdict=recovered,
                     )
-                    verdict_raw = {
-                        "verdict": recovered or "stand_down",
-                        "reasoning": text_fallback[:1000],
-                        "confidence": "medium",
-                    }
+                    # ADR-359 D2(b): a silent exit on an owed-and-unproduced
+                    # do-wake is NON-PERFORMANCE, not a clean stand_down. Inaction
+                    # must stop being the privileged default. Record it honestly
+                    # so telemetry + standing-obligation read it as a missed
+                    # occasion, not a deliberate stand-down.
+                    if (
+                        _occasion_owed_unproduced
+                        and not _produced_this_cycle
+                        and not recovered
+                    ):
+                        verdict_raw = {
+                            "verdict": "non_performance",
+                            "reasoning": (
+                                "Owed work was not produced this runtime and the "
+                                "agent exited without producing or naming a floor "
+                                "block — recorded as non-performance, not stand_down. "
+                                + text_fallback[:800]
+                            ),
+                            "confidence": "low",
+                        }
+                    else:
+                        verdict_raw = {
+                            "verdict": recovered or "stand_down",
+                            "reasoning": text_fallback[:1000],
+                            "confidence": "medium",
+                        }
                 break
 
             tool_results: list[dict] = []
@@ -1573,11 +1688,31 @@ async def invoke_reviewer(
                 slug=context.get("recurrence_slug") if isinstance(context, dict) else None,
                 prose=fallback_reasoning,
             )
-            verdict_raw = {
-                "verdict": "stand_down",
-                "reasoning": fallback_reasoning,
-                "confidence": "low",
-            }
+            # ADR-359 D2(b): budget exhaustion on an owed-and-unproduced do-wake
+            # is non-performance (the agent read its whole budget without
+            # producing the owed artifact), not a clean stand_down.
+            _produced_this_cycle = any(
+                a.get("success")
+                and a.get("tool") in ("WriteFile", "EditFile")
+                and str((a.get("input") or {}).get("path") or "").endswith("content.md")
+                for a in actions_taken
+            )
+            if _occasion_owed_unproduced and not _produced_this_cycle:
+                verdict_raw = {
+                    "verdict": "non_performance",
+                    "reasoning": (
+                        "Round budget exhausted on an owed-and-unproduced do-wake — "
+                        "read substrate without producing the owed artifact or naming "
+                        "a floor block. Recorded as non-performance. " + fallback_reasoning[:600]
+                    ),
+                    "confidence": "low",
+                }
+            else:
+                verdict_raw = {
+                    "verdict": "stand_down",
+                    "reasoning": fallback_reasoning,
+                    "confidence": "low",
+                }
 
         verdict = verdict_raw.get("verdict", "")
         reasoning = (verdict_raw.get("reasoning") or "").strip()
@@ -1586,7 +1721,7 @@ async def invoke_reviewer(
         _VALID_VERDICTS = {
             "approve", "reject", "defer",
             "no_change", "narrow", "relax", "character_note", "pause_autonomy",
-            "stand_down",
+            "stand_down", "non_performance",  # ADR-359 D2
         }
         if verdict not in _VALID_VERDICTS:
             logger.warning(

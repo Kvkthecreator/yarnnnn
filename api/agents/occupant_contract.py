@@ -180,6 +180,14 @@ class ReviewerContext(TypedDict, total=False):
     # via ReadFile. Closes the discovery gap that produced the operator-
     # facing question "do those spec files exist?" in standing intent.
     specs_inventory: str
+    # ADR-359 D1: the computed occasion fact — owed-output vs produced, with the
+    # occasion verdict (now vs earned-later). Computed server-side in
+    # reviewer_envelope._compute_occasion_fact (a bounded substrate read, not
+    # LLM-derivation — DP19-aligned), NOT inferred by the agent against its
+    # wake's self-concept. Rendered FIRST in the wake message so the occasion
+    # leads and the recurrence slug does not pre-frame the wake as routine
+    # maintenance (D3). Empty string when no Expected Output is declared.
+    occasion_fact: str
     # ADR-274 / FOUNDATIONS v8.5: time + market context for Trigger-authoring.
     # Surfaces "now" perception per the Axiom 4 amendment (time is envelope,
     # not substrate). Callers assemble via _format_operating_context_block.

@@ -362,10 +362,122 @@ async def load_reviewer_governance_envelope(
     # (substrate read, no LLM-time derivation).
     envelope["specs_inventory"] = await _inventory_specs(client, user_id)
 
+    # --- Occasion fact (ADR-359 D1) — the computed wake-occasion ---------------
+    # The standing-obligation check (DP30) was un-computed prose: the envelope
+    # rendered _expected_output.yaml and left the Reviewer to DERIVE owed-vs-
+    # actual itself — which it did through whatever self-concept its wake carried
+    # ("routine heartbeat → nothing owed"), the structural cause of the never-
+    # composes failure (2026-06-24-occasion-frame-edit-FALSIFICATION.md). D1
+    # makes owed-vs-actual a COMPUTED FACT the Reviewer perceives, not an
+    # inference against a maintenance prior. DP19-aligned: this is a bounded
+    # substrate read (the produced-artifact COUNT, same shape as _inventory_specs
+    # reading workspace_files) + the declared contract already in the envelope —
+    # NOT new state derived by the LLM. It is rendered FIRST in the wake message
+    # (D3: the occasion leads; the slug does not get to frame the wake as routine).
+    envelope["occasion_fact"] = await _compute_occasion_fact(
+        client, user_id, envelope.get("expected_output_yaml", "")
+    )
+
     elapsed_ms = int(
         (datetime.now(timezone.utc) - _started_at).total_seconds() * 1000
     )
     return envelope, elapsed_ms
+
+
+async def _compute_occasion_fact(
+    client: Any, user_id: str, expected_output_yaml: str
+) -> str:
+    """ADR-359 D1: compute the wake's occasion as a structural fact.
+
+    Reads the declared output contract (`_expected_output.yaml`, already in the
+    envelope) and COUNTS produced artifacts under the operation output tree
+    (`/workspace/operation/{domain}/{slug}/content.md` — the kernel convention,
+    program-agnostic). Emits a structural statement the Reviewer perceives as
+    part of IS:
+
+        OWED this tenure: {kind} ({cadence}). PRODUCED so far: {N}.
+        OCCASION = NOW: nothing external gates producing it; a future wake would
+        face this same state → deferring is circular.
+
+    Empty string when no Expected Output is declared (the standing-obligation
+    derivation per ADR-344 still runs in the Reviewer's reasoning; D1 only
+    sharpens the DECLARED case — the most common production-mandate shape).
+
+    DP19 note: this is a bounded substrate read (one indexed COUNT query) + a
+    parse of substrate already loaded — not LLM-time state derivation. Same
+    precedent as `_inventory_specs`. The OCCASION test here is deliberately
+    conservative: it asserts "occasion = now" only for the empty-corpus /
+    below-contract case where no external dependency is declared; richer
+    occasion logic (per-cadence-window accounting) is deferred to the ADR's
+    post-probe hardening, not the validation gate.
+    """
+    if not expected_output_yaml.strip():
+        return ""
+
+    # Parse the declared contract (kind + cadence). Tolerant: this is a fact
+    # for the prompt, not a gate — a parse miss degrades to a generic statement.
+    import yaml as _yaml
+
+    kind = ""
+    cadence = ""
+    try:
+        parsed = _yaml.safe_load(expected_output_yaml) or {}
+        eo = parsed.get("expected_output", parsed) if isinstance(parsed, dict) else {}
+        if isinstance(eo, dict):
+            kind = str(eo.get("kind") or "").strip()
+            cadence = str(eo.get("delivery_cadence") or "").strip()
+    except Exception as exc:
+        logger.warning(
+            "[REVIEWER_ENVELOPE] occasion_fact: expected_output parse failed "
+            "for user=%s: %s", user_id[:8], exc,
+        )
+
+    # Count produced artifacts: per-entity content.md under the operation tree.
+    # Program-agnostic — both bundles ship operation/{domain}/{slug}/content.md.
+    produced = 0
+    try:
+        res = (
+            client.table("workspace_files")
+            .select("path", count="exact")
+            .eq("user_id", user_id)
+            .like("path", "/workspace/operation/%/content.md")
+            .execute()
+        )
+        produced = res.count if res.count is not None else len(res.data or [])
+    except Exception as exc:
+        logger.warning(
+            "[REVIEWER_ENVELOPE] occasion_fact: produced-count query failed "
+            "for user=%s: %s", user_id[:8], exc,
+        )
+        return ""
+
+    kind_label = kind or "the declared output"
+    cadence_label = f" ({cadence})" if cadence else ""
+
+    if produced == 0:
+        # Below contract from an empty corpus: the first owed unit has never been
+        # originated. Nothing external gates it. This IS a do-wake.
+        return (
+            f"OWED this tenure: {kind_label}{cadence_label}. PRODUCED so far: 0.\n"
+            f"OCCASION = NOW. The first owed {kind_label} has never been originated, "
+            f"and nothing external gates originating it — the substrate, mandate, and "
+            f"floor are all present right now. A future wake would face this SAME state "
+            f"(same empty corpus, same mandate, same absence of blockers), so deferring "
+            f"to one is circular: it is this wake postponed, not forward progress. "
+            f"Producing the {kind_label} is the work of THIS runtime. Authoring a future "
+            f"producer wake, or scheduling a recurrence, does NOT discharge this — only "
+            f"producing does. If it cannot clear the floor, it legitimately slips; that "
+            f"is a floor-gate, recorded honestly, not 'nothing warranted'."
+        )
+
+    # Produced > 0: the loop is closing; occasion is a judgment the Reviewer makes
+    # against cadence (D1 states the count; richer per-window accounting deferred).
+    return (
+        f"OWED this tenure: {kind_label}{cadence_label}. PRODUCED so far: {produced}.\n"
+        f"Whether THIS runtime owes another {kind_label} now is your judgment against "
+        f"the cadence and IS — but a future wake is legitimate ONLY if it would face a "
+        f"materially different state than now. If it would not, the occasion is now."
+    )
 
 
 async def _inventory_specs(client: Any, user_id: str) -> str:
