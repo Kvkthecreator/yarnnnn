@@ -45,15 +45,15 @@ interface InvocationCardProps {
 function pulseLabelIcon(pulse: NarrativePulse) {
   switch (pulse) {
     case 'periodic':
-      return { label: 'recurrence', Icon: Repeat };
+      return { label: 'scheduled', Icon: Repeat };
     case 'reactive':
-      return { label: 'reactive wake', Icon: Zap };
+      return { label: 'responded to a change', Icon: Zap };
     case 'addressed':
-      return { label: 'addressed', Icon: MessageCircle };
+      return { label: 'you asked', Icon: MessageCircle };
     case 'heartbeat':
-      return { label: 'heartbeat', Icon: Bell };
+      return { label: 'routine check', Icon: Bell };
     default:
-      return { label: 'wake', Icon: Clock };
+      return { label: 'ran', Icon: Clock };
   }
 }
 

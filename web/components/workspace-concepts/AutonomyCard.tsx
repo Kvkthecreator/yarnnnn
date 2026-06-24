@@ -74,14 +74,14 @@ const LEVELS: {
     // ADR-338 D4.2: surface the schema-inert reality. `bounded` applies the
     // ceiling to capital actions only; substrate writes (file edits) queue
     // under BOTH manual and bounded — only `autonomous` auto-applies them.
-    description: 'Capital actions auto-execute within your ceiling. Substrate edits still queue for approval.',
-    consequence: 'The Reviewer will auto-execute capital actions within your declared ceiling. Substrate writes (file edits) STILL wait for your approval — only Autonomous auto-applies those. Higher-impact capital actions also wait.',
+    description: 'Your agent can spend on its own up to your limit. It still checks with you before changing any of your files.',
+    consequence: 'Your agent can spend on its own — up to your limit — without asking first. It still checks with you before changing any of your files, and before any spend above the limit.',
   },
   {
     value: 'autonomous',
     label: 'Autonomous',
-    description: 'Full delegation within declared boundaries. You review outcomes.',
-    consequence: 'The Reviewer will auto-execute every action — capital AND substrate edits — up to the ceiling without first checking in. You review outcomes after the fact.',
+    description: 'Full delegation within the limits you set. You review what it did afterward.',
+    consequence: 'Your agent acts on its own — both spending and changing your files — up to your limit, without checking in first. You review what it did afterward.',
   },
 ];
 
@@ -133,8 +133,8 @@ export function AutonomyCard({
     }
     if (target === 'bounded') {
       return capital > 0
-        ? `Right now: ${capital} pending capital action${capital === 1 ? '' : 's'} would become eligible to auto-execute within your ceiling on the next wake.`
-        : `Right now: ${total} pending action${total === 1 ? '' : 's'} (none capital) — substrate writes still wait for you.`;
+        ? `Right now: ${capital} spend${capital === 1 ? '' : 's'} waiting — these would start running on their own, up to your limit, the next time your agent runs.`
+        : `Right now: ${total} action${total === 1 ? '' : 's'} waiting — none involve spending, so file changes still wait for you.`;
     }
     // autonomous
     return `Right now: ${total} pending action${total === 1 ? '' : 's'} would become eligible to execute without you.`;
@@ -377,7 +377,7 @@ function NeverAutoEditor({
               ? 'bg-primary/10 text-primary'
               : 'bg-muted/40 text-muted-foreground hover:text-foreground',
           )}
-          title="Toggle: match by substrate path instead of action type"
+          title="Toggle: match by file path instead of action type"
         >
           {pathPrefix ? 'path:' : 'type'}
         </button>

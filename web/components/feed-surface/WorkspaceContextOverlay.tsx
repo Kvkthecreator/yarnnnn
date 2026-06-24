@@ -239,9 +239,9 @@ function PulseSection({ onAskTP }: { onAskTP: (prompt: string) => void }) {
           const runs = activity.value.runs ?? [];
           const schedules = activity.value.schedules ?? [];
           if (runs.length > 0 && runs[0].created_at) {
-            livenessLine = `Last Reviewer wake ${relativeTime(runs[0].created_at)} · ${runs.length} runs in last ${activity.value.window_days}d`;
+            livenessLine = `Your agent last ran ${relativeTime(runs[0].created_at)} · ${runs.length} times in the last ${activity.value.window_days}d`;
           } else if (schedules.length > 0) {
-            livenessLine = `No Reviewer wakes in last ${activity.value.window_days}d`;
+            livenessLine = `Your agent hasn't run in the last ${activity.value.window_days}d`;
           }
 
           // Find the nearest upcoming wake (smallest future next_fires_at)
@@ -303,7 +303,7 @@ function PulseSection({ onAskTP }: { onAskTP: (prompt: string) => void }) {
         <p>{data.liveness_line}.</p>
         {data.next_wake_slug && data.next_wake_relative && (
           <p className="text-muted-foreground">
-            Next wake: <code className="text-[11px] font-mono">{data.next_wake_slug}</code>
+            Next up: <code className="text-[11px] font-mono">{data.next_wake_slug}</code>
             <span className="ml-1.5 tabular-nums text-muted-foreground/70">{data.next_wake_relative}</span>
           </p>
         )}

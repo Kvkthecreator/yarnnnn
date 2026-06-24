@@ -49,6 +49,24 @@ BANNED = [
 ]
 
 # =============================================================================
+# Phase 2 banned patterns — KERNEL NOUNS (the glossary, VOICE-AND-TONE.md §4)
+# =============================================================================
+# Fuzzier than Phase 1 — these words have a plain operator replacement (§4) but
+# can also appear in legitimate compound terms, so each is word-boundary-anchored
+# and case-insensitive. Phase 2 ships with a BASELINE allowlist (the current
+# leaks) so the guard stays green; each copy-pass PR deletes allowlist entries
+# as it cleans a surface. The glossary replacement is in the reason string.
+
+BANNED_PHASE2 = [
+    (re.compile(r"\brecurrenc(e|es)\b", re.I), "kernel noun 'recurrence' → 'scheduled work' / 'a schedule' (glossary)"),
+    (re.compile(r"\bwake(s|d)?\b", re.I), "kernel noun 'wake' → 'ran' / 'checked in' / 'responded' (glossary)"),
+    (re.compile(r"\bsubstrate\b", re.I), "kernel noun 'substrate' → 'your files' / 'saved a note' (glossary)"),
+    (re.compile(r"\bcapital action(s)?\b", re.I), "kernel noun 'capital action' → 'spend' / 'an order' (glossary)"),
+    (re.compile(r"\boccupant\b", re.I), "kernel noun 'occupant' → 'your agent' (glossary)"),
+    (re.compile(r"\bprimitive(s)?\b", re.I), "kernel noun 'primitive' → name the action plainly (glossary)"),
+]
+
+# =============================================================================
 # What counts as "rendered operator-facing string" in a web file
 # =============================================================================
 # A line is in-scope iff it is NOT a comment/import AND it contains a quoted
@@ -140,13 +158,53 @@ def _web_files():
 # Phase 1 baseline (2026-06-24) — populated empirically below by the first run.
 # =============================================================================
 
-ALLOWLIST: list[str] = [
-    # populated after the first measurement run (see __main__)
+# Phase 1 ships with an EMPTY allowlist (all four leaks were fixed at intro).
+ALLOWLIST: list[str] = []
+
+# Phase 2 baseline — the kernel-noun leaks present when Phase 2 was introduced.
+# Each entry "relative/path::line-substring". SHRINK as copy passes land.
+ALLOWLIST_PHASE2: list[str] = [
+    # Phase 2 baseline (2026-06-24). The feed surface + autonomy governance card +
+    # system-status were cleaned in the introducing pass; these lower-exposure
+    # surfaces remain. SHRINK this list as each surface gets its copy pass (spec
+    # §5 order: governance cards done → nav/empty-states → settings/marketing).
+    "web/app/about/page.tsx::body: \"Fix something once and everythin",
+    "web/app/(authenticated)/recurrence/page.tsx::title=\"Recurrence not found\"",
+    "web/app/(authenticated)/recurrence/page.tsx::title=\"Failed to load recurrence\"",
+    "web/app/(authenticated)/settings/page.tsx::<div className=\"text-xs text-muted-fore",
+    "web/app/(authenticated)/settings/page.tsx::<li>Per-recurrence <code>_run_log.md</co",
+    "web/app/(authenticated)/settings/page.tsx::<strong>Preserved:</strong> all recurren",
+    "web/app/(authenticated)/settings/page.tsx::<li>{dangerStats?.workspace_files} works",
+    "web/app/(authenticated)/settings/page.tsx::<li>All recurrences, activity history, a",
+    "web/app/(authenticated)/settings/page.tsx::<li>{dangerStats?.agents} agents and all",
+    "web/app/(authenticated)/notifications/page.tsx::link={<MirrorLink label=\"Open run ledge",
+    "web/app/(authenticated)/notifications/page.tsx::link={<MirrorLink label=\"Open full Recu",
+    "web/app/invest/page.tsx::<p className=\"text-white/60 font-medium",
+    "web/app/invest/page.tsx::{ title: \"Total attribution\", desc: \"",
+    "web/components/settings/WorkspaceSection.tsx::<h2 className=\"text-lg font-semibold mb",
+    "web/components/activity/ActivityLog.tsx::title=\"Manage this recurrence (declarat",
+    "web/components/shell/system-status/AutonomyStatusItem.tsx::<p className=\"pt-0.5\">Above the ceilin",
+    "web/components/workspace/WorkspaceNav.tsx::title=\"Recurrences\"",
+    "web/components/workspace/WorkspaceNav.tsx::<div className=\"px-3 py-1.5 text-sm tex",
+    "web/components/tp/InlineActionCard.tsx::title: 'Run this recurrence',",
+    "web/components/tp/InlineActionCard.tsx::title: 'Adjust this recurrence',",
+    "web/components/tp/InlineActionCard.tsx::{ label: 'Focus area', message: 'Change ",
+    "web/components/tp/InlineActionCard.tsx::{ label: 'Success criteria', message: 'U",
+    "web/components/tp/InlineActionCard.tsx::{ label: 'Schedule', message: 'Change th",
+    "web/components/tp/InlineActionCard.tsx::{ label: 'Delivery', message: 'Change th",
+    "web/components/tp/InlineActionCard.tsx::{ label: 'Latest trends', message: 'Rese",
+    "web/components/tp/InlineActionCard.tsx::{ label: 'Competitor activity', message:",
+    "web/components/tp/InlineActionCard.tsx::{ label: 'Industry news', message: 'Rese",
+    "web/components/tp/ToolResultCard.tsx::<div className=\"text-sm\">{description ",
+    "web/components/work/RecurrenceList.tsx::title=\"See execution history for this r",
+    "web/components/queue/QueueBody.tsx::Verdicts rendered by <span className=\"f",
+    "web/components/workspace-concepts/SourcesCard.tsx::<span className=\"text-[10px] text-muted",
+    "web/lib/schedule.ts::description: 'Fires on event — operator ",
 ]
 
 
-def _allowlisted(rel_path: str, line: str) -> bool:
-    for entry in ALLOWLIST:
+def _allowlisted(rel_path: str, line: str, allow: list[str]) -> bool:
+    for entry in allow:
         if "::" not in entry:
             continue
         ap, frag = entry.split("::", 1)
@@ -155,9 +213,12 @@ def _allowlisted(rel_path: str, line: str) -> bool:
     return False
 
 
-def find_violations() -> list[tuple[str, int, str, str]]:
+def find_violations(include_phase2: bool = True) -> list[tuple[str, int, str, str]]:
     """Returns (rel_path, lineno, line, reason) for every non-allowlisted hit."""
     violations: list[tuple[str, int, str, str]] = []
+    pattern_sets = [(BANNED, ALLOWLIST)]
+    if include_phase2:
+        pattern_sets.append((BANNED_PHASE2, ALLOWLIST_PHASE2))
     targets = list(_web_files()) + [f for f in BACKEND_COPY_FILES if f.exists()]
     for path in targets:
         try:
@@ -170,25 +231,32 @@ def find_violations() -> list[tuple[str, int, str, str]]:
             # python comment-line skip
             if is_py and line.lstrip().startswith("#"):
                 continue
-            for pat, reason in BANNED:
-                m = pat.search(line)
-                if not m:
-                    continue
-                token = m.group(0)
-                if is_py:
-                    # for .py narration files, require the token inside a quote
-                    in_str = any(
-                        q in line[:line.find(token)] and q in line[line.find(token):]
-                        for q in ('"', "'")
-                    )
-                    if not in_str:
+            for patterns, allow in pattern_sets:
+                for pat, reason in patterns:
+                    m = pat.search(line)
+                    if not m:
                         continue
-                else:
-                    if not _is_rendered_string_context(line, token):
+                    token = m.group(0)
+                    if is_py:
+                        # for .py narration files, require the token inside a quote
+                        in_str = any(
+                            q in line[:line.find(token)] and q in line[line.find(token):]
+                            for q in ('"', "'")
+                        )
+                        if not in_str:
+                            continue
+                        # Exclude metadata dict KEYS — `meta["occupant"] = …` /
+                        # `"occupant":` — these are internal data fields, not copy.
+                        if re.search(r'\[\s*["\']' + re.escape(token) + r'["\']\s*\]', line):
+                            continue
+                        if re.search(r'["\']' + re.escape(token) + r'["\']\s*:', line):
+                            continue
+                    else:
+                        if not _is_rendered_string_context(line, token):
+                            continue
+                    if _allowlisted(rel, line, allow):
                         continue
-                if _allowlisted(rel, line):
-                    continue
-                violations.append((rel, lineno, line.strip(), reason))
+                    violations.append((rel, lineno, line.strip(), reason))
     return violations
 
 

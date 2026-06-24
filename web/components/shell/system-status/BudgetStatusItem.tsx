@@ -158,7 +158,7 @@ export function BudgetStatusItem() {
             <span className="font-mono">${budget.remaining_usd.toFixed(2)}</span>
           </div>
           <div className="flex justify-between">
-            <span>Pending wakes</span>
+            <span>Waiting to run</span>
             <span className="font-mono">{budget.queue_depth}</span>
           </div>
           {budget.runway_days != null && (
