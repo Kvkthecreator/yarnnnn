@@ -418,15 +418,19 @@ export const api = {
 
   },
 
-  // Subscription endpoints (Lemon Squeezy)
-  // ADR-172: Usage-first billing — Pro subscription for auto-refill
+  // Billing endpoints (Lemon Squeezy)
+  // ADR-171/172: balance is the single gate. Pure pay-as-you-go — the only
+  // purchase is a one-time top-up ($10 / $25 / $50). The recurring Pro
+  // subscription was retired from the billing surface (2026-06-24); the
+  // /checkout endpoint still accepts checkout_type="subscription" server-side
+  // but the client no longer offers it.
   subscription: {
     getStatus: () => request<SubscriptionStatus>("/api/subscription/status"),
 
-    createCheckout: (billingPeriod: "monthly" | "yearly" = "monthly") =>
+    createTopup: (amount: 10 | 25 | 50) =>
       request<CheckoutResponse>("/api/subscription/checkout", {
         method: "POST",
-        body: JSON.stringify({ billing_period: billingPeriod, checkout_type: "subscription" }),
+        body: JSON.stringify({ checkout_type: "topup", topup_amount: amount }),
       }),
 
     getPortal: () => request<PortalResponse>("/api/subscription/portal"),

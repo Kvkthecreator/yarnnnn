@@ -1,8 +1,12 @@
 "use client";
 
 /**
- * ADR-172: Subscription hook — Pro as auto-refill subscription.
- * Early Bird removed. Tiers: free (pay-as-you-go) | pro (auto-refill $20/month).
+ * ADR-171/172: Billing hook — pure pay-as-you-go.
+ * Balance is the single gate. The only purchase is a one-time top-up
+ * ($10 / $25 / $50). The recurring Pro subscription was retired from the
+ * billing surface (2026-06-24): `upgrade`/`manageSubscription` removed,
+ * replaced by `topup`. `status`/`isPaid` are retained as harmless reads for
+ * any legacy consumer but the billing pane no longer branches on them.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -49,27 +53,14 @@ export function useSubscription() {
     return err instanceof Error ? err : new Error(fallback);
   };
 
-  const upgrade = async (billingPeriod: "monthly" | "yearly" = "monthly") => {
+  const topup = async (amount: 10 | 25 | 50) => {
     try {
       setIsLoading(true);
       setError(null);
-      const { checkout_url } = await api.subscription.createCheckout(billingPeriod);
+      const { checkout_url } = await api.subscription.createTopup(amount);
       window.location.href = checkout_url;
     } catch (err) {
-      setError(toUserError(err, "Failed to create checkout"));
-      setIsLoading(false);
-    }
-  };
-
-  const manageSubscription = async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
-      const { portal_url } = await api.subscription.getPortal();
-      window.location.assign(portal_url);
-    } catch (err) {
-      setError(toUserError(err, "Failed to open subscription portal"));
-    } finally {
+      setError(toUserError(err, "Failed to start top-up"));
       setIsLoading(false);
     }
   };
@@ -81,8 +72,7 @@ export function useSubscription() {
     isPaid,
     isLoading,
     error,
-    upgrade,
-    manageSubscription,
+    topup,
     refresh: fetchStatus,
   };
 }

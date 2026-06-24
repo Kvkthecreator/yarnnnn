@@ -760,10 +760,10 @@ export default function SettingsPage() {
               <Check className="w-5 h-5 text-green-600" />
               <div>
                 <p className="font-medium text-green-800 dark:text-green-200">
-                  Subscription activated!
+                  Balance updated!
                 </p>
                 <p className="text-sm text-green-700 dark:text-green-300">
-                  Your subscription is now active. Enjoy expanded sources, faster syncs, and more agents.
+                  Your top-up has been added. Every feature is already on — your balance simply covers the usage that runs.
                 </p>
               </div>
             </div>
