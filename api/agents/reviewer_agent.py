@@ -735,6 +735,49 @@ def _build_user_message_stripped(trigger: str, ctx: ReviewerContext) -> str:
     return "\n".join(parts)
 
 
+def _build_user_message_content(trigger: str, ctx: ReviewerContext) -> list[dict]:
+    """Compose the user message as cache-marked content blocks (governance-caching,
+    the-envelope-collapse-2026-06-24.md / probe FINDING 2026-06-24).
+
+    The envelope splits into two blocks:
+      [0] **governance prefix** — the CLAUDE.md-analogue: the authored governing
+          files (IDENTITY + principles + PRECEDENT + MANDATE + AUTONOMY + budget +
+          expected_output + preferences + occupant + domain constants). Stable
+          across wakes; changes only when a governing file is revised. Marked
+          `cache_control: ephemeral` so rounds 2..N of every wake AND subsequent
+          wakes within the cache TTL pay ~10% of base input rate on the ~16k
+          governance tokens instead of full rate. This is the real cost lever the
+          envelope-collapse probe surfaced (the strip was only +8%; the per-wake
+          UNCACHED re-send of stable governance was the inefficiency — CC caches
+          claudeMd, we did not).
+      [1] **volatile suffix** — operating-context (the clock; changes every wake),
+          wake-context, per-wake mirror heads, substrate-snapshot, standing-intent,
+          and THE ASK. Uncached by construction — these change every wake, so they
+          MUST sit AFTER the governance breakpoint (a prefix-match cache invalidates
+          everything after the first byte that changes; the operating-context
+          timestamp would otherwise bust the governance cache every single wake).
+
+    Cache-key discipline (Anthropic prompt cache = prefix match, max 4 breakpoints,
+    min 4096 tok for Sonnet/Haiku-tier — the governance block clears it): the
+    governance prefix's bytes change only on a governing-file revision, which is
+    exactly the head_version_id the kernel tracks. No explicit key field is needed —
+    the cache keys on the rendered bytes, which are stable until a revision lands.
+
+    The string builder `_build_user_message` is retained for the Arm-B stripped
+    probe path and as a structural fallback; this is the production path.
+    """
+    governance, volatile = _partition_envelope(trigger, ctx)
+    blocks: list[dict] = []
+    if governance.strip():
+        blocks.append({
+            "type": "text",
+            "text": governance,
+            "cache_control": {"type": "ephemeral"},
+        })
+    blocks.append({"type": "text", "text": volatile})
+    return blocks
+
+
 def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
     """Compose the user message envelope for an invocation.
     Pre-loads governance + persona + framework + domain substrate based on
@@ -745,17 +788,43 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
     import os as _os
     if _os.environ.get("YARNNN_ENVELOPE_ARM", "").strip().upper() == "B":
         return _build_user_message_stripped(trigger, ctx)
-    import json as _json
-    parts: list[str] = []
+    governance, volatile = _partition_envelope(trigger, ctx)
+    # String form: governance prefix + volatile suffix concatenated. Same content
+    # the blocks form carries; used by the Arm-B path and as a fallback.
+    if governance.strip():
+        return f"{governance}\n{volatile}"
+    return volatile
 
+
+def _partition_envelope(trigger: str, ctx: ReviewerContext) -> tuple[str, str]:
+    """Build the envelope partitioned into (governance_prefix, volatile_suffix).
+
+    governance_prefix = stable authored governing files (the cacheable bulk).
+    volatile_suffix   = operating-context + wake-context + per-wake mirror heads +
+                        snapshot + standing-intent + the ask (changes every wake).
+
+    Singular source of the envelope content — both the cached-blocks builder and
+    the string builder consume this. The ONLY structural change from the
+    pre-caching flat envelope is that operating-context + wake-context move from
+    the head of the message to the volatile suffix (they were always volatile;
+    they just sat before the governance the cache wants to retain — moving them
+    after the breakpoint is what makes governance cacheable)."""
+    import json as _json
+    gov: list[str] = []
+    vol: list[str] = []
+
+    # --- VOLATILE HEAD (changes every wake → must precede nothing cacheable) ---
     # ADR-274 / FOUNDATIONS v8.5 Axiom 4 amendment: Operating Context block.
     # Time is an envelope-on-wake concern, not workspace substrate (mirrors
     # Claude Code's runtime model). The Reviewer perceives `now`, timezone,
     # and market state at every wake — these inputs are load-bearing for
     # Trigger-authoring decisions (Schedule discipline per Derived Principle 18).
+    # CACHING (2026-06-24): operating-context carries the wake timestamp — it is
+    # the per-wake invalidator. It lands in the VOLATILE suffix, after the
+    # governance breakpoint, so it never busts the governance cache.
     op_ctx = ctx.get("operating_context_block")
     if op_ctx:
-        parts += [op_ctx, ""]
+        vol += [op_ctx, ""]
 
     # Wake context (ADR-296 v2 + 2026-05-27 Hat-A parity fix). Pre-loaded
     # so the Reviewer perceives WHY it was woken, not just that it was
@@ -764,7 +833,7 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
     # wakes, the triggering revision_id + path give the Reviewer concrete
     # anchor to "the operator just changed THIS file" — closing the
     # implicit-context gap where pre-this-block the Reviewer had to infer
-    # the triggering action from substrate reads.
+    # the triggering action from substrate reads. Volatile (per-wake) → suffix.
     wake_source = ctx.get("wake_source")
     if wake_source:
         wake_lines = [
@@ -777,7 +846,10 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
         if ctx.get("triggering_revision_id"):
             wake_lines.append(f"- triggering_revision_id: {ctx['triggering_revision_id']}")
         wake_lines.append("")
-        parts += wake_lines
+        vol += wake_lines
+
+    # --- GOVERNANCE PREFIX (stable authored governing files → cacheable bulk) ---
+    parts = gov  # governance parts accumulate here
 
     # Persona — always first
     parts += [
@@ -853,6 +925,15 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
             ctx["occupant_md"],
             "",
         ]
+
+    # --- END GOVERNANCE PREFIX / BEGIN VOLATILE SUFFIX (caching boundary) ---
+    # Everything below changes per-wake (standing_intent rewritten each cycle;
+    # the mirror heads re-mirrored each scheduler tick; the snapshot + ask are
+    # per-wake) so it lands in the VOLATILE suffix, after the governance cache
+    # breakpoint. The governance prefix above (IDENTITY..OCCUPANT) is the stable
+    # cacheable bulk; rebinding `parts` to `vol` here is the singular caching cut.
+    parts = vol
+
     if ctx.get("standing_intent_md"):
         parts += [
             "## /workspace/persona/standing_intent.md — What you were watching for last cycle",
@@ -1050,7 +1131,7 @@ def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
         parts += ["## Operator message", "", msg.strip(), ""]
 
     parts.append(_TRIGGER_FRAMING.get(trigger, ""))
-    return "\n".join(parts)
+    return "\n".join(gov), "\n".join(vol)
 
 
 # ---------------------------------------------------------------------------
@@ -1271,11 +1352,20 @@ async def invoke_reviewer(
         # when the collapse lands (the snapshot becomes a first-class envelope
         # input in reviewer_envelope.py).
         import os as _os_probe
-        if _os_probe.environ.get("YARNNN_ENVELOPE_ARM", "").strip().upper() == "B" \
-                and isinstance(context, dict):
+        _arm_b = (
+            _os_probe.environ.get("YARNNN_ENVELOPE_ARM", "").strip().upper() == "B"
+        )
+        if _arm_b and isinstance(context, dict):
             context.setdefault("_snapshot_client", client)
             context.setdefault("_snapshot_user_id", user_id)
-        user_message = _build_user_message(trigger, context)
+        # Governance-caching (2026-06-24): the production path builds the user
+        # message as cache-marked content blocks (governance prefix cached,
+        # volatile suffix uncached). The Arm-B stripped probe path stays on the
+        # string builder (its own shape, env-gated). See _build_user_message_content.
+        if _arm_b:
+            user_message: str | list[dict] = _build_user_message(trigger, context)
+        else:
+            user_message = _build_user_message_content(trigger, context)
         messages: list[dict] = [{"role": "user", "content": user_message}]
         actions_taken: list[dict] = []
         verdict_raw: dict | None = None

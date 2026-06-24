@@ -64,6 +64,32 @@ The probe's summary reported `composed=False` / `write_paths=[None,…]`. This w
 
 ---
 
+## FOLLOW-ON (2026-06-24): the real lever IMPLEMENTED + PROVEN — governance caching
+
+The premise correction said the cost lever is *caching* the ~16k-token governance block, not stripping it. That was implemented this session on the production path and **proven on a funded wake**.
+
+**The change** (`api/agents/reviewer_agent.py`): the user message was a plain string (uncacheable — Anthropic prompt cache keys on rendered bytes, and a string `content` carries no `cache_control`). It now builds as **two content blocks**:
+- **[0] governance prefix** (IDENTITY + principles + PRECEDENT + MANDATE + AUTONOMY + budget + expected_output + preferences + occupant + domain constants) — marked `cache_control: ephemeral`. The CLAUDE.md-analogue; stable until a governing file is revised.
+- **[1] volatile suffix** (operating-context [the wake timestamp — the per-wake invalidator], wake-context, mirror heads, snapshot, standing-intent, the ask) — uncached. **Moved AFTER the governance breakpoint** so the timestamp never busts the governance cache (prefix-match invalidation).
+
+`_partition_envelope` is the singular source; `_build_user_message_content` (blocks, production) and `_build_user_message` (string, Arm-B/fallback) both consume it. System prompt (1 breakpoint) + governance (1 breakpoint) = 2 of the 4-breakpoint budget.
+
+**The proof** (`execution_events`, funded yarnnn-author U=`0b7a852d`):
+
+| wake | when | `cache_create` | `cache_read` | uncached `input` |
+|---|---|---|---|---|
+| cron_tick (PRE-change) | 05:09 | **0** | 115,759 | **185,193** |
+| substrate_event (PRE-change) | 05:10 | **0** | 99,222 | **174,378** |
+| cron_tick (POST-change) | 05:23 | **48,471** | 243,799 | **110,315** |
+
+Pre-change wakes wrote **zero** new cache (`cache_create=0`) — the governance-bearing user message was a string, re-billed at full `input` rate every round (input 174k–185k). Post-change: the governance prefix is **written to cache once** (`cache_create=48,471`, the round-1 write of system+governance) and **read on every subsequent round** (`cache_read=243,799`), and the full-rate uncached `input` dropped to **110,315 — a ~40% cut**. Cache reads cost ~0.1× base input; the ~48k cached prefix that previously cost full rate every round now costs ~10% on rounds 2..N and on subsequent wakes within the 5-min TTL.
+
+**Verdict: the envelope-collapse arc's real win lands here.** The strip was a small correctness improvement; the caching is the cost lever, and it is implemented on the live path and proven. Probe: `api/scripts/operator/probe_governance_cache_local.py`.
+
+**Substrate floor untouched** (ADR-209 write path byte-identical). The change is envelope-rendering only — content is identical to the pre-caching flat envelope; the sole structural move is operating-context + wake-context relocating from the message head to the volatile suffix so governance becomes a cacheable prefix.
+
+---
+
 ## What this changes about the next move
 
 - **Agent/system separation is MORE complete than assessed.** The wake is CC-shaped (ADR-360); the envelope, stripped, IS governance + snapshot + ask + clock — structurally the CC turn. The agent composes on it. The 8% is the only prosthetic.
