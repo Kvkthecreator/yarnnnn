@@ -281,16 +281,35 @@ def bundles_active_for_workspace(user_id: str, client: Any) -> list[dict[str, An
             c.get("requires_connection") for c in caps if c.get("requires_connection")
         }
 
-        if not required_platforms:
-            # Connection-less bundle: active-for-workspace iff the operator
-            # has activated it (MANDATE.md slug marker). No platform gate.
-            # Sort key "" => oldest, so platform-bound bundles (which carry
-            # a real connection age) order after it deterministically.
-            if activated_slug and bundle.get("slug") == activated_slug:
-                matching.append(("", bundle))
+        # The operator's explicit activation (MANDATE.md slug marker) is the
+        # strongest activation signal and is INDEPENDENT of platform connections.
+        # A connection requirement gates WHICH CAPABILITIES work (the reddit
+        # publish/perceive tools are unavailable without the reddit connection),
+        # NOT whether the operator's activated program resolves at all — its
+        # substrate_abi (ground_truth, watches, accumulating_files) and envelope
+        # exports must reach the Reviewer the moment the operator activates it.
+        #
+        # Pre-2026-06-24 this branch only fired for bundles with NO connection-
+        # gated capability (`if not required_platforms`). ADR-353 §15a added
+        # `requires_connection: reddit` capabilities to alpha-author, silently
+        # flipping it from connection-less to platform-bound and dropping its
+        # ground-truth / corpus-signal / reflection-gap-fact from an activated
+        # author workspace that hadn't connected reddit. An activated program is
+        # active-for-workspace regardless of its capabilities' connection gating.
+        # Sort key "" => oldest, so platform-bound (connection-aged) bundles the
+        # operator did NOT explicitly activate order after it deterministically.
+        if activated_slug and bundle.get("slug") == activated_slug:
+            matching.append(("", bundle))
             continue
 
-        # Platform-bound bundle: active iff any required platform is connected.
+        if not required_platforms:
+            # Connection-less, non-activated bundle: not active-for-workspace
+            # (no platform connection to age it, no slug marker to activate it).
+            continue
+
+        # Platform-bound bundle the operator did NOT explicitly activate: active
+        # iff any required platform is connected (the cockpit-chrome inference —
+        # a workspace with alpaca connected gets trader chrome even pre-marker).
         if required_platforms & connected_platforms:
             ages = [
                 platform_age.get(p, "")

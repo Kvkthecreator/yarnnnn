@@ -501,13 +501,22 @@ async def _reflection_gap_fact(client: Any, user_id: str) -> str:
     from services.workspace_paths import PERSONA_JUDGMENT_LOG_PATH
     from services.bundle_reader import get_ground_truth_for_workspace
 
+    # workspace_files store the /workspace/-prefixed path; the path CONSTANTS are
+    # bare (no prefix). The _UNIVERSAL_ENVELOPE_DECLS reads above go through the
+    # `_read()` helper which prepends the prefix — these two bespoke reads must do
+    # the same, or the .eq("path", ...) lookup misses every row (the gap-fact then
+    # silently returns "" and the loop never fires — the bug the offline reflection
+    # probe surfaced 2026-06-24, present since the ADR-364 D2 helper shipped).
+    def _full(path: str) -> str:
+        return path if path.startswith("/workspace/") else f"/workspace/{path.lstrip('/')}"
+
     # 1) Verdicts keyed by proposal_id (bounded read of judgment_log).
     try:
         res = (
             client.table("workspace_files")
             .select("content")
             .eq("user_id", user_id)
-            .eq("path", PERSONA_JUDGMENT_LOG_PATH)
+            .eq("path", _full(PERSONA_JUDGMENT_LOG_PATH))
             .limit(1)
             .execute()
         )
@@ -534,7 +543,7 @@ async def _reflection_gap_fact(client: Any, user_id: str) -> str:
             client.table("workspace_files")
             .select("content")
             .eq("user_id", user_id)
-            .eq("path", gt_path)
+            .eq("path", _full(gt_path))
             .limit(1)
             .execute()
         )
