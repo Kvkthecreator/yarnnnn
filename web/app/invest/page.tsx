@@ -161,12 +161,12 @@ export default function InvestPage() {
                     <h3 className="text-xl font-medium mb-4">The cumulative, accountable workspace</h3>
                     <div className="space-y-3 text-white/50 text-sm">
                       <p>
-                        Owned, attributed substrate. Corrections compound. A neutral judgment seat
-                        whose calls are reconciled against what actually happened. Work is
-                        monotonically improving; the trail reads like a track record.
+                        An owned workspace where every change is attributed. Corrections compound.
+                        A neutral judgment that&apos;s reconciled against what actually happened.
+                        Work is monotonically improving; the trail reads like a track record.
                       </p>
                       <div className="pt-3 border-t border-white/[0.06] text-xs">
-                        <p className="text-white/60 font-medium">yarnnn — substrate, agents, the seat, the dial</p>
+                        <p className="text-white/60 font-medium">yarnnn — the workspace, the agents, the judgment, the controls</p>
                         <p className="text-white/30">Model-agnostic neutrality by construction; theirs by impossibility.</p>
                       </div>
                     </div>
@@ -196,7 +196,7 @@ export default function InvestPage() {
               <BentoGrid>
                 {([
                   { title: "The loop closes against ground truth", desc: "Outcomes, costs, and calibration are written by the kernel, mechanically. The agent can't grade its own homework.", col: "md:col-span-3" },
-                  { title: "Total attribution", desc: "Substrate can't be mutated anonymously — every revision is authored, parent-pointered, content-addressed. No incumbent context layer exposes this.", col: "md:col-span-3" },
+                  { title: "Total attribution", desc: "Nothing in the workspace changes anonymously — every revision names who made it, what it changed, and what came before. No incumbent context layer exposes this.", col: "md:col-span-3" },
                   { title: "The governance boundary holds", desc: "The agent can tune its cadence but cannot raise its own budget or loosen its own delegation. DIY stacks and platform agents have no equivalent.", col: "md:col-span-3" },
                   { title: "Per-workspace sovereignty", desc: "Your asset is yours; no cross-workspace learning; the blast radius is one operator.", col: "md:col-span-3" },
                 ] as const).map((item) => (

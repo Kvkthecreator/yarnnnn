@@ -186,15 +186,11 @@ ALLOWLIST: list[str] = []
 # Phase 2 baseline — the kernel-noun leaks present when Phase 2 was introduced.
 # Each entry "relative/path::line-substring". SHRINK as copy passes land.
 ALLOWLIST_PHASE2: list[str] = [
-    # FINAL STATE (2026-06-24): every IN-APP surface has been swept clean. The
-    # only remaining entries are the MARKETING pages (/about, /invest), HELD by
-    # operator decision — "substrate" / "attribution" there is deliberate brand/
-    # pitch vocabulary for a different audience (prospects, investors), not an
-    # accidental in-app leak. Resolve these only after the operator decides
-    # whether the marketing voice should be plain-language'd or stays technical.
-    "web/app/about/page.tsx::body: \"Fix something once and everythin",
-    "web/app/invest/page.tsx::<p className=\"text-white/60 font-medium",
-    "web/app/invest/page.tsx::{ title: \"Total attribution\", desc: \"",
+    # EMPTY (2026-06-24). The full Phase-2 sweep is complete — every operator
+    # surface AND the marketing pages (/about, /invest) have been plain-language'd
+    # to one voice (operator decision: same standard everywhere). The guard now
+    # enforces a zero-baseline: ANY kernel-noun leak in operator-or-marketing copy
+    # turns CI red. Both phases ship with an empty allowlist.
 ]
 
 

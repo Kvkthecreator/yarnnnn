@@ -26,7 +26,7 @@ export const metadata: Metadata = getMarketingMetadata({
 const BELIEFS = [
   {
     title: "Work should be cumulative, not episodic",
-    body: "Fix something once and everything after inherits it. The substrate is the asset; the agents are the labor; the artifacts are the dividends. Everywhere else, work resets.",
+    body: "Fix something once and everything after inherits it. Your accumulated workspace is the asset; the agents are the labor; what they produce is the dividend. Everywhere else, work resets.",
     sub: "Day 1 the asset exists. Day 90 it's irreplaceable — not from lock-in, from accumulation.",
   },
   {
