@@ -200,7 +200,7 @@ const CLASS_META: Record<AgentClass, { label: string; description: string }> = {
   // to the cockpit.
   reviewer: {
     label: 'Reviewer',
-    description: 'Judgment seat — independent verdicts on proposed actions (ADR-194 / ADR-251).',
+    description: 'Your agent — it weighs each action on its own and decides whether to approve it, hold it for you, or turn it down.',
   },
 };
 

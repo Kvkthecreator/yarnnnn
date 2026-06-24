@@ -193,10 +193,10 @@ export function ReviewerActivityPanel() {
         </div>
         {!hasActiveSchedules ? (
           <p className="text-sm text-muted-foreground">
-            No active judgment recurrences configured. The Reviewer wakes on
-            three triggers (per ADR-260): operator chat, proposed actions, and
-            scheduled cron. The first two are always live; scheduled cadence
-            is opt-in via <code className="text-[11px] bg-muted px-1 rounded">_recurrences.yaml</code>.
+            Your agent isn&apos;t on a schedule yet. It already responds when you
+            message it or when an action needs a decision — that&apos;s always on.
+            To have it check in on its own at set times, ask it in chat to set
+            a schedule.
           </p>
         ) : isHealthy ? (
           <p className="text-sm text-foreground">

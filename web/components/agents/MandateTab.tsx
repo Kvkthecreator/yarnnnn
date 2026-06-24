@@ -21,7 +21,7 @@ export function MandateTab() {
     <SubstrateTab
       title="Mandate"
       icon={Compass}
-      tagline="Your Primary Action declaration — the external write you're moving value with, plus success criteria and guardrails. YARNNN gates task creation on this (ADR-207)."
+      tagline="What you're here to get done — the real-world action that moves the needle (place an order, ship a campaign, publish a piece), plus what success looks like and the limits you won't cross. Nothing runs until you've set this."
       path="/workspace/constitution/MANDATE.md"
       editPrompt="Help me revise my mandate. Show me the current Primary Action declaration and walk me through sharpening success criteria + boundary conditions."
       emptyBody={

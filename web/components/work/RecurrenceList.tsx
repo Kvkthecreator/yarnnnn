@@ -448,9 +448,9 @@ function ScheduleRow({
               <span className="text-[11px] text-muted-foreground/30">·</span>
               <span
                 className="text-[9px] font-medium uppercase tracking-wider text-muted-foreground/60 px-1 py-0.5 rounded bg-muted/60"
-                title="Mechanical recurrence — runs as deterministic Python; no LLM cost (ADR-263)"
+                title="Runs automatically — no AI cost, no decision needed."
               >
-                Mech
+                Auto
               </span>
             </>
           )}
