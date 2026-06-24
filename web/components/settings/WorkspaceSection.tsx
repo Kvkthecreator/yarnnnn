@@ -305,10 +305,10 @@ export function WorkspaceSection() {
 
       {/* Substrate status */}
       <div>
-        <h2 className="text-lg font-semibold mb-2">Substrate status</h2>
+        <h2 className="text-lg font-semibold mb-2">Workspace files</h2>
         <p className="text-xs text-muted-foreground mb-3">
-          Per-file state of your authored workspace substrate. Authoring routes
-          through chat — open in Files to view raw markdown.
+          The state of each of your workspace files. You author these through
+          chat — open Files to view the raw markdown.
         </p>
         <div className="grid gap-2">
           {(Object.keys(FILE_LABELS) as Array<keyof WorkspaceState['substrate_status']>).map(

@@ -161,7 +161,7 @@ function TunePane({ onSelect, onOpenFull }: { onSelect: (slug: string) => void; 
       <PaneHeader
         title="Schedule"
         subtitle="The recurring work — pick a row to pause, run now, or edit."
-        link={<MirrorLink label="Open full Recurrence" onClick={onOpenFull} />}
+        link={<MirrorLink label="Open full Schedule" onClick={onOpenFull} />}
       />
       <div className="flex-1 overflow-y-auto">
         <RecurrenceList

@@ -34,7 +34,7 @@ export const CADENCE_LABELS: Record<CadenceCategory, { title: string; descriptio
   },
   reactive: {
     title: 'Reactive',
-    description: 'Fires on event — operator trigger, proposal arrival, or named via the recurrence prompt.',
+    description: 'Runs when something happens — you ask, a decision comes in, or a scheduled prompt calls for it.',
   },
 };
 

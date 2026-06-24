@@ -116,6 +116,13 @@ def _is_rendered_string_context(line: str, token: str) -> bool:
     if _CODE_NOT_COPY.search(line):
         return False
     tok = re.escape(token)
+    # Route-slug false positive: `navigateToSurface("recurrence", …)` / `href="/recurrence"`
+    # pass a ROUTE NAME, not copy. The visible label on the same line (if any) is a
+    # separate string the matcher still sees; only the slug token is excluded.
+    if re.search(r'navigateToSurface\s*\(\s*["\']' + tok, line):
+        return False
+    if re.search(r'href=[{"\']?[^"\'`]*/' + tok + r'\b', line):
+        return False
     # Property-access false positive: `{occupant.x}` / `watch.recurrence` render
     # the VALUE of a field whose NAME contains the token — the operator never sees
     # the word itself. Exclude when the token is preceded by `.` or is the object
@@ -179,17 +186,15 @@ ALLOWLIST: list[str] = []
 # Phase 2 baseline — the kernel-noun leaks present when Phase 2 was introduced.
 # Each entry "relative/path::line-substring". SHRINK as copy passes land.
 ALLOWLIST_PHASE2: list[str] = [
-    # Phase 2 baseline (2026-06-24). The feed surface + autonomy governance card +
-    # system-status were cleaned in the introducing pass; these lower-exposure
-    # surfaces remain. SHRINK this list as each surface gets its copy pass (spec
-    # §5 order: governance cards done → nav/empty-states → settings/marketing).
+    # FINAL STATE (2026-06-24): every IN-APP surface has been swept clean. The
+    # only remaining entries are the MARKETING pages (/about, /invest), HELD by
+    # operator decision — "substrate" / "attribution" there is deliberate brand/
+    # pitch vocabulary for a different audience (prospects, investors), not an
+    # accidental in-app leak. Resolve these only after the operator decides
+    # whether the marketing voice should be plain-language'd or stays technical.
     "web/app/about/page.tsx::body: \"Fix something once and everythin",
-    "web/app/(authenticated)/notifications/page.tsx::link={<MirrorLink label=\"Open run ledge",
-    "web/app/(authenticated)/notifications/page.tsx::link={<MirrorLink label=\"Open full Recu",
     "web/app/invest/page.tsx::<p className=\"text-white/60 font-medium",
     "web/app/invest/page.tsx::{ title: \"Total attribution\", desc: \"",
-    "web/components/settings/WorkspaceSection.tsx::<h2 className=\"text-lg font-semibold mb",
-    "web/lib/schedule.ts::description: 'Fires on event — operator ",
 ]
 
 
