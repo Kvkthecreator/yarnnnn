@@ -1390,6 +1390,45 @@ async def invoke_reviewer(
         # fallback at line ~1530 (verdict_raw is None) is the safety net for
         # the rare case the model truly can't synthesize within budget.
         max_rounds = 3 if use_sonnet else 20
+
+        # ADR-363 D3 (PROBE-GATED): context-editing for the within-wake tool-loop.
+        # Off by default — gated on YARNNN_CONTEXT_EDIT so the cross-wake floor is
+        # never assumed-on before a funded measurement proves it relieves the
+        # max_rounds ceiling (verdict=None / truncation) OR gives equal behavior at
+        # lower cost. The two probe variables are tunable by env (defaults match the
+        # safety analysis, NOT the API defaults):
+        #   - TRIGGER (YARNNN_CONTEXT_EDIT_TRIGGER, default 24000): the API default
+        #     of 100k would never fire on a wake whose governance prefix is ~16k +
+        #     a bounded loop — exactly the wakes D3 targets. 24k fires once the loop
+        #     has accumulated meaningful tool-result bloat past the governance block.
+        #   - KEEP (YARNNN_CONTEXT_EDIT_KEEP, default 6): retain the N most-recent
+        #     tool_use/result pairs. The read-heavy pattern (pre-ship-audit reads 8+
+        #     files before writing) means keep:3 (the API default) could evaporate
+        #     file contents the verdict still rests on; 6 is the conservative start.
+        # Pure within-call prune — the durable record is the substrate the agent
+        # already wrote (ADR-209), untouched. Moat-neutral by construction.
+        _ctx_edit: dict | None = None
+        if _os_probe.environ.get("YARNNN_CONTEXT_EDIT", "").strip().lower() in ("1", "true", "on"):
+            try:
+                _ce_trigger = int(_os_probe.environ.get("YARNNN_CONTEXT_EDIT_TRIGGER", "24000"))
+            except ValueError:
+                _ce_trigger = 24000
+            try:
+                _ce_keep = int(_os_probe.environ.get("YARNNN_CONTEXT_EDIT_KEEP", "6"))
+            except ValueError:
+                _ce_keep = 6
+            _ctx_edit = {
+                "edits": [{
+                    "type": "clear_tool_uses_20250919",
+                    "trigger": {"type": "input_tokens", "value": _ce_trigger},
+                    "keep": {"type": "tool_uses", "value": _ce_keep},
+                }]
+            }
+            logger.info(
+                "[REVIEWER] ADR-363 D3 context-editing ON trigger=%d keep=%d trigger_kind=%s user=%s",
+                _ce_trigger, _ce_keep, trigger, user_id[:8],
+            )
+
         total_input = 0
         total_output = 0
         total_cache_read = 0
@@ -1468,6 +1507,7 @@ async def invoke_reviewer(
                     max_tokens=8192,
                     tool_choice=tool_choice,
                     on_text_delta=_on_text_delta,
+                    context_management=_ctx_edit,  # ADR-363 D3 (probe-gated, None when off)
                 )
             else:
                 response = await chat_completion_with_tools(
@@ -1477,6 +1517,7 @@ async def invoke_reviewer(
                     model=model,
                     max_tokens=8192,
                     tool_choice=tool_choice,
+                    context_management=_ctx_edit,  # ADR-363 D3 (probe-gated, None when off)
                 )
 
             usage = response.usage or {}

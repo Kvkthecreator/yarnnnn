@@ -137,6 +137,25 @@ def _parse_response(response) -> ChatResponse:
                 f"cache_hit={cache_pct}% model={getattr(response, 'model', '?')}"
             )
 
+    # ADR-363 D3 observability: when context-editing fired, the beta response
+    # carries context_management.applied_edits (cleared_tool_uses /
+    # cleared_input_tokens). Log it so a probe can confirm the prune ACTUALLY
+    # happened (vs the trigger never crossing) — the gap that made the first
+    # keep-sweep unreadable. Best-effort; never breaks the parse.
+    try:
+        _cm = getattr(response, "context_management", None)
+        _edits = getattr(_cm, "applied_edits", None) if _cm is not None else None
+        if _edits:
+            for _e in _edits:
+                logger.info(
+                    "[CONTEXT-EDIT] applied type=%s cleared_tool_uses=%s cleared_input_tokens=%s",
+                    getattr(_e, "type", "?"),
+                    getattr(_e, "cleared_tool_uses", None),
+                    getattr(_e, "cleared_input_tokens", None),
+                )
+    except Exception:  # noqa: BLE001 — observability must never break the parse
+        pass
+
     return ChatResponse(
         content=response.content,
         stop_reason=response.stop_reason,
@@ -221,6 +240,22 @@ async def chat_completion_with_usage(
     return response.content[0].text, usage
 
 
+# ADR-363 D3: context-editing beta. When a caller passes context_management,
+# the request needs this beta alongside prompt-caching, AND must route through
+# client.beta.messages.* (context_management is rejected on the non-beta path).
+# The beta header carries BOTH features comma-separated in one anthropic-beta value.
+_CONTEXT_MGMT_BETA = "context-management-2025-06-27"
+_PROMPT_CACHE_BETA = "prompt-caching-2024-07-31"
+
+
+def _beta_header(context_management: Optional[dict]) -> str:
+    """Build the anthropic-beta header value. Context-editing co-exists with
+    prompt-caching as a comma-joined beta list when context_management is set."""
+    if context_management:
+        return f"{_PROMPT_CACHE_BETA},{_CONTEXT_MGMT_BETA}"
+    return _PROMPT_CACHE_BETA
+
+
 async def chat_completion_with_tools(
     messages: list[dict],
     system: str | list[dict],
@@ -228,6 +263,7 @@ async def chat_completion_with_tools(
     model: str = "claude-sonnet-4-6",
     max_tokens: int = 4096,
     tool_choice: Optional[dict] = None,
+    context_management: Optional[dict] = None,
 ) -> ChatResponse:
     """
     Chat completion with tool use support (ADR-007).
@@ -239,25 +275,36 @@ async def chat_completion_with_tools(
         model: Model ID
         max_tokens: Maximum response tokens
         tool_choice: Optional tool choice config {"type": "auto"|"any"|"tool", "name": "..."}
+        context_management: Optional ADR-363 D3 context-editing config, e.g.
+            {"edits": [{"type": "clear_tool_uses_20250919", ...}]}. When set, the
+            call routes through client.beta.messages.create with the
+            context-management-2025-06-27 beta added. None preserves the exact
+            pre-ADR-363 non-beta call path.
 
     Returns:
         ChatResponse with text, stop_reason, and tool_uses
     """
     client = get_anthropic_client()
 
-    kwargs = {
+    kwargs: dict[str, Any] = {
         "model": model,
         "max_tokens": max_tokens,
         "system": _prepare_system(system),
         "messages": messages,
         "tools": tools,
-        "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
+        "extra_headers": {"anthropic-beta": _beta_header(context_management)},
     }
 
     if tool_choice:
         kwargs["tool_choice"] = tool_choice
 
-    response = await client.messages.create(**kwargs)
+    if context_management:
+        # context_management is a beta-only request param — route through
+        # client.beta.messages so the SDK accepts it.
+        kwargs["context_management"] = context_management
+        response = await client.beta.messages.create(**kwargs)
+    else:
+        response = await client.messages.create(**kwargs)
     return _parse_response(response)
 
 
@@ -269,6 +316,7 @@ async def chat_completion_with_tools_stream(
     max_tokens: int = 4096,
     tool_choice: Optional[dict] = None,
     on_text_delta: Optional["TextDeltaCallback"] = None,
+    context_management: Optional[dict] = None,
 ) -> ChatResponse:
     """
     Tool-aware STREAMING chat completion (ADR-351 Phase 1).
@@ -310,12 +358,19 @@ async def chat_completion_with_tools_stream(
         "system": _prepare_system(system),
         "messages": messages,
         "tools": tools,
-        "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
+        "extra_headers": {"anthropic-beta": _beta_header(context_management)},
     }
     if tool_choice:
         kwargs["tool_choice"] = tool_choice
 
-    async with client.messages.stream(**kwargs) as stream:
+    # ADR-363 D3: context-editing routes the stream through the beta namespace.
+    if context_management:
+        kwargs["context_management"] = context_management
+        stream_cm = client.beta.messages.stream(**kwargs)
+    else:
+        stream_cm = client.messages.stream(**kwargs)
+
+    async with stream_cm as stream:
         if on_text_delta is not None:
             async for text in stream.text_stream:
                 try:

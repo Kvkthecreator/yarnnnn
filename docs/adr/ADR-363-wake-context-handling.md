@@ -42,17 +42,19 @@ This closes Finding A: filesystem-native is now adjudicated *for the wake*, on t
 
 Documented as a *decision*, not an omission: provider-managed sessions move memory-of-record off authored substrate (moat cost) for a cost benefit that caching already captures (no marginal gain). Rejected. Re-openable only if a future measurement shows caching cannot capture the cost benefit — which D1's evidence makes unlikely.
 
-### D3 — ADOPT context-editing for the within-wake tool-loop (the genuinely-new decision)
+### D3 — WIRE context-editing for the within-wake tool-loop, DORMANT pending a demonstrated need (revised 2026-06-24 after the probe)
 
-The one territory the lineage never reached. A wake's tool-loop accumulates `tool_use`/`tool_result` blocks across rounds; the loop hits its round ceiling (`max_rounds = 3 if use_sonnet else 20`, `reviewer_agent.py:1392`) — observed failing repeatedly this session (verdict=None, budget-exhausted). The lineage's `conversation.md` rollup is *cross-session* (chat); it has no within-wake-loop analogue.
+The one territory the lineage never reached. A wake's tool-loop accumulates `tool_use`/`tool_result` blocks across rounds; the loop hits its round ceiling (`max_rounds = 3 if use_sonnet else 20`, `reviewer_agent.py:1392`). The lineage's `conversation.md` rollup is *cross-session* (chat); it has no within-wake-loop analogue.
 
-**Decision**: wire Anthropic **context-editing** (`clear_tool_uses_20250919`, beta `context-management-2025-06-27`) into the wake loop's API calls (`chat_completion_with_tools` / `chat_completion_with_tools_stream` in `services/anthropic.py`). It prunes stale tool results from the loop's transcript — **pure within-call prune, nothing provider-retained, zero moat wrinkle** (memory-of-record is the substrate the agent already wrote, untouched).
+**Decision (as built)**: Anthropic **context-editing** (`clear_tool_uses_20250919`, beta `context-management-2025-06-27`) is **wired into the wake loop but OFF by default** — gated on `YARNNN_CONTEXT_EDIT`, with `trigger` + `keep` as env-tunable variables. It prunes stale tool results from the loop's transcript — **pure within-call prune, nothing provider-retained, zero moat wrinkle** (memory-of-record is the substrate the agent already wrote, untouched). `services/anthropic.py::chat_completion_with_tools[_stream]` gain an optional `context_management` passthrough that routes through `client.beta.messages.*` only when set; `None` preserves the exact pre-ADR-363 non-beta cached path.
 
 - **Moat**: ✅ safe — within-call only; the durable record is the substrate writes, not the pruned tool blocks.
-- **Cost**: prunes the tool-result bloat that accumulates across rounds.
-- **Behavioral upside (the real prize)**: by clearing stale tool results, the effective working budget per round grows — **this may relieve the 20-round ceiling that has been truncating wakes all session** (the verdict=None failures). This is a correctness win, not just cost.
+- **Safety (MEASURED)**: ✅ in the funded keep-sweep, no arm flipped the verdict to None at `keep=3` or `keep=6` — mid-loop pruning did **not** break judgment. The discourse's mid-loop-safety worry did not materialize in this run.
+- **Cost (UNTESTED, not falsified)**: the funded keep-sweep was **inconclusive** — the three arms hit 5/14/11 rounds on the identical prompt, so wake-to-wake variance swamped any prune effect, and the probe failed to capture `applied_edits` so it could not confirm the prune even fired. See [`2026-06-24-adr363-d3-context-editing-INCONCLUSIVE`](../evaluations/2026-06-24-adr363-d3-context-editing-INCONCLUSIVE.md).
 
-**Probe-gated**: ship behind measurement — does context-editing reduce truncation/verdict=None rate on wakes that currently hit the ceiling? If it doesn't move the ceiling behavior, it's still a cost win, but the behavioral claim must be measured, not assumed.
+**Why dormant, not adopted**: the premise is **thin** in production — verdict=None is rare (1 in 30 days on the funded workspace) and ceiling-hitting wakes are a small tail, so the measurable D3 win is at most a marginal cost trim on a few wakes, not a behavioral fix. Spending more funded balance to isolate a marginal win against high wake-variance is poor return. The mechanism ships **dormant + instrumented** (`_parse_response` now logs `applied_edits`); a demonstrated production cost problem — or a deliberate variance-controlled re-run (long deterministic recurrence, ≥2× per arm, lowered trigger, confirmed prune) — pulls it on. The corrected probe design is recorded in the finding.
+
+**Status**: D3 stays **Proposed** (wired-but-dormant). It does NOT flip to Implemented on this measurement; the cost claim is explicitly untested. Promotion requires the variance-controlled re-run reading ADOPT.
 
 ### D4 — EVALUATE within-wake compaction as the fallback (re-open, distinct from the chat case ADR-221 closed)
 
@@ -75,15 +77,19 @@ The Anthropic memory tool (`memory_20250818`) is a read/write `/memories` interf
 - **No change to the chat surface.** ADR-159/221's chat-turn context model is untouched; this ADR is wake-scoped. (If the chat surface later wants context-editing too, that's a follow-on.)
 - **No self-improvement / eval work.** Those are Concerns 2 + 3, PENDING and gated behind this (§6).
 
-## 5. Implementation scope (sketch — not built by this ADR)
+## 5. Implementation scope
 
-1. `services/anthropic.py` — `chat_completion_with_tools` + `_stream` gain optional `context_management` passthrough + the `context-management-2025-06-27` beta header (alongside the existing `prompt-caching` header). D3.
-2. `agents/reviewer_agent.py` — the wake loop passes `context_management={"edits": [{"type": "clear_tool_uses_20250919"}]}` on its API calls; measure verdict=None / truncation rate vs the `max_rounds` ceiling (1392). D3 probe.
-3. Cache TTL — governance block's `cache_control` gains a cadence-derived `ttl` (D5).
-4. D4 (compaction) + D5 (TTL) are measure-then-adopt; D2 + D6 are documented rejections (no code).
-5. Regression: the wake still composes/judges correctly with context-editing on (no loss of mid-loop substrate the agent needed); a funded wake shows reduced truncation OR equal behavior at lower token cost.
+**D3 — BUILT (dormant), 2026-06-24:**
+1. `services/anthropic.py` — `chat_completion_with_tools` + `_stream` gained an optional `context_management` passthrough; when set, the call routes through `client.beta.messages.*` with `context-management-2025-06-27` joined to the existing `prompt-caching` beta (one comma-joined header). `None` preserves the exact pre-ADR-363 non-beta cached path. `_parse_response` logs `applied_edits` for probe observability.
+2. `agents/reviewer_agent.py` (~1392) — the wake loop builds a `clear_tool_uses_20250919` config and passes it to both call sites, **gated on `YARNNN_CONTEXT_EDIT`** (off by default). `trigger` (default 24k, not the API's 100k) + `keep` (default 6, not the API's 3) are env-tunable probe variables with safety-derived defaults.
+3. Probe: `api/scripts/operator/probe_context_editing_local.py` (3-arm keep-sweep). **Result: inconclusive on cost, clean on safety** — see [the finding](../evaluations/2026-06-24-adr363-d3-context-editing-INCONCLUSIVE.md).
 
-**Probe-before-canon**: D3 is the substantive change — gate it on a funded measurement (does it relieve the ceiling?) before Proposed→Implemented. D1/D2/D6 are decisions ratified by the re-audit; D4/D5 are measure-then-adopt.
+**Outcome**: D3 ships **wired-but-dormant**. The safety question is answered (no verdict-flip); the cost question is untested (variance-confounded) and the production premise is thin, so the mechanism stays off-by-default until a demonstrated need pulls it on. D3 remains **Proposed**, NOT Implemented.
+
+**D4/D5 — not built:**
+4. D4 (within-wake compaction) + D5 (cache TTL by cadence) are measure-then-adopt; D2 + D6 are documented rejections (no code). Deferred — D3's inconclusive cost result lowers the priority of further within-wake-context tuning until a real cost problem surfaces.
+
+**Probe-before-canon (honored)**: D3 was gated on a funded measurement and is NOT promoted to Implemented because the measurement did not read ADOPT on cost. The probe-before-canon discipline worked as intended — it stopped a marginal, unproven win from being canonized as adopted. D1/D2/D6 are decisions ratified by the re-audit.
 
 ## 6. Sequence + the pending concerns (explicit)
 
@@ -91,7 +97,7 @@ This ADR is **Concern 1, first in sequence**. The other two concerns are PENDING
 
 | Concern | Status | Gated behind |
 |---|---|---|
-| **1. Context handling (this ADR)** | Proposed → implement D3, measure D4/D5 | — (first) |
+| **1. Context handling (this ADR)** | D3 wired-but-dormant (probe inconclusive on cost, clean on safety); D4/D5 deferred | — (first) |
 | **2. Continuity eval + snapshot/restore harness** | PENDING (sketched: discourse doc §2; no ADR yet) | Concern 1 stable |
 | **3. Self-improvement / Inspector seat** | PENDING ([ADR-361](ADR-361-verdict-rule-binding.md) + [ADR-362](ADR-362-inspector-auditor-seat.md) drafted, Proposed) | Concerns 1 + 2 stable |
 
@@ -99,4 +105,4 @@ The continuity eval (Concern 2) is the precondition gate for the Inspector (Conc
 
 ## 7. The honest bottom line
 
-The re-audit, done broad per the directive, finds the lineage's *cross-wake* conclusion survives a from-scratch re-derivation and is *strengthened* by this session's caching evidence — but it was only ever adjudicated for the *chat surface*, so this ADR re-derives it for the *wake* (D1) and documents the rejection of the alternatives on merits (D2/D6), not by inheritance. The genuinely-new, un-adjudicated territory is **within-wake-loop context** (D3 context-editing, D4 compaction fallback) — a real problem tied to the 20-round ceiling that's been failing wakes, and the substantive decision of this ADR. The moat is preserved (memory-of-record stays authored substrate; only within-call ephemera move to API mechanisms) AND cost/behavior improve (caching already; context-editing next) — the not-mutually-exclusive outcome the directive asked for. Eval and self-improvement remain PENDING, gated behind this.
+The re-audit, done broad per the directive, finds the lineage's *cross-wake* conclusion survives a from-scratch re-derivation and is *strengthened* by this session's caching evidence — but it was only ever adjudicated for the *chat surface*, so this ADR re-derives it for the *wake* (D1) and documents the rejection of the alternatives on merits (D2/D6), not by inheritance. The genuinely-new, un-adjudicated territory was **within-wake-loop context** (D3 context-editing). It got wired and probed — and the funded measurement came back **honest, not flattering**: context-editing is moat-safe and did NOT break judgment (safety: measured clean), but its cost benefit is **untested** (the keep-sweep was variance-confounded) and the production premise is **thin** (verdict=None rare, ceiling-hitting wakes a small tail). So D3 ships **dormant** — wired, off by default, instrumented — rather than adopted. The probe-before-canon discipline did its job: it stopped a marginal, unproven win from being canonized. The moat is preserved throughout (memory-of-record stays authored substrate; only within-call ephemera would move to API mechanisms, and only when the flag is on). The clean cost win this session was **caching** (`66a9090`); context-editing remains a latent lever, not a banked one. Eval and self-improvement remain PENDING, gated behind this.

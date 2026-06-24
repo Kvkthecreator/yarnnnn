@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.24.4] - ADR-363 D3: within-wake context-editing wired behind a probe gate (clear_tool_uses)
+
+**LLM-facing change (probe-gated, OFF by default — no behavior change until the env flag is set):**
+- `api/services/anthropic.py`: `chat_completion_with_tools` + `chat_completion_with_tools_stream` gain an optional `context_management` passthrough. When set, the call routes through `client.beta.messages.*` with the `context-management-2025-06-27` beta added alongside `prompt-caching-2024-07-31` (one comma-joined `anthropic-beta` header). When `None` (the default), the exact pre-ADR-363 non-beta `client.messages.create` path is preserved byte-for-byte — caching, cost, behavior all unchanged.
+- `api/agents/reviewer_agent.py` wake loop (line ~1392): builds an ADR-363 D3 `clear_tool_uses_20250919` config and passes it to both call sites — **gated on `YARNNN_CONTEXT_EDIT`** (off unless `1|true|on`). Two probe variables tunable by env, defaults chosen by the mid-loop-safety analysis (NOT the API defaults): `YARNNN_CONTEXT_EDIT_TRIGGER` (default 24000 — the API default of 100k would never fire on a ~16k-governance wake) and `YARNNN_CONTEXT_EDIT_KEEP` (default 6 — the read-heavy pre-ship-audit pattern reads 8+ files, so keep:3 the API default could evaporate substrate the verdict still rests on).
+- **Moat-neutral by construction**: context-editing is a pure within-call prune. The durable cross-wake record is the substrate the agent already wrote (ADR-209), untouched — only ephemeral tool-result blocks in the loop transcript are cleared.
+- `api/services/anthropic.py::_parse_response`: logs `[CONTEXT-EDIT] applied …` (`cleared_tool_uses` / `cleared_input_tokens`) when the beta response reports `context_management.applied_edits` — observability so a probe can confirm the prune actually fired. Best-effort, never breaks the parse.
+- **Expected behavior**: with the flag OFF (production default), **identical to HEAD** — the non-beta cached call path is byte-for-byte preserved. With it ON, long read-heavy wakes prune stale tool results past the trigger, keeping the N most-recent tool_use/result pairs.
+- **Probe result (2026-06-24, funded keep-sweep)**: INCONCLUSIVE on cost, **clean on safety**. No arm flipped the verdict to None at keep=3 or keep=6 (mid-loop pruning did not break judgment); but the cost A/B was variance-confounded (arms hit 5/14/11 rounds on the same prompt) and `applied_edits` wasn't captured, so the prune couldn't be confirmed. Finding: `docs/evaluations/2026-06-24-adr363-d3-context-editing-INCONCLUSIVE.md`.
+- **Outcome**: D3 ships **wired-but-dormant** (off by default) and stays **Proposed, NOT Implemented**. The production premise is thin (verdict=None rare; ceiling-hitting wakes a small tail), so the mechanism waits for a demonstrated need or a variance-controlled re-run reading ADOPT. Reverts cleanly (flag default off; remove the `_ctx_edit` block + the `context_management` params to fully unwire).
+
 ## [2026.06.24.3] - ADR-360 → Implemented: agnostic kernel E2E gate passed 9/9 (docs-only)
 
 **Docs-only (no LLM-facing code change):**
