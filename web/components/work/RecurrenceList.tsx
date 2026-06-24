@@ -478,7 +478,7 @@ function ScheduleRow({
         href={`/recurrence?recurrence.pane=activity&recurrence.slug=${encodeURIComponent(task.slug)}`}
         onClick={(e) => e.stopPropagation()}
         className="shrink-0 text-[10px] text-muted-foreground/40 hover:text-foreground hover:underline underline-offset-4 transition-colors"
-        title="See execution history for this recurrence"
+        title="See the run history for this scheduled work"
       >
         View runs →
       </Link>

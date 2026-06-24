@@ -137,7 +137,7 @@ export function AutonomyStatusItem() {
       )}
 
       {!isPaused && effectiveDelegation === 'bounded' && ceilingCents != null && (
-        <p className="pt-0.5">Above the ceiling, capital actions queue for your approval.</p>
+        <p className="pt-0.5">Any spend above your limit waits for your approval.</p>
       )}
     </div>
   );

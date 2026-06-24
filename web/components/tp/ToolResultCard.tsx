@@ -108,7 +108,7 @@ function renderEntityPreview(entity: Record<string, unknown>, entityType?: strin
       const description = entity.description as string | undefined;
       return (
         <div className="space-y-1">
-          <div className="text-sm">{description || 'Recurrence'}</div>
+          <div className="text-sm">{description || 'Scheduled work'}</div>
           {status ? (
             <span className="text-xs text-muted-foreground">{status}</span>
           ) : null}

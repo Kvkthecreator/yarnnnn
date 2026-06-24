@@ -115,9 +115,24 @@ def _is_rendered_string_context(line: str, token: str) -> bool:
         return False
     if _CODE_NOT_COPY.search(line):
         return False
-    # JSX text: ...>some text TOKEN text<...
-    if re.search(r">[^<]*" + re.escape(token) + r"[^<]*<", line):
-        return True
+    tok = re.escape(token)
+    # Property-access false positive: `{occupant.x}` / `watch.recurrence` render
+    # the VALUE of a field whose NAME contains the token — the operator never sees
+    # the word itself. Exclude when the token is preceded by `.` or is the object
+    # root of a `{token.…}` / `{obj.token …}` member expression inside JSX braces.
+    if re.search(r"\." + tok + r"\b", line):
+        # the token is a property name (e.g. `.recurrence`, `.occupant`) — data, not copy
+        if not re.search(r"[\"'`][^\"'`]*" + tok, line):  # …unless it ALSO appears inside a quote
+            return False
+    # JSX text: ...>some text TOKEN text<...  (but a bare {expr} is not literal text)
+    m = re.search(r">[^<]*" + tok + r"[^<]*<", line)
+    if m:
+        # if the token sits inside a {…} JSX expression, it's interpolated data
+        seg = m.group(0)
+        if re.search(r"\{[^}]*" + tok + r"[^}]*\}", seg):
+            pass  # interpolated — fall through to the prop check, don't accept as JSX text
+        else:
+            return True
     # copy-bearing prop / throw / toast carrying a string on this line
     if _COPY_PROP.search(line):
         return True
@@ -174,21 +189,6 @@ ALLOWLIST_PHASE2: list[str] = [
     "web/app/invest/page.tsx::<p className=\"text-white/60 font-medium",
     "web/app/invest/page.tsx::{ title: \"Total attribution\", desc: \"",
     "web/components/settings/WorkspaceSection.tsx::<h2 className=\"text-lg font-semibold mb",
-    "web/components/activity/ActivityLog.tsx::title=\"Manage this recurrence (declarat",
-    "web/components/shell/system-status/AutonomyStatusItem.tsx::<p className=\"pt-0.5\">Above the ceilin",
-    "web/components/tp/InlineActionCard.tsx::title: 'Run this recurrence',",
-    "web/components/tp/InlineActionCard.tsx::title: 'Adjust this recurrence',",
-    "web/components/tp/InlineActionCard.tsx::{ label: 'Focus area', message: 'Change ",
-    "web/components/tp/InlineActionCard.tsx::{ label: 'Success criteria', message: 'U",
-    "web/components/tp/InlineActionCard.tsx::{ label: 'Schedule', message: 'Change th",
-    "web/components/tp/InlineActionCard.tsx::{ label: 'Delivery', message: 'Change th",
-    "web/components/tp/InlineActionCard.tsx::{ label: 'Latest trends', message: 'Rese",
-    "web/components/tp/InlineActionCard.tsx::{ label: 'Competitor activity', message:",
-    "web/components/tp/InlineActionCard.tsx::{ label: 'Industry news', message: 'Rese",
-    "web/components/tp/ToolResultCard.tsx::<div className=\"text-sm\">{description ",
-    "web/components/work/RecurrenceList.tsx::title=\"See execution history for this r",
-    "web/components/queue/QueueBody.tsx::Verdicts rendered by <span className=\"f",
-    "web/components/workspace-concepts/SourcesCard.tsx::<span className=\"text-[10px] text-muted",
     "web/lib/schedule.ts::description: 'Fires on event — operator ",
 ]
 

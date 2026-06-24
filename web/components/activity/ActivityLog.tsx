@@ -222,7 +222,7 @@ function JobCard({ group, defaultOpen = false }: { group: JobGroup; defaultOpen?
           href={`/recurrence?task=${encodeURIComponent(group.slug)}`}
           onClick={(e) => e.stopPropagation()}
           className="shrink-0 text-[10px] text-muted-foreground/40 hover:text-foreground hover:underline underline-offset-4 transition-colors"
-          title="Manage this recurrence (declaration view + run / pause / edit)"
+          title="Manage this scheduled work — run, pause, or edit it"
         >
           Manage →
         </Link>

@@ -79,7 +79,7 @@ export function InlineActionCard({ config, onSelect, onDismiss }: InlineActionCa
 
 /** Recurrence detail: "Run this" action */
 export const RUN_TASK_CARD: ActionCardConfig = {
-  title: 'Run this recurrence',
+  title: 'Run this scheduled work',
   options: [
     { label: 'Run now', message: 'Run this now' },
     { label: 'Run with special focus', message: 'Run this with focus on ' },
@@ -88,13 +88,13 @@ export const RUN_TASK_CARD: ActionCardConfig = {
 
 /** Recurrence detail: "Adjust this" action */
 export const ADJUST_TASK_CARD: ActionCardConfig = {
-  title: 'Adjust this recurrence',
+  title: 'Adjust this scheduled work',
   description: 'What would you like to change?',
   options: [
-    { label: 'Focus area', message: 'Change the focus of this recurrence to ' },
-    { label: 'Success criteria', message: 'Update the success criteria for this recurrence' },
-    { label: 'Schedule', message: 'Change the schedule for this recurrence' },
-    { label: 'Delivery', message: 'Change the delivery for this recurrence' },
+    { label: 'Focus area', message: 'Change the focus of this scheduled work to ' },
+    { label: 'Success criteria', message: 'Update the success criteria for this scheduled work' },
+    { label: 'Schedule', message: 'Change the schedule for this scheduled work' },
+    { label: 'Delivery', message: 'Change the delivery for this scheduled work' },
   ],
   inputPlaceholder: 'Or describe the adjustment',
 };
@@ -104,9 +104,9 @@ export const RESEARCH_TASK_CARD: ActionCardConfig = {
   title: 'Web research',
   description: 'What should I look into?',
   options: [
-    { label: 'Latest trends', message: 'Research latest trends relevant to this recurrence' },
-    { label: 'Competitor activity', message: 'Research competitor activity for this recurrence' },
-    { label: 'Industry news', message: 'Research recent industry news for this recurrence' },
+    { label: 'Latest trends', message: 'Research latest trends relevant to this scheduled work' },
+    { label: 'Competitor activity', message: 'Research competitor activity for this scheduled work' },
+    { label: 'Industry news', message: 'Research recent industry news for this scheduled work' },
   ],
   inputPlaceholder: 'Or describe what to research',
 };
