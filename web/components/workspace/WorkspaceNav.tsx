@@ -96,9 +96,9 @@ export function WorkspaceNav({
   return (
     <div className="text-sm flex flex-col h-full">
       <div className="flex-1 overflow-y-auto">
-        {/* ── Recurrences ── */}
+        {/* ── Scheduled work ── */}
         <NavSection
-          title="Recurrences"
+          title="Schedule"
           expanded={expanded.tasks}
           onToggle={() => toggle('tasks')}
           action={onCreateTask ? (
@@ -111,7 +111,7 @@ export function WorkspaceNav({
           ) : undefined}
         >
           {nav.tasks.length === 0 && (
-            <div className="px-3 py-1.5 text-sm text-muted-foreground">No recurrences yet</div>
+            <div className="px-3 py-1.5 text-sm text-muted-foreground">Nothing scheduled yet</div>
           )}
           {nav.tasks.map(task => (
             <button

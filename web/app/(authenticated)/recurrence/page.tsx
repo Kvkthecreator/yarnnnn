@@ -310,7 +310,7 @@ export default function RecurrencePage() {
           </div>
         ) : taskNotFound ? (
           <SurfaceState
-            title="Recurrence not found"
+            title="Scheduled item not found"
             description="That work item no longer exists or the link is stale."
             action={(
               <button
@@ -324,7 +324,7 @@ export default function RecurrencePage() {
           />
         ) : taskDetailError && !selectedRecurrenceDetail ? (
           <SurfaceState
-            title="Failed to load recurrence"
+            title="Couldn't load this scheduled item"
             description={taskDetailError}
             action={(
               <>

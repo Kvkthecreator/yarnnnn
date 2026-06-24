@@ -169,8 +169,6 @@ ALLOWLIST_PHASE2: list[str] = [
     # surfaces remain. SHRINK this list as each surface gets its copy pass (spec
     # §5 order: governance cards done → nav/empty-states → settings/marketing).
     "web/app/about/page.tsx::body: \"Fix something once and everythin",
-    "web/app/(authenticated)/recurrence/page.tsx::title=\"Recurrence not found\"",
-    "web/app/(authenticated)/recurrence/page.tsx::title=\"Failed to load recurrence\"",
     "web/app/(authenticated)/settings/page.tsx::<div className=\"text-xs text-muted-fore",
     "web/app/(authenticated)/settings/page.tsx::<li>Per-recurrence <code>_run_log.md</co",
     "web/app/(authenticated)/settings/page.tsx::<strong>Preserved:</strong> all recurren",
@@ -184,8 +182,6 @@ ALLOWLIST_PHASE2: list[str] = [
     "web/components/settings/WorkspaceSection.tsx::<h2 className=\"text-lg font-semibold mb",
     "web/components/activity/ActivityLog.tsx::title=\"Manage this recurrence (declarat",
     "web/components/shell/system-status/AutonomyStatusItem.tsx::<p className=\"pt-0.5\">Above the ceilin",
-    "web/components/workspace/WorkspaceNav.tsx::title=\"Recurrences\"",
-    "web/components/workspace/WorkspaceNav.tsx::<div className=\"px-3 py-1.5 text-sm tex",
     "web/components/tp/InlineActionCard.tsx::title: 'Run this recurrence',",
     "web/components/tp/InlineActionCard.tsx::title: 'Adjust this recurrence',",
     "web/components/tp/InlineActionCard.tsx::{ label: 'Focus area', message: 'Change ",
