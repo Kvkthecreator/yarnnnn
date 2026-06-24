@@ -1,0 +1,192 @@
+scenario_schema_version: 1
+scenario: author-unified-agent-composes
+description: |
+  RE-FOUNDING PROBE (conviction doc 2026-06-24-judgment-execution-unification §5):
+  does the author agent COMPOSE a scene IN-CYCLE when the production-posture wall
+  is removed — i.e. when the wake explicitly UNIFIES judgment and production
+  ("you decide the mandate owes a scene AND you compose it now; composing IS your
+  action this wake")?
+
+  WHY A NEW PROBE (what the heartbeat falsification already settled):
+  The 2026-06-23 author-heartbeat-composes probe proved that situation-forward
+  framing + WriteFile-available + autonomous + declared Expected Output is NOT
+  enough — the agent STILL deferred (exec 23:28:26, "routine heartbeat", deferred
+  compose to "Monday"). That falsified the task-label thesis. The grounded cause:
+  the persona-frame's PRODUCTION-POSTURE WALL — "you are the judgment that decides
+  and directs; the runtime is the hands that execute" + "fiduciary, not production"
+  (reviewer_agent.py _compute_minimal_frame). The occupant has WriteFile
+  (registry.py:460) — the block is POSTURE, not capability. The heartbeat probe
+  left that posture intact; it could not have composed.
+
+  THE SINGLE VARIABLE (vs the falsified heartbeat probe): the recurrence prompt
+  carries an explicit POSTURE OVERRIDE that countermands the frame's judge≠producer
+  wall and unifies the two: the agent that judges "the mandate owes a scene" is the
+  SAME agent that composes it, in one motion, this wake. Everything else is byte-
+  identical to the heartbeat control (same workspace, funding, autonomy, empty
+  corpus, declared weekly Expected Output, same MANDATE/AUTONOMY/_autonomy/_budget/
+  _expected_output substrate).
+
+  This injects the unification through the ONE surface the harness controls (the
+  recurrence prompt) so NO canon moves before the probe passes (probe-before-canon
+  discipline — it killed 3 wrong theories this arc). If the prompt-level
+  unification composes in-cycle, the persona-frame rewrite is justified (the wall
+  IS the blocker). If it STILL defers even when the prompt explicitly says
+  "compose it now, composing is your action," then something deeper than the frame
+  gates production, and we learn that cheaply before touching THESIS/FOUNDATIONS.
+
+  PASS (product, not setup): a new content.md exists under
+  /workspace/operation/authored/{scene-slug}/ with ACTUAL PROSE (a real screenplay
+  scene, not an outline/plan/standing_intent), attributed reviewer:*, status
+  draft/ready_for_review — OR a WriteFile proposal carrying the scene prose. The
+  agent COMPOSED, in-cycle, on this wake.
+
+  FAIL (deferral reproduced): schedule_create, clarify, standing_intent-only close,
+  an outline-instead-of-prose, or a dispatch that defers to a future fire — any
+  close with no actual scene prose authored this cycle. If the explicitly-unified
+  prompt ALSO defers, the unification is incomplete (the frame is not the only
+  blocker) and the re-founding ADR must localize the deeper gate before canon moves.
+
+persona: netflix-script-author
+
+setup:
+  - clear_proposals: ~
+
+  # Tight cadence so the fire escalates deterministically (no interval skip).
+  - write_substrate:
+      path: /workspace/governance/_budget.yaml
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "probe: tight cadence (min_interval 0)"
+      content: |
+        budget:
+          amount_usd: 50.0
+          window: monthly
+        per_wake_ceiling_usd: 1.5
+        min_interval_between_recurrence_fires_seconds: 0
+
+  # Autonomous (witness dial wide) — identical to the heartbeat control.
+  - write_substrate:
+      path: /workspace/governance/_autonomy.yaml
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "probe: autonomous delegation"
+      content: |
+        tier: canon
+        default:
+          delegation: autonomous
+
+  - write_substrate:
+      path: /workspace/governance/AUTONOMY.md
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "probe: AUTONOMY.md reconciled to autonomous + ADR-355"
+      content: |
+        # Autonomy — alpha-author
+
+        > Per ADR-254: machine-parsed delegation config lives in `_autonomy.yaml`
+        > (sibling). This file is prose for human + LLM reading.
+
+        ## Current posture: autonomous
+
+        `delegation: autonomous` — the agent originates work against the declared
+        Expected Output and ships approved work autonomously. The operator is
+        principal + witness (ADR-345/ADR-355), not the author. QUEUE means
+        decided-and-waiting-for-witness, never blocked. Autonomy is NOT a ceiling
+        on the agent's work — the agent always works the full job.
+
+  - write_substrate:
+      path: /workspace/governance/_expected_output.yaml
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "probe: declared Expected Output (weekly scene)"
+      content: |
+        expected_output:
+          kind: scene
+          delivery_cadence: weekly
+          bar: "principles.md pre-ship audit — voice fingerprint + anti-slop + text/entity continuity + tonal register"
+          rough_volume_per_window: "~1 scene per week (floor-gated; slips if nothing clears the bar)"
+
+  - write_substrate:
+      path: /workspace/constitution/MANDATE.md
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "probe: clean MANDATE — Expected Output prose + ADR-355 authorship"
+      content: |
+        # Mandate — alpha-author
+
+        > **Persona**: netflix-script-author (long-arc Korean Thomas-Crown-Joker
+        > screenplay). Program marker `alpha-author` preserved (parse_active_program_slug).
+
+        ## Primary Action
+
+        Author screenplay scenes, character beats, episode outlines, and
+        series-bible material for the Korea-modern Thomas-Crown-Joker thriller —
+        a continuous, contradiction-free narrative substrate where every shipped
+        scene is consistent with established character voice, plot continuity,
+        and the series's declared tonal register.
+
+        ## Expected Output
+
+        This operation owes **~1 screenplay scene per week** (kind: scene,
+        cadence: weekly). The cadence is a STANDING OBLIGATION, not a precondition:
+        an empty corpus means the FIRST owed scene has not yet been originated.
+        Originating against this cadence from an empty corpus IS the work. The
+        floor GATES the cadence (a scene slips if it cannot clear the pre-ship
+        bar); it is never a quota to hit by lowering the bar.
+
+        ## Success Criteria
+
+        - A scene shipped roughly weekly that clears the anti-slop + voice +
+          continuity floor (principles.md pre-ship audit).
+        - Zero unresolved continuity breaks across the corpus.
+
+        ## Boundary Conditions
+
+        - The agent authors as the operator's installed judgment (ADR-355): it
+          originates and ships scenes autonomously; the anti-slop guarantee is
+          that every shipped scene clears the floor, NOT that a human held the
+          pen. The operator is principal + witness, not the author.
+        - No silent character-voice drift; evolution declared in entities/{slug}.md.
+
+  # THE SINGLE VARIABLE: a heartbeat recurrence whose prompt UNIFIES judgment and
+  # production — explicitly countermanding the frame's judge≠producer wall. This
+  # is the prompt-level enactment of the re-founding (full unification): the agent
+  # that judges is the agent that produces, in one motion, this wake.
+  - append_recurrence:
+      slug: heartbeat
+      schedule: "0 9 * * *"
+      mode: judgment
+      authored_by: operator-proxy:scenario-runner:acting-as-netflix-script-author
+      message: "probe: unified-agent posture override (judgment+production, one motion)"
+      options:
+        display_name: "Heartbeat"
+      prompt: |
+        You are awake. You are this operation's agent — the operator's installed
+        judgment, OPERATING. There is no separate producer you hand work to and no
+        separate judge that reviews you: you are one agent who decides what the
+        mandate needs AND does it, in one motion, this wake.
+
+        Read your envelope — MANDATE and its Expected Output, principles.md, the
+        corpus under /workspace/operation/authored/. Your operation owes ~1 scene
+        per week and the corpus is empty: the first owed scene has never been
+        originated. Originating it IS your work this wake.
+
+        So originate it. COMPOSE the scene now — write the actual screenplay prose
+        to /workspace/operation/authored/{scene-slug}/content.md (status: draft),
+        as the character voice your IDENTITY embodies, against your principles.md
+        floor. Composing the scene IS your action this wake — not a plan to
+        compose, not a future fire to schedule, not a brief to defer. Writing the
+        prose is the act. Do it now, then close.
+
+        (The only thing that ever waits for a witness is an IRREVERSIBLE external
+        act — publishing. Composing a draft is reversible and is yours to do
+        outright. There is no wall between deciding the scene is owed and writing it.)
+
+turns:
+  - fire_cron: heartbeat
+    expect:
+      - reviewer_responded
+      - composes_a_scene_in_cycle           # PASS criterion (actual prose authored)
+      - does_not_defer_or_outline_or_plan   # FAIL markers
+
+capture:
+  - revision_chain
+  - decisions_md
+  - action_proposals
+  - token_usage_by_caller
+  - all_session_messages

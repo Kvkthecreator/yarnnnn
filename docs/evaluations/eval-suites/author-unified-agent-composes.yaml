@@ -1,0 +1,53 @@
+eval_suite_schema_version: 3
+eval_suite: author-unified-agent-composes
+suite_kind: thesis            # Suite B (workspace-specific) — EVAL-ARCHITECTURE §2.B
+
+thesis: |
+  The RE-FOUNDING probe (conviction doc docs/analysis/judgment-execution-
+  unification-2026-06-24.md §5). When the wake explicitly UNIFIES judgment and
+  production — countermanding the persona-frame's judge≠producer wall ("you are
+  the judgment that decides and directs; the runtime is the hands") with "you are
+  one agent who decides AND composes, in one motion, this wake" — does the author
+  agent COMPOSE an actual scene IN-CYCLE from an empty corpus?
+
+  This is the test the heartbeat probe could NOT be: heartbeat reframed the wake
+  but left the production-posture wall intact, and it deferred (FALSIFIED the
+  task-label thesis, 2026-06-23). The grounded cause was the wall itself. This
+  probe removes the wall at the ONE surface the harness controls — the recurrence
+  prompt — so NO canon moves before it passes.
+
+  Read against the agent's full trace on the fire:
+  - PASS: a new content.md scene exists under operation/authored/{slug}/ with
+    REAL PROSE (reviewer:* attributed, status draft) OR a WriteFile proposal
+    carrying the scene prose. The agent composed, in-cycle, this wake. → the
+    persona-frame's production wall IS the blocker; the unification re-founding
+    (THESIS C2 rewrite, frame rewrite) is justified.
+  - FAIL: schedule_create / clarify / standing_intent-only / outline-instead-of-
+    prose / dispatch-that-defers — any close with no actual scene prose authored
+    this cycle. → the unification is incomplete; something deeper than the frame
+    gates production. The re-founding ADR must localize the deeper gate BEFORE
+    canon moves. A legitimate, important outcome (probe designed to falsify).
+
+  Single-variable vs the falsified heartbeat probe: identical substrate (funded,
+  autonomous, declared weekly scene, empty corpus, same MANDATE/AUTONOMY/_budget/
+  _expected_output); the ONLY change is the recurrence prompt unifies judgment +
+  production explicitly.
+
+description: |
+  Suite B (thesis) for netflix-script-author. The re-founding §5 probe. ONE eval,
+  ONE controlled situation: a unified-posture fire (fire_cron → cron_tick judgment,
+  drained to settlement) against an empty corpus. Prove before canon.
+
+persona: netflix-script-author
+
+budget:
+  per_session_usd: 4.0
+
+evals:
+  - eval: unified-agent-composes
+    scenario: scenarios/author-unified-agent-composes.yaml
+    requires:
+      - path: /workspace/governance/_autonomy.yaml
+        field: default.delegation
+        equals: autonomous
+    accumulates: false

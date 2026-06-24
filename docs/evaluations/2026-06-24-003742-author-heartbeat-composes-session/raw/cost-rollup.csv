@@ -1,0 +1,2 @@
+id,slug,mode,wake_source,status,tool_rounds,input_tokens,output_tokens,cache_read_tokens,cache_create_tokens,cost_usd,duration_ms,created_at
+f84fdbcd-dcfc-40f3-ab41-d1d26fed6d58,heartbeat,judgment,cron_tick,success,5,116046,2696,66096,16524,0.250865,37577,2026-06-24T00:38:58.255993+00:00
