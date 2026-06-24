@@ -601,10 +601,150 @@ def _system_prompt() -> list[dict]:
 # User message builder — trigger-specific pre-loaded substrate
 # ---------------------------------------------------------------------------
 
+def _ask_for_trigger(trigger: str, ctx: ReviewerContext) -> str:
+    """Extract THE ASK (the user-message-analogue) for a given trigger shape.
+
+    ENVELOPE COLLAPSE (the-envelope-collapse-2026-06-24.md): the ask is the
+    one part of the CC turn that is the user message. For Arm B it is delivered
+    bare — no _TRIGGER_FRAMING coaching wrapped around it. The ask-shaped wake
+    (ADR-360) already made the imperative the ask; the framing was the prosthetic.
+    """
+    import json as _json
+    parts: list[str] = []
+    if trigger == "reactive":
+        if ctx.get("recurrence_prompt") or ctx.get("recurrence_slug"):
+            slug = ctx.get("recurrence_slug")
+            if slug:
+                parts += [f"## Recurrence: `{slug}`", ""]
+            prompt_text = (ctx.get("recurrence_prompt") or "").strip()
+            if prompt_text:
+                parts += ["## The ask", "", prompt_text, ""]
+            rrc = ctx.get("recurrence_required_capabilities") or []
+            if rrc and isinstance(rrc, list):
+                parts += [
+                    f"_Required specialist capabilities if you dispatch: "
+                    f"`{', '.join(rrc)}`._", "",
+                ]
+        else:
+            row = ctx.get("proposal_row") or {}
+            if row:
+                parts += [
+                    "## Proposed action (judge this)",
+                    "",
+                    f"**action_type:** `{row.get('action_type', '?')}`",
+                    f"**reversibility:** {row.get('reversibility', '?')}",
+                ]
+                if row.get("rationale"):
+                    parts.append(f"**rationale:** {row['rationale']}")
+                if row.get("expected_effect"):
+                    parts.append(f"**expected_effect:** {row['expected_effect']}")
+                inputs = row.get("inputs") or {}
+                parts += [
+                    "**inputs:**", "```json",
+                    _json.dumps(inputs, indent=2, default=str), "```", "",
+                ]
+    elif trigger == "addressed":
+        if ctx.get("conversation_window"):
+            parts += ["## Recent conversation", "", ctx["conversation_window"], ""]
+        msg = (ctx.get("user_message") or "").strip()
+        parts += ["## The ask (operator message)", "", msg, ""]
+    return "\n".join(parts)
+
+
+def _build_user_message_stripped(trigger: str, ctx: ReviewerContext) -> str:
+    """Arm B — the full CC-shape envelope (the-envelope-collapse-2026-06-24.md).
+
+    governance-block (CLAUDE.md-analogue) + substrate-snapshot (gitStatus-
+    analogue) + operating-context (clock) + THE ASK — everything else read on
+    demand from authored substrate. NO _TRIGGER_FRAMING coaching; NO per-wake
+    mirror dumps (their HEADS fold into the snapshot; the agent ReadFiles the
+    bodies when judgment needs them).
+
+    This is the probe arm. It shares ctx with Arm A so A/B differs by exactly
+    the strip. Removed once the collapse lands (singular implementation).
+    """
+    from services.substrate_snapshot import build_substrate_snapshot
+
+    parts: list[str] = []
+
+    # --- operating-context (the clock-analogue — currentDate + market) ---
+    op_ctx = ctx.get("operating_context_block")
+    if op_ctx:
+        parts += [op_ctx, ""]
+
+    # --- wake-context (part of the ask: WHY you were woken) ---
+    wake_source = ctx.get("wake_source")
+    if wake_source:
+        wl = ["## Wake context", "", f"- wake_source: {wake_source}"]
+        if ctx.get("triggering_path"):
+            wl.append(f"- triggering_path: {ctx['triggering_path']}")
+        if ctx.get("triggering_revision_id"):
+            wl.append(f"- triggering_revision_id: {ctx['triggering_revision_id']}")
+        parts += wl + [""]
+
+    # --- governance-block (the CLAUDE.md-analogue — authored governing files) ---
+    parts += [
+        "## IDENTITY.md — Your persona", "",
+        ctx.get("identity_md") or "_(empty — reason as a neutral skeptical judgment seat)_", "",
+        "## principles.md — Your framework (your rulebook; apply every rule)", "",
+        ctx.get("principles_md") or "_(empty — no declared framework)_", "",
+    ]
+    if ctx.get("precedent_md"):
+        parts += ["## PRECEDENT.md — Operator's durable interpretations (overrides principles)", "", ctx["precedent_md"], ""]
+    if ctx.get("mandate_md"):
+        parts += ["## MANDATE.md — Operation's primary intent", "", ctx["mandate_md"], ""]
+    if ctx.get("autonomy_md"):
+        parts += ["## AUTONOMY.md — Delegation ceiling", "", ctx["autonomy_md"], ""]
+    if ctx.get("budget_yaml"):
+        parts += ["## _budget.yaml — Spend envelope (allocate wakes within it)", "", ctx["budget_yaml"], ""]
+    if ctx.get("expected_output_yaml"):
+        parts += ["## _expected_output.yaml — Output contract (what you owe; floor-gated cadence, NOT a quota)", "", ctx["expected_output_yaml"], ""]
+    if ctx.get("preferences_yaml"):
+        parts += ["## _preferences.yaml — Operator cadence preferences", "", ctx["preferences_yaml"], ""]
+    if ctx.get("occupant_md"):
+        parts += ["## OCCUPANT.md — Your current seat", "", ctx["occupant_md"], ""]
+    # Governing domain constants (program-shaped, declared strategy + floors).
+    if ctx.get("operator_profile_md"):
+        parts += ["## _operator_profile.md — Declared strategy", "", ctx["operator_profile_md"], ""]
+    if ctx.get("risk_md"):
+        parts += ["## _risk.md — Hard floors", "", ctx["risk_md"], ""]
+
+    # --- standing intent (your own forward working state) ---
+    si = ctx.get("standing_intent_md")
+    if si:
+        parts += ["## persona/standing_intent.md — What you were watching for last cycle", "", si, ""]
+    else:
+        parts += ["## persona/standing_intent.md — (empty — first cycle, author it as part of this judgment)", ""]
+
+    # --- substrate-snapshot (the gitStatus-analogue — scoping organ) ---
+    snapshot = build_substrate_snapshot(
+        ctx.get("_snapshot_client"),
+        ctx.get("_snapshot_user_id") or "",
+        since_iso=ctx.get("_snapshot_since_iso"),
+        schedule_index_md=ctx.get("schedule_index_md") or "",
+        recent_execution_md=ctx.get("recent_execution_md") or "",
+        calibration_md=ctx.get("calibration_md") or "",
+        ground_truth_md=ctx.get("ground_truth_md") or "",
+    ) if ctx.get("_snapshot_client") else ""
+    if snapshot:
+        parts += [snapshot, ""]
+
+    # --- THE ASK (the user-message-analogue — bare, no coaching) ---
+    parts += [_ask_for_trigger(trigger, ctx)]
+
+    return "\n".join(parts)
+
+
 def _build_user_message(trigger: str, ctx: ReviewerContext) -> str:
     """Compose the user message envelope for an invocation.
     Pre-loads governance + persona + framework + domain substrate based on
     what the caller provided. Trigger-specific framing is appended last."""
+    # ENVELOPE COLLAPSE probe (the-envelope-collapse-2026-06-24.md): Arm B =
+    # full CC-shape. Gated by env so A/B differs by exactly the strip; the
+    # toggle is removed once the collapse lands (singular implementation).
+    import os as _os
+    if _os.environ.get("YARNNN_ENVELOPE_ARM", "").strip().upper() == "B":
+        return _build_user_message_stripped(trigger, ctx)
     import json as _json
     parts: list[str] = []
 
@@ -1124,6 +1264,17 @@ async def invoke_reviewer(
             logger.debug("[REVIEWER] event_callback raised: %s", cb_exc)
 
     try:
+        # ENVELOPE COLLAPSE probe (the-envelope-collapse-2026-06-24.md): when
+        # Arm B is active, thread the snapshot inputs into the context bag so
+        # _build_user_message_stripped can build the gitStatus-analogue. Gated
+        # by env so Arm A is byte-identical (zero production impact). Removed
+        # when the collapse lands (the snapshot becomes a first-class envelope
+        # input in reviewer_envelope.py).
+        import os as _os_probe
+        if _os_probe.environ.get("YARNNN_ENVELOPE_ARM", "").strip().upper() == "B" \
+                and isinstance(context, dict):
+            context.setdefault("_snapshot_client", client)
+            context.setdefault("_snapshot_user_id", user_id)
         user_message = _build_user_message(trigger, context)
         messages: list[dict] = [{"role": "user", "content": user_message}]
         actions_taken: list[dict] = []
