@@ -1,6 +1,7 @@
 # ADR-318: Agentic Wake Posture — A Wake Is a Situation, Not a Task
 
 > **Status**: **Implemented** 2026-06-04. Persona-frame addition + ADR + canon update + CHANGELOG. Gates: `test_adr314` 6/6, `test_reviewer_formalization` 11/11, frame 5271 chars (< 8000 anti-rebloat budget).
+> **Amended by (pending)**: [ADR-359](ADR-359-the-occasion-of-work-wake-shape.md) (**Proposed** 2026-06-24) — adds the **now/later axis** to D1's "a wake is a situation, not a task." ADR-318 shipped the single forward-gear ("author a future wake so you're woken when it matters" = the *LATER* gear); ADR-359 adds the *NOW* gear (discharge owed work this runtime) + the earned-LATER rule (a future wake is legitimate only when IS shows it would be materially different — otherwise deferring is circular and the occasion is now). D1's situation-not-task framing survives; it gains the tense axis. Empirical driver: a left-alone author followed ADR-318 faithfully and never produced (six probes; see ADR-359 §Context). This pointer is forward-only until ADR-359's §8 probe passes and it flips to Implemented.
 > **Date**: 2026-06-04
 > **Authors**: KVK, Claude
 > **Amends**: the persona-frame cycle-closing contract (`api/agents/reviewer_agent.py::_compute_minimal_frame`) — the framing of what a recurrence-fire wake *is*
