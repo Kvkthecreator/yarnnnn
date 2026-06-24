@@ -106,9 +106,11 @@ def test_narrate_clarify_branch() -> None:
             "Clarify with empty summary falls back to readable default",
             f"got {out_empty!r}",
         )
-    # Regression: non-Clarify tools still get prefix
+    # Regression: non-Clarify tools still get a narration line (ADR-365 made
+    # it plain-English — "Submitted a proposal for review", not the old
+    # "Proposal submitted on Reviewer's direction").
     pa = narrate_reviewer_action("ProposeAction", "proposal_id=abc123...")
-    if pa.startswith("Proposal submitted on Reviewer's direction"):
+    if pa.startswith("Submitted a proposal for review"):
         _ok("ProposeAction still uses System Agent narration shape (regression)")
     else:
         _bad(

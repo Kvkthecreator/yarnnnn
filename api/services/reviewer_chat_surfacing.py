@@ -280,7 +280,10 @@ def narrate_reviewer_action_blocked(
     operator reads this and decides whether to relax a lock, fix a
     schema mismatch, connect a capability, etc.
     """
-    reason_part = f" — reason: {failure_reason}" if failure_reason else ""
+    # ADR-365 (register follows consumer): operator-facing — plain English.
+    # The reason is kept (the operator may need it to act — e.g. unlock a
+    # file), but the machine framing ("attempted X target=… blocked") is not.
+    reason_part = f" — {failure_reason}" if failure_reason else ""
     summary_part = f" ({summary})" if summary else ""
     # Extract path/target from input if useful — common across WriteFile,
     # ReadFile, Schedule, ProposeAction (each has different input shape).
@@ -289,10 +292,10 @@ def narrate_reviewer_action_blocked(
         for key in ("path", "slug", "target", "to", "name"):
             val = inp.get(key)
             if isinstance(val, str) and val:
-                target_part = f" target={val}"
+                target_part = f" ({val})"
                 break
     return (
-        f"Reviewer attempted {tool}{target_part} but was blocked"
+        f"Couldn't complete an action{target_part}"
         f"{reason_part}.{summary_part}"
     )
 
@@ -329,21 +332,23 @@ def narrate_reviewer_action(tool: str, summary: str = "", *, folded_count: int =
     retains every revision per ADR-209; only the feed-surface noise is
     collapsed.
     """
+    # ADR-365 (register follows consumer): these lines are operator-facing —
+    # plain English, no internal vocabulary ("substrate", "on its direction").
     summary_part = f" {summary}" if summary else ""
-    count_part = f" ({folded_count} revisions)" if folded_count > 1 else ""
+    count_part = f" ({folded_count} updates)" if folded_count > 1 else ""
     # ADR-296 v2 D3: FireInvocation case removed — Reviewer no longer
     # commissions unit-of-work fires; cadence is authored via Schedule.
     if tool == "ProposeAction":
-        return f"Proposal submitted on Reviewer's direction.{summary_part}{count_part}"
+        return f"Submitted a proposal for review.{summary_part}{count_part}"
     if tool == "WriteFile":
-        return f"Wrote to Reviewer substrate on its direction.{summary_part}{count_part}"
+        return f"Saved a working note.{summary_part}{count_part}"
     # 2026-05-25 Clarify branch: the Reviewer IS the asker. Render the
     # question bare (no "Executed Clarify..." prefix). Caller writes the
     # row with role='reviewer' so the FE renders it in the Reviewer
     # persona bubble (ADR-247 three-party model + ADR-258 D1).
     if tool == "Clarify":
-        return summary or "Reviewer asked for clarification."
-    return f"Executed `{tool}` on Reviewer's direction.{summary_part}{count_part}"
+        return summary or "Asked you a question."
+    return f"Took an action ({tool}).{summary_part}{count_part}"
 
 
 def _fold_same_path_writes(

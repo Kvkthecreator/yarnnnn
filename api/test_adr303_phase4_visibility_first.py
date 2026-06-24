@@ -158,17 +158,21 @@ def test_permission_denied_surfaces():
 # T5: narration composes informative blocked-action messages
 # ---------------------------------------------------------------------------
 
-def test_blocked_narration_includes_tool_and_failure_reason():
+def test_blocked_narration_includes_target_and_failure_reason():
+    # ADR-365 (register follows consumer): the blocked line is operator-facing.
+    # ADR-303's visibility intent (the operator can SEE the failure + act on it)
+    # is preserved via the failure reason + target; the internal tool name and
+    # the word "blocked" are the internal vocabulary ADR-365 drops.
     body = narrate_reviewer_action_blocked(
         "WriteFile",
         "",
         failure_reason="path_locked",
         inp={"path": "/workspace/governance/_autonomy.yaml"},
     )
-    assert "WriteFile" in body
     assert "path_locked" in body
     assert "/workspace/governance/_autonomy.yaml" in body
-    assert "blocked" in body.lower()
+    # Plain-English, not "Reviewer attempted WriteFile … blocked".
+    assert "couldn't" in body.lower()
 
 
 def test_blocked_narration_handles_missing_failure_reason():
@@ -178,8 +182,9 @@ def test_blocked_narration_handles_missing_failure_reason():
         failure_reason=None,
         inp={},
     )
-    assert "ProposeAction" in body
-    assert "blocked" in body.lower()
+    # Still informative that something didn't complete (ADR-303 visibility),
+    # in plain English (ADR-365).
+    assert "couldn't" in body.lower()
 
 
 def test_blocked_narration_extracts_target_from_various_input_shapes():
