@@ -51,7 +51,15 @@ The instrument flaws are known and fixable:
 3. **Lower the trigger** if needed so editing definitely activates on the test wake (12k forces it on most long wakes; 24k may not).
 4. **Preserve the governance cache.** Watch `cache_create`/`cache_read`: the comma-joined beta header changes the request shape vs the non-beta cached path — verify caching still pays before crediting context-editing with any token cut.
 
+## The cost-surface finding this fed into (ADR-363 §2 + §7)
+
+The same production scan that thinned the premise also resolved the *shape* of the wake's cost, which the ADR folds into its settled cost model:
+- **Wakes are sparse**: median inter-wake gap ~3.8h (188 wakes / 30d; 2 gaps under 5 min, 59 over 1h). The next wake rarely fires inside any cache TTL.
+- **The cache win is intra-wake**: cache-hit % rises with round count (50% at 1–3 rounds → **72% at 9+ rounds**), `cache_create` flat. Caching pays on rounds 2..N *within one wake*, not across wakes.
+- **One cost surface**: the long multi-round wake. Caching discounts its re-reads; context-editing (D3) would prune its bloat; the sparse cadence settles the TTL question (ADR-363 D5: keep 5-min — 1h can't pay against this cadence). D3 is the *only* unbanked lever on that surface, which is why it stays wired-but-dormant rather than dropped.
+
 ## Receipts
 
-- execution_events rows: `ctxedit-off-1782282117` (5 rounds), `ctxedit-on-1782282167` (keep=6, 14 rounds), `ctxedit-on-1782282242` (keep=3, 11 rounds), all `user_id=0b7a852d-4a67-447d-91d9-2ba1145a60d7`, 2026-06-24.
+- A/B execution_events rows: `ctxedit-off-1782282117` (5 rounds), `ctxedit-on-1782282167` (keep=6, 14 rounds), `ctxedit-on-1782282242` (keep=3, 11 rounds), all `user_id=0b7a852d-4a67-447d-91d9-2ba1145a60d7`, 2026-06-24.
+- Cadence + cache-by-rounds queries: `execution_events`, `user_id=0b7a852d…`, `mode='judgment'`, last 30d (188 wakes; median gap 228 min; hit% by round-band 50/53/72).
 - Probe: `api/scripts/operator/probe_context_editing_local.py`.
