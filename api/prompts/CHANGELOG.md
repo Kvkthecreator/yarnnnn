@@ -6,6 +6,12 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.24.3] - ADR-360 → Implemented: agnostic kernel E2E gate passed 9/9 (docs-only)
+
+**Docs-only (no LLM-facing code change):**
+- ADR-360 flipped Proposed→**Implemented**. Gate is the AGNOSTIC KERNEL behavior, not a program output-count: a wake delivers a present-tense imperative; the agent ANSWERS it (compose/act) OR raises a legitimate `Clarify(structural_gap)`, and NEVER silently defers / fabricates `stand_down` / exits silent.
+- E2E on clean FUNDED `yarnnn-author` (9 runs, full reset, fresh slugs, recurrences paused): 5 composed real artifacts, 4 legitimate structural-gap Clarify, 0 silent. The compose-vs-Clarify ratio is PROGRAM CONTENT (open-ended essay program sometimes lacks a declared subject), not kernel behavior — explicitly NOT a kernel ask-builder special-case (operator regroup: keep the kernel program-agnostic). Finding: `docs/evaluations/2026-06-24-adr360-e2e-FINDING.md`.
+
 ## [2026.06.24.2] - ADR-360 Stage 4: delete the silent-exit recovery net; close-contract is answer-or-unanswered
 
 **LLM-facing changes:**

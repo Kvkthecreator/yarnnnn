@@ -1,6 +1,6 @@
 # ADR-360 — A Wake Is a Pre-Authored Ask (The Ask Re-Founding of the Wake Layer)
 
-> **Status**: **Proposed** 2026-06-24 — gated on the build-validation probe (a clock-delivered imperative composes from an empty corpus through the faithful `cron_tick` path). Canon flips to **Implemented** only after the probe passes against the real implementation. The spine + clock-delivery are **already receipt-backed** (see Driving evidence); this ADR proceeds because the cause is proven structural, not because a theory is plausible.
+> **Status**: **Implemented** 2026-06-24. The agnostic kernel gate passed 9/9 on a clean funded workspace: a wake delivers a present-tense imperative; the agent ANSWERS it (compose/act) or HONESTLY SURFACES why it can't (legitimate structural-gap Clarify), and NEVER silently defers or fabricates a `stand_down`. Spine + clock-delivery + production-path wiring all receipt-backed (see Driving evidence + `docs/evaluations/2026-06-24-adr360-e2e-FINDING.md`). The gate is BEHAVIORAL (answer-or-honestly-surface, never-silent), not an output-count — the compose-vs-Clarify ratio is program-content, not kernel behavior, so it does not gate this kernel ADR.
 > **Date**: 2026-06-24
 > **Authors**: KVK, Claude
 > **Supersedes**: [ADR-359](ADR-359-the-occasion-of-work-wake-shape.md) (**Proposed**, never Implemented). ADR-359 correctly located the cause as structural (owed-output un-computed, inaction privileged, do-wake pre-classified as maintenance) but delivered the fix as a *computed header among twenty in a maintenance frame* + an occasion-nudge + a `non_performance` verdict. The spine probe proved the deeper move: deliver the obligation as a present-tense **ask**, and the header/nudge/verdict machinery is unnecessary (it never fired; production happened on the ask alone). ADR-359's `_compute_occasion_fact` survives as the ask-builder's *input*; its D2/D3 machinery is retired.
@@ -63,9 +63,11 @@ The terminal-move contract ("close every cycle with a verdict or a standing_inte
 5. **Test gates** — reviewer / wake / budget suites green; no regression on the trader (whose event-raised asks already work).
 6. **Canon cascade** (gated on high validation) — FOUNDATIONS DP32 + ADR-318 amendment + persona-frame + `api/prompts/CHANGELOG.md` + occupant-contract doc. Doc-first amendments **after** code proves out.
 
-## 5. Validation gate (Proposed → Implemented)
+## 5. Validation gate (Proposed → Implemented) — PASSED 2026-06-24
 
-Re-run the author probe through the **production** `cron_tick` path (not a probe-injected context): an owed-output recurrence, empty corpus, autonomous, no operator. **PASS**: a `content.md` with real prose composed in-cycle via the ask-builder's imperative, `reviewer:*` attributed; AND a silent/unanswered owed ask is visible as unanswered (not a fabricated `stand_down`). **FAIL**: deferral / framing-classification reproduced → the production wiring is incomplete; revert, learn, do not flip canon. Receipts: `execution_events` + `workspace_file_versions` queried directly.
+The gate is the AGNOSTIC KERNEL behavior, not a program output-count: **every wake either answers its imperative (compose/act) OR raises a legitimate `Clarify(structural_gap)` naming what only the operator can supply — and NEVER silently defers, fabricates a `stand_down`, or exits silent.** Run through the **production** `cron_tick` path (`_invoke_recurrence_wake`, the ask-builder overriding a framing prompt) on a clean FUNDED workspace, autonomous, no operator.
+
+**RESULT: 9/9 PASS** (`docs/evaluations/2026-06-24-adr360-e2e-FINDING.md`). 5 runs composed a real `content.md` (in-voice, `reviewer:*`, in-cycle); 4 raised a legitimate structural-gap Clarify (the open-ended program lacked a declared subject — content, not a kernel defect); zero silently deferred, zero fabricated `stand_down`, zero silent `failed`. The Stage-4 recovery-net deletion introduced no silent-vanish regression. The compose-vs-Clarify ratio is program content (a trader's market-fired ask is content-complete and acts; an open-ended author's cadence-fired ask sometimes Clarifies) — uniform kernel behavior across both, so it does not gate this kernel ADR. Receipts queried directly on a funded fresh-state `yarnnn-author`.
 
 ## 6. Reversibility
 
