@@ -1,35 +1,6 @@
 {
   "permissions": {
-    "defaultMode": "bypassPermissions",
-    "allow": [
-      "Bash(git *)",
-      "Bash(npm *)",
-      "Bash(pnpm *)",
-      "Bash(npx *)",
-      "Bash(python *)",
-      "Bash(python3 *)",
-      "Bash(pip *)",
-      "Bash(uvicorn *)",
-      "Bash(psql *)",
-      "Bash(curl *)",
-      "Bash(ls *)",
-      "Bash(mkdir *)",
-      "Bash(cat *)",
-      "Bash(head *)",
-      "Bash(tail *)",
-      "Bash(wc *)",
-      "Bash(sort *)",
-      "Bash(cd *)",
-      "Bash(echo *)",
-      "Bash(gh *)",
-      "Read",
-      "Grep",
-      "Glob",
-      "WebFetch",
-      "WebSearch",
-      "mcp__render__*",
-      "mcp__claude_ai_Slack__*"
-    ]
+    "defaultMode": "bypassPermissions"
   },
   "hooks": {
     "SessionStart": [
@@ -39,17 +10,6 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR/.claude/hooks/session-reorient.sh\""
-          }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "cat \"$CLAUDE_PROJECT_DIR/.claude/hooks/execution-reminders.txt\""
           }
         ]
       }
