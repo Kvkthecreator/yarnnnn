@@ -311,7 +311,7 @@ export function ConversationPanel({
 
       {/* Input */}
       <div className={cn(
-        'relative px-3 pb-3 pt-1 shrink-0',
+        'relative px-3 pb-2 pt-1 shrink-0',
         showInputDivider && 'border-t border-border'
       )}>
         {showCommandPicker && (
@@ -373,7 +373,7 @@ export function ConversationPanel({
               enterKeyHint="send"
               placeholder={placeholder}
               rows={1}
-              className="w-full px-3 pt-2.5 pb-1 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
+              className="w-full px-3 py-1.5 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[150px]"
             />
 
             {/* Bottom toolbar row — mirrors Claude Code: + / … [send|stop].
@@ -383,7 +383,7 @@ export function ConversationPanel({
                 Commit H (2026-05-11): send button toggles to stop button
                 while a Reviewer Loop is in flight (operator's own stream
                 OR autonomous wake within ~30s realtime window). */}
-            <div className="flex items-center gap-1 px-1.5 pb-1.5">
+            <div className="flex items-center gap-1 px-1.5 pb-1 -mt-0.5">
               <PlusMenu actions={allPlusMenuActions} disabled={isLoading} />
               <div className="flex-1" />
               {loopActive ? (
