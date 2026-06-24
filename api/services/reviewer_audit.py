@@ -103,9 +103,6 @@ _META_OUTCOME_VERDICTS = frozenset([
     "narrow",
     "relax",
     "character_note",
-    # ADR-359 D2: a missed occasion (owed work not produced this runtime) is an
-    # operation-shaping outcome — surface it, do not let it pass as silent.
-    "non_performance",
 ])
 
 # Schedule actions that count as operation-shaping (condition 2).

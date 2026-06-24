@@ -555,6 +555,50 @@ async def _invoke_recurrence_wake(
             client, user_id
         )
 
+        # ADR-360 D2: the ask-builder. For a declared owed-output producer
+        # recurrence, the schedule must fire an IMPERATIVE ("produce X now"),
+        # not the stored situation-framing prompt ("assess the operation") —
+        # the six-probe arc proved framing defers and imperatives produce
+        # (docs/evaluations/2026-06-24-step3-cron-imperative-VALIDATION.md).
+        # Opt-in + program-agnostic: the recurrence flags itself via
+        # options.produces_owed_output; the kernel reads the declared
+        # kind/cadence from _expected_output.yaml (already in the envelope) +
+        # the produced-count, and composes a category-neutral imperative. When
+        # the recurrence is not a producer (or no contract is declared, or the
+        # count read fails), build_owed_output_ask returns None and the
+        # recurrence's own prompt stands unchanged.
+        try:
+            from services.ask_builder import build_owed_output_ask
+
+            _produces_owed = bool(
+                (recurrence.options or {}).get("produces_owed_output")
+            )
+            owed_ask = await build_owed_output_ask(
+                client, user_id,
+                produces_owed_output=_produces_owed,
+                expected_output_yaml=governance_envelope.get("expected_output_yaml"),
+            )
+            if owed_ask:
+                # The imperative replaces the stored prompt; one-shot steering
+                # (if any) is still appended.
+                prompt = owed_ask
+                if context and context.strip():
+                    prompt = (
+                        f"{prompt}\n\n"
+                        f"## One-shot steering (this firing only)\n{context.strip()}"
+                    )
+                logger.info(
+                    "[DISPATCH] %s/%s ask-builder delivered owed-output imperative "
+                    "(ADR-360 D2)", user_id[:8], recurrence.slug,
+                )
+        except Exception as exc:
+            # The ask-builder is an enhancement, not a gate — a failure degrades
+            # to the recurrence's stored prompt rather than dropping the wake.
+            logger.warning(
+                "[DISPATCH] %s/%s ask-builder failed (using stored prompt): %s",
+                user_id[:8], recurrence.slug, exc,
+            )
+
         reviewer_output = await invoke_reviewer(
             client=client,
             user_id=user_id,
