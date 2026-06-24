@@ -47,6 +47,7 @@ export async function GET() {
     "",
     "- The workspace is free forever — files, chat, context reachable from any AI via MCP. No feature gates, no tiers.",
     "- Pay-as-you-go: running an operation draws usage from a balance, metered at transparent rates and readable line by line, with a hard stop at zero. No seats, no subscription.",
+    "- Budget cap: you set a monthly ceiling per operation (commonly ~$50/$100/$150) and the agent paces its own work to stay under it. It is a cap the operator sets, not a charge that is billed — usage is still drawn from the balance. Two guardrails: a budget ceiling you plan, and a zero-balance floor that pauses without losing anything.",
     "- Every workspace starts with a $3 usage balance; top up from $10 when you need more.",
     "",
     "## Feeds and discovery",

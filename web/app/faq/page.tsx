@@ -72,6 +72,11 @@ const faqSections: FaqSection[] = [
           "The workspace is free forever — your files, your context, reachable from any AI. It's pay-as-you-go: when you run an operation, you pay only the usage it draws, metered at transparent rates and read line by line, with a hard stop at zero. No seats, no subscription, no feature gates. Every workspace starts with a $3 balance; top up from $10 when you need more.",
       },
       {
+        question: "Can I cap how much an operation spends?",
+        answer:
+          "Yes — that's the budget. You set a monthly ceiling (most workspaces start around $50; $100 and $150+ suit busier ones), and the agent paces its own work to stay under it: it decides how often to run, you decide the most it can cost. It's a cap you set, not a charge we bill — you're still only charged for the usage that actually runs. Set any amount in chat or the in-app dial, and change it anytime. So you get two guardrails: a ceiling you plan, and a floor (zero balance) that never lets anything break.",
+      },
+      {
         question: "What happens when my balance hits zero, or I stop running an operation?",
         answer:
           "Nothing is deleted. If the balance hits zero, the operation pauses — top up to resume. If you stop running an operation, it simply stops drawing usage. In every case the workspace and every file remain yours, free.",

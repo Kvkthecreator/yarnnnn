@@ -277,7 +277,8 @@ export default function LandingPage() {
             <p className="text-[#1a1a1a]/50 mb-10 max-w-xl mx-auto leading-relaxed">
               The workspace is free forever — your files, your context, reachable from any AI you
               use. When you run an operation on it, you pay only the usage it draws — metered at
-              transparent rates, read line by line. No seats, no subscription.
+              transparent rates, read line by line, and capped by a monthly budget you set. No
+              seats, no subscription.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link
