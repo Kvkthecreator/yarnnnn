@@ -158,6 +158,11 @@ class ReviewerContext(TypedDict, total=False):
     # realignment).
     occupant_md: str
     standing_intent_md: str
+    # ADR-364 D2: the reflection gap-fact — recent verdicts joined to their
+    # ground-truth outcomes by proposal_id (the closed intent→outcome loop),
+    # presented (not judged). The Reviewer authors persona/reflection.md from
+    # it. Empty string when no joinable verdict↔outcome pairs exist yet.
+    reflection_gap_fact: str
     # Domain substrate
     ground_truth_md: str
     risk_md: str

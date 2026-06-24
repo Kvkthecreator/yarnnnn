@@ -362,6 +362,18 @@ async def load_reviewer_governance_envelope(
     # (substrate read, no LLM-time derivation).
     envelope["specs_inventory"] = await _inventory_specs(client, user_id)
 
+    # --- Reflection gap-fact (ADR-364 D2) ---
+    # The closed intent→outcome loop, presented (not computed). For each recent
+    # material verdict in judgment_log carrying a proposal_id, joined to its
+    # outcome event (value + attestation) in the active bundle's ground-truth
+    # file by that proposal_id (the ADR-364 D1 keystone FK). DP19-clean: a
+    # bounded read-and-present (same shape as _inventory_specs) — the kernel
+    # presents the raw join; it does NOT label matched/diverged (that analytical
+    # state is the LLM's judgment, authored into persona/reflection.md). Honest
+    # by construction: the outcome carries ADR-330 attestation the agent can't
+    # fake. Empty string when no joinable verdict↔outcome pairs exist yet.
+    envelope["reflection_gap_fact"] = await _reflection_gap_fact(client, user_id)
+
     elapsed_ms = int(
         (datetime.now(timezone.utc) - _started_at).total_seconds() * 1000
     )
@@ -408,4 +420,161 @@ async def _inventory_specs(client: Any, user_id: str) -> str:
                 title = stripped[2:].strip()
                 break
         lines.append(f"- {path} — {title}")
+    return "\n".join(lines)
+
+
+#: How many recent verdict↔outcome pairs to present in the gap-fact. Bounded
+#: per DP19 + the _inventory_specs precedent — a discovery surface, not a dump;
+#: the Reviewer ReadFiles the full judgment_log / ground-truth file on demand.
+_REFLECTION_GAP_LIMIT = 8
+
+
+def _parse_judgment_log_decisions(content: str) -> dict[str, dict[str, str]]:
+    """Parse `--- decision ---` blocks from judgment_log.md into a
+    {proposal_id: {action_type, decision, timestamp, headline}} map.
+
+    DP19-clean: a bounded substrate read (delimiter blocks, same family as the
+    reviewer_audit render format), not LLM-time derivation. Material-outcome
+    blocks (recurrence-fires) carry no proposal_id and are skipped — they have
+    no per-decision outcome FK to join on.
+    """
+    decisions: dict[str, dict[str, str]] = {}
+    # Split on the decision delimiter; each chunk is one block's body.
+    chunks = content.split("--- decision ---")
+    for chunk in chunks[1:]:  # [0] is preamble before the first block
+        # Frontmatter is the lines up to the lone "---" terminator.
+        parts = chunk.split("\n---", 1)
+        head = parts[0]
+        body = parts[1].strip() if len(parts) > 1 else ""
+        fields: dict[str, str] = {}
+        for line in head.splitlines():
+            line = line.strip()
+            if ": " in line and not line.startswith("#"):
+                k, _, v = line.partition(": ")
+                fields[k.strip()] = v.strip()
+        pid = fields.get("proposal_id")
+        if not pid or pid == "None":
+            continue
+        # Headline: the first non-empty reasoning line (the verdict's gist).
+        headline = ""
+        for ln in body.splitlines():
+            s = ln.strip().lstrip("#").strip()
+            if s and s != "_(no reasoning supplied)_":
+                headline = s
+                break
+        decisions[pid] = {
+            "action_type": fields.get("action_type", "?"),
+            "decision": fields.get("decision", "?"),
+            "timestamp": fields.get("timestamp", ""),
+            "headline": headline[:160],
+        }
+    return decisions
+
+
+def _extract_ground_truth_events(content: str) -> list[dict[str, Any]]:
+    """Extract the `events` array (each event a dict possibly carrying
+    proposal_id, value_cents, attestation, action_type) from a ground-truth
+    file's JSON frontmatter. Returns [] on any parse failure — perception is a
+    flow, never a gate; the gap-fact degrades to empty gracefully.
+    """
+    import json as _json
+    import re as _re
+    m = _re.match(r"^---\s*\n(.*?)\n---", content, _re.DOTALL)
+    raw = m.group(1) if m else content
+    try:
+        data = _json.loads(raw)
+    except Exception:
+        return []
+    events = data.get("events") if isinstance(data, dict) else None
+    return events if isinstance(events, list) else []
+
+
+async def _reflection_gap_fact(client: Any, user_id: str) -> str:
+    """ADR-364 D2: present the closed intent→outcome loop as raw joined rows.
+
+    Reads recent judgment_log decision verdicts + the active bundle's
+    ground-truth events, joins on proposal_id (the D1 keystone FK), and
+    presents one line per joinable pair. Presents — does not judge (DP19):
+    no matched/diverged labeling; the Reviewer authors that into reflection.md.
+    Empty string when nothing joins (no FK overlap yet, or no ground-truth file).
+    """
+    from services.workspace_paths import PERSONA_JUDGMENT_LOG_PATH
+    from services.bundle_reader import get_ground_truth_for_workspace
+
+    # 1) Verdicts keyed by proposal_id (bounded read of judgment_log).
+    try:
+        res = (
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", PERSONA_JUDGMENT_LOG_PATH)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[REVIEWER_ENVELOPE] gap-fact judgment_log read failed user=%s: %s",
+            user_id[:8], exc,
+        )
+        return ""
+    log_rows = res.data or []
+    log_content = (log_rows[0].get("content") or "") if log_rows else ""
+    if not log_content:
+        return ""
+    decisions = _parse_judgment_log_decisions(log_content)
+    if not decisions:
+        return ""
+
+    # 2) Outcome events keyed by proposal_id (bounded read of ground-truth file).
+    gt_path = get_ground_truth_for_workspace(user_id, client)
+    if not gt_path:
+        return ""
+    try:
+        res = (
+            client.table("workspace_files")
+            .select("content")
+            .eq("user_id", user_id)
+            .eq("path", gt_path)
+            .limit(1)
+            .execute()
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "[REVIEWER_ENVELOPE] gap-fact ground-truth read failed user=%s: %s",
+            user_id[:8], exc,
+        )
+        return ""
+    rows = res.data or []
+    if not rows:
+        return ""
+    events = _extract_ground_truth_events(rows[0].get("content") or "")
+    outcomes_by_pid: dict[str, dict[str, Any]] = {}
+    for ev in events:
+        if isinstance(ev, dict) and ev.get("proposal_id"):
+            # Keep the latest event per proposal_id (events are append-order).
+            outcomes_by_pid[str(ev["proposal_id"])] = ev
+
+    # 3) Join + present (newest decisions first, bounded). Present the raw pair;
+    #    do NOT compute whether it "worked" — that judgment is the LLM's.
+    joined = [
+        (pid, d, outcomes_by_pid[pid])
+        for pid, d in decisions.items()
+        if pid in outcomes_by_pid
+    ]
+    if not joined:
+        return ""
+    joined.sort(key=lambda t: t[1].get("timestamp", ""), reverse=True)
+
+    lines: list[str] = []
+    for pid, d, ev in joined[:_REFLECTION_GAP_LIMIT]:
+        value = ev.get("value_cents")
+        val_str = (
+            f"{value/100:+.2f}" if isinstance(value, (int, float)) else "unrealized"
+        )
+        attest = ev.get("attestation") or "platform"
+        head = d.get("headline") or f"{d.get('decision', '?')} {d.get('action_type', '?')}"
+        lines.append(
+            f"- {d.get('decision', '?')} {d.get('action_type', '?')} "
+            f"→ outcome {val_str} [{attest}] — verdict: {head}"
+        )
     return "\n".join(lines)

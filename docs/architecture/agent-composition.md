@@ -328,8 +328,8 @@ Both YARNNN (orchestration) and Reviewer (judgment) read these. They are the ope
 | principles.md | ADR-194 v2 + ADR-217 | Operator | The framework the persona applies — the rule-set, not the reasoning posture. See §3.2.1 for the partition-discipline clause (singular enforcement home). |
 | OCCUPANT.md | ADR-194 v2 Phase 2b | Rotation primitive | Who currently fills the seat. |
 | handoffs.md | ADR-194 v2 Phase 2b | Rotation primitive | Rotation history (append-only). |
-| judgment_log.md | ADR-194 v2 | Reviewer itself | Verdict trail (append-only; renamed from `decisions.md` per ADR-320). |
-| calibration.md | ADR-211 | Back-office task | Per-occupant × verdict rolling windows. |
+| judgment_log.md | ADR-194 v2 | Reviewer itself | Verdict trail (append-only; renamed from `decisions.md` per ADR-320). Decision blocks carry `proposal_id` — the FK the reflection loop joins on (ADR-364). |
+| reflection.md | ADR-364 | Reviewer itself | Interpreted learning from the closed intent→outcome loop — authored from the envelope gap-fact (verdicts joined to attested outcomes by `proposal_id`). Supersedes `calibration.md` (the back-office aggregate-windows file with no persona writer). |
 
 **YARNNN has no persona-bound substrate.** Its "working memory" under `/workspace/system/` (AWARENESS, _playbook, style, notes) is orchestration accumulation, not persona.
 
@@ -345,11 +345,11 @@ Both YARNNN (orchestration) and Reviewer (judgment) read these. They are the ope
 
 The operator's standing declarations under `constitution/` + `governance/` + `operation/` are **read by every agent**. The operator *drafts* them — via YARNNN chat (`InferContext` for identity/brand merge, `WriteFile` scope=`workspace` for direct substrate, per ADR-235; the `InferWorkspace` first-act primitive was removed per ADR-314 D4, dissolved by Direction A — for a program workspace the bundle fork drafts the constitution). But "operator-authored" names the *first* author, not the *only* one: from then on the Reviewer co-authors most of them on its own initiative (it cannot, however, write `governance/` — those are the ceilings it runs under but cannot set). See §4.4.
 
-The Reviewer's seat substrate under `/workspace/persona/` is **read by the Reviewer agent and its dispatcher only**. Rotation primitive writes to OCCUPANT + handoffs. Reviewer agent writes to judgment_log. Back-office task writes to calibration. IDENTITY + principles are operator-authored and revision-chained.
+The Reviewer's seat substrate under `/workspace/persona/` is **read by the Reviewer agent and its dispatcher only**. Rotation primitive writes to OCCUPANT + handoffs. Reviewer agent writes to judgment_log (its content, via the material-outcome gate) AND reflection.md (Reviewer-authored from the envelope gap-fact, ADR-364 — replacing the old back-office calibration writer). IDENTITY + principles are operator-authored and revision-chained.
 
 Domain Agent substrate under `/agents/{slug}/` is **read by task pipeline when dispatching that agent**. Operator writes AGENT.md via chat; agent writes its own memory during runs.
 
-**The invariant that makes this work** (post-ADR-320: the directory a file lives in determines who may write it): file placement follows authorship + scope. Operator-authored intent = `constitution/`; operator-declared ceilings = `governance/`; output-shaping = `operation/`. Operator-authored seat-bound = `/workspace/persona/IDENTITY.md` + `/workspace/persona/principles.md`. Operator-authored agent-bound = `/agents/{slug}/AGENT.md`. Seat-generated = judgment_log + calibration + rotation files (all under `persona/`). Agent-generated = agent memory.
+**The invariant that makes this work** (post-ADR-320: the directory a file lives in determines who may write it): file placement follows authorship + scope. Operator-authored intent = `constitution/`; operator-declared ceilings = `governance/`; output-shaping = `operation/`. Operator-authored seat-bound = `/workspace/persona/IDENTITY.md` + `/workspace/persona/principles.md`. Operator-authored agent-bound = `/agents/{slug}/AGENT.md`. Seat-generated = judgment_log + reflection (ADR-364) + rotation files (all under `persona/`). Agent-generated = agent memory.
 
 **Content boundary within the seat-bound files** (the partition that companion §3.2.1 enforces): `IDENTITY.md` = persona (how the seat reasons); `principles.md` = rule-set the persona applies (the framework). Reasoning-posture content (self-amendment discipline, anti-patterns, fiduciary principle, posture taxonomy, standing-intent contract, cadence-trifecta, wake-context discipline, write authority, voice/narration) lives in `api/agents/reviewer_agent.py` persona-frame `_compute_*` sections — single home, code-local. The seat-bound prose files describe *who* and *what rules*; the persona-frame describes *how to reason*. See §3.2.1 for the four-field rule shape and the diagnostic test.
 

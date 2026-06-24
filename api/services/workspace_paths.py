@@ -123,7 +123,7 @@ PERSONA_PRINCIPLES_YAML_PATH = "persona/_principles.yaml"  # machine-parsed thre
 PERSONA_JUDGMENT_LOG_PATH = "persona/judgment_log.md"     # append-only judgment lineage
 PERSONA_OCCUPANT_PATH = "persona/OCCUPANT.md"             # who currently fills the seat
 PERSONA_HANDOFFS_PATH = "persona/handoffs.md"             # append-only rotation log
-PERSONA_CALIBRATION_PATH = "persona/calibration.md"       # judgments-vs-outcomes trail
+PERSONA_REFLECTION_PATH = "persona/reflection.md"         # interpreted learning from the closed intent→outcome loop (ADR-364; supersedes calibration.md)
 PERSONA_STANDING_INTENT_PATH = "persona/standing_intent.md"  # forward-looking working state (ADR-284)
 
 PERSONA_FILES = (
@@ -132,7 +132,7 @@ PERSONA_FILES = (
     PERSONA_JUDGMENT_LOG_PATH,
     PERSONA_OCCUPANT_PATH,
     PERSONA_HANDOFFS_PATH,
-    PERSONA_CALIBRATION_PATH,
+    PERSONA_REFLECTION_PATH,
     PERSONA_STANDING_INTENT_PATH,
 )
 
@@ -190,10 +190,12 @@ SYSTEM_FILES = (
 # Caller classes (matched by authored_by prefix in the gate):
 #   - "reviewer"  — the seat occupant. Amends constitution/ + persona/ +
 #                   operation/; locked from governance/ (its own ceilings) and
-#                   system/ (orchestration's, not the seat's). The one
-#                   cross-class exception (reconciler → persona/calibration.md)
-#                   is the reconciler's "system" caller writing a named path,
-#                   handled at that writer's identity, NOT a hole here.
+#                   system/ (orchestration's, not the seat's). Writes ALL of
+#                   persona/ including reflection.md (ADR-364 — Reviewer-authored
+#                   from the mechanical gap-fact). The pre-ADR-364 cross-class
+#                   exception (reconciler → persona/calibration.md) is RETIRED:
+#                   reflection.md has no system-writer, so persona/ has no
+#                   cross-class hole — a topology simplification.
 #   - "mcp"       — foreign LLM (yarnnn:mcp). Lowest trust. Writes ONLY the
 #                   operation/ commons; locked from everything else.
 #   - "agent"     — domain agent / specialist. Writes operation/ (domain-scoped
@@ -202,8 +204,9 @@ SYSTEM_FILES = (
 #   - "operator"  — the human. Writes everything except system/ (orchestration
 #                   runtime state is not hand-edited).
 #   - "system"    — deterministic actors (reconciler, mirrors, cleanup). Write
-#                   system/ + operation/ + the named persona/calibration.md;
-#                   locked from governance/ constitution/ + the rest of persona/.
+#                   system/ + operation/; locked from governance/ constitution/
+#                   + ALL of persona/ (post-ADR-364 the persona/calibration.md
+#                   named exception is retired — see "reviewer" above).
 #                   (Enforced by the named-path discipline at each system writer,
 #                   not by a prefix — system writers target specific paths.)
 CALLER_WRITE_POLICY: dict[str, tuple[str, ...]] = {

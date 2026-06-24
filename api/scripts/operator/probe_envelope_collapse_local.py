@@ -160,7 +160,7 @@ def _full_reset(client, user_id: str) -> None:
     # 2. persona working memory — wipe (stale standing_intent → 'already done').
     for p in ["/workspace/persona/standing_intent.md",
               "/workspace/persona/judgment_log.md",
-              "/workspace/persona/calibration.md",
+              "/workspace/persona/reflection.md",  # ADR-364: supersedes calibration.md
               "/workspace/persona/handoffs.md"]:
         try:
             client.table("workspace_files").delete().eq("user_id", user_id).eq("path", p).execute()

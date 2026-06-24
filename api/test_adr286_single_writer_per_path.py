@@ -149,7 +149,7 @@ def test_workspace_init_scaffolds_kernel_universal_paths() -> None:
         "SYSTEM_STYLE_PATH",
         "SYSTEM_NOTES_PATH",
         "PERSONA_PRINCIPLES_YAML_PATH",
-        "PERSONA_CALIBRATION_PATH",
+        "PERSONA_REFLECTION_PATH",  # ADR-364: supersedes PERSONA_CALIBRATION_PATH
     }
     dict_start = src.find("workspace_files = {")
     dict_end = src.find("}\n", dict_start)

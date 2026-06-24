@@ -1783,11 +1783,12 @@ def _is_path_locked(caller_class: str, path: str) -> bool:
     mechanism. The five roots: governance/ constitution/ persona/ operation/
     system/ (FOUNDATIONS Derived Principle 25).
 
-    Note on the one cross-class write: the reconciler (system:outcome-
-    reconciliation) writes persona/calibration.md. That is the system caller
-    targeting a specific named path — system's locked set is empty here and
-    the named-path discipline lives at the reconciler's own caller, not as a
-    hole in this prefix rule.
+    Note (ADR-364): persona/ has NO cross-class write. The pre-ADR-364
+    exception — the reconciler (system:outcome-reconciliation) writing
+    persona/calibration.md — is retired: calibration.md is superseded by
+    persona/reflection.md, which is Reviewer-authored (from the envelope
+    gap-fact), not system-written. So the prefix rule is exact for persona/:
+    only the reviewer (+ operator) writes it; no named-path hole remains.
     """
     from services.workspace_paths import CALLER_WRITE_POLICY
 

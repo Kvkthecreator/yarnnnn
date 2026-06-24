@@ -122,18 +122,22 @@ This file makes Principle 14 (Roles persist; occupants rotate) legible in substr
 
 *Written by*: system at rotation time; optionally annotated by operator.
 
-### `calibration.md` — how the seat's judgments have aligned with outcomes
+### `reflection.md` — the seat's interpreted learning from how its judgments turned out (ADR-364, supersedes `calibration.md`)
 
-The calibration trail. Periodically (per ADR-195 v2's outcome reconciliation task), this file is rebuilt from `decisions.md` × reconciled outcomes in `_money_truth.md` across domains.
+The reflection trail — the agent's *own interpretation* of the closed intent→outcome loop. **Reviewer-authored** (not machine-rebuilt) from the wake envelope's **gap-fact**: each recent material verdict in `judgment_log.md` joined to its ground-truth outcome (value + ADR-330 attestation) by `proposal_id` — the keystone FK ADR-364 D1 persists. The seat reads that presented gap and writes here what it learned.
 
-Calibration captures:
-- For each verdict category (approve / reject / defer), aggregate outcome metrics over rolling windows
-- Per-occupant calibration (does AI occupant v1 over-approve? does human occupant under-approve on low-stakes reversible writes?)
-- Divergence signals — proposals the occupant judged confidently that outcomes contradicted
+The two-layer split is what makes this honest:
+- **The gap (a fact, not a file)** — a DP19-clean bounded read-and-present in the envelope (`reviewer_envelope.py::_reflection_gap_fact`). The kernel *presents* the join (decision → attested outcome); it does NOT label matched/diverged. Derived-not-stored per Axiom 1.
+- **The reflection (the file)** — the agent's interpretation: did my call work, what would I watch for or decide differently. The agent reflects over an outcome it *cannot edit* (attested), so development-over-tenure has an honest substrate.
 
-This file is read by the operator when evaluating whether to rotate the occupant, when tightening or loosening `AUTONOMY.md`, and when reviewing `principles.md`. It is read by AI occupants as prior context for future verdicts. It closes the money-truth → future-judgment loop per FOUNDATIONS Axiom 7 (Recursion).
+Reflection captures (the agent's own words, prose):
+- Which verdict patterns the agent now trusts vs distrusts, given how they paid off
+- What it has stopped watching for (a watch that never produced) or started watching for (a divergence the outcomes revealed)
+- The "I'd decide differently next time" learning that compounds across tenure
 
-*Written by*: back-office reconciliation task (zero-LLM, deterministic).
+Read by the operator when evaluating whether to rotate the occupant, tune `AUTONOMY.md`, or review `principles.md`; read by AI occupants as prior context. It closes the ground-truth → future-judgment loop per FOUNDATIONS Axiom 7 (Recursion) — and it is what makes the development-axis claim (FOUNDATIONS Axiom 2: "Reviewer develops through reflection") *real* rather than aspirational.
+
+*Written by*: the Reviewer (seat occupant), from the envelope gap-fact. **No system-writer** — this retires `calibration.md`'s back-office reconciliation writer and the single-writer cross-class exception that came with it (a topology simplification per ADR-364 D4). *(The legacy aggregate-windows `calibration.md` — per-occupant × verdict rolling windows, machine-rebuilt — is superseded; its `back-office-reviewer-calibration` task retirement is a scoped follow-up.)*
 
 ---
 
@@ -172,17 +176,17 @@ These are not modes the seat *is in globally* — they are workspace-scoped defa
 
 ---
 
-## The calibration loop
+## The reflection loop (ADR-364, supersedes the calibration loop)
 
-The Reviewer seat gains value over tenure via the calibration loop:
+The Reviewer seat gains value over tenure via the reflection loop:
 
-1. Verdict renders → `decisions.md`
-2. Proposal executes (if approved) → outcome lands in platform → ADR-195 reconciliation detects outcome → `_money_truth.md` updates
-3. Reconciliation cross-references verdict with outcome → `calibration.md` updates
-4. Future verdicts read `calibration.md` as prior (AI occupants) or consult it for delegation/framework tuning (human occupant)
-5. Occupant rotation decisions reference `calibration.md` (was AI occupant over-confident? → tighten thresholds in `AUTONOMY.md`, add narrowing in `principles.md`, or rotate back to human)
+1. Verdict renders → `judgment_log.md` (carrying `proposal_id` on decision blocks)
+2. Proposal executes (if approved) → outcome lands in platform → ADR-195/ADR-330 reconciliation detects outcome → ground-truth file (`_money_truth.md` / `_signal.md`) updates, **carrying `proposal_id` on the event** (the ADR-364 D1 keystone — the join key that was previously dropped)
+3. The wake envelope **presents the gap** — each verdict joined to its attested outcome by `proposal_id` (a fact, DP19-clean; the kernel presents, it does not judge)
+4. The Reviewer **reads the gap and authors `reflection.md`** — its interpretation of which calls worked, what it learned, what it'd watch for or decide differently (the agent reflects over an outcome it cannot fake)
+5. Future verdicts read `reflection.md` as prior; occupant rotation + delegation/framework tuning reference it (was the AI occupant over-confident, per its own reflected record vs ground truth? → tighten `AUTONOMY.md`, add narrowing in `principles.md`, or rotate)
 
-This loop is the ground on which the seat's judgment improves. It is also the mechanism by which seat rotation is evidence-based rather than speculative: an AI occupant's suitability for a given autonomy/framework configuration is not asserted but measured.
+This loop is the ground on which the seat's judgment improves — and the keystone (step 2's preserved FK) is what makes it *closeable* at all; before ADR-364 the join key was dropped and the loop stayed open (the symptom: "reflection verdicts accumulate without changes; surface looks stagnant"). It is also the mechanism by which seat rotation is evidence-based rather than speculative: an AI occupant's suitability is not asserted but measured against attested outcomes.
 
 ---
 

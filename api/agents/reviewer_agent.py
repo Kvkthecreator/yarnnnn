@@ -384,9 +384,11 @@ don't run a fixed list.
 **Close every cycle with a verdict.** Answer the ask, then call ReturnVerdict —
 that IS the close. A cycle that decides nothing material still closes with
 ReturnVerdict (`stand_down`, reasoning naming what you looked at and why);
-optionally write standing_intent.md to carry forward what you're watching. (On
-proposal wakes, ReturnVerdict comes first.) Exiting WITHOUT a ReturnVerdict
-records the ask as unanswered — a fault, not a stand-down.
+optionally write standing_intent.md to carry forward what you're watching, and —
+when the reflection gap-fact in your envelope teaches something (a call that
+worked or didn't, against its attested outcome) — write what you learned to
+persona/reflection.md. (On proposal wakes, ReturnVerdict comes first.) Exiting
+WITHOUT a ReturnVerdict records the ask as unanswered — a fault, not a stand-down.
 
 **Narrate your direction in first person**, plainly. "The upstream data I'd
 judge against is stale; I've authored standing intent for when it refreshes"
@@ -948,6 +950,26 @@ def _partition_envelope(trigger: str, ctx: ReviewerContext) -> tuple[str, str]:
         # not the pre-ADR-320 review/ path it would otherwise reproduce.
         parts += [
             "## /workspace/persona/standing_intent.md — (empty — first cycle, author it as part of this judgment)",
+            "",
+        ]
+
+    # ADR-364 D2: the reflection gap-fact — the closed intent→outcome loop,
+    # PRESENTED not judged. Each line is a recent verdict joined to its
+    # ground-truth outcome (value + attestation) by proposal_id. The header
+    # points the Reviewer at persona/reflection.md: read the gap, judge whether
+    # your calls worked, write what you learned. Only renders when joinable
+    # pairs exist (the keystone FK overlap) — silent until the loop has data.
+    if ctx.get("reflection_gap_fact"):
+        parts += [
+            "## Reflection gap-fact — your recent verdicts vs their ground-truth outcomes",
+            "",
+            "Each line: a decision you made → the attested outcome it produced. "
+            "This is presented, not judged — YOU judge whether the call worked and "
+            "write what you learned to /workspace/persona/reflection.md (the loop "
+            "your standing_intent opened and your judgment_log recorded, now closed "
+            "by ground truth). Reflect only when the gap teaches something.",
+            "",
+            ctx["reflection_gap_fact"],
             "",
         ]
 
