@@ -523,6 +523,14 @@ def _apply_entries(
                 }
                 if signal_id:
                     event_record["signal_id"] = signal_id
+                # ADR-364 keystone: persist the proposal_id FK so the outcome
+                # joins back to the judgment_log verdict that caused it. The
+                # provider already set it (trading.py / operator.py); it was
+                # silently dropped here — severing the verdict↔outcome link the
+                # reflection organ needs. Mirrors the signal_id carry above.
+                proposal_id = entry.get("proposal_id")
+                if proposal_id:
+                    event_record["proposal_id"] = proposal_id
                 events.append(event_record)
 
     # Cap narrative windows

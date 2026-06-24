@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.24.5] - ADR-364 keystone: persist `proposal_id` on the outcome event — close the intent→outcome loop
+
+**Substrate behavior change (the reflection-organ keystone, D1):**
+- `api/services/outcomes/ledger.py::_apply_entries`: outcome event records now carry `proposal_id` (the FK back to the `judgment_log` verdict that caused the outcome) when the candidate has it — mirroring the existing `signal_id` carry one line above. The providers (`trading.py`, `operator.py`) already set `proposal_id` on the `OutcomeCandidate`; it was silently dropped here before persistence, **severing the verdict↔outcome link**. This is the single missing primitive: with the FK persisted into `_money_truth.md` / `_signal.md` frontmatter `events`, every realized outcome joins back to the verdict — the intent→outcome loop is now closeable.
+- **Not touched**: `_to_narrative_entry` (a UUID in a prose narrative line is noise; the reflection organ joins on the structured `events` array, not the narrative).
+- **Expected behavior**: no change to any prompt or verdict TODAY (the FK is recorded, not yet read). It unblocks the reflection organ (ADR-364 D2/D3 — the mechanical gap-fact + Reviewer-authored `reflection.md`), which is the next build. Mechanical, zero-LLM, no schema migration (rides the existing events array).
+- **Canon**: `docs/adr/ADR-364-the-reflection-organ.md` (Accepted). Re-founds the three-concern split: the missing primitive was the join key, not a new rule field (ADR-361) or a new seat (ADR-362) — both demoted to deferred-conditional. Cascade: FOUNDATIONS Axiom 2 (develops-through-reflection), GLOSSARY (Reflection entry; calibration→reflection), `persona-reflection.md` (the framing this completes — amended same commit), ADR-361/362 sequence notes.
+
 ## [2026.06.24.4] - ADR-363 D3: within-wake context-editing wired behind a probe gate (clear_tool_uses)
 
 **LLM-facing change (probe-gated, OFF by default — no behavior change until the env flag is set):**

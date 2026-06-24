@@ -259,7 +259,7 @@ This clause makes explicit what was previously implied across ADR-194 v2 D6 ("Re
 Per Axiom 1, identity is carried by substrate, not held in code:
 
 - **YARNNN orchestration surface** — `/workspace/memory/awareness.md`, `/workspace/memory/_playbook.md`, `/workspace/memory/style.md`, `/workspace/memory/notes.md` as orchestration accumulation; there is intentionally no workspace-authored YARNNN persona file
-- **Reviewer's identity** — `/workspace/review/IDENTITY.md` + `OCCUPANT.md` (declares current seat occupant — runtime-truth-aligned per ADR-284, not template-default) + `principles.md` + `standing_intent.md` (forward-looking working state per ADR-284, `reviewer-workbench` role) + `judgment_log.md` (system-ledger lineage per ADR-281 §5) + `handoffs.md` + `calibration.md`; it reasons within delegation declared at `/workspace/context/_shared/AUTONOMY.md`
+- **Reviewer's identity** — `/workspace/persona/IDENTITY.md` + `OCCUPANT.md` (declares current seat occupant — runtime-truth-aligned per ADR-284, not template-default) + `principles.md` + `standing_intent.md` (forward-looking working state per ADR-284, `reviewer-workbench` role) + `judgment_log.md` (system-ledger lineage per ADR-281 §5) + `handoffs.md` + `reflection.md` (interpreted learning from the closed intent→outcome loop per ADR-364, supersedes `calibration.md`); it reasons within delegation declared at `/workspace/governance/AUTONOMY.md`
 - **User-authored Agent identity** — `/agents/{slug}/AGENT.md` + accumulated domain context
 - **Future systemic Agent identity** — `/workspace/{role}/IDENTITY.md` + role-specific substrate
 
@@ -279,7 +279,7 @@ Each Agent develops along exactly one axis. Orchestration does not develop; it e
 
 | Agent | Develops | How |
 |---|---|---|
-| Reviewer | Through calibration — judgment quality | Decisions accumulate in `decisions.md`; calibration against reconciled outcomes in `calibration.md` |
+| Reviewer | Through **reflection** — judgment quality (ADR-364) | Verdicts accumulate in `judgment_log.md` (backward) against `standing_intent.md` (forward); the loop is closed by `reflection.md` — the agent's interpreted learning from the **mechanical gap-fact** (each verdict joined to its ground-truth outcome by `proposal_id`, ADR-330-attested). Development is real (not aspirational) because the gap the agent reflects on is one it cannot fake. Supersedes the prior "calibration against reconciled outcomes in `calibration.md`" — that slot had no writer; the loop was open. |
 | User-authored domain Agent | Inward — deeper domain expertise | Accumulated memory, observations, learned preferences in its domain |
 
 Orchestration capability bundles (production roles, platform integrations) do not have a development axis in this sense. ADR-117 role-keyed style distillation (at `/workspace/style/{role}.md`) is an **operator-scoped accumulation** about the operator's preferences for that role's output — it is substrate the operator owns, not identity the role owns. The role itself does not accumulate; what accumulates is the operator's calibration of how that role's output should read, which is Agent-owned context that happens to be role-keyed.
