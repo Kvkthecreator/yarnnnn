@@ -1,4 +1,4 @@
-# MCP Onboarding Surface — design for the connector-user journey
+# MCP Onboarding Surface — design for both principals (human connect + agent A2A)
 
 **Date**: 2026-06-25
 **Hat**: B (external-developer design discourse — a build spec for operator (KVK) reaction, not canon). Recommends a frontend surface; the build lands in Hat-A `web/` once scoped.
@@ -98,3 +98,58 @@ Slices 1-2 fix everything the live test exposed. 3-4 are polish + magic. Recomme
 - **Does `/connect` live on `yarnnn.com` or `mcp.yarnnn.com`?** Recommend `yarnnn.com/connect` (it's an app/marketing page, served by the web app — the subdomain is the protocol endpoint only). Keep the protocol on the subdomain, the human page on the main domain.
 - **Signup-for-connector: email/password (with the confirm interruption) vs magic-link vs Google-only?** The mid-OAuth email-confirm is the biggest drop risk; worth a deliberate choice.
 - **How hard to push the cockpit "graduation"?** A memory-user may never want the operator surface. Is memory-only a valid terminal state, or is every connector-user a cockpit-operator-in-waiting? (This is the ADR-368 memory-vs-delegation question at the lifecycle layer.)
+
+---
+
+## 8. The second principal — A2A (agent-initiated connect)
+
+KVK's reframe (2026-06-25): onboarding has **two principals, not two human-contexts**. The axis is *who/what authenticates*:
+
+| | **Human-initiated** (§1-7 above) | **Agent-initiated (A2A)** |
+|---|---|---|
+| Who connects | A person, in claude.ai/ChatGPT | An autonomous agent, programmatically |
+| At connect time | Browser + interactive login | No browser, no human, no UI |
+| OAuth grant | `authorization_code` (interactive) | **`client_credentials`** (machine-to-machine) |
+| Identity bound | The human's `user_id` | The **agent's own** identity (distinct from any human) |
+| Provisioning | Self-serve signup | A human *provisions* the agent's credentials, then the agent runs unattended |
+
+This is **not a new direction** — ADR-311 D7 already ratified the verbs as protocol-agnostic ("MCP is the first binding; A2A and direct-API are future bindings"). A2A is the second binding, and *onboarding/auth is where it first becomes concrete*.
+
+### What's already ready (the design is real, not aspirational)
+
+- **The OAuth client model already carries the machine-grant fields**: `client_secret`, `grant_types`, `token_endpoint_auth_method` (`oauth_provider.py:106-128`). `grant_types` defaults to `["authorization_code"]` but the column accepts `["client_credentials"]`. So the machine grant is **schema-present, not wired** — a real, bounded addition, not a rebuild.
+- **The verb surface is principal-agnostic.** `remember`/`recall`/`trace` don't care whether the caller is a human's LLM or an agent — they execute against the resolved scope. Only *identity resolution* (`resolve_request_client`) differs.
+
+### The one foundational dependency (and why it's shared, not A2A-specific)
+
+A2A needs **agent-distinct identity**: the agent acts on a workspace, but is NOT the human who owns it. Today identity == the human `user_id` (1 human = 1 workspace). An agent caller needs its own identity that *maps to* a workspace without *being* the owner's user_id.
+
+**This is the exact same `user_id → workspace_id` re-key the shared-workspace seam already defers** (the "Phase 3, deferred" TODO in `mcp_composition.py:483-500`). Two independent futures — shared human workspaces AND agent callers — both need the *same* foundational change: substrate keyed by `workspace_id`, with `(principal, workspace)` membership replacing `(user = workspace)`. **This is the load-bearing insight:** A2A doesn't need *its own* foundation; it shares the workspace re-key with shared-workspace. Doing the re-key once unlocks both. Until then, both are correctly deferred for the same reason.
+
+### A2A's design commitments (decidable now — the "fully" that matters)
+
+These are the load-bearing contracts, fixed now so the human design doesn't foreclose them:
+
+1. **Separate door, shared destination.** A2A auth is the `client_credentials` token endpoint (no `/connect` browser UI). A human *provisions* an agent's credentials from a dashboard (a future `/connect/agents` or System Settings pane); the agent then authenticates machine-to-machine. The human `/connect` surface stays clean — the two principals never share a UI.
+2. **Agent identity is attributed, like every other caller.** An A2A write is `authored_by="a2a:<agent-id>"` (mirrors `yarnnn:mcp:<client>` from ADR-368 §3 — validates under a new `a2a:` prefix in `VALID_AUTHOR_PREFIXES`). `trace` then names the agent exactly as it now names the room. The provenance model already generalizes.
+3. **Same gate, same judgment.** An A2A caller is `lowest-trust` like `mcp` — writes the `operation/` commons only, judged by the Reviewer (ADR-368 D5). No new permission model; the topology (ADR-320/366) already covers a new caller-class with one `CALLER_WRITE_POLICY` entry.
+4. **Scoped by capability, not blanket.** A provisioned agent credential is scoped to specific workspace(s) + verbs (e.g. read-only `recall`/`trace`, or write-enabled). The OAuth `scope` field carries this.
+5. **Revocable + auditable.** The provisioning human can revoke an agent credential; every A2A invocation emits a narrative entry (the operator-visibility model, ADR-368 D4) so the human sees what their agents did.
+
+### What is explicitly a STUB (no real caller yet — the imagined-consumer guard)
+
+- The **agent-provisioning dashboard UI** (`/connect/agents`) — designed in contract (provision/scope/revoke/audit) but NOT built until a real agent caller exists. Building UI for a flow with zero users is the trap; the *contracts* above are what's decidable now.
+- The **`client_credentials` grant wiring** — schema-ready, wired when the first agent caller is real.
+- **A2A becomes its own ADR** when a concrete caller appears, inheriting these commitments + the workspace re-key as its prerequisite.
+
+### Sequencing implication
+
+- The **workspace re-key** (`user_id → workspace_id`) is the shared prerequisite for BOTH A2A and shared-workspace. It is a foundational change — correctly NOT on the critical path for human `/connect` (which works on the 1:1 model today). When you do it, scope it to serve both futures, not just one.
+- Human `/connect` (slices 1-4) ships on the current 1:1 model, no re-key needed.
+- A2A waits for: (a) a real agent caller, (b) the re-key. Neither blocks human onboarding.
+
+## 9. Revised open questions for KVK
+
+- **When does the workspace re-key happen?** It gates A2A *and* shared-workspace (multiple humans, one workspace). Is either future near enough to pull the re-key forward, or does it stay deferred until a concrete caller forces it?
+- **Is "agent provisions on a human's behalf" the only A2A shape, or also "agent has its own workspace"?** (An autonomous agent that IS the principal, not acting for a human, is a different identity model again — worth naming before it's assumed.)
+- The §7 human questions (where `/connect` lives, signup-mid-flow auth, cockpit graduation) still stand.
