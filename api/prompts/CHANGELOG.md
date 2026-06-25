@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.25.4] - ADR-368: two bugs the live claude.ai test surfaced (trace dark + mcp:unknown)
+
+**The first real claude.ai test of the memory surface PASSED the happy path (remember→operation/memory/q3-board-deck.md, recall round-tripped) AND proved the placement architecture works end-to-end — the live substrate showed the dump's `yarnnn:mcp` inbox revision + a `reviewer:ai:reviewer-sonnet-v8` EditFile a minute later (the Reviewer filed it).** But it surfaced two bugs the offline probe couldn't catch:
+
+**(1) `trace` returned 0 revisions — the differentiator was dark.** `compose_trace` STRIPPED the `/workspace/` prefix before calling `ListRevisions`, but the revision rows in `workspace_file_versions` are stored with the absolute prefix. Verified: bare `operation/memory/q3-board-deck.md` → 0 revisions; `/workspace/operation/memory/q3-board-deck.md` → the real 2-revision chain. So `trace` (the moat capability we pitch) returned empty on EVERY call.
+- `services/mcp_composition.py::compose_trace`: pass the ABSOLUTE path to `ListRevisions` (don't strip); return `abs_path` in the result. Live-verified against the real Q3 file: now returns the 2-revision chain (yarnnn:mcp write → reviewer:ai placement) — exactly the git-legible two-step the ADR promised.
+
+**(2) provenance came back `mcp:unknown` instead of `claude.ai`.** `derive_client_name` read the raw Starlette request (which has no `client_id`, and claude.ai's User-Agent doesn't contain "claude"). The real client identity is in the OAuth access token.
+- `services/mcp_composition.py`: new `derive_client_name_from_token(auth)` — reads `get_access_token().client_id`, maps it, falls back to the registered `client_name` from `mcp_oauth_clients` when the id is opaque. `mcp_server/server.py`: all 3 verb call sites try the token first, fall back to the request-based derivation.
+
+- **Regression-locked**: probe R5 now asserts `revisions>=1` + `has_mcp_write` + absolute path (the old R5 passed on 0 — that's how the bug slipped); gate adds #7 (token-derivation exists) + #8 (no `/workspace/`-strip in compose_trace). probe 10/10, gate 8/8 live.
+- **Expected behavior**: `trace` now shows the real authored history (incl. the Reviewer's placement); foreign writes are attributed to the actual client (`mcp:claude.ai`) not `mcp:unknown`.
+
 ## [2026.06.25.3] - ADR-368 revision: `remember` is a DUMP; placement is the Reviewer's judgment
 
 **Operator caught a real design error in the just-shipped ADR-368: routing all `remember` writes to one directory (`operation/{domain}/notes.md`) was wrong twice over.** (1) It fixated content into a flat per-folder `notes.md` instead of real homes; (2) it leaned on an ADR-151 `competitors`/`market` keyword table that live workspaces don't use (they're program-shaped: `reports/`/`trading/`/`specs/`) — and a foreign LLM's free memory must NOT be filed into a program's structured output tree it doesn't understand.

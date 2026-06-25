@@ -113,13 +113,20 @@ async def _run():
           f"returned={rc.get('returned')}")
 
     # --- R5: trace composes the revision chain server-side ---
+    # The probe wrote SUBJECT via dispatch_remember_this in R1, so a revision
+    # EXISTS. trace MUST surface it. This is the regression for the live bug:
+    # compose_trace stripped the /workspace/ prefix that ListRevisions needs,
+    # so it returned 0 revisions on every call (the differentiator was dark).
     tr = await mcp_composition.compose_trace(auth=auth, subject=SUBJECT, limit=5)
-    has_history = tr.get("success") is True and isinstance(tr.get("history"), list)
+    n_rev = tr.get("returned", 0)
     attributed = bool(tr.get("history")) and all(
-        "authored_by" in h and "when" in h for h in tr["history"])
-    check("R5 trace returns the authored revision chain (who/when/what-changed)",
-          has_history and (attributed or tr.get("returned") == 0),
-          f"path={tr.get('path')} revisions={tr.get('returned')}")
+        h.get("authored_by") and h.get("when") for h in tr.get("history", []))
+    has_mcp_write = any("yarnnn:mcp" in (h.get("authored_by") or "") for h in tr.get("history", []))
+    check("R5 trace returns the REAL chain (>=1 revision, attributed) — NOT empty",
+          tr.get("success") is True and n_rev >= 1 and attributed and has_mcp_write,
+          f"path={tr.get('path')} revisions={n_rev} has_mcp_write={has_mcp_write}")
+    check("R5b trace path is absolute (/workspace/…) — the prefix ListRevisions needs",
+          (tr.get("path") or "").startswith("/workspace/"), f"path={tr.get('path')}")
 
     # --- R6: operator-visibility — narrative is session-independent ---
     # The emitter falls back to _ensure_daily_session (RPC-independent: plain

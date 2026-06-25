@@ -229,9 +229,11 @@ async def remember(
     """
     auth = resolve_request_client()
     content = (content or "").strip()
-    client_name = mcp_composition.derive_client_name(
-        getattr(ctx.request_context, "request", None)
-    )
+    client_name = mcp_composition.derive_client_name_from_token(auth)
+    if client_name == "unknown":
+        client_name = mcp_composition.derive_client_name(
+            getattr(ctx.request_context, "request", None)
+        )
 
     if not content:
         _emit_mcp_narrative(
@@ -331,9 +333,11 @@ async def recall(
         limit: Max excerpts (default 10, max 30).
     """
     auth = resolve_request_client()
-    client_name = mcp_composition.derive_client_name(
-        getattr(ctx.request_context, "request", None)
-    )
+    client_name = mcp_composition.derive_client_name_from_token(auth)
+    if client_name == "unknown":
+        client_name = mcp_composition.derive_client_name(
+            getattr(ctx.request_context, "request", None)
+        )
     result = await mcp_composition.compose_recall(
         auth=auth, subject=subject, question=question, domain=domain, limit=limit,
     )
@@ -374,9 +378,11 @@ async def trace(
         limit: Max revisions (default 10, max 30).
     """
     auth = resolve_request_client()
-    client_name = mcp_composition.derive_client_name(
-        getattr(ctx.request_context, "request", None)
-    )
+    client_name = mcp_composition.derive_client_name_from_token(auth)
+    if client_name == "unknown":
+        client_name = mcp_composition.derive_client_name(
+            getattr(ctx.request_context, "request", None)
+        )
     result = await mcp_composition.compose_trace(auth=auth, subject=subject, limit=limit)
     n = result.get("returned", 0)
     _emit_mcp_narrative(

@@ -71,6 +71,20 @@ def main():
         "6 ADR-151 domain-routing fiction DELETED (_classify_domain / DOMAIN_KEYWORDS)",
         not hasattr(m, "_classify_domain") and not hasattr(m, "DOMAIN_KEYWORDS")))
 
+    # 7. token-based client derivation EXISTS (the mcp:unknown fix — real client
+    #    identity is in the OAuth access token, not the raw HTTP request).
+    results.append(_check(
+        "7 derive_client_name_from_token EXISTS (provenance reads the OAuth session)",
+        hasattr(m, "derive_client_name_from_token")))
+
+    # 8. compose_trace does NOT strip the /workspace/ prefix (the live trace bug:
+    #    ListRevisions queries the canonical absolute path; a stripped path → 0).
+    import inspect
+    trace_src = inspect.getsource(m.compose_trace)
+    results.append(_check(
+        "8 compose_trace queries the ABSOLUTE path (no /workspace/-strip regression)",
+        'path[len("/workspace/"):]' not in trace_src and "abs_path" in trace_src))
+
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-368 assertions pass")
     if passed != total:

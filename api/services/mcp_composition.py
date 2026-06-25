@@ -101,6 +101,51 @@ def derive_client_name(request_context: Any) -> str:
     return "unknown"
 
 
+def derive_client_name_from_token(auth: Any) -> str:
+    """Derive the MCP client name from the authenticated OAuth session.
+
+    The reliable identity of a foreign LLM is its OAuth registration, NOT the
+    raw HTTP request — claude.ai's User-Agent doesn't contain "claude", and a
+    Starlette Request has no `client_id`, which is why the request-based
+    `derive_client_name` returned "unknown" on real claude.ai calls (live test
+    2026-06-25). This reads the access token's `client_id`, maps it to a known
+    short id, and — when the client_id is opaque (a registration UUID) — looks
+    up the registered `client_name` from `mcp_oauth_clients`.
+
+    Best-effort: returns "unknown" only when nothing identifies the caller.
+    """
+    try:
+        from mcp.server.auth.middleware.auth_context import get_access_token
+        token = get_access_token()
+    except Exception:  # noqa: BLE001
+        token = None
+
+    client_id = getattr(token, "client_id", None) if token else None
+    if client_id:
+        # direct map (some clients register a recognizable client_id)
+        normalized = _normalize_client_id(client_id)
+        if normalized:
+            return normalized
+        # opaque client_id → look up the human client_name we stored at register
+        try:
+            row = (
+                auth.client.table("mcp_oauth_clients")
+                .select("client_name")
+                .eq("client_id", client_id)
+                .limit(1)
+                .execute()
+            )
+            name = (row.data or [{}])[0].get("client_name") if row.data else None
+            if name:
+                mapped = _normalize_client_id(name)
+                if mapped:
+                    return mapped
+                return name  # surface the registered name even if unmapped
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("[MCP] client_name lookup failed: %s", exc)
+    return "unknown"
+
+
 def stamp_provenance(
     content: str,
     client_name: str,
@@ -355,9 +400,15 @@ async def compose_trace(
         }
 
     path = results[0].get("path", "")
-    # ListRevisions takes a workspace-relative path (strip the /workspace/ prefix).
-    rel = path[len("/workspace/"):] if path.startswith("/workspace/") else path
-    lr = await execute_primitive(auth, "ListRevisions", {"path": rel, "limit": max(1, min(int(limit or 10), 30))})
+    # ListRevisions queries `workspace_file_versions` by the CANONICAL stored
+    # path, which carries the `/workspace/` prefix (the authored-substrate
+    # revision rows are absolute). Do NOT strip it — a bare path matches zero
+    # rows and `trace` (the differentiator) returns an empty chain on every
+    # call. Verified: bare `operation/…` → 0 revisions; `/workspace/operation/…`
+    # → the real chain. (Live test 2026-06-25 surfaced this; the Reviewer had
+    # placed the dump — 2 revisions existed — but trace read the wrong key.)
+    abs_path = path if path.startswith("/workspace/") else "/workspace/" + path.lstrip("/")
+    lr = await execute_primitive(auth, "ListRevisions", {"path": abs_path, "limit": max(1, min(int(limit or 10), 30))})
     if not lr.get("success"):
         return {"success": False, "error": lr.get("error", "trace_failed"),
                 "message": lr.get("message", "trace failed"), "subject": subject, "path": path}
@@ -375,10 +426,10 @@ async def compose_trace(
     return {
         "success": True,
         "subject": subject,
-        "path": path,
+        "path": abs_path,
         "history": history,            # newest first
         "returned": len(history),
-        "citations": [path],
+        "citations": [abs_path],
         "explanation": (
             f"The authored history of '{subject}' — {len(history)} revision(s), "
             "each attributed to who changed it and when. This is the cross-LLM "
