@@ -186,6 +186,20 @@ mcp = FastMCP(
     transport_security=TransportSecuritySettings(
         enable_dns_rebinding_protection=False,
     ),
+    # ADR-370 Slice 2: serve the MCP protocol at ROOT, not the SDK default
+    # `/mcp`, so the connector URL is the clean, compact `https://mcp.yarnnn.com`
+    # (no path). Eliminates the bare-domain-404 failure mode at the source — a
+    # user who types the domain without a path now connects, instead of getting
+    # "no MCP server found at the provided URL".
+    #
+    # No OAuth collision (verified against mcp 1.28.0 streamable_http_app, the
+    # vendored SDK): create_auth_routes() registers /authorize, /token,
+    # /register, /.well-known/* as explicit Routes FIRST, and the streamable
+    # endpoint is appended AFTER as an EXACT-match `Route(streamable_http_path)`
+    # (not a prefix Mount). Starlette matches first/exact, so the OAuth routes
+    # always win their paths and only the bare `/` JSON-RPC POST hits the
+    # protocol. Default was `/mcp`; this makes it `/`.
+    streamable_http_path="/",
 )
 
 

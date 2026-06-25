@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.26.1] - ADR-370 Slice 2: MCP protocol served at ROOT — the connector URL is the bare domain
+
+**The connector URL is now the clean `https://mcp.yarnnn.com` (no `/mcp` path), eliminating the bare-domain-404 failure mode at the source.** KVK hit "no MCP server found at the provided URL" twice because the protocol lived at `/mcp` (the SDK default) and a user naturally types the bare domain. Rather than document the gotcha, we removed it.
+
+- `api/mcp_server/server.py`: `FastMCP(..., streamable_http_path="/")` — moves the streamable-HTTP protocol mount from the default `/mcp` to root.
+- **Verified safe against the vendored SDK (mcp 1.28.0)**: `streamable_http_app()` registers the OAuth routes (`/authorize`, `/token`, `/register`, `/revoke`, `/.well-known/*`) FIRST via `create_auth_routes()`, then appends the protocol as an EXACT-match `Route(streamable_http_path)` (not a prefix `Mount`). Starlette matches first/exact, so OAuth routes always win their paths and only bare `/` POST reaches the protocol — no collision. Boot-tested: real `mcp_server.server` app builds with routes `[/.well-known/oauth-authorization-server, /authorize, /token, /register, /revoke, /, /.well-known/oauth-protected-resource]` — root LAST.
+- **Caught a wrong web-doc**: an SDK-guide agent claimed `streamable_http_path` isn't a valid kwarg and that root-mounting collides with OAuth — that describes the THIRD-PARTY FastMCP v2 (`gofastmcp.com`, `http_app(path=...)`), NOT the official `mcp.server.fastmcp` we use. Verified against the actual vendored source instead. (Reverted the bad change, re-applied the correct one.)
+- **No env change** — `MCP_SERVER_URL=https://mcp.yarnnn.com` stays the issuer; the discovery doc keeps advertising `mcp.yarnnn.com` and the protocol now answers at its root.
+- **Breaking for `/mcp` pointers** (intentional, pre-real-users): anything connected at `mcp.yarnnn.com/mcp` must move to the bare domain. Acceptable — no real users connected yet.
+- **Expected behavior**: `POST https://mcp.yarnnn.com` (bare) now serves the MCP protocol (401 auth-gated); the old `/mcp` path 404s. Docs: `docs/features/mcp/CONNECTING.md` (the canonical connector-setup guide, bare URL). Goes live on the MCP Render service redeploy.
+
 ## [2026.06.25.6] - Reviewer frame: own attested ground-truth (don't disown as "stale upstream") + wire reflection-gap → revise-the-rule
 
 **Fixes the DP24 stewardship-deferral the compressed-tenure rig surfaced** — the agent perceived a threshold-met falsification of a rule it authored, but escalated the fix to the operator via Clarify instead of owning it. Probed to two reasoning-input gaps (NOT a gate mechanism, NOT a missing primitive — the operator's diagnosis; `EditFile` was available + the discriminator already existed in principles.md). Both fixed in prose.
