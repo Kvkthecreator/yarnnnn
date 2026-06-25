@@ -238,6 +238,16 @@ export interface WindowState {
    * fields. When undefined or false, the window is normally rendered.
    */
   minimized?: boolean;
+  /**
+   * 2026-06-25 — the window's remembered deep-link params (bare keys, e.g.
+   * `{pane: 'account'}`, `{tab: 'alpha-trader'}`). The URL shows ONLY the
+   * foregrounded surface's params (an honest address bar — you-are-here), so a
+   * backgrounded window's pane/tab can't live in the URL; it's persisted here
+   * and re-applied to the URL when the window is re-foregrounded. Written by
+   * setSurfaceParams + the foreground param-delivery sites; read by
+   * reconcileUrlToForeground. Empty/absent → the window opens at its default.
+   */
+  params?: Record<string, string>;
 }
 
 export type WindowStateMap = Record<string, WindowState>;

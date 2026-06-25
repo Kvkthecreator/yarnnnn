@@ -224,6 +224,11 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   );
   // D15 — window manager state.
   const [windowStates, setWindowStatesState] = useState<WindowStateMap>({});
+  // A ref mirror of windowStates so callbacks (reconcileUrl) read the latest
+  // remembered params without taking windowStates as a dep (which changes on
+  // every z-bump/geometry edit and would thrash the callback identity).
+  const windowStatesRef = useRef<WindowStateMap>({});
+  useEffect(() => { windowStatesRef.current = windowStates; }, [windowStates]);
   // ADR-316: Desktop-measured bounds (see interface docstring). Held in
   // a ref so geometry callbacks read the latest value without being
   // re-created on every Desktop resize (which would thrash window
@@ -395,6 +400,77 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
     [userId, composition.surfaces, pathname, router]
   );
 
+  // 2026-06-25 — honest address bar. The URL shows ONLY the foregrounded
+  // surface's params (you-are-here), not the accumulated namespaced params of
+  // every surface you've visited (the operator-observed bug: on Home but URL
+  // still read `?settings.pane=account`). This reconciles the URL on every
+  // foreground: strip ALL `{slug}.{key}` namespaced params for known surfaces,
+  // then re-apply the foregrounded surface's REMEMBERED params (persisted in
+  // WindowState.params, lossless across backgrounding) merged with any just-
+  // delivered params (a pane selection / a navigate). The merged set is also
+  // persisted back into WindowState[foregroundSlug].params so the next
+  // foreground restores it. Pathname is preserved (the `/desktop` baseline,
+  // ADR-358 D5). Singular Implementation — the three prior scattered
+  // replaceState param-write sites all route through here.
+  const reconcileUrl = useCallback(
+    (foregroundSlug: string, deliverParams?: Record<string, string>) => {
+      if (typeof window === 'undefined' || !userId) return;
+      const surfaces = composition.surfaces || [];
+      const knownSlugs = new Set(surfaces.map((s) => s.slug));
+
+      const url = new URL(window.location.href);
+      const prefix = foregroundSlug + '.';
+
+      // Capture the foregrounded slug's INCOMING url params first — a cold-load
+      // shared deep-link (`?files.path=X`) is a source on read; we must adopt
+      // it, not blow it away. (Other surfaces' incoming params are dropped: the
+      // URL is honest about the foreground only.)
+      const incoming: Record<string, string> = {};
+      for (const key of Array.from(url.searchParams.keys())) {
+        if (key.startsWith(prefix)) {
+          const val = url.searchParams.get(key);
+          if (val != null) incoming[key.slice(prefix.length)] = val;
+        }
+      }
+
+      // Strip every namespaced param belonging to a known surface ({slug}.key).
+      // Non-namespaced params (if any) are left untouched.
+      for (const key of Array.from(url.searchParams.keys())) {
+        const dot = key.indexOf('.');
+        if (dot > 0 && knownSlugs.has(key.slice(0, dot))) {
+          url.searchParams.delete(key);
+        }
+      }
+
+      // Priority (low→high): incoming URL deep-link < remembered (WindowState)
+      // < just-delivered (this navigation's params).
+      const remembered = windowStatesRef.current[foregroundSlug]?.params ?? {};
+      const merged: Record<string, string> = { ...incoming, ...remembered, ...(deliverParams || {}) };
+      for (const [k, v] of Object.entries(merged)) {
+        if (v != null && v !== '') url.searchParams.set(scopeParamKey(foregroundSlug, k), v);
+      }
+
+      window.history.replaceState(null, '', url.pathname + (url.search || '') + url.hash);
+
+      // Persist the merged params so backgrounding doesn't lose them (incl. an
+      // adopted cold-load deep-link). Skip the write when there's nothing to
+      // remember and nothing already stored (avoids a pointless state churn).
+      const hasMerged = Object.keys(merged).length > 0;
+      if (hasMerged || windowStatesRef.current[foregroundSlug]?.params) {
+        setWindowStatesState((current) => {
+          const existing = current[foregroundSlug];
+          const next: WindowStateMap = {
+            ...current,
+            [foregroundSlug]: { ...(existing || ({} as WindowState)), params: merged },
+          };
+          persistWindowStates(next);
+          return next;
+        });
+      }
+    },
+    [userId, composition.surfaces, persistWindowStates],
+  );
+
   // Window-grade open/raise/restore (the pre-ADR-340 foregroundSurface
   // body). Internal — call sites use foregroundSurface, which resolves
   // pane-grade slugs to their parent before delegating here.
@@ -532,40 +608,27 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   // foregroundSurface('budget') just works whether budget is a window
   // or a pane of System Settings.
   const foregroundSurface = useCallback(
-    (slug: string): boolean => {
+    (slug: string, deliverParams?: Record<string, string>): boolean => {
       const surfaces = composition.surfaces || [];
       const entry = surfaces.find((s) => s.slug === slug);
       const parentSlug = entry?.pane_of;
       if (parentSlug && parentSlug !== slug) {
         const ok = foregroundWindowGrade(parentSlug);
-        // ADR-358 D5+D6 (2026-06-23) — deliver the pane selection by setting
-        // the PARENT window's namespaced pane key (`{parent}.pane=slug`) via
-        // the History API, PRESERVING the current pathname (the `/desktop`
-        // baseline). The namespace means this never collides with another
-        // open window's pane. Pre-D5 this router.push-ed the parent's page
-        // route, flipping the pathname (left the SPA, reset chat). Per
-        // ADR-297 D19.6 the pane is intra-surface state; it must NOT flip the
-        // pathname. The parent window reads its own `{parent}.pane` from
-        // useSearchParams regardless of pathname.
-        if (ok && typeof window !== 'undefined') {
-          const url = new URL(window.location.href);
-          url.searchParams.set(scopeParamKey(parentSlug, 'pane'), slug);
-          window.history.replaceState(
-            null,
-            '',
-            url.pathname + (url.search || '') + url.hash
-          );
-        }
+        // Deliver the pane selection (+ any extra params) as the PARENT
+        // window's params, then reconcile so the URL shows only the parent's
+        // params. reconcileUrl namespaces + persists.
+        if (ok) reconcileUrl(parentSlug, { pane: slug, ...(deliverParams || {}) });
         return ok;
       }
-      // Window-grade surface (no pane_of). ADR-358 D6 — no stale-pane clear
-      // needed: each window's pane lives under its OWN namespace
-      // (`{slug}.pane`), so a backgrounded window's pane never bleeds into
-      // the one being foregrounded. The window reads its own key and opens
-      // at its remembered (or default) pane.
-      return foregroundWindowGrade(slug);
+      // Window-grade surface (no pane_of). Reconcile the URL to this surface's
+      // remembered params (honest address bar — a backgrounded surface's
+      // params are stripped, this surface's are restored from WindowState +
+      // any just-delivered params).
+      const ok = foregroundWindowGrade(slug);
+      if (ok) reconcileUrl(slug, deliverParams);
+      return ok;
     },
-    [composition.surfaces, foregroundWindowGrade]
+    [composition.surfaces, foregroundWindowGrade, reconcileUrl]
   );
 
   // ADR-297 D19.5 (navigation enactment, 2026-05-30): the single
@@ -575,34 +638,14 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   // the URL to land in the target window). See interface docstring.
   const navigateToSurface = useCallback(
     (slug: string, params?: Record<string, string>): boolean => {
-      const ok = foregroundSurface(slug);
-      // Only write the URL when there are params to deliver. Bare
-      // navigation leaves the URL as-is per D19.2 (Dock dot is the
-      // canonical foreground signal, not the URL).
-      //
-      // ADR-358 (2026-06-23) — deliver params via the History API,
-      // PRESERVING the current pathname (the `/desktop` baseline), instead
-      // of `router.push(`${route}?${qs}`)` which flipped the pathname to
-      // the surface's own page route (a real navigation that left the SPA
-      // and reset chat). Per ADR-297 D19.6, deep-link params are
-      // intra-surface state; the foregrounded window reads them from
-      // useSearchParams regardless of pathname.
-      if (ok && params && Object.keys(params).length > 0 && typeof window !== 'undefined') {
-        const url = new URL(window.location.href);
-        // ADR-358 D6 — namespace each param under the TARGET slug so it
-        // lands in that window's own vocabulary and never collides with
-        // another open window's same-named param. Callers pass bare keys
-        // (`{pane:'billing'}`); the prefix is formed here, once.
-        Object.entries(params).forEach(([k, v]) => {
-          if (v != null && v !== '') url.searchParams.set(scopeParamKey(slug, k), v);
-        });
-        window.history.replaceState(
-          null,
-          '',
-          url.pathname + (url.search || '') + url.hash
-        );
-      }
-      return ok;
+      // Thin pass-through: params flow into foregroundSurface, which reconciles
+      // the URL to show ONLY the foregrounded surface's params (honest address
+      // bar — 2026-06-25) and persists them into WindowState. Pathname is
+      // preserved (the `/desktop` baseline, ADR-358 D5). Bare navigation (no
+      // params) still restores the target's REMEMBERED params via reconcile,
+      // so the URL is correct even without a delivered param (the prior bug:
+      // bare nav left the URL untouched, so a stale param lingered).
+      return foregroundSurface(slug, params);
     },
     [foregroundSurface]
   );
@@ -627,8 +670,39 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
         '',
         url.pathname + (url.search ? url.search : '') + url.hash
       );
+
+      // 2026-06-25 — mirror the change into WindowState.params so an
+      // in-surface deep-link (e.g. switching pane while staying put) survives
+      // backgrounding: when the operator later returns to this surface,
+      // reconcileUrl re-applies the remembered params. Keys arrive
+      // namespaced (`{slug}.key`); split back to (slug, bareKey).
+      const knownSlugs = new Set((composition.surfaces || []).map((s) => s.slug));
+      const touched: Record<string, Record<string, string | null>> = {};
+      for (const [k, v] of Object.entries(params)) {
+        const dot = k.indexOf('.');
+        if (dot <= 0) continue;
+        const slug = k.slice(0, dot);
+        if (!knownSlugs.has(slug)) continue;
+        (touched[slug] ||= {})[k.slice(dot + 1)] = v;
+      }
+      const slugs = Object.keys(touched);
+      if (slugs.length === 0) return;
+      setWindowStatesState((current) => {
+        const next: WindowStateMap = { ...current };
+        for (const slug of slugs) {
+          const existing = next[slug];
+          const merged: Record<string, string> = { ...(existing?.params ?? {}) };
+          for (const [bk, bv] of Object.entries(touched[slug])) {
+            if (bv == null || bv === '') delete merged[bk];
+            else merged[bk] = bv;
+          }
+          next[slug] = { ...(existing || ({} as WindowState)), params: merged };
+        }
+        persistWindowStates(next);
+        return next;
+      });
     },
-    []
+    [composition.surfaces, persistWindowStates]
   );
 
   // D19.1: toggle macOS-style zoom for a window. Saves prior geometry

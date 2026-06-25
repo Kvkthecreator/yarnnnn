@@ -510,7 +510,8 @@ _TRIGGER_FRAMING = {
         "per your framework:\n\n"
         "- Signal conditions met → ProposeAction with sizing math (this is "
         "the strongest action you can take — take it whenever conditions warrant)\n"
-        "- Data is stale and a refresh would change the next assessment → "
+        "- An *upstream mechanical mirror* (a feed reconciled outside your "
+        "loop) is stale and a refresh would change the next assessment → "
         "author cadence (per ADR-296 v2 D3): either (a) Schedule your next "
         "cycle for after the relevant mechanical mirror's next fire, or "
         "(b) WriteFile to /workspace/persona/standing_intent.md declaring "
@@ -519,7 +520,18 @@ _TRIGGER_FRAMING = {
         "fire / I want to be woken when X transitions.' Do NOT invoke the "
         "upstream mirror directly from your loop — that is operator + cron "
         "territory; your authority is over cadence preference and standing "
-        "intent, not over commissioning unit-of-work fires.\n"
+        "intent, not over commissioning unit-of-work fires. **This 'wait for "
+        "the mirror' move is ONLY for genuinely-upstream feeds you do not "
+        "own — NOT for the attested ground truth resident in your own "
+        "workspace.** You OWN your workspace the way an engineer owns a repo "
+        "they were handed: the substrate as you find it IS your accountable "
+        "state, including outcomes you did not personally author this runtime. "
+        "Ground truth already attested in your ground-truth substrate (an "
+        "outcome carrying an `attestation`) is YOUR track record — authoritative "
+        "now, not provisional. A `last_reconciled_at` that looks old means **no "
+        "NEW outcomes have arrived**, not that the recorded ones are unconfirmed "
+        "or someone else's; do not disown your own attested history as 'stale "
+        "upstream' and wait. Reason from it and act.\n"
         "- A pattern, observation, or judgment is worth retaining for the next "
         "cycle → WriteFile to your own substrate (judgment_log.md or notes "
         "within /workspace/persona/). The operator's chair owns its "
@@ -964,6 +976,23 @@ def _partition_envelope(trigger: str, ctx: ReviewerContext) -> tuple[str, str]:
             "write what you learned to /workspace/persona/reflection.md (the loop "
             "your standing_intent opened and your judgment_log recorded, now closed "
             "by ground truth). Reflect only when the gap teaches something.",
+            "",
+            # The gap is presented, not pre-judged (DP19). But when the occupant's
+            # read of the pattern is that it falsifies a RULE it authored on a path
+            # it owns, the reflection does not stop at a note — it routes into the
+            # action-grammar (revise the rule), not a Clarify. Connecting
+            # perception → action is the wake's job, not the operator's. The header
+            # carries the routing; the gap-fact stays raw (no per-pair judgment).
+            "**When your read of this pattern is that it falsifies a rule you "
+            "authored on a path you can write** (your operator-canon — see "
+            "principles.md `amend-operator-canon-only-on-evidence`), reflecting is "
+            "only the first half: the disciplined response is to **revise that rule "
+            "yourself**, not to surface the gap for the operator to diagnose. A "
+            "falsified rule on a writable path is not a structural gap — the organ "
+            "(the file) exists and is yours. Asking the operator what your own "
+            "outcomes already told you is the articulate-inaction failure (DP30). "
+            "Reserve `Clarify(structural_gap=true)` for a gap whose fix you "
+            "genuinely cannot author (a missing organ, a floor or mandate change).",
             "",
             ctx["reflection_gap_fact"],
             "",
