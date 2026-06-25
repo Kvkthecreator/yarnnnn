@@ -116,10 +116,16 @@ def test_phase1_first_run_redirect_points_to_setup():
 
 
 def test_phase1_home_cta_points_to_setup():
-    """D6: the home empty-state CTA repoints from /program to /setup."""
-    src = _read(REPO_ROOT / "web" / "components" / "library" / "HomeRenderer.tsx")
-    assert 'href="/setup"' in src, (
-        "ADR-331 D6: UnactivatedHomeCTA must point to /setup"
+    """D6: the home empty-state CTA repoints from /program to /setup.
+
+    The CTA reaches /setup through the sanctioned cross-surface link
+    `<SurfaceLink to="setup">` (the 2026-06-25 nav-consistency migration replaced
+    the bare `href="/setup"` with the window-manager link; SurfaceLink renders
+    `href="/setup"` at runtime). ADR-369 (2026-06-25) extracted UnactivatedHomeCTA
+    from HomeRenderer into the HomeFrontPage body — the read repoints there."""
+    src = _read(REPO_ROOT / "web" / "components" / "library" / "kernel-home" / "HomeFrontPage.tsx")
+    assert 'to="setup"' in src, (
+        "ADR-331 D6: UnactivatedHomeCTA must point to /setup (via SurfaceLink to='setup')"
     )
 
 

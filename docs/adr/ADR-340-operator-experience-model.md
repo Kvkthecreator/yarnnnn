@@ -10,6 +10,7 @@
 **Date:** 2026-06-12
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Hat:** A (system canon)
+**Amended by:** [ADR-367](ADR-367-home-as-operating-cockpit.md) (2026-06-25) — the deferred "Home re-derivation" program item (§9 / the D6 program-weighted-slots horizon) lands as a **cockpit contract**, not the glance-only *widget contract* this ADR's program-of-work named: a Home slot *shows state, allows the primary decision inline, and deep-links for depth*. The decision-queue slot acts in place through the shared proposal modal (ADR-307 gate, no surface jump). DP29's Home-composition clause is amended accordingly.
 
 > **Discourse base:** [`operator-experience-model-2026-06-12.md`](../analysis/operator-experience-model-2026-06-12.md) — the full arc: presenting symptom (founder cannot tell where to look for work; launcher reads as a wall of peer tiles), macro diagnosis (three layers of the OS analogy, Layer 3 unmined), the mirror/composition finding, the derived standing loop, attention-as-derived-routing, the five-chrome-roles observation, the Home correction, and the 17-surface census. Empirical trigger: walking the live launcher and top-bar against the founder's own first-person use.
 

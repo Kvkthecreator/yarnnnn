@@ -156,14 +156,23 @@ def test_kernel_universal_slots_exist():
 
 
 def test_home_renderer_wires_universal_slots():
-    """ADR-312 D2 amendment: HomeRenderer interleaves the three kernel-universal
-    slots with program sections (not behind the program XOR). All three must be
-    rendered by HomeRenderer directly."""
-    src = _read(LIBRARY_DIR / "HomeRenderer.tsx")
+    """ADR-312 D2 amendment: the three kernel-universal slots render on the Home
+    front page (not behind the program XOR).
+
+    ADR-369 (2026-06-25): the Home surface splits into two tabs; the kernel slots
+    extract from HomeRenderer into the HomeFrontPage body (the default "Home"
+    tab). The slots still render directly (no program gate) — the read just
+    repoints to HomeFrontPage.tsx where the extraction moved them."""
+    src = _read(LIBRARY_DIR / "kernel-home" / "HomeFrontPage.tsx")
     for comp in ("KernelDecisionQueue", "KernelRecentArtifacts", "KernelJudgmentTrail"):
-        assert f"<{comp} />" in src, (
-            f"ADR-312 D2 amendment: HomeRenderer must render {comp} directly "
-            "(kernel-universal slot, not program-gated)."
+        # The slot may render bare (`<Comp />`) or props-primed from the
+        # ADR-312 home-bundle (`<Comp initialX={...} />`) — both are "rendered
+        # directly". Assertion accepts either so the gate tracks the shipped
+        # bundle-priming reality (stale `<Comp />`-only match corrected
+        # 2026-06-25, ADR-367; read repointed to HomeFrontPage by ADR-369).
+        assert (f"<{comp} />" in src) or (f"<{comp} " in src), (
+            f"ADR-312 D2 amendment: the Home front page must render {comp} "
+            "directly (kernel-universal slot, not program-gated)."
         )
 
 

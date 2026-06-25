@@ -2,59 +2,70 @@
 
 /**
  * HomeRenderer — renamed from CockpitRenderer by ADR-312 D1; six-slot
- * composition wired 2026-06-04 (ADR-312 D2 amendment).
+ * composition wired 2026-06-04 (ADR-312 D2 amendment); made an OPERATING
+ * COCKPIT (acts in place) by ADR-367; SPLIT INTO TWO TABS by ADR-369.
  *
- * The Home is a composition over the workspace's present constituents
- * (ADR-312 §1–2). The kernel owns the six-slot set + order; it renders
- * the three KERNEL-UNIVERSAL slots itself (from kernel substrate, every
- * workspace, program or not) and lets the PROGRAM declare the two
- * program-shaped slots. Absent constituents self-hide — honest Home.
+ * ADR-369 — the Home split. ADR-312 D1 unified the cockpit into ONE Home
+ * composition; ADR-369 consciously reverses that unification and re-splits the
+ * single `home` surface into two internal tabs via a segmented control, along
+ * the **kernel-shaped vs program-shaped** seam (the layout/component seam the
+ * code already drew — HomeRenderer renders the kernel-universal slots; the
+ * program declares `home.program_sections`):
  *
- *   #1 Constitution band  — HomeHeader (kernel, always). Mandate one-liner
- *                           + autonomy posture from _shared/{MANDATE.md,
- *                           _autonomy.yaml}.
- *   #3 Decision queue      — KernelDecisionQueue (kernel-universal). Pending
- *                           gated actions (action_proposals / ADR-307).
- *                           Surfaced HIGH — the most operator-urgent glance.
- *   #2 Ground-truth hero   } program_sections (program-declared via
- *   #4 Live entities       } SURFACES.yaml home.program_sections[]). The
- *                           program's hero + entity expression. Generic
- *                           contract (ADR-312 D3/D4); no kernel default.
- *   #5 Recent artifacts    — KernelRecentArtifacts (kernel-universal).
- *                           Delivered outputs across the workspace.
- *   #6 Judgment trail      — KernelJudgmentTrail (kernel-universal). Recent
- *                           Reviewer decisions from persona/judgment_log.md.
+ *   - "Home" (default) — the kernel-shaped front page (HomeFrontPage): the
+ *     constitution band + decision queue (acts in place) + visual recents +
+ *     recent artifacts + judgment trail. Identical for every workspace — the
+ *     most learnable default.
+ *   - "‹Program›" — the program-shaped operating cockpit (ProgramCockpit): the
+ *     relocated standing band + the program's ground-truth hero/entities. The
+ *     tab is ADDITIVE — it renders ONLY when a program is active, labeled by the
+ *     active program's MANIFEST title (ADR-222 — the kernel provides a generic
+ *     program-composition tab; the program names + shapes it, no program noun
+ *     hardcoded in the kernel). A Layer-1 operator sees only "Home" (ADR-312's
+ *     cold-start virtue preserved).
  *
- * ADR-312 D2 amendment (2026-06-04): slots #3/#5/#6 read kernel-universal
- * substrate (proposals, delivered outputs, decisions) and have no reason
- * to be program-gated. The kernel renders them directly — closing the
- * defect where an activated-but-section-less program (or bare kernel)
- * showed a near-empty Home. Each kernel slot self-hides when its substrate
- * is empty, so the cold-start Home stays honest (constitution CTA + only
- * the universal slots that have content yet).
+ * Tab state is a window-namespaced param `home.tab ∈ {home, <program-slug>}`
+ * (ADR-358 D6; scopeParamKey forms the `home.` prefix), default `home`,
+ * SSR-safe (the server renders the default; the post-mount effect applies the
+ * param choice — no hydration mismatch). The `home` launcher tile is unchanged
+ * (the split is intra-surface, not a new launcher destination).
  *
- * Singular implementation per ADR-273 D2 (preserved):
- *   - The legacy four-face fallback (MoneyTruthFace / PerformanceFace /
- *     TrackingFace / MandateFace) stays DELETED. The constitution-band CTA
- *     handles the no-mandate cold start, not a de-activated trader board.
- *   - The CTA now renders ONLY when there is genuinely nothing to show —
- *     no program sections AND no activation yet. With a program activated,
- *     the program sections render; the kernel slots render regardless.
+ * Singular Implementation (ADR-369 §5): the two bodies are extracted (the
+ * existing slot components + the shared StandingBand are MOVED, not rebuilt).
+ * HomeRenderer keeps the single home-bundle fetch + the activation derivation;
+ * it owns only the tab chrome + dispatch.
  */
 
 import { useEffect, useState } from 'react';
-import { ArrowRight } from 'lucide-react';
-import { SurfaceLink } from '@/components/shell/SurfaceLink';
-import { HomeProvider } from './HomeContext';
-import { HomeHeader } from './HomeHeader';
 import { useComposition, getProgramSections } from '@/lib/compositor';
-import { dispatchComponent } from './registry';
-import { KernelDecisionQueue } from './kernel-home/KernelDecisionQueue';
-import { KernelRecentArtifacts } from './kernel-home/KernelRecentArtifacts';
-import { KernelJudgmentTrail } from './kernel-home/KernelJudgmentTrail';
+import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
+import { cn } from '@/lib/utils';
+import { HomeProvider } from './HomeContext';
+import { HomeFrontPage } from './kernel-home/HomeFrontPage';
+import { ProgramCockpit } from './kernel-home/ProgramCockpit';
 import { api } from '@/lib/api/client';
 
 type HomeBundle = Awaited<ReturnType<typeof api.workspace.getHomeBundle>>;
+
+const HOME_TAB = 'home';
+
+/**
+ * Prettify a program slug/title for the segmented-control label (ADR-369 §D2).
+ * The active bundle's MANIFEST `title` is the program's own name (a kebab/snake
+ * slug like "my-program"); render it title-cased ("My Program"). The label
+ * derives entirely from the program — the kernel hardcodes no program noun
+ * (ADR-222). Falls back to the generic "Operation" only if the program declares
+ * no title.
+ */
+function programTabLabel(title: string | null | undefined): string {
+  const raw = (title ?? '').trim();
+  if (!raw) return 'Operation';
+  return raw
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
 
 interface HomeRendererProps {
   /**
@@ -68,10 +79,9 @@ export function HomeRenderer({ onOpenChatDraft }: HomeRendererProps) {
   const handleOpenChatDraft = onOpenChatDraft ?? (() => { /* no-op */ });
 
   // ADR-312 home-bundle: one call fetches composition + all three
-  // kernel-universal slots + the two constitution-band files, replacing the
-  // prior per-slot fan-out (composition → conditional state → 3 slots →
-  // mandate + autonomy). We prime every child off this single response; each
-  // child keeps its self-fetch fallback for standalone reuse elsewhere.
+  // kernel-universal slots + the two constitution-band files. We prime every
+  // child off this single response; each child keeps its self-fetch fallback
+  // for standalone reuse elsewhere.
   const [bundle, setBundle] = useState<HomeBundle | null>(null);
   const [bundleLoaded, setBundleLoaded] = useState(false);
   useEffect(() => {
@@ -83,8 +93,7 @@ export function HomeRenderer({ onOpenChatDraft }: HomeRendererProps) {
       })
       .catch(() => {
         // Bundle unreachable: children fall back to self-fetch (no props
-        // primed) so the Home never breaks — the "cockpit never breaks"
-        // invariant carried over from useComposition's empty fallback.
+        // primed) so the Home never breaks.
       })
       .finally(() => {
         if (!cancelled) setBundleLoaded(true);
@@ -102,86 +111,107 @@ export function HomeRenderer({ onOpenChatDraft }: HomeRendererProps) {
   const programSections = getProgramSections(composition);
   const hasProgramSections = programSections.length > 0;
 
-  // Activation slug derived from the bundle's composition (active_bundles) —
-  // no separate getState() round-trip. The CTA renders only when there is
-  // genuinely nothing to show: no program sections AND no activated bundle.
-  const activeProgramSlug = bundle?.surfaces.active_bundles?.[0]?.slug ?? null;
+  // Activation derived from the bundle's composition (active_bundles). The
+  // program tab is ADDITIVE: it renders ONLY when a program is active.
+  const activeBundle = bundle?.surfaces.active_bundles?.[0] ?? null;
+  const activeProgramSlug = activeBundle?.slug ?? null;
+  const programTab = activeProgramSlug; // the program tab's param value = its slug
+  const programLabel = programTabLabel(activeBundle?.title);
+  const showProgramTab = !!activeProgramSlug;
+
+  // The cold-start CTA renders only when there is genuinely nothing to show:
+  // no program sections AND no activated bundle.
   const showActivationCTA =
     !hasProgramSections && bundleLoaded && !activeProgramSlug;
+
+  // ADR-369 §D2 — tab state via the window-namespaced param `home.tab`
+  // (ADR-358 D6). SSR-safe: initialize to the default 'home' so the server and
+  // the first client render agree (no hydration mismatch), then apply the URL
+  // param post-mount. Mirrors the deferred-initializer pattern used elsewhere.
+  const homeParam = useSurfaceParam(HOME_TAB);
+  const [tab, setTab] = useState<string>(HOME_TAB);
+  useEffect(() => {
+    const t = homeParam.get('tab');
+    // Only honor the program tab when a program is actually active; otherwise
+    // a stale `home.tab=<slug>` (e.g. after deactivation) falls back to Home.
+    if (t && t !== HOME_TAB && t === programTab) {
+      setTab(t);
+    } else {
+      setTab(HOME_TAB);
+    }
+  }, [homeParam, programTab]);
+
+  // Defensive: if the program tab vanishes (deactivation) while it's selected,
+  // snap back to Home.
+  const activeTab = showProgramTab && tab === programTab ? programTab : HOME_TAB;
+
+  const selectTab = (next: string) => {
+    setTab(next);
+    homeParam.set({ tab: next === HOME_TAB ? null : next });
+  };
 
   return (
     <HomeProvider value={{ onOpenChatDraft: handleOpenChatDraft }}>
       <section aria-label="Home" className="border-b border-border/60">
-        {/* Slot #1 — Constitution band (kernel, always) */}
-        <HomeHeader
-          initialMandate={bundle?.mandate}
-          initialAutonomy={bundle?.autonomy_yaml}
-        />
+        {/* ADR-369 §D2 — the segmented control. Renders only when there's a
+            program tab to switch to; a Layer-1 operator (no program) sees no
+            control and just the Home front page. */}
+        {showProgramTab && (
+          <div
+            role="tablist"
+            aria-label="Home view"
+            className="flex items-center gap-1 border-b border-border/60 px-4 py-2 sm:px-6"
+          >
+            <TabButton
+              label="Home"
+              selected={activeTab === HOME_TAB}
+              onClick={() => selectTab(HOME_TAB)}
+            />
+            <TabButton
+              label={programLabel}
+              selected={activeTab === programTab}
+              onClick={() => programTab && selectTab(programTab)}
+            />
+          </div>
+        )}
 
-        <div className="flex flex-col gap-4 px-4 py-5 sm:px-6 sm:py-6 bg-muted/20">
-          {/* Slot #3 — Decision queue (kernel-universal; self-hides) */}
-          <KernelDecisionQueue initialProposals={bundle?.proposals} />
-
-          {/* Slots #2 + #4 — program-declared hero + entities */}
-          {hasProgramSections &&
-            programSections.map((section) =>
-              dispatchComponent({ kind: section.kind }, {})
-            )}
-
-          {/* Slot #5 — Recent artifacts (kernel-universal; self-hides) */}
-          <KernelRecentArtifacts initialArtifacts={bundle?.recent_artifacts} />
-
-          {/* Slot #6 — Judgment trail (kernel-universal; self-hides) */}
-          <KernelJudgmentTrail initialContent={bundle?.judgment_log} />
-
-          {/* Cold-start CTA — only when there is nothing else to show */}
-          {showActivationCTA && (
-            <UnactivatedHomeCTA activeProgramSlug={activeProgramSlug} />
-          )}
-        </div>
+        {activeTab === programTab && showProgramTab ? (
+          <ProgramCockpit programSections={programSections} />
+        ) : (
+          <HomeFrontPage
+            bundle={bundle}
+            showActivationCTA={showActivationCTA}
+            activeProgramSlug={activeProgramSlug}
+          />
+        )}
       </section>
     </HomeProvider>
   );
 }
 
-/**
- * UnactivatedHomeCTA — the cold-start home's empty state (ADR-312 D6).
- * The home doubles as onboarding: a bare kernel (no program activated, no
- * universal substrate yet) renders the "activate a program" affordance.
- *
- * Post ADR-312 D2 amendment (2026-06-04) this renders ONLY when no program
- * is activated. An activated program always shows its sections + the
- * kernel-universal slots, so the prior "program activated but declares no
- * home dashboard" branch is gone — there is no dead-end Home anymore.
- */
-function UnactivatedHomeCTA({ activeProgramSlug }: { activeProgramSlug: string | null }) {
-  // Defensive: this component only mounts when activeProgramSlug is null
-  // (see showActivationCTA in HomeRenderer). The prop is retained for type
-  // clarity at the call site.
-  void activeProgramSlug;
+function TabButton({
+  label,
+  selected,
+  onClick,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="rounded-lg border border-dashed border-border/60 bg-card/50 px-6 py-8">
-      <div className="max-w-xl">
-        <h3 className="text-base font-medium text-foreground mb-2">
-          No program activated yet
-        </h3>
-        <p className="text-sm text-muted-foreground mb-4">
-          YARNNN runs your operations through programs — pre-shipped templates
-          that bring a domain-shaped workspace (mandate, agents, recurrences,
-          context structure). Get set up to see your operation rendered here.
-        </p>
-        {/* ADR-331 D6: the home empty-state CTA points to the guided /setup
-            sequence (activate · author · connect · bring in reality), not the
-            /program reference drawer. Home only POINTS to setup; it never grows
-            setup chrome. */}
-        <SurfaceLink
-          to="setup"
-          className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
-        >
-          Get set up
-          <ArrowRight className="h-3.5 w-3.5" />
-        </SurfaceLink>
-      </div>
-    </div>
+    <button
+      role="tab"
+      type="button"
+      aria-selected={selected}
+      onClick={onClick}
+      className={cn(
+        'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+        selected
+          ? 'bg-muted text-foreground'
+          : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground',
+      )}
+    >
+      {label}
+    </button>
   );
 }
