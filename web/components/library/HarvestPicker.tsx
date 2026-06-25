@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { api, APIError, type HarvestSource } from '@/lib/api/client';
 import { getPlatformDisplay } from '@/lib/platform-display';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 
 /** Providers harvest can read from (the ones with read tools, ADR-331 D3). */
 const HARVESTABLE_PROVIDERS = ['slack', 'notion', 'github'] as const;
@@ -189,9 +190,9 @@ export function HarvestPicker({ onHarvested }: HarvestPickerProps) {
       <div className="rounded-md border border-dashed border-border bg-muted/10 px-3 py-3 text-xs text-muted-foreground">
         No harvestable platforms connected yet. Connect Slack, Notion, or GitHub
         first —{' '}
-        <a href="/connectors" className="text-primary hover:text-primary/80 inline-flex items-center gap-1">
+        <SurfaceLink to="connectors" className="text-primary hover:text-primary/80 inline-flex items-center gap-1">
           <Link2 className="w-3 h-3" /> Connectors
-        </a>
+        </SurfaceLink>
         . You can also upload files directly below.
       </div>
     );

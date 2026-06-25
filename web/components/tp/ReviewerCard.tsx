@@ -14,7 +14,7 @@
  *   approve / reject / defer → muted bubble + inline status chip
  */
 
-import Link from 'next/link';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { CheckCircle2, XCircle, PauseCircle, Eye, Zap } from 'lucide-react';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import type { ReviewerCardData } from '@/types/desk';
@@ -127,12 +127,13 @@ export function ReviewerCard({ data, content, personaName, confidence, directive
           /work?tab=decisions surface (ADR-241 D3) was never built;
           retargeted to the working substrate read 2026-05-11. */}
       {proposalId && isProposalVerdict && (
-        <Link
-          href={`/files?path=${encodeURIComponent('/workspace/persona/judgment_log.md')}`}
+        <SurfaceLink
+          to="files"
+          params={{ path: '/workspace/persona/judgment_log.md' }}
           className="text-[10px] text-muted-foreground/40 hover:text-foreground transition-colors mt-1 block"
         >
           Audit trail →
-        </Link>
+        </SurfaceLink>
       )}
     </div>
   );

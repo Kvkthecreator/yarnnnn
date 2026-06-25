@@ -42,6 +42,7 @@ import { useViewport } from '@/lib/shell/useViewport';
 import { useShellChrome } from './ShellChromeContext';
 import { isKernelSurfaceSlug } from '@/types/desk';
 import type { KernelSurfaceSlug } from '@/types/desk';
+import { useWindowCrumbRegistry } from '@/contexts/BreadcrumbContext';
 import { resolveSurfaceComponent } from './SurfaceRegistry';
 import { Desktop } from './Desktop';
 import { WindowFrame } from './WindowFrame';
@@ -64,6 +65,7 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
     desktopBounds,
   } = useSurfacePreferences();
   const { data: composition } = useComposition();
+  const { getCrumb } = useWindowCrumbRegistry();
   const viewport = useViewport();
   const { layoutMode } = useShellChrome();
   // ADR-358 — canvas layout mode renders ONE full-bleed surface (chromeless
@@ -168,6 +170,7 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
           <div className={canvasMode ? 'absolute inset-0' : 'absolute inset-3 sm:inset-4'}>
             <WindowFrame
               title={titleFor(slug)}
+              crumb={getCrumb(slug)}
               isForegrounded={true}
               onRaise={() => raiseWindow(slug)}
               onClose={() => closeSurface(slug)}
@@ -201,6 +204,7 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
           <WindowFrame
             key={slug}
             title={titleFor(slug)}
+            crumb={getCrumb(slug)}
             isForegrounded={isVisible}
             onRaise={() => raiseWindow(slug)}
             onClose={() => closeSurface(slug)}

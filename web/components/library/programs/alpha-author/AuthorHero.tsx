@@ -21,7 +21,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { Loader2, ShieldCheck, AlertTriangle, MessageSquare } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useHome } from '../../HomeContext';
@@ -220,12 +220,13 @@ export function AuthorHero() {
               of the time
             </span>
           )}
-          <Link
-            href={`/files?path=${encodeURIComponent(VOICE_PATH)}`}
+          <SurfaceLink
+            to="files"
+            params={{ path: VOICE_PATH }}
             className="ml-auto hover:text-foreground hover:underline"
           >
             Your voice →
-          </Link>
+          </SurfaceLink>
         </div>
       )}
     </section>

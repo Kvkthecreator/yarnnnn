@@ -25,8 +25,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Loader2, Radar, TrendingDown, TrendingUp } from 'lucide-react';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
@@ -98,12 +98,13 @@ export function TraderSignals() {
           <Radar className="mr-1 inline h-3 w-3" /> Today's signals
           {signals.length > 0 && ` · ${signals.length}`}
         </h3>
-        <Link
-          href="/files?path=%2Fworkspace%2Fcontext%2Ftrading%2Fsignals%2F"
+        <SurfaceLink
+          to="files"
+          params={{ path: '/workspace/context/trading/signals/' }}
           className="text-[11px] text-muted-foreground/60 underline-offset-4 hover:text-foreground hover:underline"
         >
           View all →
-        </Link>
+        </SurfaceLink>
       </div>
 
       {isEmpty ? (
@@ -189,12 +190,13 @@ export function TraderSignals() {
                         No additional context available.
                       </p>
                     )}
-                    <Link
-                      href={`/files?path=${encodeURIComponent(s.path)}`}
+                    <SurfaceLink
+                      to="files"
+                      params={{ path: s.path }}
                       className="inline-block text-[10px] text-muted-foreground/60 underline-offset-4 hover:text-foreground hover:underline"
                     >
                       View source file →
-                    </Link>
+                    </SurfaceLink>
                   </div>
                 )}
               </li>

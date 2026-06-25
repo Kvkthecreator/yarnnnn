@@ -21,7 +21,7 @@ import {
   ExternalLink,
   AlertCircle,
 } from 'lucide-react';
-import Link from 'next/link';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type { Destination, DestinationPlatform, IntegrationProvider } from '@/types';
@@ -223,14 +223,14 @@ export function DestinationSelector({
                 <p className="text-xs mt-1">
                   Connect Slack or Notion to enable platform delivery.
                 </p>
-                <Link
-                  href="/system"
+                <SurfaceLink
+                  to="connectors"
                   className="text-xs text-amber-700 hover:underline inline-flex items-center gap-1 mt-2"
                   onClick={onClose}
                 >
                   Connect integrations
                   <ExternalLink className="w-3 h-3" />
-                </Link>
+                </SurfaceLink>
               </div>
             </div>
           </div>

@@ -46,6 +46,8 @@ import { api, APIError } from '@/lib/api/client';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 import { cn } from '@/lib/utils';
 import { HarvestPicker } from '@/components/library/HarvestPicker';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
+import type { KernelSurfaceSlug } from '@/types/desk';
 
 type WorkspaceState = Awaited<ReturnType<typeof api.workspace.getState>>;
 type ProgramItem = WorkspaceState['available_programs'][number];
@@ -198,7 +200,7 @@ export function SetupSequence() {
           <StepAction
             icon={<Link2 className="w-3.5 h-3.5" />}
             label={`Connect ${unmetGaps.length} platform${unmetGaps.length !== 1 ? 's' : ''}`}
-            href="/connectors"
+            to="connectors"
           />
         ) : (
           <p className="text-xs text-muted-foreground/70">
@@ -353,23 +355,23 @@ function StepRow({ step, index }: { step: SetupStep; index: number }) {
 function StepAction({
   icon,
   label,
-  href,
+  to,
   onClick,
 }: {
   icon: React.ReactNode;
   label: string;
-  href?: string;
+  to?: KernelSurfaceSlug;
   onClick?: () => void;
 }) {
   const cls =
     'inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-xs font-medium hover:bg-muted/30 transition-colors';
-  if (href) {
+  if (to) {
     return (
-      <a href={href} className={cls}>
+      <SurfaceLink to={to} className={cls}>
         {icon}
         {label}
         <ArrowRight className="w-3 h-3" />
-      </a>
+      </SurfaceLink>
     );
   }
   return (
@@ -394,12 +396,12 @@ function ActiveProgramLine({ program }: { program: ProgramItem | null }) {
           {program.current_phase_label}
         </span>
       )}
-      <a
-        href="/program"
+      <SurfaceLink
+        to="program"
         className="ml-auto text-[11px] text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
       >
         <Power className="w-3 h-3" /> Manage
-      </a>
+      </SurfaceLink>
     </div>
   );
 }

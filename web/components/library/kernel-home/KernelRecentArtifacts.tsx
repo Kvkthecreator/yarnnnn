@@ -20,8 +20,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { FileText, ArrowRight } from 'lucide-react';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { api } from '@/lib/api/client';
 import { formatRelativeTime } from '@/lib/formatting';
 
@@ -86,18 +86,19 @@ export function KernelRecentArtifacts({ initialArtifacts }: KernelRecentArtifact
             authored-substrate recency view (Files), not a stale reports
             path. Fixes the prior /workspace/reports deep-link — the
             substrate moved to /workspace/operation/reports per ADR-231 D2. */}
-        <Link
-          href="/files"
+        <SurfaceLink
+          to="files"
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 hover:text-foreground transition-colors"
         >
           View in Files <ArrowRight className="h-3 w-3" />
-        </Link>
+        </SurfaceLink>
       </header>
       <ul className="divide-y divide-border/30">
         {artifacts.map((a) => (
           <li key={a.path}>
-            <Link
-              href={`/recurrence?task=${encodeURIComponent(a.slug)}`}
+            <SurfaceLink
+              to="recurrence"
+              params={{ task: a.slug }}
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors"
             >
               {/* Backend returns a clean human title (path/machine prefixes
@@ -110,7 +111,7 @@ export function KernelRecentArtifacts({ initialArtifacts }: KernelRecentArtifact
                   {formatRelativeTime(a.updated_at)}
                 </span>
               )}
-            </Link>
+            </SurfaceLink>
           </li>
         ))}
       </ul>

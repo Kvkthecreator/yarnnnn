@@ -6,12 +6,12 @@
  * Shown after TP creates an agent to confirm context before first run.
  * Part of the Agent Workflow assurance pattern.
  *
- * ADR-037: Uses router.push for agent navigation
+ * ADR-358: foregrounds the Agents window via navigateToSurface
  * ADR-034: Context browser deprecated - removed "Edit context" functionality
  */
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import {
   X,
   CheckCircle,
@@ -46,7 +46,7 @@ export function SetupConfirmModal({
   onClose,
   data,
 }: SetupConfirmModalProps) {
-  const router = useRouter();
+  const { navigateToSurface } = useSurfacePreferences();
   const [isRunning, setIsRunning] = useState(false);
 
   if (!open || !data) return null;
@@ -63,8 +63,10 @@ export function SetupConfirmModal({
       setIsRunning(false);
     }
 
-    // ADR-037: Navigate to agent detail route
-    router.push(`/agents/${data.agentId}`);
+    // ADR-358: foreground the Agents window at this agent (namespaced
+    // `agents.agent` param) — keeps the OS shell on /desktop, no pathname
+    // flip. Pre-fix router.push-ed the legacy `/agents/[id]` route.
+    navigateToSurface('agents', { agent: data.agentId });
     onClose();
   };
 

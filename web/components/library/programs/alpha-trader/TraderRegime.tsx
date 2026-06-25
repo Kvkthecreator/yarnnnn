@@ -23,8 +23,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Activity, AlertCircle, Loader2 } from 'lucide-react';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
@@ -100,12 +100,13 @@ export function TraderRegime() {
             Regime tracker hasn't fired yet — paused or first run pending.
           </span>
         </div>
-        <Link
-          href="/recurrence?task=track-regime"
+        <SurfaceLink
+          to="recurrence"
+          params={{ task: 'track-regime' }}
           className="text-[11px] text-muted-foreground/70 underline-offset-4 hover:text-foreground hover:underline"
         >
           View tracker →
-        </Link>
+        </SurfaceLink>
       </section>
     );
   }

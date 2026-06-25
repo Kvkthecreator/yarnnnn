@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 
 type WorkspaceState = Awaited<ReturnType<typeof api.workspace.getState>>;
 type ProgramItem = WorkspaceState['available_programs'][number];
@@ -265,13 +266,13 @@ export function WorkspaceSection() {
                     Connected
                   </span>
                 ) : (
-                  <a
-                    href="/connectors"
+                  <SurfaceLink
+                    to="connectors"
                     className="text-xs font-medium text-primary hover:text-primary/80 flex items-center gap-1 shrink-0"
                   >
                     <Link2 className="w-3.5 h-3.5" />
                     Connect
-                  </a>
+                  </SurfaceLink>
                 )}
               </div>
             ))}

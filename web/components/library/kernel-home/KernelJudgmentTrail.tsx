@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { ScrollText, ArrowRight, Check, X, Clock, Eye } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import {
@@ -89,12 +89,13 @@ export function KernelJudgmentTrail({ initialContent }: KernelJudgmentTrailProps
           <ScrollText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
           <h2 className="text-sm font-medium text-foreground">Recent decisions</h2>
         </div>
-        <Link
-          href={`/files?path=${encodeURIComponent(DECISIONS_PATH)}`}
+        <SurfaceLink
+          to="files"
+          params={{ path: DECISIONS_PATH }}
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 hover:text-foreground transition-colors"
         >
           All <ArrowRight className="h-3 w-3" />
-        </Link>
+        </SurfaceLink>
       </header>
       <ul className="divide-y divide-border/30">
         {shown.map((d, i) => (

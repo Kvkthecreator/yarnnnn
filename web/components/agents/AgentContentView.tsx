@@ -15,8 +15,6 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Link from 'next/link';
 import {
   ArrowUpRight,
   ChevronRight,
@@ -29,9 +27,10 @@ import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { AgentIcon } from './AgentIcon';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
+import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
 import { formatRelativeTime } from '@/lib/formatting';
 import { humanizeSchedule, scheduleDisplay } from '@/lib/schedule';
-import { FILES_ROUTE, WORK_ROUTE } from '@/lib/routes';
 import { SubstrateTab } from './SubstrateTab';
 import { ReviewerActivityPanel } from './ReviewerActivityPanel';
 import { ReviewerCapabilitiesPanel } from './ReviewerCapabilitiesPanel';
@@ -346,13 +345,14 @@ function AgentMetadata({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) 
   if (showClassLabel) segments.push(<span key="class">{classLabel}</span>);
   if (domain) {
     segments.push(
-      <Link
+      <SurfaceLink
         key="domain"
-        href={`${FILES_ROUTE}?domain=${domain}`}
+        to="files"
+        params={{ domain }}
         className="hover:text-foreground hover:underline"
       >
         {formatKeyLabel(domain)}
-      </Link>,
+      </SurfaceLink>,
     );
   }
   segments.push(
@@ -525,23 +525,20 @@ function SpecialistFolderBlock({ agent, tasks }: { agent: Agent; tasks: Recurren
               <span className="inline-flex items-center rounded-md border border-border/50 bg-muted/10 px-2 py-1">
                 {domainLabel}/
               </span>
-              <Link
-                href={`${FILES_ROUTE}?domain=${agent.context_domain}`}
+              <SurfaceLink
+                to="files"
+                params={{ domain: agent.context_domain }}
                 className="inline-flex items-center gap-1 hover:text-foreground"
               >
                 View folder
                 <ArrowUpRight className="w-3 h-3" />
-              </Link>
+              </SurfaceLink>
             </div>
           </div>
         </div>
       </div>
     </div>
   );
-}
-
-function platformManagementHref(provider: string | null): string {
-  return '/connectors';
 }
 
 function platformManagementLabel(provider: string | null, connected: boolean): string {
@@ -570,13 +567,13 @@ function TasksBlock({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
           <p className="text-sm text-muted-foreground mt-1">{descriptor.description(agent)}</p>
           {platformProvider && (
             <div className="mt-3">
-              <Link
-                href={platformManagementHref(platformProvider)}
+              <SurfaceLink
+                to="connectors"
                 className="inline-flex items-center gap-1 text-[12px] text-muted-foreground hover:text-foreground"
               >
                 {platformManagementLabel(platformProvider, false)}
                 <ArrowUpRight className="w-3 h-3" />
-              </Link>
+              </SurfaceLink>
             </div>
           )}
         </div>
@@ -598,12 +595,12 @@ function TasksBlock({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
       <SectionLabel>Work · {tasks.length}</SectionLabel>
       <div className="rounded-md border border-border/60 divide-y divide-border/40 overflow-hidden">
         {sorted.map((task) => {
-          const href = `${WORK_ROUTE}?task=${encodeURIComponent(task.slug)}&agent=${encodeURIComponent(agentSlug)}`;
           const isInactive = task.status !== 'active';
           return (
-            <Link
+            <SurfaceLink
               key={task.id}
-              href={href}
+              to="recurrence"
+              params={{ task: task.slug, agent: agentSlug }}
               className={cn(
                 'flex items-center justify-between gap-3 px-4 py-3 text-sm hover:bg-muted/40 transition-colors',
                 isInactive && 'opacity-60',
@@ -620,7 +617,7 @@ function TasksBlock({ agent, tasks }: { agent: Agent; tasks: Recurrence[] }) {
                 )}
                 <ArrowUpRight className="w-3 h-3 text-muted-foreground/40" />
               </div>
-            </Link>
+            </SurfaceLink>
           );
         })}
       </div>
@@ -746,17 +743,19 @@ const REVIEWER_TABS: TabDef[] = [
 ];
 
 function ReviewerDetail({ agent }: { agent: Agent }) {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const tabParam = searchParams.get('tab');
-  const validTab = REVIEWER_TABS.some(t => t.key === tabParam) ? tabParam! : 'identity';
-  const [activeTab, setActiveTab] = useState(validTab);
+  // ADR-358 D6 (2026-06-25): the Reviewer's sub-tab is THIS window's own
+  // deep-link state — read/written under the `agents.tab` namespace via
+  // useSurfaceParam, NO pathname flip. Pre-fix this used
+  // router.replace('/agents?tab=…') with a BARE key, which hard-navigated
+  // off the /desktop baseline (resetting chat) and collided with any other
+  // window's flat ?tab=. The URL is the single source of truth — derive
+  // activeTab from it directly, no parallel useState.
+  const p = useSurfaceParam('agents');
+  const tabParam = p.get('tab');
+  const activeTab = REVIEWER_TABS.some(t => t.key === tabParam) ? tabParam! : 'identity';
 
   function handleTabChange(key: string) {
-    setActiveTab(key);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('tab', key);
-    router.replace(`/agents?${params.toString()}`, { scroll: false });
+    p.set({ tab: key });
   }
 
   return (
@@ -803,7 +802,6 @@ function ReviewerDetail({ agent }: { agent: Agent }) {
 }
 
 export function AgentContentView({ agent, tasks }: Omit<AgentContentViewProps, 'onCreateTask'>) {
-  const router = useRouter();
   const cls = agent.agent_class || 'specialist';
 
   // ADR-272: meta-cognitive branch deleted. The orchestration LLM identity

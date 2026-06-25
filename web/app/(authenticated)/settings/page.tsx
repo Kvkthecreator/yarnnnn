@@ -111,11 +111,13 @@ export default function SettingsPage() {
 
   // ADR-215 R3: legacy `/settings?tab=memory` redirects to Files with
   // IDENTITY.md preselected. One edit surface for substrate (Files).
+  // ADR-358: foreground the Files window (navigateToSurface) rather than
+  // hard-navigating off the /desktop baseline.
   useEffect(() => {
     if (tabParam === "memory") {
-      router.replace("/files?path=%2Fworkspace%2Fcontext%2F_shared%2FIDENTITY.md");
+      navigateToSurface("files", { path: "/workspace/context/_shared/IDENTITY.md" });
     }
-  }, [tabParam, router]);
+  }, [tabParam, navigateToSurface]);
 
   const [dangerStats, setDangerStats] = useState<DangerZoneStats | null>(null);
   const [isLoadingDangerStats, setIsLoadingDangerStats] = useState(false);

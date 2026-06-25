@@ -25,6 +25,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { RefreshCw, TrendingDown, TrendingUp } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 
 type Period = '1D' | '1M' | '1Y' | 'All';
 type Timeframe = '1Min' | '1H' | '1D';
@@ -124,9 +125,9 @@ export function TraderPortfolio() {
       <section className="rounded-lg border border-dashed border-border bg-muted/20 p-5">
         <p className="text-sm text-muted-foreground">
           Alpaca not connected.{' '}
-          <a href="/connectors" className="underline underline-offset-4 hover:text-foreground">
+          <SurfaceLink to="connectors" className="underline underline-offset-4 hover:text-foreground">
             Connect in Settings
-          </a>{' '}
+          </SurfaceLink>{' '}
           to see live portfolio data.
         </p>
       </section>

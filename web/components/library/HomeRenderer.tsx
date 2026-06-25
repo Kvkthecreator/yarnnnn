@@ -43,8 +43,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { HomeProvider } from './HomeContext';
 import { HomeHeader } from './HomeHeader';
 import { useComposition, getProgramSections } from '@/lib/compositor';
@@ -174,13 +174,13 @@ function UnactivatedHomeCTA({ activeProgramSlug }: { activeProgramSlug: string |
             sequence (activate · author · connect · bring in reality), not the
             /program reference drawer. Home only POINTS to setup; it never grows
             setup chrome. */}
-        <Link
-          href="/setup"
+        <SurfaceLink
+          to="setup"
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-background px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted transition-colors"
         >
           Get set up
           <ArrowRight className="h-3.5 w-3.5" />
-        </Link>
+        </SurfaceLink>
       </div>
     </div>
   );

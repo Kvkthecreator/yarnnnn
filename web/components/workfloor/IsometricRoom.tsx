@@ -12,7 +12,7 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import Link from 'next/link';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { Loader2 } from 'lucide-react';
 import {
   Brain,
@@ -191,8 +191,9 @@ function AgentOnTile({ agent, tasks, col, row }: {
   const spriteWidth = 100;
 
   return (
-    <Link
-      href={`/agents?agent=${encodeURIComponent(agentSlug)}`}
+    <SurfaceLink
+      to="agents"
+      params={{ agent: agentSlug }}
       className="absolute flex flex-col items-center group z-10"
       style={{
         left: centerX + x - spriteWidth / 2,
@@ -249,7 +250,7 @@ function AgentOnTile({ agent, tasks, col, row }: {
           {activeTask.title}
         </span>
       )}
-    </Link>
+    </SurfaceLink>
   );
 }
 
@@ -280,7 +281,7 @@ function MobileStrip({ agents, tasks }: { agents: Agent[]; tasks: Recurrence[] }
           .replace('Knowledge', 'Knowl.');
 
         return (
-          <Link key={agent.id} href={`/agents?agent=${encodeURIComponent(agentSlug)}`} className="flex flex-col items-center shrink-0 w-16">
+          <SurfaceLink key={agent.id} to="agents" params={{ agent: agentSlug }} className="flex flex-col items-center shrink-0 w-16">
             <AgentAvatar state={avatarState} color={s.hex} size={48} />
             <span className="text-[10px] font-medium mt-1 truncate w-full text-center text-foreground/70">
               {shortName}
@@ -290,7 +291,7 @@ function MobileStrip({ agents, tasks }: { agents: Agent[]; tasks: Recurrence[] }
                 {activeTask.title.length > 12 ? activeTask.title.slice(0, 12) + '...' : activeTask.title}
               </span>
             )}
-          </Link>
+          </SurfaceLink>
         );
       })}
     </div>

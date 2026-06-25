@@ -10,14 +10,20 @@
  */
 
 import { useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
 import { getAgentSlug } from '@/lib/agent-identity';
+import { useSurfacePreferences } from '@/lib/shell/useSurfacePreferences';
 
 export default function AgentIdRedirectPage() {
   const params = useParams<{ id: string }>();
-  const router = useRouter();
+  // ADR-358 (2026-06-25): resolve the legacy id → slug client-side (we need
+  // the agent list to map it), then foreground the Agents window with the
+  // `agents.`-namespaced param via navigateToSurface — keeps the OS shell on
+  // /desktop. Pre-fix this router.replace-d a BARE `?agent=` (pathname flip +
+  // un-namespaced), the ADR-308 orphaned-frame anti-pattern.
+  const { navigateToSurface } = useSurfacePreferences();
   const { agents, loading } = useAgentsAndRecurrences({ pollInterval: 0, refreshOnFocus: false });
 
   useEffect(() => {
@@ -25,12 +31,12 @@ export default function AgentIdRedirectPage() {
 
     const agent = agents.find((item) => item.id === params.id || getAgentSlug(item) === params.id);
     if (agent) {
-      router.replace(`/agents?agent=${encodeURIComponent(getAgentSlug(agent))}`);
+      navigateToSurface('agents', { agent: getAgentSlug(agent) });
       return;
     }
 
-    router.replace('/agents');
-  }, [agents, loading, params.id, router]);
+    navigateToSurface('agents');
+  }, [agents, loading, params.id, navigateToSurface]);
 
   return (
     <div className="h-full flex items-center justify-center">

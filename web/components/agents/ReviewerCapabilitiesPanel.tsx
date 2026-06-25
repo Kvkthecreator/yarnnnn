@@ -32,7 +32,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { ArrowRight, BookOpen, FileText, Link2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useNarrative } from '@/contexts/NarrativeContext';
@@ -171,12 +171,13 @@ export function ReviewerCapabilitiesPanel() {
                   {s.used_by.map((rslug, idx) => (
                     <span key={rslug}>
                       {idx > 0 && <span className="text-muted-foreground/30 mx-1">·</span>}
-                      <Link
-                        href={`/recurrence?task=${encodeURIComponent(rslug)}`}
+                      <SurfaceLink
+                        to="recurrence"
+                        params={{ task: rslug }}
                         className="font-mono hover:text-foreground hover:underline underline-offset-4"
                       >
                         {rslug}
-                      </Link>
+                      </SurfaceLink>
                     </span>
                   ))}
                 </div>
@@ -191,13 +192,14 @@ export function ReviewerCapabilitiesPanel() {
             )}
 
             <div className="flex items-center gap-3 pt-1 border-t border-border/40">
-              <Link
-                href={`/files?path=${encodeURIComponent(s.path)}`}
+              <SurfaceLink
+                to="files"
+                params={{ path: s.path }}
                 className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 hover:text-foreground hover:underline underline-offset-4 transition-colors"
               >
                 <FileText className="h-3 w-3" />
                 View source
-              </Link>
+              </SurfaceLink>
               <span className="text-muted-foreground/30">·</span>
               <button
                 type="button"

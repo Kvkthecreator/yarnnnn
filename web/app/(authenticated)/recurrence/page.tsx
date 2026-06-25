@@ -43,7 +43,9 @@ import { RecurrenceList } from '@/components/work/RecurrenceList';
 import { WorkDetail } from '@/components/work/WorkDetail';
 import { ActivityLog } from '@/components/activity/ActivityLog';
 import { cn } from '@/lib/utils';
+import { humanizeSlug } from '@/lib/schedule';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
+import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 
 type ActionNotice = { kind: 'info' | 'success' | 'error'; text: string } | null;
 
@@ -139,10 +141,33 @@ export default function RecurrencePage() {
     setActionNotice(null);
   }, [taskSlugFromUrl]);
 
-  // D19 (2026-05-22): workspace-wide setBreadcrumb removed. The
-  // WindowFrame title bar IS the breadcrumb; intra-surface selection
-  // (which task is selected) is window-internal state rendered inside
-  // the surface body via WorkDetail's own header chrome.
+  // D19 (2026-05-22): workspace-wide setBreadcrumb removed.
+  // Per-window locator (2026-06-25): the WindowFrame title bar shows
+  // "Schedule › {recurrence}" in detail mode (back crumb clears
+  // `?recurrence.task=`), or "Schedule › Runs" on the activity lens.
+  // List mode (Schedule lens, nothing selected) registers [] so the
+  // flat "Schedule" title stands.
+  const crumbLabel = selectedTask
+    ? selectedTask.title || humanizeSlug(selectedTask.slug)
+    : showRuns
+      ? 'Runs'
+      : null;
+  useWindowCrumb(
+    'recurrence',
+    crumbLabel
+      ? [
+          {
+            label: crumbLabel,
+            kind: selectedTask ? 'task' : 'surface',
+            // Detail crumb backs out to the list; Runs-lens crumb backs
+            // out to the Schedule lens.
+            onClick: selectedTask
+              ? () => p.set({ task: null })
+              : () => setLens('schedule'),
+          },
+        ]
+      : []
+  );
 
   // Actions
   const handleRunTask = useCallback(async (slug: string) => {

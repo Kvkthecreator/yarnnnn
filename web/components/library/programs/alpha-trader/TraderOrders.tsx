@@ -17,6 +17,7 @@ import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 
 type Order = {
   id: string;
@@ -99,12 +100,13 @@ export function TraderOrders() {
         <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           Recent Orders
         </h3>
-        <a
-          href="/files?path=%2Fworkspace%2Fcontext%2Ftrading%2F"
+        <SurfaceLink
+          to="files"
+          params={{ path: '/workspace/context/trading/' }}
           className="text-[11px] text-muted-foreground/60 underline-offset-4 hover:text-foreground hover:underline"
         >
           View all →
-        </a>
+        </SurfaceLink>
       </div>
 
       {!orders || orders.length === 0 ? (

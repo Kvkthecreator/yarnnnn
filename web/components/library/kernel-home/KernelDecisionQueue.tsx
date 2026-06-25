@@ -16,8 +16,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { Inbox, ArrowRight } from 'lucide-react';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { api } from '@/lib/api/client';
 // ADR-340 P4 F3: the single operator-language labeler — this file's
 // inline label map + actionLabel() consolidated into the shared module
@@ -86,18 +86,18 @@ export function KernelDecisionQueue({ initialProposals }: KernelDecisionQueuePro
           <h2 className="text-sm font-medium text-foreground">Waiting for your OK</h2>
           <span className="text-[11px] text-muted-foreground/60">{proposals.length}</span>
         </div>
-        <Link
-          href="/queue"
+        <SurfaceLink
+          to="queue"
           className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/70 hover:text-foreground transition-colors"
         >
           Review <ArrowRight className="h-3 w-3" />
-        </Link>
+        </SurfaceLink>
       </header>
       <ul className="divide-y divide-border/30">
         {shown.map((p) => (
           <li key={p.id}>
-            <Link
-              href="/queue"
+            <SurfaceLink
+              to="queue"
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/40 transition-colors"
             >
               {/* Color dot distinguishes money-moving (amber) from
@@ -113,17 +113,17 @@ export function KernelDecisionQueue({ initialProposals }: KernelDecisionQueuePro
               <span className="flex-1 min-w-0 text-sm text-foreground truncate">
                 {proposalActionLabel(p)}
               </span>
-            </Link>
+            </SurfaceLink>
           </li>
         ))}
       </ul>
       {overflow > 0 && (
-        <Link
-          href="/queue"
+        <SurfaceLink
+          to="queue"
           className="block px-4 py-2 text-[11px] text-muted-foreground/60 hover:text-foreground hover:bg-muted/30 transition-colors border-t border-border/30"
         >
           +{overflow} more →
-        </Link>
+        </SurfaceLink>
       )}
     </section>
   );

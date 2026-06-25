@@ -50,7 +50,7 @@
  */
 
 import { useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { X, Activity, ArrowRight, Inbox } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { MandateCard } from '@/components/workspace-concepts/MandateCard';
@@ -346,26 +346,28 @@ function PulseSection({ onAskTP }: { onAskTP: (prompt: string) => void }) {
 
       {/* Deep-links to canonical surfaces */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[11px] text-muted-foreground/60">
-        <Link
-          href="/agents?agent=reviewer&tab=activity"
+        <SurfaceLink
+          to="agents"
+          params={{ agent: 'reviewer', tab: 'activity' }}
           className="inline-flex items-center gap-0.5 hover:text-foreground hover:underline underline-offset-4"
         >
           Reviewer activity <ArrowRight className="h-3 w-3" />
-        </Link>
+        </SurfaceLink>
         <span className="text-muted-foreground/30">·</span>
-        <Link
-          href="/recurrence"
+        <SurfaceLink
+          to="recurrence"
           className="inline-flex items-center gap-0.5 hover:text-foreground hover:underline underline-offset-4"
         >
           Full schedule <ArrowRight className="h-3 w-3" />
-        </Link>
+        </SurfaceLink>
         <span className="text-muted-foreground/30">·</span>
-        <Link
-          href="/recurrence?recurrence.pane=activity"
+        <SurfaceLink
+          to="recurrence"
+          params={{ pane: 'activity' }}
           className="inline-flex items-center gap-0.5 hover:text-foreground hover:underline underline-offset-4"
         >
           Execution log <ArrowRight className="h-3 w-3" />
-        </Link>
+        </SurfaceLink>
       </div>
     </div>
   );

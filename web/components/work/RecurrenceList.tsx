@@ -24,7 +24,7 @@
  */
 
 import { useRef, useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import {
   Cpu,
   FileText,
@@ -474,14 +474,15 @@ function ScheduleRow({
       {/* Execution-lens deep-link — the Runs lens of this same window
           (ADR-340 D8), pre-filtered to this recurrence's slug.
           stopPropagation so the link click doesn't also trigger row select. */}
-      <Link
-        href={`/recurrence?recurrence.pane=activity&recurrence.slug=${encodeURIComponent(task.slug)}`}
+      <SurfaceLink
+        to="recurrence"
+        params={{ pane: 'activity', slug: task.slug }}
         onClick={(e) => e.stopPropagation()}
         className="shrink-0 text-[10px] text-muted-foreground/40 hover:text-foreground hover:underline underline-offset-4 transition-colors"
         title="See the run history for this scheduled work"
       >
         View runs →
-      </Link>
+      </SurfaceLink>
     </div>
   );
 }
@@ -502,12 +503,12 @@ function EmptySchedule({ hasFilters }: { hasFilters: boolean }) {
             : 'Tell YARNNN what you want done and on what cadence.'}
         </p>
         {!hasFilters && (
-          <a
-            href="/feed"
+          <SurfaceLink
+            to="feed"
             className="inline-flex items-center gap-2 rounded-md bg-foreground px-3.5 py-1.5 text-xs font-medium text-background hover:bg-foreground/90 transition-colors"
           >
             Talk to YARNNN
-          </a>
+          </SurfaceLink>
         )}
       </div>
     </div>

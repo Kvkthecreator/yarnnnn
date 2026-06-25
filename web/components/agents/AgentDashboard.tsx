@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import {
   Loader2,
   FolderOpen,
@@ -106,13 +106,14 @@ export function AgentDashboard({ agent, tasks }: AgentDashboardProps) {
           {entityCount} {entityCount === 1 ? 'entity' : 'entities'}
           {allUpdates[0] && <> · Last updated {formatShort(allUpdates[0])}</>}
         </span>
-        <Link
-          href={`/files?domain=${domain}`}
+        <SurfaceLink
+          to="files"
+          params={{ domain }}
           className="flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
         >
           Explore
           <ExternalLink className="w-3 h-3" />
-        </Link>
+        </SurfaceLink>
       </div>
 
       {/* Column headers */}

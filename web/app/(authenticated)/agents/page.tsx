@@ -25,9 +25,10 @@
 import { useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useAgentsAndRecurrences } from '@/hooks/useAgentsAndRecurrences';
-import { getAgentSlug } from '@/lib/agent-identity';
+import { getAgentSlug, agentDisplayName } from '@/lib/agent-identity';
 import { AgentContentView } from '@/components/agents/AgentContentView';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
+import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 
 export default function AgentsPage() {
   // ADR-297 D19.6 + ADR-358 D6: agent=X is this window's OWN deep-link
@@ -50,6 +51,26 @@ export default function AgentsPage() {
   const agentTasks = selectedAgent
     ? tasks.filter(t => t.agent_slugs?.includes(getAgentSlug(selectedAgent)))
     : [];
+
+  // Per-window locator (2026-06-25). Detail mode reports "Agents › {name}"
+  // in the WindowFrame title bar with a back-to-roster crumb; list mode
+  // registers [] so the flat "Agents" title stands. The back crumb clears
+  // the window's own `?agents.agent=` param (no pathname flip).
+  useWindowCrumb(
+    'agents',
+    selectedAgent
+      ? [
+          {
+            label:
+              selectedAgent.agent_class === 'reviewer'
+                ? 'Reviewer'
+                : agentDisplayName(selectedAgent.title ?? undefined, getAgentSlug(selectedAgent)),
+            kind: 'agent',
+            onClick: () => p.set({ agent: null }),
+          },
+        ]
+      : []
+  );
 
   if (loading) {
     return (

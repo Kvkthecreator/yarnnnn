@@ -24,7 +24,7 @@
  */
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import Link from 'next/link';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { RefreshCw, CheckCircle2, XCircle, MinusCircle, ChevronDown, ChevronRight, X } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -215,17 +215,20 @@ function JobCard({ group, defaultOpen = false }: { group: JobGroup; defaultOpen?
           )}
         </div>
 
-        {/* Declaration-lens deep-link — routes to /recurrence?task={slug}
-            where the operator can run / pause / edit the recurrence
-            (the declaration mode of this same window — ADR-340 D8). */}
-        <Link
-          href={`/recurrence?task=${encodeURIComponent(group.slug)}`}
+        {/* Declaration-lens deep-link — foregrounds the Recurrence window at
+            this slug where the operator can run / pause / edit it (ADR-340 D8).
+            SurfaceLink renders a real <a> (so the role=button header isn't a
+            nested interactive element) and routes through the window manager
+            instead of hard-navigating off /desktop. */}
+        <SurfaceLink
+          to="recurrence"
+          params={{ task: group.slug }}
           onClick={(e) => e.stopPropagation()}
           className="shrink-0 text-[10px] text-muted-foreground/40 hover:text-foreground hover:underline underline-offset-4 transition-colors"
           title="Manage this scheduled work — run, pause, or edit it"
         >
           Manage →
-        </Link>
+        </SurfaceLink>
       </div>
 
       {open && (

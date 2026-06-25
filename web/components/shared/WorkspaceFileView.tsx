@@ -24,6 +24,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2, type LucideIcon } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
+import { SurfaceLink } from '@/components/shell/SurfaceLink';
 import { MarkdownRenderer } from '@/components/shared/MarkdownRenderer';
 import { EditInChatButton } from '@/components/shared/EditInChatButton';
 
@@ -188,9 +189,9 @@ export function WorkspaceFileView({
           {maxLines && content && content.split('\n').length > maxLines && (
             <p className="mt-1 text-[10px] text-muted-foreground/50 italic">
               Showing last {maxLines} lines —{' '}
-              <a href={`/files?path=${encodeURIComponent(path)}`} className="underline underline-offset-4">
+              <SurfaceLink to="files" params={{ path }} className="underline underline-offset-4">
                 open full file
-              </a>
+              </SurfaceLink>
             </p>
           )}
         </div>

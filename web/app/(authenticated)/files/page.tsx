@@ -39,7 +39,6 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useSearchParams } from 'next/navigation';
 import {
   Loader2,
   FolderOpen,
@@ -48,6 +47,8 @@ import {
   History,
 } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
+import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
+import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import type { DeskSurface } from '@/types/desk';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -328,11 +329,17 @@ function formatNodeTimestamp(value: string): string {
 // =============================================================================
 
 export default function ContextPage() {
-  const searchParams = useSearchParams();
   const { loadScopedHistory, sendMessage } = useNarrative();
 
-  const domainParam = searchParams.get('domain');
-  const pathParam = searchParams.get('path');
+  // ADR-358 D6 (2026-06-25): read this window's OWN deep-link params under
+  // the `files.` namespace (`?files.domain=`, `?files.path=`) so they never
+  // collide with another open window on the shared /desktop URL. These are
+  // mount-time SEED transports (a shared link / cross-surface jump); the
+  // surface drives its live selection through internal `selectedPath` state
+  // and deliberately does NOT write back to the URL (see the click handlers).
+  const fp = useSurfaceParam('files');
+  const domainParam = fp.get('domain');
+  const pathParam = fp.get('path');
 
   const [treeNodes, setTreeNodes] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -506,11 +513,18 @@ export default function ContextPage() {
     : null;
   const breadcrumbs = selectedNode ? buildBreadcrumbs(virtualRoot, selectedNode.path).filter(n => n.path !== EXPLORER_ROOT_PATH) : [];
 
-  // Push breadcrumb path into global header
-  // D19 (2026-05-22): workspace-wide setBreadcrumb removed. The
-  // WindowFrame title bar IS the breadcrumb. Path-trail breadcrumbs
-  // inside the surface body are rendered via SurfaceIdentityHeader
-  // (intra-surface chrome, not workspace-wide).
+  // D19 (2026-05-22): workspace-wide setBreadcrumb removed. The full
+  // path-trail lives inside the surface body via SurfaceIdentityHeader.
+  // Per-window locator (2026-06-25): the WindowFrame title bar shows
+  // "Files › {leaf}" (the selected node's name) so each open window
+  // states its own position; back crumb returns to the root listing.
+  // List mode (nothing selected) registers [] — flat "Files" title.
+  useWindowCrumb(
+    'files',
+    selectedNode
+      ? [{ label: selectedNode.name, kind: 'context', onClick: () => setSelectedPath(null) }]
+      : []
+  );
 
   // ADR-297 Phase 3: surface context for chat drafts derives from this
   // surface's own identity (Files), not the deleted DeskContext. When a

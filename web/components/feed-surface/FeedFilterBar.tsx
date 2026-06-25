@@ -21,10 +21,10 @@
  */
 
 import { useMemo } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { X } from 'lucide-react';
 import type { NarrativeFilter } from '@/components/tp/ConversationPanel';
+import { useSurfaceParam, scopeParamKey } from '@/lib/shell/useSurfacePreferences';
 
 // ADR-277 (2026-05-15): housekeeping weight retired. Emission policy
 // now decides at source whether an event reaches the feed at all;
@@ -48,13 +48,17 @@ const IDENTITIES: Array<{ id: string; label: string }> = [
  * Parse the filter URL params into a NarrativeFilter for ConversationPanel.
  * Exported so callers can drive the filter prop without re-implementing
  * the parse. Renamed from FeedPanel reference per ADR-289 D10.
+ *
+ * ADR-358 D6 (2026-06-25): the Feed surface's filters are WINDOW-namespaced
+ * (`feed.weight`, `feed.identity`, `feed.task`) so they never collide with
+ * another open window on the shared /desktop URL. Reads the prefixed keys.
  */
 export function parseChatFilterFromSearch(
   searchParams: URLSearchParams,
 ): NarrativeFilter | null {
-  const weights = searchParams.get('weight')?.split(',').filter(Boolean) ?? [];
-  const identities = searchParams.get('identity')?.split(',').filter(Boolean) ?? [];
-  const taskSlug = searchParams.get('task');
+  const weights = searchParams.get(scopeParamKey('feed', 'weight'))?.split(',').filter(Boolean) ?? [];
+  const identities = searchParams.get(scopeParamKey('feed', 'identity'))?.split(',').filter(Boolean) ?? [];
+  const taskSlug = searchParams.get(scopeParamKey('feed', 'task'));
 
   if (weights.length === 0 && identities.length === 0 && !taskSlug) {
     return null;
@@ -75,51 +79,44 @@ export function parseChatFilterFromSearch(
 
 
 export function FeedFilterBar() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+  // ADR-358 D6 (2026-06-25): the Feed surface reads/writes its OWN filter
+  // state under the `feed.` namespace via useSurfaceParam — `p.get('weight')`
+  // resolves `?feed.weight=`, `p.set(...)` writes via history.replaceState
+  // (no pathname flip, no cross-window collision). Pre-fix this used
+  // router.replace('/feed?weight=…') with BARE keys: a real navigation off
+  // the /desktop baseline AND a flat key two windows would fight over.
+  const p = useSurfaceParam('feed');
 
   const activeWeights = useMemo(() => {
-    return new Set(searchParams.get('weight')?.split(',').filter(Boolean) ?? []);
-  }, [searchParams]);
+    return new Set(p.get('weight')?.split(',').filter(Boolean) ?? []);
+  }, [p]);
 
   const activeIdentities = useMemo(() => {
-    return new Set(searchParams.get('identity')?.split(',').filter(Boolean) ?? []);
-  }, [searchParams]);
+    return new Set(p.get('identity')?.split(',').filter(Boolean) ?? []);
+  }, [p]);
 
-  const activeTaskSlug = searchParams.get('task');
+  const activeTaskSlug = p.get('task');
 
   const hasAnyFilter =
     activeWeights.size > 0 || activeIdentities.size > 0 || !!activeTaskSlug;
 
   const setMultiParam = (key: string, value: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    const existing = new Set(params.get(key)?.split(',').filter(Boolean) ?? []);
+    const existing = new Set(p.get(key)?.split(',').filter(Boolean) ?? []);
     if (existing.has(value)) {
       existing.delete(value);
     } else {
       existing.add(value);
     }
-    if (existing.size === 0) {
-      params.delete(key);
-    } else {
-      params.set(key, Array.from(existing).join(','));
-    }
-    // Intra-surface filter state — writes the Feed surface's own query
-    // params. Stays router.replace per ADR-297 D19.4 (window-internal
-    // deep-link state, not cross-surface navigation). Route literal
-    // corrected /chat → /feed (the Feed surface's canonical route;
-    // /chat is a stale redirect stub).
-    router.replace(`/feed${params.toString() ? '?' + params.toString() : ''}`);
+    // Empty set → delete the key (pass null); else join the multi-value.
+    p.set({ [key]: existing.size === 0 ? null : Array.from(existing).join(',') });
   };
 
   const clearAll = () => {
-    router.replace('/feed');
+    p.set({ weight: null, identity: null, task: null });
   };
 
   const clearTaskSlug = () => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.delete('task');
-    router.replace(`/feed${params.toString() ? '?' + params.toString() : ''}`);
+    p.set({ task: null });
   };
 
   return (
