@@ -135,6 +135,30 @@ class AdminUserRow(BaseModel):
     last_activity: Optional[str] = None
 
 
+class AdminAccountRow(BaseModel):
+    """Per-persona live health for the designated test/eval accounts.
+
+    Joins docs/alpha/personas.yaml (the test-account registry) against the
+    execution_events / workspace_file_versions ledgers. Substrate-derived,
+    no eval-specific schema — see docs/evaluations/README.md for the markdown
+    side of the eval discipline this surface complements.
+    """
+    slug: str
+    label: Optional[str] = None
+    program: Optional[str] = None
+    email: Optional[str] = None
+    user_id: str
+    # Wake activity (execution_events)
+    wakes_24h: int
+    wakes_7d: int
+    failed_7d: int
+    top_failure_reason: Optional[str] = None
+    cost_30d: float
+    last_wake: Optional[str] = None
+    # Tenure signal (workspace_file_versions, authored_by reviewer:*)
+    reviewer_edits_7d: int
+
+
 # =============================================================================
 # Helper
 # =============================================================================
@@ -607,6 +631,118 @@ async def list_users(admin: AdminAuth):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch users: {str(e)}")
+
+
+# =============================================================================
+# GET /accounts — Per-Persona Test-Account Health
+# =============================================================================
+
+def _load_personas() -> list[dict]:
+    """Read the test-account registry (docs/alpha/personas.yaml).
+
+    Single source of truth for who each eval persona is (slug, user_id,
+    program). Hat-B artifact per CLAUDE.md — dev-only, never surfaced to real
+    operators. Returns [] if the file is missing (e.g. a deploy that doesn't
+    ship docs/), so the surface degrades to empty rather than 500ing.
+    """
+    import yaml
+
+    # api/routes/admin.py -> repo root is two parents up from api/
+    here = os.path.dirname(os.path.abspath(__file__))
+    repo_root = os.path.abspath(os.path.join(here, "..", ".."))
+    path = os.path.join(repo_root, "docs", "alpha", "personas.yaml")
+    if not os.path.exists(path):
+        logger.warning("[ADMIN] personas.yaml not found at %s — /accounts empty", path)
+        return []
+    with open(path) as f:
+        data = yaml.safe_load(f) or {}
+    return data.get("personas", []) or []
+
+
+@router.get("/accounts", response_model=list[AdminAccountRow])
+async def list_accounts(admin: AdminAuth):
+    """Per-persona live health for the designated test/eval accounts.
+
+    Joins personas.yaml against execution_events (wake activity, cost,
+    failures) and workspace_file_versions (Reviewer self-amendment count, the
+    tenure signal). All substrate-derived — no eval-specific table.
+    """
+    try:
+        client = admin.client
+        personas = _load_personas()
+        if not personas:
+            return []
+
+        cutoff_24h = _get_date_threshold(1)
+        cutoff_7d = _get_date_threshold(7)
+        cutoff_30d = _get_date_threshold(30)
+
+        rows: list[AdminAccountRow] = []
+        for p in personas:
+            user_id = p.get("user_id")
+            if not user_id:
+                continue
+
+            # Wake activity over the last 30d (one fetch, bucketed in Python).
+            events = client.table("execution_events")\
+                .select("status, error_reason, cost_usd, created_at")\
+                .eq("user_id", user_id)\
+                .gte("created_at", cutoff_30d)\
+                .order("created_at", desc=True)\
+                .limit(5000)\
+                .execute()
+            event_rows = events.data or []
+
+            wakes_24h = sum(1 for e in event_rows if e["created_at"] >= cutoff_24h)
+            wakes_7d = sum(1 for e in event_rows if e["created_at"] >= cutoff_7d)
+            failed_7d = sum(
+                1 for e in event_rows
+                if e["created_at"] >= cutoff_7d and e.get("status") == "failed"
+            )
+            # cost_usd is NULL on mechanical/skipped wakes — coerce (the bug that
+            # 500'd /execution-stats; `or 0` not `, 0` per the present-but-null trap).
+            cost_30d = sum(float(e.get("cost_usd") or 0) for e in event_rows)
+            last_wake = event_rows[0]["created_at"] if event_rows else None
+
+            # Most common failure reason in the 7d window (operator triage signal).
+            reason_counts: dict[str, int] = defaultdict(int)
+            for e in event_rows:
+                if e["created_at"] >= cutoff_7d and e.get("status") == "failed" and e.get("error_reason"):
+                    reason_counts[e["error_reason"]] += 1
+            top_failure_reason = (
+                max(reason_counts, key=reason_counts.get) if reason_counts else None
+            )
+
+            # Tenure signal: Reviewer self-amendments (authored_by reviewer:*) in 7d.
+            reviewer_edits = client.table("workspace_file_versions")\
+                .select("id", count="exact")\
+                .eq("user_id", user_id)\
+                .like("authored_by", "reviewer:%")\
+                .gte("created_at", cutoff_7d)\
+                .execute()
+
+            rows.append(AdminAccountRow(
+                slug=p.get("slug", "unknown"),
+                label=p.get("label"),
+                program=str(p["program"]) if p.get("program") else None,
+                email=p.get("email"),
+                user_id=user_id,
+                wakes_24h=wakes_24h,
+                wakes_7d=wakes_7d,
+                failed_7d=failed_7d,
+                top_failure_reason=top_failure_reason,
+                cost_30d=round(cost_30d, 4),
+                last_wake=last_wake,
+                reviewer_edits_7d=reviewer_edits.count or 0,
+            ))
+
+        # Most-active first (mirrors the validated query's ORDER BY wakes_7d DESC).
+        rows.sort(key=lambda r: r.wakes_7d, reverse=True)
+        return rows
+
+    except Exception as e:
+        logger.error("[ADMIN] Accounts query failed: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch accounts: {str(e)}")
 
 
 # =============================================================================

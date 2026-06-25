@@ -6,7 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { isAdminEmail } from "@/lib/internal-access";
 import { HOME_ROUTE } from "@/lib/routes";
-import { ArrowLeft, Shield, Workflow } from "lucide-react";
+import { ArrowLeft, Shield, FlaskConical } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 interface AdminLayoutProps {
@@ -96,15 +96,15 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
                   Overview
                 </Link>
                 <Link
-                  href="/admin/flows"
+                  href="/admin/accounts"
                   className={`text-sm px-2 py-1 rounded transition-colors flex items-center gap-1.5 ${
-                    pathname?.startsWith("/admin/flows")
+                    pathname?.startsWith("/admin/accounts")
                       ? "text-foreground bg-muted/50"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/30"
                   }`}
                 >
-                  <Workflow className="w-3.5 h-3.5" />
-                  Flows
+                  <FlaskConical className="w-3.5 h-3.5" />
+                  Accounts
                 </Link>
               </nav>
             </div>

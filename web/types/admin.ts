@@ -82,3 +82,19 @@ export interface AdminUserRow {
   spend_usd: number;
   last_activity: string | null;
 }
+
+// GET /admin/accounts — per-persona test-account health (Hat-B eval surface)
+export interface AdminAccountRow {
+  slug: string;
+  label: string | null;
+  program: string | null;
+  email: string | null;
+  user_id: string;
+  wakes_24h: number;
+  wakes_7d: number;
+  failed_7d: number;
+  top_failure_reason: string | null;
+  cost_30d: number;
+  last_wake: string | null;
+  reviewer_edits_7d: number;
+}
