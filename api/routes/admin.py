@@ -406,7 +406,7 @@ async def get_execution_stats(admin: AdminAuth):
             .select("cost_usd")\
             .gte("created_at", month_start)\
             .execute()
-        spend_usd_this_month = sum(float(r.get("cost_usd", 0)) for r in (spend_result.data or []))
+        spend_usd_this_month = sum(float(r.get("cost_usd") or 0) for r in (spend_result.data or []))
 
         # Spend limit (aggregate — $20 pro default shown for overall)
         spend_usd_limit = 20.0  # Pro default
@@ -585,7 +585,7 @@ async def list_users(admin: AdminAuth):
                 .eq("user_id", user_id)\
                 .gte("created_at", month_start)\
                 .execute()
-            spend_usd = sum(float(r.get("cost_usd", 0)) for r in (spend.data or []))
+            spend_usd = sum(float(r.get("cost_usd") or 0) for r in (spend.data or []))
 
             # Tier
             from services.platform_limits import get_user_tier
