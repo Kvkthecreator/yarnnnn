@@ -433,48 +433,6 @@ async def _inventory_specs(client: Any, user_id: str) -> str:
 _REFLECTION_GAP_LIMIT = 8
 
 
-def _parse_judgment_log_decisions(content: str) -> dict[str, dict[str, str]]:
-    """Parse `--- decision ---` blocks from judgment_log.md into a
-    {proposal_id: {action_type, decision, timestamp, headline}} map.
-
-    DP19-clean: a bounded substrate read (delimiter blocks, same family as the
-    reviewer_audit render format), not LLM-time derivation. Material-outcome
-    blocks (recurrence-fires) carry no proposal_id and are skipped — they have
-    no per-decision outcome FK to join on.
-    """
-    decisions: dict[str, dict[str, str]] = {}
-    # Split on the decision delimiter; each chunk is one block's body.
-    chunks = content.split("--- decision ---")
-    for chunk in chunks[1:]:  # [0] is preamble before the first block
-        # Frontmatter is the lines up to the lone "---" terminator.
-        parts = chunk.split("\n---", 1)
-        head = parts[0]
-        body = parts[1].strip() if len(parts) > 1 else ""
-        fields: dict[str, str] = {}
-        for line in head.splitlines():
-            line = line.strip()
-            if ": " in line and not line.startswith("#"):
-                k, _, v = line.partition(": ")
-                fields[k.strip()] = v.strip()
-        pid = fields.get("proposal_id")
-        if not pid or pid == "None":
-            continue
-        # Headline: the first non-empty reasoning line (the verdict's gist).
-        headline = ""
-        for ln in body.splitlines():
-            s = ln.strip().lstrip("#").strip()
-            if s and s != "_(no reasoning supplied)_":
-                headline = s
-                break
-        decisions[pid] = {
-            "action_type": fields.get("action_type", "?"),
-            "decision": fields.get("decision", "?"),
-            "timestamp": fields.get("timestamp", ""),
-            "headline": headline[:160],
-        }
-    return decisions
-
-
 def _extract_ground_truth_events(content: str) -> list[dict[str, Any]]:
     """Extract the `events` array (each event a dict possibly carrying
     proposal_id, value_cents, attestation, action_type) from a ground-truth
@@ -493,48 +451,91 @@ def _extract_ground_truth_events(content: str) -> list[dict[str, Any]]:
     return events if isinstance(events, list) else []
 
 
-async def _reflection_gap_fact(client: Any, user_id: str) -> str:
-    """ADR-364 D2: present the closed intent→outcome loop as raw joined rows.
+#: Decided-verdict statuses on `action_proposals` that carry a real verdict to
+#: join. `pending`/`expired` rows have no decision yet, so they cannot join.
+_DECIDED_PROPOSAL_STATUSES = ("approved", "executed", "rejected")
 
-    Reads recent judgment_log decision verdicts + the active bundle's
-    ground-truth events, joins on proposal_id (the D1 keystone FK), and
-    presents one line per joinable pair. Presents — does not judge (DP19):
-    no matched/diverged labeling; the Reviewer authors that into reflection.md.
-    Empty string when nothing joins (no FK overlap yet, or no ground-truth file).
+
+def _decisions_from_action_proposals(client: Any, user_id: str) -> dict[str, dict[str, str]]:
+    """ADR-364 D2a (2026-06-25): the gap-fact's verdict source is the
+    `action_proposals` verdict-of-record — NOT the agent-overwritable
+    `judgment_log.md` narrative (File Format Discipline §9 + ADR-286: that file
+    is LLM-facing prose with three writers, one of which — the occupant's own
+    bundle-directed WriteFile — can overwrite the join-bearing blocks).
+
+    Returns {proposal_id: {action_type, decision, timestamp, headline}} keyed by
+    the proposal row `id` (= the D1 keystone FK). Program-neutral: every program's
+    ProposeAction → verdict cycle writes this table; the kernel names the mechanism,
+    the program supplies the instance. Bounded read; the agent never rewrites this
+    table (only ExecuteProposal/RejectProposal mutate it), so the join is
+    tamper-proof and survives any judgment_log.md rewrite.
     """
-    from services.workspace_paths import PERSONA_JUDGMENT_LOG_PATH
-    from services.bundle_reader import get_ground_truth_for_workspace
-
-    # workspace_files store the /workspace/-prefixed path; the path CONSTANTS are
-    # bare (no prefix). The _UNIVERSAL_ENVELOPE_DECLS reads above go through the
-    # `_read()` helper which prepends the prefix — these two bespoke reads must do
-    # the same, or the .eq("path", ...) lookup misses every row (the gap-fact then
-    # silently returns "" and the loop never fires — the bug the offline reflection
-    # probe surfaced 2026-06-24, present since the ADR-364 D2 helper shipped).
-    def _full(path: str) -> str:
-        return path if path.startswith("/workspace/") else f"/workspace/{path.lstrip('/')}"
-
-    # 1) Verdicts keyed by proposal_id (bounded read of judgment_log).
     try:
         res = (
-            client.table("workspace_files")
-            .select("content")
+            client.table("action_proposals")
+            .select("id,status,family,primitive,reviewer_identity,reviewer_reasoning,"
+                    "approved_at,executed_at,created_at")
             .eq("user_id", user_id)
-            .eq("path", _full(PERSONA_JUDGMENT_LOG_PATH))
-            .limit(1)
+            .in_("status", list(_DECIDED_PROPOSAL_STATUSES))
+            .order("created_at", desc=True)
+            # bound the read generously above the gap-limit; the join + cap below
+            # narrows to the joinable set.
+            .limit(200)
             .execute()
         )
     except Exception as exc:  # noqa: BLE001
         logger.warning(
-            "[REVIEWER_ENVELOPE] gap-fact judgment_log read failed user=%s: %s",
+            "[REVIEWER_ENVELOPE] gap-fact action_proposals read failed user=%s: %s",
             user_id[:8], exc,
         )
-        return ""
-    log_rows = res.data or []
-    log_content = (log_rows[0].get("content") or "") if log_rows else ""
-    if not log_content:
-        return ""
-    decisions = _parse_judgment_log_decisions(log_content)
+        return {}
+    decisions: dict[str, dict[str, str]] = {}
+    for row in (res.data or []):
+        pid = row.get("id")
+        if not pid:
+            continue
+        # decision ← status ('executed' presents as 'approve'-class for the read;
+        # we surface the raw status so the LLM judges from ground truth, DP19).
+        decision = "approve" if row.get("status") in ("approved", "executed") else "reject"
+        action_type = row.get("primitive") or row.get("family") or "?"
+        # the verdict's gist: reviewer_reasoning first non-empty line.
+        reasoning = (row.get("reviewer_reasoning") or "").strip()
+        headline = reasoning.splitlines()[0].strip()[:160] if reasoning else ""
+        ts = row.get("approved_at") or row.get("executed_at") or row.get("created_at") or ""
+        decisions[str(pid)] = {
+            "action_type": str(action_type),
+            "decision": decision,
+            "timestamp": str(ts),
+            "headline": headline,
+        }
+    return decisions
+
+
+async def _reflection_gap_fact(client: Any, user_id: str) -> str:
+    """ADR-364 D2: present the closed intent→outcome loop as raw joined rows.
+
+    Reads recent decided verdicts (`action_proposals`, the verdict-of-record per
+    D2a) + the active program's ground-truth events, joins on proposal_id (the D1
+    keystone FK), and presents one line per joinable pair. Presents — does not
+    judge (DP19): no matched/diverged labeling; the Reviewer authors that into
+    reflection.md. Empty string when nothing joins (no FK overlap yet, or no
+    ground-truth file). Program-neutral: the ground-truth path is program-declared
+    via `substrate_abi.ground_truth`; the verdict table is kernel-universal.
+    """
+    from services.bundle_reader import get_ground_truth_for_workspace
+
+    # workspace_files store the /workspace/-prefixed path; the path CONSTANTS are
+    # bare (no prefix). The _UNIVERSAL_ENVELOPE_DECLS reads above go through the
+    # `_read()` helper which prepends the prefix — the ground-truth read below must
+    # do the same, or the .eq("path", ...) lookup misses every row (the gap-fact
+    # then silently returns "" and the loop never fires — the bug the offline
+    # reflection probe surfaced 2026-06-24, present since the D2 helper shipped).
+    def _full(path: str) -> str:
+        return path if path.startswith("/workspace/") else f"/workspace/{path.lstrip('/')}"
+
+    # 1) Verdicts keyed by proposal_id — the action_proposals verdict-of-record
+    #    (D2a). Tamper-proof: the agent does not rewrite this table.
+    decisions = _decisions_from_action_proposals(client, user_id)
     if not decisions:
         return ""
 
