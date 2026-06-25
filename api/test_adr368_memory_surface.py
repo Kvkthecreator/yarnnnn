@@ -40,29 +40,36 @@ def main():
         "3 memory-verb compositions EXIST (resolve_remember_path/compose_recall/compose_trace)",
         all(hasattr(m, n) for n in ("resolve_remember_path", "compose_recall", "compose_trace", "dispatch_remember_this"))))
 
-    # 4 + 5. routing reaches operation/ only — never a locked root for the mcp caller
+    # 4 + 5. the dump lands in the memory INBOX (capture, not placement) — never
+    # a deterministic domain route, never a locked root. Placement is the
+    # Reviewer's job (ADR-368 D5).
     mcp_locks = CALLER_WRITE_POLICY["mcp"]  # the roots the foreign caller may NOT write
     probes = [
         None, "", "Acme Corp", "competitors", "market", "Project Zephyr",
         "some random subject", "identity", "brand", "memory", "system",
         "governance", "persona", "constitution", "contract",
     ]
-    all_operation = True
+    all_inbox = True
     no_locked = True
     for about in probes:
         path = m.resolve_remember_path(about)
-        if not path.startswith("operation/"):
-            all_operation = False
-            print(f"      [!] about={about!r} -> {path} (NOT operation/)")
+        if not path.startswith("operation/memory/"):
+            all_inbox = False
+            print(f"      [!] about={about!r} -> {path} (NOT the memory inbox)")
         if any(path.startswith(root) for root in mcp_locks):
             no_locked = False
             print(f"      [!] about={about!r} -> {path} (LOCKED root)")
     results.append(_check(
-        "4 every resolve_remember_path lands under operation/ (incl. adversarial 'system'/'identity' hints)",
-        all_operation))
+        "4 every remember DUMP lands in operation/memory/ inbox (capture, not placement; incl. adversarial 'system'/'identity')",
+        all_inbox))
     results.append(_check(
-        "5 no resolve_remember_path lands in a root the mcp caller is locked from",
+        "5 no dump path lands in a root the mcp caller is locked from",
         no_locked, f"locked roots={mcp_locks}"))
+
+    # 6. the deterministic-domain fiction is gone (placement is judgment now)
+    results.append(_check(
+        "6 ADR-151 domain-routing fiction DELETED (_classify_domain / DOMAIN_KEYWORDS)",
+        not hasattr(m, "_classify_domain") and not hasattr(m, "DOMAIN_KEYWORDS")))
 
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-368 assertions pass")

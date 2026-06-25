@@ -47,37 +47,13 @@ logger = logging.getLogger(__name__)
 # maintain a minimal dict here for MCP classification. Keys match the canonical
 # domain keys in api/services/directory_registry.py (context type only).
 #
-# This is intentionally small — the classifier's job is not exhaustive entity
-# recognition, just a confident first-pass routing hint. When keywords miss,
-# the tool returns the structured ambiguous shape and the LLM asks the user.
-DOMAIN_KEYWORDS: dict[str, list[str]] = {
-    "competitors": [
-        "competitor", "competition", "rival", "compete", "market share",
-        "positioning", "pricing model", "product roadmap",
-    ],
-    "market": [
-        "market", "segment", "industry", "trend", "tam", "sam",
-        "buyer", "adoption", "category",
-    ],
-    "relationships": [
-        "contact", "relationship", "partner", "customer", "client",
-        "introduction", "intro", "warm intro", "connection",
-    ],
-    "projects": [
-        "project", "initiative", "milestone", "roadmap item", "sprint",
-        "deliverable", "deadline",
-    ],
-    "content_research": [
-        "draft", "outline", "research note", "article", "post",
-        "blog", "essay", "content piece",
-    ],
-    "signals": [
-        "signal", "observation", "heard that", "noticed", "flag",
-        "incident", "event",
-    ],
-}
-
-# User-facing domain aliases (what LLMs might pass) → registry keys
+# DOMAIN_ALIASES normalizes the OPTIONAL `domain` filter a host LLM may pass to
+# `recall` (e.g. domain="competitor" → "competitors"). It is NOT used for
+# placement — foreign-LLM dumps land in the memory inbox and the Reviewer does
+# placement by judgment (ADR-368 D3/D5). The ADR-151 DOMAIN_KEYWORDS table +
+# _classify_domain were deleted with the deterministic-routing model: live
+# workspaces are program-shaped (reports/, trading/, specs/, …), not the
+# competitors/market/relationships fiction that table encoded.
 DOMAIN_ALIASES: dict[str, str] = {
     "content": "content_research",
     "competitor": "competitors",
@@ -175,22 +151,6 @@ def _extract_provenance_tag(content: Optional[str]) -> Optional[str]:
     return None
 
 
-def _classify_domain(text: str) -> Optional[str]:
-    """
-    Match text against DOMAIN_KEYWORDS and return the best-scoring domain key.
-    Returns None if no domain scores > 0.
-    """
-    text_lower = text.lower()
-    scores: dict[str, int] = {}
-    for domain, keywords in DOMAIN_KEYWORDS.items():
-        score = sum(1 for kw in keywords if kw in text_lower)
-        if score > 0:
-            scores[domain] = score
-    if not scores:
-        return None
-    return max(scores.items(), key=lambda kv: kv[1])[0]
-
-
 def _short_excerpt(text: str, limit: int = 400) -> str:
     """Trim text to a reasonable excerpt length."""
     text = (text or "").strip()
@@ -232,32 +192,38 @@ def _normalize_client_id(raw: str) -> Optional[str]:
 # =============================================================================
 
 
+MEMORY_INBOX_PREFIX = "operation/memory/"
+MEMORY_INBOX_DEFAULT = "operation/memory/inbox.md"
+
+
 def resolve_remember_path(about: Optional[str]) -> str:
-    """Resolve where a `remember` write lands in the commons.
+    """Resolve where a foreign-LLM `remember` DUMP lands (ADR-368 D3, revised).
 
-    ADR-368 D3: a foreign LLM writes ONLY the `operation/` commons (the one
-    root `CALLER_WRITE_POLICY["mcp"]` grants it). The five-target enum
-    (memory/identity/brand/agent/task) is DELETED — three of its targets
-    (memory→system/, identity→persona+constitution) were locked for the mcp
-    caller, making the default happy-path dead. There is no routing cleverness
-    here and no governing-substrate target: subject-scoped content lands at
-    `operation/{domain}/notes.md`; unscoped general memory lands at the commons
-    notes file. The gate refuses anything else and the surface never offers it.
+    Placement is a JUDGMENT, not a deterministic route. The MCP layer does NOT
+    decide where operator-contributed content belongs in the workspace — it
+    CAPTURES it honestly in a memory inbox, attributed `yarnnn:mcp`, and the
+    integrity wake invokes the Reviewer to REASON about placement against the
+    actual workspace structure and file it into its real home (D5).
 
-    `about` is the optional scope hint. When it names a recognizable domain we
-    nest under it; otherwise the content joins the general commons notes.
+    Two prior mistakes this fixes: (1) routing to `system/notes.md` (locked for
+    the mcp caller — the original `governance_locked` bug); (2) routing into
+    invented `operation/{domain}/` folders (ADR-151 `competitors`/`market`
+    fiction that live workspaces don't use) or into a program's structured
+    output tree (`reports/`/`trading/`/`specs/` — which the foreign LLM doesn't
+    understand and must not corrupt). The dump goes to a dedicated memory inbox;
+    the judgment seat does placement.
+
+    `about` only organizes the inbox so the Reviewer (and `trace`) can see dumps
+    grouped by subject — it is NOT final placement:
+        about="Acme Corp"  → operation/memory/acme-corp.md
+        about=None         → operation/memory/inbox.md
     """
-    hint = (about or "").strip().lower()
+    hint = (about or "").strip()
     if hint:
-        # alias → registry domain, then a light keyword pass
-        domain = DOMAIN_ALIASES.get(hint, None) or _classify_domain(hint)
-        if domain:
-            return f"operation/{domain}/notes.md"
-        # named-but-unrecognized subject → its own commons folder, slugified
         slug = _slugify(hint)
         if slug:
-            return f"operation/{slug}/notes.md"
-    return "operation/notes.md"
+            return f"{MEMORY_INBOX_PREFIX}{slug}.md"
+    return MEMORY_INBOX_DEFAULT
 
 
 async def dispatch_remember_this(
@@ -265,17 +231,18 @@ async def dispatch_remember_this(
     stamped_text: str,
     about: Optional[str] = None,
 ) -> dict:
-    """Commit a `remember` write to the `operation/` commons (ADR-368 D3).
+    """Commit a `remember` DUMP to the memory inbox (ADR-368 D3, revised).
 
-    Topology-coherent: the only root a foreign (`yarnnn:mcp`) caller may write
-    is `operation/`. This routes there unconditionally — no enum, no governing
-    target, no locked-root reachable. The ADR-307 gate at `execute_primitive`
-    is still the authority (a non-`operation/` path would `governance_locked`);
-    this function simply never constructs such a path.
+    A foreign LLM's `remember` is captured, not placed: it appends to the memory
+    inbox under `operation/memory/` (writable by the `yarnnn:mcp` caller — the
+    one commons root the topology grants it). Placement into the dump's real home
+    is the Reviewer's job, invoked by the integrity wake the caller fires on
+    success (ADR-368 D5 — placement is judgment, not a deterministic route). The
+    ADR-307 gate at `execute_primitive` is still the authority; this function
+    never constructs a locked path.
 
     ADR-288: `authored_by` defaults to `auth.caller_identity` ("yarnnn:mcp").
-    Returns the WriteFile primitive result unchanged. The caller fires the
-    integrity wake (ADR-368 D5) on success.
+    Returns the WriteFile primitive result unchanged.
     """
     from services.primitives.registry import execute_primitive
 
@@ -288,7 +255,7 @@ async def dispatch_remember_this(
             "path": path,
             "content": stamped_text,
             "mode": "append",
-            "message": "remember → operation commons",
+            "message": "remember → memory inbox (awaiting Reviewer placement)",
         },
     )
 
@@ -421,7 +388,7 @@ async def compose_trace(
 
 
 # =============================================================================
-# ADR-310 D2/D3 — the moat seam: foreign write → Reviewer judgment (async)
+# ADR-310 D2 / ADR-368 D5 — the moat seam: foreign DUMP → Reviewer PLACEMENT
 # =============================================================================
 #
 # This is the SINGLE site in the MCP path that touches the wake contract
@@ -430,14 +397,22 @@ async def compose_trace(
 # radius is exactly this function. Everything else in the MCP tools stays
 # wake-agnostic.
 #
-# Eventually-judged model (ADR-310 D2 write side): the foreign LLM's write has
-# already committed via dispatch_remember_this; this adapter then asks the
-# Reviewer to evaluate it AFTER the fact. The foreign tool never blocks on it.
+# Placement-is-judgment model (ADR-368 D5, revised): a foreign LLM's `remember`
+# is a DUMP — it commits to the memory inbox (operation/memory/…) attributed
+# `yarnnn:mcp`, with NO deterministic placement. This adapter then INVOKES the
+# Reviewer to reason about where the dump belongs against the actual workspace
+# structure and FILE it into its real home (or leave it in the inbox if memory
+# is genuinely where it belongs). Placement lives with the judgment seat — which
+# understands the workspace and can write everywhere the foreign caller can't —
+# not with the least-context foreign caller. The foreign tool never blocks on
+# it; the dump is captured instantly, the Reviewer files it shortly after.
 #
-# Foreignness reaches the Reviewer in the wake's hook.prompt (ADR-310 D3) —
-# NOT a new payload field — so the substrate_event contract stays frozen. The
-# author is also structurally present on the revision (authored_by="yarnnn:mcp"
-# per ADR-288), so the Reviewer can verify by reading it.
+# The two-step is git-legible: the dump's `yarnnn:mcp` origin survives on its
+# revision; the Reviewer's placement is a SEPARATE `reviewer:<id>` revision; the
+# `trace` verb shows the whole chain ("contributed via claude.ai → filed to X by
+# the Reviewer"). The instruction reaches the Reviewer in the wake's hook.prompt
+# (ADR-310 D3) — not a new payload field — so the substrate_event contract stays
+# frozen.
 
 async def submit_foreign_write_wake(
     auth: Any,
@@ -446,13 +421,13 @@ async def submit_foreign_write_wake(
     target: str,
     client_name: str,
 ) -> None:
-    """Best-effort: wake the Reviewer to judge a foreign-LLM substrate write.
+    """Best-effort: invoke the Reviewer to place a foreign-LLM memory dump.
 
-    Resolves the head revision_id for the just-written path and submits a
-    substrate_event wake whose hook.prompt names the write as a foreign (MCP)
-    contribution to evaluate against authored ground-truth. Never raises — a
-    wake failure must not affect the remember_this result (the write already
-    committed and is attributed).
+    Resolves the head revision_id for the just-written inbox path and submits a
+    substrate_event wake whose hook.prompt invokes the Reviewer to reason about
+    placement (file the dump into its real home) AND validate it against
+    ground-truth. Never raises — a wake failure must not affect the `remember`
+    result (the dump already committed to the inbox and is attributed).
 
     Shared-workspace seam (Phase 3, deferred): the Reviewer is a WORKSPACE-level
     seat (one per workspace), not per-user. The wake must fire for the WORKSPACE
@@ -486,11 +461,17 @@ async def submit_foreign_write_wake(
             return
 
         prompt = (
-            f"A foreign LLM (via MCP, client: {client_name}) just wrote to "
-            f"`{abs_path}` (target: {target}). Evaluate whether this "
-            f"contribution is consistent with authored ground-truth and the "
-            f"operator's mandate before it becomes load-bearing. If it "
-            f"conflicts or warrants attention, surface it; otherwise stand down."
+            f"The operator contributed a memory from outside YARNNN (via MCP, "
+            f"client: {client_name}). It landed UNPLACED in the memory inbox at "
+            f"`{abs_path}` — a holding area, not its home. Read it, then decide "
+            f"where it belongs in this workspace and FILE it there: move or copy "
+            f"it into the right substrate (a domain under operation/, an entity "
+            f"file, agent feedback, or wherever its subject lives), preserving "
+            f"the content and its `yarnnn:mcp` origin. If the memory genuinely "
+            f"belongs as free memory, leave it in the inbox. While you place it, "
+            f"also judge it against authored ground-truth and the mandate — if it "
+            f"conflicts, surface that. You understand this workspace's structure; "
+            f"the contributing LLM did not, which is why placement is yours."
         )
 
         from services.wake import submit_wake_proposal
@@ -506,7 +487,7 @@ async def submit_foreign_write_wake(
                     "prompt": prompt,
                 },
                 "path": abs_path,
-                "field_change": {"source": "mcp", "target": target},
+                "field_change": {"source": "mcp", "target": "memory-inbox"},
                 "revision_id": revision_id,
             },
         )

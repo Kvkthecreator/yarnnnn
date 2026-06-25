@@ -217,9 +217,9 @@ async def remember(
     clearly about a subject (a company, person, project, topic), pass that as
     `about`.
 
-    The write is synchronous and lands in the user's workspace commons,
-    attributed to this LLM, immediately visible to any other LLM they switch to.
-    YARNNN's own judgment seat then validates the contribution against what it
+    The write is synchronous and immediately visible to any other LLM the user
+    switches to, attributed to this LLM. YARNNN's own judgment seat then files
+    the memory where it belongs in the workspace and checks it against what it
     already knows (in the background — you don't wait for it). You are saving to
     a shared memory; you are not asking YARNNN to do work.
 
@@ -265,12 +265,13 @@ async def remember(
 
     written_path = result.get("filename") or result.get("path") or "(unknown)"
 
-    # ADR-368 D5: integrity wake — the seat validates this foreign write against
-    # ground-truth (eventually-async; never blocks). This is SAFETY on a write,
-    # not delegated work.
+    # ADR-368 D5: the dump landed in the memory inbox; this wake INVOKES the
+    # Reviewer to reason about where it belongs and file it (placement is
+    # judgment, not a deterministic route), and to check it against ground-truth.
+    # Eventually-async; never blocks. The dump is captured instantly.
     if written_path and written_path != "(unknown)":
         await mcp_composition.submit_foreign_write_wake(
-            auth, written_path=written_path, target="commons", client_name=client_name,
+            auth, written_path=written_path, target="memory-inbox", client_name=client_name,
         )
 
     _emit_mcp_narrative(
@@ -292,8 +293,8 @@ async def remember(
             "date": _today_iso(),
             "original_context": (about or content[:80]),
         },
-        # ADR-310 D2 / ADR-368 D5: the seat will validate this contribution.
-        "validated": True,
+        # ADR-368 D5: the seat will file this where it belongs + validate it.
+        "captured": True,
     }
 
 

@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.25.3] - ADR-368 revision: `remember` is a DUMP; placement is the Reviewer's judgment
+
+**Operator caught a real design error in the just-shipped ADR-368: routing all `remember` writes to one directory (`operation/{domain}/notes.md`) was wrong twice over.** (1) It fixated content into a flat per-folder `notes.md` instead of real homes; (2) it leaned on an ADR-151 `competitors`/`market` keyword table that live workspaces don't use (they're program-shaped: `reports/`/`trading/`/`specs/`) — and a foreign LLM's free memory must NOT be filed into a program's structured output tree it doesn't understand.
+
+The correction (operator-directed): **placement is a JUDGMENT, not a deterministic route.**
+- `api/services/mcp_composition.py::resolve_remember_path`: now routes EVERY dump to the memory inbox `operation/memory/{subject-slug}.md` (or `operation/memory/inbox.md` unscoped). `about` only organizes the inbox; it is NOT final placement. DELETED the ADR-151 `DOMAIN_KEYWORDS` table + `_classify_domain` (domain fiction); kept `DOMAIN_ALIASES` (used only to normalize `recall`'s optional `domain` filter).
+- `api/services/mcp_composition.py::submit_foreign_write_wake`: the wake prompt is REWRITTEN from validation-only ("evaluate… otherwise **stand down**") to a **placement INVOCATION** — "the operator contributed this from outside; it landed unplaced in the inbox; read it, decide where it belongs, and FILE it there (preserving content + `yarnnn:mcp` origin); judge it against ground-truth while you place it." The Reviewer can write everywhere the foreign caller can't (locked only from governance/+system/), so placement lives with the judgment seat, not the least-context caller.
+- `api/mcp_server/server.py::remember`: description + return field reflect capture-then-file (`"captured": True`); the wake is now framed as placement, not just safety.
+- **Git-legible two-step** (the moat operable): the dump's `yarnnn:mcp` inbox revision + the Reviewer's separate `reviewer:<id>` placement revision are both attributed; `trace` shows the chain ("contributed via claude.ai → filed to X by the Reviewer").
+- **Cost**: every dump triggers one Reviewer invocation (judgment-first, operator decision) — bounded by the ADR-298 paced wake-queue drain; never blocks the foreign tool.
+- **Expected behavior**: a foreign "remember this" lands instantly in `operation/memory/` and is then filed into its real home by the Reviewer shortly after — instead of being deterministically (mis)routed by a keyword table the workspace doesn't use.
+- **Validated**: `probe_mcp_memory_surface.py` 9/9 (incl. R3b — the wake prompt carries 'file it where it belongs', not 'stand down') + `test_adr368_memory_surface.py` 6/6 (incl. the domain-fiction-deleted assertion) against the live workspace, no residue. ADR-368 D3+D5 amended; tool-contracts.md updated.
+
 ## [2026.06.25.2] - ADR-368: the memory-first interop surface — remember / recall / trace
 
 **The MCP tool surface is re-derived from the user's memory mental model; the topology-incoherent write enum is deleted.** Triggered by a live smoke-test of the `yarnnn` connector on claude.ai ("remember this") that hit `governance_locked` — the surface was two generations stale (ADR-169 intent tools, on a kernel reshaped by ADR-320/366 topology + ADR-310/311 interop reframe).

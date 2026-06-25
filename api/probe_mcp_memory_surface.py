@@ -58,10 +58,10 @@ async def _run():
     SUBJECT = "Acme Corp"
     GENERIC = "Acme Corp should lead its Q3 deck with retention, not growth."
 
-    # --- R1: remember routes to operation/ and round-trips ---
+    # --- R1: remember DUMPS to the memory inbox and round-trips ---
     path = mcp_composition.resolve_remember_path(SUBJECT)
-    check("R1a remember resolves to an operation/ commons path (never system/ or persona/)",
-          path.startswith("operation/"), f"path={path}")
+    check("R1a remember dumps to the operation/memory/ inbox (capture, not placement; never system/persona)",
+          path.startswith("operation/memory/"), f"path={path}")
     stamped = mcp_composition.stamp_provenance(GENERIC, "claude.ai", user_context=SUBJECT)
     wr = await mcp_composition.dispatch_remember_this(auth=auth, stamped_text=stamped, about=SUBJECT)
     check("R1b remember write SUCCEEDS (the generic write that used to governance_lock)",
@@ -80,13 +80,24 @@ async def _run():
           bool(rev) and rev[0].get("authored_by") == "yarnnn:mcp",
           f"got={rev[0].get('authored_by') if rev else '(none)'}")
 
-    # --- R3: integrity wake fires ---
+    # --- R3: placement wake fires (the Reviewer is invoked to file the dump) ---
     depth_before = queue_depth(c, user_id=user_id)
     await mcp_composition.submit_foreign_write_wake(
-        auth, written_path=path, target="commons", client_name="claude.ai")
+        auth, written_path=path, target="memory-inbox", client_name="claude.ai")
     depth_after = queue_depth(c, user_id=user_id)
-    check("R3 integrity wake enqueued (ADR-368 D5 / ADR-310 moat seam)",
+    check("R3 placement wake enqueued — Reviewer invoked to file the dump (ADR-368 D5)",
           depth_after >= depth_before + 1, f"queue {depth_before}→{depth_after}")
+    # R3b: the wake PROMPT carries placement intent (file it where it belongs),
+    # NOT the old validation-only "stand down" framing.
+    enq = (
+        c.table("wake_queue").select("payload")
+        .eq("user_id", user_id).eq("wake_source", "substrate_event")
+        .eq("dedup_key", str(rev[0]["id"]) if rev else "").limit(1).execute().data or []
+    )
+    prompt = ((enq[0].get("payload") or {}).get("hook") or {}).get("prompt", "") if enq else ""
+    check("R3b wake prompt invokes PLACEMENT ('file it where it belongs'), not 'stand down'",
+          ("file it" in prompt.lower() or "where it belongs" in prompt.lower()) and "stand down" not in prompt.lower(),
+          f"prompt[:60]={prompt[:60]!r}")
     # cleanup the probe wake (dedup_key == revision_id for substrate_event)
     if rev:
         try:
