@@ -34,9 +34,13 @@ function MCPAuthorizeHandler() {
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        // Resume here after login — preserve the pending code.
-        const next = `/mcp/authorize?code=${encodeURIComponent(code)}`;
-        window.location.href = `/auth/login?next=${encodeURIComponent(next)}`;
+        // ADR-370 (A1-lite): bounce to the cockpit-FREE MCP auth surface
+        // (/mcp/auth), NOT /auth/login. /auth/login lands the user in the
+        // operator cockpit (/desktop) after sign-in; the connector-user's
+        // onboarding is separate from the cockpit. /mcp/auth resumes here
+        // (preserving the pending code) and returns to the LLM — the user
+        // never sees /desktop. Same account, separate door (Constraint 2).
+        window.location.href = `/mcp/auth?code=${encodeURIComponent(code)}`;
         return;
       }
 

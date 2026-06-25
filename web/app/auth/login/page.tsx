@@ -2,222 +2,55 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { getSafeNextPath } from "@/lib/auth/redirect";
 import { HOME_ROUTE } from "@/lib/routes";
+import { AuthForm } from "@/components/auth/AuthForm";
+import Link from "next/link";
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [initialError, setInitialError] = useState<string | null>(null);
   const nextPath = getSafeNextPath(searchParams.get("next"), HOME_ROUTE);
-  const callbackRedirect = typeof window === "undefined"
-    ? ""
-    : `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
+  const callbackRedirect =
+    typeof window === "undefined"
+      ? ""
+      : `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
 
   // Show OAuth callback errors
   useEffect(() => {
     const errorParam = searchParams.get("error");
     const messageParam = searchParams.get("message");
     if (errorParam) {
-      setError(`${errorParam}${messageParam ? `: ${messageParam}` : ""}`);
+      setInitialError(`${errorParam}${messageParam ? `: ${messageParam}` : ""}`);
     }
   }, [searchParams]);
-
-  const supabase = createClient();
-
-  const handleEmailAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-
-    try {
-      if (mode === "login") {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) throw error;
-        window.location.href = nextPath;
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: callbackRedirect,
-          },
-        });
-        if (error) throw error;
-        setError("Check your email for a confirmation link.");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = async () => {
-    setLoading(true);
-    setError(null);
-
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: callbackRedirect,
-          queryParams: {
-            access_type: "offline",
-            prompt: "consent",
-          },
-        },
-      });
-      if (error) throw error;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-      setLoading(false);
-    }
-  };
 
   return (
     <div className="relative min-h-screen flex items-center justify-center bg-[#faf8f5] px-4">
       <GrainOverlay />
       <ShaderBackground />
 
-      <div className="relative z-10 w-full max-w-md space-y-8">
+      <div className="relative z-10 w-full max-w-md">
         <div className="text-center">
-          <Link href="/" className="text-3xl font-brand text-[#1a1a1a] hover:opacity-80 transition-opacity">
+          <Link
+            href="/"
+            className="text-3xl font-brand text-[#1a1a1a] hover:opacity-80 transition-opacity"
+          >
             yarnnn
           </Link>
-          <p className="mt-2 text-[#1a1a1a]/60">
-            {mode === "login" ? "Sign in to your account" : "Create your account"}
-          </p>
         </div>
 
-        <div className="glass-card-light p-8 space-y-6">
-          {/* Google OAuth */}
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            onClick={handleGoogleLogin}
-            disabled={loading}
-          >
-            <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
-              <path
-                fill="currentColor"
-                d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-              />
-              <path
-                fill="currentColor"
-                d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-              />
-              <path
-                fill="currentColor"
-                d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-              />
-              <path
-                fill="currentColor"
-                d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-              />
-            </svg>
-            Continue with Google
-          </Button>
-
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-[#1a1a1a]/10" />
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white/80 text-[#1a1a1a]/50">or</span>
-            </div>
-          </div>
-
-          {/* Email/Password Form */}
-          <form onSubmit={handleEmailAuth} className="space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium text-[#1a1a1a]">
-                Email
-              </label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                // Auth is a deliberately LIGHT-themed surface (bg-[#faf8f5] +
-                // glass-card-light); the base Input has no text color so it
-                // inherits text-foreground, which is WHITE in dark mode →
-                // invisible white-on-white. Pin dark text + placeholder to
-                // the page's #1a1a1a, theme-independent.
-                className="mt-1 bg-white/50 border-[#1a1a1a]/10 text-[#1a1a1a] placeholder:text-[#1a1a1a]/40 focus:border-[#1a1a1a]/30"
-                placeholder="you@example.com"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="password" className="block text-sm font-medium text-[#1a1a1a]">
-                Password
-              </label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                // Same fix as email — dark text on the light auth surface
-                // so typed characters are visible in dark mode.
-                className="mt-1 bg-white/50 border-[#1a1a1a]/10 text-[#1a1a1a] placeholder:text-[#1a1a1a]/40 focus:border-[#1a1a1a]/30"
-                placeholder="••••••••"
-                minLength={6}
-              />
-            </div>
-
-            {error && (
-              <p className={`text-sm ${error.includes("Check your email") ? "text-emerald-600" : "text-red-600"}`}>
-                {error}
-              </p>
-            )}
-
-            <Button type="submit" className="w-full bg-[#1a1a1a] hover:bg-[#1a1a1a]/90 text-white" disabled={loading}>
-              {loading ? "Loading..." : mode === "login" ? "Sign in" : "Sign up"}
-            </Button>
-          </form>
-
-          <p className="text-center text-sm text-[#1a1a1a]/60">
-            {mode === "login" ? (
-              <>
-                Don&apos;t have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setMode("signup")}
-                  className="text-[#1a1a1a] font-medium hover:underline"
-                >
-                  Sign up
-                </button>
-              </>
-            ) : (
-              <>
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setMode("login")}
-                  className="text-[#1a1a1a] font-medium hover:underline"
-                >
-                  Sign in
-                </button>
-              </>
-            )}
-          </p>
-        </div>
+        <AuthForm
+          onPasswordSuccess={() => {
+            window.location.href = nextPath;
+          }}
+          callbackRedirect={callbackRedirect}
+          loginSubheading="Sign in to your account"
+          signupSubheading="Create your account"
+          initialError={initialError}
+        />
       </div>
     </div>
   );
@@ -225,16 +58,18 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={
-      <div className="relative min-h-screen flex items-center justify-center bg-[#faf8f5] px-4">
-        <div className="relative z-10 w-full max-w-md space-y-8">
-          <div className="text-center">
-            <h1 className="text-3xl font-brand text-[#1a1a1a]">yarnnn</h1>
-            <p className="mt-2 text-[#1a1a1a]/60">Loading...</p>
+    <Suspense
+      fallback={
+        <div className="relative min-h-screen flex items-center justify-center bg-[#faf8f5] px-4">
+          <div className="relative z-10 w-full max-w-md space-y-8">
+            <div className="text-center">
+              <h1 className="text-3xl font-brand text-[#1a1a1a]">yarnnn</h1>
+              <p className="mt-2 text-[#1a1a1a]/60">Loading...</p>
+            </div>
           </div>
         </div>
-      </div>
-    }>
+      }
+    >
       <LoginForm />
     </Suspense>
   );
