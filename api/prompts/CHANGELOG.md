@@ -6,6 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.25.1] - ADR-364 D4 cleanup: stale `calibration.md` reference in the autonomy-modes template
+
+**The last stale persona-side `calibration.md` reference in LLM-facing prose, retired to `reflection.md`.**
+- `api/services/orchestration.py::DEFAULT_REVIEW_MODES_MD` ("When to revisit"): "review **calibration.md** + judgment_log.md" → "review **reflection.md** + judgment_log.md". The per-occupant aggregate-windows `calibration.md` was retired by ADR-364 D4 (superseded by the per-verdict `persona/reflection.md` reflection loop); this template still pointed the Reviewer at the dead file. The other three "calibration" occurrences in this file (~L601/664/750) use the word as a general decision-accuracy concept, not the retired file — left unchanged.
+- **Non-prompt companion** (same commit, not LLM-facing): `api/services/reviewer_envelope.py` — added a disambiguation note on the `system/_calibration.md` envelope reader (ADR-327 D6, the *live* cadence-vs-outcome mechanism) clarifying it is NOT the retired persona-side `calibration.md`. Same word, different mechanism — the note prevents future conflation.
+- **Expected behavior**: when the Reviewer reasons about revisiting its autonomy ceiling after 20+ verdicts, it is pointed at the file that actually exists (`reflection.md`), not a dead one. No behavioral change beyond removing a dangling reference. The `back-office-reviewer-calibration` TASK was already fully gone (0 live recurrences across 20 scanned workspaces; module absent; `test_adr261_phaseB.py` already asserts its absence) — this closes the residual prose half of ADR-364 §7.
+
 ## [2026.06.24.8] - ADR-365b: composed-prose structure directive — D2 revisited, VALIDATED + shipped
 
 **The model's composed documents now get a structure directive (the earlier D2's evidence-backed redo).**

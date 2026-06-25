@@ -773,7 +773,7 @@ Changes read on the next proposal verdict. No restart, no migration.
 
 ## When to revisit
 
-- After 20+ verdicts in a domain: review calibration.md + judgment_log.md.
+- After 20+ verdicts in a domain: review reflection.md + judgment_log.md.
   Consider raising or lowering the ceiling based on realized outcomes.
 - Before connecting a live (non-paper / non-sandbox) platform: tighten
   to `manual` first; recalibrate from zero.

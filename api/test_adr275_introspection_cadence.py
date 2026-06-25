@@ -126,20 +126,22 @@ def test_bundle_recurrences_thinned() -> None:
 # ---------------------------------------------------------------------------
 
 def test_preferences_yaml_shipped() -> None:
+    # ADR-366 grant/contract split: _preferences.yaml moved from
+    # context/_shared/ (ADR-275) → contract/ (the operating-contract root,
+    # mode-governed). The tier=canon fork-at-activation contract is unchanged.
     path = (
         REPO_ROOT
         / "docs"
         / "programs"
         / "alpha-trader"
         / "reference-workspace"
-        / "context"
-        / "_shared"
+        / "contract"
         / "_preferences.yaml"
     )
     if not path.exists():
         _bad("bundle _preferences.yaml present", f"missing: {path}")
         return
-    _ok("bundle ships _preferences.yaml in context/_shared/")
+    _ok("bundle ships _preferences.yaml in contract/")
 
     text = path.read_text()
     if text.startswith("---"):
@@ -213,7 +215,8 @@ def test_preferences_yaml_shipped() -> None:
 # ---------------------------------------------------------------------------
 
 def test_specs_preserved() -> None:
-    specs_dir = REPO_ROOT / "docs" / "programs" / "alpha-trader" / "reference-workspace" / "specs"
+    # ADR-320 five-root topology cut: specs/ moved under the operation/ root.
+    specs_dir = REPO_ROOT / "docs" / "programs" / "alpha-trader" / "reference-workspace" / "operation" / "specs"
     if not specs_dir.is_dir():
         _bad("specs directory present", f"missing: {specs_dir}")
         return
@@ -355,22 +358,28 @@ def test_preferences_yaml_is_preloaded_in_wake_envelope() -> None:
             f"expected preferences_yaml in annotations, got {list(annotations.keys())}",
         )
 
+    # ADR-360 envelope-caching refactor: _build_user_message became a thin
+    # dispatcher; the preferences injection relocated into the render helpers
+    # (_partition_envelope + _build_user_message_stripped). Inspect the MODULE
+    # source rather than one function — the invariant is "preferences_yaml is
+    # structurally pre-loaded into the wake message somewhere in the render
+    # path", and that survives function-boundary refactors.
     import inspect
     import agents.reviewer_agent as mod
-    src = inspect.getsource(mod._build_user_message)
+    src = inspect.getsource(mod)
     if 'ctx.get("preferences_yaml")' in src:
-        _ok("_build_user_message reads ctx['preferences_yaml']")
+        _ok("render path reads ctx['preferences_yaml'] (structural pre-load)")
     else:
         _bad(
-            "_build_user_message preferences injection",
-            "expected ctx.get('preferences_yaml') in _build_user_message body",
+            "render-path preferences injection",
+            "expected ctx.get('preferences_yaml') in the reviewer_agent render path",
         )
 
-    if "_preferences.yaml — Operator's deliverable cadence preferences" in src:
-        _ok("_build_user_message renders the named _preferences.yaml block header")
+    if "_preferences.yaml — Operator" in src and "cadence preferences" in src:
+        _ok("render path renders the named _preferences.yaml block header")
     else:
         _bad(
-            "_build_user_message preferences header",
+            "render-path preferences header",
             "expected named header for the _preferences.yaml block in the envelope",
         )
 
@@ -601,32 +610,18 @@ def test_d9_seed_step_wired_before_materialize() -> None:
     _ok("_seed_recurrences_from_preferences runs before materialize_scheduling_index (D9)")
 
 
-def test_d10_persona_frame_change_reconciliation() -> None:
-    """ADR-275 D10: persona frame says Reviewer's runtime contract is CHANGE reconciliation, not initial set."""
-    reviewer_agent_path = REPO_ROOT / "api" / "agents" / "reviewer_agent.py"
-    if not reviewer_agent_path.exists():
-        _bad("reviewer_agent.py present", f"missing: {reviewer_agent_path}")
-        return
-    text = reviewer_agent_path.read_text()
-
-    # D10 markers — persona frame must explicitly name change-reconciliation
-    # contract and reference D9 (initial set is bundle-fork-from-preferences).
-    # Substring "CHANGE\nRECONCILIATION" spans a line break in the actual prose,
-    # so we check normalized text (whitespace-collapsed).
-    normalized = " ".join(text.split())
-    markers = [
-        "Initial honoring",  # names the structural seeding
-        "bundle-fork-from-preferences",  # cites the D9 actor
-        "CHANGE RECONCILIATION",  # uppercase emphasis on the contract (post-normalize)
-    ]
-    missing = [m for m in markers if m not in normalized]
-    if missing:
-        _bad(
-            "D10 persona-frame change-reconciliation markers",
-            f"persona frame missing D10 markers: {missing}",
-        )
-        return
-    _ok("persona frame names D10 change-reconciliation contract + cites D9 initial honoring")
+# test_d10_persona_frame_change_reconciliation — DELETED (ADR-306 persona-frame collapse).
+# This test grepped reviewer_agent.py for verbose persona-frame prose markers
+# ("Initial honoring" / "bundle-fork-from-preferences" / "CHANGE RECONCILIATION").
+# The ADR-302/306/323 persona-frame collapse (system prompt ~36K → ~3.5K — rules
+# of judgment moved to principles.md, pedagogy to envelope headers) deliberately
+# removed that prose. The *behavior* D10 named (the Reviewer reconciles operator
+# preference CHANGES, with the initial set seeded by bundle-fork) is still proven
+# live by the surviving structural tests in this file: the D9 seed-actor test
+# (`test_d9_seed_before_materialize` + the is_valid_author check on
+# `system:bundle-fork-from-preferences`) and the preferences-preload test. A
+# prose-marker grep is the wrong shape for an invariant that is now structural —
+# not re-pointed, the marker contract no longer exists.
 
 
 def test_d9_d11_amendment_documented() -> None:
@@ -676,7 +671,6 @@ def main() -> int:
     test_d9_attribution_actor_valid()
     test_d9_fork_returns_preferences_seeded()
     test_d9_seed_step_wired_before_materialize()
-    test_d10_persona_frame_change_reconciliation()
     test_d9_d11_amendment_documented()
 
     total = len(_PASS) + len(_FAIL)

@@ -50,7 +50,6 @@ logger = logging.getLogger(__name__)
 
 TEST_USER_ID = "2abf3f96-118b-4987-9d95-40f2d9be9a18"
 SCRATCH_AGENT_SLUG = "_adr209-phase2-test-agent"
-SCRATCH_TASK_SLUG = "_adr209-phase2-test-task"
 SCRATCH_AGENT_PATH_SUFFIX = "scratch.md"
 SCRATCH_MEMORY_FILENAME = "_adr209-phase2-test-memory.md"
 
@@ -99,7 +98,6 @@ def _cleanup_scratch(client) -> None:
     # FK ordering: workspace_files first (head_version_id references
     # workspace_file_versions), then the revisions.
     agent_path = f"/agents/{SCRATCH_AGENT_SLUG}/{SCRATCH_AGENT_PATH_SUFFIX}"
-    task_path_prefix = f"/tasks/{SCRATCH_TASK_SLUG}/"
     memory_path = f"/workspace/{SCRATCH_MEMORY_FILENAME}"
 
     # Also clean up ancillary scratch paths created by tests 11+12
@@ -111,9 +109,6 @@ def _cleanup_scratch(client) -> None:
     for path in (agent_path, memory_path, *extra_agent_paths):
         client.table("workspace_files").delete().eq("user_id", TEST_USER_ID).eq("path", path).execute()
         client.table("workspace_file_versions").delete().eq("user_id", TEST_USER_ID).eq("path", path).execute()
-
-    client.table("workspace_files").delete().eq("user_id", TEST_USER_ID).like("path", f"{task_path_prefix}%").execute()
-    client.table("workspace_file_versions").delete().eq("user_id", TEST_USER_ID).like("path", f"{task_path_prefix}%").execute()
 
 
 # ---------------------------------------------------------------------------
@@ -234,52 +229,13 @@ def test_user_memory_write(client) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test 7 + 8 + 9 — TaskWorkspace
-# ---------------------------------------------------------------------------
-
-def test_task_workspace_write(client) -> None:
-    try:
-        from services.task_workspace import TaskWorkspace
-
-        tw = TaskWorkspace(client, TEST_USER_ID, SCRATCH_TASK_SLUG)
-        path = f"/tasks/{SCRATCH_TASK_SLUG}/TASK.md"
-
-        # Default attribution
-        ok1 = asyncio.run(tw.write("TASK.md", "# task md default"))
-        head = _fetch_head(client, path)
-        rev = _fetch_revision(client, head["head_version_id"]) if head else None
-        default_ok = rev is not None and rev["authored_by"] == f"task:{SCRATCH_TASK_SLUG}"
-        record(
-            "TaskWorkspace.write default authored_by = task:{slug}",
-            ok1 and default_ok,
-            f"authored_by={rev['authored_by'] if rev else None}",
-        )
-
-        # save_output attributes to agent:<slug>
-        folder = asyncio.run(tw.save_output("# output content", "test-agent-slug"))
-        output_path = f"/tasks/{SCRATCH_TASK_SLUG}/{folder}/output.md"
-        head2 = _fetch_head(client, output_path)
-        rev2 = _fetch_revision(client, head2["head_version_id"]) if head2 else None
-        save_ok = rev2 is not None and rev2["authored_by"] == "agent:test-agent-slug"
-        record(
-            "TaskWorkspace.save_output attributes agent:<slug>",
-            folder is not None and save_ok,
-            f"authored_by={rev2['authored_by'] if rev2 else None}",
-        )
-
-        # append_run_log attributes to system:task-pipeline
-        ok3 = asyncio.run(tw.append_run_log("test run log entry"))
-        log_path = f"/tasks/{SCRATCH_TASK_SLUG}/memory/_run_log.md"
-        head3 = _fetch_head(client, log_path)
-        rev3 = _fetch_revision(client, head3["head_version_id"]) if head3 else None
-        log_ok = rev3 is not None and rev3["authored_by"] == "system:task-pipeline"
-        record(
-            "TaskWorkspace.append_run_log attributes system:task-pipeline",
-            ok3 and log_ok,
-            f"authored_by={rev3['authored_by'] if rev3 else None}",
-        )
-    except Exception as e:
-        record("TaskWorkspace.write default attribution", False, f"Error: {e}")
+# Test 7 + 8 + 9 — TaskWorkspace — DELETED (ADR-231 Phase 3.7).
+# The TaskWorkspace class (services/task_workspace.py) and the `/tasks/{slug}/`
+# filesystem tree it wrote were deleted by ADR-231 (Task Abstraction Sunset,
+# commit 534bd91). There is no mechanism left to assert attribution on — the
+# write-path-attribution invariant these guarded now lives entirely in the
+# surviving tests (UserMemory, AgentWorkspace, KnowledgeBase, reviewer_audit).
+# Not re-pointed: the mechanism is gone, not renamed.
 
 
 # ---------------------------------------------------------------------------
@@ -288,11 +244,14 @@ def test_task_workspace_write(client) -> None:
 
 def test_reviewer_audit(client) -> None:
     try:
-        from services.reviewer_audit import append_decision, DECISIONS_PATH
+        # DECISIONS_PATH → renamed JUDGMENT_LOG_PATH (ADR-281 §5.D1 decisions.md →
+        # judgment_log.md; moved to persona/ root by ADR-320). The append_decision
+        # signature + reviewer:<identity> attribution invariant are unchanged.
+        from services.reviewer_audit import append_decision, JUDGMENT_LOG_PATH
 
         # Clean slate for this path — workspace_files first (FK order)
-        client.table("workspace_files").delete().eq("user_id", TEST_USER_ID).eq("path", DECISIONS_PATH).execute()
-        client.table("workspace_file_versions").delete().eq("user_id", TEST_USER_ID).eq("path", DECISIONS_PATH).execute()
+        client.table("workspace_files").delete().eq("user_id", TEST_USER_ID).eq("path", JUDGMENT_LOG_PATH).execute()
+        client.table("workspace_file_versions").delete().eq("user_id", TEST_USER_ID).eq("path", JUDGMENT_LOG_PATH).execute()
 
         import uuid
         fake_proposal_id = str(uuid.uuid4())
@@ -306,7 +265,7 @@ def test_reviewer_audit(client) -> None:
             reasoning="phase 2 test reasoning",
         ))
 
-        head = _fetch_head(client, DECISIONS_PATH)
+        head = _fetch_head(client, JUDGMENT_LOG_PATH)
         rev = _fetch_revision(client, head["head_version_id"]) if head else None
         author_ok = rev is not None and rev["authored_by"] == "reviewer:ai-sonnet-v1"
         record(
@@ -533,7 +492,6 @@ def main() -> int:
         test_write_revision_syncs_head(client)
         test_agent_workspace_write(client)
         test_user_memory_write(client)
-        test_task_workspace_write(client)
         test_reviewer_audit(client)
         test_parent_chain_on_rewrite(client)
         test_content_head_sync_across_writes(client)

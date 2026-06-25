@@ -122,6 +122,10 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     # quality (per-recurrence fires vs proposals-produced + ground-truth
     # head). The Reviewer reads this BEFORE reasoning about cadence; where its
     # prior cadence choices are falsified by ground truth, it re-authors.
+    # NOTE: this is `system/_calibration.md` (ADR-327 D6, mechanically mirrored,
+    # cadence-vs-outcome evidence) — NOT the retired persona-side `calibration.md`
+    # (the old ADR-211 per-occupant aggregate-windows file, superseded by
+    # `persona/reflection.md` per ADR-364 D4). Same word, different mechanism.
     ("calibration_md", SYSTEM_CALIBRATION_PATH),
 ]
 
