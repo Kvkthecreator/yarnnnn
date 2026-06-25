@@ -153,7 +153,7 @@ class AdminAccountRow(BaseModel):
     wakes_7d: int
     failed_7d: int
     top_failure_reason: Optional[str] = None
-    cost_30d: float
+    cost_7d: float
     last_wake: Optional[str] = None
     # Tenure signal (workspace_file_versions, authored_by reviewer:*)
     reviewer_edits_7d: int
@@ -675,7 +675,6 @@ async def list_accounts(admin: AdminAuth):
 
         cutoff_24h = _get_date_threshold(1)
         cutoff_7d = _get_date_threshold(7)
-        cutoff_30d = _get_date_threshold(30)
 
         rows: list[AdminAccountRow] = []
         for p in personas:
@@ -683,31 +682,32 @@ async def list_accounts(admin: AdminAuth):
             if not user_id:
                 continue
 
-            # Wake activity over the last 30d (one fetch, bucketed in Python).
+            # Wake activity over the last 7d (one fetch, bucketed in Python).
+            # Scoped to 7d, not 30d: high-frequency personas (the traders wake
+            # ~670×/day) blow past any row cap over 30d, which would silently
+            # undercount cost. 7d stays well under the 5000 cap, so every
+            # bucketed figure below — including cost — is exact, not truncated.
             events = client.table("execution_events")\
                 .select("status, error_reason, cost_usd, created_at")\
                 .eq("user_id", user_id)\
-                .gte("created_at", cutoff_30d)\
+                .gte("created_at", cutoff_7d)\
                 .order("created_at", desc=True)\
                 .limit(5000)\
                 .execute()
             event_rows = events.data or []
 
             wakes_24h = sum(1 for e in event_rows if e["created_at"] >= cutoff_24h)
-            wakes_7d = sum(1 for e in event_rows if e["created_at"] >= cutoff_7d)
-            failed_7d = sum(
-                1 for e in event_rows
-                if e["created_at"] >= cutoff_7d and e.get("status") == "failed"
-            )
+            wakes_7d = len(event_rows)
+            failed_7d = sum(1 for e in event_rows if e.get("status") == "failed")
             # cost_usd is NULL on mechanical/skipped wakes — coerce (the bug that
             # 500'd /execution-stats; `or 0` not `, 0` per the present-but-null trap).
-            cost_30d = sum(float(e.get("cost_usd") or 0) for e in event_rows)
+            cost_7d = sum(float(e.get("cost_usd") or 0) for e in event_rows)
             last_wake = event_rows[0]["created_at"] if event_rows else None
 
-            # Most common failure reason in the 7d window (operator triage signal).
+            # Most common failure reason in the window (operator triage signal).
             reason_counts: dict[str, int] = defaultdict(int)
             for e in event_rows:
-                if e["created_at"] >= cutoff_7d and e.get("status") == "failed" and e.get("error_reason"):
+                if e.get("status") == "failed" and e.get("error_reason"):
                     reason_counts[e["error_reason"]] += 1
             top_failure_reason = (
                 max(reason_counts, key=reason_counts.get) if reason_counts else None
@@ -731,7 +731,7 @@ async def list_accounts(admin: AdminAuth):
                 wakes_7d=wakes_7d,
                 failed_7d=failed_7d,
                 top_failure_reason=top_failure_reason,
-                cost_30d=round(cost_30d, 4),
+                cost_7d=round(cost_7d, 4),
                 last_wake=last_wake,
                 reviewer_edits_7d=reviewer_edits.count or 0,
             ))

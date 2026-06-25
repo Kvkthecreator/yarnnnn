@@ -113,7 +113,7 @@ export default function AdminAccountsPage() {
                     <th className="py-2 pr-4 font-medium text-right">Wakes 7d</th>
                     <th className="py-2 pr-4 font-medium text-right">Failed 7d</th>
                     <th className="py-2 pr-4 font-medium text-right">
-                      <DollarSign className="w-3 h-3 inline -mt-0.5" /> 30d
+                      <DollarSign className="w-3 h-3 inline -mt-0.5" /> 7d
                     </th>
                     <th className="py-2 pr-4 font-medium text-right">
                       <GitCommitVertical className="w-3 h-3 inline -mt-0.5" /> Reviewer 7d
@@ -158,7 +158,7 @@ export default function AdminAccountsPage() {
                         )}
                       </td>
                       <td className="py-2.5 pr-4 text-right tabular-nums">
-                        ${a.cost_30d.toFixed(2)}
+                        ${a.cost_7d.toFixed(2)}
                       </td>
                       <td className="py-2.5 pr-4 text-right tabular-nums">
                         {a.reviewer_edits_7d}

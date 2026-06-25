@@ -94,7 +94,7 @@ export interface AdminAccountRow {
   wakes_7d: number;
   failed_7d: number;
   top_failure_reason: string | null;
-  cost_30d: number;
+  cost_7d: number;
   last_wake: string | null;
   reviewer_edits_7d: number;
 }
