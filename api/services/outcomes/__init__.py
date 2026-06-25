@@ -39,11 +39,17 @@ from services.outcomes.operator import (
     OperatorOutcomeProvider,
     reconcile_operator_import,
 )
-from services.outcomes.reconciler import DEFAULT_PROVIDERS, reconcile_user
+from services.outcomes.reconciler import (
+    DEFAULT_PROVIDERS,
+    PLATFORM_ATTESTED_PLATFORMS,
+    has_platform_attested_provider,
+    reconcile_user,
+)
 from services.outcomes.trading import TradingOutcomeProvider
 
 __all__ = [
     "DEFAULT_PROVIDERS",
+    "PLATFORM_ATTESTED_PLATFORMS",
     "CommerceOutcomeProvider",
     "OperatorOutcomeProvider",
     "OutcomeCandidate",
@@ -52,6 +58,7 @@ __all__ = [
     "TradingOutcomeProvider",
     "compute_since_for_provider",
     "fold_outcome_candidates",
+    "has_platform_attested_provider",
     "reconcile_operator_import",
     "reconcile_user",
     "write_money_truth_summary",

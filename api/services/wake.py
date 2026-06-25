@@ -512,6 +512,51 @@ async def _invoke_recurrence_wake(
             return _result_failed(recurrence, warning, trigger=trigger)
         # Manual: warn but proceed.
 
+    # ---- Mechanical pre-fold for platform-attested ground-truth loops ----
+    # A platform-attested outcome loop (ADR-330 `attestation: "platform"` —
+    # the trader's broker fills, the commerce LS orders) reaches the agent only
+    # after an external oracle is POLLED and matched deterministically (FIFO,
+    # client_order_id attribution) — work an LLM judgment wake structurally
+    # cannot do. The `outcome-reconciliation` prompt for those programs reads
+    # ("the reconciler has folded yesterday's fills … read the reconciled
+    # outcomes"); this pre-step is the fold it reads. Runs mechanically (zero
+    # LLM) before envelope assembly so the freshly-reconciled `_money_truth.md`
+    # is in the substrate the envelope loads.
+    #
+    # ADR-260/261 fallout repair (2026-06-26): the historical caller — the
+    # `back-office-outcome-reconciliation` task — was dissolved when back-office
+    # tasks collapsed into recurrences, orphaning this fold. Workspaces that
+    # never got the one-time bootstrap (kvk-trader) never materialized the
+    # organ; the prompt's "has folded" precondition was silently false. See
+    # 2026-06-25-trader-money-truth-orphaned-reconciler-AUDIT.md.
+    #
+    # Gated tight on `has_platform_attested_provider`: the alpha-author program
+    # is operator-attested (its judgment wake folds its OWN events — no
+    # mechanical pre-step), and an ungated call would write a spurious empty
+    # `trading` _money_truth.md stub into the author's workspace
+    # (fold_outcome_candidates stubs unconditionally on empty candidates). The
+    # gate makes this a true no-op (never called) for operator/agent-attested
+    # programs. Best-effort: a reconcile failure must not break the wake.
+    if recurrence.slug == "outcome-reconciliation":
+        try:
+            from services.outcomes import (
+                has_platform_attested_provider,
+                reconcile_user,
+            )
+            if has_platform_attested_provider(client, user_id):
+                summary = await reconcile_user(client, user_id)
+                logger.info(
+                    "[DISPATCH] %s/%s pre-fold: platform-attested reconcile ran "
+                    "(appended=%s)",
+                    user_id[:8], recurrence.slug,
+                    summary.get("total_appended"),
+                )
+        except Exception as exc:  # noqa: BLE001 — pre-fold must not break dispatch
+            logger.warning(
+                "[DISPATCH] %s/%s pre-fold reconcile failed: %s",
+                user_id[:8], recurrence.slug, exc,
+            )
+
     # ---- Build the Reviewer prompt envelope ----
     # Per ADR-261 D1: the recurrence's prompt IS what reaches the Reviewer.
     # We add only optional one-shot context (FireInvocation steering).

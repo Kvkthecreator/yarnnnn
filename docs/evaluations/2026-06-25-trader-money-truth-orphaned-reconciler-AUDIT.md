@@ -79,3 +79,41 @@ The alpha-author analog (`_signal.md` is the author's ground-truth organ) does *
 | prompt asserts the fold already happened | kvk + a2 `outcome-reconciliation` recurrence prompt: *"has folded … Read the reconciled outcomes"* |
 | downstream P&L goes dark | `daily_pnl_email.py:296` `no_money_truth` |
 | a2 bootstrapped via a one-time path | a2 stub frontmatter *"initialized at first outcome-reconciliation fire 2026-06-10"* |
+
+---
+
+## RESOLUTION (2026-06-26) — the asymmetry is CORRECT; the defect is a tightly-gated orphaned wire, not a prompt lie
+
+**Hat**: A (kernel-wiring repair). **Commit**: see CHANGELOG `[2026.06.26.*]`. **The operator's pushback drove the diagnosis**: *"you're taking the carry-over prompt at face value without due diligence."* That was right — the audit's "the prompt asserts a precondition the system no longer satisfies, make it true again" framing read the asymmetry as a one-place bug. Due diligence found the asymmetry is **load-bearing canon**, and corrected the repair.
+
+**What due diligence found (the corrected diagnosis):**
+
+1. **The `outcome-reconciliation` slug ships TWO architecturally opposite prompts**, split by attestation source (ADR-330):
+   - **alpha-trader** (`@market_close + 1h`): *"The deterministic reconciler **has folded** … **Read** the reconciled outcomes."* A mechanical step folds; the LLM reads.
+   - **alpha-author** (`0 5 * * *`): *"**Fold** the day's audit + ship + revision events into `_signal.md` …"* The **LLM judgment wake folds it itself** — no mechanical pre-step, no orphaned dependency. (This is why the author rig works with no `reconcile_user` at all.)
+
+2. **The trader's mechanical-fold split is CORRECT and deliberate, not a fossil.** `TradingOutcomeProvider.reconcile()` polls the Alpaca broker API (`list_orders`, read-only GET) and does FIFO P&L matching with `client_order_id` attribution recovery — work an LLM judgment wake structurally **cannot** do (no broker API in its primitive surface; deterministic arithmetic, not judgment). A **platform-attested** loop genuinely needs a mechanical pre-step; an **operator/agent-attested** loop (the author, adjudicated by the operator) does not, because its ground truth is already LLM-readable substrate. **The fold-by-whom split follows the attestation source** — the same operator-attested-ground-truth axis as the [stewardship-deferral FIX](2026-06-25-stewardship-deferral-FIX-and-validation.md).
+
+3. **So the real defect is narrow:** the trader's mechanical broker-reconcile step **lost its scheduler caller** in the ADR-260/261 back-office dissolution. The prompt accurately describes the *intended* architecture; the *wiring* broke. A pure dead-wire, not a lie to paper over.
+
+**The fix (repair-direction 1, scoped TIGHT — operator's call):**
+- `services.wake._invoke_recurrence_wake` runs `reconcile_user` (mechanical, zero-LLM) as a **pre-step before envelope assembly**, gated on `recurrence.slug == "outcome-reconciliation"` **AND** `has_platform_attested_provider(client, user_id)` — a new predicate (`services.outcomes.reconciler`) that is True only for an active `trading`/`commerce` `platform_connections` row. The author (slack/notion/github, no trading/commerce) → gate **False** → the pre-step is a true no-op (never called). This matters: `fold_outcome_candidates` writes its empty stub **unconditionally** on empty candidates, so an ungated call would pollute the author with a spurious empty `trading` _money_truth.md — the gate must precede the call, not rely on the fold no-op'ing.
+- Mirrors the existing `daily_pnl_email` **post-step** (`wake.py`, also slug-gated) — symmetric pre/post fold/send bookends around the judgment wake.
+- The **stale docstring** (`reconciler.py`) is reconciled with reality (names the live caller + the dissolved historical one). The **trader prompt is KEPT** — it accurately describes the now-restored architecture; no edit needed (the audit's "prompt lie" framing was the part that was wrong).
+
+**Proven end-to-end (zero-LLM, read-only):** on the real kvk-trader (`2abf3f96-118b-4987-9d95-40f2d9be9a18` — note: the audit's truncated `2abf3f96…` prefix; an early fabricated full-UUID hit a spurious users-FK error and was discarded by re-querying `tasks` for the real id), `has_platform_attested_provider` → True; `reconcile_user` ran (0 broker candidates — paper/no-fills, correct); `_money_truth.md` went **absent → present** (1112 bytes, valid shape, `reconciled_event_count: 0`, authored `system:outcome-reconciliation`). The author was confirmed **unpolluted** (no `trading`/`revenue` organ). Downstream `daily_pnl_email`'s `no_money_truth` path is now reachable-to-true.
+
+**What this does NOT do (honest scope):**
+- It does **not** seed the organ at activation (repair-direction 2/3). Subsumed: the pre-step's empty-stub branch materializes the organ on the *first* `outcome-reconciliation` fire (which every trader workspace runs on cadence), so a second activation-writer would only add an ADR-286 single-writer tension for the activation→first-fire window — irrelevant for an on-demand tenure rig.
+- It does **not** canonize the attestation-source→who-folds principle into an ADR (deferred — the wiring fix stands alone; canonize only if it earns it).
+- It does **not** touch the PARKED learning-vs-production mandate tension. **The trader tenure rig is now UNBLOCKED on the wiring** — but still gated behind that axiomatic discourse (see `2026-06-25-trader-tenure-tension-PARKED.md`).
+
+**Regression gate:** `api/test_trader_reconcile_prestep.py` (11/11) — the platform set stays in lockstep with the providers, the gate distinguishes trader/commerce (True) from author (False, no pollution), fail-safe on lookup error, and the wake pre-step is slug-gated and placed before envelope assembly. Siblings green: `test_reconciler_fold` (21/21), `test_adr317_daily_pnl_dispatcher` (18/18).
+
+| Corrected claim | Receipt |
+|---|---|
+| asymmetry is correct, not a bug | author prompt *"Fold …"* vs trader prompt *"has folded … Read …"* (both bundles' `_recurrences.yaml`) |
+| trader fold is genuinely mechanical-only | `trading.py::reconcile` calls broker `list_orders` + FIFO + `client_order_id` attribution |
+| fold-by-whom follows attestation source | author = `attestation: operator` (LLM-readable) folds-in-judgment; trader = `attestation: platform` needs mechanical poll |
+| gate is tight (no author pollution) | `has_platform_attested_provider(author)` → False (slack/notion/github only); author organ confirmed absent post-fix |
+| fix materializes the organ | kvk-trader `_money_truth.md` absent → present (1112 B, `system:outcome-reconciliation`) via `reconcile_user` |
