@@ -1,13 +1,57 @@
-# MCP Onboarding Surface — design for both principals (human connect + agent A2A)
+# The MCP service as a self-contained auth boundary — two credentials, one model
 
 **Date**: 2026-06-25
-**Hat**: B (external-developer design discourse — a build spec for operator (KVK) reaction, not canon). Recommends a frontend surface; the build lands in Hat-A `web/` once scoped.
-**Origin**: KVK reconnecting via `mcp.yarnnn.com` hit "authorized but no MCP server found" (the bare-domain-vs-`/mcp`-path gotcha), and correctly read it as an **onboarding** problem — the connect flow currently piggybacks on the cockpit's app+auth logic, which is a shortcut, not the long-term shape. The connector-user (memory-first) is a different person than the cockpit operator.
-**Status**: Design for ratification. Companion to `cross-llm-data-handling-and-use-cases-2026-06-25.md` (the trust story = this surface's content) + `mcp-custom-domain-handoff-2026-06-25.md` (the URL).
+**Hat**: B (external-developer design discourse — for operator (KVK) reaction, not canon).
+**Status**: Design for ratification. Companion to `cross-llm-data-handling-and-use-cases-2026-06-25.md` + `mcp-custom-domain-handoff-2026-06-25.md`.
+
+> ## ⚠ FRAMING CORRECTION (2026-06-25, operator-directed)
+>
+> **The original §0–§7 below framed this as an "onboarding surface" with a `/connect` page, a confirmation page, and "cockpit graduation" — that was the WRONG mindset (app-onboarding thinking) and is SUPERSEDED.** KVK's correction: MCP signup/login is **headless and self-contained on the MCP service** — it happens *inside the OAuth handshake the LLM initiates, in ChatGPT/Claude*, with **no trip to yarnnn.com, no `/connect` page, no cockpit**. It is API-shaped, not app-shaped. That is *why* it's consistent with A2A: if the human path authenticates directly against the MCP boundary (lightweight), then human and agent are doing the **same shape of thing** — authenticate-to-endpoint, get a token, call verbs — differing only in credential type. One auth model, two credentials → one identity-resolution path, one attribution model, one gate. Better data handling because there's no second app-coupled auth path.
+>
+> **The corrected model is §A–§C below.** The original §0–§7 are retained only as the rejected alternative (read them as "what NOT to build"). The §8 A2A analysis SURVIVES and is reused — it was already the right shape; the human path now matches it.
 
 ---
 
-## 0. The core thesis: two different people, one shortcut to undo
+## A. The corrected thesis: the MCP service authenticates its own callers
+
+The MCP service (`mcp.yarnnn.com`) is its **own self-contained auth boundary**. Both principals authenticate *against it directly* — neither touches yarnnn.com or the cockpit:
+
+| | **Human** | **Agent (A2A)** |
+|---|---|---|
+| Credential | Lightweight login (popup, MCP-served) | `client_credentials` (client_id + secret) |
+| UI | Minimal sign-in IN the OAuth popup, then closes | None — pure token endpoint |
+| Where | `mcp.yarnnn.com` | `mcp.yarnnn.com/token` |
+| After auth | Returns to ChatGPT/Claude | Has token, calls verbs |
+
+**The human-UI floor (honest constraint):** a human *signup* needs a UI moment — to enter a password or run Google consent (OAuth security floor; ChatGPT pops a browser for exactly this). You cannot make human signup *zero-UI*. What you CAN do is make that UI **minimal and MCP-served** — a thin sign-in in the popup, not a redirect to the yarnnn.com cockpit. That's "as headless as a human can be," and it makes the human path structurally parallel to A2A.
+
+### What this KILLS in the current code
+
+- `oauth_provider.py::authorize` redirects the browser to **`yarnnn.com/mcp/authorize`** (lines 137, 171) — the trip to the app. **Remove.**
+- The cockpit-session coupling: today the web app's Supabase client does the login, then `/api/mcp/oauth-callback` binds it. The MCP service must authenticate the user **itself**.
+
+### The real scope (honest)
+
+The MCP service currently uses the Supabase **service key** only — it can read/write `mcp_oauth_*` but has **no user-auth capability** (no anon-key login). *That's why* it redirects to yarnnn.com today. Making auth self-contained means **giving the MCP service its own user-login capability** (a Supabase anon-key auth + a thin login UI it serves, or an equivalent). This is real work, not a copy-paste — but it's the correct direction and it's bounded.
+
+**Precedent already in the codebase:** the **static-bearer path** (`MCP_BEARER_TOKEN` / `MCP_USER_ID`, the headless route Claude Desktop uses) is *already* a non-interactive, token-based auth that maps to a user — the A2A-shaped model, partly built. A2A generalizes it (per-agent credentials instead of one env token); the human path adds a thin login to mint the equivalent.
+
+## B. The data-handling consistency win (why KVK's framing is better)
+
+One auth boundary → one identity-resolution path (`resolve_request_client`) → one attribution model (`yarnnn:mcp:<client>` for humans-via-LLM, `a2a:<agent>` for agents) → one permission gate (`CALLER_WRITE_POLICY`, lowest-trust, `operation/` commons only) → one judgment seam (the Reviewer places + judges every foreign write, ADR-368 D5). No app-coupled second path means no divergence to keep consistent. The cross-LLM data-handling guarantees (`cross-llm-data-handling-and-use-cases` doc) hold uniformly across both credential types.
+
+## C. What's left of "onboarding" (almost nothing, and that's the point)
+
+The corrected model has **almost no front-end**:
+- A **thin auth page** the MCP service serves inside the OAuth popup (sign in / sign up, minimal). Not on yarnnn.com.
+- The "here's the connector URL + per-LLM setup steps" content is **docs/marketing**, not a product surface — it lives on the landing site or in setup instructions, not inside an in-app onboarding flow.
+- No `/connect`, no `/connect/done`, no cockpit graduation. A memory-user may never see yarnnn.com at all.
+
+The §8 A2A design below is unchanged and correct. The human path now mirrors it.
+
+---
+
+## ~~0. The core thesis: two different people, one shortcut to undo~~ (REJECTED — see framing correction above)
 
 YARNNN now serves two audiences through one moat (ADR-368 memory-first + delegation-deferred):
 
