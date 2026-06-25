@@ -271,6 +271,79 @@ def resolve_remember_path(about: Optional[str]) -> str:
     return MEMORY_INBOX_DEFAULT
 
 
+def _naturalize_subject(subject: str) -> str:
+    """Turn a subject string into natural words for full-text search.
+
+    `recall`/`trace` are most often called with the SAME string passed as
+    `about` to `remember` — frequently a slug-shaped or hyphenated subject
+    (e.g. "yarnnn-mcp-connector"). `search_workspace` builds a
+    plainto_tsquery, which AND-matches every lexeme: the literal slug
+    "yarnnn-mcp-connector" becomes `yarnnn & mcp & connector` and matches ZERO
+    prose files even when the file is named exactly that and clearly relevant
+    (live test 2026-06-26 — the exact save-then-recall round-trip returned
+    nothing). Replacing separators with spaces lets the tokenizer rank on the
+    individual words instead of requiring the joined slug, which the content
+    rarely contains verbatim.
+    """
+    return re.sub(r"[-_/]+", " ", subject or "").strip()
+
+
+async def resolve_memory_path(auth: Any, subject: str) -> Optional[str]:
+    """Resolve a `recall`/`trace` subject to its authored path DETERMINISTICALLY.
+
+    The save→read round-trip is deterministic, not fuzzy: `remember(about=X)`
+    writes the dump to `operation/memory/{slug(X)}.md`, so a later
+    `recall(subject=X)` / `trace(subject=X)` with the same subject should find
+    that exact file by PATH, before any full-text search. This closes the
+    round-trip hole where QueryKnowledge's slug-AND-match (Finding 1) missed a
+    file literally named after the subject.
+
+    Resolution order (first hit wins), all scoped to the caller's substrate:
+        1. the exact inbox path operation/memory/{slug}.md (the dump's home);
+        2. a placed copy — any active file whose basename is {slug}.md (the
+           Reviewer may have FILED the dump elsewhere under the same name);
+        3. None → caller falls back to fuzzy QueryKnowledge.
+
+    Returns the absolute /workspace/ path or None.
+    """
+    slug = _slugify(subject or "")
+    if not slug:
+        return None
+
+    inbox_abs = f"/workspace/{MEMORY_INBOX_PREFIX}{slug}.md"
+    try:
+        # 1. exact inbox path
+        hit = (
+            auth.client.table("workspace_files")
+            .select("path")
+            .eq("user_id", auth.user_id)
+            .eq("path", inbox_abs)
+            .in_("lifecycle", ["active", "delivered"])
+            .limit(1)
+            .execute()
+        )
+        if hit.data:
+            return hit.data[0]["path"]
+
+        # 2. placed copy — same basename, anywhere the Reviewer filed it
+        placed = (
+            auth.client.table("workspace_files")
+            .select("path, updated_at")
+            .eq("user_id", auth.user_id)
+            .like("path", f"%/{slug}.md")
+            .in_("lifecycle", ["active", "delivered"])
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if placed.data:
+            return placed.data[0]["path"]
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[MCP] deterministic memory-path resolve failed: %s", exc)
+
+    return None
+
+
 async def dispatch_remember_this(
     auth: Any,
     stamped_text: str,
@@ -336,17 +409,50 @@ async def compose_recall(
     limit = max(1, min(int(limit or 10), 30))
     normalized_domain = DOMAIN_ALIASES.get((domain or "").lower().strip(), domain) if domain else None
 
+    # Deterministic round-trip first (Finding 1): if the subject was saved via
+    # `remember(about=subject)`, it lives at a known path — find it by path
+    # before any fuzzy search. This guarantees save-then-recall-same-subject
+    # works regardless of embeddings or tsquery slug-AND-matching. We still run
+    # QueryKnowledge afterward for additional related material, then dedupe.
+    det_path = None if (question and question.strip()) else await resolve_memory_path(auth, subject)
+    det_chunk = None
+    if det_path:
+        try:
+            row = (
+                auth.client.table("workspace_files")
+                .select("path, content, summary, updated_at")
+                .eq("user_id", auth.user_id)
+                .eq("path", det_path)
+                .limit(1)
+                .execute()
+            )
+            if row.data:
+                r0 = row.data[0]
+                det_chunk = {
+                    "path": r0.get("path", det_path),
+                    "excerpt": _short_excerpt(r0.get("content") or r0.get("summary") or ""),
+                    "last_updated": r0.get("updated_at"),
+                    "domain": extract_domain_from_path(r0.get("path", det_path)),
+                    "source_tag": _extract_provenance_tag(r0.get("content")),
+                }
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("[MCP] recall deterministic read failed: %s", exc)
+
+    # Fuzzy fallback / augmentation — naturalize the subject so a slug doesn't
+    # AND-match prose (Finding 1b).
     result = await execute_primitive(auth, "QueryKnowledge", {
-        "query": question or subject,
+        "query": question or _naturalize_subject(subject),
         "domain": normalized_domain,
         "limit": limit,
     })
-    if not result.get("success"):
+    # A QueryKnowledge failure is non-fatal when the deterministic hit already
+    # found the material — the round-trip must not break on the fuzzy path.
+    raw = (result.get("results") or []) if result.get("success") else []
+    if not result.get("success") and not det_chunk:
         return {"success": False, "error": result.get("error", "query_failed"),
                 "message": result.get("message", "recall failed"), "subject": subject}
 
-    raw = result.get("results") or []
-    chunks = [
+    fuzzy_chunks = [
         {
             "path": r.get("path", ""),
             "excerpt": _short_excerpt(r.get("content_preview") or r.get("summary") or ""),
@@ -356,6 +462,17 @@ async def compose_recall(
         }
         for r in raw
     ]
+
+    # Deterministic chunk leads; dedupe fuzzy chunks by path.
+    chunks: list[dict] = []
+    seen: set[str] = set()
+    for c in ([det_chunk] if det_chunk else []) + fuzzy_chunks:
+        p = c.get("path", "")
+        if p in seen:
+            continue
+        seen.add(p)
+        chunks.append(c)
+
     if not chunks:
         return {
             "success": True, "subject": subject, "chunks": [], "total_matches": 0,
@@ -367,7 +484,8 @@ async def compose_recall(
         }
     return {
         "success": True, "subject": subject, "chunks": chunks,
-        "total_matches": result.get("count", len(chunks)), "returned": len(chunks),
+        "total_matches": result.get("count", len(chunks)) if result.get("success") else len(chunks),
+        "returned": len(chunks),
         "citations": [c["path"] for c in chunks],
     }
 
@@ -387,19 +505,27 @@ async def compose_trace(
     """
     from services.primitives.registry import execute_primitive
 
-    # Resolve subject → the best-matching authored path.
-    qk = await execute_primitive(auth, "QueryKnowledge", {"query": subject, "limit": 1})
-    results = (qk.get("results") or []) if qk.get("success") else []
-    if not results:
-        return {
-            "success": True, "subject": subject, "path": None, "history": [],
-            "explanation": (
-                f"YARNNN has no recorded material about '{subject}' to trace. "
-                "Nothing has been authored on this subject yet."
-            ),
-        }
-
-    path = results[0].get("path", "")
+    # Resolve subject → authored path. Deterministic round-trip FIRST: a subject
+    # saved via `remember(about=subject)` lives at a known path, so resolve it by
+    # path before any fuzzy search (Finding 1 — the slug-AND-match made trace,
+    # the differentiator, return an empty chain on the exact save-then-trace
+    # round-trip). Naturalize the subject for the fuzzy fallback so the slug
+    # doesn't AND-match prose (Finding 1b).
+    path = await resolve_memory_path(auth, subject)
+    if not path:
+        qk = await execute_primitive(
+            auth, "QueryKnowledge", {"query": _naturalize_subject(subject), "limit": 1}
+        )
+        results = (qk.get("results") or []) if qk.get("success") else []
+        if not results:
+            return {
+                "success": True, "subject": subject, "path": None, "history": [],
+                "explanation": (
+                    f"YARNNN has no recorded material about '{subject}' to trace. "
+                    "Nothing has been authored on this subject yet."
+                ),
+            }
+        path = results[0].get("path", "")
     # ListRevisions queries `workspace_file_versions` by the CANONICAL stored
     # path, which carries the `/workspace/` prefix (the authored-substrate
     # revision rows are absolute). Do NOT strip it — a bare path matches zero

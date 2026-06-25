@@ -85,6 +85,39 @@ def main():
         "8 compose_trace queries the ABSOLUTE path (no /workspace/-strip regression)",
         'path[len("/workspace/"):]' not in trace_src and "abs_path" in trace_src))
 
+    # 9. the deterministic round-trip helper EXISTS and is SYMMETRIC with the
+    #    write slug (Finding 1, 2026-06-26): remember(about=X) writes to
+    #    operation/memory/{slug(X)}.md, so recall/trace(subject=X) must resolve
+    #    the SAME slug. The save and read sides must agree, or the round-trip
+    #    silently misses.
+    have_helpers = hasattr(m, "resolve_memory_path") and hasattr(m, "_naturalize_subject")
+    symmetric = True
+    if have_helpers:
+        for subj in ("Acme Corp", "yarnnn-mcp-connector", "Project Zephyr", "a b/c_d"):
+            write_path = m.resolve_remember_path(subj)            # operation/memory/{slug}.md
+            read_slug = m._slugify(subj)                          # what resolve_memory_path keys on
+            if not write_path.endswith(f"/{read_slug}.md"):
+                symmetric = False
+                print(f"      [!] subject={subj!r}: write={write_path} read_slug={read_slug} (asymmetric)")
+    results.append(_check(
+        "9 deterministic round-trip is SYMMETRIC (remember slug == recall/trace slug)",
+        have_helpers and symmetric))
+
+    # 10. recall + trace resolve DETERMINISTICALLY before any full-text search,
+    #     and naturalize the subject for the fuzzy fallback so a slug doesn't
+    #     AND-match prose (the live miss: 'yarnnn-mcp-connector' → zero rows).
+    recall_src = inspect.getsource(m.compose_recall)
+    deterministic_first = (
+        "resolve_memory_path" in recall_src and "resolve_memory_path" in trace_src
+    )
+    naturalized = (
+        "_naturalize_subject" in recall_src and "_naturalize_subject" in trace_src
+    )
+    results.append(_check(
+        "10 recall+trace resolve deterministically first AND naturalize the fuzzy fallback (no slug-AND-match regression)",
+        deterministic_first and naturalized,
+        f"deterministic={deterministic_first} naturalized={naturalized}"))
+
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-368 assertions pass")
     if passed != total:

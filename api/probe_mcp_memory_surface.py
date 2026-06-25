@@ -108,11 +108,24 @@ async def _run():
         except Exception:
             pass
 
-    # --- R4: recall composes server-side in one call ---
+    # --- R4: recall ROUND-TRIPS the just-saved subject (Finding 1, 2026-06-26) ---
+    # The probe saved SUBJECT via dispatch_remember_this in R1, so recall(subject=
+    # SUBJECT) — the SAME string — MUST return it. The live bug: QueryKnowledge
+    # turned the slug into an AND-of-lexemes tsquery that matched zero prose, AND
+    # the dump had no embedding, so the exact save-then-recall round-trip returned
+    # 0 chunks. The deterministic operation/memory/{slug}.md resolve closes it.
+    # (Asserting >=1, not just "chunks" in rc — the old weak check passed on 0,
+    # which is how the live miss slipped through 9/9.)
     rc = await mcp_composition.compose_recall(auth=auth, subject=SUBJECT, limit=5)
-    check("R4 recall returns a composed bundle in ONE call (no host chaining)",
-          rc.get("success") is True and "chunks" in rc,
-          f"returned={rc.get('returned')}")
+    found = any(p == abs_path for p in (rc.get("citations") or []))
+    check("R4 recall ROUND-TRIPS the saved subject in ONE call (>=1 chunk, finds the exact file)",
+          rc.get("success") is True and (rc.get("returned") or 0) >= 1 and found,
+          f"returned={rc.get('returned')} found_exact={found}")
+
+    # --- R4b: the deterministic memory-path resolver finds the saved subject ---
+    det = await mcp_composition.resolve_memory_path(auth, SUBJECT)
+    check("R4b resolve_memory_path resolves subject→path deterministically (no full-text needed)",
+          det == abs_path, f"resolved={det}")
 
     # --- R5: trace composes the revision chain server-side ---
     # The probe wrote SUBJECT via dispatch_remember_this in R1, so a revision

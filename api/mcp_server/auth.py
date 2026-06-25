@@ -67,7 +67,6 @@ def resolve_request_client() -> AuthenticatedClient:
     one user regardless of who authenticated.
     """
     user_id = None
-    client_name = None
     try:
         from mcp.server.auth.middleware.auth_context import get_access_token
 
@@ -75,15 +74,6 @@ def resolve_request_client() -> AuthenticatedClient:
         # YarnnnAccessToken carries user_id (oauth_provider.py); the static
         # bearer path also stamps MCP_USER_ID onto it.
         user_id = getattr(token, "user_id", None)
-        # client-qualified attribution: map the OAuth client_id to a short name
-        # so the revision's authored_by NAMES the contributing LLM. Direct map
-        # only here (the DB-backed client_name lookup lives in the provenance
-        # stamp path, which has an auth client in hand); covers the common case
-        # where the client_id is recognizable.
-        client_id = getattr(token, "client_id", None)
-        if client_id:
-            from services.mcp_composition import _normalize_client_id
-            client_name = _normalize_client_id(client_id)
     except Exception as exc:  # noqa: BLE001
         logger.debug("[MCP Auth] no request token user (%s); falling back to env", exc)
 
@@ -93,4 +83,33 @@ def resolve_request_client() -> AuthenticatedClient:
             raise ValueError(
                 "No authenticated user for MCP request and MCP_USER_ID unset."
             )
-    return _build_client(user_id, client_name=client_name)
+
+    # Client-qualified attribution (Finding 2, 2026-06-26): the revision's
+    # authored_by must NAME the contributing LLM (yarnnn:mcp:<client>). The
+    # earlier direct-only `_normalize_client_id(client_id)` mapping returned
+    # None for claude.ai's OPAQUE registration-UUID client_id, so authored_by
+    # silently fell back to bare `yarnnn:mcp` even though the provenance stamp
+    # (which used the DB-backed lookup) resolved the name. Use the SAME DB-backed
+    # resolver here so authored_by and provenance never diverge. It needs an auth
+    # client to read mcp_oauth_clients, so build a base client ONCE, derive the
+    # name with it, then re-stamp caller_identity on the same underlying client —
+    # no second create_client(). (live test surfaced the divergence: authored_by=
+    # yarnnn:mcp while provenance=mcp:Claude on the same write.)
+    base = _build_client(user_id)
+    client_name = None
+    try:
+        from services.mcp_composition import derive_client_name_from_token
+        resolved = derive_client_name_from_token(base)
+        if resolved and resolved != "unknown":
+            client_name = resolved
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[MCP Auth] client-name resolution failed (%s)", exc)
+
+    if not client_name:
+        return base
+    return AuthenticatedClient(
+        client=base.client,
+        user_id=user_id,
+        email=None,
+        caller_identity=f"yarnnn:mcp:{client_name}",
+    )
