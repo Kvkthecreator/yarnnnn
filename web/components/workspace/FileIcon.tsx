@@ -10,6 +10,7 @@
 import {
   FileText,
   FileCode,
+  FileCog,
   Image,
   FileSpreadsheet,
   Presentation,
@@ -50,6 +51,10 @@ const ICON_MAP: Record<string, { icon: typeof FileText; color: string }> = {
   '.ppt': { icon: Presentation, color: 'text-amber-500' },
   // Data
   '.json': { icon: FileCode, color: 'text-yellow-600' },
+  // Machine config / state (ADR-254: _*.yaml is machine-parsed) — slate
+  // reads "system", distinct from the operator-prose blue of .md.
+  '.yaml': { icon: FileCog, color: 'text-slate-500' },
+  '.yml': { icon: FileCog, color: 'text-slate-500' },
   // Charts/visuals
   '.chart': { icon: BarChart3, color: 'text-purple-500' },
 };
@@ -57,7 +62,7 @@ const ICON_MAP: Record<string, { icon: typeof FileText; color: string }> = {
 interface FileIconProps {
   filename: string;
   className?: string;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg' | 'xl';
 }
 
 export function FileIcon({ filename, className, size = 'sm' }: FileIconProps) {
@@ -69,6 +74,8 @@ export function FileIcon({ filename, className, size = 'sm' }: FileIconProps) {
     sm: 'w-3.5 h-3.5',
     md: 'w-4 h-4',
     lg: 'w-5 h-5',
+    // xl — the Finder-style icon-view glyph (RecentsView icon mode).
+    xl: 'w-8 h-8',
   }[size];
 
   return <Icon className={cn(sizeClass, match.color, 'flex-shrink-0', className)} />;

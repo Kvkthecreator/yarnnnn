@@ -144,17 +144,23 @@ def test_program_cockpit_holds_standing_band_and_sections():
 # ---------------------------------------------------------------------------
 
 def test_home_recents_reuses_files_recents_data_source():
-    src = _read_web("components/library/kernel-home/HomeRecents.tsx")
-    # reuses the ADR-209 revision feed — the SAME data source the Files surface
-    # Recents reads (Singular Implementation: one feed, two presentations)
-    assert "recentRevisions" in src, (
-        "HomeRecents must reuse api.workspace.recentRevisions (the Files-recents "
-        "data source), not a parallel reader."
+    # 2026-06-25 extraction: HomeRecents + the Files RecentRevisions now both
+    # delegate to the SHARED RecentsView (Singular Implementation — one recency
+    # renderer, two mounts, icon/list view). The data-source reuse is enforced
+    # at the shared component, and both mounts must route through it.
+    shared = _read_web("components/workspace/RecentsView.tsx")
+    assert "recentRevisions" in shared, (
+        "RecentsView must read api.workspace.recentRevisions (the ADR-209 "
+        "revision feed), the single recents data source."
     )
 
-    # the Files surface reads the same source — proves it's shared, not forked
+    home = _read_web("components/library/kernel-home/HomeRecents.tsx")
     files = _read_web("components/workspace/RecentRevisions.tsx")
-    assert "recentRevisions" in files
+    assert "RecentsView" in home, "HomeRecents must mount the shared RecentsView."
+    assert "RecentsView" in files, (
+        "the Files RecentRevisions must mount the shared RecentsView — one "
+        "renderer, not a forked recents view."
+    )
 
     # §D6: Recents (broad substrate changes) is DISTINCT from recent artifacts
     # (delivered outputs) — HomeRecents must not BE KernelRecentArtifacts.
