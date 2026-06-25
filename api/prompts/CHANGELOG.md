@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.25.5] - ADR-368: client-qualified attribution — trace NAMES the room
+
+**The cross-LLM provenance story made literal.** The live claude.ai test (and Claude's own read of it) flagged an asymmetry: the Reviewer was attributed specifically (`reviewer:ai:reviewer-sonnet-v8`) but the foreign write was generic `yarnnn:mcp` — so `trace` could show "the Reviewer filed it" but not "Claude contributed it". The schema clearly carries specific authors; the foreign write should too.
+
+- `mcp_server/auth.py`: `_build_client(user_id, client_name=...)` sets `caller_identity = "yarnnn:mcp:<client>"` (e.g. `yarnnn:mcp:claude.ai`) when the OAuth client is known; `resolve_request_client` derives the client from the access token's `client_id` and passes it. Validates under the existing `yarnnn:` prefix (`is_valid_author`) — **no schema/validation change**. Falls back to bare `yarnnn:mcp` when the client can't be identified.
+- **Effect**: every foreign write — and the `trace` chain — now names the contributing room. `trace` reads: "contributed via `yarnnn:mcp:claude.ai` → filed by `reviewer:ai:…`". The differentiator at full strength: not just "a fact has history" but "*which LLM in which room* contributed each version."
+- **Correction to the prior diagnosis**: Claude's "trace-empty was a timing artifact, not a bug" read is WRONG — the live substrate showed the `yarnnn:mcp` revision existed at the write timestamp (04:34:33), ~60s before the Reviewer's placement edit. So trace had 1 revision to show from the start; the empty result was the `/workspace/`-strip bug (fixed in `[2026.06.25.4]`), not the chain being empty.
+- **Discourse docs** (Hat-B, for the real-external-users transition): `docs/analysis/cross-llm-data-handling-and-use-cases-2026-06-25.md` (the trust story — who-sees-what, the immediate-recall/eventual-placement consistency model, use cases) + `docs/analysis/mcp-custom-domain-handoff-2026-06-25.md` (the time-sensitive `mcp.yarnnn.com` runbook — env-var only, no code change; do before users connect to avoid issuer-mismatch reconnect churn).
+- **Validated**: probe 10/10 (R2 now asserts `yarnnn:mcp:claude.ai`), gate 8/8. Live-verify the OAuth-derived client name on the next real claude.ai call.
+
 ## [2026.06.25.4] - ADR-368: two bugs the live claude.ai test surfaced (trace dark + mcp:unknown)
 
 **The first real claude.ai test of the memory surface PASSED the happy path (remember→operation/memory/q3-board-deck.md, recall round-tripped) AND proved the placement architecture works end-to-end — the live substrate showed the dump's `yarnnn:mcp` inbox revision + a `reviewer:ai:reviewer-sonnet-v8` EditFile a minute later (the Reviewer filed it).** But it surfaced two bugs the offline probe couldn't catch:

@@ -46,8 +46,10 @@ async def _run():
     user_id = _live_user_id()
     print(f"[probe] live workspace user_id={user_id[:8]}…")
 
+    # Client-qualified attribution (§3): the MCP boundary now sets
+    # caller_identity="yarnnn:mcp:<client>" so the revision NAMES the room.
     auth = AuthenticatedClient(
-        client=c, user_id=user_id, email=None, caller_identity="yarnnn:mcp",
+        client=c, user_id=user_id, email=None, caller_identity="yarnnn:mcp:claude.ai",
     )
 
     results = []
@@ -76,8 +78,8 @@ async def _run():
         .eq("user_id", user_id).eq("path", abs_path)
         .order("created_at", desc=True).limit(1).execute().data or []
     )
-    check("R2 revision attributed authored_by='yarnnn:mcp'",
-          bool(rev) and rev[0].get("authored_by") == "yarnnn:mcp",
+    check("R2 revision attribution NAMES the room (yarnnn:mcp:claude.ai), not bare yarnnn:mcp",
+          bool(rev) and rev[0].get("authored_by") == "yarnnn:mcp:claude.ai",
           f"got={rev[0].get('authored_by') if rev else '(none)'}")
 
     # --- R3: placement wake fires (the Reviewer is invoked to file the dump) ---
