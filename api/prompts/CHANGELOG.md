@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.25.2] - ADR-368: the memory-first interop surface — remember / recall / trace
+
+**The MCP tool surface is re-derived from the user's memory mental model; the topology-incoherent write enum is deleted.** Triggered by a live smoke-test of the `yarnnn` connector on claude.ai ("remember this") that hit `governance_locked` — the surface was two generations stale (ADR-169 intent tools, on a kernel reshaped by ADR-320/366 topology + ADR-310/311 interop reframe).
+
+- `api/mcp_server/server.py`: DELETED the three ADR-169 tools (`work_on_this` / `pull_context` / `remember_this`) + their slug-pool loaders. ADDED three memory verbs — **`remember`** (save → `operation/` commons), **`recall`** (composed retrieval, returns material not synthesis), **`trace`** (the ADR-209 revision chain: who/when/what-changed). New memory-first `instructions` block + per-verb descriptions carry the proactivity instruction. `work_on_this` (the delegation/session-bundle shape) is **deferred** (ADR-368 §6).
+- `api/services/mcp_composition.py`: DELETED `classify_memory_target` (the five-target enum — `memory|identity|brand|agent|task` — three of whose targets pointed at roots LOCKED for the `mcp` caller, killing the default happy-path) + `compose_subject_context`/`compose_active_candidates` (work_on_this drivers) + dead helpers. ADDED `resolve_remember_path` (operation/-only routing), `compose_recall`, `compose_trace`. `dispatch_remember_this` now writes the `operation/` commons unconditionally — the gate (ADR-320/366 `CALLER_WRITE_POLICY["mcp"]`) is still the authority; the surface simply never constructs a locked path.
+- **Operator-visibility (ADR-368 D4)**: `_emit_mcp_narrative` is now SESSION-INDEPENDENT — falls back to a find-or-create daily session (plain table ops, NOT the broken `get_or_create_chat_session` RPC) so a cross-room foreign write is never silent in the operator's feed. Closes the modal-case visibility hole.
+- **Preserved**: the integrity wake (`submit_foreign_write_wake`, ADR-310 D2) fires verbatim on every `remember`; `authored_by="yarnnn:mcp"` + ADR-162 provenance unchanged.
+- **Expected behavior**: a foreign LLM's "remember this" now commits to `operation/{domain|slug}/notes.md` (or `operation/notes.md` unscoped) instead of dying at `system/notes.md`; `recall`/`trace` return reason-ready results in ONE host round (composition is server-side — consumer hosts chain only ~3–5 rounds/turn); every call leaves an operator-visible narrative trace.
+- **Validated**: `api/probe_mcp_memory_surface.py` 8/8 against the live workspace. Docs: ADR-368 + `docs/features/mcp/{README,tool-contracts,workflows,architecture}.md` + `docs/analysis/mcp-interop-face-vs-topology-2026-06-25.md` §8.
+
 ## [2026.06.25.1] - ADR-364 D4 cleanup: stale `calibration.md` reference in the autonomy-modes template
 
 **The last stale persona-side `calibration.md` reference in LLM-facing prose, retired to `reflection.md`.**

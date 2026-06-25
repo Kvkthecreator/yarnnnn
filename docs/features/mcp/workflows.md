@@ -4,6 +4,8 @@
 > **Audience**: designers, PMs, and engineers who need to see the end-to-end dynamic of each tool working against real conversational situations
 > **Scope**: dialogue-level walkthroughs across the four meaningful cases — conversation topic, in-conversation artifact, cold start, and cross-LLM continuity (the load-bearing case)
 
+> **⚠ ADR-368 supersession (2026-06-25):** the *tool names* in the walkthroughs below are the ADR-169 originals (`work_on_this` / `pull_context` / `remember_this`). The live surface is **`remember` / `recall` / `trace`** (the memory verbs — see [tool-contracts.md](tool-contracts.md)). The *dynamics* the walkthroughs illustrate (silent context-compression, cross-LLM continuity, empty-as-signal) are unchanged. Read `pull_context`→`recall`, `remember_this`→`remember`; `work_on_this` (the session-bundle / delegation shape) is **deferred** (ADR-368 §6), and a fourth verb `trace` (revision history) is added.
+
 ---
 
 > ## ⚠ Supersession note (2026-06-01, ADR-310)

@@ -1,9 +1,9 @@
 # MCP Connector — The Judged Context Hub Across LLMs
 
-> **Status**: Implemented. Framing + tool surface governed by **ADR-310** (judged substrate, interop as distribution face), which **supersedes ADR-169** (the original three-tool context-hub framing). ADR-169's OAuth/transport infrastructure is preserved. The connector is **multi-user** (per-request OAuth identity, ADR-310 D4), and `remember_this` is a **judged write** — every foreign-LLM contribution wakes the Reviewer for evaluation against authored ground-truth (ADR-310 D2).
-> **Updated**: 2026-06-01 (ADR-310 supersession)
+> **Status**: Implemented. **Strategic framing** governed by **ADR-310** (judged substrate, interop as distribution face — one moat, two faces). **Tool surface** governed by **ADR-368** (memory-first: three verbs `remember` / `recall` / `trace`, composed server-side), which supersedes ADR-311's pure-primitive surface and ADR-169's original three intent tools. ADR-075's OAuth/transport infrastructure is preserved. The connector is **multi-user** (per-request OAuth identity, ADR-310 D4), and `remember` is a **judged write** — every foreign-LLM contribution wakes the Reviewer for evaluation against authored ground-truth (ADR-310 D2 / ADR-368 D5).
+> **Updated**: 2026-06-25 (ADR-368 memory-first surface)
 > **Authors**: KVK, Claude
-> **Related ADRs**: **ADR-310** (judged substrate / interop face — governing), ADR-169 (original context-hub framing — superseded; infra retained), ADR-075 (OAuth + transport — preserved), ADR-296 (wake architecture — `substrate_event` source the judged write fires), ADR-209 (authored substrate — every write attributed), ADR-168 (primitives matrix), ADR-151 (context domains — `QueryKnowledge` substrate)
+> **Related ADRs**: **ADR-368** (memory-first tool surface — governing the verbs), **ADR-310** (judged substrate / interop face — governing the framing), ADR-311 (pure-primitive surface — superseded by ADR-368; substrate truths preserved), ADR-169 (original context-hub framing — superseded; OAuth infra retained), ADR-320/366 (the permission topology the write surface gates against — writes reach `operation/` only), ADR-075 (OAuth + transport — preserved), ADR-296 (wake architecture — `substrate_event` source the judged write fires), ADR-209 (authored substrate — the chain `trace` surfaces)
 >
 > **Vocabulary note**: This folder was authored on 2026-04-09 under ADR-169, which framed the substrate as grown by "an autonomous workforce." That workforce was dissolved by the bare-kernel ratification (2026-06-01) — the live substrate-growing organ is now the **Reviewer** (the persona-bearing judgment seat) plus **program activation**. Where older text below says "workforce," read "Reviewer + program activation." The load-bearing claims have been corrected; some incidental phrasing is preserved as historical artifact.
 
@@ -17,37 +17,33 @@ YARNNN has exactly one moat — authored substrate under a persona-bearing judgm
 
 Operators spend their thinking time inside Claude.ai, ChatGPT, Gemini, and other foreign LLM surfaces — often several in a day. Each LLM starts cold; each conversation's conclusions die in that surface. MCP connects each foreign LLM to a single shared substrate: the operator's YARNNN workspace. Every LLM pulls from the same accumulated, *judged* material. Every LLM can contribute back — and every contribution is evaluated by the Reviewer.
 
-The Reviewer + program activation keep the workspace growing. Across the MCP boundary that machinery is invisible. What crosses is **three intent-shaped tools** — two for consulting the judged context, one for contributing back (where the contribution is itself judged).
+The Reviewer + program activation keep the workspace growing. Across the MCP boundary that machinery is invisible. What crosses is **three memory verbs** — shaped on the user's own mental model of a memory that follows them across rooms (ADR-368): put something in, get something out, trace how it changed.
 
 ### The singular framing
 
-> A storage hub returns whatever is stored — garbage in, garbage out, no opinion. YARNNN returns substrate the Reviewer has judged, and accepts contributions the Reviewer evaluates. The copyable half (three thin MCP tools) sits downstream of the uncopyable half (a calibrated judgment seat). **YARNNN is the *judged* context hub every LLM consults and contributes to.**
+> A storage hub returns whatever is stored — garbage in, garbage out, no opinion. YARNNN returns substrate the Reviewer has judged, and accepts contributions the Reviewer evaluates. The copyable half (three thin MCP verbs) sits downstream of the uncopyable half (a calibrated judgment seat). **YARNNN is the *judged* memory every LLM consults and contributes to.**
 
-Three things the user can ask any LLM to do with their YARNNN:
+Three things the user can do with their YARNNN memory from any LLM:
 
-| Intent | Tool | What it does |
+| Intent | Verb | What it does |
 |---|---|---|
-| **"Work on this."** | `work_on_this` | Primes the LLM with a curated, opinionated bundle for starting work on a subject. Ambiguity fallback surfaces workspace-active subjects on cold starts. |
-| **"Pull my context about ___."** | `pull_context` | Fetches ranked chunks of accumulated material about a subject (or in response to a question). Returns raw material, not a composed answer — the LLM reasons over what's returned. |
-| **"Remember this."** | `remember_this` | Writes an observation, decision, or insight back into the workspace, placed in the right context domain. |
+| **"Remember this."** | `remember` | Saves an observation, decision, or insight into the workspace commons (`operation/`), attributed and immediately visible to any other LLM. The seat validates it against ground-truth in the background. |
+| **"What do I know about ___?"** | `recall` | Returns ranked excerpts of accumulated material about a subject — composed server-side in one call. YARNNN returns the material; the host LLM explains it. |
+| **"How did my thinking on ___ change?"** | `trace` | Returns the authored revision chain of a recorded fact — who changed it, when, and what the change was. The differentiator no plain storage connector can show. |
 
-That's the entire MCP surface. No `list_agents`, no `run_task`, no `get_status`. The user in a foreign LLM is not in operator mode — they're in thinking mode, and the tools mirror thinking, not operating.
+That's the entire MCP surface. No `list_agents`, no `run_task`, no `get_status`. The user in a foreign LLM is not in operator mode — they're using a memory, and the verbs mirror memory, not operating.
 
 ---
 
-## Why three tools, and why this split
+## Why these three verbs (ADR-368)
 
-**Not two tools.** `work_on_this` and `pull_context` look similar but serve different cognitive operations. `work_on_this` is for the *start* of a work session — the LLM calls it when the user says "help me work on X," and YARNNN returns a compact, curated bundle (entity profile + top signals + prior decisions + related tasks) shaped for starting work. It also handles cold-start ambiguity by returning workspace-active subjects as candidates when the subject can't be resolved. `pull_context` is for *mid-session reference* — the LLM calls it when the user references a subject mid-conversation and needs the raw material to reason about it. It returns ranked chunks, not a curated bundle, so the LLM can decide what's relevant.
+The surface is shaped on the **user's memory mental model**, not the kernel's verb taxonomy. A person does exactly three things with a memory that follows them across rooms: **put something in** (`remember`), **get something out** (`recall`), **trace how it changed** (`trace`). That is the whole surface.
 
-Collapsing the two into one tool would force the LLM to guess which mode applies at call time. Keeping them separate lets each tool's description teach a clear intent, which produces better tool-selection behavior.
+**Why composed verbs, not raw primitives.** ADR-311 proposed exposing the kernel's file primitives directly (`ReadFile` / `SearchFiles` / `WriteFile` / `ListRevisions`) and letting the host LLM compose intent by chaining them — the Claude Code model. ADR-368 corrects this: claude.ai / ChatGPT / Gemini connectors are *consumer chat* hosts that execute only ~3–5 tool rounds per turn before yielding to the user (undocumented but observed; Anthropic publishes no per-turn round limit). A read that *requires* the host to chain `Query → Read → Read → synthesize` burns the round budget fetching and stalls — on exactly the hosts where the ambient magic must happen. So **the multi-step composition lives server-side** (inside YARNNN, an agentic context with no round limit): `recall` and `trace` each compose the kernel primitives internally and return a reason-ready result in **one round**. The raw primitives remain available `defer_loading` for agentic hosts (Claude Code, Desktop) that genuinely chain — the verbs are the front door, the primitives the deferred back door. There is no second vocabulary: the verbs ARE the kernel primitives wearing the user's words.
 
-**Not four tools.** An `explain_this` tool that composes an answer internally was considered and rejected. Three reasons:
+**Why `recall` returns rather than explains.** A tool that composed an *answer* internally was rejected. Three reasons: (1) **cross-LLM consistency** — an internal composition step returns different answers by invocation timing/temperature/model version; every LLM must see the same substrate. (2) **the host LLM synthesizes better** — it has the user's conversation, tone, and framing; YARNNN has only the chunks. (3) **memory-first clarity** — a tool that "does the thinking" is the deferred *delegation* nature leaking in; the bright line is that the foreign LLM reads/writes a store and the host explains. `recall` connotes retrieval, not synthesis.
 
-1. **Cross-LLM consistency would break.** An internal composition step would return different answers from the same question depending on invocation timing, temperature, and the composing model's version. Two LLMs pulling the same subject would disagree. The whole point of a shared context hub is that every LLM sees the same substrate.
-2. **The host LLM is better at synthesis than a YARNNN-internal Haiku call.** The host LLM has the user's conversation, tone, and framing. A YARNNN-internal composer has only the raw chunks. Asking the host LLM to synthesize over ranked chunks is strictly better-informed than delegating synthesis back to YARNNN.
-3. **Zero-cost MCP calls are strategically important.** Pure retrieval means MCP calls are effectively free for YARNNN to serve. This unlocks positioning-level freedom: we can encourage users to install YARNNN on every LLM they use without worrying about cost scaling.
-
-**Not nine tools.** The previous MCP implementation exposed `get_status`, `list_agents`, `run_agent`, `get_agent_output`, `get_context`, `search_content`, `get_agent_card`, `search_knowledge`, `discover_agents` — data-shaped tools that mirrored YARNNN's backend as CRUD. That was wrong because the user in a foreign LLM does not think about agents, tasks, or workspace files. They think about subjects, observations, and questions. The tool surface should match the user's grammar, not the database's.
+**Not nine tools.** A pre-ADR-169 implementation exposed `get_status`, `list_agents`, `run_agent`, `get_context`, `search_content`, `discover_agents` — data-shaped CRUD that mirrored the backend. Wrong: the user in a foreign LLM does not think about agents, tasks, or files. They think about remembering, recalling, and how their thinking changed. The surface matches the user's grammar, not the database's.
 
 See [tool-contracts.md](tool-contracts.md) for the exact signatures, parameters, return shapes, and the hidden instructions embedded in each tool's description field. See [workflows.md](workflows.md) for end-to-end dynamics, including the cross-LLM continuity case that is the load-bearing narrative for this design. See [architecture.md](architecture.md) for the primitive-level mapping (each tool wraps an existing YARNNN primitive from ADR-168's matrix), cost model, and implementation plan.
 
@@ -63,7 +59,7 @@ The single hardest thing foreign-LLM users struggle with is **continuity across 
 
 currently has three disconnected conversations. Each LLM starts cold. Each one's insights die when the tab closes. The user is the only thread connecting them — and the user has to re-explain the context in every session.
 
-MCP fixes this at the substrate level. Every `remember_this` call commits immediately to Postgres (the foreign tool never blocks) **and wakes the Reviewer to judge the contribution** against authored ground-truth (eventually-async, ADR-310 D2). Every subsequent `pull_context` call from any other LLM sees the new material immediately. A user who contributes an insight via ChatGPT at 3pm will find that same insight available to Gemini at 4pm — not because Gemini has a better memory, but because YARNNN is the shared *judged* layer all three LLMs now reach through. Captured instantly; judged shortly after.
+MCP fixes this at the substrate level. Every `remember` call commits immediately to Postgres (the foreign tool never blocks) **and wakes the Reviewer to judge the contribution** against authored ground-truth (eventually-async, ADR-310 D2). Every subsequent `recall` call from any other LLM sees the new material immediately. A user who contributes an insight via ChatGPT at 3pm will find that same insight available to Gemini at 4pm — not because Gemini has a better memory, but because YARNNN is the shared *judged* layer all three LLMs now reach through. Captured instantly; judged shortly after. And because every write is attributed, `trace` lets any LLM show *how* a recorded fact evolved and *who* contributed each version — the provenance no plain memory has.
 
 This is the concrete mechanism under the marketing line. The positioning follows:
 
@@ -81,7 +77,7 @@ The resolution mechanism has three parts:
 
 2. **Hidden instruction in the tool description.** Every tool's `description` field explicitly instructs the LLM: *"Before calling, compress what you and the user have been discussing. Do not ask the user for clarification."* The LLM reads descriptions when deciding how to call tools, so this is where the silent conversation-summary mechanic lives.
 
-3. **Structured ambiguity as a first-class return shape.** When "this" cannot be resolved from the context, `work_on_this` does not error — it returns a list of currently-active workspace subjects (active tasks, recent entities, fresh signals) as candidates, with a clarification prompt. The LLM surfaces those to the user naturally. A cold-start "work on this" turns into a mini-briefing instead of a broken clarification round.
+3. **Empty results are a clean signal, not an error.** When `recall` or `trace` find nothing for a subject, they return an explicit empty result with an explanation ("YARNNN has nothing recorded yet — answer from your own knowledge"), never an error. The host LLM continues naturally. The user's "remember this" with no clear subject still writes — to the `operation/` commons notes — so a save never fails for lack of a scope hint.
 
 The three resolution cases — conversation topic, in-conversation artifact, cold start — plus the new cross-LLM continuity case are walked end-to-end with dialogue examples in [workflows.md](workflows.md).
 
@@ -91,9 +87,9 @@ The three resolution cases — conversation topic, in-conversation artifact, col
 
 **We are not a storage connector.** Linear, Notion, and GitHub have MCP servers that expose their storage — garbage in, garbage out, no opinion. That is not what YARNNN is.
 
-**We are not passive memory.** ChatGPT Memory and Claude Projects store conversational facts. YARNNN holds substrate under a judgment seat: the Reviewer evaluates what is fit against authored ground-truth, and program activation gives the substrate a mandate. MCP exposes that *judged* substrate as three intent-shaped tools.
+**We are not passive memory.** ChatGPT Memory and Claude Projects store conversational facts. YARNNN holds substrate under a judgment seat: the Reviewer evaluates what is fit against authored ground-truth, and program activation gives the substrate a mandate. And it remembers *how its thinking changed* — the attributed revision chain `trace` surfaces, which a flat memory cannot. MCP exposes that *judged, historied* substrate as three memory verbs.
 
-**We are the *judged* context hub every LLM consults.** YARNNN sits above any single LLM, and MCP is how each LLM reaches up to consult it — and contribute back through a write the Reviewer judges. Cross-LLM consistency is a direct consequence: every LLM pulls from the same Postgres-backed substrate, so what one LLM learns, the others see — and what any LLM contributes is evaluated before it becomes load-bearing. This is a category YARNNN is alone in, because **the copyable part (three MCP tools) sits downstream of the uncopyable part (a calibrated, persona-bearing judgment seat).** A weekend-clone can copy the tools; it cannot copy the Reviewer.
+**We are the *judged* memory every LLM consults.** YARNNN sits above any single LLM, and MCP is how each LLM reaches up to consult it — and contribute back through a write the Reviewer judges. Cross-LLM consistency is a direct consequence: every LLM pulls from the same Postgres-backed substrate, so what one LLM learns, the others see — and what any LLM contributes is evaluated before it becomes load-bearing. This is a category YARNNN is alone in, because **the copyable part (three MCP verbs) sits downstream of the uncopyable part (a calibrated, persona-bearing judgment seat + an attributed history).** A weekend-clone can copy the verbs; it cannot copy the Reviewer or the provenance.
 
 The one-line pitch to a foreign-LLM user:
 
@@ -132,7 +128,9 @@ What changes is only the **tool surface and the dispatch layer**. The 9 existing
 
 ## Decisions (ADR-169 → superseded by ADR-310)
 
-The original four ADR-169 decisions are preserved below for trace continuity. The load-bearing one — `remember_this` safety — was **superseded by ADR-310 D2**: pre-write gating is replaced not by three post-write visibility mechanisms but by **the Reviewer judging every foreign write** (eventually-async). Note also that the post-ADR-235 write path uses `WriteFile` / `InferContext`, not the `UpdateContext` six-target model the original text assumed; `deliverable` is no longer a target.
+> **ADR-368 supersession (2026-06-25):** the *tool names* below (`remember_this` / `pull_context` / `work_on_this`) are the ADR-169 originals, retained here as historical trace. The live surface is `remember` / `recall` / `trace` (ADR-368). The decisions' *substance* — judged write, attributed provenance, ranking validation, rate cap — carries forward unchanged onto the new verbs. The write path no longer routes a five-target enum; it writes the `operation/` commons only (ADR-368 D3).
+
+The original four ADR-169 decisions are preserved below for trace continuity. The load-bearing one — write safety — was **superseded by ADR-310 D2**: pre-write gating is replaced not by three post-write visibility mechanisms but by **the Reviewer judging every foreign write** (eventually-async). Note also that the post-ADR-235 write path uses `WriteFile` / `InferContext`, not the `UpdateContext` six-target model the original text assumed; `deliverable` is no longer a target.
 
 1. **`remember_this` safety — ADR-310 D2 (judged write).** A foreign-LLM write commits immediately (never blocks the tool) and then wakes the Reviewer via the `substrate_event` source (ADR-296) to evaluate the contribution against authored ground-truth. Foreignness is carried in the wake's `hook.prompt` (ADR-310 D3); the author is also stamped on the revision (`authored_by="yarnnn:mcp"`, ADR-288). Provenance stamping (`source: mcp:<client>`, ADR-162) and confident-routing-or-structured-ambiguity classification still apply as supporting mechanisms — but the *judgment* of fitness is the Reviewer's, not a post-hoc daily-briefing glance. _(Original ADR-169 text: "all six targets available; safety shifts to classification + provenance + daily-update surfacing." That visibility-only model is superseded.)_
 

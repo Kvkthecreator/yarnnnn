@@ -4,6 +4,8 @@
 > **Audience**: engineers implementing the MCP server tools against existing YARNNN primitives and services
 > **Scope**: how the three tools route through the ADR-168 primitives matrix, what each one composes internally, cost model, and how each tool maps onto existing YARNNN primitives
 
+> **⚠ ADR-368 supersession (2026-06-25):** the live verbs are **`remember` / `recall` / `trace`** (memory-first), composed server-side in `services/mcp_composition.py`. The composition mappings below are correct in shape but use the old names: `pull_context`→`recall` (`QueryKnowledge`→rank), `remember_this`→`remember` (`WriteFile(operation/…)` + integrity wake — the five-target enum is **deleted**, writes reach the `operation/` commons only per ADR-368 D3), and a new `trace` (resolve→`ListRevisions`→`DiffRevisions`). `work_on_this` is deferred (ADR-368 §6). The raw kernel primitives are additionally exposed `defer_loading` for agentic hosts. See [tool-contracts.md](tool-contracts.md) for the live contracts.
+
 ---
 
 > ## ⚠ Supersession banner (2026-06-01, ADR-310) — read before trusting code blocks below

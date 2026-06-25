@@ -1,25 +1,38 @@
 """
-YARNNN MCP Server — ADR-169 (tool surface) + ADR-075 (infrastructure)
+YARNNN MCP Server — ADR-368 (memory-first surface) + ADR-075 (infrastructure)
 
-Three intent-shaped tools expose YARNNN as a cross-LLM context hub:
+Three memory verbs expose YARNNN as a portable memory across every LLM the user
+touches. Shaped on the user's own mental model — put in, get out, trace history:
 
-    work_on_this    — curated start-of-session bundle for a subject
-    pull_context    — ranked chunks of accumulated material (primary cross-LLM tool)
-    remember_this   — write observations back to the workspace
+    remember  — save something into memory (writes the operation/ commons)
+    recall    — pull what the user already knows about a subject (ranked read)
+    trace     — show how a recorded fact changed over time (the revision chain)
 
-Design invariants (ADR-169):
-    1. Three tools, not nine — the old data-shaped surface is DELETED
-    2. Zero YARNNN-internal LLM calls on the serving path
-    3. MCP is the fifth caller of execute_primitive() — no direct service imports
-    4. Every write carries ADR-162 provenance (source: mcp:<client>)
-    5. Cross-LLM consistency is the load-bearing property — every LLM sees
-       the same substrate via identical QueryKnowledge retrieval
+Each verb composes kernel primitives SERVER-SIDE into a one-round result, so the
+host LLM (claude.ai / ChatGPT / Gemini connectors, which chain only ~3-5 tool
+rounds per turn) never has to compose by chaining. The raw kernel primitives
+remain available defer-loaded for agentic hosts (Claude Code/Desktop) that do.
+
+Design invariants (ADR-368):
+    1. Memory mental model is the surface — not the kernel's verb taxonomy.
+    2. Zero YARNNN-internal LLM calls on the serving path.
+    3. Writes route to the operation/ commons ONLY (the one root the mcp caller
+       may write per CALLER_WRITE_POLICY); the pre-368 five-target enum is gone.
+    4. recall RETURNS material; the host LLM explains (retrieval, not synthesis).
+    5. Every write carries ADR-162 provenance + fires the integrity wake
+       (ADR-310 D2: the seat validates foreign writes against ground-truth).
+    6. Operator-visibility: every call emits a session-INDEPENDENT narrative
+       entry (ADR-368 D4) so the cross-room operator sees what entered.
+
+Deferred (ADR-368 §6): delegation-from-foreign-LLM (work_on_this as an addressed
+wake) — additive when demand + the sync-vs-stream hinge are resolved.
 
 Two-layer auth (ADR-075, unchanged):
     Transport: OAuth 2.1 (Claude.ai, ChatGPT) + static bearer (Claude Desktop)
     Data:      Service key + MCP_USER_ID (all queries scoped by user_id)
 
-Canonical framing: docs/features/mcp/README.md
+Canonical framing: docs/features/mcp/README.md + ADR-368 (supersedes ADR-311's
+pure-primitive surface; ADR-310 one-moat-two-faces holds).
 """
 
 import logging
@@ -73,12 +86,25 @@ def _emit_mcp_narrative(
     client_name: str,
     extra_metadata: Optional[dict] = None,
 ) -> None:
-    """Best-effort MCP → narrative emission. Never raises."""
+    """Best-effort MCP → narrative emission. Never raises.
+
+    ADR-368 D4 (operator-visibility, Hole A): the trace must be
+    SESSION-INDEPENDENT. The whole point of the interop face is the cross-room
+    user — who writes to YARNNN from claude.ai/ChatGPT with NO YARNNN tab open.
+    The pre-ADR-368 emitter returned early when no session was active, leaving
+    the modal foreign write silent in the feed. We now fall back to the
+    operator's DAILY session (get-or-create), so the entry is waiting whenever
+    they return. The durable record (authored_by on the revision) was always
+    correct; this closes the in-the-moment awareness gap so the operator has
+    parity with the seat on what entered from outside.
+    """
     try:
         session_id = find_active_workspace_session(auth.client, auth.user_id)
         if not session_id:
+            session_id = _ensure_daily_session(auth)
+        if not session_id:
             logger.debug(
-                "[MCP NARRATIVE] no active session for user=%s; skipping %s emission",
+                "[MCP NARRATIVE] no session resolvable for user=%s; skipping %s emission",
                 auth.user_id[:8] if auth.user_id else "?",
                 tool,
             )
@@ -125,20 +151,22 @@ _server_url = os.environ.get(
 mcp = FastMCP(
     "yarnnn",
     instructions=(
-        "YARNNN is the context hub across the LLMs you already use. "
-        "It is not a connector for static data — it is a living workspace "
-        "grown by an autonomous agent workforce in the background.\n\n"
-        "Three tools expose that workspace to whichever LLM the user is in:\n"
-        "  • work_on_this — call at the START of a work session on a subject\n"
-        "  • pull_context — call MID-SESSION when the user mentions something\n"
-        "                    that might live in their accumulated context\n"
-        "  • remember_this — call whenever the user shares an observation,\n"
-        "                    decision, or insight worth keeping\n\n"
-        "Whatever you write via remember_this is IMMEDIATELY visible to any "
-        "other LLM the user switches to. This is how the user's thinking stays "
-        "coherent across rooms.\n\n"
-        "Use these proactively — YARNNN is supposed to be ambient. Do not wait "
-        "for the user to ask you to consult it."
+        "YARNNN is the user's memory across every LLM they use. Whatever they "
+        "record in YARNNN follows them — from this conversation into ChatGPT, "
+        "Claude, any LLM — attributed and intact. Three verbs:\n"
+        "  • remember — save something worth keeping (a decision, insight, fact,\n"
+        "               preference). Whatever you save is immediately visible to\n"
+        "               any other LLM the user switches to.\n"
+        "  • recall   — pull what the user already knows about a subject when\n"
+        "               they reference something they might track. YARNNN returns\n"
+        "               the material; YOU explain it in your own voice.\n"
+        "  • trace    — show how a recorded fact changed over time (who changed\n"
+        "               it, when, what the change was) — YARNNN's distinguishing\n"
+        "               capability, which a plain storage connector cannot show.\n\n"
+        "Use these proactively — YARNNN is supposed to be ambient. Don't wait for "
+        "the user to ask: recall before reasoning about something they track, and "
+        "remember when they share something worth keeping. You are reading and "
+        "writing a shared memory — not asking YARNNN to do work for you."
     ),
     lifespan=lifespan,
     # OAuth 2.1 provider — Claude.ai connectors + ChatGPT developer mode
@@ -161,288 +189,44 @@ mcp = FastMCP(
 )
 
 
+
 # =============================================================================
-# Tool 1: work_on_this
+# The memory-first interop surface — remember / recall / trace (ADR-368)
 # =============================================================================
+# Three verbs shaped on the user's memory mental model: put in, get out, trace
+# history. Each composes kernel primitives SERVER-SIDE into a one-round result —
+# the host LLM (claude.ai / ChatGPT / Gemini) never has to chain. The raw kernel
+# primitives remain available defer-loaded for agentic hosts that do chain.
 
 
 @mcp.tool()
-async def work_on_this(
-    ctx: Context,
-    context: str,
-    subject_hint: Optional[str] = None,
-) -> dict:
-    """Prime yourself with a curated starting bundle from the user's YARNNN workspace for a subject they're about to work on.
-
-    Call this when the user says "help me work on this," "let's think through
-    this," "I'm drafting X," or otherwise indicates they're about to ENGAGE
-    with a subject that might live in their YARNNN workspace (people,
-    companies, markets, projects, deliverables, decisions).
-
-    BEFORE CALLING, compress what you and the user have been discussing into
-    one or two sentences and pass it as `context`. If you can identify a
-    specific subject name (a person, company, project, or topic), pass it as
-    `subject_hint`. DO NOT ask the user to clarify what they mean — infer
-    from your conversation.
-
-    If YARNNN cannot confidently resolve the subject, it will return a set of
-    candidates from currently-active workspace state. Surface those to the
-    user naturally ("You've got a few things in flight — which one?") and
-    call again with a clearer subject.
-
-    This tool returns a COMPACT curated bundle designed for starting a work
-    session. If you need deeper or broader material about the subject later
-    in the conversation, use `pull_context` instead — that tool returns
-    ranked chunks rather than a curated bundle.
-
-    Use this proactively when the user is starting work on something. YARNNN
-    is supposed to be ambient — the user should not have to ask you to
-    consult it.
-
-    Args:
-        context: 1-2 sentence compression of the current conversation and
-                 what the user is trying to do. Required. Generated silently
-                 by you at call time — never asked from the user.
-        subject_hint: Optional specific subject name (company, person,
-                 project) if the conversation named one clearly.
-    """
-    # ADR-310 D4: per-request identity — the authenticating operator, not a singleton.
-    auth = resolve_request_client()
-    result = await mcp_composition.compose_subject_context(
-        auth=auth,
-        context=context or "",
-        subject_hint=subject_hint,
-    )
-
-    # ADR-219 Commit 6: emit narrative entry for the external invocation.
-    # work_on_this is a curated read (no substrate write) → routine weight.
-    client_name = mcp_composition.derive_client_name(
-        getattr(ctx.request_context, "request", None)
-    )
-    subject_label = subject_hint or "subject"
-    _emit_mcp_narrative(
-        auth,
-        tool="work_on_this",
-        weight="routine",
-        summary=f"{client_name} pulled session bundle for {subject_label}",
-        body=f"context: {context}\nsubject_hint: {subject_hint or '(none)'}",
-        client_name=client_name,
-        extra_metadata={"subject_hint": subject_hint},
-    )
-    return result
-
-
-# =============================================================================
-# Tool 2: pull_context
-# =============================================================================
-
-
-@mcp.tool()
-async def pull_context(
-    ctx: Context,
-    subject: str,
-    question: Optional[str] = None,
-    domain: Optional[str] = None,
-    limit: int = 10,
-) -> dict:
-    """Pull YARNNN's accumulated context about a subject.
-
-    Call this whenever the user references something mid-conversation that
-    might live in their YARNNN workspace — a person, company, market,
-    project, topic, or domain they track — and you need the underlying
-    material to reason about it.
-
-    Pass the subject name as `subject`. Optionally pass a `question` to
-    narrow the retrieval (YARNNN will rank chunks by relevance to the
-    question). Optionally pass a `domain` filter (competitors, market,
-    relationships, projects, content, signals, slack, notion, github) if
-    you know which context domain the subject lives in.
-
-    The tool returns RANKED CHUNKS from the user's accumulated workspace
-    context, with paths and timestamps. YARNNN does not compose an answer
-    for you — you are expected to reason over the chunks and synthesize in
-    your own voice, using the surrounding conversation as context.
-
-    THIS IS THE CROSS-LLM CONSISTENCY TOOL. The user may be in a different
-    LLM tomorrow than they are today. Every LLM calling `pull_context` on
-    the same subject sees the same chunks from the same Postgres-backed
-    substrate. This is how the user's thinking stays coherent across
-    whichever LLM they happen to be in.
-
-    If no chunks match (empty results), tell the user YARNNN has no
-    accumulated context for that subject and answer from your own
-    knowledge if you can.
-
-    Use this proactively. YARNNN is supposed to be ambient — if the user
-    mentions something they might track, pull the context first and weave
-    it into your response. Do not wait for the user to ask you to consult
-    YARNNN.
-
-    Args:
-        subject: What to pull context about (entity, topic, keyword). Required.
-        question: Optional specific question to narrow the retrieval.
-        domain: Optional context domain filter. One of: competitors, market,
-                relationships, projects, content, signals, slack, notion, github.
-        limit: Max chunks to return (default 10, hard cap 30).
-    """
-    # ADR-310 D4: per-request identity — the authenticating operator, not a singleton.
-    auth = resolve_request_client()
-    limit = max(1, min(int(limit or 10), 30))
-    client_name = mcp_composition.derive_client_name(
-        getattr(ctx.request_context, "request", None)
-    )
-
-    # Normalize domain alias → registry key
-    normalized_domain = mcp_composition.DOMAIN_ALIASES.get(
-        (domain or "").lower().strip(),
-        domain,
-    ) if domain else None
-
-    # Dispatch through the primitive layer (ADR-164 runtime-agnostic)
-    # ADR-168 Commit 4: file-layer primitives now named ReadFile/WriteFile/
-    # SearchFiles/ListFiles. QueryKnowledge kept (distinct semantic-query layer).
-    result = await execute_primitive(auth, "QueryKnowledge", {
-        "query": question or subject,
-        "domain": normalized_domain,
-        "limit": limit,
-    })
-
-    if not result.get("success"):
-        # ADR-219 Commit 6: emit narrative even on failure so the operator
-        # sees the foreign-LLM call landed (Identity legibility per
-        # FOUNDATIONS Derived Principle 12).
-        _emit_mcp_narrative(
-            auth,
-            tool="pull_context",
-            weight="routine",
-            summary=f"{client_name} pull_context failed for {subject!r}",
-            body=str(result.get("message") or "QueryKnowledge dispatch failed"),
-            client_name=client_name,
-            extra_metadata={"subject": subject, "outcome": "failed"},
-        )
-        return {
-            "success": False,
-            "error": result.get("error", "query_failed"),
-            "message": result.get("message", "QueryKnowledge dispatch failed"),
-            "subject": subject,
-        }
-
-    raw_results = result.get("results") or []
-
-    chunks = []
-    for r in raw_results:
-        path = r.get("path", "")
-        excerpt = (r.get("content_preview") or r.get("summary") or "")[:500]
-        chunks.append({
-            "path": path,
-            "excerpt": excerpt,
-            "relevance": None,  # QueryKnowledge doesn't currently expose a score
-            "last_updated": r.get("updated_at"),
-            "domain": r.get("domain") or mcp_composition.extract_domain_from_path(path),
-            "source_tag": mcp_composition._extract_provenance_tag(r.get("content_preview")),
-        })
-
-    # ADR-219 Commit 6: routine weight (no substrate write) per D3.
-    _emit_mcp_narrative(
-        auth,
-        tool="pull_context",
-        weight="routine",
-        summary=(
-            f"{client_name} pulled {len(chunks)} chunks for {subject!r}"
-            if chunks
-            else f"{client_name} pulled context for {subject!r} (none found)"
-        ),
-        body=(
-            f"subject: {subject}\n"
-            f"question: {question or '(none)'}\n"
-            f"domain: {normalized_domain or '(any)'}\n"
-            f"returned: {len(chunks)}"
-        ),
-        client_name=client_name,
-        extra_metadata={
-            "subject": subject,
-            "domain": normalized_domain,
-            "returned": len(chunks),
-        },
-    )
-
-    if not chunks:
-        return {
-            "success": True,
-            "subject": subject,
-            "chunks": [],
-            "total_matches": 0,
-            "returned": 0,
-            "citations": [],
-            "explanation": (
-                f"YARNNN has no accumulated context about '{subject}'. "
-                "The user has not tracked this in any context domain yet. "
-                "Answer from your own knowledge if you can."
-            ),
-        }
-
-    return {
-        "success": True,
-        "subject": subject,
-        "chunks": chunks,
-        "total_matches": result.get("count", len(chunks)),
-        "returned": len(chunks),
-        "citations": [c["path"] for c in chunks],
-    }
-
-
-# =============================================================================
-# Tool 3: remember_this
-# =============================================================================
-
-
-@mcp.tool()
-async def remember_this(
+async def remember(
     ctx: Context,
     content: str,
     about: Optional[str] = None,
 ) -> dict:
-    """Write an observation, decision, or insight the user just shared back into their YARNNN workspace.
+    """Save something into the user's YARNNN memory so it follows them across every LLM.
 
-    Call this when the user says "remember this," "save that," "note that,"
-    "YARNNN should know," or otherwise indicates something worth persisting.
+    Call this whenever the user shares something worth keeping — a decision, an
+    insight, a fact, a preference, an observation about something they track.
+    Don't wait for them to say "remember this": if they reach a conclusion or
+    state something they'll want later, save it.
 
-    Pass the content as `content` — this can be the user's own words, a
-    summary of a conclusion you and the user just reached together, or a
-    paraphrase of an artifact you just drafted. Be concise but preserve
-    the specific claim being made.
+    Pass the thing to keep as `content` — their words, or a faithful summary of
+    what you both concluded. Be concise but preserve the specific claim. If it's
+    clearly about a subject (a company, person, project, topic), pass that as
+    `about`.
 
-    If the content is clearly about a specific entity (a company, person,
-    project, or topic), pass it as `about`. If not, leave `about` empty
-    and YARNNN will classify from the content.
-
-    YARNNN routes the content to the correct context target automatically:
-        • identity — facts about the user's role, company, or work context
-        • brand    — voice/tone/style preferences
-        • memory   — general facts, preferences, standing instructions
-        • agent    — feedback about a specific agent's work (slug-disambiguated)
-        • task     — feedback about a specific task's output (slug-disambiguated)
-
-    If it cannot classify confidently, it returns candidates — surface them
-    and let the user choose.
-
-    THIS IS THE CROSS-LLM CONTRIBUTION PATH. Whatever you write here is
-    immediately visible to any other LLM the user might switch to. A user
-    who tells you something at 3pm and then opens a different LLM at 4pm
-    will find the material already there via pull_context. The write is
-    synchronous — it commits before this tool returns.
-
-    Use this proactively whenever the user shares something worth keeping.
-    Do not wait for an explicit "remember this" — if the user shares a
-    decision, an insight, a fact they want to act on, or an observation
-    about something they track, call this tool.
+    The write is synchronous and lands in the user's workspace commons,
+    attributed to this LLM, immediately visible to any other LLM they switch to.
+    YARNNN's own judgment seat then validates the contribution against what it
+    already knows (in the background — you don't wait for it). You are saving to
+    a shared memory; you are not asking YARNNN to do work.
 
     Args:
-        content: The observation, decision, or fact to remember. Required.
-        about: Optional scope hint — an entity, subject, or target name if
-               clear from the conversation.
+        content: The thing to remember. Required.
+        about: Optional subject hint (company, person, project, topic).
     """
-    # ADR-310 D4: per-request identity — the authenticating operator, not a singleton.
     auth = resolve_request_client()
     content = (content or "").strip()
     client_name = mcp_composition.derive_client_name(
@@ -450,219 +234,204 @@ async def remember_this(
     )
 
     if not content:
-        # No invocation work happened — but per ADR-219 universal coverage,
-        # the call still lands a (housekeeping-weight) narrative breadcrumb
-        # so the operator sees the foreign LLM tried.
         _emit_mcp_narrative(
-            auth,
-            tool="remember_this",
-            weight="housekeeping",
-            summary=f"{client_name} remember_this rejected (empty content)",
+            auth, tool="remember", weight="housekeeping",
+            summary=f"{client_name} remember rejected (empty content)",
             body="empty content — nothing written",
-            client_name=client_name,
-            extra_metadata={"outcome": "rejected"},
+            client_name=client_name, extra_metadata={"outcome": "rejected"},
         )
         return {"success": False, "error": "empty_content", "message": "content is required"}
 
-    # --- Load slug pools for operational-feedback classification ---
-    agents_by_slug = _load_active_agents(auth)
-    tasks_by_slug = _load_active_tasks(auth)
-
-    classification = mcp_composition.classify_memory_target(
-        content=content,
-        about=about,
-        agents_by_slug=agents_by_slug,
-        tasks_by_slug=tasks_by_slug,
-    )
-
-    # --- Ambiguous classification → return candidates for LLM to surface ---
-    if classification.get("ambiguous"):
-        # No substrate write happened yet; routine weight per D3 default.
-        _emit_mcp_narrative(
-            auth,
-            tool="remember_this",
-            weight="routine",
-            summary=f"{client_name} remember_this — clarification needed",
-            body=(
-                f"about: {about or '(none)'}\n"
-                f"content: {content[:240]}{'…' if len(content) > 240 else ''}\n"
-                f"candidates: {classification.get('candidates') or []}"
-            ),
-            client_name=client_name,
-            extra_metadata={
-                "outcome": "ambiguous",
-                "candidates": classification.get("candidates", []),
-            },
-        )
-        return {
-            "success": True,
-            "ambiguous": {
-                "candidates": classification.get("candidates", []),
-                "clarification": (
-                    "I can route this feedback to multiple targets. Which did you mean?"
-                ),
-            },
-        }
-
-    target = classification["target"]
-
-    # --- Stamp ADR-162 provenance on the content before dispatch ---
-    stamped_text = mcp_composition.stamp_provenance(
-        content=content,
-        client_name=client_name,
-        user_context=about,
-    )
-
-    # --- Dispatch through the post-ADR-235/324 primitive surface ---
-    # Routes to author_identity helper (identity/brand, ADR-324) or
-    # WriteFile (memory/agent/task). See mcp_composition.py::dispatch_remember_this.
+    # ADR-368 D3: write to the operation/ commons only — the one root the mcp
+    # caller may write. No enum, no governing-substrate target reachable.
+    stamped = mcp_composition.stamp_provenance(content, client_name, user_context=about)
     result = await mcp_composition.dispatch_remember_this(
-        auth=auth,
-        target=target,
-        stamped_text=stamped_text,
-        slug=classification.get("slug"),
+        auth=auth, stamped_text=stamped, about=about,
     )
 
     if not result.get("success"):
         _emit_mcp_narrative(
-            auth,
-            tool="remember_this",
-            weight="routine",
-            summary=f"{client_name} remember_this failed → {target}",
-            body=str(result.get("message") or "remember_this dispatch failed"),
+            auth, tool="remember", weight="routine",
+            summary=f"{client_name} remember failed",
+            body=str(result.get("message") or "remember dispatch failed"),
             client_name=client_name,
-            extra_metadata={
-                "attempted_target": target,
-                "outcome": "failed",
-            },
+            extra_metadata={"outcome": "failed", "error": result.get("error")},
         )
         return {
             "success": False,
-            "error": result.get("error", "update_failed"),
-            "message": result.get("message", "remember_this dispatch failed"),
-            "attempted_target": target,
+            "error": result.get("error", "write_failed"),
+            "message": result.get("message", "remember dispatch failed"),
         }
 
-    # ADR-219 D3: remember_this success is MATERIAL — substrate changed,
-    # cross-LLM contribution committed. The morning briefing will surface
-    # this attribution per ADR-169.
     written_path = result.get("filename") or result.get("path") or "(unknown)"
 
-    # ADR-310 D2/D3 — the moat: a foreign-LLM write is judged. Wake the
-    # Reviewer to evaluate this contribution against authored ground-truth
-    # (eventually-async; the write already committed). Best-effort, single
-    # seam into the wake contract (mcp_composition.submit_foreign_write_wake).
+    # ADR-368 D5: integrity wake — the seat validates this foreign write against
+    # ground-truth (eventually-async; never blocks). This is SAFETY on a write,
+    # not delegated work.
     if written_path and written_path != "(unknown)":
         await mcp_composition.submit_foreign_write_wake(
-            auth,
-            written_path=written_path,
-            target=target,
-            client_name=client_name,
+            auth, written_path=written_path, target="commons", client_name=client_name,
         )
+
     _emit_mcp_narrative(
-        auth,
-        tool="remember_this",
-        weight="material",
-        summary=(
-            f"{client_name} wrote to {target}"
-            + (f":{classification.get('slug')}" if classification.get("slug") else "")
-        ),
+        auth, tool="remember", weight="material",
+        summary=f"{client_name} saved to memory",
         body=(
-            f"target: {target}\n"
-            f"slug: {classification.get('slug') or '(none)'}\n"
             f"written_to: {written_path}\n"
             f"about: {about or '(none)'}\n"
             f"content: {content[:480]}{'…' if len(content) > 480 else ''}"
         ),
         client_name=client_name,
-        extra_metadata={
-            "target": target,
-            "slug": classification.get("slug"),
-            "written_to": written_path,
-            "outcome": "success",
-            "task_slug": classification.get("slug") if target == "task" else None,
-        },
+        extra_metadata={"written_to": written_path, "outcome": "success"},
     )
-
     return {
         "success": True,
-        "target": target,
-        "slug": classification.get("slug"),
-        "written_to": result.get("filename") or result.get("path"),
+        "written_to": written_path,
         "provenance": {
             "source": f"mcp:{client_name}",
             "date": _today_iso(),
             "original_context": (about or content[:80]),
         },
-        # ADR-310 D2: this is a JUDGED hub, not a storage hub. The write
-        # committed and the Reviewer has been asked to evaluate it against
-        # authored ground-truth (eventually-async). The contribution is
-        # captured now; its standing is judged shortly after.
-        "judged": True,
-        "note": classification.get("note"),
+        # ADR-310 D2 / ADR-368 D5: the seat will validate this contribution.
+        "validated": True,
     }
 
 
-# =============================================================================
-# Slug pool loaders (for remember_this classification)
-# =============================================================================
+@mcp.tool()
+async def recall(
+    ctx: Context,
+    subject: str,
+    question: Optional[str] = None,
+    domain: Optional[str] = None,
+    limit: int = 10,
+) -> dict:
+    """Pull what the user already knows about a subject from their YARNNN memory.
+
+    Call this whenever the user references something that might live in their
+    accumulated YARNNN memory — a person, company, market, project, or topic
+    they track — and you need the underlying material to reason well. Don't wait
+    to be asked: if they mention something they might have recorded, recall it
+    first and weave it into your answer.
+
+    Pass the subject as `subject`. Optionally pass a `question` to focus the
+    retrieval, or a `domain` to narrow it.
+
+    YARNNN RETURNS the material — ranked excerpts with paths, timestamps, and the
+    LLM that originally contributed each. It does NOT write an answer for you:
+    you reason over what it returns and explain in your own voice, using the
+    conversation as context. Every LLM the user touches sees the same memory, so
+    their thinking stays coherent across rooms. If nothing matches, tell them
+    YARNNN has nothing recorded yet and answer from your own knowledge.
+
+    Args:
+        subject: What to recall (entity, topic, keyword). Required.
+        question: Optional focusing question.
+        domain: Optional domain filter.
+        limit: Max excerpts (default 10, max 30).
+    """
+    auth = resolve_request_client()
+    client_name = mcp_composition.derive_client_name(
+        getattr(ctx.request_context, "request", None)
+    )
+    result = await mcp_composition.compose_recall(
+        auth=auth, subject=subject, question=question, domain=domain, limit=limit,
+    )
+    n = result.get("returned", 0)
+    _emit_mcp_narrative(
+        auth, tool="recall", weight="routine",
+        summary=(
+            f"{client_name} recalled {n} excerpt(s) for {subject!r}"
+            if n else f"{client_name} recalled {subject!r} (nothing found)"
+        ),
+        body=f"subject: {subject}\nquestion: {question or '(none)'}\nreturned: {n}",
+        client_name=client_name,
+        extra_metadata={"subject": subject, "returned": n},
+    )
+    return result
 
 
-def _load_active_agents(auth) -> dict[str, dict]:
-    """Load active agents keyed by slug for classifier slug matching."""
-    try:
-        result = (
-            auth.client.table("agents")
-            .select("id, title, role, scope, status")
-            .eq("user_id", auth.user_id)
-            .eq("status", "active")
-            .limit(50)
-            .execute()
-        )
-        pool: dict[str, dict] = {}
-        for a in (result.data or []):
-            # Derive slug from title (mirrors services.workspace.get_agent_slug)
-            title = a.get("title") or ""
-            slug = _simple_slug(title)
-            if slug:
-                pool[slug] = a
-        return pool
-    except Exception as e:
-        logger.warning(f"[MCP] _load_active_agents failed: {e}")
-        return {}
+@mcp.tool()
+async def trace(
+    ctx: Context,
+    subject: str,
+    limit: int = 10,
+) -> dict:
+    """Show how the user's recorded thinking on a subject changed over time.
+
+    Call this when the user asks about the HISTORY of something they track —
+    "when did I decide that," "how has my view on X changed," "who added this,"
+    "what did this used to say." This is YARNNN's distinguishing capability: it
+    returns the authored revision chain of a fact — who changed it, when, and
+    what the change was — which a plain storage connector cannot show.
+
+    Pass the subject as `subject`. YARNNN resolves it to the most relevant
+    recorded material and returns its revision history, newest first. Reason over
+    the chain and narrate the evolution in your own voice.
+
+    Args:
+        subject: What to trace the history of. Required.
+        limit: Max revisions (default 10, max 30).
+    """
+    auth = resolve_request_client()
+    client_name = mcp_composition.derive_client_name(
+        getattr(ctx.request_context, "request", None)
+    )
+    result = await mcp_composition.compose_trace(auth=auth, subject=subject, limit=limit)
+    n = result.get("returned", 0)
+    _emit_mcp_narrative(
+        auth, tool="trace", weight="routine",
+        summary=(
+            f"{client_name} traced {n} revision(s) for {subject!r}"
+            if n else f"{client_name} traced {subject!r} (no history)"
+        ),
+        body=f"subject: {subject}\npath: {result.get('path') or '(none)'}\nreturned: {n}",
+        client_name=client_name,
+        extra_metadata={"subject": subject, "returned": n},
+    )
+    return result
 
 
-def _load_active_tasks(auth) -> dict[str, dict]:
-    """Load active recurrence-declaration slugs for classifier slug matching.
+def _ensure_daily_session(auth) -> Optional[str]:
+    """Find-or-create the operator's workspace session (ADR-368 D4).
 
-    ADR-231 Phase 3.6.a.4: walks workspace YAML recurrence declarations
-    (truth) instead of the `tasks` scheduling index. Returns a slug-keyed
-    dict of {slug, mode, paused} for substring-based matching downstream.
+    A foreign-LLM narrative entry must land in a session the operator sees on
+    /chat open even when none was active at write time. We do this with plain
+    table ops against the CURRENT chat_sessions schema rather than the
+    `get_or_create_chat_session` RPC: that RPC's body still references the
+    dropped `project_id`/`deliverable_id` columns and errors on any call (a
+    pre-existing latent drift, out of scope here). Keeping this helper
+    RPC-independent means the visibility fix doesn't inherit that breakage.
 
-    ADR-263: recurrence carries `mode` (judgment | mechanical), a plain
-    string — the deleted `shape` enum (ADR-261) is gone.
+    Resolution: most-recent thinking_partner session for the user (any status),
+    else create a fresh active one. Mirrors the daily-scope intent (one rolling
+    session the operator returns to) without the broken RPC.
     """
     try:
-        from services.recurrence import walk_workspace_recurrences
-        decls = walk_workspace_recurrences(auth.client, auth.user_id)
-        return {
-            d.slug: {
-                "slug": d.slug,
-                "mode": d.mode,
-                "paused": d.paused,
-            }
-            for d in decls
-            if not d.paused
-        }
-    except Exception as e:
-        logger.warning(f"[MCP] _load_active_tasks failed: {e}")
-        return {}
-
-
-def _simple_slug(text: str) -> str:
-    """Simple slug derivation — lowercase, hyphenate. Matches get_agent_slug shape."""
-    import re
-    return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")
+        existing = (
+            auth.client.table("chat_sessions")
+            .select("id")
+            .eq("user_id", auth.user_id)
+            .eq("session_type", "thinking_partner")
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if existing.data:
+            return existing.data[0]["id"]
+        created = (
+            auth.client.table("chat_sessions")
+            .insert({
+                "user_id": auth.user_id,
+                "session_type": "thinking_partner",
+                "status": "active",
+            })
+            .execute()
+        )
+        if created.data:
+            return created.data[0]["id"]
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("[MCP NARRATIVE] daily-session ensure failed: %s", exc)
+    return None
 
 
 def _today_iso() -> str:

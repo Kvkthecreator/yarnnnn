@@ -1,14 +1,15 @@
 """
-YARNNN MCP Server — ADR-169 (tool surface) + ADR-075 (infrastructure)
+YARNNN MCP Server — ADR-368 (memory-first surface) + ADR-075 (infrastructure)
 
-Three intent-shaped tools expose YARNNN as a cross-LLM context hub:
+Three memory verbs expose YARNNN as a portable memory across every LLM:
 
-    work_on_this    — curated start-of-session bundle for a subject
-    pull_context    — ranked chunks of accumulated material (primary cross-LLM tool)
-    remember_this   — write observations back to the workspace
+    remember  — save something into memory (writes the operation/ commons)
+    recall    — pull what the user knows about a subject (composed retrieval)
+    trace     — show how a recorded fact changed over time (the revision chain)
 
-Fifth caller of execute_primitive() per ADR-164 (runtime-agnostic primitives).
-Composition layer: api/services/mcp_composition.py
+Each verb composes kernel primitives server-side into a one-round result (so
+round-limited consumer hosts never have to chain). Caller of execute_primitive()
+per ADR-164 (runtime-agnostic primitives). Composition: api/services/mcp_composition.py
 
 Canonical product framing: docs/features/mcp/README.md
 

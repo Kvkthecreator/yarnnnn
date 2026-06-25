@@ -1,430 +1,258 @@
-# MCP Tool Contracts
+# MCP Tool Contracts — the memory verbs
 
 > **Parent**: [README.md](README.md)
-> **Audience**: engineers implementing the MCP server tools, and LLM hosts (Claude, GPT, Gemini) that will consume them
-> **Scope**: exact signatures, parameter schemas, return shapes, ambiguity payloads, tool-description text
+> **Audience**: engineers implementing the MCP server tools, and LLM hosts (Claude, GPT, Gemini) that consume them
+> **Scope**: exact signatures, parameter schemas, return shapes, tool-description text
+> **Governing**: **ADR-368** (memory-first surface — the verbs) + **ADR-310** (judged substrate — the framing). Supersedes ADR-311's pure-primitive surface and ADR-169's original three intent tools. The implementation is `api/services/mcp_composition.py` + `api/mcp_server/server.py`.
 
 ---
 
-> ## ⚠ Supersession note (2026-06-01, ADR-310)
->
-> Authored 2026-04-09 under ADR-169. Correction where the body disagrees:
-> - **`remember_this` is a JUDGED write.** Its result now includes `"judged": true`. After committing (immediately; never blocks), it wakes the Reviewer to evaluate the contribution against authored ground-truth (ADR-310 D2, eventually-async). The "zero LLM calls inside MCP" invariant still holds on the *serving path* — the Reviewer judgment happens downstream, off the tool's return path. The write primitive is `WriteFile`/`InferContext` (ADR-235), not `UpdateContext`.
+## The surface in one screen
+
+Three verbs, shaped on the user's memory mental model (ADR-368 D1): **put in · get out · trace history.**
+
+| Verb | User says | Nature | Composes (server-side) |
+|---|---|---|---|
+| `remember` | "remember this" | write · sync | `WriteFile(operation/…)` + integrity wake |
+| `recall` | "what do I know about X" | read · sync | `QueryKnowledge` → rank |
+| `trace` | "how did my thinking on X change" | read · sync | resolve → `ListRevisions` → `DiffRevisions` |
+
+Each verb returns a reason-ready result in **one round** from the host's perspective — the multi-step composition lives server-side (inside YARNNN, an agentic context), not in the round-limited consumer host (ADR-368 Correction 1). The raw kernel primitives (`ReadFile`/`SearchFiles`/`WriteFile`/`ListRevisions`/`DiffRevisions`) remain available `defer_loading` for agentic hosts that genuinely chain.
 
 ---
 
 ## Design invariants
 
-Every tool on this surface obeys five invariants. These are load-bearing for the service philosophy; they exist because without them the "three intent-shaped tools" framing leaks into operator-mode thinking or clarification rounds.
-
-1. **User-intent name, technical internals.** Tool names mirror user grammar (`work_on_this`, `remember_this`, `pull_context`). The internal dispatch and composition can be arbitrarily technical; it never surfaces. `pull_context` is the one slightly more technical name because "pull" is exactly the right verb for cross-LLM retrieval — "pull my context over from YARNNN" is how users think about it, not "explain" (which implies composition YARNNN deliberately does not do).
-
-2. **Free-form `context` parameter.** Every tool accepts a `context: string` (or equivalent) that the LLM fills at call time by compressing the recent conversation. The LLM does this silently — the user never sees it.
-
-3. **Hidden instruction in the description.** Every tool's description explicitly tells the LLM to compress conversation into `context` and not to ask the user for clarification. This is where the silent conversation-summary mechanic lives.
-
-4. **Ambiguity as a first-class return shape.** When "this" cannot be resolved, tools return an `ambiguous` payload with candidates — never an error. The LLM surfaces candidates naturally; the user picks one; the tool is called again with a narrower subject. Cold starts turn into discovery surfaces.
-
-5. **Citations on everything returned.** Every piece of content returned from `work_on_this` or `pull_context` carries a citation to a workspace path. This lets the LLM attribute, lets the user verify, and keeps provenance intact across the MCP boundary.
+1. **Memory-model names, kernel internals.** The verbs mirror how a person thinks about their own memory. The dispatch composes kernel primitives; that never surfaces.
+2. **Free-form context, silently filled.** Each verb's description tells the host LLM to compress the recent conversation into the parameters (`content`/`about`/`subject`/`question`) at call time, and never to ask the user for it.
+3. **`recall` returns; it does not synthesize.** The bright memory-vs-delegation line (ADR-368 D1): YARNNN returns material; the host LLM explains. A verb that composed an answer would be the deferred delegation nature leaking in.
+4. **Writes reach the `operation/` commons only** (ADR-368 D3). The `mcp` caller is locked from every other root by `CALLER_WRITE_POLICY` (ADR-320/366); the surface never constructs a non-`operation/` path and the gate refuses one if it did.
+5. **Every write is judged + attributed.** `remember` commits, stamps `authored_by="yarnnn:mcp"` (ADR-288) + ADR-162 provenance, and fires the integrity wake (ADR-310 D2 / ADR-368 D5). `trace` surfaces that attribution chain.
+6. **Operator-visibility is session-independent** (ADR-368 D4). Every call emits a narrative entry even when no session is active, so the cross-room operator sees what entered.
 
 ### Zero LLM calls inside MCP
 
-One additional invariant that shapes everything below: **no tool on this surface makes an LLM call internally**. `work_on_this` composes a curated bundle via deterministic retrieval and ranking. `pull_context` is pure semantic query over the `QueryKnowledge` primitive. `remember_this` does deterministic content classification with a rare Haiku fallback only when domain inference is genuinely ambiguous *and* `about` is absent. This is a deliberate choice explained in [architecture.md](architecture.md) — it keeps per-call cost at ~$0, preserves cross-LLM consistency (no composition drift between invocations), and makes the host LLM the sole synthesizer of the returned material.
+No verb makes an LLM call internally. `remember` is a gated write. `recall` is composed retrieval over `QueryKnowledge`. `trace` is composed revision-reads. Per-call cost ≈ $0, cross-LLM consistency preserved (no composition drift), the host LLM is the sole synthesizer.
 
 ---
 
-## Tool 1: `work_on_this`
+## Verb 1: `remember`
 
 ### Purpose
 
-Prime the LLM with a curated, opinionated bundle for starting work on a subject. This is the "give me the right starting state to reason about X" tool — it returns a compact composed bundle shaped for the beginning of a work session, not raw ranked chunks.
-
-Use `work_on_this` at the start of a work session. Use `pull_context` for mid-session reference. They are different cognitive operations.
+Save an observation, decision, or insight from the current conversation into the user's YARNNN memory. The write commits synchronously to the `operation/` commons, is attributed to the calling LLM, and is immediately visible to any other LLM the user switches to. The Reviewer then validates the contribution against authored ground-truth in the background (ADR-368 D5) — this is *safety on a write*, not delegated work.
 
 ### Signature
 
 ```python
-work_on_this(
-    context: str,           # required — 1-2 sentence compression of the
-                            # current conversation / user's stated intent
-    subject_hint: str = None # optional — a specific entity/subject name
-                            # if one is clearly identified
-) -> WorkOnThisResponse
+remember(
+    content: str,        # required — the thing to remember
+    about: str = None,   # optional — subject hint (company, person, project, topic)
+) -> RememberResponse
 ```
 
 ### Response shape
 
 ```python
-# Success shape
+# Success
 {
     "success": True,
-    "subject": "Acme Corp",                    # resolved subject
-    "primed_context": {
-        "identity_relevant": "...",            # relevant snippets from IDENTITY.md
-        "entity": {                             # the primary entity profile
-            "name": "Acme Corp",
-            "path": "/workspace/context/competitors/acme/profile.md",
-            "content": "..."
-        },
-        "recent_signals": [                     # top 3-5 most recent observations
-            {
-                "path": "/workspace/context/competitors/acme/signals.md",
-                "entry": "2026-04-07: Announced enterprise pricing tier...",
-                "source": "competitive-intelligence-agent"
-            }
-        ],
-        "prior_decisions": [                    # 1-2 relevant directives / notes
-            {
-                "path": "/workspace/memory/notes.md",
-                "excerpt": "Expected Anthropic to move up-market by Q3"
-            }
-        ],
-        "related_tasks": [                      # tasks touching this subject
-            {
-                "slug": "weekly-competitor-brief",
-                "next_run": "2026-04-14T08:00:00Z"
-            }
-        ],
+    "written_to": "/workspace/operation/acme-corp/notes.md",
+    "provenance": {
+        "source": "mcp:claude.ai",        # ADR-162 source-provenance tag
+        "date": "2026-06-25",
+        "original_context": "Q3 deck positioning…"
     },
-    "citations": [                               # flat list of all paths used
-        "/workspace/context/competitors/acme/profile.md",
-        "/workspace/context/competitors/acme/signals.md",
-        "/workspace/memory/notes.md"
-    ],
-    "pull_context_hint": "Call pull_context('Acme Corp') for deeper material."
+    "validated": True                      # the seat will judge this contribution (ADR-368 D5)
 }
 
-# Ambiguous shape (returned when subject cannot be resolved)
-{
-    "success": True,
-    "ambiguous": {
-        "candidates": [
-            {
-                "subject": "Acme pivot",
-                "reason": "3 new signals this week",
-                "path": "/workspace/context/competitors/acme/"
-            },
-            {
-                "subject": "Q2 market brief",
-                "reason": "draft in progress",
-                "path": "/tasks/q2-market-brief/"
-            },
-            {
-                "subject": "Operations review",
-                "reason": "overdue by 2 days",
-                "path": "/tasks/operations-review/"
-            }
-        ],
-        "clarification": "Several active subjects in your workspace. Which one?"
-    }
-}
+# Failure (rare — empty content, or a gate refusal that should never occur
+# now that routing is operation/-only)
+{ "success": False, "error": "empty_content", "message": "content is required" }
 ```
 
-The `pull_context_hint` field is a deliberate teaching signal to the LLM: *"if you need deeper material on this subject as the conversation progresses, reach for `pull_context` next."* It's a polite nudge to use the right tool for mid-session retrieval, and it reinforces the start-of-session vs. mid-session distinction.
+### Routing (ADR-368 D3)
+
+There is no target enum. `resolve_remember_path(about)`:
+- `about` names a recognizable domain (alias or keyword) → `operation/{domain}/notes.md`
+- `about` names an unrecognized subject → `operation/{slug}/notes.md`
+- no `about` → `operation/notes.md` (the general commons)
+
+A foreign LLM never writes `system/`, `persona/`, `constitution/`, `governance/`, or `contract/`. The pre-ADR-368 five-target enum (`memory|identity|brand|agent|task`) — three of whose targets pointed at locked roots, killing the default happy-path — is **deleted**.
 
 ### Description text (what the LLM reads)
 
 ```
-Prime yourself with a curated starting bundle from the user's YARNNN
-workspace for a subject they're about to work on. Call this when the
-user says "help me work on this," "let's think through this," "I'm
-drafting X," or otherwise indicates they're about to ENGAGE with a
-subject that might live in their YARNNN workspace (people, companies,
-markets, projects, deliverables, decisions).
-
-BEFORE CALLING, compress what you and the user have been discussing
-into one or two sentences and pass it as `context`. If you can identify
-a specific subject name (a person, company, project, or topic), pass
-it as `subject_hint`. DO NOT ask the user to clarify what they mean —
-infer from your conversation.
-
-If YARNNN cannot confidently resolve the subject, it will return a set
-of candidates from currently-active workspace state. Surface those to
-the user naturally ("You've got a few things in flight — which one?")
-and call again with a clearer subject.
-
-This tool returns a COMPACT curated bundle designed for starting a
-work session. If you need deeper or broader material about the subject
-later in the conversation, use `pull_context` instead — that tool
-returns ranked chunks rather than a curated bundle.
-
-Use this proactively when the user is starting work on something.
-YARNNN is supposed to be ambient — the user should not have to ask
-you to consult it.
+Save something into the user's YARNNN memory so it follows them across every
+LLM. Call whenever the user shares something worth keeping — a decision,
+insight, fact, preference, or observation about something they track. Don't
+wait for "remember this": if they reach a conclusion they'll want later, save
+it. Pass the thing as `content` (their words or a faithful summary); pass the
+subject as `about` if clear. The write is synchronous and immediately visible
+to any other LLM. You are saving to a shared memory — not asking YARNNN to do
+work.
 ```
 
 ---
 
-## Tool 2: `pull_context`
+## Verb 2: `recall`
 
 ### Purpose
 
-Fetch ranked chunks of accumulated workspace material about a subject, or about a specific question. This is the **primary cross-LLM consultation tool** — when a user references a subject mid-conversation and the LLM needs the raw material to reason about it, `pull_context` retrieves the material from YARNNN's Postgres-backed substrate and returns it unmodified.
-
-`pull_context` does not compose an answer. It returns ranked chunks with paths and timestamps. The host LLM reasons over them. This is deliberate: it preserves cross-LLM consistency (every LLM sees the same chunks) and lets the host LLM use its in-conversation context to synthesize.
+Return what the user already knows about a subject from their accumulated YARNNN memory. Composed server-side (`QueryKnowledge` → rank) into ranked excerpts with paths, timestamps, and the contributing source. **YARNNN returns the material; the host LLM explains it** — preserving cross-LLM consistency (every LLM sees the same substrate) and letting the host synthesize with the conversation in hand.
 
 ### Signature
 
 ```python
-pull_context(
-    subject: str,              # required — what to pull context about
-    question: str = None,      # optional — narrow retrieval to answer a specific question
-    domain: str = None,        # optional — filter to one context domain
-    limit: int = 10            # max chunks to return (hard cap 30)
-) -> PullContextResponse
+recall(
+    subject: str,           # required — what to recall
+    question: str = None,   # optional — focus the retrieval on a question
+    domain: str = None,     # optional — narrow to one domain
+    limit: int = 10         # max excerpts (hard cap 30)
+) -> RecallResponse
 ```
-
-The `domain` enum matches the directory registry (ADR-151/152): `competitors`, `market`, `relationships`, `projects`, `content`, `signals`, plus the temporal bot-owned domains `slack`, `notion`, `github` (ADR-158). If `domain` is omitted, retrieval spans all domains.
 
 ### Response shape
 
 ```python
-# Success shape (content found)
+# Found
 {
     "success": True,
-    "subject": "Anthropic",
+    "subject": "Acme Corp",
     "chunks": [
         {
-            "path": "/workspace/context/competitors/anthropic/profile.md",
-            "excerpt": "Anthropic is a Claude-focused AI lab. Competitive posture: primary Claude model provider. User's stance as of 2026-03-20: expected to move up-market by Q3...",
-            "relevance": 0.94,
-            "last_updated": "2026-04-07T10:12:00Z",
-            "domain": "competitors"
-        },
-        {
-            "path": "/workspace/context/competitors/anthropic/signals.md",
-            "excerpt": "2026-04-07: Announced enterprise pricing tier (seat-based). Agent flagged as confirming up-market thesis...",
-            "relevance": 0.89,
-            "last_updated": "2026-04-07T10:12:00Z",
-            "domain": "competitors"
+            "path": "/workspace/operation/competitors/acme/notes.md",
+            "excerpt": "2026-06-20: announced seat-based enterprise pricing…",
+            "last_updated": "2026-06-20T10:12:00Z",
+            "domain": "competitors",
+            "source_tag": "mcp:claude.ai"   # who contributed this, if attributed
         }
     ],
-    "total_matches": 17,       # how many matched before limit
+    "total_matches": 17,
     "returned": 10,
-    "citations": [
-        "/workspace/context/competitors/anthropic/profile.md",
-        "/workspace/context/competitors/anthropic/signals.md"
-    ]
+    "citations": ["/workspace/operation/competitors/acme/notes.md", …]
 }
 
-# Empty shape (no matches)
+# Empty (a clean signal, not an error)
 {
-    "success": True,
-    "subject": "Quantum cryptography",
-    "chunks": [],
-    "total_matches": 0,
-    "explanation": "YARNNN has no accumulated context about this subject. The user has not tracked this in any context domain yet."
+    "success": True, "subject": "Quantum cryptography",
+    "chunks": [], "total_matches": 0, "returned": 0, "citations": [],
+    "explanation": "YARNNN has no accumulated memory about this subject. "
+                   "Answer from your own knowledge if you can."
 }
 ```
 
-Unlike `work_on_this`, `pull_context` has **no ambiguous shape**. If the subject matches nothing, the tool returns an empty-chunks success with an explanation — not candidates. This is intentional: `pull_context` is for *explicit subject retrieval*, so "no matches" is a meaningful signal (the LLM should fall back to its own knowledge). Candidate-surfacing belongs to `work_on_this`, which is the tool designed for ambiguity handling.
-
-### Description text (what the LLM reads)
+### Description text
 
 ```
-Pull YARNNN's accumulated context about a subject. Call this whenever
-the user references something mid-conversation that might live in
-their YARNNN workspace — a person, company, market, project, topic,
-or domain they track — and you need the underlying material to reason
-about it.
-
-Pass the subject name as `subject`. Optionally pass a `question` to
-narrow the retrieval (YARNNN will rank chunks by relevance to the
-question). Optionally pass a `domain` filter (competitors, market,
-relationships, projects, content, signals, slack, notion, github) if
-you know which context domain the subject lives in.
-
-The tool returns RANKED CHUNKS from the user's accumulated workspace
-context, with paths and timestamps. YARNNN does not compose an answer
-for you — you are expected to reason over the chunks and synthesize
-in your own voice, using the surrounding conversation as context.
-
-THIS IS THE CROSS-LLM CONSISTENCY TOOL. The user may be in a different
-LLM tomorrow than they are today. Every LLM calling `pull_context` on
-the same subject sees the same chunks from the same Postgres-backed
-substrate. This is how the user's thinking stays coherent across
-whichever LLM they happen to be in.
-
-If no chunks match (empty results), tell the user YARNNN has no
-accumulated context for that subject and answer from your own
-knowledge if you can.
-
-Use this proactively. YARNNN is supposed to be ambient — if the user
-mentions something they might track, pull the context first and weave
-it into your response. Do not wait for the user to ask you to consult
-YARNNN.
+Pull what the user already knows about a subject from their YARNNN memory. Call
+whenever they reference something that might live there — a person, company,
+market, project, or topic they track — and you need the material to reason well.
+Don't wait to be asked. Pass the subject as `subject`; optionally `question` to
+focus, `domain` to narrow. YARNNN RETURNS ranked excerpts with paths and the LLM
+that contributed each — it does NOT write an answer for you. Reason over what it
+returns and explain in your own voice. Every LLM sees the same memory, so the
+user's thinking stays coherent across rooms. If nothing matches, say so and
+answer from your own knowledge.
 ```
 
 ---
 
-## Tool 3: `remember_this`
+## Verb 3: `trace`
 
 ### Purpose
 
-Write an observation, decision, or insight from the current conversation back into the YARNNN workspace, placed in the correct context domain. YARNNN decides placement based on the content and the optional scope hint. Contributions are immediately visible to any other LLM the user might switch to, because the write is a synchronous commit to Postgres.
+Return the **authored revision history** of a recorded fact — who changed it, when, and what the change was. This is YARNNN's distinguishing capability (ADR-311 §3, preserved): the attributed, walkable revision chain (ADR-209) surfaced across the boundary. A plain storage connector returns whatever is stored, no provenance, no history-with-authorship. YARNNN returns content + *who* + *when* + *what changed*.
 
 ### Signature
 
 ```python
-remember_this(
-    content: str,           # required — the thing to remember
-    about: str = None       # optional — scope hint (entity, subject, topic)
-) -> RememberThisResponse
+trace(
+    subject: str,     # required — what to trace the history of
+    limit: int = 10   # max revisions (hard cap 30)
+) -> TraceResponse
 ```
 
 ### Response shape
 
 ```python
-# Success shape
+# Found
 {
     "success": True,
-    "written_to": "/workspace/context/competitors/acme/signals.md",
-    "domain": "competitors",
-    "entity": "acme",
-    "append_type": "signal",                    # or "decision", "profile_update", "note"
-    "provenance": {
-        "source": "mcp:claude.ai",              # ADR-162 source-provenance tag
-        "date": "2026-04-09",
-        "original_context": "user drafting positioning memo..."
-    }
+    "subject": "Acme pricing stance",
+    "path": "/workspace/operation/competitors/acme/notes.md",
+    "history": [                              # newest first
+        {
+            "authored_by": "reviewer:simons",  # operator | yarnnn:mcp | reviewer:<id> | agent:<slug> | system:<actor>
+            "when": "2026-06-22T09:00:00Z",
+            "change": "revised stance after Q2 earnings",
+            "revision_id": "…"
+        },
+        {
+            "authored_by": "yarnnn:claude.ai",
+            "when": "2026-06-20T10:12:00Z",
+            "change": "remember → operation commons",
+            "revision_id": "…"
+        }
+    ],
+    "returned": 2,
+    "citations": ["/workspace/operation/competitors/acme/notes.md"],
+    "explanation": "The authored history of 'Acme pricing stance' — 2 revisions, "
+                   "each attributed to who changed it and when."
 }
 
-# Ambiguous shape (returned when classification cannot confidently place content)
+# No history
 {
-    "success": True,
-    "ambiguous": {
-        "candidates": [
-            {
-                "target": "/workspace/context/competitors/acme/",
-                "reason": "content mentions Acme; competitors domain"
-            },
-            {
-                "target": "/workspace/memory/notes.md",
-                "reason": "general observation, no specific domain"
-            }
-        ],
-        "clarification": "I can save this as an Acme competitor signal or as a general note. Which?"
-    }
+    "success": True, "subject": "…", "path": None, "history": [],
+    "explanation": "YARNNN has no recorded material about this subject to trace."
 }
 ```
 
-### Description text (what the LLM reads)
+### Description text
 
 ```
-Write an observation, decision, or insight the user just shared back
-into their YARNNN workspace. Call this when the user says "remember
-this," "save that," "note that," "YARNNN should know," or otherwise
-indicates something worth persisting.
-
-Pass the content as `content` — this can be the user's own words, a
-summary of a conclusion you and the user just reached together, or a
-paraphrase of an artifact you just drafted. Be concise but preserve
-the specific claim being made.
-
-If the content is clearly about a specific entity (a company, person,
-project, or topic), pass it as `about`. If not, leave `about` empty
-and YARNNN will classify from the content.
-
-YARNNN routes the content to the correct context domain automatically
-(competitors, market, relationships, projects, signals, or general
-memory). If it cannot classify confidently, it returns candidates —
-surface them and let the user choose.
-
-THIS IS THE CROSS-LLM CONTRIBUTION PATH. Whatever you write here is
-immediately visible to any other LLM the user might switch to. A
-user who tells you something at 3pm and then opens a different LLM
-at 4pm will find the material already there via pull_context. The
-write is synchronous — it commits before this tool returns.
-
-Use this proactively whenever the user shares something worth keeping.
-Do not wait for an explicit "remember this" — if the user shares a
-decision, an insight, a fact they want to act on, or an observation
-about something they track, call this tool.
+Show how the user's recorded thinking on a subject changed over time. Call when
+they ask about the HISTORY of something they track — "when did I decide that,"
+"how has my view on X changed," "who added this," "what did this used to say."
+YARNNN returns the authored revision chain — who changed it, when, and what the
+change was — newest first. This is YARNNN's distinguishing capability; a plain
+storage connector cannot show it. Reason over the chain and narrate the
+evolution in your own voice.
 ```
 
 ---
 
-## Parameter conventions shared across tools
+## Shared conventions
 
-### The `context` parameter (and its relatives)
+### The `context` / scope parameters
 
-`work_on_this` takes `context`. `pull_context` takes `question` as its analogous conversational-narrowing parameter. `remember_this` takes `about` as its scope-hint equivalent. The convention across all three:
+`remember` takes `about`; `recall` takes `question`; all take a `subject`/`content` the LLM fills by compressing the recent conversation. Convention across all three:
+- **Length**: 1–3 sentences, ≤ ~200 tokens
+- **Generator**: the host LLM at call time, silently
+- **Prohibition**: never ask the user to provide it
 
-- **Length**: 1-3 sentences, maximum ~200 tokens
-- **Content**: what the user and LLM have been discussing, compressed; what the user is trying to do; any specific subject or intent signals
-- **Generator**: the LLM at tool-call time, silently
-- **Prohibition**: the LLM must not ask the user to provide this context
+### Provenance tagging
 
-Example `work_on_this.context` values:
-
-```
-"User is drafting a positioning memo. We've been discussing Anthropic's new
-enterprise pricing tier and whether it confirms their shift up-market."
-
-"User wants help thinking through their acquisition pipeline. They just
-mentioned Acme by name."
-
-"User opened chat with no prior conversation. Said 'work on this.'"
-```
-
-Example `pull_context.question` values:
-
-```
-"What's the user's recorded stance on Acme's pricing model?"
-
-"Recent signals on Anthropic's enterprise positioning"
-
-(omitted — subject alone is sufficient when no specific question narrows it)
-```
-
-### The `subject_hint` / `about` parameter
-
-Optional. Passed when the LLM has confidently identified a specific entity name from the conversation. If passed:
-- YARNNN fast-paths to that entity's files
-- Classification skips the NLP extraction step
-- Ambiguity handling is scoped to that entity only
-
-If not passed:
-- YARNNN extracts subject from the `context` parameter (`work_on_this`) or classifies from `content` (`remember_this`)
-- Classification runs the full domain/entity resolution
-- Ambiguity handling falls back to workspace-wide active subjects (`work_on_this`) or candidate targets (`remember_this`)
-
-### The `domain` parameter (`pull_context` only)
-
-An optional filter to narrow `pull_context` retrieval to one context domain. Values come from the ADR-152 unified directory registry. Canonical domains: `competitors`, `market`, `relationships`, `projects`, `content`, `signals`. Temporal bot-owned domains (ADR-158): `slack`, `notion`, `github`.
-
-When `domain` is omitted, `pull_context` spans all domains and relies on relevance ranking alone.
-
----
-
-## Provenance tagging
-
-All writes from MCP (via `remember_this`) carry a provenance comment per ADR-162 source-provenance convention:
+Every `remember` write carries an ADR-162 provenance comment:
 
 ```markdown
-<!-- source: mcp:claude.ai | date: 2026-04-09 | user_context: "..." -->
+<!-- source: mcp:claude.ai | date: 2026-06-25 | user_context: "…" -->
 ```
 
-Fields:
-- **source**: `mcp:<client_name>` where `<client_name>` is the MCP client identifier (`claude.ai`, `chatgpt`, `claude_desktop`, `gemini`, `cursor`, etc.)
+- **source**: `mcp:<client_name>` (`claude.ai`, `chatgpt`, `claude_desktop`, `gemini`, `cursor`)
 - **date**: ISO date of the write
-- **user_context**: the abbreviated `about` value or a truncated content preview (~100 chars)
+- **user_context**: abbreviated `about` or a content preview (~100 chars)
 
-This provenance appears inline in workspace files. Downstream consumers (daily-update pipeline, inference gap reports, user-facing file viewers in YARNNN) read the `source` tag to attribute material across the MCP boundary. `pull_context` returns the provenance inline with chunks when present, letting the host LLM cite the original source ("from your Gemini conversation last Tuesday: ...").
+`recall` returns the `source_tag` inline with each chunk; `trace` returns `authored_by` per revision. This is the mechanism that makes cross-LLM contribution visible — and lets the host attribute it ("from your ChatGPT conversation last Tuesday: …").
 
-This is the mechanism that makes cross-LLM contribution visible in every downstream context.
+### Error handling
+
+Three common-case shapes per verb: **success**, **empty** (`recall`/`trace` — a clean signal, not an error), and rare real errors (auth/network/rate-limit, standard MCP error responses). An empty `recall` or a no-history `trace` is the tool working as designed — the host LLM continues naturally. This discipline is load-bearing: without it the ambient experience degrades into clarification rounds and error messages.
 
 ---
 
-## Error handling
+## Deferred (ADR-368 §6)
 
-The tool surface has exactly three common-case return shapes per tool: **success**, **ambiguous** (only `work_on_this` and `remember_this`), or **empty** (only `pull_context`). There is no "error" return for the common cases.
-
-Real errors (auth failure, server unreachable, rate limit exceeded) return standard MCP error responses and should be rare. If an LLM sees a normal response with `ambiguous` populated or `chunks: []`, that is not an error — it is the tool working as designed.
-
-The intent is that tool calls either:
-1. **Work cleanly** — return composed bundle, ranked chunks, or written path
-2. **Resolve into discovery or empty** — return candidates (`work_on_this`, `remember_this`) or empty chunks (`pull_context`), letting the LLM continue naturally
-3. **Real error** — auth/network/rate-limit failure, rare
-
-This discipline is load-bearing: without it, the "ambient thinking partner" experience degrades into clarification rounds and error messages, which kills the magic.
+- **Delegation-from-foreign-LLM** — a `work_on_this`-equivalent reframed as an addressed wake into the operation (YARNNN does work, reports back). Deferred pending the sync-vs-stream tool-return hinge + demonstrated demand. Additive when it lands; these three verbs are untouched.
+- **Richer operator-visibility tiers** — a batchable `external_contribution` notification; a Management-Plane "what entered from outside" lane.
+- **Second protocol bindings** (A2A, direct-API) of the same three-verb contract.

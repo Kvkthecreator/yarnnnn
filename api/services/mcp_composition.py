@@ -1,29 +1,33 @@
 """
-MCP Composition Layer — ADR-169
+MCP Composition Layer — ADR-368 (memory-first interop surface)
 
-Thin composition module for the three MCP tools (work_on_this, pull_context,
-remember_this). Each tool is an intent-shaped wrapper over existing primitives
-from the ADR-168 matrix (QueryKnowledge, ReadFile, UpdateContext).
+Composition module for the three memory verbs (remember / recall / trace).
+Each verb composes existing kernel primitives (QueryKnowledge / WriteFile /
+ListRevisions / DiffRevisions) SERVER-SIDE into a reason-ready result returned
+in one round. This is the fix for ADR-311's "host must chain primitives" error:
+the chaining lives here (an agentic context, no round limit), not in a
+round-limited consumer chat host (claude.ai / ChatGPT / Gemini connectors).
+
+The user's memory mental model is the surface (ADR-368 D1):
+    remember  — put something in   → resolve_remember_path + dispatch_remember_this
+    recall    — get something out  → compose_recall  (QueryKnowledge → rank)
+    trace     — how did it change  → compose_trace   (resolve → ListRevisions)
 
 Design invariants:
-    1. No new primitives — this module is composition over execute_primitive()
-    2. Zero YARNNN-internal LLM calls on the serving path (except rare Haiku
-       fallback in classify_memory_target for workspace-level enum ambiguity)
-    3. Two-branch classifier in remember_this: workspace-level vs operational-feedback
-    4. Every write carries ADR-162 provenance (source: mcp:<client_name>)
-    5. Ambiguity is a first-class return shape, not an error
+    1. No new primitives — this module is composition over execute_primitive().
+    2. Zero YARNNN-internal LLM calls on the serving path.
+    3. Writes route to the `operation/` commons ONLY (ADR-368 D3) — the one root
+       CALLER_WRITE_POLICY["mcp"] grants the foreign caller. The pre-ADR-368
+       five-target enum (memory/identity/brand/agent/task) is DELETED; three of
+       its targets pointed at roots locked for the mcp caller.
+    4. `recall` RETURNS material; it does not synthesize — the host LLM explains
+       (ADR-368 D1: retrieval, not synthesis — the bright memory-vs-delegation line).
+    5. Every write carries ADR-162 provenance (source: mcp:<client_name>) and
+       fires the integrity wake (ADR-310 D2 / ADR-368 D5).
 
 Canonical product framing:
-    docs/features/mcp/README.md and sibling docs (tool-contracts.md,
-    workflows.md, architecture.md) — this module is their implementation.
-
-Primitive naming (ADR-168 Commit 4 + ADR-235):
-    File-layer primitives: ReadFile, WriteFile, SearchFiles, ListFiles.
-    Semantic-query primitive: QueryKnowledge (unchanged, distinct mental model).
-    Inference-merged writes: InferContext (identity/brand) — ADR-235 D1.a.
-    Substrate writes: WriteFile(scope="workspace", ...) — ADR-235 D1.b.
-    UpdateContext is DISSOLVED per ADR-235; remember_this dispatches via
-    the new primitives (see dispatch_remember_this).
+    docs/features/mcp/README.md and sibling docs — this module is their impl.
+    ADR-368 supersedes ADR-311's pure-primitive surface; ADR-310 two-faces holds.
 """
 
 from __future__ import annotations
@@ -85,311 +89,7 @@ DOMAIN_ALIASES: dict[str, str] = {
 
 
 # =============================================================================
-# Public composition functions
-# =============================================================================
-
-
-async def compose_subject_context(
-    auth: Any,
-    context: str,
-    subject_hint: Optional[str] = None,
-) -> dict:
-    """
-    Drive work_on_this.
-
-    Resolves a subject from subject_hint or context, then composes a curated
-    starting bundle (entity profile, recent signals, prior decisions, related
-    tasks). If the subject cannot be resolved, falls through to
-    compose_active_candidates for the ambiguous return shape.
-    """
-    from services.primitives.registry import execute_primitive
-
-    # --- Resolve subject ---
-    subject = (subject_hint or "").strip() or _extract_subject_from_context(context)
-    if not subject:
-        # Cold start — no subject resolvable, fall through to candidates
-        return await compose_active_candidates(auth)
-
-    # --- Identify domain from subject + context text ---
-    domain = _classify_domain(f"{subject} {context}")
-
-    # --- Pull via QueryKnowledge (semantic ranked search) ---
-    qk_result = await execute_primitive(auth, "QueryKnowledge", {
-        "query": subject,
-        "domain": domain,  # None is fine — searches all context/
-        "limit": 8,
-    })
-
-    results = qk_result.get("results") or []
-    if not results:
-        # Subject named but no context found — return thin success with
-        # explicit empty bundle so the LLM can tell the user YARNNN doesn't
-        # know about this yet
-        return {
-            "success": True,
-            "subject": subject,
-            "primed_context": {
-                "entity": None,
-                "recent_signals": [],
-                "prior_decisions": [],
-                "related_tasks": [],
-            },
-            "citations": [],
-            "explanation": (
-                f"YARNNN has no accumulated context about '{subject}' yet. "
-                "Consider creating a tracking task for this subject."
-            ),
-            "pull_context_hint": f"Call pull_context('{subject}') if you need to double-check.",
-        }
-
-    # --- Classify results into bundle buckets ---
-    entity_row = None
-    signals: list[dict] = []
-    decisions: list[dict] = []
-
-    for r in results:
-        path = r.get("path", "")
-        excerpt = _short_excerpt(r.get("content_preview") or r.get("summary") or "")
-        item = {
-            "path": path,
-            "excerpt": excerpt,
-            "updated_at": r.get("updated_at"),
-            "source_tag": _extract_provenance_tag(r.get("content_preview") or ""),
-        }
-        lower_path = path.lower()
-        if entity_row is None and ("profile.md" in lower_path or lower_path.endswith(f"/{_slugify(subject)}/profile.md")):
-            entity_row = item
-        elif "signals.md" in lower_path or "/signals/" in lower_path:
-            signals.append(item)
-        elif "judgment_log.md" in lower_path or "/system/notes.md" in lower_path or "/workspace/system/" in lower_path:
-            decisions.append(item)
-        else:
-            # General context hit — bucket as a signal by default
-            signals.append(item)
-
-    # --- Related tasks (thin direct SQL; no task-listing primitive at MCP scope) ---
-    related_tasks = _list_related_tasks(auth, domain or "context")
-
-    # --- Citations: flat list of all paths used ---
-    citations: list[str] = []
-    if entity_row:
-        citations.append(entity_row["path"])
-    citations.extend(s["path"] for s in signals[:5])
-    citations.extend(d["path"] for d in decisions[:2])
-
-    return {
-        "success": True,
-        "subject": subject,
-        "primed_context": {
-            "entity": entity_row,
-            "recent_signals": signals[:5],
-            "prior_decisions": decisions[:2],
-            "related_tasks": related_tasks,
-        },
-        "citations": citations,
-        "pull_context_hint": (
-            f"Call pull_context('{subject}') if you need deeper material during the conversation."
-        ),
-    }
-
-
-async def compose_active_candidates(auth: Any) -> dict:
-    """
-    Drive the work_on_this ambiguity fallback.
-
-    Queries workspace state for currently-active subjects (active tasks, recent
-    signal activity, draft outputs) and returns them as candidates for the LLM
-    to surface to the user. Ranked by freshness + priority (overdue first).
-    """
-    candidates: list[dict] = []
-
-    # --- Active recurrences (ADR-231 Phase 3.6.d: walk YAML declarations) ---
-    # Truth = filesystem; the scheduling index provides next_run_at.
-    try:
-        from services.recurrence import walk_workspace_recurrences
-        decls = walk_workspace_recurrences(auth.client, auth.user_id)
-        # Pull next_run_at from index in one query
-        idx_result = (
-            auth.client.table("tasks")
-            .select("slug, next_run_at")
-            .eq("user_id", auth.user_id)
-            .execute()
-        )
-        idx_by_slug = {r["slug"]: r for r in (idx_result.data or [])}
-
-        # Sort by next_run_at ascending; cap at 5
-        active_decls = [d for d in decls if not d.paused]
-        active_decls.sort(
-            key=lambda d: (
-                idx_by_slug.get(d.slug, {}).get("next_run_at") is None,
-                idx_by_slug.get(d.slug, {}).get("next_run_at") or "",
-            )
-        )
-        for d in active_decls[:5]:
-            reason_bits = []
-            if d.schedule:
-                reason_bits.append(str(d.schedule))
-            idx_row = idx_by_slug.get(d.slug, {})
-            if idx_row.get("next_run_at"):
-                reason_bits.append(f"next {_short_date(idx_row['next_run_at'])}")
-            substrate_root = d.declaration_path.rsplit("/", 1)[0]  # parent dir of the YAML
-            candidates.append({
-                "subject": d.slug.replace("-", " ").replace("_", " ").title() or d.slug,
-                "reason": " · ".join(reason_bits) or f"{d.mode} recurrence",
-                "path": substrate_root + "/",
-                "kind": "recurrence",
-                "mode": d.mode,
-            })
-    except Exception as e:
-        logger.warning(f"[MCP_COMPOSITION] active recurrences walk failed: {e}")
-
-    # --- Recently-updated entity files under /workspace/operation/ ---
-    try:
-        seven_days_ago = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-        # Reach back ~7 days via a broad query and rely on ordering
-        result = (
-            auth.client.table("workspace_files")
-            .select("path, updated_at, summary")
-            .eq("user_id", auth.user_id)
-            .like("path", "/workspace/operation/%")
-            .order("updated_at", desc=True)
-            .limit(10)
-            .execute()
-        )
-        seen_entities: set[str] = set()
-        for row in (result.data or []):
-            path = row.get("path", "")
-            # Extract entity segment: /workspace/operation/{domain}/{entity}/...
-            parts = path.split("/")
-            if len(parts) >= 5:
-                domain = parts[3]
-                entity = parts[4]
-                key = f"{domain}/{entity}"
-                if key in seen_entities or entity.startswith("_"):
-                    continue
-                seen_entities.add(key)
-                candidates.append({
-                    "subject": entity.replace("-", " ").replace("_", " ").title(),
-                    "reason": f"recent activity in {domain}",
-                    "path": f"/workspace/operation/{domain}/{entity}/",
-                    "kind": "entity",
-                })
-                if len(seen_entities) >= 3:
-                    break
-    except Exception as e:
-        logger.warning(f"[MCP_COMPOSITION] recent entity query failed: {e}")
-
-    # --- Truncate to 5 candidates max ---
-    candidates = candidates[:5]
-
-    if not candidates:
-        # Totally empty workspace — honest signal
-        return {
-            "success": True,
-            "ambiguous": {
-                "candidates": [],
-                "clarification": (
-                    "Your YARNNN workspace doesn't have any active tasks or recent "
-                    "activity yet. Tell the user what they'd like to work on, or "
-                    "suggest they start by describing their current work."
-                ),
-            },
-        }
-
-    return {
-        "success": True,
-        "ambiguous": {
-            "candidates": candidates,
-            "clarification": "Several active subjects in your workspace. Which one?",
-        },
-    }
-
-
-# =============================================================================
-# classify_memory_target — two-branch classifier for remember_this
-# =============================================================================
-
-
-def classify_memory_target(
-    content: str,
-    about: Optional[str],
-    agents_by_slug: Optional[dict[str, dict]] = None,
-    tasks_by_slug: Optional[dict[str, dict]] = None,
-) -> dict:
-    """
-    Classify remember_this content into a write target.
-
-    ADR-235: target enum is unchanged from the original UpdateContext shape
-    (memory | identity | brand | agent | task). The DISPATCH path changed —
-    see `dispatch_remember_this`.
-
-    Returns one of three shapes:
-
-        # Confident routing — caller proceeds with UpdateContext dispatch
-        {"target": "memory" | "identity" | "brand" | "agent" | "task",
-         "slug": <optional, for agent/task>,
-         "confidence": "high" | "medium"}
-
-        # Ambiguous operational-feedback — caller returns ambiguous shape
-        # to the LLM with the candidates list
-        {"ambiguous": True,
-         "candidates": [{"target": "agent:<slug>", "reason": "..."}, ...]}
-
-    Two-branch logic:
-        1. Workspace-level (identity/brand/memory) — small mutually exclusive
-           enum; defaults safely to memory on ambiguity
-        2. Operational feedback (agent/task) — requires confident slug match
-           or returns ambiguous for LLM-mediated disambiguation
-
-    agents_by_slug and tasks_by_slug are optional in-memory dicts for slug
-    matching; if omitted, the classifier falls back to "memory" on any
-    feedback-shaped content (safer default than wrong slug routing).
-    """
-    content_lower = content.lower().strip()
-    about_lower = (about or "").lower().strip()
-
-    # --- Workspace-level branch ---
-    if _is_identity_claim(content_lower, about_lower):
-        return {"target": "identity", "confidence": "high"}
-    if _is_brand_preference(content_lower, about_lower):
-        return {"target": "brand", "confidence": "high"}
-
-    # --- Operational feedback branch ---
-    feedback_flavor = _feedback_flavor(content_lower, about_lower)
-    if feedback_flavor in ("agent", "task"):
-        slug_pool = agents_by_slug if feedback_flavor == "agent" else tasks_by_slug
-        if not slug_pool:
-            # No slug pool provided — fall through to general memory as the
-            # safest default. Wrong routing is worse than no routing.
-            return {"target": "memory", "confidence": "medium", "note": "feedback_unrouted"}
-
-        matches = _match_slugs(content_lower + " " + about_lower, slug_pool)
-        if len(matches) == 1:
-            return {
-                "target": feedback_flavor,
-                "slug": matches[0],
-                "confidence": "high",
-            }
-        if len(matches) > 1:
-            return {
-                "ambiguous": True,
-                "candidates": [
-                    {
-                        "target": f"{feedback_flavor}:{slug}",
-                        "reason": f"{feedback_flavor} '{slug}' matches content",
-                    }
-                    for slug in matches
-                ],
-            }
-        # Zero matches — treat as mis-categorized, fall through to memory
-        return {"target": "memory", "confidence": "medium", "note": "feedback_unrouted"}
-
-    # --- Default: general memory ---
-    return {"target": "memory", "confidence": "high"}
-
-
-# =============================================================================
-# Helpers
+# Provenance + helpers (shared by the memory-verb compositions below)
 # =============================================================================
 
 
@@ -475,30 +175,6 @@ def _extract_provenance_tag(content: Optional[str]) -> Optional[str]:
     return None
 
 
-def _extract_subject_from_context(context: str) -> str:
-    """
-    Best-effort extraction of a subject noun phrase from the free-form
-    context blob the LLM passed. Deterministic, zero-LLM — when this fails
-    the caller falls through to compose_active_candidates.
-
-    Heuristics:
-        1. Look for capitalized multi-word sequences (e.g., "Acme Corp")
-        2. Look for quoted strings
-        3. Return empty string on miss
-    """
-    if not context:
-        return ""
-    # Capitalized sequence of 1-3 words
-    m = re.search(r"\b([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+){0,2})\b", context)
-    if m:
-        return m.group(1).strip()
-    # Quoted
-    m = re.search(r"[\"']([^\"']{2,40})[\"']", context)
-    if m:
-        return m.group(1).strip()
-    return ""
-
-
 def _classify_domain(text: str) -> Optional[str]:
     """
     Match text against DOMAIN_KEYWORDS and return the best-scoring domain key.
@@ -515,123 +191,12 @@ def _classify_domain(text: str) -> Optional[str]:
     return max(scores.items(), key=lambda kv: kv[1])[0]
 
 
-def _is_identity_claim(content_lower: str, about_lower: str) -> bool:
-    """User-role / company / work-context claim."""
-    identity_markers = [
-        "i'm ", "i am ", "my role", "my company", "my title",
-        "my team", "i work at", "i work on", "i lead", "i manage",
-        "my background", "my experience", "my focus",
-    ]
-    if about_lower in ("identity", "my role", "me", "who i am"):
-        return True
-    return any(marker in content_lower for marker in identity_markers)
-
-
-def _is_brand_preference(content_lower: str, about_lower: str) -> bool:
-    """Voice / tone / style / visual preference."""
-    brand_markers = [
-        "my brand", "my voice", "my tone", "my style", "my aesthetic",
-        "use active voice", "always use", "we write in", "our voice is",
-        "avoid jargon", "no em-dashes", "our look",
-    ]
-    if about_lower in ("brand", "voice", "tone", "style"):
-        return True
-    return any(marker in content_lower for marker in brand_markers)
-
-
-def _feedback_flavor(content_lower: str, about_lower: str) -> Optional[str]:
-    """
-    Detect whether the content is operational feedback about an agent or task.
-    Returns 'agent', 'task', or None.
-
-    Uses regex patterns that allow one or two adjective-like words between
-    the determiner and the agent/task noun (e.g., "the research agent",
-    "the weekly digest").
-    """
-    # agent-shaped: "the/my/this/that [adj]* agent|researcher|analyst|writer|monitor|briefer"
-    agent_pattern = (
-        r"\b(?:the|my|this|that)\s+(?:\w+\s+){0,2}"
-        r"(?:agent|researcher|analyst|writer|monitor|briefer|drafter|scout|planner)\b"
-    )
-    # task-shaped: "the/my/this/that [adj]* task|brief|report|digest|deliverable|output|update"
-    task_pattern = (
-        r"\b(?:the|my|this|that)\s+(?:\w+\s+){0,2}"
-        r"(?:task|brief|report|digest|deliverable|output|update|summary|recap)\b"
-    )
-    if re.search(agent_pattern, content_lower) or "agent" in about_lower:
-        return "agent"
-    if re.search(task_pattern, content_lower) or "task" in about_lower:
-        return "task"
-    return None
-
-
-def _match_slugs(text: str, slug_pool: dict[str, dict]) -> list[str]:
-    """
-    Return the list of slugs from slug_pool whose slug substring appears
-    in text. Uses word-boundary matching where possible.
-    """
-    matches = []
-    for slug in slug_pool.keys():
-        slug_variants = {slug, slug.replace("-", " "), slug.replace("_", " ")}
-        for variant in slug_variants:
-            if variant and variant in text:
-                matches.append(slug)
-                break
-    return matches
-
-
-def _list_related_tasks(auth: Any, domain: str) -> list[dict]:
-    """
-    Return a thin list of tasks touching the given domain. Direct SQL query
-    — there is no task-listing primitive at MCP scope.
-
-    Note: the `tasks` table has no `title` column — slug is the display-safe
-    identifier. The caller humanizes the slug when surfacing it to the user.
-    """
-    try:
-        # Migration 164 (ADR-231 D4) split `paused` into its own column —
-        # a paused recurrence keeps status='active', so both filters are needed
-        # to exclude it from the "active tasks" surface.
-        result = (
-            auth.client.table("tasks")
-            .select("slug, schedule, next_run_at")
-            .eq("user_id", auth.user_id)
-            .eq("status", "active")
-            .eq("paused", False)
-            .limit(5)
-            .execute()
-        )
-        # TODO: filter by context_reads when that metadata is easily queryable
-        # For now, return all active tasks — small set on typical workspaces
-        return [
-            {
-                "slug": t.get("slug"),
-                "display": (t.get("slug") or "").replace("-", " ").replace("_", " ").title(),
-                "next_run": _short_date(t.get("next_run_at")),
-            }
-            for t in (result.data or [])
-        ]
-    except Exception as e:
-        logger.warning(f"[MCP_COMPOSITION] related tasks query failed: {e}")
-        return []
-
-
 def _short_excerpt(text: str, limit: int = 400) -> str:
     """Trim text to a reasonable excerpt length."""
     text = (text or "").strip()
     if len(text) <= limit:
         return text
     return text[:limit].rstrip() + "…"
-
-
-def _short_date(iso_str: Optional[str]) -> str:
-    """Format an ISO timestamp as a short relative-ish date. Empty if None."""
-    if not iso_str:
-        return ""
-    try:
-        return iso_str.split("T")[0]
-    except Exception:
-        return iso_str
 
 
 def _slugify(text: str) -> str:
@@ -667,129 +232,191 @@ def _normalize_client_id(raw: str) -> Optional[str]:
 # =============================================================================
 
 
+def resolve_remember_path(about: Optional[str]) -> str:
+    """Resolve where a `remember` write lands in the commons.
+
+    ADR-368 D3: a foreign LLM writes ONLY the `operation/` commons (the one
+    root `CALLER_WRITE_POLICY["mcp"]` grants it). The five-target enum
+    (memory/identity/brand/agent/task) is DELETED — three of its targets
+    (memory→system/, identity→persona+constitution) were locked for the mcp
+    caller, making the default happy-path dead. There is no routing cleverness
+    here and no governing-substrate target: subject-scoped content lands at
+    `operation/{domain}/notes.md`; unscoped general memory lands at the commons
+    notes file. The gate refuses anything else and the surface never offers it.
+
+    `about` is the optional scope hint. When it names a recognizable domain we
+    nest under it; otherwise the content joins the general commons notes.
+    """
+    hint = (about or "").strip().lower()
+    if hint:
+        # alias → registry domain, then a light keyword pass
+        domain = DOMAIN_ALIASES.get(hint, None) or _classify_domain(hint)
+        if domain:
+            return f"operation/{domain}/notes.md"
+        # named-but-unrecognized subject → its own commons folder, slugified
+        slug = _slugify(hint)
+        if slug:
+            return f"operation/{slug}/notes.md"
+    return "operation/notes.md"
+
+
 async def dispatch_remember_this(
     auth: Any,
-    target: str,
     stamped_text: str,
-    slug: Optional[str],
+    about: Optional[str] = None,
 ) -> dict:
-    """
-    Route a classified remember_this write to the appropriate post-ADR-235
-    primitive. Replaces the old `execute_primitive(auth, "UpdateContext", ...)`
-    dispatch path.
+    """Commit a `remember` write to the `operation/` commons (ADR-368 D3).
 
-    Routing:
-      target='memory'   → WriteFile(scope='workspace', path='system/notes.md',
-                                    content=<formatted>, mode='append')
-      target='identity' → author_identity(target='identity', ...) [ADR-324 helper]
-      target='brand'    → author_identity(target='brand', ...)    [ADR-324 helper]
-      target='agent'    → WriteFile(scope='workspace',
-                                    path='agents/{slug}/memory/feedback.md',
-                                    content=<formatted entry>, mode='append')
-      target='task'     → WriteFile(scope='workspace',
-                                    path='<resolved natural-home>/feedback.md',
-                                    content=<formatted entry>, mode='append')
+    Topology-coherent: the only root a foreign (`yarnnn:mcp`) caller may write
+    is `operation/`. This routes there unconditionally — no enum, no governing
+    target, no locked-root reachable. The ADR-307 gate at `execute_primitive`
+    is still the authority (a non-`operation/` path would `governance_locked`);
+    this function simply never constructs such a path.
 
-    ADR-288 D1+D2: ``authored_by`` defaults to ``auth.caller_identity``
-    (``"yarnnn:mcp"`` for the MCP boundary per `mcp_server/auth.py`). The
-    three explicit per-call ``authored_by="yarnnn:mcp"`` passes that were
-    here pre-ADR-288 have been removed — caller-identity at construction is
-    the canonical source.
-
-    Returns the primitive result (success / error / metadata) unchanged.
+    ADR-288: `authored_by` defaults to `auth.caller_identity` ("yarnnn:mcp").
+    Returns the WriteFile primitive result unchanged. The caller fires the
+    integrity wake (ADR-368 D5) on success.
     """
     from services.primitives.registry import execute_primitive
 
-    if target == "identity" or target == "brand":
-        # ADR-324: InferContext dissolved. Identity/brand authoring is the
-        # `author_identity` workflow helper (merge + gap + write), not a
-        # primitive. caller_identity ("yarnnn:mcp") flows as authored_by.
-        from services.context_inference import author_identity
-        return await author_identity(
-            client=auth.client,
-            user_id=auth.user_id,
-            target=target,
-            text=stamped_text,
-            authored_by=getattr(auth, "caller_identity", None) or "yarnnn:mcp",
-        )
+    path = resolve_remember_path(about)
+    return await execute_primitive(
+        auth,
+        "WriteFile",
+        {
+            "scope": "workspace",
+            "path": path,
+            "content": stamped_text,
+            "mode": "append",
+            "message": "remember → operation commons",
+        },
+    )
 
-    if target == "memory":
-        # Memory dedup already happens in WriteFile path? No — dedup only ran
-        # inside _handle_memory previously. For MCP we keep the simple append
-        # behavior; the entry-type inference and dedup were chat-specific.
-        return await execute_primitive(
-            auth,
-            "WriteFile",
-            {
-                "scope": "workspace",
-                "path": "system/notes.md",
-                "content": stamped_text,
-                "mode": "append",
-                "message": "remember_this → memory",
-            },
-        )
 
-    if target == "agent":
-        if not slug:
-            return {
-                "success": False,
-                "error": "missing_slug",
-                "message": "agent feedback requires a slug",
-            }
-        # Format the entry the same way the prior _handle_agent_feedback did:
-        # "## Feedback (date, source: ...)\n- <text>". We don't have the prior
-        # file in hand here, so we just append the entry; the chat-side flow
-        # used a header-aware pattern but for MCP the simple append is fine —
-        # ADR-209 revision history captures the chain.
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
-        entry = f"\n## Feedback ({now}, source: mcp)\n- {stamped_text}\n"
-        return await execute_primitive(
-            auth,
-            "WriteFile",
-            {
-                "scope": "workspace",
-                "path": f"agents/{slug}/memory/feedback.md",
-                "content": entry,
-                "mode": "append",
-                "message": f"remember_this → agent feedback ({slug})",
-            },
-        )
+# =============================================================================
+# compose_recall / compose_trace — server-side read compositions (ADR-368 D2)
+# =============================================================================
+# The memory verbs are NOT a second vocabulary — they compose the existing
+# kernel primitives (QueryKnowledge / ListRevisions / DiffRevisions) inside the
+# MCP server, returning a reason-ready result in ONE round from the host's
+# perspective. This is the fix for ADR-311's "host must chain" error: the
+# chaining lives here (an agentic context, no round limit), not in a
+# round-limited consumer chat host.
 
-    if target == "task":
-        if not slug:
-            return {
-                "success": False,
-                "error": "missing_slug",
-                "message": "task feedback requires a slug",
-            }
-        # Resolve natural-home feedback path via the recurrence walker,
-        # mirroring the prior _handle_task_feedback behavior.
-        from services.feedback_formatters import resolve_task_feedback_path
-        relative, err = await resolve_task_feedback_path(
-            auth.client, auth.user_id, slug
-        )
-        if err is not None:
-            return err
-        from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
-        entry = f"\n## User Feedback ({now}, source: mcp)\n- {stamped_text}\n"
-        return await execute_primitive(
-            auth,
-            "WriteFile",
-            {
-                "scope": "workspace",
-                "path": relative,
-                "content": entry,
-                "mode": "append",
-                "message": f"remember_this → task feedback ({slug})",
-            },
-        )
 
+async def compose_recall(
+    auth: Any,
+    subject: str,
+    question: Optional[str] = None,
+    domain: Optional[str] = None,
+    limit: int = 10,
+) -> dict:
+    """Drive `recall` — the get-out-of-memory read.
+
+    Composes `QueryKnowledge` into a ranked, reason-ready bundle. YARNNN
+    RETURNS the material; it does NOT synthesize an answer — the host LLM
+    holding the conversation explains it. (ADR-368 D1: `recall` connotes
+    retrieval, not synthesis — the bright line that keeps memory-first from
+    leaking into delegation.)
+    """
+    from services.primitives.registry import execute_primitive
+
+    limit = max(1, min(int(limit or 10), 30))
+    normalized_domain = DOMAIN_ALIASES.get((domain or "").lower().strip(), domain) if domain else None
+
+    result = await execute_primitive(auth, "QueryKnowledge", {
+        "query": question or subject,
+        "domain": normalized_domain,
+        "limit": limit,
+    })
+    if not result.get("success"):
+        return {"success": False, "error": result.get("error", "query_failed"),
+                "message": result.get("message", "recall failed"), "subject": subject}
+
+    raw = result.get("results") or []
+    chunks = [
+        {
+            "path": r.get("path", ""),
+            "excerpt": _short_excerpt(r.get("content_preview") or r.get("summary") or ""),
+            "last_updated": r.get("updated_at"),
+            "domain": r.get("domain") or extract_domain_from_path(r.get("path", "")),
+            "source_tag": _extract_provenance_tag(r.get("content_preview")),
+        }
+        for r in raw
+    ]
+    if not chunks:
+        return {
+            "success": True, "subject": subject, "chunks": [], "total_matches": 0,
+            "returned": 0, "citations": [],
+            "explanation": (
+                f"YARNNN has no accumulated memory about '{subject}'. The user "
+                "hasn't recorded this yet. Answer from your own knowledge if you can."
+            ),
+        }
     return {
-        "success": False,
-        "error": "invalid_target",
-        "message": f"unknown remember_this target: {target}",
+        "success": True, "subject": subject, "chunks": chunks,
+        "total_matches": result.get("count", len(chunks)), "returned": len(chunks),
+        "citations": [c["path"] for c in chunks],
+    }
+
+
+async def compose_trace(
+    auth: Any,
+    subject: str,
+    limit: int = 10,
+) -> dict:
+    """Drive `trace` — the how-did-this-change read (the ADR-209 revision chain).
+
+    Resolves the subject to its most-relevant authored path (via QueryKnowledge),
+    then composes `ListRevisions` over it: who authored each version, when, and
+    the change message. This is the revision-archaeology differentiator (ADR-311
+    §3) surfaced in the user's words — "when did I decide that / how has this
+    evolved / who added this" — composed server-side in one round.
+    """
+    from services.primitives.registry import execute_primitive
+
+    # Resolve subject → the best-matching authored path.
+    qk = await execute_primitive(auth, "QueryKnowledge", {"query": subject, "limit": 1})
+    results = (qk.get("results") or []) if qk.get("success") else []
+    if not results:
+        return {
+            "success": True, "subject": subject, "path": None, "history": [],
+            "explanation": (
+                f"YARNNN has no recorded material about '{subject}' to trace. "
+                "Nothing has been authored on this subject yet."
+            ),
+        }
+
+    path = results[0].get("path", "")
+    # ListRevisions takes a workspace-relative path (strip the /workspace/ prefix).
+    rel = path[len("/workspace/"):] if path.startswith("/workspace/") else path
+    lr = await execute_primitive(auth, "ListRevisions", {"path": rel, "limit": max(1, min(int(limit or 10), 30))})
+    if not lr.get("success"):
+        return {"success": False, "error": lr.get("error", "trace_failed"),
+                "message": lr.get("message", "trace failed"), "subject": subject, "path": path}
+
+    revisions = lr.get("revisions") or []
+    history = [
+        {
+            "authored_by": rev.get("authored_by"),   # operator | yarnnn:mcp | reviewer:<id> | agent:<slug> | system:<actor>
+            "when": rev.get("created_at"),
+            "change": rev.get("message"),
+            "revision_id": rev.get("id"),
+        }
+        for rev in revisions
+    ]
+    return {
+        "success": True,
+        "subject": subject,
+        "path": path,
+        "history": history,            # newest first
+        "returned": len(history),
+        "citations": [path],
+        "explanation": (
+            f"The authored history of '{subject}' — {len(history)} revision(s), "
+            "each attributed to who changed it and when. This is the cross-LLM "
+            "provenance no plain storage connector can show."
+        ),
     }
 
 
