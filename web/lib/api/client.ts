@@ -54,6 +54,7 @@ import type {
   AdminExecutionStats,
   AdminUserRow,
   AdminAccountRow,
+  AdminAccountDetail,
 } from "@/types/admin";
 // ADR-312 home-bundle: the bundle's `surfaces` field is the full compositor
 // SurfacesResponse (including surfaces[]), so useComposition can be primed
@@ -445,6 +446,8 @@ export const api = {
     executionStats: () => request<AdminExecutionStats>("/api/admin/execution-stats"),
     users: () => request<AdminUserRow[]>("/api/admin/users"),
     accounts: () => request<AdminAccountRow[]>("/api/admin/accounts"),
+    accountDetail: (slug: string) =>
+      request<AdminAccountDetail>(`/api/admin/accounts/${encodeURIComponent(slug)}`),
     exportUsers: async () => {
       const headers = await getAuthHeaders();
       const response = await fetch(`${API_BASE_URL}/api/admin/export/users`, {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api/client";
 import type { AdminAccountRow } from "@/types/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,6 +40,7 @@ function isStale(iso: string | null): boolean {
 }
 
 export default function AdminAccountsPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [accounts, setAccounts] = useState<AdminAccountRow[]>([]);
@@ -86,7 +88,8 @@ export default function AdminAccountsPage() {
           Live health for the eval personas in{" "}
           <code className="text-xs">docs/alpha/personas.yaml</code>. Wakes, cost,
           failures, and Reviewer self-amendments — substrate-derived, no separate
-          eval table.
+          eval table. <span className="text-foreground">Click a row</span> for the
+          full forensic view.
         </p>
       </div>
 
@@ -125,7 +128,8 @@ export default function AdminAccountsPage() {
                   {accounts.map((a) => (
                     <tr
                       key={a.user_id}
-                      className="border-b border-border/50 hover:bg-muted/30"
+                      onClick={() => router.push(`/admin/accounts/${a.slug}`)}
+                      className="border-b border-border/50 hover:bg-muted/30 cursor-pointer"
                     >
                       <td className="py-2.5 pr-4">
                         <div className="font-medium">{a.slug}</div>

@@ -159,6 +159,90 @@ class AdminAccountRow(BaseModel):
     reviewer_edits_7d: int
 
 
+# --- /accounts/{slug} detail blocks ---------------------------------------
+
+class AccountDayPoint(BaseModel):
+    day: str
+    wakes: int
+    cost: float
+    input_tokens: int
+    output_tokens: int
+
+
+class AccountSlugRow(BaseModel):
+    slug: str
+    runs: int
+    failed: int
+    cost: float
+
+
+class AccountSourceRow(BaseModel):
+    wake_source: str
+    success: int
+    failed: int
+
+
+class AccountFailureRow(BaseModel):
+    created_at: str
+    slug: str
+    error_reason: Optional[str] = None
+    error_detail: Optional[str] = None
+
+
+class AccountRevisionRow(BaseModel):
+    created_at: str
+    path: str
+    message: Optional[str] = None
+
+
+class AccountProposalSummary(BaseModel):
+    status: str
+    count: int
+
+
+class AccountPerfRow(BaseModel):
+    mode: str
+    avg_envelope_ms: Optional[int] = None
+    avg_duration_ms: Optional[int] = None
+    avg_tool_rounds: Optional[float] = None
+    n: int
+
+
+class AdminAccountDetail(BaseModel):
+    """Full per-persona forensic view for /admin/accounts/{slug}.
+
+    Seven blocks, all sliced from execution_events / workspace_file_versions /
+    action_proposals / workspace_files. Substrate-derived; no eval-specific
+    table. The daily curve covers up to `curve_days`, but high-frequency
+    personas may truncate at the row cap — `curve_truncated` flags that so a
+    cut tail reads as cut, not as zero.
+    """
+    slug: str
+    label: Optional[str] = None
+    program: Optional[str] = None
+    email: Optional[str] = None
+    user_id: str
+    # Block 1: daily cost/activity curve
+    curve_days: int
+    curve_truncated: bool
+    daily: list[AccountDayPoint]
+    # Block 2: per-recurrence breakdown (7d)
+    by_slug: list[AccountSlugRow]
+    # Block 3: wake-source x status (7d)
+    by_source: list[AccountSourceRow]
+    # Block 4: recent failures with detail
+    recent_failures: list[AccountFailureRow]
+    # Block 5: reviewer self-amendment trail
+    reviewer_trail: list[AccountRevisionRow]
+    # Block 6: decision queue (proposals)
+    proposals: list[AccountProposalSummary]
+    # Block 7: substrate footprint + perf
+    total_files: int
+    persona_files: int
+    operation_files: int
+    perf: list[AccountPerfRow]
+
+
 # =============================================================================
 # Helper
 # =============================================================================
@@ -743,6 +827,220 @@ async def list_accounts(admin: AdminAuth):
     except Exception as e:
         logger.error("[ADMIN] Accounts query failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to fetch accounts: {str(e)}")
+
+
+@router.get("/accounts/{slug}", response_model=AdminAccountDetail)
+async def get_account_detail(slug: str, admin: AdminAuth):
+    """Full forensic view for one test/eval persona.
+
+    Seven blocks sliced from execution_events / workspace_file_versions /
+    action_proposals / workspace_files. Same NULL-coercion and substrate-only
+    discipline as /accounts.
+    """
+    try:
+        client = admin.client
+        persona = next((p for p in _load_personas() if p.get("slug") == slug), None)
+        if not persona:
+            raise HTTPException(status_code=404, detail=f"Unknown persona: {slug}")
+        user_id = persona.get("user_id")
+        if not user_id:
+            raise HTTPException(status_code=404, detail=f"Persona {slug} has no user_id")
+
+        CURVE_DAYS = 30
+        CURVE_CAP = 5000
+        cutoff_curve = _get_date_threshold(CURVE_DAYS)
+        cutoff_7d = _get_date_threshold(7)
+
+        # --- Block 1: daily curve (lightweight columns, capped) -------------
+        curve_events = client.table("execution_events")\
+            .select("created_at, cost_usd, input_tokens, output_tokens")\
+            .eq("user_id", user_id)\
+            .gte("created_at", cutoff_curve)\
+            .order("created_at", desc=True)\
+            .limit(CURVE_CAP)\
+            .execute()
+        curve_rows = curve_events.data or []
+        curve_truncated = len(curve_rows) >= CURVE_CAP
+
+        day_buckets: dict[str, dict] = defaultdict(
+            lambda: {"wakes": 0, "cost": 0.0, "in": 0, "out": 0}
+        )
+        for e in curve_rows:
+            day = e["created_at"][:10]
+            b = day_buckets[day]
+            b["wakes"] += 1
+            b["cost"] += float(e.get("cost_usd") or 0)
+            b["in"] += int(e.get("input_tokens") or 0)
+            b["out"] += int(e.get("output_tokens") or 0)
+        daily = [
+            AccountDayPoint(
+                day=day, wakes=b["wakes"], cost=round(b["cost"], 4),
+                input_tokens=b["in"], output_tokens=b["out"],
+            )
+            for day, b in sorted(day_buckets.items())
+        ]
+
+        # --- Blocks 2/3: per-slug + per-source (7d full rows, bucketed) -----
+        events_7d = client.table("execution_events")\
+            .select("slug, status, error_reason, error_detail, cost_usd, created_at, wake_source")\
+            .eq("user_id", user_id)\
+            .gte("created_at", cutoff_7d)\
+            .order("created_at", desc=True)\
+            .limit(CURVE_CAP)\
+            .execute()
+        rows_7d = events_7d.data or []
+
+        slug_buckets: dict[str, dict] = defaultdict(
+            lambda: {"runs": 0, "failed": 0, "cost": 0.0}
+        )
+        source_buckets: dict[str, dict] = defaultdict(lambda: {"success": 0, "failed": 0})
+        for e in rows_7d:
+            s = slug_buckets[e.get("slug") or "—"]
+            s["runs"] += 1
+            s["cost"] += float(e.get("cost_usd") or 0)
+            if e.get("status") == "failed":
+                s["failed"] += 1
+            src = source_buckets[e.get("wake_source") or "—"]
+            if e.get("status") == "failed":
+                src["failed"] += 1
+            else:
+                src["success"] += 1
+        by_slug = sorted(
+            [AccountSlugRow(slug=k, runs=v["runs"], failed=v["failed"], cost=round(v["cost"], 4))
+             for k, v in slug_buckets.items()],
+            key=lambda r: r.runs, reverse=True,
+        )
+        by_source = sorted(
+            [AccountSourceRow(wake_source=k, success=v["success"], failed=v["failed"])
+             for k, v in source_buckets.items()],
+            key=lambda r: r.success + r.failed, reverse=True,
+        )
+
+        # --- Block 4: recent failures with detail ---------------------------
+        fail_result = client.table("execution_events")\
+            .select("created_at, slug, error_reason, error_detail")\
+            .eq("user_id", user_id)\
+            .eq("status", "failed")\
+            .order("created_at", desc=True)\
+            .limit(15)\
+            .execute()
+        recent_failures = [
+            AccountFailureRow(
+                created_at=r["created_at"], slug=r.get("slug") or "—",
+                error_reason=r.get("error_reason"),
+                error_detail=(r.get("error_detail") or "")[:200] or None,
+            )
+            for r in (fail_result.data or [])
+        ]
+
+        # --- Block 5: reviewer self-amendment trail -------------------------
+        trail_result = client.table("workspace_file_versions")\
+            .select("created_at, path, message")\
+            .eq("user_id", user_id)\
+            .like("authored_by", "reviewer:%")\
+            .order("created_at", desc=True)\
+            .limit(15)\
+            .execute()
+        reviewer_trail = [
+            AccountRevisionRow(
+                created_at=r["created_at"], path=r["path"],
+                message=(r.get("message") or "")[:120] or None,
+            )
+            for r in (trail_result.data or [])
+        ]
+
+        # --- Block 6: decision queue (proposals, status mix) ----------------
+        prop_result = client.table("action_proposals")\
+            .select("status")\
+            .eq("user_id", user_id)\
+            .gte("created_at", cutoff_curve)\
+            .limit(2000)\
+            .execute()
+        prop_counts: dict[str, int] = defaultdict(int)
+        for r in (prop_result.data or []):
+            prop_counts[r.get("status") or "unknown"] += 1
+        proposals = sorted(
+            [AccountProposalSummary(status=k, count=v) for k, v in prop_counts.items()],
+            key=lambda r: r.count, reverse=True,
+        )
+
+        # --- Block 7: substrate footprint + perf ----------------------------
+        files_result = client.table("workspace_files")\
+            .select("path")\
+            .eq("user_id", user_id)\
+            .limit(5000)\
+            .execute()
+        file_paths = [r["path"] for r in (files_result.data or [])]
+        total_files = len(file_paths)
+        persona_files = sum(1 for p in file_paths if p.startswith("/workspace/persona/"))
+        operation_files = sum(1 for p in file_paths if p.startswith("/workspace/operation/"))
+
+        # Perf averages bucketed by mode (from the 7d full-row fetch would lack
+        # perf columns; re-fetch the perf columns over 7d, capped).
+        perf_result = client.table("execution_events")\
+            .select("mode, envelope_load_ms, duration_ms, tool_rounds")\
+            .eq("user_id", user_id)\
+            .gte("created_at", cutoff_7d)\
+            .limit(CURVE_CAP)\
+            .execute()
+        perf_buckets: dict[str, dict] = defaultdict(
+            lambda: {"env": [], "dur": [], "rounds": [], "n": 0}
+        )
+        for r in (perf_result.data or []):
+            mode = r.get("mode")
+            if not mode:
+                continue
+            pb = perf_buckets[mode]
+            pb["n"] += 1
+            if r.get("envelope_load_ms") is not None:
+                pb["env"].append(r["envelope_load_ms"])
+            if r.get("duration_ms") is not None:
+                pb["dur"].append(r["duration_ms"])
+            if r.get("tool_rounds") is not None:
+                pb["rounds"].append(r["tool_rounds"])
+
+        def _avg_int(xs):
+            return round(sum(xs) / len(xs)) if xs else None
+
+        def _avg_float(xs):
+            return round(sum(xs) / len(xs), 1) if xs else None
+
+        perf = [
+            AccountPerfRow(
+                mode=mode,
+                avg_envelope_ms=_avg_int(pb["env"]),
+                avg_duration_ms=_avg_int(pb["dur"]),
+                avg_tool_rounds=_avg_float(pb["rounds"]),
+                n=pb["n"],
+            )
+            for mode, pb in perf_buckets.items()
+        ]
+
+        return AdminAccountDetail(
+            slug=slug,
+            label=persona.get("label"),
+            program=str(persona["program"]) if persona.get("program") else None,
+            email=persona.get("email"),
+            user_id=user_id,
+            curve_days=CURVE_DAYS,
+            curve_truncated=curve_truncated,
+            daily=daily,
+            by_slug=by_slug,
+            by_source=by_source,
+            recent_failures=recent_failures,
+            reviewer_trail=reviewer_trail,
+            proposals=proposals,
+            total_files=total_files,
+            persona_files=persona_files,
+            operation_files=operation_files,
+            perf=perf,
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("[ADMIN] Account detail query failed (%s): %s", slug, e)
+        raise HTTPException(status_code=500, detail=f"Failed to fetch account detail: {str(e)}")
 
 
 # =============================================================================

@@ -98,3 +98,71 @@ export interface AdminAccountRow {
   last_wake: string | null;
   reviewer_edits_7d: number;
 }
+
+// GET /admin/accounts/{slug} — full per-persona forensic detail
+export interface AccountDayPoint {
+  day: string;
+  wakes: number;
+  cost: number;
+  input_tokens: number;
+  output_tokens: number;
+}
+
+export interface AccountSlugRow {
+  slug: string;
+  runs: number;
+  failed: number;
+  cost: number;
+}
+
+export interface AccountSourceRow {
+  wake_source: string;
+  success: number;
+  failed: number;
+}
+
+export interface AccountFailureRow {
+  created_at: string;
+  slug: string;
+  error_reason: string | null;
+  error_detail: string | null;
+}
+
+export interface AccountRevisionRow {
+  created_at: string;
+  path: string;
+  message: string | null;
+}
+
+export interface AccountProposalSummary {
+  status: string;
+  count: number;
+}
+
+export interface AccountPerfRow {
+  mode: string;
+  avg_envelope_ms: number | null;
+  avg_duration_ms: number | null;
+  avg_tool_rounds: number | null;
+  n: number;
+}
+
+export interface AdminAccountDetail {
+  slug: string;
+  label: string | null;
+  program: string | null;
+  email: string | null;
+  user_id: string;
+  curve_days: number;
+  curve_truncated: boolean;
+  daily: AccountDayPoint[];
+  by_slug: AccountSlugRow[];
+  by_source: AccountSourceRow[];
+  recent_failures: AccountFailureRow[];
+  reviewer_trail: AccountRevisionRow[];
+  proposals: AccountProposalSummary[];
+  total_files: number;
+  persona_files: number;
+  operation_files: number;
+  perf: AccountPerfRow[];
+}
