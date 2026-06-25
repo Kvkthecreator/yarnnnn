@@ -37,7 +37,13 @@ export const DEFAULT_KEPT_SURFACES: string[] = ['feed'];
 export const DEFAULT_OPEN_SURFACES: string[] = [];
 export const DEFAULT_FOREGROUNDED_SURFACE: string | null = null;
 
-// D15 — window manager soft cap.
+// D15 — window manager cap → ADR-369 follow-on (2026-06-25): this is a
+// PERF ceiling on simultaneously-mounted windows, NOT a refusal threshold.
+// Opening past it recedes the least-recently-used window (LRU auto-close in
+// foregroundWindowGrade); navigation is never refused. 8 bounds the number of
+// mounted surface React trees; with only ~10 window-grade surfaces today
+// (most are panes-in-windows or chrome), it rarely binds — and when it does,
+// it recedes silently rather than blocking a primary act (ADR-340 DP29).
 export const MAX_OPEN_WINDOWS = 8;
 // D15 — mobile breakpoint below which we collapse to single-window UX.
 export const MOBILE_BREAKPOINT_PX = 640;

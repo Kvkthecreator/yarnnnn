@@ -107,10 +107,11 @@ export interface SurfacePreferences {
   closeSurface: (slug: string) => void;
   /**
    * Bring an open surface to the foreground. If not yet open, also
-   * open it. If the soft cap (MAX_OPEN_WINDOWS) is reached when
-   * opening, returns false and surfaces the cap-hit signal via
-   * `capHit` below — caller decides UX (prompt operator to close one).
-   * Returns true on success.
+   * open it. Opening always succeeds: if the soft cap
+   * (MAX_OPEN_WINDOWS) is reached, the least-recently-used window
+   * recedes (LRU auto-close) and the new one opens — navigation is
+   * never refused (ADR-369 follow-on; ADR-340 DP29 "never block a
+   * primary act"). Returns true on success.
    */
   foregroundSurface: (slug: string) => boolean;
   /**
@@ -130,8 +131,9 @@ export interface SurfacePreferences {
    *     `?task=`, agents reads `?agent=`), NOT from window-manager
    *     state — so the param only reaches the target window via the URL.
    *
-   * Returns foregroundSurface's boolean (false if the open soft-cap was
-   * hit — caller consumes `capHit` for UX).
+   * Returns foregroundSurface's boolean (always true when a userId is
+   * present — the open soft-cap recedes the LRU window rather than
+   * refusing, ADR-369 follow-on).
    */
   navigateToSurface: (slug: string, params?: Record<string, string>) => boolean;
   /**
@@ -195,12 +197,6 @@ export interface SurfacePreferences {
    *  root cause of "minimize doesn't work" + Dock-click-on-only-
    *  app-does-nothing). */
   minimizeWindow: (slug: string) => void;
-  /** D15: viewport-cap signal — when foregroundSurface refuses to
-   *  open a new window because MAX_OPEN_WINDOWS is reached, this
-   *  carries the attempted slug. Operator UX consumes it to prompt
-   *  "Close another to open this." Caller clears via clearCapHit. */
-  capHit: string | null;
-  clearCapHit: () => void;
   /**
    * ADR-316: the Desktop container's measured inner bounds. Window
    * geometry (cascade origin, maximize snap, drag-clamp) is relative to
@@ -228,7 +224,6 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
   );
   // D15 — window manager state.
   const [windowStates, setWindowStatesState] = useState<WindowStateMap>({});
-  const [capHit, setCapHit] = useState<string | null>(null);
   // ADR-316: Desktop-measured bounds (see interface docstring). Held in
   // a ref so geometry callbacks read the latest value without being
   // re-created on every Desktop resize (which would thrash window
@@ -408,11 +403,43 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       if (!userId) return false;
       const alreadyOpen = open.includes(slug);
 
-      // D15 soft cap: only enforced when opening a NEW surface (not
-      // when re-foregrounding an already-open one).
+      // D15 soft cap → ADR-369 follow-on (2026-06-25): LRU RECEDE, never
+      // refuse. The pre-369 cap REFUSED the navigation ("close one before
+      // opening X") — the one move ADR-340 DP29 forbids: a primary act is
+      // never blocked. The macOS model opens the window and lets the oldest
+      // recede. When opening a NEW window would exceed MAX_OPEN_WINDOWS, we
+      // auto-close the least-recently-raised window (lowest z among the open
+      // set, excluding the one we're about to foreground) and proceed. The
+      // foregrounded window is never the victim, so the operator never loses
+      // what they're looking at; surfaces are substrate-backed, so a receded
+      // window re-fetches cleanly on reopen (only its geometry is dropped).
       if (!alreadyOpen && open.length >= MAX_OPEN_WINDOWS) {
-        setCapHit(slug);
-        return false;
+        const states = windowStates;
+        // Victim = the open window with the lowest z (least-recently raised),
+        // never the currently foregrounded one. z is the recency signal —
+        // every foreground bumps it — so lowest-z = oldest-touched.
+        const victim = open
+          .filter((s) => s !== foregrounded)
+          .reduce<string | null>((lo, s) => {
+            if (lo === null) return s;
+            const zS = states[s]?.z ?? 0;
+            const zLo = states[lo]?.z ?? 0;
+            return zS < zLo ? s : lo;
+          }, null);
+        if (victim) {
+          // Evict from the open registry (persists to localStorage, so the
+          // openSurfaceWrite below re-reads the post-eviction list).
+          setOpen(closeSurfaceWrite(userId, victim));
+          // Drop the receded window's geometry entry so it cascades fresh
+          // on reopen (no stale off-screen position).
+          setWindowStatesState((current) => {
+            if (!current[victim]) return current;
+            const next = { ...current };
+            delete next[victim];
+            persistWindowStates(next);
+            return next;
+          });
+        }
       }
 
       const nextOpen = openSurfaceWrite(userId, slug);
@@ -493,7 +520,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
 
       return true;
     },
-    [userId, open, computeNextZ, compactWindowZ, persistWindowStates]
+    [userId, open, foregrounded, windowStates, computeNextZ, compactWindowZ, persistWindowStates]
   );
 
   // ADR-340 P2 — pane-grade resolution wrapper. A surface carrying
@@ -756,8 +783,6 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
     [persistWindowStates]
   );
 
-  const clearCapHit = useCallback(() => setCapHit(null), []);
-
   const isKept = useCallback((slug: string) => kept.includes(slug), [kept]);
   const isOpen = useCallback((slug: string) => open.includes(slug), [open]);
 
@@ -782,8 +807,6 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       raiseWindow,
       toggleMaximize,
       minimizeWindow,
-      capHit,
-      clearCapHit,
       desktopBounds,
       setDesktopBounds,
     }),
@@ -807,8 +830,6 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       raiseWindow,
       toggleMaximize,
       minimizeWindow,
-      capHit,
-      clearCapHit,
       desktopBounds,
       setDesktopBounds,
     ]

@@ -88,8 +88,6 @@ export function TopBarSurface() {
     closeSurface,
     raiseWindow,
     minimizeWindow,
-    capHit,
-    clearCapHit,
   } = useSurfacePreferences();
   const { userEmail, openLauncher } = useShellChrome();
 
@@ -205,9 +203,10 @@ export function TopBarSurface() {
       // the same root cause).
       const isMinimized = !!windowStates[surface.slug]?.minimized;
       if (!surfaceIsOpen) {
+        // ADR-369 follow-on: opening always succeeds — if at the window
+        // cap, foregroundSurface auto-recedes the least-recently-used
+        // window (LRU), never refuses.
         foregroundSurface(surface.slug);
-        // If foregroundSurface refused (cap hit), capHit is set; the
-        // prompt below handles the UX.
       } else if (isMinimized) {
         foregroundSurface(surface.slug); // restore + raise + foreground
       } else if (isForegrounded) {
@@ -502,29 +501,6 @@ export function TopBarSurface() {
         </div>
       )}
     </header>
-
-    {/* D15 soft-cap prompt — surfaces when foregroundSurface refuses
-        a new window because the open-window count reached
-        MAX_OPEN_WINDOWS. Centered toast just under the header. */}
-    {capHit && (
-      <div
-        style={{ zIndex: Z_POPOVER }}
-        className="fixed top-16 left-1/2 -translate-x-1/2 flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-50 dark:bg-amber-900/40 px-4 py-2.5 shadow-lg"
-      >
-        <div className="text-xs text-amber-900 dark:text-amber-100">
-          You have 8 windows open. Close one before opening{' '}
-          <span className="font-medium">{capHit}</span>.
-        </div>
-        <button
-          type="button"
-          onClick={clearCapHit}
-          className="text-xs text-amber-900/70 dark:text-amber-100/70 hover:text-amber-900 dark:hover:text-amber-100 transition-colors"
-          aria-label="Dismiss"
-        >
-          ✕
-        </button>
-      </div>
-    )}
     </>
   );
 }
