@@ -31,7 +31,11 @@
    ```
    The `issuer` and endpoints should all read `https://mcp.yarnnn.com`.
 
-7. **Update the connector URL you hand to users.** Wherever you tell users "add this MCP URL to your LLM" (docs, onboarding, the connector setup instructions), use `https://mcp.yarnnn.com` (or its `/mcp` path, matching what claude.ai expects). The old onrender URL keeps working until you remove it, but new connects should use the branded one.
+7. **The connector URL you hand to users is `https://mcp.yarnnn.com/mcp`** — WITH the `/mcp` path. ⚠️ **This is a real gotcha (KVK hit it 2026-06-25):** the bare `https://mcp.yarnnn.com` returns 404 at root (OAuth discovery at `/.well-known/...` resolves, so the user gets "your account was authorized, but no MCP server was found at the provided URL" — auth succeeds, then the protocol endpoint 404s). The MCP protocol is served at **`/mcp`** (verified: `/mcp` → 401 auth-gated = correct; `/` → 404). Same convention as the old `yarnnn-mcp-server.onrender.com/mcp`. Put the full `/mcp` URL in every docs/onboarding/setup instruction; never the bare domain.
+
+### Why a subdomain + `/mcp`, not `yarnnn.com/mcp` (the decision, recorded)
+
+`yarnnn.com/mcp` looks cleaner but is the WRONG and harder path: `yarnnn.com` points to the **Next.js web app** (a different Render service), while the MCP server is a **separate service**. A domain points to one service, so `yarnnn.com/mcp` would route to the web app, not the MCP server. Making it work would need a reverse proxy splitting traffic by path — real infra, another failure point, to buy a cosmetically shorter URL. A **subdomain is the standard clean way to give a separate service its own address**: `mcp.yarnnn.com` → MCP service, `yarnnn.com` → web app, no proxy. The doubled "mcp" (`mcp.yarnnn.com/mcp`) is not redundant branding — `mcp.` = *which service*, `/mcp` = *which endpoint on it* (vs `/authorize`, `/token`, `/.well-known/…`); the old onrender URL had the same shape. The only way to drop the `/mcp` suffix is a code change to mount the MCP protocol at the service root — not worth it for a string a user pastes once.
 
 ## Parity / blast-radius check (Render Service Parity discipline)
 
