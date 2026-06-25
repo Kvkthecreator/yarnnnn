@@ -70,6 +70,18 @@ Two candidate moves; the cheaper one first:
 
 **Do move 1 before any canon.** It is the cheaper measurement, and it directly tests whether the agent's sustained Clarify was correct discipline (substrate genuinely not ready) or a deadlock it should have broken itself.
 
+---
+
+### STATUS UPDATE (2026-06-25) — the writable-path half is closed; the limb is narrowed + still gated
+
+Two later results bear directly on move 2, so its scope has changed — recording it here so a future session neither builds the limb blindly nor forgets it:
+
+- **The ADR-366 loop-closed probe (`f0311e1`) + the tenure rule-revision eval (`b87b466`, `docs/evaluations/2026-06-25-tenure-rule-revision-FINDING.md`) demonstrated the *writable-path* half of this stall is closed.** Given a writable-path blocker (a `contract/` config, or a `_voice.md` rule ground-truth falsified), the agent now *authors/revises the path itself* rather than Clarifying — exactly ADR-344 §4's writable-path test operating. So the soak's stall, to the extent it was three *writable* blockers (`_editorial.md` in `operation/`, the MANDATE clause in `constitution/`, piece-2 intent in `operation/` — all writable per DP25/ADR-366), is the topology half, and it is demonstrably resolved. **Move 1 (clear the blockers + re-soak) is the remaining honest test of whether origination then sustains** — it has NOT been run; the tenure eval tested rule-revision, not origination-after-blocker-clearing.
+
+- **What move 2's limb still genuinely covers is now narrower**: the *non-writable / operator-input-genuinely-required* case — a (B) structural blocker on a path the agent cannot write (the GRANT, `governance/`), or one where the agent has authority but judges the operator should direct, surfaced *repeatedly across K wakes with no operator reply*. ADR-344 shipped the (A)/(B) classifier + the writable-path test + "surface via Clarify" for the genuine-surface case — but it shipped **no anti-repeat limb** for a surface-case Clarify that goes unanswered indefinitely. That residue is the real, still-open DP30 question.
+
+**Treatment (do NOT build now):** the limb remains **gated on move 1** (run the blocker-cleared re-soak first; if origination sustains, the writable half was the whole stall and no limb is needed). Even if move 1 still stalls, build the limb only for the *non-writable repeated-Clarify* case the writable-path test does not reach. Carrying this as a hypothesis into the tenure-testing session (per its carry-over prompt), NOT as scoped canon work. Building a "repeated-Clarify → escalate" ADR before move 1 runs would be moving canon before measuring — the discipline this whole arc held.
+
 ## Receipts
 
 | Claim | Receipt |
