@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 _PRODUCED_ARTIFACT_GLOB = "/workspace/operation/%/content.md"
 
 # Governance file declaring the output contract (ADR-345).
-_EXPECTED_OUTPUT_PATH = "/workspace/governance/_expected_output.yaml"
+_EXPECTED_OUTPUT_PATH = "/workspace/contract/_expected_output.yaml"
 
 
 async def count_produced_artifacts(client: Any, user_id: str) -> Optional[int]:

@@ -55,9 +55,22 @@ are kernel/bundle-seeded. operation/ empty is legal — it signals the bare-work
 """
 
 # =============================================================================
-# Root prefixes (ADR-320) — the five semantic-class roots
+# Root prefixes (ADR-320 + the grant/contract split) — semantic-class roots
 # =============================================================================
+# ADR (autonomy-mode-as-execution-breadth, 2026-06-25): governance/ is split by
+# the "should the agent be able to write its own X?" test into two roots:
+#   - governance/ = the GRANT (authority + spend the agent runs under) — the
+#     irreducible lock. A grant the grantee can rewrite is not a grant: the
+#     agent cannot author the declaration of its own breadth (_autonomy) or its
+#     own spend authorization (_budget). Locked-always, every mode, every caller.
+#   - contract/   = the operating CONTRACT (what the operator declares the agent
+#     OWES + PREFERS — _expected_output, _preferences). NOT an authority grant:
+#     editing it grants the agent no new power; it changes what the agent is
+#     measured against. So it is MODE-GOVERNED, not locked — the existing ADR-307
+#     witness gate routes a Reviewer write to it (QUEUE under bounded/supervised,
+#     APPLY under autonomous). Breadth = AUTONOMY mode, not a capability lock.
 GOVERNANCE_ROOT = "governance/"
+CONTRACT_ROOT = "contract/"
 CONSTITUTION_ROOT = "constitution/"
 PERSONA_ROOT = "persona/"
 OPERATION_ROOT = "operation/"
@@ -70,24 +83,34 @@ UPLOADS_ROOT = "uploads/"
 
 
 # =============================================================================
-# governance/ — operator-only ceilings (locked from every LLM writer)
+# governance/ — the GRANT: authority + spend the agent runs under (locked-always)
 # =============================================================================
+# These two are the irreducible lock set (re-ratifies ADR-293's "two governance
+# instruments"): the agent reads them to know its own breadth + budget, and can
+# NEVER author them — a gate the gated party can open is not a gate.
 # AUTONOMY: prose doc (LLM/human reads) + machine-parsed yaml (yaml.safe_load).
 GOVERNANCE_AUTONOMY_PATH = "governance/AUTONOMY.md"
 GOVERNANCE_AUTONOMY_YAML_PATH = "governance/_autonomy.yaml"
 # The operation's spend envelope (ADR-327): one dollar budget over a timeframe.
-# Reviewer reads, never authors (Reviewer-edit could raise its own ceiling —
-# authority the operator did not delegate). Collapses the retired _pace.yaml +
-# _token_budget.yaml into one file (both constants deleted by ADR-327).
+# The agent should not author its own spend AUTHORIZATION (the operator's grant
+# of capital to the operation — upstream of the work, not a judgment within it).
+# Collapses the retired _pace.yaml + _token_budget.yaml (both deleted by ADR-327).
 GOVERNANCE_BUDGET_PATH = "governance/_budget.yaml"
+
+# =============================================================================
+# contract/ — the operating CONTRACT: operator-declared, agent-honored,
+#             MODE-GOVERNED (not locked — the witness dial governs writes)
+# =============================================================================
 # Operator's deliverable-cadence preferences (ADR-275). Reviewer reads + reconciles
-# via Schedule; operator owns the content.
-GOVERNANCE_PREFERENCES_PATH = "governance/_preferences.yaml"
+# via Schedule; operator owns the content but the agent MAY revise it against
+# ground truth — a write QUEUES under bounded/supervised, APPLIES under autonomous.
+CONTRACT_PREFERENCES_PATH = "contract/_preferences.yaml"
 # The operation's output contract (ADR-345) — what the workspace owes:
 # kind + delivery-cadence + bar. The machine face of MANDATE ## Expected Output.
-# Governance: operator-declared, Reviewer reads-not-authors (sibling to _budget.yaml).
-# The standing-obligation check (DP30) reads it declared-then-derive (ADR-344 fallback).
-GOVERNANCE_EXPECTED_OUTPUT_PATH = "governance/_expected_output.yaml"
+# Operator-declared; mode-governed for the agent (ADR-319 stewardship — the
+# installed judgment revises its own operating contract against ground truth,
+# witness-gated). The standing-obligation check (DP30) reads it declared-then-derive.
+CONTRACT_EXPECTED_OUTPUT_PATH = "contract/_expected_output.yaml"
 
 
 # =============================================================================
@@ -189,30 +212,36 @@ SYSTEM_FILES = (
 #
 # Caller classes (matched by authored_by prefix in the gate):
 #   - "reviewer"  — the seat occupant. Amends constitution/ + persona/ +
-#                   operation/; locked from governance/ (its own ceilings) and
-#                   system/ (orchestration's, not the seat's). Writes ALL of
-#                   persona/ including reflection.md (ADR-364 — Reviewer-authored
-#                   from the mechanical gap-fact). The pre-ADR-364 cross-class
-#                   exception (reconciler → persona/calibration.md) is RETIRED:
-#                   reflection.md has no system-writer, so persona/ has no
-#                   cross-class hole — a topology simplification.
+#                   operation/ + contract/; locked ONLY from governance/ (the
+#                   GRANT it runs under — authority + spend it cannot self-author)
+#                   and system/ (orchestration's, not the seat's). Writes ALL of
+#                   persona/ including reflection.md (ADR-364). contract/ is NOT
+#                   locked: a Reviewer write to _preferences/_expected_output is
+#                   MODE-GOVERNED by the ADR-307 witness gate (QUEUE under
+#                   bounded/supervised, APPLY under autonomous) — breadth = the
+#                   AUTONOMY dial, not a capability lock (the grant/contract-split
+#                   ADR, 2026-06-25). The pre-ADR-364 cross-class exception
+#                   (reconciler → persona/calibration.md) is RETIRED.
 #   - "mcp"       — foreign LLM (yarnnn:mcp). Lowest trust. Writes ONLY the
-#                   operation/ commons; locked from everything else.
+#                   operation/ commons; locked from everything else (incl.
+#                   contract/ — a foreign LLM does not revise the operator's
+#                   operating contract).
 #   - "agent"     — domain agent / specialist. Writes operation/ (domain-scoped
 #                   enforcement is the dispatcher's job); locked from governance/
-#                   constitution/ persona/ system/.
+#                   contract/ constitution/ persona/ system/.
 #   - "operator"  — the human. Writes everything except system/ (orchestration
-#                   runtime state is not hand-edited).
+#                   runtime state is not hand-edited) — including governance/ (the
+#                   grant is the operator's to set) + contract/ (the operator's
+#                   own operating contract).
 #   - "system"    — deterministic actors (reconciler, mirrors, cleanup). Write
-#                   system/ + operation/; locked from governance/ constitution/
-#                   + ALL of persona/ (post-ADR-364 the persona/calibration.md
-#                   named exception is retired — see "reviewer" above).
+#                   system/ + operation/; locked from governance/ contract/
+#                   constitution/ + ALL of persona/.
 #                   (Enforced by the named-path discipline at each system writer,
 #                   not by a prefix — system writers target specific paths.)
 CALLER_WRITE_POLICY: dict[str, tuple[str, ...]] = {
-    "reviewer": (GOVERNANCE_ROOT, SYSTEM_ROOT),
-    "mcp": (GOVERNANCE_ROOT, CONSTITUTION_ROOT, PERSONA_ROOT, SYSTEM_ROOT),
-    "agent": (GOVERNANCE_ROOT, CONSTITUTION_ROOT, PERSONA_ROOT, SYSTEM_ROOT),
+    "reviewer": (GOVERNANCE_ROOT, SYSTEM_ROOT),  # contract/ NOT here → mode-governed
+    "mcp": (GOVERNANCE_ROOT, CONTRACT_ROOT, CONSTITUTION_ROOT, PERSONA_ROOT, SYSTEM_ROOT),
+    "agent": (GOVERNANCE_ROOT, CONTRACT_ROOT, CONSTITUTION_ROOT, PERSONA_ROOT, SYSTEM_ROOT),
     "operator": (SYSTEM_ROOT,),
     # system: governed by named-path discipline at each writer, not a prefix lock.
     "system": (),

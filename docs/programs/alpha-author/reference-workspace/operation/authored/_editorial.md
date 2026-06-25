@@ -48,7 +48,7 @@ Example:
 
 - Not the voice fingerprint. Voice lives in `_voice.md`.
 - Not Reviewer's principles. Those live in `/workspace/persona/principles.md` (operator-authored framework the Reviewer applies).
-- Not cadence preferences. Those live in `/workspace/governance/_preferences.yaml`.
+- Not cadence preferences. Those live in `/workspace/contract/_preferences.yaml`.
 - Not author identity. That lives in `IDENTITY.md`.
 
 ## How this file evolves

@@ -94,7 +94,7 @@ reviewer_wake_envelope:
     path: governance/AUTONOMY.md
     optional: false
   - key: preferences_yaml
-    path: governance/_preferences.yaml
+    path: contract/_preferences.yaml
     optional: true
 
   # --- alpha-author program-specific envelope ---

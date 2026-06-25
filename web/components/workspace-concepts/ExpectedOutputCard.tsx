@@ -2,7 +2,7 @@
 
 /**
  * ExpectedOutputCard — L3 component for
- * /workspace/governance/_expected_output.yaml (ADR-348).
+ * /workspace/contract/_expected_output.yaml (ADR-348).
  *
  * The operator-facing FE for ADR-345's Expected Output — the output contract:
  * WHAT the operation owes when it works (kind + delivery-cadence + bar).

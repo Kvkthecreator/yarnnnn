@@ -58,9 +58,9 @@ from services.workspace_paths import (
     CONSTITUTION_PRECEDENT_PATH,
     CONSTITUTION_MANDATE_PATH,
     GOVERNANCE_AUTONOMY_PATH,
-    GOVERNANCE_PREFERENCES_PATH,
     GOVERNANCE_BUDGET_PATH,
-    GOVERNANCE_EXPECTED_OUTPUT_PATH,
+    CONTRACT_PREFERENCES_PATH,
+    CONTRACT_EXPECTED_OUTPUT_PATH,
     SPECS_PREFIX,
     SYSTEM_SCHEDULE_INDEX_PATH,
     SYSTEM_RECENT_EXECUTION_PATH,
@@ -84,7 +84,7 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     ("precedent_md", CONSTITUTION_PRECEDENT_PATH),
     ("mandate_md", CONSTITUTION_MANDATE_PATH),
     ("autonomy_md", GOVERNANCE_AUTONOMY_PATH),
-    ("preferences_yaml", GOVERNANCE_PREFERENCES_PATH),
+    ("preferences_yaml", CONTRACT_PREFERENCES_PATH),
     # ADR-327: budget is the Trigger-dimension operator dial (Budget +
     # Autonomy + Identity trifecta). The Reviewer reads the spend envelope
     # at every wake so its wake-allocation judgment (mid-loop Schedule()
@@ -99,7 +99,7 @@ _UNIVERSAL_ENVELOPE_DECLS: list[tuple[str, str]] = [
     # present it is the shared referent for "behind on the contract"; when
     # empty the ADR-344 derivation is the fallback. Empty string keeps the
     # ReviewerContext key present (same shape as budget_yaml).
-    ("expected_output_yaml", GOVERNANCE_EXPECTED_OUTPUT_PATH),
+    ("expected_output_yaml", CONTRACT_EXPECTED_OUTPUT_PATH),
     # — Seat Occupant (ADR-284) — current occupant identity, runtime-truth-aligned
     ("occupant_md", PERSONA_OCCUPANT_PATH),
     # — Standing Intent (ADR-284) — what the Reviewer was watching for last cycle.
@@ -248,7 +248,7 @@ async def load_reviewer_governance_envelope(
       - precedent_md         → /workspace/constitution/PRECEDENT.md
       - mandate_md           → /workspace/constitution/MANDATE.md
       - autonomy_md          → /workspace/governance/AUTONOMY.md
-      - preferences_yaml     → /workspace/governance/_preferences.yaml
+      - preferences_yaml     → /workspace/contract/_preferences.yaml
       - occupant_md          → /workspace/persona/OCCUPANT.md            (ADR-284)
       - standing_intent_md   → /workspace/persona/standing_intent.md     (ADR-284)
 

@@ -45,7 +45,7 @@ def test_content_shape() -> None:
     src = _read("lib/content-shapes/expected-output.ts")
     check("expected-output.ts exists", bool(src))
     check("SHAPE_KEY == 'expected-output'", "SHAPE_KEY = 'expected-output'" in src)
-    check("PATH_GLOB targets governance/_expected_output.yaml",
+    check("PATH_GLOB targets contract/_expected_output.yaml (ADR-366)",
           "_expected_output.yaml" in src)
     check("WRITE_CONTRACT == 'configuration' (operator-writable, ADR-347 §3)",
           "WRITE_CONTRACT = 'configuration'" in src)
@@ -91,7 +91,7 @@ def test_bundle_instances() -> None:
     print("\n[bundles] both bundles ship a worked _expected_output.yaml (ADR-345)")
     repo = _API_ROOT.parent
     for prog in ("alpha-author", "alpha-trader"):
-        p = repo / "docs" / "programs" / prog / "reference-workspace" / "governance" / "_expected_output.yaml"
+        p = repo / "docs" / "programs" / prog / "reference-workspace" / "contract" / "_expected_output.yaml"
         body = p.read_text() if p.exists() else ""
         check(f"{prog} ships _expected_output.yaml", bool(body))
         check(f"{prog} declares expected_output block", "expected_output:" in body)
@@ -104,7 +104,8 @@ def test_backend_wiring_preserved() -> None:
     env = _read("services/reviewer_envelope.py", root=_API_ROOT)
     check("reviewer_envelope loads expected_output_yaml", "expected_output_yaml" in env)
     paths = _read("services/workspace_paths.py", root=_API_ROOT)
-    check("GOVERNANCE_EXPECTED_OUTPUT_PATH defined", "GOVERNANCE_EXPECTED_OUTPUT_PATH" in paths)
+    check("CONTRACT_EXPECTED_OUTPUT_PATH defined (ADR-366: moved to contract/)",
+          "CONTRACT_EXPECTED_OUTPUT_PATH" in paths)
 
 
 def main() -> int:

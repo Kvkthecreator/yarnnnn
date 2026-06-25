@@ -25,7 +25,7 @@ Reactive (`schedule: null` in `_recurrences.yaml`). Fires when:
 - Voice fingerprint: `/workspace/operation/authored/_voice.md`.
 - Editorial principles: `/workspace/operation/authored/_editorial.md`.
 - Recent corpus: pieces in `/workspace/operation/authored/` where status is `published`, sorted by `published_at` desc, top 5-10.
-- Cadence preferences: `/workspace/governance/_preferences.yaml`.
+- Cadence preferences: `/workspace/contract/_preferences.yaml`.
 - Calibration state: `/workspace/operation/authored/_signal.md` rolling-window state (for audit-EV reasoning).
 
 ## Output target

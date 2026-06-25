@@ -12,7 +12,7 @@
  *
  * It RENDERS substrate the Reviewer already produces — it computes nothing and
  * reasons nothing (ADR-350 §5; ADR-344 §7 "no new primitive/schema/table"):
- *   Read-1 — the declared contract from governance/_expected_output.yaml
+ *   Read-1 — the declared contract from contract/_expected_output.yaml
  *            (reuses the stable ADR-348 useExpectedOutput hook).
  *   Read-2 — the Reviewer's forward-looking standing intent from
  *            persona/standing_intent.md (ADR-284), rendered as PROSE AS-IS.

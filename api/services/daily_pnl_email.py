@@ -44,7 +44,7 @@ NOTIFICATION_SLUG = "daily_pnl_reconciliation"
 
 # Canonical substrate the dispatcher reads (the judgment's output).
 MONEY_TRUTH_PATH = "/workspace/operation/trading/_money_truth.md"
-PREFERENCES_PATH = "/workspace/governance/_preferences.yaml"
+PREFERENCES_PATH = "/workspace/contract/_preferences.yaml"
 
 
 def _get_workspace_file_content(client: Any, user_id: str, path: str) -> Optional[str]:

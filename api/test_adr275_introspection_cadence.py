@@ -235,31 +235,33 @@ def test_specs_preserved() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 4. GOVERNANCE_PREFERENCES_PATH constant + default lock
+# 4. CONTRACT_PREFERENCES_PATH constant + mode-governed (NOT locked) — ADR-366
 # ---------------------------------------------------------------------------
 
 def test_workspace_paths_extended() -> None:
-    # ADR-320: the flat DEFAULT_REVIEWER_WRITE_LOCKS list dissolved into the
-    # five-root permission topology. The path constant is unchanged; the lock
-    # is now expressed as a root-prefix gate (governance/ is locked from the
-    # reviewer caller class). Equivalent assertion via the singular gate.
-    from services.workspace_paths import GOVERNANCE_PREFERENCES_PATH
+    # ADR-366: _preferences.yaml moved governance/ -> contract/. It is the
+    # operator's operating CONTRACT, not the GRANT — so it is MODE-GOVERNED, NOT
+    # topology-locked from the reviewer. A reviewer write to it flows through the
+    # ADR-307 witness gate (QUEUE under bounded, APPLY under autonomous), not a
+    # bypass-immune DENY. This assertion INVERTS the pre-ADR-366 lock check.
+    from services.workspace_paths import CONTRACT_PREFERENCES_PATH
     from services.primitives.workspace import _is_path_locked
 
-    if GOVERNANCE_PREFERENCES_PATH == "governance/_preferences.yaml":
-        _ok("GOVERNANCE_PREFERENCES_PATH constant correct")
+    if CONTRACT_PREFERENCES_PATH == "contract/_preferences.yaml":
+        _ok("CONTRACT_PREFERENCES_PATH constant correct (moved to contract/)")
     else:
         _bad(
-            "GOVERNANCE_PREFERENCES_PATH value",
-            f"expected 'governance/_preferences.yaml', got {GOVERNANCE_PREFERENCES_PATH!r}",
+            "CONTRACT_PREFERENCES_PATH value",
+            f"expected 'contract/_preferences.yaml', got {CONTRACT_PREFERENCES_PATH!r}",
         )
 
-    if _is_path_locked("reviewer", GOVERNANCE_PREFERENCES_PATH):
-        _ok("_preferences.yaml locked from Reviewer writes (governance/ root, ADR-320)")
+    if not _is_path_locked("reviewer", CONTRACT_PREFERENCES_PATH):
+        _ok("_preferences.yaml NOT topology-locked from Reviewer (mode-governed, ADR-366)")
     else:
         _bad(
-            "_preferences.yaml lock policy",
-            f"_is_path_locked('reviewer', {GOVERNANCE_PREFERENCES_PATH!r}) returned False",
+            "_preferences.yaml mode-governed policy",
+            f"_is_path_locked('reviewer', {CONTRACT_PREFERENCES_PATH!r}) returned True — "
+            "ADR-366 makes contract/ mode-governed, not locked",
         )
 
 

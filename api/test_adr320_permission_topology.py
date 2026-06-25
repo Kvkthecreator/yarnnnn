@@ -58,10 +58,12 @@ def test_legacy_constants_deleted():
 
 
 def test_governance_paths_under_governance_root():
+    # ADR-366: governance/ is the GRANT only (authority + spend). _preferences +
+    # _expected_output moved to contract/ (mode-governed). _token_budget/_pace
+    # were deleted by ADR-327.
     from services import workspace_paths as wp
     for p in (wp.GOVERNANCE_AUTONOMY_PATH, wp.GOVERNANCE_AUTONOMY_YAML_PATH,
-              wp.GOVERNANCE_TOKEN_BUDGET_PATH, wp.GOVERNANCE_PACE_PATH,
-              wp.GOVERNANCE_PREFERENCES_PATH):
+              wp.GOVERNANCE_BUDGET_PATH):
         assert p.startswith("governance/"), p
 
 
@@ -101,10 +103,12 @@ def _locked(caller, path):
 
 
 def test_governance_locked_from_all_llm_callers():
+    # ADR-366: governance/ = the GRANT (authority + spend) — locked from every
+    # LLM caller, every mode. A grant the grantee can rewrite is not a grant.
     for caller in ("reviewer", "mcp", "agent"):
         assert _locked(caller, "governance/AUTONOMY.md"), caller
-        assert _locked(caller, "governance/_token_budget.yaml"), caller
-        assert _locked(caller, "/workspace/governance/_pace.yaml"), caller
+        assert _locked(caller, "governance/_autonomy.yaml"), caller
+        assert _locked(caller, "/workspace/governance/_budget.yaml"), caller
 
 
 def test_constitution_writable_by_reviewer_locked_from_mcp_and_agent():

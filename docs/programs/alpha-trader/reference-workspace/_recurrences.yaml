@@ -218,7 +218,7 @@ recurrences:
   # scaffolded here. Under FOUNDATIONS v8.5 Axiom 4 + Derived Principle
   # 18, deliverable cadence is Reviewer-authored — not bundle-scaffolded.
   # The operator declares preferences for these deliverables in
-  # /workspace/governance/_preferences.yaml. The Reviewer reads
+  # /workspace/contract/_preferences.yaml. The Reviewer reads
   # _preferences.yaml at every wake and authors Schedule(action="create"|
   # "update"|"archive") for declared preferences. The capability specs
   # remain in /workspace/operation/specs/ (pre-market-brief.md, weekly-performance-

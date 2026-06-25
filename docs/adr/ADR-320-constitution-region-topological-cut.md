@@ -6,6 +6,7 @@
 > **Upstream discourse**: [personified-judgment-seat-vs-task-harness-2026-06-05.md](../analysis/personified-judgment-seat-vs-task-harness-2026-06-05.md) (the commissioned-tool vs delegated-agent axis) + [personified-seat-canon-sketches-2026-06-05.md](../analysis/personified-seat-canon-sketches-2026-06-05.md) (the canon amendments this enables).
 > **Dimensional classification**: **Substrate** (Axiom 1 — filesystem topology) + **Identity** (Axiom 2 — person/operation/system orthogonality) + **Channel** (Axiom 6 — the lock IS the legible permission surface) primary.
 > **Canon backing**: ADR-222 + Derived Principle 16 (literal OS framing) — this ADR *implements the agent OS's permission model*, correcting the filesystem toward the OS analogy it already committed to.
+> **Amended by [ADR-366](ADR-366-autonomy-mode-as-execution-breadth.md) (2026-06-25)** — the five-root cut becomes six: `governance/` splits into the **GRANT** (`governance/`, `_autonomy` + `_budget`, locked-always) + the operating **CONTRACT** (`contract/`, `_preferences` + `_expected_output`, mode-governed). Execution breadth = the AUTONOMY mode, not a capability lock. The pure-prefix `_is_path_locked` property is preserved (a new root, not a per-file exception).
 
 ---
 

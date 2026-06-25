@@ -213,7 +213,7 @@ async def _seed_recurrences_from_preferences(
     `_preferences.yaml`.
 
     For each `active: true` deliverable preference in
-    `/workspace/governance/_preferences.yaml` whose `slug` is NOT
+    `/workspace/contract/_preferences.yaml` whose `slug` is NOT
     yet a recurrence in `/workspace/_recurrences.yaml`, this helper
     appends a new recurrence entry with:
       - mode: judgment
@@ -240,12 +240,12 @@ async def _seed_recurrences_from_preferences(
 
     from services.conventions import RECURRENCES_PATH
     from services.workspace import UserMemory
-    from services.workspace_paths import GOVERNANCE_PREFERENCES_PATH
+    from services.workspace_paths import CONTRACT_PREFERENCES_PATH
 
     um = UserMemory(client, user_id)
 
     # Read post-fork preferences + current recurrences.
-    preferences_yaml = await um.read(GOVERNANCE_PREFERENCES_PATH)
+    preferences_yaml = await um.read(CONTRACT_PREFERENCES_PATH)
     if not preferences_yaml:
         logger.info(
             f"[FORK:D9] no _preferences.yaml for {user_id[:8]}/{program_slug}; "

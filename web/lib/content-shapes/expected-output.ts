@@ -1,5 +1,5 @@
 /**
- * Expected Output content shape — `/workspace/governance/_expected_output.yaml`.
+ * Expected Output content shape — `/workspace/contract/_expected_output.yaml`.
  *
  * ADR-348 (2026-06-19): the operator-facing FE for ADR-345's Expected Output.
  * ADR-345 shipped the concept + the `_expected_output.yaml` referent + the
@@ -38,7 +38,7 @@ import type { ContentShapeMeta } from './index';
 // ---------------------------------------------------------------------------
 
 export const SHAPE_KEY = 'expected-output' as const;
-export const PATH_GLOB = '**/governance/_expected_output.yaml';
+export const PATH_GLOB = '**/contract/_expected_output.yaml';
 export const WRITE_CONTRACT = 'configuration' as const;
 export const CANONICAL_L3 = 'ExpectedOutputCard' as const;
 
@@ -54,7 +54,7 @@ export const META: ContentShapeMeta = {
 // api/services/workspace_paths.py
 // ---------------------------------------------------------------------------
 
-export const EXPECTED_OUTPUT_YAML_PATH = '/workspace/governance/_expected_output.yaml';
+export const EXPECTED_OUTPUT_YAML_PATH = '/workspace/contract/_expected_output.yaml';
 
 /**
  * Declared delivery cadences (ADR-348 D3 generic kernel-fallback form). Free
@@ -297,7 +297,7 @@ export function useExpectedOutput(opts?: { initialContent?: string | null }): Us
     const content = serialize(nextMeta, rawBody, tierBlock);
     setMeta(nextMeta); // optimistic
     const { writeShape } = await import('./write');
-    await writeShape('expected-output', 'governance/_expected_output.yaml', content, {
+    await writeShape('expected-output', 'contract/_expected_output.yaml', content, {
       message: `expected output: ${nextMeta.kind ?? '?'} · ${nextMeta.delivery_cadence ?? '?'}`,
     });
   };

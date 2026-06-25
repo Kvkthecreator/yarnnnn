@@ -18,7 +18,7 @@ Submit equity and option orders to the broker, sized per the declared risk rule,
 
 ## Expected Output
 
-> The measurable half of this mandate (ADR-345) — what this operation is on the hook to **produce**. Distinct from Rhythm (`_budget.yaml`: how often the agent works) and Autonomy (`_autonomy.yaml`: which orders you witness). Machine companion: `governance/_expected_output.yaml`. **A delivery-cadence the floor gates — not a quota.** You never trade looser, size up, or drop a stop to "hit a number."
+> The measurable half of this mandate (ADR-345) — what this operation is on the hook to **produce**. Distinct from Rhythm (`_budget.yaml`: how often the agent works) and Autonomy (`_autonomy.yaml`: which orders you witness). Machine companion: `contract/_expected_output.yaml`. **A delivery-cadence the floor gates — not a quota.** You never trade looser, size up, or drop a stop to "hit a number."
 
 - **Kind**: signal-attributed trades (entries + their matching exits).
 - **Delivery cadence**: **per-signal-when-fires** — the market originates the trigger. The operation owes a trade *when a declared signal fires within the rules*, and owes *zero* when none fires. This is the load-bearing case for why Expected Output ≠ Rhythm: you may wake every minute (fast Rhythm) and correctly produce zero trades for weeks (on-contract — quiet world, not a shortfall). A genuine output shortfall is *structural* (no live signal can fire — the §Dormancy-driven / standing-obligation case in principles.md), never "the market was quiet."

@@ -372,7 +372,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
     },
     {
         # ADR-348 (2026-06-19) — Expected Output, operator-facing. ADR-345
-        # shipped the concept + governance/_expected_output.yaml referent +
+        # shipped the concept + contract/_expected_output.yaml referent +
         # wake-envelope wiring backend-only; this is the FE the operator
         # sees + sets. The third Contract-group member (Rhythm · Witness ·
         # Expected Output). Governance-region: operator authors, Reviewer
@@ -386,7 +386,7 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         "title": "Expected Output",
         "archetype": "document",
         "substrate_paths": [
-            "/workspace/governance/_expected_output.yaml",
+            "/workspace/contract/_expected_output.yaml",
         ],
         "icon_key": "target",
         "default_pinned": False,

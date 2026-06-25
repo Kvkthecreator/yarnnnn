@@ -60,7 +60,7 @@ recurrences:
       /workspace/operation/specs/corpus-coherence-rollup.md.
 
       Production (always): your mandate's Expected Output is a STANDING
-      OBLIGATION (governance/_expected_output.yaml + MANDATE ## Expected
+      OBLIGATION (contract/_expected_output.yaml + MANDATE ## Expected
       Output). An empty or flat corpus under a declared output contract is not
       a neutral fact — it is the obligation unmet, and you classify why
       (principles.md §2 owed-output rule: (A) quiet-world vs (B) no organ in
@@ -88,7 +88,7 @@ recurrences:
 
       For each draft-state piece in /workspace/operation/authored/ with
       revisions in the window (window length per
-      /workspace/governance/_preferences.yaml; default 7d), diff the revisions
+      /workspace/contract/_preferences.yaml; default 7d), diff the revisions
       and audit the change against voice, entity continuity, structural
       load-bearing, and open-question state — per
       /workspace/operation/specs/revision-audit.md (the full procedure +
@@ -279,7 +279,7 @@ recurrences:
     display_name: "Hacker News Perceive"
 
 # ADR-275: weekly-corpus-review and quarterly-voice-audit (operator
-# deliverable cadence) live in /workspace/governance/_preferences.yaml.
+# deliverable cadence) live in /workspace/contract/_preferences.yaml.
 # The Reviewer reads _preferences.yaml at every wake and authors Schedule(
 # action="create"|"update"|"archive") for declared preferences. Specs at
 # /workspace/operation/specs/weekly-corpus-review.md + quarterly-voice-audit.md are

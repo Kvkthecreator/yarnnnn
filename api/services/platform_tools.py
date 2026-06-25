@@ -1104,7 +1104,7 @@ EMAIL_SEND_TO_OPERATOR_TOOL = {
         "(auth.users.email for the workspace owner) — no `to:` field. Use "
         "for daily updates, alert digests, state-change notifications the "
         "operator opted into via "
-        "/workspace/governance/_preferences.yaml::operator_notifications. "
+        "/workspace/contract/_preferences.yaml::operator_notifications. "
         "Does NOT route through ExecuteProposal / AUTONOMY gating (per "
         "ADR-299 D4 — operator-addressing writes are observability, not "
         "consequential action). The wire is system-deployed Resend "
