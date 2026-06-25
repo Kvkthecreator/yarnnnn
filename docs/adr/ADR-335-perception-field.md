@@ -4,6 +4,7 @@
 **Date:** 2026-06-10 (ratified + Crawl-A 2026-06-11)
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Hat:** A (system canon — real-operator-facing) — but **drafted under the Hat-B fence**: ratification gates the Hat-A landing.
+**Surfaced by:** [ADR-370](ADR-370-context-surface-the-operations-boundary.md) (2026-06-25) — the perception field gains a first-class operator-facing **gathering** surface: the watches/transports (Sources + Connectors) that are Workspace-Settings → Perception panes are also mounted in **Context → In** (the operation's inbound boundary), second mount of the same self-contained bodies. The substrate model is unchanged (declaration / observation / transport, three-layer cut); this is a Channel-dimension gathering, not a new perception mechanism.
 
 > **Discourse base:** [`perception-under-calibration-arc3-foundation-2026-06-10.md`](../analysis/perception-under-calibration-arc3-foundation-2026-06-10.md) (the fixed foundation — §2 three-layer cut, §3 perception-under-calibration, §4 watch-first discipline, §5 MCP-client posture, §6 crawl/walk/run staging, §8 feasibility + dependency ordering), succeeding [`four-flow-completeness-and-program-floor-2026-06-10.md`](../analysis/four-flow-completeness-and-program-floor-2026-06-10.md) §2 (the perception-field correction: *reading is commodity, the declared/distilled/tenured field is not*). Receipts re-verified against live `api/` + the alpha-trader bundle on 2026-06-10 (§3 below).
 

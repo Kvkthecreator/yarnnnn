@@ -5,6 +5,7 @@
 > **Authors**: KVK, Claude
 > **Ratified by**: FOUNDATIONS v6.8 (Axiom 9) + GLOSSARY v1.9 + ADR-296 v2 (2026-05-20)
 > **Scope**: The atom of action in YARNNN and the narrative surface where that atom becomes legible to the operator.
+> **Surface-home amendment (2026-06-25 — [ADR-370](../adr/ADR-370-context-surface-the-operations-boundary.md))**: the narrative's operator-facing surface is the **Context boundary surface's Flow lens** (`/context?context.pane=flow`) and, redundantly, **Notifications → Activity** (deliberate tiered access — ADR-367 D3). The standalone `/feed` route dissolved into Context's Flow lens (the renderer, grammar, and `session_messages` substrate are unchanged — only the launcher home moved); references below to `/chat` / `/feed` as "the narrative surface" name that same narrative — now the Flow lens. The *definition* (narrative ⊇ chat; every invocation logs; Channel-axis legibility closes Derived Principle 12) is unchanged.
 
 ---
 

@@ -1,6 +1,7 @@
 # ADR-349 — Launcher IA Re-Sort: the at-rest launcher is the standing loop + two settings doors
 
 **Status:** **Accepted + Implemented (2026-06-19)** — same session. Closes the ADR-340 §9 deferred follow-on ("launcher IA re-sort ~17→~7") and ADR-346 §9 ("Queue window fate"). Gate `api/test_adr349_launcher_ia.py`. Sibling gates updated (ADR-340 P3, ADR-346, ADR-347, ADR-340 P1). `tsc --noEmit` clean (my files).
+**Amended by:** [ADR-370](ADR-370-context-surface-the-operations-boundary.md) (2026-06-25) — the at-rest primary tier gains **Context** (the operation's boundary composition), inheriting the launcher slot the Feed vacated. `feed` (already `search-only`, fronted by Notifications per this ADR) folds into Context as its Flow lens; `feed.default_pinned` flips False. The standing-loop primary tier becomes Home · Context · Queue · Files (+ Notifications, the bell's destination).
 **Date:** 2026-06-19
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Hat:** A (system canon)

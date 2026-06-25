@@ -1,6 +1,7 @@
 # ADR-346 — The Operation Surface: a composition window for Decide · Read · Tune
 
 **Status:** **Proposed (2026-06-19)** — surface + registry change. Implementation follows in the same arc.
+**Preserved + extended by:** [ADR-370](ADR-370-context-surface-the-operations-boundary.md) (2026-06-25) — Notifications (this surface, renamed by ADR-349) **stays the operating-work composition** (To do · Activity · Schedule), NOT demoted. ADR-370 adds a *sibling* composition (Context: In · Out · Flow) over the operation's boundary. The narrative appears in both (Notifications → Activity, Context → Flow) as **deliberate tiered redundancy** — the macOS Control-Center/System-Settings principle (ADR-367 D3); same `FeedSurface` body, two mounts (ADR-340 D8), two distinct primary jobs (operate the work vs. understand the boundary).
 **Date:** 2026-06-19
 **Deciders:** KVK (operator) + Claude (collaborator)
 **Dimensional classification:** **Channel** (Axiom 6) projected through **Purpose** (Axiom 3 — the operator's standing-loop acts). Extends FOUNDATIONS Derived Principle 29 (ADR-340).

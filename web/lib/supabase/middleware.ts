@@ -27,12 +27,12 @@ import { HOME_ROUTE } from "@/lib/routes";
 const PROTECTED_PREFIXES = [
   "/desktop", // ADR-297 §D17 — authenticated boot route
   "/setup", // ADR-331 — guided first-boot sequence surface (first-run redirect target)
-  "/feed",
+  "/feed", // ADR-370 — redirect stub → /context?context.pane=flow (Feed folded into Context's Flow lens)
   "/recurrence", // ADR-297 — absorbed /work (recurrence list + task detail); renamed from /cadence 2026-06-03
   "/cadence", // redirect stub → /recurrence (2026-06-03 — surface rename)
   "/agents",
   "/files",
-  "/context", // redirect stub → /files (2026-06-01 — slug/route/label coherence)
+  "/context", // ADR-370 — the boundary composition (In · Out · Flow). Was a /files redirect stub (2026-06-01); reclaimed.
   "/activity",
   "/connectors",
   "/sources", // ADR-338 D4.1 — standing-watch drivers surface

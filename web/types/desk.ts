@@ -25,6 +25,7 @@
 // redirect stub.
 export type KernelSurfaceSlug =
   | 'feed'
+  | 'context'  // ADR-370 — the operation's boundary composition (In · Out · Flow) — Feed folds in as the Flow lens
   | 'home'
   | 'recurrence'
   | 'budget'
@@ -68,7 +69,7 @@ export type DeskSurface =
   | { type: 'idle' };
 
 export const KERNEL_SURFACE_SLUGS: readonly KernelSurfaceSlug[] = [
-  'feed', 'home', 'recurrence', 'budget', 'autonomy', 'expected-output', 'mandate', 'principles',
+  'feed', 'context', 'home', 'recurrence', 'budget', 'autonomy', 'expected-output', 'mandate', 'principles',
   'identity', 'files', 'agents', 'setup', 'program', 'queue', 'notifications', 'activity',
   'settings', 'workspace-settings', 'connectors', 'sources',
 ] as const;

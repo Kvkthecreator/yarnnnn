@@ -62,21 +62,28 @@ def test_mirrors_survive() -> None:
     from services.kernel_surfaces import KERNEL_SURFACES
 
     by_slug = {e["slug"]: e for e in KERNEL_SURFACES}
-    for slug in ("queue", "feed", "recurrence"):
+    # ADR-370 (2026-06-25): `feed` is no longer a standalone mirror window — it
+    # folded into the Context boundary surface as its Flow lens (the renderer +
+    # substrate survive; only the launcher home moved). So the "stays a real
+    # window mirror" contract below now covers queue + recurrence only; feed's
+    # new shape is asserted by the ADR-370 gate (`/feed` → redirect stub →
+    # /context?context.pane=flow; the `feed` slug maps to ContextPage).
+    for slug in ("queue", "recurrence"):
         e = by_slug.get(slug)
         check(f"{slug} still registered as a navigable surface", bool(e and e.get("route")))
         check(f"{slug} NOT pane-grade (stays a window mirror, not absorbed)", e is not None and "pane_of" not in e)
 
     # The mirrors must NOT become redirect stubs — they keep their real bodies.
-    for slug in ("queue", "feed", "recurrence"):
+    for slug in ("queue", "recurrence"):
         src = _read(f"app/(authenticated)/{slug}/page.tsx")
         check(f"/{slug} is a real surface, not a redirect stub",
               "'use client'" in src and "redirect(" not in src,
               "found redirect() — mirror was stubbed")
 
     # ADR-349: the fronted mirrors go search-only (summon by name, not browse)
-    # — the Utilities tier dissolved; Notifications fronts them.
-    check("feed is search-only (fronted by Notifications)", by_slug["feed"].get("launcher_tier") == "search-only")
+    # — the Utilities tier dissolved; Notifications fronts them. (feed: per
+    # ADR-370 it stays search-only as the Flow-lens body; its tier is unchanged.)
+    check("feed is search-only (Flow-lens body; ADR-370)", by_slug["feed"].get("launcher_tier") == "search-only")
     check("queue is search-only (fronted by Notifications)", by_slug["queue"].get("launcher_tier") == "search-only")
     check("recurrence is search-only (fronted by Notifications)", by_slug["recurrence"].get("launcher_tier") == "search-only")
 

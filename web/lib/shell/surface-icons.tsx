@@ -12,6 +12,7 @@
 import type { LucideIcon } from 'lucide-react';
 import {
   Activity,
+  ArrowLeftRight,
   Bell,
   Box,
   Clock,
@@ -38,6 +39,10 @@ import {
 
 const ICON_REGISTRY: Record<string, LucideIcon> = {
   activity: Activity,
+  // ADR-370: the Context boundary surface — context flowing in + out across
+  // the operation's edge. The two-way arrow reads as "the boundary / the
+  // exchange", distinct from the scroll-text Feed (now the Flow lens within).
+  'arrow-left-right': ArrowLeftRight,
   // ADR-349 D2: the Notifications surface IS the topbar bell at a second zoom
   // ("one name, two zooms"). It carries the SAME Bell glyph the AttentionCenter
   // renders, so the launcher tile + Dock icon + top-bar bell read as one

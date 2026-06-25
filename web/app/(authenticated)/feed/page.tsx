@@ -1,28 +1,32 @@
-'use client';
-
 /**
- * Feed Page — YARNNN feed surface (ADR-259, renames ADR-167 v5 chat surface).
+ * Legacy /feed route — redirects to the Context boundary surface's Flow lens
+ * (ADR-370, 2026-06-25), preserving query params.
  *
- * HOME route per ADR-205 F1. The feed is the operator's primary view —
- * chronological, multi-actor, continuously-updating timeline. Operator messages
- * are one entry mode; Reviewer decisions, System Agent narrations, recurrence
- * completions all land here. "Start new work" opens the RecurrenceSetupModal
- * (ADR-178 two-route structured intent capture). Onboarding is conversational
- * with YARNNN per ADR-190 — no onboarding modal. Mid-conversation awareness
- * lives in the SnapshotModal (ADR-215 Phase 6).
+ * The Feed dissolved into Context as its Flow lens (the complete narrative,
+ * FeedSurface intact). `/feed` (and its deep-links — `?prompt=`, the
+ * `/chat → /feed` / `/orchestrator → /feed` / `/workfloor → /feed` chain)
+ * survives as a bookmark-safety stub → /context?context.pane=flow. Existing
+ * query params (e.g. `?prompt=…` from InferenceContentView) are merged onto
+ * the Flow target so chat-summon deep-links keep working.
+ *
+ * NOTE: the in-shell `feed` slug is NOT served by this route page — the
+ * SurfaceRegistry maps `feed → ContextPage` (Flow default) so legacy deck
+ * state that foregrounds `feed` mounts the live Context surface, never this
+ * redirect (which would paint an orphaned frame — the ADR-308 anti-pattern).
+ *
+ * ADR-308 (2026-06-01): pure transport — server redirect(), never renders
+ * inside the OS shell. searchParams arrive as a server-component prop.
  */
 
-import { useEffect } from 'react';
-import { FeedSurface } from '@/components/feed-surface/FeedSurface';
-import { useNarrative } from '@/contexts/NarrativeContext';
+import { redirect } from 'next/navigation';
 
-export default function HomePage() {
-  const { loadScopedHistory } = useNarrative();
-
-  useEffect(() => { loadScopedHistory(); }, [loadScopedHistory]);
-
-  // Post-2026-05-14 context-modal refactor: FeedSurface no longer needs
-  // tasks prop. The modal's Pulse section reads its own activity data
-  // via api.agents.reviewerActivity() and api.proposals.list().
-  return <FeedSurface />;
+export default function FeedRedirect({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
+  const params = new URLSearchParams(searchParams as Record<string, string>);
+  // Land on the Flow lens (the full narrative) unless a pane is already named.
+  if (!params.has('context.pane')) params.set('context.pane', 'flow');
+  redirect(`/context?${params.toString()}`);
 }

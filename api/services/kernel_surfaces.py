@@ -208,8 +208,17 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # hatch). The substrate read + route + deep-links all survive; only the
         # launcher prominence drops (ADR-340 D1 "mirror once, compose few" —
         # the cost optimized is launcher breadth, not surface count).
+        #
+        # ADR-370 (2026-06-25) — the Feed dissolves into the Context
+        # composition as its Flow lens (FeedSurface re-mounts there, one body
+        # / two mounts per ADR-340 D8). The `feed` slug is no longer an
+        # operator-reachable surface; `/feed` survives as an ADR-308 redirect
+        # stub → /context?context.lens=flow (bookmark safety). default_pinned
+        # flips False (the launcher slot is inherited by `context`); the
+        # narrative substrate, render grammar, and the route-as-transport all
+        # survive unchanged.
         "slug": "feed",
-        "launcher_tier": "search-only",  # ADR-349 — fronted by Notifications; summon by name (was utilities, ADR-346)
+        "launcher_tier": "search-only",  # ADR-370 — folded into Context (Flow lens); reachable by name + as the Flow body
         "register": "application",  # ADR-309 two-register model
         "title": "Feed",
         "archetype": "stream",
@@ -222,9 +231,46 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
         # scroll glyph reads as "log / timeline / ledger" without
         # colliding with the conversation summon.
         "icon_key": "scroll-text",
-        "default_pinned": True,
+        "default_pinned": False,  # ADR-370 — slot inherited by `context`
         "route": "/feed",
         "summary": "Operator chat surface and multi-actor narrative timeline.",
+    },
+    {
+        # ADR-370 (2026-06-25) — Context: the operation's boundary
+        # composition. One operator act: understand + manage the edge where
+        # the workspace meets the outside world. Three lenses (a SettingsPane
+        # split-nav, the same shell behind Home/Notifications/Workspace
+        # Settings):
+        #   In   — what context feeds the operation (Perception field, ADR-335:
+        #          Sources + Connectors + MCP transports — second mount of the
+        #          Workspace-Settings → Perception panes).
+        #   Out  — what the operation emits, to whom, when (operator-addressing
+        #          dispatch history via GET /api/emissions, read-only; ADR-299/
+        #          304 — sends stay system infrastructure, this is legibility).
+        #   Flow — the complete narrative (FeedSurface intact, ADR-289 row
+        #          grammar; the operator's "TOTAL").
+        #
+        # Intended redundancy with Notifications → Activity (both mount the
+        # narrative): the macOS tiered-access principle (ADR-367 D3) — same
+        # substrate, two compositions, distinct primary jobs (operate the work
+        # vs. understand the boundary). It owns no substrate and no state —
+        # a composition over existing mirrors, like Home (ADR-312) and
+        # Notifications (ADR-346).
+        #
+        # Reclaims the `context` slug: the prior /context → /files redirect
+        # stub is deleted (the context/ substrate ROOT was retired by ADR-320's
+        # topological cut → operation/, so the word is free at the route layer;
+        # the route slug is unrelated to any filesystem namespace).
+        "slug": "context",
+        "launcher_tier": "primary",  # ADR-370 — the boundary composition, Workspace tier (inherits Feed's slot)
+        "register": "application",  # a windowed composition like home / notifications / workspace-settings
+        "title": "Context",
+        "archetype": "dashboard",  # composition over multiple substrates (perception + emissions + narrative)
+        "substrate_paths": [],  # composes _sources.yaml + platform_connections + destination_delivery_log/notifications + session_messages
+        "icon_key": "arrow-left-right",  # the boundary: context flowing in + out
+        "default_pinned": True,
+        "route": "/context",
+        "summary": "The operation's boundary — what context feeds it (In), what it emits (Out), and the running record of every crossing (Flow).",
     },
     {
         # ADR-312 D1 (2026-06-02): the cockpit surface renames to `home`.

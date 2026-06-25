@@ -68,7 +68,7 @@ _validate_environment()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, budget, mcp, authored, harvest, sources
+from routes import memory, feed, documents, admin, webhooks, subscription, agents, account, integrations, domains, system, recurrences, workspace, proposals, narrative, programs, alpha_trader, budget, mcp, authored, harvest, sources, emissions
 
 app = FastAPI(
     title="YARNNN API",
@@ -150,6 +150,9 @@ app.include_router(budget.router, prefix="/api/budget", tags=["budget"])
 # ADR-338 D4.1: sources is the standing-watch "drivers" view — declared web
 # sources (_sources.yaml) paired with observed health (_watch_signal.yaml).
 app.include_router(sources.router, prefix="/api/sources", tags=["sources"])
+# ADR-370: emissions — the operation's outbound boundary (Context → Out lens).
+# Read-only union over destination_delivery_log + notifications. No write path.
+app.include_router(emissions.router, prefix="/api/emissions", tags=["emissions"])
 
 # ADR-310 D4: MCP OAuth login callback (binds Supabase user to pending auth code)
 app.include_router(mcp.router, prefix="/api/mcp", tags=["mcp"])

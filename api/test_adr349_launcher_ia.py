@@ -47,9 +47,12 @@ def test_at_rest_launcher() -> None:
     tiers = {e["slug"]: e.get("launcher_tier") for e in KERNEL_SURFACES if e.get("route")}
     # D1/D3 — Workspace tier = the standing loop (Home + Notifications + Files
     # + Agents). Agents upgraded (D3).
+    # ADR-370 (2026-06-25): `context` (the boundary composition) joins the
+    # primary tier, inheriting the slot the Feed vacated when it folded into
+    # Context as the Flow lens.
     check(
-        "primary == {home, notifications, files, agents}",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "notifications", "files", "agents"},
+        "primary == {home, context, notifications, files, agents}",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "context", "notifications", "files", "agents"},
         str(sorted(s for s, t in tiers.items() if t == "primary")),
     )
     # D4 — two settings doors.

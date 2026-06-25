@@ -142,18 +142,21 @@ export function FeedSurface() {
   // addressed messages temporarily off — see ADR-297 §D16 "does NOT
   // do" list. Operator can still graduate via direct chat.
 
-  // Context overlay toggle — replaces "Snapshot" button.
-  // Label updated to "Context" — more honest about what it shows
-  // (workspace substrate files), less jargony than "Snapshot".
+  // Substrate overlay toggle — the Mandate/Rules/Pulse primer over the
+  // workspace's substrate files. ADR-370 D5 renamed this "Context" → "Substrate":
+  // the Feed now renders as the Flow lens INSIDE the Context boundary surface,
+  // so a button labeled "Context" within one of Context's own lenses would
+  // collide. "Substrate" is honest (it shows workspace substrate files) and
+  // collision-free.
   const snapshotAction = (
     <button
       type="button"
       onClick={handleSnapshotToggle}
       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded border border-border text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-      title="Open workspace context"
+      title="Open workspace substrate"
     >
       <BookOpen className="w-3.5 h-3.5" />
-      Context
+      Substrate
     </button>
   );
 

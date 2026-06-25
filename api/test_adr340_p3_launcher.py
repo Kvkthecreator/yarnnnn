@@ -50,8 +50,10 @@ def test_registry_tiers() -> None:
         # ADR-349 D1/D3: primary == the standing loop — Home + Notifications
         # (the composition, was 'operation') + Files + Agents (the judgment
         # seat upgraded to first-class).
-        "primary == the standing loop (home/notifications/files/agents)",
-        {s for s, t in tiers.items() if t == "primary"} == {"home", "notifications", "files", "agents"},
+        # ADR-370 (2026-06-25): `context` (the boundary composition) joins the
+        # primary tier, inheriting the slot the Feed vacated.
+        "primary == the standing loop (home/context/notifications/files/agents)",
+        {s for s, t in tiers.items() if t == "primary"} == {"home", "context", "notifications", "files", "agents"},
     )
     # ADR-349 D4: two settings doors re-split — Workspace Settings (operation)
     # + System Settings (account). The `configure` lump (ADR-347) is retired.

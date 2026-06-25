@@ -858,6 +858,24 @@ export const api = {
       runway_days: number | null;
     }>('/api/budget'),
 
+  // ADR-370: emissions — the operation's outbound boundary (Context → Out
+  // lens). Read-only union over destination_delivery_log + notifications
+  // (email): what the operation shipped to the outside world, to whom, when.
+  // Legibility only — never a send affordance (ADR-299/304: operator-
+  // addressing writes are system infrastructure).
+  emissions: (limit = 100) =>
+    request<Array<{
+      id: string;
+      channel: string;            // email | slack | notion | in_app
+      status: string;             // pending | delivering | delivered | sent | failed
+      destination: string | null;
+      external_url: string | null;
+      error_message: string | null;
+      source: 'delivery' | 'notification';
+      created_at: string;
+      completed_at: string | null;
+    }>>(`/api/emissions?limit=${limit}`),
+
   // ADR-338 D4.1: the standing-watch "drivers" view — declared web sources
   // (_sources.yaml) paired with observed per-source health (_watch_signal.yaml),
   // the Check-7 declared-vs-observed shape. Kernel-agnostic: declaration_path

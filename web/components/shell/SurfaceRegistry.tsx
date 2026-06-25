@@ -21,7 +21,15 @@
 import type { ComponentType } from 'react';
 import type { KernelSurfaceSlug } from '@/types/desk';
 
-import FeedPage from '@/app/(authenticated)/feed/page';
+// ADR-370 — the Context boundary composition (In · Out · Flow). Window-grade
+// like Home / Notifications; its lenses re-mount existing mirror bodies
+// (SourcesCard + ConnectedIntegrations → In, EmissionsView → Out, FeedSurface
+// → Flow). The Feed dissolved into Context as the Flow lens: the `/feed` ROUTE
+// is now an ADR-308 redirect stub (→ /context?context.pane=flow), so it is no
+// longer imported here. The `feed` SLUG maps to ContextPage so any legacy deck
+// state foregrounding `feed` mounts the live Context surface (Flow default),
+// never the redirect stub (which would paint an orphaned frame).
+import ContextPage from '@/app/(authenticated)/context/page';
 import HomePage from '@/app/(authenticated)/home/page';
 import RecurrencePage from '@/app/(authenticated)/recurrence/page';
 // ADR-327: /pace retired from the surface registry — it is now a route-level
@@ -67,7 +75,11 @@ import SettingsPage from '@/app/(authenticated)/settings/page';
 import WorkspaceSettingsPage from '@/app/(authenticated)/workspace-settings/page';  // ADR-347 — the one Settings door
 
 export const KERNEL_SURFACE_REGISTRY: Partial<Record<KernelSurfaceSlug, ComponentType>> = {
-  feed: FeedPage,
+  // ADR-370 — `feed` dissolved into Context (Flow lens). The slug maps to
+  // ContextPage (defaults to the Flow pane) so legacy deck state foregrounding
+  // `feed` mounts the live boundary surface, not the redirect stub.
+  feed: ContextPage,
+  context: ContextPage,  // ADR-370 — the operation's boundary composition (In · Out · Flow)
   home: HomePage,
   recurrence: RecurrencePage,
   // ADR-309 (2026-06-01): `brand` slug DELETED. Brand is not a standalone

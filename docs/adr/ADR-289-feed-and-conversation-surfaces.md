@@ -1,6 +1,7 @@
 # ADR-289: Feed and Conversation Surfaces — Invocation as the Grouping Primitive
 
 **Status**: Phase 1 BE + Phase 2 FE Implemented 2026-05-18; Phase 2a polish Implemented 2026-05-20
+**Amended by**: [ADR-370](ADR-370-context-surface-the-operations-boundary.md) (2026-06-25) — the narrative is **re-homed from a standalone `/feed` route to a lens** (Flow) of the new Context boundary composition. This ADR's two-render-grammar split is **preserved intact**: Flow keeps the typed-row Feed grammar; chat keeps bubble grammar in the dockable rail (ADR-316); the narrative is still *not a conversation*. Only the surface's launcher home changes (route → lens); the `invocation_id` grouping primitive, the render path, and the substrate are unchanged.
 **Date**: 2026-05-18
 **Dimensional classification**: **Channel** (Axiom 6) primary — defines surface rendering shape; **Substrate** (Axiom 1) secondary — re-anchors the narrative `invocation_id` envelope field to its canonical source row; **Identity** (Axiom 2) tertiary — clarifies which actor classes render in which surface.
 

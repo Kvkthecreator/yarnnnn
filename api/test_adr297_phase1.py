@@ -193,11 +193,14 @@ def test_kernel_surfaces_module() -> None:
             f"is canonical",
         )
 
-    # Feed-only default pin per ADR-297 D5
+    # Single default pin (ADR-297 D5). ADR-370 (2026-06-25): the Feed folded
+    # into the Context boundary surface as its Flow lens and handed off its pin
+    # — `context` is now the single default-pinned surface; `feed.default_pinned`
+    # flipped False.
     pinned_by_default = [s["slug"] for s in KERNEL_SURFACES if s["default_pinned"]]
     _assert(
-        pinned_by_default == ["feed"],
-        f"Only Feed is default_pinned (found: {pinned_by_default})",
+        pinned_by_default == ["context"],
+        f"Only Context is default_pinned (found: {pinned_by_default})",
     )
 
     # Two-register coherence (ADR-309; cleaved by ADR-312 D5). Every
