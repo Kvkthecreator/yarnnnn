@@ -344,6 +344,110 @@ async def resolve_memory_path(auth: Any, subject: str) -> Optional[str]:
     return None
 
 
+async def resolve_trace_path(auth: Any, subject: str) -> Optional[str]:
+    """Resolve a `trace` subject to the file that IS the subject (ADR-372 fix).
+
+    `trace` is about the HISTORY of a specific thing, so it must resolve to the
+    file the subject NAMES — not a file that merely mentions it. The prior path
+    (QueryKnowledge FTS top-hit) ranks by relevance, which systematically prefers
+    prose files that *talk about* a subject over the terse state file that *is*
+    it — and those mention-files tend to be single-revision, so the timeline came
+    back empty/trivial on every real subject (live finding 2026-06-26: `SPY` →
+    regime-state.md (1 rev) not SPY.yaml (14); `standing_intent`/`calibration`/
+    `mandate` all → principles.md (1 rev)).
+
+    Resolution order (first hit wins), all scoped to the caller's substrate:
+      1. NAME MATCH — a file whose basename is the subject, ANY extension
+         (`SPY` → SPY.yaml, `standing_intent` → standing_intent.md). Tries the
+         raw subject, the slug, and the slug with `_`/`-` separators. Among
+         name-matches, the one with the MOST revisions wins (the historied one).
+      2. HISTORY-WEIGHTED FTS — fall back to full-text candidates, but re-rank
+         them: prefer a candidate whose PATH contains the subject token, then
+         break ties toward more revisions. A 20-revision file the subject names
+         beats a 1-revision file that merely mentions it.
+      3. None → caller reports "nothing recorded".
+
+    Returns the absolute /workspace/ path or None.
+    """
+    from services.primitives.registry import execute_primitive
+
+    raw = (subject or "").strip()
+    if not raw:
+        return None
+    slug = _slugify(raw)
+    # Candidate basenames to match against (no extension assumed).
+    stems = {raw, slug, slug.replace("-", "_"), slug.replace("_", "-")}
+    stems = {s for s in stems if s}
+
+    async def _rev_count(path: str) -> int:
+        try:
+            r = (
+                auth.client.table("workspace_file_versions")
+                .select("id", count="exact")
+                .eq("user_id", auth.user_id)
+                .eq("path", path)
+                .execute()
+            )
+            return r.count or 0
+        except Exception:  # noqa: BLE001
+            return 0
+
+    try:
+        # 1. NAME MATCH — basename == stem.<ext>, any extension. ilike is
+        #    case-insensitive so `spy`/`SPY` both hit SPY.yaml.
+        name_hits: list[str] = []
+        for stem in stems:
+            res = (
+                auth.client.table("workspace_files")
+                .select("path")
+                .eq("user_id", auth.user_id)
+                .in_("lifecycle", ["active", "delivered"])
+                .ilike("path", f"%/{stem}.%")
+                .limit(20)
+                .execute()
+            )
+            name_hits.extend(row["path"] for row in (res.data or []))
+        name_hits = list(dict.fromkeys(name_hits))  # dedupe, preserve order
+        if name_hits:
+            # the historied one wins among name-matches
+            best, best_revs = name_hits[0], -1
+            for p in name_hits:
+                n = await _rev_count(p)
+                if n > best_revs:
+                    best, best_revs = p, n
+            return best
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[MCP] trace name-match resolve failed: %s", exc)
+
+    # 2. HISTORY-WEIGHTED FTS fallback.
+    try:
+        qk = await execute_primitive(
+            auth, "QueryKnowledge", {"query": _naturalize_subject(raw), "limit": 8}
+        )
+        results = (qk.get("results") or []) if qk.get("success") else []
+        if not results:
+            return None
+        subj_token = slug.replace("-", "").replace("_", "")
+
+        async def _score(path: str) -> tuple:
+            path_match = 1 if subj_token and subj_token in path.lower().replace("-", "").replace("_", "") else 0
+            revs = await _rev_count(path)
+            return (path_match, revs)
+
+        scored = []
+        for r in results:
+            p = r.get("path", "")
+            if p:
+                scored.append((await _score(p), p))
+        if not scored:
+            return None
+        scored.sort(key=lambda x: x[0], reverse=True)  # path-match then revs
+        return scored[0][1]
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[MCP] trace FTS resolve failed: %s", exc)
+        return None
+
+
 async def dispatch_remember_this(
     auth: Any,
     stamped_text: str,
@@ -505,27 +609,23 @@ async def compose_trace(
     """
     from services.primitives.registry import execute_primitive
 
-    # Resolve subject → authored path. Deterministic round-trip FIRST: a subject
-    # saved via `remember(about=subject)` lives at a known path, so resolve it by
-    # path before any fuzzy search (Finding 1 — the slug-AND-match made trace,
-    # the differentiator, return an empty chain on the exact save-then-trace
-    # round-trip). Naturalize the subject for the fuzzy fallback so the slug
-    # doesn't AND-match prose (Finding 1b).
-    path = await resolve_memory_path(auth, subject)
+    # Resolve subject → the file that IS the subject (ADR-372 fix). trace is about
+    # the HISTORY of a specific thing, so resolution must prefer the file the
+    # subject NAMES (name-match first), then history-weighted FTS — NOT the raw
+    # FTS top-hit, which ranks files that merely MENTION the subject over the
+    # state file that is it (live finding 2026-06-26: every real subject resolved
+    # to a 1-revision prose/report file, so the timeline was always empty). The
+    # memory-round-trip case (remember(about=X) → operation/memory/{slug}.md) is
+    # subsumed: resolve_trace_path's name-match catches {slug}.md too.
+    path = await resolve_trace_path(auth, subject)
     if not path:
-        qk = await execute_primitive(
-            auth, "QueryKnowledge", {"query": _naturalize_subject(subject), "limit": 1}
-        )
-        results = (qk.get("results") or []) if qk.get("success") else []
-        if not results:
-            return {
-                "success": True, "subject": subject, "path": None, "history": [],
-                "explanation": (
-                    f"YARNNN has no recorded material about '{subject}' to trace. "
-                    "Nothing has been authored on this subject yet."
-                ),
-            }
-        path = results[0].get("path", "")
+        return {
+            "success": True, "subject": subject, "path": None, "history": [],
+            "explanation": (
+                f"YARNNN has no recorded material about '{subject}' to trace. "
+                "Nothing has been authored on this subject yet."
+            ),
+        }
     # ListRevisions queries `workspace_file_versions` by the CANONICAL stored
     # path, which carries the `/workspace/` prefix (the authored-substrate
     # revision rows are absolute). Do NOT strip it — a bare path matches zero

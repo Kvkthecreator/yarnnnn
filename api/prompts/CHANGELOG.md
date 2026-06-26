@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.26.6] - trace subject→path resolution: prefer the file that IS the subject, not one that mentions it (live-finding)
+
+**The widget binding worked (it rendered), but the live test exposed a real `trace` quality bug underneath.** `compose_trace` resolved a subject to its path via the QueryKnowledge FTS top-hit — which ranks files that *mention* a subject above the terse state file that *is* it. Diagnosed via MCP server logs + DB: on the kvk workspace, `SPY` → `regime-state.md` (1 rev) not `SPY.yaml` (14 revs); `standing_intent`/`calibration`/`mandate` all → `principles.md` (1 rev). Those mention-files are single-revision, so `trace` — the differentiator — returned an empty/trivial timeline on every real subject.
+
+- `services/mcp_composition.py`: new `resolve_trace_path(auth, subject)` — (1) NAME MATCH: a file whose basename is the subject, ANY extension (`SPY`→SPY.yaml, `standing_intent`→standing_intent.md; tries raw + slug + `_`/`-` variants, case-insensitive), and among name-matches the MOST-revisioned wins; (2) HISTORY-WEIGHTED FTS fallback: re-rank candidates by path-contains-subject, then by revision count; (3) None. `compose_trace` now resolves via this instead of `resolve_memory_path` + raw FTS top-hit (the memory round-trip case is subsumed — name-match catches `{slug}.md`). Decision (operator): name-match first, history-weighted — "a trace is about history, so the historied file the subject names beats a 1-revision mention."
+- **Expected behavior**: `trace("SPY")` now resolves to SPY.yaml (14-revision timeline), `trace("standing_intent")` to standing_intent.md (20 revisions) — verified against the live kvk DB. Subjects that genuinely have no named file still return the clean "nothing recorded" empty result. `recall` is unchanged (keeps memory-shaped `resolve_memory_path`).
+- Regression: `test_adr372_presentation_affordances.py` (15/15 — adds a structural check that compose_trace uses resolve_trace_path + a behavioral check that name-match beats a mention-file). `test_adr368_memory_surface.py` (10/10 — assertion 10 updated: trace's deterministic+naturalize logic moved INTO resolve_trace_path). No kernel/schema change.
+
 ## [2026.06.26.5] - ADR-372: fix the ChatGPT widget BINDING — openai/outputTemplate + skybridge MIME + openai:set_globals (live-finding)
 
 **Live test found the widget registered but never rendered (text-only).** Root cause: we bound the widget with the generic open-spec `_meta.ui.resourceUri`, but ChatGPT's renderer binds a tool to its template via **`openai/outputTemplate`** on the tool DEFINITION (verified against OpenAI's own example server, `openai-apps-sdk-examples/pizzaz_server_python`). The template appeared in ChatGPT's Templates list (registration worked) but no widget painted (binding didn't). Three corrections, all in `api/mcp_server/` (kernel untouched):

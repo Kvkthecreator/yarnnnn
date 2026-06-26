@@ -106,12 +106,17 @@ def main():
     # 10. recall + trace resolve DETERMINISTICALLY before any full-text search,
     #     and naturalize the subject for the fuzzy fallback so a slug doesn't
     #     AND-match prose (the live miss: 'yarnnn-mcp-connector' → zero rows).
+    #     recall uses resolve_memory_path (memory-shaped); trace uses
+    #     resolve_trace_path (name-match-first, ADR-372) — both deterministic
+    #     before FTS, both naturalize the fuzzy fallback. (ADR-372 moved trace's
+    #     deterministic+naturalize logic INTO resolve_trace_path.)
     recall_src = inspect.getsource(m.compose_recall)
+    trace_resolver_src = inspect.getsource(m.resolve_trace_path)
     deterministic_first = (
-        "resolve_memory_path" in recall_src and "resolve_memory_path" in trace_src
+        "resolve_memory_path" in recall_src and "resolve_trace_path" in trace_src
     )
     naturalized = (
-        "_naturalize_subject" in recall_src and "_naturalize_subject" in trace_src
+        "_naturalize_subject" in recall_src and "_naturalize_subject" in trace_resolver_src
     )
     results.append(_check(
         "10 recall+trace resolve deterministically first AND naturalize the fuzzy fallback (no slug-AND-match regression)",

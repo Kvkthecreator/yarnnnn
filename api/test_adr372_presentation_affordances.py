@@ -182,6 +182,74 @@ def main():
         "12 compose_trace embeds each revision's diff-vs-predecessor; oldest is None (ADR-372 zero-callback)",
         asyncio.run(_diff_embed())))
 
+    # ---- trace resolves to the file that IS the subject, not one that mentions it ----
+    # Live finding: raw FTS top-hit picked 1-revision prose/report files over the
+    # historied state file the subject names. resolve_trace_path does name-match
+    # first, then history-weighted FTS. Structural + behavioral checks.
+    import inspect as _inspect
+    trace_src = _inspect.getsource(mc.compose_trace)
+    results.append(_check(
+        "13 compose_trace resolves via resolve_trace_path (name-match-first), not raw FTS top-hit",
+        "resolve_trace_path" in trace_src and "resolve_memory_path" not in trace_src))
+
+    # behavioral: a fake client where the subject's named file (SPY.yaml, 14 revs)
+    # exists alongside a mention-file; name-match must win over any FTS path.
+    class _FakeResp:
+        def __init__(self, data=None, count=None):
+            self.data = data or []
+            self.count = count
+
+    class _FakeQuery:
+        def __init__(self, table, store):
+            self._t, self._store, self._filters, self._ilike = table, store, {}, None
+        def select(self, *a, **k): return self
+        def eq(self, col, val): self._filters[col] = val; return self
+        def in_(self, *a, **k): return self
+        def ilike(self, col, pat): self._ilike = pat; return self
+        def order(self, *a, **k): return self
+        def limit(self, *a, **k): return self
+        def execute(self):
+            if self._t == "workspace_files":
+                import re as _re
+                # emulate SQL ILIKE: case-insensitive, % = any chars. Build the
+                # regex by splitting on % and escaping the literal segments (so
+                # `.` stays literal) — re.escape does NOT escape % in 3.11, so a
+                # naive replace would leave the % in the pattern.
+                pat = self._ilike or ""
+                rx = _re.compile(
+                    "^" + ".*".join(_re.escape(seg) for seg in pat.split("%")) + "$",
+                    _re.IGNORECASE,
+                )
+                hits = [{"path": p} for p in self._store["files"] if rx.match(p)]
+                return _FakeResp(data=hits)
+            if self._t == "workspace_file_versions":
+                path = self._filters.get("path")
+                return _FakeResp(count=self._store["revs"].get(path, 0))
+            return _FakeResp()
+
+    class _FakeClient:
+        def __init__(self, store): self._store = store
+        def table(self, name): return _FakeQuery(name, self._store)
+
+    class _FakeAuth:
+        def __init__(self, store): self.client, self.user_id = _FakeClient(store), "u"
+
+    def _resolve_behavior():
+        store = {
+            "files": ["/workspace/operation/trading/SPY.yaml",
+                      "/workspace/operation/specs/regime-state.md"],
+            "revs": {"/workspace/operation/trading/SPY.yaml": 14,
+                     "/workspace/operation/specs/regime-state.md": 1},
+        }
+        # name-match for "SPY" should pick SPY.yaml (the file that IS the subject),
+        # never regime-state.md (which merely mentions SPY).
+        got = asyncio.run(mc.resolve_trace_path(_FakeAuth(store), "SPY"))
+        return got == "/workspace/operation/trading/SPY.yaml"
+
+    results.append(_check(
+        "14 resolve_trace_path name-match picks the file the subject NAMES (SPY → SPY.yaml, not a mention-file)",
+        _resolve_behavior()))
+
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-372 assertions pass")
     if passed != total:
