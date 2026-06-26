@@ -43,6 +43,10 @@ export interface FeedTimelineProps {
    *  Reviewer →" affordance on an addressed marker. Parent opens the
    *  ConversationDrawer scrolled to the given invocation_id. */
   onOpenConversation?: (invocationId: string) => void;
+  /** ADR-377: optional row filter applied to the narrative before grouping.
+   *  The Context In view passes `isInbound` to show only inbound crossings;
+   *  Flow omits it (the complete narrative). Default → no filter. */
+  messageFilter?: (m: TPMessage) => boolean;
 }
 
 // Sticky-bottom threshold in pixels. If the scroll position is within
@@ -51,8 +55,13 @@ export interface FeedTimelineProps {
 // operator's reading position naturally lags the bottom by a few rows.
 const STICKY_BOTTOM_THRESHOLD_PX = 96;
 
-export function FeedTimeline({ emptyState, onOpenConversation }: FeedTimelineProps) {
-  const { messages, status } = useNarrative();
+export function FeedTimeline({ emptyState, onOpenConversation, messageFilter }: FeedTimelineProps) {
+  const { messages: allMessages, status } = useNarrative();
+  // ADR-377: apply the optional direction filter before grouping (In view).
+  const messages = useMemo(
+    () => (messageFilter ? allMessages.filter(messageFilter) : allMessages),
+    [allMessages, messageFilter]
+  );
   const scrollerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
 

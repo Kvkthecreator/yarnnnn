@@ -407,6 +407,16 @@ export const api = {
               // legacy value in the wire type would re-leak it into the FE.
               weight?: 'material' | 'routine';
               invocation_id?: string;
+              // ADR-377: boundary-direction signal. `written_to` is the
+              // substrate path a foreign/inbound write landed at (MCP
+              // `remember`, connector sync, upload) — its presence marks an
+              // INBOUND crossing. `tool` is the MCP verb (remember/recall/
+              // trace) so reads can be told from writes. `outcome` is the
+              // success/failure of the boundary act. Surfaced so the Context
+              // In/Out/Flow views can derive direction FE-side.
+              written_to?: string;
+              tool?: string;
+              outcome?: string;
               // ADR-219 Commit 3: narrative_digest rollup card
               rolled_up_count?: number;
               rolled_up_window_hours?: number;

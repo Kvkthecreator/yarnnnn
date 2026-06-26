@@ -355,6 +355,10 @@ export function NarrativeProvider({ children, onSurfaceChange }: NarrativeProvid
                   ...(m.metadata.weight && { weight: m.metadata.weight }),
                   ...(m.metadata.task_slug && { taskSlug: m.metadata.task_slug }),
                   ...(m.metadata.invocation_id && { invocationId: m.metadata.invocation_id }),
+                  // ADR-377: boundary-direction signals for the Context
+                  // In/Out/Flow filtered views.
+                  ...(m.metadata.written_to && { writtenTo: m.metadata.written_to }),
+                  ...(m.metadata.tool && { tool: m.metadata.tool }),
                   ...(m.role === 'system_agent' && m.metadata.proposal_id && {
                     proposalId: m.metadata.proposal_id,
                   }),

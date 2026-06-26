@@ -134,6 +134,13 @@ export interface NarrativeEnvelope {
    * inspect-and-act directly from the feed without navigating to the
    * cockpit Queue. */
   proposalId?: string;
+  /** ADR-377: boundary-direction signals. `writtenTo` (present → an INBOUND
+   *  crossing landed at this substrate path: MCP `remember`, connector sync,
+   *  upload). `tool` (the MCP verb — remember/recall/trace — so reads are
+   *  distinguished from writes). Consumed by inferNarrativeDirection() to
+   *  derive in/out/internal for the Context In/Out/Flow filtered views. */
+  writtenTo?: string;
+  tool?: string;
 }
 
 export type MessageBlock =

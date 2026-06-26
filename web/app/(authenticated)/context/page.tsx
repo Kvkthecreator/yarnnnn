@@ -38,13 +38,14 @@
  * the pane region.
  */
 
-import { Link2, Rss, ArrowUpFromLine, ScrollText } from "lucide-react";
+import { Link2, Rss, ArrowDownToLine, ArrowUpFromLine, ScrollText } from "lucide-react";
 import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 import { SourcesCard } from "@/components/workspace-concepts/SourcesCard";
 import { EmissionsView } from "@/components/context/EmissionsView";
 import { FeedSurface } from "@/components/feed-surface/FeedSurface";
 import { useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
+import { isInbound } from "@/lib/feed-direction";
 
 const PANE_GROUPS: PaneGroup[] = [
   {
@@ -55,13 +56,16 @@ const PANE_GROUPS: PaneGroup[] = [
     ],
   },
   {
-    // The legacy "Feed" name operators know — the boundary's activity. Emissions
-    // (outbound) + Flow (the complete narrative). The In/Out directional split
-    // is deferred until a clean per-event inbound feed exists (platform_content
-    // was sunset, ADR-153 — see ADR-377 §2).
+    // The legacy "Feed" name operators know — the boundary's activity, as
+    // three DIRECTION-FILTERED views over the one complete narrative (ADR-377
+    // "track everything, filter at the surface"). In = inbound crossings
+    // (writes that landed in substrate, direction inferred from `writtenTo`);
+    // Out = outbound sends (the emissions ledger); Flow = the complete,
+    // unfiltered narrative (the escape hatch).
     label: "Feed",
     panes: [
-      { key: "emissions", label: "Emissions", icon: ArrowUpFromLine },
+      { key: "in", label: "Context In", icon: ArrowDownToLine },
+      { key: "out", label: "Context Out", icon: ArrowUpFromLine },
       { key: "flow", label: "Flow", icon: ScrollText },
     ],
   },
@@ -118,13 +122,32 @@ export default function ContextPage() {
             </div>
           </div>
         );
-      case "emissions":
-        // What the operation emitted — the operator-addressing dispatch ledger
-        // (ADR-299/304). Read-only legibility over GET /api/emissions.
+      case "in":
+        // Context In — the inbound crossings: the complete narrative FILTERED
+        // to writes that landed in substrate (direction inferred from the
+        // `writtenTo` envelope signal — MCP `remember`, connector sync,
+        // upload). Reads (recall/trace) and internal cycles are excluded; see
+        // the full picture in Flow. One FeedSurface, filtered (Singular Impl).
+        return (
+          <div className="flex h-full flex-col min-h-0">
+            <FeedSurface
+              messageFilter={(m) =>
+                isInbound({ writtenTo: m.narrative?.writtenTo, tool: m.narrative?.tool })
+              }
+              emptyLabel="No inbound activity yet — when a connector syncs or a tool writes to the workspace, it lands here."
+            />
+          </div>
+        );
+      case "out":
+        // Context Out — what the operation emitted: the operator-addressing
+        // dispatch ledger (ADR-299/304). Read-only legibility over
+        // GET /api/emissions. (Sends live in destination_delivery_log +
+        // notifications, not the narrative — so Out reads the emissions
+        // ledger directly rather than filtering the narrative.)
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
-              title="Emissions"
+              title="Context Out"
               subtitle="What the operation has emitted — sends to the outside world, to whom and when."
             />
             <div className="flex-1 overflow-y-auto p-6">

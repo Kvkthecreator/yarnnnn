@@ -48,18 +48,52 @@ _CONTEXT = "app/(authenticated)/context/page.tsx"
 _WSETTINGS = "app/(authenticated)/workspace-settings/page.tsx"
 
 
-def test_context_has_option_a_four_panes_two_groups():
+def test_context_has_five_panes_two_groups():
     src = _read_web(_CONTEXT)
     # two groups: Perception + Feed (the legacy boundary-activity name)
     assert 'label: "Perception"' in src
     assert 'label: "Feed"' in src
-    # four pane keys
-    for key in ("connections", "sources", "emissions", "flow"):
+    # five pane keys — Perception[connections, sources] + Feed[in, out, flow]
+    # (ADR-377: the Feed group is three direction-filtered views over the one
+    # complete narrative — In = inbound crossings, Out = emissions, Flow = all)
+    for key in ("connections", "sources", "in", "out", "flow"):
         assert f'key: "{key}"' in src, f"missing pane key {key}"
     # default lands on the perception home
     assert 'defaultPane="connections"' in src
     # nav label no longer says "lenses"
     assert "Context lenses" not in src
+
+
+def test_in_out_flow_are_direction_filters_over_one_narrative():
+    """The In view reuses ONE FeedSurface, filtered to inbound crossings via
+    isInbound (Singular Implementation — not a separate component/data source);
+    Flow is the same surface unfiltered. Out reads the emissions ledger."""
+    src = _read_web(_CONTEXT)
+    assert "isInbound" in src
+    assert "messageFilter" in src
+    # the helper keys on the envelope direction signals
+    assert "writtenTo" in src and "tool" in src
+    # Out still reads the emissions ledger (sends aren't narrative rows)
+    assert "EmissionsView" in src
+
+
+def test_direction_helper_exists():
+    src = _read_web("lib/feed-direction.ts")
+    assert "inferNarrativeDirection" in src
+    assert "export function isInbound" in src
+    # read verbs (recall/trace) are NOT inbound — they're reads, not writes
+    assert "recall" in src and "trace" in src
+    # an inbound write is signalled by writtenTo
+    assert "writtenTo" in src
+
+
+def test_narrative_envelope_carries_direction_signals():
+    """The FE envelope + loader surface written_to/tool (they were backend-only
+    extra_metadata before ADR-377) so direction is derivable FE-side."""
+    desk = _read_web("types/desk.ts")
+    assert "writtenTo?: string" in desk
+    loader = _read_web("contexts/NarrativeContext.tsx")
+    assert "written_to" in loader and "writtenTo" in loader
 
 
 def test_feed_slug_title_aliases_to_context():
@@ -81,11 +115,14 @@ def test_flow_pane_has_no_in_pane_branding():
     assert "headerActions" in src
 
 
-def test_in_out_flow_lens_triple_retired():
+def test_old_emissions_pane_key_renamed_to_out():
+    """The ADR-370 'emissions' pane key is renamed to 'out' (Context Out);
+    the old standalone Boundary group is gone (folded into Feed)."""
     src = _read_web(_CONTEXT)
-    # the old lens pane keys are gone (case-block markers)
-    assert 'case "in":' not in src
-    assert 'case "out":' not in src
+    # the renamed direction panes are present
+    assert 'case "in":' in src and 'case "out":' in src
+    # the old Boundary group label is gone (now "Feed")
+    assert 'label: "Boundary"' not in src
 
 
 def test_connections_pane_owns_rich_ui_with_freshness():

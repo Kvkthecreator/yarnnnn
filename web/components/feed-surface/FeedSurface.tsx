@@ -45,7 +45,17 @@ import { cn } from '@/lib/utils';
 // affordance props. Chat is the universal ChatDrawerSurface; FeedSurface
 // is read-only (operations timeline). D18.2 (2026-05-22 follow-up):
 // header Talk button deleted — the FAB is the singular summon path.
-export function FeedSurface() {
+//
+// ADR-377: optional `messageFilter` + `emptyLabel` let the Context In view
+// reuse this same surface filtered to inbound crossings (Singular
+// Implementation — one timeline component, three direction-filtered mounts:
+// In = isInbound, Flow = no filter). Both omitted → the complete Flow.
+interface FeedSurfaceProps {
+  messageFilter?: (m: import('@/types/desk').TPMessage) => boolean;
+  emptyLabel?: string;
+}
+
+export function FeedSurface({ messageFilter, emptyLabel }: FeedSurfaceProps = {}) {
   const { messages, sendMessage } = useNarrative();
   const searchParams = useSearchParams();
 
@@ -223,11 +233,18 @@ export function FeedSurface() {
               affordance. */}
           <FeedTimeline
             onOpenConversation={handleOpenConversation}
+            messageFilter={messageFilter}
             emptyState={
-              <FeedEmptyState
-                onChipClick={handleChipClick}
-                onUploadClick={handleOpenDrawer}
-              />
+              emptyLabel ? (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <p className="text-sm font-medium text-foreground">{emptyLabel}</p>
+                </div>
+              ) : (
+                <FeedEmptyState
+                  onChipClick={handleChipClick}
+                  onUploadClick={handleOpenDrawer}
+                />
+              )
             }
           />
         </div>
