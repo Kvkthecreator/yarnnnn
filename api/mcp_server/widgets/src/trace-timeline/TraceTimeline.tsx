@@ -3,9 +3,43 @@
 // diffs. It renders RETURNED substrate only — no synthesis (D3); the host LLM
 // still narrates the evolution in prose.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { TraceResult, TraceRevision } from "./types";
 import { provBucket } from "./types";
+
+// Debug fallback (ADR-372 live-debug): when no result arrives, after a short
+// wait show what the iframe CAN see, so we diagnose the binding from ground
+// truth instead of guessing. Renders window.openai's keys + any toolOutput/
+// toolInput shape. Harmless in production — only appears when data is absent.
+function DebugFallback() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setShow(true), 1500);
+    return () => window.clearTimeout(t);
+  }, []);
+  if (!show) return <p className="tt-empty">Waiting for trace data…</p>;
+  let diag: Record<string, unknown> = {};
+  try {
+    const w = (window as unknown as { openai?: Record<string, unknown> }).openai;
+    diag = {
+      "window.openai present": !!w,
+      "window.openai keys": w ? Object.keys(w) : [],
+      "toolOutput type": w ? typeof w.toolOutput : "n/a",
+      "toolOutput keys": w && w.toolOutput && typeof w.toolOutput === "object"
+        ? Object.keys(w.toolOutput as object) : [],
+      "toolInput keys": w && w.toolInput && typeof w.toolInput === "object"
+        ? Object.keys(w.toolInput as object) : [],
+    };
+  } catch (e) {
+    diag = { error: String(e) };
+  }
+  return (
+    <div>
+      <p className="tt-empty">No trace data reached the widget. Diagnostic (share this):</p>
+      <pre className="tt-diff">{JSON.stringify(diag, null, 2)}</pre>
+    </div>
+  );
+}
 
 function fmtWhen(iso: string | null): string {
   if (!iso) return "";
@@ -64,7 +98,7 @@ export function TraceTimeline({ result }: { result: TraceResult | null }) {
   const history = result?.history ?? [];
 
   if (!result) {
-    return <p className="tt-empty">Waiting for trace data…</p>;
+    return <DebugFallback />;
   }
   if (history.length === 0) {
     return <p className="tt-empty">{result.explanation || "No recorded history to trace."}</p>;

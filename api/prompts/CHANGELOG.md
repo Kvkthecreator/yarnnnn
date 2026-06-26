@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.26.11] - trace widget binding: full _meta on the served resource (match OpenAI's example) + debug fallback
+
+**The trace pipeline is proven end-to-end** — a live `trace('standing_intent')` returned `Array(10)` revisions with full embedded diffs and the model narrated the evolution richly. The remaining gap is purely the WIDGET binding: the iframe rendered but stayed on "Waiting for trace data…" despite the data being present in `structuredContent`.
+
+Diagnosed against OpenAI's own example server (`openai-apps-sdk-examples/pizzaz_server_python`): it attaches the **full tool `_meta`** (`openai/outputTemplate` + `openai/widgetAccessible` + `openai/toolInvocation/*`) to the **served resource's `_meta`** — not just `domain`/`csp` as we had. ChatGPT's skybridge appears to need these on the RESOURCE to recognize it as a renderable widget and wire `window.openai`.
+
+- `presentation/registry.py::served_resource_meta`: now overlays the full OpenAI keys onto the resource `_meta` (was domain/csp only). The `@mcp.resource(meta=...)` registration picks it up; verified on the wire (resource carries outputTemplate + widgetAccessible + ui.domain/csp, MIME `text/html+skybridge`).
+- `widgets/src/trace-timeline/TraceTimeline.tsx`: added a **debug fallback** — if no result reaches the widget within 1.5s, it renders a diagnostic dump of what the iframe CAN see (`window.openai` presence + keys, `toolOutput`/`toolInput` shape). Harmless in production (only shows when data is absent); turns the next live test into ground truth instead of another guess.
+- **Expected behavior**: the trace timeline should now bind + render on ChatGPT (full resource `_meta` matches the working example). If it still doesn't, the debug fallback prints exactly what ChatGPT delivers — share that. Rebuilt `dist/`. Gate: `test_adr372` (15/15). MCP_SERVER_URL on Render is `mcp.yarnnn.com`, so the resource `domain`/CSP matches the connector origin (the onrender default is the local fallback only).
+
 ## [2026.06.26.10] - trace forward-walk raw→derived (ADR-376 real-Reviewer-run finding)
 
 **A real Reviewer derive-and-cite run validated the ADR-376 write side AND exposed a read-side miss.** Fed strategically-relevant content ("NVDA earnings setup") to the live kvk workspace: the seat correctly authored a derived `operation/research/earnings/nvda-2026-06-27.md` citing the raw `inbound/mcp/claude-ai/nvda-earnings-setup.md` via `derived_from` — the two-object chain, real. But `trace('NVDA earnings setup')` resolved to the RAW file: the seat named the derived file by its own judgment (event date), so name-match (`resolve_trace_path`) matched the raw basename and never reached the derived understanding.

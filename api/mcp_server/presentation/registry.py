@@ -96,7 +96,21 @@ def tool_response_meta(widget_id: str, *, openai_overlay: bool = True) -> dict:
     return meta
 
 
-def served_resource_meta(widget_id: str) -> dict:
-    """`_meta.ui` for the SERVED RESOURCE (domain + CSP; ChatGPT submission)."""
+def served_resource_meta(widget_id: str, *, openai_overlay: bool = True) -> dict:
+    """`_meta` for the SERVED RESOURCE.
+
+    LIVE FINDING (2026-06-26): OpenAI's example server attaches the FULL tool
+    `_meta` (openai/outputTemplate + widgetAccessible + invocation keys) to the
+    served resource's `_meta` — not just domain/CSP. ChatGPT's skybridge appears
+    to need these on the RESOURCE to recognize it as a renderable widget and wire
+    `window.openai` (the trace widget registered + had data in structuredContent
+    but stayed on "Waiting for trace data…" with only domain/csp on the resource).
+    So we attach the same overlay here as on the tool definition, PLUS the
+    open-spec ui.domain/csp block.
+    """
     w = WIDGETS[widget_id]
-    return mcp_apps.served_resource_meta(w)
+    meta = mcp_apps.served_resource_meta(w)  # {ui: {domain, csp}}
+    if openai_overlay:
+        # add openai/outputTemplate + widgetAccessible + invocation keys
+        meta = openai.overlay_definition(meta, w)
+    return meta
