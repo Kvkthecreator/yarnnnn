@@ -322,11 +322,12 @@ async def remember(
         )
         return {"success": False, "error": "empty_content", "message": "content is required"}
 
-    # ADR-368 D3: write to the operation/ commons only — the one root the mcp
-    # caller may write. No enum, no governing-substrate target reachable.
+    # ADR-376 / DP32: the dump is an attributed RAW observation — it lands in the
+    # inbound/mcp/{client}/ raw lane (outside the topology cut, never rewritten);
+    # the seat derives the understanding into operation/ via the placement wake.
     stamped = mcp_composition.stamp_provenance(content, client_name, user_context=about)
     result = await mcp_composition.dispatch_remember_this(
-        auth=auth, stamped_text=stamped, about=about,
+        auth=auth, stamped_text=stamped, about=about, client_name=client_name,
     )
 
     if not result.get("success"):
@@ -345,13 +346,13 @@ async def remember(
 
     written_path = result.get("filename") or result.get("path") or "(unknown)"
 
-    # ADR-368 D5: the dump landed in the memory inbox; this wake INVOKES the
-    # Reviewer to reason about where it belongs and file it (placement is
-    # judgment, not a deterministic route), and to check it against ground-truth.
-    # Eventually-async; never blocks. The dump is captured instantly.
+    # ADR-376/DP32: the raw observation landed immutably in the inbound/ lane;
+    # this wake INVOKES the seat to DERIVE-AND-CITE the understanding into
+    # operation/ (a separate citing act, never a rewrite of the raw), and to
+    # judge it against ground-truth. Eventually-async; never blocks.
     if written_path and written_path != "(unknown)":
         await mcp_composition.submit_foreign_write_wake(
-            auth, written_path=written_path, target="memory-inbox", client_name=client_name,
+            auth, written_path=written_path, target="inbound-raw-lane", client_name=client_name,
         )
 
     _emit_mcp_narrative(

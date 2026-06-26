@@ -37,6 +37,8 @@ import re
 from datetime import datetime, timezone
 from typing import Any, Optional
 
+from services.workspace_paths import INBOUND_ROOT  # the raw intake lane (ADR-376/DP32)
+
 logger = logging.getLogger(__name__)
 
 
@@ -49,8 +51,8 @@ logger = logging.getLogger(__name__)
 #
 # DOMAIN_ALIASES normalizes the OPTIONAL `domain` filter a host LLM may pass to
 # `recall` (e.g. domain="competitor" → "competitors"). It is NOT used for
-# placement — foreign-LLM dumps land in the memory inbox and the Reviewer does
-# placement by judgment (ADR-368 D3/D5). The ADR-151 DOMAIN_KEYWORDS table +
+# placement — foreign-LLM raw observations land in the inbound/ raw lane and the
+# seat DERIVES into operation/ by judgment (ADR-376/DP32). The ADR-151 DOMAIN_KEYWORDS table +
 # _classify_domain were deleted with the deterministic-routing model: live
 # workspaces are program-shaped (reports/, trading/, specs/, …), not the
 # competitors/market/relationships fiction that table encoded.
@@ -237,38 +239,43 @@ def _normalize_client_id(raw: str) -> Optional[str]:
 # =============================================================================
 
 
-MEMORY_INBOX_PREFIX = "operation/memory/"
-MEMORY_INBOX_DEFAULT = "operation/memory/inbox.md"
+# The RAW intake lane (ADR-376 / FOUNDATIONS DP32). A foreign-LLM `remember` is
+# an attributed RAW observation; it lands here IMMUTABLY, and the seat DERIVES
+# the workspace's understanding from it into operation/ (citing this raw via
+# `derived_from`). Per-{client} sublane is single-writer by construction.
+INBOUND_MCP_PREFIX = "inbound/mcp/"
+INBOUND_MCP_DEFAULT_SLUG = "inbox"
 
 
-def resolve_remember_path(about: Optional[str]) -> str:
-    """Resolve where a foreign-LLM `remember` DUMP lands (ADR-368 D3, revised).
+def resolve_remember_path(about: Optional[str], client_name: Optional[str] = None) -> str:
+    """Resolve where a foreign-LLM `remember` RAW observation lands (ADR-376/DP32).
 
-    Placement is a JUDGMENT, not a deterministic route. The MCP layer does NOT
-    decide where operator-contributed content belongs in the workspace — it
-    CAPTURES it honestly in a memory inbox, attributed `yarnnn:mcp`, and the
-    integrity wake invokes the Reviewer to REASON about placement against the
-    actual workspace structure and file it into its real home (D5).
+    The ledger-intake axiom: a contribution enters as an ATTRIBUTED RAW
+    observation, kept distinct from what the workspace makes of it. The MCP layer
+    CAPTURES the dump immutably in the raw lane — `inbound/mcp/{client}/{slug}.md`
+    — attributed `yarnnn:mcp:{client}`; the integrity wake then invokes the seat
+    to DERIVE the understanding into operation/ (citing this raw), rather than
+    rewriting the dump in place (the pre-ADR-376 conflation — one namespace doing
+    two jobs, which is why `operation/memory/` had to be overwritten).
 
-    Two prior mistakes this fixes: (1) routing to `system/notes.md` (locked for
-    the mcp caller — the original `governance_locked` bug); (2) routing into
-    invented `operation/{domain}/` folders (ADR-151 `competitors`/`market`
-    fiction that live workspaces don't use) or into a program's structured
-    output tree (`reports/`/`trading/`/`specs/` — which the foreign LLM doesn't
-    understand and must not corrupt). The dump goes to a dedicated memory inbox;
-    the judgment seat does placement.
+    The raw lane is OUTSIDE the topology cut (no semantic-class authority) and is
+    the foreign caller's writable home (CALLER_WRITE_POLICY["mcp"] does not lock
+    inbound/). It is never a locked root, never a program's structured output
+    tree (`reports/`/`trading/`/`specs/`), never an invented domain folder.
 
-    `about` only organizes the inbox so the Reviewer (and `trace`) can see dumps
-    grouped by subject — it is NOT final placement:
-        about="Acme Corp"  → operation/memory/acme-corp.md
-        about=None         → operation/memory/inbox.md
+    `about` only names the raw observation so the seat (and `trace`) can see it;
+    `client_name` segregates the per-principal sublane (single-writer by
+    construction; ADR-373's per-principal grant later enforces it):
+        about="Acme Corp", client="claude.ai" → inbound/mcp/claude.ai/acme-corp.md
+        about=None,        client="claude.ai" → inbound/mcp/claude.ai/inbox.md
+        about=None,        client=None        → inbound/mcp/unknown/inbox.md
     """
+    client = _slugify(client_name or "") or "unknown"
     hint = (about or "").strip()
-    if hint:
-        slug = _slugify(hint)
-        if slug:
-            return f"{MEMORY_INBOX_PREFIX}{slug}.md"
-    return MEMORY_INBOX_DEFAULT
+    slug = _slugify(hint) if hint else ""
+    if not slug:
+        slug = INBOUND_MCP_DEFAULT_SLUG
+    return f"{INBOUND_MCP_PREFIX}{client}/{slug}.md"
 
 
 def _naturalize_subject(subject: str) -> str:
@@ -288,20 +295,45 @@ def _naturalize_subject(subject: str) -> str:
     return re.sub(r"[-_/]+", " ", subject or "").strip()
 
 
+def _extract_derived_from(content: Optional[str]) -> Optional[str]:
+    """Read the `derived_from:` citation from a derived file (ADR-376/DP32 D3).
+
+    When the seat derives an `operation/` understanding from a raw `inbound/`
+    observation, it writes a `derived_from: <raw path>` line (frontmatter or an
+    early line). `trace` reads it to walk raw→derived: the derived file's own
+    revision chain PLUS the cited raw observation's chain = the full provenance
+    (raw contributor → seat's understanding). Returns the cited absolute path or
+    None. Tolerant of YAML frontmatter, an early bare line, or an HTML comment.
+    """
+    if not content:
+        return None
+    # scan the first ~12 lines (frontmatter / header region)
+    for line in content.split("\n", 12)[:12]:
+        m = re.search(r"derived_from:\s*([^\s|<>\"']+)", line)
+        if m:
+            ref = m.group(1).strip().strip("`")
+            if ref:
+                return ref if ref.startswith("/workspace/") else "/workspace/" + ref.lstrip("/")
+    return None
+
+
 async def resolve_memory_path(auth: Any, subject: str) -> Optional[str]:
     """Resolve a `recall`/`trace` subject to its authored path DETERMINISTICALLY.
 
-    The save→read round-trip is deterministic, not fuzzy: `remember(about=X)`
-    writes the dump to `operation/memory/{slug(X)}.md`, so a later
-    `recall(subject=X)` / `trace(subject=X)` with the same subject should find
-    that exact file by PATH, before any full-text search. This closes the
-    round-trip hole where QueryKnowledge's slug-AND-match (Finding 1) missed a
-    file literally named after the subject.
+    The save→read round-trip is deterministic, not fuzzy. Under the ledger-intake
+    axiom (ADR-376/DP32) a `remember(about=X)` lands a RAW observation at
+    `inbound/mcp/{client}/{slug(X)}.md`; the seat then DERIVES the understanding
+    into operation/ (a file it typically names after the subject, citing the raw
+    via `derived_from`). `recall` wants the **understanding first, raw as the
+    receipt behind it** (ADR-376 §4): so this resolves DERIVED-FIRST.
 
     Resolution order (first hit wins), all scoped to the caller's substrate:
-        1. the exact inbox path operation/memory/{slug}.md (the dump's home);
-        2. a placed copy — any active file whose basename is {slug}.md (the
-           Reviewer may have FILED the dump elsewhere under the same name);
+        1. DERIVED — an active operation/ (or other non-inbound) file whose
+           basename is {slug}.md (the seat's filed understanding; if none yet,
+           there is simply no derived object — legible, not ambiguous);
+        2. RAW — the raw observation at inbound/mcp/{*}/{slug}.md (the source of
+           record, before any fuzzy search — so the round-trip never depends on
+           embeddings or FTS even before the seat has derived);
         3. None → caller falls back to fuzzy QueryKnowledge.
 
     Returns the absolute /workspace/ path or None.
@@ -310,34 +342,37 @@ async def resolve_memory_path(auth: Any, subject: str) -> Optional[str]:
     if not slug:
         return None
 
-    inbox_abs = f"/workspace/{MEMORY_INBOX_PREFIX}{slug}.md"
     try:
-        # 1. exact inbox path
-        hit = (
-            auth.client.table("workspace_files")
-            .select("path")
-            .eq("user_id", auth.user_id)
-            .eq("path", inbox_abs)
-            .in_("lifecycle", ["active", "delivered"])
-            .limit(1)
-            .execute()
-        )
-        if hit.data:
-            return hit.data[0]["path"]
-
-        # 2. placed copy — same basename, anywhere the Reviewer filed it
-        placed = (
+        # 1. DERIVED — same basename, NOT in the raw lane (the seat's filed
+        #    understanding). Prefer it: recall returns understanding, raw is the
+        #    receipt. Newest wins if several.
+        derived = (
             auth.client.table("workspace_files")
             .select("path, updated_at")
             .eq("user_id", auth.user_id)
             .like("path", f"%/{slug}.md")
+            .not_.like("path", f"%/{INBOUND_ROOT}%")
             .in_("lifecycle", ["active", "delivered"])
             .order("updated_at", desc=True)
             .limit(1)
             .execute()
         )
-        if placed.data:
-            return placed.data[0]["path"]
+        if derived.data:
+            return derived.data[0]["path"]
+
+        # 2. RAW — the inbound/ source of record (deterministic, pre-derive).
+        raw = (
+            auth.client.table("workspace_files")
+            .select("path, updated_at")
+            .eq("user_id", auth.user_id)
+            .like("path", f"%/{INBOUND_ROOT}%/{slug}.md")
+            .in_("lifecycle", ["active", "delivered"])
+            .order("updated_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if raw.data:
+            return raw.data[0]["path"]
     except Exception as exc:  # noqa: BLE001
         logger.debug("[MCP] deterministic memory-path resolve failed: %s", exc)
 
@@ -452,23 +487,26 @@ async def dispatch_remember_this(
     auth: Any,
     stamped_text: str,
     about: Optional[str] = None,
+    client_name: Optional[str] = None,
 ) -> dict:
-    """Commit a `remember` DUMP to the memory inbox (ADR-368 D3, revised).
+    """Commit a `remember` RAW observation to the inbound/ lane (ADR-376/DP32).
 
-    A foreign LLM's `remember` is captured, not placed: it appends to the memory
-    inbox under `operation/memory/` (writable by the `yarnnn:mcp` caller — the
-    one commons root the topology grants it). Placement into the dump's real home
-    is the Reviewer's job, invoked by the integrity wake the caller fires on
-    success (ADR-368 D5 — placement is judgment, not a deterministic route). The
-    ADR-307 gate at `execute_primitive` is still the authority; this function
+    A foreign LLM's `remember` is an attributed RAW observation: it appends to
+    `inbound/mcp/{client}/{slug}.md` (the raw lane — writable by the `yarnnn:mcp`
+    caller, outside the topology cut, never rewritten). The seat then DERIVES the
+    workspace's understanding from it into operation/ (citing this raw), invoked
+    by the integrity wake the caller fires on success — placement is JUDGMENT and
+    a separate, citing act, not a rewrite of the raw (ADR-376 §5 — `operation/
+    memory/` conflated capture and understanding in one file; the split fixes it).
+    The ADR-307 gate at `execute_primitive` is still the authority; this function
     never constructs a locked path.
 
-    ADR-288: `authored_by` defaults to `auth.caller_identity` ("yarnnn:mcp").
+    ADR-288: `authored_by` defaults to `auth.caller_identity` (`yarnnn:mcp:{client}`).
     Returns the WriteFile primitive result unchanged.
     """
     from services.primitives.registry import execute_primitive
 
-    path = resolve_remember_path(about)
+    path = resolve_remember_path(about, client_name=client_name)
     return await execute_primitive(
         auth,
         "WriteFile",
@@ -477,7 +515,7 @@ async def dispatch_remember_this(
             "path": path,
             "content": stamped_text,
             "mode": "append",
-            "message": "remember → memory inbox (awaiting Reviewer placement)",
+            "message": "remember → inbound/ raw lane (awaiting seat derive-and-cite)",
         },
     )
 
@@ -660,17 +698,59 @@ async def compose_trace(
     # that entry's `diff: None` and never breaks trace. Bounded by `limit`.
     await _embed_revision_diffs(auth, abs_path, revisions, history)
 
+    # ADR-376/DP32: if this derived file CITES a raw observation (`derived_from`),
+    # walk back and APPEND the raw's chain — so trace shows the full provenance:
+    # the seat's derived understanding AND the foreign contributor's raw source
+    # it was built from (the structurally-legible "contributed via X → derived by
+    # the seat" chain, not approximate in-place edit history). Best-effort.
+    raw_path = None
+    citations = [abs_path]
+    try:
+        head = (
+            auth.client.table("workspace_files")
+            .select("content")
+            .eq("user_id", auth.user_id)
+            .eq("path", abs_path)
+            .limit(1)
+            .execute()
+        )
+        derived_from = _extract_derived_from((head.data or [{}])[0].get("content")) if head.data else None
+        if derived_from and derived_from != abs_path:
+            raw_lr = await execute_primitive(
+                auth, "ListRevisions", {"path": derived_from, "limit": max(1, min(int(limit or 10), 30))}
+            )
+            for rev in (raw_lr.get("revisions") or []):
+                history.append({
+                    "authored_by": rev.get("authored_by"),
+                    "when": rev.get("created_at"),
+                    "change": rev.get("message"),
+                    "revision_id": rev.get("id"),
+                    "raw_source": True,         # marks this as the cited raw observation
+                    "source_path": derived_from,
+                })
+            if raw_lr.get("revisions"):
+                raw_path = derived_from
+                citations.append(derived_from)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[MCP] derived_from walk failed (non-fatal): %s", exc)
+
+    chain_note = (
+        f" — including the cited raw observation at `{raw_path}` (the foreign "
+        f"contributor's source of record this understanding was derived from)"
+        if raw_path else ""
+    )
     return {
         "success": True,
         "subject": subject,
         "path": abs_path,
-        "history": history,            # newest first; each entry carries optional `diff`
+        "derived_from": raw_path,      # the cited raw observation, if any (ADR-376)
+        "history": history,            # newest first; derived chain then raw chain
         "returned": len(history),
-        "citations": [abs_path],
+        "citations": citations,
         "explanation": (
             f"The authored history of '{subject}' — {len(history)} revision(s), "
-            "each attributed to who changed it and when. This is the cross-LLM "
-            "provenance no plain storage connector can show."
+            f"each attributed to who changed it and when{chain_note}. This is the "
+            "cross-LLM provenance no plain storage connector can show."
         ),
     }
 
@@ -719,22 +799,24 @@ async def _embed_revision_diffs(
 # radius is exactly this function. Everything else in the MCP tools stays
 # wake-agnostic.
 #
-# Placement-is-judgment model (ADR-368 D5, revised): a foreign LLM's `remember`
-# is a DUMP — it commits to the memory inbox (operation/memory/…) attributed
-# `yarnnn:mcp`, with NO deterministic placement. This adapter then INVOKES the
-# Reviewer to reason about where the dump belongs against the actual workspace
-# structure and FILE it into its real home (or leave it in the inbox if memory
-# is genuinely where it belongs). Placement lives with the judgment seat — which
-# understands the workspace and can write everywhere the foreign caller can't —
-# not with the least-context foreign caller. The foreign tool never blocks on
-# it; the dump is captured instantly, the Reviewer files it shortly after.
+# Derive-and-cite model (ADR-376/DP32 — the ledger-intake axiom): a foreign LLM's
+# `remember` is a RAW observation — it commits IMMUTABLY to the inbound/ raw lane
+# (`inbound/mcp/{client}/…`) attributed `yarnnn:mcp:{client}`. This adapter then
+# INVOKES the seat to DERIVE the workspace's understanding from it — a SEPARATE,
+# CITING act authored into operation/ (carrying `derived_from`) — NOT a rewrite or
+# move of the raw (the raw is never rewritten; it stays as the source of record).
+# Derivation lives with the judgment seat — which understands the workspace and
+# can write everywhere the foreign caller can't — not with the least-context
+# foreign caller. The foreign tool never blocks on it; the raw is captured
+# instantly, the seat derives shortly after (or derives nothing — a clean state).
 #
-# The two-step is git-legible: the dump's `yarnnn:mcp` origin survives on its
-# revision; the Reviewer's placement is a SEPARATE `reviewer:<id>` revision; the
-# `trace` verb shows the whole chain ("contributed via claude.ai → filed to X by
-# the Reviewer"). The instruction reaches the Reviewer in the wake's hook.prompt
-# (ADR-310 D3) — not a new payload field — so the substrate_event contract stays
-# frozen.
+# The two-object split is git-legible: the raw's `yarnnn:mcp:{client}` origin
+# survives forever on its inbound/ revision; the seat's understanding is a SEPARATE
+# `reviewer:<id>` revision on a DIFFERENT operation/ file that CITES the raw via
+# `derived_from`; the `trace` verb walks the citation to show the whole chain
+# ("contributed via claude.ai → derived by the seat"). The instruction reaches the
+# seat in the wake's hook.prompt (ADR-310 D3) — not a new payload field — so the
+# substrate_event contract stays frozen.
 
 async def submit_foreign_write_wake(
     auth: Any,
@@ -743,13 +825,15 @@ async def submit_foreign_write_wake(
     target: str,
     client_name: str,
 ) -> None:
-    """Best-effort: invoke the Reviewer to place a foreign-LLM memory dump.
+    """Best-effort: invoke the seat to DERIVE-AND-CITE from a raw observation.
 
-    Resolves the head revision_id for the just-written inbox path and submits a
-    substrate_event wake whose hook.prompt invokes the Reviewer to reason about
-    placement (file the dump into its real home) AND validate it against
-    ground-truth. Never raises — a wake failure must not affect the `remember`
-    result (the dump already committed to the inbox and is attributed).
+    Resolves the head revision_id for the just-written raw path and submits a
+    substrate_event wake whose hook.prompt invokes the seat to DERIVE the
+    workspace's understanding from the raw observation into operation/ — a NEW,
+    separate, citing act (carrying `derived_from`), NOT a rewrite of the raw
+    (ADR-376/DP32: the raw is never rewritten; understanding is a distinct
+    attributed object that cites its source). Never raises — a wake failure must
+    not affect the `remember` result (the raw already committed and is attributed).
 
     Shared-workspace seam (Phase 3, deferred): the Reviewer is a WORKSPACE-level
     seat (one per workspace), not per-user. The wake must fire for the WORKSPACE
@@ -783,17 +867,25 @@ async def submit_foreign_write_wake(
             return
 
         prompt = (
-            f"The operator contributed a memory from outside YARNNN (via MCP, "
-            f"client: {client_name}). It landed UNPLACED in the memory inbox at "
-            f"`{abs_path}` — a holding area, not its home. Read it, then decide "
-            f"where it belongs in this workspace and FILE it there: move or copy "
-            f"it into the right substrate (a domain under operation/, an entity "
-            f"file, agent feedback, or wherever its subject lives), preserving "
-            f"the content and its `yarnnn:mcp` origin. If the memory genuinely "
-            f"belongs as free memory, leave it in the inbox. While you place it, "
-            f"also judge it against authored ground-truth and the mandate — if it "
-            f"conflicts, surface that. You understand this workspace's structure; "
-            f"the contributing LLM did not, which is why placement is yours."
+            f"The operator contributed a RAW observation from outside YARNNN (via "
+            f"MCP, client: {client_name}). It is captured immutably in the raw "
+            f"intake lane at `{abs_path}` — a source of record, NOT its understood "
+            f"home. Your job is to DERIVE the workspace's understanding from it, as "
+            f"a SEPARATE act — do NOT rewrite or move the raw file (it stays as the "
+            f"attributed source of record).\n\n"
+            f"Read the raw observation, then AUTHOR (or update) the understanding "
+            f"into its real home under `operation/` — a domain file, an entity "
+            f"file, agent feedback, or wherever its subject lives — and on that "
+            f"derived file include a citation back to the raw source:\n"
+            f"    a frontmatter line  `derived_from: {abs_path}`\n"
+            f"so the provenance chain (raw contributor → your derived understanding) "
+            f"is walkable. Judge the observation against authored ground-truth and "
+            f"the mandate while you derive — if it conflicts, surface that. If the "
+            f"observation carries no understanding worth deriving yet (pure free "
+            f"memory, or nothing actionable), it is legitimate to derive nothing and "
+            f"leave it in the raw lane — that is a clean state, not an omission. You "
+            f"understand this workspace's structure; the contributing LLM did not, "
+            f"which is why the derivation is yours."
         )
 
         from services.wake import submit_wake_proposal
@@ -809,7 +901,7 @@ async def submit_foreign_write_wake(
                     "prompt": prompt,
                 },
                 "path": abs_path,
-                "field_change": {"source": "mcp", "target": "memory-inbox"},
+                "field_change": {"source": "mcp", "target": "inbound-raw-lane"},
                 "revision_id": revision_id,
             },
         )

@@ -80,6 +80,16 @@ SYSTEM_ROOT = "system/"
 AGENTS_ROOT = "agents/"
 WORKING_ROOT = "working/"
 UPLOADS_ROOT = "uploads/"
+# The RAW intake lane (ADR-376 / FOUNDATIONS DP32 — the ledger-intake axiom).
+# Machine/external contributions land here as IMMUTABLE attributed raw
+# observations: inbound/{transport}/{principal}/{slug}.md. Sibling to uploads/
+# (the human raw root) — both OUTSIDE the constitution/operation/governance cut,
+# both reasoned-against-never-rewritten. The DERIVED understanding the seat
+# builds from a raw observation lands in operation/ carrying a `derived_from`
+# citation back to its inbound/ source. uploads/ is the N=human case of the same
+# raw-lane shape. The per-{transport}/{principal} sublane is single-writer by
+# construction today (a convention ADR-373's per-principal grant later enforces).
+INBOUND_ROOT = "inbound/"
 
 
 # =============================================================================
@@ -222,10 +232,14 @@ SYSTEM_FILES = (
 #                   AUTONOMY dial, not a capability lock (the grant/contract-split
 #                   ADR, 2026-06-25). The pre-ADR-364 cross-class exception
 #                   (reconciler → persona/calibration.md) is RETIRED.
-#   - "mcp"       — foreign LLM (yarnnn:mcp). Lowest trust. Writes ONLY the
-#                   operation/ commons; locked from everything else (incl.
-#                   contract/ — a foreign LLM does not revise the operator's
-#                   operating contract).
+#   - "mcp"       — foreign LLM (yarnnn:mcp). Lowest trust. Writes the operation/
+#                   commons + the inbound/ RAW LANE (its raw observations, ADR-376
+#                   / DP32); locked from everything else (incl. contract/ — a
+#                   foreign LLM does not revise the operator's operating contract,
+#                   and never writes governance/constitution/persona/system).
+#                   inbound/ is intentionally NOT locked (it is the foreign
+#                   caller's attributed raw-intake home), and is outside the
+#                   topology cut so it carries no semantic-class authority.
 #   - "agent"     — domain agent / specialist. Writes operation/ (domain-scoped
 #                   enforcement is the dispatcher's job); locked from governance/
 #                   contract/ constitution/ persona/ system/.

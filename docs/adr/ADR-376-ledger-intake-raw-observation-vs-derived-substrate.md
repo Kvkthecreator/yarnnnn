@@ -1,6 +1,6 @@
 # ADR-376 — Ledger Intake: Raw Observation vs Derived Substrate
 
-> **Status**: **Accepted** (2026-06-26). Foundational (a FOUNDATIONS amendment); phased, conformance-per-transport. The axiom lands now; transport conformance is sliced (MCP first).
+> **Status**: **Accepted** (2026-06-26). Foundational (a FOUNDATIONS amendment); phased, conformance-per-transport. **MCP slice IMPLEMENTED** (2026-06-26): `inbound/` root + raw-lane routing (`inbound/mcp/{client}/{slug}.md`) + derive-and-cite placement wake + recall/trace re-spec (derived-first, `derived_from` walk). Gate `test_adr376_ledger_intake.py` 7/7; `test_adr368_memory_surface.py` 10/10; live `probe_mcp_memory_surface.py` 11/11. Built on the merged ADR-373 re-key (no keying coupling — `inbound/` writable under today's class-default policy; per-`{client}` sublane is a convention the per-principal grant later enforces). Remaining transports (uploads recognized; perception/connectors/chat/A2A) are follow-on slices against the same ratified invariant.
 > **Date**: 2026-06-26
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Discourse base**: [`docs/analysis/the-ledger-intake-axiom-raw-observation-vs-derived-substrate-2026-06-26.md`](../analysis/the-ledger-intake-axiom-raw-observation-vs-derived-substrate-2026-06-26.md) — the axiom, the four-path intake audit (the receipt that proves it load-bearing), the `operation/memory/` re-examination, and the five open questions (all five settled below).

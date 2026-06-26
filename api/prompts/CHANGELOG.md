@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.26.8] - MCP intake: derive-and-cite, not rewrite-in-place (ADR-376 / DP32 ledger-intake)
+
+**The MCP `remember` placement wake changed from "file the dump in place" to "derive-and-cite" — the ledger-intake axiom (FOUNDATIONS DP32, ADR-376).** A foreign LLM's `remember` is now a RAW observation landing immutably in the `inbound/mcp/{client}/` raw lane; the seat DERIVES the workspace's understanding into `operation/` as a SEPARATE citing act, never rewriting the raw.
+
+- `services/mcp_composition.py::submit_foreign_write_wake` — the wake `hook.prompt` rewritten: was *"decide where it belongs and FILE it there: move or copy it into the right substrate… leave it in the inbox"*; now *"DERIVE the understanding into operation/ as a SEPARATE act — do NOT rewrite or move the raw — and on that derived file include `derived_from: <raw path>`… if nothing worth deriving, derive nothing and leave it in the raw lane."* The raw is the source of record; the derived is the understanding; `trace` walks the `derived_from` citation between them.
+- **Expected behavior**: the seat, on a foreign-write wake, authors a NEW `operation/` file citing the raw `inbound/` observation (two git-legible objects: `yarnnn:mcp:{client}` raw revision + `reviewer:<id>` derived revision), instead of overwriting the dump in place (the pre-ADR-376 conflation where one file was both capture and understanding). Routing moved `operation/memory/{slug}.md` → `inbound/mcp/{client}/{slug}.md`.
+- Regression: `test_adr376_ledger_intake.py` (7/7), `test_adr368_memory_surface.py` (10/10), live `probe_mcp_memory_surface.py` (11/11 — raw lands in inbound/, derive-and-cite wake fires, recall/trace round-trip). Composes with the other lane's ADR-372 `resolve_trace_path` (name-match resolves the derived file; the `derived_from` walk extends the chain back to raw). No re-key coupling — `inbound/` writable by the mcp caller under today's class-default policy; the per-`{client}` sublane is a convention ADR-373's per-principal grant later enforces.
+
 ## [2026.06.26.7] - trace widget: fix the at-mount data race — poll window.openai.toolOutput (live-finding)
 
 **With resolution fixed, the live test showed the widget iframe rendering but stuck on "Waiting for trace data…"** while the model narrated all 10 revisions from the same result — so the data reached the model but not the widget. Root cause: the widget read `window.openai.toolOutput` once at mount and otherwise only waited for the `openai:set_globals` event; when ChatGPT populates `toolOutput` without/before that event fires, a read-once widget waits forever. OpenAI's own reference reader (`openai-apps-sdk-examples/src/use-openai-global.ts`) handles this with a **250ms poll (up to ~10s)** — the piece we were missing.

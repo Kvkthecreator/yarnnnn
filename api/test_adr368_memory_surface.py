@@ -40,30 +40,31 @@ def main():
         "3 memory-verb compositions EXIST (resolve_remember_path/compose_recall/compose_trace)",
         all(hasattr(m, n) for n in ("resolve_remember_path", "compose_recall", "compose_trace", "dispatch_remember_this"))))
 
-    # 4 + 5. the dump lands in the memory INBOX (capture, not placement) — never
-    # a deterministic domain route, never a locked root. Placement is the
-    # Reviewer's job (ADR-368 D5).
+    # 4 + 5. the RAW observation lands in the inbound/ lane (ADR-376/DP32 — capture,
+    # never the derived understanding) — never a deterministic domain route, never
+    # a locked root. The seat DERIVES into operation/ separately (the placement
+    # wake). Adversarial subjects must not escape the raw lane.
     mcp_locks = CALLER_WRITE_POLICY["mcp"]  # the roots the foreign caller may NOT write
     probes = [
         None, "", "Acme Corp", "competitors", "market", "Project Zephyr",
         "some random subject", "identity", "brand", "memory", "system",
         "governance", "persona", "constitution", "contract",
     ]
-    all_inbox = True
+    all_inbound = True
     no_locked = True
     for about in probes:
-        path = m.resolve_remember_path(about)
-        if not path.startswith("operation/memory/"):
-            all_inbox = False
-            print(f"      [!] about={about!r} -> {path} (NOT the memory inbox)")
+        path = m.resolve_remember_path(about, client_name="claude.ai")
+        if not path.startswith("inbound/mcp/"):
+            all_inbound = False
+            print(f"      [!] about={about!r} -> {path} (NOT the inbound/ raw lane)")
         if any(path.startswith(root) for root in mcp_locks):
             no_locked = False
             print(f"      [!] about={about!r} -> {path} (LOCKED root)")
     results.append(_check(
-        "4 every remember DUMP lands in operation/memory/ inbox (capture, not placement; incl. adversarial 'system'/'identity')",
-        all_inbox))
+        "4 every remember RAW observation lands in inbound/mcp/ lane (capture, not derived; incl. adversarial 'system'/'identity')",
+        all_inbound))
     results.append(_check(
-        "5 no dump path lands in a root the mcp caller is locked from",
+        "5 no raw path lands in a root the mcp caller is locked from",
         no_locked, f"locked roots={mcp_locks}"))
 
     # 6. the deterministic-domain fiction is gone (placement is judgment now)
@@ -86,15 +87,16 @@ def main():
         'path[len("/workspace/"):]' not in trace_src and "abs_path" in trace_src))
 
     # 9. the deterministic round-trip helper EXISTS and is SYMMETRIC with the
-    #    write slug (Finding 1, 2026-06-26): remember(about=X) writes to
-    #    operation/memory/{slug(X)}.md, so recall/trace(subject=X) must resolve
-    #    the SAME slug. The save and read sides must agree, or the round-trip
-    #    silently misses.
+    #    write slug (Finding 1, 2026-06-26): remember(about=X) writes the raw to
+    #    inbound/mcp/{client}/{slug(X)}.md, so recall/trace(subject=X) must
+    #    resolve the SAME slug. The save and read sides must agree on the slug, or
+    #    the round-trip silently misses. (recall resolves derived-first then the
+    #    raw inbound/ file; both key on slug(X).)
     have_helpers = hasattr(m, "resolve_memory_path") and hasattr(m, "_naturalize_subject")
     symmetric = True
     if have_helpers:
         for subj in ("Acme Corp", "yarnnn-mcp-connector", "Project Zephyr", "a b/c_d"):
-            write_path = m.resolve_remember_path(subj)            # operation/memory/{slug}.md
+            write_path = m.resolve_remember_path(subj, client_name="claude.ai")  # inbound/mcp/{client}/{slug}.md
             read_slug = m._slugify(subj)                          # what resolve_memory_path keys on
             if not write_path.endswith(f"/{read_slug}.md"):
                 symmetric = False
