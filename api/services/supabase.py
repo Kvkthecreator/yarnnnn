@@ -77,17 +77,18 @@ class AuthenticatedClient:
 
 
 def resolve_owner_workspace_id(user_id: str) -> Optional[str]:
-    """Resolve the singleton owner-workspace id for a human user (ADR-373 D1).
+    """Resolve the workspace id a human user owns (ADR-373 D1).
 
-    The N=1 resolver: each user owns exactly one workspace (migration 189's
-    ``uq_workspaces_singleton_owner``). Uses the service client (the lookup must
-    not depend on the caller's own RLS, which is mid-transition). Returns None
-    if no workspace row exists yet (pre-migration / un-backfilled) — callers
-    then fall back to ``user_id`` scoping, which is byte-identical in N=1.
+    The N=1 resolver: each user owns exactly one workspace. The binding unit is
+    the EXISTING ``workspaces`` table (the billing/account root from
+    001_initial_schema.sql), keyed by ``owner_id`` — confirmed 1:1 with users
+    and already covering every substrate owner (migration 189 pre-flight). Uses
+    the service client (the lookup must not depend on the caller's own RLS,
+    which is mid-transition). Returns None if no workspace row exists yet —
+    callers then fall back to ``user_id`` scoping, byte-identical in N=1.
 
-    Cached per-process: the owner→workspace mapping is stable (a user's
-    singleton workspace id does not change), so this is safe to memoize and
-    keeps the hot auth path off a per-request DB round-trip.
+    Cached per-process: the owner→workspace mapping is stable, so this is safe
+    to memoize and keeps the hot auth path off a per-request DB round-trip.
     """
     return _resolve_owner_workspace_id_cached(user_id)
 
@@ -99,15 +100,15 @@ def _resolve_owner_workspace_id_cached(user_id: str) -> Optional[str]:
         result = (
             client.table("workspaces")
             .select("id")
-            .eq("owner_user_id", user_id)
+            .eq("owner_id", user_id)
             .limit(1)
             .execute()
         )
         if result.data:
             return result.data[0]["id"]
     except Exception as exc:  # pragma: no cover - resolution is best-effort
-        # Pre-migration (no workspaces table) or transient: fall back to
-        # user_id scoping. Never block the request on workspace resolution.
+        # Transient / pre-existing-table edge: fall back to user_id scoping.
+        # Never block the request on workspace resolution.
         logger.debug("[ADR-373] owner-workspace resolve failed for %s: %s", user_id, exc)
     return None
 

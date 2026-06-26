@@ -277,16 +277,29 @@ def test_migration_leaves_blobs_untouched() -> None:
            "migration touches workspace_blobs" if touches_blobs else "")
 
 
-def test_migration_backfills_singleton_and_grants() -> None:
+def test_migration_reuses_existing_workspaces() -> None:
+    """ADR-373 reuses the EXISTING workspaces table (billing root), not a new one."""
+    sql = _migration_text()
+    # Must NOT create a workspaces table (it already exists, 001_initial_schema).
+    creates_ws = "CREATE TABLE IF NOT EXISTS workspaces" in sql or "CREATE TABLE workspaces" in sql
+    # Must key the backfill off the existing owner_id column.
+    uses_owner_id = "w.owner_id = wf.user_id" in sql or "owner_id = wf.user_id" in sql
+    record(
+        "migration 189 reuses existing workspaces (owner_id join), no new table",
+        (not creates_ws) and uses_owner_id,
+        f"creates_ws={creates_ws}, uses_owner_id={uses_owner_id}",
+    )
+
+
+def test_migration_grants_and_notnull() -> None:
     sql = _migration_text()
     ok = (
-        "CREATE TABLE IF NOT EXISTS workspaces" in sql
-        and "CREATE TABLE IF NOT EXISTS principal_grants" in sql
-        and "uq_workspaces_singleton_owner" in sql
+        "CREATE TABLE IF NOT EXISTS principal_grants" in sql
         and "'owner'" in sql  # seeds owner grants
         and "SET NOT NULL" in sql  # flips workspace_id NOT NULL after backfill
+        and "REFERENCES workspaces(id)" in sql  # FK to the existing table
     )
-    record("migration 189 backfills singleton workspaces + owner grants", ok, "")
+    record("migration 189 adds principal_grants + owner grants + NOT NULL flip", ok, "")
 
 
 # ---------------------------------------------------------------------------
@@ -305,7 +318,8 @@ def main() -> int:
     test_migration_drops_nothing()
     test_migration_keeps_user_id()
     test_migration_leaves_blobs_untouched()
-    test_migration_backfills_singleton_and_grants()
+    test_migration_reuses_existing_workspaces()
+    test_migration_grants_and_notnull()
 
     total = len(RESULTS)
     passed = sum(1 for _, ok, _ in RESULTS if ok)
