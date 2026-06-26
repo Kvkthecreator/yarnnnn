@@ -1,6 +1,7 @@
 # ADR-371 — The MCP Service as a Self-Contained Auth Boundary
 
 > **Renumbered 2026-06-26**: was ADR-370; collided with ADR-370 (Context — the operation's boundary surface), which is the more heavily-referenced 370 and keeps the number. This auth-boundary ADR moved to 371. Content unchanged; status preserved.
+> **Amended by [ADR-373](ADR-373-multi-principal-workspace-and-the-re-key.md) (2026-06-26)**: the **1:1 identity assumption** ("1 account = 1 workspace = 1 user_id") is superseded — `resolve_request_client` resolves a principal to `(workspace_id, grant)`, not a bare `user_id`. The auth **mechanism** this ADR ratifies (self-contained boundary, in-popup login, `client_credentials` for A2A, shared-DB door) is **PRESERVED unchanged**; only identity *resolution* gains the workspace+grant lookup. ADR-371 D4 already named this re-key as the shared dependency it deferred; ADR-373 scopes it.
 > **Status**: **Accepted** (2026-06-25) — model ratified; the §D2 build-shape decision is RESOLVED (A1 — a tiny standalone auth frontend, shared DB). Ready for implementation.
 > **Date**: 2026-06-25
 > **Authors**: KVK + Claude

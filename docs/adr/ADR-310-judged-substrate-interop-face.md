@@ -1,6 +1,7 @@
 # ADR-310 — Judged Substrate, Served Everywhere: Interop as the Distribution Face of One Moat
 
 **Status:** Proposed (2026-06-01)
+**Amended by [ADR-373](ADR-373-multi-principal-workspace-and-the-re-key.md) (2026-06-26):** D5's shared-workspace deferral (the `user_id → workspace_id` re-key) is **resolved** — the workspace becomes the substrate's binding unit and an open set of principals attribute into it. The "one moat, two faces" thesis is preserved unchanged; the foreign caller now resolves to `(workspace_id, grant)`, and the Reviewer that judges foreign contributions is the workspace-level seat (always its design).
 **Supersedes:** ADR-169 (MCP as Context Hub — the cross-LLM tool surface; its OAuth/transport infrastructure is preserved and amended, not deleted)
 **Amends:** FOUNDATIONS Axiom 6 (Channel — "Foreign LLM via MCP" row gains a judgment clause), ADR-296 (substrate_event wake source gains a new caller), ADR-288 (`yarnnn:mcp` caller-identity becomes load-bearing in the wake envelope)
 **Preserves:** FOUNDATIONS Axioms 1–8, THESIS four commitments, ADR-209 Authored Substrate, ADR-222 OS framing, ADR-307 uniform permission gate, the frozen `submit_wake_proposal` interface

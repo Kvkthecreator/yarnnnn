@@ -1,6 +1,7 @@
 # ADR-368 — The Memory-First Interop Surface: remember / recall / trace
 
 > **Status**: **Accepted** (2026-06-25). Operator-ratified through the discourse trail below.
+> **Amended by [ADR-373](ADR-373-multi-principal-workspace-and-the-re-key.md) (2026-06-26)**: the placement seat (D5) is confirmed **workspace-level, not per-user** — exactly as the placement adapter's own code comment already stated. The wake-scope re-key (`wake_scope = auth.user_id → resolved workspace_id`) is the named one-line change when the workspace becomes multi-principal; the memory verbs, the dump→placement model, and the integrity wake are otherwise unchanged. Single-writer-per-path means a multi-principal commons needs no merge layer — semantic conflict across principals is reconciled by the seat (ADR-373 D5).
 > **Date**: 2026-06-25
 > **Authors**: KVK + Claude
 > **Discourse base**: [`docs/analysis/mcp-interop-face-vs-topology-2026-06-25.md`](../analysis/mcp-interop-face-vs-topology-2026-06-25.md) — the smoke-test that exposed the gap, the strategic frame (the moat is settled), and the host-reality finding that consumer chat hosts chain only ~3–5 tool rounds per turn.
