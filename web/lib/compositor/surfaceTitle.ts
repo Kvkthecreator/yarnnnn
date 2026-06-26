@@ -10,6 +10,18 @@
 
 import type { Surface } from '@/lib/compositor/types';
 
+// Render-alias slugs: a slug that the SurfaceRegistry maps to ANOTHER surface's
+// component should borrow that surface's TITLE too. `feed` renders ContextPage
+// (ADR-370 — Feed dissolved into Context as the Flow lens), so a window/dock
+// state still foregrounding the legacy `feed` slug must read "Context", not
+// "Feed". Without this, existing operators (with `feed` persisted in their
+// kept/foreground localStorage) saw a stale "Feed" title even though the body
+// IS Context. The DEFAULT_KEPT ['feed']→['context'] fix (ADR-377 D3) only
+// covers fresh/cleared operators; this covers the already-persisted ones.
+const TITLE_ALIAS: Record<string, string> = {
+  feed: 'context',
+};
+
 /**
  * @param surfaces composition.surfaces (may be undefined before load)
  * @param slug the surface slug, or null (empty Desktop)
@@ -21,11 +33,12 @@ export function surfaceTitleFor(
   fallback = 'Desktop'
 ): string {
   if (!slug) return fallback;
-  const match = (surfaces || []).find((s) => s.slug === slug);
+  const resolved = TITLE_ALIAS[slug] ?? slug;
+  const match = (surfaces || []).find((s) => s.slug === resolved);
   if (match?.title) return match.title;
   // Title-Case the slug as a last resort (e.g. "workspace-settings" →
   // "Workspace Settings") so an unregistered slug still reads cleanly.
-  return slug
+  return resolved
     .split('-')
     .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
     .join(' ');

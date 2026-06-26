@@ -50,9 +50,9 @@ _WSETTINGS = "app/(authenticated)/workspace-settings/page.tsx"
 
 def test_context_has_option_a_four_panes_two_groups():
     src = _read_web(_CONTEXT)
-    # two groups
+    # two groups: Perception + Feed (the legacy boundary-activity name)
     assert 'label: "Perception"' in src
-    assert 'label: "Boundary"' in src
+    assert 'label: "Feed"' in src
     # four pane keys
     for key in ("connections", "sources", "emissions", "flow"):
         assert f'key: "{key}"' in src, f"missing pane key {key}"
@@ -60,6 +60,25 @@ def test_context_has_option_a_four_panes_two_groups():
     assert 'defaultPane="connections"' in src
     # nav label no longer says "lenses"
     assert "Context lenses" not in src
+
+
+def test_feed_slug_title_aliases_to_context():
+    """An existing operator with `feed` persisted in their dock/foreground
+    state must read "Context", not the stale "Feed" — the `feed` slug renders
+    ContextPage, so it borrows Context's title (ADR-377)."""
+    src = _read_web("lib/compositor/surfaceTitle.ts")
+    assert "TITLE_ALIAS" in src
+    assert "feed: 'context'" in src
+
+
+def test_flow_pane_has_no_in_pane_branding():
+    """The redundant in-pane `yarnnn` brand mark is removed from FeedSurface —
+    the OS shell + global locator own identity (ADR-377)."""
+    src = _read_web("components/feed-surface/FeedSurface.tsx")
+    assert "brandTitle" not in src
+    assert 'src="/assets/logos/circleonly_yarnnn_1.svg"' not in src
+    # the functional actions row survives
+    assert "headerActions" in src
 
 
 def test_in_out_flow_lens_triple_retired():

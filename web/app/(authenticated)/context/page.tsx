@@ -55,7 +55,11 @@ const PANE_GROUPS: PaneGroup[] = [
     ],
   },
   {
-    label: "Boundary",
+    // The legacy "Feed" name operators know — the boundary's activity. Emissions
+    // (outbound) + Flow (the complete narrative). The In/Out directional split
+    // is deferred until a clean per-event inbound feed exists (platform_content
+    // was sunset, ADR-153 — see ADR-377 §2).
+    label: "Feed",
     panes: [
       { key: "emissions", label: "Emissions", icon: ArrowUpFromLine },
       { key: "flow", label: "Flow", icon: ScrollText },

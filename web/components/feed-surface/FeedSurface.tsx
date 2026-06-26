@@ -30,7 +30,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { BookOpen, Filter } from 'lucide-react';
 import { FeedTimeline } from '@/components/feed/FeedTimeline';
-import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import {
   parseSnapshotMeta,
@@ -194,32 +193,18 @@ export function FeedSurface() {
     </div>
   );
 
-  const surfaceLogo = (
-    <img
-      src="/assets/logos/circleonly_yarnnn_1.svg"
-      alt=""
-      className="w-5 h-5"
-    />
-  );
-
   return (
     <div className="flex h-full flex-col bg-background">
-      {/* ADR-289 Phase 2a: header pinned at the top so the Talk button
-          (and other actions) are always reachable. Pre-Phase-2a the
-          header lived in the document scroll context — the FeedTimeline's
-          auto-scroll-to-bottom meant operators couldn't reach the
-          header without fighting the scroll. The header is now outside
-          the scrolling container; FeedTimeline owns its own scroll. */}
+      {/* ADR-289 Phase 2a: header pinned at the top so the actions (filter,
+          substrate) are always reachable. ADR-377 (2026-06-26): the redundant
+          in-pane `yarnnn` brand mark + title is REMOVED — the Flow pane lives
+          inside Context (the global locator already names it; the OS shell
+          owns identity). Only the functional actions row remains. */}
       <div className="shrink-0 border-b border-border/40 bg-background z-10">
         <div className="mx-auto w-full max-w-3xl px-3 sm:px-4">
-          <SurfaceIdentityHeader
-            size="md"
-            bordered={false}
-            icon={surfaceLogo}
-            title="yarnnn"
-            brandTitle
-            actions={headerActions}
-          />
+          <div className="flex items-center justify-end gap-2 py-2">
+            {headerActions}
+          </div>
         </div>
         {filterBarOpen && (
           <div className="mx-auto w-full max-w-3xl">
