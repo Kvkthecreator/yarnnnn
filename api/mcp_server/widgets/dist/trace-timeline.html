@@ -1,0 +1,115 @@
+<!doctype html>
+<!--
+  trace-timeline — the checkpoint placeholder widget (ADR-372 §7).
+
+  PURPOSE: prove the `_meta` → host → widget pipe end-to-end. It renders the
+  `trace` result's history[] as a vertical timeline, colored by authored_by
+  class (the cross-LLM provenance made visual). It is intentionally minimal —
+  no build step, no framework, one self-contained file — so the FIRST thing we
+  validate is "does ChatGPT pick up _meta and hand us the data," not the visual
+  design. The real React bundle replaces this file once the pipe is proven.
+
+  CONTRACT (ADR-372 D3): this widget RENDERS returned substrate and nothing
+  more. It does not synthesize a narrative — the host LLM still narrates in its
+  own voice. The widget is additive.
+
+  BRIDGE: MCP Apps standard — JSON-RPC 2.0 over postMessage. We listen for
+  `ui/notifications/tool-result` (the host pushing this tool's result) and read
+  structuredContent. Future interactivity (DiffRevisions on click) calls back
+  via `tools/call` over the same bridge (ADR-372 D6) — stubbed, not wired here.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YARNNN — trace</title>
+  <style>
+    :root {
+      --bg: #0d0d0f; --fg: #e7e7ea; --muted: #8a8a93; --line: #2a2a30;
+      --operator: #4ea1ff; --reviewer: #b07cff; --mcp: #ffb454; --agent: #4ec9a1; --system: #9aa0a6;
+    }
+    @media (prefers-color-scheme: light) {
+      :root { --bg: #ffffff; --fg: #1a1a1e; --muted: #6b6b73; --line: #e4e4e8; }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+           background: var(--bg); color: var(--fg); padding: 16px; }
+    .subject { font-weight: 600; font-size: 15px; margin: 0 0 2px; }
+    .caption { color: var(--muted); margin: 0 0 16px; font-size: 13px; }
+    ol.timeline { list-style: none; margin: 0; padding: 0 0 0 18px; border-left: 1px solid var(--line); }
+    li.rev { position: relative; padding: 0 0 18px 14px; }
+    li.rev::before { content: ""; position: absolute; left: -23px; top: 4px;
+      width: 9px; height: 9px; border-radius: 50%; background: var(--system); }
+    li.rev.operator::before { background: var(--operator); }
+    li.rev.reviewer::before { background: var(--reviewer); }
+    li.rev.mcp::before      { background: var(--mcp); }
+    li.rev.agent::before    { background: var(--agent); }
+    .who { font-weight: 600; }
+    .when { color: var(--muted); font-size: 12px; margin-left: 6px; }
+    .change { margin: 2px 0 0; }
+    .empty { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div id="root"><p class="empty">Waiting for trace data…</p></div>
+
+  <script>
+    // --- provenance class: map authored_by → a color bucket -------------------
+    function provClass(authoredBy) {
+      const a = (authoredBy || "").toLowerCase();
+      if (a.startsWith("operator")) return "operator";
+      if (a.startsWith("reviewer")) return "reviewer";
+      if (a.includes("mcp")) return "mcp";       // yarnnn:mcp:<client>
+      if (a.startsWith("agent")) return "agent";
+      return "system";
+    }
+    function esc(s) {
+      return String(s == null ? "" : s).replace(/[&<>"]/g, c =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+    }
+
+    // --- render the RETURNED substrate (ADR-372 D3: no synthesis) -------------
+    function render(result) {
+      const root = document.getElementById("root");
+      if (!result || !Array.isArray(result.history) || result.history.length === 0) {
+        root.innerHTML = '<p class="empty">' +
+          esc((result && result.explanation) || "No recorded history to trace.") + "</p>";
+        return;
+      }
+      const rows = result.history.map(function (rev) {
+        const cls = provClass(rev.authored_by);
+        return '<li class="rev ' + cls + '">' +
+          '<span class="who">' + esc(rev.authored_by) + "</span>" +
+          '<span class="when">' + esc(rev.when) + "</span>" +
+          '<p class="change">' + esc(rev.change) + "</p>" +
+          "</li>";
+      }).join("");
+      root.innerHTML =
+        '<p class="subject">' + esc(result.subject) + "</p>" +
+        '<p class="caption">' + esc(result.explanation || "") + "</p>" +
+        '<ol class="timeline">' + rows + "</ol>";
+    }
+
+    // --- MCP Apps bridge: receive this tool's result -------------------------
+    // The host pushes the tool result as a `ui/notifications/tool-result`
+    // notification (JSON-RPC 2.0 over postMessage). We read structuredContent
+    // (the full result dict trace returns).
+    window.addEventListener("message", function (event) {
+      const msg = event.data;
+      if (!msg || typeof msg !== "object") return;
+      if (msg.method === "ui/notifications/tool-result" && msg.params) {
+        render(msg.params.structuredContent || msg.params._meta || null);
+      }
+    });
+
+    // Some hosts (ChatGPT) also expose the result via window.openai — feature-
+    // detect and use it if present (graceful degradation, ADR-372 D2). Never
+    // required: the postMessage path above is the standard contract.
+    try {
+      if (window.openai && window.openai.toolOutput) {
+        render(window.openai.toolOutput);
+      }
+    } catch (_) { /* no-op: openai bridge absent on non-ChatGPT hosts */ }
+  </script>
+</body>
+</html>

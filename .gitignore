@@ -20,6 +20,11 @@ dist/
 build/
 *.tsbuildinfo
 
+# ADR-372: the MCP widget bundle is a SERVED runtime resource, not transient
+# build output — it must ship. Exception to the global dist/ rule above.
+!api/mcp_server/widgets/dist/
+!api/mcp_server/widgets/dist/**
+
 # IDE
 .idea/
 .vscode/

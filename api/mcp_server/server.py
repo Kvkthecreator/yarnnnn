@@ -35,6 +35,7 @@ Canonical framing: docs/features/mcp/README.md + ADR-368 (supersedes ADR-311's
 pure-primitive surface; ADR-310 one-moat-two-faces holds).
 """
 
+import json
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -47,10 +48,13 @@ from mcp.server.auth.settings import (
 )
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.types import CallToolResult, TextContent
 from pydantic import AnyHttpUrl
 
 from mcp_server.auth import resolve_request_client
 from mcp_server.oauth_provider import YarnnnOAuthProvider
+from mcp_server.presentation import affordances as presentation_affordances
+from mcp_server.presentation import registry as presentation_registry
 from services import mcp_composition
 from services.narrative import (
     find_active_workspace_session,
@@ -59,6 +63,47 @@ from services.narrative import (
 from services.primitives.registry import execute_primitive
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# ADR-372 — presentation: attach widget `_meta` while keeping the text channel
+# =============================================================================
+#
+# A tool with a presentation affordance (AFFORDANCES) returns a CallToolResult
+# carrying BOTH the full result and a widget `_meta.ui.resourceUri`. The lowlevel
+# MCP handler propagates `_meta` ONLY when the tool returns a CallToolResult (a
+# bare dict's `_meta` is dropped — verified against mcp 1.28.0); plain-dict
+# returns get the unchanged JSON-text path.
+#
+# ADR-372 D4 — the invariant guard:
+#   * structuredContent = the full result dict (model-readable, the text path);
+#   * content           = the same dict as JSON text (so a text-only host that
+#                         doesn't read structuredContent still gets everything);
+#   * _meta             = the widget linkage, attached UNCONDITIONALLY. A
+#                         rendering host uses it; a text-only host ignores it.
+# The data is ALWAYS in the text channel — that, not host negotiation, is what
+# keeps the ADR-368 invariant true.
+
+def _present(tool_name: str, result: dict):
+    """Wrap a tool's result so a rich host can render it (ADR-372 D4).
+
+    If the tool has no affordance, return the dict unchanged (text-only path —
+    the default). Otherwise return a CallToolResult with the result in both
+    channels plus the widget `_meta`.
+    """
+    affordance = presentation_affordances.affordance_for(tool_name)
+    if affordance is None:
+        return result
+    try:
+        meta = presentation_registry.tool_response_meta(affordance.widget)
+    except Exception as exc:  # noqa: BLE001 — presentation must never break a tool
+        logger.warning("[MCP PRESENT] %s: _meta build failed (%s); text-only", tool_name, exc)
+        return result
+    return CallToolResult(
+        content=[TextContent(type="text", text=json.dumps(result, indent=2, default=str))],
+        structuredContent=result,
+        _meta=meta,
+    )
 
 
 # =============================================================================
@@ -202,6 +247,25 @@ mcp = FastMCP(
     streamable_http_path="/",
 )
 
+
+# =============================================================================
+# ADR-372 — widget resources (the `ui://` rendering surface)
+# =============================================================================
+# Each presentation widget is served as an MCP resource at its `ui://` URI. A
+# rendering host (ChatGPT / MCP Apps) fetches the bundle named by a tool result's
+# `_meta.ui.resourceUri` and renders it in a sandboxed iframe. The served
+# resource carries `_meta.ui` (domain + CSP) that host submission requires. The
+# bundle is read from disk at serve time — a missing build is a deploy error, not
+# a silent empty resource.
+
+@mcp.resource(
+    "ui://yarnnn/trace-timeline.html",
+    mime_type=presentation_registry.RESOURCE_MIME,
+    meta=presentation_registry.served_resource_meta("trace-timeline"),
+)
+def trace_timeline_widget() -> str:
+    """Serve the trace-timeline widget bundle (ADR-372 §7)."""
+    return presentation_registry.widget_for("trace-timeline").read_bundle()
 
 
 # =============================================================================
@@ -369,12 +433,12 @@ async def recall(
     return result
 
 
-@mcp.tool()
+@mcp.tool(meta=presentation_registry.tool_definition_meta("trace-timeline"))
 async def trace(
     ctx: Context,
     subject: str,
     limit: int = 10,
-) -> dict:
+):
     """Show how the user's recorded thinking on a subject changed over time.
 
     Call this when the user asks about the HISTORY of something they track —
@@ -386,6 +450,11 @@ async def trace(
     Pass the subject as `subject`. YARNNN resolves it to the most relevant
     recorded material and returns its revision history, newest first. Reason over
     the chain and narrate the evolution in your own voice.
+
+    On a rich-render host (ChatGPT / MCP Apps) the revision chain ALSO renders as
+    an interactive timeline widget (ADR-372) — but you STILL narrate the evolution
+    in prose: the widget is additive, not a replacement for your explanation. On a
+    text-only host you get the full chain as text, exactly as before.
 
     Args:
         subject: What to trace the history of. Required.
@@ -409,7 +478,9 @@ async def trace(
         client_name=client_name,
         extra_metadata={"subject": subject, "returned": n},
     )
-    return result
+    # ADR-372 D4: attach the widget `_meta` (rich hosts render the timeline) while
+    # the full result stays in the text channel (text hosts are unaffected).
+    return _present("trace", result)
 
 
 def _ensure_daily_session(auth) -> Optional[str]:
