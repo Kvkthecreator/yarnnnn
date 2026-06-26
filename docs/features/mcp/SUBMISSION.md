@@ -97,26 +97,49 @@ For a ChatGPT-rendered widget, ALL of these are load-bearing (we proved it by el
 
 ## 5. Driving the submission via Claude Cowork (Chrome)
 
-Cowork can operate Chrome to fill the dashboard form on your behalf. **It cannot complete the parts that need YOUR identity/secrets** — log in, identity verification, and any 2FA must be done by you; hand Cowork the session once you're authenticated. Treat this as "Cowork fills the long form; you own auth + the final Submit click."
+Cowork can operate Chrome to **fill the dashboard form** on your behalf. **It cannot do the parts that need YOUR identity/secrets** — login, identity verification, 2FA, and the final Submit are yours. Model it as: *you* clear the gating prep, *Cowork* types the long form, *you* review + Submit.
 
-**Prep (you, before Cowork):**
-1. Publish the privacy policy (§3) and have its URL.
-2. Have logo + 3–4 screenshots saved locally (the `trace` timeline populated is the hero).
-3. Seed the demo/test account with multi-revision content; note its credentials.
-4. Log into `platform.openai.com` yourself and complete identity verification.
+### What's already done (as of 2026-06-26 — don't redo these)
+- ✅ **Tools are submission-shaped**: annotations, output schemas, review-safe copy, OAuth, clean URL `mcp.yarnnn.com`.
+- ✅ **Privacy policy** live at `https://yarnnn.com/privacy` (§5 discloses the MCP/connected-LLM data flow).
+- ✅ **All three widgets render live in ChatGPT** (trace-timeline, recall-cards, remember-receipt) — validated; the hero screenshots exist to be taken.
 
-**Cowork prompt (paste this, adjust specifics):**
+### Gating prep YOU must finish before running Cowork (the real remaining blockers)
+1. **Identity verification** — log into `platform.openai.com` and complete it. (Yours; Cowork can't.)
+2. **Demo / test account** — create a YARNNN account + connect it, seeded with real content so the reviewer's `trace`/`recall` show populated widgets (e.g. a few `remember` saves + a multi-revision file). Note its credentials. (The reviewer uses these; an empty workspace shows empty widgets.)
+3. **Logo** — square, per the directory's current size spec.
+4. **3–4 screenshots** saved locally — the gallery: (a) `trace` timeline with a diff expanded [hero], (b) `recall` with a populated card showing the `mcp:chatgpt` provenance chip, (c) the `remember` ✓ receipt, (d) optional. Frame the widget **plus a bit of the model's prose** — shows the "widget + narration" experience.
 
-> Open Chrome to `https://platform.openai.com/apps-manage`. I'm already logged in. Help me submit my app "YARNNN" for review. Use this metadata: [paste the §2 table values]. The MCP server URL is `https://mcp.yarnnn.com` (OAuth). For each form field, fill the value from my metadata; for logo and screenshots, use the files at [paths]; for the privacy policy URL use `https://yarnnn.com/privacy`. Fill the test prompts and test-account credentials I give you. **Do NOT click the final Submit or check the confirmation boxes — stop and show me the completed form for review first.** If a field is unclear or asks for something I haven't provided, pause and ask me.
+Until #1–#4 exist, there is nothing for Cowork to usefully do — the form requires them.
 
-**Guardrails for Cowork (important):**
-- **Stop before Submit.** The form has confirmation checkboxes (legal attestations) and a Submit that starts the review — you make that call, not Cowork. Have it fill everything, then hand back for your review + final click.
-- **Never paste secrets into chat.** Test-account credentials and any tokens go directly into the browser form fields, not into the Cowork conversation. Tell Cowork to type them into the page, not echo them.
-- **One in-review version at a time** — if you need to change something after submitting, "Cancel Review" rather than creating a second app (OpenAI constraint).
-- After Submit: you get an email with a **Case ID**; status shows in the dashboard.
+### Cowork prompt (paste once #1–#4 are ready; fill the bracketed bits)
+
+> Open Chrome to `https://platform.openai.com/apps-manage`. I'm already logged in and identity-verified. Help me submit my app **YARNNN** for review — but **do NOT click the final Submit or check any confirmation/legal boxes; fill everything, then stop and show me the completed form to review.**
+>
+> App metadata:
+> - **Name:** YARNNN
+> - **Short description:** Durable, attributed memory for ChatGPT — remember decisions and facts, recall them later, and trace how your thinking changed over time.
+> - **Long description:** [paste the §2 long description]
+> - **Category:** Productivity / Knowledge management (closest available)
+> - **Company URL:** `https://yarnnn.com`
+> - **Privacy policy URL:** `https://yarnnn.com/privacy`
+> - **MCP server URL:** `https://mcp.yarnnn.com` (auth: OAuth)
+> - **Logo:** the file at [path]
+> - **Screenshots:** the files at [paths], in this order [trace, recall, remember]
+> - **Test prompts:** "Remember that we chose Postgres over DynamoDB for cost." / "What do I know about our database decision?" / "Trace how my thinking on [a seeded subject] changed."
+> - **Test account:** I'll give you the login to type directly into the form — type it into the page field, never echo it back in this chat.
+> - **Country availability:** [your choice]
+>
+> For each form field, fill the matching value. If a field is unclear or asks for something I haven't given you, **pause and ask me** rather than guessing.
+
+### Guardrails for Cowork (non-negotiable)
+- **Stop before Submit.** The form has legal-attestation checkboxes and a Submit that starts review — *you* make that call after reviewing the filled form.
+- **Never echo secrets into chat.** Test-account credentials go directly into the page field; tell Cowork to type, not repeat.
+- **One in-review version at a time** — to change something after submitting, use "Cancel Review", don't create a second app (OpenAI constraint).
+- **After Submit:** you get an email with a **Case ID**; status shows in the dashboard. Review timelines vary.
 
 ---
 
 ## 6. The honest readiness statement
 
-**Technically, the tools are submission-shaped** (annotations, schemas, copy, auth, clean URL — all done). **The remaining blockers are non-code:** a published privacy policy, a seeded demo account, identity verification, logo + screenshots, and a confirmed-rendering `trace` widget for the hero shot. None are hard; all are yours (or content/legal), not engineering. Close §4's ❌/⚠️ rows, then run §5.
+**The technical app is DONE** — all three tools render live in ChatGPT, the privacy policy is published, annotations/schemas/copy/auth are all in place. **The only remaining blockers are operational and entirely yours** (identity verification, demo account, logo, screenshots — §5 gating prep). None are engineering. Finish those four, then run the §5 Cowork prompt.
