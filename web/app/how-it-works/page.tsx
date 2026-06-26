@@ -9,81 +9,79 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 
 export const metadata: Metadata = getMarketingMetadata({
-  title: "How yarnnn works — the workspace where work compounds",
+  title: "How yarnnn works — one memory for every AI",
   description:
-    "Pick your operation. Write the constitution. Bring in your reality. It produces; you correct; corrections stay. The seat answers for what ships.",
+    "Connect your tools, and everything your AI knows lands in one place you own — reachable from every app, with a full history of every change. Here's the loop.",
   path: "/how-it-works",
   keywords: [
     "how yarnnn works",
-    "accountable ai workflow",
-    "cumulative ai workspace",
-    "ai judgment seat",
-    "ai delegation dial",
-    "owned ai context",
-    "solopreneur ai",
+    "ai memory across apps",
+    "shared ai memory",
+    "chatgpt and claude memory",
+    "portable ai memory",
+    "ai memory you own",
+    "cross-llm memory",
   ],
 });
 
 const STEPS = [
   {
     number: "01",
-    title: "Pick your operation",
-    body: "Choose a program — trading, authoring; more coming — or start with a bare workspace. The program declares what the operation is: what it watches, what it produces, what counts as ground truth.",
+    title: "Connect your tools",
+    body: "Link Slack, Notion, your files and notes. Whatever they know flows into one place — and it doesn't disappear when you close the tab.",
   },
   {
     number: "02",
-    title: "Write the constitution",
-    body: "What it's for, the rules it judges by, how much it may do alone. Authored by you, amendable by you, versioned forever. This is the standing intent every agent reasons against and the seat enforces.",
+    title: "It becomes one memory you own",
+    body: "Everything lands with your name on it and a date attached. Nothing is anonymous, and nothing gets quietly overwritten — you can always see how it got there.",
   },
   {
     number: "03",
-    title: "Connect and bring in your reality",
-    body: "Link your platforms; import your files and history. Your context becomes owned, attributed substrate — not a context window that empties when you close the tab.",
-    stageB:
-      "Bring your track record — the seat reconciles your past decisions into a calibration trail on day one.",
+    title: "Reach it from any AI",
+    body: "The same memory is available to ChatGPT, Claude, and your other tools. Write it in one, pick up in the next — no copy-paste, no starting over.",
   },
   {
     number: "04",
-    title: "It produces; you correct; corrections stay",
-    body: "Artifacts trace to the sources they were composed from. Fix one source file and every future artifact inherits the fix. Nothing you correct is lost; every cycle starts from a higher floor.",
+    title: "Fix it once; it stays fixed",
+    body: "Correct a detail and every future answer uses the fix. Nothing you correct is lost, and each time is a little better than the last.",
   },
   {
     number: "05",
-    title: "The seat answers for what ships",
-    body: "Proposals, verdicts, reconciled outcomes — a trail you can audit. A judgment seat you author the principles for evaluates consequential actions against your declared intent, then approves, queues for your review, or defers pending more information. Move the dial as trust accrues.",
+    title: "Beta: add a second set of eyes",
+    body: "When you're ready, turn on an assistant that reviews important work before it goes out — against rules you write — and records every call it makes. It does only as much as you allow.",
   },
 ];
 
 const VERDICTS = [
   {
-    label: "Approve",
-    desc: "If the action aligns with your declared intent and falls within your delegated ceiling, it executes. No manual approval needed.",
+    label: "Goes ahead",
+    desc: "If it fits the rules you set and stays within what you've allowed, it just does it — no need to ask.",
   },
   {
-    label: "Queue",
-    desc: "If the action exceeds your ceiling or the seat isn't confident, it surfaces in your review queue. You decide.",
+    label: "Asks you first",
+    desc: "If it's bigger than what you've allowed, or it's not sure, it brings it to you. You make the call.",
   },
   {
-    label: "Defer",
-    desc: "If the proposal has an evidence gap, the seat commissions the missing research before deciding. It doesn't guess.",
+    label: "Waits for more",
+    desc: "If something's missing, it gathers what it needs before deciding. It doesn't guess.",
   },
 ];
 
 const MECHANISM_TRIO = [
   {
-    tag: "Traceable",
-    title: "Everything has an author",
-    desc: "Every file, every change, every artifact traces to its sources. Nothing mutates anonymously.",
+    tag: "Every AI",
+    title: "Works with all of them",
+    desc: "One memory, available to every AI tool you use. Neutral on purpose — it's not tied to any one of them.",
   },
   {
-    tag: "Compounds",
-    title: "Corrections carry forward",
-    desc: "Fix one source and the future inherits it. The work is monotonically improving; everywhere else resets.",
+    tag: "Every change",
+    title: "Nothing changes in the dark",
+    desc: "Every edit is signed and dated. You can always see what changed and who changed it.",
   },
   {
-    tag: "Judged",
-    title: "Reconciled against reality",
-    desc: "The seat's calls are checked against what actually happened — a track record, not a safety filter.",
+    tag: "Every time",
+    title: "It keeps getting better",
+    desc: "Fix something once and it stays fixed. Everywhere else, you start over.",
   },
 ];
 
@@ -110,15 +108,14 @@ export default function HowItWorksPage() {
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <p className="text-white/40 text-sm uppercase tracking-widest mb-4">How It Works</p>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              You set it up once.
+              Set it up once.
               <br />
-              <span className="text-white/50">It compounds from there.</span>
+              <span className="text-white/50">It&apos;s everywhere after.</span>
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
-              YARNNN is the workspace where the work you run is cumulative. You author the
-              operation and its rules; agents you own produce from them; and a judgment seat
-              answers for what ships. Here&apos;s the five-step walk from a bare workspace to a
-              running operation.
+              yarnnn turns the scattered memory across your AI tools into one place you own — fed
+              by your apps, reachable from every model. Here&apos;s how it goes, from an empty
+              workspace to a memory that follows you everywhere.
             </p>
           </section>
 
@@ -136,11 +133,6 @@ export default function HowItWorksPage() {
                     <p className="text-white/55 leading-relaxed max-w-2xl text-lg font-light">
                       {step.body}
                     </p>
-                    {step.stageB && (
-                      <p className="mt-4 text-white/35 text-sm italic max-w-2xl">
-                        {step.stageB}
-                      </p>
-                    )}
 
                     {/* Step 05 carries the verdict trio inline */}
                     {step.number === "05" && (
@@ -167,7 +159,7 @@ export default function HowItWorksPage() {
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-5xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-12 text-center">
-                What makes it categorically different.
+                Why it&apos;s different.
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
                 {MECHANISM_TRIO.map((m) => (

@@ -9,50 +9,50 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 
 export const metadata: Metadata = getMarketingMetadata({
-  title: "About — the layer the platforms structurally can't build",
+  title: "About — the memory layer no AI company can build",
   description:
-    "Platforms build delegates. They won't build the layer that holds delegates accountable. The structural argument for the cumulative workspace and the judgment seat — and what we believe.",
+    "A single AI company's memory is locked to its own app, by design. The memory that works across all of them can't be owned by any one of them. So we built it — and here's what we believe.",
   path: "/about",
   keywords: [
     "about yarnnn",
-    "accountable ai",
-    "ai judgment seat",
-    "cumulative ai workspace",
+    "ai memory you own",
+    "neutral ai memory",
+    "cross-llm memory",
     "model-agnostic ai",
-    "owned ai context",
+    "portable ai memory",
   ],
 });
 
 const BELIEFS = [
   {
-    title: "Work should be cumulative, not episodic",
-    body: "Fix something once and everything after inherits it. Your accumulated workspace is the asset; the agents are the labor; what they produce is the dividend. Everywhere else, work resets.",
-    sub: "Day 1 the asset exists. Day 90 it's irreplaceable — not from lock-in, from accumulation.",
+    title: "Your memory should be yours",
+    body: "Built once, kept forever, and available everywhere. The memory is the thing that lasts; the AI models come and go. Everywhere else, it's locked inside someone else's app.",
+    sub: "Day 1 it exists. Day 90 it's irreplaceable — not from lock-in, but because it added up.",
   },
   {
-    title: "Operating system, not application",
-    body: "A kernel runs the operation; programs run in userspace; the workspace is yours. Chat is the interface — the product is what runs underneath and keeps running while you're away.",
-    sub: "You don't operate yarnnn. You supervise it.",
+    title: "Written by you, not guessed",
+    body: "Your notes, your rules, your voice — written by you, kept forever, and never quietly changed. Every edit has a name and a date on it.",
+    sub: "Authored, not inferred.",
   },
   {
-    title: "Judgment is separate from execution",
-    body: "The agent that proposes an action shouldn't decide whether it's a good idea. Consequential actions pass through a Reviewer — a judgment seat you author the principles for — whose calls are reconciled against what actually happened.",
-    sub: "The separation is architectural, not advisory. That's what makes more autonomy trustworthy, not reckless.",
+    title: "Neutral across every AI",
+    body: "One memory, available to every tool, with no company in the middle deciding what you're allowed to take with you. The portability is the whole point.",
+    sub: "A locked-in memory can't do this. That's the moat.",
   },
   {
-    title: "Authored, not inferred",
-    body: "Your context, your rules, your voice — written by you, versioned forever, never silently mutated. Every revision is attributed; nothing changes anonymously.",
-    sub: "The stance, in three words: authored, not inferred.",
+    title: "Built for more than one of you",
+    body: "You, your teammates, your tools, and even your own AI assistants can all add to the same memory — and you can always see who added what. On your own is just the simplest case.",
+    sub: "One memory, many contributors.",
   },
   {
-    title: "You supervise; the operation runs",
-    body: "You set the delegation dial — manual, bounded, autonomous. The operation runs at the level of trust it has earned, and the trail shows you everything. You're the principal, not a safety mechanism.",
-    sub: "From operator to supervisor. From building context to answering for outcomes.",
+    title: "A checker, separate from the doer (beta)",
+    body: "The assistant that does the work shouldn't be the one that decides it's good. So important calls go to a separate checker, against rules you set, measured against what actually happened.",
+    sub: "Keeping them separate is what makes handing over more trust safe, not reckless.",
   },
   {
     title: "Receipts, not claims",
-    body: "300+ recorded architecture decisions; attribution enforced at the write path; the calibration loop live in the alpha programs. We built it operator-first and run it on its own operations.",
-    sub: "The architecture is the proof. The receipts culture is the identity.",
+    body: "377 decisions written down in the open; every change tracked at the source; built for real use and run on our own work.",
+    sub: "The record is the proof.",
   },
 ];
 
@@ -82,32 +82,30 @@ export default function AboutPage() {
           {/* Hero — self-audit thesis */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              We built the layer the
+              We built the memory layer
               <br />
-              <span className="text-white/50">platforms structurally can&apos;t.</span>
+              <span className="text-white/50">the AI giants can&apos;t.</span>
             </h1>
             <div className="max-w-2xl space-y-6 text-white/50">
               <p>
-                Every platform now sells you an AI delegate, and the delegates are genuinely good
-                — scheduled runs, persistent memory, work done while you&apos;re away. But the same
-                vendor that builds the delegate grades the delegate. Memory you can&apos;t read.
-                Actions with no attributed trail. &ldquo;Improvement&rdquo; you take on faith.
+                Every AI tool has memory now. But each one&apos;s memory is locked inside its own
+                app — that&apos;s the whole point of it. None of them will ever let your context
+                follow you to a competitor.
               </p>
               <p>
-                No platform will tell you whether its own agent&apos;s judgment is any good —
-                structurally can&apos;t, for the same reason ratings agencies aren&apos;t run by the
-                banks they rate. A platform judging its own model&apos;s agents has a self-audit
-                problem. A neutral, model-agnostic seat does not.
+                A memory that works across all of them can&apos;t belong to any one of them. It has
+                to be neutral — and being neutral across your rivals is the one thing a rival
+                can&apos;t do. So nobody builds it, because nobody can.
               </p>
               <p>
-                And underneath, all of them make work episodic. Every artifact is generated fresh;
-                nothing you correct today makes tomorrow&apos;s output better. The two gaps are the
-                same gap: nothing is owned, so nothing compounds and nothing is accountable.
+                So we did: one place that holds everything your AI tools know about you, that you
+                own, that keeps a full history of every change, and that any model can read. Under
+                the hood, it&apos;s git&apos;s model for memory — every change signed, versioned,
+                and yours.
               </p>
               <p className="text-white font-medium">
-                yarnnn is the workspace where work is cumulative and a neutral judgment seat
-                answers for what ships. We built it operator-first, run it on its own operations,
-                and record every architectural decision in the open.
+                We built it ourselves, run it on our own work, and write down every decision in the
+                open.
               </p>
             </div>
           </section>
@@ -144,20 +142,20 @@ export default function AboutPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {([
                   {
-                    title: "Not a chat session that resets",
-                    desc: "Sessions help in the moment and reset when you close the tab. Here the work is cumulative — your context is an owned, attributed asset, and corrections carry forward to every future cycle.",
+                    title: "Not a memory locked to one app",
+                    desc: "Your memory isn't trapped inside ChatGPT or Claude. It's one place both can read — and one you can take anywhere.",
                   },
                   {
-                    title: "Not a platform agent that grades its own homework",
-                    desc: "The vendor that builds the delegate can't credibly judge it. The seat here is neutral and model-agnostic — its calls are reconciled against what actually happened, and you can read the trail.",
+                    title: "Not a plain folder of files",
+                    desc: "A storage folder hands you back files. yarnnn hands you back the story too: who wrote each version, and exactly how it changed.",
                   },
                   {
-                    title: "Not a memory wiki with no operation",
-                    desc: "Memory remembers; it doesn't decide and doesn't answer for outcomes. Context with no action loop is a wiki. Here the substrate is wired to an operation with a judgment seat.",
+                    title: "Not a notes app",
+                    desc: "Notes just sit there. This flows in from your tools, stays organized on its own, and feeds straight into every AI you use.",
                   },
                   {
-                    title: "Not a safety filter bolted onto a model",
-                    desc: "An approval button isn't judgment. The seat is a calibrated record of whether the calls were right — with a governance boundary the agent can't cross on its own.",
+                    title: "Not an AI that grades its own homework (beta)",
+                    desc: "When the checker arrives, it's separate and neutral — measured against what really happened, not a company judging its own model.",
                   },
                 ] as const).map((item) => (
                   <SpotlightCard key={item.title} variant="dark" spotlightSize={300}>
@@ -176,13 +174,12 @@ export default function AboutPage() {
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">Who yarnnn is for</h2>
               <p className="text-white/50 mb-12 max-w-xl">
-                Someone with something that&apos;s theirs to run, that they can&apos;t be
-                continuously present for, and who refuses to let it reset — the operator of a
-                bounded operation.
+                Anyone tired of re-explaining themselves to every new AI — and anyone who wants the
+                context they&apos;ve built to be theirs to keep.
               </p>
 
               <div className="flex flex-wrap gap-3 mb-12">
-                {["a newsletter", "a portfolio", "a shop", "a pipeline", "a book of business"].map(
+                {["people who use ChatGPT and Claude", "small teams", "people building their own AI agents", "anyone whose work lives in five apps"].map(
                   (chip) => (
                     <span
                       key={chip}
@@ -197,16 +194,16 @@ export default function AboutPage() {
               <div className="space-y-4">
                 {([
                   {
-                    title: "A repeating consequential decision",
-                    desc: "Work with a real call to make on cadence — what to ship, what to list, what to enter — where being right matters and the trail should prove whether you were.",
+                    title: "You use more than one AI",
+                    desc: "If you bounce between ChatGPT, Claude, and a few tools and you're tired of repeating yourself, this gives all of them the same memory.",
                   },
                   {
-                    title: "A track record you're not learning from",
-                    desc: "You have a history of decisions and outcomes that, right now, teaches you nothing. The seat reconciles it into a calibration trail and every future call starts from a higher floor.",
+                    title: "You've built up context worth keeping",
+                    desc: "Notes, decisions, history — the stuff that makes an AI actually useful for you. Keep it in one place you own instead of scattered and rented.",
                   },
                   {
-                    title: "Anyone moving from prompting to supervising",
-                    desc: "If you'd rather author the rules once and answer for what ships than re-prompt the same work every week — and you want the operation to get better at your specific work over time.",
+                    title: "You want to hand off more, safely (beta)",
+                    desc: "When you're ready, add a checker that reviews important work against your rules — so you can step back without losing the thread.",
                   },
                 ] as const).map((item) => (
                   <SpotlightCard key={item.title} variant="dark" spotlightSize={400}>
@@ -224,11 +221,11 @@ export default function AboutPage() {
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">
-                The work you run shouldn&apos;t reset.
+                Your memory should follow you.
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Start free on the workspace. Author your context, watch the first artifact
-                compound, and move the dial as trust accrues.
+                Start free. Add a note or connect a tool, watch it show up in every AI you use, and
+                add the checker when you&apos;re ready.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
                 <Link
@@ -241,7 +238,7 @@ export default function AboutPage() {
                   href={CTA.howItWorks}
                   className="inline-block px-8 py-4 border border-white/20 text-white text-lg font-medium rounded-full hover:bg-white/10 transition-colors"
                 >
-                  See how it compounds
+                  See how it works
                 </Link>
               </div>
             </div>

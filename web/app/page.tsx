@@ -9,31 +9,29 @@ import { SpotlightCard, BentoGrid } from "@/components/landing/SpotlightCard";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 
-const VERTICAL_CHIPS = [
-  "a newsletter",
-  "a portfolio",
-  "a shop",
-  "a pipeline",
-  "a book of business",
+const ROOM_CHIPS = [
+  "ChatGPT",
+  "Claude",
+  "Slack",
+  "Notion",
+  "your own agents",
 ];
 
 export const metadata: Metadata = getMarketingMetadata({
-  title: "The workspace where the work you run compounds | yarnnn",
+  title: "One memory for every AI you use | yarnnn",
   description:
-    "Agents you own produce your work. Corrections carry forward. A judgment seat answers for what ships — even when you're not there. The workspace for a solopreneur's newsletter, portfolio, shop, or pipeline.",
+    "yarnnn keeps everything your AI tools know about you in one place you own. Tell ChatGPT today, Claude knows it tomorrow — and you can see every change. Free to start.",
   path: "/",
   keywords: [
-    "ai agents",
-    "autonomous ai agents",
-    "ai for solopreneurs",
-    "ai for your newsletter",
-    "ai for your portfolio",
-    "ai for your shop",
-    "accountable ai",
-    "ai judgment seat",
-    "cumulative ai workspace",
-    "ai agent operating system",
-    "owned ai context",
+    "ai memory",
+    "shared ai memory",
+    "ai memory across apps",
+    "chatgpt and claude memory",
+    "ai context",
+    "portable ai memory",
+    "ai memory you own",
+    "ai that remembers you",
+    "cross-llm memory",
   ],
 });
 
@@ -67,13 +65,13 @@ export default function LandingPage() {
                 <div className="font-brand text-4xl md:text-5xl mb-8 text-[#1a1a1a]">yarnnn</div>
 
                 <h1 className="text-2xl sm:text-3xl md:text-4xl font-medium tracking-wide text-[#1a1a1a]/90 mb-6">
-                  The work you run shouldn&apos;t reset.
+                  One memory. Every AI.
                 </h1>
 
                 <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-10 max-w-xl mx-auto lg:mx-0 font-light">
-                  YARNNN is the workspace where it compounds. Agents you own produce it.
-                  Corrections carry forward. A judgment seat answers for what ships — even
-                  when you&apos;re not there.
+                  Tell ChatGPT something today, and Claude knows it tomorrow. yarnnn keeps
+                  everything your AI tools know about you in one place you own — where nothing
+                  gets lost and nothing changes without you seeing it.
                 </p>
 
                 <div className="flex flex-col sm:flex-row items-center lg:items-start gap-4 mb-10">
@@ -87,15 +85,15 @@ export default function LandingPage() {
                     href={CTA.howItWorks}
                     className="inline-block px-8 py-4 glass-light text-[#1a1a1a] text-lg font-medium hover:bg-white/80 transition-all"
                   >
-                    See how it compounds
+                    See how it works
                   </Link>
                 </div>
 
                 <div className="flex flex-wrap justify-center lg:justify-start gap-x-3 gap-y-1 text-sm text-[#1a1a1a]/40 font-light">
-                  {VERTICAL_CHIPS.map((chip, i) => (
+                  {ROOM_CHIPS.map((chip, i) => (
                     <span key={chip} className="whitespace-nowrap">
                       {chip}
-                      {i < VERTICAL_CHIPS.length - 1 && (
+                      {i < ROOM_CHIPS.length - 1 && (
                         <span className="text-[#1a1a1a]/20 ml-3">·</span>
                       )}
                     </span>
@@ -114,20 +112,18 @@ export default function LandingPage() {
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <div className="max-w-3xl mx-auto">
             <h2 className="text-2xl md:text-3xl font-medium mb-8 text-[#1a1a1a] leading-tight">
-              Every platform now sells you an AI delegate. None will tell you if its judgment
-              is any good.
+              Your AI&apos;s memory is trapped in one app.
             </h2>
             <div className="space-y-6 text-[#1a1a1a]/60 leading-relaxed text-lg font-light">
               <p>
-                The agents got good. Scheduled runs, persistent memory, work done while you&apos;re
-                away — that part is everywhere now. But look closer: the same vendor that builds
-                the delegate grades the delegate. Memory you can&apos;t read. Actions with no
-                attributed trail. &ldquo;Improvement&rdquo; you take on faith.
+                Every AI tool remembers a little about you now. But ChatGPT keeps its memory,
+                Claude keeps its own, and neither lets you look inside or take it with you.
+                Switch apps and you start over — re-explaining who you are, every time.
               </p>
               <p>
-                And underneath it all, the work stays episodic. Every artifact is generated fresh.
-                Fix today&apos;s output and tomorrow starts from the same place. Nothing is owned,
-                so nothing compounds — and nothing answers for itself.
+                So the context you build never really becomes yours. It&apos;s scattered across
+                tools that each keep a private copy, and none of them can tell you how something
+                got there or whether it&apos;s still true.
               </p>
             </div>
           </div>
@@ -138,46 +134,45 @@ export default function LandingPage() {
           <div className="max-w-5xl mx-auto">
             <div className="text-center mb-16">
               <h2 className="text-2xl md:text-3xl font-medium mb-4 text-[#1a1a1a]">
-                A workspace where nothing is lost and everything answers for itself.
+                One place for everything your AI knows. And it&apos;s yours.
               </h2>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="p-8 rounded-2xl border border-[#1a1a1a]/[0.06] bg-[#1a1a1a]/[0.02]">
                 <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
-                  Traceable
+                  Works everywhere
                 </div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Everything is traceable.</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Same memory, every AI.</h3>
                 <p className="text-sm text-[#1a1a1a]/50 leading-relaxed">
-                  Every file has an author. Every change has a revision. The deck your agent
-                  built cites the files it was composed from.
+                  Write it in one app, use it in the next. ChatGPT, Claude, your tools — all
+                  working from the same memory, no copy-paste.
                 </p>
               </div>
               <div className="p-8 rounded-2xl border border-[#1a1a1a]/[0.06] bg-[#1a1a1a]/[0.02]">
                 <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
-                  Compounds
+                  Nothing hidden
                 </div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Corrections compound.</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">See every change.</h3>
                 <p className="text-sm text-[#1a1a1a]/50 leading-relaxed">
-                  Fix one source file and every future artifact inherits the fix. Work here is
-                  monotonically improving. Work everywhere else resets.
+                  Every change is signed and dated. You can always see what changed, when, and
+                  who did it — you, a teammate, or an AI.
                 </p>
               </div>
               <div className="p-8 rounded-2xl border border-[#1a1a1a]/[0.06] bg-[#1a1a1a]/[0.02]">
                 <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
-                  Judged
+                  Gets better
                 </div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Judgment is independent.</h3>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Fix it once, it stays fixed.</h3>
                 <p className="text-sm text-[#1a1a1a]/50 leading-relaxed">
-                  Consequential actions pass through a Reviewer — a judgment seat you author the
-                  principles for, whose calls are reconciled against what actually happened. Not
-                  a safety filter. A track record.
+                  Correct something once and it&apos;s corrected for good. Every time you use it,
+                  it&apos;s a little sharper. It never resets.
                 </p>
               </div>
             </div>
 
             <p className="text-center text-sm text-[#1a1a1a]/30 mt-10 font-mono">
-              fix one file → every future artifact inherits it
+              fix it once → it&apos;s fixed everywhere, for good
             </p>
           </div>
         </section>
@@ -187,33 +182,42 @@ export default function LandingPage() {
             NOT the ADR-334 seat tier. No price/trial/checkout language here. */}
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <div className="max-w-4xl mx-auto">
+            <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
+              In beta
+            </div>
             <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a]">
-              You decide how much it runs without you.
+              Soon, a second set of eyes.
             </h2>
+
+            <p className="text-[#1a1a1a]/50 leading-relaxed max-w-2xl mb-10">
+              Today, yarnnn is your memory. Next, an assistant that checks important work before
+              it goes out — against rules you set — and keeps a record of every call it makes. It
+              only ever does as much as you allow.
+            </p>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="p-6 rounded-2xl bg-[#1a1a1a]/[0.02] border border-[#1a1a1a]/[0.06]">
-                <div className="text-sm font-medium text-[#1a1a1a] mb-2">Supervised</div>
+                <div className="text-sm font-medium text-[#1a1a1a] mb-2">Goes ahead</div>
                 <p className="text-sm text-[#1a1a1a]/50 leading-relaxed">
-                  Every consequence waits for your approval.
+                  If it fits your rules and stays within what you&apos;ve allowed, it just does it.
                 </p>
               </div>
               <div className="p-6 rounded-2xl bg-[#1a1a1a]/[0.02] border border-[#1a1a1a]/[0.06]">
-                <div className="text-sm font-medium text-[#1a1a1a] mb-2">Delegated</div>
+                <div className="text-sm font-medium text-[#1a1a1a] mb-2">Asks you first</div>
                 <p className="text-sm text-[#1a1a1a]/50 leading-relaxed">
-                  It acts within ceilings you declared.
+                  If it&apos;s bigger than that, or it&apos;s unsure, it brings it to you. You decide.
                 </p>
               </div>
               <div className="p-6 rounded-2xl bg-[#1a1a1a]/[0.02] border border-[#1a1a1a]/[0.06]">
-                <div className="text-sm font-medium text-[#1a1a1a] mb-2">Autonomous</div>
+                <div className="text-sm font-medium text-[#1a1a1a] mb-2">Waits for more</div>
                 <p className="text-sm text-[#1a1a1a]/50 leading-relaxed">
-                  It runs the framework you wrote, and the trail shows you everything.
+                  If something&apos;s missing, it gathers what it needs first. It doesn&apos;t guess.
                 </p>
               </div>
             </div>
 
             <p className="text-[#1a1a1a]/50 leading-relaxed max-w-2xl">
-              Trust is earned in the record, and the dial only moves when you move it.
+              You set the rules. It earns your trust on the record — and you&apos;re always in charge.
             </p>
           </div>
         </section>
@@ -223,14 +227,13 @@ export default function LandingPage() {
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <div className="max-w-3xl mx-auto">
             <h2 className="text-2xl md:text-3xl font-medium mb-8 text-[#1a1a1a] leading-tight">
-              Execution is becoming a commodity. What compounds is yours.
+              The AI will change. Your memory shouldn&apos;t.
             </h2>
             <p className="text-[#1a1a1a]/60 leading-relaxed text-lg font-light">
-              As more work gets delegated, what&apos;s left that matters is the context only you
-              have and the judgment only you can authorize. That&apos;s the asset this workspace
-              accumulates: your files, your corrections, your watchlist&apos;s history, your
-              seat&apos;s track record. Ninety days in, starting over anywhere else means starting
-              from zero. That&apos;s not lock-in. That&apos;s accumulation.
+              New models show up every few months. What lasts isn&apos;t any one of them — it&apos;s
+              everything you&apos;ve taught them: your notes, your corrections, the history of how it
+              all came to be. Keep that in one place you own, and switching tools costs you nothing.
+              Ninety days in, starting over anywhere else means starting from zero.
             </p>
 
             {/* The accumulation trajectory — quiet bento, no moat-naming per beat-timing */}
@@ -240,8 +243,8 @@ export default function LandingPage() {
                   <div className="p-6 h-full flex flex-col justify-center">
                     <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Day 1</div>
                     <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                      The asset exists. You author context; the first artifact synthesizes from it,
-                      with provenance.
+                      It&apos;s yours from the start. Add a note or connect a tool, and it&apos;s
+                      instantly there in every AI you use.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -249,8 +252,8 @@ export default function LandingPage() {
                   <div className="p-6 h-full flex flex-col justify-center">
                     <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Day 30</div>
                     <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                      Corrections have compounded. Every cycle starts from a higher floor than the
-                      last.
+                      Your corrections have added up. Whatever AI you open starts from the same,
+                      better memory.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -258,8 +261,8 @@ export default function LandingPage() {
                   <div className="p-6 h-full flex flex-col justify-center">
                     <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Day 90</div>
                     <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                      The operation contradicts nothing, forgets nothing, and the judgment trail
-                      reads like a track record.
+                      It reads like a full history — nothing forgotten, every change accounted for,
+                      all of it yours.
                     </p>
                   </div>
                 </SpotlightCard>
@@ -275,10 +278,9 @@ export default function LandingPage() {
               Free to keep. Pay only for what runs.
             </h2>
             <p className="text-[#1a1a1a]/50 mb-10 max-w-xl mx-auto leading-relaxed">
-              The workspace is free forever — your files, your context, reachable from any AI you
-              use. When you run an operation on it, you pay only the usage it draws — metered at
-              transparent rates, read line by line, and capped by a monthly budget you set. No
-              seats, no subscription.
+              Your memory is free forever — your files, your context, reachable from any AI you
+              use. The optional assistant is the only thing that ever costs anything, and only
+              while it&apos;s working — capped by a monthly limit you set. No seats, no subscription.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <Link

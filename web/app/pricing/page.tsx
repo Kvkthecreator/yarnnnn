@@ -110,9 +110,9 @@ export default function PricingPage() {
                       <span className="text-white/40 text-sm">forever</span>
                     </div>
                     <p className="text-white/50 text-sm max-w-md leading-relaxed">
-                      The substrate: files, uploads, chat, your context reachable from any AI you
-                      use (MCP). Starts with a $3 usage balance — enough to feel the loop before
-                      you spend a cent.
+                      Your memory: files, notes, and context — kept with a full history and
+                      reachable from every AI you use. Starts with a $3 balance — enough to feel it
+                      before you spend a cent.
                     </p>
                   </div>
                   <Link
@@ -252,9 +252,9 @@ export default function PricingPage() {
                 <div className="p-6">
                   <h3 className="text-lg font-medium mb-3">What&apos;s an operation?</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    An activated program running on your workspace — your newsletter operation,
-                    your portfolio operation. It draws usage from your balance while it runs,
-                    capped by the budget you set. The workspace itself is always free.
+                    An operation is the optional assistant (in beta) running on your workspace. It
+                    draws usage from your balance while it&apos;s working, capped by the budget you
+                    set. Your memory, files, and access from any AI are always free.
                   </p>
                 </div>
               </SpotlightCard>

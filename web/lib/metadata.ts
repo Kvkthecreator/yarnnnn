@@ -12,9 +12,9 @@ import type { Metadata } from "next";
 
 export const BRAND = {
   name: "yarnnn",
-  tagline: "Autonomous Agents for Recurring Knowledge Work",
+  tagline: "One memory for every AI you use",
   description:
-    "Persistent agents, shared workspace context, and recurring tasks that run on schedule. Supervise the system instead of rebuilding the same work every cycle.",
+    "yarnnn keeps everything your AI tools know about you in one place you own. Tell ChatGPT today, and Claude knows it tomorrow — and you can see every change. Free to start.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://yarnnn.com",
   ogImage: "/assets/logos/og-card.png",
 };
