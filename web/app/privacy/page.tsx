@@ -4,7 +4,7 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata = getMarketingMetadata({
   title: "Privacy Policy",
   description:
-    "How yarnnn collects, uses, and protects your data. Learn about platform permissions, encryption, data retention, and your rights.",
+    "How yarnnn collects, uses, and protects your data — including how connected LLM assistants (via the MCP connector) access your memory, encryption, data retention, and your rights.",
   path: "/privacy",
 });
 
@@ -15,7 +15,7 @@ export default function PrivacyPage() {
     name: "Privacy Policy",
     url: `${BRAND.url}/privacy`,
     description: metadata.description,
-    dateModified: "2026-01-28",
+    dateModified: "2026-06-26",
   };
 
   return (
@@ -29,7 +29,7 @@ export default function PrivacyPage() {
       <main className="max-w-3xl mx-auto px-6 py-12 prose prose-neutral dark:prose-invert">
         <h1 className="text-3xl font-bold mb-2">Privacy Policy</h1>
         <p className="text-muted-foreground mb-8">
-          <strong>Effective Date: January 28, 2026</strong>
+          <strong>Effective Date: June 26, 2026</strong>
         </p>
 
         <p>
@@ -46,8 +46,16 @@ export default function PrivacyPage() {
             profile data from authentication providers (Google, etc.)
           </li>
           <li>
-            <strong>Content:</strong> Documents you upload, text blocks you
-            create, workspace files you store, and tasks you manage
+            <strong>Content:</strong> Documents you upload, notes and memories
+            you save, workspace files you store, and tasks you manage —
+            including anything you choose to save through a connected LLM
+            assistant (see §5)
+          </li>
+          <li>
+            <strong>Provenance &amp; metadata:</strong> For each saved item, we
+            record when it was written, which source contributed it (you, a
+            connected assistant, or YARNNN itself), and its revision history.
+            This attribution is core to the product
           </li>
           <li>
             <strong>Usage Data:</strong> How you interact with our services,
@@ -79,21 +87,60 @@ export default function PrivacyPage() {
         </p>
 
         <h2 className="text-xl font-semibold mt-8 mb-4">4. Third-Party Services</h2>
-        <p>We use the following third-party services:</p>
+        <p>We use the following third-party services as data processors:</p>
         <ul className="list-disc pl-6 space-y-2">
           <li>
-            <strong>Supabase:</strong> Authentication and database
+            <strong>Supabase:</strong> Authentication and database (PostgreSQL)
           </li>
           <li>
-            <strong>Vercel:</strong> Hosting and analytics
+            <strong>Render:</strong> Application and connector hosting
           </li>
           <li>
-            <strong>AI Providers:</strong> (Claude, GPT) for generating work
-            outputs
+            <strong>Vercel:</strong> Web hosting and analytics
+          </li>
+          <li>
+            <strong>AI providers (Anthropic Claude, OpenAI):</strong> to generate
+            work outputs and to power our judgment layer. Content sent to these
+            providers is processed under their respective data-use terms and is
+            not used to train their models where their API terms provide such
+            assurance
           </li>
         </ul>
 
-        <h2 className="text-xl font-semibold mt-8 mb-4">5. Your Rights</h2>
+        <h2 className="text-xl font-semibold mt-8 mb-4">
+          5. Connected LLM Assistants (MCP Connector)
+        </h2>
+        <p>
+          YARNNN can be connected to LLM assistants you already use — such as
+          ChatGPT, Claude, and others — through the open Model Context Protocol
+          (MCP). This connection is established by you, through your assistant,
+          using OAuth; you authenticate as yourself and the connection is scoped
+          to your own workspace.
+        </p>
+        <p>When a connected assistant is authorized, it can, on your behalf:</p>
+        <ul className="list-disc pl-6 space-y-2">
+          <li>
+            <strong>Save</strong> content you ask it to remember into your YARNNN
+            memory (attributed to that assistant)
+          </li>
+          <li>
+            <strong>Read</strong> your recorded material when you ask it to
+            recall something, and view how a recorded item changed over time
+          </li>
+        </ul>
+        <p>
+          What this means for your data: content you save through one assistant
+          becomes part of your durable YARNNN memory and is therefore available
+          to you through any other assistant you have connected, as well as in
+          the YARNNN web app. The assistant&apos;s provider (e.g. OpenAI for
+          ChatGPT) processes the request under its own privacy terms; YARNNN
+          stores the resulting content and its attribution. We record which
+          assistant contributed each item so this provenance is transparent to
+          you. You can disconnect any assistant at any time from within that
+          assistant&apos;s settings, which revokes its access to your workspace.
+        </p>
+
+        <h2 className="text-xl font-semibold mt-8 mb-4">6. Your Rights</h2>
         <p>You have the right to:</p>
         <ul className="list-disc pl-6 space-y-2">
           <li>Access your personal data</li>
@@ -102,20 +149,20 @@ export default function PrivacyPage() {
           <li>Opt out of non-essential communications</li>
         </ul>
 
-        <h2 className="text-xl font-semibold mt-8 mb-4">6. Data Retention</h2>
+        <h2 className="text-xl font-semibold mt-8 mb-4">7. Data Retention</h2>
         <p>
           We retain your data for as long as your account is active. Upon
           account deletion, we will remove your personal data within 30 days,
           except where required by law.
         </p>
 
-        <h2 className="text-xl font-semibold mt-8 mb-4">7. Changes to This Policy</h2>
+        <h2 className="text-xl font-semibold mt-8 mb-4">8. Changes to This Policy</h2>
         <p>
           We may update this policy and will notify you of material changes.
           Continued use after changes constitutes acceptance.
         </p>
 
-        <h2 className="text-xl font-semibold mt-8 mb-4">8. Contact Us</h2>
+        <h2 className="text-xl font-semibold mt-8 mb-4">9. Contact Us</h2>
         <p>
           Questions about privacy? Contact us at{" "}
           <a
