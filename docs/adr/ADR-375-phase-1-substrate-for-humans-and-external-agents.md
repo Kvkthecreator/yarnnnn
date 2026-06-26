@@ -27,7 +27,7 @@ The relevant analogy: **git → GitHub → Copilot, but the agent in the wedge i
 
 ### Phase 2 — internal agents (a different topic, deliberately walled off)
 
-Phase 2 is where YARNNN grows its *own* agents that live *inside* the workspace. It has two distinct cuts, **neither of which is this ADR**:
+Phase 2 is where YARNNN grows its *own* agents that live *inside* the workspace. It has two distinct cuts, **neither of which is this ADR** — both are framed in the forward-vision analysis [`phase-2-internal-agents-freddie-and-user-personas-2026-06-26`](../analysis/phase-2-internal-agents-freddie-and-user-personas-2026-06-26.md) (conceptual; the Phase-2 ADRs cite it):
 
 - **Cut 1 — the internal steward, named Freddie (forward).** The thing today called *"the Reviewer"* has, through the ADR-260→345 arc, become *the* actor — the judgment, the steward, the de-facto "YARNNN agent / system agent." That earned role is fine. But "Reviewer" was a *seat* name (ADR-194: occupant-agnostic) now used for a *specific, hardened, persona-bearing occupant*. The deliberate direction is to **name it Freddie** (Frankenstein → the creature we intentionally built and are hardening) and harden it as the de-facto system agent — slotting cleanly into the ADR-315 seat≠occupant carve (Freddie is a *named occupant*, not a new component). **This is a separate ADR. Not built here.** (§7.)
 
