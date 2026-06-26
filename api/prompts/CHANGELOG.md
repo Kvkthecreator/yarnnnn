@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.26.7] - trace widget: fix the at-mount data race — poll window.openai.toolOutput (live-finding)
+
+**With resolution fixed, the live test showed the widget iframe rendering but stuck on "Waiting for trace data…"** while the model narrated all 10 revisions from the same result — so the data reached the model but not the widget. Root cause: the widget read `window.openai.toolOutput` once at mount and otherwise only waited for the `openai:set_globals` event; when ChatGPT populates `toolOutput` without/before that event fires, a read-once widget waits forever. OpenAI's own reference reader (`openai-apps-sdk-examples/src/use-openai-global.ts`) handles this with a **250ms poll (up to ~10s)** — the piece we were missing.
+
+- `widgets/src/trace-timeline/useToolResult.ts`: rewritten to mirror the reference reader — read at mount + subscribe to `openai:set_globals` + **poll `window.openai.toolOutput` every 250ms up to 40×** until it appears (stops on first hit). Plus the open-spec `ui/notifications/tool-result` postMessage path for non-ChatGPT hosts. `coerce()` now accepts either the bare result dict OR a nested `structuredContent` (hosts differ), recognizing a trace result by its `history`/`explanation`/`subject` keys. Rebuilt `dist/trace-timeline.html`.
+- **Expected behavior**: the trace-timeline now populates on ChatGPT — the poll catches the at-mount race that left it on "Waiting…". Verified the bundle ships the poll + stays self-contained (zero external refs). Pure widget-side change; no server/kernel change.
+- Regression: `test_adr372_presentation_affordances.py` (15/15). No backend change this commit.
+
 ## [2026.06.26.6] - trace subject→path resolution: prefer the file that IS the subject, not one that mentions it (live-finding)
 
 **The widget binding worked (it rendered), but the live test exposed a real `trace` quality bug underneath.** `compose_trace` resolved a subject to its path via the QueryKnowledge FTS top-hit — which ranks files that *mention* a subject above the terse state file that *is* it. Diagnosed via MCP server logs + DB: on the kvk workspace, `SPY` → `regime-state.md` (1 rev) not `SPY.yaml` (14 revs); `standing_intent`/`calibration`/`mandate` all → `principles.md` (1 rev). Those mention-files are single-revision, so `trace` — the differentiator — returned an empty/trivial timeline on every real subject.
