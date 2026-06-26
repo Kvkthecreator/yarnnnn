@@ -59,10 +59,14 @@ api/mcp_server/
 │       ├── mcp_apps.py       # PRIMARY: open MCP Apps spec _meta shape (D2)
 │       └── openai.py         # OVERLAY: ChatGPT _meta sugar (D2); window.openai
 │                             #          feature-detection lives in the widget
-└── widgets/                  # ← NEW: a mini-web/, its OWN build
+└── widgets/                  # ← NEW: a mini-web/, its OWN build (npm + esbuild)
     ├── package.json
-    ├── src/trace-timeline/   # the first widget (§7)
-    └── dist/                 # built bundles, served as ui:// resources
+    ├── build.mjs            # esbuild → single self-contained .html per widget
+    ├── tsconfig.json
+    ├── src/trace-timeline/  # the first widget (§7): index.tsx, TraceTimeline.tsx,
+    │                        #   types.ts, useToolResult.ts, styles.ts
+    └── dist/                # built bundles, COMMITTED + served as ui:// resources
+        └── trace-timeline.html
 ```
 
 The registry maps a widget id to its served resource:
@@ -146,10 +150,10 @@ tool returns
 
 ## 6. The widget↔tool callback contract (D6)
 
-An interactive widget calls back via JSON-RPC `tools/call` over `postMessage` (MCP Apps bridge). It calls the **same** `remember`/`recall`/`trace` tools — through the **same** `execute_primitive()` gate, the **same** ADR-307 permission taxonomy, the **same** audit trail. There is no widget-only privileged path. A widget cannot reach substrate a normal tool call couldn't.
+An interactive widget *may* call back via JSON-RPC `tools/call` over `postMessage` (MCP Apps bridge). When it does, it calls the **same** `remember`/`recall`/`trace` tools — through the **same** `execute_primitive()` gate, the **same** ADR-307 permission taxonomy, the **same** audit trail. There is no widget-only privileged path. A widget cannot reach substrate a normal tool call couldn't.
 
 ```javascript
-// inside the widget bundle — fetch more revisions on scroll
+// inside the widget bundle — e.g. fetch more revisions on scroll
 window.parent.postMessage({
   jsonrpc: "2.0", id: 1, method: "tools/call",
   params: { name: "trace", arguments: { subject, limit: 30 } }
@@ -158,40 +162,56 @@ window.parent.postMessage({
 
 The result arrives back as a `ui/notifications/tool-result` message; the widget re-renders. Same data contract as the text path.
 
+> **Prefer embedding over calling back when the data set is bounded.** The `trace` widget's click-to-diff needs the diff for each revision — but rather than a per-click `tools/call`, `compose_trace` **embeds each revision's diff inline** in the result (server-side, via the existing `DiffRevisions` primitive). The widget expands a diff with *zero* callback. This keeps the ADR-368 three-verb surface intact (no 4th MCP tool), works on every host (even ones without the callback bridge), and is more robust. Reserve the callback path for genuinely unbounded interaction (infinite scroll, search-within) where embedding the whole set is impractical.
+
 ---
 
-## 7. Worked slice — the `trace` timeline widget (the reference affordance)
+## 7. The `trace` timeline widget (the reference affordance — IMPLEMENTED)
 
 `trace` is the first widget because it is the differentiator (the ADR-209 authored revision chain a plain storage connector cannot show), and a who-changed-what-when timeline is inherently visual.
 
-**The data is already returned** (`compose_trace`, `api/services/mcp_composition.py`) — no kernel change:
+**The data `compose_trace` returns** (`api/services/mcp_composition.py`) — each revision now carries its embedded diff-vs-predecessor (§6); no kernel change:
 
 ```python
 {
   "success": True, "subject": "...", "path": "/workspace/operation/...",
   "history": [                       # newest first
-    {"authored_by": "reviewer:ai", "when": "2026-06-25T...", "change": "...", "revision_id": "..."},
-    {"authored_by": "yarnnn:mcp",  "when": "2026-06-24T...", "change": "...", "revision_id": "..."},
+    {"authored_by": "reviewer:ai", "when": "2026-06-25T...", "change": "...",
+     "revision_id": "...", "diff": "@@ -1 +1 @@\n-old\n+new"},     # diff vs predecessor
+    {"authored_by": "yarnnn:mcp",  "when": "2026-06-24T...", "change": "...",
+     "revision_id": "...", "diff": None},                          # oldest → no predecessor
   ],
   "returned": 2, "citations": ["/workspace/operation/..."], "explanation": "..."
 }
 ```
 
-**What the slice adds (all in `api/mcp_server/`, none in the kernel):**
+**What the slice ships (all in `api/mcp_server/`, none in the kernel):**
 
 1. `presentation/affordances.py` — the `"trace"` entry (§2).
 2. `presentation/registry.py` — `"trace-timeline"` → `ui://yarnnn/trace-timeline.html` (§3).
 3. `server.py` — `@mcp.resource(...)` serving the built bundle (§3); on `trace`'s return, attach `_meta` via the adapter (§4) unconditionally, with the full `history[]` always also in `content`/`structuredContent` (§5).
-4. `widgets/src/trace-timeline/` — a React bundle that:
+4. `compose_trace._embed_revision_diffs` — embeds each revision's diff inline server-side (§6), so click-to-diff needs zero callback.
+5. `widgets/src/trace-timeline/` — a React (TS) bundle that:
    - renders `history[]` as a vertical timeline, newest first;
-   - colors each node by `authored_by` class (`operator` / `reviewer:*` / `yarnnn:mcp` / `agent:*` / `system:*`) — the cross-LLM provenance made visual;
-   - on click, shows the `change` message + `revision_id`; (future) calls `DiffRevisions` via the §6 bridge for the inline diff;
+   - colors each node by `authored_by` bucket (`operator` / `reviewer` / `mcp` / `agent` / `system`) — the cross-LLM provenance made visual;
+   - shows each revision's `change` message + timestamp, and a **show-changes** toggle that expands the embedded unified `diff` (added/removed lines colored), zero callback;
    - renders the `explanation` as a caption — **it does not author new prose** (D3).
-5. `widgets/package.json` + build → `widgets/dist/trace-timeline.html`.
+6. `widgets/package.json` + `build.mjs` (esbuild) → single self-contained `widgets/dist/trace-timeline.html`.
 
-**Return-shape contract for the slice:** put the compact, model-readable summary in `structuredContent` / `content` (so a text host and the model still reason over it), and the widget reads the same fields from the tool-result notification. The widget is a *richer view of the returned `history[]`* — nothing more.
+### Building the widget
 
-**What the slice deliberately does NOT do:** synthesize a narrative of the evolution (that's the host LLM's job, prose or not — D3), add a second data path, or touch `execute_primitive`/`api/services/*`.
+The bundle is built **locally / at dev time** and the single-file `dist/` output is **committed** (a `.gitignore` exception overrides the global `dist/` rule). The Python MCP service serves the committed file verbatim at runtime — **it does not run this build**, so a stale `dist/` ships a stale widget. Rebuild after editing `src/`:
+
+```bash
+cd api/mcp_server/widgets
+npm install          # first time only
+npx tsc --noEmit     # type-check
+npm run build        # → dist/trace-timeline.html (React inlined, minified, self-contained)
+```
+
+**Return-shape contract:** the full result is in `structuredContent` *and* `content` (so a text host and the model still reason over it); the widget reads the same fields from the `ui/notifications/tool-result` bridge notification (with a `window.openai.toolOutput` fast-path for first paint). The widget is a *richer view of the returned `history[]`* — nothing more.
+
+**What the slice deliberately does NOT do:** synthesize a narrative of the evolution (that's the host LLM's job, prose or not — D3), add a 4th MCP tool / second data path, or touch `execute_primitive`/`api/services/*`.
 
 ---
 

@@ -1,0 +1,21 @@
+{
+  "name": "yarnnn-mcp-widgets",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MCP widget bundles served by the YARNNN MCP server as ui:// resources (ADR-372). Built locally; the single-file dist/ output is committed and served at runtime by the Python MCP service (which does not run this build).",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "build:trace": "node build.mjs trace-timeline"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.4.0"
+  }
+}

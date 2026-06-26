@@ -1,0 +1,4 @@
+# Local build deps — never shipped. The MCP service serves the committed dist/
+# bundle and does not run the build.
+node_modules/
+*.tsbuildinfo

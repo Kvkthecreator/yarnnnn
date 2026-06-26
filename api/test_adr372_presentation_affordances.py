@@ -83,7 +83,7 @@ def main():
         from mcp.types import CallToolResult
         import mcp_server.server as s
     except Exception as exc:  # noqa: BLE001
-        _skip("7-11 wire-shape assertions", f"(mcp unavailable: {exc})")
+        _skip("7-12 wire-shape + diff-embed assertions", f"(mcp unavailable: {exc})")
         total, passed = len(results), sum(results)
         print(f"\n{passed}/{total} ADR-372 structural assertions pass (wire checks skipped)")
         sys.exit(0 if passed == total else 1)
@@ -117,7 +117,20 @@ def main():
         res = {str(r.uri) for r in await s.mcp.list_resources()}
         served_ok = "ui://yarnnn/trace-timeline.html" in res
         blob = list(await s.mcp.read_resource("ui://yarnnn/trace-timeline.html"))[0]
-        bundle_ok = blob.mime_type == registry.RESOURCE_MIME and "result.history" in blob.content
+        # The built bundle is minified React; assert the runtime contract that
+        # survives minification, not source literals: a single self-contained
+        # HTML (no external code refs), React mount, and the MCP Apps bridge
+        # subscription. (The placeholder used `result.history` as a literal; the
+        # built bundle subscribes to the bridge instead.)
+        c = blob.content
+        no_external = 'src="http' not in c and "src='http" not in c
+        bundle_ok = (
+            blob.mime_type == registry.RESOURCE_MIME
+            and c.lstrip().startswith("<!doctype html>")
+            and no_external
+            and "createRoot" in c
+            and "ui/notifications/tool-result" in c
+        )
         return def_ok, served_ok, bundle_ok
 
     def_ok, served_ok, bundle_ok = asyncio.run(_wire())
@@ -125,8 +138,40 @@ def main():
         "10 trace DEFINITION carries _meta (host registers template); remember has none (D2)",
         def_ok))
     results.append(_check(
-        "11 widget served at ui:// with text/html;profile=mcp-app, binds history[] (§3/§7)",
+        "11 widget served at ui:// — self-contained HTML, React mount, MCP Apps bridge (§3/§7)",
         served_ok and bundle_ok))
+
+    # ---- compose_trace embeds diffs server-side (zero-callback, ADR-372) ----
+    from services import mcp_composition as mc
+    import services.primitives.registry as preg
+
+    async def _diff_embed():
+        revisions = [
+            {"id": "r3", "authored_by": "reviewer:ai", "created_at": "t3", "message": "tightened"},
+            {"id": "r2", "authored_by": "operator", "created_at": "t2", "message": "edited"},
+            {"id": "r1", "authored_by": "yarnnn:mcp", "created_at": "t1", "message": "created"},
+        ]
+        history = [{"authored_by": r["authored_by"], "when": r["created_at"],
+                    "change": r["message"], "revision_id": r["id"]} for r in revisions]
+        seen = []
+
+        async def fake_diff(auth, name, args):
+            seen.append((args["from_rev"], args["to_rev"]))
+            return {"success": True, "diff": f"@@ {args['from_rev']}->{args['to_rev']}"}
+
+        orig = preg.execute_primitive
+        preg.execute_primitive = fake_diff
+        try:
+            await mc._embed_revision_diffs(None, "/workspace/operation/x.md", revisions, history)
+        finally:
+            preg.execute_primitive = orig
+        # newest-first: r3 diffs vs r2, r2 vs r1, r1 (oldest) → None
+        return (history[0]["diff"] and history[1]["diff"] and history[2]["diff"] is None
+                and seen == [("r2", "r3"), ("r1", "r2")])
+
+    results.append(_check(
+        "12 compose_trace embeds each revision's diff-vs-predecessor; oldest is None (ADR-372 zero-callback)",
+        asyncio.run(_diff_embed())))
 
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-372 assertions pass")

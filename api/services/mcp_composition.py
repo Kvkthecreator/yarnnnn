@@ -549,11 +549,22 @@ async def compose_trace(
         }
         for rev in revisions
     ]
+
+    # ADR-372: embed each revision's diff-against-its-PREDECESSOR inline, so the
+    # rich-render timeline widget can show click-to-expand diffs with ZERO
+    # callback (preserves the ADR-368 three-verb surface). Composed server-side
+    # via the existing DiffRevisions primitive — the same one-round composition
+    # pattern recall/trace already use. `revisions` is newest-first, so a
+    # revision's predecessor is the NEXT item; the oldest revision has no
+    # predecessor and carries `diff: None`. Best-effort: a diff failure leaves
+    # that entry's `diff: None` and never breaks trace. Bounded by `limit`.
+    await _embed_revision_diffs(auth, abs_path, revisions, history)
+
     return {
         "success": True,
         "subject": subject,
         "path": abs_path,
-        "history": history,            # newest first
+        "history": history,            # newest first; each entry carries optional `diff`
         "returned": len(history),
         "citations": [abs_path],
         "explanation": (
@@ -562,6 +573,40 @@ async def compose_trace(
             "provenance no plain storage connector can show."
         ),
     }
+
+
+async def _embed_revision_diffs(
+    auth: Any,
+    abs_path: str,
+    revisions: list,
+    history: list,
+) -> None:
+    """Attach a `diff` (unified-diff text vs the predecessor) to each history
+    entry, in place (ADR-372). Newest-first ordering: entry i's predecessor is
+    revision i+1. The oldest entry has no predecessor → `diff: None`. Each diff
+    is one DiffRevisions call; best-effort per pair so one failure never breaks
+    the whole trace.
+    """
+    from services.primitives.registry import execute_primitive
+
+    for i, entry in enumerate(history):
+        entry["diff"] = None  # default — overwritten on success
+        predecessor_idx = i + 1
+        if predecessor_idx >= len(revisions):
+            continue  # oldest revision: nothing to diff against
+        from_id = revisions[predecessor_idx].get("id")
+        to_id = entry.get("revision_id")
+        if not from_id or not to_id:
+            continue
+        try:
+            dr = await execute_primitive(
+                auth, "DiffRevisions",
+                {"path": abs_path, "from_rev": from_id, "to_rev": to_id},
+            )
+            if dr.get("success"):
+                entry["diff"] = dr.get("diff") or ""
+        except Exception as exc:  # noqa: BLE001 — a diff must never break trace
+            logger.debug("[MCP] trace diff embed failed for %s: %s", to_id, exc)
 
 
 # =============================================================================
