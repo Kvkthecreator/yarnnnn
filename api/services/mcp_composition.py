@@ -317,6 +317,37 @@ def _extract_derived_from(content: Optional[str]) -> Optional[str]:
     return None
 
 
+async def _find_derived_from_raw(auth: Any, raw_abs_path: str) -> Optional[str]:
+    """Reverse-walk the citation: find the DERIVED file that cites `raw_abs_path`.
+
+    The seat derives a raw observation into operation/ and names that file by its
+    own judgment (not the subject slug), citing the raw via `derived_from`. So the
+    only reliable way to reach the derived understanding FROM the raw is the
+    citation itself. Returns the newest active operation/ file whose content cites
+    the raw path, or None (no derivation yet). Best-effort; raw-path may be bare or
+    absolute (both are matched against the stored `derived_from` text).
+    """
+    bare = raw_abs_path[len("/workspace/"):] if raw_abs_path.startswith("/workspace/") else raw_abs_path
+    try:
+        hits = (
+            auth.client.table("workspace_files")
+            .select("path, content, updated_at")
+            .eq("user_id", auth.user_id)
+            .like("path", "/workspace/operation/%")
+            .ilike("content", "%derived_from%")
+            .order("updated_at", desc=True)
+            .limit(25)
+            .execute()
+        ).data or []
+        for h in hits:
+            cited = _extract_derived_from(h.get("content"))
+            if cited and (cited == raw_abs_path or cited.endswith(bare) or bare.endswith(cited.lstrip("/workspace/"))):
+                return h["path"]
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[MCP] reverse derived_from walk failed: %s", exc)
+    return None
+
+
 async def resolve_memory_path(auth: Any, subject: str) -> Optional[str]:
     """Resolve a `recall`/`trace` subject to its authored path DETERMINISTICALLY.
 
@@ -664,6 +695,19 @@ async def compose_trace(
                 "Nothing has been authored on this subject yet."
             ),
         }
+
+    # ADR-376/DP32 forward-walk: if resolution landed on a RAW observation
+    # (inbound/), prefer the DERIVED understanding the seat authored from it — the
+    # file whose `derived_from` cites this raw. The seat names the derived file by
+    # its own judgment (e.g. nvda-2026-06-27.md from subject "NVDA earnings setup"),
+    # so name-match can't reach it from the subject; the citation can. `trace` is
+    # about the evolution of the UNDERSTANDING; the raw is appended as its origin
+    # (the derived-file branch below adds it via _extract_derived_from). If no
+    # derived file cites the raw yet, trace the raw as-is (a clean pre-derive state).
+    if f"/{INBOUND_ROOT}" in path:
+        derived_path = await _find_derived_from_raw(auth, path)
+        if derived_path:
+            path = derived_path
     # ListRevisions queries `workspace_file_versions` by the CANONICAL stored
     # path, which carries the `/workspace/` prefix (the authored-substrate
     # revision rows are absolute). Do NOT strip it — a bare path matches zero

@@ -112,11 +112,58 @@ Fix the two **violating** paths first (they have symptoms); **recognize** the tw
 
 Each slice is independently shippable; the axiom is ratified once (here) and inherited, not re-litigated per transport.
 
-## 9. Open follow-ons (recorded, not blocking)
+## 9. Follow-ons — explicit disposition (DONE · DEFER · the per-transport work)
 
-- **The `derived_from` field shape** — a single path/revision-id, or a list (a derived object synthesizing several raw observations)? (Lean: a list — synthesis is the common case; a single is the degenerate one.)
-- **`inbound/` retention/GC policy** — raw is immutable, but is it permanent? (Lean: permanent for cited observations [they are evidence]; a GC pass may reclaim *un-cited, un-derived* `inbound/` entries past a horizon — but only those, and only with the same single-writer discipline.)
-- **The ADR-373 D3 grant-table one-liner** — land it in ADR-373 directly (an amendment note) or carry it here as the authoritative statement? (Lean: an amendment note in ADR-373 pointing here, so its grant table stays self-consistent.)
+Each item is classified so a downstream session reads it unambiguously: **DONE**
+(landed, no further action), **DEFER** (deliberately not now — trigger named; do
+NOT treat as a gap to close pre-trigger), or **DECIDED** (resolved here).
+
+- **The ADR-373 D3 grant-table one-liner — ✅ DONE.** Landed as an amendment note
+  in ADR-373 (commit accompanying the FOUNDATIONS amendment), pointing the
+  `foreign-llm`/`platform`/`a2a` raw-intake regions at their `inbound/{transport}/`
+  sublanes. No open question remains.
+
+- **The trace raw→derived resolution (surfaced by the 2026-06-26 real Reviewer
+  run) — ✅ DONE.** The real run proved the WRITE side (the seat authored a
+  derived `operation/research/earnings/nvda-2026-06-27.md` citing the raw via
+  `derived_from`), but exposed a READ-side miss: the seat names the derived file
+  by its own judgment (`nvda-2026-06-27.md` from subject "NVDA earnings setup"),
+  so `resolve_trace_path`'s name-match landed on the RAW file (matching basename)
+  and never reached the derived understanding. Fixed: `compose_trace` now
+  forward-walks — when resolution lands in the `inbound/` lane, it follows the
+  citation to the derived file via `_find_derived_from_raw` (reverse lookup over
+  `derived_from`) and traces THAT, appending the raw chain. Live-verified: trace
+  now returns the 2-object chain (`reviewer:ai` derived → `yarnnn:mcp:claude.ai`
+  raw). This is the realistic shape (the seat does NOT name derived files after
+  the subject slug); the citation, not the name, is the reliable link.
+
+- **The `derived_from` field shape (single vs list) — ⏸ DEFER.** Today: a single
+  path (one derived object cites one raw observation — the validated common case
+  for a `remember` dump). **Trigger to revisit:** the first real need for a
+  derived object that SYNTHESIZES several raw observations (e.g. a perception
+  slice distilling N web observations into one signal). Until that transport
+  lands, a single ref is correct and complete — do NOT pre-build the list
+  machinery. When triggered, `_extract_derived_from` returns the first match
+  today; the extension is reading all matches into a list (additive, no breaking
+  change to the single case). Lean stands (list eventually), but it is a
+  perception-slice concern, not an MCP-slice gap.
+
+- **`inbound/` retention / GC policy — ⏸ DEFER.** Today: raw is permanent (no GC).
+  This is CORRECT for now — at launch scale the raw lane is tiny, and cited
+  observations are evidence that must persist (they back `trace`). **Trigger to
+  revisit:** measured `inbound/` growth becoming a real cost (un-cited,
+  un-derived entries accumulating past a horizon). The GC, when built, reclaims
+  ONLY un-cited + un-derived entries, under the same single-writer discipline —
+  never a cited observation. Do NOT build GC speculatively; permanence is the
+  safe default and the axiom's "raw is the receipt" leans toward keeping it.
+
+**Net for a downstream reader:** the MCP slice has NO open gaps — the two `DONE`
+items are closed in code, the two `DEFER` items are deliberate non-work with named
+triggers (not TODOs to chase). The remaining ADR-376 work is **per-transport
+conformance** (perception → `inbound/web/`; connectors; chat; A2A; recognize
+`uploads/` + ground-truth as already-conformant instances), each an independent
+slice against the one ratified invariant — sequenced by the audit (§3): fix the
+*violating* paths (perception discards) before *recognizing* the conformant ones.
 
 ---
 

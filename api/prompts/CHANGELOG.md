@@ -6,7 +6,13 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.06.26.9] - ADR-372 submission-readiness: tool annotations + output schemas + review-friendly copy
+## [2026.06.26.10] - trace forward-walk raw→derived (ADR-376 real-Reviewer-run finding)
+
+**A real Reviewer derive-and-cite run validated the ADR-376 write side AND exposed a read-side miss.** Fed strategically-relevant content ("NVDA earnings setup") to the live kvk workspace: the seat correctly authored a derived `operation/research/earnings/nvda-2026-06-27.md` citing the raw `inbound/mcp/claude-ai/nvda-earnings-setup.md` via `derived_from` — the two-object chain, real. But `trace('NVDA earnings setup')` resolved to the RAW file: the seat named the derived file by its own judgment (event date), so name-match (`resolve_trace_path`) matched the raw basename and never reached the derived understanding.
+
+- `services/mcp_composition.py`: `compose_trace` now FORWARD-WALKS — when resolution lands in the `inbound/` raw lane, it follows the citation to the derived file via new `_find_derived_from_raw` (reverse lookup: the `operation/` file whose `derived_from` cites this raw) and traces THAT, appending the raw chain. The citation, not the filename, is the reliable link (the seat does not name derived files after the subject slug).
+- **Expected behavior**: `trace(subject)` for a foreign-contributed-then-derived subject now returns the full provenance — `reviewer:ai` (the seat's understanding) → `yarnnn:mcp:{client}` (the raw source), each attributed. Live-verified on the NVDA chain (2 revisions, both branches present) before cleanup.
+- Regression: `test_adr376_ledger_intake.py` (7/7 — assertion 6 now checks both walk directions). No kernel/schema change; pure read-side composition. Test artifacts cleaned from prod.
 
 **Hardening the MCP tools toward OpenAI App-directory submission** (the path from dev-mode → submitted → listed). Three changes, all on the `remember`/`recall`/`trace` definitions:
 

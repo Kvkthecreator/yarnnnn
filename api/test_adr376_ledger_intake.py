@@ -97,17 +97,24 @@ def main():
         derive_and_cite and no_old_move,
         f"derive_and_cite={derive_and_cite} no_old_move={no_old_move}"))
 
-    # 6. the derived_from walk exists and compose_trace consults it.
+    # 6. the derived_from walk exists and compose_trace consults it (both
+    #    directions: append the cited raw chain when on the derived file, AND
+    #    forward-walk raw→derived when resolution lands on the raw lane — the
+    #    real-run finding that the seat names the derived file by its own judgment,
+    #    so name-match reaches the raw, and the citation is the only reliable link).
     has_extractor = hasattr(m, "_extract_derived_from")
-    trace_walks = "_extract_derived_from" in inspect.getsource(m.compose_trace) \
-        and "derived_from" in inspect.getsource(m.compose_trace)
+    has_reverse = hasattr(m, "_find_derived_from_raw")
+    trace_src = inspect.getsource(m.compose_trace)
+    trace_walks = "_extract_derived_from" in trace_src and "derived_from" in trace_src
+    forward_walk = "_find_derived_from_raw" in trace_src and "INBOUND_ROOT" in trace_src
     # the extractor resolves a bare ref to an absolute /workspace/ path
     extracted = m._extract_derived_from("derived_from: inbound/mcp/claude-ai/acme-corp.md\n# body") \
         if has_extractor else None
     results.append(_check(
-        "6 derived_from walk exists + compose_trace appends the cited raw chain (raw→derived)",
-        has_extractor and trace_walks and extracted == "/workspace/inbound/mcp/claude-ai/acme-corp.md",
-        f"extracted={extracted}"))
+        "6 derived_from walk BOTH ways: append raw chain on derived file + forward-walk raw→derived (real-run fix)",
+        has_extractor and has_reverse and trace_walks and forward_walk
+        and extracted == "/workspace/inbound/mcp/claude-ai/acme-corp.md",
+        f"extracted={extracted} reverse={has_reverse} forward={forward_walk}"))
 
     # 7. resolve_memory_path reads DERIVED-FIRST, raw as fallback receipt. The
     #    derived query EXCLUDES the raw lane (not_.like INBOUND_ROOT) and runs
