@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.26.14] - ADR-376 perception slice: TrackWebSources retains cited raw observations (DP32 retain-clause)
+
+**The sole remaining DP32 (ledger-intake axiom) violator — perception — is fixed.** The web/RSS watch already CITED (`source_ref`, ADR-335 D3) and ATTRIBUTED (`system:track-web-sources`) but DISCARDED the fetched observation behind the distillation (only the distilled `_watch_signal.yaml` was kept → a judgment that fired on a signal couldn't re-read what produced it → the watch was unfalsifiable). Per DP32's retain-clause (retain what a derived act CITES, not every byte):
+
+- `api/services/primitives/track_web_sources.py`: each **successfully-fetched** feed body is now RETAINED in the raw lane — `inbound/web/{source}/{observed_at}.xml` (immutable, attributed `system:track-web-sources`, sibling to `inbound/mcp/` and `uploads/`, outside the topology cut), via the new `_write_raw_observation`. The distilled `_watch_signal.yaml` (the derived understanding) carries a `derived_from` block list citing exactly the raws it distilled. Bounded to CITED observations — a failed fetch has no observation to retain (its error is the record), never every fetched byte (DP32 D5).
+- `api/services/mcp_composition.py`: the §9 single-vs-list DEFER is now **DECIDED — `derived_from` is a list.** New `_extract_derived_from_list(content)` reads three on-wire shapes (bare scalar / inline list / YAML block list); the single-cite `_extract_derived_from` is now its first element (the MCP `remember` case is **byte-identical** — the MCP gate stayed 7/7 across the refactor). `compose_trace` walks **all** cited raws (the multi-cite fan-in: a perception signal's `trace` shows every observation's chain).
+
+**Expected behavior**: a scheduler-fired `TrackWebSources` recurrence now leaves a falsifiable trail — the raw feed bodies persist as evidence in `inbound/web/`, and `trace` on the signal walks back to them. No change to the distilled signal's shape consumers read (it gains a `derived_from` key at the top). Zero new LLM cost (still mechanical/deterministic). Gate `test_adr376_ledger_intake.py` **11/11** (7 MCP + 4 perception, incl. a mocked e2e round-trip); `test_adr336_web_watch.py` 6/6; `test_adr368_memory_surface.py` 10/10. **Live-validated** against the prod kvk workspace (real RSS fetch → raws retained immutably → signal cites them → artifacts cleaned). The ADR-376 per-transport conformance tail is now CLOSED.
+
 ## [2026.06.26.13] - trace widget VALIDATED LIVE in ChatGPT — clean up debug scaffold + record the binding contract
 
 **The trace timeline widget renders live in ChatGPT** (confirmed 2026-06-26): 10 SPY revision rows, provenance badges (`system:track-universe`), per-row timestamps, show-changes diff expanders, and the model still narrates in prose (ADR-372 D3). The full ADR-372 thesis is proven end-to-end on the rendered face.

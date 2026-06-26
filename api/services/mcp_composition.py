@@ -295,26 +295,88 @@ def _naturalize_subject(subject: str) -> str:
     return re.sub(r"[-_/]+", " ", subject or "").strip()
 
 
-def _extract_derived_from(content: Optional[str]) -> Optional[str]:
-    """Read the `derived_from:` citation from a derived file (ADR-376/DP32 D3).
+def _normalize_inbound_ref(ref: str) -> Optional[str]:
+    """Normalize one raw-citation token to an absolute /workspace/ path."""
+    ref = (ref or "").strip().strip("`").strip("'\"").rstrip(",")
+    if not ref or ref in ("[", "]", "-"):
+        return None
+    return ref if ref.startswith("/workspace/") else "/workspace/" + ref.lstrip("/")
 
-    When the seat derives an `operation/` understanding from a raw `inbound/`
-    observation, it writes a `derived_from: <raw path>` line (frontmatter or an
-    early line). `trace` reads it to walk raw→derived: the derived file's own
-    revision chain PLUS the cited raw observation's chain = the full provenance
-    (raw contributor → seat's understanding). Returns the cited absolute path or
-    None. Tolerant of YAML frontmatter, an early bare line, or an HTML comment.
+
+def _extract_derived_from_list(content: Optional[str]) -> list[str]:
+    """Read ALL `derived_from:` citations from a derived file (ADR-376/DP32 D3).
+
+    A derived object cites the raw observation(s) it was built from. The MCP
+    `remember` derivation cites ONE raw dump; a PERCEPTION distillation cites N
+    raw web observations (one signal from several feeds — the first multi-cite
+    case, ADR-376 §9 DECIDED 2026-06-26: `derived_from` is a list, the single
+    case is the one-element list). This reader is tolerant of all three on-wire
+    shapes so a derived file authored by the seat (free-form `.md`) or written
+    mechanically (`.yaml` block list) both walk cleanly:
+
+        derived_from: /workspace/inbound/mcp/claude.ai/acme.md        # bare scalar
+        derived_from: [a.md, b.md]                                    # inline list
+        derived_from:                                                 # block list
+          - /workspace/inbound/web/stereogum/2026-06-26T10:00:00Z.md
+          - /workspace/inbound/web/pitchfork/2026-06-26T10:00:00Z.md
+
+    Returns absolute /workspace/ paths (deduped, order-preserved). Scans the
+    header region (first ~20 lines — a block list can run several lines).
     """
     if not content:
-        return None
-    # scan the first ~12 lines (frontmatter / header region)
-    for line in content.split("\n", 12)[:12]:
-        m = re.search(r"derived_from:\s*([^\s|<>\"']+)", line)
-        if m:
-            ref = m.group(1).strip().strip("`")
-            if ref:
-                return ref if ref.startswith("/workspace/") else "/workspace/" + ref.lstrip("/")
-    return None
+        return []
+    lines = content.split("\n")
+    refs: list[str] = []
+    # Find the `derived_from:` key in the header region (first ~20 lines); once
+    # found, a block list may run as many lines as it has cites (perception can
+    # distill N feeds), so consume the WHOLE following block, not a fixed window.
+    for i, line in enumerate(lines[:20]):
+        m = re.match(r"\s*derived_from:\s*(.*)$", line)
+        if not m:
+            continue
+        rest = m.group(1).strip()
+        if rest.startswith("["):
+            # inline list — strip brackets, split on commas
+            for tok in rest.strip("[]").split(","):
+                norm = _normalize_inbound_ref(tok)
+                if norm:
+                    refs.append(norm)
+        elif rest and not rest.startswith("#"):
+            # bare scalar on the same line
+            norm = _normalize_inbound_ref(re.split(r"[\s|<>\"']", rest, 1)[0])
+            if norm:
+                refs.append(norm)
+        else:
+            # block list — consume ALL following `- item` lines (unbounded by the
+            # header window; stops at the first non-`- ` line, e.g. the next key)
+            for nxt in lines[i + 1:]:
+                bm = re.match(r"\s*-\s+(.+)$", nxt)
+                if not bm:
+                    break
+                norm = _normalize_inbound_ref(bm.group(1))
+                if norm:
+                    refs.append(norm)
+        break  # only the first derived_from: key in the header region
+    # dedupe, preserve order
+    seen: set[str] = set()
+    out: list[str] = []
+    for r in refs:
+        if r not in seen:
+            seen.add(r)
+            out.append(r)
+    return out
+
+
+def _extract_derived_from(content: Optional[str]) -> Optional[str]:
+    """Read the FIRST `derived_from:` citation (ADR-376/DP32 D3).
+
+    The single-cite reader (the MCP `remember` derivation cites one raw dump).
+    Returns the first cited absolute path or None. For the multi-cite case
+    (perception distilling N observations), use `_extract_derived_from_list`.
+    Tolerant of YAML frontmatter, an early bare line, an inline/block list.
+    """
+    refs = _extract_derived_from_list(content)
+    return refs[0] if refs else None
 
 
 async def _find_derived_from_raw(auth: Any, raw_abs_path: str) -> Optional[str]:
@@ -758,29 +820,40 @@ async def compose_trace(
             .limit(1)
             .execute()
         )
-        derived_from = _extract_derived_from((head.data or [{}])[0].get("content")) if head.data else None
-        if derived_from and derived_from != abs_path:
+        # ADR-376 §9 DECIDED (2026-06-26): derived_from is a LIST — one derived
+        # object may cite N raw observations (the MCP `remember` derivation cites
+        # one; a PERCEPTION distillation cites several feeds). Walk ALL cited raws
+        # and append each chain, so trace shows the complete provenance fan-in.
+        derived_froms = _extract_derived_from_list((head.data or [{}])[0].get("content")) if head.data else []
+        for cited in derived_froms:
+            if not cited or cited == abs_path:
+                continue
             raw_lr = await execute_primitive(
-                auth, "ListRevisions", {"path": derived_from, "limit": max(1, min(int(limit or 10), 30))}
+                auth, "ListRevisions", {"path": cited, "limit": max(1, min(int(limit or 10), 30))}
             )
-            for rev in (raw_lr.get("revisions") or []):
+            cited_revs = raw_lr.get("revisions") or []
+            for rev in cited_revs:
                 history.append({
                     "authored_by": rev.get("authored_by"),
                     "when": rev.get("created_at"),
                     "change": rev.get("message"),
                     "revision_id": rev.get("id"),
-                    "raw_source": True,         # marks this as the cited raw observation
-                    "source_path": derived_from,
+                    "raw_source": True,         # marks this as a cited raw observation
+                    "source_path": cited,
                 })
-            if raw_lr.get("revisions"):
-                raw_path = derived_from
-                citations.append(derived_from)
+            if cited_revs:
+                if raw_path is None:
+                    raw_path = cited       # the first cited raw (response field, back-compat)
+                citations.append(cited)
     except Exception as exc:  # noqa: BLE001
         logger.debug("[MCP] derived_from walk failed (non-fatal): %s", exc)
 
+    n_raw = len(citations) - 1
     chain_note = (
-        f" — including the cited raw observation at `{raw_path}` (the foreign "
-        f"contributor's source of record this understanding was derived from)"
+        (f" — including the cited raw observation at `{raw_path}`"
+         if n_raw == 1 else
+         f" — including {n_raw} cited raw observations (e.g. `{raw_path}`)")
+        + " (the source(s) of record this understanding was derived from)"
         if raw_path else ""
     )
     return {

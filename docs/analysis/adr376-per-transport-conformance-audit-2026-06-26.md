@@ -18,7 +18,7 @@ retained (per its transport's mechanism — file or event-row) and never rewritt
 | **MCP `remember`** | ✅ `inbound/mcp/{client}/` immutable | ✅ `yarnnn:mcp:{client}` | ✅ derived file `derived_from` | **✅ CONFORMS** (ADR-376 MCP slice, `609df86`/`ae7f470` — implemented + real-run-proven) |
 | **Ground-truth (ADR-330)** | ✅ events appended to `_money_truth.md` w/ dedup key + attestation | ✅ `attestation: platform\|operator\|agent` per event | ✅ each event carries its source | **✅ CONFORMS** (event-row raw form — the DP32 mechanism-clause case; `outcomes/ledger.py::fold_outcome_candidates` appends, dedups, never silently overwrites) |
 | **Uploads (human)** | ✅ `uploads/{slug}.md` via `write_revision`, agent-unmanaged | ✅ `authored_by="operator"` | n/a (raw IS the artifact — reasoned-against, not derived-from) | **✅ CONFORMS** (the human N=1 case of the raw lane; `routes/documents.py:361`) |
-| **Perception (web/RSS, ADR-335/336)** | ❌ **only the distilled signal is kept — fetched raw NOT retained** | ✅ `system:track-web-sources` | ✅ `source_ref` per ADR-335 D3 | **⚠ PARTIAL — retain ✗** (attribute ✓, cite ✓, but the observation behind the distillation is unrecoverable; `track_web_sources.py::_write_signal` writes the contract envelope but "**Never raw payloads**") |
+| **Perception (web/RSS, ADR-335/336)** | ✅ **each cited feed body retained in `inbound/web/{source}/{observed_at}.xml`** (immutable, the slice below) | ✅ `system:track-web-sources` | ✅ `source_ref` per ADR-335 D3 **+ signal `derived_from` block list** | **✅ CONFORMS** (perception slice IMPLEMENTED 2026-06-26 + live-validated — `track_web_sources.py::_write_raw_observation` retains the cited raw; `_write_signal` carries `derived_from`; was the sole PARTIAL, retain-clause now closed) |
 | **Chat (operator addressed)** | n/a — the operator IS the principal authoring directly | ✅ `operator` | n/a | **✅ N/A** (not a foreign contribution; the operator writes substrate as themselves — no raw/derived split needed) |
 | **Platform connectors (Slack/Notion)** | n/a — **no sync-to-substrate exists** (ADR-153 sunset `platform_content`; agents read platform APIs LIVE during execution) | — | — | **✅ N/A today** (there is no raw-intake-then-derive path to conform; if a sync-to-substrate returns, it inherits the invariant) |
 | **A2A (agent-initiated)** | — spec'd, not built (`a2a:` absent from `VALID_AUTHOR_PREFIXES`) | — | — | **⏸ DEFERRED** (build-deferred per ADR-373/ADR-371; when built, lands `inbound/a2a/{id}/` — same shape as MCP, free conformance) |
@@ -44,7 +44,19 @@ small and well-bounded.
 
 ---
 
-## The perception slice (the one remaining violator) — scoped
+## The perception slice (the one remaining violator) — scoped **[IMPLEMENTED 2026-06-26]**
+
+> **Update (2026-06-26): this slice is DONE.** `TrackWebSources` now retains each
+> cited feed body in `inbound/web/{source}/{observed_at}.xml` (immutable,
+> attributed `system:track-web-sources`, via `_write_raw_observation`), and the
+> distilled `_watch_signal.yaml` carries a `derived_from` block list citing them.
+> The §9 single-vs-list DEFER was promoted to DECIDED (a list:
+> `_extract_derived_from_list`; single-cite MCP case byte-identical). Gate
+> `test_adr376_ledger_intake.py` 11/11; live-validated against prod kvk (real
+> RSS fetch → raws retained → signal cites them → cleaned). **The conformance
+> tail is now closed** — no remaining transport has live conformance code to
+> write. The scoping below is preserved as the original analysis.
+
 
 **The gap**: `TrackWebSources` fetches N web/RSS items, distills them inline into
 `_watch_signal.yaml`, and keeps only the distillation. A judgment that fires on a
@@ -77,14 +89,17 @@ multi-line/multi-match field) before wiring perception. This is named, not hidde
 
 ## Recommendation (sequencing)
 
-1. **Perception slice is the next ADR-376 work** — the sole remaining violator, small,
-   reuses the MCP-slice infrastructure. It carries the `derived_from`-as-list decision
-   (the §9 DEFER's trigger has arrived for THIS slice).
+1. **Perception slice — ✅ DONE (2026-06-26).** Was the sole remaining violator;
+   reused the MCP-slice infrastructure (`INBOUND_ROOT`, the `derived_from` walk,
+   the derived-first read). It carried the `derived_from`-as-list decision (the
+   §9 DEFER's trigger arrived here and was resolved: a list).
 2. **Connectors / chat / A2A need NO conformance work** — N/A (no sync path / operator-
    direct) or deferred-by-construction (A2A unbuilt). Don't manufacture work for them.
 3. **Ground-truth + uploads are DONE** — recognized as conformant instances (doc-only;
    this audit is that recognition). No code.
 
-So the ADR-376 implementation tail is **one slice (perception), not four**. The
-analysis doc's "per-transport conformance, each a follow-on" over-counted; this audit
-collapses it to the single real piece of work.
+So the ADR-376 implementation tail was **one slice (perception), not four** — and
+that slice has now landed. **The conformance surface is closed**: every
+substrate-writing intake path conforms, is N/A, or is build-deferred. No further
+ADR-376 conformance code remains to write (only the `inbound/` GC DEFER stands,
+trigger-gated).

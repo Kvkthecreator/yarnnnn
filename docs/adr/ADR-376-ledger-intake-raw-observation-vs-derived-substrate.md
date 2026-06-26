@@ -1,6 +1,6 @@
 # ADR-376 — Ledger Intake: Raw Observation vs Derived Substrate
 
-> **Status**: **Accepted** (2026-06-26). Foundational (a FOUNDATIONS amendment); phased, conformance-per-transport. **MCP slice IMPLEMENTED** (2026-06-26): `inbound/` root + raw-lane routing (`inbound/mcp/{client}/{slug}.md`) + derive-and-cite placement wake + recall/trace re-spec (derived-first, `derived_from` walk). Gate `test_adr376_ledger_intake.py` 7/7; `test_adr368_memory_surface.py` 10/10; live `probe_mcp_memory_surface.py` 11/11. Built on the merged ADR-373 re-key (no keying coupling — `inbound/` writable under today's class-default policy; per-`{client}` sublane is a convention the per-principal grant later enforces). Remaining transports (uploads recognized; perception/connectors/chat/A2A) are follow-on slices against the same ratified invariant.
+> **Status**: **Accepted** (2026-06-26). Foundational (a FOUNDATIONS amendment); phased, conformance-per-transport. **MCP slice IMPLEMENTED** (2026-06-26): `inbound/` root + raw-lane routing (`inbound/mcp/{client}/{slug}.md`) + derive-and-cite placement wake + recall/trace re-spec (derived-first, `derived_from` walk). **PERCEPTION slice IMPLEMENTED** (2026-06-26): `TrackWebSources` now RETAINS each cited feed body in the raw lane (`inbound/web/{source}/{observed_at}.xml`, immutable, attributed `system:track-web-sources`) and the distilled `_watch_signal.yaml` carries a `derived_from` block list citing them — closing the sole remaining DP32 violator (retain-clause). This forced the §9 single-vs-list DEFER to a **DECIDE: `derived_from` is a list** (`_extract_derived_from_list`; the single-cite MCP case is the one-element form, byte-identical). Gate `test_adr376_ledger_intake.py` **11/11** (7 MCP + 4 perception, incl. a mocked end-to-end round-trip); `test_adr368_memory_surface.py` 10/10; `test_adr336_web_watch.py` 6/6; **live-validated** against the prod kvk workspace (real fetch of 2 public RSS feeds → both bodies retained immutably in `inbound/web/` → signal `derived_from` cites exactly the 2 raws → all test artifacts cleaned). Built on the merged ADR-373 re-key (no keying coupling — `inbound/` writable under today's class-default policy; per-`{client}`/`{source}` sublane is a convention the per-principal grant later enforces). Remaining transports: uploads + ground-truth recognized (already conform); connectors/chat N/A (no sync path / operator-direct); A2A deferred-by-construction (unbuilt) — see the per-transport audit. **The conformance tail is now closed**: every substrate-writing intake path either conforms, is N/A, or is build-deferred.
 > **Date**: 2026-06-26
 > **Authors**: KVK (operator) + Claude (collaborator)
 > **Discourse base**: [`docs/analysis/the-ledger-intake-axiom-raw-observation-vs-derived-substrate-2026-06-26.md`](../analysis/the-ledger-intake-axiom-raw-observation-vs-derived-substrate-2026-06-26.md) — the axiom, the four-path intake audit (the receipt that proves it load-bearing), the `operation/memory/` re-examination, and the five open questions (all five settled below).
@@ -137,16 +137,22 @@ NOT treat as a gap to close pre-trigger), or **DECIDED** (resolved here).
   raw). This is the realistic shape (the seat does NOT name derived files after
   the subject slug); the citation, not the name, is the reliable link.
 
-- **The `derived_from` field shape (single vs list) — ⏸ DEFER.** Today: a single
-  path (one derived object cites one raw observation — the validated common case
-  for a `remember` dump). **Trigger to revisit:** the first real need for a
-  derived object that SYNTHESIZES several raw observations (e.g. a perception
-  slice distilling N web observations into one signal). Until that transport
-  lands, a single ref is correct and complete — do NOT pre-build the list
-  machinery. When triggered, `_extract_derived_from` returns the first match
-  today; the extension is reading all matches into a list (additive, no breaking
-  change to the single case). Lean stands (list eventually), but it is a
-  perception-slice concern, not an MCP-slice gap.
+- **The `derived_from` field shape (single vs list) — ✅ DECIDED (2026-06-26): it is a LIST.**
+  The trigger named in the original DEFER arrived with the perception slice (a
+  watch distills N feed observations into one signal — the first real multi-cite
+  case). Resolved: `derived_from` is a **list** on the wire, in three tolerated
+  shapes — a bare scalar (`derived_from: <path>`), an inline list
+  (`derived_from: [a, b]`), and a YAML block list (`derived_from:` then `- path`
+  lines). The new `_extract_derived_from_list(content)` reads all three (deduped,
+  order-preserved); the existing single-cite `_extract_derived_from` is now
+  `list[0] if list else None` — **the MCP single-cite case is byte-identical**
+  (the single ref is the one-element list). `compose_trace` walks **all** cited
+  raws (the multi-cite fan-in: each cited raw's chain is appended), so a
+  perception signal's `trace` shows every observation behind it. Additive: no
+  breaking change to the MCP slice (proven — the MCP gate stayed 7/7 across the
+  reader refactor). The perception derived object (the `_watch_signal.yaml`)
+  carries the citing list directly; a seat-authored `operation/` derivation that
+  synthesizes several raws uses the same field shape.
 
 - **`inbound/` retention / GC policy — ⏸ DEFER.** Today: raw is permanent (no GC).
   This is CORRECT for now — at launch scale the raw lane is tiny, and cited
@@ -157,13 +163,19 @@ NOT treat as a gap to close pre-trigger), or **DECIDED** (resolved here).
   never a cited observation. Do NOT build GC speculatively; permanence is the
   safe default and the axiom's "raw is the receipt" leans toward keeping it.
 
-**Net for a downstream reader:** the MCP slice has NO open gaps — the two `DONE`
-items are closed in code, the two `DEFER` items are deliberate non-work with named
-triggers (not TODOs to chase). The remaining ADR-376 work is **per-transport
-conformance** (perception → `inbound/web/`; connectors; chat; A2A; recognize
-`uploads/` + ground-truth as already-conformant instances), each an independent
-slice against the one ratified invariant — sequenced by the audit (§3): fix the
-*violating* paths (perception discards) before *recognizing* the conformant ones.
+**Net for a downstream reader (updated 2026-06-26 — perception slice landed):**
+the MCP slice and the perception slice are both IMPLEMENTED + validated, with NO
+open gaps. The `derived_from`-list DEFER is now DECIDED (a list); only the
+`inbound/` GC DEFER remains genuinely deferred (named trigger: measured growth as
+a real cost — do NOT build speculatively). **The per-transport conformance tail
+is closed**: of the seven context-in transports, two violators are fixed (MCP
+`remember` rewrite→derive-cite; perception discard→retain-cited), two conform and
+are recognized (`uploads/`, ground-truth), two are N/A (chat = operator-direct;
+connectors = no sync-to-substrate path exists, ADR-153), and one is
+deferred-by-construction (A2A unbuilt; inherits the MCP shape → `inbound/a2a/`
+when built). No further conformance slice has live code to write. The full
+grounding is the per-transport audit
+([`docs/analysis/adr376-per-transport-conformance-audit-2026-06-26.md`](../analysis/adr376-per-transport-conformance-audit-2026-06-26.md)).
 
 ---
 
