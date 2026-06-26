@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.26.16] - ADR-375 §6: steward-presence gate (AGENT_ENABLED) at the four chokepoints
+
+**Implemented the §6 gate of the rewritten ADR-375 (Phase 1 = substrate operated by humans + external agents).** The internal steward (the Reviewer — future "Freddie") is now gated behind one env flag, default ON. When a deploy sets `AGENT_ENABLED=false` (the interop-first launch shape), nothing wakes the Reviewer and the steward surfaces vanish from nav — while files/revisions/`remember`/`recall`/`trace`/connectors all keep working (the base value loop closes with zero steward dependency, ADR-375 D3).
+
+- `api/services/agent_gating.py` (NEW): `is_agent_enabled(workspace_id=None)` — the single steward-presence resolver. Reads `AGENT_ENABLED` (default ON when unset, D4; explicit false token → OFF; unrecognized → fail-safe ON). `workspace_id` accepted for forward-compatible per-workspace density-gating (deferred). Also the input ADR-374 reads to choose the at-rest IA face.
+- **#1** `api/jobs/unified_scheduler.py`: the steward block — `dispatch_due_invocations` + `walk_hooks` + `drain_all_users_with_pending` + the ADR-301 kernel mirrors — wrapped in `if is_agent_enabled():` AS A UNIT (gating drain-only would leak undrained `wake_queue` rows). `found/succeeded/failed` init to 0 so the keeper heartbeat/completion-log paths stay valid when off.
+- **#2** `api/services/wake.py`: `submit_wake_proposal` early-returns `{success, skipped:agent_disabled}` when off (belt-and-suspenders; also covers the MCP→wake adapter, which reaches the queue only here).
+- **#3** `api/routes/feed.py`: the addressed (chat→Reviewer) path is guarded BEFORE `_dispatch_reviewer_turn` — off-state yields a graceful "judgment is a gated beta; your substrate is fully available" message and never wakes (the zero-LLM execution router, Path 1, is unaffected). **This is the operator-facing behavior change** — the addressed turn no longer always reaches the Reviewer.
+- **#4** `api/services/kernel_surfaces.py`: `kernel_surface_entries()` filters out `STEWARD_SURFACE_SLUGS` (agents/queue/notifications/autonomy/program/recurrence/expected-output/activity) when off; keepers (files/context/connectors/sources/settings/identity/mandate/principles/home/budget + chrome) always render. Backend-driven nav → zero FE change. `kernel_surface_slugs()` stays unfiltered (canonical declaration).
+- **Expected behavior**: default (unset/ON) — no change anywhere, current deploys unaffected. `AGENT_ENABLED=false` — substrate-only Phase-1 product. **Render parity (CLAUDE.md §5): must be set consistently on API + Unified Scheduler** — chokepoint #1 lives on the scheduler; API/Scheduler drift is the exact failure mode. Gate `test_adr375_agent_gating.py` 32/32; siblings `test_adr297_phase1.py` 168/0 unchanged. No schema, no deletion (D5 — dormant behind the flag).
+
 ## [2026.06.26.15] - ADR-372: rich rendering for ALL three tools — recall-cards + remember-receipt widgets
 
 **With the trace widget validated live, extended display widgets to the other two memory verbs** (operator request). All three now render on a host that supports it; text path unchanged everywhere. Display-only (no buttons/callbacks in v1) — pure presentation of returned substrate (D3), zero new action surface.

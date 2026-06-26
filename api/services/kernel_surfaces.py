@@ -771,18 +771,49 @@ KERNEL_SURFACES: list[dict[str, Any]] = [
 # =============================================================================
 
 
+# ADR-375 §6 chokepoint #4 — the steward-coupled surfaces. When
+# AGENT_ENABLED is off (Phase-1 interop-first deploy), these are filtered
+# out of the surface registry. Backend-driven nav → zero FE change. The
+# keepers (ledger + membrane + constitution mirrors + structural chrome)
+# always render: files, context, connectors/sources, settings/
+# workspace-settings, identity/mandate/principles, home (substrate-forward
+# empty state per ADR-374), budget, top-bar/launcher/chat-drawer/setup.
+STEWARD_SURFACE_SLUGS: frozenset[str] = frozenset({
+    "agents",
+    "queue",
+    "notifications",
+    "autonomy",
+    "program",
+    "recurrence",
+    "expected-output",
+    "activity",
+})
+
+
 def kernel_surface_entries() -> list[dict[str, Any]]:
     """Return the kernel surface list with `tier: "kernel"` added.
 
     This is the shape the compositor emits into `surfaces[]`. Always
     returns a deep copy so callers can mutate freely without affecting
     the canonical declaration.
+
+    ADR-375 §6 chokepoint #4: when the internal steward is gated off
+    (`is_agent_enabled()` is False), the steward-coupled surfaces
+    (`STEWARD_SURFACE_SLUGS`) are filtered out. The nav is 100%
+    backend-driven (ADR-297), so this removes the steward tabs from the UI
+    with zero frontend change. The default is ON (ADR-375 D4), so the
+    full registry is returned unless a deploy explicitly sets
+    `AGENT_ENABLED=false`.
     """
     from copy import deepcopy
+    from services.agent_gating import is_agent_enabled
+
+    agent_on = is_agent_enabled()
 
     return [
         {**deepcopy(entry), "tier": "kernel"}
         for entry in KERNEL_SURFACES
+        if agent_on or entry["slug"] not in STEWARD_SURFACE_SLUGS
     ]
 
 
@@ -804,6 +835,7 @@ def kernel_pane_slugs() -> set[str]:
 __all__ = [
     "ARCHETYPES",
     "KERNEL_SURFACES",
+    "STEWARD_SURFACE_SLUGS",
     "kernel_surface_entries",
     "kernel_surface_slugs",
     "kernel_pane_slugs",

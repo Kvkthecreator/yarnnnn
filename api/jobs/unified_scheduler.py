@@ -311,103 +311,127 @@ async def run_unified_scheduler():
     active_user_ids = list(platform_user_ids | tasks_user_ids)
 
     # -------------------------------------------------------------------------
-    # ADR-231 Phase 3.3: dispatch due invocations from YAML declarations
-    # (cron-tick wake source per ADR-296 v2 D1)
+    # ADR-375 §6 chokepoint #1 — steward-presence gate (the load-bearing
+    # Trigger gate). The due-dispatch + substrate-event walker + wake-queue
+    # drain + Reviewer-pulse kernel mirrors are ALL the internal steward's
+    # machinery. When AGENT_ENABLED is off (interop-first launch), this whole
+    # block is skipped: nothing ever wakes the Reviewer.
+    #
+    # CRITICAL (interop-first-pivot §7 risk 2 / ADR-375 §6): gate the walker
+    # AND the drain AS A UNIT. Gating only the drain would leave flagged-off
+    # workspaces silently accumulating undrained wake_queue rows.
+    #
+    # `found/succeeded/failed` are initialized to 0 here so the keeper paths
+    # below (the hourly heartbeat + completion log — liveness, NOT steward)
+    # stay valid when the steward is off.
     # -------------------------------------------------------------------------
-    found, succeeded, failed = await dispatch_due_invocations(supabase)
-    if found > 0:
-        logger.info(f"[SCHED] dispatch complete: {succeeded}/{found} succeeded, {failed} failed")
-    else:
-        logger.info("[SCHED] no due declarations")
+    from services.agent_gating import is_agent_enabled
+    found, succeeded, failed = 0, 0, 0
 
-    # -------------------------------------------------------------------------
-    # ADR-296 v2 D1 + D2: substrate-event wake source walker.
-    # For each active user, walk /workspace/_hooks.yaml against recent
-    # workspace_file_versions revisions. Hook matches submit wake proposals
-    # to the funnel. The transition guard in _field_change_matches ensures
-    # hooks fire only on the actual transition, not on every preserving write.
-    # -------------------------------------------------------------------------
-    try:
-        from services.wake_sources.substrate_event import walk_hooks
-        substrate_event_outcomes_total = 0
-        for hook_user_id in active_user_ids:
-            try:
-                outcomes = await walk_hooks(supabase, hook_user_id)
-                substrate_event_outcomes_total += len(outcomes)
-            except Exception as exc:
-                logger.warning(
-                    "[SCHED] substrate-event walk failed for %s: %s",
-                    hook_user_id[:8], exc,
+    if is_agent_enabled():
+        # ---------------------------------------------------------------------
+        # ADR-231 Phase 3.3: dispatch due invocations from YAML declarations
+        # (cron-tick wake source per ADR-296 v2 D1)
+        # ---------------------------------------------------------------------
+        found, succeeded, failed = await dispatch_due_invocations(supabase)
+        if found > 0:
+            logger.info(f"[SCHED] dispatch complete: {succeeded}/{found} succeeded, {failed} failed")
+        else:
+            logger.info("[SCHED] no due declarations")
+
+        # ---------------------------------------------------------------------
+        # ADR-296 v2 D1 + D2: substrate-event wake source walker.
+        # For each active user, walk /workspace/_hooks.yaml against recent
+        # workspace_file_versions revisions. Hook matches submit wake proposals
+        # to the funnel. The transition guard in _field_change_matches ensures
+        # hooks fire only on the actual transition, not on every preserving write.
+        # ---------------------------------------------------------------------
+        try:
+            from services.wake_sources.substrate_event import walk_hooks
+            substrate_event_outcomes_total = 0
+            for hook_user_id in active_user_ids:
+                try:
+                    outcomes = await walk_hooks(supabase, hook_user_id)
+                    substrate_event_outcomes_total += len(outcomes)
+                except Exception as exc:
+                    logger.warning(
+                        "[SCHED] substrate-event walk failed for %s: %s",
+                        hook_user_id[:8], exc,
+                    )
+            if substrate_event_outcomes_total > 0:
+                logger.info(
+                    "[SCHED] substrate-event walker fired %d hook(s) across %d user(s)",
+                    substrate_event_outcomes_total, len(active_user_ids),
                 )
-        if substrate_event_outcomes_total > 0:
-            logger.info(
-                "[SCHED] substrate-event walker fired %d hook(s) across %d user(s)",
-                substrate_event_outcomes_total, len(active_user_ids),
+        except Exception as exc:
+            logger.warning("[SCHED] substrate-event walker raised: %s", exc)
+
+        # ---------------------------------------------------------------------
+        # ADR-298 Phase 3 — Wake queue drain.
+        #
+        # Post-cutover, the wake sources (cron-tick + substrate-event) enqueue
+        # rows to wake_queue rather than dispatching the Reviewer inline.
+        # After walker work, the drainer pulls pending rows per workspace,
+        # acquires the single-in-flight lock per ADR-298 D1, and dispatches
+        # to the Reviewer-invocation body. Paced lane respects pace cap;
+        # live lane drains FIFO. Both share single-in-flight.
+        #
+        # Stale-lock reclaim happens FIRST so any wake stuck-locked from a
+        # crashed prior tick gets reclaimed before this tick attempts drain.
+        # ---------------------------------------------------------------------
+        try:
+            from services.wake_queue import reclaim_stale_locks
+            from services.wake_drainer import drain_all_users_with_pending
+
+            reclaimed = reclaim_stale_locks(supabase)
+            if reclaimed:
+                logger.info(f"[SCHED] reclaimed {reclaimed} stale wake_queue lock(s)")
+
+            drained = await drain_all_users_with_pending(supabase)
+            if drained > 0:
+                logger.info(f"[SCHED] drained {drained} wake(s) from wake_queue")
+        except Exception as exc:
+            logger.warning("[SCHED] wake_queue drain raised: %s", exc)
+
+        # ---------------------------------------------------------------------
+        # ADR-301 kernel mirrors — Reviewer pulse envelope substrate.
+        # Per-tick maintenance phase: project tasks scheduling index + recent
+        # execution_events into compact substrate files (_schedule_index.md +
+        # _recent_execution.md under /workspace/system/) that the Reviewer
+        # reads at every wake. Both mirrors are diff-aware — most ticks write
+        # nothing across most workspaces. Closes the schedule-hallucination
+        # class documented in docs/evaluations/2026-05-24-045348-reviewer-
+        # schedule-self-misdiagnosis/findings.md.
+        #
+        # Inside the ADR-375 gate: these mirror substrate the Reviewer reads
+        # at wake — pointless to maintain when the steward never wakes.
+        # ---------------------------------------------------------------------
+        try:
+            from services.kernel_mirrors import (
+                mirror_schedule_index_for_all_users,
+                mirror_recent_execution_for_all_users,
+                mirror_calibration_for_all_users,
             )
-    except Exception as exc:
-        logger.warning("[SCHED] substrate-event walker raised: %s", exc)
-
-    # -------------------------------------------------------------------------
-    # ADR-298 Phase 3 — Wake queue drain.
-    #
-    # Post-cutover, the wake sources (cron-tick + substrate-event) enqueue
-    # rows to wake_queue rather than dispatching the Reviewer inline.
-    # After walker work, the drainer pulls pending rows per workspace,
-    # acquires the single-in-flight lock per ADR-298 D1, and dispatches
-    # to the Reviewer-invocation body. Paced lane respects pace cap;
-    # live lane drains FIFO. Both share single-in-flight.
-    #
-    # Stale-lock reclaim happens FIRST so any wake stuck-locked from a
-    # crashed prior tick gets reclaimed before this tick attempts drain.
-    # -------------------------------------------------------------------------
-    try:
-        from services.wake_queue import reclaim_stale_locks
-        from services.wake_drainer import drain_all_users_with_pending
-
-        reclaimed = reclaim_stale_locks(supabase)
-        if reclaimed:
-            logger.info(f"[SCHED] reclaimed {reclaimed} stale wake_queue lock(s)")
-
-        drained = await drain_all_users_with_pending(supabase)
-        if drained > 0:
-            logger.info(f"[SCHED] drained {drained} wake(s) from wake_queue")
-    except Exception as exc:
-        logger.warning("[SCHED] wake_queue drain raised: %s", exc)
-
-    # -------------------------------------------------------------------------
-    # ADR-301 kernel mirrors — Reviewer pulse envelope substrate.
-    # Per-tick maintenance phase: project tasks scheduling index + recent
-    # execution_events into compact substrate files (_schedule_index.md +
-    # _recent_execution.md under /workspace/system/) that the Reviewer
-    # reads at every wake. Both mirrors are diff-aware — most ticks write
-    # nothing across most workspaces. Closes the schedule-hallucination
-    # class documented in docs/evaluations/2026-05-24-045348-reviewer-
-    # schedule-self-misdiagnosis/findings.md.
-    # -------------------------------------------------------------------------
-    try:
-        from services.kernel_mirrors import (
-            mirror_schedule_index_for_all_users,
-            mirror_recent_execution_for_all_users,
-            mirror_calibration_for_all_users,
-        )
-        si_summary = await mirror_schedule_index_for_all_users(supabase)
-        re_summary = await mirror_recent_execution_for_all_users(supabase)
-        cal_summary = await mirror_calibration_for_all_users(supabase)
-        if si_summary["written"] or re_summary["written"] or cal_summary["written"]:
-            logger.info(
-                "[SCHED] kernel mirrors: schedule_index wrote %d/%d "
-                "(skip=%d, fail=%d), recent_execution wrote %d/%d "
-                "(skip=%d, fail=%d), calibration wrote %d/%d "
-                "(skip=%d, fail=%d)",
-                si_summary["written"], si_summary["users_processed"],
-                si_summary["skipped"], si_summary["failed"],
-                re_summary["written"], re_summary["users_processed"],
-                re_summary["skipped"], re_summary["failed"],
-                cal_summary["written"], cal_summary["users_processed"],
-                cal_summary["skipped"], cal_summary["failed"],
-            )
-    except Exception as exc:
-        logger.warning("[SCHED] kernel mirrors raised: %s", exc)
+            si_summary = await mirror_schedule_index_for_all_users(supabase)
+            re_summary = await mirror_recent_execution_for_all_users(supabase)
+            cal_summary = await mirror_calibration_for_all_users(supabase)
+            if si_summary["written"] or re_summary["written"] or cal_summary["written"]:
+                logger.info(
+                    "[SCHED] kernel mirrors: schedule_index wrote %d/%d "
+                    "(skip=%d, fail=%d), recent_execution wrote %d/%d "
+                    "(skip=%d, fail=%d), calibration wrote %d/%d "
+                    "(skip=%d, fail=%d)",
+                    si_summary["written"], si_summary["users_processed"],
+                    si_summary["skipped"], si_summary["failed"],
+                    re_summary["written"], re_summary["users_processed"],
+                    re_summary["skipped"], re_summary["failed"],
+                    cal_summary["written"], cal_summary["users_processed"],
+                    cal_summary["skipped"], cal_summary["failed"],
+                )
+        except Exception as exc:
+            logger.warning("[SCHED] kernel mirrors raised: %s", exc)
+    else:
+        logger.info("[SCHED] AGENT_ENABLED off — steward block skipped (dispatch/walker/drain/mirrors)")
 
     # -------------------------------------------------------------------------
     # ADR-260 D4: cron-heartbeat walker deleted. Cron wake-ups fire the

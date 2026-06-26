@@ -1336,6 +1336,31 @@ async def global_chat(
                     yield chunk
                 return
 
+            # ADR-375 §6 chokepoint #3 — steward-presence gate (addressed path).
+            # The addressed (chat→Reviewer) turn IS the steward's interface
+            # (ADR-374 D2). Per ADR-374, the Phase-1 base product has no native
+            # chat — so when AGENT_ENABLED is off, this path must not reach the
+            # addressed wake stream (which would enqueue + wake the Reviewer).
+            # Degrade gracefully: tell the operator judgment is gated, never
+            # wake. The mechanical execution router (Path 1) already ran above
+            # and is unaffected (zero-LLM commands keep working off-state).
+            from services.agent_gating import is_agent_enabled
+            if not is_agent_enabled(workspace_id=auth.user_id):
+                msg = (
+                    "Judgment is not enabled on this workspace. YARNNN is "
+                    "serving as your attributed, cross-LLM substrate — your "
+                    "files, memory, and revision history are fully available "
+                    "(remember / recall / trace). The steward (judgment) "
+                    "layer is a gated beta."
+                )
+                await append_message(auth.client, session_id, "system_agent", msg, {
+                    "pulse": "addressed", "weight": "routine",
+                    "invocation_id": invocation_id, "agent_disabled": True,
+                })
+                yield f"data: {json.dumps({'content': msg})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'session_id': session_id})}\n\n"
+                return
+
             # Path 2: Reviewer (Haiku) — primary and only conversational intelligence.
             # No System Agent fallback. Reviewer is always the intelligence layer.
             # If Reviewer includes action_instruction, System Agent executes it as directed.

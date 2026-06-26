@@ -162,6 +162,17 @@ async def submit_wake_proposal(
             "use stream_addressed_wake() for the SSE path."
         )
 
+    # ADR-375 §6 chokepoint #2 — steward-presence gate (belt-and-suspenders).
+    # When AGENT_ENABLED is off, no wake is ever enqueued: the singular
+    # wake-proposal gateway no-ops. Chokepoint #1 (scheduler) alone suffices
+    # to stop the steward firing, but gating here makes the off-state airtight
+    # — and covers the MCP→wake adapter, which reaches the queue ONLY via this
+    # function and "never raises" (the foreign write already committed +
+    # attributed per ADR-307/209; it simply is not placed/judged — ADR-375 D3).
+    from services.agent_gating import is_agent_enabled
+    if not is_agent_enabled(workspace_id=user_id):
+        return {"success": True, "source": source, "skipped": "agent_disabled"}
+
     from services.wake_queue import enqueue, resolve_lane
 
     # Per-source payload normalization + dedup_key derivation. The
