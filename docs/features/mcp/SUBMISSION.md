@@ -73,7 +73,7 @@ This is a **content/legal task, not code** — it must be live at `yarnnn.com/pr
 | Action annotations correct (`readOnlyHint`/`destructiveHint`/`openWorldHint`) | ✅ fixed 2026-06-26 ([2026.06.26.9]) — was the named rejection risk |
 | Output schemas declared | ✅ fixed 2026-06-26 |
 | Review-friendly tool copy (no competitor-pointing) | ✅ fixed 2026-06-26 |
-| `trace` widget renders + populates | ⚠️ verify live (the poll fix, [2026.06.26.7]) — the hero screenshot depends on this |
+| `trace` widget renders + populates | ✅ **VALIDATED LIVE in ChatGPT 2026-06-26** — timeline renders 10 SPY rows, provenance badges, show-changes diffs; model still narrates (D3). See §7. |
 | Tools behave reliably, no crashes, complete (not a demo) | ⚠️ exercise all three end-to-end on the demo account |
 | Privacy policy published | ❌ §3 — blocker |
 | Demo/test account seeded with multi-revision content | ❌ provision so `trace` shows a real timeline |
@@ -81,6 +81,17 @@ This is a **content/legal task, not code** — it must be live at `yarnnn.com/pr
 | Logo + screenshots | ❌ produce |
 
 **Do not submit until the ⚠️/❌ rows are closed.** Submitting an incomplete app burns a review cycle (and "complete apps only — demos rejected" is a stated rule).
+
+### 4a. The widget-binding contract (validated 2026-06-26) — and the cache gotcha that cost us a day
+
+For a ChatGPT-rendered widget, ALL of these are load-bearing (we proved it by elimination):
+1. **Tool DEFINITION `_meta`**: `openai/outputTemplate` (the binding key — NOT `ui.resourceUri`), `openai/widgetAccessible: true`, `openai/toolInvocation/{invoking,invoked}`.
+2. **Served RESOURCE `_meta`**: the SAME `openai/*` keys (not just `ui.domain`/`csp`). This was the final missing piece — ChatGPT's skybridge needs them on the resource to wire `window.openai`.
+3. **Resource MIME**: `text/html+skybridge` (not the generic `text/html;profile=mcp-app`).
+4. **Widget reads data** via `window.openai.toolOutput` + the `openai:set_globals` event + a poll fallback (see `useToolResult.ts`).
+5. **The tool returns a `CallToolResult`** with the full result in BOTH `structuredContent` and `content` (the lowlevel MCP handler drops `_meta` from a bare-dict return).
+
+> **THE GOTCHA (cost ~a day of debugging):** ChatGPT pins a **version snapshot** of a dev-mode connector. New deploys do NOT reach it until you click **Settings → Connectors → [your connector] → `Refresh`** (the snapshot version note bumps `dev-1`→`dev-2`). Reconnecting (remove + re-add) does NOT do this. Before testing ANY tool/widget change in ChatGPT: **click Refresh, then verify the descriptions/flags in the settings panel changed** — that panel IS the confirmation the new code loaded. Several "the widget is broken" rounds were actually "ChatGPT is serving the stale snapshot."
 
 ---
 

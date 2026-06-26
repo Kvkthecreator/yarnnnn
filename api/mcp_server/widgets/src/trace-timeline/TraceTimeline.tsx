@@ -7,42 +7,29 @@ import { useEffect, useState } from "react";
 import type { TraceResult, TraceRevision } from "./types";
 import { provBucket } from "./types";
 
-// Injected by build.mjs (esbuild define). A visible marker so a loaded widget
-// proves which bundle it is — disambiguates "cached old bundle" from "code bug".
+// Injected by build.mjs (esbuild define). Kept for cache diagnosis (a loaded
+// bundle can be identified) but NOT rendered to users — production shows a clean
+// loading state. Surface it again only when debugging a binding issue.
 declare const __BUILD_ID__: string;
 const BUILD_ID: string = typeof __BUILD_ID__ !== "undefined" ? __BUILD_ID__ : "dev";
 
-// Debug fallback (ADR-372 live-debug): when no result arrives, after a short
-// wait show what the iframe CAN see, so we diagnose the binding from ground
-// truth instead of guessing. Renders window.openai's keys + any toolOutput/
-// toolInput shape. Harmless in production — only appears when data is absent.
-function DebugFallback() {
-  const [show, setShow] = useState(false);
+// Clean loading state: show "Loading…" briefly while the host wires up
+// window.openai (the data arrives via toolOutput / openai:set_globals — see
+// useToolResult). After a generous timeout with still no data, show a graceful
+// message rather than spinning forever. (The skybridge binding was validated
+// live 2026-06-26; this path is the genuine empty/slow case, not a debug probe.)
+function LoadingState() {
+  const [timedOut, setTimedOut] = useState(false);
   useEffect(() => {
-    const t = window.setTimeout(() => setShow(true), 1000);
+    const t = window.setTimeout(() => setTimedOut(true), 8000);
     return () => window.clearTimeout(t);
   }, []);
-  if (!show) return <p className="tt-empty">Waiting for trace data… (build {BUILD_ID})</p>;
-  let diag: Record<string, unknown> = {};
-  try {
-    const w = (window as unknown as { openai?: Record<string, unknown> }).openai;
-    diag = {
-      "build": BUILD_ID,
-      "window.openai present": !!w,
-      "window.openai keys": w ? Object.keys(w) : [],
-      "toolOutput type": w ? typeof w.toolOutput : "n/a",
-      "toolOutput keys": w && w.toolOutput && typeof w.toolOutput === "object"
-        ? Object.keys(w.toolOutput as object) : [],
-      "toolInput keys": w && w.toolInput && typeof w.toolInput === "object"
-        ? Object.keys(w.toolInput as object) : [],
-    };
-  } catch (e) {
-    diag = { error: String(e) };
+  if (timedOut) {
+    return <p className="tt-empty">Couldn’t load the revision history. Try asking again.</p>;
   }
   return (
     <div>
-      <p className="tt-empty">No trace data reached the widget. Diagnostic (share this):</p>
-      <pre className="tt-diff">{JSON.stringify(diag, null, 2)}</pre>
+      <p className="tt-empty">Loading revision history…</p>
     </div>
   );
 }
@@ -104,7 +91,7 @@ export function TraceTimeline({ result }: { result: TraceResult | null }) {
   const history = result?.history ?? [];
 
   if (!result) {
-    return <DebugFallback />;
+    return <LoadingState />;
   }
   if (history.length === 0) {
     return <p className="tt-empty">{result.explanation || "No recorded history to trace."}</p>;

@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.26.13] - trace widget VALIDATED LIVE in ChatGPT — clean up debug scaffold + record the binding contract
+
+**The trace timeline widget renders live in ChatGPT** (confirmed 2026-06-26): 10 SPY revision rows, provenance badges (`system:track-universe`), per-row timestamps, show-changes diff expanders, and the model still narrates in prose (ADR-372 D3). The full ADR-372 thesis is proven end-to-end on the rendered face.
+
+**Root cause of the multi-round "Waiting…" saga**: ChatGPT pins a dev-mode connector **version snapshot**; deploys don't reach it until **Settings → Connectors → Refresh** (bumps `dev-1`→`dev-2`). Every prior live test ran against the stale snapshot — we were debugging code ChatGPT never had. The actual code fix that mattered was [2026.06.26.11] (full `openai/*` `_meta` on the served resource, matching OpenAI's example).
+
+- `widgets/src/trace-timeline/TraceTimeline.tsx`: replaced the live-debug fallback (build-marker text + `window.openai` JSON dump) with a clean production `LoadingState` — "Loading revision history…" then a graceful timeout message; no build marker or diagnostic shown to users. The `__BUILD_ID__` machinery stays in `build.mjs` for future cache diagnosis but is no longer rendered. Rebuilt `dist/` (BUILD_ID=b13).
+- `docs/features/mcp/SUBMISSION.md`: §4 widget row → ✅ VALIDATED LIVE; new §4a records the full widget-binding contract (the 5 load-bearing pieces) + the Refresh-snapshot gotcha so it is never relearned.
+- **Expected behavior**: widget unchanged in the working case; the empty/slow case now shows a clean "Loading…" → graceful message instead of a debug dump. Gate: test_adr372 (15/15).
+
 ## [2026.06.26.12] - trace widget: self-identifying build marker (cache-vs-code diagnosis)
 
 **The resource-_meta fix ([2026.06.26.11]) deployed live, but the widget still showed "Waiting for trace data…" with NO debug dump** — the debug fallback (1.5s timer) should have replaced the waiting text. Since "Waiting…" IS React-rendered (so React mounts) but the timed swap never happened, the leading hypothesis is **ChatGPT cached the OLD widget bundle** (the host caches `ui://` resources; the new dist/ wasn't re-fetched).
