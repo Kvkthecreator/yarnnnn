@@ -74,7 +74,10 @@ async function buildWidget(name) {
 const arg = process.argv[2];
 const widgets = arg
   ? [arg]
-  : readdirSync(SRC, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name);
+  // a widget is a src/<name>/ dir with an index.tsx entry; skip shared/ (no entry).
+  : readdirSync(SRC, { withFileTypes: true })
+      .filter((d) => d.isDirectory() && existsSync(join(SRC, d.name, "index.tsx")))
+      .map((d) => d.name);
 
 for (const w of widgets) {
   await buildWidget(w);

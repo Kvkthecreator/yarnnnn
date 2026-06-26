@@ -37,8 +37,8 @@ class Affordance:
 #: tool name → affordance. A tool absent from this map is text-only.
 AFFORDANCES: dict[str, Affordance] = {
     "trace": Affordance(widget="trace-timeline", fallback="text", interactive=True),
-    # "recall": Affordance(widget="recall-cards", fallback="text", interactive=False),  # future, additive
-    # "remember": (none) — a fire-and-forget write; text confirmation is correct.
+    "recall": Affordance(widget="recall-cards", fallback="text", interactive=False),
+    "remember": Affordance(widget="remember-receipt", fallback="text", interactive=False),
 }
 
 

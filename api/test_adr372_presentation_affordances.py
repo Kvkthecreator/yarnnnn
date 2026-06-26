@@ -31,10 +31,10 @@ def main():
     # ---- D1: per-tool affordance declaration (data) ------------------------
     from mcp_server.presentation import affordances as aff
     results.append(_check(
-        "1 trace has an affordance; remember/recall do not (D1 — opt-in declaration)",
+        "1 all three memory verbs declare a widget affordance (D1 — opt-in declaration)",
         aff.affordance_for("trace") is not None
-        and aff.affordance_for("remember") is None
-        and aff.affordance_for("recall") is None))
+        and aff.affordance_for("recall") is not None
+        and aff.affordance_for("remember") is not None))
 
     results.append(_check(
         "2 trace affordance → trace-timeline widget, interactive, text fallback (D1/D3)",
@@ -112,42 +112,62 @@ def main():
         bool(wrapped.content) and wrapped.content[0].text
         and wrapped.structuredContent == sample))
 
-    # D4: no-affordance tools pass through unchanged (text-only default)
+    # D4: all three affordance tools wrap to CallToolResult with their OWN
+    # widget binding; a tool with no affordance would pass through as a bare dict.
+    from mcp_server.presentation import registry as _reg
+    expected_uri = {
+        "trace": "ui://yarnnn/trace-timeline.html",
+        "recall": "ui://yarnnn/recall-cards.html",
+        "remember": "ui://yarnnn/remember-receipt.html",
+    }
+    all_wrapped = True
+    for n, uri in expected_uri.items():
+        w = s._present(n, sample)
+        ok = isinstance(w, CallToolResult) and bool(w.content) and w.structuredContent == sample \
+            and (w.meta or {}).get("ui", {}).get("resourceUri") == uri
+        if not ok:
+            all_wrapped = False
+            print(f"      [!] {n} did not wrap to its widget {uri}")
     results.append(_check(
-        "9 remember/recall pass through as bare dict — unchanged text path (D1 default)",
-        s._present("recall", sample) is sample and s._present("remember", sample) is sample))
+        "9 each of remember/recall/trace wraps to CallToolResult with ITS OWN widget _meta (D1/D4)",
+        all_wrapped))
+
+    widget_uris = {
+        "trace": "ui://yarnnn/trace-timeline.html",
+        "recall": "ui://yarnnn/recall-cards.html",
+        "remember": "ui://yarnnn/remember-receipt.html",
+    }
 
     async def _wire():
         tools = {t.name: t for t in await s.mcp.list_tools()}
-        # D2: trace tool DEFINITION carries _meta; remember does not
-        def_ok = (tools["trace"].meta or {}).get("ui", {}).get("resourceUri", "").startswith("ui://") \
-            and tools["remember"].meta is None
-        # widget resource registered + serves the bundle with the right MIME
-        res = {str(r.uri) for r in await s.mcp.list_resources()}
-        served_ok = "ui://yarnnn/trace-timeline.html" in res
-        blob = list(await s.mcp.read_resource("ui://yarnnn/trace-timeline.html"))[0]
-        # The built bundle is minified React; assert the runtime contract that
-        # survives minification, not source literals: a single self-contained
-        # HTML (no external code refs), React mount, and the MCP Apps bridge
-        # subscription. (The placeholder used `result.history` as a literal; the
-        # built bundle subscribes to the bridge instead.)
-        c = blob.content
-        no_external = 'src="http' not in c and "src='http" not in c
-        bundle_ok = (
-            blob.mime_type == registry.RESOURCE_MIME
-            and c.lstrip().startswith("<!doctype html>")
-            and no_external
-            and "createRoot" in c
-            and "ui/notifications/tool-result" in c
+        # D2: ALL THREE tool DEFINITIONS carry the openai/outputTemplate binding.
+        def_ok = all(
+            (tools[n].meta or {}).get("openai/outputTemplate") == uri
+            for n, uri in widget_uris.items()
         )
+        # all three widget resources registered + serve a valid self-contained bundle.
+        res = {str(r.uri) for r in await s.mcp.list_resources()}
+        served_ok = all(uri in res for uri in widget_uris.values())
+        bundle_ok = True
+        for uri in widget_uris.values():
+            blob = list(await s.mcp.read_resource(uri))[0]
+            c = blob.content
+            no_external = 'src="http' not in c and "src='http" not in c
+            if not (
+                blob.mime_type == registry.RESOURCE_MIME
+                and c.lstrip().startswith("<!doctype html>")
+                and no_external
+                and "createRoot" in c
+            ):
+                bundle_ok = False
         return def_ok, served_ok, bundle_ok
 
     def_ok, served_ok, bundle_ok = asyncio.run(_wire())
     results.append(_check(
-        "10 trace DEFINITION carries _meta (host registers template); remember has none (D2)",
+        "10 all three tool DEFINITIONS carry openai/outputTemplate (host registers each template; D2)",
         def_ok))
     results.append(_check(
-        "11 widget served at ui:// — self-contained HTML, React mount, MCP Apps bridge (§3/§7)",
+        "11 all three widgets served at ui:// — self-contained HTML, React mount, skybridge MIME (§3/§7)",
         served_ok and bundle_ok))
 
     # ---- compose_trace embeds diffs server-side (zero-callback, ADR-372) ----

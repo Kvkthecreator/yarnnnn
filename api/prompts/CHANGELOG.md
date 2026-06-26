@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.26.15] - ADR-372: rich rendering for ALL three tools — recall-cards + remember-receipt widgets
+
+**With the trace widget validated live, extended display widgets to the other two memory verbs** (operator request). All three now render on a host that supports it; text path unchanged everywhere. Display-only (no buttons/callbacks in v1) — pure presentation of returned substrate (D3), zero new action surface.
+
+- `widgets/src/recall-cards/`: renders `recall`'s `chunks[]` as scannable cards — each with a provenance chip (operator/reviewer/mcp/agent/system, same visual language as trace), domain, timestamp, the excerpt, and the source path. Header: "What YARNNN knows about '<subject>'".
+- `widgets/src/remember-receipt/`: a compact confirmation — ✓ saved, the filed path, the attributed source chip, and a note that the seat will place + check it. Handles the `success:false` case too. Makes the durable write *legible*.
+- `widgets/src/shared/`: refactored shared widget code — generic `useToolResult<T>(recognize)` reader (read-at-mount + `openai:set_globals` + 250ms poll + open-spec postMessage), `provenance.ts` (bucketing + `fmtWhen`), `yz-` namespaced stylesheet. trace-timeline keeps its own `tt-` styles (untouched).
+- `presentation/affordances.py`: `recall`→`recall-cards`, `remember`→`remember-receipt` added. `registry.py`: `Widget` gains per-widget `invoking`/`invoked` status strings; two new widgets registered. `adapters/openai.py`: invocation messages now read from the widget (were trace-hardcoded). `server.py`: two new `@mcp.resource` registrations + `recall`/`remember` tool defs carry their `outputTemplate` `_meta` + returns routed through `_present`. `build.mjs`: skip `shared/` (no index.tsx).
+- Fixed the recall `outputSchema` to match the real return (`chunks`, not `results`).
+- **Expected behavior**: on ChatGPT, `recall` renders a card list, `remember` renders a saved-receipt, `trace` the timeline — each with its own invoking/invoked status; the model still narrates in prose (D3). Text-only hosts unchanged. **Requires Settings→Connectors→Refresh in ChatGPT to pick up the new widgets** (version snapshot, per [2026.06.26.13]). Gate: test_adr372 (15/15, now covers all three widgets); test_adr368 (10/10).
+
 ## [2026.06.26.14] - ADR-376 perception slice: TrackWebSources retains cited raw observations (DP32 retain-clause)
 
 **The sole remaining DP32 (ledger-intake axiom) violator — perception — is fixed.** The web/RSS watch already CITED (`source_ref`, ADR-335 D3) and ATTRIBUTED (`system:track-web-sources`) but DISCARDED the fetched observation behind the distillation (only the distilled `_watch_signal.yaml` was kept → a judgment that fired on a signal couldn't re-read what produced it → the watch was unfalsifiable). Per DP32's retain-clause (retain what a derived act CITES, not every byte):

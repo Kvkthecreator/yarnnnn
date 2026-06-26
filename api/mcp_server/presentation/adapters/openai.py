@@ -40,8 +40,8 @@ def overlay_definition(meta: dict, widget: Any) -> dict:
     meta = {**meta}
     meta["openai/outputTemplate"] = widget.uri
     meta["openai/widgetAccessible"] = True
-    meta["openai/toolInvocation/invoking"] = "Tracing the revision history…"
-    meta["openai/toolInvocation/invoked"] = "Traced the revision history"
+    meta["openai/toolInvocation/invoking"] = widget.invoking
+    meta["openai/toolInvocation/invoked"] = widget.invoked
     return meta
 
 
@@ -52,6 +52,6 @@ def overlay_response(meta: dict, widget: Any) -> dict:
     the template binding lives on the definition. Kept thin.
     """
     meta = {**meta}
-    meta["openai/toolInvocation/invoking"] = "Tracing the revision history…"
-    meta["openai/toolInvocation/invoked"] = "Traced the revision history"
+    meta["openai/toolInvocation/invoking"] = widget.invoking
+    meta["openai/toolInvocation/invoked"] = widget.invoked
     return meta

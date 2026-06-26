@@ -268,6 +268,26 @@ def trace_timeline_widget() -> str:
     return presentation_registry.widget_for("trace-timeline").read_bundle()
 
 
+@mcp.resource(
+    "ui://yarnnn/recall-cards.html",
+    mime_type=presentation_registry.RESOURCE_MIME,
+    meta=presentation_registry.served_resource_meta("recall-cards"),
+)
+def recall_cards_widget() -> str:
+    """Serve the recall-cards widget bundle (ADR-372)."""
+    return presentation_registry.widget_for("recall-cards").read_bundle()
+
+
+@mcp.resource(
+    "ui://yarnnn/remember-receipt.html",
+    mime_type=presentation_registry.RESOURCE_MIME,
+    meta=presentation_registry.served_resource_meta("remember-receipt"),
+)
+def remember_receipt_widget() -> str:
+    """Serve the remember-receipt widget bundle (ADR-372)."""
+    return presentation_registry.widget_for("remember-receipt").read_bundle()
+
+
 # =============================================================================
 # The memory-first interop surface — remember / recall / trace (ADR-368)
 # =============================================================================
@@ -278,6 +298,7 @@ def trace_timeline_widget() -> str:
 
 
 @mcp.tool(
+    meta=presentation_registry.tool_definition_meta("remember-receipt"),
     # ADR-372 submission-readiness: action annotations are an App-review
     # requirement (and incorrect ones are a named rejection reason). remember is a
     # WRITE but NON-destructive — it CAPTURES an attributed raw observation
@@ -333,7 +354,7 @@ async def remember(
             body="empty content — nothing written",
             client_name=client_name, extra_metadata={"outcome": "rejected"},
         )
-        return {"success": False, "error": "empty_content", "message": "content is required"}
+        return _present("remember", {"success": False, "error": "empty_content", "message": "content is required"})
 
     # ADR-376 / DP32: the dump is an attributed RAW observation — it lands in the
     # inbound/mcp/{client}/ raw lane (outside the topology cut, never rewritten);
@@ -351,11 +372,11 @@ async def remember(
             client_name=client_name,
             extra_metadata={"outcome": "failed", "error": result.get("error")},
         )
-        return {
+        return _present("remember", {
             "success": False,
             "error": result.get("error", "write_failed"),
             "message": result.get("message", "remember dispatch failed"),
-        }
+        })
 
     written_path = result.get("filename") or result.get("path") or "(unknown)"
 
@@ -379,7 +400,8 @@ async def remember(
         client_name=client_name,
         extra_metadata={"written_to": written_path, "outcome": "success"},
     )
-    return {
+    # ADR-372 D4: rich hosts render the remember-receipt widget; text path intact.
+    return _present("remember", {
         "success": True,
         "written_to": written_path,
         "provenance": {
@@ -389,10 +411,11 @@ async def remember(
         },
         # ADR-368 D5: the seat will file this where it belongs + validate it.
         "captured": True,
-    }
+    })
 
 
 @mcp.tool(
+    meta=presentation_registry.tool_definition_meta("recall-cards"),
     # recall is a pure READ — it returns ranked excerpts, writes nothing. The
     # DESTRUCTIVE label seen in dev mode was a MISSING annotation defaulting
     # conservatively; readOnlyHint corrects it (and removes the permission
@@ -456,7 +479,8 @@ async def recall(
         client_name=client_name,
         extra_metadata={"subject": subject, "returned": n},
     )
-    return result
+    # ADR-372 D4: rich hosts render the recall-cards widget; text path intact.
+    return _present("recall", result)
 
 
 @mcp.tool(
@@ -554,7 +578,8 @@ _OUTPUT_SCHEMAS = {
         "type": "object",
         "properties": {
             "subject": {"type": "string"},
-            "results": {"type": "array", "items": {"type": "object"}, "description": "ranked excerpts of recorded material"},
+            "chunks": {"type": "array", "items": {"type": "object"}, "description": "ranked excerpts of recorded material (path, excerpt, last_updated, domain, source_tag)"},
+            "total_matches": {"type": "integer"},
             "returned": {"type": "integer"},
             "explanation": {"type": "string"},
         },

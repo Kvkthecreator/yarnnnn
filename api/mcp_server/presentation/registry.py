@@ -44,6 +44,8 @@ class Widget:
 
     uri: str
     bundle_filename: str
+    invoking: str = "Working…"   # ChatGPT status while the tool runs
+    invoked: str = "Done"        # ChatGPT status when it completes
     domain: str = _SERVER_URL
     csp_connect: tuple[str, ...] = field(default_factory=lambda: (_SERVER_URL,))
 
@@ -62,6 +64,20 @@ WIDGETS: dict[str, Widget] = {
     "trace-timeline": Widget(
         uri="ui://yarnnn/trace-timeline.html",
         bundle_filename="trace-timeline.html",
+        invoking="Tracing the revision history…",
+        invoked="Traced the revision history",
+    ),
+    "recall-cards": Widget(
+        uri="ui://yarnnn/recall-cards.html",
+        bundle_filename="recall-cards.html",
+        invoking="Recalling from your memory…",
+        invoked="Recalled from your memory",
+    ),
+    "remember-receipt": Widget(
+        uri="ui://yarnnn/remember-receipt.html",
+        bundle_filename="remember-receipt.html",
+        invoking="Saving to your memory…",
+        invoked="Saved to your memory",
     ),
 }
 

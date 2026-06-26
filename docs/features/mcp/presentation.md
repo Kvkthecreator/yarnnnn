@@ -30,16 +30,19 @@ Presentation is declared as data adjacent to each tool. A tool with no declarati
 # Neutral, host-agnostic. No OpenAI/ChatGPT names appear here.
 
 AFFORDANCES: dict[str, Affordance] = {
-    # tool name → affordance
-    "trace": Affordance(
-        widget="trace-timeline",     # registry id → ui:// resource
-        fallback="text",             # always; text path is never removed
-        interactive=True,            # widget may call back into tools (D6)
-    ),
-    # "recall": Affordance(widget="recall-cards", fallback="text", interactive=False),
-    # "remember": (none) — a fire-and-forget write; text confirmation is correct.
+    # tool name → affordance. All three memory verbs render (2026-06-26):
+    "trace":    Affordance(widget="trace-timeline",    fallback="text", interactive=True),
+    "recall":   Affordance(widget="recall-cards",      fallback="text", interactive=False),
+    "remember": Affordance(widget="remember-receipt",  fallback="text", interactive=False),
 }
 ```
+
+The three widgets, by display intent:
+- **`trace-timeline`** — the revision chain as a provenance-colored vertical timeline with click-to-expand inline diffs (the differentiator).
+- **`recall-cards`** — ranked excerpts as scannable cards: each with a provenance chip, domain, timestamp, the excerpt, and the source path.
+- **`remember-receipt`** — a compact confirmation: ✓ saved, where it was filed, and the attributed source (makes the durable write *legible*).
+
+All three are **display-only** (no buttons / no callbacks in v1) — pure presentation of returned substrate (D3), which keeps zero new action surface and zero review-risk. Shared widget code lives in `widgets/src/shared/` (the `useToolResult` reader, provenance bucketing, the `yz-` stylesheet); each widget is `widgets/src/<name>/`.
 
 `Affordance` is a frozen dataclass. **Why data, not inline `_meta`:** the three verbs are subject to change (README §"Why these three verbs"); the affordance *mechanism* is the durable layer. A new verb opts in with one dict entry; a removed verb drops one. No tool body is rewired, and the vendor `_meta` shape is generated downstream (§4), never authored here.
 
