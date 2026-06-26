@@ -109,28 +109,60 @@ class _FakeClient:
 # Tests — the write path row shape
 # ---------------------------------------------------------------------------
 
-def test_write_revision_omits_workspace_id_when_none() -> None:
-    """N=1 / un-backfilled fallback: no workspace_id key → byte-identical."""
-    from services.authored_substrate import write_revision
+def test_write_revision_omits_workspace_id_when_unresolvable() -> None:
+    """Resolution failure → no workspace_id key, write still succeeds (never blocks).
 
-    fc = _FakeClient()
-    write_revision(
-        fc,
-        user_id="u1",
-        path="operation/x.md",
-        content="hello",
-        authored_by="operator",
-        message="m",
-        # workspace_id NOT passed
-    )
+    Monkeypatches the resolver to None so the lazy resolution finds nothing —
+    the row must be byte-identical to the pre-ADR-373 shape and the write must
+    not raise.
+    """
+    from services import authored_substrate as a
+    import services.supabase as s
+
+    orig = s.resolve_owner_workspace_id
+    s.resolve_owner_workspace_id = lambda _uid: None
+    try:
+        fc = _FakeClient()
+        a.write_revision(
+            fc, user_id="u1", path="operation/x.md", content="hello",
+            authored_by="operator", message="m",
+        )
+    finally:
+        s.resolve_owner_workspace_id = orig
     rev_rows = fc.recorded.get("workspace_file_versions", [])
     file_rows = fc.recorded.get("workspace_files", [])
     rev_ok = rev_rows and "workspace_id" not in rev_rows[0]["payload"]
     file_ok = file_rows and "workspace_id" not in file_rows[0]["payload"]
     record(
-        "write_revision omits workspace_id when None (byte-identical N=1)",
+        "write_revision omits workspace_id when unresolvable (never blocks)",
         bool(rev_ok and file_ok),
         "" if (rev_ok and file_ok) else f"rev={rev_rows}, file={file_rows}",
+    )
+
+
+def test_write_revision_lazily_resolves_workspace_id() -> None:
+    """The sweep chokepoint: an un-supplied workspace_id is resolved from user_id."""
+    from services import authored_substrate as a
+    import services.supabase as s
+
+    orig = s.resolve_owner_workspace_id
+    s.resolve_owner_workspace_id = lambda uid: "ws-from-resolver" if uid == "u1" else None
+    try:
+        fc = _FakeClient()
+        a.write_revision(
+            fc, user_id="u1", path="operation/x.md", content="hello",
+            authored_by="operator", message="m",
+            # workspace_id NOT passed → must be lazily resolved
+        )
+    finally:
+        s.resolve_owner_workspace_id = orig
+    rev = fc.recorded["workspace_file_versions"][0]["payload"]
+    fil = fc.recorded["workspace_files"][0]["payload"]
+    ok = rev.get("workspace_id") == "ws-from-resolver" and fil.get("workspace_id") == "ws-from-resolver"
+    record(
+        "write_revision lazily resolves workspace_id from user_id (sweep chokepoint)",
+        ok,
+        "" if ok else f"rev={rev}, file={fil}",
     )
 
 
@@ -307,7 +339,8 @@ def test_migration_grants_and_notnull() -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> int:
-    test_write_revision_omits_workspace_id_when_none()
+    test_write_revision_omits_workspace_id_when_unresolvable()
+    test_write_revision_lazily_resolves_workspace_id()
     test_write_revision_adds_workspace_id_when_supplied()
     test_upsert_conflict_target_unchanged()
     test_delete_live_file_accepts_workspace_id()

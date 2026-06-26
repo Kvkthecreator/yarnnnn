@@ -344,6 +344,25 @@ def write_revision(
     if not message or not message.strip():
         raise ValueError("message is required and must be non-empty")
 
+    # ADR-373: key the write to the workspace. The caller may pass workspace_id
+    # explicitly (e.g. resolved once on AuthenticatedClient); if not, resolve it
+    # lazily from user_id via the cached owner-workspace resolver. This is the
+    # write-path chokepoint that keys ALL ~41 call sites without per-site edits —
+    # the user-JWT routes and the service-key callers (scheduler, MCP, wake,
+    # mirrors) all reach here with a user_id, and the resolver is lru-cached so
+    # the lookup is ~free after the first hit per user. Best-effort: a None
+    # result leaves workspace_id NULL on this write, which a later write or the
+    # migration backfill fills — never blocks the write (byte-identical N=1).
+    if workspace_id is None:
+        try:
+            from services.supabase import resolve_owner_workspace_id
+            workspace_id = resolve_owner_workspace_id(user_id)
+        except Exception as exc:  # pragma: no cover - resolution is best-effort
+            logger.debug(
+                "[AUTHORED_SUBSTRATE] workspace_id resolve failed for %s: %s",
+                user_id, exc,
+            )
+
     sha = _sha256(content)
     _upsert_blob(db_client, sha, content)
 
@@ -415,6 +434,17 @@ def delete_live_file(
         raise ValueError("authored_by is required and must be non-empty")
     if not message or not message.strip():
         raise ValueError("message is required and must be non-empty")
+
+    # ADR-373: key the tombstone revision to the workspace (see write_revision).
+    if workspace_id is None:
+        try:
+            from services.supabase import resolve_owner_workspace_id
+            workspace_id = resolve_owner_workspace_id(user_id)
+        except Exception as exc:  # pragma: no cover - best-effort
+            logger.debug(
+                "[AUTHORED_SUBSTRATE] workspace_id resolve failed for %s: %s",
+                user_id, exc,
+            )
 
     live = (
         db_client.table("workspace_files")
