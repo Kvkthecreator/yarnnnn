@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 import json
 import base64
+import logging
 from functools import lru_cache
 from typing import Iterator, Optional, Tuple
 from dataclasses import dataclass
@@ -19,6 +20,8 @@ try:
     from typing import Annotated
 except ImportError:
     from typing_extensions import Annotated
+
+logger = logging.getLogger(__name__)
 
 
 def decode_jwt_payload(token: str) -> dict:
@@ -54,11 +57,59 @@ class AuthenticatedClient:
     callers (Reviewer wake, mechanical recurrence, MCP, specialist
     dispatch) build their own auth namespaces and set ``caller_identity``
     explicitly at construction time.
+
+    ADR-373 D1: ``workspace_id`` carries the substrate's binding unit — the
+    workspace this auth reaches. Resolved once, at auth construction, from the
+    principal's grant (the N=1 case: the user's singleton owner-workspace). It
+    is the SECOND growth of this dataclass (``caller_identity`` was the first,
+    ADR-288): derive the workspace once here, thread the same object, never
+    re-resolve at the 118 substrate query sites. ``Optional`` during the Phase-1
+    transition — a caller that has not set it falls back to ``user_id`` scoping
+    (byte-identical in N=1, where one user owns exactly one workspace). Code
+    that has switched to workspace scoping reads ``workspace_id``; code still on
+    ``user_id`` is unaffected. Both key the same rows until the sweep completes.
     """
     client: Client
     user_id: str
     email: Optional[str] = None
     caller_identity: str = "operator"
+    workspace_id: Optional[str] = None
+
+
+def resolve_owner_workspace_id(user_id: str) -> Optional[str]:
+    """Resolve the singleton owner-workspace id for a human user (ADR-373 D1).
+
+    The N=1 resolver: each user owns exactly one workspace (migration 189's
+    ``uq_workspaces_singleton_owner``). Uses the service client (the lookup must
+    not depend on the caller's own RLS, which is mid-transition). Returns None
+    if no workspace row exists yet (pre-migration / un-backfilled) — callers
+    then fall back to ``user_id`` scoping, which is byte-identical in N=1.
+
+    Cached per-process: the owner→workspace mapping is stable (a user's
+    singleton workspace id does not change), so this is safe to memoize and
+    keeps the hot auth path off a per-request DB round-trip.
+    """
+    return _resolve_owner_workspace_id_cached(user_id)
+
+
+@lru_cache(maxsize=4096)
+def _resolve_owner_workspace_id_cached(user_id: str) -> Optional[str]:
+    try:
+        client = get_service_client()
+        result = (
+            client.table("workspaces")
+            .select("id")
+            .eq("owner_user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return result.data[0]["id"]
+    except Exception as exc:  # pragma: no cover - resolution is best-effort
+        # Pre-migration (no workspaces table) or transient: fall back to
+        # user_id scoping. Never block the request on workspace resolution.
+        logger.debug("[ADR-373] owner-workspace resolve failed for %s: %s", user_id, exc)
+    return None
 
 
 def close_supabase_client(client: Client) -> None:
@@ -160,8 +211,20 @@ def get_user_client(
     # Set the auth token for RLS
     client.postgrest.auth(token)
 
+    # ADR-373 D1: resolve the binding workspace once, here, so every substrate
+    # access through this auth keys on it without re-resolving. Cached + best-
+    # effort — None pre-migration, where callers fall back to user_id scoping
+    # (byte-identical in N=1). This adds no per-request DB round-trip after the
+    # first resolution for a given user (lru_cache on the stable owner mapping).
+    workspace_id = resolve_owner_workspace_id(user_id)
+
     try:
-        yield AuthenticatedClient(client=client, user_id=user_id, email=email)
+        yield AuthenticatedClient(
+            client=client,
+            user_id=user_id,
+            email=email,
+            workspace_id=workspace_id,
+        )
     finally:
         # Release BOTH request-scoped httpx pools (postgrest + gotrue auth).
         close_supabase_client(client)

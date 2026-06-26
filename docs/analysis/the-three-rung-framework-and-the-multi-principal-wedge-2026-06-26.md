@@ -172,10 +172,14 @@ Named so the follow-on ADRs own them rather than pretend they are settled:
 
 The re-key was audited against the live repo. **Finding: the architecture has the seam pre-cut at every layer the re-key touches.** The blast radius is smaller than a "foundational data-model change" usually implies, because three prior ADRs (209 single-write-path, 288 caller-identity, 320 topology) already isolated the exact insertion points. Scoped below; each claim has a receipt.
 
-### 6.1 The substrate keying (the foundational change) — bounded, not sprawling
+### 6.1 The substrate keying (the foundational change) — bounded by a chokepoint, but larger than first claimed
 
-- **Only ~16 `user_id` scoping sites** in the two core substrate files (`authored_substrate.py` + `workspace.py`) — receipt: `grep -c '"user_id"'`. The substrate funnels through **one write path** (`write_revision()`, ADR-209) and a small read set (`list_revisions`/`read_revision`/`diff`), so the re-key is concentrated, not scattered across 118 substrate-touching files.
-- **No pre-existing `workspace_id` concept to collide with** — receipt: `grep -rln workspace_id api/` returns only `.venv` vendor hits. The name is free; the migration adds a column, it does not reconcile a conflicting one.
+**Scope correction (Phase-1 scoping pass, 2026-06-26):** an earlier draft of this section claimed "~16 `user_id` scoping sites in two files" — that grep was scoped to `authored_substrate.py` + `workspace.py` only and **undercounted**. The true census: **49 files** touch the substrate tables; **118 query sites** against `workspace_files`/`workspace_file_versions`. The re-key is **~3× the original claim** — still bounded, but a multi-day sweep, not a one-file edit. Two facts keep it tractable:
+
+- **The `AuthenticatedClient` chokepoint** ([`supabase.py:44`](../../api/services/supabase.py#L44)). `user_id` is carried by **one dataclass** — `{client, user_id, email, caller_identity}` — passed as `auth` into every route. It already grew one field for ADR-288 (`caller_identity`); `workspace_id` is its natural second growth. **Derive `workspace_id` once at auth construction and thread the same object — do not re-derive at 118 sites.**
+- **Dual-path scoping splits the 118.** The **user-JWT path** (operator routes) auto-scopes via RLS (`user_id = auth.uid()`) — most route reads carry *no* explicit `user_id` and change **zero lines** once RLS is re-keyed. The **service-key path** (scheduler, MCP, wake, `write_revision`) bypasses RLS and uses explicit `.eq("user_id", …)` — these are the real sweep. The write path itself is the spine: `write_revision()` + 4 helpers thread `user_id` as a keyword = **5 function signatures**.
+- **No pre-existing `workspace_id` concept to collide with** — receipt: `grep -rln workspace_id api/` returns only `.venv` vendor hits. The name is free.
+- **`workspace_blobs` is untouched** — content-addressed global (no `user_id`); scoping lives at the revision/file layer, which is what re-keys.
 - **Schema is cleanly partitionable** (pivot memo §6 Finding 2, re-confirmed): substrate tables key on `auth.users`, agent tables key on `auth.users`, **no cross-layer FKs**. The re-key adds a `workspaces` table + `workspace_id` FK on substrate tables; `user_id` becomes a *membership* fact (`principal_grants`), not the substrate key.
 - **Migration shape**: at launch scale (few rows) this is the *cheapest* time to do it (memo D3). Backfill: every existing `user_id` → a singleton `workspace_id` (owner = that user). The 1:1 world becomes the N=1 case of the N-principal model with zero behavior change — which is the proof the model is a clean generalization, not a rewrite.
 
@@ -215,13 +219,13 @@ Receipt — the auth surface is three files (`auth.py`, `server.py`, `oauth_prov
 
 | Layer | Change | Size | Pre-cut by |
 |---|---|---|---|
-| Substrate keying | `+workspaces` table, `+workspace_id` FK, `user_id`→membership; ~16 scoping sites re-pointed | **Foundational, bounded** | ADR-209 single write path |
+| Substrate keying | `+workspaces` table, `+workspace_id` FK, `user_id`→membership; **118 query sites / 49 files** re-pointed (corrected from "~16/2") — chokepointed at `AuthenticatedClient`; RLS auto-scopes the user-JWT reads | **Foundational; multi-day sweep, not one file** | ADR-209 single write path + `AuthenticatedClient` chokepoint |
 | Gate / grant | `_caller_class` consults `principal_grants`; `CALLER_WRITE_POLICY` reinterpreted as class-defaults; `+principal_grants` table + CRUD | **One function + one table** | ADR-288 caller-identity, ADR-320 topology |
 | MCP→wake | `wake_scope = user_id` → `resolved workspace_id` | **One line** (the code's own TODO) | ADR-368 D5 isolation |
 | Auth | `resolve_request_client` gains workspace+role lookup; `+a2a:` prefix | **Resolution-only; mechanism survives** | ADR-371 D1/D4 |
 | Merge/CRDT/branching | **none** — excluded by construction | **Zero** | ADR-286 single-writer, ADR-209 §7 |
 
-**Verdict:** the re-key is foundational (it is the data-model spine) but **not sprawling** — it is concentrated at four pre-isolated seams the architecture already cut, and the single largest cost a multi-party substrate usually carries (merge/CRDT) is excluded by the single-writer-per-path discipline you already shipped. "Prep but don't scope the diff machinery" (KVK) is the correct posture and the code already embodies it: the revision chain *is* the per-principal diff; no diff/merge system is built.
+**Verdict:** the re-key is foundational (the data-model spine) and **larger than first claimed** — 118 query sites across 49 files, not the "~16 in 2 files" an earlier draft asserted (that grep was scoped to two files; the Phase-1 scoping pass corrected it). But it is **chokepointed, not sprawling**: `user_id` is carried by one dataclass (`AuthenticatedClient`) that already grew a field for ADR-288, so `workspace_id` is derived once and threaded — not re-derived at 118 sites; and the user-JWT read majority is re-keyed at the **RLS** layer (zero route-line changes), leaving the explicit-scope service-key callers as the real sweep. The single largest cost a multi-party substrate usually carries (merge/CRDT) remains excluded by single-writer-per-path. "Prep but don't scope the diff machinery" (KVK) holds: the revision chain *is* the per-principal diff; no diff/merge system is built.
 
 ---
 

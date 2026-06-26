@@ -191,8 +191,16 @@ def _insert_revision(
     authored_by: str,
     author_identity_uuid: Optional[str],
     message: str,
+    workspace_id: Optional[str] = None,
 ) -> str:
-    """Insert one revision row, return the new revision id."""
+    """Insert one revision row, return the new revision id.
+
+    ADR-373: ``workspace_id`` is dual-written alongside ``user_id`` when the
+    caller supplies it (resolved once via ``AuthenticatedClient``). Omitted →
+    NULL, which migration 189's backfill / a later write fills; in N=1 the
+    column is redundant with ``user_id`` (one user owns one workspace), so the
+    write is byte-identical whether or not ``workspace_id`` is passed.
+    """
     row = {
         "user_id": user_id,
         "path": path,
@@ -202,6 +210,8 @@ def _insert_revision(
         "author_identity_uuid": author_identity_uuid,
         "message": message,
     }
+    if workspace_id is not None:
+        row["workspace_id"] = workspace_id
     result = (
         db_client.table("workspace_file_versions")
         .insert(row)
@@ -227,11 +237,19 @@ def _upsert_workspace_file(
     content_type: Optional[str] = None,
     content_url: Optional[str] = None,
     metadata: Optional[dict] = None,
+    workspace_id: Optional[str] = None,
 ) -> None:
     """Upsert the workspace_files row to reflect the new head revision.
 
     Carries the denormalized content + head pointer + optional metadata
     columns. Idempotent via ON CONFLICT (user_id, path).
+
+    ADR-373: ``workspace_id`` is dual-written when supplied (see
+    ``_insert_revision``). The ON CONFLICT target stays ``(user_id, path)``
+    during Phase 1 — the existing UNIQUE constraint is unchanged; in N=1
+    ``(workspace_id, path)`` is 1:1 with it, so conflict semantics are
+    identical. (A later phase moves the conflict target once code is fully off
+    ``user_id``.)
     """
     from datetime import datetime, timezone
 
@@ -242,6 +260,8 @@ def _upsert_workspace_file(
         "head_version_id": head_version_id,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+    if workspace_id is not None:
+        data["workspace_id"] = workspace_id
     if summary is not None:
         data["summary"] = summary
     if tags is not None:
@@ -276,6 +296,7 @@ def write_revision(
     content_type: Optional[str] = None,
     content_url: Optional[str] = None,
     metadata: Optional[dict] = None,
+    workspace_id: Optional[str] = None,
 ) -> str:
     """The single write path for every substrate mutation.
 
@@ -337,6 +358,7 @@ def write_revision(
         authored_by=authored_by,
         author_identity_uuid=author_identity_uuid,
         message=message,
+        workspace_id=workspace_id,
     )
 
     _upsert_workspace_file(
@@ -351,6 +373,7 @@ def write_revision(
         content_type=content_type,
         content_url=content_url,
         metadata=metadata,
+        workspace_id=workspace_id,
     )
 
     logger.debug(
@@ -368,6 +391,7 @@ def delete_live_file(
     path: str,
     authored_by: str,
     message: str,
+    workspace_id: Optional[str] = None,
 ) -> Optional[str]:
     """Remove a file from the live view with an attributed tombstone (ADR-337 D2).
 
@@ -419,6 +443,7 @@ def delete_live_file(
         authored_by=authored_by,
         author_identity_uuid=None,
         message=message,
+        workspace_id=workspace_id,
     )
 
     db_client.table("workspace_files").delete().eq(
