@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.26.9] - ADR-372 submission-readiness: tool annotations + output schemas + review-friendly copy
+
+**Hardening the MCP tools toward OpenAI App-directory submission** (the path from dev-mode → submitted → listed). Three changes, all on the `remember`/`recall`/`trace` definitions:
+
+- **Action annotations** (`ToolAnnotations`) — **incorrect/missing annotations are a NAMED App-review rejection reason**, and the live dev-mode UI mislabeled `recall` as DESTRUCTIVE (a missing-annotation default). Now: `recall`/`trace` = `readOnlyHint=True` + `idempotentHint=True` + `destructiveHint=False`; `remember` = `readOnlyHint=False` + `destructiveHint=False` (a non-destructive capture, never delete/overwrite). All three `openWorldHint=True` (evolving substrate). Also removes the dev-mode permission friction immediately.
+- **Output schemas** — clears the "OUTPUT SCHEMA RECOMMENDED" flag and lets the host validate `structuredContent` (and makes trace's widget render contract explicit). Declared as data + attached post-registration (`tool.output_schema`) because FastMCP's annotation-derivation fails on trace's nested `history` TypedDict and is bypassed by trace's `CallToolResult` return. Schemas are permissive (no `additionalProperties:false`) so real returns with extra keys still validate — verified no false-reject risk.
+- **Review-friendly copy** — the user/reviewer-facing descriptions + server `instructions` reframed from "follows you across every LLM / visible to any other LLM you switch to" → **"durable memory that persists, attributed"** (operator decision: neutral framing). Every factual claim preserved; the portability is real but no longer pitched AT competitor LLMs inside ChatGPT's own store — lowest review-friction. Internal module docstrings keep the honest cross-LLM architecture note (developer-facing, not submitted).
+- **Expected behavior**: no functional change to what the tools DO; `recall`/`trace` stop prompting for destructive-action permission; the App-review surface stops flagging annotations + output schema. Gate: `test_adr372_presentation_affordances.py` (15/15). Positioning + submission-metadata doc: `docs/features/mcp/SUBMISSION.md` (this commit's sibling).
+
 ## [2026.06.26.8] - MCP intake: derive-and-cite, not rewrite-in-place (ADR-376 / DP32 ledger-intake)
 
 **The MCP `remember` placement wake changed from "file the dump in place" to "derive-and-cite" — the ledger-intake axiom (FOUNDATIONS DP32, ADR-376).** A foreign LLM's `remember` is now a RAW observation landing immutably in the `inbound/mcp/{client}/` raw lane; the seat DERIVES the workspace's understanding into `operation/` as a SEPARATE citing act, never rewriting the raw.

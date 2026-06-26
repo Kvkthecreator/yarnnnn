@@ -107,6 +107,7 @@ This README is the entry point. It establishes the service philosophy, the three
 - **[workflows.md](workflows.md)** — dialogue-level walkthroughs: conversation topic, in-conversation artifact, cold start, and cross-LLM continuity (the load-bearing case)
 - **[architecture.md](architecture.md)** — primitive mapping to the ADR-168 matrix, backend dispatch through `execute_primitive()`, cost model, implementation plan
 - **[presentation.md](presentation.md)** — rich rendering on the interop face (ADR-372): how a host that can render widgets (ChatGPT/Apps SDK, MCP Apps hosts) gets an interactive view of the *same returned substrate*, text-default always preserved, kernel untouched. The third face of the one moat.
+- **[SUBMISSION.md](SUBMISSION.md)** — the ChatGPT App-directory submission playbook: positioning (the review-safe framing), the exact metadata, the privacy-policy + readiness checklist, and how to drive the submission via Claude Cowork.
 
 **ADR-310** is the governing decision record (superseding ADR-169); this folder is the canonical product framing it references. The ADR captures the decision; these docs capture the feature.
 

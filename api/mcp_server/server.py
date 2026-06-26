@@ -48,7 +48,7 @@ from mcp.server.auth.settings import (
 )
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
-from mcp.types import CallToolResult, TextContent
+from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import AnyHttpUrl
 
 from mcp_server.auth import resolve_request_client
@@ -196,12 +196,12 @@ _server_url = os.environ.get(
 mcp = FastMCP(
     "yarnnn",
     instructions=(
-        "YARNNN is the user's memory across every LLM they use. Whatever they "
-        "record in YARNNN follows them — from this conversation into ChatGPT, "
-        "Claude, any LLM — attributed and intact. Three verbs:\n"
+        "YARNNN is the user's durable, attributed memory — the knowledge they "
+        "record persists across sessions, intact and with full provenance. "
+        "Three verbs:\n"
         "  • remember — save something worth keeping (a decision, insight, fact,\n"
-        "               preference). Whatever you save is immediately visible to\n"
-        "               any other LLM the user switches to.\n"
+        "               preference). The write is durable and immediately\n"
+        "               available on the next recall.\n"
         "  • recall   — pull what the user already knows about a subject when\n"
         "               they reference something they might track. YARNNN returns\n"
         "               the material; YOU explain it in your own voice.\n"
@@ -211,7 +211,7 @@ mcp = FastMCP(
         "Use these proactively — YARNNN is supposed to be ambient. Don't wait for "
         "the user to ask: recall before reasoning about something they track, and "
         "remember when they share something worth keeping. You are reading and "
-        "writing a shared memory — not asking YARNNN to do work for you."
+        "writing the user's durable memory — not asking YARNNN to do work for you."
     ),
     lifespan=lifespan,
     # OAuth 2.1 provider — Claude.ai connectors + ChatGPT developer mode
@@ -277,13 +277,26 @@ def trace_timeline_widget() -> str:
 # primitives remain available defer-loaded for agentic hosts that do chain.
 
 
-@mcp.tool()
+@mcp.tool(
+    # ADR-372 submission-readiness: action annotations are an App-review
+    # requirement (and incorrect ones are a named rejection reason). remember is a
+    # WRITE but NON-destructive — it CAPTURES an attributed raw observation
+    # (append/new file), never deletes or overwrites destructively. openWorld
+    # because it reaches the user's evolving substrate.
+    annotations=ToolAnnotations(
+        title="Remember",
+        readOnlyHint=False,
+        destructiveHint=False,
+        idempotentHint=False,
+        openWorldHint=True,
+    ),
+)
 async def remember(
     ctx: Context,
     content: str,
     about: Optional[str] = None,
 ) -> dict:
-    """Save something into the user's YARNNN memory so it follows them across every LLM.
+    """Save something into the user's durable YARNNN memory so it persists for later.
 
     Call this whenever the user shares something worth keeping — a decision, an
     insight, a fact, a preference, an observation about something they track.
@@ -295,11 +308,11 @@ async def remember(
     clearly about a subject (a company, person, project, topic), pass that as
     `about`.
 
-    The write is synchronous and immediately visible to any other LLM the user
-    switches to, attributed to this LLM. YARNNN's own judgment seat then files
-    the memory where it belongs in the workspace and checks it against what it
-    already knows (in the background — you don't wait for it). You are saving to
-    a shared memory; you are not asking YARNNN to do work.
+    The write is synchronous and durable — immediately available on the next
+    recall, attributed to its source. YARNNN's own judgment seat then files the
+    memory where it belongs in the workspace and checks it against what it already
+    knows (in the background — you don't wait for it). You are saving to the
+    user's durable memory; you are not asking YARNNN to do work.
 
     Args:
         content: The thing to remember. Required.
@@ -379,7 +392,19 @@ async def remember(
     }
 
 
-@mcp.tool()
+@mcp.tool(
+    # recall is a pure READ — it returns ranked excerpts, writes nothing. The
+    # DESTRUCTIVE label seen in dev mode was a MISSING annotation defaulting
+    # conservatively; readOnlyHint corrects it (and removes the permission
+    # friction). openWorld because the substrate evolves between calls.
+    annotations=ToolAnnotations(
+        title="Recall",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
 async def recall(
     ctx: Context,
     subject: str,
@@ -434,7 +459,18 @@ async def recall(
     return result
 
 
-@mcp.tool(meta=presentation_registry.tool_definition_meta("trace-timeline"))
+@mcp.tool(
+    meta=presentation_registry.tool_definition_meta("trace-timeline"),
+    # trace is a pure READ — it returns the authored revision chain, writes
+    # nothing. Same correction as recall.
+    annotations=ToolAnnotations(
+        title="Trace",
+        readOnlyHint=True,
+        destructiveHint=False,
+        idempotentHint=True,
+        openWorldHint=True,
+    ),
+)
 async def trace(
     ctx: Context,
     subject: str,
@@ -482,6 +518,72 @@ async def trace(
     # ADR-372 D4: attach the widget `_meta` (rich hosts render the timeline) while
     # the full result stays in the text channel (text hosts are unaffected).
     return _present("trace", result)
+
+
+# =============================================================================
+# ADR-372 submission-readiness — explicit output schemas
+# =============================================================================
+# The App-review surface flags "OUTPUT SCHEMA RECOMMENDED" on tools without one;
+# a declared outputSchema lets the host validate structuredContent and (for
+# trace) makes the widget's render contract explicit. We declare them as data and
+# attach post-registration: FastMCP derives a schema from the return annotation
+# only with structured_output=True, which (a) fails on trace's nested history
+# TypedDict in this Pydantic and (b) is bypassed entirely because trace returns a
+# CallToolResult. Setting `output_schema` directly is the uniform, low-risk path.
+
+_REVISION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "authored_by": {"type": ["string", "null"], "description": "who authored this revision (operator | reviewer:<id> | yarnnn:mcp:<client> | agent:<slug> | system:<actor>)"},
+        "when": {"type": ["string", "null"], "description": "ISO timestamp of the revision"},
+        "change": {"type": ["string", "null"], "description": "the revision's change message"},
+        "revision_id": {"type": ["string", "null"]},
+        "diff": {"type": ["string", "null"], "description": "unified-diff vs the predecessor revision; null for the oldest"},
+    },
+}
+
+_OUTPUT_SCHEMAS = {
+    "remember": {
+        "type": "object",
+        "properties": {
+            "captured": {"type": "boolean", "description": "true when the observation was committed"},
+            "written_to": {"type": "string", "description": "the raw-capture path the observation landed at"},
+        },
+    },
+    "recall": {
+        "type": "object",
+        "properties": {
+            "subject": {"type": "string"},
+            "results": {"type": "array", "items": {"type": "object"}, "description": "ranked excerpts of recorded material"},
+            "returned": {"type": "integer"},
+            "explanation": {"type": "string"},
+        },
+    },
+    "trace": {
+        "type": "object",
+        "properties": {
+            "subject": {"type": "string"},
+            "path": {"type": ["string", "null"]},
+            "history": {"type": "array", "items": _REVISION_SCHEMA, "description": "revision chain, newest first"},
+            "returned": {"type": "integer"},
+            "explanation": {"type": "string"},
+        },
+    },
+}
+
+
+def _attach_output_schemas() -> None:
+    """Attach explicit output schemas to the registered tools (best-effort)."""
+    for name, schema in _OUTPUT_SCHEMAS.items():
+        try:
+            tool = mcp._tool_manager.get_tool(name)
+            if tool is not None:
+                tool.output_schema = schema
+        except Exception as exc:  # noqa: BLE001 — a schema attach must never break boot
+            logger.debug("[MCP] output-schema attach failed for %s: %s", name, exc)
+
+
+_attach_output_schemas()
 
 
 def _ensure_daily_session(auth) -> Optional[str]:
