@@ -26,7 +26,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Target, UserCircle, Scale, Package, Link2, Rss, AlertCircle, Rocket, Loader2, Wallet, ShieldCheck, Crosshair } from "lucide-react";
+import { Target, UserCircle, Scale, Package, Link2, Rss, AlertCircle, Rocket, Loader2, Wallet, ShieldCheck, Crosshair, ArrowRight } from "lucide-react";
 import { api, APIError } from "@/lib/api/client";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
@@ -37,7 +37,6 @@ import { SourcesCard } from "@/components/workspace-concepts/SourcesCard";
 import { AutonomyCard } from "@/components/workspace-concepts/AutonomyCard";
 import { BudgetCard } from "@/components/workspace-concepts/BudgetCard";
 import { ExpectedOutputCard } from "@/components/workspace-concepts/ExpectedOutputCard";
-import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 import { ProgramLifecycleDrawer } from "@/components/library/ProgramLifecycleDrawer";
 
 // ADR-341/347: pane keys match the kernel registry slugs for pane-grade
@@ -126,13 +125,34 @@ export default function WorkspaceSettingsPage() {
           </section>
         );
       case "connectors":
+        // ADR-377 D2: connections re-homed to Context (the perception home).
+        // Settings keeps a thin pointer, not the full UI — Singular
+        // Implementation (one real home). The rich connect/manage/freshness
+        // UI lives at /context?context.pane=connections.
         return (
           <section className="mb-8">
-            <ConnectedIntegrationsSection
-              title="Connectors"
-              description="Connect platforms to give your agents data. Platforms are infrastructure — connect once, agents read automatically."
-              redirectTo="/workspace-settings?workspace-settings.pane=connectors"
-            />
+            <div className="rounded-lg border border-border p-5">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                  <Link2 className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium">Connections</div>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    Connected platforms now live in Context — manage them and see what each
+                    is feeding the operation, in one place.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => navigateToSurface("context", { pane: "connections" })}
+                    className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+                  >
+                    Manage connections in Context
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
           </section>
         );
       case "sources":

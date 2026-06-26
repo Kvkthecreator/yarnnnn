@@ -1,14 +1,16 @@
 /**
- * /connectors → /workspace-settings?pane=connectors redirect stub.
+ * /connectors → /context?context.pane=connections redirect stub.
  *
- * ADR-341 (2026-06-18): Connectors is a Perception pane inside Workspace
- * Settings (the operation's transports), re-homed from System Settings
- * (ADR-340 P2). ConnectedIntegrationsSection is unchanged; only the door
- * moved. Pure server transport per ADR-308.
+ * ADR-377 (2026-06-26): Connections re-homed to Context (the perception
+ * home) — the canonical place for platform connections + their freshness.
+ * Workspace Settings keeps only a thin pointer; the `connectors` door now
+ * lands on Context's Connections pane. Pure server transport per ADR-308.
+ *
+ * (Prior: ADR-341 routed /connectors → Workspace-Settings → Perception pane.)
  */
 
 import { redirect } from 'next/navigation';
 
 export default function ConnectorsRedirect() {
-  redirect('/workspace-settings?workspace-settings.pane=connectors');
+  redirect('/context?context.pane=connections');
 }

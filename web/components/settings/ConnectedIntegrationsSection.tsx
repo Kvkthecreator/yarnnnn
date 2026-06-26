@@ -2,7 +2,10 @@
 
 import { useEffect, useState } from "react";
 import {
+  ArrowRight,
+  AlertTriangle,
   Check,
+  Clock,
   ExternalLink,
   Link2,
   Loader2,
@@ -23,6 +26,35 @@ interface SummaryPlatform {
   status: string;
 }
 
+// ADR-377: per-platform freshness summary (Context Connections pane). Derived
+// from GET /api/integrations/{provider}/sync-status — coverage + recency, the
+// real inbound signal that survives ADR-153 (platform_content sunset). NOT a
+// per-event ingestion log; that data no longer exists.
+interface PlatformFreshness {
+  resourceCount: number;
+  itemsSynced: number;
+  lastSynced: string | null; // most-recent last_synced across resources
+  staleCount: number;
+  errorCount: number;
+}
+
+// ADR-377: which providers have a sync registry (OAuth platforms with
+// synced_resources). Commerce/Trading authenticate by API key and have no
+// per-resource sync freshness — they are skipped in the freshness fan-out.
+const FRESHNESS_PROVIDERS = ["slack", "notion", "github"] as const;
+
+function relativeTime(iso: string | null): string {
+  if (!iso) return "never synced";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "unknown";
+  const mins = Math.floor((Date.now() - then) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 interface ConnectedIntegrationsSectionProps {
   title?: string;
   description?: string;
@@ -30,6 +62,15 @@ interface ConnectedIntegrationsSectionProps {
   children?: React.ReactNode;
   /** Frontend path to return to after OAuth (e.g. "/system"). Defaults to /dashboard. */
   redirectTo?: string;
+  /** ADR-377: when true, render a per-platform freshness strip (coverage +
+   *  last-synced + errors) inside each connected card, and a "View flow →"
+   *  link. The Context Connections pane sets this; Workspace-Settings (when
+   *  it still mounted this) left it false — byte-identical legacy behavior. */
+  showFreshness?: boolean;
+  /** ADR-377: invoked by the per-platform "View flow →" link (the Context
+   *  Connections pane wires it to switch to the Flow pane). Omitted → no
+   *  flow link rendered. */
+  onViewFlow?: (provider: string) => void;
 }
 
 export function ConnectedIntegrationsSection({
@@ -38,10 +79,13 @@ export function ConnectedIntegrationsSection({
   className,
   children,
   redirectTo,
+  showFreshness = false,
+  onViewFlow,
 }: ConnectedIntegrationsSectionProps) {
 
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [platformStatuses, setPlatformStatuses] = useState<Record<string, string>>({});
+  const [freshness, setFreshness] = useState<Record<string, PlatformFreshness>>({});
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
@@ -70,6 +114,41 @@ export function ConnectedIntegrationsSection({
       });
 
       setPlatformStatuses(statuses);
+
+      // ADR-377: fan out sync-status for connected freshness-capable
+      // providers (Slack/Notion/GitHub). Each call is independently
+      // guarded so one platform's failure doesn't blank the others.
+      if (showFreshness) {
+        const connected = FRESHNESS_PROVIDERS.filter((p) => statuses[p] === "active");
+        const results = await Promise.all(
+          connected.map(async (provider) => {
+            try {
+              const s = await api.integrations.getSyncStatus(provider);
+              const resources = s.synced_resources || [];
+              const lastSynced = resources
+                .map((r) => r.last_synced)
+                .filter((t): t is string => !!t)
+                .sort()
+                .pop() ?? null;
+              const fresh: PlatformFreshness = {
+                resourceCount: resources.length,
+                itemsSynced: resources.reduce((sum, r) => sum + (r.items_synced || 0), 0),
+                lastSynced,
+                staleCount: s.stale_count || 0,
+                errorCount: s.error_count || 0,
+              };
+              return [provider, fresh] as const;
+            } catch {
+              return null; // platform freshness unavailable — skip, don't blank
+            }
+          })
+        );
+        const map: Record<string, PlatformFreshness> = {};
+        results.forEach((r) => {
+          if (r) map[r[0]] = r[1];
+        });
+        setFreshness(map);
+      }
     } catch (err) {
       console.error("Failed to fetch integrations:", err);
     } finally {
@@ -113,6 +192,49 @@ export function ConnectedIntegrationsSection({
   const githubConnected = platformStatuses.github === "active";
   const commerceConnected = platformStatuses.commerce === "active";
   const tradingConnected = platformStatuses.trading === "active";
+
+  // ADR-377: the per-platform freshness strip + "View flow →" link, rendered
+  // inside each connected freshness-capable card when showFreshness is set.
+  // Returns null in the legacy (Workspace-Settings) mode so behavior is
+  // unchanged there.
+  const renderFreshness = (provider: string) => {
+    if (!showFreshness) return null;
+    const f = freshness[provider];
+    return (
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border/60 pt-2 text-xs text-muted-foreground">
+        {f ? (
+          <>
+            <span className="inline-flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {relativeTime(f.lastSynced)}
+            </span>
+            <span>
+              {f.resourceCount} {f.resourceCount === 1 ? "source" : "sources"}
+              {f.itemsSynced > 0 ? ` · ${f.itemsSynced} items` : ""}
+            </span>
+            {f.errorCount > 0 && (
+              <span className="inline-flex items-center gap-1 text-destructive">
+                <AlertTriangle className="h-3 w-3" />
+                {f.errorCount} {f.errorCount === 1 ? "error" : "errors"}
+              </span>
+            )}
+          </>
+        ) : (
+          <span>No sync activity yet</span>
+        )}
+        {onViewFlow && (
+          <button
+            type="button"
+            onClick={() => onViewFlow(provider)}
+            className="ml-auto inline-flex items-center gap-1 text-primary hover:underline"
+          >
+            View flow
+            <ArrowRight className="h-3 w-3" />
+          </button>
+        )}
+      </div>
+    );
+  };
 
   const handleConnectCommerce = async () => {
     if (!commerceApiKey.trim()) {
@@ -235,6 +357,7 @@ export function ConnectedIntegrationsSection({
                         </button>
                       )}
                     </div>
+                    {slackConnected && renderFreshness("slack")}
                   </div>
                 </div>
               </div>
@@ -307,6 +430,7 @@ export function ConnectedIntegrationsSection({
                         </button>
                       )}
                     </div>
+                    {notionConnected && renderFreshness("notion")}
                   </div>
                 </div>
               </div>
@@ -379,6 +503,7 @@ export function ConnectedIntegrationsSection({
                         </button>
                       )}
                     </div>
+                    {githubConnected && renderFreshness("github")}
                   </div>
                 </div>
               </div>

@@ -82,7 +82,7 @@ const AUTHOR_SURFACES = new Set([
 // narrower default. Everything not named here falls to DRAWER_DEFAULT.
 const SUPERVISE_SURFACES = new Set([
   'queue',
-  'feed',
+  'context', // ADR-370/377 — feed dissolved into Context (Flow lens + perception home); the read-surface workbench, narrow rail default
   'activity',
   'recurrence',
   'files',

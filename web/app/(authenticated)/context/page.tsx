@@ -1,58 +1,63 @@
 "use client";
 
 /**
- * /context — Context: the operation's boundary composition (ADR-370, 2026-06-25).
+ * /context — Context: the operation's PERCEPTION HOME (ADR-377, 2026-06-26).
  *
- * The THIRD composition window (after Home/Dwell and Notifications/operate-
- * the-work). One operator act: understand + manage the edge where the
- * workspace meets the outside world. Three lenses, a SettingsPaneShell split-
- * nav (the same shell behind Home/Notifications/Workspace Settings — Singular
- * Implementation):
+ * Supersedes the ADR-370 "composition over mirrors" In/Out/Flow lens triple.
+ * Context is now a Settings-like section-nav surface (Option A) — the
+ * all-in-one home for the operation's boundary with the outside world. It is
+ * the canonical home for platform connections (perception), not a second
+ * mount of the Workspace-Settings → Perception panes (the dual-home ADR-377
+ * resolves; Workspace-Settings keeps a thin "manage in Context →" pointer).
  *
- *   In   (pane `in`)   — what context FEEDS the operation. The Perception
- *                        field (ADR-335): Connectors + Sources. Second mount
- *                        of the Workspace-Settings → Perception panes
- *                        (ConnectedIntegrationsSection + SourcesCard) — same
- *                        self-contained bodies, gathered here under the
- *                        boundary framing.
- *   Out  (pane `out`)  — what the operation EMITS, to whom, when. The
- *                        operator-addressing dispatch ledger (EmissionsView
- *                        over GET /api/emissions), read-only. Sends stay
- *                        system infrastructure (ADR-299/304) — this is
- *                        legibility, never a send affordance.
- *   Flow (pane `flow`) — the complete NARRATIVE (FeedSurface intact, ADR-289
- *                        typed-row grammar). The operator's "TOTAL": every
- *                        invocation, every wake, every crossing.
+ * A SettingsPaneShell split-nav, two groups:
  *
- * Intended redundancy with Notifications → Activity (both mount FeedSurface):
- * the macOS tiered-access principle (ADR-367 D3) — same substrate, two
- * compositions, distinct primary jobs (operate the work vs. understand the
- * boundary). One body, two mounts (ADR-340 D8).
+ *   PERCEPTION
+ *     Connections (pane `connections`, DEFAULT) — what feeds the operation.
+ *       The OWNED rich connector UI (ConnectedIntegrationsSection with
+ *       showFreshness): each platform's status · coverage · last-synced ·
+ *       errors, plus a "View flow →" link into the Flow pane. The perception
+ *       home lands here — on what's feeding it.
+ *     Sources (pane `sources`) — standing web/RSS watches (SourcesCard).
+ *   BOUNDARY
+ *     Emissions (pane `emissions`) — what the operation EMITTED, read-only
+ *       (EmissionsView over GET /api/emissions; ADR-299/304 — sends stay
+ *       system infrastructure, this is legibility).
+ *     Flow (pane `flow`) — the complete NARRATIVE (FeedSurface, ADR-289
+ *       typed-row grammar). The `/feed` route folds in here (redirect stub →
+ *       /context?context.pane=flow).
  *
- * It owns no substrate and no state — a composition over existing mirrors,
- * like Home (ADR-312) and Notifications (ADR-346). The `/feed` route folds in
- * here as the Flow lens; /feed survives only as an ADR-308 redirect stub →
- * /context?context.pane=flow. The prior /context → /files redirect stub is
- * deleted (ADR-370 D5): the context/ substrate ROOT was retired by ADR-320,
- * so the route slug is free + unrelated to any filesystem namespace.
+ * Honest data note (ADR-377 §2): "per-platform flow" is a deep-link from a
+ * connection into the Flow narrative + the in-card coverage/freshness — NOT a
+ * per-event inbound ledger (platform_content was sunset by ADR-153). The
+ * "View flow →" link switches to the Flow pane; it does not filter by
+ * platform (the narrative read carries no platform filter today).
  *
- * Mounts the shared SettingsPaneShell in fullBleed mode so the Flow pane
- * (FeedSurface) fills the pane region.
+ * Mounts the shared SettingsPaneShell (Singular Implementation — same shell
+ * behind System/Workspace Settings) in fullBleed mode so the Flow pane fills
+ * the pane region.
  */
 
-import { ArrowDownToLine, ArrowUpFromLine, ScrollText } from "lucide-react";
+import { Link2, Rss, ArrowUpFromLine, ScrollText } from "lucide-react";
 import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
 import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 import { SourcesCard } from "@/components/workspace-concepts/SourcesCard";
 import { EmissionsView } from "@/components/context/EmissionsView";
 import { FeedSurface } from "@/components/feed-surface/FeedSurface";
+import { useSurfaceParam } from "@/lib/shell/useSurfacePreferences";
 
 const PANE_GROUPS: PaneGroup[] = [
   {
+    label: "Perception",
+    panes: [
+      { key: "connections", label: "Connections", icon: Link2 },
+      { key: "sources", label: "Sources", icon: Rss },
+    ],
+  },
+  {
     label: "Boundary",
     panes: [
-      { key: "in", label: "In", icon: ArrowDownToLine },
-      { key: "out", label: "Out", icon: ArrowUpFromLine },
+      { key: "emissions", label: "Emissions", icon: ArrowUpFromLine },
       { key: "flow", label: "Flow", icon: ScrollText },
     ],
   },
@@ -69,36 +74,53 @@ function PaneHeader({ title, subtitle }: { title: string; subtitle: string }) {
 }
 
 export default function ContextPage() {
+  // Pane-switch within the Context window (the "View flow →" link).
+  const surfaceParam = useSurfaceParam("context");
+
   const renderPane = (pane: string) => {
     switch (pane) {
-      case "in":
-        // What context feeds the operation — the Perception field (ADR-335).
-        // Connectors (platform transports) + Sources (standing web/RSS
-        // watches). Second mount of the Workspace-Settings → Perception
-        // panes; same self-contained bodies, gathered under the boundary.
+      case "connections":
+        // The OWNED rich connector UI — the perception home (ADR-377). Status
+        // + coverage + freshness per platform; "View flow →" switches to the
+        // Flow pane. redirectTo lands the OAuth round-trip back here.
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
-              title="In"
-              subtitle="What feeds the operation — connected platforms and standing-watch sources."
+              title="Connections"
+              subtitle="Connected platforms feeding the operation — status, coverage, and freshness."
             />
-            <div className="flex-1 overflow-y-auto p-6 space-y-8">
+            <div className="flex-1 overflow-y-auto p-6">
               <ConnectedIntegrationsSection
                 title="Connectors"
-                description="Connect platforms to give your agents data. Platforms are infrastructure — connect once, agents read automatically."
-                redirectTo="/context?context.pane=in"
+                description="Connect platforms to give the operation data. Platforms are infrastructure — connect once, the operation reads automatically."
+                redirectTo="/context?context.pane=connections"
+                showFreshness
+                onViewFlow={() => surfaceParam.set({ pane: "flow" })}
               />
+            </div>
+          </div>
+        );
+      case "sources":
+        // Standing web/RSS watches (ADR-336). The non-platform half of the
+        // Perception field.
+        return (
+          <div className="flex h-full flex-col">
+            <PaneHeader
+              title="Sources"
+              subtitle="Standing web and RSS watches the operation tracks."
+            />
+            <div className="flex-1 overflow-y-auto p-6">
               <SourcesCard variant="full" />
             </div>
           </div>
         );
-      case "out":
-        // What the operation emits — the operator-addressing dispatch ledger
+      case "emissions":
+        // What the operation emitted — the operator-addressing dispatch ledger
         // (ADR-299/304). Read-only legibility over GET /api/emissions.
         return (
           <div className="flex h-full flex-col">
             <PaneHeader
-              title="Out"
+              title="Emissions"
               subtitle="What the operation has emitted — sends to the outside world, to whom and when."
             />
             <div className="flex-1 overflow-y-auto p-6">
@@ -124,10 +146,10 @@ export default function ContextPage() {
     <SettingsPaneShell
       windowSlug="context"
       paneGroups={PANE_GROUPS}
-      defaultPane="flow"
+      defaultPane="connections"
       renderPane={renderPane}
       fullBleed
-      navLabel="Context lenses"
+      navLabel="Context sections"
     />
   );
 }
