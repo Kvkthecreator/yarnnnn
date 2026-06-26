@@ -75,7 +75,7 @@ This is a **content/legal task, not code** — it must be live at `yarnnn.com/pr
 | Review-friendly tool copy (no competitor-pointing) | ✅ fixed 2026-06-26 |
 | `trace` widget renders + populates | ✅ **VALIDATED LIVE in ChatGPT 2026-06-26** — timeline renders 10 SPY rows, provenance badges, show-changes diffs; model still narrates (D3). See §7. |
 | Tools behave reliably, no crashes, complete (not a demo) | ⚠️ exercise all three end-to-end on the demo account |
-| Privacy policy published | ❌ §3 — blocker |
+| Privacy policy published | ✅ updated 2026-06-26 (66d1447) — `yarnnn.com/privacy` §5 discloses the MCP/connected-LLM data flow; deploys with web |
 | Demo/test account seeded with multi-revision content | ❌ provision so `trace` shows a real timeline |
 | Identity verification (OpenAI dashboard) | ❌ complete before submit |
 | Logo + screenshots | ❌ produce |
