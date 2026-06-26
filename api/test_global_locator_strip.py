@@ -55,6 +55,37 @@ def test_strip_exists_and_keys_on_foregrounded():
     assert "surfaceTitleFor" in src
 
 
+def test_strip_is_seamless_no_border_no_tint():
+    """Operator: the strip should look continuous, not a separate bar. No
+    bottom border, no tinted background — it sits in the same plane (bg-
+    background) as the content below."""
+    src = _read_web("components/shell/GlobalLocatorStrip.tsx")
+    assert "border-b" not in src, "the locator strip must not carry a bottom border (seamless)."
+    assert "bg-muted" not in src, "the locator strip must not carry a tinted background (seamless)."
+    assert "bg-background" in src
+
+
+def test_root_title_is_navigational_when_drilled_in():
+    """When there are detail segments, the ROOT surface-title is a clickable
+    'back to list' link (fires the leaf's onClick = clear the deep-link
+    param). Previously the root was a plain non-clickable span."""
+    src = _read_web("components/shell/GlobalLocatorStrip.tsx")
+    assert "backToList" in src
+    # the root renders as a <button> when backToList is present
+    assert "backToList ? (" in src and "onClick={() => backToList()}" in src
+
+
+def test_mobile_is_leaf_only_chip():
+    """Mobile drops the redundant root name (the surface header already names
+    it) and shows a leaf-only back-chip; list mode collapses to nothing."""
+    src = _read_web("components/shell/GlobalLocatorStrip.tsx")
+    assert "viewport.isMobile" in src
+    # mobile branch returns null in list mode (no segments)
+    assert "if (crumb.length === 0) return null;" in src
+    # leaf-only chip uses a back chevron
+    assert "ChevronLeft" in src
+
+
 def test_strip_mounted_in_shell_between_top_and_main():
     src = _read_web("components/shell/ShellCompositor.tsx")
     assert "import { GlobalLocatorStrip }" in src
