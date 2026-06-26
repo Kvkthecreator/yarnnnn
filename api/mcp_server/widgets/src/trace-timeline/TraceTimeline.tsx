@@ -7,6 +7,11 @@ import { useEffect, useState } from "react";
 import type { TraceResult, TraceRevision } from "./types";
 import { provBucket } from "./types";
 
+// Injected by build.mjs (esbuild define). A visible marker so a loaded widget
+// proves which bundle it is — disambiguates "cached old bundle" from "code bug".
+declare const __BUILD_ID__: string;
+const BUILD_ID: string = typeof __BUILD_ID__ !== "undefined" ? __BUILD_ID__ : "dev";
+
 // Debug fallback (ADR-372 live-debug): when no result arrives, after a short
 // wait show what the iframe CAN see, so we diagnose the binding from ground
 // truth instead of guessing. Renders window.openai's keys + any toolOutput/
@@ -14,14 +19,15 @@ import { provBucket } from "./types";
 function DebugFallback() {
   const [show, setShow] = useState(false);
   useEffect(() => {
-    const t = window.setTimeout(() => setShow(true), 1500);
+    const t = window.setTimeout(() => setShow(true), 1000);
     return () => window.clearTimeout(t);
   }, []);
-  if (!show) return <p className="tt-empty">Waiting for trace data…</p>;
+  if (!show) return <p className="tt-empty">Waiting for trace data… (build {BUILD_ID})</p>;
   let diag: Record<string, unknown> = {};
   try {
     const w = (window as unknown as { openai?: Record<string, unknown> }).openai;
     diag = {
+      "build": BUILD_ID,
       "window.openai present": !!w,
       "window.openai keys": w ? Object.keys(w) : [],
       "toolOutput type": w ? typeof w.toolOutput : "n/a",

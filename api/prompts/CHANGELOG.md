@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.26.12] - trace widget: self-identifying build marker (cache-vs-code diagnosis)
+
+**The resource-_meta fix ([2026.06.26.11]) deployed live, but the widget still showed "Waiting for trace data…" with NO debug dump** — the debug fallback (1.5s timer) should have replaced the waiting text. Since "Waiting…" IS React-rendered (so React mounts) but the timed swap never happened, the leading hypothesis is **ChatGPT cached the OLD widget bundle** (the host caches `ui://` resources; the new dist/ wasn't re-fetched).
+
+To make the next test decisive instead of another guess, the bundle is now **self-identifying**:
+- `build.mjs`: injects `__BUILD_ID__` (esbuild define; `BUILD_ID=...` override, else a wall-clock stamp).
+- `TraceTimeline.tsx`: the waiting text now reads **"Waiting for trace data… (build <id>)"** and the debug dump includes the build id. Debug timer shortened 1.5s→1s.
+- Built with `BUILD_ID=b12-debug`.
+
+**Expected behavior / how to read the next test**: after **reconnecting the connector** (to bust the host cache), the widget should show "build b12-debug" — proving the new bundle loaded. Then either the timeline binds, OR (after 1s) the debug dump prints what the iframe sees (`window.openai` presence/keys, toolOutput shape). If it STILL says the old text with no build marker, the bundle is cached and needs a harder refresh. Gate: test_adr372 (15/15).
+
 ## [2026.06.26.11] - trace widget binding: full _meta on the served resource (match OpenAI's example) + debug fallback
 
 **The trace pipeline is proven end-to-end** — a live `trace('standing_intent')` returned `Array(10)` revisions with full embedded diffs and the model narrated the evolution richly. The remaining gap is purely the WIDGET binding: the iframe rendered but stayed on "Waiting for trace data…" despite the data being present in `structuredContent`.

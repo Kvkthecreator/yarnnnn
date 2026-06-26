@@ -46,6 +46,10 @@ async function buildWidget(name) {
   if (!existsSync(entry)) {
     throw new Error(`widget entry not found: ${entry}`);
   }
+  // A visible build marker so a loaded widget can prove WHICH bundle it is
+  // (cache-vs-code diagnosis). Override with BUILD_ID=... ; defaults to a
+  // wall-clock stamp.
+  const buildId = process.env.BUILD_ID || new Date().toISOString().replace(/[:.]/g, "-");
   const result = await build({
     entryPoints: [entry],
     bundle: true,
@@ -54,7 +58,10 @@ async function buildWidget(name) {
     target: "es2020",
     jsx: "automatic",
     write: false,
-    define: { "process.env.NODE_ENV": '"production"' },
+    define: {
+      "process.env.NODE_ENV": '"production"',
+      __BUILD_ID__: JSON.stringify(buildId),
+    },
     logLevel: "warning",
   });
   const js = result.outputFiles[0].text;
