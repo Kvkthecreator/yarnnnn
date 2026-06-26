@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.26.5] - ADR-372: fix the ChatGPT widget BINDING — openai/outputTemplate + skybridge MIME + openai:set_globals (live-finding)
+
+**Live test found the widget registered but never rendered (text-only).** Root cause: we bound the widget with the generic open-spec `_meta.ui.resourceUri`, but ChatGPT's renderer binds a tool to its template via **`openai/outputTemplate`** on the tool DEFINITION (verified against OpenAI's own example server, `openai-apps-sdk-examples/pizzaz_server_python`). The template appeared in ChatGPT's Templates list (registration worked) but no widget painted (binding didn't). Three corrections, all in `api/mcp_server/` (kernel untouched):
+
+- `presentation/adapters/openai.py`: the overlay now emits the **load-bearing** ChatGPT keys on the tool definition — `openai/outputTemplate` (the binding ChatGPT reads), `openai/widgetAccessible: true`, `openai/toolInvocation/{invoking,invoked}` (status strings) — additive over the open `ui.resourceUri` (kept for portability, ignored by ChatGPT). Honest reframe: for ChatGPT these are NOT "sugar" (ADR-372 D2's original framing) — they are the binding; the open key alone does not render today.
+- `presentation/registry.py`: served-resource MIME `text/html;profile=mcp-app` → **`text/html+skybridge`** (ChatGPT's required widget MIME; the profile MIME registered but would not render).
+- `widgets/src/trace-timeline/useToolResult.ts`: read the result from **`window.openai.toolOutput`** and subscribe to the **`openai:set_globals`** CustomEvent (ChatGPT's data-delivery path) in addition to the open-spec `ui/notifications/tool-result` postMessage. Earlier the widget only read `toolOutput` once at mount + listened on the generic bridge, so on ChatGPT it would have rendered empty even once bound. Rebuilt `dist/trace-timeline.html`.
+- **Expected behavior**: a `trace` call on ChatGPT now renders the timeline widget (the binding + MIME + data path all match OpenAI's contract) AND the model narrates in prose (D3). **Re-test requires a subject with MULTIPLE revisions** — the prior live tests used 1-revision / 0-revision subjects (nothing for the timeline to draw); good subjects: `standing_intent`, `judgment_log`, `voice`, or a ticker like `SPY` (all 40+ revisions in the kvk workspace). No host-side reconnect needed (resource is fetched per-render); reconnect only if a stale template is cached.
+- Regression gate: `api/test_adr372_presentation_affordances.py` (13/13 — adds the `openai/outputTemplate` + `widgetAccessible` binding assertion; MIME assertion follows `RESOURCE_MIME`). `test_adr368_memory_surface.py` (10/10) green. ADR-372 D2 to be reconciled in the doc: "open-spec primary, OpenAI overlay" holds structurally, but the OpenAI overlay is load-bearing for render on ChatGPT until the open spec converges.
+
 ## [2026.06.26.4] - ADR-372: the real `trace` timeline widget — embedded diffs (zero-callback) + React build
 
 **The checkpoint passed** (ChatGPT registered the `trace` widget template — `Templates: ui://yarnnn/trace-timeline.html` with our exact domain/CSP echoed back), so this ships the real UI over the proven pipe. The widget renders the revision chain as a provenance-colored timeline with click-to-expand inline diffs; the host LLM still narrates in prose (additive, D3).

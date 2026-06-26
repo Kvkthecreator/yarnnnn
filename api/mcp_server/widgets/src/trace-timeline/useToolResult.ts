@@ -1,11 +1,14 @@
-// Subscribe to the trace result the host pushes over the MCP Apps bridge.
+// Subscribe to the trace result the host provides. Two paths, both supported:
 //
-// Standard contract (works on any MCP Apps host): the host posts a
-// `ui/notifications/tool-result` JSON-RPC notification over postMessage; we read
-// `params.structuredContent` (the full trace result dict). On ChatGPT the result
-// is ALSO available synchronously via `window.openai.toolOutput` — we feature-
-// detect that for first paint (graceful degradation, ADR-372 D2). Neither is
-// required; whichever arrives first wins.
+//   1. ChatGPT (skybridge): the result is on `window.openai.toolOutput`, and the
+//      host fires an `openai:set_globals` CustomEvent when it changes. This is
+//      the PRIMARY path on ChatGPT (verified against OpenAI's Apps SDK docs) —
+//      the generic bridge notification below does not fire there.
+//   2. Open MCP Apps hosts: a `ui/notifications/tool-result` JSON-RPC message
+//      over postMessage carries `params.structuredContent`.
+//
+// We read `window.openai.toolOutput` at mount (first paint) AND subscribe to
+// both update channels, so whichever the host uses, the timeline renders.
 
 import { useEffect, useState } from "react";
 import type { TraceResult } from "./types";
@@ -16,27 +19,40 @@ declare global {
   }
 }
 
+function coerce(value: unknown): TraceResult | null {
+  return value && typeof value === "object" ? (value as TraceResult) : null;
+}
+
 export function useToolResult(): TraceResult | null {
   const [result, setResult] = useState<TraceResult | null>(() => {
     try {
-      const seed = window.openai?.toolOutput;
-      return seed && typeof seed === "object" ? (seed as TraceResult) : null;
+      return coerce(window.openai?.toolOutput);
     } catch {
       return null;
     }
   });
 
   useEffect(() => {
+    // ChatGPT skybridge: host state changed.
+    function onSetGlobals(event: Event) {
+      const detail = (event as CustomEvent).detail;
+      const next = coerce(detail?.globals?.toolOutput) ?? coerce(window.openai?.toolOutput);
+      if (next) setResult(next);
+    }
+    // Open MCP Apps host: tool-result notification over postMessage.
     function onMessage(event: MessageEvent) {
       const msg = event.data;
-      if (!msg || typeof msg !== "object") return;
-      if (msg.method === "ui/notifications/tool-result" && msg.params) {
-        const sc = msg.params.structuredContent;
-        if (sc && typeof sc === "object") setResult(sc as TraceResult);
+      if (msg && typeof msg === "object" && msg.method === "ui/notifications/tool-result" && msg.params) {
+        const next = coerce(msg.params.structuredContent);
+        if (next) setResult(next);
       }
     }
+    window.addEventListener("openai:set_globals", onSetGlobals as EventListener, { passive: true } as AddEventListenerOptions);
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("openai:set_globals", onSetGlobals as EventListener);
+      window.removeEventListener("message", onMessage);
+    };
   }, []);
 
   return result;

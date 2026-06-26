@@ -73,7 +73,7 @@ The registry maps a widget id to its served resource:
 
 ```python
 # registry.py (proposed)
-RESOURCE_MIME = "text/html;profile=mcp-app"   # MCP Apps standard MIME
+RESOURCE_MIME = "text/html+skybridge"   # ChatGPT's required widget MIME (§4 live-finding)
 
 WIDGETS = {
     "trace-timeline": Widget(
@@ -101,25 +101,26 @@ No new Render service, no SDK upgrade — `FastMCP.resource()` and `custom_route
 
 ## 4. The adapter layer (D2, D5) — one host name per file
 
-The neutral affordance is translated to a vendor `_meta` shape **at response-serialization time, by an adapter.** The `_meta` is attached *unconditionally* (D4 — there is no server-side host handshake to gate on; a non-rendering host simply ignores it). A host name appears in code in exactly one place: its adapter file. Which adapter to use can default to the open-spec shape and overlay the OpenAI sugar always (it is additive and ignored elsewhere), or be selected by a best-effort `clientInfo` sniff purely as an optimization — never as a correctness dependency.
+The neutral affordance is translated to a vendor `_meta` shape **at response-serialization time, by an adapter.** The `_meta` is attached *unconditionally* (D4 — there is no server-side host handshake to gate on; a non-rendering host simply ignores it). A host name appears in code in exactly one place: its adapter file. We default to the open-spec shape and overlay the OpenAI keys always (additive; ignored by non-ChatGPT hosts).
 
 ```python
 # adapters/mcp_apps.py — PRIMARY (open spec)
-def tool_meta(affordance: Affordance) -> dict:
-    w = WIDGETS[affordance.widget]
-    return {"ui": {"resourceUri": w.uri}}   # the ratified MCP Apps linkage
+def tool_definition_meta(widget) -> dict:
+    return {"ui": {"resourceUri": widget.uri}}   # the ratified MCP Apps linkage
 ```
 
 ```python
-# adapters/openai.py — OVERLAY (thin, ChatGPT-only sugar over the primary)
-def tool_meta(affordance: Affordance) -> dict:
-    meta = mcp_apps.tool_meta(affordance)            # start from the open shape
-    meta["openai/widgetDescription"] = "..."         # vendor nicety, additive
-    meta["ui"]["visibility"] = ["model", "app"]
+# adapters/openai.py — OVERLAY (ChatGPT keys; LOAD-BEARING for render, see below)
+def overlay_definition(meta: dict, widget) -> dict:
+    meta = {**meta}
+    meta["openai/outputTemplate"] = widget.uri        # ← the key ChatGPT binds on
+    meta["openai/widgetAccessible"] = True
+    meta["openai/toolInvocation/invoking"] = "…"
+    meta["openai/toolInvocation/invoked"] = "…"
     return meta
 ```
 
-When MCP Apps standardizes a key OpenAI currently does its own way, the open adapter gains it and the overlay shrinks. **The blast radius of any vendor revision is one adapter file.**
+> **LIVE-FINDING reconciliation (2026-06-26) — the overlay is NOT "sugar" for ChatGPT.** ADR-372 D2's original framing ("open-spec primary, ChatGPT extensions a thin overlay") is structurally right but understated the overlay's role. A live test found the widget *registered* (it appeared in ChatGPT's Templates list via `ui.resourceUri`) yet rendered **text, not the widget** — because **ChatGPT's renderer binds a tool to its template via `openai/outputTemplate` on the tool definition, not `ui.resourceUri`** (verified against OpenAI's own example server). And the served resource must use MIME **`text/html+skybridge`**, not the generic `text/html;profile=mcp-app`. So today, on ChatGPT, the OpenAI overlay keys + the skybridge MIME are **load-bearing** — without them nothing paints. We keep the open `ui.resourceUri` too (portable, ignored by ChatGPT). As the open MCP Apps spec converges with these keys, the overlay shrinks. **The blast radius of any vendor revision is still one adapter file** — the principle holds; only the "thin/optional" characterization was corrected.
 
 ---
 

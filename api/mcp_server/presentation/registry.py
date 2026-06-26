@@ -21,8 +21,14 @@ from mcp_server.presentation.adapters import mcp_apps, openai
 
 logger = logging.getLogger(__name__)
 
-#: MCP Apps standard MIME for a UI resource bundle (SEP-1865).
-RESOURCE_MIME = "text/html;profile=mcp-app"
+#: MIME for the served widget resource.
+#: LIVE FINDING (2026-06-26): ChatGPT's renderer requires "text/html+skybridge"
+#: (verified against OpenAI's example server). The generic MCP-Apps MIME
+#: ("text/html;profile=mcp-app") registered the template but ChatGPT would not
+#: render it. A resource carries one MIME; since ChatGPT is the host we render on
+#: today, we serve skybridge. (If a strict open-spec-only host later needs the
+#: profile MIME, expose a second resource URI rather than changing this one.)
+RESOURCE_MIME = "text/html+skybridge"
 
 #: Server origin used for the widget's required `domain` + CSP connect entry.
 #: Mirrors server.py's `_server_url` resolution so the two never diverge.

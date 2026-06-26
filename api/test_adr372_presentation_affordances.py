@@ -77,6 +77,15 @@ def main():
         "6 served-resource _meta carries domain + CSP (host submission requirement)",
         "domain" in served.get("ui", {}) and "csp" in served.get("ui", {})))
 
+    # ---- ChatGPT binding (the live-finding fix): openai/outputTemplate ------
+    # The open ui.resourceUri alone registered the template but ChatGPT rendered
+    # text — ChatGPT binds via openai/outputTemplate on the tool DEFINITION
+    # (verified against OpenAI's example server). Assert the load-bearing keys.
+    results.append(_check(
+        "6b tool-def _meta carries ChatGPT binding keys: openai/outputTemplate + widgetAccessible (live-finding fix)",
+        def_meta.get("openai/outputTemplate", "").startswith("ui://")
+        and def_meta.get("openai/widgetAccessible") is True))
+
     # ---- Wire-shape assertions (need `mcp`) --------------------------------
     try:
         import asyncio
