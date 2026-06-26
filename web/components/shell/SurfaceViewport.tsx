@@ -42,7 +42,7 @@ import { useViewport } from '@/lib/shell/useViewport';
 import { useShellChrome } from './ShellChromeContext';
 import { isKernelSurfaceSlug } from '@/types/desk';
 import type { KernelSurfaceSlug } from '@/types/desk';
-import { useWindowCrumbRegistry } from '@/contexts/BreadcrumbContext';
+import { surfaceTitleFor } from '@/lib/compositor/surfaceTitle';
 import { resolveSurfaceComponent } from './SurfaceRegistry';
 import { Desktop } from './Desktop';
 import { WindowFrame } from './WindowFrame';
@@ -65,7 +65,6 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
     desktopBounds,
   } = useSurfacePreferences();
   const { data: composition } = useComposition();
-  const { getCrumb } = useWindowCrumbRegistry();
   const viewport = useViewport();
   const { layoutMode } = useShellChrome();
   // ADR-358 — canvas layout mode renders ONE full-bleed surface (chromeless
@@ -128,20 +127,10 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
     return mountSlugs.length > 0 ? mountSlugs[mountSlugs.length - 1] : null;
   })();
 
-  // Surface-title lookup for the WindowFrame title bar.
-  const titleBySlug = (() => {
-    const map = new Map<string, string>();
-    (composition.surfaces || []).forEach((s) => map.set(s.slug, s.title));
-    return map;
-  })();
-  const titleFor = (slug: string): string => {
-    const t = titleBySlug.get(slug);
-    if (t) return t;
-    return slug
-      .split('-')
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-      .join(' ');
-  };
+  // Surface-title lookup for the WindowFrame title bar. Shared with the
+  // GlobalLocatorStrip via surfaceTitleFor (Singular Implementation).
+  const titleFor = (slug: string): string =>
+    surfaceTitleFor(composition.surfaces, slug);
 
   // D17: legacy non-atomic routes (settings, connectors, docs, etc.)
   // pass through to their page render via `children`. The /desktop
@@ -170,7 +159,6 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
           <div className={canvasMode ? 'absolute inset-0' : 'absolute inset-3 sm:inset-4'}>
             <WindowFrame
               title={titleFor(slug)}
-              crumb={getCrumb(slug)}
               isForegrounded={true}
               onRaise={() => raiseWindow(slug)}
               onClose={() => closeSurface(slug)}
@@ -204,7 +192,6 @@ export function SurfaceViewport({ children }: SurfaceViewportProps) {
           <WindowFrame
             key={slug}
             title={titleFor(slug)}
-            crumb={getCrumb(slug)}
             isForegrounded={isVisible}
             onRaise={() => raiseWindow(slug)}
             onClose={() => closeSurface(slug)}

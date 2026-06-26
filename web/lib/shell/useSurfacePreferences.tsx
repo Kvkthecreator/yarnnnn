@@ -814,6 +814,15 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
       if (!open.includes(slug)) return;
       setForegroundedWrite(userId, slug);
       setForegrounded(slug);
+      // Keep the URL honest on EVERY foreground change — not only the
+      // foregroundSurface path. Raising an already-open window (Dock /
+      // TopBar / body-click, incl. canvas mode where the title bar is
+      // chromeless) must strip the prior surface's namespaced params and
+      // re-apply this slug's remembered ones. Without this, switching
+      // between open surfaces left stale params in the URL (e.g.
+      // `?workspace-settings.pane=X` lingering while foregrounded on
+      // agents). reconcileUrl is declared above this callback.
+      reconcileUrl(slug);
       setWindowStatesState((current) => {
         let base = current;
         let newZ = computeNextZ(base, open);
@@ -831,7 +840,7 @@ export function SurfacePreferencesProvider({ children }: { children: ReactNode }
         return current;
       });
     },
-    [userId, open, computeNextZ, compactWindowZ, persistWindowStates]
+    [userId, open, computeNextZ, compactWindowZ, persistWindowStates, reconcileUrl]
   );
 
   // D19.3 (2026-05-22): the prior hideForegrounded verb was DELETED.

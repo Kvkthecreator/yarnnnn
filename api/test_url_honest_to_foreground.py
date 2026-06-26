@@ -76,6 +76,27 @@ def test_foreground_routes_both_branches_through_reconcile():
     assert "reconcileUrl(slug, deliverParams)" in src
 
 
+def test_raise_window_reconciles_url_canvas_honesty():
+    """The canvas-mode honesty fix (2026-06-26): raising an already-open window
+    (Dock / TopBar / body-click — incl. canvas mode where the title bar is
+    chromeless) must ALSO reconcile the URL. Without this, switching between
+    open surfaces left the prior surface's namespaced params in the URL
+    (operator saw `?workspace-settings.pane=principles&agents.agent=reviewer`
+    while foregrounded on agents). reconcileUrl was previously only on the
+    foregroundSurface path."""
+    src = _read_web(_HOOK)
+    raise_body = src[src.index("const raiseWindow"):]
+    # bound the slice to the callback (its dep array close) so we assert on
+    # raiseWindow's body, not a later occurrence.
+    raise_body = raise_body[: raise_body.index("reconcileUrl]") + len("reconcileUrl]")]
+    assert "reconcileUrl(slug)" in raise_body, (
+        "raiseWindow must call reconcileUrl(slug) so the URL stays honest on "
+        "every foreground change, not only foregroundSurface."
+    )
+    # reconcileUrl must be in the dep array (stale-closure guard).
+    assert "reconcileUrl]" in raise_body
+
+
 def test_navigate_is_thin_passthrough():
     src = _read_web(_HOOK)
     # navigateToSurface delegates to foregroundSurface(slug, params); it must NOT

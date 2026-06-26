@@ -13,9 +13,11 @@
  * mode the parent absolutely-positions us using `style` from
  * windowStates[slug].
  *
- * Reconciliation with per-surface PageHeader (D14 carryover): title
- * bar shows the surface name only; the per-surface PageHeader inside
- * `children` continues to render breadcrumb + actions.
+ * Title bar shows the surface NAME only. The in-window LOCATOR (the
+ * "Agents › Reviewer" position crumb) is NOT rendered here — it moved to
+ * the GlobalLocatorStrip (2026-06-26), the one always-visible OS "you are
+ * here" indicator, so the locator survives canvas mode where this title
+ * bar is suppressed (chromeless, below).
  *
  * ADR-358 (2026-06-23): `chromeless` mode. In CANVAS layout the single
  * full-bleed surface beside chat reads as a canvas pane, not a windowed
@@ -26,9 +28,8 @@
  */
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
-import { X, Minus, Plus, ChevronRight } from 'lucide-react';
+import { X, Minus, Plus } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { BreadcrumbSegment } from '@/contexts/BreadcrumbContext';
 import {
   clampWindowState,
   WINDOW_MIN_WIDTH,
@@ -68,13 +69,6 @@ interface WindowFrameProps {
    *  border/rounding so the surface reads as a canvas pane, not a
    *  windowed app. Implies non-interactive (no chrome to drag). */
   chromeless?: boolean;
-  /** Per-window locator (2026-06-25). In-window position BELOW the
-   *  surface name — e.g. `[{ label: 'Reviewer', onClick }]` renders
-   *  "Agents › Reviewer" in the title bar. Empty / omitted → the flat
-   *  title stands (list mode). The leaf is non-interactive (you're
-   *  there); ancestors with onClick are clickable "go back" crumbs.
-   *  Collapses on narrow widths (see TITLE_CRUMB_COLLAPSE_PX). */
-  crumb?: BreadcrumbSegment[];
   children: React.ReactNode;
 }
 
@@ -98,12 +92,6 @@ interface DragSession {
 
 const VIEWPORT_PADDING_FOR_CLAMP = 16;
 
-// Below this effective title-bar width the crumb collapses to its leaf
-// segment only (mobile + narrow windows). The title bar is a locator, not
-// a navigator — the in-body back affordance carries "go back" on small
-// screens.
-const TITLE_CRUMB_COLLAPSE_PX = 420;
-
 export function WindowFrame({
   title,
   isForegrounded,
@@ -117,7 +105,6 @@ export function WindowFrame({
   onWindowStateChange,
   interactive = false,
   chromeless = false,
-  crumb,
   children,
 }: WindowFrameProps) {
   const dragRef = useRef<DragSession | null>(null);
@@ -125,12 +112,6 @@ export function WindowFrame({
   // cluster, even background windows light up so they can target the
   // buttons without raising first (matches macOS).
   const [trafficHovered, setTrafficHovered] = useState(false);
-
-  // Effective title-bar width for the crumb-collapse decision. Multi-window
-  // mode → the window's own width; single-window/mobile mode (no
-  // windowState) → the viewport width; fall back to a desktop-ish default
-  // before measurement so SSR/first-paint shows the full crumb.
-  const effectiveWidth = windowState?.width ?? viewportWidth ?? 1280;
 
   // Compute style for multi-window (absolute) vs single-window (fill).
   const frameStyle: CSSProperties = windowState && interactive
@@ -345,14 +326,13 @@ export function WindowFrame({
           )}
         </div>
 
-        {/* Centered title + per-window locator crumb — absolutely
-            positioned so traffic-lights don't shift it. macOS-shaped.
-            Dims on background windows. The title is the surface name
-            (from the registry); the crumb is the in-window position
-            below it ("Agents › Reviewer"). Mobile: under
-            TITLE_CRUMB_COLLAPSE_PX, intermediate crumb segments drop —
-            only the leaf shows ("… › Activity"); the in-body back
-            affordance carries "go back" on small screens. */}
+        {/* Centered surface title — absolutely positioned so traffic-
+            lights don't shift it. macOS-shaped; dims on background windows.
+            The in-window LOCATOR (the "Agents › Reviewer" position) is no
+            longer rendered here — it moved to the GlobalLocatorStrip (the
+            one always-visible OS "you are here" indicator, 2026-06-26), so
+            the locator survives canvas mode where this title bar is
+            suppressed (chromeless, ADR-358). */}
         <div
           className={cn(
             'absolute inset-x-0 flex items-center justify-center gap-1 px-16 text-xs font-medium',
@@ -360,42 +340,6 @@ export function WindowFrame({
           )}
         >
           <span className="pointer-events-none truncate">{title}</span>
-          {crumb && crumb.length > 0 && (() => {
-            // Collapse on narrow windows: keep the LEAF only, mark
-            // the elision with a non-clickable ellipsis crumb.
-            const collapsed = effectiveWidth < TITLE_CRUMB_COLLAPSE_PX;
-            const shown: (BreadcrumbSegment | { ellipsis: true })[] =
-              collapsed && crumb.length > 1
-                ? [{ ellipsis: true }, crumb[crumb.length - 1]]
-                : crumb;
-            return shown.map((seg, i) => {
-              const isLeaf = i === shown.length - 1;
-              const key = 'ellipsis' in seg ? `ell-${i}` : `${seg.label}-${i}`;
-              return (
-                <span key={key} className="flex items-center gap-1 min-w-0">
-                  <ChevronRight className="h-3 w-3 shrink-0 opacity-40" />
-                  {'ellipsis' in seg ? (
-                    <span className="pointer-events-none opacity-50">…</span>
-                  ) : seg.onClick && !isLeaf ? (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        seg.onClick!();
-                      }}
-                      onMouseDown={(e) => e.stopPropagation()}
-                      className="pointer-events-auto truncate hover:underline underline-offset-2 hover:text-foreground"
-                      title={`Back to ${seg.label}`}
-                    >
-                      {seg.label}
-                    </button>
-                  ) : (
-                    <span className="pointer-events-none truncate">{seg.label}</span>
-                  )}
-                </span>
-              );
-            });
-          })()}
         </div>
       </div>
       )}

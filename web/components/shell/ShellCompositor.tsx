@@ -55,6 +55,7 @@
 import { type ReactNode } from 'react';
 import { useComposition } from '@/lib/compositor/useComposition';
 import { SurfaceViewport } from './SurfaceViewport';
+import { GlobalLocatorStrip } from './GlobalLocatorStrip';
 import {
   CHROME_SURFACE_REGISTRY,
   isChromeSurfaceSlug,
@@ -134,6 +135,12 @@ export function ShellCompositor({ children }: ShellCompositorProps) {
             brand · launcher trigger · Dock icons (kept ∪ open) ·
             user menu). */}
         {mountRegion('top')}
+
+        {/* Global locator strip (2026-06-26) — the OS "you are here"
+            indicator. ONE always-visible row (every layout, list + detail),
+            mounted between the top bar and the content row. Replaces the
+            per-window title-bar crumb that vanished in canvas mode. */}
+        <GlobalLocatorStrip />
 
         {/* Main region — ADR-316 + ADR-358: a flex ROW. The surface column
             is flex-1. In CANVAS the chat rail docks RIGHT as a flex sibling
