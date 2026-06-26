@@ -481,3 +481,11 @@ One assumption this entire design rests on is that the existing `QueryKnowledge`
    - **Internal Haiku reranker**: single Haiku call with the query and 30 candidate chunks, returning an ordered top-10. Small cost (~$0.0005), still deterministic from the user's perspective (same chunks in, same order out — no composition drift).
 
 We do not ship until ranking is validated. This is the one explicit quality gate on the implementation.
+
+---
+
+## Presentation (rich rendering) — see `presentation.md`
+
+The dispatch and primitive mapping above describe the **text** path — what every host gets by default. A host that can render an interactive widget (ChatGPT via the OpenAI Apps SDK, or any host implementing the open MCP Apps spec, SEP-1865) gets a richer view of the **same returned substrate**: the tool always returns its full result in the text channel *and* attaches widget `_meta` (declared per-tool as data, served by this server's resource surface, one host-adapter at the edge); a rendering host uses the `_meta`, a text-only host ignores it harmlessly. The kernel and `execute_primitive()` are untouched; a widget renders returned material and the model still narrates, never composed judgment (the ADR-368 bright-line, extended in ADR-372 D3).
+
+The full model — affordance declaration, widget registry + bundle location, the adapter layer (open spec primary, ChatGPT overlay), the always-attach `_meta` / always-text-channel contract, the widget↔tool callback contract, and the worked `trace`-timeline slice — lives in **[presentation.md](presentation.md)**, governed by **[ADR-372](../../adr/ADR-372-presentation-affordances-interop-face.md)**.

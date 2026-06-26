@@ -1,5 +1,6 @@
-# ADR-370 — The MCP Service as a Self-Contained Auth Boundary
+# ADR-371 — The MCP Service as a Self-Contained Auth Boundary
 
+> **Renumbered 2026-06-26**: was ADR-370; collided with ADR-370 (Context — the operation's boundary surface), which is the more heavily-referenced 370 and keeps the number. This auth-boundary ADR moved to 371. Content unchanged; status preserved.
 > **Status**: **Accepted** (2026-06-25) — model ratified; the §D2 build-shape decision is RESOLVED (A1 — a tiny standalone auth frontend, shared DB). Ready for implementation.
 > **Date**: 2026-06-25
 > **Authors**: KVK + Claude
