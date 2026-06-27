@@ -54,6 +54,7 @@ from pydantic import AnyHttpUrl
 from mcp_server.auth import resolve_request_client
 from mcp_server.oauth_provider import YarnnnOAuthProvider
 from mcp_server.presentation import affordances as presentation_affordances
+from mcp_server.presentation import hosts as presentation_hosts
 from mcp_server.presentation import registry as presentation_registry
 from services import mcp_composition
 from services.narrative import (
@@ -66,7 +67,7 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# ADR-372 — presentation: attach widget `_meta` while keeping the text channel
+# ADR-372 — presentation: attach widget `_meta` only to a host that can render it
 # =============================================================================
 #
 # A tool with a presentation affordance (AFFORDANCES) returns a CallToolResult
@@ -75,24 +76,38 @@ logger = logging.getLogger(__name__)
 # bare dict's `_meta` is dropped — verified against mcp 1.28.0); plain-dict
 # returns get the unchanged JSON-text path.
 #
-# ADR-372 D4 — the invariant guard:
+# ADR-372 D4 (AMENDED 2026-06-27) — the invariant guard:
 #   * structuredContent = the full result dict (model-readable, the text path);
 #   * content           = the same dict as JSON text (so a text-only host that
 #                         doesn't read structuredContent still gets everything);
-#   * _meta             = the widget linkage, attached UNCONDITIONALLY. A
-#                         rendering host uses it; a text-only host ignores it.
-# The data is ALWAYS in the text channel — that, not host negotiation, is what
-# keeps the ADR-368 invariant true.
+#   * _meta             = the widget linkage, attached ONLY when the calling host
+#                         renders widgets (presentation.hosts.renders_widgets).
+#
+# Why this is no longer unconditional: the original D4 ("a text-only host ignores
+# `_meta` harmlessly") was falsified live — claude.ai's connector does NOT ignore
+# a widget pointer; it tries to fetch+render the resource (skybridge MIME +
+# openai/* keys, an OpenAI-Apps shape) and fails with "Unsupported UI resource
+# content format". So the WIDGET pointer is now gated on host capability, while
+# the result data stays unconditionally in the text channel — that text channel,
+# not host negotiation, is still what keeps the ADR-368 invariant true. A
+# non-widget host (claude.ai, any unidentified host) gets the pure dict and never
+# receives a pointer to a resource it cannot render. See presentation/hosts.py.
 
-def _present(tool_name: str, result: dict):
-    """Wrap a tool's result so a rich host can render it (ADR-372 D4).
+def _present(tool_name: str, result: dict, *, client_name: str | None = None):
+    """Wrap a tool's result so a widget-capable host can render it (ADR-372 D4).
 
-    If the tool has no affordance, return the dict unchanged (text-only path —
-    the default). Otherwise return a CallToolResult with the result in both
-    channels plus the widget `_meta`.
+    Returns the dict unchanged (text-only path — the universal default) when the
+    tool has no affordance OR the calling host does not render widgets. Only a
+    host in presentation.hosts.WIDGET_RENDERING_HOSTS gets the CallToolResult with
+    widget `_meta` attached.
     """
     affordance = presentation_affordances.affordance_for(tool_name)
     if affordance is None:
+        return result
+    if not presentation_hosts.renders_widgets(client_name):
+        # Text-safe path: claude.ai / unidentified host. The full result is still
+        # in the returned dict (the text channel); only the widget pointer is held
+        # back so the host never tries to render the OpenAI-shaped resource.
         return result
     try:
         meta = presentation_registry.tool_response_meta(affordance.widget)
@@ -354,7 +369,7 @@ async def remember(
             body="empty content — nothing written",
             client_name=client_name, extra_metadata={"outcome": "rejected"},
         )
-        return _present("remember", {"success": False, "error": "empty_content", "message": "content is required"})
+        return _present("remember", {"success": False, "error": "empty_content", "message": "content is required"}, client_name=client_name)
 
     # ADR-376 / DP32: the dump is an attributed RAW observation — it lands in the
     # inbound/mcp/{client}/ raw lane (outside the topology cut, never rewritten);
@@ -376,7 +391,7 @@ async def remember(
             "success": False,
             "error": result.get("error", "write_failed"),
             "message": result.get("message", "remember dispatch failed"),
-        })
+        }, client_name=client_name)
 
     written_path = result.get("filename") or result.get("path") or "(unknown)"
 
@@ -411,7 +426,7 @@ async def remember(
         },
         # ADR-368 D5: the seat will file this where it belongs + validate it.
         "captured": True,
-    })
+    }, client_name=client_name)
 
 
 @mcp.tool(
@@ -479,8 +494,8 @@ async def recall(
         client_name=client_name,
         extra_metadata={"subject": subject, "returned": n},
     )
-    # ADR-372 D4: rich hosts render the recall-cards widget; text path intact.
-    return _present("recall", result)
+    # ADR-372 D4: only a widget host gets the recall-cards `_meta`; text path intact.
+    return _present("recall", result, client_name=client_name)
 
 
 @mcp.tool(
@@ -539,9 +554,9 @@ async def trace(
         client_name=client_name,
         extra_metadata={"subject": subject, "returned": n},
     )
-    # ADR-372 D4: attach the widget `_meta` (rich hosts render the timeline) while
-    # the full result stays in the text channel (text hosts are unaffected).
-    return _present("trace", result)
+    # ADR-372 D4: attach the widget `_meta` only for a widget host (renders the
+    # timeline); the full result stays in the text channel for every host.
+    return _present("trace", result, client_name=client_name)
 
 
 # =============================================================================

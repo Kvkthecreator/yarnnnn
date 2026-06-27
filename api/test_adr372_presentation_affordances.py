@@ -86,6 +86,20 @@ def main():
         def_meta.get("openai/outputTemplate", "").startswith("ui://")
         and def_meta.get("openai/widgetAccessible") is True))
 
+    # ---- D4 host gate: allow-list with a text-safe default (2026-06-27 fix) ----
+    # The widget pointer goes ONLY to a host that renders widgets. ChatGPT is in;
+    # claude.ai and any unidentified host are out (text-safe default). This is the
+    # data seam that separates the OpenAI-Apps render path from the Claude path.
+    from mcp_server.presentation import hosts as pres_hosts
+    results.append(_check(
+        "6c host gate: chatgpt renders widgets; claude.ai + unknown do NOT (allow-list, text-safe default)",
+        pres_hosts.renders_widgets("chatgpt") is True
+        and pres_hosts.renders_widgets("claude.ai") is False
+        and pres_hosts.renders_widgets("claude_desktop") is False
+        and pres_hosts.renders_widgets("gemini") is False
+        and pres_hosts.renders_widgets(None) is False
+        and pres_hosts.renders_widgets("") is False))
+
     # ---- Wire-shape assertions (need `mcp`) --------------------------------
     try:
         import asyncio
@@ -101,20 +115,33 @@ def main():
               "history": [{"authored_by": "operator", "when": "t", "change": "c", "revision_id": "r"}],
               "returned": 1, "explanation": "e"}
 
-    # D4: trace result wraps to CallToolResult with _meta AND both text channels
-    wrapped = s._present("trace", sample)
+    # D4 (amended 2026-06-27): the WIDGET host gets the CallToolResult+_meta; a
+    # non-widget host (claude.ai / unidentified) gets the bare dict (text path).
+    # The widget pointer is now GATED on host capability, not unconditional —
+    # claude.ai was choking on an OpenAI-shaped resource it cannot render.
+    wrapped = s._present("trace", sample, client_name="chatgpt")
     results.append(_check(
-        "7 trace result → CallToolResult with widget _meta attached (D4 always-attach)",
+        "7 trace result on a WIDGET host (chatgpt) → CallToolResult with widget _meta (D4 gated-attach)",
         isinstance(wrapped, CallToolResult)
         and wrapped.meta.get("ui", {}).get("resourceUri", "").startswith("ui://")))
     results.append(_check(
-        "8 the full result is ALWAYS in the text channel — content + structuredContent (D4)",
+        "8 the full result is ALWAYS in the text channel for the widget host — content + structuredContent (D4)",
         bool(wrapped.content) and wrapped.content[0].text
         and wrapped.structuredContent == sample))
 
+    # D4 gate — the CLAUDE path: a non-widget host gets the bare dict, NO _meta.
+    # This is the regression that the live "Unsupported UI resource content
+    # format" failure demanded: claude.ai must never receive the widget pointer.
+    claude_result = s._present("trace", sample, client_name="claude.ai")
+    unknown_result = s._present("trace", sample, client_name=None)
+    results.append(_check(
+        "8b claude.ai (and unidentified host) gets the BARE dict — no widget _meta, full data intact (D4 text-safe default)",
+        claude_result == sample and unknown_result == sample
+        and not isinstance(claude_result, CallToolResult)))
+
     # D4: all three affordance tools wrap to CallToolResult with their OWN
-    # widget binding; a tool with no affordance would pass through as a bare dict.
-    from mcp_server.presentation import registry as _reg
+    # widget binding ON A WIDGET HOST; a tool with no affordance would pass
+    # through as a bare dict regardless of host.
     expected_uri = {
         "trace": "ui://yarnnn/trace-timeline.html",
         "recall": "ui://yarnnn/recall-cards.html",
@@ -122,14 +149,16 @@ def main():
     }
     all_wrapped = True
     for n, uri in expected_uri.items():
-        w = s._present(n, sample)
+        w = s._present(n, sample, client_name="chatgpt")
         ok = isinstance(w, CallToolResult) and bool(w.content) and w.structuredContent == sample \
             and (w.meta or {}).get("ui", {}).get("resourceUri") == uri
+        # and the same tool on the claude path returns the bare dict
+        ok = ok and (s._present(n, sample, client_name="claude.ai") == sample)
         if not ok:
             all_wrapped = False
-            print(f"      [!] {n} did not wrap to its widget {uri}")
+            print(f"      [!] {n} did not gate correctly for widget {uri}")
     results.append(_check(
-        "9 each of remember/recall/trace wraps to CallToolResult with ITS OWN widget _meta (D1/D4)",
+        "9 remember/recall/trace each wrap to ITS OWN widget _meta on chatgpt, bare dict on claude.ai (D1/D4 gate)",
         all_wrapped))
 
     widget_uris = {

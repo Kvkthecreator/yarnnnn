@@ -104,7 +104,7 @@ No new Render service, no SDK upgrade — `FastMCP.resource()` and `custom_route
 
 ## 4. The adapter layer (D2, D5) — one host name per file
 
-The neutral affordance is translated to a vendor `_meta` shape **at response-serialization time, by an adapter.** The `_meta` is attached *unconditionally* (D4 — there is no server-side host handshake to gate on; a non-rendering host simply ignores it). A host name appears in code in exactly one place: its adapter file. We default to the open-spec shape and overlay the OpenAI keys always (additive; ignored by non-ChatGPT hosts).
+The neutral affordance is translated to a vendor `_meta` shape **at response-serialization time, by an adapter.** The `_meta` is attached **only to a widget-rendering host** (D4, amended 2026-06-27 — `hosts.renders_widgets(client_name)`; a non-rendering host like claude.ai gets the bare text result, because it does *not* ignore a widget pointer harmlessly — it tries to render it and fails). A host name appears in code in exactly two places: its adapter file (the vendor `_meta` shape) and `hosts.py` (whether it renders). The adapter still defaults to the open-spec shape and overlays the OpenAI keys (additive); the *gate* — not the adapter — decides whether that `_meta` reaches the host at all.
 
 ```python
 # adapters/mcp_apps.py — PRIMARY (open spec)
@@ -127,28 +127,28 @@ def overlay_definition(meta: dict, widget) -> dict:
 
 ---
 
-## 5. The invariant guard (D4) — always-attach `_meta`, always-text-channel
+## 5. The invariant guard (D4) — always-text-channel; `_meta` gated to widget hosts (AMENDED 2026-06-27)
 
-The original instinct here was to *negotiate*: detect a rich-render host at `initialize` and only then attach `_meta`. **The ecosystem does not support that** (verified 2026-06-26 against OpenAI's docs + the Apps SDK examples): MCP servers attach `_meta.ui.resourceUri` **unconditionally**, and the host renders it or ignores it. There is no documented server-side host-capability handshake to gate on. OpenAI's guidance is *feature-detect widget-side* (`window.openai` graceful degradation), not gate server-side.
+> **Falsified live (2026-06-27).** The original §5 below assumed a text-only host *ignores* `_meta` harmlessly. **claude.ai does not.** Its connector reads the widget pointer, fetches the resource (served `text/html+skybridge` + `openai/*` keys), and fails with **"Unsupported UI resource content format"** — the OpenAI-Apps render path leaked into the Claude path because nothing decided per host whether to send the pointer. The write succeeded; the host surfaced a *render* error as a tool error. The fix is the escape hatch the original §5 anticipated (the blockquote): the resolved client id is a reliable-enough server-side signal, so we now **gate the pointer** while keeping the text channel unconditional.
 
-So the invariant is protected by a simpler and stronger mechanism than negotiation:
+The contract has two halves, and only one is unconditional:
 
 ```
 tool returns
    │
-   ├─ content / structuredContent  ← ALWAYS present (full, model-readable result)
+   ├─ content / structuredContent  ← ALWAYS present, EVERY host (full, model-readable result)
    │                                  the text path is unconditionally intact
    │                                  → this is what protects the ADR-368 invariant
    │
-   └─ _meta.ui.resourceUri         ← attached whenever the tool has an affordance
-                                      ┌─ rich host (ChatGPT, MCP-Apps): renders the widget
-                                      └─ text host (claude.ai, plain): ignores _meta harmlessly
-                                         (_meta is non-semantic to a host that doesn't read it)
+   └─ _meta.ui.resourceUri         ← attached only when the tool has an affordance (D1)
+                                      AND hosts.renders_widgets(client_name) is True
+                                      ┌─ widget host (chatgpt ∈ WIDGET_RENDERING_HOSTS): gets the pointer, renders the widget
+                                      └─ every other host (claude.ai, unidentified, new): NO pointer → clean text path
 ```
 
-**The data is always in the text channel.** That is the contract — not detection. A text-only host is never worse off (it gets the full result as prose, exactly the ADR-368 path); a rich host gets the widget *in addition*. There is no "broken half-render" failure mode because the widget never *replaces* the text — it accompanies it (D3: the model still narrates).
+**The data is always in the text channel** (the ADR-368 invariant, unchanged). The **widget pointer is now allow-listed** (`presentation/hosts.py`): a host in `WIDGET_RENDERING_HOSTS` (today: `chatgpt`) gets it; everything else gets the bare text path — a **text-safe default**, so the worst case is "no widget," never "broken render." The gate keys on the same client id the MCP layer already derives (`mcp_composition.derive_client_name*`); a new rendering host opts in with one entry, verified end-to-end first. The served resource stays OpenAI-shaped (correct — only a host that got the pointer ever fetches it, and post-gate only ChatGPT does).
 
-> Optional optimization, not a dependency: a best-effort `clientInfo` sniff *may* select the OpenAI overlay vs the bare open-spec shape. But correctness must never depend on it — mis-identifying a host must, at worst, send a slightly-less-tailored but still-valid `_meta` that the host ignores or renders. Should a reliable server-side capability signal later standardize, the framework can opt into suppressing `_meta` for text-only hosts as a bandwidth optimization; it must never become the thing the text path *relies on*.
+> Why an allow-list, not a deny-list: claude.ai's OAuth `client_id` is an opaque registration UUID and its User-Agent contains no "claude" — so it may resolve late or to "unknown." A deny-list would leak the widget to any host it failed to recognize. An allow-list with a text-safe default fails closed: an unrecognized host gets text, which every host renders. When MCP standardizes a real per-request rendering-capability bit, `renders_widgets()` is the one function to swap.
 
 ---
 
@@ -193,7 +193,7 @@ The result arrives back as a `ui/notifications/tool-result` message; the widget 
 
 1. `presentation/affordances.py` — the `"trace"` entry (§2).
 2. `presentation/registry.py` — `"trace-timeline"` → `ui://yarnnn/trace-timeline.html` (§3).
-3. `server.py` — `@mcp.resource(...)` serving the built bundle (§3); on `trace`'s return, attach `_meta` via the adapter (§4) unconditionally, with the full `history[]` always also in `content`/`structuredContent` (§5).
+3. `server.py` — `@mcp.resource(...)` serving the built bundle (§3); on `trace`'s return, attach `_meta` via the adapter (§4) **only when `hosts.renders_widgets(client_name)`** (§5, amended 2026-06-27), with the full `history[]` always also in `content`/`structuredContent` for every host.
 4. `compose_trace._embed_revision_diffs` — embeds each revision's diff inline server-side (§6), so click-to-diff needs zero callback.
 5. `widgets/src/trace-timeline/` — a React (TS) bundle that:
    - renders `history[]` as a vertical timeline, newest first;
