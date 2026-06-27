@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.27.4] - ADR-379 §3.2: the widget gate spans THREE surfaces (discovery + read leak)
+
+**Live test surfaced a THIRD leak: claude.ai still got "Unsupported UI resource content format" — on `remember-receipt.html` — because the response gate doesn't cover DISCOVERY or READ.** A host discovers widgets before any response runs: the tool definition's `openai/outputTemplate` (at `tools/list`) points at the `ui://` resource, and the served resource itself (`resources/read`, skybridge MIME + `openai/*` `_meta`) is fetched and rendered. claude.ai followed the tool-def template to the resource and choked. The ADR-372 follow-on reasoning that "the tool-def `_meta` is harmless namespaced metadata" was falsified for claude.ai.
+
+- `api/mcp_server/server.py`: new `HostGatedFastMCP(FastMCP)` — `list_tools` + `read_resource` overrides gate the SAME `hosts.renders_widgets(host)` decision as the response gate. For a non-widget host: strip `openai/*` + `ui.resourceUri` from tool-def `_meta`, and serve the widget resource as plain `text/html` with no `openai/*` (a non-renderable resource → the host shows nothing instead of erroring). A widget host (chatgpt) is untouched on all three surfaces.
+- `api/mcp_server/auth.py`: `resolve_request_host_id()` — best-effort host resolver for the gate (cheap substring on the token client_id first → catches ChatGPT zero-DB; DB-backed registered-name lookup fallback for claude.ai's opaque UUID). Fail-closed to text-safe (None → non-widget).
+- `api/mcp_server/presentation/registry.py`: `strip_widget_meta()` (drops `openai/*` + `ui.resourceUri`, keeps domain/csp) + `WIDGET_URIS` + `TEXT_RESOURCE_MIME` — the presentation-layer primitives the gate uses (D5: host name appears nowhere; the gate is `renders_widgets`).
+- **Expected behavior**: claude.ai (and any non-widget / unidentified host) — tool defs carry no `openai/outputTemplate`, the widget resource is served as text/html → the render error is gone on all surfaces. ChatGPT — unchanged (skybridge + full openai/* on response, discovery, and read).
+- Canon: ADR-379 §3.2 (the three-surface gate table) + §7 implementation table. Gate `test_adr379_host_profiles.py` 10/10 (+6 strip primitive, +7 discovery+read gate). ADR-372 18/18 (assertions 10/11 updated — they assert the WIDGET-host path now that discovery is gated). ADR-368 10/10.
+
 ## [2026.06.27.3] - ADR-379: Host Profiles — the interop-reach registry (scale to N LLM hosts)
 
 **Reframed "support a host" from a code branch to a data entry, so the interop face scales to N LLM hosts (Gemini, Cursor, Copilot, Perplexity, any spec-compliant MCP client) connecting to the same three verbs over the same substrate.** A host varies from the core on exactly four dimensions — Identity, Auth, Render, Quirks — and only Identity + the render gate were scattered. This collapses them into one registry; auth + the text path were already host-agnostic (a spec-compliant client gets clean text with zero new code — proven live 2026-06-27).

@@ -138,3 +138,33 @@ def served_resource_meta(widget_id: str, *, openai_overlay: bool = True) -> dict
         # add openai/outputTemplate + widgetAccessible + invocation keys
         meta = openai.overlay_definition(meta, w)
     return meta
+
+
+#: All widget `ui://` URIs (the resources a non-widget host must NOT be steered to).
+WIDGET_URIS: frozenset[str] = frozenset(w.uri for w in WIDGETS.values())
+
+#: The widget resource MIME a non-widget host cannot render — downgraded to plain
+#: text/html on the read path for such hosts (ADR-372 D4 / ADR-379 discovery gate).
+TEXT_RESOURCE_MIME = "text/html"
+
+
+def strip_widget_meta(meta: dict | None) -> dict | None:
+    """Return `meta` with all widget-advertisement keys removed (ADR-379 gate).
+
+    For a host that does NOT render widgets: drop the OpenAI binding keys
+    (`openai/*`) and the open-spec widget linkage (`ui.resourceUri`) so the host is
+    never steered to a widget resource it cannot render. Preserves any non-widget
+    `_meta` and the resource's `ui.domain`/`ui.csp` (harmless, submission-shaped).
+    Returns None if nothing meaningful remains (so the wire carries no `_meta`).
+    """
+    if not meta:
+        return meta
+    cleaned = {k: v for k, v in meta.items() if not k.startswith("openai/")}
+    ui = cleaned.get("ui")
+    if isinstance(ui, dict) and "resourceUri" in ui:
+        ui = {k: v for k, v in ui.items() if k != "resourceUri"}
+        if ui:
+            cleaned["ui"] = ui
+        else:
+            cleaned.pop("ui", None)
+    return cleaned or None

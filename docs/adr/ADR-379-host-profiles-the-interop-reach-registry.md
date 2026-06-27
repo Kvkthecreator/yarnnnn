@@ -66,6 +66,24 @@ The registry exposes:
 
 `_normalize_client_id` had a deliberate ordering: `claude.ai`/`anthropic` (but not "desktop") → `claude.ai`; `claude`+`desktop` → `claude_desktop`; `claude`+`code` → `claude_code`. The registry MUST preserve this: a substring match is **first-wins by registry order**, and the more specific Claude variants must be tested such that `claude_desktop`/`claude_code` win over the bare `anthropic`/`claude.ai` match. The CI gate (§5) asserts the known disambiguations resolve correctly so this ordering can never silently regress.
 
+### 3.2 The widget gate spans THREE surfaces, not one (live finding 2026-06-27)
+
+ADR-372's gate withheld the widget pointer from the tool **response** (`_present`). That is necessary but **not sufficient** — a host discovers widgets on two surfaces *before* any response runs, and claude.ai followed those to a render failure ("Unsupported UI resource content format" on `remember-receipt.html`, live):
+
+| Surface | When | What leaked | Gate |
+|---------|------|-------------|------|
+| **Response** | `tools/call` | the `_meta.ui.resourceUri` pointer on the result | `_present()` (ADR-372) — already gated |
+| **Discovery** | `tools/list` | the tool def's `openai/outputTemplate` → the host resolves it to the `ui://` resource and fetches it | `HostGatedFastMCP.list_tools` — **new** |
+| **Read** | `resources/read` | the served widget resource itself (skybridge MIME + `openai/*` `_meta`) | `HostGatedFastMCP.read_resource` — **new** |
+
+So the original "the tool-DEFINITION `_meta` is harmless namespaced metadata a non-OpenAI host ignores" reasoning (ADR-372 D4 follow-on) was **falsified for claude.ai**: the connector reads `openai/outputTemplate`, fetches the resource, and renders it. The fix gates all three surfaces on the **same** `hosts.renders_widgets(host)` decision:
+
+- **`HostGatedFastMCP`** (a `FastMCP` subclass — `list_tools`/`read_resource` overrides) resolves the request host (`auth.resolve_request_host_id`, best-effort, fail-closed to text) and, for a non-widget host, **strips** `openai/*` + `ui.resourceUri` from tool-def `_meta` and serves the widget resource as **plain `text/html` with no `openai/*`** — so the host receives a non-renderable resource and shows nothing instead of erroring.
+- The stripping primitive (`registry.strip_widget_meta`) + the URI set (`WIDGET_URIS`) + the downgraded MIME (`TEXT_RESOURCE_MIME`) live in the presentation layer (D5). A host name appears nowhere in the gate — only `renders_widgets`.
+- A **widget host (chatgpt)** is untouched on all three surfaces: full `openai/*` binding + skybridge MIME flow through.
+
+**Why a subclass and not the decorators:** FastMCP bakes `_meta` at registration (`@mcp.tool`/`@mcp.resource`), and `tools/list`/`resources/read` have no per-tool hook for per-host `_meta`. Overriding the two `FastMCP` methods is the one contained seam that sees the request context. The host resolver on the discovery path is cheap-first (substring on the token `client_id`, catching ChatGPT with zero DB) and falls back to the DB-backed registered-name lookup only when needed (claude.ai's opaque UUID).
+
 ## 4. Multi-dialect resource serving (the one piece of new engineering — DEFERRED)
 
 This is the only dimension that is not "move existing logic into the registry." Today the widget resource is served at one URI with one MIME (`text/html+skybridge`, OpenAI-specific). A second rendering host with a different dialect (e.g. open MCP-Apps `text/html;profile=mcp-app`) cannot be served from that one resource. The fix is the one the registry's own comment already names: **serve each widget at N URIs, one per dialect** —
@@ -92,7 +110,7 @@ This is what keeps the Nth host a data entry: the gate fails the build if a host
 
 ## 6. What this ADR explicitly does NOT do (scope discipline)
 
-- **It does not change auth.** Dimension 2 is already host-agnostic; no `oauth_provider.py` change. (The static-bearer single-user pin — `MCP_USER_ID` — is noted as the one non-multi-user auth case, relevant when reach includes team/shared use, but that is ADR-373's territory, not this one.)
+- **It does not change the auth FLOW.** Dimension 2 is already host-agnostic; no `oauth_provider.py` / OAuth change. (It *does* add one read-only helper, `auth.resolve_request_host_id`, that reads the existing token to identify the host for the §3.2 gate — identity resolution, not an auth-flow change.) The static-bearer single-user pin — `MCP_USER_ID` — is noted as the one non-multi-user auth case, relevant when reach includes team/shared use, but that is ADR-373's territory, not this one.
 - **It does not build multi-dialect serving** (§4 deferred).
 - **It does not add a non-MCP route** (REST/SDK/Action — a different protocol face; out of scope, the "Surface" axis we set aside).
 - **It does not touch the kernel or `api/services/*` core.** The registry lives entirely in `api/mcp_server/presentation/` (ADR-222 boundary; ADR-372 D5).
@@ -104,9 +122,11 @@ This is what keeps the Nth host a data entry: the gate fails the build if a host
 |---------|------|--------|
 | The registry | `api/mcp_server/presentation/hosts.py` | `HostProfile` + `HOSTS` table + `resolve_host_id` / `renders_widgets` / `widget_dialect` |
 | Identity resolution | `api/services/mcp_composition.py` | `_normalize_client_id` delegates to `resolve_host_id` (single resolver; both `derive_*` callers unchanged in signature) |
-| The gate (existing) | `api/mcp_server/server.py` | `_present()` already calls `renders_widgets`; no change needed (registry preserves the function) |
-| Dialect selection (shape only) | `api/mcp_server/presentation/registry.py` | `tool_response_meta` / `served_resource_meta` gain a `dialect` param (defaults to `openai`; only `openai` wired until §4) |
-| CI gate | `api/test_adr379_host_profiles.py` | §5 assertions |
-| Canon | `docs/features/mcp/presentation.md` §6 | the Host-Profile model |
+| Response gate (existing) | `api/mcp_server/server.py` | `_present()` already calls `renders_widgets`; passes the host's `widget_dialect` |
+| **Discovery + read gate (§3.2)** | `api/mcp_server/server.py` | `HostGatedFastMCP(FastMCP)` — `list_tools` / `read_resource` overrides strip widget `_meta` + downgrade the resource MIME for a non-widget host |
+| Host resolver for the gate | `api/mcp_server/auth.py` | `resolve_request_host_id()` — best-effort, cheap-first, fail-closed-to-text |
+| Strip primitive + URI set | `api/mcp_server/presentation/registry.py` | `strip_widget_meta` + `WIDGET_URIS` + `TEXT_RESOURCE_MIME`; `tool_response_meta` gains a `dialect` param (only `openai` wired until §4) |
+| CI gate | `api/test_adr379_host_profiles.py` | §5 assertions + the §3.2 three-surface gate (assertions 6, 7) |
+| Canon | `docs/features/mcp/presentation.md` §5.1 | the Host-Profile model |
 
 Doc-first per CLAUDE.md: this ADR, then `presentation.md` §6, then code, then the gate.

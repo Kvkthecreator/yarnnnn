@@ -149,6 +149,61 @@ def main():
         "1b no reach-host name literal in MCP live code outside the registry (host = data entry, not branch)",
         not leak, f"leaks={leak}" if leak else ""))
 
+    # ---- 6: strip_widget_meta removes every widget-advertisement key -----------
+    from mcp_server.presentation import registry as reg
+    openai_meta = {
+        "ui": {"domain": "https://mcp.yarnnn.com", "csp": {"connectDomains": ["x"]},
+               "resourceUri": "ui://yarnnn/remember-receipt.html"},
+        "openai/outputTemplate": "ui://yarnnn/remember-receipt.html",
+        "openai/widgetAccessible": True,
+        "openai/toolInvocation/invoking": "Saving…",
+    }
+    stripped = reg.strip_widget_meta(openai_meta)
+    results.append(_check(
+        "6 strip_widget_meta drops openai/* + ui.resourceUri, keeps domain/csp (the discovery/read gate primitive)",
+        stripped is not None
+        and not any(k.startswith("openai/") for k in stripped)
+        and "resourceUri" not in stripped.get("ui", {})
+        and "domain" in stripped.get("ui", {})))
+
+    # ---- 7: the DISCOVERY + READ gate (the 2026-06-27 second leak) -------------
+    # The response gate (_present) doesn't cover tools/list + resources/read, where
+    # claude.ai discovered the widget and choked. HostGatedFastMCP closes it: a
+    # non-widget host gets tool defs WITHOUT openai/outputTemplate and the widget
+    # resource as plain text/html with no openai/* — a widget host (chatgpt) keeps
+    # the full openai/* binding. Exercised with the host resolver stubbed.
+    import asyncio
+    import mcp_server.server as srv
+
+    async def _gate(host):
+        orig = srv.resolve_request_host_id
+        srv.resolve_request_host_id = lambda: host
+        try:
+            tools = {t.name: (t.meta or {}) for t in await srv.mcp.list_tools()}
+            res = list(await srv.mcp.read_resource("ui://yarnnn/remember-receipt.html"))[0]
+            return tools.get("remember", {}), res.mime_type, (getattr(res, "meta", None) or {})
+        finally:
+            srv.resolve_request_host_id = orig
+
+    cl_def, cl_mime, cl_meta = asyncio.run(_gate("claude.ai"))
+    none_def, none_mime, none_meta = asyncio.run(_gate(None))
+    cg_def, cg_mime, cg_meta = asyncio.run(_gate("chatgpt"))
+
+    gate_ok = (
+        # non-widget host (claude.ai + unknown): tool def stripped, resource neutered
+        "openai/outputTemplate" not in cl_def
+        and cl_mime == "text/html"
+        and not any(k.startswith("openai/") for k in cl_meta)
+        and "openai/outputTemplate" not in none_def
+        and none_mime == "text/html"
+        # widget host (chatgpt): full binding preserved
+        and cg_def.get("openai/outputTemplate", "").startswith("ui://")
+        and cg_mime == "text/html+skybridge"
+        and any(k.startswith("openai/") for k in cg_meta))
+    results.append(_check(
+        "7 discovery+read gate: claude.ai/unknown get NO openai binding + text/html resource; chatgpt keeps skybridge+openai/* (the second-leak fix)",
+        gate_ok))
+
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-379 assertions pass")
     if passed != total:

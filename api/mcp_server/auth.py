@@ -113,3 +113,58 @@ def resolve_request_client() -> AuthenticatedClient:
         email=None,
         caller_identity=f"yarnnn:mcp:{client_name}",
     )
+
+
+def resolve_request_host_id() -> str | None:
+    """Resolve the calling host id for the CURRENT request (ADR-379), best-effort.
+
+    Used by the DISCOVERY + RESOURCE-READ gates (server.py) — these run before any
+    tool response, so the response-time `client_name` isn't available; they need
+    the host identity here. Returns a HostProfile id ("chatgpt" | "claude.ai" | …)
+    or None when the caller can't be identified.
+
+    Resolution order, cheapest-first (discovery is hot and should avoid a DB hit
+    unless needed):
+      1. The token `client_id` resolved directly by substring (catches ChatGPT,
+         whose client_id carries "openai"/"chatgpt"; zero DB).
+      2. The DB-backed registered `client_name` lookup (catches claude.ai's opaque
+         UUID via the registered name) — only when (1) misses.
+
+    SAFE DEFAULT: None on any failure / unidentified caller. The gate treats None
+    as a non-widget host (text-safe), so an unidentified host is never advertised a
+    widget it might choke on — the same fail-closed posture as the response gate.
+    """
+    try:
+        from mcp.server.auth.middleware.auth_context import get_access_token
+        token = get_access_token()
+    except Exception:  # noqa: BLE001
+        token = None
+    client_id = getattr(token, "client_id", None) if token else None
+    if not client_id:
+        return None
+
+    from mcp_server.presentation.hosts import resolve_host_id
+
+    # (1) cheap direct resolve from the client_id itself (ChatGPT, etc.)
+    direct = resolve_host_id(client_id)
+    if direct:
+        return direct
+
+    # (2) DB-backed registered-name lookup (claude.ai opaque UUID). Best-effort.
+    try:
+        user_id = getattr(token, "user_id", None) or os.environ.get("MCP_USER_ID")
+        if not user_id:
+            return None
+        base = _build_client(user_id)
+        row = (
+            base.client.table("mcp_oauth_clients")
+            .select("client_name")
+            .eq("client_id", client_id)
+            .limit(1)
+            .execute()
+        )
+        name = (row.data or [{}])[0].get("client_name") if row.data else None
+        return resolve_host_id(name) if name else None
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[MCP Auth] host-id resolution failed (%s)", exc)
+        return None

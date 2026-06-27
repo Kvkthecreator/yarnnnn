@@ -51,7 +51,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import CallToolResult, TextContent, ToolAnnotations
 from pydantic import AnyHttpUrl
 
-from mcp_server.auth import resolve_request_client
+from mcp_server.auth import resolve_request_client, resolve_request_host_id
 from mcp_server.oauth_provider import YarnnnOAuthProvider
 from mcp_server.presentation import affordances as presentation_affordances
 from mcp_server.presentation import hosts as presentation_hosts
@@ -212,12 +212,79 @@ async def lifespan(server: FastMCP):
     logger.info("[MCP Server] Shutting down")
 
 
+# =============================================================================
+# ADR-379 — the DISCOVERY + RESOURCE-READ host gate (the second leak)
+# =============================================================================
+#
+# The ADR-372 response gate (_present) withholds the widget pointer from the tool
+# RESPONSE for a non-widget host. But a host also discovers widgets BEFORE any
+# response runs — at `tools/list` (the tool def's `openai/outputTemplate`) and at
+# `resources/list` / `resources/read` (the served widget resource itself,
+# skybridge MIME + openai/* keys). claude.ai followed the tool-def template to the
+# resource, fetched it, and failed with "Unsupported UI resource content format"
+# (live, 2026-06-27) — the leak this subclass closes.
+#
+# We subclass FastMCP and host-gate the two discovery surfaces + the read surface:
+#   * list_tools     → strip widget `_meta` from tool defs for a non-widget host.
+#   * read_resource  → for a non-widget host, never serve a widget bundle as a
+#                      renderable resource (downgrade MIME to text/html, strip
+#                      openai/* + ui.resourceUri so nothing tries to render).
+# The host is resolved per-request (auth.resolve_request_host_id); an unidentified
+# host is text-safe by default — the same fail-closed posture as the response gate.
+# A widget host (chatgpt) is unaffected: full openai/* metadata flows through.
+
+class HostGatedFastMCP(FastMCP):
+    """FastMCP that strips widget advertisement for hosts that can't render it.
+
+    Closes the discovery/read leak ADR-372's response gate didn't cover (ADR-379).
+    A host name appears nowhere here — the gate is `hosts.renders_widgets`, applied
+    to the resolved request host; the presentation layer owns what "strip" means
+    (`registry.strip_widget_meta`). Kernel boundary preserved (ADR-222/372 D5).
+    """
+
+    async def list_tools(self):  # type: ignore[override]
+        tools = await super().list_tools()
+        try:
+            host = resolve_request_host_id()
+            if presentation_hosts.renders_widgets(host):
+                return tools  # widget host (chatgpt) — leave the openai/* binding
+            for t in tools:
+                if getattr(t, "meta", None):
+                    t.meta = presentation_registry.strip_widget_meta(t.meta)
+        except Exception as exc:  # noqa: BLE001 — the gate must never break discovery
+            logger.warning("[MCP GATE] list_tools host-gate failed (%s); serving as-is", exc)
+        return tools
+
+    async def read_resource(self, uri):  # type: ignore[override]
+        contents = await super().read_resource(uri)
+        try:
+            if str(uri) not in presentation_registry.WIDGET_URIS:
+                return contents  # not a widget resource — untouched
+            host = resolve_request_host_id()
+            if presentation_hosts.renders_widgets(host):
+                return contents  # widget host — serve skybridge + openai/* as-is
+            # non-widget host: hand back a plain, non-renderable text/html resource
+            # so the host shows nothing instead of erroring on an unrenderable widget.
+            from mcp.server.lowlevel.helper_types import ReadResourceContents
+            gated = []
+            for c in contents:
+                gated.append(ReadResourceContents(
+                    content=c.content,
+                    mime_type=presentation_registry.TEXT_RESOURCE_MIME,
+                    meta=presentation_registry.strip_widget_meta(getattr(c, "meta", None)),
+                ))
+            return gated
+        except Exception as exc:  # noqa: BLE001 — the gate must never break a read
+            logger.warning("[MCP GATE] read_resource host-gate failed (%s); serving as-is", exc)
+            return contents
+
+
 # Server URL for OAuth issuer
 _server_url = os.environ.get(
     "MCP_SERVER_URL", "https://yarnnn-mcp-server.onrender.com"
 )
 
-mcp = FastMCP(
+mcp = HostGatedFastMCP(
     "yarnnn",
     instructions=(
         "YARNNN is the user's durable, attributed memory — the knowledge they "

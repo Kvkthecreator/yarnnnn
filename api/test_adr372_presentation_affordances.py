@@ -195,36 +195,47 @@ def main():
         "remember": "ui://yarnnn/remember-receipt.html",
     }
 
+    # NOTE (ADR-379 discovery gate): list_tools + read_resource now host-gate the
+    # widget metadata — a non-widget / unidentified host gets the openai/* binding
+    # STRIPPED and the resource downgraded to text/html. So these "widget host gets
+    # the full OpenAI binding" assertions must run on the WIDGET-HOST path: stub
+    # resolve_request_host_id → "chatgpt". (The non-widget path is asserted by
+    # ADR-379 assertion 7.)
     async def _wire():
-        tools = {t.name: t for t in await s.mcp.list_tools()}
-        # D2: ALL THREE tool DEFINITIONS carry the openai/outputTemplate binding.
-        def_ok = all(
-            (tools[n].meta or {}).get("openai/outputTemplate") == uri
-            for n, uri in widget_uris.items()
-        )
-        # all three widget resources registered + serve a valid self-contained bundle.
-        res = {str(r.uri) for r in await s.mcp.list_resources()}
-        served_ok = all(uri in res for uri in widget_uris.values())
-        bundle_ok = True
-        for uri in widget_uris.values():
-            blob = list(await s.mcp.read_resource(uri))[0]
-            c = blob.content
-            no_external = 'src="http' not in c and "src='http" not in c
-            if not (
-                blob.mime_type == registry.RESOURCE_MIME
-                and c.lstrip().startswith("<!doctype html>")
-                and no_external
-                and "createRoot" in c
-            ):
-                bundle_ok = False
-        return def_ok, served_ok, bundle_ok
+        orig_host = s.resolve_request_host_id
+        s.resolve_request_host_id = lambda: "chatgpt"
+        try:
+            tools = {t.name: t for t in await s.mcp.list_tools()}
+            # D2: ALL THREE tool DEFINITIONS carry the openai/outputTemplate binding.
+            def_ok = all(
+                (tools[n].meta or {}).get("openai/outputTemplate") == uri
+                for n, uri in widget_uris.items()
+            )
+            # all three widget resources registered + serve a valid self-contained bundle.
+            res = {str(r.uri) for r in await s.mcp.list_resources()}
+            served_ok = all(uri in res for uri in widget_uris.values())
+            bundle_ok = True
+            for uri in widget_uris.values():
+                blob = list(await s.mcp.read_resource(uri))[0]
+                c = blob.content
+                no_external = 'src="http' not in c and "src='http" not in c
+                if not (
+                    blob.mime_type == registry.RESOURCE_MIME
+                    and c.lstrip().startswith("<!doctype html>")
+                    and no_external
+                    and "createRoot" in c
+                ):
+                    bundle_ok = False
+            return def_ok, served_ok, bundle_ok
+        finally:
+            s.resolve_request_host_id = orig_host
 
     def_ok, served_ok, bundle_ok = asyncio.run(_wire())
     results.append(_check(
-        "10 all three tool DEFINITIONS carry openai/outputTemplate (host registers each template; D2)",
+        "10 a WIDGET host's tool DEFINITIONS carry openai/outputTemplate (host registers each template; D2; gated per ADR-379)",
         def_ok))
     results.append(_check(
-        "11 all three widgets served at ui:// — self-contained HTML, React mount, skybridge MIME (§3/§7)",
+        "11 a WIDGET host gets all three widgets at ui:// — self-contained HTML, React mount, skybridge MIME (§3/§7)",
         served_ok and bundle_ok))
 
     # ---- compose_trace embeds diffs server-side (zero-callback, ADR-372) ----
