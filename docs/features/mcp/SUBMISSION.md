@@ -73,14 +73,19 @@ This is a **content/legal task, not code** — it must be live at `yarnnn.com/pr
 | Action annotations correct (`readOnlyHint`/`destructiveHint`/`openWorldHint`) | ✅ fixed 2026-06-26 ([2026.06.26.9]) — was the named rejection risk |
 | Output schemas declared | ✅ fixed 2026-06-26 |
 | Review-friendly tool copy (no competitor-pointing) | ✅ fixed 2026-06-26 |
-| `trace` widget renders + populates | ✅ **VALIDATED LIVE in ChatGPT 2026-06-26** — timeline renders 10 SPY rows, provenance badges, show-changes diffs; model still narrates (D3). See §7. |
-| Tools behave reliably, no crashes, complete (not a demo) | ⚠️ exercise all three end-to-end on the demo account |
+| All three widgets render live | ✅ **VALIDATED LIVE in ChatGPT 2026-06-26** — `trace` timeline (10 SPY rows, diffs), `recall` cards, `remember` ✓ receipt with `mcp:chatgpt` chip; model still narrates (D3). See §7. |
+| Tools behave reliably, no crashes, complete (not a demo) | ✅ all three exercised end-to-end live |
 | Privacy policy published | ✅ updated 2026-06-26 (66d1447) — `yarnnn.com/privacy` §5 discloses the MCP/connected-LLM data flow; deploys with web |
-| Demo/test account seeded with multi-revision content | ❌ provision so `trace` shows a real timeline |
-| Identity verification (OpenAI dashboard) | ❌ complete before submit |
-| Logo + screenshots | ❌ produce |
+| Terms of Service URL | ✅ `yarnnn.com/terms` exists (`web/app/terms/page.tsx`) — no 404 risk |
+| **Demo Recording URL** | ❌ **REQUIRED dashboard field (not optional).** A screen-recorded video walking all three tools in ChatGPT Developer Mode, hosted at a public URL (e.g. YouTube unlisted, Loom). NOT screenshots — a video. This is the one field blocking "Continue" right now. |
+| Demo/test account seeded with content | ❌ a YARNNN account the reviewer logs into, with `remember` saves + a multi-revision file so `trace`/`recall` show populated widgets |
+| Identity verification (OpenAI dashboard) | ❌ complete in the platform dashboard |
+| Logo | ❌ square, per the directory spec |
+| Screenshots (gallery) | ❌ trace / recall / remember — widget + a bit of prose in frame |
 
-**Do not submit until the ⚠️/❌ rows are closed.** Submitting an incomplete app burns a review cycle (and "complete apps only — demos rejected" is a stated rule).
+**Project choice (clearinghouse vs yarnnn):** the OpenAI *project* the app sits under is just an org/billing folder — it does NOT affect the app (identity = App ID + MCP URL + metadata; users never see the project). Leave it as-is unless you specifically want keys/billing under the `yarnnn` project, in which case switch project FIRST then recreate the app (apps don't move between projects).
+
+**Do not submit until the ⚠️/❌ rows are closed.** Submitting an incomplete app burns a review cycle (and "complete apps only — demos rejected" is a stated rule). **The Demo Recording is the immediate gate** — the form won't Continue without it.
 
 ### 4a. The widget-binding contract (validated 2026-06-26) — and the cache gotcha that cost us a day
 
