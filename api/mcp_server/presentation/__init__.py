@@ -8,7 +8,8 @@ presentation dimension:
     affordances.py   — per-tool affordance DECLARATIONS (data, not code; ADR-372 D1)
     registry.py      — widget id → ui:// resource (uri, mime, csp/domain; ADR-372 D3-served)
     adapters/        — neutral affordance → vendor `_meta` shape (ADR-372 D2/D5)
-    hosts.py         — which hosts render widgets (the per-request gate; ADR-372 D4)
+    hosts.py         — the Host Profile registry: identity + render gate + dialect
+                       per connecting LLM host (ADR-379; absorbs the ADR-372 D4 gate)
 
 Invariants this package must never erode (ADR-372):
     D3  a widget renders RETURNED substrate; the model still narrates — additive,
@@ -31,17 +32,28 @@ presentation: declarations + `_meta` shaping over results the tools already retu
 """
 
 from mcp_server.presentation.affordances import AFFORDANCES, Affordance
-from mcp_server.presentation.hosts import WIDGET_RENDERING_HOSTS, renders_widgets
+from mcp_server.presentation.hosts import (
+    HOSTS,
+    HostProfile,
+    WIDGET_RENDERING_HOSTS,
+    renders_widgets,
+    resolve_host_id,
+    widget_dialect,
+)
 from mcp_server.presentation.registry import RESOURCE_MIME, WIDGETS, Widget, tool_response_meta, tool_definition_meta
 
 __all__ = [
     "AFFORDANCES",
     "Affordance",
+    "HOSTS",
+    "HostProfile",
     "RESOURCE_MIME",
     "WIDGETS",
     "Widget",
     "WIDGET_RENDERING_HOSTS",
     "renders_widgets",
+    "resolve_host_id",
+    "widget_dialect",
     "tool_response_meta",
     "tool_definition_meta",
 ]

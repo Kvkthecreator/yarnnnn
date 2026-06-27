@@ -107,9 +107,10 @@ def _present(tool_name: str, result: dict, *, client_name: str | None = None):
     A tool with no affordance returns the bare dict (FastMCP serializes it;
     those tools advertise no outputSchema). An affordance-bearing tool ALWAYS
     returns a CallToolResult with both channels populated; the widget `_meta` is
-    attached only when the calling host renders widgets (a host in
-    presentation.hosts.WIDGET_RENDERING_HOSTS). Non-widget hosts get the same
-    full result, minus the pointer they cannot render.
+    attached only when the calling host renders widgets (ADR-372 D4 gate, ADR-379
+    Host Profile registry). The widget dialect (ADR-379 D3b) is the host's
+    declared `widget_dialect` — only "openai" is wired today. Non-widget hosts get
+    the same full result, minus the pointer they cannot render.
     """
     affordance = presentation_affordances.affordance_for(tool_name)
     if affordance is None:
@@ -117,7 +118,8 @@ def _present(tool_name: str, result: dict, *, client_name: str | None = None):
     meta = None
     if presentation_hosts.renders_widgets(client_name):
         try:
-            meta = presentation_registry.tool_response_meta(affordance.widget)
+            dialect = presentation_hosts.widget_dialect(client_name)
+            meta = presentation_registry.tool_response_meta(affordance.widget, dialect=dialect)
         except Exception as exc:  # noqa: BLE001 — presentation must never break a tool
             logger.warning("[MCP PRESENT] %s: _meta build failed (%s); text-only", tool_name, exc)
             meta = None

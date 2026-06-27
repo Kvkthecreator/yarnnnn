@@ -154,6 +154,31 @@ tool returns
 
 ---
 
+## 5.1 Host Profiles — the interop-reach registry (ADR-379)
+
+The `renders_widgets()` gate (§5) is one slice of a larger truth: **a host is a driver, not a code branch.** Reach — N LLM hosts (Gemini, Cursor, Copilot, Perplexity, …) connecting to the same three verbs over the same substrate — is the product (ADR-310, "one memory for every AI you use"). ADR-379 makes the host a **data entry**, not a code change.
+
+A host varies from the core on **exactly four dimensions**, and only four:
+
+| # | Dimension | Varies | Status |
+|---|-----------|--------|--------|
+| 1 | **Identity** | OAuth `client_id` / UA / registered name → short id | `HostProfile.match` (the registry is the single resolver) |
+| 2 | **Auth** | OAuth 2.1 dynamic-registration vs static bearer | **already host-agnostic** (`oauth_provider.py`) — zero new code per host |
+| 3 | **Render** | (a) renders widgets? (b) which dialect? | (a) `HostProfile.renders_widgets` (§5 gate); (b) `HostProfile.widget_dialect` (§4 deferred) |
+| 4 | **Quirks** | per-host workarounds (e.g. Claude Desktop JSON-string coercion) | a profile field *only when a real quirk is found* — never speculative |
+
+Everything else — verbs, substrate, `user_id`, provenance mechanism, the ADR-307 gate — is identical. **The de-risking fact:** dimensions 2 and the *text path* of 3 are already host-agnostic, so a spec-compliant MCP client gets clean text responses with **zero new code** (proven live 2026-06-27). The registry doesn't *unlock* reach — reach is already there — it makes reach **attributed and safe** instead of **accidental and `"unknown"`**.
+
+`presentation/hosts.py` is the registry: a `HostProfile` table + three resolvers (`resolve_host_id`, `renders_widgets`, `widget_dialect`). `_normalize_client_id` (in `mcp_composition.py`) delegates to `resolve_host_id` — one resolver, the substring chain gone. **Adding Gemini is one line** (`HostProfile("gemini", ("gemini", "google"))`): it connects (auth, free), gets text (free), and attributes as `yarnnn:mcp:gemini` in `trace` (the one thing the entry adds). When a host ships a widget spec, flip `renders_widgets=True` + set `widget_dialect`, and §4's multi-dialect serving renders it.
+
+> **Ordering caveat (preserved):** substring match is **first-wins by registry order**. The specific Claude variants (`claude_desktop`, `claude_code`) must be tested such that they win over the bare `anthropic`/`claude.ai` match. The CI gate (`test_adr379_host_profiles.py`) freezes the known disambiguations so the ordering can never silently regress.
+
+> **The structural guarantee:** the CI gate asserts (1) no host-name literal appears outside the registry in the MCP layer (`openai` survives only inside its adapter, per D5); (2) every `renders_widgets=True` profile declares a dialect; (3) the known disambiguations resolve; (4) the ADR-372 gate contract holds. That gate is what keeps the Nth host a *data entry* — a leaked host name fails the build.
+
+§4's multi-dialect resource serving is the **only** new engineering, and it's **deferred** until a second rendering host exists (YAGNI). The registry shape anticipates it (`widget_dialect` is a field from day one) so the seam is pre-cut. Until then only `chatgpt` renders, only the `openai` dialect is served — identical to today.
+
+---
+
 ## 6. The widget↔tool callback contract (D6)
 
 An interactive widget *may* call back via JSON-RPC `tools/call` over `postMessage` (MCP Apps bridge). When it does, it calls the **same** `remember`/`recall`/`trace` tools — through the **same** `execute_primitive()` gate, the **same** ADR-307 permission taxonomy, the **same** audit trail. There is no widget-only privileged path. A widget cannot reach substrate a normal tool call couldn't.
@@ -228,7 +253,8 @@ npm run build        # → dist/trace-timeline.html (React inlined, minified, se
 | The three verbs change / a 4th is added | one `AFFORDANCES` dict entry | mechanism, registry, adapters, kernel |
 | OpenAI revises `_meta.ui.*` | `adapters/openai.py` only | open-spec primary, affordances, kernel |
 | MCP Apps spec revs a key | `adapters/mcp_apps.py` only | overlay shrinks, affordances, kernel |
-| Gemini / new host adds widgets | one new adapter file | widget bundles reused as-is |
+| A new host CONNECTS (reach: Gemini, Cursor, Copilot, …) | one `HostProfile` entry in `hosts.py` (§5.1) | auth, verbs, substrate, kernel — text path is free |
+| An existing host adds WIDGET rendering | flip `renders_widgets=True` + set `widget_dialect`; one dialect adapter if new (§4) | widget bundles reused as-is; the registry entry already exists |
 | A new widget (e.g. `recall-cards`) | one registry + one affordance entry + one bundle | every other tool |
 | A server-side host-capability signal standardizes | opt into suppressing `_meta` for text-only hosts as an optimization | the always-text-channel contract (text path never depends on it) |
 | The kernel/primitives evolve | nothing in presentation (tools call `execute_primitive` unchanged) | the whole presentation layer |

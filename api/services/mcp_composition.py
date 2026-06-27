@@ -81,7 +81,9 @@ def derive_client_name(request_context: Any) -> str:
         2. User-Agent header substring match
         3. Fallback to 'unknown'
 
-    Values: claude.ai, chatgpt, claude_desktop, gemini, cursor, unknown
+    Values: the `id` of any registered HostProfile (ADR-379 — chatgpt, claude.ai,
+    claude_desktop, claude_code, gemini, cursor, copilot, perplexity, …), or
+    'unknown'. The canonical list lives in `mcp_server.presentation.hosts.HOSTS`.
     """
     if request_context is None:
         return "unknown"
@@ -213,25 +215,18 @@ def _slugify(text: str) -> str:
 
 def _normalize_client_id(raw: str) -> Optional[str]:
     """
-    Map an OAuth client id or User-Agent string to one of the known
-    short identifiers for provenance stamps.
+    Map an OAuth client id / User-Agent / registered name to a canonical host id.
+
+    ADR-379: the substring chain that used to live here moved to the single Host
+    Profile registry (`mcp_server.presentation.hosts`) — one resolver, one place a
+    host name appears. A new host is a registry entry, not a new `if` here. The
+    import is lazy to keep the dependency direction clean (services/ does not
+    import the interop-face presentation layer at module load).
     """
     if not raw:
         return None
-    low = raw.lower()
-    if "claude.ai" in low or "claude-ai" in low or "anthropic" in low and "desktop" not in low:
-        return "claude.ai"
-    if "claude" in low and "desktop" in low:
-        return "claude_desktop"
-    if "claude" in low and "code" in low:
-        return "claude_code"
-    if "chatgpt" in low or "openai" in low:
-        return "chatgpt"
-    if "gemini" in low or "google" in low:
-        return "gemini"
-    if "cursor" in low:
-        return "cursor"
-    return None
+    from mcp_server.presentation.hosts import resolve_host_id
+    return resolve_host_id(raw)
 
 
 # =============================================================================

@@ -99,15 +99,23 @@ def tool_definition_meta(widget_id: str, *, openai_overlay: bool = True) -> dict
     return meta
 
 
-def tool_response_meta(widget_id: str, *, openai_overlay: bool = True) -> dict:
+def tool_response_meta(widget_id: str, *, dialect: str | None = "openai") -> dict:
     """`_meta` for a tool RESPONSE (links this result to its rendered widget).
 
-    Attached UNCONDITIONALLY (ADR-372 D4): a rendering host uses it, a text-only
-    host ignores it harmlessly. The full result is always also in the text channel.
+    Attached only to a widget-rendering host (ADR-372 D4 gate; the caller decides
+    via hosts.renders_widgets). `dialect` selects the resource shape (ADR-379 D3b):
+        "openai"   → open MCP-Apps shape + the OpenAI overlay (the only wired
+                     dialect today; what ChatGPT renders).
+        "mcp-apps" → open MCP-Apps shape only (DEFERRED — §4 multi-dialect serving;
+                     no rendering host needs it yet).
+        None       → open shape only.
+    Until a second rendering host exists, callers pass "openai" (the default) and
+    the behavior is identical to before — the param is the pre-cut seam, not a
+    second code path.
     """
     w = WIDGETS[widget_id]
     meta = mcp_apps.tool_response_meta(w)
-    if openai_overlay:
+    if dialect == "openai":
         meta = openai.overlay_response(meta, w)
     return meta
 
