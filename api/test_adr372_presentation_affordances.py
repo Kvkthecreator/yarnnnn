@@ -115,33 +115,40 @@ def main():
               "history": [{"authored_by": "operator", "when": "t", "change": "c", "revision_id": "r"}],
               "returned": 1, "explanation": "e"}
 
-    # D4 (amended 2026-06-27): the WIDGET host gets the CallToolResult+_meta; a
-    # non-widget host (claude.ai / unidentified) gets the bare dict (text path).
-    # The widget pointer is now GATED on host capability, not unconditional —
-    # claude.ai was choking on an OpenAI-shaped resource it cannot render.
+    # D4 (amended 2026-06-27): BOTH hosts get a CallToolResult with both channels
+    # populated (the text path stays valid AND satisfies the advertised
+    # outputSchema). The ONLY difference is the widget pointer: the widget host
+    # gets `_meta`, the non-widget host gets `_meta=None`. Returning a
+    # CallToolResult on both paths is load-bearing — a bare-dict text return trips
+    # the lowlevel "outputSchema defined but no structured output returned" error
+    # (the second live failure, 2026-06-27).
     wrapped = s._present("trace", sample, client_name="chatgpt")
     results.append(_check(
         "7 trace result on a WIDGET host (chatgpt) → CallToolResult with widget _meta (D4 gated-attach)",
         isinstance(wrapped, CallToolResult)
         and wrapped.meta.get("ui", {}).get("resourceUri", "").startswith("ui://")))
     results.append(_check(
-        "8 the full result is ALWAYS in the text channel for the widget host — content + structuredContent (D4)",
+        "8 the full result is ALWAYS in BOTH channels for the widget host — content + structuredContent (D4)",
         bool(wrapped.content) and wrapped.content[0].text
         and wrapped.structuredContent == sample))
 
-    # D4 gate — the CLAUDE path: a non-widget host gets the bare dict, NO _meta.
-    # This is the regression that the live "Unsupported UI resource content
-    # format" failure demanded: claude.ai must never receive the widget pointer.
+    # D4 gate — the CLAUDE path: a non-widget host ALSO gets a CallToolResult
+    # (so structuredContent satisfies the outputSchema), but with NO widget _meta.
+    # This is the two-part regression the live failures demanded: (a) no widget
+    # pointer claude.ai cannot render; (b) structuredContent present so the
+    # advertised outputSchema validates.
     claude_result = s._present("trace", sample, client_name="claude.ai")
     unknown_result = s._present("trace", sample, client_name=None)
     results.append(_check(
-        "8b claude.ai (and unidentified host) gets the BARE dict — no widget _meta, full data intact (D4 text-safe default)",
-        claude_result == sample and unknown_result == sample
-        and not isinstance(claude_result, CallToolResult)))
+        "8b claude.ai (+ unidentified host) gets a CallToolResult with structuredContent but NO widget _meta (D4 text-safe default + outputSchema-valid)",
+        isinstance(claude_result, CallToolResult) and isinstance(unknown_result, CallToolResult)
+        and claude_result.structuredContent == sample and unknown_result.structuredContent == sample
+        and bool(claude_result.content) and claude_result.content[0].text
+        and (claude_result.meta is None or "ui" not in (claude_result.meta or {}))
+        and (unknown_result.meta is None or "ui" not in (unknown_result.meta or {}))))
 
-    # D4: all three affordance tools wrap to CallToolResult with their OWN
-    # widget binding ON A WIDGET HOST; a tool with no affordance would pass
-    # through as a bare dict regardless of host.
+    # D4: each affordance tool attaches ITS OWN widget binding on a widget host;
+    # on the claude path each returns a CallToolResult WITHOUT the widget pointer.
     expected_uri = {
         "trace": "ui://yarnnn/trace-timeline.html",
         "recall": "ui://yarnnn/recall-cards.html",
@@ -152,14 +159,35 @@ def main():
         w = s._present(n, sample, client_name="chatgpt")
         ok = isinstance(w, CallToolResult) and bool(w.content) and w.structuredContent == sample \
             and (w.meta or {}).get("ui", {}).get("resourceUri") == uri
-        # and the same tool on the claude path returns the bare dict
-        ok = ok and (s._present(n, sample, client_name="claude.ai") == sample)
+        # the claude path: a CallToolResult with structuredContent, no widget _meta
+        c = s._present(n, sample, client_name="claude.ai")
+        ok = ok and isinstance(c, CallToolResult) and c.structuredContent == sample \
+            and (c.meta is None or "ui" not in (c.meta or {}))
         if not ok:
             all_wrapped = False
             print(f"      [!] {n} did not gate correctly for widget {uri}")
     results.append(_check(
-        "9 remember/recall/trace each wrap to ITS OWN widget _meta on chatgpt, bare dict on claude.ai (D1/D4 gate)",
+        "9 remember/recall/trace each attach ITS OWN widget _meta on chatgpt, CallToolResult-without-pointer on claude.ai (D1/D4 gate)",
         all_wrapped))
+
+    # 9b — the outputSchema trap (2026-06-27 second live failure). The lowlevel
+    # handler ERRORS "outputSchema defined but no structured output returned"
+    # unless the tool return is a CallToolResult OR FastMCP's convert_result
+    # produced structuredContent. Our schemas are attached as an instance attr
+    # (the override that takes) but NOT on fn_metadata — so convert_result of a
+    # BARE DICT yields unstructured-only → the error. Returning a CallToolResult
+    # on the claude path is what avoids it. Assert: (a) the tools DO advertise an
+    # outputSchema; (b) the claude-path return is a CallToolResult (the only
+    # return shape that carries structuredContent through to the host here).
+    schema_advertised = all(
+        s.mcp._tool_manager.get_tool(n).output_schema is not None
+        for n in ("remember", "recall", "trace"))
+    claude_is_calltoolresult = all(
+        isinstance(s._present(n, sample, client_name="claude.ai"), CallToolResult)
+        for n in ("remember", "recall", "trace"))
+    results.append(_check(
+        "9b outputSchema is advertised AND the claude path returns a CallToolResult (avoids 'no structured output returned')",
+        schema_advertised and claude_is_calltoolresult))
 
     widget_uris = {
         "trace": "ui://yarnnn/trace-timeline.html",

@@ -67,53 +67,60 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# ADR-372 — presentation: attach widget `_meta` only to a host that can render it
+# ADR-372 — presentation: ONE result envelope; gate only the widget pointer
 # =============================================================================
 #
-# A tool with a presentation affordance (AFFORDANCES) returns a CallToolResult
-# carrying BOTH the full result and a widget `_meta.ui.resourceUri`. The lowlevel
-# MCP handler propagates `_meta` ONLY when the tool returns a CallToolResult (a
-# bare dict's `_meta` is dropped — verified against mcp 1.28.0); plain-dict
-# returns get the unchanged JSON-text path.
-#
-# ADR-372 D4 (AMENDED 2026-06-27) — the invariant guard:
-#   * structuredContent = the full result dict (model-readable, the text path);
-#   * content           = the same dict as JSON text (so a text-only host that
-#                         doesn't read structuredContent still gets everything);
+# Every affordance-bearing tool returns a CallToolResult carrying BOTH channels:
+#   * content           = the full result as JSON text (every host reads it);
+#   * structuredContent = the full result dict (model-readable; ALSO what the
+#                         advertised outputSchema validates against — see below);
 #   * _meta             = the widget linkage, attached ONLY when the calling host
 #                         renders widgets (presentation.hosts.renders_widgets).
 #
-# Why this is no longer unconditional: the original D4 ("a text-only host ignores
-# `_meta` harmlessly") was falsified live — claude.ai's connector does NOT ignore
-# a widget pointer; it tries to fetch+render the resource (skybridge MIME +
-# openai/* keys, an OpenAI-Apps shape) and fails with "Unsupported UI resource
-# content format". So the WIDGET pointer is now gated on host capability, while
-# the result data stays unconditionally in the text channel — that text channel,
-# not host negotiation, is still what keeps the ADR-368 invariant true. A
-# non-widget host (claude.ai, any unidentified host) gets the pure dict and never
-# receives a pointer to a resource it cannot render. See presentation/hosts.py.
+# Why a CallToolResult on BOTH paths (not a bare dict for the text path): the
+# tools advertise an outputSchema (_attach_output_schemas). The vendored mcp's
+# lowlevel handler validates a tool return against that schema and ERRORS with
+# "outputSchema defined but no structured output returned" unless the return is a
+# CallToolResult (which short-circuits the check, lowlevel server.py:546) OR a
+# bare dict that FastMCP's convert_result turns into structuredContent — but
+# convert_result only does that when fn_metadata.output_schema is set, and our
+# schemas are attached as an instance attr (the only override path that takes),
+# NOT on fn_metadata. So a bare-dict text return reaches the handler as
+# unstructured-only → structuredContent=None → the validation error. Returning a
+# CallToolResult on every path sidesteps that entirely AND gives every host valid
+# structuredContent. (This latent break was masked pre-2026-06-27 because EVERY
+# tool always returned a CallToolResult — the unconditional-`_meta` path.)
+#
+# ADR-372 D4 (AMENDED 2026-06-27) — the widget pointer is no longer unconditional.
+# The original D4 ("a text-only host ignores `_meta` harmlessly") was falsified
+# live: claude.ai's connector does NOT ignore a widget pointer; it fetches+renders
+# the resource (skybridge MIME + openai/* keys, an OpenAI-Apps shape) and fails
+# with "Unsupported UI resource content format". So we gate ONLY the widget
+# pointer on host capability; the result envelope (both channels) stays
+# unconditional — that, not host negotiation, is what keeps the ADR-368 invariant
+# true. A non-widget host (claude.ai, any unidentified host) gets the full result
+# with NO widget pointer to choke on. See presentation/hosts.py.
 
 def _present(tool_name: str, result: dict, *, client_name: str | None = None):
-    """Wrap a tool's result so a widget-capable host can render it (ADR-372 D4).
+    """Wrap a tool's result in the standard envelope (ADR-372 D4).
 
-    Returns the dict unchanged (text-only path — the universal default) when the
-    tool has no affordance OR the calling host does not render widgets. Only a
-    host in presentation.hosts.WIDGET_RENDERING_HOSTS gets the CallToolResult with
-    widget `_meta` attached.
+    A tool with no affordance returns the bare dict (FastMCP serializes it;
+    those tools advertise no outputSchema). An affordance-bearing tool ALWAYS
+    returns a CallToolResult with both channels populated; the widget `_meta` is
+    attached only when the calling host renders widgets (a host in
+    presentation.hosts.WIDGET_RENDERING_HOSTS). Non-widget hosts get the same
+    full result, minus the pointer they cannot render.
     """
     affordance = presentation_affordances.affordance_for(tool_name)
     if affordance is None:
         return result
-    if not presentation_hosts.renders_widgets(client_name):
-        # Text-safe path: claude.ai / unidentified host. The full result is still
-        # in the returned dict (the text channel); only the widget pointer is held
-        # back so the host never tries to render the OpenAI-shaped resource.
-        return result
-    try:
-        meta = presentation_registry.tool_response_meta(affordance.widget)
-    except Exception as exc:  # noqa: BLE001 — presentation must never break a tool
-        logger.warning("[MCP PRESENT] %s: _meta build failed (%s); text-only", tool_name, exc)
-        return result
+    meta = None
+    if presentation_hosts.renders_widgets(client_name):
+        try:
+            meta = presentation_registry.tool_response_meta(affordance.widget)
+        except Exception as exc:  # noqa: BLE001 — presentation must never break a tool
+            logger.warning("[MCP PRESENT] %s: _meta build failed (%s); text-only", tool_name, exc)
+            meta = None
     return CallToolResult(
         content=[TextContent(type="text", text=json.dumps(result, indent=2, default=str))],
         structuredContent=result,
