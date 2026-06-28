@@ -218,3 +218,21 @@ These are the calls where the copy could get ahead of the live system — worth 
 ## 8. What I'll do on your go
 
 Per page, the actual `.tsx` edits are contained: each page is a single component with copy in inline JSX + a `STEPS`/`BELIEFS`/`metadata` const at the top. No structural/layout rewrites needed — this is a copy + emphasis pass. I'll apply in this order: `metadata.ts` + `cta.ts` (sitewide strings) → `page.tsx` (landing) → `how-it-works` → `about` → `pricing` (light). Then a quick `pnpm build`/typecheck pass to confirm nothing broke.
+
+---
+
+## 9. Interaction design (2026-06-29)
+
+The copy pivot above shipped the *message*. A follow-on pass reframes the *interaction* model —
+the pages had gone visually flat (static text blocks replacing richer sections; two animated
+components orphaned). The reframe starts from the positioning, not the existing components: the
+governing principle is **"interaction demonstrates the mechanism, it does not decorate the page"**
+— motion is spent only on the three moat rungs (membrane / ledger-trace / compounds), and
+everything else stays calm on purpose.
+
+The design spec of record is **[marketing-interaction-design-2026-06-29.md](./marketing-interaction-design-2026-06-29.md)**.
+It owns: the governing principle, the global motion rules (scroll-reveal contract,
+`prefers-reduced-motion`, no-hero-animation, no-CLS), the per-page intent→interaction→component
+tables, the component inventory + retirement ledger (`MockOutputs` + `AnimatedTimeline` retired),
+the a11y/perf checklist, and the 5-phase build sequence. This pivot doc remains the strategy of
+record for *message*; that doc is the strategy of record for *interaction*.
