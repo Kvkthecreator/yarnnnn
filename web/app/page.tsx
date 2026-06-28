@@ -4,19 +4,13 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
-import { IntegrationHub } from "@/components/landing/IntegrationHub";
-import { SpotlightCard, BentoGrid } from "@/components/landing/SpotlightCard";
+import { MembraneDemo } from "@/components/landing/MembraneDemo";
+import { TraceCard } from "@/components/landing/TraceCard";
+import { CompoundsStepper } from "@/components/landing/CompoundsStepper";
+import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { ScrollReveal } from "@/components/landing/ScrollReveal";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
-
-const ROOM_CHIPS = [
-  "ChatGPT",
-  "Claude",
-  "Slack",
-  "Notion",
-  "your own agents",
-];
 
 export const metadata: Metadata = getMarketingMetadata({
   title: "One memory for every AI you use | yarnnn",
@@ -90,20 +84,10 @@ export default function LandingPage() {
                   </Link>
                 </div>
 
-                <div className="flex flex-wrap justify-center lg:justify-start gap-x-3 gap-y-1 text-sm text-[#1a1a1a]/40 font-light">
-                  {ROOM_CHIPS.map((chip, i) => (
-                    <span key={chip} className="whitespace-nowrap">
-                      {chip}
-                      {i < ROOM_CHIPS.length - 1 && (
-                        <span className="text-[#1a1a1a]/20 ml-3">·</span>
-                      )}
-                    </span>
-                  ))}
-                </div>
               </div>
 
               <div className="flex-shrink-0 pb-16">
-                <IntegrationHub />
+                <MembraneDemo />
               </div>
             </div>
           </div>
@@ -140,6 +124,10 @@ export default function LandingPage() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Card 1 — Traceable: the live demonstration (the moat's uncopyable property) */}
+              <TraceCard />
+
+              {/* Card 2 — Cross-LLM (SpotlightCard applied in Phase 4) */}
               <div className="p-8 rounded-2xl border border-[#1a1a1a]/[0.06] bg-[#1a1a1a]/[0.02]">
                 <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
                   Works everywhere
@@ -150,16 +138,8 @@ export default function LandingPage() {
                   working from the same memory, no copy-paste.
                 </p>
               </div>
-              <div className="p-8 rounded-2xl border border-[#1a1a1a]/[0.06] bg-[#1a1a1a]/[0.02]">
-                <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
-                  Nothing hidden
-                </div>
-                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">See every change.</h3>
-                <p className="text-sm text-[#1a1a1a]/50 leading-relaxed">
-                  Every change is signed and dated. You can always see what changed, when, and
-                  who did it — you, a teammate, or an AI.
-                </p>
-              </div>
+
+              {/* Card 3 — Compounds (SpotlightCard applied in Phase 4) */}
               <div className="p-8 rounded-2xl border border-[#1a1a1a]/[0.06] bg-[#1a1a1a]/[0.02]">
                 <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
                   Gets better
@@ -237,37 +217,9 @@ export default function LandingPage() {
               Ninety days in, starting over anywhere else means starting from zero.
             </p>
 
-            {/* The accumulation trajectory — quiet bento, no moat-naming per beat-timing */}
+            {/* The accumulation trajectory — advance-through stepper (replaces the static bento) */}
             <div className="mt-12">
-              <BentoGrid>
-                <SpotlightCard className="md:col-span-2" spotlightColor="rgba(99,102,241,0.06)">
-                  <div className="p-6 h-full flex flex-col justify-center">
-                    <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Day 1</div>
-                    <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                      It&apos;s yours from the start. Add a note or connect a tool, and it&apos;s
-                      instantly there in every AI you use.
-                    </p>
-                  </div>
-                </SpotlightCard>
-                <SpotlightCard className="md:col-span-2" spotlightColor="rgba(14,165,233,0.06)">
-                  <div className="p-6 h-full flex flex-col justify-center">
-                    <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Day 30</div>
-                    <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                      Your corrections have added up. Whatever AI you open starts from the same,
-                      better memory.
-                    </p>
-                  </div>
-                </SpotlightCard>
-                <SpotlightCard className="md:col-span-2" spotlightColor="rgba(16,185,129,0.06)">
-                  <div className="p-6 h-full flex flex-col justify-center">
-                    <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Day 90</div>
-                    <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                      It reads like a full history — nothing forgotten, every change accounted for,
-                      all of it yours.
-                    </p>
-                  </div>
-                </SpotlightCard>
-              </BentoGrid>
+              <CompoundsStepper />
             </div>
           </ScrollReveal>
         </section>
