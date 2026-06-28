@@ -6,6 +6,7 @@ import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark"
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { SpotlightCard } from "@/components/landing/SpotlightCard";
 import { ScrollReveal } from "@/components/landing/ScrollReveal";
+import { StepFlow } from "@/components/landing/StepFlow";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 
@@ -120,41 +121,30 @@ export default function HowItWorksPage() {
             </p>
           </section>
 
-          {/* The five-step setup walk */}
-          {STEPS.map((step) => (
-            <section
-              key={step.number}
-              className="border-t border-white/10 px-6 py-24 md:py-32"
-            >
-              <div className="max-w-4xl mx-auto">
-                <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6">
-                  <div className="text-4xl font-light text-white/20">{step.number}</div>
-                  <div>
-                    <h2 className="text-2xl md:text-3xl font-medium mb-4">{step.title}</h2>
-                    <p className="text-white/55 leading-relaxed max-w-2xl text-lg font-light">
-                      {step.body}
-                    </p>
-
-                    {/* Step 05 carries the verdict trio inline */}
-                    {step.number === "05" && (
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-10">
-                        {VERDICTS.map((v) => (
-                          <SpotlightCard key={v.label} variant="dark" spotlightSize={250}>
-                            <div className="p-5">
-                              <div className="text-xs text-white/30 uppercase tracking-wider mb-2">
-                                {v.label}
-                              </div>
-                              <p className="text-white/60 text-sm leading-relaxed">{v.desc}</p>
+          {/* The five-step loop — a connected vertical flow (StepFlow). Step 05 carries
+              the verdict trio inline via the `extra` slot. */}
+          <section className="border-t border-white/10 px-6 py-24 md:py-32">
+            <StepFlow
+              steps={STEPS.map((step) => ({
+                ...step,
+                extra:
+                  step.number === "05" ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8">
+                      {VERDICTS.map((v) => (
+                        <SpotlightCard key={v.label} variant="dark" spotlightSize={250}>
+                          <div className="p-5">
+                            <div className="text-xs text-white/30 uppercase tracking-wider mb-2">
+                              {v.label}
                             </div>
-                          </SpotlightCard>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </section>
-          ))}
+                            <p className="text-white/60 text-sm leading-relaxed">{v.desc}</p>
+                          </div>
+                        </SpotlightCard>
+                      ))}
+                    </div>
+                  ) : undefined,
+              }))}
+            />
+          </section>
 
           {/* Mechanism trio + CTA */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
