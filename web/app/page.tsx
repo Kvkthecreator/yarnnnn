@@ -6,6 +6,7 @@ import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { IntegrationHub } from "@/components/landing/IntegrationHub";
 import { SpotlightCard, BentoGrid } from "@/components/landing/SpotlightCard";
+import { ScrollReveal } from "@/components/landing/ScrollReveal";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 
@@ -110,7 +111,7 @@ export default function LandingPage() {
 
         {/* ─── Section 2 — The problem (Beat 1, the self-audit gap) ──────── */}
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
-          <div className="max-w-3xl mx-auto">
+          <ScrollReveal className="max-w-3xl mx-auto">
             <h2 className="text-2xl md:text-3xl font-medium mb-8 text-[#1a1a1a] leading-tight">
               Your AI&apos;s memory is trapped in one app.
             </h2>
@@ -126,12 +127,12 @@ export default function LandingPage() {
                 got there or whether it&apos;s still true.
               </p>
             </div>
-          </div>
+          </ScrollReveal>
         </section>
 
         {/* ─── Section 3 — The product (Beat 3, three mechanisms) ────────── */}
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
-          <div className="max-w-5xl mx-auto">
+          <ScrollReveal className="max-w-5xl mx-auto">
             <div className="text-center mb-16">
               <h2 className="text-2xl md:text-3xl font-medium mb-4 text-[#1a1a1a]">
                 One place for everything your AI knows. And it&apos;s yours.
@@ -174,14 +175,14 @@ export default function LandingPage() {
             <p className="text-center text-sm text-[#1a1a1a]/30 mt-10 font-mono">
               fix it once → it&apos;s fixed everywhere, for good
             </p>
-          </div>
+          </ScrollReveal>
         </section>
 
         {/* ─── Section 4 — The delegation dial (AUTONOMY substrate) ──────── */}
         {/* Spec §0.8 + discourse §-9.6: this is the authored-autonomy capability,
             NOT the ADR-334 seat tier. No price/trial/checkout language here. */}
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
-          <div className="max-w-4xl mx-auto">
+          <ScrollReveal className="max-w-4xl mx-auto">
             <div className="text-xs font-mono text-[#1a1a1a]/30 uppercase tracking-wider mb-4">
               In beta
             </div>
@@ -219,13 +220,13 @@ export default function LandingPage() {
             <p className="text-[#1a1a1a]/50 leading-relaxed max-w-2xl">
               You set the rules. It earns your trust on the record — and you&apos;re always in charge.
             </p>
-          </div>
+          </ScrollReveal>
         </section>
 
         {/* ─── Section 5 — The insight (Beat 4) ──────────────────────────── */}
         {/* Proof block CUT in v1 (discourse §-9.1). Beat 5 moat is deck/VC-only. */}
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
-          <div className="max-w-3xl mx-auto">
+          <ScrollReveal className="max-w-3xl mx-auto">
             <h2 className="text-2xl md:text-3xl font-medium mb-8 text-[#1a1a1a] leading-tight">
               The AI will change. Your memory shouldn&apos;t.
             </h2>
@@ -268,12 +269,12 @@ export default function LandingPage() {
                 </SpotlightCard>
               </BentoGrid>
             </div>
-          </div>
+          </ScrollReveal>
         </section>
 
         {/* ─── Section 6 — Pricing teaser + CTA (Beat 6) ─────────────────── */}
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
-          <div className="max-w-3xl mx-auto text-center">
+          <ScrollReveal className="max-w-3xl mx-auto text-center">
             <h2 className="text-2xl md:text-3xl font-medium mb-4 text-[#1a1a1a]">
               Free to keep. Pay only for what runs.
             </h2>
@@ -296,7 +297,7 @@ export default function LandingPage() {
                 See pricing
               </Link>
             </div>
-          </div>
+          </ScrollReveal>
         </section>
 
         <LandingFooter />

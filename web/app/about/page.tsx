@@ -5,6 +5,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { SpotlightCard } from "@/components/landing/SpotlightCard";
+import { ScrollReveal } from "@/components/landing/ScrollReveal";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 
@@ -112,7 +113,7 @@ export default function AboutPage() {
 
           {/* What we believe — current canon */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
-            <div className="max-w-4xl mx-auto">
+            <ScrollReveal className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-16">What we believe</h2>
 
               <div className="space-y-16">
@@ -128,12 +129,12 @@ export default function AboutPage() {
                   </div>
                 ))}
               </div>
-            </div>
+            </ScrollReveal>
           </section>
 
           {/* What yarnnn is not */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
-            <div className="max-w-4xl mx-auto">
+            <ScrollReveal className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-8">What yarnnn is not</h2>
               <p className="text-white/50 mb-12 max-w-xl">
                 We&apos;re focused. These are things we intentionally chose not to be.
@@ -166,12 +167,12 @@ export default function AboutPage() {
                   </SpotlightCard>
                 ))}
               </div>
-            </div>
+            </ScrollReveal>
           </section>
 
           {/* Who it's for — bounded-operation psychographic */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
-            <div className="max-w-4xl mx-auto">
+            <ScrollReveal className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">Who yarnnn is for</h2>
               <p className="text-white/50 mb-12 max-w-xl">
                 Anyone tired of re-explaining themselves to every new AI — and anyone who wants the
@@ -214,12 +215,12 @@ export default function AboutPage() {
                   </SpotlightCard>
                 ))}
               </div>
-            </div>
+            </ScrollReveal>
           </section>
 
           {/* CTA */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
-            <div className="max-w-3xl mx-auto text-center">
+            <ScrollReveal className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">
                 Your memory should follow you.
               </h2>
@@ -241,7 +242,7 @@ export default function AboutPage() {
                   See how it works
                 </Link>
               </div>
-            </div>
+            </ScrollReveal>
           </section>
         </main>
 

@@ -178,3 +178,21 @@ body {
 .tp-icon-pulse {
   animation: tp-pulse 3s ease-in-out infinite;
 }
+
+/* ─── Reduced-motion guard ─────────────────────────────────────────────────
+   Per the marketing interaction design spec (docs/design/marketing-interaction-
+   design-2026-06-29.md §2): every animation degrades to its final static state
+   under prefers-reduced-motion. This neutralizes both the ambient keyframes above
+   (breathe/shimmer/tp-pulse/gradient-shift/desk-glow/border-hint) and any CSS
+   transition the marketing islands rely on. JS-driven motion (ScrollReveal, the
+   demo islands) reads the same media query and renders its final state directly. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

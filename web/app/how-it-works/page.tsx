@@ -5,6 +5,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { SpotlightCard } from "@/components/landing/SpotlightCard";
+import { ScrollReveal } from "@/components/landing/ScrollReveal";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA, PRIMARY_CTA_LABEL } from "@/lib/cta";
 
@@ -157,7 +158,7 @@ export default function HowItWorksPage() {
 
           {/* Mechanism trio + CTA */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
-            <div className="max-w-5xl mx-auto">
+            <ScrollReveal className="max-w-5xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-12 text-center">
                 Why it&apos;s different.
               </h2>
@@ -191,7 +192,7 @@ export default function HowItWorksPage() {
                   </Link>
                 </div>
               </div>
-            </div>
+            </ScrollReveal>
           </section>
         </main>
 

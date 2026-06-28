@@ -4,6 +4,7 @@ import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { SpotlightCard } from "@/components/landing/SpotlightCard";
+import { ScrollReveal } from "@/components/landing/ScrollReveal";
 import { Check, Wallet, ShieldCheck } from "lucide-react";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 import { CTA } from "@/lib/cta";
@@ -100,7 +101,7 @@ export default function PricingPage() {
             </div>
 
             {/* Card 1 · Free workspace */}
-            <div className="max-w-3xl mx-auto mb-8">
+            <ScrollReveal className="max-w-3xl mx-auto mb-8">
               <SpotlightCard variant="dark" spotlightSize={500}>
                 <div className="p-8 md:flex md:items-center md:justify-between gap-8">
                   <div className="mb-6 md:mb-0">
@@ -123,10 +124,10 @@ export default function PricingPage() {
                   </Link>
                 </div>
               </SpotlightCard>
-            </div>
+            </ScrollReveal>
 
             {/* Card 2 · The budget you set — the centerpiece */}
-            <div className="max-w-3xl mx-auto mb-8">
+            <ScrollReveal className="max-w-3xl mx-auto mb-8" delay={80}>
               <SpotlightCard variant="dark" spotlightSize={500} className="ring-1 ring-emerald-400/25">
                 <div className="p-8">
                   <div className="flex items-center gap-2 mb-3">
@@ -169,10 +170,10 @@ export default function PricingPage() {
                   </div>
                 </div>
               </SpotlightCard>
-            </div>
+            </ScrollReveal>
 
             {/* Card 3 · What you actually pay */}
-            <div className="max-w-3xl mx-auto mb-6">
+            <ScrollReveal className="max-w-3xl mx-auto mb-6" delay={160}>
               <SpotlightCard variant="dark" spotlightSize={500}>
                 <div className="p-8">
                   <div className="text-[10px] font-mono uppercase tracking-wider text-white/40 mb-3">
@@ -203,14 +204,14 @@ export default function PricingPage() {
                   </div>
                 </div>
               </SpotlightCard>
-            </div>
+            </ScrollReveal>
 
             <p className="text-center text-white/40 text-sm mb-16">
               No card to start. The $3 balance is enough to feel the loop before you spend a cent.
             </p>
 
             {/* Two guardrails explainer — the budget vs the floor */}
-            <div className="max-w-3xl mx-auto mb-16">
+            <ScrollReveal className="max-w-3xl mx-auto mb-16">
               <div className="text-center mb-6">
                 <h3 className="text-xl font-medium mb-2">Two guardrails, so spend is never a surprise</h3>
                 <p className="text-white/45 text-sm max-w-xl mx-auto">
@@ -244,10 +245,10 @@ export default function PricingPage() {
                   </div>
                 </SpotlightCard>
               </div>
-            </div>
+            </ScrollReveal>
 
             {/* Three honest paragraphs */}
-            <div className="max-w-3xl mx-auto mb-16 grid gap-6">
+            <ScrollReveal className="max-w-3xl mx-auto mb-16 grid gap-6">
               <SpotlightCard variant="dark" spotlightSize={500}>
                 <div className="p-6">
                   <h3 className="text-lg font-medium mb-3">What&apos;s an operation?</h3>
@@ -280,10 +281,10 @@ export default function PricingPage() {
                   </p>
                 </div>
               </SpotlightCard>
-            </div>
+            </ScrollReveal>
 
             {/* Mini-FAQ */}
-            <div className="max-w-3xl mx-auto mb-16">
+            <ScrollReveal className="max-w-3xl mx-auto mb-16">
               <SpotlightCard variant="dark" spotlightSize={500}>
                 <div className="p-6 space-y-4 text-white/50 text-sm leading-relaxed">
                   <p>
@@ -311,7 +312,7 @@ export default function PricingPage() {
                   </p>
                 </div>
               </SpotlightCard>
-            </div>
+            </ScrollReveal>
 
             <div className="text-center mt-4 mb-8">
               <p className="text-white/40 text-sm mb-4">Questions about pricing?</p>
