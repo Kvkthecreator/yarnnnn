@@ -10,6 +10,7 @@
 import { useEffect, useState } from 'react';
 import { ChevronRight, ChevronDown, Folder, Bot, ListChecks, Settings, Upload, Boxes, Info } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { authorAccent, formatAuthorLabel } from '@/lib/workspace/attribution';
 import type { WorkspaceTreeNode } from '@/types';
 import { FileIcon } from '@/components/workspace/FileIcon';
 
@@ -162,21 +163,16 @@ function TreeItem({ node, depth, selectedPath, onSelect, onContextMenu }: TreeIt
             sys
           </span>
         )}
-        {/* ADR-209: authored_by from head revision — compact right-edge
-            label so the operator can see at a glance who last touched
-            each file without opening it. Only shown for non-system file
-            nodes when authored_by is populated (system files carry the
-            'sys' tag above instead). */}
+        {/* ADR-388 D3: who last touched this file — a quiet accent dot from
+            the ONE shared attribution module (was a divergent inline shorthand
+            that collapsed MCP writes to "TP"). The dot's color encodes the
+            author class; the title carries the full legible label, including
+            the interop form "ChatGPT (via MCP)". */}
         {!isFolder && !isSystem && node.authored_by && (
-          <span className="shrink-0 text-[9px] text-muted-foreground/40 ml-1">
-            {node.authored_by === 'operator' ? 'You'
-              : node.authored_by.startsWith('yarnnn:') ? 'TP'
-              : node.authored_by.startsWith('agent:') ? 'Agent'
-              : node.authored_by.startsWith('specialist:') ? 'Spec.'
-              : node.authored_by.startsWith('freddie:') ? 'Rev.'
-              : node.authored_by.startsWith('system:') ? 'Sys'
-              : null}
-          </span>
+          <span
+            className={cn('shrink-0 h-1.5 w-1.5 rounded-full ml-1', authorAccent(node.authored_by))}
+            title={formatAuthorLabel(node.authored_by) ?? undefined}
+          />
         )}
       </button>
       {isFolder && expanded && node.children && (

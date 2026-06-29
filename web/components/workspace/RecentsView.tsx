@@ -32,6 +32,7 @@ import { History, Loader2, LayoutGrid, List as ListIcon } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatRelativeTime } from '@/lib/formatting';
+import { formatAuthorLabelOrSystem, authorAccent } from '@/lib/workspace/attribution';
 import { FileIcon } from './FileIcon';
 import { SurfaceLink } from '@/components/shell/SurfaceLink';
 
@@ -54,31 +55,11 @@ function loadViewMode(): RecentsViewMode {
 }
 
 // ---------------------------------------------------------------------------
-// Shared helpers (deduped from RecentRevisions + HomeRecents)
+// Shared helpers
 // ---------------------------------------------------------------------------
-
-// authored_by taxonomy → operator-facing label (ADR-209).
-function formatAuthorLabel(authored_by: string | null | undefined): string {
-  if (!authored_by) return 'System';
-  if (authored_by === 'operator') return 'You';
-  if (authored_by.startsWith('yarnnn:')) return 'YARNNN';
-  if (authored_by.startsWith('agent:')) return `Agent (${authored_by.slice('agent:'.length)})`;
-  if (authored_by.startsWith('specialist:')) return 'Specialist';
-  if (authored_by.startsWith('freddie:')) return 'Reviewer';
-  if (authored_by.startsWith('system:')) return 'System';
-  return 'System';
-}
-
-// Author-class accent — a quiet dot, not a loud badge (who, at a glance).
-function authorAccent(authored_by: string | null | undefined): string {
-  const label = formatAuthorLabel(authored_by);
-  switch (label) {
-    case 'You': return 'bg-primary';
-    case 'Reviewer': return 'bg-rose-400';
-    case 'YARNNN': return 'bg-sky-400';
-    default: return 'bg-muted-foreground/40';
-  }
-}
+// ADR-388 D3: author label + accent come from the ONE shared attribution
+// module (was duplicated here, in files/page, ContentViewer, NodeDetailsPanel).
+// formatAuthorLabelOrSystem keeps RecentsView's never-null glance behavior.
 
 function fileName(path: string): string {
   return path.split('/').filter(Boolean).pop() || path;
@@ -368,7 +349,7 @@ function ListTable({ revisions, onSelectPath }: { revisions: Revision[]; onSelec
                 <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">
                   <span className="inline-flex items-center gap-1.5">
                     <span className={cn('h-1.5 w-1.5 rounded-full', authorAccent(rev.authored_by))} />
-                    {formatAuthorLabel(rev.authored_by)}
+                    {formatAuthorLabelOrSystem(rev.authored_by)}
                   </span>
                 </td>
                 <td className="whitespace-nowrap px-4 py-2 text-right text-muted-foreground/80">

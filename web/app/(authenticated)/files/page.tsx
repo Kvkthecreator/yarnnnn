@@ -45,6 +45,8 @@ import {
   X,
   Info,
   History,
+  LayoutGrid,
+  List as ListIcon,
 } from 'lucide-react';
 import { useNarrative } from '@/contexts/NarrativeContext';
 import { useSurfaceParam } from '@/lib/shell/useSurfacePreferences';
@@ -52,11 +54,13 @@ import { useWindowCrumb } from '@/contexts/BreadcrumbContext';
 import type { DeskSurface } from '@/types/desk';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { formatAuthorLabel } from '@/lib/workspace/attribution';
 import { WorkspaceTree } from '@/components/workspace/WorkspaceTree';
 import { RecentRevisions } from '@/components/workspace/RecentRevisions';
 import { UploadButton } from '@/components/workspace/UploadButton';
 import { ContentViewer } from '@/components/workspace/ContentViewer';
-import { NodeDetailsPanel } from '@/components/workspace/NodeDetailsPanel';
+import { GetInfoModal } from '@/components/workspace/GetInfoModal';
+import { useFilesViewMode } from '@/lib/workspace/useFilesViewMode';
 import { SurfaceIdentityHeader } from '@/components/shell/SurfaceIdentityHeader';
 import { DeliverableMiddle } from '@/components/work/details/DeliverableMiddle';
 
@@ -208,17 +212,6 @@ function buildRootNodes(input: {
 
 // Map ADR-209 authored_by taxonomy to operator-readable labels.
 // Same mapping as ContentViewer's formatHeadAuthor (shipped Cluster B).
-function formatAuthorLabel(authored_by: string | null | undefined): string | null {
-  if (!authored_by) return null;
-  if (authored_by === 'operator') return 'You';
-  if (authored_by.startsWith('yarnnn:')) return 'YARNNN';
-  if (authored_by.startsWith('agent:')) return `Agent (${authored_by.slice('agent:'.length)})`;
-  if (authored_by.startsWith('specialist:')) return `Specialist`;
-  if (authored_by.startsWith('freddie:')) return 'Reviewer';
-  if (authored_by.startsWith('system:')) return 'System';
-  return null;
-}
-
 function getNodeMetadata(node: TreeNode): string {
   const parts: string[] = [node.type === 'folder' ? 'Folder' : 'File'];
 
@@ -286,6 +279,10 @@ export default function ContextPage() {
   // standing left-rail feed. Tied to the current selection; collapses to a
   // header section above the content.
   const [detailsOpen, setDetailsOpen] = useState(false);
+
+  // ADR-388 D4: the Files-surface-wide view mode (icon grid / details list),
+  // shared across Recents + folder listings (was Recents-only).
+  const { mode: viewMode, setMode: setViewMode } = useFilesViewMode();
 
   // D19 split-pane state — the surface owns its own tree pane.
   const [treePaneOpen, setTreePaneOpen] = useState(true);
@@ -605,33 +602,47 @@ export default function ContextPage() {
               title={selectedNode.name}
               metadata={getNodeMetadata(selectedNode)}
               actions={
-                <button
-                  onClick={() => setDetailsOpen((o) => !o)}
-                  title={detailsOpen ? 'Hide details' : 'Get Info'}
-                  aria-pressed={detailsOpen}
-                  className={cn(
-                    'inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs transition-colors',
-                    detailsOpen
-                      ? 'border-primary/40 bg-primary/10 text-primary'
-                      : 'border-border text-muted-foreground hover:bg-muted/40 hover:text-foreground',
+                <div className="flex items-center gap-2">
+                  {/* ADR-388 D4: surface-wide view toggle (folder listings honor it). */}
+                  {selectedNode.type === 'folder' && (
+                    <div className="inline-flex items-center rounded-md border border-border p-0.5">
+                      <button
+                        onClick={() => setViewMode('icon')}
+                        title="Icon view"
+                        aria-pressed={viewMode === 'icon'}
+                        className={cn(
+                          'rounded p-1 transition-colors',
+                          viewMode === 'icon' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        <LayoutGrid className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setViewMode('list')}
+                        title="List view"
+                        aria-pressed={viewMode === 'list'}
+                        className={cn(
+                          'rounded p-1 transition-colors',
+                          viewMode === 'list' ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
+                        )}
+                      >
+                        <ListIcon className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   )}
-                >
-                  <Info className="w-3.5 h-3.5" />
-                  Details
-                </button>
+                  {/* ADR-388 D5: Get Info → modal (was an inline collapsible panel).
+                      Also reachable by right-click on any tree/row node. */}
+                  <button
+                    onClick={() => setDetailsOpen(true)}
+                    title="Get Info"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+                  >
+                    <Info className="w-3.5 h-3.5" />
+                    Get Info
+                  </button>
+                </div>
               }
             />
-            {/* ADR-329 (amended): node Details ("Get Info") — provenance as a
-                per-node property. File → revision chain (revert/diff); folder →
-                subtree recent changes. Collapsible section above the content,
-                scoped to the selected node. */}
-            {detailsOpen && (
-              <NodeDetailsPanel
-                node={selectedNode}
-                onSelectPath={handleExplorerSelect_byPath}
-                onRevert={loadExplorer}
-              />
-            )}
             <div className="flex-1 overflow-auto">
               {/* DELIVERABLE recurrence substrate roots render DeliverableMiddle
                   (ADR-180 + ADR-231 D2). Path shape: /workspace/operation/reports/{slug}. */}
@@ -644,6 +655,8 @@ export default function ContextPage() {
                   selectedNode={selectedNode}
                   onNavigate={handleExplorerSelect}
                   showHeader={false}
+                  viewMode={viewMode}
+                  onGetInfo={handleGetInfo}
                   onOpenChatDraft={(prompt) => sendMessage(prompt, { surface: effectiveSurface })}
                   onDeleted={() => {
                     // ADR-329: file archived — clear selection + refresh the
@@ -668,6 +681,16 @@ export default function ContextPage() {
           </div>
         )}
       </div>
+
+      {/* ADR-388 D5: Get Info modal — path/type/when + the ADR-209 revision
+          chain (who wrote each version). Opened by the header button or a
+          right-click on any tree/folder-listing node. */}
+      <GetInfoModal
+        node={detailsOpen ? selectedNode : null}
+        onClose={() => setDetailsOpen(false)}
+        onSelectPath={handleExplorerSelect_byPath}
+        onRevert={loadExplorer}
+      />
     </div>
   );
 }

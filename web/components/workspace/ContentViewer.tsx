@@ -30,6 +30,8 @@ import {
   resolveViewerApplication,
   describeViewerApplication,
 } from '@/lib/file-types';
+import { cn } from '@/lib/utils';
+import { formatAuthorLabel, authorAccent } from '@/lib/workspace/attribution';
 import type { WorkspaceTreeNode, WorkspaceFile } from '@/types';
 
 // ADR-162 Sub-phase D / ADR-215: IDENTITY and BRAND files carry an
@@ -60,6 +62,10 @@ interface ContentViewerProps {
    * refreshes the tree.
    */
   onDeleted?: () => void;
+  /** ADR-388 D4: the Files-surface view mode (icon grid / details list). */
+  viewMode?: 'icon' | 'list';
+  /** ADR-388 D5: right-click "Get Info" on a folder-listing row. */
+  onGetInfo?: (node: WorkspaceTreeNode) => void;
 }
 
 export function ContentViewer({
@@ -68,6 +74,8 @@ export function ContentViewer({
   showHeader = true,
   onOpenChatDraft,
   onDeleted,
+  viewMode = 'list',
+  onGetInfo,
 }: ContentViewerProps) {
   if (!selectedNode) {
     return (
@@ -84,6 +92,8 @@ export function ContentViewer({
         onNavigate={onNavigate}
         showHeader={showHeader}
         onOpenChatDraft={onOpenChatDraft}
+        viewMode={viewMode}
+        onGetInfo={onGetInfo}
       />
     );
   }
@@ -103,11 +113,15 @@ function DirectoryView({
   onNavigate,
   showHeader,
   onOpenChatDraft,
+  viewMode = 'list',
+  onGetInfo,
 }: {
   node: WorkspaceTreeNode;
   onNavigate: (node: WorkspaceTreeNode) => void;
   showHeader: boolean;
   onOpenChatDraft?: (prompt: string) => void;
+  viewMode?: 'icon' | 'list';
+  onGetInfo?: (node: WorkspaceTreeNode) => void;
 }) {
   // For synthetic nodes (entity subfolders with no pre-populated children),
   // fetch children on demand via the tree API.
@@ -177,67 +191,80 @@ function DirectoryView({
         </div>
       )}
 
-      <div className="px-2 py-2">
-        <div className="grid grid-cols-[minmax(0,1fr)_140px_120px] gap-3 px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border/60">
-          <span>Name</span>
-          <span>Kind</span>
-          <span>Modified</span>
-        </div>
-        <div className="divide-y divide-border/50">
+      {/* ADR-388 D4: honor the surface-wide view mode. Right-click any row/tile
+          → Get Info (D5); each row shows who last wrote it (D3). */}
+      {viewMode === 'icon' ? (
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-2 p-3">
           {children.map((child) => (
             <button
               key={child.path}
               onClick={() => onNavigate(child)}
-              className="grid w-full grid-cols-[minmax(0,1fr)_140px_120px] gap-3 px-3 py-3 text-left hover:bg-muted/40 transition-colors"
+              onContextMenu={onGetInfo ? (e) => { e.preventDefault(); onGetInfo(child); } : undefined}
+              className="flex flex-col items-center gap-1.5 rounded-lg border border-transparent p-3 text-center hover:border-border hover:bg-muted/40 transition-colors"
             >
-              <div className="flex items-center gap-2 min-w-0">
-                {child.type === 'folder' ? (
-                  <Folder className="w-4 h-4 text-sky-600 shrink-0" />
-                ) : (
-                  <FileIcon filename={child.name} size="md" />
-                )}
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{child.name}</p>
-                  {child.summary && (
-                    <p className="text-xs text-muted-foreground truncate">{child.summary}</p>
-                  )}
-                </div>
-              </div>
-              <div className="text-xs text-muted-foreground self-center">
-                {describeNodeKind(child)}
-              </div>
-              <div className="text-xs text-muted-foreground self-center">
-                {formatTimestamp(child.updated_at)}
-              </div>
+              {child.type === 'folder' ? (
+                <Folder className="h-8 w-8 text-sky-600" />
+              ) : (
+                <FileIcon filename={child.name} size="lg" />
+              )}
+              <span className="w-full truncate text-xs font-medium">{child.name}</span>
+              <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                <span className={cn('h-1.5 w-1.5 rounded-full', authorAccent((child as any).authored_by))} />
+                {formatAuthorLabel((child as any).authored_by)}
+              </span>
             </button>
           ))}
         </div>
-      </div>
+      ) : (
+        <div className="px-2 py-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_140px_120px] gap-3 px-3 py-2 text-[11px] uppercase tracking-wide text-muted-foreground border-b border-border/60">
+            <span>Name</span>
+            <span>Author</span>
+            <span>Modified</span>
+          </div>
+          <div className="divide-y divide-border/50">
+            {children.map((child) => (
+              <button
+                key={child.path}
+                onClick={() => onNavigate(child)}
+                onContextMenu={onGetInfo ? (e) => { e.preventDefault(); onGetInfo(child); } : undefined}
+                className="grid w-full grid-cols-[minmax(0,1fr)_140px_120px] gap-3 px-3 py-3 text-left hover:bg-muted/40 transition-colors"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  {child.type === 'folder' ? (
+                    <Folder className="w-4 h-4 text-sky-600 shrink-0" />
+                  ) : (
+                    <FileIcon filename={child.name} size="md" />
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{child.name}</p>
+                    {child.summary && (
+                      <p className="text-xs text-muted-foreground truncate">{child.summary}</p>
+                    )}
+                  </div>
+                </div>
+                {/* ADR-388 D3: who last wrote this — the attribution the folder
+                    listing showed NONE of before. */}
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground self-center">
+                  <span className={cn('h-1.5 w-1.5 rounded-full shrink-0', authorAccent((child as any).authored_by))} />
+                  <span className="truncate">{formatAuthorLabel((child as any).authored_by)}</span>
+                </div>
+                <div className="text-xs text-muted-foreground self-center">
+                  {formatTimestamp(child.updated_at)}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-// ADR-236 Cluster B (2026-04-30): TP-edit awareness on Files header.
-// Map raw `authored_by` strings (per ADR-209 taxonomy) to operator-facing
-// labels. Aligned with RevisionHistoryPanel's authorLayer() but inlined
-// here because the file-header line is a single one-liner — extracting
-// the formatter to @/lib would be over-abstraction for one consumer.
-function formatHeadAuthor(authored_by: string | null | undefined): string | null {
-  if (!authored_by) return null;
-  if (authored_by === 'operator') return 'You';
-  if (authored_by.startsWith('yarnnn:')) return 'YARNNN';
-  if (authored_by.startsWith('agent:')) {
-    const slug = authored_by.slice('agent:'.length);
-    return `Agent (${slug})`;
-  }
-  if (authored_by.startsWith('specialist:')) {
-    const role = authored_by.slice('specialist:'.length);
-    return `Specialist (${role})`;
-  }
-  if (authored_by.startsWith('freddie:')) return 'Reviewer';
-  if (authored_by.startsWith('system:')) return 'System';
-  return authored_by;
-}
+// ADR-388 D3: the file-header author line uses the ONE shared attribution
+// formatter (was a local formatHeadAuthor duplicate). The MCP-host form
+// "ChatGPT (via MCP)" now shows on the file header too.
+const formatHeadAuthor = formatAuthorLabel;
 
 interface HeadRevision {
   authored_by: string;

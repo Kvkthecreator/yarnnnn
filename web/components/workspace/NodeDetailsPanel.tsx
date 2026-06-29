@@ -32,29 +32,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { Loader2, FileText, Folder } from 'lucide-react';
 import { api, APIError } from '@/lib/api/client';
 import { RevisionHistoryPanel } from '@/components/workspace/RevisionHistoryPanel';
+import {
+  formatAuthorLabelOrSystem as formatAuthorLabel,
+  authorAccent,
+} from '@/lib/workspace/attribution';
 import type { WorkspaceTreeNode } from '@/types';
 
-// ADR-209 authored_by taxonomy → operator-readable label. Same mapping the
-// rest of the Files surface uses; kept local because it's a one-liner.
-function formatAuthorLabel(authored_by: string | null | undefined): string {
-  if (!authored_by) return 'System';
-  if (authored_by === 'operator') return 'You';
-  if (authored_by.startsWith('yarnnn:')) return 'YARNNN';
-  if (authored_by.startsWith('agent:')) return `Agent (${authored_by.slice('agent:'.length)})`;
-  if (authored_by.startsWith('specialist:')) return 'Specialist';
-  if (authored_by.startsWith('freddie:')) return 'Reviewer';
-  if (authored_by.startsWith('system:')) return 'System';
-  return 'System';
-}
-
-function authorAccent(authored_by: string | null | undefined): string {
-  switch (formatAuthorLabel(authored_by)) {
-    case 'You': return 'bg-primary';
-    case 'Reviewer': return 'bg-rose-400';
-    case 'YARNNN': return 'bg-purple-400';
-    default: return 'bg-muted-foreground/40';
-  }
-}
+// ADR-388 D3: author label + accent come from the ONE shared attribution
+// module (the MCP-host form "ChatGPT (via MCP)" surfaces here too).
 
 function fileName(path: string): string {
   return path.split('/').filter(Boolean).pop() || path;
