@@ -47,16 +47,24 @@ def test_frame_indexes_governance():
 
 
 def test_frame_carries_standby_state_reasoning():
-    """ADR-314 D3: an absent MANDATE is a standby fact reasoned about honestly,
-    not a cue to invent intent or elicit it (no /init — Direction A)."""
+    """ADR-314 D3 + ADR-383: an absent/empty header is reasoned about honestly,
+    not a cue to invent intent.
+
+    ADR-383 amendment (2026-06-29): MANDATE is no longer expected absent — every
+    agent's MANDATE is populated (the bare workspace carries the steward-mandate
+    default per ADR-383 §3 D3; a program overwrites it). So the frame no longer
+    carries the MANDATE-specific 'not yet declared / activating a program' standby
+    prose (that premise is superseded). What MUST survive is the GENERAL honest-
+    about-absent-headers index-not-assert behavior — the frame still teaches the
+    agent to reason honestly when ANY header is absent or empty rather than
+    inventing intent. The index-not-assert invariant is unchanged; only the
+    MANDATE-is-typically-absent premise changed."""
     frame = _flat(_compute_minimal_frame())
-    assert "not yet been declared" in frame, (
-        "ADR-314: the frame must teach the agent to reason honestly about an "
-        "absent MANDATE (standby state) rather than direct toward nonexistent intent."
-    )
-    assert "activating a program" in frame, (
-        "ADR-314 D1: bundle-fork (program activation) is the sole "
-        "constitution-creation event; the frame names it as the path to a MANDATE."
+    assert "absent or empty" in frame and "reason honestly about that absence" in frame, (
+        "ADR-314 (index-not-assert) + ADR-383: the frame must still teach the "
+        "agent to reason honestly about an absent/empty header rather than invent "
+        "intent. (The MANDATE-specific standby prose was retired by ADR-383 — "
+        "MANDATE is now always populated, steward-default for a bare workspace.)"
     )
 
 
