@@ -1,9 +1,16 @@
-# Finding — `recall` returns empty because nothing is embedded (the Embed primitive isn't being invoked)
+# Finding — `recall` returns empty: TWO compounding bugs (no embeddings + a broken ivfflat index) — BOTH FIXED
 
 > **Date**: 2026-06-29
-> **Hat**: B (evaluation finding) → recommends a Hat-A fix
+> **Hat**: B (evaluation finding) → Hat-A fix landed same session
+> **Status**: ✅ RESOLVED + live-validated. `recall` on the live Claude connector now returns real substrate (the "datastore decision" memory) with correct ranking + citation.
 > **Trigger**: every live `remember → recall/trace` round-trip across multiple sessions (2026-06-26 → 06-29) returned empty `recall`/`trace`, despite `remember` reporting `captured: true`. A Claude-side analysis hypothesized a date-resolution bug; this finding chases it to the real root with substrate receipts.
 > **Scope note**: separate from the ADR-379 widget-leak work (that task is done + live-validated). This is the round-trip / `recall` value-prop, surfaced while validating it.
+
+> **Resolution summary (read this first).** Empty `recall` had **two compounding causes**, both fixed:
+> 1. **No embeddings** (this finding's original root): ADR-325 decoupled embedding into an explicit `Embed` primitive with no caller in the memory loop → 642/642 files `embedding IS NULL`. **Fix:** mechanical post-embed of derived files after a substrate-event wake (`services/wake.py::_embed_derived_files`) + a backfill script (`scripts/backfill_embeddings.py`, 55/55 embedded for kvk). NOT a Reviewer tool call — `Embed` stays out of `REVIEWER_PRIMITIVES` (the 2026-05-25 canary: an extra Reviewer tool collapsed judgment ~74%); embedding is mechanics, not judgment.
+> 2. **A broken `ivfflat` index** (uncovered while validating fix #1): `idx_ws_embedding` was `ivfflat (lists=100)`. IVFFlat probes a few of its 100 clusters; with only tens of vectors per workspace the index is under-trained — it probes empty lists and `ORDER BY embedding <=> q LIMIT k` returns **0 rows**, while a seq-scan returns the correct neighbours. This was masked while embeddings were empty (#1); fixing #1 made it the active failure. **Fix:** migration 190 swaps ivfflat → **HNSW** (no minimum-rows requirement; correct at any corpus size). RPC + app code unchanged (same `vector_cosine_ops` order operator).
+>
+> **Proof:** the exact query that returned 0 rows under ivfflat returns 5 under HNSW (index ON), and live `recall("datastore decision")` returns the Postgres-vs-DynamoDB memory at sim 0.582, citation intact.
 
 ## TL;DR
 

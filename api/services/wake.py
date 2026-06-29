@@ -1409,6 +1409,107 @@ def _result_failed(
 # ---------------------------------------------------------------------------
 
 
+async def _embed_derived_files(client, user_id: str, *, since_iso: str) -> int:
+    """Mechanically embed eligible files the Reviewer DERIVED during this wake (ADR-379 follow-on).
+
+    The embedding gap (2026-06-29 finding, docs/evaluations/2026-06-29-recall-
+    empty-embedding-gap.md): the seat derives understanding into operation/ from a
+    foreign `remember` (and from any derivation), but nothing made those files
+    AI-ready — workspace embeddings were 0/N, so semantic `recall` matched nothing.
+
+    Why a mechanical post-step, NOT a Reviewer tool call: embedding is the
+    make-AI-ready MECHANICS, not judgment — the seat's judgment is *what* to derive
+    and *where*. Adding `Embed` to REVIEWER_PRIMITIVES is the corrosive move the
+    registry comment (registry.py ~485) warns against (the 2026-05-25 canary: one
+    extra tool collapsed Reviewer output ~74%). So `Embed` is NOT in the seat's
+    hands; instead, after the wake completes, we deterministically embed the
+    eligible files the seat just authored. This preserves ADR-325's properties
+    (eligibility-checked via is_embed_eligible, cost-ceilinged below) while keeping
+    the Reviewer tool surface untouched. Zero LLM.
+
+    Targeted, not a blind sweep: only files (a) authored by the reviewer occupant
+    (b) since this wake started (c) embed-eligible per ADR-325 D5. Idempotent and
+    best-effort — never raises (an embed failure must not fail the wake, which has
+    already done its judgment work).
+    """
+    try:
+        from services.primitives.embed import (
+            is_embed_eligible,
+            _EMBED_DAILY_CAP,
+            _embed_calls_today,
+        )
+        from services.primitives.workspace import _embed_workspace_file
+
+        # The reviewer occupant's authored_by prefix (ADR-315 single identity).
+        # Match any reviewer:* authorship (occupant id may vary by model).
+        rows = (
+            client.table("workspace_file_versions")
+            .select("path, authored_by, created_at")
+            .eq("user_id", user_id)
+            .gte("created_at", since_iso)
+            .order("created_at", desc=True)
+            .limit(50)
+            .execute()
+        ).data or []
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("[WAKE:embed] derived-file query failed (non-fatal): %s", exc)
+        return 0
+
+    # Distinct reviewer-authored eligible paths (newest revision per path).
+    seen: set[str] = set()
+    embedded = 0
+    for r in rows:
+        path = r.get("path") or ""
+        authored_by = (r.get("authored_by") or "").lower()
+        if not path or path in seen:
+            continue
+        if not authored_by.startswith("reviewer:"):
+            continue
+        rel = path[len("/workspace/"):] if path.startswith("/workspace/") else path.lstrip("/")
+        eligible, _reason = is_embed_eligible(rel)
+        if not eligible:
+            continue
+        seen.add(path)
+        # Cost ceiling (ADR-325 D4) — additive backstop, same as the Embed primitive.
+        try:
+            if _embed_calls_today(client, user_id) >= _EMBED_DAILY_CAP:
+                logger.info("[WAKE:embed] daily embed cap reached; stopping derived-embed sweep")
+                break
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            # Read current content (the helper needs it; also confirms eligibility on length).
+            res = (
+                client.table("workspace_files")
+                .select("content")
+                .eq("user_id", user_id)
+                .eq("path", path)
+                .limit(1)
+                .execute()
+            )
+            content = (res.data or [{}])[0].get("content") or ""
+            ok_len, _ = is_embed_eligible(rel, content)
+            if not ok_len:
+                continue
+            await _embed_workspace_file(client, user_id, path, content)
+            embedded += 1
+            # Cost-ledger marker so _embed_calls_today + cost reporting see it.
+            try:
+                from services.telemetry import record_execution_event
+                from services.supabase import get_service_client
+                record_execution_event(
+                    get_service_client(), user_id=user_id, slug="embed",
+                    mode="mechanical", trigger_type="reactive", status="success",
+                )
+            except Exception:  # noqa: BLE001
+                pass
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("[WAKE:embed] embed of %s failed (non-fatal): %s", path, exc)
+    if embedded:
+        logger.info("[WAKE:embed] embedded %d derived file(s) for user=%s", embedded, user_id[:8])
+    return embedded
+
+
 async def _invoke_substrate_event_wake(
     client,
     user_id: str,
@@ -1563,6 +1664,15 @@ async def _invoke_substrate_event_wake(
         wake_source="substrate_event",
         funnel_decision="escalate",
     )
+
+    # ADR-325 follow-on (2026-06-29 finding): mechanically embed any eligible files
+    # the seat DERIVED during this wake, so semantic `recall` can rank them. This is
+    # make-AI-ready MECHANICS, not judgment — deliberately NOT a Reviewer tool call
+    # (Embed stays out of REVIEWER_PRIMITIVES; see registry.py ~485). Best-effort.
+    try:
+        await _embed_derived_files(client, user_id, since_iso=started_at.isoformat())
+    except Exception as exc:  # noqa: BLE001 — embed must never fail the wake
+        logger.debug("[WAKE:substrate] derived-embed post-step failed (non-fatal): %s", exc)
 
     return {
         "success": True,

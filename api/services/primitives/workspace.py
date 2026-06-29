@@ -28,11 +28,19 @@ logger = logging.getLogger(__name__)
 
 
 async def _embed_workspace_file(client: Any, user_id: str, abs_path: str, content: str) -> None:
-    """Fire-and-forget: generate embedding for a context file and update the row.
+    """Compute + store the embedding for one workspace file (the embed mechanism).
 
-    ADR-174 Phase 2 — scoped to /workspace/context/ paths only. Non-blocking;
-    called after successful WriteFile for context scope. Failure is logged but
-    does not surface to the caller.
+    The single embedding execution arm (Singular Implementation). Callers — all of
+    which gate eligibility BEFORE calling this — are:
+      - the explicit `Embed` primitive (services/primitives/embed.py, ADR-325);
+      - the wake-time derived-file embed (services/wake.py::_embed_derived_files,
+        ADR-325 follow-on / 2026-06-29 finding — embeds what the seat just derived);
+      - the backfill script (scripts/backfill_embeddings.py).
+    Pre-ADR-321 this was a fire-and-forget side-effect of WriteFile(scope='context');
+    that call path was deleted with scope='context' (ADR-320/321) and embedding
+    became the explicit Embed primitive (ADR-325). This helper is its execution
+    target, NOT a write side-effect. Metadata-only row update (ADR-209 permitted
+    exception). Non-blocking; failure is logged, never surfaced to the caller.
     """
     try:
         from services.embeddings import get_embedding
