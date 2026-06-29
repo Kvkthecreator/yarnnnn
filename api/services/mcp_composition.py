@@ -510,7 +510,7 @@ async def resolve_memory_path(auth: Any, subject: str) -> Optional[str]:
     return None
 
 
-async def resolve_trace_path(auth: Any, subject: str) -> Optional[str]:
+async def resolve_trace_path(auth: Any, subject: str) -> tuple[Optional[str], str]:
     """Resolve a `trace` subject to the file that IS the subject (ADR-372 fix).
 
     `trace` is about the HISTORY of a specific thing, so it must resolve to the
@@ -533,13 +533,19 @@ async def resolve_trace_path(auth: Any, subject: str) -> Optional[str]:
          beats a 1-revision file that merely mentions it.
       3. None → caller reports "nothing recorded".
 
-    Returns the absolute /workspace/ path or None.
+    Returns `(path, resolution)` where resolution is the SAME honest-state signal
+    recall carries (2026-06-29): "exact" when a SINGLE file's basename is the
+    subject (the file IS it — confident), "ambiguous" when several name-matches
+    competed OR resolution fell to FTS (mention-ranking, looser — the host should
+    confirm it traced the right thing before narrating "how your thinking
+    evolved"). Zero added inference — derived from the resolve branch already
+    taken. `(None, "weak")` when nothing matched.
     """
     from services.primitives.registry import execute_primitive
 
     raw = (subject or "").strip()
     if not raw:
-        return None
+        return None, "weak"
     slug = _slugify(raw)
     # Candidate basenames to match against (no extension assumed).
     stems = {raw, slug, slug.replace("-", "_"), slug.replace("_", "-")}
@@ -581,7 +587,9 @@ async def resolve_trace_path(auth: Any, subject: str) -> Optional[str]:
                 n = await _rev_count(p)
                 if n > best_revs:
                     best, best_revs = p, n
-            return best
+            # A SINGLE name-match is the file that IS the subject → exact. Multiple
+            # competing name-matches means we PICKED one — honest state is ambiguous.
+            return best, ("exact" if len(name_hits) == 1 else "ambiguous")
     except Exception as exc:  # noqa: BLE001
         logger.debug("[MCP] trace name-match resolve failed: %s", exc)
 
@@ -592,7 +600,7 @@ async def resolve_trace_path(auth: Any, subject: str) -> Optional[str]:
         )
         results = (qk.get("results") or []) if qk.get("success") else []
         if not results:
-            return None
+            return None, "weak"
         subj_token = slug.replace("-", "").replace("_", "")
 
         async def _score(path: str) -> tuple:
@@ -606,12 +614,18 @@ async def resolve_trace_path(auth: Any, subject: str) -> Optional[str]:
             if p:
                 scored.append((await _score(p), p))
         if not scored:
-            return None
+            return None, "weak"
         scored.sort(key=lambda x: x[0], reverse=True)  # path-match then revs
-        return scored[0][1]
+        # FTS fallback = mention-ranking, inherently looser than a name match.
+        # If the top candidate's PATH contains the subject token it's a strong
+        # pick; otherwise it merely MENTIONS the subject → ambiguous, the host
+        # should confirm it's the right thing before narrating its history.
+        top_score, top_path = scored[0]
+        resolution = "exact" if top_score[0] == 1 and len(scored) == 1 else "ambiguous"
+        return top_path, resolution
     except Exception as exc:  # noqa: BLE001
         logger.debug("[MCP] trace FTS resolve failed: %s", exc)
-        return None
+        return None, "weak"
 
 
 async def dispatch_remember_this(
@@ -821,10 +835,11 @@ async def compose_trace(
     # to a 1-revision prose/report file, so the timeline was always empty). The
     # memory-round-trip case (remember(about=X) → operation/memory/{slug}.md) is
     # subsumed: resolve_trace_path's name-match catches {slug}.md too.
-    path = await resolve_trace_path(auth, subject)
+    path, resolution = await resolve_trace_path(auth, subject)
     if not path:
         return {
             "success": True, "subject": subject, "path": None, "history": [],
+            "resolution": "weak",
             "explanation": (
                 f"YARNNN has no recorded material about '{subject}' to trace. "
                 "Nothing has been authored on this subject yet."
@@ -929,19 +944,33 @@ async def compose_trace(
         + " (the source(s) of record this understanding was derived from)"
         if raw_path else ""
     )
+    # Honest-state: if resolution was ambiguous (several candidates, or an FTS
+    # mention-match), tell the host so it can CONFIRM it traced the right thing
+    # before narrating "how your thinking on X evolved" — a wrong trace reads as
+    # authoritative, the failure mode this guards (parallel to recall's ambiguous).
+    if resolution == "ambiguous":
+        explanation = (
+            f"Traced `{abs_path}` for '{subject}', but the subject didn't resolve "
+            f"to a single unambiguous file — this is the closest match, not a "
+            f"certain one. Before narrating its history as '{subject}', consider "
+            f"confirming with the user that this is the thing they meant."
+        )
+    else:
+        explanation = (
+            f"The authored history of '{subject}' — {len(history)} revision(s), "
+            f"each attributed to who changed it and when{chain_note}. This is the "
+            "cross-LLM provenance no plain storage connector can show."
+        )
     return {
         "success": True,
         "subject": subject,
         "path": abs_path,
+        "resolution": resolution,      # exact | ambiguous (honest-state, 2026-06-29)
         "derived_from": raw_path,      # the cited raw observation, if any (ADR-376)
         "history": history,            # newest first; derived chain then raw chain
         "returned": len(history),
         "citations": citations,
-        "explanation": (
-            f"The authored history of '{subject}' — {len(history)} revision(s), "
-            f"each attributed to who changed it and when{chain_note}. This is the "
-            "cross-LLM provenance no plain storage connector can show."
-        ),
+        "explanation": explanation,
     }
 
 

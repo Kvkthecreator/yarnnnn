@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.29.6] - honest-state contract across all 3 MCP tools (trace resolution + remember status)
+
+**Applied the recall host-LLM/honest-state lens to the other two tools.** Same principle (YARNNN reports honest state, the HOST decides/acts, never launder uncertainty, zero added inference). Surfaced one real bug + one polish:
+
+- **trace (bug — same false-certainty as recall had):** `resolve_trace_path` silently crowned one file and `compose_trace` presented its history as authoritative, with no signal about how sure the resolution was — a wrong trace reads as a confident "here's how your thinking evolved" over the wrong file. Fix: `resolve_trace_path` now returns `(path, resolution)` and `compose_trace` surfaces `resolution`: `exact` (single name-match — narrate) / `ambiguous` (several matched or FTS mention-match — CONFIRM the subject before narrating) / `weak` (nothing recorded). Derived from the resolve branch already taken — zero added inference. Tool description + output schema teach the host to confirm-on-ambiguous.
+- **remember (polish — honest async boundary):** the raw observation is captured + durable at return, but the seat's derive/place/judge pass is ASYNC. Added `status: "captured"` so the host sets the right expectation ("saved — filed + checked in a moment") instead of implying instant full integration. Docstring's "immediately available on the next recall" overclaim corrected.
+- **Design note**: `docs/features/mcp/honest-state-contract.md` — the reusable 3-check test (honest state / act belongs to host / zero added inference) for every current + future MCP tool.
+- Gate `test_adr368_memory_surface.py` 15/15 (+14 trace resolution, +15 remember status). ADR-372 18/18 (assertion 14 updated for the `resolve_trace_path` tuple return). Siblings green. MCP-server path; ships on MCP redeploy.
+
 ## [2026.06.29.5] - recall confidence signal: stop laundering ambiguity into false certainty
 
 **Operator question: when the deterministic resolver blankets a genuine "which did you mean?" situation, the system silently guesses instead of letting a clarify happen.** Correct at the wedge altitude: YARNNN is a connector, not the agent in the room — it must NOT clarify or guess itself (ADR-368 D1 bright line: recall returns material, the HOST LLM explains). The bug was that recall *crowned* a single hit (deterministic OR top-fuzzy) and reported `total_matches:1` even when other candidates scored nearly as high — robbing the host of the information it needs to decide whether to clarify.

@@ -422,11 +422,14 @@ async def remember(
     clearly about a subject (a company, person, project, topic), pass that as
     `about`.
 
-    The write is synchronous and durable — immediately available on the next
-    recall, attributed to its source. YARNNN's own judgment seat then files the
-    memory where it belongs in the workspace and checks it against what it already
-    knows (in the background — you don't wait for it). You are saving to the
-    user's durable memory; you are not asking YARNNN to do work.
+    The write is synchronous and durable — the raw observation is captured and
+    attributed the moment this returns (`status: "captured"`). YARNNN's own
+    judgment seat THEN files the memory where it belongs and checks it against what
+    it already knows — but that pass is asynchronous (a short moment later), so a
+    recall an instant later may not surface it yet. Set the user's expectation
+    accordingly ("saved — it'll be filed and checked in a moment"); don't promise
+    it's already organized or validated. You are saving to the user's durable
+    memory; you are not asking YARNNN to do work.
 
     Args:
         content: The thing to remember. Required.
@@ -504,6 +507,13 @@ async def remember(
         },
         # ADR-368 D5: the seat will file this where it belongs + validate it.
         "captured": True,
+        # Honest-state (2026-06-29): the raw observation is CAPTURED + durable +
+        # recallable now, but the seat's derive/place/judge pass is ASYNC and
+        # hasn't run yet. "captured" (not "placed") lets the host set the right
+        # expectation — "saved; it'll be filed + checked in a moment" — instead of
+        # implying instant full integration. The host should NOT promise the user
+        # it's been judged/organized yet.
+        "status": "captured",
     }, client_name=client_name)
 
 
@@ -617,6 +627,16 @@ async def trace(
     recorded material and returns its revision history, newest first. Reason over
     the chain and narrate the evolution in your own voice.
 
+    Check the `resolution` field before narrating — it tells you how sure YARNNN
+    is that it traced the RIGHT thing (a wrong trace reads as authoritative, so
+    don't narrate a confident "here's how your thinking evolved" over the wrong
+    file):
+      • "exact"     — the subject named a single file; this IS its history. Narrate.
+      • "ambiguous" — the subject matched several files (or only loosely); this is
+                      the closest, not a certain one. CONFIRM with the user that
+                      this is what they meant before narrating its history.
+      • "weak"      — nothing recorded on this subject yet; say so.
+
     On a rich-render host (ChatGPT / MCP Apps) the revision chain ALSO renders as
     an interactive timeline widget (ADR-372) — but you STILL narrate the evolution
     in prose: the widget is additive, not a replacement for your explanation. On a
@@ -676,6 +696,7 @@ _OUTPUT_SCHEMAS = {
         "type": "object",
         "properties": {
             "captured": {"type": "boolean", "description": "true when the observation was committed"},
+            "status": {"type": "string", "enum": ["captured"], "description": "captured = raw observation stored + durable now; the seat's derive/place/judge pass is async (a moment later)"},
             "written_to": {"type": "string", "description": "the raw-capture path the observation landed at"},
         },
     },
@@ -695,6 +716,7 @@ _OUTPUT_SCHEMAS = {
         "properties": {
             "subject": {"type": "string"},
             "path": {"type": ["string", "null"]},
+            "resolution": {"type": "string", "enum": ["exact", "ambiguous", "weak"], "description": "how sure YARNNN is it traced the right file: exact=narrate; ambiguous=confirm the subject first; weak=nothing recorded"},
             "history": {"type": "array", "items": _REVISION_SCHEMA, "description": "revision chain, newest first"},
             "returned": {"type": "integer"},
             "explanation": {"type": "string"},

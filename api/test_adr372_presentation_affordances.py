@@ -330,12 +330,14 @@ def main():
                      "/workspace/operation/specs/regime-state.md": 1},
         }
         # name-match for "SPY" should pick SPY.yaml (the file that IS the subject),
-        # never regime-state.md (which merely mentions SPY).
-        got = asyncio.run(mc.resolve_trace_path(_FakeAuth(store), "SPY"))
-        return got == "/workspace/operation/trading/SPY.yaml"
+        # never regime-state.md (which merely mentions SPY). Returns (path,
+        # resolution) since the 2026-06-29 honest-state change; a single
+        # name-match is "exact".
+        got, resolution = asyncio.run(mc.resolve_trace_path(_FakeAuth(store), "SPY"))
+        return got == "/workspace/operation/trading/SPY.yaml" and resolution == "exact"
 
     results.append(_check(
-        "14 resolve_trace_path name-match picks the file the subject NAMES (SPY → SPY.yaml, not a mention-file)",
+        "14 resolve_trace_path picks the file the subject NAMES (SPY → SPY.yaml) + marks it exact (single name-match)",
         _resolve_behavior()))
 
     total, passed = len(results), sum(results)

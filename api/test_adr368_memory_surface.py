@@ -173,6 +173,29 @@ def main():
         "13 compose_recall returns the confidence field (host-decides contract, ADR-368 D1 bright line preserved)",
         recall_returns_confidence))
 
+    # 14. trace carries the SAME honest-state signal (the 2026-06-29 lens applied
+    #     to the other tools): resolve_trace_path returns (path, resolution) and
+    #     compose_trace surfaces `resolution` so the host confirms-the-subject on
+    #     ambiguous before narrating a (possibly wrong) authoritative history.
+    trace_src = inspect.getsource(m.compose_trace)
+    resolver_src = inspect.getsource(m.resolve_trace_path)
+    trace_honest = (
+        "path, resolution = await resolve_trace_path" in trace_src
+        and '"resolution": resolution' in trace_src
+        and 'return best, (' in resolver_src  # name-match returns a (path, label) tuple
+    )
+    results.append(_check(
+        "14 trace surfaces `resolution` (exact/ambiguous) — same host-decides honest-state as recall",
+        trace_honest))
+
+    # 15. remember signals captured-vs-placed honest-state (the async derive/judge
+    #     pass hasn't run at return time) — server.py remember returns status:captured.
+    server_src = inspect.getsource(__import__("mcp_server.server", fromlist=["remember"]))
+    remember_honest = '"status": "captured"' in server_src
+    results.append(_check(
+        "15 remember returns status:'captured' (raw stored now; seat derive/place/judge is async — honest expectation)",
+        remember_honest))
+
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-368 assertions pass")
     if passed != total:
