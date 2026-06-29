@@ -37,6 +37,18 @@ Each invariant separately enables a property operators and cognitive layers actu
 
 Together, they turn the substrate from a flat filesystem into a **four-dimensional substrate**: path × content × author × time. Every read can be scoped on any axis.
 
+### The re-founding extends the ledger (FOUNDATIONS v9.13, 2026-06-29)
+
+The re-founding (keystone + adversarial triple-check; Axiom 1 sixth/seventh/ninth sub-clause amendments + Derived Principle 33) makes the ledger the **single carrier of every kernel concern** — not just content/author/time, but **permission and provenance too**. The unifying operation (DP33): *collapse the category that was encoded as namespace structure into data on the file or revision; keep the namespace for meaning.* Three additions to the invariant model, all **doc-direction here — the schema columns and the gate consult are the separate implementation mode, not yet built**:
+
+| Carrier | What it now holds | Where it lives | Replaces |
+|---|---|---|---|
+| **Per-file grant** | who may write this file (the runtime permission authority), **defaulted at creation** by the meaning-folder, overridden per-file/per-principal | a grant field on `workspace_files` (the file row), consulted by the gate for edit/delete — ADR-373's `principal_grants` is the cross-file authorization fact this defaults from | the pure-prefix `_is_path_locked` *for the work-commons* (the directory was the runtime permission source; now it is only the birth-time default-stamp) |
+| **Revision-kind** | is this revision a raw **observation** (a principal contributed it) or a **derivation** (the steward made sense of it) | a `revision_kind` field on `workspace_file_versions` | the `inbound/` raw **lane** (provenance was a separate namespace; now it is a revision flag on the one meaning-file) |
+| **derived_from** | the observation revision-id(s) a derivation was built from | a `derived_from` field on the derivation revision | the `derived_from` frontmatter line in a separate-lane file (DP32's invariant `retain + attribute + cite` is unchanged; only its home moves namespace → revision) |
+
+So the four-dimensional substrate becomes a **richer ledger** — path × content × author × time × **grant** × **kind** × **citation** — and the namespace is freed to carry only **operator-meaning** (`the-acme-deal/`, `q3-strategy/`) plus the **minimal path-anchored residue** the triple-check proved irreducible: the kernel-read GRANT + per-act floor + `system/` (the kernel locates its own authority by fixed path; the floor must deny *creation* into an empty locked region — a non-existent file has no metadata to read), and the principal-homes (`persona/`, `agents/{slug}/` — fixed identity homes, the `/home/alice` model). **Permission is `defaulted-by-meaning, owned-by-grant`** — not "never on the namespace" (the absolutism the triple-check falsified at the create-boundary and the fixed-path grant read). One consequence for *this* doc's invariants: single-**writer**-per-path relaxes to single-**head**, many-**authors** for the commons (the chain serializes mechanics via CAS; a genuine same-path semantic contradiction relocates to the steward seat as a next-head judgment revision — conditioned on the single-substrate topology, ADR-378). See [the re-founding keystone](../analysis/the-re-founding-meaning-folders-and-permission-as-metadata-2026-06-29.md) + [the triple-check findings](../analysis/keystone-triple-check-FINDINGS-2026-06-29.md) + FOUNDATIONS DP33.
+
 ---
 
 ## 2. Why this is framed as git-inspired — and what we deliberately don't adopt
