@@ -138,6 +138,41 @@ def main():
         counter_reconciled,
         f"reconciled={counter_reconciled}"))
 
+    # 12. recall confidence signal (the clarify-vs-guess fix). recall is a
+    #     connector, not the conversational agent — it must report HONEST state
+    #     (high/ambiguous/weak) so the HOST decides answer-vs-clarify, never
+    #     laundering ambiguity into a crowned single hit. Pure function, zero
+    #     inference (derived from similarity QueryKnowledge already returns).
+    conf = m._recall_confidence
+    cases = {
+        "exact deterministic hit → high":
+            (conf([{"path": "a", "match": "exact"}]) == "high"),
+        "single chunk → high":
+            (conf([{"path": "a", "similarity": 0.61}]) == "high"),
+        "dominant top + clear gap → high":
+            (conf([{"path": "a", "similarity": 0.62}, {"path": "b", "similarity": 0.30}]) == "high"),
+        "close top scores, no dominant → ambiguous":
+            (conf([{"path": "a", "similarity": 0.41}, {"path": "b", "similarity": 0.39}]) == "ambiguous"),
+        "two strong-but-tied → ambiguous (not crowned)":
+            (conf([{"path": "a", "similarity": 0.60}, {"path": "b", "similarity": 0.58}]) == "ambiguous"),
+        "best below dominant bar → weak":
+            (conf([{"path": "a", "similarity": 0.33}]) == "weak"),
+        "empty → weak":
+            (conf([]) == "weak"),
+    }
+    conf_ok = all(cases.values())
+    results.append(_check(
+        "12 recall confidence: exact/single/dominant=high, close=ambiguous, low=weak (host decides clarify; zero inference)",
+        conf_ok, "" if conf_ok else f"failed={[k for k,v in cases.items() if not v]}"))
+
+    # 13. confidence is actually returned by compose_recall + the host is taught
+    #     (server tool description) to ask on ambiguous — the bright line stays:
+    #     YARNNN reports state, the HOST clarifies.
+    recall_returns_confidence = '"confidence": confidence' in recall_src or "'confidence': confidence" in recall_src
+    results.append(_check(
+        "13 compose_recall returns the confidence field (host-decides contract, ADR-368 D1 bright line preserved)",
+        recall_returns_confidence))
+
     total, passed = len(results), sum(results)
     print(f"\n{passed}/{total} ADR-368 assertions pass")
     if passed != total:

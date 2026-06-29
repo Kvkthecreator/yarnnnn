@@ -295,7 +295,9 @@ mcp = HostGatedFastMCP(
         "               available on the next recall.\n"
         "  • recall   — pull what the user already knows about a subject when\n"
         "               they reference something they might track. YARNNN returns\n"
-        "               the material; YOU explain it in your own voice.\n"
+        "               the material + a `confidence` signal; YOU explain it in\n"
+        "               your own voice. On confidence='ambiguous' (several matches,\n"
+        "               none dominant) ASK which they mean — don't guess the first.\n"
         "  • trace    — show how a recorded fact changed over time (who changed\n"
         "               it, when, what the change was) — YARNNN's distinguishing\n"
         "               capability, which a plain storage connector cannot show.\n\n"
@@ -537,12 +539,24 @@ async def recall(
     Pass the subject as `subject`. Optionally pass a `question` to focus the
     retrieval, or a `domain` to narrow it.
 
-    YARNNN RETURNS the material — ranked excerpts with paths, timestamps, and the
-    LLM that originally contributed each. It does NOT write an answer for you:
-    you reason over what it returns and explain in your own voice, using the
-    conversation as context. Every LLM the user touches sees the same memory, so
-    their thinking stays coherent across rooms. If nothing matches, tell them
-    YARNNN has nothing recorded yet and answer from your own knowledge.
+    YARNNN RETURNS the material — ranked excerpts with paths, timestamps, the LLM
+    that originally contributed each, and a `confidence` signal. It does NOT write
+    an answer for you, and it does NOT decide whether to clarify: YOU reason over
+    what it returns and explain in your own voice, using the conversation as
+    context. Every LLM the user touches sees the same memory, so their thinking
+    stays coherent across rooms.
+
+    Use the `confidence` field to decide how to respond — this is the key to not
+    guessing when the memory is ambiguous:
+      • "high"      — a clear, dominant match (or an exact subject hit). Use it.
+      • "ambiguous" — several recorded items match and none dominates. Do NOT
+                      silently pick the first; surface the candidates (in `chunks`)
+                      and ASK the user which they mean. This is the clarify case.
+      • "weak"      — only loose matches below the confidence bar. Treat as weak;
+                      answer from your own knowledge or ask the user to be specific.
+    If nothing matches at all, tell them YARNNN has nothing recorded yet and answer
+    from your own knowledge. (YARNNN never clarifies or guesses itself — it's the
+    memory; you're the one in the conversation.)
 
     Args:
         subject: What to recall (entity, topic, keyword). Required.
@@ -669,9 +683,10 @@ _OUTPUT_SCHEMAS = {
         "type": "object",
         "properties": {
             "subject": {"type": "string"},
-            "chunks": {"type": "array", "items": {"type": "object"}, "description": "ranked excerpts of recorded material (path, excerpt, last_updated, domain, source_tag)"},
+            "chunks": {"type": "array", "items": {"type": "object"}, "description": "ranked excerpts of recorded material (path, excerpt, last_updated, domain, source_tag, similarity)"},
             "total_matches": {"type": "integer"},
             "returned": {"type": "integer"},
+            "confidence": {"type": "string", "enum": ["high", "ambiguous", "weak"], "description": "honest-state signal for the host: high=use it; ambiguous=ask which the user means; weak=loose matches only"},
             "explanation": {"type": "string"},
         },
     },

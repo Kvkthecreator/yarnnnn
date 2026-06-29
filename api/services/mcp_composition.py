@@ -208,6 +208,49 @@ def _short_excerpt(text: str, limit: int = 400) -> str:
     return text[:limit].rstrip() + "…"
 
 
+# Recall confidence thresholds (derived from the similarity QueryKnowledge already
+# returns — ZERO extra inference / DB cost). The connector's job is fidelity, not
+# judgment: it reports the honest state so the HOST LLM (the one in the
+# conversation) decides answer-vs-clarify. It never clarifies or guesses itself
+# (ADR-368 D1 bright line: recall returns material, the host explains). The bug
+# this fixes: a deterministic OR top-fuzzy hit was crowned as "the answer" even
+# when other candidates scored nearly as high — laundering ambiguity into false
+# certainty, so the host never learned it should clarify.
+_RECALL_DOMINANT_MIN = 0.55   # a top score this high is a confident standalone hit
+_RECALL_AMBIGUOUS_GAP = 0.08  # if #1 and #2 are within this, no clear winner
+
+
+def _recall_confidence(chunks: list[dict]) -> str:
+    """Derive an honest confidence label from chunks (pure; no inference).
+
+    Returns one of:
+      'high'      — an exact deterministic hit, OR a single chunk, OR a dominant
+                    top score with a clear gap to the runner-up.
+      'ambiguous' — multiple candidates with close top scores and no dominant one;
+                    the host SHOULD surface the choice rather than assume the top.
+      'weak'      — the best score is below the dominant bar (loose matches only).
+    The empty case is handled by the caller before this is reached.
+    """
+    if not chunks:
+        return "weak"
+    # An exact subject→path resolve is maximally confident regardless of fuzzy scores.
+    if chunks[0].get("match") == "exact":
+        return "high"
+    sims = sorted((c["similarity"] for c in chunks if "similarity" in c), reverse=True)
+    if not sims:
+        # BM25/list path (no scores) — single hit is high; multiple is ambiguous.
+        return "high" if len(chunks) == 1 else "ambiguous"
+    top = sims[0]
+    second = sims[1] if len(sims) > 1 else 0.0
+    if top >= _RECALL_DOMINANT_MIN and (top - second) >= _RECALL_AMBIGUOUS_GAP:
+        return "high"
+    if len(sims) > 1 and (top - second) < _RECALL_AMBIGUOUS_GAP:
+        return "ambiguous"
+    if top < _RECALL_DOMINANT_MIN:
+        return "weak"
+    return "high"
+
+
 def _slugify(text: str) -> str:
     """Simple slug derivation for entity path matching."""
     return re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
@@ -689,11 +732,18 @@ async def compose_recall(
             "last_updated": r.get("updated_at"),
             "domain": r.get("domain") or extract_domain_from_path(r.get("path", "")),
             "source_tag": _extract_provenance_tag(r.get("content_preview")),
+            # Carry the per-row similarity QueryKnowledge already computed (semantic
+            # path only; absent on BM25/list). Zero extra cost — it was being
+            # discarded. The host uses it to decide answer-vs-clarify (see below).
+            **({"similarity": r["similarity"]} if "similarity" in r else {}),
         }
         for r in raw
     ]
 
-    # Deterministic chunk leads; dedupe fuzzy chunks by path.
+    # Deterministic chunk leads; dedupe fuzzy chunks by path. The deterministic hit
+    # is an EXACT subject→path resolve, so it is maximally confident — mark it.
+    if det_chunk is not None:
+        det_chunk = {**det_chunk, "match": "exact"}
     chunks: list[dict] = []
     seen: set[str] = set()
     for c in ([det_chunk] if det_chunk else []) + fuzzy_chunks:
@@ -720,12 +770,32 @@ async def compose_recall(
     # match the ranked counter missed. Reconcile to the max so the counter can
     # never report fewer matches than rows actually returned.
     fuzzy_count = result.get("count", 0) if result.get("success") else 0
-    return {
+
+    # Honest-state signal (zero inference): let the HOST decide answer-vs-clarify.
+    confidence = _recall_confidence(chunks)
+    explanation = None
+    if confidence == "ambiguous":
+        explanation = (
+            f"Multiple recorded items could match '{subject}' and none clearly "
+            f"dominates. Rather than assume the first, consider asking the user "
+            f"which they mean — the candidates are in `chunks` (with `similarity`)."
+        )
+    elif confidence == "weak":
+        explanation = (
+            f"YARNNN has nothing that closely matches '{subject}' — only loose "
+            f"matches below the confidence bar. Treat these as weak; you may need "
+            f"to answer from your own knowledge or ask the user to be more specific."
+        )
+    out = {
         "success": True, "subject": subject, "chunks": chunks,
         "total_matches": max(fuzzy_count, len(chunks)),
         "returned": len(chunks),
+        "confidence": confidence,
         "citations": [c["path"] for c in chunks],
     }
+    if explanation:
+        out["explanation"] = explanation
+    return out
 
 
 async def compose_trace(

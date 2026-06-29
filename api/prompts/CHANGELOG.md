@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.06.29.5] - recall confidence signal: stop laundering ambiguity into false certainty
+
+**Operator question: when the deterministic resolver blankets a genuine "which did you mean?" situation, the system silently guesses instead of letting a clarify happen.** Correct at the wedge altitude: YARNNN is a connector, not the agent in the room — it must NOT clarify or guess itself (ADR-368 D1 bright line: recall returns material, the HOST LLM explains). The bug was that recall *crowned* a single hit (deterministic OR top-fuzzy) and reported `total_matches:1` even when other candidates scored nearly as high — robbing the host of the information it needs to decide whether to clarify.
+
+Fix is pure FIDELITY, ZERO added inference/DB cost (the signal was already computed and discarded):
+- `api/services/mcp_composition.py`: `compose_recall` now carries the per-row `similarity` QueryKnowledge already returns into each chunk, and derives a `confidence` field via `_recall_confidence` (pure function): `high` (exact deterministic hit / single / dominant top with clear gap) · `ambiguous` (close top scores, no dominant — the clarify case) · `weak` (best below the 0.55 dominant bar). The deterministic chunk is marked `match:"exact"`. On ambiguous/weak, `explanation` nudges the host to ask / treat-as-weak.
+- `api/mcp_server/server.py`: recall tool description + server `instructions` + output schema teach the host the contract — **on `confidence:"ambiguous"`, surface the candidates and ASK which the user means; never silently pick the first.** The clarify ACT belongs to the host (it sees the conversation); YARNNN only reports honest state.
+- **Expected behavior**: confident recalls unchanged (deterministic round-trip preserved). Ambiguous recalls now hand the host the candidates + scores + an `ambiguous` flag so it can clarify in-conversation. No YARNNN-side LLM call — the host's existing intelligence does the clarifying.
+- Gate `test_adr368_memory_surface.py` 13/13 (+12 confidence-logic table, +13 the field is returned). Siblings green. MCP-server path (`compose_recall`); ships on MCP redeploy.
+
 ## [2026.06.29.4] - ADR-383 persona-frame re-carve: the systemic self-model is the STEWARD, not "judgment seat"
 
 **The behavioral half of ADR-383 (and the Freddie re-cut, ADR-381): `_compute_minimal_frame` now leads with the STEWARD self-model and removes the capital-judgment residue.** Under the two-order collapse (FOUNDATIONS DP33 + the DP21 two-order amendment this commit lands), the systemic occupant of a bare workspace is the system agent (Freddie, stewardship), not "the operator's installed judgment"; judgment is the program-activated role. The frame routes to it via the MANDATE/principles.md the envelope renders, rather than asserting a judgment self-model over every workspace.
