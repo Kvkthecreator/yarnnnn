@@ -30,7 +30,11 @@ from services.supabase import (
 logger = logging.getLogger(__name__)
 
 
-def _build_client(user_id: str, client_name: str | None = None) -> AuthenticatedClient:
+def _build_client(
+    user_id: str,
+    client_name: str | None = None,
+    principal_id: str | None = None,
+) -> AuthenticatedClient:
     """Build a service-key client scoped to a specific user_id.
 
     Service key bypasses RLS; isolation comes from explicit .eq("user_id", …)
@@ -46,6 +50,13 @@ def _build_client(user_id: str, client_name: str | None = None) -> Authenticated
     filed by the Reviewer". Validates under the ``yarnnn:`` prefix
     (is_valid_author), so no schema/validation change. Falls back to the bare
     ``yarnnn:mcp`` when the client can't be identified.
+
+    ADR-373 D2 (grant-consult): ``principal_id`` is the foreign-LLM principal's
+    STABLE id — the OAuth ``client_id`` (a UUID), the key the permission gate
+    consults against ``principal_grants``. Distinct from ``client_name`` (the
+    human-readable room, used for attribution): the gate keys on the stable id,
+    attribution names the room. When no grant row exists for ``(client_id,
+    workspace)`` the gate falls to the ``mcp`` class default = today's behavior.
     """
     caller_identity = f"yarnnn:mcp:{client_name}" if client_name and client_name != "unknown" else "yarnnn:mcp"
     return AuthenticatedClient(
@@ -53,6 +64,7 @@ def _build_client(user_id: str, client_name: str | None = None) -> Authenticated
         user_id=user_id,
         email=None,
         caller_identity=caller_identity,
+        principal_id=principal_id,
     )
 
 
@@ -67,6 +79,7 @@ def resolve_request_client() -> AuthenticatedClient:
     one user regardless of who authenticated.
     """
     user_id = None
+    client_id = None
     try:
         from mcp.server.auth.middleware.auth_context import get_access_token
 
@@ -74,6 +87,10 @@ def resolve_request_client() -> AuthenticatedClient:
         # YarnnnAccessToken carries user_id (oauth_provider.py); the static
         # bearer path also stamps MCP_USER_ID onto it.
         user_id = getattr(token, "user_id", None)
+        # ADR-373 D2: the OAuth client_id is the foreign-LLM principal's stable
+        # id — the gate's grant-consult key. (Distinct from the room NAME used
+        # for attribution, resolved below.)
+        client_id = getattr(token, "client_id", None)
     except Exception as exc:  # noqa: BLE001
         logger.debug("[MCP Auth] no request token user (%s); falling back to env", exc)
 
@@ -95,7 +112,12 @@ def resolve_request_client() -> AuthenticatedClient:
     # name with it, then re-stamp caller_identity on the same underlying client —
     # no second create_client(). (live test surfaced the divergence: authored_by=
     # yarnnn:mcp while provenance=mcp:Claude on the same write.)
-    base = _build_client(user_id)
+    # ADR-373 D2: the stable principal_id for an MCP caller is its OAuth
+    # client_id (a UUID). Fall back to user_id (the authorizing operator) when
+    # the token carried no client_id — the gate then keys on the owner grant,
+    # still class-default in N=1.
+    principal_id = client_id or user_id
+    base = _build_client(user_id, principal_id=principal_id)
     client_name = None
     try:
         from services.mcp_composition import derive_client_name_from_token
@@ -112,6 +134,7 @@ def resolve_request_client() -> AuthenticatedClient:
         user_id=user_id,
         email=None,
         caller_identity=f"yarnnn:mcp:{client_name}",
+        principal_id=principal_id,
     )
 
 

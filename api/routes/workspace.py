@@ -69,6 +69,33 @@ class RecentArtifactsResponse(BaseModel):
     artifacts: list[RecentArtifact]
 
 
+class WorkspaceMember(BaseModel):
+    """One principal with an active grant to this workspace (ADR-373 D2).
+
+    Read-only legibility: WHO can write here, and WHAT write-regions they hold.
+    In this model an MCP connector from an external LLM is a *member* (a
+    foreign-llm principal), so this lists humans AND foreign-LLM/3rd-party
+    principals alike. Provisioning (invite / scope) is deferred to a separate
+    ADR; this is the "who can touch this workspace" view (ADR-338 management
+    plane idiom).
+    """
+    principal_id: str                      # the stable grant key (user id / client id / slug)
+    role: str                              # owner | member | own-agent | foreign-llm | platform | a2a
+    label: Optional[str] = None            # humanized name (email / LLM room / slug)
+    write_regions: list[str]               # the resolved write-region set (grant scopes or class-default)
+    scopes_explicit: bool                  # True if narrowed by an explicit grant; False if class-default
+    status: str                            # active | revoked
+    granted_by: Optional[str] = None
+    created_at: Optional[str] = None
+
+
+class WorkspaceMembersResponse(BaseModel):
+    members: list[WorkspaceMember]
+    # Whether the grant-consult is the active authorization path (always True
+    # post-ADR-373; surfaced so the FE can render the legibility honestly).
+    grant_consult_active: bool = True
+
+
 class RecentRevision(BaseModel):
     """One authored substrate change across the workspace (ADR-329 D2).
 
@@ -630,6 +657,123 @@ async def get_recent_artifacts(
         return RecentArtifactsResponse(artifacts=artifacts)
     except Exception as e:
         logger.error(f"[WORKSPACE_API] Recent artifacts read failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# GET /workspace/members — Workspace Members legibility (ADR-373 D2)
+# =============================================================================
+# Read-only "who can write here, and what regions" view over principal_grants.
+# The grant-consult (the gate) authorizes per-principal; this surfaces the same
+# facts the gate reads. Provisioning (invite / scope) is a separate ADR — this
+# is legibility only.
+
+#: The five semantic-class roots, for rendering the class-default write-region
+#: set as the COMPLEMENT of CALLER_WRITE_POLICY's locked prefixes.
+_ALL_WRITE_ROOTS = (
+    "governance/", "constitution/", "persona/", "operation/", "system/", "contract/",
+)
+
+#: principal_grants.role → the CALLER_WRITE_POLICY class key whose default the
+#: role inherits (ADR-373 D3 table). owner→operator, foreign-llm→mcp,
+#: own-agent/member→agent (the member ceiling), platform/a2a→mcp (lowest-trust).
+_ROLE_TO_CLASS = {
+    "owner": "operator",
+    "member": "agent",
+    "own-agent": "agent",
+    "foreign-llm": "mcp",
+    "platform": "mcp",
+    "a2a": "mcp",
+}
+
+
+def _class_default_write_regions(role: str) -> list[str]:
+    """The write-region set a role inherits from its class default (the
+    complement of the class's locked prefixes in CALLER_WRITE_POLICY)."""
+    from services.workspace_paths import CALLER_WRITE_POLICY
+    klass = _ROLE_TO_CLASS.get(role, "agent")
+    locked = set(CALLER_WRITE_POLICY.get(klass, ()))
+    return [r for r in _ALL_WRITE_ROOTS if r not in locked]
+
+
+@router.get("/workspace/members", response_model=WorkspaceMembersResponse)
+async def get_workspace_members(auth: UserClient) -> WorkspaceMembersResponse:
+    """List the principals with an active grant to this workspace (ADR-373 D2).
+
+    Read-only legibility surface for the Workspace Members panel. Humanizes each
+    principal where possible (owner email; MCP/foreign-LLM room name) and shows
+    its resolved write-region set (explicit grant scopes, else the class
+    default). At N=1 this is just the owner; the surface is multi-principal-ready
+    so a future member / foreign-LLM grant appears the moment it is written.
+    """
+    try:
+        workspace_id = auth.workspace_id
+        if not workspace_id:
+            from services.supabase import resolve_owner_workspace_id
+            workspace_id = resolve_owner_workspace_id(auth.user_id)
+        if not workspace_id:
+            # No workspace row yet (pre-substrate) → no members to show.
+            return WorkspaceMembersResponse(members=[])
+
+        # The grant table is the gate's authority — read it with the service
+        # client (membership RLS is mid-transition; the route already scoped to
+        # this workspace_id, resolved from the authenticated owner).
+        from services.supabase import get_service_client
+        svc = get_service_client()
+        rows = (
+            svc.table("principal_grants")
+            .select("principal_id, role, scopes, status, granted_by, created_at")
+            .eq("workspace_id", workspace_id)
+            .eq("status", "active")
+            .order("created_at")
+            .execute()
+        ).data or []
+
+        # Humanize: owner → email (this auth IS the owner); foreign-LLM/platform
+        # principal_id is an OAuth client_id → resolve its room name.
+        client_names: dict[str, str] = {}
+        client_ids = [r["principal_id"] for r in rows
+                      if r.get("role") in ("foreign-llm", "platform", "a2a")]
+        if client_ids:
+            try:
+                name_rows = (
+                    svc.table("mcp_oauth_clients")
+                    .select("client_id, client_name")
+                    .in_("client_id", client_ids)
+                    .execute()
+                ).data or []
+                client_names = {r["client_id"]: r.get("client_name") for r in name_rows}
+            except Exception as exc:  # best-effort humanization
+                logger.debug("[WORKSPACE_API] member client-name lookup failed: %s", exc)
+
+        members: list[WorkspaceMember] = []
+        for r in rows:
+            role = r.get("role") or "member"
+            principal_id = r["principal_id"]
+            scopes = r.get("scopes")
+            explicit = bool(scopes)  # NULL/[] → class default
+            write_regions = list(scopes) if explicit else _class_default_write_regions(role)
+
+            label: Optional[str] = None
+            if role == "owner" and principal_id == auth.user_id:
+                label = auth.email or "You (owner)"
+            elif role in ("foreign-llm", "platform", "a2a"):
+                label = client_names.get(principal_id) or principal_id
+
+            members.append(WorkspaceMember(
+                principal_id=principal_id,
+                role=role,
+                label=label,
+                write_regions=write_regions,
+                scopes_explicit=explicit,
+                status=r.get("status") or "active",
+                granted_by=r.get("granted_by"),
+                created_at=r.get("created_at"),
+            ))
+
+        return WorkspaceMembersResponse(members=members)
+    except Exception as e:
+        logger.error(f"[WORKSPACE_API] Workspace members read failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

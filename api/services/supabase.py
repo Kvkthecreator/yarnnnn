@@ -68,12 +68,28 @@ class AuthenticatedClient:
     (byte-identical in N=1, where one user owns exactly one workspace). Code
     that has switched to workspace scoping reads ``workspace_id``; code still on
     ``user_id`` is unaffected. Both key the same rows until the sweep completes.
+
+    ADR-373 D2 (grant-consult, 2026-06-29): ``principal_id`` carries the caller's
+    STABLE principal identity — the key the permission gate consults against
+    ``principal_grants`` to resolve a per-principal write-region grant (falling
+    back to the caller-class default when no grant / NULL scopes). This is the
+    THIRD growth of the dataclass, and it completes the attribution↔authorization
+    symmetry (ADR-288 made attribution per-principal; this makes authorization the
+    same granularity). It is set explicitly where the identity is known: the human
+    JWT path stamps ``user_id`` (the owner-grant's principal_id, confirmed 1:1 with
+    ``workspaces.owner_id``); the MCP path stamps the OAuth ``client_id`` (the
+    foreign-LLM room — claude.ai/ChatGPT). When left ``None``, ``resolve_principal_id``
+    derives a best-effort stable id from ``caller_identity`` + ``user_id`` so the
+    gate always has a key. At N=1 (all live workspaces) the only grant rows are the
+    owner's with NULL scopes, so the consult falls through to the class default and
+    behavior is BYTE-IDENTICAL to the pre-consult gate.
     """
     client: Client
     user_id: str
     email: Optional[str] = None
     caller_identity: str = "operator"
     workspace_id: Optional[str] = None
+    principal_id: Optional[str] = None
 
 
 def resolve_owner_workspace_id(user_id: str) -> Optional[str]:
@@ -111,6 +127,48 @@ def _resolve_owner_workspace_id_cached(user_id: str) -> Optional[str]:
         # Never block the request on workspace resolution.
         logger.debug("[ADR-373] owner-workspace resolve failed for %s: %s", user_id, exc)
     return None
+
+
+def resolve_principal_id(auth: "AuthenticatedClient") -> Optional[str]:
+    """Resolve the caller's STABLE principal identity for the grant-consult (ADR-373 D2).
+
+    The uniform abstraction every principal class flows through. The gate consults
+    ``principal_grants(principal_id, workspace_id)`` with the returned id; a new
+    principal type needs a mapping entry HERE and a grant row — no gate change.
+
+    Resolution (prefer the explicit field, else derive from caller_identity):
+      - explicit ``auth.principal_id`` set        → use it verbatim (human JWT path
+        stamps ``user_id``; MCP path stamps the OAuth ``client_id``).
+      - ``yarnnn:mcp:<client>`` / ``yarnnn:mcp``  → the client room name if present,
+        else fall back to ``user_id`` (the authorizing operator). NOTE: the MCP auth
+        path SHOULD stamp ``principal_id=client_id`` explicitly (a stable UUID); this
+        derivation is the safety net for callers that didn't.
+      - ``agent:<slug>`` / ``specialist:<role>``  → the slug/role (the agent's id).
+      - ``system:<actor>``                        → the actor (class-default only; no
+        system grant rows by design).
+      - ``reviewer:<identity>`` / ``operator``    → ``user_id`` (the workspace owner the
+        seat acts for; the seat is workspace-level, ADR-368 D5).
+
+    Returns ``None`` only when no id can be derived (no user_id, no caller_identity)
+    — the gate then falls straight to the class default (today's behavior).
+    """
+    explicit = getattr(auth, "principal_id", None)
+    if explicit:
+        return explicit
+    caller_identity = getattr(auth, "caller_identity", "") or ""
+    user_id = getattr(auth, "user_id", None)
+    if caller_identity.startswith("yarnnn:mcp"):
+        # yarnnn:mcp:<client> → the client room; bare yarnnn:mcp → the operator.
+        parts = caller_identity.split(":", 2)
+        if len(parts) == 3 and parts[2]:
+            return parts[2]
+        return user_id
+    if caller_identity.startswith("agent:") or caller_identity.startswith("specialist:"):
+        return caller_identity.split(":", 1)[1] or user_id
+    if caller_identity.startswith("system:"):
+        return caller_identity.split(":", 1)[1] or user_id
+    # operator / reviewer:* / unknown → the owner the auth acts for.
+    return user_id
 
 
 def close_supabase_client(client: Client) -> None:
@@ -225,6 +283,11 @@ def get_user_client(
             user_id=user_id,
             email=email,
             workspace_id=workspace_id,
+            # ADR-373 D2: the human owner's principal_id IS their user_id — the
+            # backfilled owner grant is keyed on auth.users.id (confirmed 1:1 with
+            # workspaces.owner_id, all 11 live rows). Stamp it so the gate consults
+            # the owner grant directly without re-deriving.
+            principal_id=user_id,
         )
     finally:
         # Release BOTH request-scoped httpx pools (postgrest + gotrue auth).

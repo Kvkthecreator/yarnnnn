@@ -254,13 +254,22 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
     # all other foreign writes APPLY (and fire the eventually-judged wake per
     # ADR-310 D2). This branch precedes the non_reviewer short-circuit so the
     # foreign caller does NOT inherit the operator/headless free-pass.
-    if getattr(auth, "caller_identity", "") == "yarnnn:mcp":
+    if getattr(auth, "caller_identity", "").startswith("yarnnn:mcp"):
         if name in _PATH_ADDRESSED_QUEUEABLE:  # WriteFile + ADR-337 verbs
+            # ADR-373 D2: the grant-consult. _is_path_locked_for_principal
+            # resolves the foreign-LLM's per-principal grant (keyed on the OAuth
+            # client_id) and uses its scopes; with no grant row it falls back to
+            # the `mcp` class default = today's behavior. NOTE the matcher widened
+            # to startswith — the live MCP caller_identity is `yarnnn:mcp:<client>`
+            # (the room-qualified form, ADR-288), which the prior exact `==
+            # "yarnnn:mcp"` check silently MISSED, routing every client-qualified
+            # MCP write down the non-reviewer free-pass below. The startswith form
+            # is the correct class match (mirrors _caller_class).
             from services.primitives.workspace import (
-                _resolve_gate_paths, _is_path_locked, _caller_class,
+                _resolve_gate_paths, _is_path_locked_for_principal,
             )
             for path in _resolve_gate_paths(name, input):
-                if _is_path_locked(_caller_class(auth), path):
+                if _is_path_locked_for_principal(auth, path):
                     return PermissionDecision.DENY, f"mcp_topology_locked:{path}"
         return PermissionDecision.APPLY, "mcp_caller_unlocked_path"
 
@@ -342,14 +351,19 @@ async def resolve_permission(auth: Any, name: str, input: dict) -> tuple[Permiss
             # Path-addressed (WriteFile + ADR-337 verbs): resolve every target
             # path (MoveFile has two); non-workspace scope is not autonomy-gated;
             # governance lock on ANY target → bypass-immune DENY.
+            # ADR-373 D2: the grant-consult. _is_path_locked_for_principal
+            # resolves the Reviewer's per-principal grant and uses its scopes;
+            # with no grant / NULL scopes it falls back to the class default
+            # (today's exact behavior — the live Reviewer seat has no narrowing
+            # grant). Same consult entry point as the MCP branch above.
             from services.primitives.workspace import (
-                _resolve_gate_paths, _is_path_locked, _caller_class,
+                _resolve_gate_paths, _is_path_locked_for_principal,
             )
             gate_paths = _resolve_gate_paths(name, input)
             if not gate_paths:
                 return PermissionDecision.APPLY, "non_workspace_scope"
             for path in gate_paths:
-                if _is_path_locked(_caller_class(auth), path):
+                if _is_path_locked_for_principal(auth, path):
                     return PermissionDecision.DENY, f"topology_locked:{path}"
             substrate_path = gate_paths[0]
 

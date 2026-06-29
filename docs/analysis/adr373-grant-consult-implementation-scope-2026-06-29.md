@@ -1,5 +1,19 @@
 # Implementation Scope — ADR-373 Grant-Consult (backend + frontend + validation)
 
+> **✅ IMPLEMENTED 2026-06-29.** This scope was executed. Audit results +
+> as-built receipts: [`adr373-grant-consult-AUDIT-FINDINGS-2026-06-29.md`](adr373-grant-consult-AUDIT-FINDINGS-2026-06-29.md).
+> Operator decisions: launch floor = ALL principals grant-consulted (uniform
+> `resolve_principal_id` + class-default fallback); FE = read-only "Workspace
+> Members" panel in Workspace Settings (provisioning + role scoping → separate
+> ADR). Adjacent fix landed: the dormant MCP topology lock (exact-match bug)
+> activated. Code: `services/supabase.py` (principal_id + resolver),
+> `services/primitives/workspace.py` (`_is_path_locked_for_principal`),
+> `services/primitives/permission.py` (both gate sites), `mcp_server/auth.py`
+> (client_id principal), `routes/workspace.py` (`GET /api/workspace/members`),
+> `web/components/workspace-concepts/WorkspaceMembersCard.tsx`. Tests:
+> `api/test_adr373_grant_consult.py` (20/20); full gate battery 82/82; live N=1
+> byte-identical 99/0. Satisfies ADR-384 §7.
+
 **Date**: 2026-06-29
 **Hat**: A (system editor — implementation scoping). **This is a scope, not a spec to follow blindly.** Every claim below was checked against the live codebase + DB on 2026-06-29, but the implementing session MUST run its own audit (see §0) — this is a foundational, pre-launch refactor and the cost of a wrong assumption is high. Where this doc is uncertain, it says so; treat those as audit targets, not facts.
 **Purpose**: scope wiring ADR-373's per-principal **grant-consult** at the permission gate — the load-bearing half of ADR-373 that did not ship with the re-key (migration 189). It is (a) a pre-launch blocker in its own right and (b) the hard prerequisite for the re-founding ([ADR-384](../adr/ADR-384-the-re-founding-meaning-folders-permission-as-metadata.md) §7).

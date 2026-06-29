@@ -1190,6 +1190,26 @@ export const api = {
         }>;
       }>(`/api/workspace/recent-revisions?limit=${limit}`),
 
+    // ADR-373 D2: the workspace's principals — WHO can write here, and WHAT
+    // write-regions they hold. Read-only legibility over principal_grants; the
+    // grant-consult (the gate) authorizes per-principal, this surfaces the same
+    // facts. An MCP connector from an external LLM is a *member* (a foreign-llm
+    // principal), so this lists humans AND foreign-LLM/3rd-party principals.
+    getMembers: () =>
+      request<{
+        members: Array<{
+          principal_id: string;
+          role: string; // owner | member | own-agent | foreign-llm | platform | a2a
+          label: string | null; // humanized name (email / LLM room / slug)
+          write_regions: string[]; // resolved write-region set (grant scopes or class-default)
+          scopes_explicit: boolean; // true if narrowed by an explicit grant
+          status: string;
+          granted_by: string | null;
+          created_at: string | null;
+        }>;
+        grant_consult_active: boolean;
+      }>("/api/workspace/members"),
+
     editFile: (path: string, content: string, summary?: string, message?: string) =>
       request<{ success: boolean; path: string; updated_at: string }>(
         `/api/workspace/file`,

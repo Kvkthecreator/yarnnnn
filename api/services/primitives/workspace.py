@@ -1765,7 +1765,14 @@ def _caller_class(auth: Any) -> str:
     CALLER_WRITE_POLICY keys: operator | reviewer | mcp | agent | system.
     """
     caller_identity = getattr(auth, "caller_identity", "") or ""
-    if caller_identity == "yarnnn:mcp":
+    if caller_identity.startswith("yarnnn:mcp"):
+        # ADR-288 D1: the live MCP caller_identity is ROOM-QUALIFIED
+        # (`yarnnn:mcp:claude.ai`), not bare `yarnnn:mcp`. The pre-2026-06-29
+        # exact `== "yarnnn:mcp"` check MISSED every real MCP caller and
+        # misclassified it as `agent` (the fall-through default). Fixed to
+        # startswith alongside the twin gate-branch fix in permission.py
+        # (ADR-373 grant-consult session) so the MCP class — and its topology
+        # lock — actually engages for the live foreign-LLM path.
         return "mcp"
     if getattr(auth, "reviewer_caller", False) or caller_identity.startswith("reviewer:"):
         return "reviewer"
@@ -1806,3 +1813,132 @@ def _is_path_locked(caller_class: str, path: str) -> bool:
 
     locked_prefixes = CALLER_WRITE_POLICY.get(caller_class, ())
     return any(candidate.startswith(prefix) for prefix in locked_prefixes)
+
+
+# ---------------------------------------------------------------------------
+# ADR-373 D2/D3 — the per-principal grant-consult (2026-06-29)
+# ---------------------------------------------------------------------------
+#
+# This wraps `_is_path_locked` with a per-principal layer. Today the gate
+# authorizes at CLASS granularity (`_caller_class` → CALLER_WRITE_POLICY). The
+# consult brings authorization to PRINCIPAL granularity — the same granularity
+# attribution already has (ADR-288) — by resolving the caller's row in
+# `principal_grants` and using its `scopes` when present.
+#
+# POLARITY (the load-bearing subtlety): CALLER_WRITE_POLICY lists LOCKED
+# prefixes (roots a class CANNOT write); a grant's `scopes` is an ALLOWED
+# write-region set (roots a principal MAY author). They are complements. The
+# consult must not swap one for the other:
+#   - no grant row / scopes NULL  → fall through to _is_path_locked (class
+#     default = TODAY'S EXACT BEHAVIOR — the safety invariant).
+#   - explicit scopes present     → allow-list: locked iff the path's top-level
+#     root is NOT in the granted region set (a NARROWING within the class
+#     ceiling that the owner issued).
+#
+# At N=1 (every live workspace) the only grant rows are the owner's with NULL
+# scopes, so EVERY caller hits the fall-through branch — byte-identical to the
+# pre-consult gate. The grant-honored branch is exercised only once a narrowing
+# grant row exists (a scoped member / foreign-llm — the post-launch additive
+# case, ADR-373 D4).
+
+#: Per-request memo of (principal_id, workspace_id) → grant scopes (or None).
+#: The gate runs on every consequential write; this avoids a duplicate DB
+#: round-trip when one request gates several paths (e.g. MoveFile's two). Keyed
+#: on the auth object's id() for the request lifetime; mirrors the existing
+#: per-process owner-workspace memoization (resolve_owner_workspace_id).
+from threading import local as _threadlocal
+_grant_cache = _threadlocal()
+
+
+def _grant_root_set(scopes: list[str]) -> set[str]:
+    """Normalize a grant's `scopes` to a set of top-level root prefixes.
+
+    Scopes are write-region prefixes (e.g. ``operation/``, ``agents/``). A
+    path is allowed iff its top-level root matches a granted prefix. Trailing
+    slashes are normalized so ``operation`` and ``operation/`` both match.
+    """
+    return {s.rstrip("/") + "/" for s in scopes if s}
+
+
+def _lookup_grant_scopes(auth: Any) -> Optional[list[str]]:
+    """Resolve the caller's active-grant `scopes` (ADR-373 D2), or None.
+
+    Returns the explicit scopes list when an active grant row exists WITH
+    non-NULL scopes; returns None when there is no grant row OR scopes is NULL —
+    BOTH of which mean "fall back to the class default". The None return is the
+    safety invariant's hinge: it is indistinguishable, at the gate, from the
+    pre-consult world.
+
+    Best-effort + fail-safe: any resolution error returns None (class default),
+    never blocks or widens. Memoized per-request on (principal_id, workspace_id).
+    """
+    from services.supabase import resolve_principal_id, resolve_owner_workspace_id
+
+    principal_id = resolve_principal_id(auth)
+    workspace_id = getattr(auth, "workspace_id", None) or (
+        resolve_owner_workspace_id(getattr(auth, "user_id", "") or "")
+        if getattr(auth, "user_id", None) else None
+    )
+    if not principal_id or not workspace_id:
+        return None  # cannot key the grant → class default
+
+    cache = getattr(_grant_cache, "store", None)
+    if cache is None:
+        cache = _grant_cache.store = {}
+    key = (principal_id, workspace_id)
+    if key in cache:
+        return cache[key]
+
+    scopes: Optional[list[str]] = None
+    try:
+        # Use the SERVICE client for the lookup — the grant table is the gate's
+        # authority and must not depend on the caller's own (mid-transition) RLS.
+        from services.supabase import get_service_client
+        result = (
+            get_service_client()
+            .table("principal_grants")
+            .select("scopes")
+            .eq("principal_id", principal_id)
+            .eq("workspace_id", workspace_id)
+            .eq("status", "active")
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            raw = result.data[0].get("scopes")
+            # NULL scopes → None (class default). A non-empty list → allow-list.
+            if raw:
+                scopes = list(raw)
+    except Exception as exc:  # pragma: no cover — fail safe to class default
+        import logging
+        logging.getLogger(__name__).warning(
+            "[ADR-373] grant lookup failed for (%s, %s): %s — class default.",
+            principal_id, workspace_id, exc,
+        )
+        scopes = None
+
+    cache[key] = scopes
+    return scopes
+
+
+def _is_path_locked_for_principal(auth: Any, path: str) -> bool:
+    """The grant-consulting write-lock (ADR-373 D2). Single gate entry point.
+
+    Resolves the caller's per-principal grant; uses its allow-list scopes when
+    present, else falls back to the class-default `_is_path_locked`. Replaces
+    the direct `_is_path_locked(_caller_class(auth), path)` calls at the gate —
+    one consult site, so a new principal type lights up by writing a grant row,
+    no gate edit.
+    """
+    scopes = _lookup_grant_scopes(auth)
+    if scopes is None:
+        # No grant / NULL scopes → class default = today's behavior.
+        return _is_path_locked(_caller_class(auth), path)
+
+    # Explicit scopes → allow-list. Normalize the candidate path the same way
+    # _is_path_locked does, then lock iff its root is NOT in the granted set.
+    candidate = path.strip().lstrip("/")
+    if candidate.startswith("workspace/"):
+        candidate = candidate[len("workspace/"):]
+    granted_roots = _grant_root_set(scopes)
+    return not any(candidate.startswith(root) for root in granted_roots)

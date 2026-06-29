@@ -26,7 +26,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { Target, UserCircle, Scale, Package, Link2, Rss, AlertCircle, Rocket, Loader2, Wallet, ShieldCheck, Crosshair, ArrowRight } from "lucide-react";
+import { Target, UserCircle, Scale, Package, Link2, Rss, AlertCircle, Rocket, Loader2, Wallet, ShieldCheck, Crosshair, ArrowRight, Users } from "lucide-react";
 import { api, APIError } from "@/lib/api/client";
 import { useSurfacePreferences } from "@/lib/shell/useSurfacePreferences";
 import { SettingsPaneShell, type PaneGroup } from "@/components/settings/SettingsPaneShell";
@@ -37,6 +37,7 @@ import { SourcesCard } from "@/components/workspace-concepts/SourcesCard";
 import { AutonomyCard } from "@/components/workspace-concepts/AutonomyCard";
 import { BudgetCard } from "@/components/workspace-concepts/BudgetCard";
 import { ExpectedOutputCard } from "@/components/workspace-concepts/ExpectedOutputCard";
+import { WorkspaceMembersCard } from "@/components/workspace-concepts/WorkspaceMembersCard";
 import { ProgramLifecycleDrawer } from "@/components/library/ProgramLifecycleDrawer";
 
 // ADR-341/347: pane keys match the kernel registry slugs for pane-grade
@@ -72,6 +73,14 @@ const PANE_GROUPS: PaneGroup[] = [
       { key: "connectors", label: "Connectors", icon: Link2 },
       { key: "sources", label: "Sources", icon: Rss },
     ],
+  },
+  {
+    // ADR-373 D2 — the multi-principal access view. Who (humans, agents,
+    // external LLMs over MCP, platforms) can write to this workspace, and
+    // what region each holds. Read-only legibility; provisioning is a
+    // separate ADR.
+    label: "Access",
+    panes: [{ key: "members", label: "Workspace Members", icon: Users }],
   },
 ];
 
@@ -159,6 +168,13 @@ export default function WorkspaceSettingsPage() {
         return (
           <section className="mb-8">
             <SourcesCard variant="full" />
+          </section>
+        );
+      case "members":
+        // ADR-373 D2 — read-only Workspace Members legibility.
+        return (
+          <section className="mb-8">
+            <WorkspaceMembersCard variant="full" />
           </section>
         );
       default:

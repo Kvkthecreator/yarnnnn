@@ -171,6 +171,12 @@ def test_old_lock_functions_deleted_one_survives():
 
 def test_permission_gate_consults_unified_lock():
     src = PERMISSION_PY.read_text()
-    assert "_is_path_locked(" in src
+    # ADR-373 (2026-06-29): the gate now consults the GRANT-AWARE wrapper
+    # `_is_path_locked_for_principal`, which resolves the caller's per-principal
+    # grant and falls back to the unified `_is_path_locked` class default. The
+    # intent is unchanged — ONE unified lock consult, the two legacy lock
+    # functions stay deleted.
+    assert "_is_path_locked_for_principal(" in src, \
+        "the gate must consult the grant-aware unified lock (ADR-373)"
     assert "_is_path_locked_for_reviewer" not in src
     assert "_is_path_locked_for_mcp" not in src
