@@ -154,121 +154,56 @@ function buildBreadcrumbs(root: TreeNode, targetPath: string): TreeNode[] {
 // Context — the Context filter below keeps only folders.
 const OPERATION_NON_DOMAIN = new Set(['reports', 'specs']);
 
-function buildContextNodes(input: {
-  operationTree?: TreeNode[];
-  uploadTree?: TreeNode[];
-  systemTree?: TreeNode[];
-  personaTree?: TreeNode[];
-  agentsTree?: TreeNode[];
-  domainTitles: Record<string, string>;
-  settings?: Array<{ name: string; filename: string; path: string; updated_at: string | null }>;
-  outputTasks?: Array<{ slug: string; title: string; last_run_at: string | null }>;
+// ADR-388 D1 — the FILESYSTEM-LITERAL explorer tree. One node per actual
+// workspace root (from GET /workspace/roots), each lazy-loading its subtree
+// (getTree). No synthetic cross-root groups, no hardcoded root list: the tree
+// mirrors the real FS 1:1, so the ADR-320 governance/+constitution/ roots and
+// the ADR-376 inbound/ lane show, and any future root the re-founding adds
+// shows too (raw name if unmapped) — correct by construction (ADR-388 §6).
+export interface WorkspaceRoot {
+  name: string;
+  path: string;
+  display_name: string;
+  semantic_class: string;
+  description: string;
+  icon: string;
+  file_count: number;
+  exists: boolean;
+}
+
+function buildRootNodes(input: {
+  roots: WorkspaceRoot[];
+  subtrees: Record<string, TreeNode[]>; // root name → its getTree children
+  domainTitles: Record<string, string>; // operation/{folder} → registry display name
 }): TreeNode[] {
   // The only path still hidden: operation/signals (temporal churn log).
   const isHidden = (node: TreeNode): boolean =>
     node.path.startsWith('/workspace/operation/signals');
   const notHidden = (node: TreeNode) => !isHidden(node);
 
-  // Context = operation/ folders that are real domains (disk-derived).
-  // Reports/specs and the loose BRAND/CONVENTIONS files are excluded.
-  const operationTop = asNodeArray(input.operationTree);
-  const domainChildren = operationTop
-    .filter((n) =>
-      n.type === 'folder' &&
-      !OPERATION_NON_DOMAIN.has(n.name) &&
-      notHidden(n)
-    )
-    .map((n) => ({
-      ...n,
-      // Enrich label from the registry display name when the domain key
-      // matches; otherwise keep the on-disk folder name.
-      name: input.domainTitles[n.name] || n.name,
-      children: n.children ? filterNodes(n.children, notHidden) : undefined,
-    }));
+  return input.roots.map((root) => {
+    let children = filterNodes(input.subtrees[root.name], notHidden);
 
-  const uploadChildren = asNodeArray(input.uploadTree);
-  const systemChildren = filterNodes(input.systemTree, notHidden);
-  const personaChildren = filterNodes(input.personaTree, notHidden);
-  const agentsChildren = filterNodes(input.agentsTree, notHidden);
-  const settingsFiles = Array.isArray(input.settings) ? input.settings : [];
+    // operation/ keeps its registry display-name enrichment on domain folders
+    // (the only place we relabel a child) — the substrate stays literal, the
+    // operator just sees "Competitors" instead of the raw folder key.
+    if (root.name === 'operation') {
+      children = (children ?? []).map((n) =>
+        n.type === 'folder' && !OPERATION_NON_DOMAIN.has(n.name)
+          ? { ...n, name: input.domainTitles[n.name] || n.name }
+          : n
+      );
+    }
 
-  // Reports: DELIVERABLE-shape recurrences (ADR-180 + ADR-231 D2).
-  const outputTasks = input.outputTasks ?? [];
-  const outputChildren: TreeNode[] = outputTasks.map(task => ({
-    name: task.title,
-    path: `/workspace/operation/reports/${task.slug}`,
-    type: 'folder' as const,
-    updated_at: task.last_run_at ?? undefined,
-    summary: task.last_run_at ? `Latest output` : 'No output yet',
-  }));
-
-  // ADR-206 Intent-first ordering. Sections with zero children are omitted
-  // (a program may not have populated a region yet). Identity + Context are
-  // always shown; Reports/Persona/System/Agents/Uploads omit-if-empty.
-  const maybe = (node: TreeNode): TreeNode | null =>
-    (node.children?.length ?? 0) > 0 ? node : null;
-
-  return [
-    {
-      name: 'Identity',
-      path: `${EXPLORER_ROOT_PATH}/settings`,
+    const count = children?.length ?? 0;
+    return {
+      name: root.display_name, // friendly label; raw name for unmapped roots
+      path: root.path, // the REAL fs path (/workspace/{name}) — clickable, resolves
       type: 'folder' as const,
-      summary: settingsFiles.length ? `${settingsFiles.length} files` : 'Declare identity, brand, conventions',
-      children: settingsFiles.map((file) => ({
-        name: file.filename,
-        path: file.path,
-        type: 'file' as const,
-        updated_at: file.updated_at || undefined,
-        summary: file.name,
-      })),
-    },
-    {
-      name: 'Context',
-      path: `${EXPLORER_ROOT_PATH}/context`,
-      type: 'folder' as const,
-      summary: domainChildren.length ? `${domainChildren.length} domains` : 'No domains yet',
-      children: domainChildren,
-    },
-    maybe({
-      name: 'Reports',
-      path: `${EXPLORER_ROOT_PATH}/outputs`,
-      type: 'folder' as const,
-      summary: outputChildren.length ? `${outputChildren.length} reports` : 'No reports yet',
-      children: outputChildren,
-    }),
-    // Persona — the Reviewer seat (ADR-320: was the dead /workspace/review
-    // fetch). The Reviewer's IDENTITY, principles, judgment trail + calibration.
-    maybe({
-      name: 'Persona',
-      path: '/workspace/persona',
-      type: 'folder' as const,
-      summary: `${personaChildren.length} files`,
-      children: personaChildren,
-    }),
-    // System — YARNNN's working memory (ADR-320: was the dead /workspace/memory
-    // fetch). awareness, notes, style, conversation + machine state.
-    maybe({
-      name: 'System',
-      path: '/workspace/system',
-      type: 'folder' as const,
-      summary: `${systemChildren.length} files`,
-      children: systemChildren,
-    }),
-    maybe({
-      name: 'Agents',
-      path: '/workspace/agents',
-      type: 'folder' as const,
-      summary: `${agentsChildren.length} agents`,
-      children: agentsChildren,
-    }),
-    maybe({
-      name: 'Uploads',
-      path: `${EXPLORER_ROOT_PATH}/uploads`,
-      type: 'folder' as const,
-      summary: `${uploadChildren.length} items`,
-      children: uploadChildren,
-    }),
-  ].filter((n): n is TreeNode => n !== null);
+      summary: root.description || (count ? `${count} items` : 'Empty'),
+      children,
+    } satisfies TreeNode;
+  });
 }
 
 // Map ADR-209 authored_by taxonomy to operator-readable labels.
@@ -411,28 +346,15 @@ export default function ContextPage() {
   const loadExplorer = useCallback(async () => {
     setFileTreeLoading(true);
     try {
-      // ADR-320 topology (2026-06-10): fetch the real five-root substrate.
-      // operation/ (domains + reports), persona/ (Reviewer seat), system/
-      // (YARNNN memory), agents/, uploads/. The legacy /workspace/context,
-      // /workspace/review, /workspace/memory roots are dead — fetching them
-      // returned empty groups (silent drift). .catch(()=>[]) so any single
-      // tree's error doesn't take down the explorer.
-      const [
-        nav,
-        operationTree,
-        uploadTree,
-        systemTreeR,
-        personaTreeR,
-        agentsTreeR,
-        tasksData,
-      ] = await Promise.all([
+      // ADR-388 D1: derive the explorer from the ACTUAL filesystem roots
+      // (GET /workspace/roots), not a hardcoded list. Then fetch each root's
+      // subtree in parallel. This is the root-cause kill for the missing-
+      // directories bug: governance/, constitution/, inbound/ — and any future
+      // root — appear automatically. nav is still fetched for the operation/
+      // domain display-name enrichment + readiness phase.
+      const [nav, roots] = await Promise.all([
         api.workspace.getNav(),
-        api.workspace.getTree('/workspace/operation'),
-        api.workspace.getTree('/workspace/uploads'),
-        api.workspace.getTree('/workspace/system').catch(() => []),
-        api.workspace.getTree('/workspace/persona').catch(() => []),
-        api.workspace.getTree('/workspace/agents').catch(() => []),
-        api.recurrences.list(),
+        api.workspace.getRoots(),
       ]);
 
       const navDomains = Array.isArray(nav?.domains) ? nav.domains : [];
@@ -446,26 +368,19 @@ export default function ContextPage() {
         })
       );
 
-      // Phase I: per ADR-261 D1, every recurrence is report-shaped on disk
-      // (writes to /workspace/operation/reports/{slug}/{date}/output.md). Show every
-      // operator-facing recurrence that has run at least once; back-office
-      // recurrences (slug prefix `back-office-`) are not surfaced in the
-      // context tree.
-      const allTasks = Array.isArray(tasksData) ? tasksData : [];
-      const outputTasks = allTasks
-        .filter((t: any) => t.last_run_at && !t.slug?.startsWith('back-office-'))
-        .map((t: any) => ({ slug: t.slug, title: t.title, last_run_at: t.last_run_at }));
+      // Fetch each real root's subtree in parallel (catch-per-root so one
+      // failure doesn't take down the explorer). Empty roots (file_count 0,
+      // e.g. agents/uploads) still render as creatable nodes — no fetch needed.
+      const subtreeEntries = await Promise.all(
+        roots.map(async (r) => {
+          if (!r.exists) return [r.name, []] as const;
+          const tree = await api.workspace.getTree(r.path).catch(() => []);
+          return [r.name, asNodeArray(tree)] as const;
+        })
+      );
+      const subtrees: Record<string, TreeNode[]> = Object.fromEntries(subtreeEntries);
 
-      const nodes = buildContextNodes({
-        operationTree: asNodeArray(operationTree),
-        uploadTree: asNodeArray(uploadTree),
-        systemTree: asNodeArray(systemTreeR),
-        personaTree: asNodeArray(personaTreeR),
-        agentsTree: asNodeArray(agentsTreeR),
-        domainTitles,
-        settings: Array.isArray(nav?.settings) ? nav.settings : [],
-        outputTasks,
-      });
+      const nodes = buildRootNodes({ roots, subtrees, domainTitles });
 
       setTreeNodes(nodes);
       setPhase(nav.readiness?.phase || 'active');
@@ -479,17 +394,14 @@ export default function ContextPage() {
         return;
       }
 
-      // ?domain= deep-link — select the domain folder
+      // ?domain= deep-link — select the domain folder under the operation root
+      // (ADR-388 D1: domains now nest under the literal operation/ root, not a
+      // synthetic "Context" group). Resolve directly by its real path.
       if (domainParam) {
-        const contextFolder = nodes.find(n => n.name === 'Context');
-        if (contextFolder?.children) {
-          const domainNode = contextFolder.children.find(
-            n => n.path === `/workspace/operation/${domainParam}` || n.path.endsWith(`/${domainParam}`)
-          );
-          if (domainNode) {
-            setSelectedPath(domainNode.path);
-            return;
-          }
+        const domainPath = `/workspace/operation/${domainParam}`;
+        if (resolveNodeByPath(root, domainPath)) {
+          setSelectedPath(domainPath);
+          return;
         }
       }
 

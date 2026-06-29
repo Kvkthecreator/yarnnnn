@@ -509,6 +509,89 @@ async def get_workspace_tree(
 
 
 # =============================================================================
+# GET /workspace/roots — the Files explorer tree SPINE (ADR-388 D1)
+# =============================================================================
+
+@router.get("/workspace/roots")
+async def get_workspace_roots(auth: UserClient) -> list[dict]:
+    """The actual top-level directories under /workspace/, for the derived
+    explorer tree (ADR-388 D1 — filesystem-literal, never a hardcoded list).
+
+    Cheap: one path scan, distinct top-level segment, counted in Python (the
+    PostgREST client has no GROUP BY). Merged with WORKSPACE_ROOTS so known
+    roots get friendly labels/icons and unknown/new roots still appear (raw
+    name) — so the ADR-320 governance/+constitution/ roots and the ADR-376
+    inbound/ lane show, and any future root the re-founding adds shows too,
+    with zero code change (ADR-388 §6).
+
+    Canonical-but-empty roots (agents/, uploads/) are included so the operator
+    sees them as creatable. The response is sorted by WORKSPACE_ROOTS.order
+    (unknown roots last, alphabetically). Each entry:
+      {name, path, display_name, semantic_class, description, icon,
+       file_count, exists}
+    """
+    from services.workspace_paths import WORKSPACE_ROOTS, root_metadata
+
+    try:
+        # Scan distinct top-level segments. We only need `path` (cheap select),
+        # excluding archived files (mirror the tree query's lifecycle filter).
+        result = (
+            auth.client.table("workspace_files")
+            .select("path")
+            .eq("user_id", auth.user_id)
+            .like("path", "/workspace/%")
+            .or_("lifecycle.is.null,lifecycle.neq.archived")
+            .limit(5000)
+            .execute()
+        )
+        rows = result.data or []
+
+        # Count files per top-level segment. A depth-1 file (e.g.
+        # /workspace/_workspace_guide.md) has no segment dir — skip it (it's a
+        # file, not a root); it surfaces under the root listing, not as a root.
+        counts: dict[str, int] = {}
+        for row in rows:
+            rel = (row.get("path") or "")[len("/workspace/"):]
+            if "/" not in rel:
+                continue  # depth-1 file, not a root directory
+            seg = rel.split("/", 1)[0]
+            if not seg:
+                continue
+            counts[seg] = counts.get(seg, 0) + 1
+
+        # Union of: roots that actually have files + canonical roots we always
+        # show (even empty) so the operator can create into them.
+        always_show = {"agents", "uploads"}
+        names = set(counts) | (always_show & set(WORKSPACE_ROOTS))
+
+        out: list[dict] = []
+        for name in names:
+            meta = root_metadata(name)
+            count = counts.get(name, 0)
+            out.append(
+                {
+                    "name": name,
+                    "path": f"/workspace/{name}",
+                    "display_name": meta["display_name"],
+                    "semantic_class": meta["semantic_class"],
+                    "description": meta["description"],
+                    "icon": meta["icon"],
+                    "file_count": count,
+                    "exists": count > 0,
+                    "_order": meta["order"],
+                }
+            )
+
+        # Sort by known order, then alphabetically by display_name.
+        out.sort(key=lambda r: (r.pop("_order"), r["display_name"].lower()))
+        return out
+
+    except Exception as e:
+        logger.error(f"[WORKSPACE_API] Roots query failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
 # GET /workspace/file — Read file content
 # =============================================================================
 

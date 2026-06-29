@@ -93,6 +93,119 @@ INBOUND_ROOT = "inbound/"
 
 
 # =============================================================================
+# WORKSPACE_ROOTS — the UI source-of-truth for the Files surface (ADR-388 D1)
+# =============================================================================
+# The Files explorer DERIVES its tree from the actual filesystem roots
+# (GET /workspace/roots), not a hardcoded list — so every directory shows and
+# no future root can go missing (the ADR-388 root-cause kill). This dict gives
+# each KNOWN root a friendly display label + icon hint + one-line description +
+# its ADR-320 semantic class. The explorer is filesystem-LITERAL: it renders
+# whatever roots exist; a root NOT in this map still renders, using its raw
+# directory name (forward-compatible with the re-founding re-homing roots —
+# ADR-388 §6). `order` is the at-rest sort (lower = higher in the tree);
+# unknown roots sort after all known ones, alphabetically.
+#
+# `icon` is a lucide-react icon NAME (resolved FE-side, mirroring the
+# surface-icons pattern) — the kernel names the glyph, the FE maps it.
+WORKSPACE_ROOTS: dict[str, dict] = {
+    # The ADR-320 semantic-class roots, in constitution→operation reading order.
+    "constitution": {
+        "display_name": "Constitution",
+        "semantic_class": "operator-intent",
+        "description": "Operator intent the agent amends against ground truth — MANDATE, PRECEDENT.",
+        "icon": "scroll-text",
+        "order": 10,
+    },
+    "governance": {
+        "display_name": "Governance",
+        "semantic_class": "grant",
+        "description": "The grant — authority + spend the agent runs under. Operator-only, locked.",
+        "icon": "shield",
+        "order": 20,
+    },
+    "contract": {
+        "display_name": "Contract",
+        "semantic_class": "contract",
+        "description": "What the operator declares the agent owes and prefers — mode-governed.",
+        "icon": "file-signature",
+        "order": 30,
+    },
+    "persona": {
+        "display_name": "Persona",
+        "semantic_class": "seat",
+        "description": "How the agent reasons — IDENTITY, principles, the seat's working files.",
+        "icon": "brain",
+        "order": 40,
+    },
+    "operation": {
+        "display_name": "Operation",
+        "semantic_class": "work",
+        "description": "The work the agent operates — context domains, reports, the live substrate.",
+        "icon": "folder-cog",
+        "order": 50,
+    },
+    "system": {
+        "display_name": "System",
+        "semantic_class": "runtime",
+        "description": "Orchestration runtime — awareness, notes, style, system ledger.",
+        "icon": "settings",
+        "order": 60,
+    },
+    "agents": {
+        "display_name": "Agents",
+        "semantic_class": "agents",
+        "description": "Per-agent homes (the Rung-2 judgment seats, when present).",
+        "icon": "users",
+        "order": 70,
+    },
+    "inbound": {
+        "display_name": "Intake",
+        "semantic_class": "raw-lane",
+        "description": "Raw attributed observations from external principals (MCP, connectors) — immutable, cited.",
+        "icon": "arrow-down-to-line",
+        "order": 80,
+    },
+    "uploads": {
+        "display_name": "Uploads",
+        "semantic_class": "raw-lane",
+        "description": "Raw files the operator uploaded — the human case of the intake lane.",
+        "icon": "upload",
+        "order": 90,
+    },
+    "working": {
+        "display_name": "Working",
+        "semantic_class": "ephemeral",
+        "description": "Ephemeral scratch — transient working files.",
+        "icon": "file-clock",
+        "order": 100,
+    },
+}
+
+
+def root_metadata(root_name: str) -> dict:
+    """ADR-388 D1 — UI metadata for a workspace root.
+
+    `root_name` is the bare top-level segment (e.g. "constitution", "inbound").
+    Returns the WORKSPACE_ROOTS entry for a known root, or a filesystem-literal
+    fallback for an unknown/new root (display = the raw name title-cased, a
+    generic folder icon, sorted after all known roots). This is what makes the
+    derived tree forward-compatible: a root the kernel has never heard of still
+    renders with its real directory name.
+    """
+    known = WORKSPACE_ROOTS.get(root_name)
+    if known is not None:
+        return {"name": root_name, **known}
+    return {
+        "name": root_name,
+        "display_name": root_name.replace("_", " ").replace("-", " ").title(),
+        "semantic_class": "unknown",
+        "description": "",
+        "icon": "folder",
+        "order": 1000,
+    }
+
+
+# =============================================================================
 # governance/ — the GRANT: authority + spend the agent runs under (locked-always)
 # =============================================================================
 # These two are the irreducible lock set (re-ratifies ADR-293's "two governance

@@ -1159,6 +1159,24 @@ export const api = {
     getTree: (root: string = "/workspace") =>
       request<WorkspaceTreeNode[]>(`/api/workspace/tree?root=${encodeURIComponent(root)}`),
 
+    // ADR-388 D1: the explorer tree SPINE — the actual top-level directories
+    // under /workspace/ (filesystem-literal, never a hardcoded list). Known
+    // roots carry friendly label/icon from WORKSPACE_ROOTS; unknown/new roots
+    // still appear (raw name). Subtrees lazy-load per root via getTree.
+    getRoots: () =>
+      request<
+        Array<{
+          name: string;
+          path: string;
+          display_name: string;
+          semantic_class: string;
+          description: string;
+          icon: string;
+          file_count: number;
+          exists: boolean;
+        }>
+      >(`/api/workspace/roots`),
+
     getFile: (path: string) =>
       request<WorkspaceFile>(`/api/workspace/file?path=${encodeURIComponent(path)}`),
 
